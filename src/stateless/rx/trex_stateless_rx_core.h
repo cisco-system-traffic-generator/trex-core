@@ -136,10 +136,10 @@ class CRxCoreStateless {
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage(bool do_try_rx_queue);
 
-    int try_rx(bool flush_rx = false);
+    int process_all_pending_pkts(bool flush_rx = false);
 
-    void flush_rx() {
-        try_rx(true);
+    void flush_all_pending_pkts() {
+        process_all_pending_pkts(true);
     }
 
     void try_rx_queues();

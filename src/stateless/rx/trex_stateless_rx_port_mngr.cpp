@@ -196,3 +196,53 @@ RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
         stop();
     }
 }
+
+
+void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
+
+    /* handle features */
+
+    if (is_feature_set(LATENCY)) {
+        m_latency.handle_pkt(m);
+    }
+
+    if (is_feature_set(RECORD)) {
+        m_recorder.handle_pkt(m);
+    }
+
+    if (is_feature_set(QUEUE)) {
+        m_pkt_buffer->push(new RxPacket(m));
+    }
+}
+
+
+int RXPortManager::process_all_pending_pkts(bool flush_rx) {
+
+    rte_mbuf_t *rx_pkts[64];
+
+    /* try to read 64 packets clean up the queue */
+    uint16_t cnt_p = m_io->rx_burst(rx_pkts, 64);
+    if (cnt_p == 0) {
+        return cnt_p;
+    }
+
+
+    m_cpu_dp_u->start_work1();
+
+    for (int j = 0; j < cnt_p; j++) {
+        rte_mbuf_t *m = rx_pkts[j];
+
+        if (!flush_rx) {
+            handle_pkt(m);
+        }
+
+        rte_pktmbuf_free(m);
+    }
+
+    /* commit only if there was work to do ! */
+    m_cpu_dp_u->commit1();
+
+
+    return cnt_p;
+}
+

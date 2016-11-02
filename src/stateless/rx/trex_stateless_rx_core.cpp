@@ -80,13 +80,15 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
         m_rfc2544[i].create();
     }
 
-    /* init per port manager */
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].create(cfg.m_ports[i], m_rfc2544, &m_err_cntrs);
-    }
-
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
+    /* init per port manager */
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].create(cfg.m_ports[i],
+                                 m_rfc2544,
+                                 &m_err_cntrs,
+                                 &m_cpu_dp_u);
+    }
 }
 
 void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
@@ -137,7 +139,7 @@ void CRxCoreStateless::idle_state_loop() {
             counter = 0;
             continue;
         } else {
-            flush_rx();
+            flush_all_pending_pkts();
         }
 
         /* enter deep sleep only if enough time had passed */
@@ -159,7 +161,7 @@ void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
             try_rx_queues();
         }
 
-        try_rx();
+        process_all_pending_pkts();
 
         i++;
         if (i == 100000) { // approx 10msec
@@ -256,34 +258,17 @@ void CRxCoreStateless::try_rx_queues() {
     }
 }
 
-int CRxCoreStateless::try_rx(bool flush_rx) {
-    rte_mbuf_t * rx_pkts[64];
-    int i, total_pkts = 0;
-    for (i = 0; i < m_max_ports; i++) {
-        RXPortManager &lp = m_rx_port_mngr[i];
+int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
 
-        /* try to read 64 packets clean up the queue */
-        uint16_t cnt_p = lp.get_io()->rx_burst(rx_pkts, 64);
-        /* if no packets or its a flush - ignore */
-        if ( (cnt_p == 0) || flush_rx ) {
-            continue;
-        }
+	int total_pkts = 0;
+	for (int i = 0; i < m_max_ports; i++) {
+		total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
+	}
 
-        total_pkts += cnt_p;
-        m_cpu_dp_u.start_work1();
+	return total_pkts;
 
-        for (int j = 0; j < cnt_p; j++) {
-            rte_mbuf_t *m = rx_pkts[j];
-            lp.handle_pkt(m);
-            rte_pktmbuf_free(m);
-        }
-        /* commit only if there was work to do ! */
-        m_cpu_dp_u.commit1();
-
-    }
-
-    return total_pkts;
 }
+
 
 void CRxCoreStateless::reset_rx_stats(uint8_t port_id) {
     m_rx_port_mngr[port_id].clear_stats();
@@ -351,6 +336,14 @@ double CRxCoreStateless::get_cpu_util() {
 }
 
 
+/**
+ * configure RX filtering mode (HW or software)
+ * 
+ * @author imarom (11/1/2016)
+ * 
+ * @param port_id 
+ * @param filter_mode 
+ */
 void
 CRxCoreStateless::set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) {
     const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();

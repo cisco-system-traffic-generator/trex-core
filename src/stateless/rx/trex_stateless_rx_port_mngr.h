@@ -242,12 +242,17 @@ public:
     RXPortManager() {
         m_features = 0;
         m_pkt_buffer = NULL;
-        m_io = NULL;
+        m_io         = NULL;
+        m_cpu_dp_u   = NULL;
         set_feature(LATENCY);
     }
 
-    void create(CPortLatencyHWBase *io, CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
+    void create(CPortLatencyHWBase *io,
+                CRFC2544Info *rfc2544,
+                CRxCoreErrCntrs *err_cntrs,
+                CCpuUtlDp *cpu_util) {
         m_io = io;
+        m_cpu_dp_u = cpu_util;
         m_latency.create(rfc2544, err_cntrs);
     }
 
@@ -301,28 +306,31 @@ public:
         return old_buffer;
     }
 
-    void handle_pkt(const rte_mbuf_t *m) {
 
-        /* handle features */
+    /**
+     * fetch and process all packets
+     * 
+     */
+    int process_all_pending_pkts(bool flush_rx = false);
 
-        if (is_feature_set(LATENCY)) {
-            m_latency.handle_pkt(m);
-        }
 
-        if (is_feature_set(RECORD)) {
-            m_recorder.handle_pkt(m);
-        }
-
-        if (is_feature_set(QUEUE)) {
-            m_pkt_buffer->push(new RxPacket(m));
-        }
+    /**
+     * flush all pending packets without processing them
+     * 
+     */
+    void flush_all_pending_pkts() {
+        process_all_pending_pkts(true);
     }
 
-    CPortLatencyHWBase *get_io() {
-        return m_io;
-    }
+    
+    /**
+     * handle a single packet
+     * 
+     */
+    void handle_pkt(const rte_mbuf_t *m);
 
 private:
+    
 
     void set_feature(features_t feature) {
         m_features |= feature;
@@ -344,7 +352,7 @@ private:
     RXPacketRecorder             m_recorder;
     RXLatency                    m_latency;
     RxPacketBuffer              *m_pkt_buffer;
-
+    CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
 };
 
