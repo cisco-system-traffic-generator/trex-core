@@ -1305,9 +1305,18 @@ the result as dest MAC. If no dest_mac given, and no ARP response received, TRex
 
 <11> Source MAC to use when sending packets from this interface. If not given (since version 2.10), MAC address of the port will be used.
 <12> If given (since version 2.10), TRex will issue gratitues ARP for the ip + src MAC pair on appropriate port. In stateful mode,
-gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument)
+gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
 <13> If given, gratitues ARP and ARP request will be sent using the given VLAN tag.
 <14> Old MAC address format. New format is supported since version v2.09.
+
+[NOTE]
+=========================================================================================
+If you use version earlier than 2.10, or choose to omit the ``ip''
+and have mac based configuration, be aware that TRex will not send any
+gratitues ARP and will not answer ARP requests. In this case, you must configure static
+ARP entries pointing to TRex port on your DUT. For an example config, you can look
+xref:trex_config[here].
+=========================================================================================
 
 To find out which interfaces (NIC ports) can be used, perform the following:
 
