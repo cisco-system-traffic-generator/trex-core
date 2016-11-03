@@ -609,7 +609,7 @@ def get_info_from_trex(pci_addr_list):
             pci_info_dict[pci]['TRex_Driver'] = match.group(3)
     return pci_info_dict
 
-def show_table():
+def show_table(get_macs = True):
     '''Function called when the script is passed the "--table" option.
     Similar to show_status() function, but shows more info: NUMA etc.'''
     global dpdk_drivers
@@ -620,12 +620,13 @@ def show_table():
         if devices[d].get("Driver_str") in dpdk_drivers:
             dpdk_drv.append(d)
 
-    for pci, info in get_info_from_trex(dpdk_drv).items():
-        if pci not in dpdk_drv: # sanity check, should not happen
-            print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
-            return
-        devices[pci].update(info)
-        
+    if get_macs:
+        for pci, info in get_info_from_trex(dpdk_drv).items():
+            if pci not in dpdk_drv: # sanity check, should not happen
+                print('Internal error while getting MACs of DPDK bound interfaces, unknown PCI: %s' % pci)
+                return
+            devices[pci].update(info)
+
     table = texttable.Texttable(max_width=-1)
     table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])
     for id, pci in enumerate(sorted(devices.keys())):

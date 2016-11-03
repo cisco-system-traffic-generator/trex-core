@@ -431,7 +431,7 @@ Other network devices
     # input: list of different descriptions of interfaces: index, pci, name etc.
     # Binds to dpdk wanted interfaces, not bound to any driver.
     # output: list of maps of devices in dpdk_* format (self.m_devices.values())
-    def _get_wanted_interfaces(self, input_interfaces):
+    def _get_wanted_interfaces(self, input_interfaces, get_macs = True):
         if type(input_interfaces) is not list:
             raise DpdkSetup('type of input interfaces should be list')
         if not len(input_interfaces):
@@ -459,26 +459,23 @@ Other network devices
             dev['Interface_argv'] = interface
             wanted_interfaces.append(dev)
 
-        unbound = []
-        dpdk_bound = []
-        for interface in wanted_interfaces:
-            if 'Driver_str' not in interface:
-                unbound.append(interface['Slot'])
-            elif interface.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
-                dpdk_bound.append(interface['Slot'])
-        if unbound or dpdk_bound:
-            for pci, info in dpdk_nic_bind.get_info_from_trex(unbound + dpdk_bound).items():
-                if pci not in self.m_devices:
-                    raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
-                self.m_devices[pci].update(info)
+        if get_macs:
+            unbound = []
+            dpdk_bound = []
+            for interface in wanted_interfaces:
+                if 'Driver_str' not in interface:
+                    unbound.append(interface['Slot'])
+                elif interface.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                    dpdk_bound.append(interface['Slot'])
+            if unbound or dpdk_bound:
+                for pci, info in dpdk_nic_bind.get_info_from_trex(unbound + dpdk_bound).items():
+                    if pci not in self.m_devices:
+                        raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
+                    self.m_devices[pci].update(info)
 
         return wanted_interfaces
 
     def do_create(self):
-        # gather info about NICS from dpdk_nic_bind.py
-        if not self.m_devices:
-            self.run_dpdk_lspci()
-        wanted_interfaces = self._get_wanted_interfaces(map_driver.args.create_interfaces)
 
         ips = map_driver.args.ips
         def_gws = map_driver.args.def_gws
@@ -495,13 +492,18 @@ Other network devices
                 raise DpdkSetup("If specifying ips, must specify also def-gws")
             if dest_macs:
                 raise DpdkSetup("If specifying ips, should not specify dest--macs")
-            if len(ips) != len(def_gws) or len(ips) != len(wanted_interfaces):
+            if len(ips) != len(def_gws) or len(ips) != len(map_driver.args.create_interfaces):
                 raise DpdkSetup("Number of given IPs should equal number of given def-gws and number of interfaces")
         else:
             if dest_macs:
                 ip_config = False
             else:
                 ip_config = True
+
+        # gather info about NICS from dpdk_nic_bind.py
+        if not self.m_devices:
+            self.run_dpdk_lspci()
+        wanted_interfaces = self._get_wanted_interfaces(map_driver.args.create_interfaces, get_macs = not ip_config)
 
         for i, interface in enumerate(wanted_interfaces):
             dual_index = i + 1 - (i % 2) * 2
@@ -548,9 +550,18 @@ Other network devices
                 ignore_numa = True
             else:
                 sys.exit(1)
+
+        if map_driver.args.force_macs:
+            ip_based = False
+        elif dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to use MAC based config? (y/N)"):
+            ip_based = False
+        else:
+            ip_based = True
+            ip_addr_digit = 1
+
         if not self.m_devices:
             self.run_dpdk_lspci()
-        dpdk_nic_bind.show_table()
+        dpdk_nic_bind.show_table(get_macs = not ip_based)
         print('Please choose even number of interfaces from the list above, either by ID , PCI or Linux IF')
         print('Stateful will use order of interfaces: Client1 Server1 Client2 Server2 etc. for flows.')
         print('Stateless can be in any order.')
@@ -578,14 +589,6 @@ Other network devices
                 print('Interface %s is active. Using it by TRex might close ssh connections etc.' % interface['Interface_argv'])
                 if not dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
                     sys.exit(1)
-
-        if map_driver.args.force_macs:
-            ip_based = False
-        elif dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to change to MAC based config? (y/N)"):
-            ip_based = False
-        else:
-            ip_based = True
-            ip_addr_digit = 1
 
         for i, interface in enumerate(wanted_interfaces):
             if not ip_based:
