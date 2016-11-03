@@ -322,12 +322,16 @@ class EventsHandler(object):
 
         # port attr changed
         elif (event_type == 8):
+
             port_id = int(data['port_id'])
+
             if data['attr'] == self.client.ports[port_id].attr:
                 return # false alarm
-            old_info = self.client.ports[port_id].get_info()
+
+            old_info = self.client.ports[port_id].get_formatted_info()
             self.__async_event_port_attr_changed(port_id, data['attr'])
-            new_info = self.client.ports[port_id].get_info()
+
+            new_info = self.client.ports[port_id].get_formatted_info()
             ev = "port {0} attributes changed".format(port_id)
             for key, old_val in old_info.items():
                 new_val = new_info[key]
@@ -1739,10 +1743,6 @@ class STLClient(object):
 
         """
 
-        rc = self.ports[0].set_rx_filter_mode("all")
-        if not rc:
-            raise STLError(rc)
-
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
@@ -2630,7 +2630,13 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def set_port_attr (self, ports = None, promiscuous = None, link_up = None, led_on = None, flow_ctrl = None):
+    def set_port_attr (self, 
+                       ports = None,
+                       promiscuous = None,
+                       link_up = None,
+                       led_on = None,
+                       flow_ctrl = None,
+                       rx_filter_mode = None):
         """
             Set port attributes
 
@@ -2639,7 +2645,7 @@ class STLClient(object):
                 link_up     - True or False
                 led_on      - True or False
                 flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-
+                rx_filter_mode - 'hw' for hardware rules matching packets only or 'all' all packets
             :raises:
                 + :exe:'STLError'
 
@@ -2653,6 +2659,7 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
+        validate_choice('rx_filter_mode', rx_filter_mode, ['hw', 'all'])
 
         # build attributes
         attr_dict = {}
@@ -2664,7 +2671,9 @@ class STLClient(object):
             attr_dict['led_status'] = {'on': led_on}
         if flow_ctrl is not None:
             attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
-        
+        if rx_filter_mode is not None:
+            attr_dict['rx_filter_mode'] = {'mode': rx_filter_mode}
+
         # no attributes to set
         if not attr_dict:
             return
@@ -3234,7 +3243,7 @@ class STLClient(object):
         '''Sets port attributes '''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port_attr",
+                                         "portattr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.PROMISCUOUS,
@@ -3242,19 +3251,20 @@ class STLClient(object):
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
                                          parsing_opts.SUPPORTED,
+                                         parsing_opts.RX_FILTER_MODE,
                                          )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        opts.prom      = parsing_opts.ON_OFF_DICT.get(opts.prom)
-        opts.link      = parsing_opts.UP_DOWN_DICT.get(opts.link)
-        opts.led       = parsing_opts.ON_OFF_DICT.get(opts.led)
-        opts.flow_ctrl = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
+        opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
+        opts.link            = parsing_opts.UP_DOWN_DICT.get(opts.link)
+        opts.led             = parsing_opts.ON_OFF_DICT.get(opts.led)
+        opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp]):
+        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp, opts.rx_filter_mode])):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
@@ -3268,7 +3278,7 @@ class STLClient(object):
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
+            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.rx_filter_mode)
 
 
                         

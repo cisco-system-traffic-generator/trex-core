@@ -90,9 +90,15 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdRelease,    "release",         1, true,  APIClass:
  */
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStats,        "get_port_stats",         1, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortStatus,       "get_port_status",        1, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetPortAttr,         "set_port_attr",          2, true,  APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsValues, "get_port_xstats_values", 1, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, false, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetPortAttr, "set_port_attr", 2, true,  APIClass::API_CLASS_TYPE_CORE,
+
+    int parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result);
+
+);
+
 
 /**
  * stream cmds
@@ -146,10 +152,9 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdPushRemote, "push_remote", 6, true, APIClass::API_
 TREX_RPC_CMD_DEFINE(TrexRpcCmdShutdown, "shutdown", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetRxFeature, "set_rx_feature", 3, false, APIClass::API_CLASS_TYPE_CORE,
-    void parse_filter_mode_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
-	void parse_record_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
-	void parse_queue_msg(const Json::Value &msg,  TrexStatelessPort *port, Json::Value &result);
-	void parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+    void parse_capture_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+    void parse_queue_msg(const Json::Value &msg,  TrexStatelessPort *port, Json::Value &result);
+    void parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
 
 );
 

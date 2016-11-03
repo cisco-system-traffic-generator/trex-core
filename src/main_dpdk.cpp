@@ -4175,6 +4175,8 @@ CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
     data["attr"]["speed"] = _attr->get_link_speed();
     data["attr"]["promiscuous"]["enabled"] = _attr->get_promiscuous();
     data["attr"]["link"]["up"] = _attr->is_link_up();
+    data["attr"]["rx_filter_mode"] = _attr->get_rx_filter_mode();
+
     int mode;
     int ret = _attr->get_flow_ctrl(mode);
     if (ret != 0) {
@@ -6595,6 +6597,21 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
     return g_trex.m_ports[port_id].get_port_attr();
 }
 
+
+int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
+
+    CPhyEthIF *_if = &g_trex.m_ports[m_port_id];
+    bool recv_all = (rx_filter_mode == RX_FILTER_MODE_ALL);
+    int rc = CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(_if, recv_all);
+    if (rc != 0) {
+        return (rc);
+    }
+
+    m_rx_filter_mode = rx_filter_mode;
+
+    return (0);
+}
+
 /**
  * marks the control plane for a total server shutdown
  *
@@ -6604,13 +6621,5 @@ void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
 
-
-void TrexDpdkPlatformApi::set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) const {
-    
-    CPhyEthIF *_if = &g_trex.m_ports[port_id];
-
-    bool recv_all = (filter_mode == RX_FILTER_MODE_ALL);
-    CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(_if, recv_all);
-}
 
 

@@ -135,6 +135,12 @@ def validate_type(arg_name, arg, valid_types):
     else:
         raise STLError('validate_type: valid_types should be type or list or tuple of types')
 
+
+def validate_choice (arg_name, arg, choices):
+    if arg is not None and not arg in choices:
+        raise STLError("validate_choice: argument '{0}' can only be one of '{1}'".format(arg_name, choices))
+
+
 # throws STLError if not exactly one argument is present
 def verify_exclusive_arg (args_list):
     if not (len(list(filter(lambda x: x is not None, args_list))) == 1):

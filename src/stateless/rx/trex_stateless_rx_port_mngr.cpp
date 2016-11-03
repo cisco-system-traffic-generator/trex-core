@@ -148,7 +148,7 @@ RXPacketRecorder::~RXPacketRecorder() {
 }
 
 void
-RXPacketRecorder::start(const std::string &pcap, uint32_t limit) {
+RXPacketRecorder::start(const std::string &pcap, uint64_t limit) {
     m_writer = CCapWriterFactory::CreateWriter(LIBPCAP, (char *)pcap.c_str());
     if (m_writer == NULL) {
         std::stringstream ss;
@@ -206,7 +206,7 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_latency.handle_pkt(m);
     }
 
-    if (is_feature_set(RECORD)) {
+    if (is_feature_set(CAPTURE)) {
         m_recorder.handle_pkt(m);
     }
 

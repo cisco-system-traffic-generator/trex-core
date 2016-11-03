@@ -103,11 +103,8 @@ class CRxCoreStateless {
                      , TrexPlatformApi::driver_stat_cap_e type);
     int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset);
     int get_rx_err_cntrs(CRxCoreErrCntrs *rx_err);
-    void work() {
-        m_state = STATE_WORKING;
-        m_err_cntrs.reset(); // When starting to work, reset global counters
-    }
-    void idle() {m_state = STATE_IDLE;}
+
+
     void quit() {m_state = STATE_QUIT;}
     bool is_working() const {return (m_ack_start_work_msg == true);}
     void set_working_msg_ack(bool val);
@@ -119,19 +116,33 @@ class CRxCoreStateless {
     }
 
     /**
-     * sets the port filter mode
+     * start capturing of RX packets on a specific port
      * 
-     * @author imarom (10/31/2016)
+     * @author imarom (11/2/2016)
      * 
-     * @param filter_mode 
+     * @param port_id 
+     * @param pcap_filename 
+     * @param limit 
      */
-    void set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode);
+    void start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit);
+    void stop_capture(uint8_t port_id);
+
+    /**
+     * enable latency feature for RX packets
+     * will be apply to all ports
+     */
+    void enable_latency();
+    void disable_latency();
 
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
     void tickle();
     void idle_state_loop();
+
+    void recalculate_next_state();
+    bool are_any_features_active();
+
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage(bool do_try_rx_queue);
@@ -145,14 +156,14 @@ class CRxCoreStateless {
     void try_rx_queues();
 
  private:
-    TrexMonitor     m_monitor;
-    uint32_t m_max_ports;
-    bool m_capture;
-    state_e   m_state;
-    CNodeRing *m_ring_from_cp;
-    CNodeRing *m_ring_to_cp;
-    CCpuUtlDp m_cpu_dp_u;
-    CCpuUtlCp m_cpu_cp_u;
+    TrexMonitor      m_monitor;
+    uint32_t         m_max_ports;
+    bool             m_capture;
+    state_e          m_state;
+    CNodeRing       *m_ring_from_cp;
+    CNodeRing       *m_ring_to_cp;
+    CCpuUtlDp        m_cpu_dp_u;
+    CCpuUtlCp        m_cpu_cp_u;
 
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;

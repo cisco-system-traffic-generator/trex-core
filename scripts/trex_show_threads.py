@@ -58,8 +58,8 @@ def isnum (x):
 def find_trex_pid ():
     procs = [x for x in os.listdir('/proc/') if isnum(x)]
     for proc in procs:
-        cmd = open('/proc/{0}/{1}'.format(proc, 'cmdline')).readline()
-        if '_t-rex' in cmd:
+        cmd = open('/proc/{0}/{1}'.format(proc, 'comm')).readline()
+        if cmd.startswith('_t-rex-64'):
             return proc
 
     return None

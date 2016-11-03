@@ -157,9 +157,9 @@ private:
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
-    m_port_id = port_id;
-    m_port_state = PORT_STATE_IDLE;
-    m_platform_api = api;
+    m_port_id            = port_id;
+    m_port_state         = PORT_STATE_IDLE;
+    m_platform_api       = api;
 
     /* get the platform specific data */
     api->get_interface_info(port_id, m_api_info);
@@ -585,10 +585,9 @@ TrexStatelessPort::get_max_stream_id() const {
 }
 
 void
-TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
+TrexStatelessPort::get_properties(std::string &driver) {
 
     driver = m_api_info.driver_name;
-    speed = m_platform_api->getPortAttrObj(m_port_id)->get_link_speed();
 }
 
 bool
@@ -945,16 +944,15 @@ TrexStatelessPort::remove_and_delete_all_streams() {
     }
 }
 
-/**
- * set the filter type for a port
- * 
- * @author imarom (10/31/2016)
- * 
- * @param rx_sw_cfg 
- */
+void 
+TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit);
+    send_message_to_rx(msg);
+}
+
 void
-TrexStatelessPort::set_rx_filter_mode(rx_filter_mode_e filter_mode) {
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxSetFilterMode(m_port_id, filter_mode);
+TrexStatelessPort::stop_rx_capture() {
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
     send_message_to_rx(msg);
 }
 

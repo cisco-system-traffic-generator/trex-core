@@ -257,11 +257,8 @@ public:
      * @author imarom (16-Sep-15)
      *
      * @param driver
-     * @param speed
      */
-    void get_properties(std::string &driver, uint32_t &speed);
-
-
+    void get_properties(std::string &driver);
 
     /**
      * encode stats as JSON
@@ -371,11 +368,18 @@ public:
 
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
+
     /**
-	 *  set RX filter mode
-	 *  can be hardware or software
+     * enable RX capture on port
+     * 
      */
-    void set_rx_filter_mode(rx_filter_mode_e);
+    void start_rx_capture(const std::string &pcap_filename, uint64_t limit);
+
+    /**
+     * disable RX capture if on
+     * 
+     */
+    void stop_rx_capture();
 
     /**
      * fetch the RX software packets from the queue
@@ -515,9 +519,9 @@ public:
     static const std::initializer_list<std::string> g_types;
     static const std::initializer_list<std::string> g_ops;
 
-    mul_type_e   m_type;
-    mul_op_e     m_op;
-    double       m_value;
+    mul_type_e             m_type;
+    mul_op_e               m_op;
+    double                 m_value;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */

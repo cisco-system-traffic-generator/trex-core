@@ -968,9 +968,9 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     TrexStatelessCpToRxMsgBase *msg;
 
     if (is_start) {
-        msg = new TrexStatelessRxStartMsg();
+        msg = new TrexStatelessRxEnableLatency();
     } else {
-        msg = new TrexStatelessRxStopMsg();
+        msg = new TrexStatelessRxDisableLatency();
     }
     m_ring_to_rx->Enqueue((CGenNode *)msg);
 }

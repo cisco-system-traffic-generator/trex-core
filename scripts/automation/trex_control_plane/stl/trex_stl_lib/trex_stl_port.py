@@ -128,10 +128,10 @@ class Port(object):
         return RC_OK(data)
 
     def get_speed_bps (self):
-        return (self.info['speed'] * 1000 * 1000 * 1000)
+        return (self.attr['speed'] * 1000 * 1000 * 1000)
 
     def get_formatted_speed (self):
-        return "{0} Gbps".format(self.info['speed'])
+        return "%g Gb/s" % (self.attr['speed'] / 1000)
 
     def is_acquired(self):
         return (self.handler != None)
@@ -252,9 +252,6 @@ class Port(object):
 
         # attributes
         self.attr = rc.data()['attr']
-        if 'speed' in rc.data():
-            self.info['speed'] = rc.data()['speed'] // 1000
-
         return self.ok()
 
 
@@ -487,14 +484,19 @@ class Port(object):
 
         return self.ok()
 
+    #
     @writeable
-    def set_rx_filter_mode (self, filter_mode):
-        assert(filter_mode in ["hw", "all"])
+    def start_rx_capture (self, pcap_filename, limit):
 
-        params = {"handler":      self.handler,
-                  "port_id":      self.port_id,
-                  "type":         "filter_mode",
-                  "filter_type":  filter_mode}
+        prefix, suffix = pcap_filename.split('.')
+        filename = "{0}-{1}.{2}".format(prefix, self.port_id, suffix)
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "capture",
+                  "enabled":        True,
+                  "pcap_filename":  filename,
+                  "limit":          limit}
 
         rc = self.transmit("set_rx_feature", params)
         if rc.bad():
@@ -675,8 +677,8 @@ class Port(object):
                                                                              format_time(exp_time_factor_sec)))
         print("\n")
 
-    # generate port info
-    def get_info (self):
+    # generate formatted (console friendly) port info
+    def get_formatted_info (self):
         info = dict(self.info)
 
         info['status'] = self.get_port_state_name()
@@ -719,6 +721,13 @@ class Port(object):
         else:
             info['is_virtual'] = 'N/A'
 
+        if 'speed' in self.attr:
+            info['speed'] = self.get_formatted_speed()
+        else:
+            info['speed'] = 'N/A'
+                                                  
+        info['rx_filter_mode'] = self.attr.get('rx_filter_mode', 'N/A')
+
         return info
 
 
@@ -731,7 +740,7 @@ class Port(object):
 
     def generate_port_status(self):
 
-        info = self.get_info()
+        info = self.get_formatted_info()
 
         return {"driver":        info['driver'],
                 "description": info.get('description', 'N/A')[:18],
@@ -742,11 +751,14 @@ class Port(object):
                 "NUMA Node":   info['numa'],
                 "--": "",
                 "---": "",
-                "link speed": "{speed} Gb/s".format(speed=info['speed']),
+                "----": "",
+                "link speed": info['speed'],
                 "port status": info['status'],
                 "link status": info['link'],
                 "promiscuous" : info['prom'],
                 "flow ctrl" : info['fc'],
+
+                "RX Filter Mode": info['rx_filter_mode'],
                 }
 
     def clear_stats(self):
@@ -792,7 +804,6 @@ class Port(object):
         self.last_factor_type = None
 
     def async_event_port_attr_changed (self, attr):
-        self.info['speed'] = attr['speed'] // 1000
         self.attr = attr
 
     # rest of the events are used for TUI / read only sessions

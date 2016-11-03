@@ -212,7 +212,7 @@ class RXPacketRecorder {
 public:
     RXPacketRecorder();
     ~RXPacketRecorder();
-    void start(const std::string &pcap, uint32_t limit);
+    void start(const std::string &pcap, uint64_t limit);
     void stop();
     void handle_pkt(const rte_mbuf_t *m);
 
@@ -235,16 +235,15 @@ class RXPortManager {
 public:
     enum features_t {
         LATENCY = 0x1,
-        RECORD  = 0x2,
+        CAPTURE  = 0x2,
         QUEUE   = 0x4
     };
 
     RXPortManager() {
-        m_features = 0;
-        m_pkt_buffer = NULL;
-        m_io         = NULL;
-        m_cpu_dp_u   = NULL;
-        set_feature(LATENCY);
+        m_features    = 0;
+        m_pkt_buffer  = NULL;
+        m_io          = NULL;
+        m_cpu_dp_u    = NULL;
     }
 
     void create(CPortLatencyHWBase *io,
@@ -264,16 +263,36 @@ public:
         return m_latency;
     }
 
-    void start_recorder(const std::string &pcap, uint32_t limit_pkts) {
+    void enable_latency() {
+        set_feature(LATENCY);
+    }
+
+    void disable_latency() {
+        unset_feature(LATENCY);
+    }
+
+    /**
+     * capturing of RX packets
+     * 
+     * @author imarom (11/2/2016)
+     * 
+     * @param pcap 
+     * @param limit_pkts 
+     */
+    void start_capture(const std::string &pcap, uint64_t limit_pkts) {
         m_recorder.start(pcap, limit_pkts);
-        set_feature(RECORD);
+        set_feature(CAPTURE);
     }
 
-    void stop_recorder() {
+    void stop_capture() {
         m_recorder.stop();
-        unset_feature(RECORD);
+        unset_feature(CAPTURE);
     }
 
+    /**
+     * queueing packets
+     * 
+     */
     void start_queue(uint32_t limit) {
         if (m_pkt_buffer) {
             delete m_pkt_buffer;
@@ -329,6 +348,16 @@ public:
      */
     void handle_pkt(const rte_mbuf_t *m);
 
+
+    bool has_features_set() {
+        return (m_features != 0);
+    }
+
+
+    bool no_features_set() {
+        return (!has_features_set());
+    }
+
 private:
     
 
@@ -342,10 +371,6 @@ private:
 
     bool is_feature_set(features_t feature) {
         return ( (m_features & feature) == feature );
-    }
-
-    bool no_features_set() {
-        return (m_features == 0);
     }
 
     uint32_t                     m_features;

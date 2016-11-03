@@ -43,6 +43,7 @@ CORE_MASK = 26
 DUAL = 27
 FLOW_CTRL = 28
 SUPPORTED = 29
+RX_FILTER_MODE = 30
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -302,6 +303,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    {'help': 'Set Flow Control type',
                                     'dest': 'flow_ctrl',
                                     'choices': FLOW_CTRL_DICT}),
+
+              RX_FILTER_MODE: ArgumentPack(['--rxf'],
+                                           {'help': 'Set RX filtering mode',
+                                            'dest': 'rx_filter_mode',
+                                            'choices': ['hw', 'all']}),
+
 
               SUPPORTED: ArgumentPack(['--supp'],
                                    {'help': 'Show which attributes are supported by current NICs',

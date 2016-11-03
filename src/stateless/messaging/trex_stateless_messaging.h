@@ -408,11 +408,11 @@ public:
 
 };
 
-class TrexStatelessRxStartMsg : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxEnableLatency : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
 
-class TrexStatelessRxStopMsg : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxDisableLatency : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
 
@@ -421,17 +421,32 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 };
 
 
-class TrexStatelessRxSetFilterMode : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxSetFilterMode(uint8_t port_id, rx_filter_mode_e filter_mode) {
+    TrexStatelessRxStartCapture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) : m_pcap_filename(pcap_filename) {
         m_port_id = port_id;
-        m_filter_mode = filter_mode;
+        m_limit = limit;
     }
+
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
     uint8_t           m_port_id;
-    rx_filter_mode_e  m_filter_mode;
+    std::string       m_pcap_filename;
+    uint64_t          m_limit;
+};
+
+
+class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStopCapture(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
 };
 
 

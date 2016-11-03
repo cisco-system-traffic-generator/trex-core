@@ -121,10 +121,29 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
         handle_cp_msg(msg);
     }
 
+    recalculate_next_state();
     return true;
 
 }
 
+void CRxCoreStateless::recalculate_next_state() {
+    if (m_state == STATE_QUIT) {
+        return;
+    }
+
+    /* next state is determine by the question are there any ports with active features ? */
+    m_state = (are_any_features_active() ? STATE_WORKING : STATE_IDLE);
+}
+
+bool CRxCoreStateless::are_any_features_active() {
+    for (int i = 0; i < m_max_ports; i++) {
+        if (m_rx_port_mngr[i].has_features_set()) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void CRxCoreStateless::idle_state_loop() {
     const int SHORT_DELAY_MS    = 2;
@@ -260,12 +279,12 @@ void CRxCoreStateless::try_rx_queues() {
 
 int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
 
-	int total_pkts = 0;
-	for (int i = 0; i < m_max_ports; i++) {
-		total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
-	}
+    int total_pkts = 0;
+    for (int i = 0; i < m_max_ports; i++) {
+        total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
+    }
 
-	return total_pkts;
+    return total_pkts;
 
 }
 
@@ -336,17 +355,27 @@ double CRxCoreStateless::get_cpu_util() {
 }
 
 
-/**
- * configure RX filtering mode (HW or software)
- * 
- * @author imarom (11/1/2016)
- * 
- * @param port_id 
- * @param filter_mode 
- */
 void
-CRxCoreStateless::set_rx_filter_mode(uint8_t port_id, rx_filter_mode_e filter_mode) {
-    const TrexPlatformApi *api = get_stateless_obj()->get_platform_api();
-    api->set_rx_filter_mode(port_id, filter_mode);
+CRxCoreStateless::start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
+    m_rx_port_mngr[port_id].start_capture(pcap_filename, limit);
+}
+
+void
+CRxCoreStateless::stop_capture(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_capture();
+}
+
+void
+CRxCoreStateless::enable_latency() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].enable_latency();
+    }
+}
+
+void
+CRxCoreStateless::disable_latency() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].disable_latency();
+    }
 }
 

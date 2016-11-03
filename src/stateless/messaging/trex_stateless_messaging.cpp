@@ -241,13 +241,13 @@ TrexDpPortEventMsg::handle() {
 }
 
 /************************* messages from CP to RX **********************/
-bool TrexStatelessRxStartMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->work();
+bool TrexStatelessRxEnableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->enable_latency();
     return true;
 }
 
-bool TrexStatelessRxStopMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->idle();
+bool TrexStatelessRxDisableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->disable_latency();
     return true;
 }
 
@@ -263,8 +263,15 @@ TrexStatelessRxSwGetPkts::TrexStatelessRxSwGetPkts(uint8_t port_id, TrexStateles
 
 
 bool
-TrexStatelessRxSetFilterMode::handle(CRxCoreStateless *rx_core) {
-    rx_core->set_rx_filter_mode(m_port_id, m_filter_mode);
+TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
+    rx_core->start_capture(m_port_id, m_pcap_filename, m_limit);
+
+    return true;
+}
+
+bool
+TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
+    rx_core->stop_capture(m_port_id);
 
     return true;
 }

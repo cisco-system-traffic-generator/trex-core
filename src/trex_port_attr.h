@@ -33,7 +33,7 @@ public:
     virtual void update_device_info() = 0;
     virtual void reset_xstats() = 0;
     virtual void update_description() = 0;
-
+    
 /*    GETTERS    */
     virtual bool get_promiscuous() = 0;
     virtual void macaddr_get(struct ether_addr *mac_addr) = 0;
@@ -51,12 +51,25 @@ public:
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
 
+    virtual std::string get_rx_filter_mode() {
+        switch (m_rx_filter_mode) {
+        case RX_FILTER_MODE_ALL:
+            return "all";
+        case RX_FILTER_MODE_HW:
+            return "hw";
+        default:
+            assert(0);
+        }
+    }
+
+
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
     virtual int add_mac(char * mac) = 0;
     virtual int set_link_up(bool up) = 0;
     virtual int set_flow_ctrl(int mode) = 0;
     virtual int set_led(bool on) = 0;
+    virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
 
 /*    DUMPS    */
     virtual void dump_link(FILE *fd) = 0;
@@ -65,10 +78,14 @@ protected:
     uint8_t m_port_id;
     rte_eth_link m_link;
     struct rte_eth_dev_info dev_info;
+
+    rx_filter_mode_e m_rx_filter_mode;
+
     bool flag_is_virtual;
     bool flag_is_fc_change_supported;
     bool flag_is_led_change_supported;
     bool flag_is_link_change_supported;
+    
 
     struct intf_info_st {
         std::string     pci_addr;
@@ -82,7 +99,10 @@ class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
     DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) {
+
         m_port_id = port_id;
+        m_rx_filter_mode = RX_FILTER_MODE_HW;
+
         flag_is_virtual = is_virtual;
         int tmp;
         flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
@@ -114,6 +134,7 @@ public:
     virtual int set_flow_ctrl(int mode);
     virtual int set_led(bool on);
 
+    virtual int set_rx_filter_mode(rx_filter_mode_e mode);
 
 /*    DUMPS    */
     virtual void dump_link(FILE *fd);
@@ -158,6 +179,7 @@ public:
     int set_flow_ctrl(int mode) { return -ENOTSUP; }
     int set_led(bool on) { return -ENOTSUP; }
     void dump_link(FILE *fd) {}
+    int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
 };
 
 

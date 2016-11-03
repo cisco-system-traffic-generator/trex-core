@@ -676,6 +676,8 @@ class CTRexInfoGenerator(object):
                                         ("---", []),
                                         ("PCI Address", []),
                                         ("NUMA Node", []),
+                                        ("----", []),
+                                        ("RX Filter Mode", []),
                                         ]
                                        )
 
