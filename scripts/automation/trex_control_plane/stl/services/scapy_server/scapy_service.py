@@ -315,18 +315,21 @@ def generate_bytes(bytes_definition):
     # {generate: template, template_base64: '<base64str>',  size: <size_bytes>}
     # {generate: template_code, template_text_code: '<template_code_str>',  size: <size_bytes>}
     gen_type = bytes_definition.get('generate')
-    bytes_size = bytes_definition.get('size') 
-    seed = bytes_definition.get('seed') or 12345
-    if gen_type == 'random_bytes':
-        return generate_random_bytes(bytes_size, seed, 0, 0xFF)
-    elif gen_type == 'random_ascii':
-        return generate_random_bytes(bytes_size, seed, 0x20, 0x7E)
-    elif gen_type == 'template':
-        return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
-    elif gen_type == 'template_code':
-        return generate_bytes_from_template(bytes_size, bytes_definition["template_code"])
-    elif gen_type == None:
+    if gen_type == None:
         return b64_to_bytes(bytes_definition['base64'])
+    else:
+        bytes_size = int(bytes_definition['size']) # required
+        seed = int(bytes_definition.get('seed') or 12345) # optional
+        if (bytes_size > (1<<20)): # 1Mb ought to be enough for anybody
+            raise ValueError('size is too large')
+        if gen_type == 'random_bytes':
+            return generate_random_bytes(bytes_size, seed, 0, 0xFF)
+        elif gen_type == 'random_ascii':
+            return generate_random_bytes(bytes_size, seed, 0x20, 0x7E)
+        elif gen_type == 'template':
+            return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
+        elif gen_type == 'template_code':
+            return generate_bytes_from_template(bytes_size, bytes_definition["template_code"])
 
 
 class ScapyException(Exception): pass
