@@ -1,7 +1,6 @@
 import os
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
-from trex_stl_lib.utils.common import random_id_gen
 
 def avg (values):
     return (sum(values) / float(len(values)))
@@ -11,7 +10,6 @@ class PerformanceReport(object):
     GOLDEN_NORMAL  = 1
     GOLDEN_FAIL    = 2
     GOLDEN_BETTER  = 3
-    id_gen = random_id_gen(16)
 
     def __init__ (self,
                   scenario,
@@ -63,7 +61,7 @@ class PerformanceReport(object):
                           SetupName = self.machine_name,
                           TestType = 'performance',
                           Mppspc = self.avg_mpps_per_core,
-                          ActionNumber = self.id_gen.next(),
+                          ActionNumber = os.getenv("BUILD_ID","n/a"),
                           GoldenMin = golden_mpps['min'],
                           GoldenMax = golden_mpps['max'])
 
