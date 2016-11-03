@@ -41,6 +41,7 @@ See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and 
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-253[trex-253]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-212[trex-212]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-251[trex-251]
 
 == Release 2.09 ==
 
