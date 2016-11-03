@@ -2,5 +2,7 @@
 - cd src
 - make 
 - copy the so file libzmq.so.3 to trex-core/scripts 
+- the current folder libzmq are not used (only the *.a for linking)
+
 
 
