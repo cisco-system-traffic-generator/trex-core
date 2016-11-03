@@ -168,6 +168,14 @@ public:
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
+
+    /* Does this NIC type support automatic packet dropping in case of a link down? 
+       in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
+       this interface is used as a workaround to let TRex work without link in stateless mode, driver that 
+       does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
+    virtual bool drop_packets_incase_of_linkdown() {
+        return (false);
+    }
 };
 
 
@@ -362,6 +370,10 @@ private:
                                , uint16_t ip_id, uint16_t l4_proto, int queue, uint16_t stat_idx);
     virtual int add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
+
+    virtual bool drop_packets_incase_of_linkdown() {
+        return (true);
+    }
 
 private:
     uint8_t m_if_per_card;
@@ -3412,9 +3424,15 @@ int  CGlobalTRex::ixgbe_start(void){
         get_ex_drv()->wait_for_stable_link();
 
         if ( !is_all_links_are_up(true) /*&& !get_is_stateless()*/ ){ // disable start with link down for now
-            dump_links_status(stdout);
-            rte_exit(EXIT_FAILURE, " "
-                     " one of the link is down \n");
+
+            /* temporary solution for trex-192 issue, solve the case for X710/XL710, will work for both Statless and Stateful */
+            if (  get_ex_drv()->drop_packets_incase_of_linkdown() ){
+                printf(" WARNING : there is no link on one of the ports, driver support auto drop in case of link down - continue\n");
+            }else{
+                dump_links_status(stdout);
+                rte_exit(EXIT_FAILURE, " "
+                         " one of the link is down \n");
+            }
         }
     } else {
         get_ex_drv()->wait_after_link_up();
