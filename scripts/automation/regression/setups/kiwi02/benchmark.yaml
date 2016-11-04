@@ -259,7 +259,7 @@ test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 23.5
+                                   min: 22.0
                                    max: 25.0
 
 
