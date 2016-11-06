@@ -139,6 +139,7 @@ RXLatency::reset_stats() {
 
 RXPacketRecorder::RXPacketRecorder() {
     m_writer = NULL;
+    m_shared_counter = NULL;
     m_limit  = 0;
     m_epoch  = -1;
 }
@@ -148,7 +149,7 @@ RXPacketRecorder::~RXPacketRecorder() {
 }
 
 void
-RXPacketRecorder::start(const std::string &pcap, uint64_t limit) {
+RXPacketRecorder::start(const std::string &pcap, uint64_t limit, uint64_t *shared_counter) {
     m_writer = CCapWriterFactory::CreateWriter(LIBPCAP, (char *)pcap.c_str());
     if (m_writer == NULL) {
         std::stringstream ss;
@@ -158,6 +159,8 @@ RXPacketRecorder::start(const std::string &pcap, uint64_t limit) {
 
     assert(limit > 0);
     m_limit = limit;
+    m_shared_counter = shared_counter;
+    (*m_shared_counter) = 0;
 }
 
 void
@@ -192,6 +195,8 @@ RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
     m_writer->write_packet(&m_pkt);
 
     m_limit--;
+    (*m_shared_counter)++;
+
     if (m_limit == 0) {
         stop();
     }

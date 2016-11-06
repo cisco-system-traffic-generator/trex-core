@@ -678,6 +678,8 @@ class CTRexInfoGenerator(object):
                                         ("NUMA Node", []),
                                         ("----", []),
                                         ("RX Filter Mode", []),
+                                        ("RX Queueing", []),
+                                        ("RX sniffer", []),
                                         ]
                                        )
 

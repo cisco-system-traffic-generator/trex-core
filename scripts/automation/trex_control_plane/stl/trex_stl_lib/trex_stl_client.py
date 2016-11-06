@@ -24,6 +24,8 @@ import re
 import random
 import json
 import traceback
+import os.path
+
 
 ############################     logger     #############################
 ############################                #############################
@@ -322,26 +324,28 @@ class EventsHandler(object):
 
         # port attr changed
         elif (event_type == 8):
+            return
 
-            port_id = int(data['port_id'])
+     #    port_id = int(data['port_id'])
+     #
+     #    if data['attr'] == self.client.ports[port_id].attr:
+     #        return # false alarm
+     #
+     #    old_info = self.client.ports[port_id].get_formatted_info()
+     #    self.__async_event_port_attr_changed(port_id, data['attr'])
+     #
+     #    new_info = self.client.ports[port_id].get_formatted_info()
+     #    ev = "port {0} attributes changed".format(port_id)
+     #    for key, old_val in old_info.items():
+     #        new_val = new_info[key]
+     #        if old_val != new_val:
+     #            ev += '\n  {key}: {old} -> {new}'.format(
+     #                    key = key, 
+     #                    old = old_val.lower() if type(old_val) is str else old_val,
+     #                    new = new_val.lower() if type(new_val) is str else new_val)
+     #    show_event = True
 
-            if data['attr'] == self.client.ports[port_id].attr:
-                return # false alarm
-
-            old_info = self.client.ports[port_id].get_formatted_info()
-            self.__async_event_port_attr_changed(port_id, data['attr'])
-
-            new_info = self.client.ports[port_id].get_formatted_info()
-            ev = "port {0} attributes changed".format(port_id)
-            for key, old_val in old_info.items():
-                new_val = new_info[key]
-                if old_val != new_val:
-                    ev += '\n  {key}: {old} -> {new}'.format(
-                            key = key, 
-                            old = old_val.lower() if type(old_val) is str else old_val,
-                            new = new_val.lower() if type(new_val) is str else new_val)
-            show_event = True
-
+    
         # server stopped
         elif (event_type == 100):
             ev = "Server has stopped"
@@ -813,6 +817,17 @@ class STLClient(object):
 
         return rc
 
+
+    def __set_rx_sniffer (self, port_id_list, base_filename, limit):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            head, tail = os.path.splitext(base_filename)
+            filename = "{0}-{1}{2}".format(head, port_id, tail)
+            rc.add(self.ports[port_id].set_rx_sniffer(filename, limit))
+
+        return rc
 
 
     # connect to server
@@ -2685,6 +2700,39 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+
+
+    @__api_check(True)
+    def set_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000):
+        """
+            Sets RX sniffer for port(s) written to a PCAP file
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                base_filename  - filename will be appended with '-<port_number>'
+                limit          - limit how many packets will be written
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        # check arguments
+        validate_type('base_filename', base_filename, basestring)
+        validate_type('limit', limit, (int))
+
+
+        self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
+        rc = self.__set_rx_sniffer(ports, base_filename, limit)
+        self.logger.post_cmd(rc)
+
+
+        if not rc:
+            raise STLError(rc)
+
+
+
     def clear_events (self):
         """
             Clear all events
@@ -3281,7 +3329,29 @@ class STLClient(object):
             return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.rx_filter_mode)
 
 
-                        
+             
+    @__console
+    def set_rx_sniffer_line (self, line):
+        '''Sets a port sniffer on RX channel in form of a PCAP file'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "set_rx_sniffer",
+                                         self.set_rx_sniffer_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.OUTPUT_FILENAME,
+                                         parsing_opts.LIMIT,
+                                         parsing_opts.ALL_FILES)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        if parsing_opts.ALL_FILES:
+            self.set_port_attr(ports = opts.ports, rx_filter_mode = 'all')
+
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+
+
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''

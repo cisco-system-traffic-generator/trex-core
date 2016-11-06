@@ -356,8 +356,8 @@ double CRxCoreStateless::get_cpu_util() {
 
 
 void
-CRxCoreStateless::start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
-    m_rx_port_mngr[port_id].start_capture(pcap_filename, limit);
+CRxCoreStateless::start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter) {
+    m_rx_port_mngr[port_id].start_capture(pcap_filename, limit, shared_counter);
 }
 
 void

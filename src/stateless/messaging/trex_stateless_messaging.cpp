@@ -264,7 +264,7 @@ TrexStatelessRxSwGetPkts::TrexStatelessRxSwGetPkts(uint8_t port_id, TrexStateles
 
 bool
 TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
-    rx_core->start_capture(m_port_id, m_pcap_filename, m_limit);
+    rx_core->start_capture(m_port_id, m_pcap_filename, m_limit, m_shared_counter);
 
     return true;
 }

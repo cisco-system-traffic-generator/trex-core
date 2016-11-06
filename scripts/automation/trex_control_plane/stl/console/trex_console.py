@@ -327,6 +327,13 @@ class TRexConsole(TRexGeneralCmd):
     def help_portattr (self):
         self.do_portattr("-h")
 
+    def do_set_rx_sniffer (self, line):
+        '''Sets a port sniffer on RX channel as PCAP recorder'''
+        self.stateless_client.set_rx_sniffer_line(line)
+
+    def help_sniffer (self):
+        self.do_set_rx_sniffer("-h")
+
     @verify_connected
     def do_map (self, line):
         '''Maps ports topology\n'''

@@ -946,7 +946,15 @@ TrexStatelessPort::remove_and_delete_all_streams() {
 
 void 
 TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit);
+
+    m_rx_capture_info.m_is_active       = true;
+    m_rx_capture_info.m_limit           = limit;
+    m_rx_capture_info.m_pcap_filename   = pcap_filename;
+
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartCapture(m_port_id,
+                                                                      pcap_filename,
+                                                                      limit,
+                                                                      &m_rx_capture_info.m_shared_counter);
     send_message_to_rx(msg);
 }
 
@@ -955,6 +963,12 @@ TrexStatelessPort::stop_rx_capture() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
     send_message_to_rx(msg);
 }
+
+const RXCaptureInfo &
+TrexStatelessPort::get_rx_capture_info() {
+    return m_rx_capture_info;
+}
+
 
 RxPacketBuffer *
 TrexStatelessPort::get_rx_sw_pkts() {

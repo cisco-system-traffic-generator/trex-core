@@ -252,6 +252,10 @@ class Port(object):
 
         # attributes
         self.attr = rc.data()['attr']
+
+        # rx info
+        self.rx_info = rc.data()['rx_info']
+
         return self.ok()
 
 
@@ -484,18 +488,15 @@ class Port(object):
 
         return self.ok()
 
-    #
+    
     @writeable
-    def start_rx_capture (self, pcap_filename, limit):
-
-        prefix, suffix = pcap_filename.split('.')
-        filename = "{0}-{1}.{2}".format(prefix, self.port_id, suffix)
+    def set_rx_sniffer (self, pcap_filename, limit):
 
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
                   "type":           "capture",
                   "enabled":        True,
-                  "pcap_filename":  filename,
+                  "pcap_filename":  pcap_filename,
                   "limit":          limit}
 
         rc = self.transmit("set_rx_feature", params)
@@ -679,6 +680,10 @@ class Port(object):
 
     # generate formatted (console friendly) port info
     def get_formatted_info (self):
+
+        # sync the attributes
+        self.sync()
+
         info = dict(self.info)
 
         info['status'] = self.get_port_state_name()
@@ -726,7 +731,22 @@ class Port(object):
         else:
             info['speed'] = 'N/A'
                                                   
-        info['rx_filter_mode'] = self.attr.get('rx_filter_mode', 'N/A')
+        
+        # RX info
+        if 'rx_filter_mode' in self.attr:
+            info['rx_filter_mode'] = 'Hardware Match' if self.attr['rx_filter_mode'] == 'hw' else 'Fetch All'
+        else:
+            info['rx_filter_mode'] = 'N/A'
+
+        if 'sniffer' in self.rx_info:
+            sniffer = self.rx_info['sniffer']
+            if sniffer['is_active']:
+                info['rx_sniffer'] = '{0}\n[{1} / {2}]'.format(sniffer['pcap_filename'], sniffer['count'], sniffer['limit'])
+            else:
+                info['rx_sniffer'] = 'off'
+        else:
+            info['rx_sniffer'] = 'N/A'
+
 
         return info
 
@@ -759,6 +779,9 @@ class Port(object):
                 "flow ctrl" : info['fc'],
 
                 "RX Filter Mode": info['rx_filter_mode'],
+                "RX Queueing": 'off',
+                "RX sniffer": info['rx_sniffer'],
+
                 }
 
     def clear_stats(self):

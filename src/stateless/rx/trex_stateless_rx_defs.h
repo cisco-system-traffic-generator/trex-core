@@ -23,6 +23,7 @@
 #define __TREX_STATELESS_RX_DEFS_H__
 
 #include "trex_defs.h"
+#include <json/json.h>
 
 class CPortLatencyHWBase;
 
@@ -53,5 +54,31 @@ typedef enum rx_filter_mode_ {
 	RX_FILTER_MODE_HW,
 	RX_FILTER_MODE_ALL
 } rx_filter_mode_e;
+
+/**
+ * holds RX capture info
+ * 
+ */
+struct RXCaptureInfo {
+    RXCaptureInfo() {
+        m_is_active = false;
+        m_limit = 0;
+        m_shared_counter = 0;
+    }
+
+    void to_json(Json::Value &output) const {
+        output["is_active"] = m_is_active;
+        if (m_is_active) {
+            output["pcap_filename"] = m_pcap_filename;
+            output["limit"]         = Json::UInt64(m_limit);
+            output["count"]         = Json::UInt64(m_shared_counter);
+        }
+    }
+
+    bool             m_is_active;
+    std::string      m_pcap_filename;
+    uint64_t         m_limit;
+    uint64_t         m_shared_counter;
+};
 
 #endif /* __TREX_STATELESS_RX_DEFS_H__ */

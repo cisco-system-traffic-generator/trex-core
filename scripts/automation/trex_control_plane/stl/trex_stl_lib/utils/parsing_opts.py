@@ -45,6 +45,10 @@ FLOW_CTRL = 28
 SUPPORTED = 29
 RX_FILTER_MODE = 30
 
+OUTPUT_FILENAME = 31
+ALL_FILES = 32
+LIMIT = 33
+
 GLOBAL_STATS = 50
 PORT_STATS = 51
 PORT_STATUS = 52
@@ -310,6 +314,29 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                             'choices': ['hw', 'all']}),
 
 
+              OUTPUT_FILENAME: ArgumentPack(['-o', '--output'],
+                                            {'help': 'Output PCAP filename',
+                                             'dest': 'output_filename',
+                                             'default': None,
+                                             'required': True,
+                                             'type': str}),
+
+
+
+              ALL_FILES: ArgumentPack(['--all'],
+                                      {'help': 'change RX port filter to fetch all packets',
+                                       'dest': 'all',
+                                       'default': False,
+                                       'action': "store_true"}),
+
+
+              LIMIT: ArgumentPack(['-l', '--limit'],
+                                  {'help': 'Limit the packet count to be written to the file',
+                                   'dest': 'limit',
+                                   'default':  1000,
+                                   'type': int}),
+
+
               SUPPORTED: ArgumentPack(['--supp'],
                                    {'help': 'Show which attributes are supported by current NICs',
                                     'default': None,
@@ -458,6 +485,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
                                                 {'required': False}),
+
 
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],

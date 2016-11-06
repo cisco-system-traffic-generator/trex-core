@@ -615,6 +615,9 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     /* RX data */
     result["result"]["attr"]["rx_filter_mode"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_rx_filter_mode();
 
+    /* RX sniffer */
+    port->get_rx_capture_info().to_json(result["result"]["rx_info"]["sniffer"]);
+
     return (TREX_RPC_CMD_OK);
 }
 

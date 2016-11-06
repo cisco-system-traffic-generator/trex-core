@@ -33,6 +33,7 @@ class TrexStreamsGraphObj;
 class TrexPortMultiplier;
 class RxPacketBuffer;
 
+
 /**
  * TRex port owner can perform
  * write commands
@@ -382,6 +383,12 @@ public:
     void stop_rx_capture();
 
     /**
+     * status of the RX capture
+     * 
+     */
+    const RXCaptureInfo &get_rx_capture_info();
+
+    /**
      * fetch the RX software packets from the queue
      * 
      */
@@ -473,6 +480,8 @@ private:
     TrexPortOwner       m_owner;
 
     int m_pending_async_stop_event;
+
+    RXCaptureInfo       m_rx_capture_info; 
 };
 
 

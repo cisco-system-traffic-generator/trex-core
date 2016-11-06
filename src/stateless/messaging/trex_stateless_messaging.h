@@ -423,9 +423,13 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 
 class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStartCapture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) : m_pcap_filename(pcap_filename) {
+    TrexStatelessRxStartCapture(uint8_t port_id,
+                                const std::string &pcap_filename,
+                                uint64_t limit,
+                                uint64_t *shared_counter) : m_pcap_filename(pcap_filename) {
         m_port_id = port_id;
         m_limit = limit;
+        m_shared_counter = shared_counter;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
@@ -434,6 +438,7 @@ private:
     uint8_t           m_port_id;
     std::string       m_pcap_filename;
     uint64_t          m_limit;
+    uint64_t          *m_shared_counter;
 };
 
 

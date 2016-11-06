@@ -212,7 +212,7 @@ class RXPacketRecorder {
 public:
     RXPacketRecorder();
     ~RXPacketRecorder();
-    void start(const std::string &pcap, uint64_t limit);
+    void start(const std::string &pcap, uint64_t limit, uint64_t *shared_counter);
     void stop();
     void handle_pkt(const rte_mbuf_t *m);
 
@@ -220,7 +220,8 @@ private:
     CFileWriterBase  *m_writer;
     CCapPktRaw        m_pkt;
     dsec_t            m_epoch;
-    uint32_t          m_limit;
+    uint64_t          m_limit;
+    uint64_t          *m_shared_counter;
 };
 
 
@@ -279,8 +280,8 @@ public:
      * @param pcap 
      * @param limit_pkts 
      */
-    void start_capture(const std::string &pcap, uint64_t limit_pkts) {
-        m_recorder.start(pcap, limit_pkts);
+    void start_capture(const std::string &pcap, uint64_t limit_pkts, uint64_t *shared_counter) {
+        m_recorder.start(pcap, limit_pkts, shared_counter);
         set_feature(CAPTURE);
     }
 

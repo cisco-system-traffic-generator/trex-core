@@ -124,7 +124,7 @@ class CRxCoreStateless {
      * @param pcap_filename 
      * @param limit 
      */
-    void start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit);
+    void start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter);
     void stop_capture(uint8_t port_id);
 
     /**
