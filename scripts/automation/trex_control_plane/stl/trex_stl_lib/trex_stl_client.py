@@ -658,7 +658,7 @@ class STLClient(object):
 
         return rc
 
-
+ 
     def __add_streams(self, stream_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
@@ -826,6 +826,16 @@ class STLClient(object):
             head, tail = os.path.splitext(base_filename)
             filename = "{0}-{1}{2}".format(head, port_id, tail)
             rc.add(self.ports[port_id].set_rx_sniffer(filename, limit))
+
+        return rc
+
+
+    def __remove_rx_sniffer (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_rx_sniffer())
 
         return rc
 
@@ -1875,7 +1885,13 @@ class STLClient(object):
         self.stop(ports, rx_delay_ms = 0)
         self.remove_all_streams(ports)
         self.clear_stats(ports)
+        self.set_port_attr(ports,
+                           promiscuous = False,
+                           link_up = True,
+                           rx_filter_mode = 'hw')
+        self.remove_rx_sniffer(ports)
 
+        
 
     @__api_check(True)
     def remove_all_streams (self, ports = None):
@@ -2732,6 +2748,25 @@ class STLClient(object):
             raise STLError(rc)
 
 
+
+    @__api_check(True)
+    def remove_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000):
+        """
+            Removes RX sniffer from port(s)
+
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd("Removing RX sniffers on port(s) {0}:".format(ports))
+        rc = self.__remove_rx_sniffer(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
 
     def clear_events (self):
         """

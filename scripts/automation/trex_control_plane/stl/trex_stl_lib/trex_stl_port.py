@@ -75,13 +75,13 @@ class Port(object):
 
     # decorator to verify port is up
     def up(func):
-        def func_wrapper(*args):
+        def func_wrapper(*args, **kwargs):
             port = args[0]
 
             if not port.is_up():
                 return port.err("{0} - port is down".format(func.__name__))
 
-            return func(*args)
+            return func(*args, **kwargs)
 
         return func_wrapper
 
@@ -489,7 +489,7 @@ class Port(object):
         return self.ok()
 
     
-    @writeable
+    @owned
     def set_rx_sniffer (self, pcap_filename, limit):
 
         params = {"handler":        self.handler,
@@ -504,6 +504,20 @@ class Port(object):
             return self.err(rc.err())
 
         return self.ok()
+
+    @owned
+    def remove_rx_sniffer (self):
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "capture",
+                  "enabled":        False}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
 
     @owned
     def pause (self):

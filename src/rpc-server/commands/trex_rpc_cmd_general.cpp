@@ -708,12 +708,14 @@ TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
 
 void 
 TrexRpcCmdSetRxFeature::parse_capture_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
-    std::string pcap_filename = parse_string(msg, "pcap_filename", result);
+    
     bool enabled = parse_bool(msg, "enabled", result);
 
     if (enabled) {
 
+        std::string pcap_filename = parse_string(msg, "pcap_filename", result);
         uint64_t limit = parse_uint32(msg, "limit", result);
+
         if (limit == 0) {
             generate_parse_err(result, "limit cannot be zero");
         }

@@ -59,11 +59,24 @@ typedef enum rx_filter_mode_ {
  * holds RX capture info
  * 
  */
-struct RXCaptureInfo {
+class RXCaptureInfo {
+public:
     RXCaptureInfo() {
         m_is_active = false;
         m_limit = 0;
         m_shared_counter = 0;
+    }
+
+    void enable(const std::string &pcap_filename, uint64_t limit) {
+        m_pcap_filename = pcap_filename;
+        m_limit = limit;
+        m_is_active = true; 
+    }
+
+    void disable() {
+        m_is_active = false;
+        m_pcap_filename = "";
+        m_limit = 0;
     }
 
     void to_json(Json::Value &output) const {
@@ -75,6 +88,7 @@ struct RXCaptureInfo {
         }
     }
 
+public:
     bool             m_is_active;
     std::string      m_pcap_filename;
     uint64_t         m_limit;

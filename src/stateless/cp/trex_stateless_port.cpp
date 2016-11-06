@@ -947,9 +947,7 @@ TrexStatelessPort::remove_and_delete_all_streams() {
 void 
 TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
 
-    m_rx_capture_info.m_is_active       = true;
-    m_rx_capture_info.m_limit           = limit;
-    m_rx_capture_info.m_pcap_filename   = pcap_filename;
+    m_rx_capture_info.enable(pcap_filename, limit);
 
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartCapture(m_port_id,
                                                                       pcap_filename,
@@ -962,6 +960,7 @@ void
 TrexStatelessPort::stop_rx_capture() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
     send_message_to_rx(msg);
+    m_rx_capture_info.disable();
 }
 
 const RXCaptureInfo &
