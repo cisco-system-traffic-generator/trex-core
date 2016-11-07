@@ -766,7 +766,7 @@ def get_sphinx_version(sphinx_path):
         print('Error getting Sphinx version: %s' % e)
 
 def get_trex_core_git():
-    trex_core_git_path = os.path.join(os.getcwd(), os.pardir, "trex-core")
+    trex_core_git_path = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
     if not os.path.isdir(trex_core_git_path):
         trex_core_git_path = os.getenv('TREX_CORE_GIT', None)
     return trex_core_git_path
