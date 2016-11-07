@@ -1,0 +1,596 @@
+TRex console - commands proposal 
+=================================
+:author: Hanoch Haim
+:email: <hhaim@cisco.com>
+:revnumber: 0.1
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Console 
+
+=== Overview 
+
+The console will use TRex Client API for controling TRex 
+Some guidelines:
+
+* Console should not save it own state, it should only cache server state. It assumed there is only one console that has R/W capability so once connected as R/W console (per user/port)  it could read the server state and then cache all the operations. 
+* There could be many read-only clients for same user same ports. The ability to enforce it  does not yet exits in the server (will be done).
+* Console should sync with server to get the state in connection time and cache the server information locally once the state was changed 
+* In case of crash/exit  of the Console it should sync again at startup 
+* Let's assume Console acquire all ports - for simplicity, for now. 
+* Commands will be like bash shell - no order args, many flags  
+* Ability to show stats in real time.  gives the option to open two Console one for stats and one for commands ( many readonly clients)
+
+=== Ports State 
+
+[options="header",cols="^1,3a"]
+|=================
+| state |    meaning
+| IDLE    | no streams, does not work 
+| STREAMS    | with streams, does not work 
+| WORK    | with streams, works 
+| PAUSE    | with streams, pause 
+|=================
+
+
+[source,bash]
+----
+
+  IDLE -> (add streams) -> STREAMS (start) -> WORK (stop) -> STREAMS (start) 
+                                           |   WORK (pause) -> PAUSE (resume )---
+                                           |                                     | 
+                                           |                                     |
+                                        ------------------------------------                                    
+
+-----
+
+=== Tutorial 
+
+First run trex in interactive mode
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i
+----
+
+on the same machine from a different window connect to to trex 
+
+[source,bash]
+----
+$./trex-console
+----
+
+
+from console you can run this 
+
+[source,bash]
+----
+
+# start traffic on all port 
+>start -a -m 1 -f stl/imix_1pkt.yaml
+
+# stop traffic on all port
+>stop -a 
+
+# show dynamic statistic 
+>tui
+
+#stop all and remove all stats
+>reset
+----
+
+=== Common Arguments 
+
+This section includes arguments that are common to many commands 
+In the command they will be marked like this (arg name)
+
+==== Port mask 
+
+this gives the ability to choose batch of ports 
+
+[source,bash]
+----
+$command   [-a] [-port 1 2 3]  [-port 0xff]  [-port clients/servers] 
+
+  port mask : 
+    [-a]           : all ports 
+    [-port 1 2 3]  : port 1,2 3
+    [-port 0xff]   : port by mask 0x1 for port 0 0x3 for port 0 and 1 
+    [-port clients/servers] : -port clients will choose all the client side ports
+----
+
+==== Duration 
+
+duration in second or in min or hours 
+
+[source,bash]
+----
+$command[-d 100] [-d 10m] [-d 1h] 
+  
+  duration:
+   -d 100 : in sec 
+   -d 10m : in min 
+   -d 1h  : in hours
+----
+
+
+==== Multiplier 
+
+[source,bash]
+----
+$command [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+  
+  multiplier :
+  
+  -m 100    : multiply stream file by this factor
+  -m 10gb   : from graph calculate the maximum rate as this bandwidth ( for each port )
+  -m 10kpps : from graph calculate the maximum rate as this pps       ( for each port )
+  -m 40%    : from graph calculate the maximum rate as this precent from total port  ( for each port )
+----
+
+
+=== Commands 
+
+
+==== Connect 
+
+[source,bash]
+----
+
+$trex-con   [--ip  $IP] [--server  $IP] [--rpc-port $PORT] [--async_port port]
+
+   --rpc-port   : change the default server - default 5505 for RPC
+
+   --async_port : for sub/pub ZMQ - default 4505 
+
+   --ip or --server  :default 127.0.0.1 the TRex server ip
+----
+
+This command 
+* try to connect to server 
+* send ping  command 
+* sync with  all the ports info / streams info state 
+* read all counters stats for reference
+
+==== reset 
+
+Reset the server and client to a known state - should not be used in a normal scenario 
+
+[source,bash]
+----
+$reset  
+----
+
+- force acuire all the ports
+- Stop all traffic on all the ports
+- Remove all the streams from all the ports
+
+
+==== port 
+
+Configure port state, autoneg, rate etc 
+
+[source,bash]
+----
+$port (port mask) --cfg "auto/10/" 
+
+ --cfg string with the configuration name
+
+----
+
+
+==== clear 
+
+Clear all port stats counters 
+
+[source,bash]
+----
+$clear (port mask) 
+----
+
+
+==== stats 
+
+Shows global and port statistic 
+
+[source,bash]
+----
+$stats  (port mask) [-g] [-p] [-ps]   
+
+  -g show only global stats
+  -p only ports stats
+  -ps only port status (type/driver/link-up/down/negotion type etc)
+  
+----
+
+Examples 
+
+
+[source,bash]
+----
+$stats -g
+
+Connected     : 127.0.0.1 4500
+Version       : 1.78 UUID : 12121212
+CPU           : 12.0 %%     
+Total TX      : 20.2 Gb/sec
+Total Rx      : 20.2 Gb/sec
+Total PPS     :     100MPPS
+Total Streams : 10
+Active ports  : 4
+----
+
+[source,bash]
+----
+$stats -p
+
+ port        0      1       2       3
+ ------------------------------------
+ owner	    my	   my      my       my   - place holder no need to implement as we takes all port avali	
+ active      on    on       off      off
+ tx-bytes   12131  0        0         0
+ rx-bytes    0     0        0         0
+ tx-pkts     0     0        0         0
+ rx-pkts     0     0        0         0
+ tx-errors   0     0        0         0
+ rx-errors   0     0        0         0
+ Tx-Bw       12gb  1.3Gb     0       0
+ Rx-Bw	    10mb   11.2mb   0       0
+----
+
+In case of more than four ports should show only the first ports or by mask ( --port mask)
+
+
+[source,bash]
+----
+$stats -ps
+
+ --- port status
+ port        0      1       2       3
+ ------------------------------------
+ port-type   I350   I350    I350     I350
+ maximum     1Gb	   1Gb	    1Gb     !gb
+ link	    on	    on       off    off
+----
+
+
+==== streams
+
+Shows the configured streams on each port/ports  
+Should show from client cache 
+
+[source,bash]
+----
+$streams (port mask)  [--streams mask] [-f]  [--full]  [--graph]
+
+   --port mask,  e.g --port 1 2 3 4
+   --streams mask e.g. --streams 1 2 
+   -f /--full  print stream info in a JSON format with all the information 
+   --graph : add the graph in time of each port stream  
+----
+    
+
+example
+  
+[source,bash]
+----
+$streams 
+
+port 0 : imix/a.yaml 
+
+  stream id  , packet type        , length , mode       , rate    , next    
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+  
+ 
+
+port 1 : imix/a.yaml
+
+ + 0     , ip/tcp                 , 64    , continues  , 100KPPS ,   none
+ + 1     , ip/udp                 , 128   , burst , 200KPPS  , none
+ + 2     , ip/udp                 , 1500  , multi-burst , 100KPPS  , none
+
+----
+
+
+show only port 1 and 2 
+
+[source,bash]
+----
+$streams --port 1 2 
+
+ ..
+ ..
+----
+
+[source,bash]
+----
+$streams --port 0 --streams 0 -f  
+
+
+ show the full info on stream 0 and port 0, print in JSON format
+
+----
+        
+
+
+
+==== start 
+
+* work on a set of ports 
+* remove all streams
+* load new streams
+* start traffic with specific multiplier 
+* limit the traffic to a specific duration  
+* port state should be stopped, in case of --force stop the port 
+* in case one of the port is not stop don't start any port
+* all ports should be in state IDLE or STREAMS
+
+[source,bash]
+----
+$start [--force] (port mask) [-f stl/imix.yaml] [-db ab] (duration) (multiplier)  
+
+    
+  stream to load:
+  -f stl/imix.yaml : load from local disk the streams file 
+  --db stream that was loaded to db 
+   
+  force:
+    --force stop ports if they are active 
+
+----
+
+examples
+
+
+[source,bash]
+----
+$start -a -f stl/imix.yaml  -m 10gb
+----
+start this profile on all all ports maximum bandwidth is 10gb
+
+   
+[source,bash]
+----
+$start -port 1 2 -f stl/imix.yaml  -m 100
+----
+start this profile on port 1,2  multiply by 100 
+
+
+[NOTE]
+=====================================
+ in case of start command without args, try to remember the last args given and reprint them 
+=====================================
+
+==== stop
+
+* work on a set of ports 
+* change the mode of the port to stopped
+* do not remove the streams
+* in case port state is already stopped don't do anything 
+* all ports should be in state WORK
+
+
+[source,bash]
+----
+$stop (port mask)
+
+ See ports command explanation from the start 
+
+----
+
+
+==== pause 
+
+* work on a set of ports 
+* move a wokring set of ports to a state of pause
+* all ports should be in state WORK
+
+
+
+[source,bash]
+----
+$pause  (port mask)
+
+ see ports command explanation from start 
+
+----
+
+
+==== resume 
+
+* work on a set of ports 
+* move a wokring set of port to a state of resume 
+* all ports should be in state PAUSE
+
+
+
+[source,bash]
+----
+$resume  (port mask) 
+
+ see ports command explanation from start 
+
+----
+
+
+==== restart 
+
+* restart the work on the loaded streams
+* same as start without the -f /--db switch 
+* all ports should be in state STREAMS
+
+[source,bash]
+----
+$restart  (port mask) (duration) (multiplier)  
+
+ see ports command explanation from start 
+
+----
+
+==== update 
+
+* all ports should be in state WORK
+
+
+[source,bash]
+----
+>update   (port mask) (multiplier)  
+----
+Update the bandwidth multiplier for a mask of ports
+
+
+[NOTE]
+=====================================
+ Here we could add the ability to disable/enable specific stream, load new stream dynamically etc. 
+=====================================
+
+
+==== async events queue 
+
+there are two ways to know if somthing async happned 
+
+* pool the state 
+* get async event 
+
+example for events  are:
+
+* link is up/down
+* port id stoped 
+* port id start
+* errors 
+* info 
+
+
+[source,bash]
+----
+$clear_events
+----
+
+clear events queue 
+
+[source,bash]
+----
+$show_events
+----
+show a list of events from the queue 
+
+[source,bash]
+----
+$remove --event [event-id]  --top
+  --event : remove the event-id from the list 
+  --top   : remove the even from the top
+----
+
+
+[source,bash]
+----
+$wait_for_event [event-id]
+----
+wait only in script mode, simple way to wait for event like all port stopped
+
+
+==== stream database commands 
+
+* load/remove/show streams from memory 
+
+
+[source,bash]
+----
+$db_load -f [stream ] -name [name] 
+----
+
+[source,bash]
+----
+$db_remove   -name [name] 
+----
+
+[source,bash]
+----
+$db_show  [--all] [--name $name] [--full]
+----
+
+
+==== script
+
+[source,bash]
+----
+$script -f script_name  
+-----
+
+run script of commands 
+
+
+==== tui
+
+shows the stats in a textual window (like top)
+	
+[source,bash]
+----
+$tui
+----
+
+enter to a mode of Stats and present 3 type of windows
+* global/port stats/version/connected etc 
+* per port
+* per port streams info
+
+
+get keyboard 
+ q - quit the gui window
+ c - clear all counters
+
+
+=== Priorty 
+
+* Console logger - JSON-RPC into a file ( req/res) 
+* start/stop/stats/tui/streams/reset
+* db
+* port
+* events 
+* pause/resume/restart/restart
+* scripts
+* move all the debug commands to be dbg_xxx
+* implement advance -m ( by reading graphs)
+* Enforcement of one user/port with R/W capability
+
+=== More ideas 
+
+* define a YAML format that include stream per port inside so in away load each YAML to each port 
+* add ability to load range of ip/mac program in YAML file 
+   fields : 
+       name : ipv4.src
+       offset : 12
+       range : 
+          min_ip : 10.0.0.1/ipv6 addr
+          max_ip : 10.0.0.20
+          inc    : 1
+	  dec    : 1 	
+	  start  : 10.0.0.4
+       
+	name : ipv4.dest
+       	offset : 45
+         range : 
+          min_ip : 10.0.0.1
+          max_ip : 10.0.0.2
+
+  
+=== Change log
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Version |  name   |  meaning
+| 1.00    |  Hanoch Haim (hhaim) |
+- first version
+| 1.01    |  Hanoch Haim (hhaim) |
+- Incorporate Itay comments
+|=================
+
+
+

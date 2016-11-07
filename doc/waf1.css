@@ -1,0 +1,78 @@
+div.tableblock > table {
+  border: 1px solid gray;
+}
+
+div#header-pic {
+    background-image: url("images/bg4.jpg");
+    background-repeat: no-repeat;
+    background-color: #cccccc;
+}
+
+
+
+div#header h1 {
+       background: url('images/trex_logo_64_64.png') no-repeat left center;
+       padding-left: 80px;
+       line-height: 80px;
+       height: 80px;
+}
+
+div.title, caption.title {
+	text-align: center;
+	margin-bottom: 0.2em;
+}
+
+div.tableblock > table th {
+	background-color: #F4F4F4;
+}
+
+h1, h2, h3, h4, h5, h6, span#author, div.title, caption.title, div.admonitionblock .icon, div#toctitle, div.sidebar-title, div.image-title {
+	color: #333;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Georgia, 'Times New Roman', serif
+}
+
+h1  {
+  font-size: 24px;
+}
+
+h2,h3,h4,h5,h6 {
+  color: #f14e32;
+  padding-top: 0.5em;
+  font-size: 24px;
+  line-height: 44px;
+  font-weight: bold;
+  margin-top: 20px;
+  border-bottom: 2px solid silver
+  float: left;
+}
+
+h3,h4,h5,h6 {
+  color: #0388a6;
+  font-size: 18px
+}
+
+
+p {
+  font-family: sans-serif;
+  text-indent: 0px;
+  font-size: 14px;
+  line-height: 22px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+a:visited {
+  color: #404040;
+}
+
+
+body, div.sectionbody, div#toctitle {
+  font-family: Lato, proxima-nova, 'Helvetica Neue', Arial;
+  font-size : 13px;
+  color: #404040;
+}
+
+
