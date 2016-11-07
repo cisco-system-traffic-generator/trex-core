@@ -382,11 +382,30 @@ public:
      */
     void stop_rx_capture();
 
+	/**
+	 * start RX queueing of packets
+	 * 
+	 * @author imarom (11/7/2016)
+	 * 
+	 * @param limit 
+	 */
+	void start_rx_queue(uint64_t limit);
+
+	/**
+	 * stop RX queueing
+	 * 
+	 * @author imarom (11/7/2016)
+	 */
+	void stop_rx_queue();
+
+
     /**
-     * status of the RX capture
+     * get the RX features info object
      * 
      */
-    const RXCaptureInfo &get_rx_capture_info();
+    const RXFeaturesInfo &get_rx_features() {
+        return m_rx_features_info;
+    }
 
     /**
      * fetch the RX software packets from the queue
@@ -481,7 +500,8 @@ private:
 
     int m_pending_async_stop_event;
 
-    RXCaptureInfo       m_rx_capture_info; 
+    RXFeaturesInfo      m_rx_features_info;
+
 };
 
 

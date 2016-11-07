@@ -423,13 +423,11 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 
 class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStartCapture(uint8_t port_id,
-                                const std::string &pcap_filename,
-                                uint64_t limit,
-                                uint64_t *shared_counter) : m_pcap_filename(pcap_filename) {
-        m_port_id = port_id;
-        m_limit = limit;
-        m_shared_counter = shared_counter;
+    TrexStatelessRxStartCapture(uint8_t port_id, RXCaptureInfo &rx_capture_info) {
+        m_port_id          = port_id;
+        m_limit            = rx_capture_info.m_limit;
+        m_pcap_filename    = rx_capture_info.m_pcap_filename;
+        m_shared_counter   = &rx_capture_info.m_shared_counter;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
@@ -445,6 +443,34 @@ private:
 class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
 public:
     TrexStatelessRxStopCapture(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+};
+
+class TrexStatelessRxStartQueue : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStartQueue(uint8_t port_id, RXQueueInfo &rx_queue_info) {
+        m_port_id           = port_id;
+        m_size              = rx_queue_info.m_size;
+        m_shared_counter    = &rx_queue_info.m_shared_counter;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    uint64_t          m_size;
+    uint64_t          *m_shared_counter;
+};
+
+class TrexStatelessRxStopQueue : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStopQueue(uint8_t port_id) {
         m_port_id = port_id;
     }
 

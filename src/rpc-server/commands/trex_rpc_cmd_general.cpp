@@ -380,7 +380,6 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &attr = parse_object(params, "attr", result);
     int ret = 0;
-    bool changed = false;
 
     /* iterate over all attributes in the dict */
     for (const std::string &name : attr.getMemberNames()) {
@@ -414,20 +413,12 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
             break;
         }
 
-        if (ret != 0){
-            if ( ret == -ENOTSUP ) {
-                generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
-            }
-            else if (ret) {
-                generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
-            }
-            break;
-        } else {
-            changed = true;
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
         }
-    }
-    if (changed) {
-        get_stateless_obj()->get_platform_api()->publish_async_port_attr_changed(port_id);
+        else if (ret) {
+            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
+        }
     }
 
     result["result"] = Json::objectValue;
@@ -612,11 +603,11 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     }
     result["result"]["attr"]["fc"]["mode"] = mode;
 
-    /* RX data */
+    /* RX filter */
     result["result"]["attr"]["rx_filter_mode"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_rx_filter_mode();
 
-    /* RX sniffer */
-    port->get_rx_capture_info().to_json(result["result"]["rx_info"]["sniffer"]);
+    /* RX info */
+    port->get_rx_features().to_json(result["result"]["rx_info"]);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -740,6 +731,32 @@ TrexRpcCmdSetRxFeature::parse_capture_msg(const Json::Value &msg, TrexStatelessP
 
 void 
 TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+	bool enabled = parse_bool(msg, "enabled", result);
+
+	if (enabled) {
+
+		uint64_t size = parse_uint32(msg, "size", result);
+
+		if (size == 0) {
+			generate_parse_err(result, "queue size cannot be zero");
+		}
+
+		try {
+			port->start_rx_queue(size);
+		} catch (const TrexException &ex) {
+			generate_execute_err(result, ex.what());
+		}
+
+	} else {
+
+		try {
+			port->stop_rx_queue();
+		} catch (const TrexException &ex) {
+			generate_execute_err(result, ex.what());
+		}
+
+	}
+
 }
 
 void 

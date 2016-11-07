@@ -216,7 +216,7 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
     }
 
     if (is_feature_set(QUEUE)) {
-        m_pkt_buffer->push(new RxPacket(m));
+        m_pkt_buffer->handle_pkt(m);
     }
 }
 

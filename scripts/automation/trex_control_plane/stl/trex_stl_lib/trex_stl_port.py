@@ -62,6 +62,7 @@ class Port(object):
         self.streams = {}
         self.profile = None
         self.session_id = session_id
+        self.status = {}
         self.attr = {}
 
         self.port_stats = trex_stl_stats.CPortStats(self)
@@ -250,11 +251,9 @@ class Port(object):
 
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
-        # attributes
-        self.attr = rc.data()['attr']
+        self.status = rc.data()
 
-        # rx info
-        self.rx_info = rc.data()['rx_info']
+        self.attr = rc.data()['attr']
 
         return self.ok()
 
@@ -520,6 +519,35 @@ class Port(object):
 
 
     @owned
+    def set_rx_queue (self, size):
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "queue",
+                  "enabled":        True,
+                  "size":          size}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    @owned
+    def remove_rx_queue (self):
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "queue",
+                  "enabled":        False}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+
+    @owned
     def pause (self):
 
         if (self.state == self.STATE_PCAP_TX) :
@@ -610,9 +638,6 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-
-        #self.attr.update(attr_dict)
-
         return self.ok()
 
     @owned
@@ -693,27 +718,30 @@ class Port(object):
         print("\n")
 
     # generate formatted (console friendly) port info
-    def get_formatted_info (self):
+    def get_formatted_info (self, sync = True):
 
-        # sync the attributes
-        self.sync()
+        # sync the status
+        if sync:
+            self.sync()
+
+        attr = self.attr
 
         info = dict(self.info)
 
         info['status'] = self.get_port_state_name()
 
-        if 'link' in self.attr:
-            info['link'] = 'UP' if self.attr['link']['up'] else 'DOWN'
+        if 'link' in attr:
+            info['link'] = 'UP' if attr['link']['up'] else 'DOWN'
         else:
             info['link'] = 'N/A'
 
-        if 'fc' in self.attr:
-            info['fc'] = FLOW_CTRL_DICT_REVERSED.get(self.attr['fc']['mode'], 'N/A')
+        if 'fc' in attr:
+            info['fc'] = FLOW_CTRL_DICT_REVERSED.get(attr['fc']['mode'], 'N/A')
         else:
             info['fc'] = 'N/A'
 
-        if 'promiscuous' in self.attr:
-            info['prom'] = "on" if self.attr['promiscuous']['enabled'] else "off"
+        if 'promiscuous' in attr:
+            info['prom'] = "on" if attr['promiscuous']['enabled'] else "off"
         else:
             info['prom'] = "N/A"
 
@@ -740,26 +768,35 @@ class Port(object):
         else:
             info['is_virtual'] = 'N/A'
 
-        if 'speed' in self.attr:
+        if 'speed' in attr:
             info['speed'] = self.get_formatted_speed()
         else:
             info['speed'] = 'N/A'
                                                   
         
-        # RX info
-        if 'rx_filter_mode' in self.attr:
-            info['rx_filter_mode'] = 'Hardware Match' if self.attr['rx_filter_mode'] == 'hw' else 'Fetch All'
+        if 'rx_filter_mode' in attr:
+            info['rx_filter_mode'] = 'Hardware Match' if attr['rx_filter_mode'] == 'hw' else 'Fetch All'
         else:
             info['rx_filter_mode'] = 'N/A'
 
-        if 'sniffer' in self.rx_info:
-            sniffer = self.rx_info['sniffer']
-            if sniffer['is_active']:
-                info['rx_sniffer'] = '{0}\n[{1} / {2}]'.format(sniffer['pcap_filename'], sniffer['count'], sniffer['limit'])
-            else:
-                info['rx_sniffer'] = 'off'
+        # RX info
+        rx_info = self.status['rx_info']
+
+
+        # RX sniffer
+        if 'sniffer' in rx_info:
+            sniffer = rx_info['sniffer']
+            info['rx_sniffer'] = '{0}\n[{1} / {2}]'.format(sniffer['pcap_filename'], sniffer['count'], sniffer['limit']) if sniffer['is_active'] else 'off'
         else:
             info['rx_sniffer'] = 'N/A'
+
+
+        # RX queue
+        if 'queue' in rx_info:
+            queue = rx_info['queue']
+            info['rx_queue'] = '[{0} / {1}]'.format(queue['count'], queue['size']) if queue['is_active'] else 'off'
+        else:
+            info['rx_queue'] = 'off'
 
 
         return info
@@ -793,7 +830,7 @@ class Port(object):
                 "flow ctrl" : info['fc'],
 
                 "RX Filter Mode": info['rx_filter_mode'],
-                "RX Queueing": 'off',
+                "RX Queueing": info['rx_queue'],
                 "RX sniffer": info['rx_sniffer'],
 
                 }

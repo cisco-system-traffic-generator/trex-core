@@ -128,6 +128,13 @@ class CRxCoreStateless {
     void stop_capture(uint8_t port_id);
 
     /**
+     * start RX queueing of packets
+     * 
+     */
+    void start_queue(uint8_t port_id, uint64_t size, uint64_t *shared_counter);
+    void stop_queue(uint8_t port_id);
+
+    /**
      * enable latency feature for RX packets
      * will be apply to all ports
      */

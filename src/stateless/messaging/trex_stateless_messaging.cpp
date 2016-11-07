@@ -276,6 +276,20 @@ TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
     return true;
 }
 
+bool
+TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->start_queue(m_port_id, m_size, m_shared_counter);
+
+    return true;
+}
+
+bool
+TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->stop_queue(m_port_id);
+
+    return true;
+}
+
 
 bool TrexStatelessRxSwGetPkts::handle(CRxCoreStateless *rx_core) {
     RxPacketBuffer *pkt_buffer = rx_core->get_rx_sw_pkt_buffer(m_port_id);

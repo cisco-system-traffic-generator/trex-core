@@ -366,6 +366,16 @@ CRxCoreStateless::stop_capture(uint8_t port_id) {
 }
 
 void
+CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size, uint64_t *shared_counter) {
+    m_rx_port_mngr[port_id].start_queue(size, shared_counter);
+}
+
+void
+CRxCoreStateless::stop_queue(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_queue();
+}
+
+void
 CRxCoreStateless::enable_latency() {
     for (int i = 0; i < m_max_ports; i++) {
         m_rx_port_mngr[i].enable_latency();

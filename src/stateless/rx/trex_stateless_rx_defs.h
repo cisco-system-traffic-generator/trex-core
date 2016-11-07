@@ -51,8 +51,8 @@ class CRxSlCfg {
  *  
  */
 typedef enum rx_filter_mode_ {
-	RX_FILTER_MODE_HW,
-	RX_FILTER_MODE_ALL
+    RX_FILTER_MODE_HW,
+    RX_FILTER_MODE_ALL
 } rx_filter_mode_e;
 
 /**
@@ -95,4 +95,56 @@ public:
     uint64_t         m_shared_counter;
 };
 
+
+class RXQueueInfo {
+public:
+
+    RXQueueInfo() {
+        m_is_active = false;
+        m_shared_counter = 0;
+    }
+
+    void enable(uint64_t size) {
+        m_size = size;
+        m_is_active = true;
+    }
+
+    void disable() {
+        m_is_active = false;
+        m_size = 0;
+    }
+
+
+    void to_json(Json::Value &output) const {
+        output["is_active"] = m_is_active;
+        if (m_is_active) {
+            output["size"]          = Json::UInt64(m_size);
+            output["count"]         = Json::UInt64(m_shared_counter);
+        }
+    }
+
+public:
+    bool        m_is_active;
+    uint64_t    m_size;
+    uint64_t    m_shared_counter;
+};
+
+
+/**
+ * holds all the RX features info
+ * 
+ * @author imarom (11/7/2016)
+ */
+class RXFeaturesInfo {
+public:
+    RXCaptureInfo m_rx_capture_info;
+    RXQueueInfo   m_rx_queue_info;
+
+    void to_json(Json::Value &msg) const {
+        m_rx_capture_info.to_json(msg["sniffer"]);
+        m_rx_queue_info.to_json(msg["queue"]);
+    }
+};
+
 #endif /* __TREX_STATELESS_RX_DEFS_H__ */
+

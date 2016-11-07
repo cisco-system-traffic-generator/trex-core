@@ -324,26 +324,25 @@ class EventsHandler(object):
 
         # port attr changed
         elif (event_type == 8):
-            return
 
-     #    port_id = int(data['port_id'])
-     #
-     #    if data['attr'] == self.client.ports[port_id].attr:
-     #        return # false alarm
-     #
-     #    old_info = self.client.ports[port_id].get_formatted_info()
-     #    self.__async_event_port_attr_changed(port_id, data['attr'])
-     #
-     #    new_info = self.client.ports[port_id].get_formatted_info()
-     #    ev = "port {0} attributes changed".format(port_id)
-     #    for key, old_val in old_info.items():
-     #        new_val = new_info[key]
-     #        if old_val != new_val:
-     #            ev += '\n  {key}: {old} -> {new}'.format(
-     #                    key = key, 
-     #                    old = old_val.lower() if type(old_val) is str else old_val,
-     #                    new = new_val.lower() if type(new_val) is str else new_val)
-     #    show_event = True
+            port_id = int(data['port_id'])
+     
+            if data['attr'] == self.client.ports[port_id].attr:
+                return # false alarm
+     
+            old_info = self.client.ports[port_id].get_formatted_info(sync = False)
+            self.__async_event_port_attr_changed(port_id, data['attr'])
+     
+            new_info = self.client.ports[port_id].get_formatted_info(sync = False)
+            ev = "port {0} attributes changed".format(port_id)
+            for key, old_val in old_info.items():
+                new_val = new_info[key]
+                if old_val != new_val:
+                    ev += '\n  {key}: {old} -> {new}'.format(
+                        key = key, 
+                        old = old_val.lower() if type(old_val) is str else old_val,
+                        new = new_val.lower() if type(new_val) is str else new_val)
+            show_event = True
 
     
         # server stopped
@@ -836,6 +835,24 @@ class STLClient(object):
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].remove_rx_sniffer())
+
+        return rc
+
+    def __set_rx_queue (self, port_id_list, size):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_rx_queue(size))
+
+        return rc
+
+    def __remove_rx_queue (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_rx_queue())
 
         return rc
 
@@ -1754,6 +1771,7 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+
     @__api_check(True)
     def ping(self):
         """
@@ -1767,6 +1785,11 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
+        rc = self.set_port_attr(ports = [0, 1], rx_filter_mode = 'all')
+        rc = self.set_rx_queue(ports = [0, 1], size = 1000)
+        if not rc:
+            raise STLError(rc)
+
 
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
@@ -1776,6 +1799,7 @@ class STLClient(object):
 
         if not rc:
             raise STLError(rc)
+
 
     @__api_check(True)
     def server_shutdown (self, force = False):
@@ -1890,6 +1914,7 @@ class STLClient(object):
                            link_up = True,
                            rx_filter_mode = 'hw')
         self.remove_rx_sniffer(ports)
+        self.remove_rx_queue(ports)
 
         
 
@@ -2737,7 +2762,8 @@ class STLClient(object):
         # check arguments
         validate_type('base_filename', base_filename, basestring)
         validate_type('limit', limit, (int))
-
+        if limit <= 0:
+            raise STLError("'limit' must be a positive value")
 
         self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
         rc = self.__set_rx_sniffer(ports, base_filename, limit)
@@ -2750,7 +2776,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def remove_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000):
+    def remove_rx_sniffer (self, ports = None):
         """
             Removes RX sniffer from port(s)
 
@@ -2767,6 +2793,59 @@ class STLClient(object):
 
         if not rc:
             raise STLError(rc)
+
+    
+    @__api_check(True)
+    def set_rx_queue (self, ports = None, size = 1000):
+        """
+            Sets RX queue for port(s)
+            The queue is cyclic and will hold last 'size' packets
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                size           - size of the queue
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        # check arguments
+        validate_type('size', size, (int))
+        if size <= 0:
+            raise STLError("'size' must be a positive value")
+
+        self.logger.pre_cmd("Setting RX queue on port(s) {0}:".format(ports))
+        rc = self.__set_rx_queue(ports, size)
+        self.logger.post_cmd(rc)
+
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def remove_rx_queue (self, ports = None):
+        """
+            Removes RX queue from port(s)
+
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd("Removing RX queue on port(s) {0}:".format(ports))
+        rc = self.__remove_rx_queue(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
 
     def clear_events (self):
         """
