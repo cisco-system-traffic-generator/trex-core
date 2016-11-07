@@ -3190,9 +3190,15 @@ void CGlobalTRex::pre_test() {
             // If we got src MAC from config file, do not send gratuitous ARP for it (for compatibility with old behaviour)
             CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
         }
-        pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id]
-                                , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
-                                , resolve_needed);
+
+        pretest.add_ip(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
+                       , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan()
+                       , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+
+        if (resolve_needed) {
+            pretest.add_next_hop(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw()
+                                 , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+        }
     }
 
     pretest.send_grat_arp_all();
@@ -3211,7 +3217,8 @@ void CGlobalTRex::pre_test() {
         if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
             // we don't have dest MAC. Get it from what we resolved.
             uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-            if (! pretest.get_mac(port_id, ip, mac)) {
+            uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+            if (! pretest.get_mac(port_id, ip, vlan, mac)) {
                 fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
                         , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
                 exit(1);

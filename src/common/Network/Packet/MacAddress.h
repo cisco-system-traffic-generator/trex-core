@@ -29,7 +29,7 @@ public:
 
     MacAddress()
     {
-        set(0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef);
+        set(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
     };
 
     MacAddress(uint8_t a0,
@@ -81,12 +81,17 @@ public:
         data[5]=val;
     }
 
+    bool isDefaultAddress() const
+    {
+		static MacAddress defaultMac;
+		return (*this == defaultMac);
+    }
 
 	bool isInvalidAddress() const
 	{
 		static MacAddress allZeros(0,0,0,0,0,0);
-		static MacAddress cafeDeadBeef;
-		return (*this == allZeros || *this == cafeDeadBeef);
+		static MacAddress defaultMac;
+		return (*this == allZeros || *this == defaultMac);
 	}
 	void setIdentifierAsBogusAddr(uint32_t identifier)
 	{
