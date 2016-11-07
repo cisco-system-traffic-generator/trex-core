@@ -63,6 +63,7 @@ public:
     const YAML::Node & parse_map(const YAML::Node &node, const std::string &name);
 
     uint32_t parse_ip(const YAML::Node &node, const std::string &name);
+    void parse_ipv6(const YAML::Node &node, const std::string &name, unsigned char *ip);
 
     uint64_t parse_mac_addr(const YAML::Node &node, const std::string &name);
     uint64_t parse_mac_addr(const YAML::Node &node, const std::string &name, uint64_t def);
