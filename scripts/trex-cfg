@@ -39,9 +39,7 @@ done
 
 PATH=$PATH:/sbin:/usr/sbin
 
-#! lsmod | grep -q igb_uio  ; 
-# TBD need to fix this for Mellanox , need to check if all NICS are mellanox and not to do this
-if false ;  then
+if ! lsmod | grep -q igb_uio  ;  then
     echo "Loading kernel drivers for the first time"
     modprobe uio
     if [ $? -ne 0 ]; then

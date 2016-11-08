@@ -402,6 +402,77 @@ public:
 };
 
 
+class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase10G {
+public:
+
+    CTRexExtendedDriverBaseMlnx5G(){
+        // Since we support only 128 counters per if, it is OK to configure here 4 statically.
+        // If we want to support more counters in case of card having less interfaces, we
+        // Will have to identify the number of interfaces dynamically.
+        m_if_per_card = 2;
+    }
+
+    TRexPortAttr * create_port_attr(uint8_t port_id) {
+        // disabling flow control on 40G using DPDK API causes the interface to malfunction
+        return new DpdkTRexPortAttr(port_id, false, false);
+    }
+
+
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverBaseMlnx5G() );
+    }
+
+    virtual void update_global_config_fdir(port_cfg_t * cfg){
+    }
+
+    virtual void update_configuration(port_cfg_t * cfg);
+
+    virtual int configure_rx_filter_rules(CPhyEthIF * _if);
+    virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
+                                                          , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id);
+
+    virtual bool is_hardware_filter_is_supported(){
+        return (true);
+    }
+
+    virtual bool is_hardware_support_drop_queue(){
+        return(true);
+    }
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void clear_extended_stats(CPhyEthIF * _if);
+    virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
+    virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
+    virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
+    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
+    virtual int get_rx_stat_capabilities() {
+        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    }
+    virtual int wait_for_stable_link();
+    // disabling flow control on 40G using DPDK API causes the interface to malfunction
+    virtual bool flow_control_disable_supported(){return false;}
+    virtual bool hw_rx_stat_supported(){return true;}
+    virtual CFlowStatParser *get_flow_stat_parser();
+    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on){
+        /* TBD need to support that */
+        return (-1);
+    }
+
+
+private:
+    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, 
+                               uint16_t type, uint8_t ttl, 
+                               uint16_t ip_id, 
+                               uint16_t l4_proto,
+                               int queue, 
+                               uint16_t stat_idx);
+    virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
+
+private:
+    uint8_t m_if_per_card;
+};
+
+
+
 
 typedef CTRexExtendedDriverBase * (*create_object_t) (void);
 
@@ -453,6 +524,8 @@ private:
         register_driver(std::string("rte_igb_pmd"),CTRexExtendedDriverBase1G::create);
         register_driver(std::string("rte_i40e_pmd"),CTRexExtendedDriverBase40G::create);
         register_driver(std::string("rte_enic_pmd"),CTRexExtendedDriverBaseVIC::create);
+        register_driver(std::string("librte_pmd_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
+
 
         /* virtual devices */
         register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBase1GVm::create);
@@ -6305,6 +6378,236 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 }
 
 /////////////////////////////////////////////////////////////////////
+/* MLX5 */
+
+void CTRexExtendedDriverBaseMlnx5G::clear_extended_stats(CPhyEthIF * _if){
+    rte_eth_stats_reset(_if->get_port_id());
+}
+
+void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+    cfg->update_global_config_fdir_40g();
+}
+
+void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, 
+                                                  uint16_t l4_proto, int queue, uint16_t stat_idx) {
+    /* Mellanox card does not have TTL support, 
+      so we will replace it in low level with TOS */
+
+    int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
+    static int filter_soft_id = 0;
+
+    if ( ret != 0 ){
+        rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_supported "
+                 "err=%d, port=%u \n",
+                 ret, port_id);
+    }
+
+    struct rte_eth_fdir_filter filter;
+
+    memset(&filter,0,sizeof(struct rte_eth_fdir_filter));
+
+#if 0
+    printf("40g::%s rules: port:%d type:%d ttl:%d ip_id:%x l4:%d q:%d hw index:%d\n"
+           , (op == RTE_ETH_FILTER_ADD) ?  "add" : "del"
+           , port_id, type, ttl, ip_id, l4_proto, queue, stat_idx);
+#endif
+
+    filter.action.rx_queue = queue;
+    filter.action.behavior =RTE_ETH_FDIR_ACCEPT;
+    filter.action.report_status =RTE_ETH_FDIR_NO_REPORT_STATUS;
+    filter.action.stat_count_index = stat_idx;
+    filter.soft_id = filter_soft_id++;
+    filter.input.flow_type = type;
+
+    if (op == RTE_ETH_FILTER_ADD) {
+        fdir_hw_id_rule_params[stat_idx].rule_type = type;
+        fdir_hw_id_rule_params[stat_idx].l4_proto = l4_proto;
+    }
+
+    switch (type) {
+    case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
+    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
+        filter.input.flow.ip4_flow.ttl=ttl;
+        filter.input.flow.ip4_flow.ip_id = ip_id;
+        if (l4_proto != 0)
+            filter.input.flow.ip4_flow.proto = l4_proto;
+        break;
+    case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
+    case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
+    case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
+        filter.input.flow.ipv6_flow.hop_limits=ttl;
+        filter.input.flow.ipv6_flow.flow_label = ip_id;
+        filter.input.flow.ipv6_flow.proto = l4_proto;
+        break;
+    }
+
+    ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
+    if ( ret != 0 ) {
+        rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_ctrl: err=%d, port=%u\n",
+                 ret, port_id);
+    }
+}
+
+int CTRexExtendedDriverBaseMlnx5G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
+                                                          , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
+
+    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
+    uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+    uint8_t next_proto;
+
+    if (l3_proto == EthernetHeader::Protocol::IP) {
+        next_proto = l4_proto;
+        switch(l4_proto) {
+        case IPPROTO_TCP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_TCP;
+            break;
+        case IPPROTO_UDP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_UDP;
+            break;
+        default:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+            break;
+        }
+    } else {
+        // IPv6
+        next_proto = ipv6_next_h;
+        switch(l4_proto) {
+        case IPPROTO_TCP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_TCP;
+            break;
+        case IPPROTO_UDP:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_UDP;
+            break;
+        default:
+            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
+            break;
+        }
+    }
+
+    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DATA_Q, rule_id);
+    return 0;
+}
+
+
+int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules_statfull(CPhyEthIF * _if) {
+    uint32_t port_id = _if->get_port_id();
+    /* TTL==TOS */
+
+    /* Configure rules for latency measurement packets */
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
+    /* MLX5-IPV6 support */
+
+//        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, tos, 0, MAIN_DPDK_RX_Q, 0);
+//        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, tos, 0, MAIN_DPDK_RX_Q, 0);
+
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, TTL_RESERVE_DUPLICATE ,  0,0, MAIN_DPDK_RX_Q, 0);
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, TTL_RESERVE_DUPLICATE  , 0,0, MAIN_DPDK_RX_Q, 0);
+
+    return 0;
+}
+
+int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules(CPhyEthIF * _if) {
+    if (get_is_stateless()) {
+        uint32_t port_id = _if->get_port_id();
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, FDIR_TEMP_HW_ID, 1);
+        return 0; // Other rules are configured dynamically in stateless
+    } else {
+        return configure_rx_filter_rules_statfull(_if);
+    }
+}
+
+void CTRexExtendedDriverBaseMlnx5G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
+    uint32_t port_id = _if->get_port_id();
+    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+
+    // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
+    // we reset the HW value
+    rte_eth_fdir_stats_reset(port_id, NULL, rule_id, len);
+
+    for (int i =0; i < len; i++) {
+        stats[i] = 0;
+    }
+}
+
+int CTRexExtendedDriverBaseMlnx5G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts
+                                             ,uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
+    /* not supported yet */
+    return 0;
+}
+
+int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd)
+{
+    uint32_t port_id = _if->get_port_id();
+    struct rte_eth_fdir_stats stat;
+    int ret;
+
+    ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_STATS, (void*)&stat);
+    if (ret == 0) {
+        if (fd)
+            fprintf(fd, "Num filters on guarant poll:%d, best effort poll:%d\n", stat.guarant_cnt, stat.best_cnt);
+        return (stat.guarant_cnt + stat.best_cnt);
+    } else {
+        if (fd)
+            fprintf(fd, "Failed reading fdir statistics\n");
+        return -1;
+    }
+}
+
+void CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
+    stats->opackets += stats1.opackets - prev_stats->opackets;
+    stats->obytes   += stats1.obytes - prev_stats->obytes
+        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
+int CTRexExtendedDriverBaseMlnx5G::wait_for_stable_link(){
+    delay(20);
+    return (0);
+}
+
+CFlowStatParser *CTRexExtendedDriverBaseMlnx5G::get_flow_stat_parser() {
+    CFlowStatParser *parser = new CFlowStatParser();
+    assert (parser);
+    return parser;
+}
+
+
+
+
+/////////////////////////////////////////////////////////////////////
+
+
 
 
 void CTRexExtendedDriverBase1GVm::update_configuration(port_cfg_t * cfg){
