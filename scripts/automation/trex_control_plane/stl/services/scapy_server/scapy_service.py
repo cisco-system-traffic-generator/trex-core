@@ -329,7 +329,7 @@ def generate_bytes(bytes_definition):
         elif gen_type == 'template':
             return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
         elif gen_type == 'template_code':
-            return generate_bytes_from_template(bytes_size, bytes_definition["template_code"])
+            return generate_bytes_from_template(bytes_size, parse_template_code(bytes_definition["template_code"]))
 
 
 class ScapyException(Exception): pass

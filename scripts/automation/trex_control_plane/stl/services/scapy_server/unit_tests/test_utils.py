@@ -54,7 +54,7 @@ def test_generate_template_code():
     print(res)
     assert(res == bytearray.fromhex('DE AD BE EF DE AD'))
 
-def test_generate_template_code():
+def test_generate_template_base64():
     res = generate_bytes({"generate":"template", "template_base64": bytes_to_b64(b'hi'), "size": 5})
     print(res)
     assert(res == b'hihih')
