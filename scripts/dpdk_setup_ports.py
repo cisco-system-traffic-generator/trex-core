@@ -388,15 +388,17 @@ Other network devices
                 self.do_bind_one (key,(Mellanox_cnt>0))
                 pass;
 
-        if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
-            pid = dpdk_nic_bind.get_pid_using_pci(if_list)
-            if pid:
-                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-                if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                    sys.exit(1)
-            else:
-                print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
+        if (Mellanox_cnt==0):
+            # We are not in Mellanox case, we can do this check only in case of Intel (another process is running) 
+            if if_list and map_driver.args.parent and (dpdk_nic_bind.get_igb_uio_usage()):
+                pid = dpdk_nic_bind.get_pid_using_pci(if_list)
+                if pid:
+                    cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                    print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                    if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
+                        sys.exit(1)
+                else:
+                       print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
 
     def do_return_to_linux(self):
         if not self.m_devices:
