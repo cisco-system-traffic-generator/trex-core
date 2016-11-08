@@ -181,6 +181,9 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	}
 	if (priv->reta_idx != NULL)
 		rte_free(priv->reta_idx);
+
+    mlx5_stats_free(dev);
+
 	priv_unlock(priv);
 	memset(priv, 0, sizeof(*priv));
 }

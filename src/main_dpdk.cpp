@@ -6570,7 +6570,8 @@ void CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIF
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
     stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes + 
+        + (stats1.ipackets << 2) - (prev_stats->ipackets << 2);
     stats->opackets += stats1.opackets - prev_stats->opackets;
     stats->obytes   += stats1.obytes - prev_stats->obytes
         + (stats1.opackets << 2) - (prev_stats->opackets << 2);
