@@ -521,10 +521,12 @@ private:
 
 
 
-class TrexStatelessRxSwGetPkts : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
 public:
 
-    TrexStatelessRxSwGetPkts(uint8_t port_id, TrexStatelessMsgReply<RxPacketBuffer *> &reply);
+    TrexStatelessRxQueueGetPkts(uint8_t port_id, TrexStatelessMsgReply<RxPacketBuffer *> &reply) : m_reply(reply) {
+        m_port_id = port_id;
+    }
 
     /**
      * virtual function to handle a message

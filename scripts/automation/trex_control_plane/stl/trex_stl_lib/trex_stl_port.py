@@ -546,7 +546,24 @@ class Port(object):
 
         return self.ok()
 
+    @owned
+    def get_rx_queue_pkts (self):
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id}
 
+        rc = self.transmit("get_rx_queue_pkts", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        pkts = rc.data()['pkts']
+        
+        # decode the packets
+        for i in range(len(pkts)):
+            pkts[i] = base64.b64decode(pkts[i])
+            
+        return pkts
+        
+        
     @owned
     def pause (self):
 
@@ -635,17 +652,6 @@ class Port(object):
                   "attr": attr_dict}
 
         rc = self.transmit("set_port_attr", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
-
-    @owned
-    def get_rx_sw_pkts (self):
-        params = {"handler": self.handler,
-                  "port_id": self.port_id}
-
-        rc = self.transmit("get_rx_sw_pkts", params)
         if rc.bad():
             return self.err(rc.err())
 

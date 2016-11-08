@@ -978,12 +978,12 @@ TrexStatelessPort::stop_rx_queue() {
 
 
 RxPacketBuffer *
-TrexStatelessPort::get_rx_sw_pkts() {
+TrexStatelessPort::get_rx_queue_pkts() {
 
     /* ask RX core for the pkt queue */
     TrexStatelessMsgReply<RxPacketBuffer *> msg_reply;
 
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxSwGetPkts(m_port_id, msg_reply);
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxQueueGetPkts(m_port_id, msg_reply);
     send_message_to_rx(msg);
 
     RxPacketBuffer *pkt_buffer = msg_reply.wait_for_reply();

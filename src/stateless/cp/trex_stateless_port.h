@@ -408,10 +408,10 @@ public:
     }
 
     /**
-     * fetch the RX software packets from the queue
+     * fetch the RX queue packets from the queue
      * 
      */
-    RxPacketBuffer *get_rx_sw_pkts();
+    RxPacketBuffer *get_rx_queue_pkts();
 
 private:
 

@@ -1771,6 +1771,38 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+    def test (self):
+        
+        self.reset(ports = [0, 1])
+        
+        self.set_rx_queue(ports = [0], size = 1000, rxf = 'all')
+
+        #base_pkt = Ether()/ARP()/('x'*50)
+        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = '1.1.1.2',pdst = '1.1.1.1', hwsrc = 'a0:36:9f:20:e6:ce')
+        #base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ICMP()
+        
+        print('Sending ARP request on port 0:\n')
+        base_pkt.show2()
+        
+        # send some traffic
+        x = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
+        
+        self.add_streams(streams = [x], ports = [0])
+        self.start(ports = [0], mult = '100%')
+        self.wait_on_traffic(ports = [0])
+        time.sleep(1)
+        
+        pkts = self.get_rx_queue_pkts(ports = [0])
+        
+        print('got back on port 0:\n')
+        for pkt in pkts[0]:
+            Ether(pkt).show2()
+        
+        self.remove_rx_queue(ports = [1])
+        self.set_port_attr(ports = [1], rxf = 'hw')
+        #for pkt in pkts[1]:
+        #    Ether(pkt).show2()
+            
 
     @__api_check(True)
     def ping(self):
@@ -1785,12 +1817,8 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-        rc = self.set_port_attr(ports = [0, 1], rx_filter_mode = 'all')
-        rc = self.set_rx_queue(ports = [0, 1], size = 1000)
-        if not rc:
-            raise STLError(rc)
-
-
+        self.test()
+     
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
@@ -1911,8 +1939,8 @@ class STLClient(object):
         self.clear_stats(ports)
         self.set_port_attr(ports,
                            promiscuous = False,
-                           link_up = True,
-                           rx_filter_mode = 'hw')
+                           #link_up = True,
+                           rxf = 'hw')
         self.remove_rx_sniffer(ports)
         self.remove_rx_queue(ports)
 
@@ -2692,7 +2720,7 @@ class STLClient(object):
                        link_up = None,
                        led_on = None,
                        flow_ctrl = None,
-                       rx_filter_mode = None):
+                       rxf = None):
         """
             Set port attributes
 
@@ -2701,7 +2729,7 @@ class STLClient(object):
                 link_up     - True or False
                 led_on      - True or False
                 flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-                rx_filter_mode - 'hw' for hardware rules matching packets only or 'all' all packets
+                rxf         - 'hw' for hardware rules matching packets only or 'all' all packets
             :raises:
                 + :exe:'STLError'
 
@@ -2715,7 +2743,7 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
-        validate_choice('rx_filter_mode', rx_filter_mode, ['hw', 'all'])
+        validate_choice('rxf', rxf, ['hw', 'all'])
 
         # build attributes
         attr_dict = {}
@@ -2727,8 +2755,8 @@ class STLClient(object):
             attr_dict['led_status'] = {'on': led_on}
         if flow_ctrl is not None:
             attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
-        if rx_filter_mode is not None:
-            attr_dict['rx_filter_mode'] = {'mode': rx_filter_mode}
+        if rxf is not None:
+            attr_dict['rx_filter_mode'] = {'mode': rxf}
 
         # no attributes to set
         if not attr_dict:
@@ -2744,7 +2772,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def set_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000):
+    def set_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000, rxf = None):
         """
             Sets RX sniffer for port(s) written to a PCAP file
 
@@ -2752,6 +2780,7 @@ class STLClient(object):
                 ports          - for which ports to apply a unique sniffer (each port gets a unique file)
                 base_filename  - filename will be appended with '-<port_number>'
                 limit          - limit how many packets will be written
+                rxf            - RX filter mode to use: 'hw' or 'all'
             :raises:
                 + :exe:'STLError'
 
@@ -2765,6 +2794,10 @@ class STLClient(object):
         if limit <= 0:
             raise STLError("'limit' must be a positive value")
 
+        # change RX filter mode if asked
+        if rxf:
+            self.set_port_attr(ports, rxf = rxf)
+            
         self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
         rc = self.__set_rx_sniffer(ports, base_filename, limit)
         self.logger.post_cmd(rc)
@@ -2796,7 +2829,7 @@ class STLClient(object):
 
     
     @__api_check(True)
-    def set_rx_queue (self, ports = None, size = 1000):
+    def set_rx_queue (self, ports = None, size = 1000, rxf = None):
         """
             Sets RX queue for port(s)
             The queue is cyclic and will hold last 'size' packets
@@ -2804,6 +2837,7 @@ class STLClient(object):
             :parameters:
                 ports          - for which ports to apply a unique sniffer (each port gets a unique file)
                 size           - size of the queue
+                rxf            - which RX filter to use on those ports: 'hw' or 'all'
             :raises:
                 + :exe:'STLError'
 
@@ -2816,6 +2850,10 @@ class STLClient(object):
         if size <= 0:
             raise STLError("'size' must be a positive value")
 
+        # change RX filter mode if asked
+        if rxf:
+            self.set_port_attr(ports, rxf = rxf)
+            
         self.logger.pre_cmd("Setting RX queue on port(s) {0}:".format(ports))
         rc = self.__set_rx_queue(ports, size)
         self.logger.post_cmd(rc)
@@ -2847,6 +2885,23 @@ class STLClient(object):
 
 
 
+    @__api_check(True)
+    def get_rx_queue_pkts (self, ports = None):
+        """
+            Returns any packets queued on the RX side by the server
+            return value is a dictonary per port
+            
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        result = {}
+        for port in ports:
+            result[port] = self.ports[port].get_rx_queue_pkts()
+        
+        return result
+            
+        
     def clear_events (self):
         """
             Clear all events
@@ -3460,10 +3515,9 @@ class STLClient(object):
         if not opts:
             return opts
 
-        if parsing_opts.ALL_FILES:
-            self.set_port_attr(ports = opts.ports, rx_filter_mode = 'all')
+        rxf = 'all' if opts.all else None 
 
-        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit, rxf)
 
 
     @__console

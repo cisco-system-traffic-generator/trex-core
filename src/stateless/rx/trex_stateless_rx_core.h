@@ -111,7 +111,7 @@ class CRxCoreStateless {
     double get_cpu_util();
     void update_cpu_util();
 
-    RxPacketBuffer *get_rx_sw_pkt_buffer(uint8_t port_id) {
+    RxPacketBuffer *get_rx_queue_pkts(uint8_t port_id) {
         return m_rx_port_mngr[port_id].get_pkt_buffer();
     }
 

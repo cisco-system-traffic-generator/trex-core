@@ -765,14 +765,14 @@ TrexRpcCmdSetRxFeature::parse_server_msg(const Json::Value &msg, TrexStatelessPo
 
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetRxSwPkts::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
     
     uint8_t port_id = parse_port(params, result);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        RxPacketBuffer *pkt_buffer = port->get_rx_sw_pkts();
+        RxPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
         result["result"]["pkts"] = pkt_buffer->to_json();
 
     } catch (const TrexException &ex) {

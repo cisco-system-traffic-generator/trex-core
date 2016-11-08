@@ -257,11 +257,6 @@ bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
 }
 
 
-TrexStatelessRxSwGetPkts::TrexStatelessRxSwGetPkts(uint8_t port_id, TrexStatelessMsgReply<RxPacketBuffer *> &reply) :  m_reply(reply) {
-    m_port_id = port_id;
-}
-
-
 bool
 TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
     rx_core->start_capture(m_port_id, m_pcap_filename, m_limit, m_shared_counter);
@@ -291,8 +286,9 @@ TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
 }
 
 
-bool TrexStatelessRxSwGetPkts::handle(CRxCoreStateless *rx_core) {
-    RxPacketBuffer *pkt_buffer = rx_core->get_rx_sw_pkt_buffer(m_port_id);
+
+bool TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
+    RxPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
     assert(pkt_buffer);
     m_reply.set(pkt_buffer);
 
