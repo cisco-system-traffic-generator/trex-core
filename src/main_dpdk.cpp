@@ -6495,18 +6495,19 @@ int CTRexExtendedDriverBaseMlnx5G::add_del_rx_flow_stat_rule(uint8_t port_id, en
 
 
 int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules_statfull(CPhyEthIF * _if) {
-    uint32_t port_id = _if->get_port_id();
+    //uint32_t port_id = _if->get_port_id();
     /* TTL==TOS */
 
+    return (0);
     /* Configure rules for latency measurement packets */
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, TTL_RESERVE_DUPLICATE,  0, 0, MAIN_DPDK_RX_Q, 0);
     /* MLX5-IPV6 support */
 
 //        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, tos, 0, MAIN_DPDK_RX_Q, 0);
 //        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, tos, 0, MAIN_DPDK_RX_Q, 0);
 
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, TTL_RESERVE_DUPLICATE ,  0,0, MAIN_DPDK_RX_Q, 0);
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, TTL_RESERVE_DUPLICATE ,  0,0, MAIN_DPDK_RX_Q, 0);
     //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, TTL_RESERVE_DUPLICATE  , 0,0, MAIN_DPDK_RX_Q, 0);
 
     return 0;
@@ -6514,11 +6515,11 @@ int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules_statfull(CPhyEthIF 
 
 int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
-        uint32_t port_id = _if->get_port_id();
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+        //uint32_t port_id = _if->get_port_id();
+        /*add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, FDIR_TEMP_HW_ID, 1);
+        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, 0, FLOW_STAT_PAYLOAD_IP_ID, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);*/
+        //rte_eth_fdir_stats_reset(_if->get_port_id(), NULL, FDIR_TEMP_HW_ID, 1);
         return 0; // Other rules are configured dynamically in stateless
     } else {
         return configure_rx_filter_rules_statfull(_if);
@@ -6526,12 +6527,12 @@ int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules(CPhyEthIF * _if) {
 }
 
 void CTRexExtendedDriverBaseMlnx5G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
-    uint32_t port_id = _if->get_port_id();
-    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+    //uint32_t port_id = _if->get_port_id();
+    //uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
 
     // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
     // we reset the HW value
-    rte_eth_fdir_stats_reset(port_id, NULL, rule_id, len);
+    //rte_eth_fdir_stats_reset(port_id, NULL, rule_id, len);
 
     for (int i =0; i < len; i++) {
         stats[i] = 0;
