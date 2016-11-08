@@ -299,13 +299,17 @@ Other network devices
             self.raise_error ('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
 
-    def do_bind_one (self,key):
-        cmd='%s dpdk_nic_bind.py --bind=igb_uio %s ' % (sys.executable, key)
+    def do_bind_one (self,key,mellanox):
+        if mellanox:
+            drv="mlx5_core"
+        else:
+            drv="igb_uio"
+
+        cmd='%s dpdk_nic_bind.py --bind=%s %s ' % (sys.executable, drv,key)
         print(cmd)
         res=os.system(cmd);
         if res!=0:
             raise DpdkSetup('')
-
 
 
     def pci_name_to_full_name (self,pci_name):
@@ -330,7 +334,7 @@ Other network devices
         dpdk_nic_bind.get_nic_details()
         self.m_devices= dpdk_nic_bind.devices
 
-    def do_run (self):
+    def do_run (self,only_check_all_mlx=False):
         self.run_dpdk_lspci ()
         if map_driver.dump_interfaces is None or (map_driver.dump_interfaces == [] and map_driver.parent_cfg):
             self.load_config_file()
@@ -343,17 +347,46 @@ Other network devices
                         if_list.append(dev['Slot'])
 
         if_list = list(map(self.pci_name_to_full_name, if_list))
+
+
+        # check how many mellanox cards we have
+        Mellanox_cnt=0;
         for key in if_list:
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
+            if 'Vendor_str' not in self.m_devices[key]:
+                err=" %s does not have Vendor_str " %key;
+                raise DpdkSetup(err)
+
+            if self.m_devices[key]['Vendor_str'].find("Mellanox")>-1 :
+                Mellanox_cnt=Mellanox_cnt+1
+
+
+        if ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
+            err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
+            raise DpdkSetup(err)
+
+
+        if only_check_all_mlx:
+            if Mellanox_cnt >0:
+                exit(1);
+            else:
+                exit(0);
+
+        for key in if_list:
+            if key not in self.m_devices:
+                err=" %s does not exist " %key;
+                raise DpdkSetup(err)
 
             if 'Driver_str' in self.m_devices[key]:
                 if self.m_devices[key]['Driver_str'] not in dpdk_nic_bind.dpdk_drivers :
-                    self.do_bind_one (key)
+                    self.do_bind_one (key,(Mellanox_cnt>0))
+                    pass;
             else:
-                self.do_bind_one (key)
+                self.do_bind_one (key,(Mellanox_cnt>0))
+                pass;
 
         if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
             pid = dpdk_nic_bind.get_pid_using_pci(if_list)
@@ -684,7 +717,7 @@ To return to Linux the DPDK bound interfaces (for ifconfig etc.)
   sudo ./dpdk_set_ports.py -l
 
 To create TRex config file using interactive mode
-  sudo ./dpdk_set_ports.py -l
+  sudo ./dpdk_set_ports.py -i
 
 To create a default config file (example1)
   sudo ./dpdk_setup_ports.py -c 02:00.0 02:00.1 -o /etc/trex_cfg.yaml

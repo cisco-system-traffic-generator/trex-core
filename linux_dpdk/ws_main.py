@@ -315,6 +315,21 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
+
+                 'drivers/net/mlx5/mlx5_mr.c',
+                 'drivers/net/mlx5/mlx5_ethdev.c',
+                 'drivers/net/mlx5/mlx5_mac.c',
+                 'drivers/net/mlx5/mlx5_rxmode.c',
+                 'drivers/net/mlx5/mlx5_rxtx.c',
+                 'drivers/net/mlx5/mlx5_stats.c',
+                 'drivers/net/mlx5/mlx5_txq.c',
+                 'drivers/net/mlx5/mlx5.c',
+                 'drivers/net/mlx5/mlx5_fdir.c',
+                 'drivers/net/mlx5/mlx5_rss.c',
+                 'drivers/net/mlx5/mlx5_rxq.c',
+                 'drivers/net/mlx5/mlx5_trigger.c',
+                 'drivers/net/mlx5/mlx5_vlan.c',
+
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -518,6 +533,8 @@ includes_path =''' ../src/pal/linux_dpdk/
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
                         ../src/pal/linux_dpdk/dpdk
+                        ../external_libs/ibverbs/include/
+
 ../src/dpdk/drivers/
 ../src/dpdk/drivers/net/
 ../src/dpdk/drivers/net/af_packet/
@@ -722,6 +739,9 @@ def build_prog (bld, build_obj):
     zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
 
+    ibverbs_lib_path='external_libs/ibverbs/'
+    bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+
     #rte_libs =[
     #         'dpdk'];
 
@@ -751,7 +771,7 @@ def build_prog (bld, build_obj):
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl', 'z'],
-                use =[build_obj.get_dpdk_target(),'zmq'],
+                use =[build_obj.get_dpdk_target(),'zmq','ibverbs'],
                 source = bp.file_list(top) + debug_file_list,
                 target = build_obj.get_target())
 
@@ -880,6 +900,7 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 files_list=[
             'libzmq.so.3',
+            'libibverbs.so.1',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',

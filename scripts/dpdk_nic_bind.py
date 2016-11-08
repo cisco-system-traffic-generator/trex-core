@@ -54,7 +54,8 @@ if needed_path not in PATH:
 # Each device within this is itself a dictionary of device properties
 devices = {}
 # list of supported DPDK drivers
-dpdk_drivers = [ "igb_uio", "vfio-pci", "uio_pci_generic" ]
+#
+dpdk_drivers = [ "mlx5_core", "mlx5_ib","igb_uio", "vfio-pci", "uio_pci_generic" ]
 
 # command-line arg flags
 b_flag = None
