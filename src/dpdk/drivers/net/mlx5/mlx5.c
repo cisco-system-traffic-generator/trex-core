@@ -389,7 +389,6 @@ mlx5_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		return -errno;
 	}
 	assert(i >= 0);
-    printf(" list : %d \n",i);
 	/*
 	 * For each listed device, check related sysfs entry against
 	 * the provided PCI ID.
