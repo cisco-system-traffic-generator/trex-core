@@ -49,9 +49,16 @@ def test_generate_ascii_default_seed():
     assert(len(res) == 14)
 
 
-def test_generate_template_code():
+def test_generate_template_code_no_size():
+    res = generate_bytes({"generate":"template_code", "template_code": "BE EF"})
+    assert(res == bytearray.fromhex('BE EF'))
+
+def test_generate_template_code_less():
+    res = generate_bytes({"generate":"template_code", "template_code": "DE AD BE EF", "size": 2})
+    assert(res == bytearray.fromhex('DE AD'))
+
+def test_generate_template_code_more():
     res = generate_bytes({"generate":"template_code", "template_code": "0xDEAD 0xBEEF", "size": 6})
-    print(res)
     assert(res == bytearray.fromhex('DE AD BE EF DE AD'))
 
 def test_generate_template_base64():
