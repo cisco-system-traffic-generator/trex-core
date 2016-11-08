@@ -1,0 +1,194 @@
+[
+  {
+    "id": "Ether",
+    "name": "Ethernet II",
+    "fields": [
+      {
+        "id": "dst",
+        "name": "Destination",
+        "type": "MAC_ADDRESS",
+        "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+      },
+      {
+        "id": "src",
+        "name": "Source",
+        "type": "MAC_ADDRESS",
+        "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+      },
+      {
+        "id": "type",
+        "name": "Type"
+      }
+    ],
+    "payload": ["IP", "IPv6", "Dot1Q", "Raw"]
+  },
+  {
+    "id": "IP",
+    "name": "IPv4",
+    "fields": [
+      {
+        "id": "version",
+        "name": "Version"
+      },
+      {
+        "id": "ihl",
+        "name": "IHL",
+        "type": "NUMBER",
+        "auto": true
+      },
+      {
+        "id": "tos",
+        "name": "TOS",
+        "type": "NUMBER"
+      },
+      {
+        "id": "len",
+        "name": "Total Length",
+        "type": "NUMBER",
+        "auto": true
+      },
+      {
+        "id": "id",
+        "name": "Identification",
+        "type": "NUMBER"
+      },
+      {
+        "id": "flags",
+        "name": "Flags",
+        "type": "BITMASK",
+        "bits": [
+          {"name": "Reserved", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+          {"name": "Fragment", "mask": 2, "values":[{"name":"May fragment (0)", "value": 0}, {"name":"Don't fragment (1)", "value": 2}]},
+          {"name": "More Fragments(MF)", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+      },
+      {
+        "id": "frag",
+        "name": "Fragment offset",
+        "type": "NUMBER"
+      },
+      {
+        "id": "ttl",
+        "name": "TTL",
+        "type": "NUMBER",
+        "min": 1,
+        "max": 255
+        
+      },
+      {
+        "id": "proto",
+        "name": "Protocol"
+      },
+      {
+        "id": "chksum",
+        "name": "Checksum",
+        "type": "STRING",
+        "auto": true
+      },
+      {
+        "id": "src",
+        "name": "Source address",
+        "type": "IP_ADDRESS"
+      },
+      {
+        "id": "dst",
+        "name": "Destination address",
+        "type": "IP_ADDRESS"
+      },
+      {
+        "id": "options",
+        "name": "Options",
+        "type": "IP_OPTIONS"
+      }
+    ],
+    "payload": ["TCP", "UDP", "ICMP", "Raw"]
+  },
+  {
+    "id": "TCP",
+    "name": "TCP",
+    "fields": [
+      {
+        "id": "sport",
+        "name": "Source port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+        
+      },
+      {
+        "id": "dport",
+        "name": "Destination port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+      },
+      {
+        "id": "seq",
+        "name": "Sequence number",
+        "type": "NUMBER"
+      },
+      {
+        "id": "ack",
+        "name": "Acknowledgment number",
+        "type": "NUMBER"
+      },
+      {
+        "id": "dataofs",
+        "name": "Data offset",
+        "type": "NUMBER"
+      },
+      {
+        "id": "reserved",
+        "name": "Reserved",
+        "type": "NUMBER"
+      },
+      {
+        "id": "flags",
+        "name": "Flags",
+        "auto": false,
+        "type": "BITMASK",
+        "bits": [
+          {"name": "URG", "mask": 32, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 32}]},
+          {"name": "ACK", "mask": 16, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 16}]},
+          {"name": "PSH", "mask": 8, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 8}]},
+          {"name": "RST", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+          {"name": "SYN", "mask": 2, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 2}]},
+          {"name": "FIN", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+      },
+      {
+        "id": "window",
+        "name": "Window size",
+        "type": "NUMBER"
+      },
+      {
+        "id": "chksum",
+        "name": "Checksum",
+        "auto": true,
+        "type": "NUMBER"
+      },
+      {
+        "id": "urgptr",
+        "name": "Urgent pointer",
+        "type": "NUMBER"
+      },
+      {
+        "id": "options",
+        "name": "Options",
+        "type": "TCP_OPTIONS"
+      }
+    ]
+  },
+  {
+    "id": "Raw",
+    "name": "Raw",
+    "fields": [
+      {
+        "id": "load",
+        "name": "Payload",
+        "type": "BYTES"
+      }
+    ]
+  }
+]
+
