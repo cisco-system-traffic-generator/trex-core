@@ -86,6 +86,8 @@ bool utl_is_file_exists (const std::string& name) ;
 
 void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output);
 
+std::string utl_macaddr_to_str(const uint8_t *macaddr);
+
 std::string utl_generate_random_str(unsigned int &seed, int len);
 
 /**
@@ -98,6 +100,9 @@ std::string utl_generate_random_str(unsigned int &seed, int len);
  */
 void utl_set_coredump_size(long size, bool map_huge_pages = false);
 
+uint32_t       utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num);
+std::string    utl_uint32_to_ipv4(uint32_t ipv4_addr);
+   
 #endif
 
 

@@ -3,6 +3,7 @@ import sys
 import string
 import random
 import time
+import socket
 
 try:
     import pwd
@@ -86,3 +87,9 @@ class PassiveTimer(object):
 
         return (time.time() > self.expr_sec)
 
+def is_valid_ipv4 (addr):
+    try:
+        socket.inet_pton(socket.AF_INET, addr)
+        return True
+    except socket.error:
+        return False

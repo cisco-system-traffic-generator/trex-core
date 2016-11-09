@@ -292,9 +292,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
     for (int i = 0; i < main->get_port_count(); i++) {
         string driver;
-        string hw_macaddr;
-        string src_macaddr;
-        string dst_macaddr;
         string pci_addr;
         string description;
         supp_speeds_t supp_speeds;
@@ -303,7 +300,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         TrexStatelessPort *port = main->get_port_by_id(i);
 
         port->get_properties(driver);
-        port->get_macaddr(hw_macaddr, src_macaddr, dst_macaddr);
 
         port->get_pci_info(pci_addr, numa);
         main->get_platform_api()->getPortAttrObj(i)->get_description(description);
@@ -313,9 +309,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
         section["ports"][i]["driver"]       = driver;
         section["ports"][i]["description"]  = description;
-        section["ports"][i]["hw_macaddr"]   = hw_macaddr;
-        section["ports"][i]["src_macaddr"]  = src_macaddr;
-        section["ports"][i]["dst_macaddr"]  = dst_macaddr;
 
         section["ports"][i]["pci_addr"]         = pci_addr;
         section["ports"][i]["numa"]             = numa;
@@ -363,6 +356,23 @@ TrexRpcCmdSetPortAttr::parse_rx_filter_mode(const Json::Value &msg, uint8_t port
     return get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_rx_filter_mode(filter_mode);
 }
 
+int
+TrexRpcCmdSetPortAttr::parse_ipv4(const Json::Value &msg, uint8_t port_id, Json::Value &result) {
+    
+    const std::string ipv4_str = parse_string(msg, "addr", result);
+    
+    uint32_t ipv4_addr;
+    if (!utl_ipv4_to_uint32(ipv4_str.c_str(), ipv4_addr)) {
+        std::stringstream ss;
+        ss << "invalid IPv4 address: '" << ipv4_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+            
+    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_ipv4(ipv4_addr);
+    return (0);
+}
+
+
 /**
  * set port commands
  *
@@ -408,15 +418,20 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
             ret = parse_rx_filter_mode(attr[name], port_id, result);
         }
 
+        else if (name == "ipv4") {
+            ret = parse_ipv4(attr[name], port_id, result);
+        }
+        
+        /* unknown attribute */
         else {
             generate_execute_err(result, "Not recognized attribute: " + name);
             break;
         }
 
+        /* check error code */
         if ( ret == -ENOTSUP ) {
             generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
-        }
-        else if (ret) {
+        } else if (ret) {
             generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
         }
     }
@@ -592,20 +607,8 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["max_stream_id"] = port->get_max_stream_id();
 
     /* attributes */
-    result["result"]["attr"]["promiscuous"]["enabled"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_promiscuous();
-    result["result"]["attr"]["link"]["up"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->is_link_up();
-    result["result"]["attr"]["speed"]      = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_link_speed();
-
-    int mode;
-    int ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_flow_ctrl(mode);
-    if (ret != 0) {
-        mode = -1;
-    }
-    result["result"]["attr"]["fc"]["mode"] = mode;
-
-    /* RX filter */
-    result["result"]["attr"]["rx_filter_mode"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_rx_filter_mode();
-
+    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
+    
     /* RX info */
     port->get_rx_features().to_json(result["result"]["rx_info"]);
 

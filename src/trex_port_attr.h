@@ -21,10 +21,17 @@ limitations under the License.
 #include <vector>
 #include "rte_ethdev_includes.h"
 #include "trex_defs.h"
-
+#include "common/basic_utils.h"
 
 class TRexPortAttr {
 public:
+
+    TRexPortAttr() {
+        m_ipv4 = 0;
+        m_default_gateway = 0;
+        memset(m_next_hop_mac, 0, sizeof(m_next_hop_mac));
+    }
+    
     virtual ~TRexPortAttr(){}
 
 /*    UPDATES    */
@@ -50,7 +57,10 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
-
+    uint32_t get_ipv4() {return m_ipv4;}
+    uint32_t get_default_gateway() {return m_default_gateway;}
+    const uint8_t * get_next_hop_mac() {return m_next_hop_mac;}
+    
     virtual std::string get_rx_filter_mode() {
         switch (m_rx_filter_mode) {
         case RX_FILTER_MODE_ALL:
@@ -70,21 +80,60 @@ public:
     virtual int set_flow_ctrl(int mode) = 0;
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
-
+    
+    void set_ipv4(uint32_t addr) {
+        m_ipv4 = addr;
+    }
+    
+    void set_default_gateway(uint32_t addr) {
+        m_default_gateway = addr;
+    }
+    
+    void set_next_hop_mac(const uint8_t *next_hop_mac) {
+        memcpy(m_next_hop_mac, next_hop_mac, sizeof(m_next_hop_mac));
+    }
+    
 /*    DUMPS    */
     virtual void dump_link(FILE *fd) = 0;
 
+    /* dump object status to JSON */
+    void to_json(Json::Value &output) {
+        struct ether_addr dpdk_mac_addr;
+        macaddr_get(&dpdk_mac_addr);
+        
+        uint8_t mac_addr[6];
+        memcpy(mac_addr, dpdk_mac_addr.addr_bytes, 6);
+        
+        output["mac_addr"]               = utl_macaddr_to_str(mac_addr);
+        output["next_hop_mac"]           = utl_macaddr_to_str(m_next_hop_mac);
+        output["promiscuous"]["enabled"] = get_promiscuous();
+        output["link"]["up"]             = is_link_up();
+        output["speed"]                  = get_link_speed();
+        output["rx_filter_mode"]         = get_rx_filter_mode();
+        output["ipv4"]                   = utl_uint32_to_ipv4(get_ipv4());
+        output["default_gateway"]        = utl_uint32_to_ipv4(get_default_gateway());
+        
+        int mode;
+        get_flow_ctrl(mode);
+        output["fc"]["mode"] = mode;
+        
+    }
+    
 protected:
-    uint8_t m_port_id;
-    rte_eth_link m_link;
-    struct rte_eth_dev_info dev_info;
-
+    
+    uint8_t                   m_port_id;
+    rte_eth_link              m_link;
+    uint32_t                  m_ipv4;
+    uint32_t                  m_default_gateway;
+    uint8_t                   m_next_hop_mac[6];
+    struct rte_eth_dev_info   dev_info;
+    
     rx_filter_mode_e m_rx_filter_mode;
 
-    bool flag_is_virtual;
-    bool flag_is_fc_change_supported;
-    bool flag_is_led_change_supported;
-    bool flag_is_link_change_supported;
+    bool       flag_is_virtual;
+    bool       flag_is_fc_change_supported;
+    bool       flag_is_led_change_supported;
+    bool       flag_is_link_change_supported;
     
 
     struct intf_info_st {

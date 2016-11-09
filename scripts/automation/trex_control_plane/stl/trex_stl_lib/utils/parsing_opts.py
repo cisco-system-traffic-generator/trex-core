@@ -45,9 +45,11 @@ FLOW_CTRL = 28
 SUPPORTED = 29
 RX_FILTER_MODE = 30
 
+
 OUTPUT_FILENAME = 31
 ALL_FILES = 32
 LIMIT = 33
+PORT_RESTART   = 34
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -321,6 +323,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                              'required': True,
                                              'type': str}),
 
+
+              PORT_RESTART: ArgumentPack(['-r', '--restart'],
+                                         {'help': 'hard restart port(s)',
+                                          'dest': 'restart',
+                                          'default': False,
+                                          'action': 'store_true'}),
 
 
               ALL_FILES: ArgumentPack(['--all'],

@@ -785,9 +785,14 @@ class Port(object):
         else:
             info['rx_filter_mode'] = 'N/A'
 
+            
+        info['mac_addr']         = attr.get('mac_addr', 'N/A')            
+        info['ipv4']             = attr.get('ipv4', 'N/A')
+        info['default_gateway']  = attr.get('default_gateway', 'N/A')
+        info['next_hop_mac']     = attr.get('next_hop_mac', 'N/A')
+            
         # RX info
         rx_info = self.status['rx_info']
-
 
         # RX sniffer
         if 'sniffer' in rx_info:
@@ -819,16 +824,18 @@ class Port(object):
 
         info = self.get_formatted_info()
 
-        return {"driver":        info['driver'],
-                "description": info.get('description', 'N/A')[:18],
-                "HW src mac":  info['hw_macaddr'],
-                "SW src mac":  info['src_macaddr'],
-                "SW dst mac":  info['dst_macaddr'],
-                "PCI Address": info['pci_addr'],
-                "NUMA Node":   info['numa'],
+        return {"driver":            info['driver'],
+                "description":       info.get('description', 'N/A')[:18],
+                "MAC addr":          info['mac_addr'],
+                "Next hop MAC":      info['next_hop_mac'],
+                "IPv4":              info['ipv4'],
+                "Default gateway":   info['default_gateway'],
+                "PCI Address":       info['pci_addr'],
+                "NUMA Node":     info['numa'],
                 "--": "",
                 "---": "",
                 "----": "",
+                "-----": "",
                 "link speed": info['speed'],
                 "port status": info['status'],
                 "link status": info['link'],

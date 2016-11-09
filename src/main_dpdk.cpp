@@ -308,7 +308,7 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
     }
     virtual CFlowStatParser *get_flow_stat_parser();
-    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
+    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return -ENOTSUP;}
 };
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
@@ -1507,6 +1507,7 @@ int DpdkTRexPortAttr::set_led(bool on){
 int DpdkTRexPortAttr::get_flow_ctrl(int &mode) {
     int ret = rte_eth_dev_flow_ctrl_get(m_port_id, &fc_conf_tmp);
     if (ret) {
+        mode = -1;
         return ret;
     }
     mode = (int) fc_conf_tmp.mode;
@@ -3100,6 +3101,8 @@ void CGlobalTRex::pre_test() {
                 exit(1);
             }
             memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
+            m_ports[port_id].get_port_attr()->set_next_hop_mac(mac);
+            
             // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
             if (pretest.is_loopback(port_id))
                 CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
@@ -4170,20 +4173,9 @@ CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
     Json::Value data;
     data["port_id"] = port_id;
     TRexPortAttr * _attr = m_ports[port_id].get_port_attr();
-
-    /* attributes */
-    data["attr"]["speed"] = _attr->get_link_speed();
-    data["attr"]["promiscuous"]["enabled"] = _attr->get_promiscuous();
-    data["attr"]["link"]["up"] = _attr->is_link_up();
-    data["attr"]["rx_filter_mode"] = _attr->get_rx_filter_mode();
-
-    int mode;
-    int ret = _attr->get_flow_ctrl(mode);
-    if (ret != 0) {
-        mode = -1;
-    }
-    data["attr"]["fc"]["mode"] = mode;
-
+    
+    _attr->to_json(data["attr"]);
+    
     m_zmq_publisher.publish_event(TrexPublisher::EVENT_PORT_ATTR_CHANGED, data);
 }
 
@@ -4687,6 +4679,10 @@ bool CPhyEthIF::Create(uint8_t portid) {
     m_last_tx_pps  = 0.0;
     m_port_attr    = g_trex.m_drv->create_port_attr(portid);
 
+    
+    m_port_attr->set_ipv4(CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_ip());
+    m_port_attr->set_default_gateway(CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_def_gw());
+    
     return true;
 }
 

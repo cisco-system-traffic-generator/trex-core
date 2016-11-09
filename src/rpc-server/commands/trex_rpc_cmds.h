@@ -96,7 +96,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetPortAttr, "set_port_attr", 2, true,  APIClass::API_CLASS_TYPE_CORE,
 
     int parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result);
-
+    int parse_ipv4(const Json::Value &msg, uint8_t port_id, Json::Value &result);
 );
 
 

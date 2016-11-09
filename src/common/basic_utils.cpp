@@ -20,6 +20,10 @@ limitations under the License.
 #include <sstream>
 #include <sys/resource.h>
 
+#include "pal_utl.h"
+
+int my_inet_pton4(const char *src, unsigned char *dst);
+
 bool utl_is_file_exists (const std::string& name) {
     if (FILE *file = fopen(name.c_str(), "r")) {
         fclose(file);
@@ -190,6 +194,13 @@ void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
 
 }
 
+std::string utl_macaddr_to_str(const uint8_t *macaddr) {
+    std::string tmp;
+    utl_macaddr_to_str(macaddr, tmp);
+    
+    return tmp;
+}
+
 /**
  * generate a random connection handler
  * 
@@ -247,4 +258,24 @@ void utl_set_coredump_size(long size, bool map_huge_pages) {
     
     fprintf(fp, "%08x\n", mask);
     fclose(fp);
+}
+
+uint32_t utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num) {
+    
+    uint32_t tmp;
+    
+    int rc = my_inet_pton4(ipv4_str, (unsigned char *)&tmp);
+    if (!rc) {
+        return (0);
+    }
+    
+    ipv4_num = PAL_NTOHL(tmp);
+    
+    return (1);
+}
+   
+std::string utl_uint32_to_ipv4(uint32_t ipv4_addr) {
+    std::stringstream ss;
+    ss << ((ipv4_addr >> 24) & 0xff) << "." << ((ipv4_addr >> 16) & 0xff) << "." << ((ipv4_addr >> 8) & 0xff) << "." << (ipv4_addr & 0xff);
+    return ss.str();
 }
