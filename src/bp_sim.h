@@ -824,6 +824,11 @@ public:
         return ( (m_expected_portd>>1)   * preview.getCores());
     }
     bool is_stateless(){
+        if (m_run_mode == RUN_MODE_INVALID) {
+            fprintf(stderr, "Internal bug: Calling is stateless before initializing run mode\n");
+            fprintf(stderr, "Try to put -i or -f <file> option as first in the option list\n");
+            exit(-1);
+        }
         return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
     bool is_latency_enabled() {

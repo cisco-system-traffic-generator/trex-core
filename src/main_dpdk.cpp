@@ -169,9 +169,9 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
-    /* Does this NIC type support automatic packet dropping in case of a link down? 
+    /* Does this NIC type support automatic packet dropping in case of a link down?
        in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
-       this interface is used as a workaround to let TRex work without link in stateless mode, driver that 
+       this interface is used as a workaround to let TRex work without link in stateless mode, driver that
        does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
     virtual bool drop_packets_incase_of_linkdown() {
         return (false);
@@ -746,6 +746,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     bool latency_was_set=false;
     (void)latency_was_set;
     char ** rgpszArg = NULL;
+    bool opt_vlan_was_set = false;
 
     int a=0;
     int node_dump=0;
@@ -836,9 +837,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.set_disable_flow_control_setting(true);
                 break;
             case OPT_VLAN:
-                if ( get_is_stateless() ) {
-                    po->preview.set_vlan_mode_enable(true);
-                }
+                opt_vlan_was_set = true;
                 break;
             case OPT_LIMT_NUM_OF_PORTS :
                 po->m_expected_portd =atoi(args.OptionArg());
@@ -872,7 +871,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                     }
                 }
                 if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
-                    parse_err("Please specify single run mode");
+                    parse_err("Please specify single run mode (-i for stateless, or -f <file> for stateful");
                 }
                 po->m_run_mode = CParserOption::RUN_MODE_DUMP_INFO;
                 break;
@@ -969,12 +968,12 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
 
     if ((po->m_run_mode ==  CParserOption::RUN_MODE_INVALID) ) {
-        parse_err("Please provide single run mode (e.g. batch or interactive)");
+        parse_err("Please provide single run mode. -f <file> for stateful or -i for stateless (interactive)");
     }
 
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
-        parse_err("--learn mode is not supported with --ipv6, beacuse there is not such thing NAT66 ( ipv6-ipv6) \n" \
-                  "if you think it is important,open a defect \n");
+        parse_err("--learn mode is not supported with --ipv6, beacuse there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
+                  "If you think it is important, please open a defect or write to TRex mailing list\n");
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()
@@ -991,7 +990,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
     uint32_t cores=po->preview.getCores();
     if ( cores > ((BP_MAX_CORES)/2-1) ) {
-        printf(" ERROR maximum supported cores are : %d \n",((BP_MAX_CORES)/2-1));
+        fprintf(stderr, " Error: maximum supported core number is: %d \n",((BP_MAX_CORES)/2-1));
         return -1;
     }
 
@@ -1000,7 +999,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         /* only first time read the configuration file */
         if ( po->platform_cfg_file.length() >0  ) {
             if ( node_dump ){
-                printf("Loading platform configuration file from %s \n",po->platform_cfg_file.c_str());
+                printf("Using configuration file %s \n",po->platform_cfg_file.c_str());
             }
             global_platform_cfg_info.load_from_yaml_file(po->platform_cfg_file);
             if ( node_dump ){
@@ -1008,7 +1007,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             }
         }else{
             if ( utl_is_file_exists("/etc/trex_cfg.yaml") ){
-                printf("found configuration file at /etc/trex_cfg.yaml \n");
+                if ( node_dump ){
+                    printf("Using configuration file /etc/trex_cfg.yaml \n");
+                }
                 global_platform_cfg_info.load_from_yaml_file("/etc/trex_cfg.yaml");
                 if ( node_dump ){
                     global_platform_cfg_info.Dump(stdout);
@@ -1018,20 +1019,23 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     }
 
     if ( get_is_stateless() ) {
+        if ( opt_vlan_was_set ) {
+            po->preview.set_vlan_mode_enable(true);
+        }
         if ( po->m_duration ) {
-            parse_err("Duration is not supported with interactive mode ");
+            parse_err("Duration is not supported with interactive (stateless) mode ");
         }
 
         if ( po->preview.get_is_rx_check_enable() ) {
-            parse_err("Rx check is not supported with interactive mode ");
+            parse_err("Rx check is not supported with interactive (stateless) mode ");
         }
 
         if  ( (po->is_latency_enabled()) || (po->preview.getOnlyLatency()) ){
-            parse_err("Latency check is not supported with interactive mode ");
+            parse_err("Latency check is not supported with interactive (stateless) mode ");
         }
 
         if ( po->preview.getSingleCore() ){
-            parse_err("Single core is not supported with interactive mode ");
+            parse_err("Single core is not supported with interactive (stateless) mode ");
         }
 
     }
