@@ -80,6 +80,7 @@ typedef struct {
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
+#define TOS_TTL_RESERVE_DUPLICATE 0x1
 
 /*
  * Length of string needed to hold the largest port (16-bit) address
@@ -3059,6 +3060,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 printf(" %.3f : DP :  learn packet !\n",now_sec());
 #endif
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
+                ipv4->setTOS(0x3);
+
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
                 if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {

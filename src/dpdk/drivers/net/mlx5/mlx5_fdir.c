@@ -165,7 +165,7 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 		rte_memcpy(desc->dst_ip,
 			   fdir_filter->input.flow.ipv6_flow.dst_ip,
 			   sizeof(desc->dst_ip));
-        desc->tos       = fdir_filter->input.flow.ipv6_flow.tc;
+        desc->tos       = (uint8_t)fdir_filter->input.flow.ipv6_flow.hop_limits;  /* TTL is map to TOS*/
         desc->ip_id     = (uint8_t)fdir_filter->input.flow.ipv6_flow.flow_label;
         desc->proto     = fdir_filter->input.flow.ipv6_flow.proto;
 
@@ -370,7 +370,7 @@ priv_fdir_flow_add(struct priv *priv,
 		spec_ipv6 = (struct ibv_exp_flow_spec_ipv6_ext *)spec_offset;
 
 		/* The second specification must be IP. */
-		assert(spec_ipv6->type == IBV_EXP_FLOW_SPEC_IPV6);
+		assert(spec_ipv6->type == IBV_EXP_FLOW_SPEC_IPV6_EXT);
 		assert(spec_ipv6->size == sizeof(*spec_ipv6));
 
 		for (i = 0; i != RTE_DIM(desc->src_ip); ++i) {
@@ -385,6 +385,20 @@ priv_fdir_flow_add(struct priv *priv,
 		rte_memcpy(spec_ipv6->mask.dst_ip,
 			   mask->ipv6_mask.dst_ip,
 			   sizeof(spec_ipv6->mask.dst_ip));
+
+        spec_ipv6->val.next_hdr  = desc->proto & mask->ipv6_mask.proto;
+        spec_ipv6->mask.next_hdr = mask->ipv6_mask.proto;
+
+        /* TOS */
+        if (desc->ip_id ==1 ){
+            spec_ipv6->mask.traffic_class = (0x1);
+        }else{
+            spec_ipv6->mask.traffic_class = 0x0;
+        }
+        spec_ipv6->val.traffic_class =
+                (desc->tos) & spec_ipv6->mask.traffic_class;// & mask->ipv4_mask.tos;
+
+        printf(" %x %x \n",spec_ipv6->val.traffic_class,spec_ipv6->mask.traffic_class);
 
 		/* Update priority */
 		attr->priority = 1;
