@@ -1,0 +1,21 @@
+tunnel_port_index: 0
+uplink_port_index: 1
+
+trex_underlay_mac: a0:36:9f:60:7e:6c
+trex_uplink_mac: a0:36:9f:60:7e:6e
+
+uplink_stream_id: 7
+uplink_stream_target_ip: 200.0.0.11
+
+tunnel_stream_id: 8
+protobuf_flowstate: false
+
+agent_underlay_mac: a0:36:9f:5d:3b:a0
+agent_uplink_mac: fa:16:3e:46:9a:87
+agent_underlay_ip: 10.10.10.5
+agent_uplink_tunnelkey: 6
+agent_uplink_port_uuid: 4b0ee9ed-37ae-46ce-9f4b-c46bd95d8f12
+
+influxdb_host: 192.168.200.1
+influxdb_port: 8086
+influxdb_database: data

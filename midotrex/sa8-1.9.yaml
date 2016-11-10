@@ -1,0 +1,27 @@
+tunnel_port_index: 0
+uplink_port_index: 1
+
+trex_underlay_mac: a0:36:9f:60:7e:6c
+trex_uplink_mac: a0:36:9f:60:7e:6e
+
+uplink_stream_id: 7
+# should be a fip pointing to a port on a bridge
+# the port should be bound to a "fake agent" running
+# the fake agent should be added to the tunnel zone
+# with the trex's underlay port IP (the IP doesn't actually matter)
+# and a static arp mapping added pointing this IP to
+# the trex_underlay_mac
+uplink_stream_target_ip: 10.200.0.11
+
+tunnel_stream_id: 8
+protobuf_flowstate: true
+
+agent_underlay_mac: a0:36:9f:60:7f:34 #a0:36:9f:5d:3b:a0
+agent_underlay_ip: 10.10.10.8
+agent_uplink_mac: ac:ca:ba:32:9f:3f #fa:16:3e:46:9a:87
+agent_uplink_tunnelkey: 5
+agent_uplink_port_uuid: e6e200b9-c206-4d60-9a6a-1f6726aecfd8 #4b0ee9ed-37ae-46ce-9f4b-c46bd95d8f12
+
+influxdb_host: 192.168.200.1
+influxdb_port: 8086
+influxdb_database: data
