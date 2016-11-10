@@ -902,7 +902,6 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 files_list=[
             'libzmq.so.3',
-            'libibverbs.so.1',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
@@ -921,7 +920,7 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp','dumy_libs']
 
 
 class Env(object):
