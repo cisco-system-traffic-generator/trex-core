@@ -42,7 +42,7 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic ignored "-pedantic"
 #endif
-#include <infiniband/verbs.h>
+#include <infiniband/verbs_exp.h>
 #ifdef PEDANTIC
 #pragma GCC diagnostic error "-pedantic"
 #endif
@@ -67,6 +67,10 @@ struct fdir_flow_desc {
 	uint16_t src_port;
 	uint32_t src_ip[4];
 	uint32_t dst_ip[4];
+    uint8_t  tos;
+    uint8_t  ip_id;
+    uint16_t proto;
+
 	uint8_t	mac[6];
 	uint16_t vlan_tag;
 	enum hash_rxq_type type;
@@ -141,9 +145,13 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 	case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
 		desc->src_port = fdir_filter->input.flow.udp4_flow.src_port;
 		desc->dst_port = fdir_filter->input.flow.udp4_flow.dst_port;
+
 	case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
 		desc->src_ip[0] = fdir_filter->input.flow.ip4_flow.src_ip;
 		desc->dst_ip[0] = fdir_filter->input.flow.ip4_flow.dst_ip;
+        desc->tos       = fdir_filter->input.flow.ip4_flow.ttl; /* TTL is map to TOS*/
+        desc->ip_id     = fdir_filter->input.flow.ip4_flow.ip_id;
+        desc->proto     = fdir_filter->input.flow.ip4_flow.proto;
 		break;
 	case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
 	case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
@@ -157,6 +165,10 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 		rte_memcpy(desc->dst_ip,
 			   fdir_filter->input.flow.ipv6_flow.dst_ip,
 			   sizeof(desc->dst_ip));
+        desc->tos       = fdir_filter->input.flow.ipv6_flow.tc;
+        desc->ip_id     = (uint8_t)fdir_filter->input.flow.ipv6_flow.flow_label;
+        desc->proto     = fdir_filter->input.flow.ipv6_flow.proto;
+
 		break;
 	default:
 		break;
@@ -251,8 +263,8 @@ priv_fdir_flow_add(struct priv *priv,
 	struct ibv_exp_flow_attr *attr = &data->attr;
 	uintptr_t spec_offset = (uintptr_t)&data->spec;
 	struct ibv_exp_flow_spec_eth *spec_eth;
-	struct ibv_exp_flow_spec_ipv4 *spec_ipv4;
-	struct ibv_exp_flow_spec_ipv6 *spec_ipv6;
+	struct ibv_exp_flow_spec_ipv4_ext *spec_ipv4;
+	struct ibv_exp_flow_spec_ipv6_ext *spec_ipv6;
 	struct ibv_exp_flow_spec_tcp_udp *spec_tcp_udp;
 	struct mlx5_fdir_filter *iter_fdir_filter;
 	unsigned int i;
@@ -305,10 +317,10 @@ priv_fdir_flow_add(struct priv *priv,
 		spec_offset += spec_eth->size;
 
 		/* Set IP spec */
-		spec_ipv4 = (struct ibv_exp_flow_spec_ipv4 *)spec_offset;
+		spec_ipv4 = (struct ibv_exp_flow_spec_ipv4_ext *)spec_offset;
 
 		/* The second specification must be IP. */
-		assert(spec_ipv4->type == IBV_EXP_FLOW_SPEC_IPV4);
+		assert(spec_ipv4->type == IBV_EXP_FLOW_SPEC_IPV4_EXT);
 		assert(spec_ipv4->size == sizeof(*spec_ipv4));
 
 		spec_ipv4->val.src_ip =
@@ -317,6 +329,19 @@ priv_fdir_flow_add(struct priv *priv,
 			desc->dst_ip[0] & mask->ipv4_mask.dst_ip;
 		spec_ipv4->mask.src_ip = mask->ipv4_mask.src_ip;
 		spec_ipv4->mask.dst_ip = mask->ipv4_mask.dst_ip;
+
+        /* PROTO */
+        spec_ipv4->val.proto  = desc->proto & mask->ipv4_mask.proto;
+        spec_ipv4->mask.proto = mask->ipv4_mask.proto;
+
+        /* TOS */
+        if (desc->ip_id ==1 ){
+            spec_ipv4->mask.tos = 0x1;
+        }else{
+            spec_ipv4->mask.tos = 0x0;
+        }
+        spec_ipv4->val.tos =
+                desc->tos & spec_ipv4->mask.tos;// & mask->ipv4_mask.tos;
 
 		/* Update priority */
 		attr->priority = 1;
@@ -332,7 +357,7 @@ priv_fdir_flow_add(struct priv *priv,
 		spec_offset += spec_eth->size;
 
 		/* Set IP spec */
-		spec_ipv6 = (struct ibv_exp_flow_spec_ipv6 *)spec_offset;
+		spec_ipv6 = (struct ibv_exp_flow_spec_ipv6_ext *)spec_offset;
 
 		/* The second specification must be IP. */
 		assert(spec_ipv6->type == IBV_EXP_FLOW_SPEC_IPV6);

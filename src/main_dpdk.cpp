@@ -6389,9 +6389,14 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     cfg->update_global_config_fdir_40g();
+    /* update mask */
+    cfg->m_port_conf.fdir_conf.mask.ipv4_mask.proto=0xff;
+    cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos=0x01;
 }
 
-void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl, uint16_t ip_id, 
+void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, 
+                                                  uint8_t ttl, 
+                                                  uint16_t ip_id, 
                                                   uint16_t l4_proto, int queue, uint16_t stat_idx) {
     /* Mellanox card does not have TTL support, 
       so we will replace it in low level with TOS */
@@ -6495,8 +6500,14 @@ int CTRexExtendedDriverBaseMlnx5G::add_del_rx_flow_stat_rule(uint8_t port_id, en
 
 
 int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules_statfull(CPhyEthIF * _if) {
-    //uint32_t port_id = _if->get_port_id();
+    uint32_t port_id = _if->get_port_id();
     /* TTL==TOS */
+
+    /*PID=1 ==> MASK TOS=0x1/0x1*/                                                                                
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0x1,  1, 17, MAIN_DPDK_RX_Q, 0);
+    //add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0x1,  1, 6, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0x1,  1, 132, MAIN_DPDK_RX_Q, 0); /*SCTP*/
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0x1,  1, 1, MAIN_DPDK_RX_Q, 0);  /*ICMP*/
 
     return (0);
     /* Configure rules for latency measurement packets */

@@ -710,6 +710,8 @@ class build_option:
 
     def get_c_flags (self):
         flags = self.get_common_flags()
+        if  self.isRelease () :
+            flags += ['-DNDEBUG'];
 
         # for C no special flags yet
         return (flags)
