@@ -238,6 +238,13 @@ bool CPlatformSocketInfoConfig::init(){
             }
         }
 
+        if (m_threads_per_dual_if > m_max_threads_per_dual_if) {
+            printf("ERROR: Maximum threads in platform section of config file is %d, unable to run with -c %d.\n",
+                    m_max_threads_per_dual_if, m_threads_per_dual_if);
+            printf("Please increase the pool in config or use lower -c.\n");
+            exit(1);
+        }
+
             int j;
 
             for (j=0; j<m_threads_per_dual_if; j++) {

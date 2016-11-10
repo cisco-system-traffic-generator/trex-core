@@ -694,5 +694,6 @@ class TRexCfgCreator_Test:
 
     @classmethod
     def tearDownClass(cls):
-        sys.path.remove(CTRexScenario.scripts_path)
+        if CTRexScenario.scripts_path in sys.path:
+            sys.path.remove(CTRexScenario.scripts_path)
         del sys.modules['dpdk_setup_ports']
