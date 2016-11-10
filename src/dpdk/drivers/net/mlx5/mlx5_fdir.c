@@ -69,7 +69,7 @@ struct fdir_flow_desc {
 	uint32_t dst_ip[4];
     uint8_t  tos;
     uint8_t  ip_id;
-    uint16_t proto;
+    uint8_t  proto;
 
 	uint8_t	mac[6];
 	uint16_t vlan_tag;
@@ -175,6 +175,7 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 	}
 }
 
+
 /**
  * Check if two flow descriptors overlap according to configured mask.
  *
@@ -209,6 +210,12 @@ priv_fdir_overlap(const struct priv *priv,
 	    ((desc1->dst_port & mask->dst_port_mask) !=
 	     (desc2->dst_port & mask->dst_port_mask)))
 		return 0;
+
+    if  ( (desc1->tos    != desc2->tos)  ||
+          (desc1->ip_id  != desc2->ip_id) ||
+          (desc1->proto  != desc2->proto) ) 
+        return 0;
+
 	switch (desc1->type) {
 	case HASH_RXQ_IPV4:
 	case HASH_RXQ_UDPV4:
@@ -216,8 +223,9 @@ priv_fdir_overlap(const struct priv *priv,
 		if (((desc1->src_ip[0] & mask->ipv4_mask.src_ip) !=
 		     (desc2->src_ip[0] & mask->ipv4_mask.src_ip)) ||
 		    ((desc1->dst_ip[0] & mask->ipv4_mask.dst_ip) !=
-		     (desc2->dst_ip[0] & mask->ipv4_mask.dst_ip)))
+		     (desc2->dst_ip[0] & mask->ipv4_mask.dst_ip))) 
 			return 0;
+
 		break;
 	case HASH_RXQ_IPV6:
 	case HASH_RXQ_UDPV6:
@@ -276,8 +284,10 @@ priv_fdir_flow_add(struct priv *priv,
 		    (iter_fdir_filter->flow != NULL) &&
 		    (priv_fdir_overlap(priv,
 				       &mlx5_fdir_filter->desc,
-				       &iter_fdir_filter->desc)))
-			return EEXIST;
+				       &iter_fdir_filter->desc))){
+            ERROR("overlap rules, please check your rules");
+            return EEXIST;
+        }
 
 	/*
 	 * No padding must be inserted by the compiler between attr and spec.
