@@ -25,6 +25,12 @@ done <<< "$($PYTHON dpdk_setup_ports.py --dump-pci-description)"
 cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD
 
+#Add dummy lib in case we don't find it, e.g. there is no OFED installed  
+if ldd _t-rex-64  | grep "libibverbs.so" | grep -q "not found"; then 
+export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs                           
+fi
+            
+
 if [ -t 0 ] && [ -t 1 ]; then
     export is_tty=true
     saveterm="$(stty -g)"
