@@ -4419,7 +4419,7 @@ void CFlowGenListPerThread::stop_stateless_simulation_file(){
 }
 
 void CFlowGenListPerThread::start_stateless_daemon_simulation(){
-
+    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
     m_cur_time_sec = 0;
 
     /* if no pending CP messages - the core will simply be stuck forever */
@@ -4438,6 +4438,7 @@ bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_nod
 
 
 void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
+    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
     m_cur_time_sec = 0;
     /* set per thread global info, for performance */
     m_preview_mode = preview;
