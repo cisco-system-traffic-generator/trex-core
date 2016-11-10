@@ -367,7 +367,7 @@ public:
 
 private:
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
-                               , uint16_t ip_id, uint16_t l4_proto, int queue, uint16_t stat_idx);
+                               , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx);
     virtual int add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
 
@@ -462,7 +462,7 @@ private:
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, 
                                uint16_t type, uint8_t ttl, 
                                uint16_t ip_id, 
-                               uint16_t l4_proto,
+                               uint8_t l4_proto,
                                int queue, 
                                uint16_t stat_idx);
     virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
@@ -6031,7 +6031,7 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
 // What is the type of the rule the respective hw_id counter counts.
 struct fdir_hw_id_params_t {
     uint16_t rule_type;
-    uint16_t l4_proto;
+    uint8_t l4_proto;
 };
 
 static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
@@ -6040,7 +6040,7 @@ static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
 // ttl is used in statefull mode, and ip_id in stateless. We configure the driver registers so that only one of them applies.
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
 void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
-                                               , uint16_t ip_id, uint16_t l4_proto, int queue, uint16_t stat_idx) {
+                                               , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx) {
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
     static int filter_soft_id = 0;
 
@@ -6400,7 +6400,8 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
 void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, 
                                                   uint8_t ttl, 
                                                   uint16_t ip_id, 
-                                                  uint16_t l4_proto, int queue, uint16_t stat_idx) {
+                                                  uint8_t l4_proto, 
+                                                  int queue, uint16_t stat_idx) {
     /* Mellanox card does not have TTL support, 
       so we will replace it in low level with TOS */
 
