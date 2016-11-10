@@ -341,7 +341,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
     rte_mbuf_t *m = NULL;
     CPhyEthIF * lp;
     rte_mbuf_t * rx_pkts[32];
-    int sent_num = 20;
+    int sent_num = 8;   /* reduce the size, there are driver that can handle only burst of 8 in QUEUE 0 */
     int ret = 0;
 
     for (int pkt_num = 0; pkt_num < sizeof(test_pkts) / sizeof (test_pkts[0]); pkt_num++) {

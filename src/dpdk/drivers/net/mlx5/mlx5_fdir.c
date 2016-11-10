@@ -398,8 +398,6 @@ priv_fdir_flow_add(struct priv *priv,
         spec_ipv6->val.traffic_class =
                 (desc->tos) & spec_ipv6->mask.traffic_class;// & mask->ipv4_mask.tos;
 
-        printf(" %x %x \n",spec_ipv6->val.traffic_class,spec_ipv6->mask.traffic_class);
-
 		/* Update priority */
 		attr->priority = 1;
 
