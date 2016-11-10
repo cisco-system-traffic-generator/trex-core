@@ -1675,7 +1675,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         IPv6Header * ipv6=(IPv6Header *)(mp1 + 14);
         uint8_t save_header= ipv6->getNextHdr();
         ipv6->setNextHdr(RX_CHECK_V6_OPT_TYPE);
-        ipv6->setHopLimit(TTL_RESERVE_DUPLICATE);
+         ipv6->setHopLimit(TTL_RESERVE_DUPLICATE);
+        ipv6->setTrafficClass(ipv6->getTrafficClass()|TOS_TTL_RESERVE_DUPLICATE);
         ipv6->setPayloadLen( ipv6->getPayloadLen() +
                                   sizeof(CRx_check_header));
         rxhdr->m_option_type = save_header;
@@ -1685,6 +1686,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         ipv4->setHeaderLength(current_opt_len+opt_len);
         ipv4->setTotalLength(ipv4->getTotalLength()+opt_len);
         ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
+        ipv4->setTOS(ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE);
+
         rxhdr->m_option_type = RX_CHECK_V4_OPT_TYPE;
         rxhdr->m_option_len = RX_CHECK_V4_OPT_LEN;
     }
@@ -2155,6 +2158,7 @@ void CCapFileFlowInfo::update_info(){
             lp = GetPacket(1);
             assert(lp);
             lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+            lp->m_pkt_indication.setTOSReserve();
         }
     }
 
@@ -2240,6 +2244,9 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                      (ttl == (TTL_RESERVE_DUPLICATE-1)) ) {
                         pkt_indication.setTTL(TTL_RESERVE_DUPLICATE-4);
                 }
+
+                pkt_indication.clearTOSReserve();
+
 
                 // Validation for first packet in flow
                 if (is_fif) {

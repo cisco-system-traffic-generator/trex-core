@@ -2688,6 +2688,26 @@ public:
             return (0);
         }
     }
+
+
+    void  setTOSReserve(){
+        BP_ASSERT(l3.m_ipv4);
+        if (is_ipv6()) {
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass() | TOS_TTL_RESERVE_DUPLICATE );
+        }else{
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS()| TOS_TTL_RESERVE_DUPLICATE );
+        }
+    }
+
+    void  clearTOSReserve(){
+        BP_ASSERT(l3.m_ipv4);
+        if (is_ipv6()) {
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass()& (~TOS_TTL_RESERVE_DUPLICATE) );
+        }else{
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS() & (~TOS_TTL_RESERVE_DUPLICATE) );
+        }
+    }
+
     uint8_t getTTL(){
         BP_ASSERT(l3.m_ipv4);
         if (is_ipv6()) {
@@ -3060,7 +3080,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 printf(" %.3f : DP :  learn packet !\n",now_sec());
 #endif
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
-                ipv4->setTOS(0x3);
+                ipv4->setTOS(ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE); 
 
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
