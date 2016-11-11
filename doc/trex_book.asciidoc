@@ -122,14 +122,16 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 |=================
  
 .Supported NICs
-[options="header",cols="1,1,2",width="50%"]
+[options="header",cols="1,1,4",width="90%"]
 |=================
 | Bandwidth | Chipset |  Example
 | 1Gb/sec  | Intel I350 | Intel 4x1GE 350-T4 NIC
 | 10Gb/sec | Intel 82599|   Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
 | 10Gb/sec | Intel X710   | Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
 | 40Gb/sec | Intel XL710  | Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
-| 100Gb/sec | Intel Intel FM10420  | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*)
+| 100Gb/sec | Intel FM10420  | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*) 
+| 100Gb/sec | Mellanox ConnectX-4  | QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
+| 100Gb/sec | Mellanox ConnectX-5  | Not supported yet 
 | VMXNET / +
 VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 | E1000    | paravirtualized  | VMware/KVM/VirtualBox 
@@ -139,7 +141,7 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 // in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
 
 .SFP+ support 
-[options="header",cols="2,1,1,1",width="70%"]
+[options="header",cols="2,1,1,1",width="90%"]
 |=================
 | link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Intel Ethernet Converged X710-DAX |  Silicom link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L] (Open optic) | 82599EB 10-Gigabit
 | link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-SR] | Does not work     | [green]*works* | [green]*works*
@@ -172,8 +174,18 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
  For Intel XL710 NICs, Cisco SR4/LR QSFP+ does not operate. Use Silicom with Open Optic.
 =====================================
 
-// clarify above table and note. let's discuss.
 
+.ConnectX-4 NIC base QSFP28 support (100gb)
+[options="header",cols="1,1",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP28]             |  ConnectX-4
+| QSFP28 SR4 optics  |  N/A
+| QSFP28 LR-4 Optics |  N/A 
+| QSFP28 (AoC)       | Cisco QSFP-100G-AOCxM  [green]*works*  
+| QSFP28 DA twin-ax cables | Cisco QSFP-100G-CUxM [green]*works*  
+|=================
+
+// clarify above table and note. let's discuss.
 .FM10K QSFP28 support 
 [options="header",cols="1,1",width="70%"]
 |=================
@@ -2023,5 +2035,355 @@ broadcast 16.255.255.255
 sudo arp -s 10.0.0.100 <Second TRex port MAC>
 sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 ----
+
+
+=== Mellanox ConnectX-4 support 
+
+anchor:connectx_support[]
+
+Mellanox ConnectX-4 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds. 
+Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[DPDK support].
+Intel NICs does not require kernel drivers (except dpdk igb_uio which already supported) while ConnectX-4 works on top of Infinibad API (verbs) and require a kernel modules/user space libs. 
+This means that it is required to install OFED package to be able to work with the NIC.
+Installing OFED is the simplest way to make it work (trying to install part of the package can work too but didn't work for us).
+The advantage of this model that you can control it throw Linux driver (ethtol can still work, you will be able to ifconfig it).
+The disadvantage is the OFED dependency.
+
+==== Installation  
+
+==== Install Linux 
+
+The following distro were tested with TRex and OFED, others might work
+
+* Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64) 
+* Fedora 21 (3.17.4-301.fc21.x86_64)  
+
+==== Install OFED 
+
+The information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
+
+.Download 3.4-1 OFED tar for your distro  
+link::http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[download]
+
+[IMPORTANT]
+=====================================
+it must be version *MLNX_OFED_LINUX-3.4-1*
+=====================================
+
+[IMPORTANT]
+=====================================
+Make sure you have an internet connection without firewalls for HTTPS/HTTP - required by yum/apt-get
+=====================================
+
+.Verify md5
+[source,bash]
+----
+$md5sum MLNX_OFED_LINUX-3.4-1.0.0.0-ubuntu14.04-x86_64.tgz
+b3c17dc0ea64fd1f0892d7b7ba7e45f3  MLNX_OFED_LINUX-3.4-1.0.0.0-ubuntu14.04-x86_64.tgz
+----
+
+.Open the tar
+[source,bash]
+----
+$tar -xvzf MLNX_OFED_LINUX-3.4-1.0.0.0-ubuntu14.04-x86_64.tgz
+$cd MLNX_OFED_LINUX-3.4-1.0.0.0-ubuntu14.04-x86_64
+----
+
+.Run Install script
+[source,bash]
+----
+$sudo ./mlnxofedinstall  
+
+
+Log: /tmp/ofed.build.log
+Logs dir: /tmp/MLNX_OFED_LINUX.10406.logs
+
+Below is the list of MLNX_OFED_LINUX packages that you have chosen
+(some may have been added by the installer due to package dependencies):
+
+ofed-scripts
+mlnx-ofed-kernel-utils
+mlnx-ofed-kernel-dkms
+iser-dkms
+srp-dkms
+mlnx-sdp-dkms
+mlnx-rds-dkms
+mlnx-nfsrdma-dkms
+libibverbs1
+ibverbs-utils
+libibverbs-dev
+libibverbs1-dbg
+libmlx4-1
+libmlx4-dev
+libmlx4-1-dbg
+libmlx5-1
+libmlx5-dev
+libmlx5-1-dbg
+libibumad
+libibumad-static
+libibumad-devel
+ibacm
+ibacm-dev
+librdmacm1
+librdmacm-utils
+librdmacm-dev
+mstflint
+ibdump
+libibmad
+libibmad-static
+libibmad-devel
+libopensm
+opensm
+opensm-doc
+libopensm-devel
+infiniband-diags
+infiniband-diags-compat
+mft
+kernel-mft-dkms
+libibcm1
+libibcm-dev
+perftest
+ibutils2
+libibdm1
+ibutils
+cc-mgr
+ar-mgr
+dump-pr
+ibsim
+ibsim-doc
+knem-dkms
+mxm
+fca
+sharp
+hcoll
+openmpi
+mpitests
+knem
+rds-tools
+libdapl2
+dapl2-utils
+libdapl-dev
+srptools
+mlnx-ethtool
+libsdp1
+libsdp-dev
+sdpnetstat
+
+This program will install the MLNX_OFED_LINUX package on your machine.
+Note that all other Mellanox, OEM, OFED, or Distribution IB packages will be removed.
+Do you want to continue?[y/N]:y
+
+Checking SW Requirements...
+
+One or more required packages for installing MLNX_OFED_LINUX are missing.
+Attempting to install the following missing packages:
+autotools-dev tcl debhelper dkms tk8.4 libgfortran3 graphviz chrpath automake dpatch flex bison autoconf quilt m4 tcl8.4 libltdl-dev pkg-config pytho
+bxml2 tk swig gfortran libnl1
+
+..
+
+Removing old packages...
+Installing new packages
+Installing ofed-scripts-3.4...
+Installing mlnx-ofed-kernel-utils-3.4...
+Installing mlnx-ofed-kernel-dkms-3.4...
+
+Removing old packages...
+Installing new packages
+Installing ofed-scripts-3.4...
+Installing mlnx-ofed-kernel-utils-3.4...
+Installing mlnx-ofed-kernel-dkms-3.4...
+Installing iser-dkms-1.8.1...
+Installing srp-dkms-1.6.1...
+Installing mlnx-sdp-dkms-3.4...
+Installing mlnx-rds-dkms-3.4...
+Installing mlnx-nfsrdma-dkms-3.4...
+Installing libibverbs1-1.2.1mlnx1...
+Installing ibverbs-utils-1.2.1mlnx1...
+Installing libibverbs-dev-1.2.1mlnx1...
+Installing libibverbs1-dbg-1.2.1mlnx1...
+Installing libmlx4-1-1.2.1mlnx1...
+Installing libmlx4-dev-1.2.1mlnx1...
+Installing libmlx4-1-dbg-1.2.1mlnx1...
+Installing libmlx5-1-1.2.1mlnx1...
+Installing libmlx5-dev-1.2.1mlnx1...
+Installing libmlx5-1-dbg-1.2.1mlnx1...
+Installing libibumad-1.3.10.2.MLNX20150406.966500d...
+Installing libibumad-static-1.3.10.2.MLNX20150406.966500d...
+Installing libibumad-devel-1.3.10.2.MLNX20150406.966500d...
+Installing ibacm-1.2.1mlnx1...
+Installing ibacm-dev-1.2.1mlnx1...
+Installing librdmacm1-1.1.0mlnx...
+Installing librdmacm-utils-1.1.0mlnx...
+Installing librdmacm-dev-1.1.0mlnx...
+Installing mstflint-4.5.0...
+Installing ibdump-4.0.0...
+Installing libibmad-1.3.12.MLNX20160814.4f078cc...
+Installing libibmad-static-1.3.12.MLNX20160814.4f078cc...
+Installing libibmad-devel-1.3.12.MLNX20160814.4f078cc...
+Installing libopensm-4.8.0.MLNX20160906.32a95b6...
+Installing opensm-4.8.0.MLNX20160906.32a95b6...
+Installing opensm-doc-4.8.0.MLNX20160906.32a95b6...
+Installing libopensm-devel-4.8.0.MLNX20160906.32a95b6...
+Installing infiniband-diags-1.6.6.MLNX20160814.999c7b2...
+Installing infiniband-diags-compat-1.6.6.MLNX20160814.999c7b2...
+Installing mft-4.5.0...
+Installing kernel-mft-dkms-4.5.0...
+Installing libibcm1-1.0.5mlnx2...
+Installing libibcm-dev-1.0.5mlnx2...
+Installing perftest-3.0...
+Installing ibutils2-2.1.1...
+Installing libibdm1-1.5.7.1...
+Installing ibutils-1.5.7.1...
+Installing cc-mgr-1.0...
+Installing ar-mgr-1.0...
+Installing dump-pr-1.0...
+Installing ibsim-0.6...
+Installing ibsim-doc-0.6...
+Installing knem-dkms-1.1.2.90mlnx1...
+Installing mxm-3.5.220c57f...
+Installing fca-2.5.2431...
+Installing sharp-1.1.1.MLNX20160915.8763a35...
+Installing hcoll-3.6.1228...
+Installing openmpi-1.10.5a1...
+Installing mpitests-3.2.18...
+Installing knem-1.1.2.90mlnx1...
+Installing rds-tools-2.0.7...
+Installing libdapl2-2.1.9mlnx...
+Installing dapl2-utils-2.1.9mlnx...
+Installing libdapl-dev-2.1.9mlnx...
+Installing srptools-1.0.3...
+Installing mlnx-ethtool-4.2...
+Installing libsdp1-1.1.108...
+Installing libsdp-dev-1.1.108...
+Installing sdpnetstat-1.60...
+Selecting previously unselected package mlnx-fw-updater.
+(Reading database ... 70592 files and directories currently installed.)
+Preparing to unpack .../mlnx-fw-updater_3.4-1.0.0.0_amd64.deb ...
+Unpacking mlnx-fw-updater (3.4-1.0.0.0) ...
+Setting up mlnx-fw-updater (3.4-1.0.0.0) ...
+
+Added RUN_FW_UPDATER_ONBOOT=no to /etc/infiniband/openib.conf
+
+Attempting to perform Firmware update...
+Querying Mellanox devices firmware ...
+
+Device #1:
+
+  Device Type:      ConnectX4
+  Part Number:      MCX416A-CCA_Ax
+  Description:      ConnectX-4 EN network interface card; 100GbE dual-port QSFP28; PCIe3.0 x16; ROHS R6
+  PSID:             MT_2150110033
+  PCI Device Name:  03:00.0
+  Base GUID:        248a07030014fc60
+  Base MAC:         0000248a0714fc60
+  Versions:         Current        Available     
+     FW             12.16.1006     12.17.1010    
+     PXE            3.4.0812       3.4.0903      
+
+  Status:           Update required
+
+
+Found 1 device(s) requiring firmware update...
+
+Device #1: Updating FW ... Done
+
+Restart needed for updates to take effect.
+Log File: /tmp/MLNX_OFED_LINUX.16084.logs/fw_update.log
+Please reboot your system for the changes to take effect.
+Device (03:00.0):
+        03:00.0 Ethernet controller: Mellanox Technologies MT27620 Family
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Device (03:00.1):
+        03:00.1 Ethernet controller: Mellanox Technologies MT27620 Family
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Installation passed successfully
+To load the new driver, run:
+/etc/init.d/openibd restart
+-----
+
+
+.Reboot 
+[source,bash]
+----
+$sudo  reboot 
+----
+
+
+.After reboot 
+[source,bash]
+----
+$ibv_devinfo 
+hca_id: mlx5_1
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.17.1010             << 12.17.00
+        node_guid:                      248a:0703:0014:fc61
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+hca_id: mlx5_0
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.17.1010
+        node_guid:                      248a:0703:0014:fc60
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+----
+
+.ibdev2netdev
+[source,bash]
+-----
+$ibdev2netdev
+mlx5_0 port 1 ==> eth6 (Down)
+mlx5_1 port 1 ==> eth7 (Down)
+-----
+
+
+==== TRex specific 
+
+TRex uses flow director filter to steer specific packets to specific queues. 
+To support that we change IPv4.TOS/Ipv6.TC  LSB to *1* to be steered. So latency packets will have this bit turn on (not only for ConnectX-4)
+
+
+==== Limitation/Issues  
+
+* Stateless per stream statistic is not supported yet
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-260[64B performance issue]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
+
+
+
+
 
 
