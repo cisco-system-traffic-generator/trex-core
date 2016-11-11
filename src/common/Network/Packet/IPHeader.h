@@ -91,6 +91,15 @@ public:
      */
     inline  void    setHeaderLength     (uint8_t);
 
+    inline  uint16_t   getFirstWord(){
+        return PKT_NTOHS(*((uint16_t *)&myVer_HeaderLength));
+    }
+
+    inline  void   setFirstWord  (uint16_t word){
+        *((uint16_t *)&myVer_HeaderLength) = PKT_NTOHS(word);
+    }
+
+
     inline  uint8_t   getTOS              ();
     inline  void    setTOS              (uint8_t);
 

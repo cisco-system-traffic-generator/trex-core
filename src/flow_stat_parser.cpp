@@ -27,6 +27,7 @@
 #include "common/Network/Packet/TcpHeader.h"
 #include "pkt_gen.h"
 #include "flow_stat_parser.h"
+#include "bp_sim.h"
 
 void CFlowStatParser::reset() {
     m_start = 0;
@@ -120,8 +121,10 @@ int CFlowStatParser::get_ip_id(uint32_t &ip_id) {
 int CFlowStatParser::set_ip_id(uint32_t new_id) {
     if (m_ipv4) {
         // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
+        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getFirstWord()), PKT_NTOHS(m_ipv4->getFirstWord() |TOS_TTL_RESERVE_DUPLICATE));
         m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(new_id));
         m_ipv4->setId(new_id);
+        m_ipv4->setTOS(m_ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE);
         return 0;
     }
 
