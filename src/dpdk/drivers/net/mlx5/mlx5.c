@@ -516,12 +516,12 @@ mlx5_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		priv->cqe_comp = 1; /* Enable compression by default. */
 
 
-        err = mlx5_args(priv, pci_dev->devargs);
+		err = mlx5_args(priv, pci_dev->devargs);
 
-        /* TREX PATCH */
-        /* set for maximum performance default */
-        priv->txq_inline  =64;
-        priv->txqs_inline =4;
+		/* TREX PATCH */
+		/* set for maximum performance default */
+		priv->txq_inline  =128;
+		priv->txqs_inline =4;
 
 
 		if (err) {
