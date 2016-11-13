@@ -250,6 +250,7 @@ def scansize(self):
 
 def options(opt):
     opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
+    opt.add_option('--performance', action='store_true', help='Build a performance report based on google analytics')
 
 def configure(conf):
     search_path = '~/.local/bin /usr/local/bin/ /usr/bin'
@@ -887,8 +888,12 @@ def build_cp(bld,dir,root,callback):
 
 
 
-
-
+def create_analytic_report(task):
+    try:
+        import AnalyticsWebReport as analytics
+        analytics.main()
+    except:
+        raise Exception('Error importing or using AnalyticsWebReport script')
 
 
 
@@ -915,6 +920,11 @@ def build(bld):
     for x in bld.path.ant_glob('images\\**\**.jpg'):
         bld(rule=my_copy, target=x)
         bld.add_group() 
+
+    if bld.options.performance:
+        bld(rule=create_analytic_report)
+        bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
+        return
 
     bld(rule=my_copy, target='my_chart.js')
 
@@ -973,7 +983,7 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
-
+        
     bld(rule=convert_to_html_toc_book,
         source='trex_scapy_rpc_server.asciidoc waf.css', target='trex_scapy_rpc_server.html',scan=ascii_doc_scan);
 

@@ -1,0 +1,75 @@
+TRex Analytics Report
+======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+
+include::trex_ga.asciidoc[]
+
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+endif::backend-docbook[]
+
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+
+= Analytics
+
+== Setup: TRex09
+.Setup Details
+[options='header',halign='center']
+|====================================================================================================================
+|Name |OS |NICs |Routers 
+| trex09 | Fedora 18| 2x10G (X710) (8 interfaces), 1x10G (2 interfaces), 1x1G (4 interfaces) | Loopback on X710 + ASA 5520 + ASA 5512 + ASA 5585-ssp10
+|====================================================================================================================
+
+image:images/trex09_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/trex09_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::images/trex09_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Analysis Over Time
+
+image:images/trex09trend_graph.png[title="trex09trend_graph",align="left",width={p_width}, link="images/trex09trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::images/trex09_trend_stats.csv[]
+|===
+
+== Setup: Kiwi02
+.Setup Details
+[options='header',halign='center']
+|================================================================================================
+|Name |OS |NICs |Routers 
+|kiwi02| Fedora 18| 2x10G (4 interfaces)| ESP100
+|================================================================================================
+image:images/kiwi02_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/kiwi02_latest_test_runs.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::images/kiwi02_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Analysis Over Time
+
+image:images/kiwi02trend_graph.png[title="kiwi02trend_graph",align="left",width={p_width}, link="images/kiwi02trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::images/kiwi02_trend_stats.csv[]
+|===
+
+
+
+
