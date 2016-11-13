@@ -31,6 +31,16 @@ USERS_ALLOWED_TO_RELEASE = ['hhaim']
 # utility for group source code 
 ###################################
 
+orig_system = os.system
+
+def verify_system(cmd):
+    ret = orig_system(cmd)
+    if ret:
+        raise Exception('Return code %s on command: system("%s")' % (ret, cmd))
+
+os.system = verify_system
+
+
 class SrcGroup:
     ' group of source by directory '
 
@@ -905,12 +915,11 @@ files_list=[
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
-            't-rex-debug-gdb',
+            't-rex-64-debug-gdb',
             'stl-sim',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',
-            'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
@@ -920,7 +929,7 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp','dumy_libs']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp','dumy_libs']
 
 
 class Env(object):
