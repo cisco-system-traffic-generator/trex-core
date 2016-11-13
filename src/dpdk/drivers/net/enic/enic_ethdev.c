@@ -435,6 +435,25 @@ static void enicpmd_dev_stats_reset(struct rte_eth_dev *eth_dev)
 	enic_dev_stats_clear(enic);
 }
 
+
+int enicpmd_dev_get_fw_support(int port_id, 
+                               uint32_t *ver){
+    struct rte_eth_dev *dev;
+
+    RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+    dev = &rte_eth_devices[port_id];
+    *ver=0;
+
+    struct enic *enic = pmd_priv(dev);
+    enic->adv_filters;
+    if ( enic->adv_filters ==0 ) {
+        return (-1);
+    }
+    return (0);
+}
+
+
 static void enicpmd_dev_info_get(struct rte_eth_dev *eth_dev,
 	struct rte_eth_dev_info *device_info)
 {
