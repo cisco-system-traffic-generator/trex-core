@@ -397,7 +397,7 @@ public:
         return (true);
     }
 
-    virtual int verify_fw_ver(int i) {return 0;}
+    virtual int verify_fw_ver(int i);
 
     virtual void update_configuration(port_cfg_t * cfg);
 
@@ -6733,6 +6733,28 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
 #endif
 
     return 0;
+}
+
+extern "C" int enicpmd_dev_get_fw_support(int port_id, 
+                                          uint32_t *ver);
+
+
+int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
+
+    uint32_t ver;
+    int ret=enicpmd_dev_get_fw_support(port_id,&ver);
+
+    if (ret==0) {
+        if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
+            printf("VIC port %d: FW support advanced filtering \n", port_id); 
+        }
+    }else{
+        printf("Error: VIC firmware should upgrade to support advanced filtering \n");
+        printf("  Please refer to %s for upgrade instructions\n",
+               "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
+        exit(1);
+    }
+    return (0);
 }
 
 
