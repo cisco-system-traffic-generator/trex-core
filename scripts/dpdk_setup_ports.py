@@ -364,9 +364,10 @@ Other network devices
                 Mellanox_cnt=Mellanox_cnt+1
 
 
-        if ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
-            err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
-            raise DpdkSetup(err)
+        if not map_driver.dump_interfaces :
+            if  ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
+               err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
+               raise DpdkSetup(err)
 
 
         if only_check_all_mlx:
