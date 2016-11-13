@@ -477,7 +477,7 @@ public:
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
     virtual bool flow_control_disable_supported(){return false;}
-    virtual bool hw_rx_stat_supported(){return true;}
+    virtual bool hw_rx_stat_supported(){return false;}
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on){
         /* TBD need to support that */
@@ -6488,40 +6488,6 @@ void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t
 int CTRexExtendedDriverBaseMlnx5G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
                                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
 
-    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
-    uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-    uint8_t next_proto;
-
-    if (l3_proto == EthernetHeader::Protocol::IP) {
-        next_proto = l4_proto;
-        switch(l4_proto) {
-        case IPPROTO_TCP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_TCP;
-            break;
-        case IPPROTO_UDP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_UDP;
-            break;
-        default:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-            break;
-        }
-    } else {
-        // IPv6
-        next_proto = ipv6_next_h;
-        switch(l4_proto) {
-        case IPPROTO_TCP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_TCP;
-            break;
-        case IPPROTO_UDP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_UDP;
-            break;
-        default:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
-            break;
-        }
-    }
-
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DATA_Q, rule_id);
     return 0;
 }
 
@@ -6737,40 +6703,6 @@ extern "C" int rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32
 // id - Counter id in HW. We assume it is in the range 0..MAX_FLOW_STATS
 int CTRexExtendedDriverBaseVIC::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
                                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
-    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
-    uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-    uint8_t next_proto;
-
-    if (l3_proto == EthernetHeader::Protocol::IP) {
-        next_proto = l4_proto;
-        switch(l4_proto) {
-        case IPPROTO_TCP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_TCP;
-            break;
-        case IPPROTO_UDP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_UDP;
-            break;
-        default:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-            break;
-        }
-    } else {
-        // IPv6
-        next_proto = ipv6_next_h;
-        switch(l4_proto) {
-        case IPPROTO_TCP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_TCP;
-            break;
-        case IPPROTO_UDP:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_UDP;
-            break;
-        default:
-            rte_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
-            break;
-        }
-    }
-
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DATA_Q, rule_id);
     return 0;
 }
 
