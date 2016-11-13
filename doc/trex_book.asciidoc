@@ -132,6 +132,7 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | Intel FM10420        | 25/100 | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*) 
 | Mellanox ConnectX-4  | 25/40/50/56/100 | QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
 | Mellanox ConnectX-5  | 25/40/50/56/100 | Not supported yet 
+| Cisco 1300 series    | 40              | QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
 | VMXNET / +
 VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 | E1000    | paravirtualized  | VMware/KVM/VirtualBox 
@@ -176,7 +177,7 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 
 
 .ConnectX-4 NIC base QSFP28 support (100gb)
-[options="header",cols="1,1",width="90%"]
+[options="header",cols="1,2",width="90%"]
 |=================
 | link:https://en.wikipedia.org/wiki/QSFP[QSFP28]             |  ConnectX-4
 | QSFP28 SR4 optics  |  N/A
@@ -184,6 +185,19 @@ VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
 | QSFP28 (AoC)       | Cisco QSFP-100G-AOCxM  [green]*works*  
 | QSFP28 DA twin-ax cables | Cisco QSFP-100G-CUxM [green]*works*  
 |=================
+
+.Cisco VIC NIC base QSFP+ support 
+[options="header",cols="1,2",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             |  Intel Ethernet Converged XL710-QDAX 
+| QSFP+ SR4 optics  |  N/A
+| QSFP+ LR-4 Optics |   N/A
+| QSFP Active Optical Cables (AoC) | Cisco QSFP-H40G-AOC [green]*works*  
+| QSFP+ Intel Ethernet Modular Optics |    N/A            
+| QSFP+ DA twin-ax cables | N/A  | N/A  
+| Active QSFP+ Copper Cables | N/A
+|=================
+
 
 // clarify above table and note. let's discuss.
 .FM10K QSFP28 support 
@@ -2369,11 +2383,15 @@ mlx5_1 port 1 ==> eth7 (Down)
 -----
 
 
-==== TRex specific 
+==== TRex specific implementation details 
 
 TRex uses flow director filter to steer specific packets to specific queues. 
 To support that we change IPv4.TOS/Ipv6.TC  LSB to *1* to be steered. So latency packets will have this bit turn on (not only for ConnectX-4)
+Watch out, In case DUT will clear this bit (change the TOS with LSB==0, e.g. 0x3->0x2) packets won't be forward to TRex.
 
+==== Which NIC to buy?
+
+NIC with two ports will work better from performance prospective, so it is better to have MCX455A-ECAT(two 100gb port) and *not* the  MCX456A-ECAT (one 100gb port).
 
 ==== Limitation/Issues  
 
@@ -2383,7 +2401,24 @@ To support that we change IPv4.TOS/Ipv6.TC  LSB to *1* to be steered. So latency
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
 
 
+=== Cisco VIC support 
+
+anchor:ciscovic_support[]
+
+* Only 1300 series Cisco adapter 
+* Firmware version 2.0(13) for UCS C-series servers 
+* Firmware version 3.1(2) for blade servers supports more filtering capabilities. 
+* The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, the these additional flow director modes are available:
+        RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
+        RTE_ETH_FLOW_NONFRAG_IPV4_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_UDP
+        RTE_ETH_FLOW_NONFRAG_IPV6_TCP
+        RTE_ETH_FLOW_NONFRAG_IPV6_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_OTHER
 
 
+==== Limitation/Issues  
 
+* Stateless per stream statistic is not supported yet
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[flow-director]
 
