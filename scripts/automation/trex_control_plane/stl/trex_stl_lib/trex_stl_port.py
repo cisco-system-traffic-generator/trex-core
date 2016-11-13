@@ -10,6 +10,7 @@ from .utils.constants import FLOW_CTRL_DICT_REVERSED
 import base64
 import copy
 from datetime import datetime, timedelta
+import threading
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -50,7 +51,9 @@ class Port(object):
 
     def __init__ (self, port_id, user, comm_link, session_id, info):
         self.port_id = port_id
+
         self.state = self.STATE_IDLE
+        
         self.handler = None
         self.comm_link = comm_link
         self.transmit = comm_link.transmit
@@ -63,7 +66,7 @@ class Port(object):
         self.profile = None
         self.session_id = session_id
         self.status = {}
-        self.attr = {}
+        self.__attr = {}
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
@@ -74,6 +77,8 @@ class Port(object):
         self.owner = ''
         self.last_factor_type = None
 
+        self.attr_lock = threading.Lock()
+        
     # decorator to verify port is up
     def up(func):
         def func_wrapper(*args, **kwargs):
@@ -88,7 +93,7 @@ class Port(object):
 
     # owned
     def owned(func):
-        def func_wrapper(*args):
+        def func_wrapper(*args, **kwargs):
             port = args[0]
 
             if not port.is_up():
@@ -97,7 +102,7 @@ class Port(object):
             if not port.is_acquired():
                 return port.err("{0} - port is not owned".format(func.__name__))
 
-            return func(*args)
+            return func(*args, **kwargs)
 
         return func_wrapper
 
@@ -129,10 +134,10 @@ class Port(object):
         return RC_OK(data)
 
     def get_speed_bps (self):
-        return (self.attr['speed'] * 1000 * 1000 * 1000)
+        return (self.__attr['speed'] * 1000 * 1000 * 1000)
 
     def get_formatted_speed (self):
-        return "%g Gb/s" % (self.attr['speed'] / 1000)
+        return "%g Gb/s" % (self.__attr['speed'] / 1000)
 
     def is_acquired(self):
         return (self.handler != None)
@@ -253,7 +258,8 @@ class Port(object):
 
         self.status = rc.data()
 
-        self.attr = rc.data()['attr']
+        # replace the attributes in a thread safe manner
+        self.set_ts_attr(rc.data()['attr'])
 
         return self.ok()
 
@@ -645,19 +651,44 @@ class Port(object):
 
 
     @owned
-    def set_attr (self, attr_dict):
+    def set_attr (self, **kwargs):
+        
+        json_attr = {}
+        
+        if kwargs.get('promiscuous') is not None:
+            json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
+        
+        if kwargs.get('link_up') is not None:
+            json_attr['link_status'] = {'up': kwargs.get('link_up')}
+        
+        if kwargs.get('led_on') is not None:
+            json_attr['led_status'] = {'on': kwargs.get('led_on')}
+        
+        if kwargs.get('flow_ctrl_mode') is not None:
+            json_attr['flow_ctrl_mode'] = {'on': kwargs.get('flow_ctrl_mode')}
+
+        if kwargs.get('rx_filter_mode') is not None:
+            json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
+
+        if kwargs.get('ipv4') is not None:
+            json_attr['ipv4'] = {'addr': kwargs.get('ipv4')}
+        
+        if kwargs.get('dest') is not None:
+            json_attr['dest'] = {'addr': kwargs.get('dest')}
+            
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
-                  "attr": attr_dict}
+                  "attr": json_attr}
 
         rc = self.transmit("set_port_attr", params)
         if rc.bad():
             return self.err(rc.err())
 
-        return self.ok()
+        # update the dictionary from the server explicitly
+        return self.sync()
 
-
+                
     @writeable
     def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):
 
@@ -730,7 +761,8 @@ class Port(object):
         if sync:
             self.sync()
 
-        attr = self.attr
+        # get a copy of the current attribute set (safe against manipulation)
+        attr = self.get_ts_attr()
 
         info = dict(self.info)
 
@@ -781,15 +813,35 @@ class Port(object):
                                                   
         
         if 'rx_filter_mode' in attr:
-            info['rx_filter_mode'] = 'Hardware Match' if attr['rx_filter_mode'] == 'hw' else 'Fetch All'
+            info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
         else:
             info['rx_filter_mode'] = 'N/A'
 
+        # src MAC and IPv4
+        info['src_mac'] = attr.get('src_mac', 'N/A')
             
-        info['mac_addr']         = attr.get('mac_addr', 'N/A')            
-        info['ipv4']             = attr.get('ipv4', 'N/A')
-        info['default_gateway']  = attr.get('default_gateway', 'N/A')
-        info['next_hop_mac']     = attr.get('next_hop_mac', 'N/A')
+        info['src_ipv4'] = attr.get('src_ipv4', 'N/A')
+        if info['src_ipv4'] == 'none':
+            info['src_ipv4'] = 'Not Configured'
+
+        # dest
+        dest = attr.get('dest', {})
+        info['dest'] = dest.get('addr', 'N/A')
+        
+        if dest['type'] == 'mac':
+            info['arp'] = '-'
+        else:
+            info['arp']  = dest.get('arp', 'N/A')
+        
+
+        if info['dest'] == 'none':
+            info['dest'] = 'Not Configured'
+
+            
+        if info['arp'] == 'none':
+            info['arp'] = 'unresolved'
+     
+            
             
         # RX info
         rx_info = self.status['rx_info']
@@ -816,6 +868,17 @@ class Port(object):
     def get_port_state_name(self):
         return self.STATES_MAP.get(self.state, "Unknown")
 
+    def get_src_ipv4 (self):
+        src_ipv4 = self.__attr['src_ipv4']
+        if src_ipv4 == 'none':
+            src_ipv4 = None
+            
+        return src_ipv4 
+        
+    def get_src_mac (self):
+        return self.__attr['src_mac']
+            
+        
     ################# stats handler ######################
     def generate_port_stats(self):
         return self.port_stats.generate_stats()
@@ -824,14 +887,14 @@ class Port(object):
 
         info = self.get_formatted_info()
 
-        return {"driver":            info['driver'],
-                "description":       info.get('description', 'N/A')[:18],
-                "MAC addr":          info['mac_addr'],
-                "Next hop MAC":      info['next_hop_mac'],
-                "IPv4":              info['ipv4'],
-                "Default gateway":   info['default_gateway'],
-                "PCI Address":       info['pci_addr'],
-                "NUMA Node":     info['numa'],
+        return {"driver":           info['driver'],
+                "description":      info.get('description', 'N/A')[:18],
+                "src MAC":          info['src_mac'],
+                "src IPv4":         info['src_ipv4'],
+                "Destination":      info['dest'],
+                "ARP Resolution":   info['arp'],
+                "PCI Address":      info['pci_addr'],
+                "NUMA Node":        info['numa'],
                 "--": "",
                 "---": "",
                 "----": "",
@@ -881,8 +944,20 @@ class Port(object):
     
         return {"streams" : OrderedDict(sorted(data.items())) }
     
-
-
+        
+    ######## attributes are a complex type (dict) that might be manipulated through the async thread #############
+    
+    # get in a thread safe manner a duplication of attributes
+    def get_ts_attr (self):
+        with self.attr_lock:
+            return dict(self.__attr)
+        
+    # set in a thread safe manner a new dict of attributes
+    def set_ts_attr (self, new_attr):
+        with self.attr_lock:
+            self.__attr = new_attr
+    
+        
   ################# events handler ######################
     def async_event_port_job_done (self):
         # until thread is locked - order is important
@@ -890,8 +965,33 @@ class Port(object):
         self.state = self.STATE_STREAMS
         self.last_factor_type = None
 
-    def async_event_port_attr_changed (self, attr):
-        self.attr = attr
+    def async_event_port_attr_changed (self, new_attr):
+        
+        # get a thread safe duplicate
+        cur_attr = self.get_ts_attr()
+        
+        # check if anything changed
+        if new_attr == cur_attr:
+            return None
+            
+        # generate before
+        before = self.get_formatted_info(sync = False)
+        
+        # update
+        self.set_ts_attr(new_attr)
+        
+        # generate after
+        after = self.get_formatted_info(sync = False)
+        
+        # return diff
+        diff = {}
+        for key, new_value in after.items():
+            old_value = before.get(key, 'N/A')
+            if new_value != old_value:
+                diff[key] = (old_value, new_value)
+                
+        return diff
+        
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):

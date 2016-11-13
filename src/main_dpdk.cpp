@@ -1604,12 +1604,20 @@ bool DpdkTRexPortAttr::update_link_status_nowait(){
     rte_eth_link new_link;
     bool changed = false;
     rte_eth_link_get_nowait(m_port_id, &new_link);
-    if (new_link.link_speed != m_link.link_speed ||
-                new_link.link_duplex != m_link.link_duplex ||
-                    new_link.link_autoneg != m_link.link_autoneg ||
-                        new_link.link_status != m_link.link_status) {
+    
+    /* if the link got down - update the dest atribute to move to unresolved */
+    if (new_link.link_status != m_link.link_status) {
+        get_dest().on_link_down();
         changed = true;
     }
+    
+    /* other changes */
+    if (new_link.link_speed != m_link.link_speed ||
+                new_link.link_duplex != m_link.link_duplex ||
+                    new_link.link_autoneg != m_link.link_autoneg) {
+        changed = true;
+    }
+    
     m_link = new_link;
     return changed;
 }
@@ -3101,8 +3109,7 @@ void CGlobalTRex::pre_test() {
                 exit(1);
             }
             memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
-            m_ports[port_id].get_port_attr()->set_next_hop_mac(mac);
-            
+             
             // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
             if (pretest.is_loopback(port_id))
                 CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
@@ -3115,6 +3122,18 @@ void CGlobalTRex::pre_test() {
 
         // Configure port back to normal mode. Only relevant packets handled by software.
         CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
+        
+
+        /* set resolved IPv4 */
+        uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
+        const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
+        if (dg) {
+            m_ports[port_id].get_port_attr()->get_dest().set_dest_ipv4(dg, dst_mac);
+        } else {
+            m_ports[port_id].get_port_attr()->get_dest().set_dest_mac(dst_mac);
+        }
+        
+
     }
 }
 
@@ -4680,8 +4699,16 @@ bool CPhyEthIF::Create(uint8_t portid) {
     m_port_attr    = g_trex.m_drv->create_port_attr(portid);
 
     
-    m_port_attr->set_ipv4(CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_ip());
-    m_port_attr->set_default_gateway(CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_def_gw());
+    uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_ip();
+    if (src_ipv4) {
+        m_port_attr->set_src_ipv4(src_ipv4);
+    }
+    
+    /* for now set as unresolved IPv4 destination */
+    uint32_t dest_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_def_gw();
+    if (dest_ipv4) {
+        m_port_attr->get_dest().set_dest_ipv4(dest_ipv4);
+    }
     
     return true;
 }

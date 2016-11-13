@@ -368,8 +368,121 @@ TrexRpcCmdSetPortAttr::parse_ipv4(const Json::Value &msg, uint8_t port_id, Json:
         generate_parse_err(result, ss.str());
     }
             
-    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_ipv4(ipv4_addr);
+    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_src_ipv4(ipv4_addr);
     return (0);
+}
+
+int
+TrexRpcCmdSetPortAttr::parse_dest(const Json::Value &msg, uint8_t port_id, Json::Value &result) {
+    
+    /* can be either IPv4 or MAC */
+    const std::string addr = parse_string(msg, "addr", result);
+    
+    TRexPortAttr *port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id);
+    
+    /* try IPv4 */
+    uint32_t ipv4_addr;
+    uint8_t  mac[6];
+    
+    if (utl_ipv4_to_uint32(addr.c_str(), ipv4_addr)) {
+        if (port_attr->get_src_ipv4() == 0) {
+            generate_parse_err(result, "unable to configure 'dest' as IPv4 without source IPv4 address configured");
+        }
+        port_attr->get_dest().set_dest_ipv4(ipv4_addr);
+        
+    } else if (utl_str_to_macaddr(addr, mac)) {
+        port_attr->get_dest().set_dest_mac(mac);
+    } else {
+        std::stringstream ss;
+        ss << "'dest' is not an IPv4 address or a MAC address: '" << addr << "'";
+        generate_parse_err(result, ss.str());
+    }
+            
+    
+    return (0);
+}
+
+
+/**
+ * attributes in the high priority pass must be handled first 
+ * for example, IPv4 configuration should be handled before dest
+ * 
+ */
+void
+TrexRpcCmdSetPortAttr::high_priority_pass(const Json::Value &attr, uint8_t port_id, Json::Value &result) {
+    int ret = 0;
+    
+    /* first iteration - high priority attributes */
+    for (const std::string &name : attr.getMemberNames()) {
+        if (name == "ipv4") {
+            const Json::Value &ipv4 = parse_object(attr, name, result);
+            ret = parse_ipv4(ipv4, port_id, result);
+        }
+        
+        /* check error code */
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
+        } else if (ret) {
+            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
+        }
+    }
+}
+
+
+void
+TrexRpcCmdSetPortAttr::regular_priority_pass(const Json::Value &attr, uint8_t port_id, Json::Value &result) {
+    int ret = 0;
+    
+    /* iterate over all attributes in the dict */
+    for (const std::string &name : attr.getMemberNames()) {
+
+        if (name == "promiscuous") {
+            bool enabled = parse_bool(attr[name], "enabled", result);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_promiscuous(enabled);
+        }
+
+        else if (name == "link_status") {
+            bool up = parse_bool(attr[name], "up", result);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_link_up(up);
+        }
+
+        else if (name == "led_status") {
+            bool on = parse_bool(attr[name], "on", result);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_led(on);
+        }
+
+        else if (name == "flow_ctrl_mode") {
+            int mode = parse_int(attr[name], "mode", result);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_flow_ctrl(mode);
+        }
+
+        else if (name == "rx_filter_mode") {
+            const Json::Value &rx = parse_object(attr, name, result);
+            ret = parse_rx_filter_mode(rx, port_id, result);
+        }
+
+        else if (name == "ipv4") {
+            /* ignore - was already taken care of in the high priority pass */
+        }
+
+        else if (name == "dest") {
+            const Json::Value &dest = parse_object(attr, name, result);
+            ret = parse_dest(dest, port_id, result);
+        }
+
+        /* unknown attribute */
+        else {
+            generate_execute_err(result, "unknown attribute type: '" + name + "'");
+            break;
+        }
+
+        /* check error code */
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
+        } else if (ret) {
+            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
+        }
+    }
 }
 
 
@@ -389,55 +502,13 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
 
     const Json::Value &attr = parse_object(params, "attr", result);
-    int ret = 0;
 
-    /* iterate over all attributes in the dict */
-    for (const std::string &name : attr.getMemberNames()) {
-
-        if (name == "promiscuous") {
-            bool enabled = parse_bool(attr[name], "enabled", result);
-            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_promiscuous(enabled);
-        }
-
-        else if (name == "link_status") {
-            bool up = parse_bool(attr[name], "up", result);
-            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_link_up(up);
-        }
-
-        else if (name == "led_status") {
-            bool on = parse_bool(attr[name], "on", result);
-            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_led(on);
-        } 
-
-        else if (name == "flow_ctrl_mode") {
-            int mode = parse_int(attr[name], "mode", result);
-            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_flow_ctrl(mode);
-        } 
-
-        else if (name == "rx_filter_mode") {
-            ret = parse_rx_filter_mode(attr[name], port_id, result);
-        }
-
-        else if (name == "ipv4") {
-            ret = parse_ipv4(attr[name], port_id, result);
-        }
-        
-        /* unknown attribute */
-        else {
-            generate_execute_err(result, "Not recognized attribute: " + name);
-            break;
-        }
-
-        /* check error code */
-        if ( ret == -ENOTSUP ) {
-            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
-        } else if (ret) {
-            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
-        }
-    }
-
+    high_priority_pass(attr, port_id, result);
+    regular_priority_pass(attr, port_id, result);
+    
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
+   
 }
 
 

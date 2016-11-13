@@ -1,6 +1,6 @@
 import argparse
 from collections import namedtuple, OrderedDict
-from .common import list_intersect, list_difference
+from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_mac
 from .text_opts import format_text
 from ..trex_stl_types import *
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
@@ -45,11 +45,13 @@ FLOW_CTRL = 28
 SUPPORTED = 29
 RX_FILTER_MODE = 30
 
-
 OUTPUT_FILENAME = 31
 ALL_FILES = 32
 LIMIT = 33
 PORT_RESTART   = 34
+
+IPV4 = 35
+DEST = 36
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -224,8 +226,20 @@ def is_valid_file(filename):
 
     return filename
 
+def check_ipv4_addr (ipv4_str):
+    if not is_valid_ipv4(ipv4_str):
+        raise argparse.ArgumentTypeError("invalid IPv4 address: '{0}'".format(ipv4_str))
 
+    return ipv4_str
 
+    
+def check_dest_addr (addr):
+    if not (is_valid_ipv4(addr) or is_valid_mac(addr)):
+        raise argparse.ArgumentTypeError("not a valid IPv4 or MAC address: '{0}'".format(addr))
+        
+    return addr
+
+    
 def decode_tunables (tunable_str):
     tunables = {}
 
@@ -315,6 +329,21 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                             'dest': 'rx_filter_mode',
                                             'choices': ['hw', 'all']}),
 
+
+              IPV4: ArgumentPack(['--ipv4'],
+                                 {'help': 'IPv4 address(s) for the port(s)',
+                                  'dest': 'ipv4',
+                                  'nargs': '+',
+                                  'default': None,
+                                  'type': check_ipv4_addr}),
+
+              DEST: ArgumentPack(['--dest'],
+                                 {'help': 'Destination address(s) for the port(s) in either IPv4 or MAC format',
+                                  'dest': 'dest',
+                                  'nargs': '+',
+                                  'default': None,
+                                  'type': check_dest_addr}),
+              
 
               OUTPUT_FILENAME: ArgumentPack(['-o', '--output'],
                                             {'help': 'Output PCAP filename',

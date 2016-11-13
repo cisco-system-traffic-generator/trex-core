@@ -4,6 +4,7 @@ import string
 import random
 import time
 import socket
+import re
 
 try:
     import pwd
@@ -93,3 +94,7 @@ def is_valid_ipv4 (addr):
         return True
     except socket.error:
         return False
+        
+def is_valid_mac (mac):
+    return bool(re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()))
+

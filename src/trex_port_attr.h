@@ -23,13 +23,119 @@ limitations under the License.
 #include "trex_defs.h"
 #include "common/basic_utils.h"
 
+/**
+ * destination port attribute
+ * 
+ */
+class DestAttr {
+public:
+
+    DestAttr() {
+        /* use a dummy MAC as default */
+        uint8_t dummy_mac [] = {0xff,0xff,0xff,0xff,0xff,0xff};
+        set_dest_mac(dummy_mac);
+    }
+    
+    enum dest_type_e {
+        DEST_TYPE_IPV4   = 1,
+        DEST_TYPE_MAC    = 2
+    };
+    
+    /**
+     * set dest as an IPv4 unresolved
+     */
+    void set_dest_ipv4(uint32_t ipv4) {
+        assert(ipv4 != 0);
+        
+        m_src_ipv4 = ipv4;
+        memset(m_mac, 0, 6);
+        m_type = DEST_TYPE_IPV4;
+    }
+    
+    /**
+     * set dest as a resolved IPv4
+     */
+    void set_dest_ipv4(uint32_t ipv4, const uint8_t *mac) {
+        assert(ipv4 != 0);
+        
+        m_src_ipv4 = ipv4;
+        memcpy(m_mac, mac, 6);
+        m_type = DEST_TYPE_IPV4;
+    }
+
+    /**
+     * dest dest as MAC
+     * 
+     */
+    void set_dest_mac(const uint8_t *mac) {
+        m_src_ipv4 = 0;
+        memcpy(m_mac, mac, 6);
+        m_type = DEST_TYPE_MAC;
+    }
+    
+    
+    bool is_resolved() const {
+        if (m_type == DEST_TYPE_MAC) {
+            return true;
+        }
+        
+        for (int i = 0; i < 6; i++) {
+            if (m_mac[i] != 0) {
+                return true;
+            }
+        }
+        
+        /* all zeroes - non resolved */
+        return false;
+    }
+    
+    /**
+     * when link gets down - this should be called
+     * 
+     */
+    void on_link_down() {
+        if (m_type == DEST_TYPE_IPV4) {
+            /* reset the IPv4 dest with no resolution */
+            set_dest_ipv4(m_src_ipv4);
+        }
+    }
+    
+    void to_json(Json::Value &output) {
+        switch (m_type) {
+
+        case DEST_TYPE_IPV4:
+            output["type"] = "ipv4";
+            output["addr"] = utl_uint32_to_ipv4(m_src_ipv4);
+            if (is_resolved()) {
+                output["arp"] = utl_macaddr_to_str(m_mac);
+            } else {
+                output["arp"] = "none";
+            }
+            break;
+            
+        case DEST_TYPE_MAC:
+            output["type"]      = "mac";
+            output["addr"]      = utl_macaddr_to_str(m_mac);
+            break;
+            
+        default:
+            assert(0);
+        }
+        
+    }
+    
+private:
+    uint32_t          m_src_ipv4;
+    uint8_t           m_mac[6];
+    dest_type_e       m_type;
+};
+
+
 class TRexPortAttr {
 public:
 
     TRexPortAttr() {
-        m_ipv4 = 0;
-        m_default_gateway = 0;
-        memset(m_next_hop_mac, 0, sizeof(m_next_hop_mac));
+        m_src_ipv4 = 0;
     }
     
     virtual ~TRexPortAttr(){}
@@ -57,9 +163,8 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
-    uint32_t get_ipv4() {return m_ipv4;}
-    uint32_t get_default_gateway() {return m_default_gateway;}
-    const uint8_t * get_next_hop_mac() {return m_next_hop_mac;}
+    uint32_t get_src_ipv4() {return m_src_ipv4;}
+    DestAttr & get_dest() {return m_dest;}
     
     virtual std::string get_rx_filter_mode() {
         switch (m_rx_filter_mode) {
@@ -81,16 +186,8 @@ public:
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
     
-    void set_ipv4(uint32_t addr) {
-        m_ipv4 = addr;
-    }
-    
-    void set_default_gateway(uint32_t addr) {
-        m_default_gateway = addr;
-    }
-    
-    void set_next_hop_mac(const uint8_t *next_hop_mac) {
-        memcpy(m_next_hop_mac, next_hop_mac, sizeof(m_next_hop_mac));
+    void set_src_ipv4(uint32_t addr) {
+        m_src_ipv4 = addr;
     }
     
 /*    DUMPS    */
@@ -104,18 +201,24 @@ public:
         uint8_t mac_addr[6];
         memcpy(mac_addr, dpdk_mac_addr.addr_bytes, 6);
         
-        output["mac_addr"]               = utl_macaddr_to_str(mac_addr);
-        output["next_hop_mac"]           = utl_macaddr_to_str(m_next_hop_mac);
+        output["src_mac"]                = utl_macaddr_to_str(mac_addr);
         output["promiscuous"]["enabled"] = get_promiscuous();
         output["link"]["up"]             = is_link_up();
         output["speed"]                  = get_link_speed();
         output["rx_filter_mode"]         = get_rx_filter_mode();
-        output["ipv4"]                   = utl_uint32_to_ipv4(get_ipv4());
-        output["default_gateway"]        = utl_uint32_to_ipv4(get_default_gateway());
+        
+        if (get_src_ipv4() != 0) {
+            output["src_ipv4"] = utl_uint32_to_ipv4(get_src_ipv4());
+        } else {
+            output["src_ipv4"] = "none";
+        }
+        
         
         int mode;
         get_flow_ctrl(mode);
         output["fc"]["mode"] = mode;
+        
+        m_dest.to_json(output["dest"]);
         
     }
     
@@ -123,9 +226,9 @@ protected:
     
     uint8_t                   m_port_id;
     rte_eth_link              m_link;
-    uint32_t                  m_ipv4;
-    uint32_t                  m_default_gateway;
-    uint8_t                   m_next_hop_mac[6];
+    uint32_t                  m_src_ipv4;
+    DestAttr                  m_dest;
+    
     struct rte_eth_dev_info   dev_info;
     
     rx_filter_mode_e m_rx_filter_mode;

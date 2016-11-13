@@ -12,7 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer, is_valid_ipv4
+from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer, is_valid_ipv4, is_valid_mac
 from .utils.text_opts import *
 from functools import wraps
 
@@ -326,24 +326,22 @@ class EventsHandler(object):
         elif (event_type == 8):
 
             port_id = int(data['port_id'])
-     
-            if data['attr'] == self.client.ports[port_id].attr:
-                return # false alarm
-     
-            old_info = self.client.ports[port_id].get_formatted_info(sync = False)
-            self.__async_event_port_attr_changed(port_id, data['attr'])
-     
-            new_info = self.client.ports[port_id].get_formatted_info(sync = False)
+            
+            diff = self.__async_event_port_attr_changed(port_id, data['attr'])
+            if not diff:
+                return
+
+            
             ev = "port {0} attributes changed".format(port_id)
-            for key, old_val in old_info.items():
-                new_val = new_info.get(key, 'N/A')
-                if old_val != new_val:
-                    ev += '\n  {key}: {old} -> {new}'.format(
+            for key, (old_val, new_val) in diff.items():
+                ev += '\n  {key}: {old} -> {new}'.format(
                         key = key, 
                         old = old_val.lower() if type(old_val) is str else old_val,
                         new = new_val.lower() if type(new_val) is str else new_val)
+                
             show_event = True
-
+            
+         
     
         # server stopped
         elif (event_type == 100):
@@ -399,7 +397,7 @@ class EventsHandler(object):
 
     def __async_event_port_attr_changed (self, port_id, attr):
         if port_id in self.client.ports:
-            self.client.ports[port_id].async_event_port_attr_changed(attr)
+            return self.client.ports[port_id].async_event_port_attr_changed(attr)
 
     # add event to log
     def __add_event_log (self, origin, ev_type, msg, show = False):
@@ -812,7 +810,7 @@ class STLClient(object):
         rc = RC()
 
         for port_id, port_attr_dict in zip(port_id_list, attr_dict):
-            rc.add(self.ports[port_id].set_attr(port_attr_dict))
+            rc.add(self.ports[port_id].set_attr(**port_attr_dict))
 
         return rc
 
@@ -1772,10 +1770,19 @@ class STLClient(object):
             raise STLError(rc)
 
     def test (self):
+        #rc = self.ports[0].resolve()
+        #if not rc:
+        #    raise STLError(rc)
+        #return
         
-        self.reset(ports = [0, 1])
+        self.reset(ports = [0])
         
-        self.set_port_attr(ports = [0, 1], ipv4 = ['5.5.5.5', '6.6.6.6'])
+        attr = self.ports[0].get_ts_attr()
+        src_ipv4 = attr['src_ipv4']
+        src_mac  = attr['src_mac']
+        dest     = attr['dest']
+        print(src_ipv4, src_mac, dest)
+        #self.set_port_attr(ports = [0, 1], ipv4 = ['5.5.5.5', '6.6.6.6'])
         return
         
         self.set_rx_queue(ports = [0], size = 1000, rxf = 'all')
@@ -2727,7 +2734,7 @@ class STLClient(object):
                        flow_ctrl = None,
                        rxf = None,
                        ipv4 = None,
-                       default_gateway = None,
+                       dest = None,
                        ):
         """
             Set port attributes
@@ -2740,8 +2747,8 @@ class STLClient(object):
                 rxf              - 'hw' for hardware rules matching packets only or 'all' all packets
                 ipv4             - configure IPv4 address for port(s). for multiple ports should be a list
                                    of IPv4 addresses in the same length of the ports array
-                default_gateway  - configure default gateway for port(s). for multiple ports should be a list
-                                   in the same length of the ports array
+                dest             - configure destination address for port(s) in either IPv4 or MAC format.
+                                   for multiple ports should be a list in the same length of the ports array
             :raises:
                 + :exe:'STLError'
 
@@ -2759,61 +2766,45 @@ class STLClient(object):
         
         # common attributes for all ports
         cmn_attr_dict = {}
-        if promiscuous is not None:
-            cmn_attr_dict['promiscuous'] = {'enabled': promiscuous}
-            
-        if link_up is not None:
-            cmn_attr_dict['link_status'] = {'up': link_up}
-            
-        if led_on is not None:
-            cmn_attr_dict['led_status'] = {'on': led_on}
-            
-        if flow_ctrl is not None:
-            cmn_attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
-            
-        if rxf is not None:
-            cmn_attr_dict['rx_filter_mode'] = {'mode': rxf}
 
+        cmn_attr_dict['promiscuous']     = promiscuous
+        cmn_attr_dict['link_status']     = link_up
+        cmn_attr_dict['led_status']      = led_on
+        cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
+        cmn_attr_dict['rx_filter_mode']  = rxf
+    
         # each port starts with a set of the common attributes
         attr_dict = [dict(cmn_attr_dict) for _ in ports]
+    
+        # default value for IPv4 / dest is none for all ports
+        if ipv4 is None:
+            ipv4 = [None] * len(ports)
+        if dest is None:
+            dest = [None] * len(ports)
             
-        # IPv4
-        if ipv4 is not None:
-            ipv4_list = listify(ipv4)
-            
-            if len(ipv4_list) != len(ports):
-                raise STLError("'ipv4' must be a list in the same length of ports - 'ports': {0}, 'ip': {1}".format(ports, ipv4_list))
+        ipv4 = listify(ipv4)
+        if len(ipv4) != len(ports):
+            raise STLError("'ipv4' must be a list in the same length of ports - 'ports': {0}, 'ip': {1}".format(ports, ipv4))
                 
-            for ipv4, port_attr in zip(ipv4_list, attr_dict):
-                if not is_valid_ipv4(ipv4):
-                    raise STLError("invalid IPv4 address provided: '{0}'".format(ipv4))
-                port_attr['ipv4'] = {'addr': ipv4}
-           
+        dest = listify(dest)
+        if len(dest) != len(ports):
+            raise STLError("'dest' must be a list in the same length of ports - 'ports': {0}, 'dest': {1}".format(ports, dest))
             
-        # default gateway
-        if default_gateway is not None:
-            dg_list = listfy(default_gateway)
+        # update each port attribute with ipv4
+        for addr, port_attr in zip(ipv4, attr_dict):
+            port_attr['ipv4'] = addr
+        
+        # update each port attribute with dest
+        for addr, port_attr in zip(dest, attr_dict):
+            port_attr['dest'] = addr
             
-            if len(dg_list) != len(ports):
-                raise STLError("'default_gateway' must be a list in the same length of ports - 'ports': {0}, 'default_gateway': {1}".format(ports, dg_list))
-
-            for dg, port_attr in zip(dg_list, attr_dict):
-                if not is_valid_ipv4(dg):
-                    raise STLError("invalid IPv4 address provided: '{0}'".format(ipv4))
-                port_attr['default_gateway'] = {'addr': dg}
-                
-                 
-        # no attributes to set
-        if not any(attr_dict):
-            return
-
+        
         self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
         rc = self.__set_port_attr(ports, attr_dict)
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
-
 
 
     @__api_check(True)
@@ -3515,6 +3506,8 @@ class STLClient(object):
                                          parsing_opts.FLOW_CTRL,
                                          parsing_opts.SUPPORTED,
                                          parsing_opts.RX_FILTER_MODE,
+                                         parsing_opts.IPV4,
+                                         parsing_opts.DEST
                                          )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
@@ -3527,12 +3520,12 @@ class STLClient(object):
         opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp, opts.rx_filter_mode])):
+        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp, opts.rx_filter_mode, opts.ipv4, opts.dest])):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
         if opts.supp:
-            info = self.ports[0].get_info() # assume for now all ports are same
+            info = self.ports[0].get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   yes')
@@ -3541,7 +3534,14 @@ class STLClient(object):
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.rx_filter_mode)
+            return self.set_port_attr(opts.ports,
+                                      opts.prom,
+                                      opts.link,
+                                      opts.led,
+                                      opts.flow_ctrl,
+                                      opts.rx_filter_mode,
+                                      opts.ipv4,
+                                      opts.dest)
 
 
              

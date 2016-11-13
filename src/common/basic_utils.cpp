@@ -201,6 +201,19 @@ std::string utl_macaddr_to_str(const uint8_t *macaddr) {
     return tmp;
 }
 
+bool utl_str_to_macaddr(const std::string &s, uint8_t *mac) {
+    int last = -1;
+    int rc = sscanf(s.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%n",
+                    mac + 0, mac + 1, mac + 2, mac + 3, mac + 4, mac + 5,
+                    &last);
+
+    if ( (rc != 6) || (s.size() != last) ) {
+        return false;
+    }
+    
+    return true;
+}
+
 /**
  * generate a random connection handler
  * 
