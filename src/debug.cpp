@@ -141,6 +141,11 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
     }
 
     pkt = CTestPktGen::create_test_pkt(l3_type, l4_proto, ttl, ip_id, flags, 1000, pkt_size);
+
+    /* DEBUG print the packet 
+    utl_k12_pkt_format(stdout,pkt,  pkt_size) ;
+    */
+
     m = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
     if ( unlikely(m == 0) )  {
         printf("ERROR no packets \n");
