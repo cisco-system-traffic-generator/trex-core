@@ -764,9 +764,8 @@ def build_prog (bld, build_obj):
 
     # add electric fence only for debug image  
     debug_file_list='';
-    #if not build_obj.isRelease ():
-        #debug 
-    #    debug_file_list +=ef_src.file_list(top)
+    if not build_obj.isRelease ():
+        debug_file_list +=ef_src.file_list(top)
 
 
     bld.objects(
