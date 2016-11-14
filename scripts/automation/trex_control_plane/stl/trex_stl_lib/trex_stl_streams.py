@@ -1073,6 +1073,8 @@ class STLProfile(object):
     def __pkts_to_streams (pkts, ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
 
         streams = []
+        if speedup == 0:
+            raise STLError('Speedup should not be 0')
 
         # 10 ms delay before starting the PCAP
         last_ts_usec = -(start_delay_usec)
@@ -1084,7 +1086,10 @@ class STLProfile(object):
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap
             if ipg_usec == None:
-                ts_usec = (meta[0] * 1e6 + meta[1]) / float(speedup)
+                packet_time = meta[0] * 1e6 + meta[1]
+                if i == 1:
+                    base_time = packet_time
+                ts_usec = (packet_time - base_time) / float(speedup)
             else:
                 ts_usec = (ipg_usec * i) / float(speedup)
 
