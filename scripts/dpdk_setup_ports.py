@@ -14,6 +14,7 @@ import traceback
 from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
 import getpass
+import subprocess
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -227,6 +228,7 @@ class CIfMap:
         self.m_cfg_file =cfg_file;
         self.m_cfg_dict={};
         self.m_devices={};
+        self.m_is_mellanox_mode=False;
 
     def dump_error (self,err):
         s="""%s  
@@ -263,6 +265,62 @@ Other network devices
     def raise_error  (self,err):
         s= self.dump_error (err)
         raise DpdkSetup(s)
+
+    def set_only_mellanox_nics(self):
+        self.m_is_mellanox_mode=True;
+
+    def get_only_mellanox_nics(self):
+        return self.m_is_mellanox_mode
+
+
+    def read_pci (self,pci_id,reg_id):
+        out=subprocess.check_output(['setpci', '-s',pci_id, '%s.w' %(reg_id)])
+        out=out.decode(errors='replace');
+        return (out.strip());
+
+    def write_pci (self,pci_id,reg_id,val):
+        out=subprocess.check_output(['setpci','-s',pci_id, '%s.w=%s' %(reg_id,val)])
+        out=out.decode(errors='replace');
+        return (out.strip());
+
+    def tune_mlx5_device (self,pci_id):
+        # set PCIe Read to 1024 and not 512 ... need to add it to startup s
+        val=self.read_pci (pci_id,68)
+        if val[0]!='3':
+            val='3'+val[1:]
+            self.write_pci (pci_id,68,val)
+            assert(self.read_pci (pci_id,68)==val);
+
+    def disable_flow_control_mlx5_device (self,dev_id):
+
+           if len(dev_id)>0:
+               my_stderr = open("/dev/null","wb")
+               cmd ='ethtool -A '+dev_id + ' rx off tx off '
+               subprocess.call(cmd, stdout=my_stderr,stderr=my_stderr, shell=True)
+               my_stderr.close();
+
+    def check_ofe_version (self):
+        ofed_info='/usr/bin/ofed_info'
+        ofed_ver= 'MLNX_OFED_LINUX-3.4-1.0.0.0'
+
+        if not os.path.isfile(ofed_info):
+            print("OFED %s is not installed on this setup" % ofed_info)
+            exit(-1);
+
+        try:
+          out = subprocess.check_output([ofed_info])
+        except Exception as e:
+            print("OFED %s can't run " % (ofed_info))
+            exit(-1);
+
+        lines=out.splitlines();
+
+        if len(lines)>1:
+            if not (ofed_ver in str(lines[0])):
+                print("installed OFED version is '%s' should be '%s' " % (lines[0],ofed_ver))
+                exit(-1);
+
+
 
     def load_config_file (self):
 
@@ -368,6 +426,20 @@ Other network devices
             if  ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
                err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
                raise DpdkSetup(err)
+
+
+        if not map_driver.dump_interfaces :
+            if  Mellanox_cnt>0 :
+                self.set_only_mellanox_nics()
+
+        if self.get_only_mellanox_nics():
+            self.check_ofe_version ()
+            for key in if_list:
+                pci_id=self.m_devices[key]['Slot_str']
+                self.tune_mlx5_device (pci_id)
+                if 'Interface' in self.m_devices[key]:
+                    dev_id=self.m_devices[key]['Interface']
+                    self.disable_flow_control_mlx5_device (dev_id)
 
 
         if only_check_all_mlx:
