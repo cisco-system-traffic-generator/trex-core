@@ -2392,7 +2392,7 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 if slave in ports:
-                    raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
+                    raise STLError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
                 if not slave in self.get_acquired_ports():
                     raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
@@ -2441,7 +2441,7 @@ class STLClient(object):
                 self.logger.post_cmd(RC_ERR(e))
                 raise
 
-            all_ports = ports + [p ^ 0x1 for p in ports]
+            all_ports = ports + [p ^ 0x1 for p in ports if profile_b]
 
             self.remove_all_streams(ports = all_ports)
 
@@ -2450,7 +2450,8 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 self.add_streams(profile_a.get_streams(), master)
-                self.add_streams(profile_b.get_streams(), slave)
+                if profile_b:
+                    self.add_streams(profile_b.get_streams(), slave)
 
             return self.start(ports = all_ports, duration = duration)
 

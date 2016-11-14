@@ -1046,6 +1046,17 @@ class STLProfile(object):
             else:
                 pkts_a, pkts_b = PCAPReader(pcap_file).read_all(split_mode = split_mode)
 
+                # swap the packets if a is empty, or the ts of first packet in b is earlier
+                if not pkts_a:
+                    pkts_a, pkts_b = pkts_b, pkts_a
+                elif (ipg_usec is None) and pkts_b:
+                    meta = pkts_a[0][1]
+                    start_time_a = meta[0] * 1e6 + meta[1]
+                    meta = pkts_b[0][1]
+                    start_time_b = meta[0] * 1e6 + meta[1]
+                    if start_time_b < start_time_a:
+                        pkts_a, pkts_b = pkts_b, pkts_a
+
                 profile_a = STLProfile.__pkts_to_streams(pkts_a,
                                                          ipg_usec,
                                                          speedup,
