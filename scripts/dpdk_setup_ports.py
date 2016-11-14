@@ -454,7 +454,7 @@ Other network devices
                 raise DpdkSetup(err)
 
             if 'Driver_str' in self.m_devices[key]:
-                if self.m_devices[key]['Driver_str'] not in dpdk_nic_bind.dpdk_drivers :
+                if self.m_devices[key]['Driver_str'] not in (dpdk_nic_bind.dpdk_drivers+dpdk_nic_bind.dpdk_and_kernel) :
                     self.do_bind_one (key,(Mellanox_cnt>0))
                     pass;
             else:
