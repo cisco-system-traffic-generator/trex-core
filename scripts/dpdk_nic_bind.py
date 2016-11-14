@@ -54,8 +54,11 @@ if needed_path not in PATH:
 # Each device within this is itself a dictionary of device properties
 devices = {}
 # list of supported DPDK drivers
-#
-dpdk_drivers = [ "mlx5_core", "mlx5_ib","igb_uio", "vfio-pci", "uio_pci_generic" ]
+# ,
+
+dpdk_and_kernel=[ "mlx5_core", "mlx5_ib" ] 
+
+dpdk_drivers = ["igb_uio", "vfio-pci", "uio_pci_generic" ]
 
 # command-line arg flags
 b_flag = None
@@ -569,10 +572,15 @@ def show_status():
         if not has_driver(d):
             no_drv.append(devices[d])
             continue
-        if devices[d]["Driver_str"] in dpdk_drivers:
+
+        if devices[d]["Driver_str"] in dpdk_and_kernel:
             dpdk_drv.append(devices[d])
-        else:
             kernel_drv.append(devices[d])
+        else:
+            if devices[d]["Driver_str"] in dpdk_drivers:
+                dpdk_drv.append(devices[d])
+            else:
+                kernel_drv.append(devices[d])
 
     # print each category separately, so we can clearly see what's used by DPDK
     display_devices("Network devices using DPDK-compatible driver", dpdk_drv, \
@@ -618,7 +626,7 @@ def show_table(get_macs = True):
         get_nic_details()
     dpdk_drv = []
     for d in devices.keys():
-        if devices[d].get("Driver_str") in dpdk_drivers:
+        if devices[d].get("Driver_str") in (dpdk_drivers+dpdk_and_kernel):
             dpdk_drv.append(d)
 
     if get_macs:
