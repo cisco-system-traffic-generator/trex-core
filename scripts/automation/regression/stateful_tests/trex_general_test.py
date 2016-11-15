@@ -198,11 +198,14 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_for_trex_crash(self):
         pass
 
-    def get_benchmark_param (self, param, sub_param = None, test_name = None):
+    def get_benchmark_param (self, param, sub_param = None, test_name = None,default=None):
         if not test_name:
             test_name = self.get_name()
         if test_name not in self.benchmark:
-            self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            if default ==None:
+               self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            else:
+                return default
         if sub_param:
             return self.benchmark[test_name][param].get(sub_param)
         else:
