@@ -410,8 +410,8 @@ class STLRX_Test(CStlGeneral_Test):
 
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
-            print s_port
-            if self.speed == 40 || self.speed == 100:
+
+            if ((self.speed == 40) or (self.speed == 100)):
                 # the NIC does not support all full rate in case both port works let's filter odd ports
                 s_port=list(filter(lambda x: x % 2==0, s_port))
                 if len(s_port)==0:
