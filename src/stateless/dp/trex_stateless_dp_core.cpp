@@ -1304,9 +1304,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
 
     m_raw_packet = new CCapPktRaw();
     if ( m_reader->ReadPacket(m_raw_packet) == false ){
-        /* handle error */
-        delete m_reader;
-        return (false);
+        return false;
     }
 
     /* set the dir */
