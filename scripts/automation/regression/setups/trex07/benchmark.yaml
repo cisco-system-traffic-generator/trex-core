@@ -45,7 +45,7 @@ test_rx_check_http_ipv6:
     bw_per_core         : 49.237
 
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 50
+    multiplier          : 35
     cores               : 7
     rx_sample_rate      : 128
     bw_per_core         : 20.871
