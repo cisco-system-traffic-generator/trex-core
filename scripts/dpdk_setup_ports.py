@@ -291,6 +291,32 @@ Other network devices
             self.write_pci (pci_id,68,val)
             assert(self.read_pci (pci_id,68)==val);
 
+    def get_mtu_mlx5 (self,dev_id):
+        if len(dev_id)>0:
+            out=subprocess.check_output(['ifconfig', dev_id])
+            out=out.decode(errors='replace');
+            obj=re.search(r'MTU:(\d+)',out,flags=re.MULTILINE|re.DOTALL);
+            if obj:
+                return int(obj.group(1));
+            else:
+                return -1
+
+    def set_mtu_mlx5 (self,dev_id,new_mtu):
+        if len(dev_id)>0:
+            out=subprocess.check_output(['ifconfig', dev_id,'mtu',str(new_mtu)])
+            out=out.decode(errors='replace');
+
+
+    def set_max_mtu_mlx5_device(self,dev_id):
+        mtu=9*1024+22
+        dev_mtu=self.get_mtu_mlx5 (dev_id);
+        if (dev_mtu>0) and (dev_mtu!=mtu):
+            self.set_mtu_mlx5(dev_id,mtu);
+            if self.get_mtu_mlx5(dev_id) != mtu: 
+                print("Could not set MTU to %d" % mtu)
+                exit(-1);
+
+
     def disable_flow_control_mlx5_device (self,dev_id):
 
            if len(dev_id)>0:
@@ -440,6 +466,7 @@ Other network devices
                 if 'Interface' in self.m_devices[key]:
                     dev_id=self.m_devices[key]['Interface']
                     self.disable_flow_control_mlx5_device (dev_id)
+                    self.set_max_mtu_mlx5_device(dev_id)
 
 
         if only_check_all_mlx:

@@ -129,6 +129,7 @@ int CFlowStatParser::set_ip_id(uint32_t new_id) {
     }
 
     if (m_ipv6) {
+        m_ipv6->setTrafficClass(m_ipv6->getTrafficClass()|TOS_TTL_RESERVE_DUPLICATE);
         m_ipv6->setFlowLabel(new_id);
         return 0;
     }
