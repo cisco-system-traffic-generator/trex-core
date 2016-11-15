@@ -3174,21 +3174,28 @@ class STLClient(object):
     @__console
     def push_line (self, line):
         '''Push a pcap file '''
+        args = [self,
+                "push",
+                self.push_line.__doc__,
+                parsing_opts.REMOTE_FILE,
+                parsing_opts.PORT_LIST_WITH_ALL,
+                parsing_opts.COUNT,
+                parsing_opts.DURATION,
+                parsing_opts.IPG,
+                parsing_opts.SPEEDUP,
+                parsing_opts.FORCE,
+                parsing_opts.DUAL]
 
-        parser = parsing_opts.gen_parser(self,
-                                         "push",
-                                         self.push_line.__doc__,
-                                         parsing_opts.FILE_PATH,
-                                         parsing_opts.REMOTE_FILE,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.COUNT,
-                                         parsing_opts.DURATION,
-                                         parsing_opts.IPG,
-                                         parsing_opts.SPEEDUP,
-                                         parsing_opts.FORCE,
-                                         parsing_opts.DUAL)
-
+        parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH_NO_CHECK]))
         opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if not opts:
+            return opts
+
+        if not opts.remote:
+            parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH]))
+            opts = parser.parse_args(line.split(), verify_acquired = True)
+
         if not opts:
             return opts
 

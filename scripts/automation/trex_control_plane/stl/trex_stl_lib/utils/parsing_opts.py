@@ -43,6 +43,7 @@ CORE_MASK = 26
 DUAL = 27
 FLOW_CTRL = 28
 SUPPORTED = 29
+FILE_PATH_NO_CHECK = 30
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -360,6 +361,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'nargs': 1,
                                        'required': True,
                                        'type': is_valid_file,
+                                       'help': "File path to load"}),
+
+              FILE_PATH_NO_CHECK: ArgumentPack(['-f'],
+                                      {'metavar': 'FILE',
+                                       'dest': 'file',
+                                       'nargs': 1,
+                                       'required': True,
+                                       'type': str,
                                        'help': "File path to load"}),
 
               FILE_FROM_DB: ArgumentPack(['--db'],
