@@ -362,11 +362,6 @@ public:
                                  double &bps_L2,
                                  double &percentage);
 
-
-    void get_macaddr(std::string &hw_macaddr,
-                     std::string &src_macaddr,
-                     std::string &dst_macaddr);
-
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
 
@@ -413,6 +408,14 @@ public:
      */
     RxPacketBuffer *get_rx_queue_pkts();
 
+    /**
+     * return the port attribute object
+     * 
+     */
+    TRexPortAttr *getPortAttrObj() {
+        return m_platform_api->getPortAttrObj(m_port_id);
+    }
+    
 private:
 
     bool is_core_active(int core_id);

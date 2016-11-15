@@ -804,6 +804,17 @@ class STLClient(object):
         return rc
 
 
+    def __resolve (self, port_id_list = None, retries = 0):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].resolve(retries))
+
+        return rc
+
+
     def __set_port_attr (self, port_id_list = None, attr_dict = None):
 
         port_id_list = self.__ports(port_id_list)
@@ -1770,6 +1781,9 @@ class STLClient(object):
             raise STLError(rc)
 
     def test (self):
+        self.resolve()
+        return
+
         #rc = self.ports[0].resolve()
         #if not rc:
         #    raise STLError(rc)
@@ -1827,7 +1841,8 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-        self.test()
+        self.resolve()
+        return
      
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
@@ -2151,7 +2166,7 @@ class STLClient(object):
         validate_type('core_mask', core_mask, (int, list))
 
         # verify link status
-        ports_link_down = [port_id for port_id in ports if self.ports[port_id].attr.get('link',{}).get('up') == False]
+        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
         if not force and ports_link_down:
             raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
 
@@ -2808,6 +2823,36 @@ class STLClient(object):
 
 
     @__api_check(True)
+    def resolve (self, ports = None, retries = 0):
+        """
+            Resolves ports (ARP resolution)
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                retires        - how many times to retry on each port (intervals of 100 milliseconds)
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default - resolve all the ports that are configured with IPv4 dest
+        if ports is None:
+            ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dest()['type'] == 'ipv4']
+            
+        ports = self._validate_port_list(ports)
+        
+             
+        self.logger.pre_cmd("Resolving destination on port(s) {0}:".format(ports))
+        with self.logger.supress():
+            rc = self.__resolve(ports, retries)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+      
+            
+            
+        
+    @__api_check(True)
     def set_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000, rxf = None):
         """
             Sets RX sniffer for port(s) written to a PCAP file
@@ -2871,7 +2916,7 @@ class STLClient(object):
             The queue is cyclic and will hold last 'size' packets
 
             :parameters:
-                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                ports          - for which ports to apply a queue
                 size           - size of the queue
                 rxf            - which RX filter to use on those ports: 'hw' or 'all'
             :raises:
@@ -2905,6 +2950,8 @@ class STLClient(object):
         """
             Removes RX queue from port(s)
 
+            :parameters:
+                ports          - for which ports to remove the RX queue
             :raises:
                 + :exe:'STLError'
 
@@ -2927,7 +2974,10 @@ class STLClient(object):
             Returns any packets queued on the RX side by the server
             return value is a dictonary per port
             
+            :parameters:
+                ports          - for which ports to fetch
         """
+        
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
         
@@ -3667,3 +3717,6 @@ class STLClient(object):
 
         else:
             return "{0} {1}>".format(prefix, self.get_acquired_ports())
+            
+            
+

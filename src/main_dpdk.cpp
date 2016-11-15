@@ -1659,7 +1659,7 @@ bool DpdkTRexPortAttr::get_promiscuous(){
 }
 
 
-void DpdkTRexPortAttr::macaddr_get(struct ether_addr *mac_addr){
+void DpdkTRexPortAttr::get_hw_src_mac(struct ether_addr *mac_addr){
     rte_eth_macaddr_get(m_port_id , mac_addr);
 }
 
@@ -6502,19 +6502,10 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info
     /* mac INFO */
 
     /* hardware */
-    g_trex.m_ports[interface_id].get_port_attr()->macaddr_get(&rte_mac_addr);
+    g_trex.m_ports[interface_id].get_port_attr()->get_hw_src_mac(&rte_mac_addr);
     assert(ETHER_ADDR_LEN == 6);
 
-    /* software */
-    uint8_t sw_macaddr[12];
-    memcpy(sw_macaddr, CGlobalInfo::m_options.get_dst_src_mac_addr(interface_id), 12);
-
-    for (int i = 0; i < 6; i++) {
-        info.mac_info.hw_macaddr[i] = rte_mac_addr.addr_bytes[i];
-        info.mac_info.dst_macaddr[i] = sw_macaddr[i];
-        info.mac_info.src_macaddr[i] = sw_macaddr[6 + i];
-
-    }
+    memcpy(info.hw_macaddr, rte_mac_addr.addr_bytes, 6);
 
     info.numa_node =  g_trex.m_ports[interface_id].m_dev_info.pci_dev->numa_node;
     struct rte_pci_addr *loc = &g_trex.m_ports[interface_id].m_dev_info.pci_dev->addr;

@@ -2,15 +2,18 @@
 from collections import namedtuple, OrderedDict
 
 from .trex_stl_packet_builder_scapy import STLPktBuilder
-from .trex_stl_streams import STLStream
+from .trex_stl_streams import STLStream, STLTXSingleBurst
 from .trex_stl_types import *
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
+
+from scapy.layers.l2 import Ether, ARP
 
 import base64
 import copy
 from datetime import datetime, timedelta
 import threading
+import time
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -143,7 +146,7 @@ class Port(object):
         return (self.handler != None)
 
     def is_up (self):
-        return (self.state != self.STATE_DOWN)
+        return self.__attr['link']['up']
 
     def is_active(self):
         return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE) or (self.state == self.STATE_PCAP_TX)
@@ -171,7 +174,6 @@ class Port(object):
 
 
     # take the port
-    @up
     def acquire(self, force = False, sync_streams = True):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
@@ -191,7 +193,6 @@ class Port(object):
 
       
     # sync all the streams with the server
-    @up
     def sync_streams (self):
         params = {"port_id": self.port_id}
 
@@ -207,7 +208,6 @@ class Port(object):
         return self.ok()
 
     # release the port
-    @up
     def release(self):
         params = {"port_id": self.port_id,
                   "handler": self.handler}
@@ -225,7 +225,6 @@ class Port(object):
 
  
 
-    @up
     def sync(self):
 
         params = {"port_id": self.port_id}
@@ -511,6 +510,21 @@ class Port(object):
         return self.ok()
 
     @owned
+    def set_arp_resolution (self, ipv4, mac):
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "ipv4":           ipv4,
+                  "mac":            mac}
+
+        rc = self.transmit("set_arp_resolution", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+        
+        
+    @owned
     def remove_rx_sniffer (self):
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
@@ -658,11 +672,11 @@ class Port(object):
         if kwargs.get('promiscuous') is not None:
             json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
         
-        if kwargs.get('link_up') is not None:
-            json_attr['link_status'] = {'up': kwargs.get('link_up')}
+        if kwargs.get('link_status') is not None:
+            json_attr['link_status'] = {'up': kwargs.get('link_status')}
         
-        if kwargs.get('led_on') is not None:
-            json_attr['led_status'] = {'on': kwargs.get('led_on')}
+        if kwargs.get('led_status') is not None:
+            json_attr['led_status'] = {'on': kwargs.get('led_status')}
         
         if kwargs.get('flow_ctrl_mode') is not None:
             json_attr['flow_ctrl_mode'] = {'on': kwargs.get('flow_ctrl_mode')}
@@ -713,7 +727,35 @@ class Port(object):
     def get_profile (self):
         return self.profile
 
-    
+    # invalidates the current ARP
+    def invalidate_arp (self):
+        dest = self.__attr['dest']
+        
+        if dest['type'] != 'mac':
+            return self.set_attr(dest = dest['addr'])
+        else:
+            return self.ok()
+        
+        
+    @writeable
+    def add_arp_request (self):
+        ipv4 = self.__attr['src_ipv4']
+        dest = self.__attr['dest']
+        mac  = self.__attr['src_mac']
+        
+        if ipv4 == 'none':
+            return self.err('port must have a configured IPv4')
+        
+        if dest['type'] == 'mac':
+            return self.err('port must have an IPv4 destination')
+        
+            
+        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = ipv4, pdst = dest['addr'], hwsrc = mac)
+        s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
+        
+        return self.add_streams([s1])
+        
+        
     def print_profile (self, mult, duration):
         if not self.get_profile():
             return
@@ -874,10 +916,17 @@ class Port(object):
             src_ipv4 = None
             
         return src_ipv4 
+    
+    def get_dest (self):
+        return self.__attr['dest']
         
     def get_src_mac (self):
         return self.__attr['src_mac']
-            
+    
+        
+    def resolve (self, retries):
+        return ARPResolver(self).resolve(retries)
+        
         
     ################# stats handler ######################
     def generate_port_stats(self):
@@ -944,7 +993,7 @@ class Port(object):
     
         return {"streams" : OrderedDict(sorted(data.items())) }
     
-        
+
     ######## attributes are a complex type (dict) that might be manipulated through the async thread #############
     
     # get in a thread safe manner a duplication of attributes
@@ -1017,3 +1066,117 @@ class Port(object):
     def async_event_released (self):
         self.owner = ''
 
+        
+# a class to handle port ARP resolution
+class ARPResolver(object):
+    def __init__ (self, port):
+        self.port = port
+    
+    # some sanity checks before resolving
+    def sanity (self):
+        if self.port.get_dest()['type'] == 'mac':
+            return self.port.err('resolve -  port does not have an IPv4 as destination')
+            
+        if self.port.get_src_ipv4() is None:
+            return self.port.err('resolve - port does not have an IPv4 address configured')
+    
+        return self.port.ok()
+             
+    # main resolve function
+    def resolve (self, retries):
+        rc = self.sanity()
+        if not rc:
+            return rc
+        
+        # invalidate the current ARP resolution (if exists)
+        rc = self.port.invalidate_arp()
+        if not rc:
+            return rc
+        
+        rc = self.port.remove_all_streams()
+        if not rc:
+            return rc
+            
+        rc = self.port.set_rx_queue(size = 100)
+        if not rc:
+            return rc
+        
+        rc = self.port.add_arp_request()
+        if not rc:
+            return rc
+
+            
+        # retry for 'retries'
+        index = 0
+        while True:
+            response = self.resolve_iteration()
+            if response:
+                break
+            
+            if index >= retries:
+                return self.port.err('failed to receive ARP response ({0} retries)'.format(retries))
+                
+            index += 1
+            time.sleep(0.1)
+            
+            
+        # set ARP resolution result
+        rc = self.port.set_arp_resolution(response['ipv4'], response['mac'])
+        if not rc:
+            return rc
+            
+        return self.port.ok()
+                
+
+    def resolve_iteration (self):
+        
+        mult = {'op': 'abs', 'type' : 'percentage', 'value': 100}
+        rc = self.port.start(mul = mult, force = False, duration = -1, mask = 0xffffffff)
+        if not rc:
+            return rc
+
+        # block until traffic finishes
+        while self.port.is_active():
+            time.sleep(0.01)
+
+        return self.wait_for_rx_response()
+        
+             
+    def wait_for_rx_response (self):
+
+        # we try to fetch response for 5 times
+        polling = 5
+        
+        while polling > 0:
+            rx_pkts = self.port.get_rx_queue_pkts()
+            response = self.find_arp_response(rx_pkts)
+            
+            if response:
+                return response
+            
+            if polling == 0:
+                return None
+                
+            polling -= 1
+            time.sleep(0.1)
+        
+          
+    # search in 'pkts' for an ARP response that matches the dest
+    def find_arp_response (self, pkts):
+
+        for pkt in pkts:
+            scapy_pkt = Ether(pkt)
+            if not 'ARP' in scapy_pkt:
+                continue
+
+            arp = scapy_pkt['ARP']
+            dest = self.port.get_dest()
+
+            # check this is the right ARP (ARP reply with the address)
+            if (arp.op != 2) or (arp.psrc != dest['addr']):
+                continue
+
+            return {'ipv4': arp.psrc, 'mac': arp.hwsrc}
+
+        return None
+       

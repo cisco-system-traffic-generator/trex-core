@@ -79,6 +79,10 @@ public:
         m_limit = 0;
     }
 
+    bool is_empty() const {
+        return (m_shared_counter == 0);
+    }
+
     void to_json(Json::Value &output) const {
         output["is_active"] = m_is_active;
         if (m_is_active) {
@@ -114,7 +118,10 @@ public:
         m_size = 0;
     }
 
-
+    bool is_empty() const {
+        return (m_shared_counter == 0);
+    }
+    
     void to_json(Json::Value &output) const {
         output["is_active"] = m_is_active;
         if (m_is_active) {

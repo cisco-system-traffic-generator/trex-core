@@ -846,8 +846,12 @@ TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     try {
-        RxPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
-        result["result"]["pkts"] = pkt_buffer->to_json();
+        const RxPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
+        if (pkt_buffer) {
+            result["result"]["pkts"] = pkt_buffer->to_json();
+        } else {
+            result["result"]["pkts"] = Json::arrayValue;
+        }
 
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
@@ -855,4 +859,33 @@ TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
 
     
     return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetARPRes::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    
+    const std::string ipv4_str = parse_string(params, "ipv4", result);
+    const std::string mac_str  = parse_string(params, "mac", result);
+    
+    uint32_t ipv4_addr;
+    if (!utl_ipv4_to_uint32(ipv4_str.c_str(), ipv4_addr)) {
+        std::stringstream ss;
+        ss << "invalid IPv4 address: '" << ipv4_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+ 
+    uint8_t mac[6];
+    if (!utl_str_to_macaddr(mac_str, mac)) {
+        std::stringstream ss;
+        ss << "'invalid MAC address: '" << mac_str << "'";
+        generate_parse_err(result, ss.str());
+    }   
+    
+    port->getPortAttrObj()->get_dest().set_dest_ipv4(ipv4_addr, mac);
+    
+    return (TREX_RPC_CMD_OK);
+    
 }

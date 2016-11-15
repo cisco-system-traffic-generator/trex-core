@@ -22,18 +22,21 @@ limitations under the License.
 #include "rte_ethdev_includes.h"
 #include "trex_defs.h"
 #include "common/basic_utils.h"
+#include <json/json.h>
+#include "trex_stateless_rx_defs.h"
 
 /**
  * destination port attribute
  * 
  */
 class DestAttr {
+private:
+    static const uint8_t g_dummy_mac[6];
 public:
 
     DestAttr() {
         /* use a dummy MAC as default */
-        uint8_t dummy_mac [] = {0xff,0xff,0xff,0xff,0xff,0xff};
-        set_dest_mac(dummy_mac);
+        set_dest_mac(g_dummy_mac);
     }
     
     enum dest_type_e {
@@ -87,6 +90,20 @@ public:
         
         /* all zeroes - non resolved */
         return false;
+    }
+    
+    /**
+     * get the dest mac
+     * if no MAC is configured and dest was not resolved 
+     * will return a dummy 
+     */
+    const uint8_t *get_dest_mac() {
+        
+        if (is_resolved()) {
+            return m_mac;
+        } else {
+            return g_dummy_mac;
+        }
     }
     
     /**
@@ -149,7 +166,7 @@ public:
     
 /*    GETTERS    */
     virtual bool get_promiscuous() = 0;
-    virtual void macaddr_get(struct ether_addr *mac_addr) = 0;
+    virtual void get_hw_src_mac(struct ether_addr *mac_addr) = 0;
     virtual uint32_t get_link_speed() { return m_link.link_speed; } // L1 Mbps
     virtual bool is_link_duplex() { return (m_link.link_duplex ? true : false); }
     virtual bool is_link_autoneg() { return (m_link.link_autoneg ? true : false); }
@@ -163,21 +180,16 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
+
     uint32_t get_src_ipv4() {return m_src_ipv4;}
     DestAttr & get_dest() {return m_dest;}
     
-    virtual std::string get_rx_filter_mode() {
-        switch (m_rx_filter_mode) {
-        case RX_FILTER_MODE_ALL:
-            return "all";
-        case RX_FILTER_MODE_HW:
-            return "hw";
-        default:
-            assert(0);
-        }
-    }
+    const uint8_t *get_src_mac() const;
+    std::string get_rx_filter_mode() const;
 
-
+    /* for a raw packet, write the src/dst MACs */
+    void update_src_dst_mac(uint8_t *raw_pkt);
+    
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
     virtual int add_mac(char * mac) = 0;
@@ -190,37 +202,12 @@ public:
         m_src_ipv4 = addr;
     }
     
-/*    DUMPS    */
+    /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;
 
     /* dump object status to JSON */
-    void to_json(Json::Value &output) {
-        struct ether_addr dpdk_mac_addr;
-        macaddr_get(&dpdk_mac_addr);
-        
-        uint8_t mac_addr[6];
-        memcpy(mac_addr, dpdk_mac_addr.addr_bytes, 6);
-        
-        output["src_mac"]                = utl_macaddr_to_str(mac_addr);
-        output["promiscuous"]["enabled"] = get_promiscuous();
-        output["link"]["up"]             = is_link_up();
-        output["speed"]                  = get_link_speed();
-        output["rx_filter_mode"]         = get_rx_filter_mode();
-        
-        if (get_src_ipv4() != 0) {
-            output["src_ipv4"] = utl_uint32_to_ipv4(get_src_ipv4());
-        } else {
-            output["src_ipv4"] = "none";
-        }
-        
-        
-        int mode;
-        get_flow_ctrl(mode);
-        output["fc"]["mode"] = mode;
-        
-        m_dest.to_json(output["dest"]);
-        
-    }
+    void to_json(Json::Value &output);
+    
     
 protected:
     
@@ -273,7 +260,7 @@ public:
 
 /*    GETTERS    */
     virtual bool get_promiscuous();
-    virtual void macaddr_get(struct ether_addr *mac_addr);
+    virtual void get_hw_src_mac(struct ether_addr *mac_addr);
     virtual int get_xstats_values(xstats_values_t &xstats_values);
     virtual int get_xstats_names(xstats_names_t &xstats_names);
     virtual int get_flow_ctrl(int &mode);
@@ -319,7 +306,7 @@ public:
     void reset_xstats() {}
     void update_description() {}
     bool get_promiscuous() { return false; }
-    void macaddr_get(struct ether_addr *mac_addr) {}
+    void get_hw_src_mac(struct ether_addr *mac_addr) {}
     int get_xstats_values(xstats_values_t &xstats_values) { return -ENOTSUP; }
     int get_xstats_names(xstats_names_t &xstats_names) { return -ENOTSUP; }
     int get_flow_ctrl(int &mode) { return -ENOTSUP; }

@@ -888,16 +888,6 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
 }
 
 void
-TrexStatelessPort::get_macaddr(std::string &hw_macaddr,
-                               std::string &src_macaddr,
-                               std::string &dst_macaddr) {
-
-    utl_macaddr_to_str(m_api_info.mac_info.hw_macaddr, hw_macaddr);
-    utl_macaddr_to_str(m_api_info.mac_info.src_macaddr, src_macaddr);
-    utl_macaddr_to_str(m_api_info.mac_info.dst_macaddr, dst_macaddr);
-}
-
-void
 TrexStatelessPort::get_pci_info(std::string &pci_addr, int &numa_node) {
     pci_addr  = m_api_info.pci_addr;
     numa_node = m_api_info.numa_node;
@@ -979,6 +969,10 @@ TrexStatelessPort::stop_rx_queue() {
 
 RxPacketBuffer *
 TrexStatelessPort::get_rx_queue_pkts() {
+
+    if (m_rx_features_info.m_rx_queue_info.is_empty()) {
+        return NULL;
+    }
 
     /* ask RX core for the pkt queue */
     TrexStatelessMsgReply<RxPacketBuffer *> msg_reply;

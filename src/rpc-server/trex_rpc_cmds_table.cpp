@@ -74,6 +74,8 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
 
     register_command(new TrexRpcCmdSetRxFeature());
     register_command(new TrexRpcCmdGetRxQueuePkts());
+    
+    register_command(new TrexRpcCmdSetARPRes());
 }
 
 

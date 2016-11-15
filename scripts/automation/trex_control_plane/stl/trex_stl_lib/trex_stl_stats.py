@@ -1109,13 +1109,7 @@ class CPortStats(CTRexStats):
             port_state = format_text(port_state, 'bold')
 
         if self._port_obj:
-            if 'link' in self._port_obj.attr:
-                if self._port_obj.attr.get('link', {}).get('up') == False:
-                    link_state = format_text('DOWN', 'red', 'bold')
-                else:
-                    link_state = 'UP'
-            else:
-                link_state = 'N/A'
+            link_state = 'UP' if self._port_obj.is_up() else format_text('DOWN', 'red', 'bold')
         else:
             link_state = ''
 
