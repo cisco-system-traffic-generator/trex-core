@@ -4577,6 +4577,22 @@ int CFlowGenList::load_client_config_file(std::string file_name) {
     return (0);
 }
 
+void CFlowGenList::set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg) {
+    m_client_config_info.set_tuple_gen_info(tg);
+}
+
+std::vector<ClientCfgCompactEntry *> CFlowGenList::get_client_cfg_ip_list() {
+    return m_client_config_info.get_entry_list();
+}
+
+void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) {
+    m_client_config_info.set_resolved_macs(pretest_result);
+}
+
+void CFlowGenList::dump_client_config(FILE *fd) {
+    m_client_config_info.dump(fd);
+}
+
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
     uint8_t idx;

@@ -24,6 +24,7 @@ limitations under the License.
 
 #include "bp_sim.h"
 #include "flow_stat.h"
+#include "utl_ip.h"
 
 #define L_PKT_SUBMODE_NO_REPLY 1
 #define L_PKT_SUBMODE_REPLY 2
@@ -346,11 +347,13 @@ public:
         return ( &m_nat_check_manager );
     }
     CLatencyPktMode *c_l_pkt_mode;
+    void add_grat_arp_src(COneIPv4Info &ip);
 
 private:
     void  tickle();
     void  send_pkt_all_ports();
-    void  send_grat_arp_all_ports();
+    double grat_arp_timeout();
+    void  send_one_grat_arp();
     void  try_rx();
     void  try_rx_queues();
     void  run_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
@@ -374,7 +377,7 @@ private:
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
      TrexMonitor             m_monitor;
-
+     CManyIPInfo             m_arp_info; // for grat ARP
      volatile bool           m_do_stop __rte_cache_aligned ;
 };
 

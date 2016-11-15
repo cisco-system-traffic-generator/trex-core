@@ -852,6 +852,9 @@ struct CTupleGenPoolYaml {
     uint32_t get_ip_start() {
         return m_ip_start;
     }
+    uint32_t get_ip_end() {
+        return m_ip_end;
+    }
     bool is_valid(uint32_t num_threads,bool is_plugins);
     void Dump(FILE *fd);
 };
@@ -888,6 +891,9 @@ public:
         exit(-1);
         return 0;
     }
+
+    bool find_port(uint32_t ip_start, uint32_t ip_end, uint8_t &port);
+    void dump(FILE *fd);
 };
 
 
