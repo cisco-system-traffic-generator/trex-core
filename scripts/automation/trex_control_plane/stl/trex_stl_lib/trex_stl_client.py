@@ -175,8 +175,8 @@ class EventsHandler(object):
     def on_async_dead (self):
         if self.client.connected:
             msg = 'Lost connection to server'
-            self.__add_event_log('local', 'info', msg, True)
             self.client.connected = False
+            self.__add_event_log('local', 'info', msg, True)
 
 
     def on_async_alive (self):
@@ -341,6 +341,8 @@ class EventsHandler(object):
         # server stopped
         elif (event_type == 100):
             ev = "Server has stopped"
+            # to avoid any new messages on async
+            self.client.async_client.set_as_zombie()
             self.__async_event_server_stopped()
             show_event = True
 
@@ -2613,7 +2615,7 @@ class STLClient(object):
         while set(self.get_active_ports()).intersection(ports):
 
             # make sure ASYNC thread is still alive - otherwise we will be stuck forever
-            if not self.async_client.is_thread_alive():
+            if not self.async_client.is_active():
                 raise STLError("subscriber thread is dead")
 
             time.sleep(0.01)
