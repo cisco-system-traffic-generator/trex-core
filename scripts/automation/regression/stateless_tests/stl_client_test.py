@@ -240,8 +240,12 @@ class STLClient_Test(CStlGeneral_Test):
             self.skip('skipping profile tests for virtual / non loopback')
             return
 
+        default_mult  = self.get_benchmark_param('mult',default="30%")
+
         try:
-            
+            print("\n");
+
+
             for profile in self.profiles:
 
                 print("now testing profile {0}...\n".format(profile))
@@ -269,7 +273,7 @@ class STLClient_Test(CStlGeneral_Test):
 
                 self.c.clear_stats()
 
-                self.c.start(ports = [self.tx_port, self.rx_port], mult = "30%")
+                self.c.start(ports = [self.tx_port, self.rx_port], mult = default_mult)
                 time.sleep(100 / 1000.0)
 
                 if p1.is_pauseable() and p2.is_pauseable():
