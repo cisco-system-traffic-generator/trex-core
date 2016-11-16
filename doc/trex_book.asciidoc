@@ -874,7 +874,8 @@ This feature allows more detailed clustering of clients.
 
 Let's look at the following topology:
 
-image:images/client_clustering_topology.png[title="Client Clustering"]
+.Topology Example 
+image:images/topology.png[title="Client Clustering",width=850]
 
 
 We would like to configure two clusters and direct traffic to them.
@@ -980,14 +981,21 @@ MACs will be allocated incrementaly, with a wrap around.
 
 e.g.
 
-* 16.0.0.1 --> 00:00:00:01:00:00 
-* 16.0.0.2 --> 00:00:00:01:00:01
-* 16.0.0.3 --> 00:00:00:01:00:02
-* 16.0.0.4 --> 00:00:00:01:00:03
-* 16.0.0.5 --> 00:00:00:01:00:00
-* 16.0.0.6 --> 00:00:00:01:00:01
+* 16.0.0.1 --> dst_mac: 00:00:00:01:00:00  valn: 100 
+* 16.0.0.2 --> dst_mac: 00:00:00:01:00:01  valn: 100 
+* 16.0.0.3 --> dst_mac: 00:00:00:01:00:02  valn: 100 
+* 16.0.0.4 --> dst_mac: 00:00:00:01:00:03  valn: 100 
+* 16.0.0.5 --> dst_mac: 00:00:00:01:00:00  valn: 100 
+* 16.0.0.6 --> dst_mac: 00:00:00:01:00:01  valn: 100 
+
+responder side (from server that was choosen for this client)
+* 16.0.0.1 <--- dst_mac(from responder) : "01:00:00:00:02:01" , valn:201
+* 16.0.0.2 <--- dst_mac(from responder) : "01:00:00:00:02:02" , valn:201
 
 and so on.
+
+With this model every client (e.g. 16.0.0.1) will always have the same path, e.g.  
+c->s side will always have initiator VLAN and init-destination MAC and in the response side (s->c) alway responder-VLAN and responder-MAC
 
 *Usage:*
 
