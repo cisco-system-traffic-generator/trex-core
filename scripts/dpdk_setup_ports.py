@@ -42,51 +42,52 @@ class ConfigCreator(object):
                     cores[core] = cores[core][:1]
         include_lcores = [int(x) for x in include_lcores]
         exclude_lcores = [int(x) for x in exclude_lcores]
+
         self.has_zero_lcore = False
+        self.lcores_per_numa = {}
+        total_lcores = 0
         for numa, cores in self.cpu_topology.items():
+            self.lcores_per_numa[numa] = {'main': [], 'siblings': [], 'all': []}
             for core, lcores in cores.items():
-                for lcore in copy.copy(lcores):
+                total_lcores += len(lcores)
+                for lcore in list(lcores):
                     if include_lcores and lcore not in include_lcores:
                         cores[core].remove(lcore)
                     if exclude_lcores and lcore in exclude_lcores:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
-                    cores[core].remove(0)
-                    zero_lcore_numa = numa
-                    zero_lcore_core = core
-                    zero_lcore_siblings = cores[core]
-        if self.has_zero_lcore:
-            del self.cpu_topology[zero_lcore_numa][zero_lcore_core]
-            self.cpu_topology[zero_lcore_numa][zero_lcore_core] = zero_lcore_siblings
+                    lcores.remove(0)
+                    self.lcores_per_numa[numa]['siblings'].extend(lcores)
+                else:
+                    self.lcores_per_numa[numa]['main'].extend(lcores[:1])
+                    self.lcores_per_numa[numa]['siblings'].extend(lcores[1:])
+                self.lcores_per_numa[numa]['all'].extend(lcores)
+
         for interface in self.interfaces:
             for mandatory_interface_field in ConfigCreator.mandatory_interface_fields:
                 if mandatory_interface_field not in interface:
                     raise DpdkSetup("Expected '%s' field in interface dictionary, got: %s" % (mandatory_interface_field, interface))
+
         Device_str = self._verify_devices_same_type(self.interfaces)
         if '40Gb' in Device_str:
             self.speed = 40
         else:
             self.speed = 10
-        lcores_per_numa = OrderedDict()
-        system_lcores = int(self.has_zero_lcore)
-        for numa, core in self.cpu_topology.items():
-            for lcores in core.values():
-                if numa not in lcores_per_numa:
-                    lcores_per_numa[numa] = []
-                lcores_per_numa[numa].extend(lcores)
-                system_lcores += len(lcores)
-        minimum_required_lcores = len(self.interfaces) / 2 + 2
-        if system_lcores < minimum_required_lcores:
+
+        minimum_required_lcores = len(self.interfaces) // 2 + 2
+        if total_lcores < minimum_required_lcores:
             raise DpdkSetup('Your system should have at least %s cores for %s interfaces, and it has: %s.' %
-                    (minimum_required_lcores, len(self.interfaces), system_lcores + (0 if self.has_zero_lcore else 1)))
+                    (minimum_required_lcores, len(self.interfaces), total_lcores))
         interfaces_per_numa = defaultdict(int)
+
         for i in range(0, len(self.interfaces), 2):
-            if self.interfaces[i]['NUMA'] != self.interfaces[i+1]['NUMA'] and not ignore_numa:
+            numa = self.interfaces[i]['NUMA']
+            if numa != self.interfaces[i+1]['NUMA'] and not ignore_numa:
                 raise DpdkSetup('NUMA of each pair of interfaces should be the same. Got NUMA %s for client interface %s, NUMA %s for server interface %s' %
-                        (self.interfaces[i]['NUMA'], self.interfaces[i]['Slot_str'], self.interfaces[i+1]['NUMA'], self.interfaces[i+1]['Slot_str']))
-            interfaces_per_numa[self.interfaces[i]['NUMA']] += 2
-        self.lcores_per_numa     = lcores_per_numa
+                        (numa, self.interfaces[i]['Slot_str'], self.interfaces[i+1]['NUMA'], self.interfaces[i+1]['Slot_str']))
+            interfaces_per_numa[numa] += 2
+
         self.interfaces_per_numa = interfaces_per_numa
         self.prefix              = prefix
         self.zmq_pub_port        = zmq_pub_port
@@ -154,16 +155,20 @@ class ConfigCreator(object):
                 config_str += ' '*8 + 'src_mac:  %s\n' % self.verify_mac(interface['src_mac'])
             if index % 2:
                 config_str += '\n' # dual if barrier
+
         if not self.ignore_numa:
             config_str += '  platform:\n'
-            if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores, 1 core per dual_if
-                lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
-                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
+            if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores
+                lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores['all']])
+                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop(0))
                 config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
-                lcores_per_dual_if = int(len(lcores_pool) / len(self.interfaces))
+                lcores_per_dual_if = int(len(lcores_pool) * 2 / len(self.interfaces))
                 config_str += ' '*6 + 'dual_if:\n'
                 for i in range(0, len(self.interfaces), 2):
-                    lcores_for_this_dual_if = [str(lcores_pool.pop(0)) for _ in range(lcores_per_dual_if)]
+                    lcores_for_this_dual_if = list(map(str, sorted(lcores_pool[:lcores_per_dual_if])))
+                    lcores_pool = lcores_pool[lcores_per_dual_if:]
+                    if not lcores_for_this_dual_if:
+                        raise DpdkSetup('lcores_for_this_dual_if is empty (internal bug, please report with details of setup)')
                     config_str += ' '*8 + '- socket: 0\n'
                     config_str += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
             else:
@@ -171,26 +176,46 @@ class ConfigCreator(object):
                 lcores_per_dual_if = 99
                 extra_lcores = 1 if self.has_zero_lcore else 2
                 # worst case 3 iterations, to ensure master and "rx" have cores left
-                while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores) for lcores in self.lcores_per_numa.values()]):
+                while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores['all']) for lcores in self.lcores_per_numa.values()]):
                     lcores_per_dual_if -= 1
-                    for numa, cores in self.lcores_per_numa.items():
+                    for numa, lcores_dict in self.lcores_per_numa.items():
                         if not self.interfaces_per_numa[numa]:
                             continue
-                        lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(cores) / self.interfaces_per_numa[numa]))
+                        lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(lcores_dict['all']) / self.interfaces_per_numa[numa]))
                 lcores_pool = copy.deepcopy(self.lcores_per_numa)
                 # first, allocate lcores for dual_if section
                 dual_if_section = ' '*6 + 'dual_if:\n'
                 for i in range(0, len(self.interfaces), 2):
                     numa = self.interfaces[i]['NUMA']
                     dual_if_section += ' '*8 + '- socket: %s\n' % numa
-                    lcores_for_this_dual_if = [str(lcores_pool[numa].pop(0)) for _ in range(lcores_per_dual_if)]
+                    lcores_for_this_dual_if  = lcores_pool[numa]['all'][:lcores_per_dual_if]
+                    lcores_pool[numa]['all'] = lcores_pool[numa]['all'][lcores_per_dual_if:]
+                    for lcore in lcores_for_this_dual_if:
+                        if lcore in lcores_pool[numa]['main']:
+                            lcores_pool[numa]['main'].remove(lcore)
+                        elif lcore in lcores_pool[numa]['siblings']:
+                            lcores_pool[numa]['siblings'].remove(lcore)
+                        else:
+                            raise DpdkSetup('lcore not in main nor in siblings list (internal bug, please report with details of setup)')
                     if not lcores_for_this_dual_if:
                         raise DpdkSetup('Not enough cores at NUMA %s. This NUMA has %s processing units and %s interfaces.' % (numa, len(self.lcores_per_numa[numa]), self.interfaces_per_numa[numa]))
-                    dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
+                    dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(list(map(str, sorted(lcores_for_this_dual_if))))
+
                 # take the cores left to master and rx
-                lcores_pool_left = [lcore for lcores in lcores_pool.values() for lcore in lcores]
-                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop(0))
-                config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop(0)
+                mains_left = [lcore for lcores in lcores_pool.values() for lcore in lcores['main']]
+                siblings_left = [lcore for lcores in lcores_pool.values() for lcore in lcores['siblings']]
+                if mains_left:
+                    rx_core = mains_left.pop(0)
+                else:
+                    rx_core = siblings_left.pop(0)
+                if self.has_zero_lcore:
+                    master_core = 0
+                elif mains_left:
+                    master_core = mains_left.pop(0)
+                else:
+                    master_core = siblings_left.pop(0)
+                config_str += ' '*6 + 'master_thread_id: %s\n' % master_core
+                config_str += ' '*6 + 'latency_thread_id: %s\n' % rx_core
                 # add the dual_if section
                 config_str += dual_if_section
 
