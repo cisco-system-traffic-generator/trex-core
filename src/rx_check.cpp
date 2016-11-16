@@ -255,7 +255,9 @@ bool RxCheckManager::Create(){
 
 
 void RxCheckManager::handle_packet(CRx_check_header * rxh){
-    //rxh->dump(stdout);
+  //    m_stats.Dump(stdout);
+  //rxh->dump(stdout);
+
     m_stats.m_total_rx++;
     if ( rxh->m_magic != RX_CHECK_MAGIC ){
         m_stats.m_err_no_magic++;

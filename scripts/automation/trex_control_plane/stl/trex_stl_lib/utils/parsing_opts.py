@@ -43,7 +43,7 @@ CORE_MASK = 26
 DUAL = 27
 FLOW_CTRL = 28
 SUPPORTED = 29
-RX_FILTER_MODE = 30
+FILE_PATH_NO_CHECK = 30
 
 OUTPUT_FILENAME = 31
 ALL_FILES = 32
@@ -53,6 +53,8 @@ PORT_RESTART   = 34
 IPV4 = 35
 DEST = 36
 RETRIES = 37
+
+RX_FILTER_MODE = 38
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -438,6 +440,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'nargs': 1,
                                        'required': True,
                                        'type': is_valid_file,
+                                       'help': "File path to load"}),
+
+              FILE_PATH_NO_CHECK: ArgumentPack(['-f'],
+                                      {'metavar': 'FILE',
+                                       'dest': 'file',
+                                       'nargs': 1,
+                                       'required': True,
+                                       'type': str,
                                        'help': "File path to load"}),
 
               FILE_FROM_DB: ArgumentPack(['--db'],

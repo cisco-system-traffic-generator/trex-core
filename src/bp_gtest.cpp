@@ -196,7 +196,7 @@ public:
                     ports[i]=lpg->GenerateOneSourcePort();
                 }
             }
-
+            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
             lpt->start_generate_stateful(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
 

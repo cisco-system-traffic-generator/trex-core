@@ -1,0 +1,500 @@
+# This yaml describes packet headers and their fields
+
+
+#######################################################################
+# Root, reserved starting point
+
+
+  - class: 'root'
+    gui_representation:
+        help: 'Root'
+    next_headers: ['ethernet', 'llc', '_802-3']
+
+
+#######################################################################
+# Protocols
+
+
+# L2
+
+
+  - class: 'ethernet'
+    gui_representation:
+        help: 'Ethernet-L2'
+    properties: ['external']
+    default: [0x01, 0x01, 0x01, 0x00, 0x02, 0x02, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00]
+    fields:
+      - name: 'Dst'
+        gui_representation:
+            help: 'Destination MAC'
+        type: 'c-mac-addr'
+        default: [0x77, 0x55, 0x01, 0x00, 0x00, 0x01]
+
+      - name: 'Src'
+        gui_representation:
+            help: 'Source MAC'
+        type: 'c-mac-addr'
+
+      - name: 'Ethertype'
+        gui_representation:
+            help: 'Ethertype'
+        type: 'uint16'
+        default: 0x0800
+        value_based_next_header:
+            0x0800: 'ipv4'
+            0x86DD: 'ipv6'
+              # not implemented
+              # 0x0806: 'arp'
+              # 0x8100: 'vlan'   # field of 4 bytes added in this case, what to do?
+              # 0x8847: 'mpls unicast' # unicast or multicast? multicast is 0x8848
+            default: 'payload'
+
+
+# L3
+
+
+  - class: 'ipv4'
+    gui_representation:
+        help: 'IPv4'
+    properties: ['external']
+    fields:
+      - name: 'ver'
+        gui_representation:
+            help: 'Version'
+        type: 'c-bit'
+        array_size: 4
+        default: [0, 1, 0, 0]
+        properties: ['const']
+
+      - name: 'ihl'
+        gui_representation:
+            help: 'IHL'
+        type: 'c-bit'
+        array_size: 4
+        default: [0, 1, 0, 1]
+        properties: ['ipv4_ihl']
+
+      - name: 'DSCP'
+        gui_representation:
+            help: 'Differentiated Services Code Point'
+        type: 'c-bit'
+        array_size: 6
+        default: [0, 0, 0, 0, 0, 0]
+
+      - name: 'ECN'
+        gui_representation:
+            help: 'Explicit Congestion Notification'
+        type: 'c-bit'
+        array_size: 2
+        default: [0, 0]
+
+      - name: 'total_len'
+        gui_representation:
+            help: 'Total Length'
+        type: 'uint8'
+        array_size: 2
+        default: [0, 57]
+        properties: ['total_length']
+
+      - name: 'Identification'
+        gui_representation:
+            help: 'Identification'
+        type: 'uint8'
+        array_size: 2
+        default: [0x00, 0x00]
+
+      - name: 'Flags'
+        gui_representation:
+            help: 'IPv4 Flags'
+        type: 'c-bit'
+        array_size: 3
+        default: [0, 0, 0]
+        fields:
+          - name: 'Reserved'
+            gui_representation:
+                help: 'Reserved'
+            type: 'bit'
+            default: 0
+            properties: ['const']
+
+          - name: 'DF'
+            gui_representation:
+                help: "Don't Fragment"
+            type: 'bit'
+            default: 0
+
+          - name: 'MF'
+            gui_representation:
+                help: 'More Fragments'
+            type: 'bit'
+            default: 0
+
+      - name: 'Fragment Offset'
+        gui_representation:
+            help: 'Fragment Offset'
+        type: 'c-bit'
+        array_size: 13
+        default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+      - name: 'TTL'
+        gui_representation:
+            help: 'Time To Live'
+        type: 'uint8'
+        default: 0x80
+
+      - name: 'protocol'
+        type: 'uint8'
+        default: 0x06
+        value_based_next_header: &ipv4_next_header
+            0x06: 'tcp'
+            0x11: 'udp'
+            0x29: 'ipv6'
+           # not implemented
+           # 0x2F: 'gre'
+            default: 'payload'
+        gui_representation:
+            help: 'IPv4 next protocol field'
+            combobox_values:
+                <<: *ipv4_next_header
+                0x11: 'Next header is UDP' # overrides the description for combo-box
+
+      - name: 'ipv4_chksum'
+        gui_representation:
+            help: 'IPv4 Header Checksum'
+        type: 'uint16'
+        default: [0x0000]
+        properties: ['ipv4_checksum', 'const']
+
+      - name: 'Src'
+        gui_representation:
+            help: 'Source IPv4'
+        type: 'c-ipv4-addr'
+
+      - name: 'Dst'
+        gui_representation:
+            help: 'Destination IPv4'
+        type: 'c-ipv4-addr'
+
+     # not implemented
+     # - name: 'Opts' # presence of this field and it's size should be determined in python/java
+     #   help: 'IPv4 options'
+     #   type: 'c-ipv4-options'
+
+     
+  - class: 'ipv6'
+    gui_representation:
+        help: 'IPv6'
+    properties: ['external']
+    fields:
+      - name: 'ver'
+        gui_representation:
+            help: 'Version'
+        type: 'c-bit'
+        array_size: 4
+        default: [0, 1, 1, 0]
+        properties: ['const']
+
+      - name: 'traff_class/diff_serv'
+        gui_representation:
+            help: 'Traffic Class/Diff Serv'
+        type: 'bit'
+        array_size: 8
+        default: [0, 0, 0, 0, 0, 0, 0, 0]
+
+      - name: 'flow_label'
+        gui_representation:
+            help: 'Flow Label'
+        type: 'bit'
+        array_size: 20
+        default: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+
+      - name: 'payload_length'
+        gui_representation:
+            help: 'Payload Length'
+        type: 'uint16'
+        default: 40
+
+      - name: 'ipv6_next_header'
+        gui_representation:
+            help: 'IPv6 Next Header field'
+        type: 'uint8'
+        value_based_next_header:
+            6: 'tcp'
+            17: 'udp'
+            41: 'ipv6'
+            default: 'tcp'
+        
+      - name: 'hop_limit'
+        gui_representation:
+            help: 'IPv6 hop limit'
+        type: 'uint8'
+        default: 200
+
+      - name: 'Src'
+        gui_representation:
+            help: 'Source IPv6'
+        type: 'c-ipv6-addr'
+
+      - name: 'Dst'
+        gui_representation:
+            help: 'Destination IPv6'
+        type: 'c-ipv6-addr'
+
+
+
+# L4
+
+
+  - class: 'tcp'
+    gui_representation:
+        help: 'TCP'
+    properties: ['external']
+    next_headers: ['ipv6', 'ipv4']
+    fields:
+      - name: 'src_port'
+        gui_representation:
+            help: 'Source Port'
+        type: 'c-port-16bit'
+
+      - name: 'dest_port'
+        gui_representation:
+            help: 'Destination Port'
+        type: 'c-port-16bit'
+
+      - name: 'Seq'
+        gui_representation:
+            help: 'Sequence number'
+        type: uint32
+        default: 0x30000000
+
+      - name: 'Ack'
+        gui_representation:
+            help: 'Acknowledgment number'
+        type: uint32
+        default: 0x30000000
+
+      - name: 'Data offset'
+        gui_representation:
+            help: 'Data offset'
+        type: 'c-bit'
+        array_size: 4
+        default: [0, 1, 0, 1]
+
+      - name: 'Reserved'
+        gui_representation:
+            help: 'TCP Reserved'
+        type: 'bit'
+        array_size: 3
+        default: [0, 0, 0]
+        properties: ['const']
+
+      - name: 'flags'    # tree with leaf of bits
+        gui_representation:
+            help: 'TCP flags'
+        type: 'c-bit'
+        array_size: 9
+        default: [0, 0, 0, 0, 0, 0, 0, 0, 0]
+        fields:
+          - name: 'ns'
+            gui_representation:
+                help: 'NS flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'cwr'
+            gui_representation:
+                help: 'CWR flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'ece'
+            gui_representation:
+                help: 'ECE flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'urg'
+            gui_representation:
+                help: 'URG flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'ack'
+            gui_representation:
+                help: 'ACK flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'psh'
+            gui_representation:
+                help: 'PSH flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'rst'
+            gui_representation:
+                help: 'RST flag'
+            type: 'bit'
+            default: 0
+
+          - name: 'syn'
+            gui_representation:
+                help: 'SYN flag'
+            type: 'bit'
+            default: 0
+
+      - name: 'window_size'
+        gui_representation:
+            help: 'Window size'
+        type: uint16
+        default: 0x0080
+
+      - name: 'checksum'
+        gui_representation:
+            help: 'Checksum'
+        type: uint16
+        default: 0x0000
+        properties: ['tcp_checksum']
+
+      - name: 'urgent_pointer'
+        gui_representation:
+            help: 'Urgent pointer'
+        type: uint16
+        default: 0x0000
+
+    # not implemented
+    # - name: 'tcp options'
+    #    type: 'c-tcp-options'
+
+
+  - class: 'udp'
+    gui_representation:
+        help: 'UDP'
+    properties: ['external']
+    next_headers: ['ipv6', 'ipv4']
+    fields:
+      - name: 'src_port'
+        gui_representation:
+            help: 'Source Port'
+        type: 'c-port-16bit'
+
+      - name: 'dest_port'
+        gui_representation:
+            help: 'Destination Port'
+        type: 'c-port-16bit'
+
+      - name: 'length'
+        gui_representation:
+            help: 'Length'
+        type: 'uint16'
+        default: 0x0020
+        properties: ['total_length']
+
+      - name: 'checksum'
+        gui_representation:
+            help: 'UDP Checksum'
+        type: uint16
+        default: 0x0000
+        properties: ['udp_checksum']
+
+
+#######################################################################
+# Fields
+
+
+  - class: 'c-mac-addr'
+    type: 'uint8'
+    array_size: 6
+    default: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00]
+    gui_representation:
+        help: 'MAC address'
+        data_type: 'mac-addr_t' # format ([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}
+        form_type: 'combo_with_edit'
+
+
+  - class: 'c-ipv4-addr'
+    type: 'uint8'
+    array_size: 4
+    default: [1, 1, 1, 1]
+    gui_representation:
+        help: 'IPv4 address'
+        data_type: 'ipv4_t'
+        form_type: 'combo_with_edit'
+
+
+  - class: 'c-port-16bit'
+    type: 'uint16'
+    default: 0x1234
+    gui_representation:
+        help: 'ports of TCP/UDP etc.'
+        form_type: 'combo_with_edit'
+
+
+  - class: 'c-bit'
+    type: 'bit'
+    gui_representation:
+        help: 'bit with checkbox representation'
+        form_type: 'checkbox'
+
+        
+  - class: 'c-ipv6-addr'
+    type: 'uint16'
+    array_size: 8
+    default: [7, 8, 7, 8, 7, 8, 7, 8]
+    gui_representation:
+        help: 'IPv6 address'
+        data_type: 'ipv6_t'
+        form_type: 'combo_with_edit'
+
+
+######################
+# incomplete
+
+  - class: 'c-ipv4-option'
+    type: 'vlen_t'
+    default: 0x01
+    fields:
+      - name: 'copied flag'
+        help: 'Copy the option to all fragments flag'
+        type: 'c-bit'
+        default: 0
+
+      - name: 'option class'
+        help: '0 = controls, 2 = debugging'
+        type: 'bit'
+        array_size: 2
+        default: 0
+
+      - name: 'option number'
+        help: 'Option Number'
+        type: 'bit'
+        array_size: 5
+        value_based_next_class:
+            0: 'end' # reserved name for ending options
+            1: 'ip_option' # back to itself
+            2: 'c-ipv4opt-security'
+            3: 'c-ipv4opt-loose-source-routing'
+            4: 'c-ipv4opt-internet-timestamp'
+            7: 'c-ipv4opt-record-route'
+            8: 'c-ipv4opt-stream-id'
+            9: 'c-ipv4opt-strict-source-routing'
+            default: 'end'
+
+
+  - class: 'c-ipv4opt-security'
+    help: 'ipv4 option security'
+    type: 'bit'
+    array_size: 11
+    default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    fields:
+        value_based_next_class:
+            default: 'c-ipv4-option'
+
+  - class: 'c-ipv4opt-loose-source-routing'
+    help: 'ipv4 option loose source routing'
+    type: 'bit'
+    default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    fields:
+        value_based_next_class:
+            default: 'c-ipv4-option'
+

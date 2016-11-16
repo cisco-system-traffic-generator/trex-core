@@ -61,7 +61,7 @@ class PerformanceReport(object):
                           SetupName = self.machine_name,
                           TestType = 'performance',
                           Mppspc = self.avg_mpps_per_core,
-                          ActionNumber = '<fill_me>',
+                          ActionNumber = os.getenv("BUILD_ID","n/a"),
                           GoldenMin = golden_mpps['min'],
                           GoldenMax = golden_mpps['max'])
 
@@ -296,6 +296,10 @@ class STLPerformance_Test(CStlGeneral_Test):
             # sample bps/pps
             for _ in range(0, 20):
                 stats = self.c.get_stats(ports = 0)
+                if stats['global'][ 'queue_full']>10000:
+                    assert 0, "Queue is full need to tune the multiplier"
+
+                    # CPU results are not valid cannot use them 
                 samples['bps'].append(stats[0]['tx_bps'])
                 samples['pps'].append(stats[0]['tx_pps'])
                 time.sleep(1)

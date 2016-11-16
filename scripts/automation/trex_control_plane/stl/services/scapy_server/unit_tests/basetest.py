@@ -62,6 +62,9 @@ def reconstruct_pkt(bytes_b64, model_def):
 def get_definitions(def_filter):
     return pass_result(service.get_definitions(v_handler, def_filter))
 
+def get_definition_of(scapy_classname):
+    return pass_result(service.get_definitions(v_handler, [scapy_classname]))['protocols'][0]
+
 def get_payload_classes(def_filter):
     return pass_result(service.get_payload_classes(v_handler, def_filter))
 

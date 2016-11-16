@@ -51,6 +51,17 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_enable': False,
                         'allow_packets_drop_num': 1, # allow 1 pkt drop
                         },
+
+                 'librte_pmd_mlx5': {
+                        'rate_percent': 80,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': True,
+                        'latency_9k_max_average': 100,
+                        'latency_9k_max_latency': 250,
+                        },
+
+                  
                 }
 
         CStlGeneral_Test.setUp(self)
@@ -62,7 +73,6 @@ class STLRX_Test(CStlGeneral_Test):
 
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
         self.speed = port_info['speed']
-
 
         cap = port_info['rx']['caps']
         if "flow_stats" not in cap or "latency" not in cap:
@@ -400,11 +410,13 @@ class STLRX_Test(CStlGeneral_Test):
 
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
-            if self.speed == 40 :
+
+            if ((self.speed == 40) or (self.speed == 100)):
                 # the NIC does not support all full rate in case both port works let's filter odd ports
                 s_port=list(filter(lambda x: x % 2==0, s_port))
                 if len(s_port)==0:
                     s_port=[0];
+
 
             error=1;
             for j in range(0,5):

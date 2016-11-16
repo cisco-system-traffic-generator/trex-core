@@ -1,0 +1,40 @@
+.deck-container .deck-toc {
+  position: absolute;
+  z-index: 40;
+  top: 0px;
+  bottom: 0px;
+  left: 0;
+  right: 55%;
+  padding: 0.625em;
+  display: none;
+  background: #ccc;
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #DDE4EB;
+  border-right: #A9A9A9 solid 1px;
+  width: 500px; }
+  .deck-container .deck-toc ul {
+    list-style: none;
+    margin: 0px;
+    padding: 0px;
+    font-size: 1em; }
+    .deck-container .deck-toc ul li {
+      white-space: nowrap;
+      padding-left: 1.5em;
+      font-weight: normal; }
+      .deck-container .deck-toc ul li#toc-0 {
+        font-weight: bold;
+        padding-bottom: 1em;
+        padding-left: 0px; }
+  .deck-container .deck-toc a {
+    width: 100%;
+    display: block !important;
+    text-decoration: none;
+    color: #595959 !important; }
+
+.deck-toc-frame .deck-toc {
+  display: block; }
+
+@media print {
+  .deck-toc {
+    display: none; } }

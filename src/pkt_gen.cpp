@@ -30,7 +30,7 @@
 #include <common/Network/Packet/Arp.h>
 #include "rx_check_header.h"
 #include "pkt_gen.h"
-
+#include "bp_sim.h"
 // For use in tests
 char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags
                                    , uint16_t max_payload, int &pkt_size) {
@@ -52,7 +52,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     }
 
     uint8_t ip_header[] = {
-        0x45,0x02,0x00,0x30,
+        0x45,0x03,0x00,0x30,
         0x00,0x00,0x40,0x00,
         0xff,0x01,0xbd,0x04,
         0x10,0x0,0x0,0x1, //SIP
@@ -60,7 +60,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         //                      0x82, 0x0b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // IP option. change 45 to 48 (header len) if using it.
     };
     uint8_t ipv6_header[] = {
-        0x60,0x00,0xff,0x30, // traffic class + flow label
+        0x60,0x10,0xff,0x30, // traffic class + flow label
         0x00,0x00,0x40,0x00, // payload len + next header + hop limit
         0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1, //SIP
         0x30,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x30,0x0,0x0,0x1,0x10,0x0,0x0,0x1, //DIP
@@ -222,10 +222,22 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     switch(l3_type) {
     case EthernetHeader::Protocol::IP:
         ip->setTimeToLive(ttl);
+        if (ttl==TTL_RESERVE_DUPLICATE || ttl==(TTL_RESERVE_DUPLICATE-1)) {
+            ip->setTOS(TOS_TTL_RESERVE_DUPLICATE);
+        }else{
+            ip->setTOS(0x2);
+        }
+
         ip->updateCheckSum();
         break;
     case EthernetHeader::Protocol::IPv6:
         ipv6->setHopLimit(ttl);
+        if (ttl==TTL_RESERVE_DUPLICATE || ttl==(TTL_RESERVE_DUPLICATE-1)) {
+            ipv6->setTrafficClass(TOS_TTL_RESERVE_DUPLICATE);
+        }else{
+            ipv6->setTrafficClass(0x2);
+        } 
+
         break;
     }
 

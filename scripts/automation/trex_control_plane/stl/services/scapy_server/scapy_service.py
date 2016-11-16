@@ -9,6 +9,7 @@ import tempfile
 import hashlib
 import base64
 import numbers
+import random
 import inspect
 import json
 from pprint import pprint
@@ -279,6 +280,64 @@ def get_sample_field_val(scapy_layer, fieldId):
     except:
         pass
 
+def generate_random_bytes(sz, seed, start, end):
+    # generate bytes of specified range with a fixed seed and size
+    rnd = random.Random()
+    n = end - start + 1
+    if is_python(2):
+        rnd = random.Random(seed)
+        res = [start + int(rnd.random()*n) for _i in range(sz)]
+        return ''.join(chr(x) for x in res)
+    else:
+        rnd = random.Random()
+        # to generate same random sequence as 2.x
+        rnd.seed(seed, version=1)
+        res = [start + int(rnd.random()*n) for _i in range(sz)]
+        return bytes(res)
+
+def generate_bytes_from_template(sz, template):
+    # generate bytes by repeating a template
+    res = str_to_bytes('') # new bytes array
+    if len(template) == 0:
+        return res
+    while len(res) < sz:
+        res = res + template
+    return res[:sz]
+
+def parse_template_code(template_code):
+    template_code = re.sub("0[xX]", '', template_code) # remove 0x
+    template_code = re.sub("[\s]", '', template_code) # remove spaces
+    return bytearray.fromhex(template_code)
+
+def verify_payload_size(size):
+    assert(size != None)
+    if (size > (1<<20)): # 1Mb ought to be enough for anybody
+        raise ValueError('size is too large')
+
+def generate_bytes(bytes_definition):
+    # accepts a bytes definition object
+    # {generate: random_bytes or random_ascii, seed: <seed_number>, size: <size_bytes>}
+    # {generate: template, template_base64: '<base64str>',  size: <size_bytes>}
+    # {generate: template_code, template_text_code: '<template_code_str>',  size: <size_bytes>}
+    gen_type = bytes_definition.get('generate')
+    if gen_type == None:
+        return b64_to_bytes(bytes_definition['base64'])
+    elif gen_type == 'template_code':
+        code = parse_template_code(bytes_definition["template_code"])
+        bytes_size = int(bytes_definition.get('size') or len(code))
+        verify_payload_size(bytes_size)
+        return generate_bytes_from_template(bytes_size, code)
+    else:
+        bytes_size = int(bytes_definition['size']) # required
+        seed = int(bytes_definition.get('seed') or 12345) # optional
+        verify_payload_size(bytes_size)
+        if gen_type == 'random_bytes':
+            return generate_random_bytes(bytes_size, seed, 0, 0xFF)
+        elif gen_type == 'random_ascii':
+            return generate_random_bytes(bytes_size, seed, 0x20, 0x7E)
+        elif gen_type == 'template':
+            return generate_bytes_from_template(bytes_size, b64_to_bytes(bytes_definition["template_base64"]))
+
 class ScapyException(Exception): pass
 class Scapy_service(Scapy_service_api):
 
@@ -312,7 +371,16 @@ class Scapy_service(Scapy_service_api):
         self.version_major = '1'
         self.version_minor = '01'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
-    
+        self.protocol_definitions = {} # protocolId -> prococol definition overrides data
+        self._load_definitions_from_json()
+
+    def _load_definitions_from_json(self):
+        # load protocol definitions from a json file
+        self.protocol_definitions = {}
+        with open('protocols.json', 'r') as f:
+            protocols = json.load(f)
+            for protocol in protocols:
+                self.protocol_definitions[ protocol['id'] ] = protocol
 
     def _all_protocol_structs(self):
         old_stdout = sys.stdout
@@ -370,9 +438,9 @@ class Scapy_service(Scapy_service_api):
         if type(val) == type({}):
             value_type = val['vtype']
             if value_type == 'EXPRESSION':
-                return eval(val['expr'], {})
+                return eval(val['expr'], scapy.all.__dict__)
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
-                return b64_to_bytes(val['base64'])
+                return generate_bytes(val)
             elif value_type == 'OBJECT':
                 return val['value']
             else:
@@ -382,7 +450,7 @@ class Scapy_service(Scapy_service_api):
         else:
             return val
 
-    def _field_value_from_def(self, layer, fieldId, val):
+    def _field_value_from_def(self, scapy_pkt, layer, fieldId, val):
         field_desc = layer.get_field(fieldId)
         sample_val = get_sample_field_val(layer, fieldId)
         # extensions for field values
@@ -394,6 +462,16 @@ class Scapy_service(Scapy_service_api):
                 return field_desc.randval()
             elif value_type == 'MACHINE': # internal machine field repr
                 return field_desc.m2i(layer, b64_to_bytes(val['base64']))
+            elif value_type == 'BYTES':
+                if 'total_size' in val: # custom case for total pkt size
+                    gen = {}
+                    gen.update(val)
+                    total_sz = gen['total_size']
+                    del gen['total_size']
+                    gen['size'] = total_sz - len(scapy_pkt)
+                    return generate_bytes(gen)
+                else:
+                    return generate_bytes(val)
         if is_number(sample_val) and is_string(val):
             # human-value. guess the type and convert to internal value
             # seems setfieldval already does this for some fields,
@@ -583,22 +661,24 @@ class Scapy_service(Scapy_service_api):
     def _verify_version_handler(self,client_v_handler):
         return (self.server_v_hashed == client_v_handler)
 
-    def _parse_packet_dict(self,layer,scapy_layers,scapy_layer_names):
-        class_name = scapy_layer_names.index(layer['id'])
-        class_p = scapy_layers[class_name] # class pointer
+    def _parse_packet_dict(self, layer, layer_classes, base_layer):
+        class_p = layer_classes[layer['id']] # class id -> class dict
         scapy_layer = class_p()
         if isinstance(scapy_layer, Raw):
             scapy_layer.load = str_to_bytes("dummy")
+        if base_layer == None:
+            base_layer = scapy_layer
         if 'fields' in layer:
-            self._modify_layer(scapy_layer, layer['fields'])
+            self._modify_layer(base_layer, scapy_layer, layer['fields'])
         return scapy_layer
 
     def _packet_model_to_scapy_packet(self,data):
-        layers = Packet.__subclasses__()
-        layer_names = [ layer.__name__ for layer in layers]
-        base_layer = self._parse_packet_dict(data[0],layers,layer_names)
+        layer_classes = {}
+        for layer_class in Packet.__subclasses__():
+            layer_classes[layer_class.__name__] = layer_class
+        base_layer = self._parse_packet_dict(data[0], layer_classes, None)
         for i in range(1,len(data),1):
-            packet_layer = self._parse_packet_dict(data[i],layers,layer_names)
+            packet_layer = self._parse_packet_dict(data[i], layer_classes, base_layer)
             base_layer = base_layer/packet_layer
         return base_layer
 
@@ -654,10 +734,9 @@ class Scapy_service(Scapy_service_api):
             return pkt_class()
 
         
-    def _get_payload_classes(self, pkt):
+    def _get_payload_classes(self, pkt_class):
         # tries to find, which subclasses allowed.
         # this can take long time, since it tries to build packets with all subclasses(O(N))
-        pkt_class = type(pkt)
         allowed_subclasses = []
         for pkt_subclass in conf.layers:
             if self._is_packet_class(pkt_subclass):
@@ -671,15 +750,28 @@ class Scapy_service(Scapy_service_api):
                     pass
         return allowed_subclasses
 
-    def _get_fields_definition(self, pkt_class):
+    def _get_fields_definition(self, pkt_class, fieldsDef):
+        # fieldsDef - array of field definitions(or empty array)
         fields = []
         for field_desc in pkt_class.fields_desc:
+            fieldId = field_desc.name
             field_data = {
-                    "id": field_desc.name,
+                    "id": fieldId,
                     "name": field_desc.name
             }
+            for fieldDef in fieldsDef:
+                if fieldDef['id'] == fieldId:
+                    field_data.update(fieldDef)
             if isinstance(field_desc, EnumField):
                 try:
+                    field_data["values_dict"] = field_desc.s2i
+                    if field_data.get("type") == None:
+                        if len(field_data["values_dict"] > 0):
+                            field_data["type"] = "ENUM"
+                        elif fieldId == 'load':
+                            field_data["type"] = "BYTES"
+                        else:
+                            field_data["type"] = "STRING"
                     field_data["values_dict"] = field_desc.s2i
                 except:
                     # MultiEnumField doesn't have s2i. need better handling
@@ -696,17 +788,23 @@ class Scapy_service(Scapy_service_api):
         for pkt_class in all_classes:
             if self._is_packet_class(pkt_class):
                 # enumerate all non-abstract Packet classes
+                protocolId = pkt_class.__name__
+                protoDef = self.protocol_definitions.get(protocolId) or {}
                 protocols.append({
-                    "id": pkt_class.__name__,
-                    "name": pkt_class.name,
-                    "fields": self._get_fields_definition(pkt_class)
+                    "id": protocolId,
+                    "name": protoDef.get('name') or pkt_class.name,
+                    "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
         res = {"protocols": protocols}
         return res
 
     def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
         pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
-        return [c.__name__ for c in self._get_payload_classes(pkt)]
+        pkt_class = type(pkt.lastlayer())
+        protocolDef = self.protocol_definitions.get(pkt_class.__name__)
+        if protocolDef and protocolDef.get('payload'):
+            return protocolDef['payload']
+        return [c.__name__ for c in self._get_payload_classes(pkt_class)]
 
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
@@ -725,10 +823,10 @@ class Scapy_service(Scapy_service_api):
         else:
             raise ScapyException("Fields DB is not up to date")
 
-    def _modify_layer(self, scapy_layer, fields):
+    def _modify_layer(self, scapy_pkt, scapy_layer, fields):
         for field in fields:
             fieldId = str(field['id'])
-            fieldval = self._field_value_from_def(scapy_layer, fieldId, field['value'])
+            fieldval = self._field_value_from_def(scapy_pkt, scapy_layer, fieldId, field['value'])
             if fieldval is not None:
                 scapy_layer.setfieldval(fieldId, fieldval)
             else:
@@ -767,7 +865,7 @@ class Scapy_service(Scapy_service_api):
                 # TODO: support replacing payload, instead of breaking
                 raise ScapyException("Protocol id inconsistent")
             if 'fields' in model_layer:
-                self._modify_layer(scapy_layer, model_layer['fields'])
+                self._modify_layer(scapy_pkt, scapy_layer, model_layer['fields'])
         return self._pkt_data(scapy_pkt)
 
     def read_pcap(self,client_v_handler,pcap_base64):
