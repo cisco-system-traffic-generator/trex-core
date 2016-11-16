@@ -214,7 +214,7 @@ test_performance_vm_multi_cpus:
 test_performance_vm_multi_cpus_cached:
     cfg:
         core_count             : 7
-        mult                   : "60%"
+        mult                   : "35%"
         mpps_per_core_golden   :
                                   min: 9.0
                                   max: 15.0
