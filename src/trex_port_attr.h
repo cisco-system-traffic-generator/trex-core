@@ -24,6 +24,7 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include <json/json.h>
 #include "trex_stateless_rx_defs.h"
+#include <string.h>
 
 /**
  * destination port attribute
@@ -34,10 +35,7 @@ private:
     static const uint8_t g_dummy_mac[6];
 public:
 
-    DestAttr() {
-        /* use a dummy MAC as default */
-        set_dest_mac(g_dummy_mac);
-    }
+    DestAttr(uint8_t port_id);
     
     enum dest_type_e {
         DEST_TYPE_IPV4   = 1,
@@ -64,6 +62,7 @@ public:
         m_src_ipv4 = ipv4;
         memcpy(m_mac, mac, 6);
         m_type = DEST_TYPE_IPV4;
+        
     }
 
     /**
@@ -71,6 +70,7 @@ public:
      * 
      */
     void set_dest_mac(const uint8_t *mac) {
+
         m_src_ipv4 = 0;
         memcpy(m_mac, mac, 6);
         m_type = DEST_TYPE_MAC;
@@ -143,15 +143,16 @@ public:
     
 private:
     uint32_t          m_src_ipv4;
-    uint8_t           m_mac[6];
+    uint8_t          *m_mac;
     dest_type_e       m_type;
+    uint8_t           m_port_id;
 };
 
 
 class TRexPortAttr {
 public:
 
-    TRexPortAttr() {
+    TRexPortAttr(uint8_t port_id) : m_dest(port_id) {
         m_src_ipv4 = 0;
     }
     
@@ -237,7 +238,7 @@ protected:
 class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
-    DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) {
+    DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) : TRexPortAttr(port_id) {
 
         m_port_id = port_id;
         m_rx_filter_mode = RX_FILTER_MODE_HW;
@@ -288,7 +289,7 @@ private:
 
 class SimTRexPortAttr : public TRexPortAttr {
 public:
-    SimTRexPortAttr() {
+    SimTRexPortAttr() : TRexPortAttr(0) {
         m_link.link_speed   = 10000;
         m_link.link_duplex  = 1;
         m_link.link_autoneg = 0;

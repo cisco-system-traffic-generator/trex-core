@@ -752,7 +752,7 @@ class Port(object):
             
         base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = ipv4, pdst = dest['addr'], hwsrc = mac)
         s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
-        
+    
         return self.add_streams([s1])
         
         
@@ -924,9 +924,22 @@ class Port(object):
         return self.__attr['src_mac']
     
         
+    def is_resolved (self):
+        dest = self.get_dest()
+        
+        if dest['type'] == 'mac':
+            return True
+        elif dest['type'] == 'ipv4':
+            return dest['arp'] != 'none'
+        else:
+            # unsupported type
+            assert(0)
+        
+        
     def resolve (self, retries):
         return ARPResolver(self).resolve(retries)
-        
+
+
         
     ################# stats handler ######################
     def generate_port_stats(self):
@@ -1082,8 +1095,26 @@ class ARPResolver(object):
     
         return self.port.ok()
              
-    # main resolve function
+    
+    # safe call - make sure RX filter mode is restored
     def resolve (self, retries):
+        try:
+            rc = self.port.set_attr(rx_filter_mode = 'all')
+            if not rc:
+                return rc
+            rc = self.port.set_rx_queue(size = 100)
+            if not rc:
+                return rc
+            
+            return self.resolve_wrapper(retries)
+        finally:
+            # best effort restore
+            self.port.set_attr(rx_filter_mode = 'hw')
+            self.port.remove_rx_queue()
+        
+            
+    # main resolve function
+    def resolve_wrapper (self, retries):
         rc = self.sanity()
         if not rc:
             return rc
@@ -1092,14 +1123,12 @@ class ARPResolver(object):
         rc = self.port.invalidate_arp()
         if not rc:
             return rc
-        
+     
+            
         rc = self.port.remove_all_streams()
         if not rc:
             return rc
-            
-        rc = self.port.set_rx_queue(size = 100)
-        if not rc:
-            return rc
+     
         
         rc = self.port.add_arp_request()
         if not rc:

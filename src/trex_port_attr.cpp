@@ -20,6 +20,12 @@ limitations under the License.
 const uint8_t DestAttr::g_dummy_mac[6] = {0x0,0x0,0x0,0x1,0x0,0x0};
 
 
+DestAttr::DestAttr(uint8_t port_id) {
+    m_port_id = port_id;
+
+    m_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
+}
+
 const uint8_t *
 TRexPortAttr::get_src_mac() const {
     return CGlobalInfo::m_options.get_src_mac_addr(m_port_id);

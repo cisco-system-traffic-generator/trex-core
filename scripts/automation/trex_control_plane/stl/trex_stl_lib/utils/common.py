@@ -92,7 +92,7 @@ def is_valid_ipv4 (addr):
     try:
         socket.inet_pton(socket.AF_INET, addr)
         return True
-    except socket.error:
+    except (socket.error, TypeError):
         return False
         
 def is_valid_mac (mac):

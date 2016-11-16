@@ -94,9 +94,7 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsValues, "get_port_xstats_values", 1, 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetPortAttr, "set_port_attr", 2, true,  APIClass::API_CLASS_TYPE_CORE,
-
-    void high_priority_pass(const Json::Value &attr, uint8 port_id, Json::Value &result);
-    void regular_priority_pass(const Json::Value &attr, uint8_t port_id, Json::Value &result);
+                             
     int parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result);
     int parse_ipv4(const Json::Value &msg, uint8_t port_id, Json::Value &result);
     int parse_dest(const Json::Value &msg, uint8_t port_id, Json::Value &result);

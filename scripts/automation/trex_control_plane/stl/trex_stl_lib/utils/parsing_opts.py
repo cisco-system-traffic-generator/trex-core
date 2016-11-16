@@ -52,6 +52,7 @@ PORT_RESTART   = 34
 
 IPV4 = 35
 DEST = 36
+RETRIES = 37
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -344,6 +345,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                   'default': None,
                                   'type': check_dest_addr}),
               
+              RETRIES: ArgumentPack(['-r', '--retries'],
+                                    {'help': 'retries count [default is zero]',
+                                     'dest': 'retries',
+                                     'default':  0,
+                                     'type': int}),
+                
 
               OUTPUT_FILENAME: ArgumentPack(['-o', '--output'],
                                             {'help': 'Output PCAP filename',

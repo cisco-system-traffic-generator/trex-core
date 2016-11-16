@@ -26,7 +26,7 @@ limitations under the License.
 #include "trex_stream_node.h"
 #include "trex_streams_compiler.h"
 #include "mbuf.h"
-#include "trex_stateless.h"
+
 
 
 
@@ -495,14 +495,12 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
 
     /* main port */
     uint8_t mac_addr[12];
-    TRexPortAttr *master_port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id);
-    master_port_attr->update_src_dst_mac(mac_addr);
-    
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir, mac_addr);
+
     /* for dual */
     uint8_t slave_mac_addr[12];
-    TRexPortAttr *slave_port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id ^ 0x1);
-    slave_port_attr->update_src_dst_mac(slave_mac_addr);
-    
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir ^ 0x1, slave_mac_addr);
+
     bool rc = pcap_node->create(port_id,
                                 dir,
                                 socket_id,
@@ -825,9 +823,8 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
                                           CGenNodeStateless *node,
                                           pkt_dir_t dir,
                                           char *raw_pkt){
-    
-    bool ov_src = stream->get_override_src_mac_by_pkt_data();
-    TrexStream::stream_dst_mac_t ov_dst = stream->get_override_dst_mac_mode();
+    bool              ov_src = stream->get_override_src_mac_by_pkt_data();
+    TrexStream::stream_dst_mac_t  ov_dst = stream->get_override_dst_mac_mode();
 
 
     if ( (ov_src == true) && (ov_dst == TrexStream::stPKT) ) {
@@ -835,13 +832,11 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
         return;
     }
 
-    TRexPortAttr *port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(node->get_port_id());
-
-    /* take from cfg_file */
+        /* take from cfg_file */
     if ( (ov_src == false) &&
          (ov_dst == TrexStream::stCFG_FILE) ){
-    
-          port_attr->update_src_dst_mac((uint8_t *)raw_pkt);
+
+          m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*)raw_pkt);
           return;
     }
 
@@ -849,8 +844,8 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
     char tmp_pkt[12];
     memcpy(tmp_pkt,raw_pkt,12);
 
-    port_attr->update_src_dst_mac((uint8_t *)raw_pkt);
-    
+    m_core->m_node_gen.m_v_if->update_mac_addr_from_global_cfg(dir,(uint8_t*)raw_pkt);
+
     if ((ov_src == true) && (ov_dst == TrexStream::stCFG_FILE)) {
         memcpy(raw_pkt+6,tmp_pkt+6,6);
     }

@@ -385,13 +385,11 @@ TrexRpcCmdSetPortAttr::parse_dest(const Json::Value &msg, uint8_t port_id, Json:
     uint8_t  mac[6];
     
     if (utl_ipv4_to_uint32(addr.c_str(), ipv4_addr)) {
-        if (port_attr->get_src_ipv4() == 0) {
-            generate_parse_err(result, "unable to configure 'dest' as IPv4 without source IPv4 address configured");
-        }
         port_attr->get_dest().set_dest_ipv4(ipv4_addr);
         
     } else if (utl_str_to_macaddr(addr, mac)) {
         port_attr->get_dest().set_dest_mac(mac);
+        
     } else {
         std::stringstream ss;
         ss << "'dest' is not an IPv4 address or a MAC address: '" << addr << "'";
@@ -404,33 +402,22 @@ TrexRpcCmdSetPortAttr::parse_dest(const Json::Value &msg, uint8_t port_id, Json:
 
 
 /**
- * attributes in the high priority pass must be handled first 
- * for example, IPv4 configuration should be handled before dest
- * 
+ * set port commands
+ *
+ * @author imarom (24-Feb-16)
+ *
+ * @param params
+ * @param result
+ *
+ * @return trex_rpc_cmd_rc_e
  */
-void
-TrexRpcCmdSetPortAttr::high_priority_pass(const Json::Value &attr, uint8_t port_id, Json::Value &result) {
-    int ret = 0;
-    
-    /* first iteration - high priority attributes */
-    for (const std::string &name : attr.getMemberNames()) {
-        if (name == "ipv4") {
-            const Json::Value &ipv4 = parse_object(attr, name, result);
-            ret = parse_ipv4(ipv4, port_id, result);
-        }
-        
-        /* check error code */
-        if ( ret == -ENOTSUP ) {
-            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
-        } else if (ret) {
-            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
-        }
-    }
-}
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
 
+    uint8_t port_id = parse_port(params, result);
 
-void
-TrexRpcCmdSetPortAttr::regular_priority_pass(const Json::Value &attr, uint8_t port_id, Json::Value &result) {
+    const Json::Value &attr = parse_object(params, "attr", result);
+
     int ret = 0;
     
     /* iterate over all attributes in the dict */
@@ -462,7 +449,8 @@ TrexRpcCmdSetPortAttr::regular_priority_pass(const Json::Value &attr, uint8_t po
         }
 
         else if (name == "ipv4") {
-            /* ignore - was already taken care of in the high priority pass */
+            const Json::Value &ipv4 = parse_object(attr, name, result);
+            ret = parse_ipv4(ipv4, port_id, result);
         }
 
         else if (name == "dest") {
@@ -483,28 +471,6 @@ TrexRpcCmdSetPortAttr::regular_priority_pass(const Json::Value &attr, uint8_t po
             generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
         }
     }
-}
-
-
-/**
- * set port commands
- *
- * @author imarom (24-Feb-16)
- *
- * @param params
- * @param result
- *
- * @return trex_rpc_cmd_rc_e
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    const Json::Value &attr = parse_object(params, "attr", result);
-
-    high_priority_pass(attr, port_id, result);
-    regular_priority_pass(attr, port_id, result);
     
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);

@@ -2110,7 +2110,25 @@ class STLClient(object):
             raise STLError(rc)
 
 
-   
+    # common checks for start API
+    def __pre_start_check (self, ports, force):
+        
+        # verify link status
+        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
+        if not force and ports_link_down:
+            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
+        
+        # verify ports are stopped or force stop them
+        active_ports = list(set(self.get_active_ports()).intersection(ports))
+        if active_ports and not force:
+            raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
+            
+        # warn if ports are not resolved
+        unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
+        if unresolved_ports and not force:
+            raise STLError("Port(s) {0} are unresolved - please resolve them or specify 'force'".format(unresolved_ports))
+        
+        
     @__api_check(True)
     def start (self,
                ports = None,
@@ -2165,11 +2183,9 @@ class STLClient(object):
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (int, list))
 
-        # verify link status
-        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
-        if not force and ports_link_down:
-            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
-
+      
+        self.__pre_start_check(ports, force)
+        
         #########################
         # decode core mask argument
         decoded_mask = self.__decode_core_mask(ports, core_mask)
@@ -2183,17 +2199,12 @@ class STLClient(object):
             raise STLArgumentError('mult', mult)
 
 
-        # verify ports are stopped or force stop them
+        # stop active ports if needed
         active_ports = list(set(self.get_active_ports()).intersection(ports))
-        if active_ports:
-            if not force:
-                raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
-            else:
-                rc = self.stop(active_ports)
-                if not rc:
-                    raise STLError(rc)
+        if active_ports and force:
+            self.stop(active_ports)
 
-
+        
         # start traffic
         self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
         rc = self.__start(mult_obj, duration, ports, force, decoded_mask)
@@ -2750,7 +2761,7 @@ class STLClient(object):
                        rxf = None,
                        ipv4 = None,
                        dest = None,
-                       ):
+                       resolve = True):
         """
             Set port attributes
 
@@ -2764,6 +2775,7 @@ class STLClient(object):
                                    of IPv4 addresses in the same length of the ports array
                 dest             - configure destination address for port(s) in either IPv4 or MAC format.
                                    for multiple ports should be a list in the same length of the ports array
+                resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
             :raises:
                 + :exe:'STLError'
 
@@ -2817,10 +2829,21 @@ class STLClient(object):
         self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
         rc = self.__set_port_attr(ports, attr_dict)
         self.logger.post_cmd(rc)
-
+            
         if not rc:
             raise STLError(rc)
 
+        
+        # automatic resolve
+        if resolve:
+            # find any port with a dest configured as IPv4
+            resolve_ports = [port_id for port_id, port_dest in zip(ports, dest) if is_valid_ipv4(port_dest)]
+            
+            if resolve_ports:
+                self.resolve(ports = resolve_ports)
+        
+            
+        
 
     @__api_check(True)
     def resolve (self, ports = None, retries = 0):
@@ -2837,10 +2860,15 @@ class STLClient(object):
         # by default - resolve all the ports that are configured with IPv4 dest
         if ports is None:
             ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dest()['type'] == 'ipv4']
+            if not ports:
+                raise STLError('No ports configured with destination as IPv4')
             
+        active_ports = list(set(self.get_active_ports()).intersection(ports))
+        if active_ports:
+            raise STLError('Port(s) {0} are active'.format(active_ports))
+                     
         ports = self._validate_port_list(ports)
         
-             
         self.logger.pre_cmd("Resolving destination on port(s) {0}:".format(ports))
         with self.logger.supress():
             rc = self.__resolve(ports, retries)
@@ -3205,14 +3233,19 @@ class STLClient(object):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(opts.ports, core_mask)
 
+        # for better use experience - check this first
+        try:
+            self.__pre_start_check(opts.ports, opts.force)
+        except STLError as e:
+            msg = e.brief()
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_ERR(msg)
+            
+                
+        # stop ports if needed
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
-        if active_ports:
-            if not opts.force:
-                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
-                self.logger.log(format_text(msg, 'bold'))
-                return RC_ERR(msg)
-            else:
-                self.stop(active_ports)
+        if active_ports and opts.force:
+            self.stop(active_ports)
 
 
         # process tunables
@@ -3584,15 +3617,16 @@ class STLClient(object):
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-            return self.set_port_attr(opts.ports,
-                                      opts.prom,
-                                      opts.link,
-                                      opts.led,
-                                      opts.flow_ctrl,
-                                      opts.rx_filter_mode,
-                                      opts.ipv4,
-                                      opts.dest)
-
+             self.set_port_attr(opts.ports,
+                                opts.prom,
+                                opts.link,
+                                opts.led,
+                                opts.flow_ctrl,
+                                opts.rx_filter_mode,
+                                opts.ipv4,
+                                opts.dest)
+             
+             
 
              
     @__console
@@ -3616,6 +3650,27 @@ class STLClient(object):
         self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit, rxf)
 
 
+    @__console
+    def resolve_line (self, line):
+        '''Performs a port ARP resolution'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "resolve",
+                                         self.resolve_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.RETRIES)
+
+        resolvable_ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dest()['type'] == 'ipv4']
+        
+        opts = parser.parse_args(line.split(), default_ports = resolvable_ports, verify_acquired = True)
+        if not opts:
+            return opts
+
+                     
+        self.resolve(ports = opts.ports, retries = opts.retries)
+
+        
+    
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''

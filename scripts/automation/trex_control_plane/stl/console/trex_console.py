@@ -334,6 +334,13 @@ class TRexConsole(TRexGeneralCmd):
     def help_sniffer (self):
         self.do_set_rx_sniffer("-h")
 
+    def do_resolve (self, line):
+        '''Resolve ARP for ports'''
+        self.stateless_client.resolve_line(line)
+
+    def help_sniffer (self):
+        self.do_resolve("-h")
+
     @verify_connected
     def do_map (self, line):
         '''Maps ports topology\n'''
