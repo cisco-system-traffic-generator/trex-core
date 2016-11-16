@@ -1205,12 +1205,13 @@ public:
     /* for simulation */
     static void free_pools();
 
-
     static inline rte_mbuf_t   * pktmbuf_alloc_small(socket_id_t socket){
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-
+    static inline rte_mbuf_t * pktmbuf_alloc_small_by_port(uint8_t port_id) {
+        return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
+    }
 
     /**
      * try to allocate small buffers too
@@ -1228,6 +1229,13 @@ public:
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
+    static inline rte_mbuf_t * pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
+        socket_id_t socket = m_socket.port_to_socket(port_id);
+        if (size<FIRST_PKT_SIZE) {
+            return ( pktmbuf_alloc_small(socket));
+        }
+        return (m_mem_pool[socket].pktmbuf_alloc(size));
+    }
 
     static inline bool is_learn_verify_mode(){
         return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED) && m_options.preview.get_learn_and_verify_mode_enable());
