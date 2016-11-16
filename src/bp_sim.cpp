@@ -160,8 +160,8 @@ uint64_t CPlatformSocketInfoNoConfig::get_cores_mask(){
     int i;
     int offset=0;
     /* master */
-    uint32_t res=1;
-    uint32_t mask=(1<<(offset+1));
+    uint64_t res=1;
+    uint64_t mask=(1LL<<(offset+1));
     for (i=0; i<(cores_number-1); i++) {
         res |= mask ;
         mask = mask <<1;
@@ -388,14 +388,14 @@ uint64_t CPlatformSocketInfoConfig::get_cores_mask(){
                 printf(" ERROR phy threads can't be higher than 64 \n");
                 exit(1);
             }
-            mask |=(1<<i);
+            mask |=(1LL<<i);
         }
     }
 
-    mask |=(1<<m_platform->m_master_thread);
+    mask |=(1LL<<m_platform->m_master_thread);
     assert(m_platform->m_master_thread<64);
     if (m_rx_is_enabled) {
-        mask |=(1<<m_platform->m_rx_thread);
+        mask |=(1LL<<m_platform->m_rx_thread);
         assert(m_platform->m_rx_thread<64);
     }
     return (mask);
