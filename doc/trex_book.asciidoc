@@ -2070,6 +2070,10 @@ The disadvantage is the OFED dependency.
 The following distro were tested with TRex and OFED, others might work
 
 * Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64) 
+
+
+The following distro were  tested and did *not* work for us
+
 * Fedora 21 (3.17.4-301.fc21.x86_64)  
 
 ==== Install OFED 
@@ -2399,14 +2403,40 @@ NIC with two ports will work better from performance prospective, so it is bette
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-260[64B performance issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-273[Fedora 21 & OFED 3.4.1]
+
+
+==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
+
+For version TRex v2.11, this is the comparison results between XL710 and ConnectX-4 for various scenarios
+
+.Stateless MPPS/Core [Perlimeniary]
+image:images/xl710_vs_mlx5_64b.png[title="Stateless 64B"] 
+
+.Stateless Gb/Core [Perlimeniary]
+image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"] 
+
+*Comments*::
+ 
+1. For Stateless 64B profiles ConnectX-4 cost 50-90% more cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in the worst case scenario you will need x2 CPU for the same total MPPS
+2. For Stateless/Stateful 256B profiles, ConnectX-4 cost half of the cycles per packets. ConnectX-4 probably can handle in a better way chained mbuf (scatter gather).
+3. In Average Stateful senario ConnectX-4 will be slightly better.
+4. MLX5 can reach ~90MPPS while XL710 limited to 35MPPS 
+
+
+[NOTE]
+=====================================
+There is a task to automate the production of this reports
+=====================================
 
 
 === Cisco VIC support 
 
 anchor:ciscovic_support[]
 
+* Supported from TRex version v2.11 
 * Only 1300 series Cisco adapter 
-* Firmware version 2.0(13) for UCS C-series servers 
+* Firmware version 2.0(13) for UCS C-series servers, GA in Febuary 2017. 
 * Firmware version 3.1(2) for blade servers supports more filtering capabilities. 
 * The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, the these additional flow director modes are available:
         RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
@@ -2420,5 +2450,8 @@ anchor:ciscovic_support[]
 ==== Limitation/Issues  
 
 * Stateless per stream statistic is not supported yet
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[flow-director]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[flow-director] 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
+
+
 
