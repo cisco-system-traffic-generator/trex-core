@@ -981,6 +981,8 @@ MACs will be allocated incrementaly, with a wrap around.
 
 e.g.
 
+*Initiator side:*
+
 * 16.0.0.1 --> dst_mac: 00:00:00:01:00:00  valn: 100 
 * 16.0.0.2 --> dst_mac: 00:00:00:01:00:01  valn: 100 
 * 16.0.0.3 --> dst_mac: 00:00:00:01:00:02  valn: 100 
@@ -988,9 +990,12 @@ e.g.
 * 16.0.0.5 --> dst_mac: 00:00:00:01:00:00  valn: 100 
 * 16.0.0.6 --> dst_mac: 00:00:00:01:00:01  valn: 100 
 
-responder side (from server that was choosen for this client)
-* 16.0.0.1 <--- dst_mac(from responder) : "01:00:00:00:02:01" , valn:201
-* 16.0.0.2 <--- dst_mac(from responder) : "01:00:00:00:02:02" , valn:201
+*responder side:* 
+
+
+
+* server ->16.0.0.1  dst_mac(from responder) : "01:00:00:00:02:01" , valn:201
+* server ->16.0.0.2  dst_mac(from responder) : "01:00:00:00:02:02" , valn:201
 
 and so on.
 
