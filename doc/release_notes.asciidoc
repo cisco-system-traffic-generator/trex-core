@@ -23,6 +23,21 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.11 ==
+
+* Early support for Mellanox ConnectX-4 cards (100/50/25GbE) - based on contributions from Mellanox DPDK team see here for more info link:trex_manual.html#_mellanox_connectx_4_support[Mellanox ConnectX-4 Support]
+* Add support for Cisco VIC 1300 series adapter (40GbE)-  based on Cisco VIC DPDK team see link:trex_manual.html#_cisco_vic_support[Cisco VIC Support]
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-268[trex-268]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-267[trex-267]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-195[trex-195]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-271[trex-271]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-255[trex-255]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-249[trex-249]
+
+
 == Release 2.10 ==
 
 * Added support for IP based configuration files (As opposed to MAC based used until now), with the ability of TRex to send
