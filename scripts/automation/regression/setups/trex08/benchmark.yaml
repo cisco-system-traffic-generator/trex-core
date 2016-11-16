@@ -179,3 +179,53 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
 
+test_performance_vm_single_cpu:
+    cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    : 
+                                   min: 15.1
+                                   max: 20.3
+
+
+test_performance_vm_single_cpu_cached:
+    cfg:
+        mult                    : "10%"
+        mpps_per_core_golden    : 
+                                   min: 29.1
+                                   max: 32.0
+
+
+
+test_performance_syn_attack_single_cpu:
+     cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    :
+                                  min: 13.2
+                                  max: 15.0
+
+test_performance_vm_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 15.0
+                                  max: 20.0
+
+
+test_performance_vm_multi_cpus_cached:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 29.0
+                                  max: 34.0
+
+test_performance_syn_attack_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 13.0
+                                  max: 17.0
+                                  
+
