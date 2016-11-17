@@ -35,7 +35,7 @@ image:images/trex09_latest_test_runs.png[title="trex09 test runs",align="left",w
  
 [format="csv", options="header",halign='center']
 |===
-include::images/trex09_latest_test_runs_stats.csv[]
+include::build/images/trex09_latest_test_runs_stats.csv[]
 |===
 
 === Trend: Analysis Over Time
@@ -44,7 +44,7 @@ image:images/trex09trend_graph.png[title="trex09trend_graph",align="left",width=
 
 [format="csv", options="header",halign='center']
 |===
-include::images/trex09_trend_stats.csv[]
+include::build/images/trex09_trend_stats.csv[]
 |===
 
 == Setup: Kiwi02
@@ -58,7 +58,7 @@ image:images/kiwi02_latest_test_runs.png[title="trex09 test runs",align="left",w
 
 [format="csv", options="header",halign='center']
 |===
-include::images/kiwi02_latest_test_runs_stats.csv[]
+include::build/images/kiwi02_latest_test_runs_stats.csv[]
 |===
 
 === Trend: Analysis Over Time
@@ -67,7 +67,7 @@ image:images/kiwi02trend_graph.png[title="kiwi02trend_graph",align="left",width=
 
 [format="csv", options="header",halign='center']
 |===
-include::images/kiwi02_trend_stats.csv[]
+include::build/images/kiwi02_trend_stats.csv[]
 |===
 
 
