@@ -7,45 +7,6 @@ from matplotlib import pyplot as plt
 import os
 
 
-def convert_dict_to_dframe(data, categories, index=''):
-    data_input = {}
-    for category in categories:
-        data_input[category] = data[category]
-    if index:
-        df = pd.DataFrame(data_input, index=data[index])
-    else:
-        df = pd.DataFrame(data_input)
-    return df
-
-
-def plot_bar_by_category(data_frame, category, index='', graph_name='graph.png', show='', gtitle='', save_path=''):
-    if index:
-        data_frame = data_frame.sort_index(by=index)
-        print data_frame[index]
-    else:
-        print data_frame
-    data_frame = pd.DataFrame(data_frame[category], columns=category).astype(float)
-    data_frame.plot(kind='bar')
-    plt.xticks(rotation='horizontal')
-    plt.title(gtitle)
-    if save_path:
-        plt.savefig(os.path.join(save_path, graph_name))
-    if show:
-        plt.show()
-
-
-def generate_csv(data_frame, file_name, save_path=os.getcwd()):
-    f = open(os.path.join(save_path, file_name), 'w')
-    data_frame.to_csv(f)
-    f.close()
-
-
-# category is an array of category names that will appear as metrics
-def plot_bar_by_test_name(data_frame, test_name, category, graph_name='graph.png', show='', gtitle='', save_path=''):
-    data_frame = data_frame[data_frame['Test_name'] == test_name]
-    plot_bar_by_category(data_frame, category, 'Test_name', graph_name, show, gtitle=test_name, save_path=save_path)
-
-
 def generate_dframe_for_test(test_name, test_data):
     test_results = []
     test_mins = set()
