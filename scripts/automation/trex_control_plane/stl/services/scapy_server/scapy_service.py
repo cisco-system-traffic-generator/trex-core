@@ -468,7 +468,8 @@ class Scapy_service(Scapy_service_api):
                     gen.update(val)
                     total_sz = gen['total_size']
                     del gen['total_size']
-                    gen['size'] = total_sz - len(scapy_pkt)
+                    ether_chksum_size_bytes = 4 # will be added outside of Scapy. needs to be excluded here
+                    gen['size'] = total_sz - len(scapy_pkt) - ether_chksum_size_bytes
                     return generate_bytes(gen)
                 else:
                     return generate_bytes(val)
