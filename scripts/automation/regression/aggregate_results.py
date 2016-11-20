@@ -262,6 +262,7 @@ if __name__ == '__main__':
     scenario                = os.environ.get('SCENARIO')
     build_url               = os.environ.get('BUILD_URL')
     build_id                = os.environ.get('BUILD_ID')
+    trex_repo               = os.environ.get('TREX_CORE_REPO')
     last_commit_info_file   = os.environ.get('LAST_COMMIT_INFO')
     python_ver              = os.environ.get('PYTHON_VER')
     if not scenario:
@@ -293,11 +294,11 @@ if __name__ == '__main__':
     if last_commit_info_file and os.path.exists(last_commit_info_file):
         with open(last_commit_info_file) as f:
             trex_last_commit_info = f.read().strip().replace('\n', '<br>\n')
-    elif trex_last_commit_hash:
+    elif trex_last_commit_hash and trex_repo:
         try:
             command = 'git show %s -s' % trex_last_commit_hash
             print('Executing: %s' % command)
-            proc = subprocess.Popen(shlex.split(command), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+            proc = subprocess.Popen(shlex.split(command), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, cwd = trex_repo)
             (stdout, stderr) = proc.communicate()
             stdout = stdout.decode('utf-8', errors = 'replace')
             print('Stdout:\n\t' + stdout.replace('\n', '\n\t'))
