@@ -1964,7 +1964,7 @@ public:
     __attribute__ ((noinline)) void handle_rx_queue();
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
-    void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
+    void apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
@@ -2355,12 +2355,12 @@ int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
     return (-1);
 }
 
-void CCoreEthIF::apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
+void CCoreEthIF::apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
 
     assert(cfg);
 
     /* take the right direction config */
-    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {
@@ -3191,8 +3191,6 @@ void CGlobalTRex::pre_test() {
             memcpy(port_macs[port_id], CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, ETHER_ADDR_LEN);
         }
 
-        m_fl.dump_client_config(stdout); // remove ???
-        printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&1\n");
         for (std::vector<ClientCfgCompactEntry *>::iterator it = conf.begin(); it != conf.end(); it++) {
             uint8_t port = (*it)->get_port();
             uint16_t vlan = (*it)->get_vlan();
@@ -5558,7 +5556,7 @@ int main_test(int argc , char * argv[]){
     }
 
     // in case of client config, we already run pretest
-    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+    if (! CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
         g_trex.pre_test();
     }
 

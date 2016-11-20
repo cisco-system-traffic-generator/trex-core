@@ -1524,7 +1524,7 @@ public:
     uint32_t            m_nat_tcp_seq_diff_server; // And some do seq num randomization for server->client also
     uint16_t            m_nat_external_port; // NAT client port
     uint16_t            m_nat_pad[1];
-    const ClientCfg    *m_client_cfg;
+    const ClientCfgBase *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1888,7 +1888,7 @@ public:
 
 protected:
     void add_vlan(uint16_t vlan_id);
-    void apply_client_config(const ClientCfg *cfg, pkt_dir_t dir);
+    void apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;

@@ -133,7 +133,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
             throw std::runtime_error(ss.str());
         }
 
-        ClientCfg info;
+        ClientCfgBase info;
         group->assign(info);
 
         if (is_long_range) {

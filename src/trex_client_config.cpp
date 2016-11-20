@@ -30,18 +30,7 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include "bp_sim.h"
 
-bool ClientCfgDir::need_resolve() const {
-    if (has_next_hop() || has_ipv6_next_hop())
-        return true;
-    else
-        return false;
-}
-
-void ClientCfgDir::set_no_resolve_needed() {
-    m_bitfield &= ~(HAS_DST_MAC | HAS_IPV6_NEXT_HOP | HAS_NEXT_HOP);
-}
-
-void ClientCfgDir::dump(FILE *fd) const {
+void ClientCfgDirBase::dump(FILE *fd) const {
     if (has_src_mac_addr()) {
         fprintf(fd, "  src MAC:%s\n", utl_macaddr_to_str(m_src_mac.GetConstBuffer()).c_str());
     } else {
@@ -57,6 +46,33 @@ void ClientCfgDir::dump(FILE *fd) const {
     } else {
         fprintf(fd, "  No vlan\n");
     }
+}
+
+void ClientCfgDirBase::update(uint32_t index, const ClientCfgDirExt &cfg) {
+    if (has_src_mac_addr()) {
+        m_src_mac += index;
+    }
+
+    if (has_dst_mac_addr() || cfg.has_next_hop() || cfg.has_ipv6_next_hop()) {
+        m_dst_mac = cfg.get_resolved_mac(index);
+        m_bitfield |= HAS_DST_MAC;
+    }
+}
+
+bool ClientCfgDirExt::need_resolve() const {
+    if (has_next_hop() || has_ipv6_next_hop())
+        return true;
+    else
+        return false;
+}
+
+void ClientCfgDirExt::set_no_resolve_needed() {
+    m_bitfield &= ~(HAS_DST_MAC | HAS_IPV6_NEXT_HOP | HAS_NEXT_HOP);
+}
+
+void ClientCfgDirExt::dump(FILE *fd) const {
+    ClientCfgDirBase::dump(fd);
+
     if (has_next_hop()) {
         fprintf(fd, "  next hop:%s\n", ip_to_str(m_next_hop).c_str());
     } else {
@@ -76,7 +92,7 @@ void ClientCfgDir::dump(FILE *fd) const {
     }
 }
 
-void ClientCfgDir::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count) {
+void ClientCfgDirExt::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count) {
     uint16_t vlan = has_vlan() ? m_vlan : 0;
     MacAddress base_mac = m_dst_mac;
     m_resolved_macs.resize(count);
@@ -98,6 +114,11 @@ void ClientCfgDir::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count
     }
 }
 
+void ClientCfgBase::update(uint32_t index, const ClientCfgExt *cfg) {
+    m_initiator.update(index, cfg->m_initiator);
+    m_responder.update(index, cfg->m_responder);
+}
+
 void
 ClientCfgEntry::dump(FILE *fd) const {
 
@@ -113,7 +134,7 @@ void ClientCfgEntry::set_resolved_macs(CManyIPInfo &pretest_result) {
     m_cfg.m_responder.set_resolved_macs(pretest_result, m_count);
 }
 
-void ClientCfgCompactEntry::fill_from_dir(ClientCfgDir cfg, uint8_t port_id) {
+void ClientCfgCompactEntry::fill_from_dir(ClientCfgDirExt cfg, uint8_t port_id) {
     m_port = port_id;
     if (cfg.has_next_hop()) {
         m_next_hop_base.ip = cfg.m_next_hop;
@@ -271,7 +292,7 @@ ClientCfgDB::parse_single_group(YAMLParserWrapper &parser, const YAML::Node &nod
 }
 
 void
-ClientCfgDB::parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDir &dir) {
+ClientCfgDB::parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDirExt &dir) {
     if (node.FindValue("src_ip")) {
         dir.set_src_ip(parser.parse_ip(node, "src_ip"));
     }

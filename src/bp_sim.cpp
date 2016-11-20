@@ -5248,11 +5248,11 @@ void CErfIF::add_vlan(uint16_t vlan_id) {
     m_raw->pkt_len += 4;
 }
 
-void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
+void CErfIF::apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir) {
     assert(cfg);
     uint8_t *p = (uint8_t *)m_raw->raw;
 
-    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {

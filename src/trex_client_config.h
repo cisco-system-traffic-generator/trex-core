@@ -29,16 +29,19 @@ limitations under the License.
 
 class YAMLParserWrapper;
 struct CTupleGenYamlInfo;
+class ClientCfgDirExt;
 
+// To save memory, we use here the ClientCfgExt and ClientCfgDirExt,
+// and in tuple_gen the ClientCfgBase and ClientCfgDirBase
 /**
  * client configuration per direction
  *
  * @author imarom (29-Jun-16)
  */
-class ClientCfgDir {
+class ClientCfgDirBase {
     friend class ClientCfgCompactEntry;
 
-private:
+ protected:
     enum {
         HAS_SRC_MAC       = 0x1,
         HAS_DST_MAC       = 0x2,
@@ -49,52 +52,19 @@ private:
         HAS_SRC_IPV6      = 0x40,
     };
 
-    //???? do we need to save memory? Maybe do another class that inherit from ClientCfgDir to be used here?
-    uint32_t    m_next_hop;
-    uint32_t    m_src_ip;
-    uint16_t    m_src_ipv6[8];
-    uint16_t    m_ipv6_next_hop[8];
     MacAddress  m_src_mac;
     MacAddress  m_dst_mac;
     uint16_t    m_vlan;
     uint8_t     m_bitfield;
-    std::vector <MacAddress> m_resolved_macs;
 
-public:
-    ClientCfgDir() {
+ public:
+    ClientCfgDirBase() {
         m_bitfield = 0;
     }
 
-    void dump(FILE *fd) const;
-    void set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count);
-    bool need_resolve() const;
-    void set_no_resolve_needed();
-
+    virtual void dump(FILE *fd) const;
     bool has_src_mac_addr() const {
         return (m_bitfield & HAS_SRC_MAC);
-    }
-
-    bool has_dst_mac_addr() const {
-        return (m_bitfield & HAS_DST_MAC);
-    }
-    bool has_vlan() const {
-        return (m_bitfield & HAS_VLAN);
-    }
-
-    bool has_next_hop() const {
-        return (m_bitfield & HAS_NEXT_HOP);
-    }
-
-    bool has_ipv6_next_hop() const {
-        return (m_bitfield & HAS_IPV6_NEXT_HOP);
-    }
-
-    bool has_src_ip() const {
-        return (m_bitfield & HAS_SRC_IP);
-    }
-
-    bool has_src_ipv6() const {
-        return (m_bitfield & HAS_SRC_IPV6);
     }
 
     void set_src_mac_addr(uint64_t mac_addr) {
@@ -110,6 +80,74 @@ public:
     void set_vlan(uint16_t vlan_id) {
         m_vlan      = vlan_id;
         m_bitfield |= HAS_VLAN;
+    }
+
+    bool has_dst_mac_addr() const {
+        return (m_bitfield & HAS_DST_MAC);
+    }
+    bool has_vlan() const {
+        return (m_bitfield & HAS_VLAN);
+    }
+
+    const uint8_t *get_src_mac_addr() const {
+        assert(has_src_mac_addr());
+        return m_src_mac.GetConstBuffer();
+    }
+
+    const uint8_t *get_dst_mac_addr() const {
+        assert(has_dst_mac_addr());
+        return m_dst_mac.GetConstBuffer();
+    }
+
+    uint16_t get_vlan() const {
+        assert(has_vlan());
+        return m_vlan;
+    }
+
+    /* updates a configuration with a group index member */
+    void update(uint32_t index, const ClientCfgDirExt &cfg);
+};
+
+class ClientCfgDirExt : public ClientCfgDirBase {
+    friend class ClientCfgCompactEntry;
+
+private:
+    enum {
+        HAS_SRC_MAC       = 0x1,
+        HAS_DST_MAC       = 0x2,
+        HAS_VLAN          = 0x4,
+        HAS_NEXT_HOP      = 0x8,
+        HAS_IPV6_NEXT_HOP = 0x10,
+        HAS_SRC_IP        = 0x20,
+        HAS_SRC_IPV6      = 0x40,
+    };
+
+    uint32_t    m_next_hop;
+    uint32_t    m_src_ip;
+    uint16_t    m_src_ipv6[8];
+    uint16_t    m_ipv6_next_hop[8];
+    std::vector <MacAddress> m_resolved_macs;
+
+public:
+    void dump(FILE *fd) const;
+    void set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count);
+    bool need_resolve() const;
+    void set_no_resolve_needed();
+
+    bool has_ipv6_next_hop() const {
+        return (m_bitfield & HAS_IPV6_NEXT_HOP);
+    }
+
+    bool has_next_hop() const {
+        return (m_bitfield & HAS_NEXT_HOP);
+    }
+
+    bool has_src_ip() const {
+        return (m_bitfield & HAS_SRC_IP);
+    }
+
+    bool has_src_ipv6() const {
+        return (m_bitfield & HAS_SRC_IPV6);
     }
 
     void set_src_ip(uint32_t src_ip) {
@@ -136,56 +174,45 @@ public:
         m_bitfield |= HAS_IPV6_NEXT_HOP;
     }
 
-    /* updates a configuration with a group index member */
-
-    void update(uint32_t index, const ClientCfgDir &cfg) {
-        if (has_src_mac_addr()) {
-            m_src_mac += index;
-        }
-
-        if (has_dst_mac_addr() || has_next_hop() || has_ipv6_next_hop()) {
-            m_dst_mac = cfg.m_resolved_macs[index];
-            m_bitfield |= HAS_DST_MAC;
-        }
+    virtual MacAddress get_resolved_mac(uint16_t index) const {
+        return m_resolved_macs[index];
     }
 
-    const uint8_t *get_src_mac_addr() const {
-        assert(has_src_mac_addr());
-        return m_src_mac.GetConstBuffer();
-    }
-
-    const uint8_t *get_dst_mac_addr() const {
-        assert(has_dst_mac_addr());
-        return m_dst_mac.GetConstBuffer();
-    }
-
-    uint16_t get_vlan() const {
-        assert(has_vlan());
-        return m_vlan;
-    }
 };
+
+class ClientCfgExt;
 
 /**
  * single client config
  *
  */
-class ClientCfg {
+class ClientCfgBase {
 
 public:
-
-    void dump (FILE *fd) const {
+    virtual void dump (FILE *fd) const {
         fprintf(fd, "initiator:\n");
         m_initiator.dump(fd);
         fprintf(fd, "responder:\n");
         m_responder.dump(fd);
     }
-    void update(uint32_t index, const ClientCfg &cfg) {
-        m_initiator.update(index, cfg.m_initiator);
-        m_responder.update(index, cfg.m_responder);
+    virtual void update(uint32_t index, const ClientCfgExt *cfg);
+
+ public:
+    ClientCfgDirBase m_initiator;
+    ClientCfgDirBase m_responder;
+};
+
+class ClientCfgExt : public ClientCfgBase {
+public:
+    virtual void dump (FILE *fd) const {
+        fprintf(fd, "initiator:\n");
+        m_initiator.dump(fd);
+        fprintf(fd, "responder:\n");
+        m_responder.dump(fd);
     }
 
-    ClientCfgDir m_initiator;
-    ClientCfgDir m_responder;
+    ClientCfgDirExt m_initiator;
+    ClientCfgDirExt m_responder;
 };
 
 class ClientCfgCompactEntry {
@@ -201,7 +228,7 @@ class ClientCfgCompactEntry {
     uint16_t *get_src_ipv6() {return m_src_ip.ipv6;}
 
  public:
-    void fill_from_dir(ClientCfgDir cfg, uint8_t port_id);
+    void fill_from_dir(ClientCfgDirExt cfg, uint8_t port_id);
 
  private:
     uint16_t m_count;
@@ -253,9 +280,9 @@ public:
      *
      * @param info
      */
-    void assign(ClientCfg &info) {
+    void assign(ClientCfgBase &info) {
         info = m_cfg;
-        info.update(m_iterator, m_cfg);
+        info.update(m_iterator, &m_cfg);
 
         /* advance for the next assign */
         m_iterator = (m_iterator + 1) % m_count;
@@ -265,7 +292,7 @@ public:
     uint32_t    m_ip_start;
     uint32_t    m_ip_end;
 
-    ClientCfg   m_cfg;
+    ClientCfgExt m_cfg;
 
     uint32_t    m_count;
 
@@ -320,7 +347,7 @@ public:
 
 private:
     void parse_single_group(YAMLParserWrapper &parser, const YAML::Node &node);
-    void parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDir &dir);
+    void parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDirExt &dir);
 
     /**
      * verify the YAML file loaded in valid
