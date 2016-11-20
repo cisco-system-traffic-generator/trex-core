@@ -8,10 +8,8 @@ import sys, os
 from collections import OrderedDict
 import copy
 import datetime, time
-try:
-    import cPickle as pickle
-except:
-    import pickle
+import traceback
+import yaml
 import subprocess, shlex
 from ansi2html import Ansi2HTMLConverter
 
@@ -24,6 +22,15 @@ def ansi2html(text):
 FUNCTIONAL_CATEGORY = 'Functional' # how to display those categories
 ERROR_CATEGORY = 'Error'
 
+
+def try_write(file, text):
+    try:
+        file.write(text)
+    except:
+        try:
+            file.write(text.encode('utf-8'))
+        except:
+            file.write(text.decode('utf-8'))
 
 def pad_tag(text, tag):
     return '<%s>%s</%s>' % (tag, text, tag)
@@ -292,12 +299,13 @@ if __name__ == '__main__':
             print('Executing: %s' % command)
             proc = subprocess.Popen(shlex.split(command), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
             (stdout, stderr) = proc.communicate()
-            stdout = stdout.decode(errors = 'replace')
+            stdout = stdout.decode('utf-8', errors = 'replace')
             print('Stdout:\n\t' + stdout.replace('\n', '\n\t'))
             if stderr or proc.returncode:
                 print('Return code: %s' % proc.returncode)
             trex_last_commit_info = stdout.replace('\n', '<br>\n')
         except Exception as e:
+            traceback.print_exc()
             print('Error getting last commit: %s' % e)
     else:
         print('Could not find info about commit!')
@@ -525,7 +533,7 @@ if __name__ == '__main__':
 # save html
     with open(args.output_htmlfile, 'w') as f:
         print('Writing output file: %s' % args.output_htmlfile)
-        f.write(html_output)
+        try_write(f, html_output)
     html_output = None
 
 # mail report (only error tests, expanded)
@@ -601,7 +609,7 @@ if __name__ == '__main__':
         else:
             mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, expanded=True)
     else:
-        mail_output += '<table><tr style="font-size:120;color:green;font-family:arial"><td>☺</td><td style="font-size:20">All passed.</td></tr></table>\n'
+        mail_output += u'<table><tr style="font-size:120;color:green;font-family:arial"><td>☺</td><td style="font-size:20">All passed.</td></tr></table>\n'
     mail_output += '\n</body>\n</html>'
 
 ##### save outputs
@@ -610,17 +618,17 @@ if __name__ == '__main__':
 # mail content
     with open(args.output_mailfile, 'w') as f:
         print('Writing output file: %s' % args.output_mailfile)
-        f.write(mail_output)
+        try_write(f, mail_output)
 
 # build status
     category_dict_status = {}
     if os.path.exists(args.build_status_file):
         print('Reading: %s' % args.build_status_file)
-        with open(args.build_status_file, 'rb') as f:
+        with open(args.build_status_file, 'r') as f:
             try:
-                category_dict_status = pickle.load(f)
+                category_dict_status = yaml.safe_load(f.read())
             except Exception as e:
-                print('Error during pickle load: %s' % e)
+                print('Error during YAML load: %s' % e)
         if type(category_dict_status) is not dict:
             print('%s is corrupt, truncating' % args.build_status_file)
             category_dict_status = {}
@@ -640,15 +648,15 @@ if __name__ == '__main__':
             current_status = 'Fixed'
     category_dict_status[scenario] = current_status
 
-    with open(args.build_status_file, 'wb') as f:
+    with open(args.build_status_file, 'w') as f:
         print('Writing output file: %s' % args.build_status_file)
-        pickle.dump(category_dict_status, f)
+        yaml.dump(category_dict_status, f)
 
 # last successful commit
-    if (current_status in ('Successful', 'Fixed')) and trex_last_commit_hash and jobs_list > 0 and scenario == 'nightly':
+    if (current_status in ('Successful', 'Fixed')) and trex_last_commit_hash and len(jobs_list) > 0 and scenario == 'nightly':
         with open(args.last_passed_commit, 'w') as f:
             print('Writing output file: %s' % args.last_passed_commit)
-            f.write(trex_last_commit_hash)
+            try_write(f, trex_last_commit_hash)
 
 # mail title
     mailtitle_output = scenario.capitalize()
@@ -658,7 +666,8 @@ if __name__ == '__main__':
 
     with open(args.output_titlefile, 'w') as f:
         print('Writing output file: %s' % args.output_titlefile)
-        f.write(mailtitle_output)
+        try_write(f, mailtitle_output)
 
 # exit
+    print('Status: %s' % current_status)
     sys.exit(exit_status)
