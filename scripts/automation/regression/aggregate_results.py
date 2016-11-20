@@ -255,7 +255,7 @@ if __name__ == '__main__':
     scenario                = os.environ.get('SCENARIO')
     build_url               = os.environ.get('BUILD_URL')
     build_id                = os.environ.get('BUILD_ID')
-    trex_repo               = os.environ.get('TREX_CORE_REPO')
+    last_commit_info_file   = os.environ.get('LAST_COMMIT_INFO')
     python_ver              = os.environ.get('PYTHON_VER')
     if not scenario:
         print('Warning: no environment variable SCENARIO, using default')
@@ -283,19 +283,24 @@ if __name__ == '__main__':
 
     trex_last_commit_info = ''
     trex_last_commit_hash = trex_info_dict.get('Git SHA')
-    if trex_last_commit_hash and trex_repo:
+    if last_commit_info_file and os.path.exists(last_commit_info_file):
+        with open(last_commit_info_file) as f:
+            trex_last_commit_info = f.read().strip().replace('\n', '<br>\n')
+    elif trex_last_commit_hash:
         try:
-            print('Getting TRex commit with hash %s' % trex_last_commit_hash)
-            command = 'git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
+            command = 'git show %s -s' % trex_last_commit_hash
             print('Executing: %s' % command)
-            proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            (trex_last_commit_info, stderr) = proc.communicate()
-            print('Stdout:\n\t' + trex_last_commit_info.replace('\n', '\n\t'))
-            print('Stderr:', stderr)
-            print('Return code:', proc.returncode)
-            trex_last_commit_info = trex_last_commit_info.replace('\n', '<br>')
+            proc = subprocess.Popen(shlex.split(command), stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+            (stdout, stderr) = proc.communicate()
+            stdout = stdout.decode(errors = 'replace')
+            print('Stdout:\n\t' + stdout.replace('\n', '\n\t'))
+            if stderr or proc.returncode:
+                print('Return code: %s' % proc.returncode)
+            trex_last_commit_info = stdout.replace('\n', '<br>\n')
         except Exception as e:
             print('Error getting last commit: %s' % e)
+    else:
+        print('Could not find info about commit!')
 
 ##### get xmls: report_<setup name>.xml
 
