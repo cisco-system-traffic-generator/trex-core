@@ -71,6 +71,32 @@ inline std::string ip_to_str(uint8_t *ip) {
     return tmp;
 }
 
+class CIpVlan {
+    // to be able to use this in map
+    friend bool operator<(const CIpVlan& l, const CIpVlan& r) {
+        if (l.get_ip() == r.get_ip()) {
+            return l.get_vlan() < r.get_vlan();
+        } else {
+            return l.get_ip() < r.get_ip();
+        }
+    }
+
+ public:
+    CIpVlan(uint32_t ip, uint16_t vlan) {
+        m_ip = ip;
+        m_vlan = vlan;
+    }
+    uint16_t get_vlan() const {return m_vlan;}
+    void set_vlan(uint16_t vlan) {m_vlan = vlan;}
+    uint16_t get_ip() const {return m_ip;}
+    void set_ip(uint32_t ip) {m_ip = ip;}
+
+ private:
+    uint32_t m_ip;
+    uint16_t m_vlan;
+};
+
+
 class COneIPInfo {
  public:
     enum {
@@ -89,7 +115,7 @@ class COneIPInfo {
     uint16_t get_port() const {return m_port;}
     virtual void dump(FILE *fd) const {
         dump(fd, "");
-    }    
+    }
     virtual void dump(FILE *fd, const char *offset) const;
     virtual uint8_t ip_ver() const {return 0;}
     virtual uint32_t get_arp_req_len() const=0;
@@ -167,7 +193,7 @@ class COneIPv6Info : public COneIPInfo {
     COneIPv6Info(uint16_t ip[8], uint16_t vlan, MacAddress mac, uint8_t port) : COneIPInfo(vlan, mac, port) {
         memcpy(m_ip, ip, sizeof(m_ip));
     }
-    
+
     const uint8_t *get_ipv6() {return (uint8_t *)m_ip;}
     virtual uint8_t ip_ver() const {return IP6_VER;}
     virtual uint32_t get_arp_req_len() const {return 100; /* ??? put correct number for ipv6*/}
@@ -194,6 +220,10 @@ inline bool operator== (const COneIPv6Info& lhs, const COneIPv6Info& rhs) {
 
 inline bool operator!= (const COneIPv6Info& lhs, const COneIPv6Info& rhs){ return !(lhs == rhs); }
 
+typedef std::map<CIpVlan, COneIPv4Info> ip_vlan_to_many_ip_t;
+typedef std::map<CIpVlan, COneIPv4Info>::iterator ip_vlan_to_many_ip_iter_t;
+typedef std::map<std::pair<uint16_t[8], uint16_t>, COneIPv6Info> ipv6_vlan_to_many_ipv6_t;
+
 class CManyIPInfo {
  public:
     CManyIPInfo () {
@@ -206,11 +236,11 @@ class CManyIPInfo {
     const COneIPInfo *get_first();
     const COneIPInfo *get_next();
  private:
-    std::map<std::pair<uint32_t, uint16_t>, COneIPv4Info> m_ipv4_resolve;
-    std::map<std::pair<uint16_t[8], uint16_t>, COneIPv6Info> m_ipv6_resolve;
-    std::map<std::pair<uint32_t, uint16_t>, COneIPv4Info>::iterator m_ipv4_iter;
+    ip_vlan_to_many_ip_t m_ipv4_resolve;
+    ip_vlan_to_many_ip_iter_t m_ipv4_iter;
+    ipv6_vlan_to_many_ipv6_t m_ipv6_resolve;
     bool m_iter_initiated;
-    
+
 };
 
 #endif

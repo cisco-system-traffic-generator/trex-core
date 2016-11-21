@@ -3992,7 +3992,7 @@ public:
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
     int load_client_config_file(std::string file_name);
     void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);
-    std::vector<ClientCfgCompactEntry *> get_client_cfg_ip_list();
+    void get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret);
     void set_client_config_resolved_macs(CManyIPInfo &pretest_result);
     void dump_client_config(FILE *fd);
 

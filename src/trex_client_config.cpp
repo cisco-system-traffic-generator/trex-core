@@ -183,8 +183,7 @@ void ClientCfgDB::set_resolved_macs(CManyIPInfo &pretest_result) {
     }
 }
 
-std::vector<ClientCfgCompactEntry *> ClientCfgDB::get_entry_list() {
-    std::vector<ClientCfgCompactEntry *> ret;
+void ClientCfgDB::get_entry_list(std::vector<ClientCfgCompactEntry *> &ret) {
     uint8_t port;
     bool result;
 
@@ -221,8 +220,6 @@ std::vector<ClientCfgCompactEntry *> ClientCfgDB::get_entry_list() {
             }
         }
     }
-
-    return ret;
 }
 
 /**

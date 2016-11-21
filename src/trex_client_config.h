@@ -326,7 +326,8 @@ public:
     }
 
     void set_resolved_macs(CManyIPInfo &pretest_result);
-    std::vector<ClientCfgCompactEntry *> get_entry_list();
+    void get_entry_list(std::vector<ClientCfgCompactEntry *> &ret);
+
 
     /**
      * loads a YAML file

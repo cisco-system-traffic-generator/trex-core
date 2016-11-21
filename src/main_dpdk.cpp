@@ -3178,7 +3178,8 @@ void CGlobalTRex::pre_test() {
     bool need_grat_arp[TREX_MAX_PORTS];
 
     if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
-        std::vector<ClientCfgCompactEntry *> conf = m_fl.get_client_cfg_ip_list();
+        std::vector<ClientCfgCompactEntry *> conf;
+        m_fl.get_client_cfg_ip_list(conf);
 
         // If we got src MAC for port in global config, take it, otherwise use src MAC from DPDK
         uint8_t port_macs[m_max_ports][ETHER_ADDR_LEN];

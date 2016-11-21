@@ -66,40 +66,41 @@ void COneIPv6Info::fill_grat_arp_buf(uint8_t *p) {
 
 const COneIPInfo *CManyIPInfo::get_next() {
     COneIPInfo *ret;
-    
+
     if (!m_iter_initiated) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         m_iter_initiated = true;
     }
-    
+
     if (m_ipv4_iter == m_ipv4_resolve.end()) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         return NULL;
     }
-    
+
     ret = &(m_ipv4_iter->second);
     m_ipv4_iter++;
     return ret;
 }
 
 void CManyIPInfo::dump(FILE *fd) {
-    std::map<std::pair<uint32_t, uint16_t>, COneIPv4Info>::iterator it;
+    ip_vlan_to_many_ip_iter_t it;
     for (it = m_ipv4_resolve.begin(); it != m_ipv4_resolve.end(); it++) {
         fprintf(fd, "IPv4 resolved list:\n");
         uint8_t mac[ETHER_ADDR_LEN];
         it->second.get_mac(mac);
-        fprintf(fd, "ip:%s vlan: %d resolved to mac %s\n", ip_to_str(it->first.first).c_str(), it->first.second
+        fprintf(fd, "ip:%s vlan: %d resolved to mac %s\n", ip_to_str(it->first.get_ip()).c_str(), it->first.get_vlan()
                 , utl_macaddr_to_str(mac).c_str());
     }
 }
 
 void CManyIPInfo::insert(COneIPv4Info &ip_info) {
-    m_ipv4_resolve.insert(std::pair<std::pair<uint32_t, uint16_t>, COneIPv4Info>
-                          (std::pair<uint32_t, uint16_t>(ip_info.get_ip(), ip_info.get_vlan()), ip_info));
+    CIpVlan ip_vlan(ip_info.get_ip(), ip_info.get_vlan());
+
+    m_ipv4_resolve.insert(std::make_pair(ip_vlan, ip_info));
 }
 
 bool CManyIPInfo::lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) {
-    std::map<std::pair<uint32_t, uint16_t>, COneIPv4Info>::iterator it = m_ipv4_resolve.find(std::make_pair(ip, vlan));
+    ip_vlan_to_many_ip_iter_t it = m_ipv4_resolve.find(CIpVlan(ip, vlan));
     if (it != m_ipv4_resolve.end()) {
         uint8_t mac[ETHER_ADDR_LEN];
         (*it).second.get_mac(mac);
@@ -118,5 +119,3 @@ const COneIPInfo *CManyIPInfo::get_first() {
         return &(m_ipv4_iter->second);
     }
 }
-
-

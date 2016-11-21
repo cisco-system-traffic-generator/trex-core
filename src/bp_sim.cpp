@@ -4581,8 +4581,8 @@ void CFlowGenList::set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg) {
     m_client_config_info.set_tuple_gen_info(tg);
 }
 
-std::vector<ClientCfgCompactEntry *> CFlowGenList::get_client_cfg_ip_list() {
-    return m_client_config_info.get_entry_list();
+void CFlowGenList::get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret) {
+    m_client_config_info.get_entry_list(ret);
 }
 
 void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) {
