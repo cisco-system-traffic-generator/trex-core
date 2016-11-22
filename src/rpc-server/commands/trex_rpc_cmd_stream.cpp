@@ -680,7 +680,8 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     }
 
     result["result"]["multiplier"] = port->get_multiplier();
-
+    result["result"]["ts"]         = now_sec();
+    
     return (TREX_RPC_CMD_OK);
 }
 

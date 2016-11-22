@@ -99,11 +99,17 @@ public:
 
         m_raw = (uint8_t *)malloc(m_size);
         memcpy(m_raw, p, m_size);
+        
+        /* save the packet timestamp */
+        m_timestamp = now_sec();
     }
 
-    /* RVO here - no performance impact */
-    const std::string to_base64_str() const {
-        return base64_encode(m_raw, m_size);
+    /* slow path and also RVO - pass by value is ok */
+    Json::Value to_json() {
+        Json::Value output;
+        output["ts"]      = m_timestamp;
+        output["binary"]  = base64_encode(m_raw, m_size);
+        return output;
     }
 
     ~RxPacket() {
@@ -114,8 +120,9 @@ public:
 
 private:
 
-    uint8_t *m_raw;
-    uint16_t m_size;
+    uint8_t   *m_raw;
+    uint16_t   m_size;
+    dsec_t     m_timestamp;
 };
 
 /**
@@ -194,7 +201,7 @@ public:
         int tmp = m_tail;
         while (tmp != m_head) {
             RxPacket *pkt = m_buffer[tmp];
-            output.append(pkt->to_base64_str());
+            output.append(pkt->to_json());
             tmp = next(tmp);
         }
 
