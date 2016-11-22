@@ -1849,7 +1849,7 @@ typedef std::priority_queue<CGenNode *, std::vector<CGenNode *>,CGenNodeCompare>
 
 
 class CErfIF : public CVirtualIF {
-
+    friend class basic_client_cfg_test1_Test;
 public:
     CErfIF(){
         m_writer=NULL;

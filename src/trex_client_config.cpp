@@ -32,19 +32,19 @@ limitations under the License.
 
 void ClientCfgDirBase::dump(FILE *fd) const {
     if (has_src_mac_addr()) {
-        fprintf(fd, "  src MAC:%s\n", utl_macaddr_to_str(m_src_mac.GetConstBuffer()).c_str());
+        fprintf(fd, "        src_mac: %s\n", utl_macaddr_to_str(m_src_mac.GetConstBuffer()).c_str());
     } else {
-        fprintf(fd, "  No src MAC\n");
+        fprintf(fd, "#       No src MAC\n");
     }
     if (has_dst_mac_addr()) {
-        fprintf(fd, "  dst MAC:%s\n", utl_macaddr_to_str(m_dst_mac.GetConstBuffer()).c_str());
+        fprintf(fd, "        dst_mac: %s\n", utl_macaddr_to_str(m_dst_mac.GetConstBuffer()).c_str());
     } else {
-        fprintf(fd, "  No dst MAC\n");
+        fprintf(fd, "#       No dst MAC\n");
     }
     if (has_vlan()) {
-        fprintf(fd, "  vlan:%d\n", m_vlan);
+        fprintf(fd, "        vlan: %d\n", m_vlan);
     } else {
-        fprintf(fd, "  No vlan\n");
+        fprintf(fd, "#       No vlan\n");
     }
 }
 
@@ -74,20 +74,20 @@ void ClientCfgDirExt::dump(FILE *fd) const {
     ClientCfgDirBase::dump(fd);
 
     if (has_next_hop()) {
-        fprintf(fd, "  next hop:%s\n", ip_to_str(m_next_hop).c_str());
+        fprintf(fd, "        next_hop: %s\n", ip_to_str(m_next_hop).c_str());
     } else {
-        fprintf(fd, "  No next hop\n");
+        fprintf(fd, "#       No next hop\n");
     }
     if (has_ipv6_next_hop()) {
-        fprintf(fd, "  next hop:%s\n", ip_to_str((unsigned char *)m_ipv6_next_hop).c_str());
+        fprintf(fd, "        ipv6_next_hop: %s\n", ip_to_str((unsigned char *)m_ipv6_next_hop).c_str());
     } else {
-        fprintf(fd, "  No IPv6 next hop\n");
+        fprintf(fd, "#       No IPv6 next hop\n");
     }
 
     if (m_resolved_macs.size() > 0) {
-        fprintf(fd, "  Resolved MAC list:\n");
+        fprintf(fd, "#  Resolved MAC list:\n");
         for (int i = 0; i < m_resolved_macs.size(); i++) {
-            fprintf(fd, "   %s\n", utl_macaddr_to_str(m_resolved_macs[i].GetConstBuffer()).c_str());
+            fprintf(fd, "#     %s\n", utl_macaddr_to_str(m_resolved_macs[i].GetConstBuffer()).c_str());
         }
     }
 }
@@ -122,11 +122,10 @@ void ClientCfgBase::update(uint32_t index, const ClientCfgExt *cfg) {
 void
 ClientCfgEntry::dump(FILE *fd) const {
 
-    std::cout << "IP start:       " << ip_to_str(m_ip_start) << "\n";
-    std::cout << "IP end:         " << ip_to_str(m_ip_end) << "\n";
-    fprintf(fd, "count %d\n", m_count);
-
+    fprintf(fd, "-   ip_start : %s\n", ip_to_str(m_ip_start).c_str());
+    fprintf(fd, "    ip_end   : %s\n", ip_to_str(m_ip_end).c_str());
     m_cfg.dump(fd);
+    fprintf(fd, "    count    : %d\n", m_count);
 }
 
 void ClientCfgEntry::set_resolved_macs(CManyIPInfo &pretest_result) {
@@ -163,16 +162,15 @@ void ClientCfgCompactEntry::fill_from_dir(ClientCfgDirExt cfg, uint8_t port_id) 
 
 void
 ClientCfgDB::dump(FILE *fd) {
-    fprintf(fd, "**********Client config file start*********\n");
-    fprintf(fd, "vlan: %s is_empty: %s\n"
-            ,m_under_vlan ? "true" : "false"
-            , m_is_empty ? "true" : "false");
+    //fprintf(fd, "#**********Client config file start*********\n");
+    fprintf(fd, "vlan: %s\n", m_under_vlan ? "true" : "false");
+    fprintf(fd, "groups:\n");
 
     for (std::map<uint32_t, ClientCfgEntry>::iterator it = m_groups.begin(); it != m_groups.end(); ++it) {
-        fprintf(fd, "****%s:****\n", ip_to_str(it->first).c_str());
+        fprintf(fd, "# ****%s:****\n", ip_to_str(it->first).c_str());
         ((ClientCfgEntry)it->second).dump(fd);
     }
-    fprintf(fd, "**********Client config end*********\n");
+    //fprintf(fd, "#**********Client config end*********\n");
 }
 
 void ClientCfgDB::set_resolved_macs(CManyIPInfo &pretest_result) {
@@ -205,8 +203,8 @@ void ClientCfgDB::get_entry_list(std::vector<ClientCfgCompactEntry *> &ret) {
                 if (cfg.m_cfg.m_initiator.need_resolve()) {
                     ClientCfgCompactEntry *init_entry = new ClientCfgCompactEntry();
                     assert(init_entry);
-                    init_entry->m_count = ((ClientCfgEntry)it->second).m_count;
-                    init_entry->fill_from_dir(((ClientCfgEntry)it->second).m_cfg.m_initiator, port);
+                    init_entry->m_count = cfg.m_count;
+                    init_entry->fill_from_dir(cfg.m_cfg.m_initiator, port);
                     ret.push_back(init_entry);
                 }
 

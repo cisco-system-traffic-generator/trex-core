@@ -190,9 +190,9 @@ class ClientCfgBase {
 
 public:
     virtual void dump (FILE *fd) const {
-        fprintf(fd, "initiator:\n");
+        fprintf(fd, "    initiator :\n");
         m_initiator.dump(fd);
-        fprintf(fd, "responder:\n");
+        fprintf(fd, "    responder :\n");
         m_responder.dump(fd);
     }
     virtual void update(uint32_t index, const ClientCfgExt *cfg);
@@ -205,9 +205,9 @@ public:
 class ClientCfgExt : public ClientCfgBase {
 public:
     virtual void dump (FILE *fd) const {
-        fprintf(fd, "initiator:\n");
+        fprintf(fd, "    initiator:\n");
         m_initiator.dump(fd);
-        fprintf(fd, "responder:\n");
+        fprintf(fd, "    responder:\n");
         m_responder.dump(fd);
     }
 
@@ -254,7 +254,7 @@ class ClientCfgCompactEntry {
  *
  */
 class ClientCfgEntry {
-
+    friend class basic_client_cfg_test1_Test;
 public:
 
     ClientCfgEntry() {
@@ -297,6 +297,14 @@ public:
     uint32_t    m_count;
 
 private:
+    void set_params(uint32_t start, uint32_t end, uint32_t count) { // for tests
+        m_ip_start = start;
+        m_ip_end = end;
+        m_count = count;
+    }
+    void set_cfg(const ClientCfgExt &cfg) {
+        m_cfg = cfg;
+    }
     uint32_t    m_iterator;
 };
 
@@ -305,13 +313,18 @@ private:
  *
  */
 class ClientCfgDB {
-public:
+    friend class basic_client_cfg_test1_Test;
+ public:
 
     ClientCfgDB() {
         m_is_empty    = true;
         m_cache_group = NULL;
         m_under_vlan  = false;
         m_tg = NULL;
+    }
+
+    ~ClientCfgDB() {
+        m_groups.clear();
     }
 
     void dump(FILE *fd) ;
@@ -349,7 +362,10 @@ public:
 private:
     void parse_single_group(YAMLParserWrapper &parser, const YAML::Node &node);
     void parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, ClientCfgDirExt &dir);
-
+    void set_vlan(bool val) {m_under_vlan = val;} // for tests
+    void add_group(uint32_t ip, ClientCfgEntry cfg) { // for tests
+        m_groups.insert(std::make_pair(ip, cfg));
+    }
     /**
      * verify the YAML file loaded in valid
      *
