@@ -98,3 +98,13 @@ def is_valid_ipv4 (addr):
 def is_valid_mac (mac):
     return bool(re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()))
 
+def list_remove_dup (l):
+    tmp = list()
+    
+    for x in l:
+        if not x in tmp:
+            tmp.append(x)
+            
+    return tmp
+            
+        

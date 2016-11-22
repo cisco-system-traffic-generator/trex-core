@@ -1,6 +1,6 @@
 import argparse
 from collections import namedtuple, OrderedDict
-from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_mac
+from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_mac, list_remove_dup
 from .text_opts import format_text
 from ..trex_stl_types import *
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
@@ -644,6 +644,8 @@ class CCmdArgParser(argparse.ArgumentParser):
                 else:
                     opts.ports = default_ports
 
+            opts.ports = list_remove_dup(opts.ports)
+            
             # so maybe we have ports configured
             invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
             if invalid_ports:

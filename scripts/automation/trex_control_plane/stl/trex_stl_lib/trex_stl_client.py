@@ -12,7 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer, is_valid_ipv4, is_valid_mac
+from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer, is_valid_ipv4, is_valid_mac, list_remove_dup
 from .utils.text_opts import *
 from functools import wraps
 
@@ -1067,7 +1067,7 @@ class STLClient(object):
             if not port_id in valid_ports:
                 raise STLError("Port ID '{0}' is not a valid port ID - valid values: {1}".format(port_id, valid_ports))
 
-        return port_id_list
+        return list_remove_dup(port_id_list)
 
 
     # transmit request on the RPC link
@@ -1372,6 +1372,12 @@ class STLClient(object):
                     if port_obj.is_active()]
 
 
+    def get_resolvable_ports (self):
+         return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.get_dst_addr()['ipv4'] is not None]
+         
+         
     # get paused ports
     def get_paused_ports (self, owned = True):
         if owned:
@@ -2895,21 +2901,25 @@ class STLClient(object):
         """
         # by default - resolve all the ports that are configured with IPv4 dest
         if ports is None:
-            ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dst_addr()['ipv4'] is not None]
+            ports = self.get_resolvable_ports()
             if not ports:
-                raise STLError('resolve - No ports configured with destination as IPv4')
+                raise STLError('No ports configured with destination as IPv4')
             
         active_ports = list(set(self.get_active_ports()).intersection(ports))
         if active_ports:
-            raise STLError('resolve - Port(s) {0} are active, please stop them before resolving'.format(active_ports))
+            raise STLError('Port(s) {0} are active, please stop them before resolving'.format(active_ports))
                      
         ports = self._validate_port_list(ports)
         
         self.logger.pre_cmd("Resolving destination on port(s) {0}:".format(ports))
         with self.logger.supress():
             rc = self.__resolve(ports, retries)
+            
         self.logger.post_cmd(rc)
-
+        
+        if rc:
+            self.logger.log(rc)
+            
         if not rc:
             raise STLError(rc)
       
@@ -3722,9 +3732,7 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.RETRIES)
 
-        resolvable_ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dst_addr() is not None]
-        
-        opts = parser.parse_args(line.split(), default_ports = resolvable_ports, verify_acquired = True)
+        opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
         if not opts:
             return opts
 

@@ -924,9 +924,13 @@ class Port(object):
         return {'ipv4': dst_ipv4, 'mac' : dst_mac}
   
     
+    # return True if the port is resolved (either has MAC as dest of ARP resolution)
     def is_resolved (self):
         return (self.get_dst_addr()['mac'] != None)
-        
+    
+    # return True if the port is valid for resolve (has an IPv4 address as dest)
+    def is_resolvable (self):
+        return (self.get_dst_addr()['ipv4'] != None)
         
     @writeable
     def arp_resolve (self, retries):
@@ -1204,10 +1208,10 @@ class ARPResolver(Resolver):
         src = self.port.get_src_addr()
         
         if dst['ipv4'] is None:
-            return self.port.err('ARP resolve -  port does not have an IPv4 as destination')
+            return self.port.err("Port has a non-IPv4 destination: '{0}'".format(dst['mac']))
             
         if src['ipv4'] is None:
-            return self.port.err('ARP Resolve - port does not have an IPv4 address configured')
+            return self.port.err('Port must have an IPv4 source address configured')
 
         # invalidate the current ARP resolution (if exists)
         return self.port.invalidate_arp()
@@ -1240,7 +1244,10 @@ class ARPResolver(Resolver):
 
         
         rc = self.port.set_arp_resolution(arp.psrc, arp.hwsrc)
-        return rc
+        if not rc:
+            return rc
+            
+        return self.port.ok('Port {0} - Recieved ARP reply from: {1}, hw: {2}'.format(self.port.port_id, arp.psrc, arp.hwsrc))
         
 
     def on_timeout_err (self, retries):
