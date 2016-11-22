@@ -57,7 +57,7 @@ TRexPortAttr::to_json(Json::Value &output) {
     if (get_src_ipv4() != 0) {
         output["src_ipv4"] = utl_uint32_to_ipv4(get_src_ipv4());
     } else {
-        output["src_ipv4"] = "none";
+        output["src_ipv4"] = Json::nullValue;
     }
 
 

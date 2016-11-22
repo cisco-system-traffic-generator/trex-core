@@ -847,7 +847,7 @@ class Port(object):
         info['src_mac'] = attr.get('src_mac', 'N/A')
             
         info['src_ipv4'] = attr.get('src_ipv4', 'N/A')
-        if info['src_ipv4'] == 'none':
+        if info['src_ipv4'] is None:
             info['src_ipv4'] = 'Not Configured'
 
         # dest
@@ -860,11 +860,11 @@ class Port(object):
             info['arp']  = dest.get('arp', 'N/A')
         
 
-        if info['dest'] == 'none':
+        if info['dest'] is None:
             info['dest'] = 'Not Configured'
 
             
-        if info['arp'] == 'none':
+        if info['arp'] is None:
             info['arp'] = 'unresolved'
      
             
@@ -896,10 +896,7 @@ class Port(object):
 
     def get_src_addr (self):
         src_mac = self.__attr['src_mac']
-        
         src_ipv4 = self.__attr['src_ipv4']
-        if src_ipv4 == 'none':
-            src_ipv4 = None
             
         return {'mac': src_mac, 'ipv4': src_ipv4}
         
@@ -915,8 +912,6 @@ class Port(object):
         elif dest['type'] == 'ipv4':
             dst_ipv4 = dest['addr']
             dst_mac  = dest['arp']
-            if dst_mac == 'none':
-                dst_mac = None
         else:
             assert(0)
                                        
@@ -1272,7 +1267,7 @@ class PingResolver(Resolver):
             return self.port.err('Ping - port does not have an IPv4 address configured')
             
         if dst['mac'] is None:
-            return self.port.err('Ping - port is not ARP resolved')
+            return self.port.err('Ping - port has an unresolved destination, cannot determine next hop MAC address')
         
         if self.ping_ip == src['ipv4']:
             return self.port.err('Ping - cannot ping own IP')

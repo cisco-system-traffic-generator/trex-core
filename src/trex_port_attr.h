@@ -126,7 +126,7 @@ public:
             if (is_resolved()) {
                 output["arp"] = utl_macaddr_to_str(m_mac);
             } else {
-                output["arp"] = "none";
+                output["arp"] = Json::nullValue;
             }
             break;
             
