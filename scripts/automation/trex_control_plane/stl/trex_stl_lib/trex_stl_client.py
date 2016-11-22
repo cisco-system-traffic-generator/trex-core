@@ -34,9 +34,10 @@ import os.path
 # logger API for the client
 class LoggerApi(object):
     # verbose levels
-    VERBOSE_QUIET   = 0
-    VERBOSE_REGULAR = 1
-    VERBOSE_HIGH    = 2
+    VERBOSE_QUIET         = 0
+    VERBOSE_REGULAR_SYNC  = 1
+    VERBOSE_REGULAR       = 2
+    VERBOSE_HIGH          = 3
 
     def __init__(self):
         self.level = LoggerApi.VERBOSE_REGULAR
@@ -64,7 +65,7 @@ class LoggerApi(object):
 
 
     # simple log message with verbose
-    def log (self, msg, level = VERBOSE_REGULAR, newline = True):
+    def log (self, msg, level = VERBOSE_REGULAR_SYNC, newline = True):
         if not self.check_verbose(level):
             return
 
@@ -92,19 +93,20 @@ class LoggerApi(object):
 
 
     # supress object getter
-    def supress (self):
+    def supress (self, level = VERBOSE_QUIET):
         class Supress(object):
-            def __init__ (self, logger):
+            def __init__ (self, logger, level):
                 self.logger = logger
+                self.level = level
 
             def __enter__ (self):
                 self.saved_level = self.logger.get_verbose()
-                self.logger.set_verbose(LoggerApi.VERBOSE_QUIET)
+                self.logger.set_verbose(self.level)
 
             def __exit__ (self, type, value, traceback):
                 self.logger.set_verbose(self.saved_level)
 
-        return Supress(self)
+        return Supress(self, level)
 
 
 
@@ -812,7 +814,7 @@ class STLClient(object):
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].resolve(retries))
+            rc.add(self.ports[port_id].arp_resolve(retries))
 
         return rc
 
@@ -1836,26 +1838,57 @@ class STLClient(object):
             Pings the server
 
             :parameters:
-                None
-
+                 none
 
             :raises:
                 + :exc:`STLError`
 
         """
-        self.resolve()
-        return
-     
+        
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
-        
+            
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
+        
 
+    @__api_check(True)
+    def ip_ping (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
+        """
+            Pings an IP address
 
+            :parameters:
+                 src_port - on which port_id to send the ICMP PING request
+                 dst_ipv4 - which IP to ping
+                 pkt_size - packet size to use
+                 count    - how many times to ping
+            :raises:
+                + :exc:`STLError`
+
+        """
+        self._validate_port_list(src_port)
+        
+        self.logger.pre_cmd("Pinging {0} bytes from port {1} to IPv4 {2}:".format(pkt_size,
+                                                                                  src_port,
+                                                                                  dst_ipv4))
+        
+        # no async messages
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.log('')
+            for i in range(count):
+                rc = self.ports[src_port].ping(ping_ipv4 = dst_ipv4, pkt_size = pkt_size, retries = 0)
+                if rc:
+                    self.logger.log(rc.data())
+                else:
+                    raise STLError(rc)
+                if i != (count - 1):
+                    time.sleep(1)
+        
+        
+        
     @__api_check(True)
     def server_shutdown (self, force = False):
         """
@@ -2128,7 +2161,7 @@ class STLClient(object):
         # warn if ports are not resolved
         unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
         if unresolved_ports and not force:
-            raise STLError("Port(s) {0} are unresolved - please resolve them or specify 'force'".format(unresolved_ports))
+            raise STLError("Port(s) {0} have unresolved destination addresses - please resolve them or specify 'force'".format(unresolved_ports))
         
         
     @__api_check(True)
@@ -2862,13 +2895,13 @@ class STLClient(object):
         """
         # by default - resolve all the ports that are configured with IPv4 dest
         if ports is None:
-            ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dest()['type'] == 'ipv4']
+            ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dst_addr()['ipv4'] is not None]
             if not ports:
-                raise STLError('No ports configured with destination as IPv4')
+                raise STLError('resolve - No ports configured with destination as IPv4')
             
         active_ports = list(set(self.get_active_ports()).intersection(ports))
         if active_ports:
-            raise STLError('Port(s) {0} are active'.format(active_ports))
+            raise STLError('resolve - Port(s) {0} are active, please stop them before resolving'.format(active_ports))
                      
         ports = self._validate_port_list(ports)
         
@@ -3062,10 +3095,29 @@ class STLClient(object):
 
     @__console
     def ping_line (self, line):
-        '''pings the server'''
-        self.ping()
-        return RC_OK()
+        '''pings the server / specific IP'''
+        
+        # no parameters - so ping server
+        if not line:
+            self.ping()
+            return True
+            
+        parser = parsing_opts.gen_parser(self,
+                                         "ping",
+                                         self.ping_line.__doc__,
+                                         parsing_opts.SOURCE_PORT,
+                                         parsing_opts.PING_IPV4,
+                                         parsing_opts.PKT_SIZE,
+                                         parsing_opts.COUNT)
 
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        # IP ping
+        self.ip_ping(opts.source_port, opts.ping_ipv4, opts.pkt_size, opts.count)
+
+        
     @__console
     def shutdown_line (self, line):
         '''shutdown the server'''
@@ -3670,7 +3722,7 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.RETRIES)
 
-        resolvable_ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dest()['type'] == 'ipv4']
+        resolvable_ports = [port_id for port_id in self.get_acquired_ports() if self.ports[port_id].get_dst_addr() is not None]
         
         opts = parser.parse_args(line.split(), default_ports = resolvable_ports, verify_acquired = True)
         if not opts:

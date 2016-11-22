@@ -8,6 +8,7 @@ from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
 from scapy.layers.l2 import Ether, ARP
+from scapy.layers.inet import IP, ICMP
 
 import base64
 import copy
@@ -54,7 +55,7 @@ class Port(object):
 
     def __init__ (self, port_id, user, comm_link, session_id, info):
         self.port_id = port_id
-
+        
         self.state = self.STATE_IDLE
         
         self.handler = None
@@ -523,7 +524,7 @@ class Port(object):
 
         return self.ok()
         
-        
+    
     @owned
     def remove_rx_sniffer (self):
         params = {"handler":        self.handler,
@@ -737,25 +738,6 @@ class Port(object):
             return self.ok()
         
         
-    @writeable
-    def add_arp_request (self):
-        ipv4 = self.__attr['src_ipv4']
-        dest = self.__attr['dest']
-        mac  = self.__attr['src_mac']
-        
-        if ipv4 == 'none':
-            return self.err('port must have a configured IPv4')
-        
-        if dest['type'] == 'mac':
-            return self.err('port must have an IPv4 destination')
-        
-            
-        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = ipv4, pdst = dest['addr'], hwsrc = mac)
-        s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
-    
-        return self.add_streams([s1])
-        
-        
     def print_profile (self, mult, duration):
         if not self.get_profile():
             return
@@ -910,35 +892,47 @@ class Port(object):
     def get_port_state_name(self):
         return self.STATES_MAP.get(self.state, "Unknown")
 
-    def get_src_ipv4 (self):
+    def get_src_addr (self):
+        src_mac = self.__attr['src_mac']
+        
         src_ipv4 = self.__attr['src_ipv4']
         if src_ipv4 == 'none':
             src_ipv4 = None
             
-        return src_ipv4 
-    
-    def get_dest (self):
-        return self.__attr['dest']
+        return {'mac': src_mac, 'ipv4': src_ipv4}
         
-    def get_src_mac (self):
-        return self.__attr['src_mac']
-    
         
-    def is_resolved (self):
-        dest = self.get_dest()
+    def get_dst_addr (self):
+        dest = self.__attr['dest']
+        
+        dst_ipv4 = None
+        dst_mac  = None
         
         if dest['type'] == 'mac':
-            return True
+            dst_mac = dest['addr']
         elif dest['type'] == 'ipv4':
-            return dest['arp'] != 'none'
+            dst_ipv4 = dest['addr']
+            dst_mac  = dest['arp']
+            if dst_mac == 'none':
+                dst_mac = None
         else:
-            # unsupported type
             assert(0)
+                                       
+            
+        return {'ipv4': dst_ipv4, 'mac' : dst_mac}
+  
+    
+    def is_resolved (self):
+        return (self.get_dst_addr()['mac'] != None)
         
         
-    def resolve (self, retries):
+    @writeable
+    def arp_resolve (self, retries):
         return ARPResolver(self).resolve(retries)
 
+    @writeable
+    def ping (self, ping_ipv4, pkt_size, retries):
+        return PingResolver(self, ping_ipv4, pkt_size).resolve(retries)
 
         
     ################# stats handler ######################
@@ -1079,83 +1073,81 @@ class Port(object):
     def async_event_released (self):
         self.owner = ''
 
-        
-# a class to handle port ARP resolution
-class ARPResolver(object):
-    def __init__ (self, port):
+ 
+# a generic abstract class for resolving using the server
+class Resolver(object):
+    def __init__ (self, port, queue_size = 100):
         self.port = port
+     
+    # code to execute before sending any request - return RC object
+    def pre_send (self):
+        raise NotImplementedError()
+        
+    # return a list of streams for request
+    def generate_request (self):
+        raise NotImplementedError()
+        
+    # return None for more packets otherwise RC object
+    def on_pkt_rx (self, pkt, dt):
+        raise NotImplementedError()
     
-    # some sanity checks before resolving
-    def sanity (self):
-        if self.port.get_dest()['type'] == 'mac':
-            return self.port.err('resolve -  port does not have an IPv4 as destination')
-            
-        if self.port.get_src_ipv4() is None:
-            return self.port.err('resolve - port does not have an IPv4 address configured')
+    # return value in case of timeout
+    def on_timeout_err (self, retries):
+        raise NotImplementedError()
     
-        return self.port.ok()
-             
-    
-    # safe call - make sure RX filter mode is restored
-    def resolve (self, retries):
+    ##################### API ######################
+    def resolve (self, retries = 0):
+
+        # first cleanup
+        rc = self.port.remove_all_streams()
+        if not rc:
+            return rc
+
+        # call the specific class implementation
+        rc = self.pre_send()
+        if not rc:
+            return rc
+
+        # start the iteration
         try:
+
+            # add the stream(s)
+            self.port.add_streams(self.generate_request())
+
             rc = self.port.set_attr(rx_filter_mode = 'all')
             if not rc:
                 return rc
+                
             rc = self.port.set_rx_queue(size = 100)
             if not rc:
                 return rc
             
             return self.resolve_wrapper(retries)
+            
         finally:
             # best effort restore
             self.port.set_attr(rx_filter_mode = 'hw')
             self.port.remove_rx_queue()
-        
-            
+            self.port.remove_all_streams()
+                
+    
     # main resolve function
     def resolve_wrapper (self, retries):
-        rc = self.sanity()
-        if not rc:
-            return rc
-        
-        # invalidate the current ARP resolution (if exists)
-        rc = self.port.invalidate_arp()
-        if not rc:
-            return rc
-     
-            
-        rc = self.port.remove_all_streams()
-        if not rc:
-            return rc
-     
-        
-        rc = self.port.add_arp_request()
-        if not rc:
-            return rc
-
             
         # retry for 'retries'
         index = 0
         while True:
-            response = self.resolve_iteration()
-            if response:
-                break
+            rc = self.resolve_iteration()
+            if rc is not None:
+                return rc
             
             if index >= retries:
-                return self.port.err('failed to receive ARP response ({0} retries)'.format(retries))
+                return self.on_timeout_err(retries)
                 
             index += 1
             time.sleep(0.1)
             
             
-        # set ARP resolution result
-        rc = self.port.set_arp_resolution(response['ipv4'], response['mac'])
-        if not rc:
-            return rc
-            
-        return self.port.ok()
-                
 
     def resolve_iteration (self):
         
@@ -1168,6 +1160,8 @@ class ARPResolver(object):
         while self.port.is_active():
             time.sleep(0.01)
 
+        self.tx_time = time.time()
+        
         return self.wait_for_rx_response()
         
              
@@ -1177,35 +1171,143 @@ class ARPResolver(object):
         polling = 5
         
         while polling > 0:
+            # fetch the queue
             rx_pkts = self.port.get_rx_queue_pkts()
-            response = self.find_arp_response(rx_pkts)
-            
-            if response:
-                return response
-            
+            dt = time.time() - self.tx_time
+            # for each packet - examine it
+            for pkt in rx_pkts:
+                rc = self.on_pkt_rx(pkt, dt)
+                if rc is not None:
+                    return rc
+                
             if polling == 0:
                 return None
                 
             polling -= 1
             time.sleep(0.1)
-        
           
-    # search in 'pkts' for an ARP response that matches the dest
-    def find_arp_response (self, pkts):
+ 
+        
+        
+        
+class ARPResolver(Resolver):
+    def __init__ (self, port_id):
+        super(ARPResolver, self).__init__(port_id)
+        
+    # before resolve
+    def pre_send (self):
+        dst = self.port.get_dst_addr()
+        src = self.port.get_src_addr()
+        
+        if dst['ipv4'] is None:
+            return self.port.err('ARP resolve -  port does not have an IPv4 as destination')
+            
+        if src['ipv4'] is None:
+            return self.port.err('ARP Resolve - port does not have an IPv4 address configured')
 
-        for pkt in pkts:
-            scapy_pkt = Ether(pkt)
-            if not 'ARP' in scapy_pkt:
-                continue
+        # invalidate the current ARP resolution (if exists)
+        return self.port.invalidate_arp()
+        
 
-            arp = scapy_pkt['ARP']
-            dest = self.port.get_dest()
+    # return a list of streams for request
+    def generate_request (self):
+                
+        dst       = self.port.get_dst_addr()
+        src       = self.port.get_src_addr()
+        
+        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = src['ipv4'], pdst = dst['ipv4'], hwsrc = src['mac'])
+        s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
 
-            # check this is the right ARP (ARP reply with the address)
-            if (arp.op != 2) or (arp.psrc != dest['addr']):
-                continue
+        return [s1]
 
-            return {'ipv4': arp.psrc, 'mac': arp.hwsrc}
 
-        return None
-       
+    # return None in case more packets are needed else the status rc
+    def on_pkt_rx (self, pkt, dt):
+        scapy_pkt = Ether(pkt)
+        if not 'ARP' in scapy_pkt:
+            return None
+
+        arp = scapy_pkt['ARP']
+        dst = self.port.get_dst_addr()
+
+        # check this is the right ARP (ARP reply with the address)
+        if (arp.op != 2) or (arp.psrc != dst['ipv4']):
+            return None
+
+        
+        rc = self.port.set_arp_resolution(arp.psrc, arp.hwsrc)
+        return rc
+        
+
+    def on_timeout_err (self, retries):
+        return self.port.err('failed to receive ARP response ({0} retries)'.format(retries))
+
+
+        
+ 
+    #################### ping resolver ####################
+           
+class PingResolver(Resolver):
+    def __init__ (self, port, ping_ip, pkt_size):
+        super(PingResolver, self).__init__(port)
+        self.ping_ip = ping_ip
+        self.pkt_size = pkt_size
+                
+    def pre_send (self):
+            
+        src = self.port.get_src_addr()
+        dst = self.port.get_dst_addr()
+        if src['ipv4'] is None:
+            return self.port.err('Ping - port does not have an IPv4 address configured')
+            
+        if dst['mac'] is None:
+            return self.port.err('Ping - port is not ARP resolved')
+        
+        if self.ping_ip == src['ipv4']:
+            return self.port.err('Ping - cannot ping own IP')
+            
+        return self.port.ok()
+            
+        
+    # return a list of streams for request
+    def generate_request (self):
+                    
+        src = self.port.get_src_addr()
+        dst = self.port.get_dst_addr()
+              
+        base_pkt = Ether(dst = dst['mac'])/IP(src = src['ipv4'], dst = self.ping_ip)/ICMP(type = 8)
+        pad = max(0, self.pkt_size - len(base_pkt))
+        
+        base_pkt = base_pkt / (pad * 'x')
+        
+        #base_pkt.show2()
+        s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
+
+        return [s1]
+        
+    # return None for more packets otherwise RC object
+    def on_pkt_rx (self, pkt, dt):
+        scapy_pkt = Ether(pkt)
+        if not 'ICMP' in scapy_pkt:
+            return None
+        
+        #scapy_pkt.show2()    
+        ip = scapy_pkt['IP']
+        
+        icmp = scapy_pkt['ICMP']
+        if icmp.type == 0:
+            # echo reply
+            return self.port.ok('Reply from {0}: bytes={1}, time={2:.2f}ms, TTL={3}'.format(ip.src, len(pkt), dt * 1000, ip.ttl))
+            
+        # unreachable
+        elif icmp.type == 3:
+            return self.port.ok('destination {0} is unreachable'.format(icmp.dst))
+        else:
+            scapy_pkt.show2()
+            return self.port.err('unknown ICMP reply')
+            
+            
+    
+    # return the str of a timeout err
+    def on_timeout_err (self, retries):
+        return self.port.ok('Request timed out.')

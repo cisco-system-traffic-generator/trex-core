@@ -55,6 +55,9 @@ DEST = 36
 RETRIES = 37
 
 RX_FILTER_MODE = 38
+SOURCE_PORT = 39
+PING_IPV4 = 40
+PKT_SIZE = 41
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -235,6 +238,16 @@ def check_ipv4_addr (ipv4_str):
 
     return ipv4_str
 
+def check_pkt_size (pkt_size):
+    try:
+        pkt_size = int(pkt_size)
+    except ValueError:
+        raise argparse.ArgumentTypeError("invalid packet size type: '{0}'".format(pkt_size))
+        
+    if (pkt_size < 64) or (pkt_size > 9000):
+        raise argparse.ArgumentTypeError("invalid packet size: '{0}' - valid range is 64 to 9000".format(pkt_size))
+    
+    return pkt_size
     
 def check_dest_addr (addr):
     if not (is_valid_ipv4(addr) or is_valid_mac(addr)):
@@ -405,6 +418,26 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'help': "A list of ports on which to apply the command",
                                          'default': []}),
 
+              
+              SOURCE_PORT: ArgumentPack(['--port', '-p'],
+                                        {'dest':'source_port',
+                                         'type': int,
+                                         'help': 'source port for the action',
+                                         'required': True}),
+              
+              PING_IPV4: ArgumentPack(['-d'],
+                                      {'help': 'which IPv4 to ping',
+                                      'dest': 'ping_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
+              PKT_SIZE: ArgumentPack(['-s'],
+                                     {'dest':'pkt_size',
+                                      'help': 'packet size to use',
+                                      'default': 64,
+                                      'type': check_pkt_size}),
+              
+              
               ALL_PORTS: ArgumentPack(['-a'],
                                         {"action": "store_true",
                                          "dest": "all_ports",
