@@ -292,7 +292,7 @@ TOC_HEAD = """
     <!-- load the theme CSS file -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
     
-    <link href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
+    <link href="https://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
     
     <!-- include the jQuery library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
@@ -891,9 +891,9 @@ def build_cp(bld,dir,root,callback):
 def create_analytic_report(task):
     try:
         import AnalyticsWebReport as analytics
-        analytics.main()
-    except:
-        raise Exception('Error importing or using AnalyticsWebReport script')
+        analytics.main(verbose = Logs.verbose)
+    except Exception as e:
+        raise Exception('Error importing or using AnalyticsWebReport script: %s' % e)
 
 
 
@@ -923,6 +923,7 @@ def build(bld):
 
     if bld.options.performance:
         bld(rule=create_analytic_report)
+        bld.add_group()
         bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
         return
 

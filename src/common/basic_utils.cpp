@@ -178,6 +178,13 @@ void TestDump(void){
     utl_DumpBuffer2(stdout,buffer,31,1,4,SHOW_BUFFER_ADDR_EN |SHOW_BUFFER_CHAR);
 }
 
+std::string
+utl_macaddr_to_str(const uint8_t *mac) {
+    std::string tmp;
+    utl_macaddr_to_str(mac, tmp);
+    return tmp;
+}
+
 void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
     
     for (int i = 0; i < 6; i++) {

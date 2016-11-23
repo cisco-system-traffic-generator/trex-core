@@ -486,11 +486,11 @@ public:
 
 
 private:
-    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, 
-                               uint16_t type, uint8_t ttl, 
-                               uint16_t ip_id, 
+    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id,
+                               uint16_t type, uint8_t ttl,
+                               uint16_t ip_id,
                                uint8_t l4_proto,
-                               int queue, 
+                               int queue,
                                uint16_t stat_idx);
     virtual int configure_rx_filter_rules_statfull(CPhyEthIF * _if);
 
@@ -1122,6 +1122,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     if ( get_is_stateless() ) {
         if ( opt_vlan_was_set ) {
             po->preview.set_vlan_mode_enable(true);
+        }
+        if (CGlobalInfo::m_options.client_cfg_file != "") {
+            parse_err("Client config file is not supported with interactive (stateless) mode ");
         }
         if ( po->m_duration ) {
             parse_err("Duration is not supported with interactive (stateless) mode ");
@@ -1970,7 +1973,7 @@ public:
     __attribute__ ((noinline)) void handle_rx_queue();
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
-    void apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
+    void apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
 
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
@@ -2361,12 +2364,12 @@ int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
     return (-1);
 }
 
-void CCoreEthIF::apply_client_cfg(const ClientCfg *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
+void CCoreEthIF::apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
 
     assert(cfg);
 
     /* take the right direction config */
-    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {
@@ -3181,74 +3184,162 @@ void CGlobalTRex::pre_test() {
     CPretest pretest(m_max_ports);
     bool resolve_needed = false;
     uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
+    bool need_grat_arp[TREX_MAX_PORTS];
+
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        std::vector<ClientCfgCompactEntry *> conf;
+        m_fl.get_client_cfg_ip_list(conf);
+
+        // If we got src MAC for port in global config, take it, otherwise use src MAC from DPDK
+        uint8_t port_macs[m_max_ports][ETHER_ADDR_LEN];
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
+            if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
+                rte_eth_macaddr_get(port_id,
+                                    (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+            }
+            memcpy(port_macs[port_id], CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, ETHER_ADDR_LEN);
+        }
+
+        for (std::vector<ClientCfgCompactEntry *>::iterator it = conf.begin(); it != conf.end(); it++) {
+            uint8_t port = (*it)->get_port();
+            uint16_t vlan = (*it)->get_vlan();
+            uint32_t count = (*it)->get_count();
+            uint32_t dst_ip = (*it)->get_dst_ip();
+            uint32_t src_ip = (*it)->get_src_ip();
+
+            for (int i = 0; i < count; i++) {
+                //??? handle ipv6;
+                if ((*it)->is_ipv4()) {
+                    pretest.add_next_hop(port, dst_ip + i, vlan);
+                }
+            }
+            if (!src_ip) {
+                src_ip = CGlobalInfo::m_options.m_ip_cfg[port].get_ip();
+                if (!src_ip) {
+                    fprintf(stderr, "No matching src ip for port: %d ip:%s vlan: %d\n"
+                            , port, ip_to_str(dst_ip).c_str(), vlan);
+                    fprintf(stderr, "You must specify src_ip in client config file or in TRex config file\n");
+                    exit(1);
+                }
+            }
+            pretest.add_ip(port, src_ip, vlan, port_macs[port]);
+            COneIPv4Info ipv4(src_ip, vlan, port_macs[port], port);
+            m_mg.add_grat_arp_src(ipv4);
+
+            delete *it;
+        }
+        if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+            fprintf(stdout, "*******Pretest for client cfg********\n");
+            pretest.dump(stdout);
+            }
+    } else {
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
+                resolve_needed = true;
+            } else {
+                resolve_needed = false;
+            }
+            if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
+                rte_eth_macaddr_get(port_id,
+                                    (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+                need_grat_arp[port_id] = true;
+            } else {
+                // If we got src MAC from config file, do not send gratuitous ARP for it
+                // (for compatibility with old behaviour)
+                need_grat_arp[port_id] = false;
+            }
+
+            pretest.add_ip(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
+                           , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan()
+                           , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
+
+            if (resolve_needed) {
+                pretest.add_next_hop(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw()
+                                     , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+            }
+        }
+    }
 
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
         CPhyEthIF *pif = &m_ports[port_id];
         // Configure port to send all packets to software
         CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, true);
-        if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
-            resolve_needed = true;
-        } else {
-            resolve_needed = false;
-        }
-        if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
-            rte_eth_macaddr_get(port_id,
-                                (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
-            CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(true);
-        }  else {
-            // If we got src MAC from config file, do not send gratuitous ARP for it (for compatibility with old behaviour)
-            CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
-        }
-        pretest.set_port_params(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id]
-                                , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
-                                , resolve_needed);
     }
+
 
     pretest.send_grat_arp_all();
     bool ret;
     int count = 0;
+    bool resolve_failed = false;
     do {
         ret = pretest.resolve_all();
         count++;
     } while ((ret != true) && (count < 10));
+    if (ret != true) {
+        resolve_failed = true;
+    }
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0) {
+    if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+        fprintf(stdout, "*******Pretest after resolving ********\n");
         pretest.dump(stdout);
     }
-    uint8_t mac[ETHER_ADDR_LEN];
-    for (int port_id = 0; port_id < m_max_ports; port_id++) {
-        if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
-            // we don't have dest MAC. Get it from what we resolved.
-            uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-            if (! pretest.get_mac(port_id, ip, mac)) {
-                fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
-                        , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
-                exit(1);
+
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        CManyIPInfo pretest_result;
+        pretest.get_results(pretest_result);
+        if (resolve_failed) {
+            fprintf(stderr, "Resolution of following IPs failed. Exiting.\n");
+            for (const COneIPInfo *ip=pretest_result.get_next(); ip != NULL;
+                   ip = pretest_result.get_next()) {
+                ip->dump(stderr);
             }
-            memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
-             
-            // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
-            if (pretest.is_loopback(port_id))
-                CGlobalInfo::m_options.m_ip_cfg[port_id].set_grat_arp_needed(false);
+            exit(-1);
+        }
+        m_fl.set_client_config_resolved_macs(pretest_result);
+        if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+            m_fl.dump_client_config(stdout);
         }
 
-        // update statistics baseline, so we can ignore what happened in pre test phase
-        CPhyEthIF *pif = &m_ports[port_id];
-        CPreTestStats pre_stats = pretest.get_stats(port_id);
-        pif->set_ignore_stats_base(pre_stats);
+    } else {
+        uint8_t mac[ETHER_ADDR_LEN];
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
+                // we don't have dest MAC. Get it from what we resolved.
+                uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
+                uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+                if (! pretest.get_mac(port_id, ip, vlan, mac)) {
+                    fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
+                            , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
+                    exit(1);
+                }
+                memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
+                // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
+                if (need_grat_arp[port_id] && (! pretest.is_loopback(port_id))) {
+                    COneIPv4Info ipv4(CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
+                                      , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan()
+                                      , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src
+                                      , port_id);
+                    m_mg.add_grat_arp_src(ipv4);
+                }
+            }
 
-        // Configure port back to normal mode. Only relevant packets handled by software.
-        CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
-        
+            // update statistics baseline, so we can ignore what happened in pre test phase
+            CPhyEthIF *pif = &m_ports[port_id];
+            CPreTestStats pre_stats = pretest.get_stats(port_id);
+            pif->set_ignore_stats_base(pre_stats);
 
-        /* set resolved IPv4 */
-        uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-        const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
-        if (dg) {
-            m_ports[port_id].get_port_attr()->get_dest().set_dest_ipv4(dg, dst_mac);
-        } else {
-            m_ports[port_id].get_port_attr()->get_dest().set_dest_mac(dst_mac);
-        }
+            // Configure port back to normal mode. Only relevant packets handled by software.
+            CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
+
+           /* set resolved IPv4 */
+           uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
+           const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
+           if (dg) {
+               m_ports[port_id].get_port_attr()->get_dest().set_dest_ipv4(dg, dst_mac);
+           } else {
+               m_ports[port_id].get_port_attr()->get_dest().set_dest_mac(dst_mac);
+           }
         
 
     }
@@ -4744,6 +4835,8 @@ int CGlobalTRex::start_master_statefull() {
             exit(-1);
         }
         CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
+        m_fl.set_client_config_tuple_gen_info(&m_fl.m_yaml_info.m_tuple_gen);
+        pre_test();
     }
 
     /* verify options */
@@ -5485,7 +5578,10 @@ int main_test(int argc , char * argv[]){
         }
     }
 
-    g_trex.pre_test();
+    // in case of client config, we already run pretest
+    if (! CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        g_trex.pre_test();
+    }
 
     // after doing all needed ARP resolution, we need to flush queues, and stop our drop queue
     g_trex.ixgbe_rx_queue_flush();
@@ -6442,15 +6538,15 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos=0x01;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.proto=0xff;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc=0x01;
-    
+
 }
 
-void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, 
-                                                  uint8_t ttl, 
-                                                  uint16_t ip_id, 
-                                                  uint8_t l4_proto, 
+void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type,
+                                                  uint8_t ttl,
+                                                  uint16_t ip_id,
+                                                  uint8_t l4_proto,
                                                   int queue, uint16_t stat_idx) {
-    /* Mellanox card does not have TTL support, 
+    /* Mellanox card does not have TTL support,
       so we will replace it in low level with TOS */
 
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
@@ -6520,8 +6616,8 @@ int CTRexExtendedDriverBaseMlnx5G::add_del_rx_flow_stat_rule(uint8_t port_id, en
 int CTRexExtendedDriverBaseMlnx5G::configure_rx_filter_rules_statfull(CPhyEthIF * _if) {
     uint32_t port_id = _if->get_port_id();
     /* TTL==TOS */
-    
-    /*PID=1 ==> MASK TOS=0x1/0x1*/                                                                                
+
+    /*PID=1 ==> MASK TOS=0x1/0x1*/
     add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0x1,  1, 17, MAIN_DPDK_RX_Q, 0); /*TCP/UDP */
     add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0x1,  1, 6, MAIN_DPDK_RX_Q, 0);
     add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0x1,  1, 132, MAIN_DPDK_RX_Q, 0); /*SCTP*/
@@ -6586,7 +6682,7 @@ void CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIF
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
     stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes + 
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes +
         + (stats1.ipackets << 2) - (prev_stats->ipackets << 2);
     stats->opackets += stats1.opackets - prev_stats->opackets;
     stats->obytes   += stats1.obytes - prev_stats->obytes
@@ -6760,7 +6856,7 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     return 0;
 }
 
-extern "C" int enicpmd_dev_get_fw_support(int port_id, 
+extern "C" int enicpmd_dev_get_fw_support(int port_id,
                                           uint32_t *ver);
 
 
@@ -6771,7 +6867,7 @@ int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
 
     if (ret==0) {
         if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
-            printf("VIC port %d: FW support advanced filtering \n", port_id); 
+            printf("VIC port %d: FW support advanced filtering \n", port_id);
         }
     }else{
         printf("Error: VIC firmware should upgrade to support advanced filtering \n");
@@ -6807,7 +6903,7 @@ int CTRexExtendedDriverBaseVIC::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
 int CTRexExtendedDriverBaseVIC::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd)
 {
  //printf(" NOT supported yet \n");
- return (0);    
+ return (0);
 }
 
 

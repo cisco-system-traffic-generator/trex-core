@@ -44,6 +44,7 @@ limitations under the License.
 #include <common/bitMan.h>
 #include <yaml-cpp/yaml.h>
 #include "trex_defs.h"
+#include "utl_ip.h"
 #include "os_time.h"
 #include "pal_utl.h"
 #include "rx_check_header.h"
@@ -71,12 +72,6 @@ class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
-
-/* IP address, last 32-bits of IPv6 remaps IPv4 */
-typedef struct {
-    uint16_t v6[6];  /* First 96-bits of IPv6 */
-    uint32_t v4;  /* Last 32-bits IPv6 overloads v4 */
-} ipaddr_t;
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
@@ -174,38 +169,6 @@ typedef enum { VM_REPLACE_IP_OFFSET =0x12, /* fix ip at offset  */
 
 /* work only on x86 littel */
 #define	MY_B(b)	(((int)b)&0xff)
-
-// Routine to create IPv4 address string
-inline int ip_to_str(uint32_t ip,char * str){
-    uint32_t ipv4 = PKT_HTONL(ip);
-    inet_ntop(AF_INET, (const char *)&ipv4, str, INET_ADDRSTRLEN);
-    return(strlen(str));
-}
-
-inline std::string ip_to_str(uint32_t ip) {
-    char tmp[INET_ADDRSTRLEN];
-    ip_to_str(ip, tmp);
-    return tmp;
-}
-
-// Routine to create IPv6 address string
-inline int ipv6_to_str(ipaddr_t *ip,char * str){
-    int idx=0;
-    uint16_t ipv6[8];
-    for (uint8_t i=0; i<6; i++) {
-        ipv6[i] = PKT_HTONS(ip->v6[i]);
-    }
-    uint32_t ipv4 = PKT_HTONL(ip->v4);
-    ipv6[6] = ipv4 & 0xffff;
-    ipv6[7] = ipv4 >> 16;
-
-    str[idx++] = '[';
-    inet_ntop(AF_INET6, (const char *)&ipv6, &str[1], INET6_ADDRSTRLEN);
-    idx = strlen(str);
-    str[idx++] = ']';
-    str[idx] = 0;
-    return(idx);
-}
 
 class CFlowPktInfo ;
 
@@ -694,19 +657,16 @@ class CPerPortIPCfg {
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
     uint32_t get_vlan() {return m_vlan;}
-    bool grat_arp_needed() {return m_grat_arp_needed;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
     void set_vlan(uint16_t val) {m_vlan = val;}
-    void set_grat_arp_needed(bool val) {m_grat_arp_needed = val;}
 
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
-    bool m_grat_arp_needed;
 };
 
 class CParserOption {
@@ -1564,7 +1524,7 @@ public:
     uint32_t            m_nat_tcp_seq_diff_server; // And some do seq num randomization for server->client also
     uint16_t            m_nat_external_port; // NAT client port
     uint16_t            m_nat_pad[1];
-    const ClientCfg    *m_client_cfg;
+    const ClientCfgBase *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1889,7 +1849,7 @@ typedef std::priority_queue<CGenNode *, std::vector<CGenNode *>,CGenNodeCompare>
 
 
 class CErfIF : public CVirtualIF {
-
+    friend class basic_client_cfg_test1_Test;
 public:
     CErfIF(){
         m_writer=NULL;
@@ -1928,7 +1888,7 @@ public:
 
 protected:
     void add_vlan(uint16_t vlan_id);
-    void apply_client_config(const ClientCfg *cfg, pkt_dir_t dir);
+    void apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;
@@ -4031,6 +3991,10 @@ public:
 
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
     int load_client_config_file(std::string file_name);
+    void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);
+    void get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret);
+    void set_client_config_resolved_macs(CManyIPInfo &pretest_result);
+    void dump_client_config(FILE *fd);
 
 public:
     void Dump(FILE *fd);
