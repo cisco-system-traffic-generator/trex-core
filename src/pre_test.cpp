@@ -137,9 +137,13 @@ bool CPretestOnePortInfo::get_mac(COneIPInfo *ip, uint8_t *mac) {
         default:
             assert(0);
         }
-
-        (*it)->get_mac(mac);
-        return true;
+        
+        if ((*it)->resolve_needed()) {
+            return false;
+        } else {
+            (*it)->get_mac(mac);
+            return true;
+        }
     }
 
     return false;

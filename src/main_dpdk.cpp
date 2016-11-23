@@ -3308,11 +3308,20 @@ void CGlobalTRex::pre_test() {
                 // we don't have dest MAC. Get it from what we resolved.
                 uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
                 uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
-                if (! pretest.get_mac(port_id, ip, vlan, mac)) {
+
+                if (!pretest.get_mac(port_id, ip, vlan, mac)) {
                     fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
                             , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
-                    exit(1);
+                    
+                    if (get_is_stateless()) {
+                        continue;
+                    } else {
+                        exit(1);
+                    }
                 }
+
+                
+                
                 memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
                 // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
                 if (need_grat_arp[port_id] && (! pretest.is_loopback(port_id))) {
@@ -3341,7 +3350,7 @@ void CGlobalTRex::pre_test() {
                m_ports[port_id].get_port_attr()->get_dest().set_dest_mac(dst_mac);
            }
         
-
+        }
     }
 }
 
