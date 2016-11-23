@@ -57,7 +57,8 @@ RETRIES = 37
 RX_FILTER_MODE = 38
 SOURCE_PORT = 39
 PING_IPV4 = 40
-PKT_SIZE = 41
+PING_COUNT = 41
+PKT_SIZE = 42
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -431,6 +432,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       'required': True,
                                       'type': check_ipv4_addr}),
               
+              PING_COUNT: ArgumentPack(['-n', '--count'],
+                                       {'help': 'How many times to ping [default is 5]',
+                                        'dest': 'count',
+                                        'default':  5,
+                                        'type': int}),
+                  
               PKT_SIZE: ArgumentPack(['-s'],
                                      {'dest':'pkt_size',
                                       'help': 'packet size to use',

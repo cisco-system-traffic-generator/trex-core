@@ -1765,6 +1765,9 @@ class STLClient(object):
             self.__release(ports)
             raise STLError(rc)
 
+        for port_id in ports:
+            if not self.ports[port_id].is_resolved():
+                self.logger.log(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
 
     @__api_check(True)
     def release (self, ports = None):
@@ -3118,7 +3121,7 @@ class STLClient(object):
                                          parsing_opts.SOURCE_PORT,
                                          parsing_opts.PING_IPV4,
                                          parsing_opts.PKT_SIZE,
-                                         parsing_opts.COUNT)
+                                         parsing_opts.PING_COUNT)
 
         opts = parser.parse_args(line.split())
         if not opts:
