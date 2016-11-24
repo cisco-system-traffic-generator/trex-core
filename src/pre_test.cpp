@@ -121,6 +121,8 @@ COneIPv6Info *CPretestOnePortInfo::find_ipv6(uint16_t ip[8], uint16_t vlan) {
 }
 
 bool CPretestOnePortInfo::get_mac(COneIPInfo *ip, uint8_t *mac) {
+    MacAddress defaultmac;
+
     for (std::vector<COneIPInfo *>::iterator it = m_dst_info.begin(); it != m_dst_info.end(); ++it) {
         if (ip->ip_ver() != (*it)->ip_ver())
             continue;
@@ -139,7 +141,11 @@ bool CPretestOnePortInfo::get_mac(COneIPInfo *ip, uint8_t *mac) {
         }
 
         (*it)->get_mac(mac);
-        return true;
+        if (! memcmp(mac, defaultmac.GetConstBuffer(), ETHER_ADDR_LEN)) {
+            return false;
+        } else {
+            return true;
+        }
     }
 
     return false;
@@ -361,7 +367,7 @@ bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_
     EthernetHeader *m_ether = (EthernetHeader *)p;
     vlan_tag = 0;
 
-    if ((pkt_size < 60) ||
+    if ((pkt_size < sizeof(EthernetHeader)) ||
         ((m_ether->getNextProtocol() != EthernetHeader::Protocol::ARP)
          && (m_ether->getNextProtocol() != EthernetHeader::Protocol::VLAN)))
         return false;
