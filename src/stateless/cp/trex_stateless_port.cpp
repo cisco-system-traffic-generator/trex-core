@@ -967,7 +967,7 @@ TrexStatelessPort::stop_rx_queue() {
 }
 
 
-RxPacketBuffer *
+RXPacketBuffer *
 TrexStatelessPort::get_rx_queue_pkts() {
 
     if (m_rx_features_info.m_rx_queue_info.is_empty()) {
@@ -975,12 +975,12 @@ TrexStatelessPort::get_rx_queue_pkts() {
     }
 
     /* ask RX core for the pkt queue */
-    TrexStatelessMsgReply<RxPacketBuffer *> msg_reply;
+    TrexStatelessMsgReply<RXPacketBuffer *> msg_reply;
 
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxQueueGetPkts(m_port_id, msg_reply);
     send_message_to_rx(msg);
 
-    RxPacketBuffer *pkt_buffer = msg_reply.wait_for_reply();
+    RXPacketBuffer *pkt_buffer = msg_reply.wait_for_reply();
     return pkt_buffer;
 }
 

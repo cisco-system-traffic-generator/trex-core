@@ -32,7 +32,7 @@ class TrexStatelessDpCore;
 class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
-class RxPacketBuffer;
+class RXPacketBuffer;
 
 /**
  * defines the base class for CP to DP messages
@@ -524,7 +524,7 @@ private:
 class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
 public:
 
-    TrexStatelessRxQueueGetPkts(uint8_t port_id, TrexStatelessMsgReply<RxPacketBuffer *> &reply) : m_reply(reply) {
+    TrexStatelessRxQueueGetPkts(uint8_t port_id, TrexStatelessMsgReply<RXPacketBuffer *> &reply) : m_reply(reply) {
         m_port_id = port_id;
     }
 
@@ -536,7 +536,7 @@ public:
 
 private:
     uint8_t                                    m_port_id;
-    TrexStatelessMsgReply<RxPacketBuffer*>    &m_reply;
+    TrexStatelessMsgReply<RXPacketBuffer*>    &m_reply;
 };
 
 

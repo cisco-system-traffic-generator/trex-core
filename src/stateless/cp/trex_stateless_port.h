@@ -31,7 +31,7 @@ class TrexStatelessCpToDpMsgBase;
 class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
-class RxPacketBuffer;
+class RXPacketBuffer;
 
 
 /**
@@ -406,7 +406,7 @@ public:
      * fetch the RX queue packets from the queue
      * 
      */
-    RxPacketBuffer *get_rx_queue_pkts();
+    RXPacketBuffer *get_rx_queue_pkts();
 
     /**
      * return the port attribute object

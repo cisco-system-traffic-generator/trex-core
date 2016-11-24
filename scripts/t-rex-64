@@ -26,7 +26,7 @@ cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD
 
 #Add dummy lib in case we don't find it, e.g. there is no OFED installed  
-if ldd _t-rex-64  | grep "libibverbs.so" | grep -q "not found"; then 
+if ldd _$(basename $0)  | grep "libibverbs.so" | grep -q "not found"; then 
 export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs                           
 fi
             

@@ -1880,9 +1880,9 @@ class STLClient(object):
         """
         self._validate_port_list(src_port)
         
-        self.logger.pre_cmd("Pinging {0} bytes from port {1} to IPv4 {2}:".format(pkt_size,
-                                                                                  src_port,
-                                                                                  dst_ipv4))
+        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
+                                                                                       src_port,
+                                                                                       pkt_size))
         
         # no async messages
         with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):

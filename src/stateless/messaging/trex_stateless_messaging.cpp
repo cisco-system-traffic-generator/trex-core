@@ -288,7 +288,7 @@ TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
 
 
 bool TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
-    RxPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
+    RXPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
     assert(pkt_buffer);
     m_reply.set(pkt_buffer);
 
