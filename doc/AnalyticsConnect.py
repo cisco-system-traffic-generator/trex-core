@@ -147,36 +147,3 @@ def main():
 if __name__ == '__main__':
   main()
 
-"""
-    response = {u'reports': [{u'columnHeader': {u'dimensions': [u'ga:dimension1',
-                                                 u'ga:dimension2',
-                                                 u'ga:dimension3',
-                                                 u'ga:dimension4'],
-                                 u'metricHeader': {u'metricHeaderEntries': [{u'name': u'ga:metric1',
-                                                                             u'type': u'CURRENCY'}]}},
-               u'data': {u'isDataGolden': True,
-                         u'maximums': [{u'values': [u'8532.0']}],
-                         u'minimums': [{u'values': [u'2133.0']}],
-                         u'rowCount': 4,
-                         u'rows': [{u'dimensions': [u'test_name_to_date_9-10-161',
-                                                    u'State_Less',
-                                                    u'Setup_Name1',
-                                                    u'Test_Type'],
-                                    u'metrics': [{u'values': [u'2133.0']}]},
-                                   {u'dimensions': [u'test_name_to_date_9-10-162',
-                                                    u'State_Less',
-                                                    u'Setup_Name2',
-                                                    u'Test_Type'],
-                                    u'metrics': [{u'values': [u'4266.0']}]},
-                                   {u'dimensions': [u'test_name_to_date_9-10-163',
-                                                    u'State_Less',
-                                                    u'Setup_Name3',
-                                                    u'Test_Type'],
-                                    u'metrics': [{u'values': [u'6399.0']}]},
-                                   {u'dimensions': [u'test_name_to_date_9-10-164',
-                                                    u'State_Less',
-                                                    u'Setup_Name4',
-                                                    u'Test_Type'],
-                                    u'metrics': [{u'values': [u'8532.0']}]}],
-                         u'totals': [{u'values': [u'21330.0']}]}}]}
-	"""

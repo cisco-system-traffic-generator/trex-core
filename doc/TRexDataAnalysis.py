@@ -91,5 +91,7 @@ def create_all_data_per_setup(setup_dict, setup_name, start_date, end_date, show
 
 def create_all_data(ga_data, setup_names, start_date, end_date, save_path='', add_stats=''):
     for setup_name in setup_names:
+        if setup_name == 'trex11':
+            continue
         create_all_data_per_setup(ga_data[setup_name], setup_name, start_date, end_date, show='no', save_path=save_path,
                                   add_stats=add_stats)

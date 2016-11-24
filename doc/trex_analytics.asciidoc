@@ -22,13 +22,17 @@ endif::backend-xhtml11[]
 
 
 = Analytics
+/////////////////////////////////////////////////////////////////////////////////
 == Setup: TRex07
 .Setup Details
-[options='header',halign='center']
-|====================================================================================================================
-|Name |OS |NICs |Routers 
-| trex07 | Fedora 18| 2x10G (X710) (8 interfaces), 1x10G (2 interfaces), 1x1G (4 interfaces) | Loopback on X710 + ASA 5520 + ASA 5512 + ASA 5585-ssp10
-|====================================================================================================================
+[options='header',halign='center',cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2 x Intel Corporation Ethernet Controller X710 
+| OS:     | Fedora 18
+|=================
 
 image:images/trex07_latest_test_runs.png[title="trex07 test runs",align="left",width={p_width}, link="images/trex07_latest_test_runs.png"]
  
@@ -45,14 +49,18 @@ image:images/trex07trend_graph.png[title="trex07trend_graph",align="left",width=
 |===
 include::build/images/trex07_trend_stats.csv[]
 |===
-
+////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
 == Setup: TRex08
 .Setup Details
-[options='header',halign='center']
-|====================================================================================================================
-|Name |OS |NICs |Routers 
-| trex08 | Fedora 18| 2x10G (X710) (8 interfaces), 1x10G (2 interfaces), 1x1G (4 interfaces) | Loopback on X710 + ASA 5520 + ASA 5512 + ASA 5585-ssp10
-|====================================================================================================================
+[options='header',halign='center',cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2 x Intel Corporation Ethernet Controller X710 
+| OS:     | Fedora 18
+|=================
 
 image:images/trex08_latest_test_runs.png[title="trex08 test runs",align="left",width={p_width}, link="images/trex08_latest_test_runs.png"]
  
@@ -69,15 +77,19 @@ image:images/trex08trend_graph.png[title="trex08trend_graph",align="left",width=
 |===
 include::build/images/trex08_trend_stats.csv[]
 |===
-
+//////////////////////////////////////////////////////////////////////
 
 == Setup: TRex09
 .Setup Details
-[options='header',halign='center']
-|====================================================================================================================
-|Name |OS |NICs |Routers 
-| trex09 | Fedora 18| 2x10G (X710) (8 interfaces), 1x10G (2 interfaces), 1x1G (4 interfaces) | Loopback on X710 + ASA 5520 + ASA 5512 + ASA 5585-ssp10
-|====================================================================================================================
+[options='header',halign='center',cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2x10G (X710) (8 interfaces) 
+| OS:     | Fedora 18
+|=================
+
 
 image:images/trex09_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/trex09_latest_test_runs.png"]
  
@@ -94,7 +106,7 @@ image:images/trex09trend_graph.png[title="trex09trend_graph",align="left",width=
 |===
 include::build/images/trex09_trend_stats.csv[]
 |===
-
+//////////////////////////////////////////////////////////
 == Setup: TRex11
 .Setup Details
 [options='header',halign='center']
@@ -118,14 +130,19 @@ image:images/trex11trend_graph.png[title="trex11trend_graph",align="left",width=
 |===
 include::build/images/trex11_trend_stats.csv[]
 |===
-
+//////////////////////////////////////////////////////////////
 == Setup: Kiwi02
 .Setup Details
-[options='header',halign='center']
-|================================================================================================
-|Name |OS |NICs |Routers 
-|kiwi02| Fedora 18| 2x10G (4 interfaces)| ESP100
-|================================================================================================
+[options='header',halign='center',cols="1,5"]
+|=================
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz
+| RAM:    | 31 Gib
+| NICs:   | 2x10G (X710) (4 interfaces) 
+| OS:     | Fedora 18
+|=================
+
+
+
 image:images/kiwi02_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/kiwi02_latest_test_runs.png"]
 
 [format="csv", options="header",halign='center']
