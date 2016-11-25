@@ -12,6 +12,7 @@ import copy;
 import re
 import uuid
 import subprocess
+import platform
 
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
@@ -98,9 +99,28 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
 
+
+def missing_pkg_msg(fedora, ubuntu):
+    msg = 'not found\n'
+    fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
+    ubuntu_install = 'Ubuntu install:\nsudo apt install %s\n' % ubuntu
+    try:
+        if platform.linux_distribution()[0].capitalize() == 'Ubuntu':
+            msg += ubuntu_install
+        elif platform.linux_distribution()[0].capitalize() == 'Fedora':
+            msg += fedora_install
+        else:
+            raise
+    except:
+        msg += 'Could not determine Linux distribution.\n%s\n%s' % (ubuntu_install, fedora_install)
+    return msg
+
+
 def configure(conf):
     conf.load('g++')
     conf.load('gcc')
+    conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
+
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
@@ -749,12 +769,6 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='external_libs/zmq/'
-    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
-
-    ibverbs_lib_path='external_libs/ibverbs/'
-    bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
-
     #rte_libs =[
     #         'dpdk'];
 
@@ -778,6 +792,8 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target() 
       );
 
+    dumy_libs_path = os.path.abspath(os.path.join(top, 'scripts', 'dumy_libs'))
+
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
@@ -785,6 +801,7 @@ def build_prog (bld, build_obj):
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(),'zmq','ibverbs'],
                 source = bp.file_list(top) + debug_file_list,
+                rpath = [dumy_libs_path],
                 target = build_obj.get_target())
 
 
@@ -802,6 +819,12 @@ def post_build(bld):
 def build(bld):
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
+
+    zmq_lib_path='external_libs/zmq/'
+    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
+    ibverbs_lib_path='external_libs/ibverbs/'
+    bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+
     for obj in build_types:
         build_type(bld,obj);
 
