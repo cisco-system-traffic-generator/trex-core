@@ -113,6 +113,7 @@ class COneIPInfo {
     }
     uint16_t get_vlan() const {return m_vlan;}
     uint16_t get_port() const {return m_port;}
+    void set_port(uint8_t port) {m_port = port;}
     virtual void dump(FILE *fd) const {
         dump(fd, "");
     }

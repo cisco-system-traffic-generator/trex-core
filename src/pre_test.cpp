@@ -503,6 +503,7 @@ void CPretest::get_results(CManyIPInfo &resolved_ips) {
         for (std::vector<COneIPInfo *>::iterator it = m_port_info[port].m_dst_info.begin()
                  ; it != m_port_info[port].m_dst_info.end(); ++it) {
             uint8_t ip_type = (*it)->ip_ver();
+            (*it)->set_port(port);
             switch(ip_type) {
             case COneIPInfo::IP4_VER:
                 resolved_ips.insert(*(COneIPv4Info *)(*it));

@@ -3283,15 +3283,33 @@ void CGlobalTRex::pre_test() {
             fprintf(stderr, "Resolution of following IPs failed. Exiting.\n");
             for (const COneIPInfo *ip=pretest_result.get_next(); ip != NULL;
                    ip = pretest_result.get_next()) {
-                ip->dump(stderr);
+                if (ip->resolve_needed()) {
+                    ip->dump(stderr, "  ");
+                }
             }
-            exit(-1);
+            exit(1);
         }
         m_fl.set_client_config_resolved_macs(pretest_result);
         if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
             m_fl.dump_client_config(stdout);
         }
 
+        bool port_found[TREX_MAX_PORTS];
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            port_found[port_id] = false;
+        }
+        // If client config enabled, we don't resolve MACs from trex_cfg.yaml. For latency (-l)
+        // We need to able to send packets from RX core, so need to configure MAC/vlan for each port.
+        for (const COneIPInfo *ip=pretest_result.get_next(); ip != NULL; ip = pretest_result.get_next()) {
+            // Use first MAC/vlan we see on each port
+            uint8_t port_id = ip->get_port();
+            uint16_t vlan = ip->get_vlan();
+            if ( ! port_found[port_id]) {
+                port_found[port_id] = true;
+                ip->get_mac(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest);
+                CGlobalInfo::m_options.m_ip_cfg[port_id].set_vlan(vlan);
+            }
+        }
     } else {
         uint8_t mac[ETHER_ADDR_LEN];
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
