@@ -38,7 +38,7 @@ def initialize_analyticsreporting():
   return analytics
 
 
-def get_report(analytics,start_date='2016-11-06',end_date='2016-11-27'):
+def get_report(analytics,start_date='2016-11-27',end_date='2016-11-27'):
   # Use the Analytics Service Object to query the Analytics Reporting API V4.
   return analytics.reports().batchGet(
       body={
@@ -80,31 +80,9 @@ def print_response(response):
           print metricHeader.get('name') + ': ' + value
 
 
-def export_to_dict(response):
-	df = {'Test_name':[],'State':[],'Setup':[],'Test_type':[],'MPPS':[],'MPPS-Golden min':[],'MPPS-Golden max':[]}
-	for report in response.get('reports', []):
-		rows = report.get('data', {}).get('rows', [])
-		for row in rows:
-			dimensions = row.get('dimensions', [])
-			# print 'this is dimensions'
-			# print dimensions
-			df['Test_name'].append(dimensions[1])
-			df['State'].append(dimensions[2])
-			df['Setup'].append(dimensions[3])
-			df['Test_type'].append(dimensions[4])
-			dateRangeValues = row.get('metrics', [])
-		 	value = dateRangeValues[0].get('values',[])[0]
-			golden_min = dateRangeValues[0].get('values',[])[1]
-			golden_max = dateRangeValues[0].get('values',[])[2]
-			# print value
-			df['MPPS'].append(value)
-			df['MPPS-Golden min'].append(golden_min)
-			df['MPPS-Golden max'].append(golden_max)
-	return df
-
 
 def export_to_tuples(response):
-	counter = 0
+	# counter = 0
 	setups = set()
 	df = {}
 	for report in response.get('reports', []):
@@ -135,7 +113,7 @@ def export_to_tuples(response):
 				df[dimensions[3]] = {}
 				df[dimensions[3]][dimensions[1]] = [tuple(data)]
 				setups.add(dimensions[3])
-	print 'counter is: %d' % counter
+	# print 'counter is: %d' % counter
 	return df, setups
 
 
@@ -143,9 +121,72 @@ def main():
 	analytics = initialize_analyticsreporting()
 	response = get_report(analytics)
 	df, setups = export_to_tuples(response)
+	# pprint(df)
+	return df,setups
 
-
-    #pprint(response)
 if __name__ == '__main__':
-  main()
+    main()
+
+
+"""
+response structure (when fetched with "export to tuples"):
+
+{ 'setup1': {'test_name1': [(test_res1),(test_res2),...],
+			 'test_name2': [(test_res1),(test_res2),...]
+			},
+  'setup2': {'test_name1': [(test_res1),(test_res2),...],
+			 'test_name2': [(test_res1),(test_res2),...]
+			},
+	.
+	.
+	.
+	.
+}
+
+{u'kiwi02': {u'VM - 64 bytes, multi CPU, cache size 1024': [(u'VM - 64 bytes, multi CPU, cache size 1024',
+                                                             u'stl',
+                                                             u'performance',
+                                                             u'19.711146',
+                                                             u'19.0',
+                                                             u'22.0'),
+                                                            (u'VM - 64 bytes, multi CPU, cache size 1024',
+                                                             u'stl',
+                                                             u'performance',
+                                                             u'19.581567',
+                                                             u'19.0',
+                                                             u'22.0')],
+             u'VM - 64 bytes, multi CPUs': [(u'VM - 64 bytes, multi CPUs',
+                                             u'stl',
+                                             u'performance',
+                                             u'10.398847',
+                                             u'9.7',
+                                             u'12.5'),
+                                            (u'VM - 64 bytes, multi CPUs',
+                                             u'stl',
+                                             u'performance',
+                                             u'10.925308',
+                                             u'9.7',
+                                             u'12.5')
+                                            ]
+            }
+ u'trex07': {u'VM - 64 bytes, multi CPU, cache size 1024': [(u'VM - 64 bytes, multi CPU, cache size 1024',
+                                                             u'stl',
+                                                             u'performance',
+                                                             u'25.078212',
+                                                             u'9.0',
+                                                             u'15.0')
+                                                            ]
+             u'VM - 64 bytes, multi CPUs': [(u'VM - 64 bytes, multi CPUs',
+                                             u'stl',
+                                             u'performance',
+                                             u'9.469138',
+                                             u'8.5',
+                                             u'12.0')
+                                            ]
+            }
+}
+
+
+
+"""
 
