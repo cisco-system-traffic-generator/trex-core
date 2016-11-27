@@ -100,6 +100,17 @@ def options(opt):
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
 
 
+def check_ibverbs_deps(bld):
+    cmd = '%s %s/external_libs/ibverbs/libibverbs.so' % (bld.env['LDD'][0], top)
+    ret, out = getstatusoutput(cmd)
+    if ret or not out:
+        bld.fatal("Command of checking libraries '%s' failed.\nReturn status: %s\nOutput: %s" % (cmd, ret, out))
+    if '=> not found' in out:
+        dumy_libs_path = os.path.abspath(top + 'scripts/dumy_libs')
+        print('Adding rpath %s' % dumy_libs_path)
+        rpath_linkage.append(dumy_libs_path)
+
+
 def missing_pkg_msg(fedora, ubuntu):
     msg = 'not found\n'
     fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
@@ -119,6 +130,7 @@ def missing_pkg_msg(fedora, ubuntu):
 def configure(conf):
     conf.load('g++')
     conf.load('gcc')
+    conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
 
 
@@ -636,6 +648,7 @@ client_external_libs = [
         'texttable-0.8.4',
         ]
 
+rpath_linkage = []
 
 RELEASE_    = "release"
 DEBUG_      = "debug"
@@ -792,8 +805,6 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target() 
       );
 
-    dumy_libs_path = os.path.abspath(os.path.join(top, 'scripts', 'dumy_libs'))
-
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
@@ -801,7 +812,7 @@ def build_prog (bld, build_obj):
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(),'zmq','ibverbs'],
                 source = bp.file_list(top) + debug_file_list,
-                rpath = [dumy_libs_path],
+                rpath = rpath_linkage,
                 target = build_obj.get_target())
 
 
@@ -819,6 +830,7 @@ def post_build(bld):
 def build(bld):
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
+    check_ibverbs_deps(bld)
 
     zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
