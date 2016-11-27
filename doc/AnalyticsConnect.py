@@ -38,7 +38,7 @@ def initialize_analyticsreporting():
   return analytics
 
 
-def get_report(analytics,start_date='2016-11-06',end_date='2016-11-13'):
+def get_report(analytics,start_date='2016-11-06',end_date='2016-11-27'):
   # Use the Analytics Service Object to query the Analytics Reporting API V4.
   return analytics.reports().batchGet(
       body={
@@ -50,10 +50,11 @@ def get_report(analytics,start_date='2016-11-06',end_date='2016-11-13'):
 					  {'expression': 'ga:metric2','formattingType':'CURRENCY'},
 					  {'expression': 'ga:metric3','formattingType':'CURRENCY'},
 					  {'expression': 'ga:totalEvents'}],
-          'dimensions': [{"name":"ga:eventAction"},{"name": "ga:dimension1"},{"name": "ga:dimension2"},{"name": "ga:dimension3"},{"name": "ga:dimension4"}]
+          'dimensions': [{"name":"ga:eventAction"},{"name": "ga:dimension1"},{"name": "ga:dimension2"},{"name": "ga:dimension3"},{"name": "ga:dimension4"}],
+		  'pageSize': 10000
         }
         ]
-      }
+		}
   ).execute()
 
 
@@ -103,6 +104,7 @@ def export_to_dict(response):
 
 
 def export_to_tuples(response):
+	counter = 0
 	setups = set()
 	df = {}
 	for report in response.get('reports', []):
@@ -123,6 +125,7 @@ def export_to_tuples(response):
 			data.append(value)
 			data.append(golden_min)
 			data.append(golden_max)
+			counter+=1
 			if dimensions[3] in setups:
 				if dimensions[1] in df[dimensions[3]]:
 					df[dimensions[3]][dimensions[1]].append(tuple(data))
@@ -132,16 +135,15 @@ def export_to_tuples(response):
 				df[dimensions[3]] = {}
 				df[dimensions[3]][dimensions[1]] = [tuple(data)]
 				setups.add(dimensions[3])
+	print 'counter is: %d' % counter
 	return df, setups
 
 
 def main():
 	analytics = initialize_analyticsreporting()
 	response = get_report(analytics)
-	print_response(response)
-	g_dict = export_to_dict(response)
-	print g_dict
-	pprint(g_dict)
+	df, setups = export_to_tuples(response)
+
 
     #pprint(response)
 if __name__ == '__main__':

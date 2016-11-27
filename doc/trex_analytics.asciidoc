@@ -22,7 +22,6 @@ endif::backend-xhtml11[]
 
 
 = Analytics
-/////////////////////////////////////////////////////////////////////////////////
 == Setup: TRex07
 .Setup Details
 [options='header',halign='center',cols="1,5"]
@@ -49,8 +48,6 @@ image:images/trex07trend_graph.png[title="trex07trend_graph",align="left",width=
 |===
 include::build/images/trex07_trend_stats.csv[]
 |===
-////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
 == Setup: TRex08
 .Setup Details
 [options='header',halign='center',cols="1,5"]
@@ -77,7 +74,6 @@ image:images/trex08trend_graph.png[title="trex08trend_graph",align="left",width=
 |===
 include::build/images/trex08_trend_stats.csv[]
 |===
-//////////////////////////////////////////////////////////////////////
 
 == Setup: TRex09
 .Setup Details
