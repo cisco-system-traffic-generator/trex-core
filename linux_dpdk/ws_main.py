@@ -101,6 +101,8 @@ def options(opt):
 
 
 def check_ibverbs_deps(bld):
+    if 'LDD' not in bld.env or not len(bld.env['LDD']):
+        bld.fatal('Please run configure. Missing key LDD.')
     cmd = '%s %s/external_libs/ibverbs/libibverbs.so' % (bld.env['LDD'][0], top)
     ret, out = getstatusoutput(cmd)
     if ret or not out:
