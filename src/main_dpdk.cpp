@@ -3153,9 +3153,9 @@ public:
     uint32_t    m_max_ports;    /* active number of ports supported options are  2,4,8,10,12  */
     uint32_t    m_max_cores;    /* current number of cores , include master and latency  ==> ( master)1+c*(m_max_ports>>1)+1( latency )  */
     uint32_t    m_cores_mul;    /* how cores multipler given  c=4 ==> m_cores_mul */
-    uint32_t    m_max_queues_per_port;
-    uint32_t    m_cores_to_dual_ports; /* number of ports that will handle dual ports */
-    uint16_t    m_latency_tx_queue_id;
+    uint32_t    m_max_queues_per_port; // Number of TX queues per port
+    uint32_t    m_cores_to_dual_ports; /* number of TX cores allocated for each port pair */
+    uint16_t    m_rx_core_tx_q_id; /* TX q used by rx core */
     // statistic
     CPPSMeasure  m_cps;
     float        m_expected_pps;
@@ -3507,6 +3507,7 @@ int  CGlobalTRex::ixgbe_rx_queue_flush(){
 }
 
 
+// init stateful rx core
 void CGlobalTRex::ixgbe_configure_mg(void) {
     int i;
     CLatencyManagerCfg mg_cfg;
@@ -3544,7 +3545,7 @@ void CGlobalTRex::ixgbe_configure_mg(void) {
         for (i=0; i<m_max_ports; i++) {
             CPhyEthIF * _if=&m_ports[i];
             _if->dump_stats(stdout);
-            m_latency_vports[i].Create(_if,m_latency_tx_queue_id,1);
+            m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
 
             mg_cfg.m_ports[i] =&m_latency_vports[i];
         }
@@ -3574,7 +3575,7 @@ void CGlobalTRex::rx_sl_configure(void) {
     } else {
         for (i = 0; i < m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
-            m_latency_vports[i].Create(_if, m_latency_tx_queue_id, 1);
+            m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
             rx_sl_cfg.m_ports[i] = &m_latency_vports[i];
         }
     }
@@ -3585,88 +3586,53 @@ void CGlobalTRex::rx_sl_configure(void) {
 int  CGlobalTRex::ixgbe_start(void){
     int i;
     for (i=0; i<m_max_ports; i++) {
-
+        socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
+        assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
         CPhyEthIF * _if=&m_ports[i];
         _if->Create((uint8_t)i);
-        /* last TX queue if for latency check */
-        if ( get_vm_one_queue_enable() ) {
-            /* one tx one rx */
 
+        if ( get_vm_one_queue_enable() ) {
             /* VMXNET3 does claim to support 16K but somehow does not work */
             /* reduce to 2000 */
             m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = 2000;
-
-            _if->configure(1,
-                           1,
-                           &m_port_cfg.m_port_conf);
-
-            /* will not be used */
-            m_latency_tx_queue_id= m_cores_to_dual_ports;
-
-            socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
-            assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-
-
-
+            /* In VM case, there is one tx q and one rx q */
+            _if->configure(1, 1, &m_port_cfg.m_port_conf);
+            // Only 1 rx queue, so use it for everything
+            m_rx_core_tx_q_id = 0;
             _if->set_rx_queue(0);
-            _if->rx_queue_setup(0,
-                                RTE_TEST_RX_DESC_VM_DEFAULT,
-                                socket_id,
-                                &m_port_cfg.m_rx_conf,
+            _if->rx_queue_setup(0, RTE_TEST_RX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_rx_conf,
                                 CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+            // 1 TX queue in VM case
+            _if->tx_queue_setup(0, RTE_TEST_TX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_tx_conf);
+        } else {
+            // 2 rx queues.
+            // TX queues: 1 for each core handling the port pair + 1 for latency pkts + 1 for use by RX core
+            _if->configure(2, m_cores_to_dual_ports + 2, &m_port_cfg.m_port_conf);
+            m_rx_core_tx_q_id = m_cores_to_dual_ports;
 
-            int qid;
-            for ( qid=0; qid<(m_max_queues_per_port); qid++) {
-                _if->tx_queue_setup((uint16_t)qid,
-                                    RTE_TEST_TX_DESC_VM_DEFAULT ,
-                                    socket_id,
-                                    &m_port_cfg.m_tx_conf);
-
-            }
-
-        }else{
-            _if->configure(2,
-                           m_cores_to_dual_ports+1,
-                           &m_port_cfg.m_port_conf);
-
-            /* the latency queue for latency measurement packets */
-            m_latency_tx_queue_id= m_cores_to_dual_ports;
-
-            socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
-            assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-
-
-            /* drop queue */
-            _if->rx_queue_setup(0,
+            // setup RX drop queue
+            _if->rx_queue_setup(MAIN_DPDK_DATA_Q,
                                 RTE_TEST_RX_DESC_DEFAULT,
                                 socket_id,
                                 &m_port_cfg.m_rx_conf,
                                 CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-
-
-            /* set the filter queue */
-            _if->set_rx_queue(1);
-            /* latency measurement ring is 1 */
-            _if->rx_queue_setup(1,
+            // setup RX filter queue
+            _if->set_rx_queue(MAIN_DPDK_RX_Q);
+            _if->rx_queue_setup(MAIN_DPDK_RX_Q,
                                 RTE_TEST_RX_LATENCY_DESC_DEFAULT,
                                 socket_id,
                                 &m_port_cfg.m_rx_conf,
                                 CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
-
-            int qid;
-            for ( qid=0; qid<(m_max_queues_per_port+1); qid++) {
+            // setup TX queues
+            for (int qid = 0; qid < m_max_queues_per_port; qid++) {
                 _if->tx_queue_setup((uint16_t)qid,
                                     RTE_TEST_TX_DESC_DEFAULT ,
                                     socket_id,
                                     &m_port_cfg.m_tx_conf);
-
             }
-
         }
 
-
         _if->stats_clear();
-
         _if->start();
         _if->configure_rx_duplicate_rules();
 
@@ -3691,8 +3657,7 @@ int  CGlobalTRex::ixgbe_start(void){
                 printf(" WARNING : there is no link on one of the ports, driver support auto drop in case of link down - continue\n");
             }else{
                 dump_links_status(stdout);
-                rte_exit(EXIT_FAILURE, " "
-                         " one of the link is down \n");
+                rte_exit(EXIT_FAILURE, " One of the links is down \n");
             }
         }
     } else {
@@ -3723,7 +3688,7 @@ int  CGlobalTRex::ixgbe_start(void){
     if ( get_vm_one_queue_enable() ) {
         lat_q_id = 0;
     } else {
-        lat_q_id = get_cores_tx() / get_base_num_cores();
+        lat_q_id = get_cores_tx() / get_base_num_cores() + 1;
     }
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
@@ -3748,6 +3713,7 @@ int  CGlobalTRex::ixgbe_start(void){
     }
 
     fprintf(stdout," -------------------------------\n");
+    fprintf(stdout, "RX core uses TX queue number %d on all ports\n", m_rx_core_tx_q_id);
     CCoreEthIF::DumpIfCfgHeader(stdout);
     for (i=0; i<get_cores_tx(); i++) {
         m_cores_vif[i+1]->DumpIfCfg(stdout);
@@ -3974,12 +3940,12 @@ int  CGlobalTRex::queues_prob_init(){
        m_cores_to_dual_ports = 2;
     */
 
-    /* number of queue - 1 per core for dual ports*/
-    m_max_queues_per_port  = m_cores_to_dual_ports;
+    // One q for each core allowed to send on this port + 1 for latency q (Used in stateless) + 1 for RX core.
+    m_max_queues_per_port  = m_cores_to_dual_ports + 2;
 
     if (m_max_queues_per_port > BP_MAX_TX_QUEUE) {
         rte_exit(EXIT_FAILURE,
-                 "maximum number of queue should be maximum %d  \n",BP_MAX_TX_QUEUE);
+                 "Error: Number of TX queues exceeds %d. Try running with lower -c <val> \n",BP_MAX_TX_QUEUE);
     }
 
     assert(m_max_queues_per_port>0);
