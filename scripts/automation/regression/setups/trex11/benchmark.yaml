@@ -4,55 +4,42 @@
 
 #### common templates ###
 
-test_jumbo:
-    multiplier          : 120
-    cores               : 2
-    bw_per_core         : 962.464
+#test_jumbo:
+#    multiplier          : 2.8
+#    cores               : 1
+#    bw_per_core         : 962.464
 
 
 test_routing_imix:
-    multiplier          : 60
-    cores               : 4
+    multiplier          : 0.5
+    cores               : 1
     bw_per_core         : 48.130
 
 
 test_routing_imix_64:
-    multiplier          : 4000
-    cores               : 7
+    multiplier          : 28
+    cores               : 1
     bw_per_core         : 12.699
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 50
-    cores               : 3
+    multiplier          : 0.5
+    cores               : 1
     bw_per_core         : 50.561
 
 
 test_ipv6_simple:
-    multiplier          : 50
-    cores               : 7
+    multiplier          : 0.5
+    cores               : 1
     bw_per_core         : 19.5
 
 
 test_rx_check_http: &rx_http
-    multiplier          : 99000
-    cores               : 7
+    multiplier          : 1000
+    cores               : 1
     rx_sample_rate      : 128
     bw_per_core         : 49.464
 
-test_rx_check_http_ipv6:
-    <<                  : *rx_http
-    bw_per_core         : 49.237
-
-test_rx_check_sfr: &rx_sfr
-    multiplier          : 35
-    cores               : 7
-    rx_sample_rate      : 128
-    bw_per_core         : 20.871
-
-test_rx_check_sfr_ipv6:
-    <<                  : *rx_sfr
-    bw_per_core         : 19.198
 
 
 ### stateless ###
