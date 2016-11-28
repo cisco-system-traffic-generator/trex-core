@@ -6879,10 +6879,10 @@ void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
     rte_eth_stats_get(_if->get_port_id(), &stats1);
 
     stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes
+         - ((stats1.ipackets << 2) - (prev_stats->ipackets << 2));
     stats->opackets += stats1.opackets - prev_stats->opackets;
-    stats->obytes   += stats1.obytes - prev_stats->obytes
-        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
+    stats->obytes   += stats1.obytes - prev_stats->obytes;
     stats->f_ipackets += 0;
     stats->f_ibytes   += 0;
     stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
