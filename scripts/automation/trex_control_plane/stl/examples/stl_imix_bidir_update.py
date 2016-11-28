@@ -52,7 +52,7 @@ def imix_test (server):
         c.start(ports = (dir_0 + dir_1), mult = "100kpps", total = True)
 
         while True:
-            for rate in range(200,1000,10):
+            for rate in range(200,3100,10):
     
                 # choose rate and start traffic for 10 seconds on 5 mpps
                 #mult = "30%"
@@ -63,7 +63,7 @@ def imix_test (server):
         
                 c.update(ports = (dir_0 + dir_1), mult = my_mult)
 
-                time.sleep(2);
+                #time.sleep(1);
                 
                 # block until done
                 #c.wait_on_traffic(ports = (dir_0 + dir_1))

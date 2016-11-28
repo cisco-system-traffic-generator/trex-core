@@ -6852,26 +6852,25 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     return 0;
 }
 
-extern "C" int enicpmd_dev_get_fw_support(int port_id,
-                                          uint32_t *ver);
 
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
 
-    uint32_t ver;
-    int ret=enicpmd_dev_get_fw_support(port_id,&ver);
+    struct rte_eth_fdir_info fdir_info;
 
-    if (ret==0) {
-        if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
-            printf("VIC port %d: FW support advanced filtering \n", port_id);
+    if ( rte_eth_dev_filter_ctrl(port_id,RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_INFO,(void *)&fdir_info) == 0 ){
+        if ( fdir_info.flow_types_mask[0] & (1<< RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) ) {
+           /* support new features */
+            if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
+                printf("VIC port %d: FW support advanced filtering \n", port_id);
+            }
+            return (0);
         }
-    }else{
-        printf("Error: VIC firmware should upgrade to support advanced filtering \n");
-        printf("  Please refer to %s for upgrade instructions\n",
-               "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
-        exit(1);
     }
-    return (0);
+    printf("Error: VIC firmware should upgrade to support advanced filtering \n");
+    printf("  Please refer to %s for upgrade instructions\n",
+           "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
+    exit(1);
 }
 
 
