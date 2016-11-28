@@ -140,7 +140,7 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
       - name            : stl/pcap.py
-        kwargs          : {ipg_usec: 2, loop_count: 0}
+        kwargs          : {ipg_usec: 3, loop_count: 0}
         cpu_util        : 1
         bw_per_core     : 1
 
