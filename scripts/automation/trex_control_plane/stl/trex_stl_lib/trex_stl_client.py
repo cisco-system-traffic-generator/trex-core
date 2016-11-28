@@ -12,7 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer, is_valid_ipv4, is_valid_mac, list_remove_dup
+from .utils.common import *
 from .utils.text_opts import *
 from functools import wraps
 
@@ -1793,61 +1793,15 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-    def test (self):
-        self.resolve()
-        return
-
-        #rc = self.ports[0].resolve()
-        #if not rc:
-        #    raise STLError(rc)
-        #return
-        
-        self.reset(ports = [0])
-        
-        attr = self.ports[0].get_ts_attr()
-        src_ipv4 = attr['src_ipv4']
-        src_mac  = attr['src_mac']
-        dest     = attr['dest']
-        print(src_ipv4, src_mac, dest)
-        #self.set_port_attr(ports = [0, 1], ipv4 = ['5.5.5.5', '6.6.6.6'])
-        return
-        
-        self.set_rx_queue(ports = [0], size = 1000, rxf = 'all')
-
-        #base_pkt = Ether()/ARP()/('x'*50)
-        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = '1.1.1.2',pdst = '1.1.1.1', hwsrc = 'a0:36:9f:20:e6:ce')
-        #base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ICMP()
-        
-        print('Sending ARP request on port 0:\n')
-        base_pkt.show2()
-        
-        # send some traffic
-        x = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
-        
-        self.add_streams(streams = [x], ports = [0])
-        self.start(ports = [0], mult = '100%')
-        self.wait_on_traffic(ports = [0])
-        time.sleep(1)
-        
-        pkts = self.get_rx_queue_pkts(ports = [0])
-        
-        print('got back on port 0:\n')
-        for pkt in pkts[0]:
-            Ether(pkt).show2()
-        
-        self.remove_rx_queue(ports = [1])
-        self.set_port_attr(ports = [1], rxf = 'hw')
-        #for pkt in pkts[1]:
-        #    Ether(pkt).show2()
             
 
     @__api_check(True)
-    def ping(self):
+    def ping_rpc_server(self):
         """
-            Pings the server
+            Pings the RPC server
 
             :parameters:
-                 none
+                 None
 
             :raises:
                 + :exc:`STLError`
@@ -1865,9 +1819,9 @@ class STLClient(object):
         
 
     @__api_check(True)
-    def ip_ping (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
+    def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
         """
-            Pings an IP address
+            Pings an IP address through a port
 
             :parameters:
                  src_port - on which port_id to send the ICMP PING request
@@ -1888,11 +1842,12 @@ class STLClient(object):
         with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
             self.logger.log('')
             for i in range(count):
-                rc = self.ports[src_port].ping(ping_ipv4 = dst_ipv4, pkt_size = pkt_size, retries = 0)
-                if rc:
-                    self.logger.log(rc.data())
-                else:
+                rc = self.ports[src_port].ping(ping_ipv4 = dst_ipv4, pkt_size = pkt_size)
+                if not rc:
                     raise STLError(rc)
+                    
+                self.logger.log(rc.data())
+                
                 if i != (count - 1):
                     time.sleep(1)
         
@@ -2003,18 +1958,33 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        # force take the port and ignore any streams on it
-        self.acquire(ports, force = True, sync_streams = False)
-        self.stop(ports, rx_delay_ms = 0)
-        self.remove_all_streams(ports)
-        self.clear_stats(ports)
-        self.set_port_attr(ports,
-                           promiscuous = False,
-                           link_up = True if restart else None,
-                           rxf = 'hw')
-        self.remove_rx_sniffer(ports)
-        self.remove_rx_queue(ports)
+        
+        if restart:
+            self.logger.pre_cmd("Hard resetting ports {0}:".format(ports))
+        else:
+            self.logger.pre_cmd("Resetting ports {0}:".format(ports))
+        
+        
+        try:
+            with self.logger.supress():
+            # force take the port and ignore any streams on it
+                self.acquire(ports, force = True, sync_streams = False)
+                self.stop(ports, rx_delay_ms = 0)
+                self.remove_all_streams(ports)
+                self.clear_stats(ports)
+                self.set_port_attr(ports,
+                                   promiscuous = False,
+                                   link_up = True if restart else None,
+                                   rxf = 'hw')
+                self.remove_rx_sniffer(ports)
+                self.remove_rx_queue(ports)
+                
+        except STLError as e:
+            self.logger.post_cmd(False)
+            raise e
+                
 
+        self.logger.post_cmd(RC_OK())
         
 
     @__api_check(True)
@@ -2159,11 +2129,11 @@ class STLClient(object):
         
         # verify link status
         ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
-        if not force and ports_link_down:
+        if ports_link_down and not force:
             raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
         
         # verify ports are stopped or force stop them
-        active_ports = list(set(self.get_active_ports()).intersection(ports))
+        active_ports = [port_id for port_id in ports if self.ports[port_id].is_active()]
         if active_ports and not force:
             raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
             
@@ -2228,6 +2198,7 @@ class STLClient(object):
         validate_type('core_mask', core_mask, (int, list))
 
       
+        # some sanity checks before attempting start
         self.__pre_start_check(ports, force)
         
         #########################
@@ -2285,7 +2256,7 @@ class STLClient(object):
                 return
 
         ports = self._validate_port_list(ports)
-
+        
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
         self.logger.post_cmd(rc)
@@ -2844,7 +2815,7 @@ class STLClient(object):
         cmn_attr_dict['led_status']      = led_on
         cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
         cmn_attr_dict['rx_filter_mode']  = rxf
-    
+        
         # each port starts with a set of the common attributes
         attr_dict = [dict(cmn_attr_dict) for _ in ports]
     
@@ -2908,37 +2879,37 @@ class STLClient(object):
             if not ports:
                 raise STLError('No ports configured with destination as IPv4')
             
-        active_ports = list(set(self.get_active_ports()).intersection(ports))
+        ports = self._validate_port_list(ports)
+            
+        active_ports = list_intersect(ports, self.get_active_ports())
         if active_ports:
             raise STLError('Port(s) {0} are active, please stop them before resolving'.format(active_ports))
                      
-        ports = self._validate_port_list(ports)
         
-        self.logger.pre_cmd("Resolving destination on port(s) {0}:".format(ports))
+        self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         with self.logger.supress():
             rc = self.__resolve(ports, retries)
             
         self.logger.post_cmd(rc)
         
-        if rc:
-            self.logger.log(rc)
-            
         if not rc:
             raise STLError(rc)
-      
+
+        # print the ARP transaction
+        self.logger.log(rc)
+        self.logger.log('')
             
             
         
     @__api_check(True)
-    def set_rx_sniffer (self, ports = None, base_filename = 'rx_capture', limit = 1000, rxf = None):
+    def set_rx_sniffer (self, ports = None, base_filename = 'rx.pcap', limit = 1000):
         """
-            Sets RX sniffer for port(s) written to a PCAP file
+            Sets a RX sniffer for port(s) written to a PCAP file
 
             :parameters:
                 ports          - for which ports to apply a unique sniffer (each port gets a unique file)
-                base_filename  - filename will be appended with '-<port_number>'
+                base_filename  - filename will be appended with '-<port_number>', e.g. rx.pcap --> rx-0.pcap, rx-1.pcap etc.
                 limit          - limit how many packets will be written
-                rxf            - RX filter mode to use: 'hw' or 'all'
             :raises:
                 + :exe:'STLError'
 
@@ -2952,10 +2923,6 @@ class STLClient(object):
         if limit <= 0:
             raise STLError("'limit' must be a positive value")
 
-        # change RX filter mode if asked
-        if rxf:
-            self.set_port_attr(ports, rxf = rxf)
-            
         self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
         rc = self.__set_rx_sniffer(ports, base_filename, limit)
         self.logger.post_cmd(rc)
@@ -2987,7 +2954,7 @@ class STLClient(object):
 
     
     @__api_check(True)
-    def set_rx_queue (self, ports = None, size = 1000, rxf = None):
+    def set_rx_queue (self, ports = None, size = 1000):
         """
             Sets RX queue for port(s)
             The queue is cyclic and will hold last 'size' packets
@@ -2995,7 +2962,6 @@ class STLClient(object):
             :parameters:
                 ports          - for which ports to apply a queue
                 size           - size of the queue
-                rxf            - which RX filter to use on those ports: 'hw' or 'all'
             :raises:
                 + :exe:'STLError'
 
@@ -3008,10 +2974,6 @@ class STLClient(object):
         if size <= 0:
             raise STLError("'size' must be a positive value")
 
-        # change RX filter mode if asked
-        if rxf:
-            self.set_port_attr(ports, rxf = rxf)
-            
         self.logger.pre_cmd("Setting RX queue on port(s) {0}:".format(ports))
         rc = self.__set_rx_queue(ports, size)
         self.logger.post_cmd(rc)
@@ -3112,7 +3074,7 @@ class STLClient(object):
         
         # no parameters - so ping server
         if not line:
-            self.ping()
+            self.ping_rpc_server()
             return True
             
         parser = parsing_opts.gen_parser(self,
@@ -3128,7 +3090,7 @@ class STLClient(object):
             return opts
             
         # IP ping
-        self.ip_ping(opts.source_port, opts.ping_ipv4, opts.pkt_size, opts.count)
+        self.ping_ip(opts.source_port, opts.ping_ipv4, opts.pkt_size, opts.count)
 
         
     @__console
@@ -3722,7 +3684,10 @@ class STLClient(object):
 
         rxf = 'all' if opts.all else None 
 
-        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit, rxf)
+        if rxf:
+            self.set_port_attr(opts.ports, rxf = rxf)
+            
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
 
 
     @__console

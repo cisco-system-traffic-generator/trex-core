@@ -385,10 +385,10 @@ TrexRpcCmdSetPortAttr::parse_dest(const Json::Value &msg, uint8_t port_id, Json:
     uint8_t  mac[6];
     
     if (utl_ipv4_to_uint32(addr.c_str(), ipv4_addr)) {
-        port_attr->get_dest().set_dest_ipv4(ipv4_addr);
+        port_attr->get_dest().set_dest(ipv4_addr);
         
     } else if (utl_str_to_macaddr(addr, mac)) {
-        port_attr->get_dest().set_dest_mac(mac);
+        port_attr->get_dest().set_dest(mac);
         
     } else {
         std::stringstream ss;
@@ -850,7 +850,7 @@ TrexRpcCmdSetARPRes::_run(const Json::Value &params, Json::Value &result) {
         generate_parse_err(result, ss.str());
     }   
     
-    port->getPortAttrObj()->get_dest().set_dest_ipv4(ipv4_addr, mac);
+    port->getPortAttrObj()->get_dest().set_dest(ipv4_addr, mac);
     
     return (TREX_RPC_CMD_OK);
     

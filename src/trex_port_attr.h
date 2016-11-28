@@ -31,79 +31,50 @@ limitations under the License.
  * 
  */
 class DestAttr {
-private:
-    static const uint8_t g_dummy_mac[6];
+    
 public:
 
     DestAttr(uint8_t port_id);
     
+    /**
+     * dest can be either MAC IPv4, or IPv4 unresolved
+     */
     enum dest_type_e {
-        DEST_TYPE_IPV4   = 1,
-        DEST_TYPE_MAC    = 2
+        DEST_TYPE_IPV4 = 1,
+        DEST_TYPE_IPV4_UNRESOLVED,
+        DEST_TYPE_MAC,
     };
     
     /**
      * set dest as an IPv4 unresolved
      */
-    void set_dest_ipv4(uint32_t ipv4) {
-        assert(ipv4 != 0);
-        
-        m_src_ipv4 = ipv4;
-        memset(m_mac, 0, 6);
-        m_type = DEST_TYPE_IPV4;
-    }
+    void set_dest(uint32_t ipv4);
     
     /**
-     * set dest as a resolved IPv4
+     * set dest as a resolved IPv4 
      */
-    void set_dest_ipv4(uint32_t ipv4, const uint8_t *mac) {
-        assert(ipv4 != 0);
-        
-        m_src_ipv4 = ipv4;
-        memcpy(m_mac, mac, 6);
-        m_type = DEST_TYPE_IPV4;
-        
-    }
-
+    void set_dest(uint32_t ipv4, const uint8_t *mac);
+    
     /**
-     * dest dest as MAC
-     * 
+     * set dest as a plain MAC
      */
-    void set_dest_mac(const uint8_t *mac) {
-
-        m_src_ipv4 = 0;
-        memcpy(m_mac, mac, 6);
-        m_type = DEST_TYPE_MAC;
-    }
+    void set_dest(const uint8_t *mac);
     
-    
+   
+    /**
+     * return true if destination is resolved
+     */
     bool is_resolved() const {
-        if (m_type == DEST_TYPE_MAC) {
-            return true;
-        }
-        
-        for (int i = 0; i < 6; i++) {
-            if (m_mac[i] != 0) {
-                return true;
-            }
-        }
-        
-        /* all zeroes - non resolved */
-        return false;
+        return (m_type != DEST_TYPE_IPV4_UNRESOLVED);
     }
     
     /**
-     * get the dest mac
-     * if no MAC is configured and dest was not resolved 
-     * will return a dummy 
+     * get the dest mac 
+     * if the dest is not resolved 
+     * it will return the default MAC 
      */
     const uint8_t *get_dest_mac() {
-        
-        if (is_resolved()) {
-            return m_mac;
-        } else {
-            return g_dummy_mac;
-        }
+        return m_mac;
     }
     
     /**
@@ -113,39 +84,20 @@ public:
     void on_link_down() {
         if (m_type == DEST_TYPE_IPV4) {
             /* reset the IPv4 dest with no resolution */
-            set_dest_ipv4(m_src_ipv4);
+            set_dest(m_ipv4);
         }
     }
     
-    void to_json(Json::Value &output) {
-        switch (m_type) {
-
-        case DEST_TYPE_IPV4:
-            output["type"] = "ipv4";
-            output["addr"] = utl_uint32_to_ipv4(m_src_ipv4);
-            if (is_resolved()) {
-                output["arp"] = utl_macaddr_to_str(m_mac);
-            } else {
-                output["arp"] = Json::nullValue;
-            }
-            break;
-            
-        case DEST_TYPE_MAC:
-            output["type"]      = "mac";
-            output["addr"]      = utl_macaddr_to_str(m_mac);
-            break;
-            
-        default:
-            assert(0);
-        }
-        
-    }
+    void to_json(Json::Value &output) const;
     
 private:
-    uint32_t          m_src_ipv4;
+    uint32_t          m_ipv4;
     uint8_t          *m_mac;
     dest_type_e       m_type;
     uint8_t           m_port_id;
+    
+private:
+    uint8_t m_default_mac[6];
 };
 
 

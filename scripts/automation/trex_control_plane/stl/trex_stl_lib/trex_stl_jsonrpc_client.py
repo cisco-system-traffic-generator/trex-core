@@ -172,6 +172,10 @@ class JsonRpcClient(object):
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
+            except KeyboardInterrupt as e:
+                # must restore the socket to a sane state
+                self.reconnect()
+                raise e
 
         tries = 0
         while True:
@@ -184,6 +188,10 @@ class JsonRpcClient(object):
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
 
+            except KeyboardInterrupt as e:
+                # must restore the socket to a sane state
+                self.reconnect()
+                raise e
 
         return response
        
@@ -266,12 +274,6 @@ class JsonRpcClient(object):
     def reconnect(self):
         # connect using current values
         return self.connect()
-
-        if not self.connected:
-            return RC_ERR("Not connected to server")
-
-        # reconnect
-        return self.connect(self.server, self.port)
 
 
     def is_connected(self):

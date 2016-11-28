@@ -3345,9 +3345,9 @@ void CGlobalTRex::pre_test() {
            uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
            const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
            if (dg) {
-               m_ports[port_id].get_port_attr()->get_dest().set_dest_ipv4(dg, dst_mac);
+               m_ports[port_id].get_port_attr()->get_dest().set_dest(dg, dst_mac);
            } else {
-               m_ports[port_id].get_port_attr()->get_dest().set_dest_mac(dst_mac);
+               m_ports[port_id].get_port_attr()->get_dest().set_dest(dst_mac);
            }
         
         }
@@ -4932,7 +4932,7 @@ bool CPhyEthIF::Create(uint8_t portid) {
     /* for now set as unresolved IPv4 destination */
     uint32_t dest_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_def_gw();
     if (dest_ipv4) {
-        m_port_attr->get_dest().set_dest_ipv4(dest_ipv4);
+        m_port_attr->get_dest().set_dest(dest_ipv4);
     }
     
     return true;

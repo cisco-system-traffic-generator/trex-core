@@ -17,13 +17,77 @@ limitations under the License.
 #include "trex_port_attr.h"
 #include "bp_sim.h"
 
-const uint8_t DestAttr::g_dummy_mac[6] = {0x0,0x0,0x0,0x1,0x0,0x0};
-
-
 DestAttr::DestAttr(uint8_t port_id) {
     m_port_id = port_id;
-
+    
     m_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
+    m_type = DEST_TYPE_MAC;
+    
+    /* save the default */
+    memcpy(m_default_mac, m_mac, 6);
+}
+
+ 
+/**
+ * set dest as an IPv4 unresolved
+ */
+void 
+DestAttr::set_dest(uint32_t ipv4) {
+    assert(ipv4 != 0);
+
+    m_ipv4 = ipv4;
+    memset(m_mac, 0, 6); // just to be on the safe side
+    m_type = DEST_TYPE_IPV4_UNRESOLVED;
+}
+
+/**
+ * set dest as a resolved IPv4
+ */
+void
+DestAttr::set_dest(uint32_t ipv4, const uint8_t *mac) {
+    assert(ipv4 != 0);
+
+    m_ipv4 = ipv4;
+    memcpy(m_mac, mac, 6);
+    m_type = DEST_TYPE_IPV4;
+}
+
+/**
+ * dest dest as MAC
+ * 
+ */
+void
+DestAttr::set_dest(const uint8_t *mac) {
+
+    m_ipv4 = 0;
+    memcpy(m_mac, mac, 6);
+    m_type = DEST_TYPE_MAC;
+}
+
+void
+DestAttr::to_json(Json::Value &output) const {
+    switch (m_type) {
+    
+    case DEST_TYPE_IPV4:
+        output["type"] = "ipv4";
+        output["ipv4"] = utl_uint32_to_ipv4(m_ipv4);
+        output["arp"]  = utl_macaddr_to_str(m_mac);
+        break;
+        
+    case DEST_TYPE_IPV4_UNRESOLVED:
+        output["type"] = "ipv4_u";
+        output["ipv4"] = utl_uint32_to_ipv4(m_ipv4);
+        break;
+
+    case DEST_TYPE_MAC:
+        output["type"] = "mac";
+        output["mac"]  = utl_macaddr_to_str(m_mac);
+        break;
+
+    default:
+        assert(0);
+    }
+
 }
 
 const uint8_t *
