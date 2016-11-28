@@ -1,58 +1,32 @@
-###############################################################
+################################################################
 ####           TRex benchmark configuration file           ####
-###############################################################
+################################################################
 
-#### common templates ###
+### stateful ###
 
 test_jumbo:
-    multiplier          : 120
-    cores               : 2
-    bw_per_core         : 962.464
+    multiplier          : 2.8
+    cores               : 1
+    bw_per_core         : 106.652
 
 
 test_routing_imix:
-    multiplier          : 60
-    cores               : 4
-    bw_per_core         : 48.130
+    multiplier          : 0.5
+    cores               : 1
+    bw_per_core         : 11.577
 
 
 test_routing_imix_64:
-    multiplier          : 4000
-    cores               : 7
-    bw_per_core         : 12.699
+    multiplier          : 28
+    cores               : 1
+    bw_per_core         : 2.030
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 50
-    cores               : 3
-    bw_per_core         : 50.561
+    multiplier          : 0.8
+    cores               : 1
+    bw_per_core         : 13.742
 
-
-test_ipv6_simple:
-    multiplier          : 50
-    cores               : 7
-    bw_per_core         : 19.5
-
-
-test_rx_check_http: &rx_http
-    multiplier          : 99000
-    cores               : 7
-    rx_sample_rate      : 128
-    bw_per_core         : 49.464
-
-test_rx_check_http_ipv6:
-    <<                  : *rx_http
-    bw_per_core         : 49.237
-
-test_rx_check_sfr: &rx_sfr
-    multiplier          : 35
-    cores               : 7
-    rx_sample_rate      : 128
-    bw_per_core         : 20.871
-
-test_rx_check_sfr_ipv6:
-    <<                  : *rx_sfr
-    bw_per_core         : 19.198
 
 
 ### stateless ###
@@ -166,68 +140,16 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
       - name            : stl/pcap.py
-        kwargs          : {ipg_usec: 2, loop_count: 0}
+        kwargs          : {ipg_usec: 4, loop_count: 0}
         cpu_util        : 1
         bw_per_core     : 1
 
-      #- name            : stl/udp_rand_len_9k.py
-      #  cpu_util        : 1
-      #  bw_per_core     : 1
+      - name            : stl/udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
 
-      #- name            : stl/hlt/hlt_udp_rand_len_9k.py
-      #  cpu_util        : 1
-      #  bw_per_core     : 1
-
-test_performance_vm_single_cpu:
-    cfg:
-        mult                    : "90%"
-        mpps_per_core_golden    : 
-                                   min: 9.6
-                                   max: 13.3
+      - name            : stl/hlt/hlt_udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
 
 
-test_performance_vm_single_cpu_cached:
-    cfg:
-        mult                    : "10%"
-        mpps_per_core_golden    : 
-                                   min: 16.0
-                                   max: 25.0
-
-
-
-test_performance_syn_attack_single_cpu:
-     cfg:
-        mult                    : "90%"
-        mpps_per_core_golden    :
-                                  min: 9.0
-                                  max: 14.0
-
-test_performance_vm_multi_cpus:
-    cfg:
-        core_count             : 7
-        mult                   : "90%"
-        mpps_per_core_golden   :
-                                  min: 8.5
-                                  max: 12.0
-
-
-test_performance_vm_multi_cpus_cached:
-    cfg:
-        core_count             : 7
-        mult                   : "35%"
-        mpps_per_core_golden   :
-                                  min: 9.0
-                                  max: 15.0
-
-test_performance_syn_attack_multi_cpus:
-    cfg:
-        core_count             : 7
-        mult                   : "90%"
-        mpps_per_core_golden   :
-                                  min: 8.0
-                                  max: 16.0
-                                  
-
-test_all_profiles :
-        mult          : "5%"
-        

@@ -379,7 +379,7 @@ private:
     uint8_t m_if_per_card;
 };
 
-class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase40G {
+class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
         m_if_per_card=2;
@@ -395,6 +395,22 @@ public:
 
     virtual bool is_hardware_filter_is_supported(){
         return (true);
+    }
+    virtual void update_global_config_fdir(port_cfg_t * cfg){
+    }
+
+
+    virtual bool is_hardware_support_drop_queue(){
+        return(true);
+    }
+
+    void clear_extended_stats(CPhyEthIF * _if);
+
+    void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+
+
+    virtual int get_min_sample_rate(void){
+        return (RX_CHECK_MIX_SAMPLE_RATE);
     }
 
     virtual int verify_fw_ver(int i);
@@ -6853,6 +6869,38 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
 }
 
 
+void CTRexExtendedDriverBaseVIC::clear_extended_stats(CPhyEthIF * _if){
+    rte_eth_stats_reset(_if->get_port_id());
+}
+
+void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
+    stats->opackets += stats1.opackets - prev_stats->opackets;
+    stats->obytes   += stats1.obytes - prev_stats->obytes
+        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
 
@@ -6867,6 +6915,7 @@ int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
             return (0);
         }
     }
+
     printf("Error: VIC firmware should upgrade to support advanced filtering \n");
     printf("  Please refer to %s for upgrade instructions\n",
            "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
