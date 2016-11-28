@@ -127,10 +127,10 @@ public:
     ~RXPacketBuffer();
 
     /**
-     * handle a new packet
+     * push a packet to the buffer
      * 
      */
-    void handle_pkt(const rte_mbuf_t *m);
+    void push(const rte_mbuf_t *m);
     
     /**
      * freezes the queue and clones a new one
@@ -170,6 +170,40 @@ private:
 };
 
 
+class RXQueue {
+public:
+    RXQueue() {
+        m_pkt_buffer = nullptr;
+    }
+ 
+    ~RXQueue() {
+        stop();
+    }
+    
+    /**
+     * start RX queue
+     * 
+     */
+    void start(uint64_t size, uint64_t *shared_counter);
+    
+    /**
+     * fetch the current buffer
+     * 
+     */
+    RXPacketBuffer * fetch();
+    
+    /**
+     * stop RX queue
+     * 
+     */
+    void stop();
+    
+    void handle_pkt(const rte_mbuf_t *m);
+    
+private:
+    RXPacketBuffer  *m_pkt_buffer;
+};
+
 /**************************************
  * RX feature PCAP recorder 
  * 
@@ -178,12 +212,21 @@ private:
 class RXPacketRecorder {
 public:
     RXPacketRecorder();
-    ~RXPacketRecorder();
+    
+    ~RXPacketRecorder() {
+        stop();
+    }
     
     void start(const std::string &pcap, uint64_t limit, uint64_t *shared_counter);
     void stop();
     void handle_pkt(const rte_mbuf_t *m);
 
+    /**
+     * flush any cached packets to disk
+     * 
+     */
+    void flush_to_disk();
+    
 private:
     CFileWriterBase  *m_writer;
     CCapPktRaw        m_pkt;
@@ -202,27 +245,19 @@ private:
  */
 class RXPortManager {
 public:
-    enum features_t {
-        LATENCY  = 0x1,
-        CAPTURE  = 0x2,
-        QUEUE    = 0x4
+    enum feature_t {
+        NO_FEATURES  = 0x0,
+        LATENCY      = 0x1,
+        RECORDER     = 0x2,
+        QUEUE        = 0x4
     };
 
-    RXPortManager() {
-        m_features    = 0;
-        m_pkt_buffer  = NULL;
-        m_io          = NULL;
-        m_cpu_dp_u    = NULL;
-    }
+    RXPortManager();
 
     void create(CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
-                CCpuUtlDp *cpu_util) {
-        m_io = io;
-        m_cpu_dp_u = cpu_util;
-        m_latency.create(rfc2544, err_cntrs);
-    }
+                CCpuUtlDp *cpu_util);
 
     void clear_stats() {
         m_latency.reset_stats();
@@ -232,6 +267,7 @@ public:
         return m_latency;
     }
 
+    /* latency */
     void enable_latency() {
         set_feature(LATENCY);
     }
@@ -240,60 +276,37 @@ public:
         unset_feature(LATENCY);
     }
 
-    /**
-     * capturing of RX packets
-     * 
-     * @author imarom (11/2/2016)
-     * 
-     * @param pcap 
-     * @param limit_pkts 
-     */
-    void start_capture(const std::string &pcap, uint64_t limit_pkts, uint64_t *shared_counter) {
+    /* recorder */
+    void start_recorder(const std::string &pcap, uint64_t limit_pkts, uint64_t *shared_counter) {
         m_recorder.start(pcap, limit_pkts, shared_counter);
-        set_feature(CAPTURE);
+        set_feature(RECORDER);
     }
 
-    void stop_capture() {
+    void stop_recorder() {
         m_recorder.stop();
-        unset_feature(CAPTURE);
+        unset_feature(RECORDER);
     }
 
-    /**
-     * queueing packets
-     * 
-     */
+    /* queue */
     void start_queue(uint32_t size, uint64_t *shared_counter) {
-        if (m_pkt_buffer) {
-            delete m_pkt_buffer;
-        }
-        m_pkt_buffer = new RXPacketBuffer(size, shared_counter);
+        m_queue.start(size, shared_counter);
         set_feature(QUEUE);
     }
 
     void stop_queue() {
-        if (m_pkt_buffer) {
-            delete m_pkt_buffer;
-            m_pkt_buffer = NULL;
-        }
-        unset_feature(QUEUE);
+        m_queue.stop();
+        unset_feature(QUEUE); 
     }
 
     RXPacketBuffer *get_pkt_buffer() {
         if (!is_feature_set(QUEUE)) {
-            return NULL;
+            return nullptr;
         }
-
-        assert(m_pkt_buffer);
-
-        /* hold a pointer to the old one */
-        RXPacketBuffer *old_buffer = m_pkt_buffer;
-
-        /* replace the old one with a new one and freeze the old */
-        m_pkt_buffer = old_buffer->freeze_and_clone();
-
-        return old_buffer;
+        
+        return m_queue.fetch();
     }
 
+    
 
     /**
      * fetch and process all packets
@@ -317,9 +330,15 @@ public:
      */
     void handle_pkt(const rte_mbuf_t *m);
 
-
+    /**
+     * maintenance
+     * 
+     * @author imarom (11/24/2016)
+     */
+    void tick();
+    
     bool has_features_set() {
-        return (m_features != 0);
+        return (m_features != NO_FEATURES);
     }
 
 
@@ -329,23 +348,29 @@ public:
 
 private:
     
+    void clear_all_features() {
+        m_features = NO_FEATURES;
+    }
 
-    void set_feature(features_t feature) {
+    void set_feature(feature_t feature) {
         m_features |= feature;
     }
 
-    void unset_feature(features_t feature) {
+    void unset_feature(feature_t feature) {
         m_features &= (~feature);
     }
 
-    bool is_feature_set(features_t feature) {
+    bool is_feature_set(feature_t feature) const {
         return ( (m_features & feature) == feature );
     }
 
     uint32_t                     m_features;
-    RXPacketRecorder             m_recorder;
+    
     RXLatency                    m_latency;
-    RXPacketBuffer              *m_pkt_buffer;
+    RXPacketRecorder             m_recorder;
+    RXQueue                      m_queue;
+    
+    
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
 };

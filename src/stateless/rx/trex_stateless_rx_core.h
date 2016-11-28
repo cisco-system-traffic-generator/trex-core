@@ -124,8 +124,8 @@ class CRxCoreStateless {
      * @param pcap_filename 
      * @param limit 
      */
-    void start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter);
-    void stop_capture(uint8_t port_id);
+    void start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter);
+    void stop_recorder(uint8_t port_id);
 
     /**
      * start RX queueing of packets
@@ -153,7 +153,8 @@ class CRxCoreStateless {
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage(bool do_try_rx_queue);
-
+    void port_manager_tick();
+    
     int process_all_pending_pkts(bool flush_rx = false);
 
     void flush_all_pending_pkts() {

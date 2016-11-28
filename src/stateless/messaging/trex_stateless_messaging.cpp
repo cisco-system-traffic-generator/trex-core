@@ -259,14 +259,16 @@ bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
 
 bool
 TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
-    rx_core->start_capture(m_port_id, m_pcap_filename, m_limit, m_shared_counter);
+    rx_core->start_recorder(m_port_id, m_pcap_filename, m_limit, m_shared_counter);
 
+    set_reply(true);
+    
     return true;
 }
 
 bool
 TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
-    rx_core->stop_capture(m_port_id);
+    rx_core->stop_recorder(m_port_id);
 
     return true;
 }
@@ -274,7 +276,10 @@ TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
 bool
 TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
     rx_core->start_queue(m_port_id, m_size, m_shared_counter);
-
+    
+    /* mark as done */
+    set_reply(true);
+    
     return true;
 }
 
@@ -290,7 +295,9 @@ TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
 bool TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
     RXPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
     assert(pkt_buffer);
-    m_reply.set(pkt_buffer);
+    
+    /* set the reply */
+    set_reply(pkt_buffer);
 
     return true;
 }

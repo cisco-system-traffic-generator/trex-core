@@ -82,7 +82,7 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
-    /* init per port manager */
+    /* create per port manager */
     for (int i = 0; i < m_max_ports; i++) {
         m_rx_port_mngr[i].create(cfg.m_ports[i],
                                  m_rfc2544,
@@ -171,9 +171,20 @@ void CRxCoreStateless::idle_state_loop() {
     }
 }
 
+/**
+ * for each port give a tick (for flushing if needed)
+ * 
+ */
+void CRxCoreStateless::port_manager_tick() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].tick();
+    }
+}
+
 void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
     int i = 0;
-
+    int j = 0;
+    
     while (m_state == STATE_WORKING) {
 
         if (do_try_rx_queue) {
@@ -182,12 +193,19 @@ void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
 
         process_all_pending_pkts();
 
+        /* TODO: with scheduler, this should be solved better */
         i++;
         if (i == 100000) { // approx 10msec
             i = 0;
             periodic_check_for_cp_messages(); // m_state might change in here
+            
+            j++;
+            if (j == 100) { // approx 1 sec
+                j = 0;
+                port_manager_tick();
+            }
         }
-
+        
         rte_pause();
     }
 }
@@ -356,13 +374,13 @@ double CRxCoreStateless::get_cpu_util() {
 
 
 void
-CRxCoreStateless::start_capture(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter) {
-    m_rx_port_mngr[port_id].start_capture(pcap_filename, limit, shared_counter);
+CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter) {
+    m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit, shared_counter);
 }
 
 void
-CRxCoreStateless::stop_capture(uint8_t port_id) {
-    m_rx_port_mngr[port_id].stop_capture();
+CRxCoreStateless::stop_recorder(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_recorder();
 }
 
 void

@@ -228,6 +228,12 @@ bool LibPCapWriter::Create(char * name)
     return init();
 }
 
+void LibPCapWriter::flush_to_disk() {
+    if (m_is_open) {
+        fflush(m_file_handler);
+    }
+}
+
 /**
  * 
  * Write the libpcap header.

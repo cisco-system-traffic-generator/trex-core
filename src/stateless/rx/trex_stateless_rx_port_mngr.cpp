@@ -200,7 +200,7 @@ RXPacketBuffer::freeze_and_clone() {
 }
 
 void 
-RXPacketBuffer::handle_pkt(const rte_mbuf_t *m) {
+RXPacketBuffer::push(const rte_mbuf_t *m) {
     assert(m_is_enabled);
 
     /* if full - pop the oldest */
@@ -242,17 +242,54 @@ RXPacketBuffer::to_json() const {
     return output;
 }
 
-/****************************** packet recorder ****************************/
+
+void
+RXQueue::start(uint64_t size, uint64_t *shared_counter) {
+    if (m_pkt_buffer) {
+        delete m_pkt_buffer;
+    }
+    m_pkt_buffer = new RXPacketBuffer(size, shared_counter);
+}
+
+void
+RXQueue::stop() {
+    if (m_pkt_buffer) {
+        delete m_pkt_buffer;
+        m_pkt_buffer = NULL;
+    }
+}
+
+RXPacketBuffer *
+RXQueue::fetch() {
+
+    if (!m_pkt_buffer) {
+        return nullptr;
+    }
+    
+    /* hold a pointer to the old one */
+    RXPacketBuffer *old_buffer = m_pkt_buffer;
+
+    /* replace the old one with a new one and freeze the old */
+    m_pkt_buffer = old_buffer->freeze_and_clone();
+
+    return old_buffer;
+}
+
+void
+RXQueue::handle_pkt(const rte_mbuf_t *m) {
+    m_pkt_buffer->push(m);
+}
+
+/**************************************
+ * RX feature recorder
+ * 
+ *************************************/
 
 RXPacketRecorder::RXPacketRecorder() {
     m_writer = NULL;
     m_shared_counter = NULL;
     m_limit  = 0;
     m_epoch  = -1;
-}
-
-RXPacketRecorder::~RXPacketRecorder() {
-    stop();
 }
 
 void
@@ -275,6 +312,13 @@ RXPacketRecorder::stop() {
     if (m_writer) {
         delete m_writer;
         m_writer = NULL;
+    }
+}
+
+void
+RXPacketRecorder::flush_to_disk() {
+    if (m_writer) {
+        m_writer->flush_to_disk();
     }
 }
 
@@ -310,6 +354,30 @@ RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
 }
 
 
+/**************************************
+ * Port manager 
+ * 
+ *************************************/
+
+RXPortManager::RXPortManager() {
+    clear_all_features();
+    m_io          = NULL;
+    m_cpu_dp_u    = NULL;
+}
+
+
+void
+RXPortManager::create(CPortLatencyHWBase *io,
+                      CRFC2544Info *rfc2544,
+                      CRxCoreErrCntrs *err_cntrs,
+                      CCpuUtlDp *cpu_util) {
+    m_io = io;
+    m_cpu_dp_u = cpu_util;
+    
+    /* init features */
+    m_latency.create(rfc2544, err_cntrs);
+}
+    
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
 
     /* handle features */
@@ -318,12 +386,12 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_latency.handle_pkt(m);
     }
 
-    if (is_feature_set(CAPTURE)) {
+    if (is_feature_set(RECORDER)) {
         m_recorder.handle_pkt(m);
     }
 
     if (is_feature_set(QUEUE)) {
-        m_pkt_buffer->handle_pkt(m);
+        m_queue.handle_pkt(m);
     }
 }
 
@@ -358,3 +426,9 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
     return cnt_p;
 }
 
+void
+RXPortManager::tick() {
+    if (is_feature_set(RECORDER)) {
+        m_recorder.flush_to_disk();
+    }
+}

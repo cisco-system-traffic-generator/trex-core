@@ -143,6 +143,13 @@ public:
 	*/
 	void Close();
 
+    /**
+     * flush all packets to disk
+     * 
+     * @author imarom (11/24/2016)
+     */
+    void flush_to_disk();
+    
 private:
 
 	bool init();

@@ -408,6 +408,53 @@ public:
 
 };
 
+/**
+ * defines the base class for CP to RX with reply
+ * 
+ * @author imarom (11/27/2016)
+ */
+template<typename T> class TrexStatelessCpToRxMsgReply : public TrexStatelessCpToRxMsgBase {
+
+public:
+    
+    TrexStatelessCpToRxMsgReply() {
+        m_pending = true;
+    }
+
+    bool is_pending() const {
+        return m_pending;
+    }
+
+    void set_reply(const T &reply) {
+        m_reply = reply;
+
+        /* before marking as done - memory fence */
+        asm volatile("mfence" ::: "memory");
+        m_pending = false;
+    }
+
+    T wait_for_reply(int timeout_ms = 100, int backoff_ms = 1) {
+        int guard = timeout_ms;
+
+        while (is_pending()) {
+            guard -= backoff_ms;
+            if (guard < 0) {
+                throw TrexException("timeout: RX core has failed to reply");
+            }
+
+            delay(backoff_ms);
+        }
+        
+        return m_reply;
+
+    }
+    
+protected:
+    volatile bool  m_pending;
+    T              m_reply;
+};
+
+
 class TrexStatelessRxEnableLatency : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
@@ -421,7 +468,8 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 };
 
 
-class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
+
+class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgReply<bool> {
 public:
     TrexStatelessRxStartCapture(uint8_t port_id, RXCaptureInfo &rx_capture_info) {
         m_port_id          = port_id;
@@ -452,7 +500,8 @@ private:
     uint8_t           m_port_id;
 };
 
-class TrexStatelessRxStartQueue : public TrexStatelessCpToRxMsgBase {
+
+class TrexStatelessRxStartQueue : public TrexStatelessCpToRxMsgReply<bool> {
 public:
     TrexStatelessRxStartQueue(uint8_t port_id, RXQueueInfo &rx_queue_info) {
         m_port_id           = port_id;
@@ -468,6 +517,7 @@ private:
     uint64_t          *m_shared_counter;
 };
 
+
 class TrexStatelessRxStopQueue : public TrexStatelessCpToRxMsgBase {
 public:
     TrexStatelessRxStopQueue(uint8_t port_id) {
@@ -481,50 +531,11 @@ private:
 };
 
 
-template<typename T> class TrexStatelessMsgReply {
-public:
-    TrexStatelessMsgReply() {
-        m_pending = true;
-    }
 
-    bool is_pending() const {
-        return m_pending;
-    }
-
-    void set(T reply) {
-        m_reply = reply;
-
-        /* before marking as done - memory fence */
-        asm volatile("mfence" ::: "memory");
-        m_pending = false;
-    }
-
-    T wait_for_reply(int timeout_ms = 100, int backoff_ms = 1) {
-        int guard = timeout_ms;
-
-        while (is_pending()) {
-            guard -= backoff_ms;
-            if (guard < 0) {
-                throw TrexException("timeout: RX core has failed to reply");
-            }
-
-            delay(backoff_ms);
-            
-        }
-        return m_reply;
-
-    }
-private:
-    bool  m_pending;
-    T     m_reply;
-};
-
-
-
-class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgReply<RXPacketBuffer *> {
 public:
 
-    TrexStatelessRxQueueGetPkts(uint8_t port_id, TrexStatelessMsgReply<RXPacketBuffer *> &reply) : m_reply(reply) {
+    TrexStatelessRxQueueGetPkts(uint8_t port_id) {
         m_port_id = port_id;
     }
 
@@ -535,8 +546,7 @@ public:
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t                                    m_port_id;
-    TrexStatelessMsgReply<RXPacketBuffer*>    &m_reply;
+    uint8_t  m_port_id;
 };
 
 

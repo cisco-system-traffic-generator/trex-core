@@ -939,14 +939,19 @@ TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t l
 
     m_rx_features_info.m_rx_capture_info.enable(pcap_filename, limit);
 
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartCapture(m_port_id, m_rx_features_info.m_rx_capture_info);
-    send_message_to_rx(msg);
+    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, m_rx_features_info.m_rx_capture_info);
+    send_message_to_rx((TrexStatelessCpToRxMsgBase *)msg);
+    
+    /* as below, must wait for ACK from RX core before returning ACK */
+    msg->wait_for_reply();
 }
 
 void
 TrexStatelessPort::stop_rx_capture() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
     send_message_to_rx(msg);
+    
+    /* update our cached data */
     m_rx_features_info.m_rx_capture_info.disable();
 }
 
@@ -955,14 +960,21 @@ TrexStatelessPort::start_rx_queue(uint64_t size) {
 
     m_rx_features_info.m_rx_queue_info.enable(size);
 
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStartQueue(m_port_id, m_rx_features_info.m_rx_queue_info);
-    send_message_to_rx(msg);
+    TrexStatelessRxStartQueue *msg = new TrexStatelessRxStartQueue(m_port_id, m_rx_features_info.m_rx_queue_info);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+    
+    /* we cannot return ACK to the user until the RX core has approved
+       this might cause the user to lose some packets from the queue
+     */
+    msg->wait_for_reply();
 }
 
 void
 TrexStatelessPort::stop_rx_queue() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopQueue(m_port_id);
     send_message_to_rx(msg);
+    
+    /* update our cached data */
     m_rx_features_info.m_rx_queue_info.disable();
 }
 
@@ -974,13 +986,10 @@ TrexStatelessPort::get_rx_queue_pkts() {
         return NULL;
     }
 
-    /* ask RX core for the pkt queue */
-    TrexStatelessMsgReply<RXPacketBuffer *> msg_reply;
+    TrexStatelessRxQueueGetPkts *msg = new TrexStatelessRxQueueGetPkts(m_port_id);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
 
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxQueueGetPkts(m_port_id, msg_reply);
-    send_message_to_rx(msg);
-
-    RXPacketBuffer *pkt_buffer = msg_reply.wait_for_reply();
+    RXPacketBuffer *pkt_buffer = msg->wait_for_reply();
     return pkt_buffer;
 }
 
