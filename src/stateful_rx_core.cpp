@@ -677,58 +677,6 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
     rte_pktmbuf_free(m);
 }
 
-// In VM, we receive the RX packets in DP core, and send message to RX core with the packet
-void CLatencyManager::handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg) {
-
-    assert(msg->m_latency_offset==0xdead);
-
-    uint8_t rx_port_index=(thread_id<<1)+(msg->m_dir&1);
-    assert( rx_port_index <m_max_ports ) ;
-    CLatencyManagerPerPort * lp=&m_ports[rx_port_index];
-    handle_rx_pkt(lp,(rte_mbuf_t *)msg->m_pkt);
-}
-
-
-void  CLatencyManager::run_rx_queue_msgs(uint8_t thread_id,
-                                         CNodeRing * r){
-
-    while ( true ) {
-        CGenNode * node;
-        if ( r->Dequeue(node)!=0 ){
-            break;
-        }
-        assert(node);
-
-        CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
-
-        uint8_t   msg_type =  msg->m_msg_type;
-        switch (msg_type ) {
-        case CGenNodeMsgBase::LATENCY_PKT:
-            handle_latency_pkt_msg(thread_id,(CGenNodeLatencyPktInfo *) msg);
-            break;
-        default:
-            printf("ERROR latency-thread message type is not valid %d \n",msg_type);
-            assert(0);
-        }
-
-        CGlobalInfo::free_node(node);
-    }
-}
-
-// VM mode function. Handle messages from DP
-void  CLatencyManager::try_rx_queues(){
-
-    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
-    uint8_t threads=CMsgIns::Ins()->get_num_threads();
-    int ti;
-    for (ti=0; ti<(int)threads; ti++) {
-        CNodeRing * r = rx_dp->getRingDpToCp(ti);
-        if ( !r->isEmpty() ){
-            run_rx_queue_msgs((uint8_t)ti,r);
-        }
-    }
-}
-
 void  CLatencyManager::try_rx(){
     rte_mbuf_t * rx_pkts[64];
     int i;
@@ -790,8 +738,6 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
         m_p_queue.push(node);
     }
 
-    bool do_try_rx_queue = CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
-
     if (activate_watchdog) {
         m_monitor.create("STF RX CORE", 1);
         TrexWatchDog::getInstance().register_monitor(&m_monitor);
@@ -806,9 +752,6 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             double dt = now_sec() - n_time ;
             if (dt> (0.0)) {
                 break;
-            }
-            if (do_try_rx_queue){
-                try_rx_queues();
             }
             try_rx();
             rte_pause();

@@ -355,12 +355,8 @@ private:
     double grat_arp_timeout();
     void  send_one_grat_arp();
     void  try_rx();
-    void  try_rx_queues();
-    void  run_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void  wait_for_rx_dump();
     void  handle_rx_pkt(CLatencyManagerPerPort * lp, rte_mbuf_t * m);
-    /* messages handlers */
-    void handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg);
 
  private:
      pqueue_t                m_p_queue; /* priorty queue */

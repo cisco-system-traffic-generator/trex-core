@@ -1095,7 +1095,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()
-        || (CGlobalInfo::m_options.m_arp_ref_per != 0)) {
+        || (CGlobalInfo::m_options.m_arp_ref_per != 0) || get_vm_one_queue_enable()) {
         po->set_rx_enabled();
     }
 
@@ -1986,7 +1986,6 @@ public:
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m);
     virtual int flush_tx_queue(void);
-    __attribute__ ((noinline)) void handle_rx_queue();
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
     void apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
@@ -2062,46 +2061,6 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     return (true);
 }
 
-// This function is only relevant if we are in VM. In this case, we only have one rx queue. Can't have
-// rules to drop queue 0 packets, and pass queue 1 packets to RX core, like in other cases.
-// We receive all packets in the same core that transmitted, and handle them to RX core.
-void CCoreEthIF::handle_rx_queue(void) {
-    if ( likely( ! get_vm_one_queue_enable() ) ) {
-        return;
-    }
-
-    pkt_dir_t dir;
-    bool is_rx = get_is_rx_thread_enabled();
-    for (dir=CLIENT_SIDE; dir<CS_NUM; dir++) {
-        CCorePerPort * lp_port=&m_ports[dir];
-        CPhyEthIF * lp=lp_port->m_port;
-
-        rte_mbuf_t * rx_pkts[32];
-        int j=0;
-
-        while (true) {
-            j++;
-            uint16_t cnt =lp->rx_burst(0,rx_pkts,32);
-            if ( cnt ) {
-                int i;
-                for (i=0; i<(int)cnt;i++) {
-                    rte_mbuf_t * m=rx_pkts[i];
-                    if ( is_rx ){
-                        if (!process_rx_pkt(dir,m)){
-                            rte_pktmbuf_free(m);
-                        }
-                    }else{
-                        rte_pktmbuf_free(m);
-                    }
-                }
-            }
-            if ((cnt<5) || j>10 ) {
-                break;
-            }
-        }
-    }
-}
-
 int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
     pkt_dir_t dir;
@@ -2113,8 +2072,6 @@ int CCoreEthIF::flush_tx_queue(void){
             lp_port->m_len = 0;
         }
     }
-
-    handle_rx_queue();
 
     return 0;
 }
@@ -2605,10 +2562,11 @@ private:
 class CLatencyVmPort : public CPortLatencyHWBase {
 public:
     void Create(uint8_t port_index,CNodeRing * ring,
-                CLatencyManager * mgr){
+                CLatencyManager * mgr, CPhyEthIF  * p) {
         m_dir        = (port_index%2);
         m_ring_to_dp = ring;
         m_mgr        = mgr;
+        m_port = p;
     }
 
     virtual int tx(rte_mbuf_t * m){
@@ -2635,17 +2593,23 @@ public:
         return (-1);
     }
 
-    virtual rte_mbuf_t * rx(){
-        return (0);
+    virtual rte_mbuf_t * rx() {
+        rte_mbuf_t * rx_pkts[1];
+        uint16_t cnt = m_port->rx_burst(0, rx_pkts, 1);
+        if (cnt) {
+            return (rx_pkts[0]);
+        } else {
+            return (0);
+        }
     }
 
-    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
-                              uint16_t nb_pkts){
-        return (0);
+    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
+        uint16_t cnt = m_port->rx_burst(0, rx_pkts, nb_pkts);
+        return (cnt);
     }
-
 
 private:
+    CPhyEthIF  * m_port;
     uint8_t                          m_dir;
     CNodeRing *                      m_ring_to_dp;   /* ring dp -> latency thread */
     CLatencyManager *                m_mgr;
@@ -3530,13 +3494,13 @@ void CGlobalTRex::ixgbe_configure_mg(void) {
     if ( get_vm_one_queue_enable() ) {
         /* vm mode, indirect queues  */
         for (i=0; i<m_max_ports; i++) {
-
+            CPhyEthIF * _if = &m_ports[i];
             CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
             uint8_t thread_id = (i>>1);
 
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            m_latency_vm_vports[i].Create((uint8_t)i,r,&m_mg);
+            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if);
 
             mg_cfg.m_ports[i] =&m_latency_vm_vports[i];
         }
@@ -3566,10 +3530,11 @@ void CGlobalTRex::rx_sl_configure(void) {
     if ( get_vm_one_queue_enable() ) {
         /* vm mode, indirect queues  */
         for (i=0; i < m_max_ports; i++) {
+            CPhyEthIF * _if = &m_ports[i];
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg);
+            m_latency_vm_vports[i].Create(i, r, &m_mg, _if);
             rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
         }
     } else {
