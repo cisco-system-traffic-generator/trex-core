@@ -118,24 +118,6 @@ def test_get_definitions_all():
     assert("Dot1Q" in def_classnames)
     assert("TCP" in def_classnames)
 
-    fe_parameter_metas = defs['feInstructionParameters']
-    assert(fe_parameter_metas[0]['id'] == "name")
-    assert(fe_parameter_metas[1]['id'] == "init_value")
-    assert(fe_parameter_metas[2]['id'] == "max_value")
-    assert(fe_parameter_metas[3]['id'] == "min_value")
-    assert(fe_parameter_metas[4]['id'] == "step")
-    assert(fe_parameter_metas[5]['id'] == "op")
-    assert(fe_parameter_metas[6]['id'] == "size")
-    assert(fe_parameter_metas[7]['id'] == "fv_name")
-    assert(fe_parameter_metas[8]['id'] == "pkt_offset")
-    assert(fe_parameter_metas[9]['id'] == "offset_fixup")
-    assert(fe_parameter_metas[10]['id'] == "add_val")
-    assert(fe_parameter_metas[11]['id'] == "is_big")
-    assert(fe_parameter_metas[12]['id'] == "offset")
-    assert(fe_parameter_metas[13]['id'] == "l3_offset")
-    assert(fe_parameter_metas[14]['id'] == "l4_offset")
-    assert(fe_parameter_metas[15]['id'] == "l4_type")
-
     # All instructions should have a help description.
     fe_instructions = defs['feInstructions']
     for instruction in fe_instructions:
@@ -299,10 +281,10 @@ def test_generate_vm_instructions():
                                                                                "fv_name": "ip_ttl"}}],
                                               "global_parameters": {}}}
     res = build_pkt_ex(ip_pkt_model, ip_instructions_model)
-    src_instruction = res['vm_instructions']['instructions'][0]
+    src_instruction = res['field_engine']['instructions']['instructions'][0]
     assert(src_instruction['min_value'] == 3232235530)
     assert(src_instruction['max_value'] == 3232235620)
 
-    ttl_instruction = res['vm_instructions']['instructions'][2]
+    ttl_instruction = res['field_engine']['instructions']['instructions'][2]
     assert(ttl_instruction['min_value'] == 32)
     assert(ttl_instruction['max_value'] == 64)
