@@ -486,7 +486,7 @@ class CTRexScapyPktUtl(object):
             if f.name == field_name:
                 return (l_offset+f.offset,f.get_size_bytes ());
 
-        raise CTRexPacketBuildException(-11, "No layer %s-%d." % (name, save_cnt, field_name));
+        raise CTRexPacketBuildException(-11, "No layer %s-%d." % (field_name, layer_cnt))
 
     def get_layer_offet_by_str(self, layer_des):
         """
@@ -827,6 +827,7 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         self.l3_offset = l3_offset; # could be a name of offset
         self.l4_offset = l4_offset; # could be a name of offset
         self.l4_type = l4_type
+        self.l2_len = 0
 
 
     def get_obj (self):
@@ -838,8 +839,8 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         if type(self.l4_offset)==str:
             self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
 
-        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset' 
-        self.l3_len = self.l4_offset - self.l2_len; 
+        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset'
+        self.l3_len = self.l4_offset - self.l2_len;
 
 
 class STLVmFixIpv4(CTRexVmDescBase):
@@ -1084,58 +1085,58 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
 
 
 class STLVmTrimPktSize(CTRexVmDescBase):
-    """
-    Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.  
-
-
-    :parameters:
-        fv_name : string 
-            Stream variable name. The value of this variable is the new total packet size.  
-
-
-    For Example::
-
-        def create_stream (self):
-            # pkt 
-            p_l2  = Ether();
-            p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
-            p_l4  = UDP(dport=12,sport=1025)
-            pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
-            base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
-    
-            l3_len_fix =-(len(p_l2));
-            l4_len_fix =-(len(p_l2/p_l3));
-    
-    
-            # vm
-            vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, 
-                                            max_value=len(base_pkt), 
-                                            size=2, op="inc"),
-
-                               STLVmTrimPktSize("fv_rand"),                         # change total packet size <<<
-
-                               STLVmWrFlowVar(fv_name="fv_rand", 
-                                              pkt_offset= "IP.len", 
-                                              add_val=l3_len_fix), # fix ip len 
-
-                               STLVmFixIpv4(offset = "IP"),                       # fix checksum
-
-                               STLVmWrFlowVar(fv_name="fv_rand", 
-                                              pkt_offset= "UDP.len", 
-                                              add_val=l4_len_fix) # fix udp len  
-                              ]
-                           )
-    
-            pkt = STLPktBuilder(pkt = base_pkt,
-                                vm = vm)
-    
-            return STLStream(packet = pkt,
-                             mode = STLTXCont())
-
-
-    """
-
     def __init__(self,fv_name):
+        """
+            Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
+
+
+            :parameters:
+                fv_name : string
+                    Stream variable name. The value of this variable is the new total packet size.
+
+
+            For Example::
+
+                def create_stream (self):
+                    # pkt
+                    p_l2  = Ether();
+                    p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
+                    p_l4  = UDP(dport=12,sport=1025)
+                    pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
+                    base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
+
+                    l3_len_fix =-(len(p_l2));
+                    l4_len_fix =-(len(p_l2/p_l3));
+
+
+                    # vm
+                    vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64,
+                                                    max_value=len(base_pkt),
+                                                    size=2, op="inc"),
+
+                                       STLVmTrimPktSize("fv_rand"),                         # change total packet size <<<
+
+                                       STLVmWrFlowVar(fv_name="fv_rand",
+                                                      pkt_offset= "IP.len",
+                                                      add_val=l3_len_fix), # fix ip len
+
+                                       STLVmFixIpv4(offset = "IP"),                       # fix checksum
+
+                                       STLVmWrFlowVar(fv_name="fv_rand",
+                                                      pkt_offset= "UDP.len",
+                                                      add_val=l4_len_fix) # fix udp len
+                                      ]
+                                   )
+
+                    pkt = STLPktBuilder(pkt = base_pkt,
+                                        vm = vm)
+
+                    return STLStream(packet = pkt,
+                                     mode = STLTXCont())
+
+
+        """
+
         super(STLVmTrimPktSize, self).__init__()
         self.name = fv_name
         validate_type('fv_name', fv_name, str)
