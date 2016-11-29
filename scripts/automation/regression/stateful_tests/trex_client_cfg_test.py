@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from CPlatform import CStaticRouteConfig
 from .tests_exceptions import *
 #import sys
@@ -15,6 +15,8 @@ class CTRexClientCfg_Test(CTRexGeneral_Test):
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
+        if CTRexScenario.setup_name == 'kiwi02':
+            self.skip("Can't run currently on kiwi02")
         super(CTRexClientCfg_Test, self).setUp() # launch super test class setUp process
         pass
 
