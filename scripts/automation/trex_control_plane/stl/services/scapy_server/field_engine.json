@@ -2,15 +2,31 @@
   "instructions": [
     {
       "id": "STLVmFlowVar",
-      "parameters": ["name", "max_value","min_value","step", "size","op"]
+      "parameters": ["name", "init_value", "max_value","min_value","step", "size","op"]
     },
     {
       "id": "STLVmWrFlowVar",
       "parameters": ["fv_name", "pkt_offset","offset_fixup","add_val","is_big"]
     },
     {
+      "id": "STLVmWrMaskFlowVar",
+      "parameters": ["fv_name", "pkt_offset", "pkt_cast_size","mask", "shift","add_value","is_big"]
+    },
+    {
       "id": "STLVmFixIpv4",
       "parameters": ["offset"]
+    },
+    {
+      "id": "STLVmTrimPktSize",
+      "parameters": ["fv_name"]
+    },
+    {
+      "id": "STLVmTupleGen",
+      "parameters": ["name", "ip_min", "ip_max", "port_min", "port_max", "limit_flows", "flags"]
+    },
+    {
+      "id": "STLVmFlowVarRepetableRandom",
+      "parameters": ["name", "size", "limit", "seed", "min_value", "max_value"]
     },
     {
       "id": "STLVmFixChecksumHw",
@@ -22,7 +38,8 @@
     {
       "id": "name",
       "name": "Name",
-      "type": "STRING",
+      "type": "ENUM",
+      "editable": true,
       "required": true,
       "defaultValue": "Not defined"
     },
@@ -69,7 +86,7 @@
       "id": "size",
       "name": "Size",
       "type": "ENUM",
-      "defaultValue": "1",
+      "defaultValue": "4",
       "dict": {
         "1": "1",
         "2": "2",
@@ -80,16 +97,40 @@
     {
       "id": "fv_name",
       "name": "Variable name",
-      "type": "STRING",
+      "type": "ENUM",
       "required": true,
-      "defaultValue": "Not Defined"
+      "editable": false
     },
     {
       "id": "pkt_offset",
       "name": "Offset",
-      "type": "STRING",
+      "type": "ENUM",
       "required": true,
+      "editable": true,
       "defaultValue": 0
+    },
+    {
+      "id": "pkt_cast_size",
+      "name": "Packet cast size",
+      "type": "ENUM",
+      "defaultValue": 1,
+      "dict":{
+        "1":1,
+        "2":2,
+        "4":4
+      }
+    },
+    {
+      "id": "shift",
+      "name": "Shift",
+      "type": "NUMBER",
+      "defaultValue": 0
+    },
+    {
+      "id": "mask",
+      "name": "Mask",
+      "type": "STRING",
+      "defaultValue": "0xff"
     },
     {
       "id": "offset_fixup",
@@ -100,6 +141,12 @@
     {
       "id": "add_val",
       "name": "add_val",
+      "type": "NUMBER",
+      "defaultValue": 0
+    },
+    {
+      "id": "add_value",
+      "name": "add_value",
       "type": "NUMBER",
       "defaultValue": 0
     },
@@ -116,52 +163,93 @@
     {
       "id": "offset",
       "name": "Offset",
-      "type": "STRING",
+      "type": "ENUM",
       "required": true,
-      "defaultValue": "Not defined"
+      "editable": true,
+      "defaultValue": 0
     },
     {
       "id": "l3_offset",
       "name": "L3 offset",
       "type": "STRING",
       "required": true,
-      "defaultValue": 0
+      "autocomplete": true,
+      "defaultValue": "IP"
     },
     {
       "id": "l4_offset",
       "name": "L4 offset",
       "type": "STRING",
       "required": true,
+      "defaultValue": "0"
+    },
+    {
+      "id": "ip_min",
+      "name": "Min IP",
+      "type": "STRING",
+      "defaultValue": "0.0.0.1"
+    },
+    {
+      "id": "ip_max",
+      "name": "Max IP",
+      "type": "STRING",
+      "defaultValue": "0.0.0.10"
+    },
+    {
+      "id": "port_max",
+      "name": "Max Port number",
+      "type": "NUMBER",
+      "defaultValue": 65535
+    },
+    {
+      "id": "port_min",
+      "name": "Min Port number",
+      "type": "NUMBER",
+      "defaultValue": 1025
+    },
+    {
+      "id": "limit_flows",
+      "name": "FLows limit",
+      "type": "NUMBER",
+      "defaultValue": 100000
+    },
+    {
+      "id": "limit",
+      "name": "Limit",
+      "type": "NUMBER",
+      "defaultValue": 100
+    },
+    {
+      "id": "seed",
+      "name": "Seed",
+      "type": "String",
+      "defaultValue": "None"
+    },
+    {
+      "id": "flags",
+      "name": "Flags",
+      "type": "NUMBER",
       "defaultValue": 0
     },
     {
       "id": "l4_type",
       "name": "L4 type",
-      "type": "STRING",
+      "type": "ENUM",
       "required": true,
-      "defaultValue": "Not defined"
+      "editable": false,
+      "defaultValue": "13",
+      "dict": {
+        "11": "L4_TYPE_UDP",
+        "13": "L4_TYPE_TCP"
+      }
     }
   ],
-  "protocol_fields": {
-    "IP": [
-      "ttl",
-      "src",
-      "dst"
-    ],
-    "TCP": [
-      "sport",
-      "dport"
-    ],
-    "UDP": [
-      "sport",
-      "dport"
-    ]
-  },
+  "supported_protocols": ["IP","TCP","UDP"],
   "global_params_meta":[
     {
       "id": "cache_size",
       "name": "Cache size",
-      "type": "STRING",
+      "type": "NUMBER",
       "defaultValue": "1000"
     }
   ]
