@@ -145,6 +145,24 @@ class Scapy_service_api():
         """
         pass
 
+    def load_instruction_parameter_values(self, client_v_handler, pkt_model_descriptor, vm_instructions_model, parameter_id):
+        """ load_instruction_parameter_values(self,client_v_handler,pkt_model_descriptor, vm_instructions_model, parameter_id) -> Dictionary (of possible parameter values)
+        Returns possible valies for given pararameter id depends on current pkt structure and vm_instructions
+        model.
+
+        Parameters
+        ----------
+        pkt_descriptor - An array of dictionaries describing a network packet
+        vm_instructions_model - A dictionary of extra options required for building packet
+        parameter_id - A string of parameter id
+
+        Returns
+        -------
+        Possible parameter values map.
+
+        """
+        pass
+
     def get_tree(self,client_v_handler):
         """ get_tree(self) -> Dictionary describing an example of hierarchy in layers
 
@@ -395,7 +413,7 @@ class Scapy_service(Scapy_service_api):
         self.version_minor = '01'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
         self.protocol_definitions = {} # protocolId -> prococol definition overrides data
-        self.protocol_fields_fe_aware = {}
+        self.field_engine_supported_protocols = {}
         self.instruction_parameter_meta_definitions = []
         self.field_engine_parameter_meta_definitions = []
         self.field_engine_instructions_meta = []
@@ -415,14 +433,14 @@ class Scapy_service(Scapy_service_api):
     def _load_field_engine_meta_from_json(self):
         # load protocol definitions from a json file
         self.instruction_parameter_meta_definitions = []
-        self.protocol_fields_fe_aware = {}
+        self.field_engine_supported_protocols = {}
         self.field_engine_parameter_meta_definitions = []
         with open('field_engine.json', 'r') as f:
             metas = json.load(f)
             self.instruction_parameter_meta_definitions = metas["instruction_params_meta"]
             self.field_engine_instructions_meta = metas["instructions"]
             self._append_intructions_help()
-            self.protocol_fields_fe_aware = metas["protocol_fields"]
+            self.field_engine_supported_protocols = metas["supported_protocols"]
             self.field_engine_parameter_meta_definitions = metas["global_params_meta"]
 
 
@@ -760,9 +778,53 @@ class Scapy_service(Scapy_service_api):
     def build_pkt_ex(self, client_v_handler, pkt_model_descriptor, extra_options):
         res = self.build_pkt(client_v_handler, pkt_model_descriptor)
         pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
-        res['vm_instructions'] = self._generate_vm_instructions(pkt, extra_options['field_engine'])
-        res['vm_instructions_expressions'] = self.field_engine_instruction_expressions
+
+        field_engine = {}
+        field_engine['instructions'] = []
+        field_engine['error'] = None
+        try:
+            field_engine['instructions'] = self._generate_vm_instructions(pkt, extra_options['field_engine'])
+        except AssertionError as e:
+            field_engine['error'] = e.message
+        except CTRexPacketBuildException as e:
+            field_engine['error'] = e.message
+
+        field_engine['vm_instructions_expressions'] = self.field_engine_instruction_expressions
+        res['field_engine'] = field_engine
         return res
+
+    def load_instruction_parameter_values(self, client_v_handler, pkt_model_descriptor, vm_instructions_model, parameter_id):
+
+        given_protocol_ids = [proto['id'] for proto in pkt_model_descriptor]
+
+        if parameter_id == "name":
+            return self._curent_pkt_protocol_fields(given_protocol_ids, "_")
+        if parameter_id == "fv_name":
+            return self._existed_flow_var_names(vm_instructions_model['field_engine']['instructions'])
+        if parameter_id == "pkt_offset":
+            return self._curent_pkt_protocol_fields(given_protocol_ids, ".")
+
+        return {}
+
+    def _existed_flow_var_names(self, instructions):
+        return {"map": dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if instruction['id'] == "STLVmFlowVar")}
+
+    def _curent_pkt_protocol_fields(self, given_protocol_ids, delimiter):
+        given_protocol_classes = [c for c in Packet.__subclasses__() if c.__name__ in given_protocol_ids and c.__name__ != "Ether"]
+        protocol_fields = {}
+        for protocol_class in given_protocol_classes:
+            protocol_name = protocol_class.__name__
+            protocol_count = given_protocol_ids.count(protocol_name)
+            for field_desc in protocol_class.fields_desc:
+                if delimiter == '.' and protocol_count > 1:
+                    for idx in range(protocol_count):
+                        formatted_name = "{0}:{1}{2}{3}".format(protocol_name, idx, delimiter, field_desc.name)
+                        protocol_fields[formatted_name] = formatted_name
+                else:
+                    formatted_name = "{0}{1}{2}".format(protocol_name, delimiter, field_desc.name)
+                protocol_fields[formatted_name] = formatted_name
+
+        return {"map": protocol_fields}
 
     def _generate_vm_instructions(self, pkt, field_engine_model_descriptor):
         self.field_engine_instruction_expressions = []
@@ -785,12 +847,17 @@ class Scapy_service(Scapy_service_api):
         return pkt_builder.get_vm_data()
 
     def _sanitize_value(self, val):
+        if val == "None" or val == "none":
+            return None
         if val == "true":
             return True
         elif val == "false":
             return False
+        elif self._is_int(val):
+            return int(val)
         else:
-            return int(val) if val.isdigit() else str(val)
+            str_val = str(val)
+            return int(str_val, 16) if str_val.startswith("0x") else str_val
 
     def _get_instruction_parameter_meta(self, param_id):
         for meta in self.instruction_parameter_meta_definitions:
@@ -891,8 +958,7 @@ class Scapy_service(Scapy_service_api):
                 protocols.append({
                     "id": protocolId,
                     "name": protoDef.get('name') or pkt_class.name,
-                    "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or []),
-                    "fieldEngineAwareFields": self.protocol_fields_fe_aware.get(protocolId) or []
+                    "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
         res = {"protocols": protocols,
                "feInstructionParameters": self.instruction_parameter_meta_definitions,
