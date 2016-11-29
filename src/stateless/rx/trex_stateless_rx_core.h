@@ -159,7 +159,7 @@ class CRxCoreStateless {
 
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
-    void handle_work_stage(bool do_try_rx_queue);
+    void handle_work_stage();
     void port_manager_tick();
     
     int process_all_pending_pkts(bool flush_rx = false);

@@ -182,17 +182,12 @@ void CRxCoreStateless::port_manager_tick() {
     }
 }
 
-void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
+void CRxCoreStateless::handle_work_stage() {
     
     /* set the next sync time to */
     dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
     
     while (m_state == STATE_WORKING) {
-        
-        if (do_try_rx_queue) {
-            try_rx_queues();
-        }
-
         process_all_pending_pkts();
 
         dsec_t now = now_sec();
@@ -209,21 +204,17 @@ void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
 }
 
 void CRxCoreStateless::start() {
-    bool do_try_rx_queue = CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
-
     /* register a watchdog handle on current core */
     m_monitor.create("STL RX CORE", 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
     while (m_state != STATE_QUIT) {
-
         switch (m_state) {
         case STATE_IDLE:
             idle_state_loop();
             break;
-
         case STATE_WORKING:
-            handle_work_stage(do_try_rx_queue);
+            handle_work_stage();
             break;
 
         default:
@@ -274,20 +265,6 @@ void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
         }
 
         CGlobalInfo::free_node(node);
-    }
-}
-
-// VM mode function. Handle messages from DP
-void CRxCoreStateless::try_rx_queues() {
-
-    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
-    uint8_t threads=CMsgIns::Ins()->get_num_threads();
-    int ti;
-    for (ti = 0; ti < (int)threads; ti++) {
-        CNodeRing * r = rx_dp->getRingDpToCp(ti);
-        if ( ! r->isEmpty() ) {
-            handle_rx_queue_msgs((uint8_t)ti, r);
-        }
     }
 }
 
