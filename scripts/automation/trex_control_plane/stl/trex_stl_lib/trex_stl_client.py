@@ -2788,10 +2788,8 @@ class STLClient(object):
                 led_on           - True or False
                 flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
                 rxf              - 'hw' for hardware rules matching packets only or 'all' all packets
-                ipv4             - configure IPv4 address for port(s). for multiple ports should be a list
-                                   of IPv4 addresses in the same length of the ports array
-                dest             - configure destination address for port(s) in either IPv4 or MAC format.
-                                   for multiple ports should be a list in the same length of the ports array
+                ipv4             - configure IPv4 address for port(s). for multiple ports should be a list of IPv4 addresses in the same length of the ports array
+                dest             - configure destination address for port(s) in either IPv4 or MAC format. for multiple ports should be a list in the same length of the ports array
                 resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
             :raises:
                 + :exe:'STLError'
