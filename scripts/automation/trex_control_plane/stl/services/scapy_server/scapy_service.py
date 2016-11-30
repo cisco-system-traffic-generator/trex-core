@@ -807,7 +807,14 @@ class Scapy_service(Scapy_service_api):
         return {}
 
     def _existed_flow_var_names(self, instructions):
-        return {"map": dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if instruction['id'] == "STLVmFlowVar")}
+        return {"map": dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if self._nameParamterExist(instruction))}
+
+    def _nameParamterExist(self, instruction):
+        try:
+            instruction['parameters']['name']
+            return True
+        except KeyError:
+            return False
 
     def _curent_pkt_protocol_fields(self, given_protocol_ids, delimiter):
         given_protocol_classes = [c for c in Packet.__subclasses__() if c.__name__ in given_protocol_ids and c.__name__ != "Ether"]

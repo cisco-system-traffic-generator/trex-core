@@ -181,7 +181,7 @@
       "name": "L4 offset",
       "type": "STRING",
       "required": true,
-      "defaultValue": "0"
+      "defaultValue": "TCP"
     },
     {
       "id": "ip_min",
