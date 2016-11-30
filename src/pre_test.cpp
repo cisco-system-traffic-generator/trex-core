@@ -35,6 +35,15 @@ CPretestOnePortInfo::CPretestOnePortInfo() {
     m_stats.clear();
 }
 
+CPretestOnePortInfo::~CPretestOnePortInfo() {
+    for (std::vector<COneIPInfo *>::iterator it = m_src_info.begin(); it != m_src_info.end(); ++it) {
+        delete *it;
+    }
+    for (std::vector<COneIPInfo *>::iterator it = m_dst_info.begin(); it != m_dst_info.end(); ++it) {
+        delete *it;
+    }
+}
+
 void CPretestOnePortInfo::add_src(uint32_t ip, uint16_t vlan, MacAddress mac) {
     COneIPv4Info *one_ip = new COneIPv4Info(ip, vlan, mac);
     assert(one_ip);

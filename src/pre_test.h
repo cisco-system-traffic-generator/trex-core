@@ -49,6 +49,7 @@ class CPretestOnePortInfo {
 
  public:
     CPretestOnePortInfo();
+    ~CPretestOnePortInfo();
     void add_src(uint32_t ip, uint16_t vlan, MacAddress mac);
     void add_dst(uint32_t ip, uint16_t vlan);
     void add_src(uint16_t ip[8], uint16_t vlan, MacAddress mac);
