@@ -156,25 +156,24 @@ RXLatency::reset_stats() {
     }
 }
 
+Json::Value
+RXLatency::to_json() const {
+    return Json::objectValue;
+}
+
 /**************************************
  * RX feature queue 
  * 
  *************************************/
 
-RXPacketBuffer::RXPacketBuffer(uint64_t size, uint64_t *shared_counter) {
+RXPacketBuffer::RXPacketBuffer(uint64_t size) {
     m_buffer           = nullptr;
     m_head             = 0;
     m_tail             = 0;
     m_size             = (size + 1); // for the empty/full difference 1 slot reserved
-    m_shared_counter   = shared_counter;
-
-    /* reset the counter */
-    *m_shared_counter = 0;
 
     /* generate queue */
     m_buffer = new RXPacket*[m_size](); // zeroed
-
-    m_is_enabled = true;
 }
 
 RXPacketBuffer::~RXPacketBuffer() {
@@ -187,22 +186,8 @@ RXPacketBuffer::~RXPacketBuffer() {
     delete [] m_buffer;
 }
 
-RXPacketBuffer *
-RXPacketBuffer::freeze_and_clone() {
-    /* create a new one - same size and shared counter 0 */
-    RXPacketBuffer *new_buffer = new RXPacketBuffer(m_size, m_shared_counter);
-
-    /* freeze the current */
-    m_shared_counter = NULL;
-    m_is_enabled     = false;
-
-    return new_buffer;
-}
-
 void 
 RXPacketBuffer::push(const rte_mbuf_t *m) {
-    assert(m_is_enabled);
-
     /* if full - pop the oldest */
     if (is_full()) {
         delete pop();
@@ -211,20 +196,25 @@ RXPacketBuffer::push(const rte_mbuf_t *m) {
     /* push packet */
     m_buffer[m_head] = new RXPacket(m);
     m_head = next(m_head);
-    
-    /* update the shared counter - control plane memory */
-    (*m_shared_counter)++;
 }
 
 RXPacket *
 RXPacketBuffer::pop() {
-    assert(m_is_enabled);
     assert(!is_empty());
     
     RXPacket *pkt = m_buffer[m_tail];
     m_tail = next(m_tail);
-    (*m_shared_counter)--;
+    
     return pkt;
+}
+
+uint64_t
+RXPacketBuffer::get_element_count() const {
+    if (m_head >= m_tail) {
+        return (m_head - m_tail);
+    } else {
+        return ( get_capacity() - (m_tail - m_head - 1) );
+    }
 }
 
 Json::Value
@@ -244,11 +234,11 @@ RXPacketBuffer::to_json() const {
 
 
 void
-RXQueue::start(uint64_t size, uint64_t *shared_counter) {
+RXQueue::start(uint64_t size) {
     if (m_pkt_buffer) {
         delete m_pkt_buffer;
     }
-    m_pkt_buffer = new RXPacketBuffer(size, shared_counter);
+    m_pkt_buffer = new RXPacketBuffer(size);
 }
 
 void
@@ -259,10 +249,11 @@ RXQueue::stop() {
     }
 }
 
-RXPacketBuffer *
+const RXPacketBuffer *
 RXQueue::fetch() {
 
-    if (!m_pkt_buffer) {
+    /* if no buffer or the buffer is empty - give a NULL one */
+    if ( (!m_pkt_buffer) || (m_pkt_buffer->get_element_count() == 0) ) {
         return nullptr;
     }
     
@@ -270,7 +261,7 @@ RXQueue::fetch() {
     RXPacketBuffer *old_buffer = m_pkt_buffer;
 
     /* replace the old one with a new one and freeze the old */
-    m_pkt_buffer = old_buffer->freeze_and_clone();
+    m_pkt_buffer = new RXPacketBuffer(old_buffer->get_capacity());
 
     return old_buffer;
 }
@@ -280,6 +271,18 @@ RXQueue::handle_pkt(const rte_mbuf_t *m) {
     m_pkt_buffer->push(m);
 }
 
+Json::Value
+RXQueue::to_json() const {
+    assert(m_pkt_buffer != NULL);
+    
+    Json::Value output = Json::objectValue;
+    
+    output["size"]    = Json::UInt64(m_pkt_buffer->get_capacity());
+    output["count"]   = Json::UInt64(m_pkt_buffer->get_element_count());
+    
+    return output;
+}
+
 /**************************************
  * RX feature recorder
  * 
@@ -287,13 +290,15 @@ RXQueue::handle_pkt(const rte_mbuf_t *m) {
 
 RXPacketRecorder::RXPacketRecorder() {
     m_writer = NULL;
-    m_shared_counter = NULL;
+    m_count  = 0;
     m_limit  = 0;
     m_epoch  = -1;
+    
+    m_pending_flush = false;
 }
 
 void
-RXPacketRecorder::start(const std::string &pcap, uint64_t limit, uint64_t *shared_counter) {
+RXPacketRecorder::start(const std::string &pcap, uint64_t limit) {
     m_writer = CCapWriterFactory::CreateWriter(LIBPCAP, (char *)pcap.c_str());
     if (m_writer == NULL) {
         std::stringstream ss;
@@ -302,23 +307,29 @@ RXPacketRecorder::start(const std::string &pcap, uint64_t limit, uint64_t *share
     }
 
     assert(limit > 0);
+    
     m_limit = limit;
-    m_shared_counter = shared_counter;
-    (*m_shared_counter) = 0;
+    m_count = 0;
+    m_pending_flush = false;
+    m_pcap_filename = pcap;
 }
 
 void
 RXPacketRecorder::stop() {
-    if (m_writer) {
-        delete m_writer;
-        m_writer = NULL;
+    if (!m_writer) {
+        return;
     }
+    
+    delete m_writer;
+    m_writer = NULL;
 }
 
 void
 RXPacketRecorder::flush_to_disk() {
-    if (m_writer) {
+    
+    if (m_writer && m_pending_flush) {
         m_writer->flush_to_disk();
+        m_pending_flush = false;
     }
 }
 
@@ -344,15 +355,25 @@ RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
     memcpy(m_pkt.raw, p, m->pkt_len);
     
     m_writer->write_packet(&m_pkt);
-
-    m_limit--;
-    (*m_shared_counter)++;
-
-    if (m_limit == 0) {
+    m_count++;
+    m_pending_flush = true;
+    
+    if (m_count == m_limit) {
         stop();
     }
+    
 }
 
+Json::Value
+RXPacketRecorder::to_json() const {
+    Json::Value output = Json::objectValue;
+    
+    output["pcap_filename"] = m_pcap_filename;
+    output["limit"]         = Json::UInt64(m_limit);
+    output["count"]         = Json::UInt64(m_count);
+    
+    return output;
+}
 
 /**************************************
  * Port manager 
@@ -431,4 +452,32 @@ RXPortManager::tick() {
     if (is_feature_set(RECORDER)) {
         m_recorder.flush_to_disk();
     }
+}
+
+Json::Value
+RXPortManager::to_json() const {
+    Json::Value output = Json::objectValue;
+    
+    if (is_feature_set(LATENCY)) {
+        output["latency"] = m_latency.to_json();
+        output["latency"]["is_active"] = true;
+    } else {
+        output["latency"]["is_active"] = false;
+    }
+
+    if (is_feature_set(RECORDER)) {
+        output["sniffer"] = m_recorder.to_json();
+        output["sniffer"]["is_active"] = true;
+    } else {
+        output["sniffer"]["is_active"] = false;
+    }
+
+    if (is_feature_set(QUEUE)) {
+        output["queue"] = m_queue.to_json();
+        output["queue"]["is_active"] = true;
+    } else {
+        output["queue"]["is_active"] = false;
+    }
+ 
+    return output;
 }

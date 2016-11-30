@@ -1725,19 +1725,18 @@ bool DpdkTRexPortAttr::update_link_status_nowait(){
     bool changed = false;
     rte_eth_link_get_nowait(m_port_id, &new_link);
     
-    /* if the link got down - update the dest atribute to move to unresolved */
-    if (new_link.link_status != m_link.link_status) {
-        get_dest().on_link_down();
-        changed = true;
-    }
-    
-    /* other changes */
     if (new_link.link_speed != m_link.link_speed ||
                 new_link.link_duplex != m_link.link_duplex ||
-                    new_link.link_autoneg != m_link.link_autoneg) {
+                    new_link.link_autoneg != m_link.link_autoneg ||
+                        new_link.link_status != m_link.link_status) {
         changed = true;
+        
+        /* in case of link status change - notify the dest object */
+        if (new_link.link_status != m_link.link_status) {
+            get_dest().on_link_down();
+        }
     }
-    
+     
     m_link = new_link;
     return changed;
 }

@@ -2,7 +2,7 @@
 from collections import namedtuple, OrderedDict
 
 from .trex_stl_packet_builder_scapy import STLPktBuilder
-from .trex_stl_streams import STLStream, STLTXSingleBurst
+from .trex_stl_streams import STLStream
 from .trex_stl_types import *
 from .trex_stl_rx_features import ARPResolver, PingResolver
 from . import trex_stl_stats
@@ -577,8 +577,7 @@ class Port(object):
         for i in range(len(pkts)):
             pkts[i]['binary'] = base64.b64decode(pkts[i]['binary'])
             
-            
-        return pkts
+        return RC_OK(pkts)
         
         
     @owned

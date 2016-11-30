@@ -374,8 +374,8 @@ double CRxCoreStateless::get_cpu_util() {
 
 
 void
-CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter) {
-    m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit, shared_counter);
+CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
+    m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit);
 }
 
 void
@@ -384,8 +384,8 @@ CRxCoreStateless::stop_recorder(uint8_t port_id) {
 }
 
 void
-CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size, uint64_t *shared_counter) {
-    m_rx_port_mngr[port_id].start_queue(size, shared_counter);
+CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size) {
+    m_rx_port_mngr[port_id].start_queue(size);
 }
 
 void
@@ -407,3 +407,9 @@ CRxCoreStateless::disable_latency() {
     }
 }
 
+const RXPortManager &
+CRxCoreStateless::get_rx_port_mngr(uint8_t port_id) {
+    assert(port_id < m_max_ports);
+    return m_rx_port_mngr[port_id];
+    
+}

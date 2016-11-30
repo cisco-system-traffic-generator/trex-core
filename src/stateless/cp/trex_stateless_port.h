@@ -393,21 +393,19 @@ public:
 	 */
 	void stop_rx_queue();
 
-
-    /**
-     * get the RX features info object
-     * 
-     */
-    const RXFeaturesInfo &get_rx_features() {
-        return m_rx_features_info;
-    }
-
     /**
      * fetch the RX queue packets from the queue
      * 
      */
-    RXPacketBuffer *get_rx_queue_pkts();
+    const RXPacketBuffer *get_rx_queue_pkts();
 
+    /**
+     * generate a JSON describing the status 
+     * of the RX features 
+     * 
+     */
+    Json::Value rx_features_to_json();
+    
     /**
      * return the port attribute object
      * 
@@ -447,7 +445,7 @@ private:
      *
      */
     void send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
-
+    
     /**
      * when a port stops, perform various actions
      *
@@ -502,8 +500,6 @@ private:
     TrexPortOwner       m_owner;
 
     int m_pending_async_stop_event;
-
-    RXFeaturesInfo      m_rx_features_info;
 
 };
 

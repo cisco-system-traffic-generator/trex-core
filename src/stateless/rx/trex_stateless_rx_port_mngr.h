@@ -47,6 +47,8 @@ public:
 
     void handle_pkt(const rte_mbuf_t *m);
 
+    Json::Value to_json() const;
+    
 private:
     bool is_flow_stat_id(uint32_t id) {
         if ((id & 0x000fff00) == IP_ID_RESERVE_BASE) return true;
@@ -123,7 +125,7 @@ private:
 class RXPacketBuffer {
 public:
 
-    RXPacketBuffer(uint64_t size, uint64_t *shared_counter);
+    RXPacketBuffer(uint64_t size);
     ~RXPacketBuffer();
 
     /**
@@ -132,12 +134,6 @@ public:
      */
     void push(const rte_mbuf_t *m);
     
-    /**
-     * freezes the queue and clones a new one
-     * 
-     */
-    RXPacketBuffer * freeze_and_clone();
-
     /**
      * generate a JSON output of the queue
      * 
@@ -153,6 +149,19 @@ public:
         return ( next(m_head) == m_tail);
     }
 
+    /**
+     * return the total amount of space possible
+     */
+    uint64_t get_capacity() const {
+        /* one slot is used for diff between full/empty */
+        return (m_size - 1);
+    }
+    
+    /**
+     * returns how many elements are in the queue
+     */
+    uint64_t get_element_count() const;
+    
 private:
     int next(int v) const {
         return ( (v + 1) % m_size );
@@ -165,8 +174,6 @@ private:
     int             m_tail;
     int             m_size;
     RXPacket      **m_buffer;
-    uint64_t       *m_shared_counter;
-    bool            m_is_enabled;
 };
 
 
@@ -184,13 +191,13 @@ public:
      * start RX queue
      * 
      */
-    void start(uint64_t size, uint64_t *shared_counter);
+    void start(uint64_t size);
     
     /**
      * fetch the current buffer
-     * 
+     * return NULL if no packets
      */
-    RXPacketBuffer * fetch();
+    const RXPacketBuffer * fetch();
     
     /**
      * stop RX queue
@@ -199,6 +206,8 @@ public:
     void stop();
     
     void handle_pkt(const rte_mbuf_t *m);
+    
+    Json::Value to_json() const;
     
 private:
     RXPacketBuffer  *m_pkt_buffer;
@@ -217,7 +226,7 @@ public:
         stop();
     }
     
-    void start(const std::string &pcap, uint64_t limit, uint64_t *shared_counter);
+    void start(const std::string &pcap, uint64_t limit);
     void stop();
     void handle_pkt(const rte_mbuf_t *m);
 
@@ -227,12 +236,16 @@ public:
      */
     void flush_to_disk();
     
+    Json::Value to_json() const;
+    
 private:
     CFileWriterBase  *m_writer;
+    std::string       m_pcap_filename;
     CCapPktRaw        m_pkt;
     dsec_t            m_epoch;
     uint64_t          m_limit;
-    uint64_t         *m_shared_counter;
+    uint64_t          m_count;
+    bool              m_pending_flush;
 };
 
 
@@ -277,8 +290,8 @@ public:
     }
 
     /* recorder */
-    void start_recorder(const std::string &pcap, uint64_t limit_pkts, uint64_t *shared_counter) {
-        m_recorder.start(pcap, limit_pkts, shared_counter);
+    void start_recorder(const std::string &pcap, uint64_t limit_pkts) {
+        m_recorder.start(pcap, limit_pkts);
         set_feature(RECORDER);
     }
 
@@ -288,8 +301,8 @@ public:
     }
 
     /* queue */
-    void start_queue(uint32_t size, uint64_t *shared_counter) {
-        m_queue.start(size, shared_counter);
+    void start_queue(uint32_t size) {
+        m_queue.start(size);
         set_feature(QUEUE);
     }
 
@@ -298,7 +311,7 @@ public:
         unset_feature(QUEUE); 
     }
 
-    RXPacketBuffer *get_pkt_buffer() {
+    const RXPacketBuffer *get_pkt_buffer() {
         if (!is_feature_set(QUEUE)) {
             return nullptr;
         }
@@ -346,6 +359,11 @@ public:
         return (!has_features_set());
     }
 
+    /**
+     * write the status to a JSON format
+     */
+    Json::Value to_json() const;
+    
 private:
     
     void clear_all_features() {

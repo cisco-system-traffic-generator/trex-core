@@ -310,8 +310,8 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         section["ports"][i]["driver"]       = driver;
         section["ports"][i]["description"]  = description;
 
-        section["ports"][i]["pci_addr"]         = pci_addr;
-        section["ports"][i]["numa"]             = numa;
+        section["ports"][i]["pci_addr"]     = pci_addr;
+        section["ports"][i]["numa"]         = numa;
 
         uint16_t caps = port->get_rx_caps();
         section["ports"][i]["rx"]["caps"]      = Json::arrayValue;
@@ -350,6 +350,7 @@ TrexRpcCmdSetPortAttr::parse_rx_filter_mode(const Json::Value &msg, uint8_t port
     } else if (type == "all") {
         filter_mode = RX_FILTER_MODE_ALL;
     } else {
+        /* can't happen - parsed choice */
         assert(0);
     }
 
@@ -647,8 +648,8 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
     
     /* RX info */
-    port->get_rx_features().to_json(result["result"]["rx_info"]);
-
+    result["result"]["rx_info"] = port->rx_features_to_json();
+    
     return (TREX_RPC_CMD_OK);
 }
 

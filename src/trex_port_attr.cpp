@@ -48,7 +48,9 @@ DestAttr::set_dest(uint32_t ipv4, const uint8_t *mac) {
     assert(ipv4 != 0);
 
     m_ipv4 = ipv4;
-    memcpy(m_mac, mac, 6);
+    
+    /* source might be the same as dest (this shadows the datapath memory) */
+    memmove(m_mac, mac, 6);
     m_type = DEST_TYPE_IPV4;
 }
 
@@ -60,7 +62,9 @@ void
 DestAttr::set_dest(const uint8_t *mac) {
 
     m_ipv4 = 0;
-    memcpy(m_mac, mac, 6);
+    
+    /* source might be the same as dest (this shadows the datapath memory) */
+    memmove(m_mac, mac, 6);
     m_type = DEST_TYPE_MAC;
 }
 

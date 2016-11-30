@@ -111,27 +111,22 @@ class CRxCoreStateless {
     double get_cpu_util();
     void update_cpu_util();
 
-    RXPacketBuffer *get_rx_queue_pkts(uint8_t port_id) {
+    const RXPacketBuffer *get_rx_queue_pkts(uint8_t port_id) {
         return m_rx_port_mngr[port_id].get_pkt_buffer();
     }
 
     /**
-     * start capturing of RX packets on a specific port
-     * 
-     * @author imarom (11/2/2016)
-     * 
-     * @param port_id 
-     * @param pcap_filename 
-     * @param limit 
+     * start capturing of RX packets on a specific port 
+     *  
      */
-    void start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit, uint64_t *shared_counter);
+    void start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit);
     void stop_recorder(uint8_t port_id);
 
     /**
      * start RX queueing of packets
      * 
      */
-    void start_queue(uint8_t port_id, uint64_t size, uint64_t *shared_counter);
+    void start_queue(uint8_t port_id, uint64_t size);
     void stop_queue(uint8_t port_id);
 
     /**
@@ -141,6 +136,8 @@ class CRxCoreStateless {
     void enable_latency();
     void disable_latency();
 
+    const RXPortManager &get_rx_port_mngr(uint8_t port_id);
+    
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
@@ -162,7 +159,7 @@ class CRxCoreStateless {
     }
 
     void try_rx_queues();
-
+    
  private:
     TrexMonitor      m_monitor;
     uint32_t         m_max_ports;

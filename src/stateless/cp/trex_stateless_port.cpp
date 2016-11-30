@@ -936,61 +936,67 @@ TrexStatelessPort::remove_and_delete_all_streams() {
 
 void 
 TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
-
-    m_rx_features_info.m_rx_capture_info.enable(pcap_filename, limit);
-
-    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, m_rx_features_info.m_rx_capture_info);
+    static MsgReply<bool> reply;
+    
+    reply.reset();
+    
+    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit, reply);
     send_message_to_rx((TrexStatelessCpToRxMsgBase *)msg);
     
     /* as below, must wait for ACK from RX core before returning ACK */
-    msg->wait_for_reply();
+    reply.wait_for_reply();
 }
 
 void
 TrexStatelessPort::stop_rx_capture() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
     send_message_to_rx(msg);
-    
-    /* update our cached data */
-    m_rx_features_info.m_rx_capture_info.disable();
 }
 
 void 
 TrexStatelessPort::start_rx_queue(uint64_t size) {
-
-    m_rx_features_info.m_rx_queue_info.enable(size);
-
-    TrexStatelessRxStartQueue *msg = new TrexStatelessRxStartQueue(m_port_id, m_rx_features_info.m_rx_queue_info);
+    static MsgReply<bool> reply;
+    
+    reply.reset();
+    
+    TrexStatelessRxStartQueue *msg = new TrexStatelessRxStartQueue(m_port_id, size, reply);
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
     
     /* we cannot return ACK to the user until the RX core has approved
        this might cause the user to lose some packets from the queue
      */
-    msg->wait_for_reply();
+    reply.wait_for_reply();
 }
 
 void
 TrexStatelessPort::stop_rx_queue() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopQueue(m_port_id);
     send_message_to_rx(msg);
-    
-    /* update our cached data */
-    m_rx_features_info.m_rx_queue_info.disable();
 }
 
 
-RXPacketBuffer *
+const RXPacketBuffer *
 TrexStatelessPort::get_rx_queue_pkts() {
+    static MsgReply<const RXPacketBuffer *> reply;
+    
+    reply.reset();
 
-    if (m_rx_features_info.m_rx_queue_info.is_empty()) {
-        return NULL;
-    }
-
-    TrexStatelessRxQueueGetPkts *msg = new TrexStatelessRxQueueGetPkts(m_port_id);
+    TrexStatelessRxQueueGetPkts *msg = new TrexStatelessRxQueueGetPkts(m_port_id, reply);
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
 
-    RXPacketBuffer *pkt_buffer = msg->wait_for_reply();
-    return pkt_buffer;
+    return reply.wait_for_reply();
+}
+
+Json::Value
+TrexStatelessPort::rx_features_to_json() {
+    static MsgReply<Json::Value> reply;
+    
+    reply.reset();
+
+    TrexStatelessRxFeaturesToJson *msg = new TrexStatelessRxFeaturesToJson(m_port_id, reply);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+
+    return reply.wait_for_reply();
 }
 
 /************* Trex Port Owner **************/

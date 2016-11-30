@@ -114,7 +114,7 @@ class Resolver(object):
                 return rx_pkts
                 
             # for each packet - examine it
-            for pkt in rx_pkts:
+            for pkt in rx_pkts.data():
                 rc = self.on_pkt_rx(pkt)
                 if rc is not None:
                     return rc

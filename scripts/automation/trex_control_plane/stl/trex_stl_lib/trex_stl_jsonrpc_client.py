@@ -263,11 +263,6 @@ class JsonRpcClient(object):
 
         self.connected = True
 
-        rc = self.invoke_rpc_method('ping', api_class = None)
-        if not rc:
-            self.connected = False
-            return rc
-        
         return RC_OK()
 
 
