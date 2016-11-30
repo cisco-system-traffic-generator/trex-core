@@ -795,19 +795,27 @@ class Scapy_service(Scapy_service_api):
 
     def load_instruction_parameter_values(self, client_v_handler, pkt_model_descriptor, vm_instructions_model, parameter_id):
 
-        given_protocol_ids = [proto['id'] for proto in pkt_model_descriptor]
+        given_protocol_ids = [str(proto['id']) for proto in pkt_model_descriptor]
 
+        values = {}
         if parameter_id == "name":
-            return self._curent_pkt_protocol_fields(given_protocol_ids, "_")
-        if parameter_id == "fv_name":
-            return self._existed_flow_var_names(vm_instructions_model['field_engine']['instructions'])
-        if parameter_id == "pkt_offset":
-            return self._curent_pkt_protocol_fields(given_protocol_ids, ".")
+            values = self._curent_pkt_protocol_fields(given_protocol_ids, "_")
 
-        return {}
+        if parameter_id == "fv_name":
+            values = self._existed_flow_var_names(vm_instructions_model['field_engine']['instructions'])
+
+        if parameter_id == "pkt_offset":
+            values = self._curent_pkt_protocol_fields(given_protocol_ids, ".")
+
+        if parameter_id == "offset":
+            for ip_idx in range(given_protocol_ids.count("IP")):
+                value = "IP:{0}".format(ip_idx)
+                values[value] = value
+
+        return {"map": values}
 
     def _existed_flow_var_names(self, instructions):
-        return {"map": dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if self._nameParamterExist(instruction))}
+        return dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if self._nameParamterExist(instruction))
 
     def _nameParamterExist(self, instruction):
         try:
@@ -831,7 +839,7 @@ class Scapy_service(Scapy_service_api):
                     formatted_name = "{0}{1}{2}".format(protocol_name, delimiter, field_desc.name)
                 protocol_fields[formatted_name] = formatted_name
 
-        return {"map": protocol_fields}
+        return protocol_fields
 
     def _generate_vm_instructions(self, pkt, field_engine_model_descriptor):
         self.field_engine_instruction_expressions = []
