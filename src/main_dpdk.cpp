@@ -316,7 +316,8 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
     }
     virtual CFlowStatParser *get_flow_stat_parser();
-    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
+    int add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype);
+    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 };
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
@@ -6017,6 +6018,7 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
+    set_rcv_all(_if, false);
     if ( get_is_stateless() ) {
         return configure_rx_filter_rules_stateless(_if);
     } else {
@@ -6047,7 +6049,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
         res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
 
         if (res != 0) {
-            rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
+            rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_stateless: %d\n",res);
         }
     }
 
@@ -6116,10 +6118,49 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
         res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
 
         if (res != 0) {
-            rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
+            rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_statefull: %d\n",res);
         }
     }
     return (0);
+}
+
+int CTRexExtendedDriverBase10G::add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype) {
+    int res = 0;
+    uint8_t port_id=_if->get_rte_port_id();
+    struct rte_eth_ethertype_filter filter;
+    enum rte_filter_op op;
+
+    memset(&filter, 0, sizeof(filter));
+    filter.ether_type = ethertype;
+    res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_ETHERTYPE, RTE_ETH_FILTER_GET, &filter);
+
+    if (is_add && (res >= 0))
+        return 0;
+    if ((! is_add) && (res == -ENOENT))
+        return 0;
+
+    if (is_add) {
+        op = RTE_ETH_FILTER_ADD;
+    } else {
+        op = RTE_ETH_FILTER_DELETE;
+    }
+
+    filter.queue = 1;
+    res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_ETHERTYPE, op, &filter);
+    if (res != 0) {
+        printf("Error: %s L2 filter for ethertype 0x%04x returned %d\n", is_add ? "Adding":"Deleting", ethertype, res);
+        exit(1);
+    }
+    return 0;
+}
+
+int CTRexExtendedDriverBase10G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
+    int res = 0;
+    res = add_del_eth_filter(_if, set_on, ETHER_TYPE_ARP);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv4);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv6);
+
+    return res;
 }
 
 void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
