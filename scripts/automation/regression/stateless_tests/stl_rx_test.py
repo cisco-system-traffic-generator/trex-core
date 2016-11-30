@@ -61,6 +61,13 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_latency': 250,
                         },
 
+                 'rte_enic_pmd': {
+                        'rate_percent': 1,
+                        'total_pkts': 50,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+
                   
                 }
 

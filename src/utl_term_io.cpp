@@ -78,6 +78,13 @@ int utl_termio_init(){
     atexit(exit_handler1);
     save_termio();
     set_conio_terminal_mode();
+
+    /* stdout is non-blocking */
+    int fd = fileno(stdout);
+    int f = fcntl(fd, F_GETFL, 0);
+    f |= O_NONBLOCK;
+    fcntl(fd, F_SETFL, f);
+
     return (0);
 }
 

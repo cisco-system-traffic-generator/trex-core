@@ -1,6 +1,6 @@
 #! /bin/bash
 
-waf=waf-1.9.3
+waf=waf-1.9.5
 p2=${PYTHON:-${PYTHON2:-python2.7}}
 
 if which $p2 &> /dev/null; then

@@ -316,7 +316,8 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
     }
     virtual CFlowStatParser *get_flow_stat_parser();
-    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return -ENOTSUP;}
+    int add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype);
+    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 };
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
@@ -379,7 +380,7 @@ private:
     uint8_t m_if_per_card;
 };
 
-class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase40G {
+class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
         m_if_per_card=2;
@@ -395,6 +396,22 @@ public:
 
     virtual bool is_hardware_filter_is_supported(){
         return (true);
+    }
+    virtual void update_global_config_fdir(port_cfg_t * cfg){
+    }
+
+
+    virtual bool is_hardware_support_drop_queue(){
+        return(true);
+    }
+
+    void clear_extended_stats(CPhyEthIF * _if);
+
+    void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+
+
+    virtual int get_min_sample_rate(void){
+        return (RX_CHECK_MIX_SAMPLE_RATE);
     }
 
     virtual int verify_fw_ver(int i);
@@ -3291,15 +3308,33 @@ void CGlobalTRex::pre_test() {
             fprintf(stderr, "Resolution of following IPs failed. Exiting.\n");
             for (const COneIPInfo *ip=pretest_result.get_next(); ip != NULL;
                    ip = pretest_result.get_next()) {
-                ip->dump(stderr);
+                if (ip->resolve_needed()) {
+                    ip->dump(stderr, "  ");
+                }
             }
-            exit(-1);
+            exit(1);
         }
         m_fl.set_client_config_resolved_macs(pretest_result);
         if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
             m_fl.dump_client_config(stdout);
         }
 
+        bool port_found[TREX_MAX_PORTS];
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            port_found[port_id] = false;
+        }
+        // If client config enabled, we don't resolve MACs from trex_cfg.yaml. For latency (-l)
+        // We need to able to send packets from RX core, so need to configure MAC/vlan for each port.
+        for (const COneIPInfo *ip=pretest_result.get_next(); ip != NULL; ip = pretest_result.get_next()) {
+            // Use first MAC/vlan we see on each port
+            uint8_t port_id = ip->get_port();
+            uint16_t vlan = ip->get_vlan();
+            if ( ! port_found[port_id]) {
+                port_found[port_id] = true;
+                ip->get_mac(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest);
+                CGlobalInfo::m_options.m_ip_cfg[port_id].set_vlan(vlan);
+            }
+        }
     } else {
         uint8_t mac[ETHER_ADDR_LEN];
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
@@ -6013,6 +6048,7 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
+    set_rcv_all(_if, false);
     if ( get_is_stateless() ) {
         return configure_rx_filter_rules_stateless(_if);
     } else {
@@ -6043,7 +6079,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
         res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
 
         if (res != 0) {
-            rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
+            rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_stateless: %d\n",res);
         }
     }
 
@@ -6112,10 +6148,49 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
         res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
 
         if (res != 0) {
-            rte_exit(EXIT_FAILURE, " ERROR rte_eth_dev_filter_ctrl : %d\n",res);
+            rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_statefull: %d\n",res);
         }
     }
     return (0);
+}
+
+int CTRexExtendedDriverBase10G::add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype) {
+    int res = 0;
+    uint8_t port_id=_if->get_rte_port_id();
+    struct rte_eth_ethertype_filter filter;
+    enum rte_filter_op op;
+
+    memset(&filter, 0, sizeof(filter));
+    filter.ether_type = ethertype;
+    res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_ETHERTYPE, RTE_ETH_FILTER_GET, &filter);
+
+    if (is_add && (res >= 0))
+        return 0;
+    if ((! is_add) && (res == -ENOENT))
+        return 0;
+
+    if (is_add) {
+        op = RTE_ETH_FILTER_ADD;
+    } else {
+        op = RTE_ETH_FILTER_DELETE;
+    }
+
+    filter.queue = 1;
+    res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_ETHERTYPE, op, &filter);
+    if (res != 0) {
+        printf("Error: %s L2 filter for ethertype 0x%04x returned %d\n", is_add ? "Adding":"Deleting", ethertype, res);
+        exit(1);
+    }
+    return 0;
+}
+
+int CTRexExtendedDriverBase10G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
+    int res = 0;
+    res = add_del_eth_filter(_if, set_on, ETHER_TYPE_ARP);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv4);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv6);
+
+    return res;
 }
 
 void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
@@ -6864,26 +6939,58 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     return 0;
 }
 
-extern "C" int enicpmd_dev_get_fw_support(int port_id,
-                                          uint32_t *ver);
+
+void CTRexExtendedDriverBaseVIC::clear_extended_stats(CPhyEthIF * _if){
+    rte_eth_stats_reset(_if->get_port_id());
+}
+
+void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes   += stats1.ibytes - prev_stats->ibytes
+         - ((stats1.ipackets << 2) - (prev_stats->ipackets << 2));
+    stats->opackets += stats1.opackets - prev_stats->opackets;
+    stats->obytes   += stats1.obytes - prev_stats->obytes;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
 
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
 
-    uint32_t ver;
-    int ret=enicpmd_dev_get_fw_support(port_id,&ver);
+    struct rte_eth_fdir_info fdir_info;
 
-    if (ret==0) {
-        if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
-            printf("VIC port %d: FW support advanced filtering \n", port_id);
+    if ( rte_eth_dev_filter_ctrl(port_id,RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_INFO,(void *)&fdir_info) == 0 ){
+        if ( fdir_info.flow_types_mask[0] & (1<< RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) ) {
+           /* support new features */
+            if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
+                printf("VIC port %d: FW support advanced filtering \n", port_id);
+            }
+            return (0);
         }
-    }else{
-        printf("Error: VIC firmware should upgrade to support advanced filtering \n");
-        printf("  Please refer to %s for upgrade instructions\n",
-               "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
-        exit(1);
     }
-    return (0);
+
+    printf("Error: VIC firmware should upgrade to support advanced filtering \n");
+    printf("  Please refer to %s for upgrade instructions\n",
+           "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
+    exit(1);
 }
 
 

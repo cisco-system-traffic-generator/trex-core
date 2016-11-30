@@ -166,6 +166,7 @@ void enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 		return;
 	}
 
+
 	/* The number of truncated packets can only be calculated by
 	 * subtracting a hardware counter from error packets received by
 	 * the driver. Note: this causes transient inaccuracies in the
@@ -180,7 +181,7 @@ void enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 	r_stats->ipackets = stats->rx.rx_frames_ok - rx_truncated;
 	r_stats->opackets = stats->tx.tx_frames_ok;
 
-	r_stats->ibytes = stats->rx.rx_bytes_ok;
+	r_stats->ibytes = stats->rx.rx_unicast_bytes_ok+stats->rx.rx_multicast_bytes_ok+stats->rx.rx_broadcast_bytes_ok;
 	r_stats->obytes = stats->tx.tx_bytes_ok;
 
 	r_stats->ierrors = stats->rx.rx_errors + stats->rx.rx_drop;

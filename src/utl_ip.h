@@ -105,6 +105,7 @@ class COneIPInfo {
     } COneIPInfo_ip_types;
 
  public:
+    virtual ~COneIPInfo() {}
     virtual void get_mac(uint8_t *mac) const {
         m_mac.copyToArray(mac);
     }
@@ -113,6 +114,7 @@ class COneIPInfo {
     }
     uint16_t get_vlan() const {return m_vlan;}
     uint16_t get_port() const {return m_port;}
+    void set_port(uint8_t port) {m_port = port;}
     virtual void dump(FILE *fd) const {
         dump(fd, "");
     }
@@ -153,6 +155,7 @@ class COneIPv4Info : public COneIPInfo {
     COneIPv4Info(uint32_t ip, uint16_t vlan, MacAddress mac, uint8_t port) : COneIPInfo(vlan, mac, port) {
         m_ip = ip;
     }
+    ~COneIPv4Info() {};
     uint32_t get_ip() {return m_ip;}
     virtual uint8_t ip_ver() const {return IP4_VER;}
     virtual uint32_t get_arp_req_len() const {return 60;}
@@ -193,6 +196,7 @@ class COneIPv6Info : public COneIPInfo {
     COneIPv6Info(uint16_t ip[8], uint16_t vlan, MacAddress mac, uint8_t port) : COneIPInfo(vlan, mac, port) {
         memcpy(m_ip, ip, sizeof(m_ip));
     }
+    ~COneIPv6Info() {}
 
     const uint8_t *get_ipv6() {return (uint8_t *)m_ip;}
     virtual uint8_t ip_ver() const {return IP6_VER;}

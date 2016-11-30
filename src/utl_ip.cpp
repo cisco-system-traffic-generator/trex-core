@@ -29,8 +29,14 @@ void COneIPInfo::dump(FILE *fd, const char *offset) const {
     get_ip_str(ip_str);
     std::string mac_str;
     utl_macaddr_to_str(mac, mac_str);
-    const char *mac_char = resolve_needed() ?  "Not resolved" : mac_str.c_str();
-    fprintf(fd, "%sip: %s vlan: %d port: %d mac: %s\n", offset, ip_str, m_vlan, m_port, mac_char);
+    const char *mac_char = resolve_needed() ?  "Unknown" : mac_str.c_str();
+    fprintf(fd, "%sip: %s ", offset, ip_str);
+    if (m_vlan != 0)
+        fprintf(fd, "vlan: %d ", m_vlan);
+    if (m_port != UINT8_MAX)
+        fprintf(fd, "port: %d ", m_port);
+    fprintf(fd, "mac: %s", mac_char);
+    fprintf(fd, "\n");
 }
 
 bool COneIPInfo::resolve_needed() const {

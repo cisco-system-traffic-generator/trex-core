@@ -60,7 +60,7 @@ TEST_F(basic_client_cfg, test1) {
     CGlobalInfo::m_options.m_expected_portd = 4;
     printf("Expected ports %d\n", CGlobalInfo::m_options.m_expected_portd);    
     
-    std::string tmp_file_name = "/tmp/client_cfg_gtest.yaml";
+    std::string tmp_file_name = "client_cfg_gtest_GENERATED.yaml";
     FILE *fd = fopen(tmp_file_name.c_str(), "w");
 
     if (fd == NULL) {

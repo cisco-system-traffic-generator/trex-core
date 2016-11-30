@@ -5,55 +5,27 @@
 ### stateful ###
 
 test_jumbo:
-    multiplier          : 110
+    multiplier          : 2.8
     cores               : 1
-    bw_per_core         : 767.198
+    bw_per_core         : 106.652
 
 
 test_routing_imix:
-    multiplier          : 64
-    cores               : 2
-    bw_per_core         : 35.889
+    multiplier          : 0.5
+    cores               : 1
+    bw_per_core         : 11.577
 
 
 test_routing_imix_64:
-    multiplier          : 5000
-    cores               : 2
-    bw_per_core         : 10.672
+    multiplier          : 28
+    cores               : 1
+    bw_per_core         : 2.030
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 32
+    multiplier          : 0.8
     cores               : 1
-    bw_per_core         : 52.738
-
-
-test_ipv6_simple:
-    multiplier          : 64
-    cores               : 3
-    bw_per_core         : 22.808
-
-
-test_rx_check_http: &rx_http
-    multiplier          : 90000
-    cores               : 2
-    rx_sample_rate      : 32
-    bw_per_core         : 46.075
-
-
-test_rx_check_http_ipv6:
-    <<                  : *rx_http
-    bw_per_core         : 49.237
-
-test_rx_check_sfr: &rx_sfr
-    multiplier          : 50
-    cores               : 3
-    rx_sample_rate      : 32
-    bw_per_core         : 20.469
-
-test_rx_check_sfr_ipv6:
-    <<                  : *rx_sfr
-    bw_per_core         : 19.198
+    bw_per_core         : 13.742
 
 
 
@@ -168,7 +140,7 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
       - name            : stl/pcap.py
-        kwargs          : {ipg_usec: 2, loop_count: 0}
+        kwargs          : {ipg_usec: 4, loop_count: 0}
         cpu_util        : 1
         bw_per_core     : 1
 
@@ -180,55 +152,4 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
-
-# performance tests
-
-test_performance_vm_single_cpu:
-    cfg:
-        mult                    : "90%"
-        mpps_per_core_golden    : 
-                                   min: 16.0
-                                   max: 17.3
-
-
-test_performance_vm_single_cpu_cached:
-    cfg:
-        mult                    : "90%"
-        mpps_per_core_golden    : 
-                                   min: 28.5
-                                   max: 31.2
-
-
-
-test_performance_syn_attack_single_cpu:
-     cfg:
-        mult                    : "90%"
-        mpps_per_core_golden    :
-                                  min: 12.9
-                                  max: 14.5
-
-test_performance_vm_multi_cpus:
-    cfg:
-        core_count             : 2
-        mult                   : "90%"
-        mpps_per_core_golden   :
-                                  min: 15.2
-                                  max: 16.3
-
-
-test_performance_vm_multi_cpus_cached:
-    cfg:
-        core_count             : 2
-        mult                   : "90%"
-        mpps_per_core_golden   :
-                                  min: 28.8
-                                  max: 29.5
-
-test_performance_syn_attack_multi_cpus:
-    cfg:
-        core_count             : 2
-        mult                   : "90%"
-        mpps_per_core_golden   :
-                                  min: 13.0
-                                  max: 13.8
 

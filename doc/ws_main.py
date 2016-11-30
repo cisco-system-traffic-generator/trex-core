@@ -987,6 +987,9 @@ def build(bld):
         
     bld(rule=convert_to_html_toc_book,
         source='trex_scapy_rpc_server.asciidoc waf.css', target='trex_scapy_rpc_server.html',scan=ascii_doc_scan);
+    
+    bld(rule=convert_to_html_toc_book,
+        source='trex-analytics-howto.asciidoc waf.css', target='trex-analytics-howto.html',scan=ascii_doc_scan);
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='vm_doc.asciidoc waf.css', target='vm_doc.html', scan=ascii_doc_scan)
