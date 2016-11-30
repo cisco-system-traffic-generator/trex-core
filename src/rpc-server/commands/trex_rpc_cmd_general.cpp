@@ -648,7 +648,11 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
     
     /* RX info */
-    result["result"]["rx_info"] = port->rx_features_to_json();
+    try {
+        result["result"]["rx_info"] = port->rx_features_to_json();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
     
     return (TREX_RPC_CMD_OK);
 }

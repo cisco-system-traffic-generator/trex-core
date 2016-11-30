@@ -223,6 +223,7 @@ bool LibPCapWriter::Create(char * name)
         printf(" ERROR create file \n");
         return(false);
     }
+    
     /* prepare the write counter */
     m_pkt_count = 0;
     return init();

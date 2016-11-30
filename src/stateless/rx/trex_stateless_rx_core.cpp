@@ -182,31 +182,28 @@ void CRxCoreStateless::port_manager_tick() {
 }
 
 void CRxCoreStateless::handle_work_stage(bool do_try_rx_queue) {
-    int i = 0;
-    int j = 0;
+    
+    /* set the next sync time to */
+    dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
     
     while (m_state == STATE_WORKING) {
-
+        
         if (do_try_rx_queue) {
             try_rx_queues();
         }
 
         process_all_pending_pkts();
 
-        /* TODO: with scheduler, this should be solved better */
-        i++;
-        if (i == 100000) { // approx 10msec
-            i = 0;
-            periodic_check_for_cp_messages(); // m_state might change in here
-            
-            j++;
-            if (j == 100) { // approx 1 sec
-                j = 0;
-                port_manager_tick();
-            }
+        dsec_t now = now_sec();
+        
+        if ( (now - sync_time_sec) > 0 ) {
+            periodic_check_for_cp_messages();
+            port_manager_tick();
+            sync_time_sec = now + (1.0 / 1000);
         }
         
         rte_pause();
+        
     }
 }
 

@@ -139,7 +139,7 @@ class ARPResolver(Resolver):
         self.src = self.port.get_src_addr()
         
         if self.dst['ipv4'] is None:
-            return self.port.err("Port has a non-IPv4 destination: '{0}'".format(dst['mac']))
+            return self.port.err("Port has a non-IPv4 destination: '{0}'".format(self.dst['mac']))
             
         if self.src['ipv4'] is None:
             return self.port.err('Port must have an IPv4 source address configured')

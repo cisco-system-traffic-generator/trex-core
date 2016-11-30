@@ -1403,6 +1403,7 @@ class STLClient(object):
 
 
     # get stats
+    @__api_check(True)
     def get_stats (self, ports = None, sync_now = True):
         """
         Return dictionary containing statistics information gathered from the server.

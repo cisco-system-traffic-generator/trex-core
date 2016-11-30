@@ -320,6 +320,7 @@ class TRexConsole(TRexGeneralCmd):
     def help_push (self):
         self.do_push("-h")
 
+    @verify_connected
     def do_portattr (self, line):
         '''Change/show port(s) attributes\n'''
         self.stateless_client.set_port_attr_line(line)
