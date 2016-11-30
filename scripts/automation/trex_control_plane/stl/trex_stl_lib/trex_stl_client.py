@@ -1650,7 +1650,7 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        return [self.ports[port_id].get_info() for port_id in ports]
+        return [self.ports[port_id].get_formatted_info() for port_id in ports]
 
 
     ############################   Commands   #############################
