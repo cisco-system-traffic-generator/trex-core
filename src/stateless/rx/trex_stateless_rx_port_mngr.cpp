@@ -416,9 +416,11 @@ void
 RXPortManager::create(CPortLatencyHWBase *io,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
-                      CCpuUtlDp *cpu_util) {
+                      CCpuUtlDp *cpu_util,
+                      uint8_t crc_bytes_num) {
     m_io = io;
     m_cpu_dp_u = cpu_util;
+    m_num_crc_fix_bytes = crc_bytes_num;
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
@@ -459,6 +461,11 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
         rte_mbuf_t *m = rx_pkts[j];
 
         if (!flush_rx) {
+            // patch relevant only for e1000 driver
+            if (m_num_crc_fix_bytes) {
+                rte_pktmbuf_trim(m, m_num_crc_fix_bytes);
+            }
+
             handle_pkt(m);
         }
 

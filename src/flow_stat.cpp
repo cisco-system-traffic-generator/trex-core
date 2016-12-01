@@ -461,6 +461,7 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
     memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
     m_num_ports = 0; // need to call create to init
+    m_mode = FLOW_STAT_MODE_NORMAL;
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {

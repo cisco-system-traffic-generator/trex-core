@@ -69,7 +69,6 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_capture = false;
     m_max_ports = cfg.m_max_ports;
-    m_num_crc_fix_bytes = cfg.m_num_crc_fix_bytes;
 
     CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
 
@@ -88,7 +87,8 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
         m_rx_port_mngr[i].create(cfg.m_ports[i],
                                  m_rfc2544,
                                  &m_err_cntrs,
-                                 &m_cpu_dp_u);
+                                 &m_cpu_dp_u,
+                                 cfg.m_num_crc_fix_bytes);
     }
 }
 
@@ -229,6 +229,17 @@ void CRxCoreStateless::start() {
 }
 
 void CRxCoreStateless::capture_pkt(rte_mbuf_t *m) {
+
+}
+
+int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
+
+    int total_pkts = 0;
+    for (int i = 0; i < m_max_ports; i++) {
+        total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
+    }
+
+    return total_pkts;
 
 }
 

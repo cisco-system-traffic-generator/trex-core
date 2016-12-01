@@ -276,7 +276,8 @@ public:
     void create(CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
-                CCpuUtlDp *cpu_util);
+                CCpuUtlDp *cpu_util,
+                uint8_t crc_bytes_num);
 
     void clear_stats() {
         m_latency.reset_stats();
@@ -402,7 +403,8 @@ private:
     RXLatency                    m_latency;
     RXPacketRecorder             m_recorder;
     RXQueue                      m_queue;
-    
+    // compensate for the fact that hardware send us packets without Ethernet CRC, and we report with it
+    uint8_t m_num_crc_fix_bytes;
     
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;

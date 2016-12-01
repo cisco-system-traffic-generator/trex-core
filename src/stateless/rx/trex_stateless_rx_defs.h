@@ -27,6 +27,7 @@
 
 class CPortLatencyHWBase;
 
+
 /**
  * general SL cfg
  * 
@@ -36,12 +37,14 @@ class CRxSlCfg {
     CRxSlCfg (){
         m_max_ports = 0;
         m_cps = 0.0;
+        m_num_crc_fix_bytes = 0;
     }
 
  public:
     uint32_t             m_max_ports;
     double               m_cps;
     CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
+    uint8_t              m_num_crc_fix_bytes;
 };
 
 /**
