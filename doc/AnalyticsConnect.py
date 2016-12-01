@@ -103,7 +103,6 @@ def export_to_tuples(response):
 			data.append(value)
 			data.append(golden_min)
 			data.append(golden_max)
-			counter+=1
 			if dimensions[3] in setups:
 				if dimensions[1] in df[dimensions[3]]:
 					df[dimensions[3]][dimensions[1]].append(tuple(data))
