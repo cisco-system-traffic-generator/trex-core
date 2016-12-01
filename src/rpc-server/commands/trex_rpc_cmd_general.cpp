@@ -820,6 +820,8 @@ TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
         const RXPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
         if (pkt_buffer) {
             result["result"]["pkts"] = pkt_buffer->to_json();
+            delete pkt_buffer;
+            
         } else {
             result["result"]["pkts"] = Json::arrayValue;
         }

@@ -132,7 +132,7 @@ static char global_master_id_str[10];
 
 class CTRexExtendedDriverBase {
 public:
-
+    
     /* by default NIC driver adds CRC */
     virtual bool has_crc_added() {
         return true;
@@ -7341,6 +7341,10 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
 
 int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 
+    if (rx_filter_mode == m_rx_filter_mode) {
+        return (0);
+    }
+    
     CPhyEthIF *_if = &g_trex.m_ports[m_port_id];
     bool recv_all = (rx_filter_mode == RX_FILTER_MODE_ALL);
     int rc = CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(_if, recv_all);

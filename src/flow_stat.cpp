@@ -804,7 +804,6 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if (m_num_started_streams == 0) {
         
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
-        assert(m_rx_core->is_working());
         
         //also good time to zero global counters
         memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
@@ -981,7 +980,10 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
         m_ring_to_rx->Enqueue((CGenNode *)msg);
         
         /* hold until message was ack'ed - otherwise we might lose packets */
-        reply.wait_for_reply();
+        if (m_rx_core) {
+            reply.wait_for_reply();
+            assert(m_rx_core->is_working());
+        }
         
     } else {
         msg = new TrexStatelessRxDisableLatency();

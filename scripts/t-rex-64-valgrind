@@ -31,6 +31,7 @@ export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs
 fi
             
 export VALGRIND_LIB=/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/lib/valgrind
+export VALGRIND_BIN="/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind --leak-check=full"
 
 if [ -t 0 ] && [ -t 1 ]; then
     export is_tty=true
@@ -41,17 +42,18 @@ fi
 
 # if we have a new core run optimized trex 
 if  grep -q avx /proc/cpuinfo ; then
-    /auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind ./_t-rex-64 $INPUT_ARGS
+    $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
     RESULT=$?
     if [ $RESULT -eq 132 ]; then
         echo " WARNING this program is optimized for the new Intel processors.  "
         echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
         echo " try to run t-rex-64-o .. "
-        /auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind ./_t-rex-64-o $INPUT_ARGS
+
+        $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
         RESULT=$?
     fi
 else
-        /auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind ./_t-rex-64-o $INPUT_ARGS
+        $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
         RESULT=$?
 fi
 
