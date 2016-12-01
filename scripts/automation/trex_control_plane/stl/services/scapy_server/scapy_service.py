@@ -416,6 +416,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_supported_protocols = {}
         self.instruction_parameter_meta_definitions = []
         self.field_engine_parameter_meta_definitions = []
+        self.field_engine_templates_definitions = []
         self.field_engine_instructions_meta = []
         self.field_engine_instruction_expressions = []
         self._load_definitions_from_json()
@@ -435,6 +436,7 @@ class Scapy_service(Scapy_service_api):
         self.instruction_parameter_meta_definitions = []
         self.field_engine_supported_protocols = {}
         self.field_engine_parameter_meta_definitions = []
+        self.field_engine_templates_definitions = []
         with open('field_engine.json', 'r') as f:
             metas = json.load(f)
             self.instruction_parameter_meta_definitions = metas["instruction_params_meta"]
@@ -442,6 +444,7 @@ class Scapy_service(Scapy_service_api):
             self._append_intructions_help()
             self.field_engine_supported_protocols = metas["supported_protocols"]
             self.field_engine_parameter_meta_definitions = metas["global_params_meta"]
+            self.field_engine_templates_definitions = metas["templates"]
 
 
     def _append_intructions_help(self):
@@ -978,7 +981,8 @@ class Scapy_service(Scapy_service_api):
         res = {"protocols": protocols,
                "feInstructionParameters": self.instruction_parameter_meta_definitions,
                "feInstructions": self.field_engine_instructions_meta,
-               "feParameters": self.field_engine_parameter_meta_definitions}
+               "feParameters": self.field_engine_parameter_meta_definitions,
+               "feTemplates": self.field_engine_templates_definitions}
         return res
 
     def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
