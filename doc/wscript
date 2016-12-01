@@ -52,6 +52,9 @@ def publish_ext(bld):
 def publish_web(bld):
     ws_main.publish_web(bld)
 
+def publish_perf(bld):
+    ws_main.publish_perf(bld)
+
 def sync(bld):
     ws_main.sync(bld)
 

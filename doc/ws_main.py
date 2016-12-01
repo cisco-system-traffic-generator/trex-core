@@ -1076,16 +1076,51 @@ def release(bld):
     os.system('cp -rv build/release_notes.* '+ release_dir)
 
 
+def rsync_int(bld, src, dst):
+    cmd = 'rsync -av --del --rsh=ssh build/{src} {host}:{dir}/{dst}'.format(
+           src = src,
+           host = Env().get_local_web_server(),
+           dir = Env().get_remote_release_path() + '../doc',
+           dst = dst)
+    ret = os.system(cmd)
+    if ret:
+        bld.fatal("cmd '%s' exited with return status" % (cmd, ret))
+
+
+def rsync_ext(bld, src, dst):
+    cmd = 'rsync -avz --del -e "ssh -i {key}" --rsync-path=/usr/bin/rsync build/{src} {user}@{host}:{dir}/doc/{dst}'.format(
+           key  = Env().get_trex_ex_web_key(),
+           src  = src,
+           user = Env().get_trex_ex_web_user(),
+           host = Env().get_trex_ex_web_srv(),
+           dir  = Env().get_trex_ex_web_path(),
+           dst  = dst)
+    ret = os.system(cmd)
+    if ret:
+        bld.fatal("cmd '%s' exited with return status" % (cmd, ret))
+
+
 def publish(bld):
-    # copy all the files to our web server 
-    remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../doc/')
-    os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
+    # copy all the files to internal web server 
+    rsync_int(bld, '', '')
 
 
 def publish_ext(bld):
-   from_ = 'build/'
-   os.system('rsync -avz --del -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/doc/' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ) )
-   
+    # copy all the files to external web server 
+    rsync_ext(bld, '', '')
+
+
+def publish_perf(bld):
+    # copy performance files to internal and external servers
+    rsync_int(bld, 'trex_analytics.html', '')
+    rsync_ext(bld, 'trex_analytics.html', '')
+    rsync_int(bld, 'images/*_latest_test_*', 'images/')
+    rsync_ext(bld, 'images/*_latest_test_*', 'images/')
+    rsync_int(bld, 'images/*_trend_graph.*', 'images/')
+    rsync_ext(bld, 'images/*_trend_graph.*', 'images/')
+    rsync_int(bld, 'images/*_trend_stats.*', 'images/')
+    rsync_ext(bld, 'images/*_trend_stats.*', 'images/')
+
 
 def publish_test(bld):
     # copy all the files to our web server 
