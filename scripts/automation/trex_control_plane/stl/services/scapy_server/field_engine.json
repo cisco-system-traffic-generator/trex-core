@@ -99,7 +99,7 @@
       "name": "Variable name",
       "type": "ENUM",
       "required": true,
-      "editable": false
+      "editable": true
     },
     {
       "id": "pkt_offset",
@@ -245,6 +245,18 @@
     }
   ],
   "supported_protocols": ["IP","TCP","UDP"],
+  "templates":[
+    {
+      "id": "simple_flow_var",
+      "name": "Simple variable",
+      "instructionIds": ["STLVmFlowVar", "STLVmWrFlowVar"]
+    },
+    {
+      "id": "rep_rand_var",
+      "name": "Repeatable random",
+      "instructionIds": ["STLVmFlowVarRepetableRandom", "STLVmWrFlowVar"]
+    }
+  ],
   "global_params_meta":[
     {
       "id": "cache_size",
