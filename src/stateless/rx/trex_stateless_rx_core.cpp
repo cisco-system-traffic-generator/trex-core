@@ -232,54 +232,6 @@ void CRxCoreStateless::capture_pkt(rte_mbuf_t *m) {
 
 }
 
-#if 0
-//??????? remove
-// In VM setup, handle packets coming as messages from DP cores.
-void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
-    while ( true ) {
-        CGenNode * node;
-        if ( r->Dequeue(node) != 0 ) {
-            break;
-        }
-        assert(node);
-
-        CGenNodeMsgBase * msg = (CGenNodeMsgBase *)node;
-        CGenNodeLatencyPktInfo * l_msg;
-        uint8_t msg_type =  msg->m_msg_type;
-        uint8_t rx_port_index;
-
-
-        switch (msg_type) {
-        case CGenNodeMsgBase::LATENCY_PKT:
-            l_msg = (CGenNodeLatencyPktInfo *)msg;
-            assert(l_msg->m_latency_offset == 0xdead);
-            rx_port_index = (thread_id << 1) + (l_msg->m_dir & 1);
-            assert( rx_port_index < m_max_ports );
-
-            m_rx_port_mngr[rx_port_index].handle_pkt((rte_mbuf_t *)l_msg->m_pkt);
-
-            if (m_capture)
-                capture_pkt((rte_mbuf_t *)l_msg->m_pkt);
-            rte_pktmbuf_free((rte_mbuf_t *)l_msg->m_pkt);
-            break;
-        default:
-            printf("ERROR latency-thread message type is not valid %d \n", msg_type);
-            assert(0);
-        }
-
-        CGlobalInfo::free_node(node);
-    }
-}
-
-int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
-    int total_pkts = 0;
-    for (int i = 0; i < m_max_ports; i++) {
-        total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
-    }
-    return total_pkts;
-}
-
-
 void CRxCoreStateless::reset_rx_stats(uint8_t port_id) {
     m_rx_port_mngr[port_id].clear_stats();
 }
