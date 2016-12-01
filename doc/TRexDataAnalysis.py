@@ -42,7 +42,7 @@ def generate_dframe_arr_and_stats_of_tests_per_setup(date, setup_name, setup_dic
 
 
 def create_plot_for_dframe_arr(dframe_arr, setup_name, start_date, end_date, show='no', save_path='',
-                               file_name='trend_graph'):
+                               file_name='_trend_graph'):
     dframe_all = pd.concat(dframe_arr, axis=1)
     dframe_all = dframe_all.astype(float)
     dframe_all.plot()

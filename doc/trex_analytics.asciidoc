@@ -42,7 +42,7 @@ include::build/images/trex07_latest_test_runs_stats.csv[]
 
 === Trend: Analysis Over Time
 
-image:images/trex07trend_graph.png[title="trex07trend_graph",align="left",width={p_width}, link="images/trex07trend_graph.png"]
+image:images/trex07_trend_graph.png[title="trex07_trend_graph",align="left",width={p_width}, link="images/trex07_trend_graph.png"]
 
 [format="csv", options="header",halign='center']
 |===
@@ -68,7 +68,7 @@ include::build/images/trex08_latest_test_runs_stats.csv[]
 
 === Trend: Analysis Over Time
 
-image:images/trex08trend_graph.png[title="trex08trend_graph",align="left",width={p_width}, link="images/trex08trend_graph.png"]
+image:images/trex08_trend_graph.png[title="trex08_trend_graph",align="left",width={p_width}, link="images/trex08_trend_graph.png"]
 
 [format="csv", options="header",halign='center']
 |===
@@ -96,7 +96,7 @@ include::build/images/trex09_latest_test_runs_stats.csv[]
 
 === Trend: Analysis Over Time
 
-image:images/trex09trend_graph.png[title="trex09trend_graph",align="left",width={p_width}, link="images/trex09trend_graph.png"]
+image:images/trex09_trend_graph.png[title="trex09_trend_graph",align="left",width={p_width}, link="images/trex09_trend_graph.png"]
 
 [format="csv", options="header",halign='center']
 |===
@@ -120,7 +120,7 @@ include::build/images/trex11_latest_test_runs_stats.csv[]
 
 === Trend: Analysis Over Time
 
-image:images/trex11trend_graph.png[title="trex11trend_graph",align="left",width={p_width}, link="images/trex11trend_graph.png"]
+image:images/trex11_trend_graph.png[title="trex11_trend_graph",align="left",width={p_width}, link="images/trex11_trend_graph.png"]
 
 [format="csv", options="header",halign='center']
 |===
@@ -148,7 +148,7 @@ include::build/images/kiwi02_latest_test_runs_stats.csv[]
 
 === Trend: Analysis Over Time
 
-image:images/kiwi02trend_graph.png[title="kiwi02trend_graph",align="left",width={p_width}, link="images/kiwi02trend_graph.png"]
+image:images/kiwi02_trend_graph.png[title="kiwi02_trend_graph",align="left",width={p_width}, link="images/kiwi02_trend_graph.png"]
 
 [format="csv", options="header",halign='center']
 |===
