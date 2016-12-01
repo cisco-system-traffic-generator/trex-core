@@ -869,6 +869,15 @@ class STLClient(object):
 
         return rc
 
+    def __get_rx_queue_pkts (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].get_rx_queue_pkts())
+
+        return rc
+
 
     # connect to server
     def __connect(self):
@@ -1833,8 +1842,21 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-        self._validate_port_list(src_port)
+        # validate src port
+        validate_type('src_port', src_port, int)
+        if src_port not in self.get_all_ports():
+            raise STLError("src port is not a valid port id")
         
+        if not is_valid_ipv4(dst_ipv4):
+            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+            
+        if (pkt_size < 64) or (pkt_size > 9216):
+            raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
+            
+        validate_type('count', count, int)
+            
+        
+            
         self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
                                                                                        src_port,
                                                                                        pkt_size))
@@ -2873,11 +2895,7 @@ class STLClient(object):
 
         """
         # by default - resolve all the ports that are configured with IPv4 dest
-        if ports is None:
-            ports = self.get_resolvable_ports()
-            if not ports:
-                raise STLError('No ports configured with destination as IPv4')
-            
+        ports = ports if ports is not None else self.get_resolvable_ports()
         ports = self._validate_port_list(ports)
             
         active_ports = list_intersect(ports, self.get_active_ports())
@@ -3019,9 +3037,14 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
         
+        rc = self.__get_rx_queue_pkts(ports)
+        if not rc:
+            raise STLError(rc)
+            
+        # decode the data back to the user
         result = {}
-        for port in ports:
-            result[port] = self.ports[port].get_rx_queue_pkts()
+        for port, r in zip(ports, rc.data()):
+            result[port] = r
         
         return result
             
@@ -3688,6 +3711,8 @@ class STLClient(object):
             
         self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
 
+        return RC_OK()
+        
 
     @__console
     def resolve_line (self, line):
@@ -3703,9 +3728,19 @@ class STLClient(object):
         if not opts:
             return opts
 
+        ports = list_intersect(opts.ports, self.get_resolvable_ports())
+        if not ports:
+            if not opts.ports:
+                msg = 'resolve - no ports with IPv4 destination'
+            else:
+                msg = 'pause - none of ports {0} are configured with IPv4 destination'.format(opts.ports)
+                
+            self.logger.log(msg)
+            return RC_ERR(msg)
                      
-        self.resolve(ports = opts.ports, retries = opts.retries)
+        self.resolve(ports = ports, retries = opts.retries)
 
+        return RC_OK()
         
     
     @__console

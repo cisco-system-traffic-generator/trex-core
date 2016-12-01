@@ -273,18 +273,18 @@ void utl_set_coredump_size(long size, bool map_huge_pages) {
     fclose(fp);
 }
 
-uint32_t utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num) {
+bool utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num) {
     
     uint32_t tmp;
     
     int rc = my_inet_pton4(ipv4_str, (unsigned char *)&tmp);
     if (!rc) {
-        return (0);
+        return false;
     }
     
     ipv4_num = PAL_NTOHL(tmp);
     
-    return (1);
+    return true;
 }
    
 std::string utl_uint32_to_ipv4(uint32_t ipv4_addr) {

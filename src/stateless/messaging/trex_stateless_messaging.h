@@ -63,7 +63,7 @@ public:
         m_pending = false;
     }
 
-    T wait_for_reply(int timeout_ms = 100, int backoff_ms = 1) {
+    T wait_for_reply(int timeout_ms = 500, int backoff_ms = 1) {
         int guard = timeout_ms;
 
         while (is_pending()) {
@@ -461,7 +461,14 @@ public:
 
 
 class TrexStatelessRxEnableLatency : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxEnableLatency(MsgReply<bool> &reply) : m_reply(reply) {
+    }
+    
     bool handle (CRxCoreStateless *rx_core);
+    
+private:
+    MsgReply<bool>    &m_reply;
 };
 
 class TrexStatelessRxDisableLatency : public TrexStatelessCpToRxMsgBase {
@@ -505,7 +512,7 @@ public:
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t           m_port_id;
+    uint8_t m_port_id;
 };
 
 
@@ -515,8 +522,8 @@ public:
                               uint64_t size,
                               MsgReply<bool> &reply) : m_reply(reply) {
         
-        m_port_id           = port_id;
-        m_size              = size;
+        m_port_id = port_id;
+        m_size    = size;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
@@ -537,7 +544,7 @@ public:
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t           m_port_id;
+    uint8_t m_port_id;
 };
 
 

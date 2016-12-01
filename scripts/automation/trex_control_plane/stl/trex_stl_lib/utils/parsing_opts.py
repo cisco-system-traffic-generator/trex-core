@@ -245,8 +245,8 @@ def check_pkt_size (pkt_size):
     except ValueError:
         raise argparse.ArgumentTypeError("invalid packet size type: '{0}'".format(pkt_size))
         
-    if (pkt_size < 64) or (pkt_size > 9000):
-        raise argparse.ArgumentTypeError("invalid packet size: '{0}' - valid range is 64 to 9000".format(pkt_size))
+    if (pkt_size < 64) or (pkt_size > 9216):
+        raise argparse.ArgumentTypeError("invalid packet size: '{0}' - valid range is 64 to 9216".format(pkt_size))
     
     return pkt_size
     

@@ -43,11 +43,17 @@ public:
 
     void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs);
 
-    void reset_stats();
-
     void handle_pkt(const rte_mbuf_t *m);
 
     Json::Value to_json() const;
+    
+    void get_stats(rx_per_flow_t *rx_stats,
+                   int min,
+                   int max,
+                   bool reset,
+                   TrexPlatformApi::driver_stat_cap_e type);
+    
+    void reset_stats();
     
 private:
     bool is_flow_stat_id(uint32_t id) {
@@ -276,6 +282,15 @@ public:
         m_latency.reset_stats();
     }
 
+    void get_latency_stats(rx_per_flow_t *rx_stats,
+                           int min,
+                           int max,
+                           bool reset,
+                           TrexPlatformApi::driver_stat_cap_e type) {
+        
+        return m_latency.get_stats(rx_stats, min, max, reset, type);
+    }
+    
     RXLatency & get_latency() {
         return m_latency;
     }

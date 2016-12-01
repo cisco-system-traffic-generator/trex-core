@@ -825,37 +825,32 @@ class Port(object):
         else:
             info['is_virtual'] = 'N/A'
 
-        if 'speed' in attr:
-            info['speed'] = self.get_formatted_speed()
-        else:
-            info['speed'] = 'N/A'
-                                                  
+        # speed
+        info['speed'] = self.get_formatted_speed()
         
-        if 'rx_filter_mode' in attr:
-            info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
-        else:
-            info['rx_filter_mode'] = 'N/A'
+        # RX filter mode
+        info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
         # src MAC and IPv4
-        info['src_mac'] = attr.get('src_mac', 'N/A')
-            
-        info['src_ipv4'] = attr.get('src_ipv4', 'N/A')
+        info['src_mac']   = attr['src_mac']
+        info['src_ipv4']  = attr['src_ipv4']
+        
         if info['src_ipv4'] is None:
             info['src_ipv4'] = 'Not Configured'
 
         # dest
         dest = attr['dest']
         if dest['type'] == 'mac':
-            info['dest'] = dest['mac']
-            info['arp']  = '-'
+            info['dest']  = dest['mac']
+            info['arp']   = '-'
             
         elif dest['type'] == 'ipv4':
-            info['dest'] = dest['ipv4']
-            info['arp']  = dest['arp']
+            info['dest']  = dest['ipv4']
+            info['arp']   = dest['arp']
             
         elif dest['type'] == 'ipv4_u':
-            info['dest'] = dest['ipv4']
-            info['arp']  = 'unresolved'
+            info['dest']  = dest['ipv4']
+            info['arp']   = 'unresolved'
             
             
         # RX info
@@ -900,7 +895,7 @@ class Port(object):
             assert(0)
     
         
-    # return True if the port is resolved
+    # port is considered resolved if it's dest is either MAC or resolved IPv4
     def is_resolved (self):
         return (self.get_dst_addr()['mac'] is not None)
     

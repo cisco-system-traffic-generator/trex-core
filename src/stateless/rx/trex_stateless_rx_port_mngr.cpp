@@ -156,6 +156,31 @@ RXLatency::reset_stats() {
     }
 }
 
+
+void
+RXLatency::get_stats(rx_per_flow_t *rx_stats,
+                     int min,
+                     int max,
+                     bool reset,
+                     TrexPlatformApi::driver_stat_cap_e type) {
+    
+    for (int hw_id = min; hw_id <= max; hw_id++) {
+        if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+            rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
+        } else {
+            rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
+        }
+        if (reset) {
+            if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+                m_rx_pg_stat_payload[hw_id].clear();
+            } else {
+                m_rx_pg_stat[hw_id].clear();
+            }
+        }
+    }
+}
+
+
 Json::Value
 RXLatency::to_json() const {
     return Json::objectValue;

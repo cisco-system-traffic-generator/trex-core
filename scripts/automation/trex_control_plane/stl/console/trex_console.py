@@ -202,7 +202,7 @@ class TRexConsole(TRexGeneralCmd):
             func_name = f.__name__
             if func_name.startswith("do_"):
                 func_name = func_name[3:]
-
+                
             if not inst.stateless_client.is_connected():
                 print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
@@ -313,6 +313,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_shell (self, line):
         self.do_history(line)
 
+    @verify_connected
     def do_push (self, line):
         '''Push a local PCAP file\n'''
         self.stateless_client.push_line(line)
@@ -328,6 +329,7 @@ class TRexConsole(TRexGeneralCmd):
     def help_portattr (self):
         self.do_portattr("-h")
 
+    @verify_connected
     def do_set_rx_sniffer (self, line):
         '''Sets a port sniffer on RX channel as PCAP recorder'''
         self.stateless_client.set_rx_sniffer_line(line)
@@ -335,6 +337,7 @@ class TRexConsole(TRexGeneralCmd):
     def help_sniffer (self):
         self.do_set_rx_sniffer("-h")
 
+    @verify_connected
     def do_resolve (self, line):
         '''Resolve ARP for ports'''
         self.stateless_client.resolve_line(line)
@@ -431,6 +434,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Release ports\n'''
         self.stateless_client.release_line(line)
 
+    @verify_connected
     def do_reacquire (self, line):
         '''reacquire all the ports under your logged user name'''
         self.stateless_client.reacquire_line(line)

@@ -377,21 +377,21 @@ public:
      */
     void stop_rx_capture();
 
-	/**
-	 * start RX queueing of packets
-	 * 
-	 * @author imarom (11/7/2016)
-	 * 
-	 * @param limit 
-	 */
-	void start_rx_queue(uint64_t limit);
+    /**
+     * start RX queueing of packets
+     * 
+     * @author imarom (11/7/2016)
+     * 
+     * @param limit 
+     */
+    void start_rx_queue(uint64_t limit);
 
-	/**
-	 * stop RX queueing
-	 * 
-	 * @author imarom (11/7/2016)
-	 */
-	void stop_rx_queue();
+    /**
+     * stop RX queueing
+     * 
+     * @author imarom (11/7/2016)
+     */
+    void stop_rx_queue();
 
     /**
      * fetch the RX queue packets from the queue

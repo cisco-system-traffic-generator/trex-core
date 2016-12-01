@@ -101,7 +101,7 @@ std::string utl_generate_random_str(unsigned int &seed, int len);
  */
 void utl_set_coredump_size(long size, bool map_huge_pages = false);
 
-uint32_t       utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num);
+bool           utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num);
 std::string    utl_uint32_to_ipv4(uint32_t ipv4_addr);
    
 #endif

@@ -121,6 +121,7 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
         handle_cp_msg(msg);
     }
 
+    /* a message might result in a change of state */
     recalculate_next_state();
     return true;
 
@@ -218,9 +219,7 @@ void CRxCoreStateless::start() {
 
         switch (m_state) {
         case STATE_IDLE:
-            set_working_msg_ack(false);
             idle_state_loop();
-            set_working_msg_ack(true);
             break;
 
         case STATE_WORKING:
@@ -311,23 +310,11 @@ void CRxCoreStateless::reset_rx_stats(uint8_t port_id) {
 int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max
                                    , bool reset, TrexPlatformApi::driver_stat_cap_e type) {
 
-    RXLatency &latency = m_rx_port_mngr[port_id].get_latency();
-
-    for (int hw_id = min; hw_id <= max; hw_id++) {
-        if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-            rx_stats[hw_id - min] = latency.m_rx_pg_stat_payload[hw_id];
-        } else {
-            rx_stats[hw_id - min] = latency.m_rx_pg_stat[hw_id];
-        }
-        if (reset) {
-            if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                latency.m_rx_pg_stat_payload[hw_id].clear();
-            } else {
-                latency.m_rx_pg_stat[hw_id].clear();
-            }
-        }
-    }
-    return 0;
+    /* for now only latency stats */
+    m_rx_port_mngr[port_id].get_latency_stats(rx_stats, min, max, reset, type);
+    
+    return (0);
+    
 }
 
 int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset) {
@@ -354,13 +341,6 @@ int CRxCoreStateless::get_rx_err_cntrs(CRxCoreErrCntrs *rx_err) {
     return 0;
 }
 
-void CRxCoreStateless::set_working_msg_ack(bool val) {
-    sanb_smp_memory_barrier();
-    m_ack_start_work_msg = val;
-    sanb_smp_memory_barrier();
-}
-
-
 void CRxCoreStateless::update_cpu_util(){
     m_cpu_cp_u.Update();
 }
@@ -373,21 +353,25 @@ double CRxCoreStateless::get_cpu_util() {
 void
 CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
     m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit);
+    recalculate_next_state();
 }
 
 void
 CRxCoreStateless::stop_recorder(uint8_t port_id) {
     m_rx_port_mngr[port_id].stop_recorder();
+    recalculate_next_state();
 }
 
 void
 CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size) {
     m_rx_port_mngr[port_id].start_queue(size);
+    recalculate_next_state();
 }
 
 void
 CRxCoreStateless::stop_queue(uint8_t port_id) {
     m_rx_port_mngr[port_id].stop_queue();
+    recalculate_next_state();
 }
 
 void
@@ -395,6 +379,8 @@ CRxCoreStateless::enable_latency() {
     for (int i = 0; i < m_max_ports; i++) {
         m_rx_port_mngr[i].enable_latency();
     }
+    
+    recalculate_next_state();
 }
 
 void
@@ -402,6 +388,8 @@ CRxCoreStateless::disable_latency() {
     for (int i = 0; i < m_max_ports; i++) {
         m_rx_port_mngr[i].disable_latency();
     }
+    
+    recalculate_next_state();
 }
 
 const RXPortManager &

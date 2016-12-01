@@ -29,7 +29,10 @@
 
 class TrexStatelessCpToRxMsgBase;
 
-
+/**
+ * RFC 2544 implementation
+ * 
+ */
 class CRFC2544Info {
  public:
     void create();
@@ -88,7 +91,15 @@ class CRxCoreErrCntrs {
     uint64_t m_old_flow;
 };
 
+/**
+ * stateless RX core
+ * 
+ */
 class CRxCoreStateless {
+    
+    /**
+     * core states
+     */
     enum state_e {
         STATE_IDLE,
         STATE_WORKING,
@@ -106,8 +117,7 @@ class CRxCoreStateless {
 
 
     void quit() {m_state = STATE_QUIT;}
-    bool is_working() const {return (m_ack_start_work_msg == true);}
-    void set_working_msg_ack(bool val);
+    bool is_working() const {return (m_state == STATE_WORKING);}
     double get_cpu_util();
     void update_cpu_util();
 

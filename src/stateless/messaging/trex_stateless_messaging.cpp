@@ -243,6 +243,8 @@ TrexDpPortEventMsg::handle() {
 /************************* messages from CP to RX **********************/
 bool TrexStatelessRxEnableLatency::handle (CRxCoreStateless *rx_core) {
     rx_core->enable_latency();
+    m_reply.set_reply(true);
+    
     return true;
 }
 

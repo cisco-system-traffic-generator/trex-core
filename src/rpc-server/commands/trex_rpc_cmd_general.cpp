@@ -776,31 +776,31 @@ TrexRpcCmdSetRxFeature::parse_capture_msg(const Json::Value &msg, TrexStatelessP
 
 void 
 TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
-	bool enabled = parse_bool(msg, "enabled", result);
+    bool enabled = parse_bool(msg, "enabled", result);
 
-	if (enabled) {
+    if (enabled) {
 
-		uint64_t size = parse_uint32(msg, "size", result);
+        uint64_t size = parse_uint32(msg, "size", result);
 
-		if (size == 0) {
-			generate_parse_err(result, "queue size cannot be zero");
-		}
+        if (size == 0) {
+            generate_parse_err(result, "queue size cannot be zero");
+        }
 
-		try {
-			port->start_rx_queue(size);
-		} catch (const TrexException &ex) {
-			generate_execute_err(result, ex.what());
-		}
+        try {
+            port->start_rx_queue(size);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
 
-	} else {
+    } else {
 
-		try {
-			port->stop_rx_queue();
-		} catch (const TrexException &ex) {
-			generate_execute_err(result, ex.what());
-		}
+        try {
+            port->stop_rx_queue();
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
 
-	}
+    }
 
 }
 

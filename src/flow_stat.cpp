@@ -802,11 +802,15 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 #endif
 
     if (m_num_started_streams == 0) {
+        
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        assert(m_rx_core->is_working());
+        
         //also good time to zero global counters
         memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
         memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
 
+        #if 0
         // wait to make sure that message is acknowledged. RX core might be in deep sleep mode, and we want to
         // start transmitting packets only after it is working, otherwise, packets will get lost.
         if (m_rx_core) { // in simulation, m_rx_core will be NULL
@@ -819,6 +823,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                 }
             }
         }
+        #endif
+        
     } else {
         // make sure rx core is working. If not, we got really confused somehow.
         if (m_rx_core)
@@ -966,13 +972,21 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
 extern bool rx_should_stop;
 void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     TrexStatelessCpToRxMsgBase *msg;
-
+    
     if (is_start) {
-        msg = new TrexStatelessRxEnableLatency();
+        static MsgReply<bool> reply;
+        reply.reset();
+        
+        msg = new TrexStatelessRxEnableLatency(reply);
+        m_ring_to_rx->Enqueue((CGenNode *)msg);
+        
+        /* hold until message was ack'ed - otherwise we might lose packets */
+        reply.wait_for_reply();
+        
     } else {
         msg = new TrexStatelessRxDisableLatency();
+        m_ring_to_rx->Enqueue((CGenNode *)msg);
     }
-    m_ring_to_rx->Enqueue((CGenNode *)msg);
 }
 
 // return false if no counters changed since last run. true otherwise
