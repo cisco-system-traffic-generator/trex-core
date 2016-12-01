@@ -168,6 +168,7 @@ public:
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
+    virtual uint8_t get_num_crc_fix_bytes() {return 0;}
 
     /* Does this NIC type support automatic packet dropping in case of a link down?
        in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
@@ -277,6 +278,18 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
 };
 
+class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverBase1GVm {
+    CTRexExtendedDriverBaseE1000() {
+        // E1000 driver is only relevant in VM in our case
+        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+    }
+public:
+    static CTRexExtendedDriverBase * create() {
+        return ( new CTRexExtendedDriverBaseE1000() );
+    }
+    // e1000 driver handing us packets with ethernet CRC, so we need to chop them
+    virtual uint8_t get_num_crc_fix_bytes() {return 4;}
+};
 
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
@@ -573,7 +586,7 @@ private:
 
 
         /* virtual devices */
-        register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBase1GVm::create);
+        register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBaseE1000::create);
         register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBase1GVm::create);
         register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBase1GVm::create);
 
@@ -3526,6 +3539,7 @@ void CGlobalTRex::rx_sl_configure(void) {
     int i;
 
     rx_sl_cfg.m_max_ports = m_max_ports;
+    rx_sl_cfg.m_num_crc_fix_bytes = get_ex_drv()->get_num_crc_fix_bytes();
 
     if ( get_vm_one_queue_enable() ) {
         /* vm mode, indirect queues  */

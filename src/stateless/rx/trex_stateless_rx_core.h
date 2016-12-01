@@ -29,10 +29,43 @@
 
 class TrexStatelessCpToRxMsgBase;
 
+<<<<<<< HEAD
 /**
  * RFC 2544 implementation
  * 
  */
+=======
+class CCPortLatencyStl {
+ public:
+    void reset();
+
+ public:
+    rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
+    rx_per_flow_t m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
+};
+
+class CLatencyManagerPerPortStl {
+public:
+     CCPortLatencyStl     m_port;
+     CPortLatencyHWBase * m_io;
+};
+
+class CRxSlCfg {
+ public:
+    CRxSlCfg (){
+        m_max_ports = 0;
+        m_cps = 0.0;
+        m_num_crc_fix_bytes = 0;
+    }
+
+ public:
+    uint32_t             m_max_ports;
+    double               m_cps;
+    CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
+    uint8_t              m_num_crc_fix_bytes;
+};
+
+>>>>>>> f4198c7... take care of extra Ethernet FCS bytes handed to software in e1000
 class CRFC2544Info {
  public:
     void create();
@@ -173,6 +206,8 @@ class CRxCoreStateless {
  private:
     TrexMonitor      m_monitor;
     uint32_t         m_max_ports;
+    // compensate for the fact that hardware send us packets without Ethernet CRC, and we report with it
+    uint8_t m_num_crc_fix_bytes;
     bool             m_capture;
     state_e          m_state;
     CNodeRing       *m_ring_from_cp;
