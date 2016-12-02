@@ -14,6 +14,7 @@ import numbers
 import random
 from inspect import getdoc
 import json
+import re
 from pprint import pprint
 
 # add some layers as an example
@@ -828,7 +829,7 @@ class Scapy_service(Scapy_service_api):
             return False
 
     def _curent_pkt_protocol_fields(self, given_protocol_ids, delimiter):
-        given_protocol_classes = [c for c in Packet.__subclasses__() if c.__name__ in given_protocol_ids and c.__name__ != "Ether"]
+        given_protocol_classes = [c for c in Packet.__subclasses__() if c.__name__ in given_protocol_ids]
         protocol_fields = {}
         for protocol_class in given_protocol_classes:
             protocol_name = protocol_class.__name__
@@ -851,7 +852,7 @@ class Scapy_service(Scapy_service_api):
         for instruction_def in instructions_def:
             instruction_id = instruction_def['id']
             instruction_class = self._vm_instructions[instruction_id]
-            parameters = {k: self._sanitize_value(v) for (k, v) in instruction_def['parameters'].iteritems()}
+            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].iteritems()}
             instructions.append(instruction_class(**parameters))
 
         fe_parameters = field_engine_model_descriptor['global_parameters']
@@ -864,18 +865,31 @@ class Scapy_service(Scapy_service_api):
         pkt_builder.compile()
         return pkt_builder.get_vm_data()
 
-    def _sanitize_value(self, val):
-        if val == "None" or val == "none":
-            return None
-        if val == "true":
-            return True
-        elif val == "false":
-            return False
-        elif self._is_int(val):
-            return int(val)
+    def _sanitize_value(self, param_id, val):
+        if param_id == "pkt_offset":
+            if self._is_int(val):
+                return int(val)
+            elif val == "Ether.src":
+                return 0
+            elif val == "Ether.dst":
+                return 6
+            elif val == "Ether.type":
+                return 12
         else:
-            str_val = str(val)
-            return int(str_val, 16) if str_val.startswith("0x") else str_val
+            if val == "None" or val == "none":
+                return None
+            if val == "true":
+                return True
+            elif val == "false":
+                return False
+            elif re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", str(val.lower())):
+                return int(str(val).replace(":", ""), 16)
+
+        if self._is_int(val):
+            return int(val)
+
+        str_val = str(val)
+        return int(str_val, 16) if str_val.startswith("0x") else str_val
 
     def _get_instruction_parameter_meta(self, param_id):
         for meta in self.instruction_parameter_meta_definitions:
