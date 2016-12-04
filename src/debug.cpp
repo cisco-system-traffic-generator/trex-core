@@ -142,7 +142,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
 
     pkt = CTestPktGen::create_test_pkt(l3_type, l4_proto, ttl, ip_id, flags, 1000, pkt_size);
 
-    /* DEBUG print the packet 
+    /* DEBUG print the packet
     utl_k12_pkt_format(stdout,pkt,  pkt_size) ;
     */
 
@@ -370,6 +370,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
             case STL:
                 if ( CGlobalInfo::m_options.is_stateless() ) {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 } else {
                     exp_q = MAIN_DPDK_DATA_Q;
                 }
@@ -379,6 +380,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                     exp_q = MAIN_DPDK_DATA_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 }
                 break;
             default:

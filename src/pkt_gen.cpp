@@ -222,7 +222,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     switch(l3_type) {
     case EthernetHeader::Protocol::IP:
         ip->setTimeToLive(ttl);
-        if (ttl==TTL_RESERVE_DUPLICATE || ttl==(TTL_RESERVE_DUPLICATE-1)) {
+        if (flags & DPF_TOS_1) {
             ip->setTOS(TOS_TTL_RESERVE_DUPLICATE);
         }else{
             ip->setTOS(0x2);
@@ -232,11 +232,11 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         break;
     case EthernetHeader::Protocol::IPv6:
         ipv6->setHopLimit(ttl);
-        if (ttl==TTL_RESERVE_DUPLICATE || ttl==(TTL_RESERVE_DUPLICATE-1)) {
+        if (flags & DPF_TOS_1) {
             ipv6->setTrafficClass(TOS_TTL_RESERVE_DUPLICATE);
         }else{
             ipv6->setTrafficClass(0x2);
-        } 
+        }
 
         break;
     }
