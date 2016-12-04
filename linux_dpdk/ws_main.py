@@ -13,6 +13,7 @@ import re
 import uuid
 import subprocess
 import platform
+from waflib import Logs
 
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
@@ -108,8 +109,12 @@ def check_ibverbs_deps(bld):
     if ret or not out:
         bld.fatal("Command of checking libraries '%s' failed.\nReturn status: %s\nOutput: %s" % (cmd, ret, out))
     if '=> not found' in out:
+        Logs.pprint('YELLOW', 'Could not find dependency libraries of libibverbs.so:')
+        for line in out.splitlines():
+            if '=> not found' in line:
+                Logs.pprint('YELLOW', line)
         dumy_libs_path = os.path.abspath(top + 'scripts/dumy_libs')
-        print('Adding rpath %s' % dumy_libs_path)
+        Logs.pprint('YELLOW', 'Adding rpath of %s' % dumy_libs_path)
         rpath_linkage.append(dumy_libs_path)
 
 
@@ -134,6 +139,10 @@ def configure(conf):
     conf.load('gcc')
     conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
+    try:
+        conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will try internal version.')
+    except:
+        pass
 
 
 def getstatusoutput(cmd):
@@ -834,12 +843,15 @@ def post_build(bld):
 def build(bld):
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
-    check_ibverbs_deps(bld)
 
     zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
-    ibverbs_lib_path='external_libs/ibverbs/'
-    bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+    if bld.env['LIB_IBVERBS']:
+        bld.read_shlib(name='ibverbs')
+    else:
+        ibverbs_lib_path='external_libs/ibverbs/'
+        bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+        check_ibverbs_deps(bld)
 
     for obj in build_types:
         build_type(bld,obj);
