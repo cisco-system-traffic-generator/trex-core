@@ -119,7 +119,7 @@ TRexPortAttr::to_json(Json::Value &output) {
     output["src_mac"]                = utl_macaddr_to_str(get_src_mac());
     output["promiscuous"]["enabled"] = get_promiscuous();
     output["link"]["up"]             = is_link_up();
-    output["speed"]                  = get_link_speed();
+    output["speed"]                  = get_link_speed() / 1000; // make sure we have no cards of less than 1 Gbps
     output["rx_filter_mode"]         = get_rx_filter_mode();
 
     if (get_src_ipv4() != 0) {

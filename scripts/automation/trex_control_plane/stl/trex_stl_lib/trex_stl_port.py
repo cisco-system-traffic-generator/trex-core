@@ -129,10 +129,10 @@ class Port(object):
         return RC_OK(data)
 
     def get_speed_bps (self):
-        return (self.__attr['speed'] * 1000 * 1000 * 1000)
+        return (self.get_speed_gbps() * 1000 * 1000 * 1000)
 
-    def get_formatted_speed (self):
-        return "%g Gb/s" % (self.__attr['speed'] / 1000)
+    def get_speed_gbps (self):
+        return self.__attr['speed']
 
     def is_acquired(self):
         return (self.handler != None)
@@ -826,7 +826,7 @@ class Port(object):
             info['is_virtual'] = 'N/A'
 
         # speed
-        info['speed'] = self.get_formatted_speed()
+        info['speed'] = self.get_speed_gbps()
         
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
@@ -865,7 +865,6 @@ class Port(object):
         queue = rx_info['queue']
         info['rx_queue'] = '[{0} / {1}]'.format(queue['count'], queue['size']) if queue['is_active'] else 'off'
         
-
         return info
 
 

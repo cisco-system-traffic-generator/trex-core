@@ -1130,7 +1130,7 @@ class CPortStats(CTRexStats):
         return {"owner": owner,
                 "state": "{0}".format(port_state),
                 'link': link_state,
-                "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
+                "speed": "%g Gb/s" % self._port_obj.get_speed_gbps() if self._port_obj else '',
                 "CPU util.": "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
                                                format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85])) if self._port_obj else '' ,
                 "--": " ",
