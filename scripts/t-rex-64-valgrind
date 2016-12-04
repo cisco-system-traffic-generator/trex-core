@@ -31,7 +31,8 @@ export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs
 fi
             
 export VALGRIND_LIB=/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/lib/valgrind
-export VALGRIND_BIN="/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind --leak-check=full"
+export VALGRIND_BIN="/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind --leak-check=full --error-exitcode=1 --suppressions=valgrind.sup"
+export GLIBCXX_FORCE_NEW=1
 
 if [ -t 0 ] && [ -t 1 ]; then
     export is_tty=true

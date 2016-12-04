@@ -3429,12 +3429,14 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
 void CGlobalTRex::try_stop_all_cores(){
 
     TrexStatelessDpQuit * dp_msg= new TrexStatelessDpQuit();
-    TrexStatelessRxQuit * rx_msg= new TrexStatelessRxQuit();
     send_message_all_dp(dp_msg);
+    delete dp_msg;
+    
     if (get_is_stateless()) {
+        TrexStatelessRxQuit * rx_msg= new TrexStatelessRxQuit();
         send_message_to_rx(rx_msg);
     }
-    delete dp_msg;
+    
     // no need to delete rx_msg. Deleted by receiver
     bool all_core_finished = false;
     int i;
@@ -3796,7 +3798,14 @@ bool CGlobalTRex::Create(){
 
 }
 void CGlobalTRex::Delete(){
+    
     m_zmq_publisher.Delete();
+    m_fl.Delete();
+    
+    if (m_trex_stateless) {
+        delete m_trex_stateless;
+        m_trex_stateless = NULL;
+    }
 }
 
 
@@ -4597,8 +4606,11 @@ void CGlobalTRex::shutdown() {
     for (int i = 0; i < m_max_ports; i++) {
         m_ports[i].stop();
     }
+    
     if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
         /* we should stop latency and exit to stop agents */
+        Delete();
+        utl_termio_reset();
         exit(-1);
     }
 }
@@ -4762,7 +4774,6 @@ int CGlobalTRex::stop_master(){
 
     dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     dump_post_test_stats(stdout);
-    m_fl.Delete();
 
     return (0);
 }
@@ -5615,7 +5626,7 @@ int main_test(int argc , char * argv[]){
     g_trex.stop_master();
     g_trex.Delete();
     utl_termio_reset();
-
+    
     return (0);
 }
 
