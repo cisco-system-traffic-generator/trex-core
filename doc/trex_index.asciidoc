@@ -16,8 +16,8 @@ include::trex_ga.asciidoc[]
 link:trex_preso.html[Stateful] 
 | Stateful DPDK    | 
 link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit] 
-| *New* Stateless support     | 
-http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Stateless support] 
+| Stateless support     | 
+http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Stateless support] link:https://www.youtube.com/watch?v=hoCJ9xyvaw0[short video]
 |=================
 
 
