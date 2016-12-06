@@ -675,7 +675,7 @@ class Port(object):
             json_attr['led_status'] = {'on': kwargs.get('led_status')}
         
         if kwargs.get('flow_ctrl_mode') is not None:
-            json_attr['flow_ctrl_mode'] = {'on': kwargs.get('flow_ctrl_mode')}
+            json_attr['flow_ctrl_mode'] = {'mode': kwargs.get('flow_ctrl_mode')}
 
         if kwargs.get('rx_filter_mode') is not None:
             json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
