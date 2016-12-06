@@ -2467,6 +2467,12 @@ image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
 There is a task to automate the production of this reports
 =====================================
 
+==== Troubleshooting
+
+* Before running TRex make sure the commands    `ibv_devinfo` and  `ibdev2netdev` present the NICS
+* `ifconfig` should work too, you need to be able to ping from those ports
+* run TRex server with '-v 7' for example `$sudo ./t-rex-64 -i -v 7`
+
 
 === Cisco VIC support 
 
