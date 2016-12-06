@@ -2433,7 +2433,7 @@ Watch out, In case DUT will clear this bit (change the TOS with LSB==0, e.g. 0x3
 
 ==== Which NIC to buy?
 
-NIC with two ports will work better from performance prospective, so it is better to have MCX455A-ECAT(two 100gb port) and *not* the  MCX456A-ECAT (one 100gb port).
+NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(two 100gb port) and *not* the  MCX455A-ECAT (one 100gb port).
 
 ==== Limitation/Issues  
 
