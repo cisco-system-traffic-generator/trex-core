@@ -1114,6 +1114,8 @@ def publish_perf(bld):
     # copy performance files to internal and external servers
     rsync_int(bld, 'trex_analytics.html', '')
     rsync_ext(bld, 'trex_analytics.html', '')
+    rsync_int(bld, 'trex_analytics.json', '')
+    rsync_ext(bld, 'trex_analytics.json', '')
     rsync_int(bld, 'images/*_latest_test_*', 'images/')
     rsync_ext(bld, 'images/*_latest_test_*', 'images/')
     rsync_int(bld, 'images/*_trend_graph.*', 'images/')
