@@ -859,7 +859,9 @@ class Scapy_service(Scapy_service_api):
 
         cache_size = None
         if "cache_size" in fe_parameters:
+            assert self._is_int(fe_parameters['cache_size']), 'Cache size must be a number'
             cache_size = int(fe_parameters['cache_size'])
+
 
         pkt_builder = STLPktBuilder(pkt=pkt, vm=STLScVmRaw(instructions, cache_size=cache_size))
         pkt_builder.compile()
