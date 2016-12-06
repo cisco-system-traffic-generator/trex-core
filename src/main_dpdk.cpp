@@ -3618,9 +3618,7 @@ int  CGlobalTRex::ixgbe_start(void){
 
     if (! get_is_stateless()) {
         ixgbe_configure_mg();
-    } else {
-        rx_sl_configure();
-    }
+    } 
 
 
     /* core 0 - control
@@ -3759,6 +3757,8 @@ bool CGlobalTRex::Create(){
         cfg.m_publisher          = &m_zmq_publisher;
 
         m_trex_stateless = new TrexStateless(cfg);
+        
+        rx_sl_configure();
     }
 
     return (true);

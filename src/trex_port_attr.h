@@ -134,7 +134,7 @@ public:
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
 
-    uint32_t get_src_ipv4() {return m_src_ipv4;}
+    uint32_t get_src_ipv4() const {return m_src_ipv4;}
     DestAttr & get_dest() {return m_dest;}
     
     const uint8_t *get_src_mac() const;
@@ -161,6 +161,9 @@ public:
     /* dump object status to JSON */
     void to_json(Json::Value &output);
     
+    uint8_t get_port_id() const {
+        return m_port_id;
+    }
     
 protected:
     

@@ -84,11 +84,13 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
 
     /* create per port manager */
     for (int i = 0; i < m_max_ports; i++) {
+        const TRexPortAttr *port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(i);
         m_rx_port_mngr[i].create(cfg.m_ports[i],
                                  m_rfc2544,
                                  &m_err_cntrs,
                                  &m_cpu_dp_u,
-                                 cfg.m_num_crc_fix_bytes);
+                                 cfg.m_num_crc_fix_bytes,
+                                 port_attr);
     }
 }
 

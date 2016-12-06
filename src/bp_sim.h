@@ -643,7 +643,6 @@ public:
     CMacAddrCfg (){
         memset(u.m_data,0,sizeof(u.m_data));
         u.m_mac.dest[3]=1;
-        u.m_mac.src[3]=1;
     }
     union {
         mac_align_t m_mac;

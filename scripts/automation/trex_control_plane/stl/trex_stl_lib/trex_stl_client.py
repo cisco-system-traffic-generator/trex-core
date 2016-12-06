@@ -878,6 +878,15 @@ class STLClient(object):
 
         return rc
 
+    def __set_service_mode (self, port_id_list, enabled):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_service_mode(enabled))
+
+        return rc
+        
 
     # connect to server
     def __connect(self):
@@ -1387,6 +1396,12 @@ class STLClient(object):
                 if port_obj.is_acquired() and port_obj.get_dst_addr()['ipv4'] is not None]
          
          
+    def get_service_enabled_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.is_service_mode_on()]
+
+        
     # get paused ports
     def get_paused_ports (self, owned = True):
         if owned:
@@ -1854,9 +1869,7 @@ class STLClient(object):
             raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
             
         validate_type('count', count, int)
-            
-        
-            
+ 
         self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
                                                                                        src_port,
                                                                                        pkt_size))
@@ -2164,7 +2177,10 @@ class STLClient(object):
         unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
         if unresolved_ports and not force:
             raise STLError("Port(s) {0} have unresolved destination addresses - please resolve them or specify 'force'".format(unresolved_ports))
-        
+     
+        if self.get_service_enabled_ports() and not force:
+            raise STLError("Port(s) {0} are under service mode - please disable service mode or specify 'force'".format(self.get_service_enabled_ports()))
+            
         
     @__api_check(True)
     def start (self,
@@ -2827,7 +2843,7 @@ class STLClient(object):
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
         validate_choice('rxf', rxf, ['hw', 'all'])
-        
+    
         # common attributes for all ports
         cmn_attr_dict = {}
 
@@ -2880,7 +2896,35 @@ class STLClient(object):
                 self.resolve(ports = resolve_ports)
         
             
+    
+    @__api_check(True)
+    def set_service_mode (self, ports = None, enabled = True):
+        """
+            Set service mode for port(s)
+            In service mode ports will respond to ARP, PING and etc.
+
+            :parameters:
+                ports          - for which ports to configure service mode on/off
+                enabled        - True for activating service mode, False for disabling
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default take all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
         
+        if enabled:
+            self.logger.pre_cmd('Enabling service mode on port(s) {0}:'.format(ports))
+        else:
+            self.logger.pre_cmd('Disabling service mode on port(s) {0}:'.format(ports))
+            
+        rc = self.__set_service_mode(ports, enabled)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
 
     @__api_check(True)
     def resolve (self, ports = None, retries = 0):
@@ -3078,7 +3122,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("Action has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
@@ -3697,18 +3741,12 @@ class STLClient(object):
                                          self.set_rx_sniffer_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.OUTPUT_FILENAME,
-                                         parsing_opts.LIMIT,
-                                         parsing_opts.ALL_FILES)
+                                         parsing_opts.LIMIT)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        rxf = 'all' if opts.all else None 
-
-        if rxf:
-            self.set_port_attr(opts.ports, rxf = rxf)
-            
         self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
 
         return RC_OK()
@@ -3840,10 +3878,37 @@ class STLClient(object):
             return "{0}(read-only)>".format(prefix)
 
         elif self.is_all_ports_acquired():
-            return "{0}>".format(prefix)
+            p = prefix
+            
+            if self.get_service_enabled_ports():
+                if self.get_service_enabled_ports() == self.get_acquired_ports():
+                    p += '(service)'
+                else:
+                    p += '(service: {0})'.format(self.get_service_enabled_ports())
+                
+            return "{0}>".format(p)
 
         else:
             return "{0} {1}>".format(prefix, self.get_acquired_ports())
             
             
 
+    @__console
+    def service_line (self, line):
+        '''Configures port for service mode.
+           In service mode ports will reply to ARP, PING
+           and etc.
+        '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "service",
+                                         self.service_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.SERVICE_OFF)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
+        

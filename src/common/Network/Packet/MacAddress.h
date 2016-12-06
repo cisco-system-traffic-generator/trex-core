@@ -137,6 +137,11 @@ public:
         return true;
     }
 
+    MacAddress& operator = (const uint8_t *rhs) {
+        memcpy(data, rhs, ETHER_ADDR_LEN);
+        return (*this);
+    }
+     
     uint8_t*	GetBuffer()
     {
         return data;

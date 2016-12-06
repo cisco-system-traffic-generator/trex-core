@@ -55,7 +55,10 @@ class TrexException : public std::runtime_error
         T_FLOW_STAT_NO_FREE_HW_ID,
         T_FLOW_STAT_RX_CORE_START_FAIL,
         T_FLOW_STAT_BAD_HW_ID,
-        T_INVALID
+        
+        T_RX_PKT_PARSE_ERR,
+        
+        T_INVALID,
     };
 
  TrexException() : std::runtime_error(""), m_type(T_INVALID) {

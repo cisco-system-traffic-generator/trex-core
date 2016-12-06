@@ -255,6 +255,28 @@ private:
 };
 
 
+/**************************************
+ * RX server (ping, ARP and etc.)
+ * 
+ *************************************/
+class RXPktParser;
+class RXServer {
+public:
+    
+    RXServer();
+    void create(const TRexPortAttr *port_attr, CPortLatencyHWBase *io);
+    void handle_pkt(const rte_mbuf_t *m);
+    
+private:
+    void handle_icmp(RXPktParser &parser);
+    void handle_arp(RXPktParser &parser);
+    rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
+    
+    const TRexPortAttr  *m_port_attr;
+    CPortLatencyHWBase  *m_io;
+    uint8_t              m_port_id;
+};
+
 /************************ manager ***************************/
 
 /**
@@ -268,7 +290,8 @@ public:
         NO_FEATURES  = 0x0,
         LATENCY      = 0x1,
         RECORDER     = 0x2,
-        QUEUE        = 0x4
+        QUEUE        = 0x4,
+        SERVER       = 0x8
     };
 
     RXPortManager();
@@ -277,7 +300,8 @@ public:
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
                 CCpuUtlDp *cpu_util,
-                uint8_t crc_bytes_num);
+                uint8_t crc_bytes_num,
+                const TRexPortAttr *port_attr);
 
     void clear_stats() {
         m_latency.reset_stats();
@@ -403,6 +427,8 @@ private:
     RXLatency                    m_latency;
     RXPacketRecorder             m_recorder;
     RXQueue                      m_queue;
+    RXServer                     m_server;
+    
     // compensate for the fact that hardware send us packets without Ethernet CRC, and we report with it
     uint8_t m_num_crc_fix_bytes;
     

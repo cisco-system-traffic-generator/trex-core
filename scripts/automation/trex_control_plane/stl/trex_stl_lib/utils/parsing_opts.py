@@ -60,6 +60,8 @@ PING_IPV4 = 40
 PING_COUNT = 41
 PKT_SIZE = 42
 
+SERVICE_OFF = 43
+
 GLOBAL_STATS = 50
 PORT_STATS = 51
 PORT_STATUS = 52
@@ -575,6 +577,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'default': None,
                                        'help': "Core mask - only cores responding to the bit mask will be active"}),
 
+              SERVICE_OFF: ArgumentPack(['--off'],
+                                        {'action': 'store_false',
+                                         'dest': 'enabled',
+                                         'default': True,
+                                         'help': 'Deactivates services on port(s)'}),
+                
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],

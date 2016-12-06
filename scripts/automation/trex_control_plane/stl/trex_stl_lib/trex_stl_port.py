@@ -489,6 +489,9 @@ class Port(object):
     @owned
     def set_rx_sniffer (self, pcap_filename, limit):
 
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for performing RX capturing')
+            
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
                   "type":           "capture",
@@ -529,7 +532,8 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-        return self.ok()
+        # instead of updating manualy - let's sync with the server
+        return self.sync()
         
   
 
@@ -684,6 +688,9 @@ class Port(object):
             json_attr['ipv4'] = {'addr': kwargs.get('ipv4')}
         
         if kwargs.get('dest') is not None:
+            if not self.is_service_mode_on():
+                return self.err('setting destination requires port to be in service mode')
+                
             json_attr['dest'] = {'addr': kwargs.get('dest')}
             
 
@@ -698,6 +705,26 @@ class Port(object):
         # update the dictionary from the server explicitly
         return self.sync()
 
+    
+    @owned
+    def set_service_mode (self, enabled):
+        rc = self.set_attr(rx_filter_mode = 'all' if enabled else 'hw')
+        if not rc:
+            return rc
+            
+        if not enabled:
+            rc = self.remove_rx_queue()
+            if not rc:
+                return rc
+                
+            rc = self.remove_rx_sniffer()
+            if not rc:
+                return rc
+                
+        return self.ok()
+
+    def is_service_mode_on (self):
+        return self.get_rx_filter_mode() == 'all'
                 
     @writeable
     def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):
@@ -877,6 +904,8 @@ class Port(object):
             
         return {'mac': src_mac, 'ipv4': src_ipv4}
         
+    def get_rx_filter_mode (self):
+        return self.__attr['rx_filter_mode']
         
     def get_dst_addr (self):
         dest = self.__attr['dest']
@@ -904,10 +933,16 @@ class Port(object):
         
     @writeable
     def arp_resolve (self, retries):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for performing ARP resolution')
+            
         return ARPResolver(self).resolve(retries)
 
     @writeable
     def ping (self, ping_ipv4, pkt_size):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for performing ping')
+            
         return PingResolver(self, ping_ipv4, pkt_size).resolve()
 
         

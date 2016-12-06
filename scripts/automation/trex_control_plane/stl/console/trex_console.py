@@ -488,7 +488,7 @@ class TRexConsole(TRexGeneralCmd):
     ############# update
     @verify_connected
     def do_update(self, line):
-        '''update speed of port(s)currently transmitting traffic\n'''
+        '''update speed of port(s) currently transmitting traffic\n'''
 
         self.stateless_client.update_line(line)
 
@@ -549,6 +549,13 @@ class TRexConsole(TRexGeneralCmd):
         '''Clear cached local statistics\n'''
         self.stateless_client.clear_stats_line(line)
 
+    @verify_connected
+    def do_service (self, line):
+        '''Sets port(s) service mode state'''
+        self.stateless_client.service_line(line)
+        
+    def help_service (self, line):
+        self.do_service("-h")
 
     def help_clear(self):
         self.do_clear("-h")

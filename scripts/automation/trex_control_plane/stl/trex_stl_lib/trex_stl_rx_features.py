@@ -46,11 +46,6 @@ class Resolver(object):
 
             # add the stream(s)
             self.port.add_streams(self.generate_request())
-
-            rc = self.port.set_attr(rx_filter_mode = 'all')
-            if not rc:
-                return rc
-                
             rc = self.port.set_rx_queue(size = 100)
             if not rc:
                 return rc
@@ -59,7 +54,6 @@ class Resolver(object):
             
         finally:
             # best effort restore
-            self.port.set_attr(rx_filter_mode = 'hw')
             self.port.remove_rx_queue()
             self.port.remove_all_streams()
                 
@@ -202,19 +196,13 @@ class PingResolver(Resolver):
         if self.dst['mac'] is None:
             return self.port.err('Ping - port has an unresolved destination, cannot determine next hop MAC address')
         
-        if self.ping_ip == self.src['ipv4']:
-            return self.port.err('Ping - cannot ping own IP')
-            
         return self.port.ok()
             
         
     # return a list of streams for request
     def generate_request (self):
                     
-        src = self.port.get_src_addr()
-        dst = self.port.get_dst_addr()
-              
-        base_pkt = Ether(dst = dst['mac'])/IP(src = src['ipv4'], dst = self.ping_ip)/ICMP(type = 8)
+        base_pkt = Ether(dst = self.dst['mac'])/IP(src = self.src['ipv4'], dst = self.ping_ip)/ICMP(type = 8)
         pad = max(0, self.pkt_size - len(base_pkt))
         
         base_pkt = base_pkt / (pad * 'x')
@@ -222,6 +210,8 @@ class PingResolver(Resolver):
         #base_pkt.show2()
         s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
 
+        self.base_pkt = base_pkt
+        
         return [s1]
         
     # return None for more packets otherwise RC object
@@ -230,23 +220,32 @@ class PingResolver(Resolver):
         if not 'ICMP' in scapy_pkt:
             return None
         
-        #scapy_pkt.show2()    
         ip = scapy_pkt['IP']
-        
+        if ip.dst != self.src['ipv4']:
+            return None
+            
         icmp = scapy_pkt['ICMP']
         
         dt = pkt['ts'] - self.start_ts
         
+        # echo reply
         if icmp.type == 0:
-            # echo reply
+            # check seq
+            if icmp.seq != self.base_pkt['ICMP'].seq:
+                return None
             return self.port.ok('Reply from {0}: bytes={1}, time={2:.2f}ms, TTL={3}'.format(ip.src, len(pkt['binary']), dt * 1000, ip.ttl))
             
         # unreachable
         elif icmp.type == 3:
+            # check seq
+            if icmp.payload.seq != self.base_pkt['ICMP'].seq:
+                return None
             return self.port.ok('Reply from {0}: Destination host unreachable'.format(icmp.src))
+            
         else:
-            scapy_pkt.show2()
-            return self.port.err('unknown ICMP reply')
+            # skip any other types
+            #scapy_pkt.show2()
+            return None
             
             
     

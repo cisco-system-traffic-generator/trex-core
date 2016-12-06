@@ -22,6 +22,7 @@
 #include "trex_stateless_rx_port_mngr.h"
 #include "common/captureFile.h"
 #include "trex_stateless_rx_core.h"
+#include "common/Network/Packet/Arp.h"
 
 /**************************************
  * latency RX feature
@@ -400,6 +401,259 @@ RXPacketRecorder::to_json() const {
     return output;
 }
 
+
+/**************************************
+ * RX feature server (ARP, ICMP) and etc.
+ * 
+ *************************************/
+
+class RXPktParser {
+public:
+    RXPktParser(const rte_mbuf_t *m) {
+
+        m_mbuf = m;
+        
+        /* start point */
+        m_current   = rte_pktmbuf_mtod(m, uint8_t *);;
+        m_size_left = rte_pktmbuf_pkt_len(m);
+
+        m_ether    = NULL;
+        m_arp      = NULL;
+        m_ipv4     = NULL;
+        m_icmp     = NULL;
+        m_vlan_tag = 0;
+        
+        /* ethernet */
+        m_ether = (EthernetHeader *)parse_bytes(14);
+        
+        uint16_t next_proto;
+        if (m_ether->getNextProtocol() == EthernetHeader::Protocol::VLAN) {
+            parse_bytes(4);
+            m_vlan_tag = m_ether->getVlanTag();
+            next_proto = m_ether->getVlanProtocol();
+        } else {
+            next_proto = m_ether->getNextProtocol();
+        }
+        
+        /**
+         * support only for ARP or IPv4 based protocols
+         */
+        switch (next_proto) {
+        case EthernetHeader::Protocol::ARP:
+            parse_arp();
+            return;
+            
+        case EthernetHeader::Protocol::IP:
+            parse_ipv4();
+            return;
+            
+        default:
+            return;
+        }
+        
+    }
+    
+    const rte_mbuf_t *m_mbuf;
+    EthernetHeader   *m_ether;
+    ArpHdr           *m_arp;
+    IPHeader         *m_ipv4;
+    ICMPHeader       *m_icmp;
+    uint16_t          m_vlan_tag;
+    
+protected:
+    
+    const uint8_t *parse_bytes(uint32_t size) {
+        if (m_size_left < size) {
+            parse_err();
+        }
+        
+        const uint8_t *p = m_current;
+        m_current    += size;
+        m_size_left  -= size;
+        
+        return p;
+    }
+    
+    void parse_arp() {
+        m_arp = (ArpHdr *)parse_bytes(sizeof(ArpHdr));
+    }
+    
+    void parse_ipv4() {
+        m_ipv4 = (IPHeader *)parse_bytes(IPHeader::DefaultSize);
+        
+        /* advance over IP options if exists */
+        parse_bytes(m_ipv4->getOptionLen());
+        
+        switch (m_ipv4->getNextProtocol()) {
+        case IPHeader::Protocol::ICMP:
+            parse_icmp();
+            return;
+            
+        default:
+            return;
+        }
+    }
+    
+    void parse_icmp() {
+        m_icmp = (ICMPHeader *)parse_bytes(sizeof(ICMPHeader));
+    }
+    
+    void parse_err() {
+        throw TrexException(TrexException::T_RX_PKT_PARSE_ERR);
+    }
+    
+    const uint8_t *m_current;
+    uint16_t       m_size_left;
+};
+
+RXServer::RXServer() {
+    m_port_attr = NULL;
+    m_io        = NULL;
+    m_port_id   = 255;
+}
+
+void
+RXServer::create(const TRexPortAttr *port_attr, CPortLatencyHWBase *io) {
+    m_port_attr = port_attr;
+    m_io = io;
+    m_port_id = port_attr->get_port_id();
+}
+
+
+void
+RXServer::handle_pkt(const rte_mbuf_t *m) {
+
+    RXPktParser parser(m);
+    
+    if (parser.m_icmp) {
+        handle_icmp(parser);
+    } else if (parser.m_arp) {
+        handle_arp(parser);
+    } else {
+        return;
+    }
+
+}
+void
+RXServer::handle_icmp(RXPktParser &parser) {
+    
+    /* maybe not for us... */
+    if (parser.m_ipv4->getDestIp() != m_port_attr->get_src_ipv4()) {
+        return;
+    }
+    
+    /* we handle only echo request */
+    if (parser.m_icmp->getType() != ICMPHeader::TYPE_ECHO_REQUEST) {
+        return;
+    }
+    
+    /* duplicate the MBUF */
+    rte_mbuf_t *response = duplicate_mbuf(parser.m_mbuf);
+    if (!response) {
+        return;
+    }
+    
+    /* reparse the cloned packet */
+    RXPktParser response_parser(response);
+    
+    /* swap MAC */
+    MacAddress tmp = response_parser.m_ether->mySource;
+    response_parser.m_ether->mySource = response_parser.m_ether->myDestination;
+    response_parser.m_ether->myDestination = tmp;
+    
+    /* swap IP */
+    std::swap(response_parser.m_ipv4->mySource, response_parser.m_ipv4->myDestination);
+    
+    /* new packet - new TTL */
+    response_parser.m_ipv4->setTimeToLive(128);
+    response_parser.m_ipv4->updateCheckSum();
+    
+    /* update type and fix checksum */
+    response_parser.m_icmp->setType(ICMPHeader::TYPE_ECHO_REPLY);
+    response_parser.m_icmp->updateCheckSum(response_parser.m_ipv4->getTotalLength() - response_parser.m_ipv4->getHeaderLength());
+    
+    /* send */
+    m_io->tx(response);
+}
+
+void
+RXServer::handle_arp(RXPktParser &parser) {
+    
+    /* only ethernet format supported */
+    if (parser.m_arp->getHrdType() != ArpHdr::ARP_HDR_HRD_ETHER) {
+        return;
+    }
+    
+    /* IPV4 only */    
+    if (parser.m_arp->getProtocolType() != ArpHdr::ARP_HDR_PROTO_IPV4) {
+        return;
+    }
+
+    /* support only for ARP request */
+    if (parser.m_arp->getOp() != ArpHdr::ARP_HDR_OP_REQUEST) {
+        return;
+    }
+    
+    /* are we the target ? if not - go home */
+    if (parser.m_arp->getTip() != m_port_attr->get_src_ipv4()) {
+        return;
+    }
+    
+    /* duplicate the MBUF */
+    rte_mbuf_t *response = duplicate_mbuf(parser.m_mbuf);
+    if (!response) {
+        return;
+    }
+ 
+    /* reparse the cloned packet */
+    RXPktParser response_parser(response);
+    
+    /* reply */
+    response_parser.m_arp->setOp(ArpHdr::ARP_HDR_OP_REPLY);
+    
+    /* fix the MAC addresses */
+    response_parser.m_ether->mySource = m_port_attr->get_src_mac();
+    response_parser.m_ether->myDestination = parser.m_ether->mySource;
+    
+    /* fill up the fields */
+    
+    /* src */
+    response_parser.m_arp->m_arp_sha = m_port_attr->get_src_mac();
+    response_parser.m_arp->setSip(m_port_attr->get_src_ipv4());
+    
+    /* dst */
+    response_parser.m_arp->m_arp_tha = parser.m_arp->m_arp_sha;
+    response_parser.m_arp->m_arp_tip = parser.m_arp->m_arp_sip;
+    
+    /* send */
+    m_io->tx(response);
+    
+}
+
+rte_mbuf_t *
+RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
+    /* RX packets should always be one segment */
+    assert(m->nb_segs == 1);
+    
+    /* allocate */
+    rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(m_port_id, rte_pktmbuf_pkt_len(m));
+    if (!clone_mbuf) {
+        return NULL;
+    }
+    
+    /* append data */
+    uint8_t *dest = (uint8_t *)rte_pktmbuf_append(clone_mbuf, rte_pktmbuf_pkt_len(m));
+    if (!dest) {
+        return NULL;
+    }
+    
+    /* copy data */
+    const uint8_t *src = rte_pktmbuf_mtod(m, const uint8_t *);
+    memcpy(dest, src, rte_pktmbuf_pkt_len(m));
+    
+    return clone_mbuf;
+}
+
 /**************************************
  * Port manager 
  * 
@@ -417,13 +671,18 @@ RXPortManager::create(CPortLatencyHWBase *io,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
                       CCpuUtlDp *cpu_util,
-                      uint8_t crc_bytes_num) {
+                      uint8_t crc_bytes_num,
+                      const TRexPortAttr *port_attr) {
     m_io = io;
     m_cpu_dp_u = cpu_util;
     m_num_crc_fix_bytes = crc_bytes_num;
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
+    m_server.create(port_attr, io);
+    
+    /* by default, server feature is always on */
+    set_feature(SERVER);
 }
     
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
@@ -440,6 +699,10 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
 
     if (is_feature_set(QUEUE)) {
         m_queue.handle_pkt(m);
+    }
+    
+    if (is_feature_set(SERVER)) {
+        m_server.handle_pkt(m);
     }
 }
 
@@ -513,3 +776,4 @@ RXPortManager::to_json() const {
  
     return output;
 }
+
