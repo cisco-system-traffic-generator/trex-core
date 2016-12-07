@@ -1,0 +1,16 @@
+- port_limit    : 4         
+  version       : 2
+  interfaces    : ["03:00.0","03:00.1","82:00.0","82:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status 
+  c : 4
+  platform :
+        master_thread_id  : 0
+        latency_thread_id : 5
+        dual_if   :
+             - socket   : 0
+               threads  : [1,2,3,4]
+             - socket   : 1
+               threads  : [8,9,10,11]
+
+  memory    :                                          
+        dp_flows    : 4048576
+

@@ -96,6 +96,7 @@ bp_sim_main = SrcGroup(dir='src',
 bp_sim_gtest = SrcGroup(dir='src',
         src_list=[
              'bp_gtest.cpp',
+             'gtest/bp_timer_gtest.cpp',
              'gtest/tuple_gen_test.cpp',
              'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
@@ -132,7 +133,8 @@ main_src = SrcGroup(dir='src',
              'pal/linux/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
-             'sim/trex_sim_stateful.cpp'
+             'sim/trex_sim_stateful.cpp',
+             'h_timer.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',

@@ -226,7 +226,9 @@ main_src = SrcGroup(dir='src',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
-             'pal/common/common_mbuf.cpp'
+             'pal/common/common_mbuf.cpp',
+             'h_timer.cpp'
+
              ]);
 
 cmn_src = SrcGroup(dir='src/common',

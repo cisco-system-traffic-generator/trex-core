@@ -33,6 +33,7 @@ limitations under the License.
 #include "platform_cfg.h"
 #include "stateful_rx_core.h"
 #include "nat_check_flow_table.h"
+#include "utl_ipg_bucket.h"
 
 int test_policer(){
     CPolicer policer;
@@ -83,25 +84,6 @@ int test_priorty_queue(void){
     }
     return (0);
 }
-
-
-#if 0
-#ifdef WIN32
-
-int test_rate(){
-    int i;
-    CBwMeasure m;
-    uint64_t cnt=0;
-    for (i=0; i<10; i++) {
-        Sleep(100);
-        cnt+=10000;
-        printf (" %f \n",m.add(cnt));
-    }
-    return (0);
-}
-#endif
-#endif
-
 
 
 
@@ -281,7 +263,7 @@ TEST_F(basic, limit_single_pkt) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
-TEST_F(basic, limit_multi_pkt) {
+/*TEST_F(basic, limit_multi_pkt) {
 
      CTestBasic t1;
      CParserOption * po =&CGlobalInfo::m_options;
@@ -291,7 +273,7 @@ TEST_F(basic, limit_multi_pkt) {
      po->out_file ="exp/limit_multi_pkt";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
-}
+} */
 
 TEST_F(basic, imix) {
 
@@ -2507,7 +2489,8 @@ public:
 
 TEST_F(file_flow_info, f1) {
     m_flow_info.load_cap_file("cap2/delay_10_rtp_250k_short.pcap",1,7) ;
-    m_flow_info.update_info();
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
     //m_flow_info.Dump(stdout);
 
     int i;
@@ -2541,8 +2524,8 @@ TEST_F(file_flow_info, f1) {
 
 TEST_F(file_flow_info, f2) {
     m_flow_info.load_cap_file("cap2/citrix.pcap",1,0) ;
-    m_flow_info.update_info();
-
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
 
     int i;
     for (i=0; i<m_flow_info.Size(); i++) {
@@ -2561,7 +2544,8 @@ TEST_F(file_flow_info, f2) {
 
 TEST_F(file_flow_info, http_two_dir) {
     m_flow_info.load_cap_file("avl/delay_10_http_browsing_0.pcap",1,0) ;
-    m_flow_info.update_info();
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
     CFlowPktInfo * lp=m_flow_info.GetPacket((uint32_t)0);
     EXPECT_EQ(lp->m_pkt_indication.m_desc.IsOneDirectionalFlow(),0);
 }
@@ -2569,7 +2553,8 @@ TEST_F(file_flow_info, http_two_dir) {
 TEST_F(file_flow_info, one_dir) {
 
     m_flow_info.load_cap_file("avl/delay_rtp_160k_1_1_0.pcap",1,0) ;
-    m_flow_info.update_info();
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
     CFlowPktInfo * lp=m_flow_info.GetPacket((uint32_t)0);
     EXPECT_EQ(lp->m_pkt_indication.m_desc.IsOneDirectionalFlow(),1);
 }
@@ -2592,7 +2577,8 @@ TEST_F(file_flow_info, nat_option_check) {
 
 TEST_F(file_flow_info, http_add_ipv4_option) {
     m_flow_info.load_cap_file("avl/delay_10_http_browsing_0.pcap",1,0) ;
-    m_flow_info.update_info();
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
     CFlowPktInfo * lp=m_flow_info.GetPacket((uint32_t)0);
     printf(" before the change \n");
     //lp->Dump(stdout);
@@ -2616,7 +2602,9 @@ TEST_F(file_flow_info, http_add_ipv6_option) {
     po->preview.set_ipv6_mode_enable(true);
 
     m_flow_info.load_cap_file("avl/delay_10_http_browsing_0.pcap",1,0) ;
-    m_flow_info.update_info();
+    CFlowYamlInfo info;
+    m_flow_info.update_info(&info);
+
     CFlowPktInfo * lp=m_flow_info.GetPacket((uint32_t)0);
     //lp->Dump(stdout);
     //lp->m_packet->Dump(stdout,1);
@@ -2915,23 +2903,52 @@ public:
 };
 
 
-#if 0
-TEST_F(gt_conf, t1) {
-    CPlatformYamlInfo info;
-    info.load_from_yaml_file("cfg/ex1.yaml");
-    info.Dump(stdout);
-    CPlatformSocketInfoConfig cfg;
-    cfg.Create(&info.m_platform);
 
-    cfg.set_latency_thread_is_enabled(true);
-    cfg.set_number_of_dual_ports(1);
-    cfg.set_number_of_threads_per_ports(1);
+class ipg_calc  : public testing::Test {
+ protected:
+  virtual void SetUp() {
+  }
+  virtual void TearDown() {
+  }
+public:
+};
 
 
-    cfg.sanity_check();
-    cfg.dump(stdout);
-} 
 
-#endif
 
+
+TEST_F(ipg_calc, test1) {
+
+    CCalcIpgDiff dcalc(20/1000000.0);
+    int i;
+    for (i=0; i<40; i++) {
+        uint32_t ticks=dcalc.do_calc(1.0/1000000.0);
+        if (i==19 || (i==39)) {
+            EXPECT_EQ(ticks,1);
+        }else{
+            EXPECT_EQ(ticks,0);
+        }
+    }
+}
+
+TEST_F(ipg_calc, test2) {
+
+    CCalcIpgDiff dcalc(20/1000000.0);
+    int i;
+    for (i=0; i<40; i++) {
+        uint32_t ticks=dcalc.do_calc(40.0/1000000.0);
+        EXPECT_EQ(ticks,2);
+    }
+}
+
+TEST_F(ipg_calc, test3) {
+
+    CCalcIpgDiff dcalc(20/1000000.0);
+    int i;
+    for (i=0; i<1; i++) {
+        uint32_t ticks=dcalc.do_calc(2*((double)UINT32_MAX)*20.0/1000000.0);
+        //printf(" %ul \n",ticks,);
+        EXPECT_EQ(ticks,UINT32_MAX);
+    }
+}
 

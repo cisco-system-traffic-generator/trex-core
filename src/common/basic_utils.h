@@ -22,6 +22,57 @@ limitations under the License.
 #include <string>
 
 /**
+ * return  true if number of log2
+ * 
+ * @param num
+ * 
+ * @return 
+ */
+inline bool utl_islog2(uint32_t num){
+    uint32_t mask=1;
+    int i;
+    for (i=0; i<31; i++) {
+        if (mask == num) {
+            return (true);
+        }
+        if (mask > num) {
+            return(false);
+        }
+        mask=mask<<1;
+    }
+    return (false);
+}
+
+inline uint32_t utl_log2_shift(uint32_t num){
+    uint32_t mask=1;
+    int i;
+    for (i=0; i<31; i++) {
+        if (mask == num) {
+            return ((uint32_t)i);
+        }
+        if (mask > num) {
+            return(false);
+        }
+        mask=mask<<1;
+    }
+    assert(0);
+    return (-1);
+}
+
+
+/**
+ * return mask for log2 number
+ * 
+ * @param num
+ * 
+ * @return 
+ */
+inline uint32_t utl_mask_log2(uint32_t num){
+    return (num-1);
+}
+
+           
+/**
  * the round must be power 2 e.g 2,4,8...
  * 
  * @param num

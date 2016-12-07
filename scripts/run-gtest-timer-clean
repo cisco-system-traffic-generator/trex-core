@@ -1,0 +1,3 @@
+#! /bin/bash
+valgrind --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter="gt_r_timer.*"
+

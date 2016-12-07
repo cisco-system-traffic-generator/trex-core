@@ -61,6 +61,8 @@ limitations under the License.
 #include "flow_stat.h"
 #include "trex_watchdog.h"
 #include "trex_client_config.h"
+#include "h_timer.h"
+
 
 #include <trex_stateless_dp_core.h>
 
@@ -1338,6 +1340,8 @@ struct CFlowYamlInfo {
         m_client_pool_idx = 0;
         m_server_pool_idx = 0;
         m_cap_mode=false;
+        m_ipg_sec=0.01; 
+        m_rtt_sec=0.01; 
     }
 
     std::string     m_name;
@@ -1427,6 +1431,7 @@ public:
         EXIT_PORT_SCHED         =8,
         PCAP_PKT                =9,
         GRAT_ARP                =10,
+        TW_SYNC                 =11
     };
 
     /* flags MASKS*/
@@ -1514,7 +1519,12 @@ public:
 
     void *              m_plugin_info;
 
-//private:
+/* cache line -2 */
+    CHTimerObj           m_tmr;
+    uint64_t             m_tmr_pad[4];
+
+/* cache line -3 */
+
 
     CTupleGeneratorSmart *m_tuple_gen;
     // cache line 1 - 64bytes waste of space !
@@ -1543,8 +1553,11 @@ public:
     inline bool can_cache_mbuf(void);
 
     /* is it possible to cache MBUF */
+    inline uint32_t update_next_pkt_in_flow_tw(void);
 
-    inline void update_next_pkt_in_flow(void);
+    /* update the node time for accurate scheduler */
+    inline void update_next_pkt_in_flow_as(void);
+
     inline void reset_pkt_in_flow(void);
     inline uint8_t get_plugin_id(void){
         return ( m_template_info->m_plugin_id);
@@ -1752,6 +1765,8 @@ struct CGenNodeDeferPort  {
     uint32_t            m_clients[DEFER_CLIENTS_NUM];
     uint16_t            m_ports[DEFER_CLIENTS_NUM];
     uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
+    uint64_t            m_pad4[8];
+
 public:
     void init(void){
         m_type=CGenNode::FLOW_DEFER_PORT_RELEASE;
@@ -2001,6 +2016,8 @@ public:
 class CNodeGenerator {
 public:
 
+    friend CFlowGenListPerThread;
+
      typedef enum { scINIT = 0x17,
                     scWORK ,
                     scWAIT , 
@@ -2035,7 +2052,7 @@ public:
     int   close_file(CFlowGenListPerThread * thread);
     int   flush_file(dsec_t max_time,
                      dsec_t d_time,
-                     bool always,
+                     bool on_terminate,
                      CFlowGenListPerThread * thread,
                      double & old_offset);
     int   defer_handler(CFlowGenListPerThread * thread);
@@ -2063,18 +2080,27 @@ public:
     void dump_json(std::string & json);
 
 
+
 private:
+
+    #ifdef _DEBUG
+      #define UPDATE_STATS(a) update_stats(a)
+    #else 
+      #define UPDATE_STATS(a) 
+    #endif  
+    
+    int   update_stats(CGenNode * node);
+
     inline int   flush_one_node_to_file(CGenNode * node){
         return (m_v_if->send_node(node));
     }
-    int   update_stats(CGenNode * node);
     int   update_stl_stats(CGenNodeStateless *node_sl);
     bool  has_limit_reached();
 
     FORCE_NO_INLINE bool handle_slow_messages(uint8_t type,
                                               CGenNode * node,
                                               CFlowGenListPerThread * thread,
-                                              bool always);
+                                              bool on_terminate);
 
 private:
         void add_exit_node(CFlowGenListPerThread * thread,
@@ -2086,18 +2112,17 @@ private:
 
         FORCE_INLINE bool do_work_stl(CGenNode * node,
                                       CFlowGenListPerThread * thread,
-                                      bool always);
+                                      bool on_terminate);
         
+        template<bool ON_TERMINATE>
         FORCE_INLINE bool do_work_both(CGenNode * node,
                                       CFlowGenListPerThread * thread,
-                                      dsec_t d_time,
-                                      bool always);
+                                      dsec_t d_time);
         
-        template<int SCH_MODE>
+        template<int SCH_MODE,bool ON_TERMINATE>
         FORCE_INLINE bool do_work(CGenNode * node,
                                   CFlowGenListPerThread * thread,
-                                  dsec_t d_time,
-                                  bool always);
+                                  dsec_t d_time);
         
         FORCE_INLINE void do_sleep(dsec_t & cur_time,
                                    CFlowGenListPerThread * thread,
@@ -2105,14 +2130,13 @@ private:
         
         
         FORCE_INLINE int teardown(CFlowGenListPerThread * thread,
-                                   bool always,
+                                   bool on_terminate,
                                    double &old_offset,
                                    double offset);
         
-        template<int SCH_MODE>
+        template<int SCH_MODE,bool ON_TERIMATE>
         int flush_file_realtime(dsec_t max_time, 
                                 dsec_t d_time,
-                                bool always,
                                 CFlowGenListPerThread * thread,
                                 double &old_offset);
         
@@ -2569,8 +2593,9 @@ public:
 class CPacketIndication {
 
 public:
-    dsec_t       m_cap_ipg; /* ipg from cap file */
-    CCapPktRaw * m_packet;
+    uint32_t            m_ticks;
+    CPacketDescriptor   m_desc;
+    CCapPktRaw *        m_packet;
 
     CFlow *          m_flow;
     EthernetHeader * m_ether;
@@ -2588,9 +2613,9 @@ public:
     uint16_t        m_payload_len;
     uint16_t        m_packet_padding; /* total packet size - IP total length */
 
+    dsec_t          m_cap_ipg; /* ipg from cap file */
 
     CFlowKey            m_flow_key;
-    CPacketDescriptor   m_desc;
 
     uint8_t             m_ether_offset;
     uint8_t             m_ip_offset;
@@ -3420,6 +3445,7 @@ public:
 };
 
 
+
 class CCapFileFlowInfo {
 public:
     const int LEARN_MODE_MIN_IPG = 10; // msec
@@ -3453,13 +3479,13 @@ public:
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id);
 
     /* update flow info */
-    void update_info();
+    void update_info(CFlowYamlInfo *  info);
 
     enum CCapFileFlowInfo::load_cap_file_err is_valid_template_load_time();
 
     void save_to_erf(std::string cap_file_name,int pcap);
 
-    inline void generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
+    void generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
                               CNodeGenerator * gen,
                               dsec_t time,
                               uint64_t flow_id,
@@ -3713,6 +3739,12 @@ private:
     bool           server_seq_init;  /* TCP seq been init for server? */
 };
 
+#define BUCKET_TIME_USEC (20)
+#define TW_BUCKETS       (1024)
+#define BUCKET_TIME_SEC ((double)BUCKET_TIME_USEC/1000000.0)
+
+#define TW_BUCKETS_MAX_TIME       (BUCKET_TIME_USEC *TW_BUCKETS)
+
 
 /////////////////////////////////////////////////////////////////////////////////
 /* per thread info  */
@@ -3752,7 +3784,10 @@ public:
         m_monitor.tickle();
     }
 
-    
+    template<bool TEARDOWN>
+    inline void on_flow_tick(CGenNode *node);
+
+
     /* return the dual port ID this thread is attached to in 4 ports configuration
        there are 2 dual-ports
 
@@ -3787,6 +3822,7 @@ public :
 
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
+
 
 
 public:
@@ -3922,6 +3958,8 @@ public:
 
 public:
     CNodeGenerator                   m_node_gen;
+    CHTimerWheel                     m_tw;
+
 public:
     uint32_t                         m_cur_template;
     uint32_t                         m_non_active_nodes; /* the number of non active nodes -> nodes that try to stop somthing */
@@ -4027,85 +4065,6 @@ public:
 
 
 
-inline void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
-                                            CNodeGenerator * gen,
-                                            dsec_t time,
-                                            uint64_t flow_id,
-                                            CFlowYamlInfo *  template_info,
-                                            CGenNode *     node){
-    dsec_t c_time = time;
-
-    node->m_type=CGenNode::FLOW_PKT;
-    CTupleBase  tuple;
-    tuple_gen->GenerateTuple(tuple);
-
-    /* add the first packet of the flow */
-    CFlowPktInfo *  lp=GetPacket((uint32_t)0);
-
-    node->set_socket_id(gen->m_socket_id);
-
-    node->m_thread_id = tuple_gen->GetThreadId();
-    node->m_flow_id = (flow_id & (0x000fffffffffffffULL)) |
-                      ( ((uint64_t)(tuple_gen->GetThreadId()& 0xff)) <<56 ) ;
-
-    node->m_time     = c_time;
-    node->m_pkt_info = lp;
-    node->m_flow_info = this;
-    node->m_flags=0;
-    node->m_template_info =template_info;
-    node->m_tuple_gen = tuple_gen->get_gen();
-    node->m_src_ip= tuple.getClient();
-    node->m_dest_ip = tuple.getServer();
-    node->m_src_idx = tuple.getClientId();
-    node->m_dest_idx = tuple.getServerId();
-    node->m_src_port = tuple.getClientPort();
-    node->m_client_cfg = tuple.getClientCfg();
-
-    node->m_plugin_info =(void *)0;
-
-    if ( unlikely( CGlobalInfo::is_learn_mode()  ) ){
-        // check if flow is two direction
-        if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ) {
-            /* we are in learn mode */
-            CFlowGenListPerThread  * lpThread=gen->Parent();
-            lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK, node);  /* associate flow_id=>node */
-            node->set_nat_first_state();
-        }
-    }
-
-    if ( unlikely(  get_is_rx_check_mode()) ) {
-        if  ( (CGlobalInfo::m_options.m_rx_check_sample == 1 ) ||
-            ( ( rte_rand() % CGlobalInfo::m_options.m_rx_check_sample ) == 1 )){
-           if (unlikely(!node->is_repeat_flow() )) {
-               node->set_rx_check();
-           }
-        }
-    }
-
-    if ( unlikely( CGlobalInfo::m_options.preview.getClientServerFlowFlipAddr() ) ){
-        node->set_initiator_start_from_server_side_with_server_addr(node->is_eligible_from_server_side());
-    }else{
-        /* -p */
-        if ( likely( CGlobalInfo::m_options.preview.getClientServerFlowFlip() ) ){
-            node->set_initiator_start_from_server(node->is_eligible_from_server_side());
-            node->set_all_flow_from_same_dir(true);
-        }else{
-            /* --flip */
-            if ( unlikely( CGlobalInfo::m_options.preview.getClientServerFlip() ) ){
-                node->set_initiator_start_from_server(node->is_eligible_from_server_side());
-            }
-        }
-    }
-
-
-    /* in case of plugin we need to call the callback */
-    if ( template_info->m_plugin_id ) {
-        /* alloc the info , generate the ports */
-        on_node_first(template_info->m_plugin_id,node,template_info,tuple_gen,gen->Parent() );
-    }
-
-    gen->add_node(node);
-}
 
 
 inline void CFlowGeneratorRecPerThread::generate_flow(CNodeGenerator * gen,
@@ -4144,20 +4103,22 @@ inline bool CGenNode::is_repeat_flow(){
     return ( m_template_info->m_limit_was_set);
 }
 
-inline void CGenNode::update_next_pkt_in_flow(void){
-        if ( likely ( m_pkt_info->m_pkt_indication.m_desc.IsPcapTiming()) ){
-            m_time     += m_pkt_info->m_pkt_indication.m_cap_ipg ;
-        }else{
-            if ( m_pkt_info->m_pkt_indication.m_desc.IsRtt() ){
-                m_time     += m_template_info->m_rtt_sec ;
-            }else{
-                m_time     += m_template_info->m_ipg_sec;
-            }
-        }
 
+inline void CGenNode::update_next_pkt_in_flow_as(void){
+
+    m_time     += m_pkt_info->m_pkt_indication.m_cap_ipg;
+    uint32_t pkt_index   = m_pkt_info->m_pkt_indication.m_packet->pkt_cnt;
+    pkt_index++;
+    m_pkt_info = m_flow_info->GetPacket((pkt_index-1));
+}
+
+inline uint32_t CGenNode::update_next_pkt_in_flow_tw(void){
+
+        uint32_t dticks = m_pkt_info->m_pkt_indication.m_ticks;
         uint32_t pkt_index   = m_pkt_info->m_pkt_indication.m_packet->pkt_cnt;
         pkt_index++;
         m_pkt_info = m_flow_info->GetPacket((pkt_index-1));
+        return (dticks);
 }
 
 inline void CGenNode::reset_pkt_in_flow(void){
