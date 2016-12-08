@@ -75,19 +75,20 @@ test_nbar_simple:
     cores               : 2
     bw_per_core         : 17.174
     nbar_classification:
-        rtp             : 32.57
-        http            : 30.25
-        oracle_sqlnet   : 11.23
-        exchange        : 10.80
-        citrix          : 5.62
-        rtsp            : 2.84
-        dns             : 1.95
+        http            : 32.58
+        rtp-audio       : 21.21
+        oracle_sqlnet   : 11.41
+        exchange        : 11.22
+        rtp             : 11.2
+        citrix          : 5.65
+        rtsp            : 2.87
+        dns             : 1.96
         smtp            : 0.57
-        pop3            : 0.36
-        ssl             : 0.17
+        pop3            : 0.37
+        ssl             : 0.28
         sctp            : 0.13
         sip             : 0.09
-        unknown         : 3.41
+        unknown         : 0.45
 
 
 test_rx_check_http: &rx_http
