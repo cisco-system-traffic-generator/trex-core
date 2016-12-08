@@ -2615,6 +2615,8 @@ public:
     float     m_total_rx_pps;
 
     float     m_cpu_util;
+    bool      m_link_up = true;
+    bool      m_link_was_down = false;
 };
 
 class CGlobalStats {
@@ -2885,8 +2887,11 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
         fprintf (fd," --------------- \n");
         for (i=0; i<(int)port_to_show; i++) {
             CPerPortStats * lp=&m_port[i];
-            fprintf(fd,"port : %d \n",(int)i);
-            fprintf(fd,"------------\n");
+            fprintf(fd,"port : %d ",(int)i);
+            if ( ! lp->m_link_up ) {
+                fprintf(fd," (link DOWN)");
+            }
+            fprintf(fd,"\n------------\n");
 #define GS_DP_A4(f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
 #define GS_DP_A(f) if (lp->f) fprintf(fd," %-40s : %llu \n",#f, (unsigned long long)lp->f)
             GS_DP_A4(opackets);
@@ -2900,7 +2905,13 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
     }else{
         fprintf(fd," %10s ","ports");
         for (i=0; i<(int)port_to_show; i++) {
-            fprintf(fd,"| %15d ",i);
+            CPerPortStats * lp=&m_port[i];
+            if ( lp->m_link_up ) {
+                fprintf(fd,"| %15d ",i);
+            } else {
+                std::string port_with_state = "(link DOWN) " + std::to_string(i);
+                fprintf(fd,"| %15s ",port_with_state.c_str());
+            }
         }
         fprintf(fd,"\n");
         fprintf(fd," -----------------------------------------------------------------------------------------\n");
@@ -3971,6 +3982,11 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
         }
     else
         fprintf (fd, " Total-pkt-drop       : %llu pkts \n", (unsigned long long) (pkt_out - pkt_in));
+    for (i=0; i<m_max_ports; i++) {
+        if ( m_stats.m_port[i].m_link_was_down ) {
+            fprintf (fd, " WARNING: Link was down at port %d during test (at least for some time)!\n", i);
+        }
+    }
     fprintf (fd," Total-tx-bytes       : %llu bytes \n", (unsigned long long)pkt_out_bytes);
     fprintf (fd," Total-tx-sw-bytes    : %llu bytes \n", (unsigned long long)sw_pkt_out_bytes);
     fprintf (fd," Total-rx-bytes       : %llu byte \n", (unsigned long long)pkt_in_bytes);
@@ -4086,6 +4102,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         stp->m_total_tx_pps = _if->get_last_tx_pps_rate();
         stp->m_total_rx_bps = _if->get_last_rx_rate()*_1Mb_DOUBLE;
         stp->m_total_rx_pps = _if->get_last_rx_pps_rate();
+        stp->m_link_up        = _if->get_port_attr()->is_link_up();
+        stp->m_link_was_down |= ! _if->get_port_attr()->is_link_up();
 
         stats.m_total_tx_pkts  += st.opackets;
         stats.m_total_rx_pkts  += st.ipackets;
