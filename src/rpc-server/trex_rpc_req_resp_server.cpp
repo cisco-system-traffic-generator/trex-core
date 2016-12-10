@@ -171,6 +171,12 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
     std::string response;
 
+    if ( request.size() > MAX_RPC_MSG_LEN ) {
+        response = "Request is too large (" + std::to_string(request.size()) + " bytes). Consider splitting to smaller chunks.";
+        handle_server_error(response);
+        return;
+    }
+
     process_request(request, response);
 
     zmq_send(m_socket, response.c_str(), response.size(), 0);

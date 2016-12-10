@@ -130,13 +130,13 @@ class JsonRpcClient(object):
 
         if self.zipper.check_threshold(buffer):
             response = self.send_raw_msg(self.zipper.compress(buffer))
-            if response:
-                response = self.zipper.decompress(response)
         else:
             response = self.send_raw_msg(buffer)
 
         if not response:
             return response
+        elif self.zipper.is_compressed(response):
+            response = self.zipper.decompress(response)
 
         # return to string
         response = response.decode()
