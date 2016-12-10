@@ -235,3 +235,12 @@ TrexJsonRpcV2Parser::generate_common_error(Json::Value &json, const std::string 
 
 }
 
+void
+TrexJsonRpcV2Parser::generate_common_error(std::string &response, const std::string &specific_err) {
+    Json::Value resp_json;
+    Json::FastWriter writer;
+
+    generate_common_error(resp_json, specific_err);
+    response = writer.write(resp_json);
+}
+
