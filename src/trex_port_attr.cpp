@@ -138,8 +138,8 @@ TRexPortAttr::to_json(Json::Value &output) {
 }
 
 void
-TRexPortAttr::update_src_dst_mac(uint8_t *raw_pkt) {
-    memcpy(raw_pkt, get_dest().get_dest_mac(), 6);
+TRexPortAttr::update_src_dst_mac(uint8_t *raw_pkt) const {
+    memcpy(raw_pkt, m_dest.get_dest_mac(), 6);
     memcpy(raw_pkt + 6, get_src_mac(), 6);
 }
 

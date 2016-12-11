@@ -959,7 +959,7 @@ class Port(object):
                 "src MAC":          info['src_mac'],
                 "src IPv4":         info['src_ipv4'],
                 "Destination":      info['dest'],
-                "ARP Resolution":   info['arp'],
+                "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red') if info['arp'] == 'unresolved' else info['arp'],
                 "PCI Address":      info['pci_addr'],
                 "NUMA Node":        info['numa'],
                 "--": "",

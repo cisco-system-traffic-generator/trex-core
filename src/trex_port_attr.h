@@ -73,7 +73,7 @@ public:
      * if the dest is not resolved 
      * it will return the default MAC 
      */
-    const uint8_t *get_dest_mac() {
+    const uint8_t *get_dest_mac() const {
         return m_mac;
     }
     
@@ -141,7 +141,7 @@ public:
     std::string get_rx_filter_mode() const;
 
     /* for a raw packet, write the src/dst MACs */
-    void update_src_dst_mac(uint8_t *raw_pkt);
+    void update_src_dst_mac(uint8_t *raw_pkt) const;
     
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
@@ -153,6 +153,8 @@ public:
     
     void set_src_ipv4(uint32_t addr) {
         m_src_ipv4 = addr;
+        /* when IP source changes - consider this as link down */
+        m_dest.on_link_down();
     }
     
     /* DUMPS */
