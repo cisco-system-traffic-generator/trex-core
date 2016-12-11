@@ -31,7 +31,6 @@
 #define MLX5_CQ_DB_REQ_NOT			(0 << 24)
 #define MLX5E_CQE_FORMAT_MASK 0xc
 
-
 enum mlx5_alloc_type { MXM_MLX5_ALLOC_TYPE_DUMMY };
 enum mlx5_rsc_type   { MXM_MLX5_RSC_TYPE_DUMMY };
 enum mlx5_db_method { MXM_MLX5_DB_TYPE_DUMMY };

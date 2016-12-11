@@ -586,11 +586,12 @@ includes_path =''' ../src/pal/linux_dpdk/
 ../src/dpdk/lib/librte_ring/
               ''';
 
+
+dpdk_includes_verb_path =''
+
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
                         ../src/pal/linux_dpdk/dpdk
-                        ../external_libs/ibverbs/include/
-
 ../src/dpdk/drivers/
 ../src/dpdk/drivers/net/
 ../src/dpdk/drivers/net/af_packet/
@@ -648,6 +649,8 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/lib/librte_table/
 ../src/dpdk/      
 ''';
+
+
 
 
 DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
@@ -808,10 +811,9 @@ def build_prog (bld, build_obj):
     if not build_obj.isRelease ():
         debug_file_list +=ef_src.file_list(top)
 
-
     bld.objects(
       features='c ',
-      includes = dpdk_includes_path,
+      includes = dpdk_includes_path+dpdk_includes_verb_path,
       
       cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
@@ -841,6 +843,7 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+    global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
 
@@ -850,6 +853,7 @@ def build(bld):
         bld.read_shlib(name='ibverbs')
     else:
         ibverbs_lib_path='external_libs/ibverbs/'
+        dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
         bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
         check_ibverbs_deps(bld)
 
