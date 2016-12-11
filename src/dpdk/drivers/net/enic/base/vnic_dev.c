@@ -667,7 +667,12 @@ int vnic_dev_packet_filter(struct vnic_dev *vdev, int directed, int multicast,
 	     (promisc ? CMD_PFILTER_PROMISCUOUS : 0) |
 	     (allmulti ? CMD_PFILTER_ALL_MULTICAST : 0);
 
+#define TREX_PATCH
+#ifdef TREX_PATCH
+	err = vnic_dev_cmd(vdev, CMD_PACKET_FILTER_ALL, &a0, &a1, wait);
+#else
 	err = vnic_dev_cmd(vdev, CMD_PACKET_FILTER, &a0, &a1, wait);
+#endif
 	if (err)
 		pr_err("Can't set packet filter\n");
 
