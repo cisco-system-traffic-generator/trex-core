@@ -221,6 +221,7 @@ public:
      */
     void push_remote(const std::string &pcap_filename,
                      double            ipg_usec,
+                     double            min_ipg_sec,
                      double            speedup,
                      uint32_t          count,
                      double            duration,

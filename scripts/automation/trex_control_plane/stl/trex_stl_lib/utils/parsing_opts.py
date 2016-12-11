@@ -14,75 +14,85 @@ ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
 
 
 # list of available parsing options
-MULTIPLIER = 1
-MULTIPLIER_STRICT = 2
-PORT_LIST = 3
-ALL_PORTS = 4
-PORT_LIST_WITH_ALL = 5
-FILE_PATH = 6
-FILE_FROM_DB = 7
-SERVER_IP = 8
-STREAM_FROM_PATH_OR_FILE = 9
-DURATION = 10
-FORCE = 11
-DRY_RUN = 12
-XTERM = 13
-TOTAL = 14
-FULL_OUTPUT = 15
-IPG = 16
-SPEEDUP = 17
-COUNT = 18
-PROMISCUOUS = 19
-LINK_STATUS = 20
-LED_STATUS = 21
-TUNABLES = 22
-REMOTE_FILE = 23
-LOCKED = 24
-PIN_CORES = 25
-CORE_MASK = 26
-DUAL = 27
-FLOW_CTRL = 28
-SUPPORTED = 29
-FILE_PATH_NO_CHECK = 30
+_constants = '''
 
-OUTPUT_FILENAME = 31
-LIMIT = 33
-PORT_RESTART   = 34
+MULTIPLIER
+MULTIPLIER_STRICT
+PORT_LIST
+ALL_PORTS
+PORT_LIST_WITH_ALL
+FILE_PATH
+FILE_FROM_DB
+SERVER_IP
+STREAM_FROM_PATH_OR_FILE
+DURATION
+FORCE
+DRY_RUN
+XTERM
+TOTAL
+FULL_OUTPUT
+IPG
+MIN_IPG
+SPEEDUP
+COUNT
+PROMISCUOUS
+LINK_STATUS
+LED_STATUS
+TUNABLES
+REMOTE_FILE
+LOCKED
+PIN_CORES
+CORE_MASK
+DUAL
+FLOW_CTRL
+SUPPORTED
+FILE_PATH_NO_CHECK
 
-RETRIES = 37
+OUTPUT_FILENAME
+LIMIT
+PORT_RESTART
 
-SINGLE_PORT = 38
-DST_MAC = 39
+RETRIES
 
-PING_IPV4 = 40
-PING_COUNT = 41
-PKT_SIZE = 42
+SINGLE_PORT
+DST_MAC
 
-SERVICE_OFF = 43
+PING_IPV4
+PING_COUNT
+PKT_SIZE
 
-SRC_IPV4 = 44
-DST_IPV4 = 45
+SERVICE_OFF
 
-GLOBAL_STATS = 50
-PORT_STATS = 51
-PORT_STATUS = 52
-STREAMS_STATS = 53
-STATS_MASK = 54
-CPU_STATS = 55
-MBUF_STATS = 56
-EXTENDED_STATS = 57
-EXTENDED_INC_ZERO_STATS = 58
+SRC_IPV4
+DST_IPV4
 
-STREAMS_MASK = 60
-CORE_MASK_GROUP = 61
+GLOBAL_STATS
+PORT_STATS
+PORT_STATUS
+STREAMS_STATS
+STATS_MASK
+CPU_STATS
+MBUF_STATS
+EXTENDED_STATS
+EXTENDED_INC_ZERO_STATS
 
-# ALL_STREAMS = 61
-# STREAM_LIST_WITH_ALL = 62
+STREAMS_MASK
+CORE_MASK_GROUP
 
-
+# ALL_STREAMS
+# STREAM_LIST_WITH_ALL
 
 # list of ArgumentGroup types
-MUTEX = 1
+MUTEX
+
+'''
+
+for index, line in enumerate(_constants.splitlines()):
+    var = line.strip().split()
+    if not var or '#' in var[0]:
+        continue
+    exec('%s = %s' % (var[0], index))
+
 
 def check_negative(value):
     ivalue = int(value)
@@ -314,6 +324,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                  'default':  None,
                                  'type': float}),
 
+              MIN_IPG: ArgumentPack(['--min-ipg'],
+                                {'help': "Minimal IPG value in usec between packets. Used to guard from too small IPGs.",
+                                 'dest': "min_ipg_usec",
+                                 'default':  None,
+                                 'type': float}),
 
               SPEEDUP: ArgumentPack(['-s', '--speedup'],
                                    {'help': "Factor to accelerate the injection. effectively means IPG = IPG / SPEEDUP",

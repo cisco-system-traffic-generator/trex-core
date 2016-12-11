@@ -478,6 +478,7 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                        const std::string &pcap_filename,
                                        double ipg_usec,
+                                       double min_ipg_sec,
                                        double speedup,
                                        uint32_t count,
                                        bool is_dual) {
@@ -508,6 +509,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                 slave_mac_addr,
                                 pcap_filename,
                                 ipg_usec,
+                                min_ipg_sec,
                                 speedup,
                                 count,
                                 is_dual);
@@ -1169,6 +1171,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                int event_id,
                                const std::string &pcap_filename,
                                double ipg_usec,
+                               double m_min_ipg_sec,
                                double speedup,
                                uint32_t count,
                                double duration,
@@ -1179,7 +1182,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
     lp_port->set_event_id(event_id);
 
     /* delegate the command to the port */
-    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, speedup, count, is_dual);
+    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, m_min_ipg_sec, speedup, count, is_dual);
     if (!rc) {
         /* report back that we stopped */
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
@@ -1263,6 +1266,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
                           const uint8_t *slave_mac_addr,
                           const std::string &pcap_filename,
                           double ipg_usec,
+                          double min_ipg_sec,
                           double speedup,
                           uint32_t count,
                           bool is_dual) {
@@ -1275,13 +1279,14 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_count      = count;
     m_is_dual    = is_dual;
     m_dir        = dir;
+    m_min_ipg_sec    = min_ipg_sec;
 
     /* mark this node as slow path */
     set_slow_path(true);
 
     if (ipg_usec != -1) {
         /* fixed IPG */
-        m_ipg_sec = usec_to_sec(ipg_usec / speedup);
+        m_ipg_sec = std::max(min_ipg_sec, usec_to_sec(ipg_usec / speedup));
         m_speedup = 0;
     } else {
         /* packet IPG */

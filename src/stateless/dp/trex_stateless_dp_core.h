@@ -74,6 +74,7 @@ public:
     bool push_pcap(uint8_t port_id,
                    const std::string &pcap_filename,
                    double ipg_usec,
+                   double min_ipg_sec,
                    double speedup,
                    uint32_t count,
                    bool is_dual);
@@ -183,6 +184,7 @@ public:
                    int event_id,
                    const std::string &pcap_filename,
                    double ipg_usec,
+                   double min_ipg_sec,
                    double speedup,
                    uint32_t count,
                    double duration,

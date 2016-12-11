@@ -631,6 +631,10 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     std::string  pcap_filename  = parse_string(params, "pcap_filename", result);
     double       ipg_usec       = parse_double(params, "ipg_usec", result);
+    double       min_ipg_sec    = 0;
+    if (params.isMember("min_ipg_usec")) {
+        min_ipg_sec = usec_to_sec(parse_double(params, "min_ipg_usec", result));
+    }
     double       speedup        = parse_double(params, "speedup", result);
     uint32_t     count          = parse_uint32(params, "count", result);
     double       duration       = parse_double(params, "duration", result);
@@ -649,7 +653,7 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
 
     try {
-        port->push_remote(pcap_filename, ipg_usec, speedup, count, duration, is_dual);
+        port->push_remote(pcap_filename, ipg_usec, min_ipg_sec, speedup, count, duration, is_dual);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

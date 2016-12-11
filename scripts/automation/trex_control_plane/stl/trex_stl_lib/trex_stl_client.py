@@ -777,7 +777,7 @@ class STLClient(object):
         return rc
 
 
-    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual):
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -793,7 +793,8 @@ class STLClient(object):
                                                    count,
                                                    duration,
                                                    is_dual,
-                                                   slave_handler))
+                                                   slave_handler,
+                                                   min_ipg_usec))
 
         return rc
 
@@ -2494,7 +2495,8 @@ class STLClient(object):
                      speedup = 1.0,
                      count = 1,
                      duration = -1,
-                     is_dual = False):
+                     is_dual = False,
+                     min_ipg_usec = None):
         """
             Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
@@ -2524,6 +2526,9 @@ class STLClient(object):
                     also requires that all the ports will be in master mode
                     with their adjacent ports as slaves
 
+                min_ipg_usec : float
+                    Minimum inter-packet gap in microseconds to guard from too small ipg.
+
             :raises:
                 + :exc:`STLError`
 
@@ -2537,6 +2542,7 @@ class STLClient(object):
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
         validate_type('is_dual', is_dual, bool)
+        validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
 
         # for dual mode check that all are masters
         if is_dual:
@@ -2555,7 +2561,7 @@ class STLClient(object):
 
 
         self.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
-        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual)
+        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -2573,7 +2579,8 @@ class STLClient(object):
                    force = False,
                    vm = None,
                    packet_hook = None,
-                   is_dual = False):
+                   is_dual = False,
+                   min_ipg_usec = None):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -2615,6 +2622,9 @@ class STLClient(object):
                     also requires that all the ports will be in master mode
                     with their adjacent ports as slaves
 
+                min_ipg_usec : float
+                    Minimum inter-packet gap in microseconds to guard from too small ipg.
+
             :raises:
                 + :exc:`STLError`
 
@@ -2629,6 +2639,7 @@ class STLClient(object):
         validate_type('duration', duration, (float, int))
         validate_type('vm', vm, (list, type(None)))
         validate_type('is_dual', is_dual, bool)
+        validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
 
 
         # no support for > 1MB PCAP - use push remote
@@ -2657,7 +2668,8 @@ class STLClient(object):
                                                speedup,
                                                count,
                                                vm = vm,
-                                               packet_hook = packet_hook)
+                                               packet_hook = packet_hook,
+                                               min_ipg_usec = min_ipg_usec)
                 self.logger.post_cmd(RC_OK)
             except STLError as e:
                 self.logger.post_cmd(RC_ERR(e))
@@ -2682,7 +2694,8 @@ class STLClient(object):
                                                             count,
                                                             vm = vm,
                                                             packet_hook = packet_hook,
-                                                            split_mode = split_mode)
+                                                            split_mode = split_mode,
+                                                            min_ipg_usec = min_ipg_usec)
 
                 self.logger.post_cmd(RC_OK())
 
@@ -3653,6 +3666,7 @@ class STLClient(object):
                 parsing_opts.COUNT,
                 parsing_opts.DURATION,
                 parsing_opts.IPG,
+                parsing_opts.MIN_IPG,
                 parsing_opts.SPEEDUP,
                 parsing_opts.FORCE,
                 parsing_opts.DUAL]
@@ -3685,6 +3699,7 @@ class STLClient(object):
             self.push_remote(opts.file[0],
                              ports     = opts.ports,
                              ipg_usec  = opts.ipg_usec,
+                             min_ipg_usec   = opts.min_ipg_usec,
                              speedup   = opts.speedup,
                              count     = opts.count,
                              duration  = opts.duration,
@@ -3694,6 +3709,7 @@ class STLClient(object):
             self.push_pcap(opts.file[0],
                            ports     = opts.ports,
                            ipg_usec  = opts.ipg_usec,
+                           min_ipg_usec   = opts.min_ipg_usec,
                            speedup   = opts.speedup,
                            count     = opts.count,
                            duration  = opts.duration,

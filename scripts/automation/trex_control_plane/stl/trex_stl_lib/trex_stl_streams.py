@@ -987,7 +987,8 @@ class STLProfile(object):
                    loop_count = 1,
                    vm = None,
                    packet_hook = None,
-                   split_mode = None):
+                   split_mode = None,
+                   min_ipg_usec = None):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -1017,6 +1018,9 @@ class STLProfile(object):
                         used for dual mode
                         can be 'MAC' or 'IP'
 
+                  min_ipg_usec   : float
+                       Minumum inter packet gap in usec. Used to guard from too small IPGs.
+
                  :return: STLProfile
 
         """
@@ -1025,8 +1029,9 @@ class STLProfile(object):
         if not os.path.isfile(pcap_file):
             raise STLError("file '{0}' does not exists".format(pcap_file))
 
-        # make sure IPG is not less than 1 usec
-        if ipg_usec is not None and ipg_usec < 0.001:
+        # make sure IPG is not less than 0.001 usec
+        if (ipg_usec is not None and (ipg_usec < 0.001 * speedup) and
+                              (min_ipg_usec is None or min_ipg_usec < 0.001)):
             raise STLError("ipg_usec cannot be less than 0.001 usec: '{0}'".format(ipg_usec))
 
         if loop_count < 0:
@@ -1039,6 +1044,7 @@ class STLProfile(object):
                 pkts = PCAPReader(pcap_file).read_all()
                 return STLProfile.__pkts_to_streams(pkts,
                                                     ipg_usec,
+                                                    min_ipg_usec,
                                                     speedup,
                                                     loop_count,
                                                     vm,
@@ -1059,6 +1065,7 @@ class STLProfile(object):
 
                 profile_a = STLProfile.__pkts_to_streams(pkts_a,
                                                          ipg_usec,
+                                                         min_ipg_usec,
                                                          speedup,
                                                          loop_count,
                                                          vm,
@@ -1067,6 +1074,7 @@ class STLProfile(object):
 
                 profile_b = STLProfile.__pkts_to_streams(pkts_b,
                                                          ipg_usec,
+                                                         min_ipg_usec,
                                                          speedup,
                                                          loop_count,
                                                          vm,
@@ -1081,28 +1089,37 @@ class STLProfile(object):
 
 
     @staticmethod
-    def __pkts_to_streams (pkts, ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
+    def __pkts_to_streams (pkts, ipg_usec, min_ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
 
         streams = []
         if speedup == 0:
             raise STLError('Speedup should not be 0')
-
-        # 10 ms delay before starting the PCAP
-        last_ts_usec = -(start_delay_usec)
+        if min_ipg_usec and min_ipg_usec < 0:
+            raise STLError('min_ipg_usec should not be negative.')
 
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
 
+        if ipg_usec == None:
+            constant_diff = None
+        else:
+            constant_diff = ipg_usec / float(speedup)
+            if min_ipg_usec is not None:
+                constant_diff = max(constant_diff, min_ipg_usec)
 
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap
-            if ipg_usec == None:
+            if constant_diff is None:
                 packet_time = meta[0] * 1e6 + meta[1]
                 if i == 1:
-                    base_time = packet_time
-                ts_usec = (packet_time - base_time) / float(speedup)
+                    isg = min_ipg_usec if min_ipg_usec else 0
+                else:
+                    isg = (packet_time - prev_time) / float(speedup)
+                    if min_ipg_usec:
+                        isg = max(isg, min_ipg_usec)
+                prev_time = packet_time
             else:
-                ts_usec = (ipg_usec * i) / float(speedup)
+                isg = constant_diff
 
             # handle last packet
             if i == len(pkts):
@@ -1111,18 +1128,32 @@ class STLProfile(object):
             else:
                 next = i + 1
                 action_count = 0
+            self_start = False if i != 1 else True
+
+            # add stream with delay that will not be part of loop: "delayed_start" -> 1 -> 2 -> 3 -> ... -> 1 -> 2
+            if start_delay_usec and i == 1:
+                if loop_count == 1: # no loop actually
+                    isg = start_delay_usec
+                else:
+                    streams.append(STLStream(name = 'delayed_start',
+                                             packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
+                                             mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                             self_start = True,
+                                             isg = start_delay_usec,
+                                             action_count = action_count,
+                                             next = next))
+                    action_count = max(0, action_count - 1)
+                    self_start = False
 
             streams.append(STLStream(name = i,
                                      packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
-                                     self_start = True if (i == 1) else False,
-                                     isg = (ts_usec - last_ts_usec),  # seconds to usec
+                                     self_start = self_start,
+                                     isg = isg,
                                      action_count = action_count,
                                      next = next))
-        
-            last_ts_usec = ts_usec
 
-        
+
         profile = STLProfile(streams)
         profile.meta = {'type': 'pcap'}
 

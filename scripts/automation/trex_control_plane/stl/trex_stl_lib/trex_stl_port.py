@@ -735,7 +735,7 @@ class Port(object):
         return self.get_rx_filter_mode() == 'all'
                 
     @writeable
-    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler, min_ipg_usec):
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -745,7 +745,8 @@ class Port(object):
                   "count": count,
                   "duration": duration,
                   "is_dual": is_dual,
-                  "slave_handler": slave_handler}
+                  "slave_handler": slave_handler,
+                  "min_ipg_usec": min_ipg_usec if min_ipg_usec else 0}
 
         rc = self.transmit("push_remote", params)
         if rc.bad():

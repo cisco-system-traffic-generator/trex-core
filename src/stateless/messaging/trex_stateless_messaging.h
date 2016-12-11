@@ -313,6 +313,7 @@ public:
                             int event_id,
                             const std::string &pcap_filename,
                             double ipg_usec,
+                            double min_ipg_sec,
                             double speedup,
                             uint32_t count,
                             double duration,
@@ -321,6 +322,7 @@ public:
         m_port_id  = port_id;
         m_event_id = event_id;
         m_ipg_usec = ipg_usec;
+        m_min_ipg_sec  = min_ipg_sec;
         m_speedup  = speedup;
         m_count    = count;
         m_duration = duration;
@@ -335,6 +337,7 @@ private:
     std::string  m_pcap_filename;
     int          m_event_id;
     double       m_ipg_usec;
+    double       m_min_ipg_sec;
     double       m_speedup;
     double       m_duration;
     uint32_t     m_count;
