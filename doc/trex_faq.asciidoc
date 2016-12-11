@@ -234,6 +234,40 @@ Default maximum supported flows is 1M (From TRex prespective. DUT might have muc
 To increase the number of supported active flows, you should add ``dp_flows'' arg in config file ``memory'' section.
 Look link:trex_manual.html#_memory_section_configuration[here] for more info.
 
+.example of CFG file
+[source,bash]
+----
+
+ - port_limit    : 4
+   version       : 2
+   interfaces    : ["02:00.0","02:00.1","84:00.0","84:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status
+   memory    :                                          
+        dp_flows    : 10048576    #<1>
+
+----
+<1>  more flows 10Mflows 
+
+==== Loading a big YAML file raise an error  no enough memory for specific pool 2048?
+
+You should increse the pool with that raise an error, for example in case of 2048  
+
+.example of CFG file
+[source,bash]
+----
+
+ - port_limit    : 4
+   version       : 2
+   interfaces    : ["02:00.0","02:00.1","84:00.0","84:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status
+   memory    :                                          
+        traffic_mbuf_2048   : 8000 #<1>
+
+----
+<1>  for mbuf for 2038 
+
+You can run TRex with `-v 7` to verify that the configuration has an effect
+
+
+
 ==== I want to have more active flows on the DUT, how can I do this?
 After stretching TRex to its maximum CPS capacity, consider the following: DUT will have much more active flows in case of a UDP flow due to the nature of aging (DUT does not know when the flow ends while TRex knows).
 In order to artificialy increse the length of the active flows in TRex, you can config larger IPG in the YAML file. This will cause each flow to last longer. Alternatively, you can increase IPG in your PCAP file as well.
