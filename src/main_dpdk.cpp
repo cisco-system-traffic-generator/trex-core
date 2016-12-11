@@ -96,6 +96,7 @@ extern "C" {
 
 #define RTE_TEST_RX_DESC_DEFAULT 64
 #define RTE_TEST_RX_LATENCY_DESC_DEFAULT (1*1024)
+#define RTE_TEST_RX_DESC_DEFAULT_MLX 8
 
 #define RTE_TEST_RX_DESC_VM_DEFAULT 512
 #define RTE_TEST_TX_DESC_VM_DEFAULT 512
@@ -177,6 +178,15 @@ public:
     virtual bool drop_packets_incase_of_linkdown() {
         return (false);
     }
+
+    /* Mellanox ConnectX-4 can drop only 35MPPS per Rx queue. to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable  RSS
+       return  zero for disable patch and rx queues number for enable  
+    */
+
+    virtual uint16_t enable_rss_drop_workaround(void) {
+        return (0);
+    }
+
 };
 
 
@@ -492,6 +502,10 @@ public:
     virtual bool flow_control_disable_supported(){return false;}
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
+
+    virtual uint16_t enable_rss_drop_workaround(void) {
+        return (5);
+    }
 
 private:
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint16_t ip_id, uint8_t l4_proto
@@ -3549,6 +3563,7 @@ int  CGlobalTRex::ixgbe_start(void){
         assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
         CPhyEthIF * _if=&m_ports[i];
         _if->Create((uint8_t)i);
+        uint16_t rx_rss = get_ex_drv()->enable_rss_drop_workaround();
 
         if ( get_vm_one_queue_enable() ) {
             /* VMXNET3 does claim to support 16K but somehow does not work */
@@ -3566,29 +3581,60 @@ int  CGlobalTRex::ixgbe_start(void){
         } else {
             // 2 rx queues.
             // TX queues: 1 for each core handling the port pair + 1 for latency pkts + 1 for use by RX core
-            _if->configure(2, m_cores_to_dual_ports + 2, &m_port_cfg.m_port_conf);
+            
+            uint16_t rx_queues;
+
+            if (rx_rss==0) {
+                rx_queues=2;
+            }else{
+                rx_queues=rx_rss;
+            }
+
+            _if->configure(rx_queues, m_cores_to_dual_ports + 2, &m_port_cfg.m_port_conf);
             m_rx_core_tx_q_id = m_cores_to_dual_ports;
 
-            // setup RX drop queue
-            _if->rx_queue_setup(MAIN_DPDK_DATA_Q,
-                                RTE_TEST_RX_DESC_DEFAULT,
-                                socket_id,
-                                &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-            // setup RX filter queue
-            _if->set_rx_queue(MAIN_DPDK_RX_Q);
+            if ( rx_rss ) {
+                int j=0;
+                for (j=0;j<rx_rss; j++) {
+                        if (j==MAIN_DPDK_RX_Q){
+                            continue;
+                        }
+                        /* drop queue */
+                        _if->rx_queue_setup(j,
+                                        RTE_TEST_RX_DESC_DEFAULT_MLX,
+                                        socket_id,
+                                        &m_port_cfg.m_rx_conf,
+                                        CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+
+
+                }
+            }else{
+                 // setup RX drop queue
+                _if->rx_queue_setup(MAIN_DPDK_DATA_Q,
+                                    RTE_TEST_RX_DESC_DEFAULT,
+                                    socket_id,
+                                    &m_port_cfg.m_rx_conf,
+                                    CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+                // setup RX filter queue
+                _if->set_rx_queue(MAIN_DPDK_RX_Q);
+            }
+
             _if->rx_queue_setup(MAIN_DPDK_RX_Q,
                                 RTE_TEST_RX_LATENCY_DESC_DEFAULT,
                                 socket_id,
                                 &m_port_cfg.m_rx_conf,
                                 CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
-            // setup TX queues
+
             for (int qid = 0; qid < m_max_queues_per_port; qid++) {
                 _if->tx_queue_setup((uint16_t)qid,
                                     RTE_TEST_TX_DESC_DEFAULT ,
                                     socket_id,
                                     &m_port_cfg.m_tx_conf);
             }
+        }
+
+        if ( rx_rss ){
+            _if->configure_rss_redirect_table(rx_rss,MAIN_DPDK_RX_Q);
         }
 
         _if->stats_clear();
@@ -4874,6 +4920,57 @@ int CGlobalTRex::start_master_statefull() {
 
 ////////////////////////////////////////////
 static CGlobalTRex g_trex;
+
+
+void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
+                                             uint16_t skip_queue){
+
+                                                                                                                            
+     struct rte_eth_dev_info dev_info;                                                                                 
+                                                                                                                       
+     rte_eth_dev_info_get(m_port_id,&dev_info); 
+     assert(dev_info.reta_size>0);
+
+     int reta_conf_size = 
+          std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE); 
+
+     struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];  
+
+     rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);                                              
+
+     int i,j;
+     
+     for (j=0; j<reta_conf_size; j++) {
+         uint16_t skip=0;
+         reta_conf[j].mask = ~0ULL; 
+         for (i=0; i<RTE_RETA_GROUP_SIZE; i++) {
+             uint16_t q;
+             while (true) {
+                 q=(i+skip)%numer_of_queues;
+                 if (q!=skip_queue) {
+                     break;
+                 }
+                 skip+=1;
+             }
+             reta_conf[j].reta[i]=q;
+           //  printf(" %d %d %d \n",j,i,q);
+         }
+     }
+     rte_eth_dev_rss_reta_update(m_port_id,&reta_conf[0],dev_info.reta_size);                                             
+
+     rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);                                              
+
+     #if 0
+     /* verification */
+     for (j=0; j<reta_conf_size; j++) {
+         for (i=0; i<RTE_RETA_GROUP_SIZE; i++) {
+             printf(" R  %d %d %d \n",j,i,reta_conf[j].reta[i]);
+         }
+     }
+     #endif
+
+}
+
 
 void CPhyEthIF::update_counters() {
     get_ex_drv()->get_extended_stats(this, &m_stats);
@@ -6562,6 +6659,11 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos=0x01;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.proto=0xff;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc=0x01;
+
+    /* enable RSS */
+    cfg->m_port_conf.rxmode.mq_mode =ETH_MQ_RX_RSS;
+    cfg->m_port_conf.rx_adv_conf.rss_conf.rss_hf = ETH_RSS_IP;
+
 }
 
 /*
