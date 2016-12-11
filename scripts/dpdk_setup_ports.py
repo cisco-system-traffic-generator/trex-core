@@ -352,7 +352,9 @@ Other network devices
 
     def check_ofe_version (self):
         ofed_info='/usr/bin/ofed_info'
-        ofed_ver= 'MLNX_OFED_LINUX-3.4-1.0.0.0'
+        ofed_ver= '-3.4-'
+        ofed_ver_show= '3.4-1'
+
 
         if not os.path.isfile(ofed_info):
             print("OFED %s is not installed on this setup" % ofed_info)
@@ -368,7 +370,7 @@ Other network devices
 
         if len(lines)>1:
             if not (ofed_ver in str(lines[0])):
-                print("installed OFED version is '%s' should be '%s' " % (lines[0],ofed_ver))
+                print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
                 exit(-1);
 
 
@@ -988,6 +990,8 @@ def main ():
     except DpdkSetup as e:
         print(e)
         exit(-1)
+
+
 
 if __name__ == '__main__':
     main()
