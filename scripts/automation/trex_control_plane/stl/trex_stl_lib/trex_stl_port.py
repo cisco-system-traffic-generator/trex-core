@@ -490,7 +490,7 @@ class Port(object):
     def set_rx_sniffer (self, pcap_filename, limit):
 
         if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing RX capturing')
+            return self.err('port service mode must be enabled for performing RX capturing. Please enable service mode')
             
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
@@ -934,14 +934,14 @@ class Port(object):
     @writeable
     def arp_resolve (self, retries):
         if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing ARP resolution')
+            return self.err('port service mode must be enabled for performing ARP resolution. Please enable service mode')
             
         return ARPResolver(self).resolve(retries)
 
     @writeable
     def ping (self, ping_ipv4, pkt_size):
         if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing ping')
+            return self.err('port service mode must be enabled for performing ping. Please enable service mode')
             
         return PingResolver(self, ping_ipv4, pkt_size).resolve()
 
@@ -966,7 +966,7 @@ class Port(object):
                 "---": "",
                 "----": "",
                 "-----": "",
-                "link speed": info['speed'],
+                "link speed": "%g Gb/s" % info['speed'],
                 "port status": info['status'],
                 "link status": info['link'],
                 "promiscuous" : info['prom'],

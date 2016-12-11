@@ -3878,18 +3878,19 @@ class STLClient(object):
             return "{0}(read-only)>".format(prefix)
 
         elif self.is_all_ports_acquired():
+            
             p = prefix
             
             if self.get_service_enabled_ports():
                 if self.get_service_enabled_ports() == self.get_acquired_ports():
                     p += '(service)'
                 else:
-                    p += '(service: {0})'.format(self.get_service_enabled_ports())
+                    p += '(service: {0})'.format(', '.join(map(str, self.get_service_enabled_ports())))
                 
             return "{0}>".format(p)
 
         else:
-            return "{0} {1}>".format(prefix, self.get_acquired_ports())
+            return "{0} (ports: {1})>".format(prefix, ', '.join(map(str, self.get_acquired_ports())))
             
             
 
