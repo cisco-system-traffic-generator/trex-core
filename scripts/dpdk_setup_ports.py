@@ -324,7 +324,11 @@ Other network devices
             if obj:
                 return int(obj.group(1));
             else:
-                return -1
+                obj=re.search(r'mtu (\d+)',out,flags=re.MULTILINE|re.DOTALL);
+                if obj:
+                    return int(obj.group(1));
+                else:
+                    return -1
 
     def set_mtu_mlx5 (self,dev_id,new_mtu):
         if len(dev_id)>0:
