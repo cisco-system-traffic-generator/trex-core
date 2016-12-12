@@ -45,18 +45,12 @@ class BatchMessage(object):
                 new_batch.append(msg)
                 if size > chunk_size:
                     batch_json = json.dumps(new_batch)
-                    response = self.rpc_client.send_msg(batch_json)
-                    if not response:
-                        return response
-                    response_batch.add(response)
+                    response_batch.add(self.rpc_client.send_msg(batch_json))
                     size = 0
                     new_batch = []
             if new_batch:
                 batch_json = json.dumps(new_batch)
-                response = self.rpc_client.send_msg(batch_json)
-                if not response:
-                    return response
-                response_batch.add(response)
+                response_batch.add(self.rpc_client.send_msg(batch_json))
             return response_batch
         else:
             batch_json = json.dumps(self.batch_list)
