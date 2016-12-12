@@ -2536,11 +2536,11 @@ There is a task to automate the production of this reports
 
 anchor:ciscovic_support[]
 
-* Supported from TRex version v2.11 
-* Only 1300 series Cisco adapter 
-* Firmware version 2.0(13) for UCS C-series servers, GA in Febuary 2017. 
-* Firmware version 3.1(2) for blade servers supports more filtering capabilities. 
-* The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, the these additional flow director modes are available:
+* Supported from TRex version v2.12
+* Only 1300 series Cisco adapter supported
+* Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
+* Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
+* The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
         RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
         RTE_ETH_FLOW_NONFRAG_IPV4_SCTP
         RTE_ETH_FLOW_NONFRAG_IPV6_UDP
@@ -2549,10 +2549,9 @@ anchor:ciscovic_support[]
         RTE_ETH_FLOW_NONFRAG_IPV6_OTHER
 
 
-==== Limitation/Issues  
+==== Limitations/Issues
 
-* Stateless per stream statistic is not supported yet
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[flow-director] 
+* Stateless per stream statistics is done in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
 
 

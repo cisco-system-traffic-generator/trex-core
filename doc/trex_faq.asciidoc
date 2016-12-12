@@ -77,7 +77,8 @@ Limitations:
 2. We have regression tests in our lab for each recommended NIC. We do not claim to support NICs we do not have in our lab.
 
 ==== Is Cisco VIC supported?
-No. Currently its DPDK driver does not support the capabilities needed to run TRex.
+Yes. Since version 2.12, with link:trex_manual.html#_cisco_vic_support[these limitations]. Especially note that
+a new firmware version is needed.
 
 ==== Is 100Gbs NIC QSFP+ supported?
 Not yet. Support for FM10K and Mellanox Connectx5 is under development.
