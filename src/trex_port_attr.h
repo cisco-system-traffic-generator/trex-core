@@ -151,11 +151,7 @@ public:
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
     
-    void set_src_ipv4(uint32_t addr) {
-        m_src_ipv4 = addr;
-        /* when IP source changes - consider this as link down */
-        m_dest.on_link_down();
-    }
+    void set_src_ipv4(uint32_t addr);
     
     /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;

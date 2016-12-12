@@ -519,7 +519,23 @@ class Port(object):
 
         return self.ok()
      
-           
+    
+    @owned
+    def set_source_addr (self, addr):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring source address. Please enable service mode')
+        
+        return self.set_attr(ipv4 = addr)
+            
+
+    @owned
+    def set_dest_addr (self, addr):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring destination address. Please enable service mode')
+        
+        return self.set_attr(dest = addr)
+        
+        
     @owned
     def set_arp_resolution (self, ipv4, mac):
 

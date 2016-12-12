@@ -85,12 +85,12 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     /* create per port manager */
     for (int i = 0; i < m_max_ports; i++) {
         const TRexPortAttr *port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(i);
-        m_rx_port_mngr[i].create(cfg.m_ports[i],
+        m_rx_port_mngr[i].create(port_attr,
+                                 cfg.m_ports[i],
                                  m_rfc2544,
                                  &m_err_cntrs,
                                  &m_cpu_dp_u,
-                                 cfg.m_num_crc_fix_bytes,
-                                 port_attr);
+                                 cfg.m_num_crc_fix_bytes);
     }
 }
 
@@ -189,6 +189,7 @@ void CRxCoreStateless::handle_work_stage() {
     
     /* set the next sync time to */
     dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
+    dsec_t tick_time_sec = now_sec() + 1.0;
     
     while (m_state == STATE_WORKING) {
         process_all_pending_pkts();
@@ -197,8 +198,11 @@ void CRxCoreStateless::handle_work_stage() {
         
         if ( (now - sync_time_sec) > 0 ) {
             periodic_check_for_cp_messages();
+        }
+        
+        if ( (now - tick_time_sec) > 0) {
             port_manager_tick();
-            sync_time_sec = now + (1.0 / 1000);
+            tick_time_sec = now + 1.0;
         }
         
         rte_pause();
@@ -211,6 +215,8 @@ void CRxCoreStateless::start() {
     m_monitor.create("STL RX CORE", 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
+    recalculate_next_state();
+    
     while (m_state != STATE_QUIT) {
         switch (m_state) {
         case STATE_IDLE:
@@ -334,7 +340,7 @@ CRxCoreStateless::disable_latency() {
     recalculate_next_state();
 }
 
-const RXPortManager &
+RXPortManager &
 CRxCoreStateless::get_rx_port_mngr(uint8_t port_id) {
     assert(port_id < m_max_ports);
     return m_rx_port_mngr[port_id];

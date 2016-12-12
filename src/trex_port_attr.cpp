@@ -99,7 +99,14 @@ TRexPortAttr::get_src_mac() const {
     return CGlobalInfo::m_options.get_src_mac_addr(m_port_id);
 }
 
-
+void
+TRexPortAttr::set_src_ipv4(uint32_t addr) {
+    m_src_ipv4 = addr;
+    
+    /* when IP source changes - consider this as link down */
+    m_dest.on_link_down();
+}
+    
 std::string
 TRexPortAttr::get_rx_filter_mode() const {
     switch (m_rx_filter_mode) {

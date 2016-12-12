@@ -987,6 +987,19 @@ TrexStatelessPort::get_rx_queue_pkts() {
     return reply.wait_for_reply();
 }
 
+
+void
+TrexStatelessPort::set_src_ipv4(uint32_t ipv4) {
+    
+    getPortAttrObj()->set_src_ipv4(ipv4);
+    
+    CManyIPInfo src_addr;
+    src_addr.insert(COneIPv4Info(ipv4, 0, getPortAttrObj()->get_src_mac(), m_port_id));
+    
+    TrexStatelessRxUpdateSrcAddr *msg = new TrexStatelessRxUpdateSrcAddr(m_port_id, src_addr);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
 Json::Value
 TrexStatelessPort::rx_features_to_json() {
     static MsgReply<Json::Value> reply;

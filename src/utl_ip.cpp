@@ -71,13 +71,14 @@ void COneIPv6Info::fill_grat_arp_buf(uint8_t *p) {
 }
 
 const COneIPInfo *CManyIPInfo::get_next() {
-    COneIPInfo *ret;
-
+    const COneIPInfo *ret;
+    
     if (!m_iter_initiated) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         m_iter_initiated = true;
     }
 
+    
     if (m_ipv4_iter == m_ipv4_resolve.end()) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         return NULL;
@@ -99,13 +100,13 @@ void CManyIPInfo::dump(FILE *fd) {
     }
 }
 
-void CManyIPInfo::insert(COneIPv4Info &ip_info) {
+void CManyIPInfo::insert(const COneIPv4Info &ip_info) {
     CIpVlan ip_vlan(ip_info.get_ip(), ip_info.get_vlan());
 
     m_ipv4_resolve.insert(std::make_pair(ip_vlan, ip_info));
 }
 
-bool CManyIPInfo::lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) {
+bool CManyIPInfo::lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) const {
     ip_vlan_to_many_ip_iter_t it = m_ipv4_resolve.find(CIpVlan(ip, vlan));
     if (it != m_ipv4_resolve.end()) {
         uint8_t mac[ETHER_ADDR_LEN];
@@ -115,6 +116,17 @@ bool CManyIPInfo::lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) {
     } else {
         return false;
     }
+}
+
+bool CManyIPInfo::exists(uint32_t ip, uint16_t vlan) const {
+    ip_vlan_to_many_ip_iter_t it = m_ipv4_resolve.find(CIpVlan(ip, vlan));
+    return (it != m_ipv4_resolve.end());
+}
+
+void CManyIPInfo::clear() {
+    m_ipv4_resolve.clear();
+    m_ipv6_resolve.clear();
+    m_iter_initiated = false;
 }
 
 const COneIPInfo *CManyIPInfo::get_first() {

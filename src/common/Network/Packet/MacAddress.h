@@ -47,7 +47,7 @@ public:
             a5);
     };
 
-    MacAddress(uint8_t macAddr[ETHER_ADDR_LEN])
+    MacAddress(const uint8_t macAddr[ETHER_ADDR_LEN])
     {
         set(macAddr[0],
             macAddr[1],

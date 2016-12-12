@@ -3153,11 +3153,6 @@ void CGlobalTRex::pre_test() {
         // If we got src MAC for port in global config, take it, otherwise use src MAC from DPDK
         uint8_t port_macs[m_max_ports][ETHER_ADDR_LEN];
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
-            uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
-            if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
-                rte_eth_macaddr_get(port_id,
-                                    (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
-            }
             memcpy(port_macs[port_id], CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, ETHER_ADDR_LEN);
         }
 
@@ -3200,16 +3195,9 @@ void CGlobalTRex::pre_test() {
             } else {
                 resolve_needed = false;
             }
-            if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
-                rte_eth_macaddr_get(port_id,
-                                    (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
-                need_grat_arp[port_id] = true;
-            } else {
-                // If we got src MAC from config file, do not send gratuitous ARP for it
-                // (for compatibility with old behaviour)
-                need_grat_arp[port_id] = false;
-            }
-
+            
+            need_grat_arp[port_id] = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip() != 0;
+            
             pretest.add_ip(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
                            , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan()
                            , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
@@ -4880,7 +4868,14 @@ bool CPhyEthIF::Create(uint8_t portid) {
     m_last_tx_pps  = 0.0;
     m_port_attr    = g_trex.m_drv->create_port_attr(portid);
 
+    /* set src MAC addr */
+    uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
+    if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
+        rte_eth_macaddr_get(m_port_id,
+                            (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.src);
+    }
 
+    /* set src IPv4 */
     uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_ip();
     if (src_ipv4) {
         m_port_attr->set_src_ipv4(src_ipv4);

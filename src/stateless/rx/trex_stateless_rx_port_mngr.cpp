@@ -23,6 +23,7 @@
 #include "common/captureFile.h"
 #include "trex_stateless_rx_core.h"
 #include "common/Network/Packet/Arp.h"
+#include "pkt_gen.h"
 
 /**************************************
  * latency RX feature
@@ -507,16 +508,16 @@ protected:
 };
 
 RXServer::RXServer() {
-    m_port_attr = NULL;
     m_io        = NULL;
+    m_src_addr  = NULL;
     m_port_id   = 255;
 }
 
 void
-RXServer::create(const TRexPortAttr *port_attr, CPortLatencyHWBase *io) {
-    m_port_attr = port_attr;
-    m_io = io;
-    m_port_id = port_attr->get_port_id();
+RXServer::create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr) {
+    m_port_id  = port_id;
+    m_io       = io;
+    m_src_addr = src_addr;
 }
 
 
@@ -538,7 +539,7 @@ void
 RXServer::handle_icmp(RXPktParser &parser) {
     
     /* maybe not for us... */
-    if (parser.m_ipv4->getDestIp() != m_port_attr->get_src_ipv4()) {
+    if (!m_src_addr->exists(parser.m_ipv4->getDestIp())) {
         return;
     }
     
@@ -578,6 +579,7 @@ RXServer::handle_icmp(RXPktParser &parser) {
 
 void
 RXServer::handle_arp(RXPktParser &parser) {
+    MacAddress src_mac;
     
     /* only ethernet format supported */
     if (parser.m_arp->getHrdType() != ArpHdr::ARP_HDR_HRD_ETHER) {
@@ -595,7 +597,7 @@ RXServer::handle_arp(RXPktParser &parser) {
     }
     
     /* are we the target ? if not - go home */
-    if (parser.m_arp->getTip() != m_port_attr->get_src_ipv4()) {
+    if (!m_src_addr->lookup(parser.m_arp->getTip(), 0, src_mac)) {
         return;
     }
     
@@ -612,14 +614,14 @@ RXServer::handle_arp(RXPktParser &parser) {
     response_parser.m_arp->setOp(ArpHdr::ARP_HDR_OP_REPLY);
     
     /* fix the MAC addresses */
-    response_parser.m_ether->mySource = m_port_attr->get_src_mac();
+    response_parser.m_ether->mySource = src_mac;
     response_parser.m_ether->myDestination = parser.m_ether->mySource;
     
     /* fill up the fields */
     
     /* src */
-    response_parser.m_arp->m_arp_sha = m_port_attr->get_src_mac();
-    response_parser.m_arp->setSip(m_port_attr->get_src_ipv4());
+    response_parser.m_arp->m_arp_sha = src_mac;
+    response_parser.m_arp->setSip(parser.m_arp->getTip());
     
     /* dst */
     response_parser.m_arp->m_arp_tha = parser.m_arp->m_arp_sha;
@@ -655,6 +657,44 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
 }
 
 /**************************************
+ * Gratidious ARP
+ * 
+ *************************************/
+void
+RXGratARP::create(uint8_t port_id, CPortLatencyHWBase *io, CManyIPInfo *src_addr) {
+    m_io       = io;
+    m_port_id  = port_id;
+    m_src_addr = src_addr;
+}
+
+void
+RXGratARP::send_next_grat_arp() {
+    uint8_t src_mac[ETHER_ADDR_LEN];
+    
+    const COneIPInfo *ip_info = m_src_addr->get_next_loop();
+    if (!ip_info) {
+        return;
+    }
+    
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(m_port_id));
+    assert(m);
+    
+    uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, ip_info->get_grat_arp_len());
+    ip_info->get_mac(src_mac);
+    uint16_t vlan = ip_info->get_vlan();
+    
+    /* for now only IPv4 */
+    assert(ip_info->ip_ver() == COneIPInfo::IP4_VER);
+    uint32_t sip = ((COneIPv4Info *)ip_info)->get_ip();
+    
+    CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, m_port_id);
+    
+    m_io->tx(m);
+    
+    
+}
+
+/**************************************
  * Port manager 
  * 
  *************************************/
@@ -663,26 +703,37 @@ RXPortManager::RXPortManager() {
     clear_all_features();
     m_io          = NULL;
     m_cpu_dp_u    = NULL;
+    m_port_id     = UINT8_MAX;
 }
 
 
 void
-RXPortManager::create(CPortLatencyHWBase *io,
+RXPortManager::create(const TRexPortAttr *port_attr,
+                      CPortLatencyHWBase *io,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
                       CCpuUtlDp *cpu_util,
-                      uint8_t crc_bytes_num,
-                      const TRexPortAttr *port_attr) {
+                      uint8_t crc_bytes_num) {
+    
+    m_port_id = port_attr->get_port_id();
     m_io = io;
     m_cpu_dp_u = cpu_util;
     m_num_crc_fix_bytes = crc_bytes_num;
     
+    /* if IPv4 is configured - add it to the grat service */
+    uint32_t src_ipv4 = port_attr->get_src_ipv4();
+    if (src_ipv4) {
+        m_src_addr.insert(COneIPv4Info(src_ipv4, 0, port_attr->get_src_mac(), m_port_id));
+    }    
+    
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
-    m_server.create(port_attr, io);
+    m_server.create(m_port_id, io, &m_src_addr);
+    m_grat_arp.create(m_port_id, io, &m_src_addr);
     
     /* by default, server feature is always on */
     set_feature(SERVER);
+    set_feature(GRAT_ARP);
 }
     
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
@@ -705,7 +756,6 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_server.handle_pkt(m);
     }
 }
-
 
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
@@ -747,7 +797,12 @@ RXPortManager::tick() {
     if (is_feature_set(RECORDER)) {
         m_recorder.flush_to_disk();
     }
+    
+    if (is_feature_set(GRAT_ARP)) {
+        m_grat_arp.send_next_grat_arp();
+    }
 }
+
 
 Json::Value
 RXPortManager::to_json() const {
@@ -776,4 +831,5 @@ RXPortManager::to_json() const {
  
     return output;
 }
+
 

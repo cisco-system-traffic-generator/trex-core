@@ -264,7 +264,7 @@ class RXServer {
 public:
     
     RXServer();
-    void create(const TRexPortAttr *port_attr, CPortLatencyHWBase *io);
+    void create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr);
     void handle_pkt(const rte_mbuf_t *m);
     
 private:
@@ -272,9 +272,36 @@ private:
     void handle_arp(RXPktParser &parser);
     rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
     
-    const TRexPortAttr  *m_port_attr;
     CPortLatencyHWBase  *m_io;
     uint8_t              m_port_id;
+    const CManyIPInfo   *m_src_addr;
+};
+
+/**************************************
+ * Gratidious ARP
+ * 
+ *************************************/
+class RXGratARP {
+public:
+    RXGratARP() {
+        m_io = NULL;
+        m_port_id = UINT8_MAX;
+        m_src_addr = NULL;
+    }
+    
+    void create(uint8_t port_id, CPortLatencyHWBase *io, CManyIPInfo *src_addr);
+
+    
+    /**
+     * the main 'tick' of the service
+     * 
+     */
+    void send_next_grat_arp();
+    
+private:
+    CPortLatencyHWBase   *m_io;
+    CManyIPInfo          *m_src_addr;
+    uint8_t               m_port_id;
 };
 
 /************************ manager ***************************/
@@ -291,22 +318,25 @@ public:
         LATENCY      = 0x1,
         RECORDER     = 0x2,
         QUEUE        = 0x4,
-        SERVER       = 0x8
+        SERVER       = 0x8,
+        GRAT_ARP     = 0x10,
     };
 
     RXPortManager();
 
-    void create(CPortLatencyHWBase *io,
+    void create(const TRexPortAttr *port_attr,
+                CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
                 CCpuUtlDp *cpu_util,
-                uint8_t crc_bytes_num,
-                const TRexPortAttr *port_attr);
+                uint8_t crc_bytes_num);
 
+    
     void clear_stats() {
         m_latency.reset_stats();
     }
 
+    
     void get_latency_stats(rx_per_flow_t *rx_stats,
                            int min,
                            int max,
@@ -390,6 +420,15 @@ public:
      */
     void tick();
     
+    /**
+     * updates the source addresses registered with the port
+     * 
+     */
+    void update_src_addr(const CManyIPInfo &new_src_addr) {
+        /* deep copy */
+        m_src_addr = new_src_addr;
+    }
+    
     bool has_features_set() {
         return (m_features != NO_FEATURES);
     }
@@ -423,17 +462,19 @@ private:
     }
 
     uint32_t                     m_features;
-    
+    uint8_t                      m_port_id;
     RXLatency                    m_latency;
     RXPacketRecorder             m_recorder;
     RXQueue                      m_queue;
     RXServer                     m_server;
+    RXGratARP                    m_grat_arp;
     
     // compensate for the fact that hardware send us packets without Ethernet CRC, and we report with it
     uint8_t m_num_crc_fix_bytes;
     
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
+    CManyIPInfo                  m_src_addr;
 };
 
 

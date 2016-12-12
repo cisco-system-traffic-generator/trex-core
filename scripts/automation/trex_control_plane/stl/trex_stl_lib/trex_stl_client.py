@@ -1843,6 +1843,74 @@ class STLClient(object):
             raise STLError(rc)
         
 
+            
+    @__api_check(True)
+    def set_source_addr (self, port, addr):
+        """
+            Configures a port with a source address
+
+            :parameters:
+                 port - the port to set the source address
+                 addr     - source address. currently only IPv4 is supported
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+        
+        if not is_valid_ipv4(addr):
+            raise STLError("addr is not a valid IPv4 address: '{0}'".format(addr))
+    
+        self.logger.pre_cmd("Setting port {0} source address as '{1}': ".format(port, addr))
+        rc = self.ports[port].set_source_addr(addr)
+        self.logger.post_cmd(rc)     
+        
+        if not rc:
+            raise STLError(rc)
+        
+        # for MAC dest - no resolve    
+        if not self.ports[port].get_dst_addr()['ipv4']:
+            return rc
+            
+        # resolve the address
+        return self.resolve(ports = port, verbose = False)
+            
+        
+    @__api_check(True)
+    def set_dest_addr (self, port, addr):
+        """
+            Configures a port with a destination address
+
+            :parameters:
+                 port     - the port to set the destination address
+                 addr     - destination address. can be either MAC or IPv4
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+        
+        if not is_valid_ipv4(addr) and not is_valid_mac(addr):
+            raise STLError("addr is not a valid IPv4 address or a MAC address: '{0}'".format(addr))
+    
+        if is_valid_ipv4(addr) and not self.ports[port].get_src_addr()['ipv4']:
+            raise STLError("cannot configure destination as IPv4 address without IPv4 source address")
+            
+        self.logger.pre_cmd("Setting port {0} destination address as '{1}': ".format(port, addr))
+        rc = self.ports[port].set_dest_addr(addr)
+        self.logger.post_cmd(rc)     
+        
+        if not rc:
+            raise STLError(rc)
+        
+        # resolve the address
+        return self.resolve(ports = port, verbose = False)
+        
+        
     @__api_check(True)
     def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
         """
@@ -2010,8 +2078,8 @@ class STLClient(object):
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
                                    promiscuous = False,
-                                   link_up = True if restart else None,
-                                   rxf = 'hw')
+                                   link_up = True if restart else None)
+                self.set_service_mode(ports, False)
                 self.remove_rx_sniffer(ports)
                 self.remove_rx_queue(ports)
                 
@@ -2813,9 +2881,6 @@ class STLClient(object):
                        link_up = None,
                        led_on = None,
                        flow_ctrl = None,
-                       rxf = None,
-                       ipv4 = None,
-                       dest = None,
                        resolve = True):
         """
             Set port attributes
@@ -2825,9 +2890,6 @@ class STLClient(object):
                 link_up          - True or False
                 led_on           - True or False
                 flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-                rxf              - 'hw' for hardware rules matching packets only or 'all' all packets
-                ipv4             - configure IPv4 address for port(s). for multiple ports should be a list of IPv4 addresses in the same length of the ports array
-                dest             - configure destination address for port(s) in either IPv4 or MAC format. for multiple ports should be a list in the same length of the ports array
                 resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
             :raises:
                 + :exe:'STLError'
@@ -2842,7 +2904,6 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
-        validate_choice('rxf', rxf, ['hw', 'all'])
     
         # common attributes for all ports
         cmn_attr_dict = {}
@@ -2851,34 +2912,10 @@ class STLClient(object):
         cmn_attr_dict['link_status']     = link_up
         cmn_attr_dict['led_status']      = led_on
         cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
-        cmn_attr_dict['rx_filter_mode']  = rxf
         
         # each port starts with a set of the common attributes
         attr_dict = [dict(cmn_attr_dict) for _ in ports]
     
-        # default value for IPv4 / dest is none for all ports
-        if ipv4 is None:
-            ipv4 = [None] * len(ports)
-        if dest is None:
-            dest = [None] * len(ports)
-            
-        ipv4 = listify(ipv4)
-        if len(ipv4) != len(ports):
-            raise STLError("'ipv4' must be a list in the same length of ports - 'ports': {0}, 'ip': {1}".format(ports, ipv4))
-                
-        dest = listify(dest)
-        if len(dest) != len(ports):
-            raise STLError("'dest' must be a list in the same length of ports - 'ports': {0}, 'dest': {1}".format(ports, dest))
-            
-        # update each port attribute with ipv4
-        for addr, port_attr in zip(ipv4, attr_dict):
-            port_attr['ipv4'] = addr
-        
-        # update each port attribute with dest
-        for addr, port_attr in zip(dest, attr_dict):
-            port_attr['dest'] = addr
-            
-        
         self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
         rc = self.__set_port_attr(ports, attr_dict)
         self.logger.post_cmd(rc)
@@ -2886,15 +2923,7 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        
-        # automatic resolve
-        if resolve:
-            # find any port with a dest configured as IPv4
-            resolve_ports = [port_id for port_id, port_dest in zip(ports, dest) if is_valid_ipv4(port_dest)]
-            
-            if resolve_ports:
-                self.resolve(ports = resolve_ports)
-        
+      
             
     
     @__api_check(True)
@@ -2927,13 +2956,14 @@ class STLClient(object):
             
 
     @__api_check(True)
-    def resolve (self, ports = None, retries = 0):
+    def resolve (self, ports = None, retries = 0, verbose = True):
         """
             Resolves ports (ARP resolution)
 
             :parameters:
                 ports          - for which ports to apply a unique sniffer (each port gets a unique file)
                 retires        - how many times to retry on each port (intervals of 100 milliseconds)
+                verbose        - log for each request the response
             :raises:
                 + :exe:'STLError'
 
@@ -2957,8 +2987,9 @@ class STLClient(object):
             raise STLError(rc)
 
         # print the ARP transaction
-        self.logger.log(rc)
-        self.logger.log('')
+        if verbose:
+            self.logger.log(rc)
+            self.logger.log('')
             
             
         
@@ -3122,7 +3153,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("Action has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("\nAction has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
@@ -3156,7 +3187,8 @@ class STLClient(object):
             return opts
             
         # IP ping
-        self.ping_ip(opts.source_port, opts.ping_ipv4, opts.pkt_size, opts.count)
+        # source ports maps to ports as a single port
+        self.ping_ip(opts.ports[0], opts.ping_ipv4, opts.pkt_size, opts.count)
 
         
     @__console
@@ -3691,9 +3723,6 @@ class STLClient(object):
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
                                          parsing_opts.SUPPORTED,
-                                         parsing_opts.RX_FILTER_MODE,
-                                         parsing_opts.IPV4,
-                                         parsing_opts.DEST
                                          )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
@@ -3706,7 +3735,7 @@ class STLClient(object):
         opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp, opts.rx_filter_mode, opts.ipv4, opts.dest])):
+        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp])):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
@@ -3724,10 +3753,7 @@ class STLClient(object):
                                 opts.prom,
                                 opts.link,
                                 opts.led,
-                                opts.flow_ctrl,
-                                opts.rx_filter_mode,
-                                opts.ipv4,
-                                opts.dest)
+                                opts.flow_ctrl)
              
              
 
@@ -3781,6 +3807,46 @@ class STLClient(object):
         return RC_OK()
         
     
+    @__console
+    def set_source_addr_line (self, line):
+        '''Configures source address for port(s)'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "source",
+                                         self.set_source_addr_line.__doc__,
+                                         parsing_opts.SOURCE_PORT,
+                                         parsing_opts.IPV4)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        # source ports maps to ports as a single port
+        self.set_source_addr(opts.ports[0], opts.ipv4)
+
+        return RC_OK()
+        
+        
+    @__console
+    def set_dest_addr_line (self, line):
+        '''Configures destination address for port(s)'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "dest",
+                                         self.set_dest_addr_line.__doc__,
+                                         parsing_opts.SOURCE_PORT,
+                                         parsing_opts.DEST)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        # source ports maps to ports as a single port
+        self.set_dest_addr(opts.ports[0], opts.dest)
+
+        return RC_OK()
+        
+        
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''

@@ -316,3 +316,8 @@ TrexStatelessRxFeaturesToJson::handle(CRxCoreStateless *rx_core) {
     return true;
 }
 
+bool
+TrexStatelessRxUpdateSrcAddr::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).update_src_addr(m_src_addr);
+    return true;
+}

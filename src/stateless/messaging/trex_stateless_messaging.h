@@ -27,6 +27,7 @@ limitations under the License.
 #include "trex_exception.h"
 #include "trex_stateless_rx_defs.h"
 #include "os_time.h"
+#include "utl_ip.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
@@ -566,6 +567,22 @@ private:
     uint8_t                              m_port_id;
     MsgReply<const RXPacketBuffer *>    &m_reply;
     
+};
+
+class TrexStatelessRxUpdateSrcAddr : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxUpdateSrcAddr(uint8_t port_id,
+                                 const CManyIPInfo &src_addr) {
+        
+        m_port_id = port_id;
+        m_src_addr = src_addr;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    CManyIPInfo       m_src_addr;
 };
 
 /**

@@ -400,6 +400,12 @@ public:
     const RXPacketBuffer *get_rx_queue_pkts();
 
     /**
+     * sets an IPv4 source address
+     * 
+     */
+    void set_src_ipv4(uint32_t ipv4);
+    
+    /**
      * generate a JSON describing the status 
      * of the RX features 
      * 

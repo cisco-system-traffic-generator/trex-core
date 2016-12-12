@@ -330,6 +330,25 @@ class TRexConsole(TRexGeneralCmd):
         self.do_portattr("-h")
 
     @verify_connected
+    def do_source (self, line):
+        '''Configure source address for port(s)\n'''
+        self.stateless_client.set_source_addr_line(line)
+        
+    def help_source (self):
+        self.do_source("-h")
+        
+        
+    @verify_connected
+    def do_dest (self, line):
+        '''Configure destination address for port(s)\n'''
+        self.stateless_client.set_dest_addr_line(line)
+        
+    def help_dest (self):
+        self.do_dest("-h")
+        
+        
+        
+    @verify_connected
     def do_set_rx_sniffer (self, line):
         '''Sets a port sniffer on RX channel as PCAP recorder'''
         self.stateless_client.set_rx_sniffer_line(line)

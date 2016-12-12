@@ -156,7 +156,7 @@ class COneIPv4Info : public COneIPInfo {
         m_ip = ip;
     }
     ~COneIPv4Info() {};
-    uint32_t get_ip() {return m_ip;}
+    uint32_t get_ip() const {return m_ip;}
     virtual uint8_t ip_ver() const {return IP4_VER;}
     virtual uint32_t get_arp_req_len() const {return 60;}
     virtual uint32_t get_grat_arp_len() const {return 60;}
@@ -225,7 +225,7 @@ inline bool operator== (const COneIPv6Info& lhs, const COneIPv6Info& rhs) {
 inline bool operator!= (const COneIPv6Info& lhs, const COneIPv6Info& rhs){ return !(lhs == rhs); }
 
 typedef std::map<CIpVlan, COneIPv4Info> ip_vlan_to_many_ip_t;
-typedef std::map<CIpVlan, COneIPv4Info>::iterator ip_vlan_to_many_ip_iter_t;
+typedef std::map<CIpVlan, COneIPv4Info>::const_iterator ip_vlan_to_many_ip_iter_t;
 typedef std::map<std::pair<uint16_t[8], uint16_t>, COneIPv6Info> ipv6_vlan_to_many_ipv6_t;
 
 class CManyIPInfo {
@@ -233,18 +233,37 @@ class CManyIPInfo {
     CManyIPInfo () {
         m_iter_initiated = false;
     }
-    void insert(COneIPv4Info &ip_info);
-    bool lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac);
+    void insert(const COneIPv4Info &ip_info);
+    bool lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) const;
+    bool exists(uint32_t ip, uint16_t vlan = 0) const;
+    void clear();
+    
     void dump(FILE *fd);
     uint32_t size() { return m_ipv4_resolve.size() + m_ipv6_resolve.size();}
     const COneIPInfo *get_first();
     const COneIPInfo *get_next();
+    const COneIPInfo *get_next_loop() {
+        const COneIPInfo *ip_info = get_next();
+        return (ip_info ? ip_info : get_next());
+    }
+    
+    CManyIPInfo& operator = (const CManyIPInfo &rhs) {
+        m_ipv4_resolve = rhs.m_ipv4_resolve;
+        m_ipv6_resolve = rhs.m_ipv6_resolve;
+        
+        m_iter_initiated = false;
+        return (*this);
+    }
+    
  private:
-    ip_vlan_to_many_ip_t m_ipv4_resolve;
+    ip_vlan_to_many_ip_t      m_ipv4_resolve;
+    ipv6_vlan_to_many_ipv6_t  m_ipv6_resolve;
+    
     ip_vlan_to_many_ip_iter_t m_ipv4_iter;
-    ipv6_vlan_to_many_ipv6_t m_ipv6_resolve;
+    
     bool m_iter_initiated;
 
 };
+
 
 #endif

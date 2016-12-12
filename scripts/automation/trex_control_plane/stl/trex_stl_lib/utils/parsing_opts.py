@@ -46,7 +46,6 @@ SUPPORTED = 29
 FILE_PATH_NO_CHECK = 30
 
 OUTPUT_FILENAME = 31
-ALL_FILES = 32
 LIMIT = 33
 PORT_RESTART   = 34
 
@@ -54,7 +53,6 @@ IPV4 = 35
 DEST = 36
 RETRIES = 37
 
-RX_FILTER_MODE = 38
 SOURCE_PORT = 39
 PING_IPV4 = 40
 PING_COUNT = 41
@@ -343,24 +341,17 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                     'dest': 'flow_ctrl',
                                     'choices': FLOW_CTRL_DICT}),
 
-              RX_FILTER_MODE: ArgumentPack(['--rxf'],
-                                           {'help': 'Set RX filtering mode',
-                                            'dest': 'rx_filter_mode',
-                                            'choices': ['hw', 'all']}),
-
-
               IPV4: ArgumentPack(['--ipv4'],
                                  {'help': 'IPv4 address(s) for the port(s)',
                                   'dest': 'ipv4',
-                                  'nargs': '+',
-                                  'default': None,
+                                  'required': True,
                                   'type': check_ipv4_addr}),
 
-              DEST: ArgumentPack(['--dest'],
+              DEST: ArgumentPack(['--addr'],
                                  {'help': 'Destination address(s) for the port(s) in either IPv4 or MAC format',
+                                  'metavar': 'addr',
                                   'dest': 'dest',
-                                  'nargs': '+',
-                                  'default': None,
+                                  'required' : True,
                                   'type': check_dest_addr}),
               
               RETRIES: ArgumentPack(['-r', '--retries'],
@@ -383,14 +374,6 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'dest': 'restart',
                                           'default': False,
                                           'action': 'store_true'}),
-
-
-              ALL_FILES: ArgumentPack(['--all'],
-                                      {'help': 'change RX port filter to fetch all packets',
-                                       'dest': 'all',
-                                       'default': False,
-                                       'action': "store_true"}),
-
 
               LIMIT: ArgumentPack(['-l', '--limit'],
                                   {'help': 'Limit the packet count to be written to the file',
@@ -423,8 +406,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
 
               
               SOURCE_PORT: ArgumentPack(['--port', '-p'],
-                                        {'dest':'source_port',
+                                        {'dest':'ports',
                                          'type': int,
+                                         'metavar': 'PORT',
                                          'help': 'source port for the action',
                                          'required': True}),
               
@@ -652,6 +636,8 @@ class CCmdArgParser(argparse.ArgumentParser):
             if not self.has_ports_cfg(opts):
                 return opts
 
+            opts.ports = listify(opts.ports)
+            
             # if all ports are marked or 
             if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
                 if default_ports is None:
@@ -664,7 +650,12 @@ class CCmdArgParser(argparse.ArgumentParser):
             # so maybe we have ports configured
             invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
             if invalid_ports:
-                msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                
+                if len(invalid_ports) > 1:
+                    msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                else:
+                    msg = "{0}: port {1} is not a valid port ID".format(self.cmd_name, invalid_ports[0])
+                    
                 self.stateless_client.logger.log(format_text(msg, 'bold'))
                 return RC_ERR(msg)
 

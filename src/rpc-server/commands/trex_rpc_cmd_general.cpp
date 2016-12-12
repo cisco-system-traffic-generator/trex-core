@@ -368,8 +368,10 @@ TrexRpcCmdSetPortAttr::parse_ipv4(const Json::Value &msg, uint8_t port_id, Json:
         ss << "invalid IPv4 address: '" << ipv4_str << "'";
         generate_parse_err(result, ss.str());
     }
+    
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    port->set_src_ipv4(ipv4_addr);
             
-    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_src_ipv4(ipv4_addr);
     return (0);
 }
 

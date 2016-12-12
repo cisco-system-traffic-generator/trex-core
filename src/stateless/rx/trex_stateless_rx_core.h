@@ -151,7 +151,7 @@ class CRxCoreStateless {
     void enable_latency();
     void disable_latency();
 
-    const RXPortManager &get_rx_port_mngr(uint8_t port_id);
+    RXPortManager &get_rx_port_mngr(uint8_t port_id);
     
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
