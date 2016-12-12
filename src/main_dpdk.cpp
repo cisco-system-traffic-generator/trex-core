@@ -6845,8 +6845,8 @@ void CTRexExtendedDriverBaseVIC::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     cfg->m_port_conf.rxmode.max_rx_pkt_len =9*1000-10;
-    cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos = 0x0f;
-    cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc  = 0x0f;
+    cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos = 0x01;
+    cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc  = 0x01;
 }
 
 void CTRexExtendedDriverBaseVIC::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type
