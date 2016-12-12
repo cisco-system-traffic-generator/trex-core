@@ -27,6 +27,9 @@ class TextCodesStripper:
     def strip (s):
         return re.sub(TextCodesStripper.pattern, '', s)
 
+def clear_formatting(s):
+    return TextCodesStripper.strip(s)
+
 def format_num (size, suffix = "", compact = True, opts = None):
     if opts is None:
         opts = ()
@@ -129,10 +132,20 @@ def underline(text):
     return text_attribute(text, 'underline')
 
 
+start_end_newlines = re.compile('^(\n)*([^\n].*[^\n])?(\n)*$', re.DOTALL)
 def text_attribute(text, attribute):
-    return "{start}{txt}{stop}".format(start=TEXT_CODES[attribute]['start'],
-                                       txt=text,
-                                       stop=TEXT_CODES[attribute]['end'])
+    match = start_end_newlines.match(text)
+    try:
+        startpad, msg, endpad = match.groups('')
+    except:
+        startpad = endpad = ''
+        msg = text
+    return "{startpad}{startattr}{txt}{endattr}{endpad}".format(
+                startpad = startpad,
+                startattr = TEXT_CODES[attribute]['start'],
+                txt = msg,
+                endattr = TEXT_CODES[attribute]['end'],
+                endpad = endpad)
 
 
 FUNC_DICT = {'blue': blue,

@@ -50,11 +50,26 @@ class RC():
         return (e if len(e) != 1 else e[0])
 
     def __str__ (self):
-        s = ""
-        for x in self.rc_list:
-            if x.data:
-                s += format_text("\n{0}".format(x.data), 'bold')
-        return s
+        if self.good():
+            s = ""
+            for x in self.rc_list:
+                if x.data:
+                    s += format_text("\n{0}".format(x.data), 'bold')
+            return s
+        else:
+            show_count = 10
+            err_list = []
+            err_count = 0
+            for x in self.rc_list:
+                if x.data and not x.rc:
+                    err_count += 1
+                    if len(err_list) < show_count:
+                        err_list.append(format_text(x.data, 'bold'))
+            s = '\n' if len(err_list) > 1 else ''
+            if err_count > show_count:
+                s += format_text('Occurred %s errors, showing first %s:\n' % (err_count, show_count), 'bold')
+            s += '\n'.join(err_list)
+            return s
 
     def __iter__(self):
         return self.rc_list.__iter__()

@@ -15,6 +15,7 @@ from .utils import parsing_opts, text_tables, common
 from .utils.common import *
 from .utils.text_opts import *
 from functools import wraps
+from texttable import ansi_len
 
 from collections import namedtuple
 from yaml import YAMLError
@@ -2025,7 +2026,6 @@ class STLClient(object):
 
     @__api_check(True)
     def get_xstats(self, port_id):
-        print(port_id)
         """
             Get extended stats of port: all the counters as dict.
 
@@ -3407,9 +3407,8 @@ class STLClient(object):
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:
-            error = 'Unknown error.'
-            for line in e.brief().split('\n'):
-                if line:
+            for line in e.brief().splitlines():
+                if ansi_len(line.strip()):
                     error = line
             msg = format_text("\nError loading profile '{0}'".format(opts.file[0]), 'bold')
             self.logger.log(msg + '\n')
