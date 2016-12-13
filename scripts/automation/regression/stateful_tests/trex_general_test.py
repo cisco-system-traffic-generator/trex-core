@@ -270,7 +270,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 if not ports_names:
                     raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
                 for port_name in ports_names:
-                    path = 'trex-latecny-v2.data.%s.hist.cnt' % port_name
+                    path = 'trex-latecny-v2.data.%s.hist.cont' % port_name
                     lat_count = trex_res.get_last_value(path)
                     if lat_count == 0:
                         self.fail('LatencyError: Number of latency packets received on %s is 0' % port_name)
