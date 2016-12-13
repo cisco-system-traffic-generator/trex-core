@@ -1,0 +1,17 @@
+How to build the docs:
+
+You will need following packages installed:
+
+  * asciidoc
+  * dblatex
+  * source-highlight
+  * python-sphinx
+
+(apt install ...) for Ubuntu
+(yum install ...) for Fedora/CentOS
+
+Then,
+
+./b configure
+./b build
+

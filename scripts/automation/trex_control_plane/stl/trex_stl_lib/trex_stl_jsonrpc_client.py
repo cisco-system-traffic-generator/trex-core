@@ -32,13 +32,35 @@ class BatchMessage(object):
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_class, encode = False)
         self.batch_list.append(msg)
 
-    def invoke(self, block = False):
+    def invoke(self, block = False, chunk_size = 500000):
         if not self.rpc_client.connected:
             return RC_ERR("Not connected to server")
 
-        msg = json.dumps(self.batch_list)
-
-        return self.rpc_client.send_msg(msg)
+        if chunk_size:
+            response_batch = RC()
+            size = 0
+            new_batch = []
+            for msg in self.batch_list:
+                size += len(json.dumps(msg))
+                new_batch.append(msg)
+                if size > chunk_size:
+                    batch_json = json.dumps(new_batch)
+                    response = self.rpc_client.send_msg(batch_json)
+                    if not response:
+                        return response
+                    response_batch.add(response)
+                    size = 0
+                    new_batch = []
+            if new_batch:
+                batch_json = json.dumps(new_batch)
+                response = self.rpc_client.send_msg(batch_json)
+                if not response:
+                    return response
+                response_batch.add(response)
+            return response_batch
+        else:
+            batch_json = json.dumps(self.batch_list)
+            return self.rpc_client.send_msg(batch_json)
 
 
 # JSON RPC v2.0 client
@@ -130,13 +152,13 @@ class JsonRpcClient(object):
 
         if self.zipper.check_threshold(buffer):
             response = self.send_raw_msg(self.zipper.compress(buffer))
-            if response:
-                response = self.zipper.decompress(response)
         else:
             response = self.send_raw_msg(buffer)
 
         if not response:
             return response
+        elif self.zipper.is_compressed(response):
+            response = self.zipper.decompress(response)
 
         # return to string
         response = response.decode()

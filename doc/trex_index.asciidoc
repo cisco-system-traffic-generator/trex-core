@@ -26,7 +26,7 @@ http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
-| FAQ     |  
+| Frequently Asked Questions     |  
 link:trex_faq.html[FAQ] 
 | Installation Guide     |  
 link:trex_manual.html#_download_and_installation[Installation] 

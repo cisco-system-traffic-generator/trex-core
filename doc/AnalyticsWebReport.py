@@ -6,7 +6,7 @@ import time
 import datetime
 
 
-def main(verbose = False):
+def main(verbose=False, detailed_test_stats=''):
     if verbose:
         print('Retrieving data from Google Analytics')
     analytics = ac.initialize_analyticsreporting()
@@ -18,10 +18,13 @@ def main(verbose = False):
     dest_path = os.path.join(os.getcwd(), 'build', 'images')
     if verbose:
         print('Saving data to %s' % dest_path)
-    tr.create_all_data(ga_all_data_dict, setups, start_date, current_date, save_path = dest_path,
-                       add_stats='yes')
+        if detailed_test_stats:
+            print('generating detailed table for test results')
+    tr.create_all_data(ga_all_data_dict, setups, start_date, current_date, save_path=dest_path,
+                       add_stats='yes', detailed_test_stats=detailed_test_stats)
     if verbose:
         print('Done without errors.')
+
 
 if __name__ == "__main__":
     main()

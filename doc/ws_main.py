@@ -251,6 +251,7 @@ def scansize(self):
 def options(opt):
     opt.add_option('--exe', action='store_true', default=False, help='Execute the program after it is compiled')
     opt.add_option('--performance', action='store_true', help='Build a performance report based on google analytics')
+    opt.add_option('--performance-detailed',action='store_true',help='print detailed test results (date,time, build id and results) to csv file named _detailed_table.csv.')
 
 def configure(conf):
     search_path = '~/.local/bin /usr/local/bin/ /usr/bin'
@@ -891,7 +892,10 @@ def build_cp(bld,dir,root,callback):
 def create_analytic_report(task):
     try:
         import AnalyticsWebReport as analytics
-        analytics.main(verbose = Logs.verbose)
+        if task.generator.bld.options.performance_detailed:
+            analytics.main(verbose = Logs.verbose,detailed_test_stats='yes')
+        else:
+            analytics.main(verbose = Logs.verbose)
     except Exception as e:
         raise Exception('Error importing or using AnalyticsWebReport script: %s' % e)
 
@@ -921,7 +925,7 @@ def build(bld):
         bld(rule=my_copy, target=x)
         bld.add_group() 
 
-    if bld.options.performance:
+    if bld.options.performance or bld.options.performance_detailed:
         bld(rule=create_analytic_report)
         bld.add_group()
         bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);

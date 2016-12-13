@@ -40,6 +40,19 @@ test_rx_check_http: &rx_http
     rx_sample_rate      : 128
     bw_per_core         : 49.464
 
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
+    bw_per_core         : 49.237
+
+test_rx_check_sfr: &rx_sfr
+    multiplier          : 8
+    cores               : 1
+    rx_sample_rate      : 128
+    bw_per_core         : 20.9
+
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 23.9
 
 
 ### stateless ###
