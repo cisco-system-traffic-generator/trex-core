@@ -2094,35 +2094,35 @@ sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 anchor:connectx_support[]
 
 Mellanox ConnectX-4 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds. 
-Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[DPDK support].
-Intel NICs does not require kernel drivers (except dpdk igb_uio which already supported) while ConnectX-4 works on top of Infinibad API (verbs) and require a kernel modules/user space libs. 
-This means that it is required to install OFED package to be able to work with the NIC.
-Installing OFED is the simplest way to make it work (trying to install part of the package can work too but didn't work for us).
-The advantage of this model that you can control it throw Linux driver (ethtol can still work, you will be able to ifconfig it).
+Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[here].
+Intel NICs do not require additional kernel drivers (except for igb_uio which is already supported in most distributions). ConnectX-4 works on top of Infiniband API (verbs) and requires special kernel modules/user space libs. 
+This means that it is required to install OFED package to be able to work with this NIC.
+Installing the full OFED package is the simplest way to make it work (trying to install part of the package can work too but didn't work for us).
+The advantage of this model is that you can control it using standard Linux tools (ethtool and ifconfig will work).
 The disadvantage is the OFED dependency.
 
 ==== Installation  
 
 ==== Install Linux 
 
-The following distro were tested with TRex and OFED, others might work
+We tested the following distro with TRex and OFED. Others might work too.
 
 * CentOS 7.2 
 
-The following distro were  tested and did *not* work for us
+Following distro was tested and did *not* work for us.
 
 * Fedora 21 (3.17.4-301.fc21.x86_64)  
 * Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64)  -- crash when RSS was enabled link:https://trex-tgn.cisco.com/youtrack/issue/trex-294[MLX RSS issue]
 
 ==== Install OFED 
 
-The information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
+Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
 * Download 3.4-2 OFED tar for your distro  
 
 [IMPORTANT]
 =====================================
-it must be version *MLNX_OFED_LINUX-3.4-2* 
+The version must be *MLNX_OFED_LINUX-3.4-2* 
 =====================================
 
 [IMPORTANT]
@@ -2486,16 +2486,16 @@ mlx5_1 port 1 ==> eth7 (Down)
 ==== TRex specific implementation details 
 
 TRex uses flow director filter to steer specific packets to specific queues. 
-To support that we change IPv4.TOS/Ipv6.TC  LSB to *1* to be steered. So latency packets will have this bit turn on (not only for ConnectX-4)
-Watch out, In case DUT will clear this bit (change the TOS with LSB==0, e.g. 0x3->0x2) packets won't be forward to TRex.
+To support that, we change IPv4.TOS/Ipv6.TC  LSB to *1* for packets we want to handle by software (Other packets will be dropped). So latency packets will have this bit turned on (This is true for all NIC types, not only for ConnectX-4).
+This means taht if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
 
 ==== Which NIC to buy?
 
-NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(dual 100gb port) and *not* the  MCX455A-ECAT (single 100gb port).
+NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
 
 ==== Limitation/Issues  
 
-* Stateless per stream statistic is not supported yet
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-260[64B performance issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
@@ -2504,25 +2504,25 @@ NIC with two ports will work better from performance prospective, so it is bette
 
 ==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
 
-For version TRex v2.11, this is the comparison results between XL710 and ConnectX-4 for various scenarios
+For TRex version v2.11, these are the comparison results between XL710 and ConnectX-4 for various scenarios.
 
-.Stateless MPPS/Core [Perlimeniary]
+.Stateless MPPS/Core [Preliminary]
 image:images/xl710_vs_mlx5_64b.png[title="Stateless 64B"] 
 
-.Stateless Gb/Core [Perlimeniary]
+.Stateless Gb/Core [Preliminary]
 image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"] 
 
 *Comments*::
  
-1. For Stateless 64B profiles ConnectX-4 cost 50-90% more cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in the worst case scenario you will need x2 CPU for the same total MPPS
-2. For Stateless/Stateful 256B profiles, ConnectX-4 cost half of the cycles per packets. ConnectX-4 probably can handle in a better way chained mbuf (scatter gather).
-3. In Average Stateful senario ConnectX-4 will be slightly better.
-4. MLX5 can reach ~90MPPS while XL710 limited to 35MPPS 
+1. For Stateless 64B profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
+2. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
+3. In average stateful senario, ConnectX-4 is slightly better.
+4. MLX5 can reach ~90MPPS while XL710 is limited to 35MPPS. 
 
 
 [NOTE]
 =====================================
-There is a task to automate the production of this reports
+There is a task to automate the production of thess reports
 =====================================
 
 ==== Troubleshooting
@@ -2551,7 +2551,7 @@ anchor:ciscovic_support[]
 
 ==== Limitations/Issues
 
-* Stateless per stream statistics is done in software (No hardware support like in X710 card).
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
 
 
