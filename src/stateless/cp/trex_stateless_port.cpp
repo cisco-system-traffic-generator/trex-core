@@ -988,17 +988,66 @@ TrexStatelessPort::get_rx_queue_pkts() {
 }
 
 
+/**
+ * configures port in L2 mode
+ * 
+ */
 void
-TrexStatelessPort::set_src_ipv4(uint32_t ipv4) {
+TrexStatelessPort::set_l2_mode(const uint8_t *dest_mac) {
     
-    getPortAttrObj()->set_src_ipv4(ipv4);
+    /* no IPv4 src */
+    getPortAttrObj()->set_src_ipv4(0);
     
-    CManyIPInfo src_addr;
-    src_addr.insert(COneIPv4Info(ipv4, 0, getPortAttrObj()->get_src_mac(), m_port_id));
+    /* set destination as MAC */
+    getPortAttrObj()->get_dest().set_dest(dest_mac);
     
-    TrexStatelessRxUpdateSrcAddr *msg = new TrexStatelessRxUpdateSrcAddr(m_port_id, src_addr);
+    TrexStatelessRxSetL2Mode *msg = new TrexStatelessRxSetL2Mode(m_port_id);
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
 }
+
+/**
+ * configures port in L3 mode - unresolved
+ */
+void
+TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
+    
+    /* set src IPv4 */
+    getPortAttrObj()->set_src_ipv4(src_ipv4);
+    
+    /* set dest IPv4 */
+    getPortAttrObj()->get_dest().set_dest(dest_ipv4);
+    
+    /* send RX core the relevant info */
+    CManyIPInfo ip_info;
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    
+    TrexStatelessRxSetL3Mode *msg = new TrexStatelessRxSetL3Mode(m_port_id, ip_info, false);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
+/**
+ * configures port in L3 mode - resolved
+ * 
+ */
+void
+TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac) {
+    
+    /* set src IPv4 */
+    getPortAttrObj()->set_src_ipv4(src_ipv4);
+    
+    /* set dest IPv4 + resolved MAC */
+    getPortAttrObj()->get_dest().set_dest(dest_ipv4, resolved_mac);
+    
+    /* send RX core the relevant info */
+    CManyIPInfo ip_info;
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    
+    bool is_grat_arp_needed = !getPortAttrObj()->is_loopback();
+    
+    TrexStatelessRxSetL3Mode *msg = new TrexStatelessRxSetL3Mode(m_port_id, ip_info, is_grat_arp_needed);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
 
 Json::Value
 TrexStatelessPort::rx_features_to_json() {

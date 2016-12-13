@@ -668,6 +668,7 @@ class CPerPortIPCfg {
     uint16_t m_vlan;
 };
 
+
 class CParserOption {
 
 public:
@@ -4239,6 +4240,32 @@ inline  pkt_dir_t CGenNode::cur_interface_dir(){
     }
 }
 
+class CRXCoreIgnoreStat {
+    friend class CCPortLatency;
+    friend class CLatencyManager;
+    friend class RXGratARP;
+ public:
+    inline CRXCoreIgnoreStat operator- (const CRXCoreIgnoreStat &t_in) const {
+        CRXCoreIgnoreStat t_out;
+        t_out.m_tx_arp = this->m_tx_arp - t_in.m_tx_arp;
+        t_out.m_tx_ipv6_n_solic = this->m_tx_ipv6_n_solic - t_in.m_tx_ipv6_n_solic;
+        t_out.m_tot_bytes = this->m_tot_bytes - t_in.m_tot_bytes;
+        return t_out;
+    }
+    uint64_t get_tx_bytes() {return m_tot_bytes;}
+    uint64_t get_tx_pkts() {return m_tx_arp + m_tx_ipv6_n_solic;}
+    uint64_t get_tx_arp() {return m_tx_arp;}
+    uint64_t get_tx_n_solic() {return m_tx_ipv6_n_solic;}
+    void clear() {
+        m_tx_arp = 0;
+        m_tx_ipv6_n_solic = 0;
+        m_tot_bytes = 0;
+    }
 
+ private:
+    uint64_t m_tx_arp;
+    uint64_t m_tx_ipv6_n_solic;
+    uint64_t m_tot_bytes;
+};
 
 #endif

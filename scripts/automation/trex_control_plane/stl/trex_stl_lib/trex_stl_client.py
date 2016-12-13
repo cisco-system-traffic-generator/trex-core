@@ -1843,15 +1843,14 @@ class STLClient(object):
             raise STLError(rc)
         
 
-            
     @__api_check(True)
-    def set_source_addr (self, port, addr):
+    def set_l2_mode (self, port, dst_mac):
         """
-            Configures a port with a source address
+            Sets the port mode to L2
 
             :parameters:
-                 port - the port to set the source address
-                 addr     - source address. currently only IPv4 is supported
+                 port      - the port to set the source address
+                 dst_mac   - destination MAC
             :raises:
                 + :exc:`STLError`
         """
@@ -1859,33 +1858,27 @@ class STLClient(object):
         validate_type('port', port, int)
         if port not in self.get_all_ports():
             raise STLError("port {0} is not a valid port id".format(port))
-        
-        if not is_valid_ipv4(addr):
-            raise STLError("addr is not a valid IPv4 address: '{0}'".format(addr))
-    
-        self.logger.pre_cmd("Setting port {0} source address as '{1}': ".format(port, addr))
-        rc = self.ports[port].set_source_addr(addr)
-        self.logger.post_cmd(rc)     
+            
+        if not is_valid_mac(dst_mac):
+            raise STLError("dest_mac is not a valid MAC address: '{0}'".format(dst_mac))
+            
+        self.logger.pre_cmd("Setting port {0} in L2 mode: ".format(port))
+        rc = self.ports[port].set_l2_mode(dst_mac)
+        self.logger.post_cmd(rc)
         
         if not rc:
             raise STLError(rc)
-        
-        # for MAC dest - no resolve    
-        if not self.ports[port].get_dst_addr()['ipv4']:
-            return rc
             
-        # resolve the address
-        return self.resolve(ports = port, verbose = False)
             
-        
     @__api_check(True)
-    def set_dest_addr (self, port, addr):
+    def set_l3_mode (self, port, src_ipv4, dst_ipv4):
         """
-            Configures a port with a destination address
+            Sets the port mode to L3
 
             :parameters:
-                 port     - the port to set the destination address
-                 addr     - destination address. can be either MAC or IPv4
+                 port      - the port to set the source address
+                 src_ipv4  - IPv4 source address for the port
+                 dst_ipv4  - IPv4 destination address
             :raises:
                 + :exc:`STLError`
         """
@@ -1893,24 +1886,29 @@ class STLClient(object):
         validate_type('port', port, int)
         if port not in self.get_all_ports():
             raise STLError("port {0} is not a valid port id".format(port))
-        
-        if not is_valid_ipv4(addr) and not is_valid_mac(addr):
-            raise STLError("addr is not a valid IPv4 address or a MAC address: '{0}'".format(addr))
-    
-        if is_valid_ipv4(addr) and not self.ports[port].get_src_addr()['ipv4']:
-            raise STLError("cannot configure destination as IPv4 address without IPv4 source address")
             
-        self.logger.pre_cmd("Setting port {0} destination address as '{1}': ".format(port, addr))
-        rc = self.ports[port].set_dest_addr(addr)
-        self.logger.post_cmd(rc)     
+        if not is_valid_ipv4(src_ipv4):
+            raise STLError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
+            
+        if not is_valid_ipv4(dst_ipv4):
+            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+            
+        self.logger.pre_cmd("Setting port {0} in L3 mode: ".format(port))
+        rc = self.ports[port].set_l3_mode(src_ipv4, dst_ipv4)
+        self.logger.post_cmd(rc)
         
         if not rc:
             raise STLError(rc)
-        
-        # resolve the address
-        return self.resolve(ports = port, verbose = False)
-        
-        
+    
+        # try to resolve
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.pre_cmd("ARP resolving address '{0}': ".format(dst_ipv4))
+            rc = self.ports[port].arp_resolve(0)
+            self.logger.post_cmd(rc)
+            if not rc:
+                raise STLError(rc)
+            
+
     @__api_check(True)
     def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
         """
@@ -3177,7 +3175,7 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "ping",
                                          self.ping_line.__doc__,
-                                         parsing_opts.SOURCE_PORT,
+                                         parsing_opts.SINGLE_PORT,
                                          parsing_opts.PING_IPV4,
                                          parsing_opts.PKT_SIZE,
                                          parsing_opts.PING_COUNT)
@@ -3808,41 +3806,46 @@ class STLClient(object):
         
     
     @__console
-    def set_source_addr_line (self, line):
-        '''Configures source address for port(s)'''
+    def set_l2_mode_line (self, line):
+        '''Configures a port in L2 mode'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "source",
-                                         self.set_source_addr_line.__doc__,
-                                         parsing_opts.SOURCE_PORT,
-                                         parsing_opts.IPV4)
+                                         "port",
+                                         self.set_l2_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.DST_MAC,
+                                         )
 
         opts = parser.parse_args(line.split())
         if not opts:
             return opts
 
+
         # source ports maps to ports as a single port
-        self.set_source_addr(opts.ports[0], opts.ipv4)
+        self.set_l2_mode(opts.ports[0], dst_mac = opts.dst_mac)
 
         return RC_OK()
         
         
     @__console
-    def set_dest_addr_line (self, line):
-        '''Configures destination address for port(s)'''
+    def set_l3_mode_line (self, line):
+        '''Configures a port in L3 mode'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "dest",
-                                         self.set_dest_addr_line.__doc__,
-                                         parsing_opts.SOURCE_PORT,
-                                         parsing_opts.DEST)
+                                         "port",
+                                         self.set_l3_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.SRC_IPV4,
+                                         parsing_opts.DST_IPV4,
+                                         )
 
         opts = parser.parse_args(line.split())
         if not opts:
             return opts
 
+
         # source ports maps to ports as a single port
-        self.set_dest_addr(opts.ports[0], opts.dest)
+        self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4)
 
         return RC_OK()
         

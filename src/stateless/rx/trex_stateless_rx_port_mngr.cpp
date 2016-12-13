@@ -661,10 +661,15 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
  * 
  *************************************/
 void
-RXGratARP::create(uint8_t port_id, CPortLatencyHWBase *io, CManyIPInfo *src_addr) {
-    m_io       = io;
-    m_port_id  = port_id;
-    m_src_addr = src_addr;
+RXGratARP::create(uint8_t port_id,
+                  CPortLatencyHWBase *io,
+                  CManyIPInfo *src_addr,
+                  CRXCoreIgnoreStat *ign_stats) {
+    
+    m_port_id     = port_id;
+    m_io          = io;
+    m_src_addr    = src_addr;
+    m_ign_stats   = ign_stats;
 }
 
 void
@@ -689,9 +694,19 @@ RXGratARP::send_next_grat_arp() {
     
     CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, m_port_id);
     
-    m_io->tx(m);
+    if (m_io->tx(m) == 0) {
+        m_ign_stats->m_tx_arp    += 1;
+        m_ign_stats->m_tot_bytes += 64;
+    }
     
+}
+
+Json::Value
+RXGratARP::to_json() const {
+    Json::Value output = Json::objectValue;
+    output["interval_sec"] = (double)CGlobalInfo::m_options.m_arp_ref_per;
     
+    return output;
 }
 
 /**************************************
@@ -729,11 +744,10 @@ RXPortManager::create(const TRexPortAttr *port_attr,
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
     m_server.create(m_port_id, io, &m_src_addr);
-    m_grat_arp.create(m_port_id, io, &m_src_addr);
+    m_grat_arp.create(m_port_id, io, &m_src_addr, &m_ign_stats);
     
-    /* by default, server feature is always on */
+    /* by default, server is always on */
     set_feature(SERVER);
-    set_feature(GRAT_ARP);
 }
     
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
@@ -797,13 +811,43 @@ RXPortManager::tick() {
     if (is_feature_set(RECORDER)) {
         m_recorder.flush_to_disk();
     }
-    
+}
+
+void
+RXPortManager::send_next_grat_arp() {
     if (is_feature_set(GRAT_ARP)) {
         m_grat_arp.send_next_grat_arp();
     }
 }
 
+  
+void
+RXPortManager::set_l2_mode() {
+        
+    /* no IPv4 addresses */
+    m_src_addr.clear();
+        
+    /* stop grat arp */
+    stop_grat_arp();     
+}
 
+void
+RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) {
+        
+    /* copy L3 address */
+    m_src_addr = ip_info;
+        
+    if (is_grat_arp_needed) {
+        start_grat_arp();
+    }
+    else {
+        stop_grat_arp();
+    }
+    
+}
+
+
+    
 Json::Value
 RXPortManager::to_json() const {
     Json::Value output = Json::objectValue;
@@ -829,7 +873,23 @@ RXPortManager::to_json() const {
         output["queue"]["is_active"] = false;
     }
  
+    if (is_feature_set(GRAT_ARP)) {
+        output["grat_arp"] = m_grat_arp.to_json();
+        output["grat_arp"]["is_active"] = true;
+    } else {
+        output["grat_arp"]["is_active"] = false;
+    }
+    
     return output;
 }
 
+
+void RXPortManager::get_ignore_stats(CRXCoreIgnoreStat &stat, bool get_diff) {
+    if (get_diff) {
+        stat = m_ign_stats - m_ign_stats_prev;
+        m_ign_stats_prev = m_ign_stats;
+    } else {
+        stat = m_ign_stats;
+    }
+}
 

@@ -133,7 +133,8 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
-
+    virtual bool is_loopback() const = 0;
+    
     uint32_t get_src_ipv4() const {return m_src_ipv4;}
     DestAttr & get_dest() {return m_dest;}
     
@@ -219,7 +220,8 @@ public:
     virtual int get_xstats_names(xstats_names_t &xstats_names);
     virtual int get_flow_ctrl(int &mode);
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds);
-
+    virtual bool is_loopback() const;
+    
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled);
     virtual int add_mac(char * mac);
@@ -273,6 +275,7 @@ public:
     int set_led(bool on) { return -ENOTSUP; }
     void dump_link(FILE *fd) {}
     int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
+    virtual bool is_loopback() const { return false; }
 };
 
 

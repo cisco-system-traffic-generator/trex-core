@@ -569,13 +569,33 @@ private:
     
 };
 
-class TrexStatelessRxUpdateSrcAddr : public TrexStatelessCpToRxMsgBase {
+/**
+ * updates the RX core that we are in L2 mode
+ */
+class TrexStatelessRxSetL2Mode : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxUpdateSrcAddr(uint8_t port_id,
-                                 const CManyIPInfo &src_addr) {
-        
+    TrexStatelessRxSetL2Mode(uint8_t port_id) {
         m_port_id = port_id;
-        m_src_addr = src_addr;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+};
+
+/**
+ * updates the RX core that we are in a L3 mode
+ */
+class TrexStatelessRxSetL3Mode : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxSetL3Mode(uint8_t port_id,
+                             const CManyIPInfo &src_addr,
+                             bool is_grat_arp_needed) {
+        
+        m_port_id              = port_id;
+        m_src_addr             = src_addr;
+        m_is_grat_arp_needed   = is_grat_arp_needed;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
@@ -583,6 +603,7 @@ public:
 private:
     uint8_t           m_port_id;
     CManyIPInfo       m_src_addr;
+    bool              m_is_grat_arp_needed;
 };
 
 /**

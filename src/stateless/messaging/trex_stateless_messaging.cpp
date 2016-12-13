@@ -317,7 +317,16 @@ TrexStatelessRxFeaturesToJson::handle(CRxCoreStateless *rx_core) {
 }
 
 bool
-TrexStatelessRxUpdateSrcAddr::handle(CRxCoreStateless *rx_core) {
-    rx_core->get_rx_port_mngr(m_port_id).update_src_addr(m_src_addr);
+TrexStatelessRxSetL2Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l2_mode();
+    
     return true;
 }
+
+bool
+TrexStatelessRxSetL3Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l3_mode(m_src_addr, m_is_grat_arp_needed);
+    
+    return true;
+}
+

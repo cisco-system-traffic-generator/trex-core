@@ -330,23 +330,21 @@ class TRexConsole(TRexGeneralCmd):
         self.do_portattr("-h")
 
     @verify_connected
-    def do_source (self, line):
-        '''Configure source address for port(s)\n'''
-        self.stateless_client.set_source_addr_line(line)
+    def do_l2 (self, line):
+        '''Configures a port in L2 mode'''
+        self.stateless_client.set_l2_mode_line(line)
         
-    def help_source (self):
-        self.do_source("-h")
-        
-        
+    def help_l2 (self):
+        self.do_l2("-h")
+    
     @verify_connected
-    def do_dest (self, line):
-        '''Configure destination address for port(s)\n'''
-        self.stateless_client.set_dest_addr_line(line)
-        
-    def help_dest (self):
-        self.do_dest("-h")
-        
-        
+    def do_l3 (self, line):
+        '''Configures a port in L3 mode'''
+        self.stateless_client.set_l3_mode_line(line)
+
+    def help_l3 (self):
+        self.do_l3("-h")
+
         
     @verify_connected
     def do_set_rx_sniffer (self, line):

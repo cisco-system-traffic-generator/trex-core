@@ -164,7 +164,8 @@ class ARPResolver(Resolver):
             return None
 
         
-        rc = self.port.set_arp_resolution(arp.psrc, arp.hwsrc)
+        # update the port with L3 full configuration
+        rc = self.port.set_l3_mode(self.src['ipv4'], self.dst['ipv4'], arp.hwsrc)
         if not rc:
             return rc
             

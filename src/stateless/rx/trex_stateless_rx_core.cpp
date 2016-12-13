@@ -185,17 +185,30 @@ void CRxCoreStateless::port_manager_tick() {
     }
 }
 
+/**
+ * for each port handle the grat ARP mechansim
+ * 
+ */
+void CRxCoreStateless::handle_grat_arp() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].send_next_grat_arp();
+    }
+}
+
 void CRxCoreStateless::handle_work_stage() {
     
     /* set the next sync time to */
     dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
     dsec_t tick_time_sec = now_sec() + 1.0;
-    
+    dsec_t grat_arp_sec  = now_sec() + (double)CGlobalInfo::m_options.m_arp_ref_per;
+
     while (m_state == STATE_WORKING) {
         process_all_pending_pkts();
 
         dsec_t now = now_sec();
         
+        /* until a scheduler is added here - dirty IFs */
+
         if ( (now - sync_time_sec) > 0 ) {
             periodic_check_for_cp_messages();
         }
@@ -204,7 +217,12 @@ void CRxCoreStateless::handle_work_stage() {
             port_manager_tick();
             tick_time_sec = now + 1.0;
         }
-        
+
+        if ( (now - grat_arp_sec) > 0) {
+            handle_grat_arp();
+            grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
+        }
+
         rte_pause();
         
     }
@@ -345,4 +363,9 @@ CRxCoreStateless::get_rx_port_mngr(uint8_t port_id) {
     assert(port_id < m_max_ports);
     return m_rx_port_mngr[port_id];
     
+}
+
+void
+CRxCoreStateless::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
+    get_rx_port_mngr(port_id).get_ignore_stats(stat, get_diff);
 }

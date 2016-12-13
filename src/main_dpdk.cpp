@@ -3092,6 +3092,8 @@ public:
     void dump_config(FILE *fd);
     void dump_links_status(FILE *fd);
 
+    bool lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id);
+    
 public:
     port_cfg_t  m_port_cfg;
     uint32_t    m_max_ports;    /* active number of ports supported options are  2,4,8,10,12  */
@@ -3910,6 +3912,16 @@ void CGlobalTRex::dump_links_status(FILE *fd){
     }
 }
 
+bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
+    for (int i = 0; i < m_max_ports; i++) {
+        if (memcmp(m_ports[i].get_port_attr()->get_src_mac(), mac, 6) == 0) {
+            port_id = i;
+            return true;
+        }
+    }
+    
+    return false;
+}
 
 void CGlobalTRex::dump_post_test_stats(FILE *fd){
     uint64_t pkt_out=0;
@@ -4848,7 +4860,13 @@ static CGlobalTRex g_trex;
 void CPhyEthIF::update_counters() {
     get_ex_drv()->get_extended_stats(this, &m_stats);
     CRXCoreIgnoreStat ign_stats;
-    g_trex.m_mg.get_ignore_stats(m_port_id, ign_stats, true);
+    
+    if (get_is_stateless()) {
+        g_trex.m_rx_sl.get_ignore_stats(m_port_id, ign_stats, true);
+    } else {
+        g_trex.m_mg.get_ignore_stats(m_port_id, ign_stats, true);
+    }
+    
     m_stats.obytes -= ign_stats.get_tx_bytes();
     m_stats.opackets -= ign_stats.get_tx_pkts();
     m_ignore_stats.opackets += ign_stats.get_tx_pkts();
@@ -7256,6 +7274,11 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
     return (0);
 }
 
+bool DpdkTRexPortAttr::is_loopback() const {
+    uint8_t port_id;
+    return g_trex.lookup_port_by_mac(m_dest.get_dest_mac(), port_id);
+}
+
 /**
  * marks the control plane for a total server shutdown
  *
@@ -7264,3 +7287,4 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
+

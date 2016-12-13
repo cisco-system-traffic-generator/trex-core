@@ -400,10 +400,17 @@ public:
     const RXPacketBuffer *get_rx_queue_pkts();
 
     /**
-     * sets an IPv4 source address
+     * configures port for L2 mode
      * 
      */
-    void set_src_ipv4(uint32_t ipv4);
+    void set_l2_mode(const uint8_t *dest_mac);
+    
+    /**
+     * configures port in L3 mode
+     * 
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4);
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac);
     
     /**
      * generate a JSON describing the status 

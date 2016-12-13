@@ -284,12 +284,16 @@ private:
 class RXGratARP {
 public:
     RXGratARP() {
-        m_io = NULL;
-        m_port_id = UINT8_MAX;
-        m_src_addr = NULL;
+        m_io        = NULL;
+        m_port_id   = UINT8_MAX;
+        m_src_addr  = NULL;
+        m_ign_stats = NULL;
     }
     
-    void create(uint8_t port_id, CPortLatencyHWBase *io, CManyIPInfo *src_addr);
+    void create(uint8_t port_id,
+                CPortLatencyHWBase *io,
+                CManyIPInfo *src_addr,
+                CRXCoreIgnoreStat *ignore_stats);
 
     
     /**
@@ -298,10 +302,13 @@ public:
      */
     void send_next_grat_arp();
     
+    Json::Value to_json() const;
+    
 private:
+    uint8_t               m_port_id;
     CPortLatencyHWBase   *m_io;
     CManyIPInfo          *m_src_addr;
-    uint8_t               m_port_id;
+    CRXCoreIgnoreStat    *m_ign_stats;
 };
 
 /************************ manager ***************************/
@@ -389,7 +396,13 @@ public:
         return m_queue.fetch();
     }
 
+    void start_grat_arp() {
+        set_feature(GRAT_ARP);
+    }
     
+    void stop_grat_arp() {
+        unset_feature(GRAT_ARP);
+    }
 
     /**
      * fetch and process all packets
@@ -421,14 +434,25 @@ public:
     void tick();
     
     /**
-     * updates the source addresses registered with the port
+     * send next grat arp (if on)
      * 
+     * @author imarom (12/13/2016)
      */
-    void update_src_addr(const CManyIPInfo &new_src_addr) {
-        /* deep copy */
-        m_src_addr = new_src_addr;
-    }
+    void send_next_grat_arp();
+
+    /**
+     * set port mode to L2
+     */
+    void set_l2_mode();
     
+    /**
+     * set port mode to L3
+     * 
+     * @author imarom (12/13/2016)
+     */
+    void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
+  
+      
     bool has_features_set() {
         return (m_features != NO_FEATURES);
     }
@@ -438,6 +462,12 @@ public:
         return (!has_features_set());
     }
 
+    /**
+     * returns ignored set of stats
+     * (grat ARP, PING response and etc.)
+     */
+    void get_ignore_stats(CRXCoreIgnoreStat &stat, bool get_diff);
+    
     /**
      * write the status to a JSON format
      */
@@ -475,6 +505,10 @@ private:
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
     CManyIPInfo                  m_src_addr;
+    
+    /* stats to ignore (ARP and etc.) */
+    CRXCoreIgnoreStat            m_ign_stats;
+    CRXCoreIgnoreStat            m_ign_stats_prev;
 };
 
 

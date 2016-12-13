@@ -21,6 +21,7 @@
 #ifndef __TREX_STATELESS_RX_CORE_H__
 #define __TREX_STATELESS_RX_CORE_H__
 #include <stdint.h>
+
 #include "stateful_rx_core.h"
 #include "os_time.h"
 #include "pal/linux/sanb_atomic.h"
@@ -153,6 +154,12 @@ class CRxCoreStateless {
 
     RXPortManager &get_rx_port_mngr(uint8_t port_id);
     
+    /**
+     * fetch the ignored stats for a port
+     * 
+     */
+    void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
+
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
@@ -166,7 +173,8 @@ class CRxCoreStateless {
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
     void port_manager_tick();
-    
+    void handle_grat_arp();
+
     int process_all_pending_pkts(bool flush_rx = false);
 
     void flush_all_pending_pkts() {

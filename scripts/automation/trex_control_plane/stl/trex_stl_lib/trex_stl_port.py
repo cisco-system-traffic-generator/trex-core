@@ -519,39 +519,40 @@ class Port(object):
 
         return self.ok()
      
-    
     @owned
-    def set_source_addr (self, addr):
+    def set_l2_mode (self, dst_mac):
         if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for configuring source address. Please enable service mode')
+            return self.err('port service mode must be enabled for configuring L2 mode. Please enable service mode')
         
-        return self.set_attr(ipv4 = addr)
-            
-
-    @owned
-    def set_dest_addr (self, addr):
-        if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for configuring destination address. Please enable service mode')
-        
-        return self.set_attr(dest = addr)
-        
-        
-    @owned
-    def set_arp_resolution (self, ipv4, mac):
-
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
-                  "ipv4":           ipv4,
-                  "mac":            mac}
+                  "dst_mac":        dst_mac}
 
-        rc = self.transmit("set_arp_resolution", params)
+        rc = self.transmit("set_l2", params)
         if rc.bad():
             return self.err(rc.err())
 
-        # instead of updating manualy - let's sync with the server
         return self.sync()
         
-  
+        
+    @owned
+    def set_l3_mode (self, src_addr, dest_addr, resolved_mac = None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring L3 mode. Please enable service mode')
+        
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "src_addr":       src_addr,
+                  "dst_addr":       dest_addr}
+
+        if resolved_mac:
+            params["resolved_mac"] = resolved_mac
+            
+        rc = self.transmit("set_l3", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
 
 
     @owned
@@ -700,15 +701,6 @@ class Port(object):
         if kwargs.get('rx_filter_mode') is not None:
             json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
 
-        if kwargs.get('ipv4') is not None:
-            json_attr['ipv4'] = {'addr': kwargs.get('ipv4')}
-        
-        if kwargs.get('dest') is not None:
-            if not self.is_service_mode_on():
-                return self.err('setting destination requires port to be in service mode')
-                
-            json_attr['dest'] = {'addr': kwargs.get('dest')}
-            
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -879,7 +871,7 @@ class Port(object):
         info['src_ipv4']  = attr['src_ipv4']
         
         if info['src_ipv4'] is None:
-            info['src_ipv4'] = 'Not Configured'
+            info['src_ipv4'] = '-'
 
         # dest
         dest = attr['dest']
@@ -908,6 +900,14 @@ class Port(object):
         queue = rx_info['queue']
         info['rx_queue'] = '[{0} / {1}]'.format(queue['count'], queue['size']) if queue['is_active'] else 'off'
         
+        # Grat ARP
+        grat_arp = rx_info['grat_arp']
+        if grat_arp['is_active']:
+            info['grat_arp'] = grat_arp['interval_sec']
+        else:
+            info['grat_arp'] = "off"
+
+
         return info
 
 
@@ -991,6 +991,7 @@ class Port(object):
                 "RX Filter Mode": info['rx_filter_mode'],
                 "RX Queueing": info['rx_queue'],
                 "RX sniffer": info['rx_sniffer'],
+                "Grat ARP": info['grat_arp'],
 
                 }
 

@@ -96,8 +96,6 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetPortAttr, "set_port_attr", 2, true,  APIClass::API_CLASS_TYPE_CORE,
                              
     int parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result);
-    int parse_ipv4(const Json::Value &msg, uint8_t port_id, Json::Value &result);
-    int parse_dest(const Json::Value &msg, uint8_t port_id, Json::Value &result);
 );
 
 
@@ -159,8 +157,9 @@ TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetRxFeature, "set_rx_feature", 3, false,
 
 );
 
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL2, "set_l2", 2, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL3, "set_l3", 3, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetRxQueuePkts, "get_rx_queue_pkts", 2, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetARPRes, "set_arp_resolution", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
 #endif /* __TREX_RPC_CMD_H__ */
 

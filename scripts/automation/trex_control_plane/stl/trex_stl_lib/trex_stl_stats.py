@@ -682,6 +682,7 @@ class CTRexInfoGenerator(object):
                                         ("RX Filter Mode", []),
                                         ("RX Queueing", []),
                                         ("RX sniffer", []),
+                                        ("Grat ARP", []),
                                         ]
                                        )
 

@@ -49,16 +49,19 @@ OUTPUT_FILENAME = 31
 LIMIT = 33
 PORT_RESTART   = 34
 
-IPV4 = 35
-DEST = 36
 RETRIES = 37
 
-SOURCE_PORT = 39
+SINGLE_PORT = 38
+DST_MAC = 39
+
 PING_IPV4 = 40
 PING_COUNT = 41
 PKT_SIZE = 42
 
 SERVICE_OFF = 43
+
+SRC_IPV4 = 44
+DST_IPV4 = 45
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -250,9 +253,9 @@ def check_pkt_size (pkt_size):
     
     return pkt_size
     
-def check_dest_addr (addr):
-    if not (is_valid_ipv4(addr) or is_valid_mac(addr)):
-        raise argparse.ArgumentTypeError("not a valid IPv4 or MAC address: '{0}'".format(addr))
+def check_mac_addr (addr):
+    if not is_valid_mac(addr):
+        raise argparse.ArgumentTypeError("not a valid MAC address: '{0}'".format(addr))
         
     return addr
 
@@ -341,18 +344,24 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                     'dest': 'flow_ctrl',
                                     'choices': FLOW_CTRL_DICT}),
 
-              IPV4: ArgumentPack(['--ipv4'],
-                                 {'help': 'IPv4 address(s) for the port(s)',
-                                  'dest': 'ipv4',
-                                  'required': True,
-                                  'type': check_ipv4_addr}),
+              SRC_IPV4: ArgumentPack(['--src'],
+                                     {'help': 'Configure source IPv4 address',
+                                      'dest': 'src_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
+              DST_IPV4: ArgumentPack(['--dst'],
+                                     {'help': 'Configure destination IPv4 address',
+                                      'dest': 'dst_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
 
-              DEST: ArgumentPack(['--addr'],
-                                 {'help': 'Destination address(s) for the port(s) in either IPv4 or MAC format',
-                                  'metavar': 'addr',
-                                  'dest': 'dest',
-                                  'required' : True,
-                                  'type': check_dest_addr}),
+              DST_MAC: ArgumentPack(['--dst'],
+                                    {'help': 'Configure destination MAC address',
+                                     'dest': 'dst_mac',
+                                     'required': True,
+                                     'type': check_mac_addr}),
               
               RETRIES: ArgumentPack(['-r', '--retries'],
                                     {'help': 'retries count [default is zero]',
@@ -405,7 +414,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'default': []}),
 
               
-              SOURCE_PORT: ArgumentPack(['--port', '-p'],
+              SINGLE_PORT: ArgumentPack(['--port', '-p'],
                                         {'dest':'ports',
                                          'type': int,
                                          'metavar': 'PORT',
