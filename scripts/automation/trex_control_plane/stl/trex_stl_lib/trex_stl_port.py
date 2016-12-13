@@ -903,7 +903,7 @@ class Port(object):
         # Grat ARP
         grat_arp = rx_info['grat_arp']
         if grat_arp['is_active']:
-            info['grat_arp'] = grat_arp['interval_sec']
+            info['grat_arp'] = "every {0} seconds".format(grat_arp['interval_sec'])
         else:
             info['grat_arp'] = "off"
 

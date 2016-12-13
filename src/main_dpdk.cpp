@@ -3309,17 +3309,32 @@ void CGlobalTRex::pre_test() {
             // Configure port back to normal mode. Only relevant packets handled by software.
             CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
 
-           /* set resolved IPv4 */
-           uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-           const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
-           if (dg) {
-               m_ports[port_id].get_port_attr()->get_dest().set_dest(dg, dst_mac);
-           } else {
-               m_ports[port_id].get_port_attr()->get_dest().set_dest(dst_mac);
            }
+        }
+    
+    /* for stateless only - set port mode */
+    if (get_is_stateless()) {
+        for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
+            uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
+            const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest; 
 
+            /* L3 mode */
+            if (src_ipv4 && dg) {
+                if (memcmp(dst_mac, empty_mac, 6) == 0) {
+                    m_trex_stateless->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg);
+                } else {
+                    m_trex_stateless->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg, dst_mac);
+                }
+
+                /* L2 mode */
+            } else {
+                m_trex_stateless->get_port_by_id(port_id)->set_l2_mode(dst_mac);
+            }
         }
     }
+
+ 
 }
 
 /**
@@ -4891,18 +4906,6 @@ bool CPhyEthIF::Create(uint8_t portid) {
     if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
         rte_eth_macaddr_get(m_port_id,
                             (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.src);
-    }
-
-    /* set src IPv4 */
-    uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_ip();
-    if (src_ipv4) {
-        m_port_attr->set_src_ipv4(src_ipv4);
-    }
-
-    /* for now set as unresolved IPv4 destination */
-    uint32_t dest_ipv4 = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_def_gw();
-    if (dest_ipv4) {
-        m_port_attr->get_dest().set_dest(dest_ipv4);
     }
 
     return true;
