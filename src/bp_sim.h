@@ -4240,6 +4240,7 @@ inline  pkt_dir_t CGenNode::cur_interface_dir(){
     }
 }
 
+/* Itay: move this to a better place (common for RX STL and RX STF) */
 class CRXCoreIgnoreStat {
     friend class CCPortLatency;
     friend class CLatencyManager;

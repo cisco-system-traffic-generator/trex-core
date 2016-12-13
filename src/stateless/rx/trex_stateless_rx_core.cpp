@@ -211,6 +211,7 @@ void CRxCoreStateless::handle_work_stage() {
 
         if ( (now - sync_time_sec) > 0 ) {
             periodic_check_for_cp_messages();
+            sync_time_sec = now + (1.0 / 1000);
         }
         
         if ( (now - tick_time_sec) > 0) {

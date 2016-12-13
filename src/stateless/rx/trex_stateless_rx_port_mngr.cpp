@@ -735,12 +735,6 @@ RXPortManager::create(const TRexPortAttr *port_attr,
     m_cpu_dp_u = cpu_util;
     m_num_crc_fix_bytes = crc_bytes_num;
     
-    /* if IPv4 is configured - add it to the grat service */
-    uint32_t src_ipv4 = port_attr->get_src_ipv4();
-    if (src_ipv4) {
-        m_src_addr.insert(COneIPv4Info(src_ipv4, 0, port_attr->get_src_mac(), m_port_id));
-    }    
-    
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
     m_server.create(m_port_id, io, &m_src_addr);
