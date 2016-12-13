@@ -1,0 +1,163 @@
+#!/usr/bin/python
+
+import os, sys, getpass
+import tempfile
+import time
+import subprocess, shlex
+from argparse import ArgumentParser, RawTextHelpFormatter
+import errno
+
+def fail(msg):
+    print(msg)
+    sys.exit(-1)
+
+if getpass.getuser() != 'root':
+    fail('Please run this program as root/with sudo')
+
+pwd = os.path.abspath(os.path.dirname(__file__))
+ext_libs_path = os.path.join(pwd, 'external_libs')
+if ext_libs_path not in sys.path:
+    sys.path.append(ext_libs_path)
+
+import netstat
+try:
+    from termstyle import termstyle
+except ImportError:
+    import termstyle
+
+
+def inv(f):
+    return lambda *a, **k: not f(*a, **k)
+
+
+def progress(success_check, start_msg, success_msg, fail_msg, timeout = 10, poll_rate = 0.5):
+    sys.stdout.write('%s...' % start_msg)
+    sys.stdout.flush()
+    for i in range(int(timeout/poll_rate)):
+        if success_check():
+            print(termstyle.green(' ' + success_msg))
+            return 0
+        time.sleep(poll_rate)
+        sys.stdout.write('.')
+        sys.stdout.flush()
+    if success_check():
+        print(termstyle.green(' ' + success_msg))
+        return 0
+    print(termstyle.red(' ' + fail_msg))
+    return 1
+
+
+def run_command(command, timeout = 15, poll_rate = 0.1, cwd = None):
+    assert timeout > 0, 'Timeout should be positive'
+    assert poll_rate > 0, 'Poll rate should be positive'
+    try:
+        tempfile.TemporaryFile(bufsize=0)
+        temp_params = {'bufsize': 0}
+    except:
+        tempfile.TemporaryFile(buffering=0)
+        temp_params = {'buffering': 0}
+    with tempfile.TemporaryFile(**temp_params) as stdout_file:
+        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = subprocess.STDOUT, cwd = cwd, close_fds = True, universal_newlines = True)
+        for i in range(int(timeout/poll_rate)):
+            time.sleep(poll_rate)
+            if proc.poll() is not None: # process stopped
+                break
+        if proc.poll() is None:
+            proc.kill() # timeout
+            stdout_file.seek(0)
+            return (errno.ETIMEDOUT, '%s\n\n...Timeout of %s second(s) is reached!' % (stdout_file.read(), timeout))
+        stdout_file.seek(0)
+        return (proc.returncode, stdout_file.read())
+
+
+def get_daemon_pid():
+    pid = None
+    for conn in netstat.netstat():
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+            pid = conn[7]
+            if pid is None:
+                raise Exception('Found the connection, but could not determine pid: %s' % conn)
+            break
+    return pid
+
+
+# faster variant of get_daemon_pid
+def is_running():
+    for conn in netstat.netstat(with_pid = False):
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+            return True
+    return False
+
+
+def show_daemon_status():
+    if is_running():
+        print(termstyle.green('Scapy server is running'))
+    else:
+        print(termstyle.red('Scapy server is NOT running'))
+
+
+def start_daemon():
+    if is_running():
+        print(termstyle.red('Scapy server is already running'))
+        return
+    server_path = os.path.join(pwd, 'automation', 'trex_control_plane', 'stl', 'services', 'scapy_server')
+    with tempfile.TemporaryFile() as stdout_file:
+        subprocess.Popen(shlex.split('sudo -u nobody %s scapy_zmq_server.py -s %s' % (sys.executable, args.daemon_port)), stdout = stdout_file,
+                    stderr = subprocess.STDOUT, cwd = server_path, close_fds = True, universal_newlines = True)
+        ret = progress(is_running, 'Starting Scapy server', 'Scapy server is started', 'Scapy server failed to run')
+        if ret:
+            stdout_file.seek(0)
+            print('Output: %s' % stdout_file.read())
+            sys.exit(1)
+
+
+def restart_daemon():
+    if is_running():
+        kill_daemon()
+        time.sleep(0.5)
+    start_daemon()
+
+
+def kill_daemon():
+    pid = get_daemon_pid()
+    if not pid:
+        print(termstyle.red('Scapy server is NOT running'))
+        return True
+    run_command('kill %s' % pid) # usual kill
+    ret = progress(inv(is_running), 'Killing Scapy server', 'Scapy server is killed', 'failed')
+    if not ret:
+        return
+    _, out = run_command('kill -9 %s' % pid) # unconditional kill
+    ret = progress(inv(is_running), 'Killing Scapy server with -9', 'Scapy server is killed', 'failed')
+    if ret:
+        fail('Failed to kill Scapy server, even with -9. Please review manually.\nOutput: %s' % out)
+
+### Main ###
+
+if __name__ == '__main__':
+    actions_help = '''Specify action command to be applied on server.
+        (*) start      : start the application in as a daemon process.
+        (*) show       : prompt an updated status of daemon process (running/ not running).
+        (*) stop       : exit Scapy server daemon process.
+        (*) restart    : stop, then start again the application as daemon process
+        '''
+    action_funcs = {'start': start_daemon,
+                    'show': show_daemon_status,
+                    'stop': kill_daemon,
+                    'restart': restart_daemon,
+                    }
+    
+    parser = ArgumentParser(description = 'Runs Scapy server application.',
+        formatter_class = RawTextHelpFormatter,
+    )
+    
+    parser.add_argument('-p', '--port', type = int, default = 4507, metavar="PORT", dest="daemon_port", 
+            help="Select tcp port on which Scapy server listens.\nDefault port is 4507.", action="store")
+    parser.add_argument('action', choices=action_funcs.keys(),
+                            action='store', help=actions_help)
+    parser.usage = None
+    args = parser.parse_args()
+    
+    action_funcs[args.action]()
+
+

@@ -242,9 +242,7 @@ class ConfigCreator(object):
 class map_driver(object):
     args=None;
     cfg_file='/etc/trex_cfg.yaml'
-    parent_cfg = None
-    dump_interfaces = None
-    no_ofed_check = None
+    parent_args = None
 
 class DpdkSetup(Exception):
     pass
@@ -409,7 +407,7 @@ Other network devices
             self.raise_error ("Configuration file %s is old, should include version field\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
-            self.raise_error ("Configuration file %s is old, should include version field with value greater than 2\n" % fcfg)
+            self.raise_error ("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
 
         if 'interfaces' not in self.m_cfg_dict[0]:
             self.raise_error ("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
@@ -461,11 +459,13 @@ Other network devices
 
     def do_run (self,only_check_all_mlx=False):
         self.run_dpdk_lspci ()
-        if map_driver.dump_interfaces is None or (map_driver.dump_interfaces == [] and map_driver.parent_cfg):
+        if (map_driver.parent_args.dump_interfaces is None or
+                    (map_driver.parent_args.dump_interfaces == [] and
+                            map_driver.parent_args.cfg)):
             self.load_config_file()
             if_list=self.m_cfg_dict[0]['interfaces']
         else:
-            if_list = map_driver.dump_interfaces
+            if_list = map_driver.parent_args.dump_interfaces
             if not if_list:
                 for dev in self.m_devices.values():
                     if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
@@ -489,18 +489,18 @@ Other network devices
                 Mellanox_cnt=Mellanox_cnt+1
 
 
-        if not map_driver.dump_interfaces :
+        if not map_driver.parent_args.dump_interfaces:
             if  ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
                err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
                raise DpdkSetup(err)
 
 
-        if not map_driver.dump_interfaces :
+        if not map_driver.parent_args.dump_interfaces:
             if  Mellanox_cnt>0 :
                 self.set_only_mellanox_nics()
 
         if self.get_only_mellanox_nics():
-            if not map_driver.no_ofed_check:
+            if not map_driver.parent_args.no_ofed_check:
                 self.verify_ofed_os()
                 self.check_ofed_version()
 
@@ -543,6 +543,11 @@ Other network devices
                         sys.exit(1)
                 else:
                        print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
+        if map_driver.parent_args.stl:
+            ret = os.system('%s scapy_daemon_server restart' % sys.executable)
+            if ret:
+                sys.exit(1)
+
 
     def do_return_to_linux(self):
         if not self.m_devices:
@@ -850,10 +855,11 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
-    args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
-    if args.help:
+    parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
+    map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
+    if map_driver.parent_args.help:
         sys.exit(0)
-    return (args.cfg, args.dump_interfaces, args.no_ofed_check)
+
 
 def process_options ():
     parser = argparse.ArgumentParser(usage=""" 
@@ -970,9 +976,9 @@ To see more detailed info on interfaces (table):
 
     map_driver.args = parser.parse_args();
     if map_driver.args.parent :
-        map_driver.parent_cfg, map_driver.dump_interfaces, map_driver.no_ofed_check = parse_parent_cfg (map_driver.args.parent)
-        if map_driver.parent_cfg != '':
-            map_driver.cfg_file = map_driver.parent_cfg;
+        parse_parent_cfg (map_driver.args.parent)
+        if map_driver.parent_args.cfg:
+            map_driver.cfg_file = map_driver.parent_args.cfg;
     if  map_driver.args.cfg :
         map_driver.cfg_file = map_driver.args.cfg;
 
