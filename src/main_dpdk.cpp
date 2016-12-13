@@ -4507,18 +4507,20 @@ CGlobalTRex::handle_slow_path() {
         m_mg.update();
 
         if ( m_io_modes.m_g_mode ==  CTrexGlobalIoMode::gNORMAL ) {
-            switch (m_io_modes.m_l_mode) {
-            case CTrexGlobalIoMode::lDISABLE:
-                fprintf(stdout,"\n+Latency stats disabled \n");
-                break;
-            case CTrexGlobalIoMode::lENABLE:
-                fprintf(stdout,"\n-Latency stats enabled \n");
-                m_mg.DumpShort(stdout);
-                break;
-            case CTrexGlobalIoMode::lENABLE_Extended:
-                fprintf(stdout,"\n-Latency stats extended \n");
-                m_mg.Dump(stdout);
-                break;
+            if (CGlobalInfo::m_options.m_latency_rate != 0) {
+                switch (m_io_modes.m_l_mode) {
+                case CTrexGlobalIoMode::lDISABLE:
+                    fprintf(stdout, "\n+Latency stats disabled \n");
+                    break;
+                case CTrexGlobalIoMode::lENABLE:
+                    fprintf(stdout, "\n-Latency stats enabled \n");
+                    m_mg.DumpShort(stdout);
+                    break;
+                case CTrexGlobalIoMode::lENABLE_Extended:
+                    fprintf(stdout, "\n-Latency stats extended \n");
+                    m_mg.Dump(stdout);
+                    break;
+                }
             }
 
             if ( get_is_rx_check_mode() ) {
