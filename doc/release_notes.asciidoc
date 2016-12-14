@@ -28,10 +28,20 @@ endif::backend-docbook[]
 * Improve support for Mellanox ConnectX-4 cards (100/50/25GbE) 
 ** Only CentOs/RedHat 7.2 and up is supported due to OFED issues
 ** Improve 64Byte Stateleess performance 
-* Cisco VIC is fully supported now 
+* Cisco VIC is fully supported 
 * Stateless neighboring protocols infra and first protocols support/Python API - TBD point to documentation and examples  
 * Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
 * Added Stateless performance trend document link:trex_analytics.html[trex performance trend]
+
+
+[IMPORTANT]
+=====================================
+Change of behavior - trex config file (/trex/cfg.yaml) should include a distinct MAC address or distinct IP address. 
+Not setting the port information :
+  before v2.12  :  src MAC addr == 00:00:00:01:00:00 
+  v2.12 and up  :  src MAC addr == HW MAC address 
+===========================
+
 
 === fix issues: ===
 
