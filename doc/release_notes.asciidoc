@@ -23,6 +23,23 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.12 ==
+
+* Improve support for Mellanox ConnectX-4 cards (100/50/25GbE) 
+* Cisco VIC is fully supported now 
+* Stateless neighboring protocols infra and first protocols support/Python API - TBD point to documentation and examples  
+* Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-257[trex-257]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[trex-265]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-280[trex-280]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-277[trex-277]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-278[trex-278]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
+
+
 == Release 2.11 ==
 
 * Early support for Mellanox ConnectX-4 cards (100/50/25GbE) - based on contributions from Mellanox DPDK team see here for more info link:trex_manual.html#_mellanox_connectx_4_support[Mellanox ConnectX-4 Support]
