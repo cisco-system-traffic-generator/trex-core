@@ -1126,6 +1126,8 @@ def publish_perf(bld):
     rsync_ext(bld, 'images/*_trend_graph.*', 'images/')
     rsync_int(bld, 'images/*_trend_stats.*', 'images/')
     rsync_ext(bld, 'images/*_trend_stats.*', 'images/')
+    rsync_int(bld, 'images/_detailed_table.csv', 'images/')
+    rsync_ext(bld, 'images/_detailed_table.csv', 'images/')
 
 
 def publish_test(bld):
