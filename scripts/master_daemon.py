@@ -33,12 +33,11 @@ def get_trex_path():
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
+    file_name = 'trex_package.tar.gz'
     # getting new package
     if package_path.startswith('http'):
-        file_name = package_path.split('/')[-1]
         ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
     else:
-        file_name = os.path.basename(package_path)
         ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
     if ret_code:
         raise Exception('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
