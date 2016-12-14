@@ -31,6 +31,7 @@ endif::backend-docbook[]
 * Cisco VIC is fully supported now 
 * Stateless neighboring protocols infra and first protocols support/Python API - TBD point to documentation and examples  
 * Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
+* Added Stateless performance trend document link:trex_analytics.html[trex performance trend]
 
 === fix issues: ===
 
