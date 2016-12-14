@@ -85,7 +85,6 @@ include::build/images/trex09_trend_stats.csv[]
 |===
 
 
-//////////////////////////////////////////////////////////////
 
 == Setup:  82599EB (4x10GbE) kiwi02
 
@@ -119,7 +118,6 @@ include::build/images/kiwi02_trend_stats.csv[]
 |===
 
 
-//////////////////////////////////////////////////////////
 
 == Setup:   Cisco 1300 VIC (2x40GbE) trex-11
 
