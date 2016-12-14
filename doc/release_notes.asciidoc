@@ -26,6 +26,8 @@ endif::backend-docbook[]
 == Release 2.12 ==
 
 * Improve support for Mellanox ConnectX-4 cards (100/50/25GbE) 
+** Only CentOs/RedHat 7.2 and up is supported due to OFED issues
+** Improve 64Byte Stateleess performance 
 * Cisco VIC is fully supported now 
 * Stateless neighboring protocols infra and first protocols support/Python API - TBD point to documentation and examples  
 * Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
