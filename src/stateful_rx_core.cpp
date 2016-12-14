@@ -461,8 +461,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     }
 
     if ( (pkt_size-vlan_offset) != m_pkt_size ) {
-        m_length_error++;
-        return (false);
+        // patch for e1000 card. e1000 hands us the packet with Ethernet FCS, so it is 4 bytes longer
+        if ((pkt_size - vlan_offset - 4) != m_pkt_size ) {
+            m_length_error++;
+            return (false);
+        }
     }
     c_l_pkt_mode->update_recv(p + m_l4_offset + vlan_offset, &m_icmp_rx_seq, &m_icmp_tx_seq);
 #ifdef LATENCY_DEBUG
