@@ -38,7 +38,7 @@ endif::backend-xhtml11[]
 This document assumes basic knowledge of TRex, and assumes that TRex is installed and configured.
 For information, see the link:trex_manual.html[manual], especially the material up to the link:trex_manual.html#_basic_usage[Basic Usage] section.
 
-== Stateless support (Beta stage)
+== Stateless support 
 
 === High level functionality
 // maybe Feature overview
@@ -76,11 +76,6 @@ The following example shows three streams configured for Continuous, Burst, and 
 
 image::images/stl_streams_example_02.png[title="Example of multiple streams",align="left",width={p_width}, link="images/stl_streams_example_02.png"]
 
-==== High level functionality - near future
-
-// "near future" and "roadmap" (below) are ~ same. Typically, Cisco does not document features before they're ready, but open source is a little different. We might want to find a better place to put the roadmap for the future - maybe a separate document.
-
-* ARP emulation - learn server MAC. Support unlimited MAC addresses per port.
 
 ==== High level functionality - Roadmap for future development
 
@@ -247,7 +242,7 @@ TRex ports can operate in two different mutual exclusive modes:
 * *Layer 3 mode* - IPv4/IPv6 configuration
 
 When configuring a port for L2 mode, it is only required to provide
-the destination MAC address for the port.
+the destination MAC address for the port (Legacy mode previous to v2.12 version).
 
 When configuring a port for L3, it is required to provide both
 source IPv4/IPv6 address and a IPv4/IPv6 destination address.
@@ -260,12 +255,11 @@ destination address and automatically configure the correct destination MAC.
 While in L3 mode, TRex server will generate *gratuitous ARP* packets to make sure
 that no ARP timeout on the DUT/router will result in a faliure of the test.
 
-*Example of configuring L2 mode*
-
+.*Example of configuring L2 mode*
 [source,bash]
 ----
 
-*TRex Console:*
+trex>service 
 
 trex>l2 --help
 usage: port [-h] --port PORT --dst DST_MAC
@@ -282,22 +276,29 @@ trex(service)>l2 -p 0 --dst 6A:A7:B5:3A:4E:FF
 
 Setting port 0 in L2 mode:                                   [SUCCESS]
 
+trex>service --off
 
-*TRex API:*
-
-client.set_service_mode(port = 0, enabled = True)
-
-client.set_l2_mode(port = 0, dst_mac = "6A:A7:B5:3A:4E:FF")
-
-client.set_service_mode(port = 0, enabled = False)
 ----
 
-*Example of configuring L3 mode*
 
+.*Example of configuring L2 mode- Python API*
+[source,Python]
+----
+  client.set_service_mode(port = 0, enabled = True)
+
+  client.set_l2_mode(port = 0, dst_mac = "6A:A7:B5:3A:4E:FF")
+
+  client.set_service_mode(port = 0, enabled = False)
+
+----
+
+
+.*Example of configuring L3 mode- Console*
 [source,bash]
 ----
 
-*TRex console:*
+trex>service 
+
 
 trex(service)>l3 --help
 usage: port [-h] --port PORT --src SRC_IPV4 --dst DST_IPV4
@@ -317,8 +318,14 @@ Setting port 0 in L3 mode:                                   [SUCCESS]
 
 ARP resolving address '1.1.1.1':                             [SUCCESS]
 
+trex>service --off
 
-*TRex API:*
+----
+
+
+.*Example of configuring L3 mode - Python API*
+[source,python]
+----
 
 client.set_service_mode(port = 0, enabled = True)
 
@@ -328,12 +335,10 @@ client.set_service_mode(port = 0, enabled = False)
 
 ----
 
-
 === Port Service Mode
 
-
 In 'normal operation mode', to preserve high speed processing of packets,
-TRex ignores most of the RX traffic, with the exception of counting and handling
+TRex ignores most of the RX traffic, with the exception of counting/statistic and handling
 latency flows.
 
 
@@ -353,12 +358,12 @@ The following diagram illustrates of packets can be forwarded back to the Python
 
 image::images/port_service_mode.png[title="Port Under Service Mode",align="left",width={p_width}, link="images/port_service_mode.png"]
 
+In this mode, it is possible to write python plugins for emulation (e.g. IPV6 ND/DHCP) to prepare the setup and then move to normal mode for high speed testing 
+
 
 *Example Of Switcing Between 'Service' And 'Normal' Mode*
 [source,bash]
 ----
-
-*TRex Console:*
 
 trex(service)>service --help
 usage: service [-h] [--port PORTS [PORTS ...] | -a] [--off]
@@ -383,11 +388,15 @@ trex(service)>service --off
 
 Disabling service mode on port(s) [0, 1]:                    [SUCCESS]
 
+----
 
-*TRex API*:
+.*Example Of Switcing Between 'Service' And 'Normal' Mode-API*
+[source,Python]
+----
 
-client.set_service_mode(ports = [0, 1], enabled = True)
-client.set_service_mode(ports = [0, 1], enabled = False)
+  client.set_service_mode(ports = [0, 1], enabled = True)
+  
+  client.set_service_mode(ports = [0, 1], enabled = False)
 
 ----
 
@@ -414,13 +423,40 @@ image::images/router_arp.png[title="Router ARP",align="left",width={p_width}, li
 [source,bash]
 ----
 
-*TRex Console*:
+trex>service                                                                   #<1> 
 
-trex>service
+Enabling service mode on port(s) [0, 1]:                     [SUCCESS]   
 
-Enabling service mode on port(s) [0, 1]:                     [SUCCESS]
+trex(service)>portattr  --port 0
 
-trex(service)>arp -p 0 1
+             port       |          0           |  
+        ------------------------------------------
+        driver          |    rte_ixgbe_pmd     |  
+        description     |  82599EB 10-Gigabit  |  
+        link status     |          UP          |  
+        link speed      |       10 Gb/s        |  
+        port status     |         IDLE         |  
+        promiscuous     |         off          |  
+        flow ctrl       |         none         |  
+        --              |                      |  
+        src IPv4        |          -           |  
+        src MAC         |  00:00:00:01:00:00   |  
+        ---             |                      |  
+        Destination     |  00:00:00:01:00:00   |  
+        ARP Resolution  |          -           |  
+        ----            |                      |  
+        PCI Address     |     0000:03:00.0     |  
+        NUMA Node       |          0           |  
+        -----           |                      |  
+        RX Filter Mode  |    hardware match    |  
+        RX Queueing     |         off          |  
+        RX sniffer      |         off          |  
+        Grat ARP        |         off          |  
+
+
+trex(service)>l3 -p -s 1.1.1.1 -d 1.1.1.2                         #<2> 
+
+trex(service)>arp -p 0 1                                          #<3>
 
 Resolving destination on port(s) [0, 1]:                     [SUCCESS]
 
@@ -428,21 +464,74 @@ Resolving destination on port(s) [0, 1]:                     [SUCCESS]
 Port 0 - Recieved ARP reply from: 1.1.1.1, hw: d0:d0:fd:a8:a1:01
 Port 1 - Recieved ARP reply from: 1.1.2.1, hw: d0:d0:fd:a8:a1:02
 
+trex(service)>service --off                                       #<4>
 
-*TRex API*:
+----
+<1> Enable service mode 
+<2> Set IPv4/default gateway. it will resolve the arp
+<3> repeat ARP resolution
+<4> exist from service mode 
+ 
 
-client.set_service_mode(ports = [0, 1], enabled = True)
+
+to revert  back to MAC address mode (without ARP resolution) you do the following 
+
+.Disable L3 mode
+[source,bash]
+----
+
+trex>l2 -p 0 --dst 00:00:00:01:00:00       #<1>
+
+trex>portattr  --port 0
+
+             port       |          0           |  
+        ------------------------------------------
+        driver          |    rte_ixgbe_pmd     |  
+        description     |  82599EB 10-Gigabit  |  
+        link status     |          UP          |  
+        link speed      |       10 Gb/s        |  
+        port status     |         IDLE         |  
+        promiscuous     |         off          |  
+        flow ctrl       |         none         |  
+        --              |                      |  
+        src IPv4        |          -           |  
+        src MAC         |  00:00:00:01:00:00   |  
+        ---             |                      |  
+        Destination     |  00:00:00:01:00:00   |  
+        ARP Resolution  |          -           |  
+        ----            |                      |  
+        PCI Address     |     0000:03:00.0     |  
+        NUMA Node       |          0           |  
+        -----           |                      |  
+        RX Filter Mode  |    hardware match    |  
+        RX Queueing     |         off          |  
+        RX sniffer      |         off          |  
+        Grat ARP        |         off          |  
+        
+----
+<1> disable service mode 
+
+
+
+.Python API:
+[source,python]
+----
+
+client.set_service_mode(ports = [0, 1], enabled = True)                  <1>
 
 # configure port 0, 1 to Layer 3 mode
-client.set_l3_mode(port = 0, src_ipv4 = '1.1.1.2', dst_ipv4 = '1.1.1.2')
-client.set_l3_mode(port = 1, src_ipv4 = '1.1.2.2', dst_ipv4 = '1.1.2.1')
+client.set_l3_mode(port = 0, src_ipv4 = '1.1.1.2', dst_ipv4 = '1.1.1.2') <2>
+client.set_l3_mode(port = 1, src_ipv4 = '1.1.2.2', dst_ipv4 = '1.1.2.1') 
     
 # ARP resolve ports 0, 1
 c.resolve(ports = [0, 1])
 
-client.set_service_mode(ports = [0, 1], enabled = False)
+client.set_service_mode(ports = [0, 1], enabled = False)                 <3>
 
 ----
+<1> Enable service mode
+<2> configure IPv4 and Default Gateway 
+<3> Disable service mode
 
 ==== ICMP
 
@@ -450,10 +539,9 @@ Another basic protocol provided with TRex is ICMP.
 It is possible, under service mode to ping the DUT or even a TRex port
 from the console / API.
 
+.TRex Console
 [source,bash]
 ----
-
-*TRex Console*:
 
 trex(service)>ping --help
 usage: ping [-h] --port PORT -d PING_IPV4 [-s PKT_SIZE] [-n COUNT]
@@ -477,8 +565,13 @@ Reply from 1.1.2.2: bytes=64, time=1.31ms, TTL=127
 Reply from 1.1.2.2: bytes=64, time=1.78ms, TTL=127
 Reply from 1.1.2.2: bytes=64, time=1.95ms, TTL=127
 
+----
 
-*Trex API*:
+
+
+.Python API
+[source,python]
+----
 
 # move to service mode
 client.set_service_mode(ports = ports, enabled = True)
@@ -488,13 +581,18 @@ client.set_l3_mode(port = 0, src_ipv4 = '1.1.1.2', dst_ipv4 = '1.1.1.1')
 client.set_l3_mode(port = 1, src_ipv4 = '1.1.2.2', dst_ipv4 = '1.1.2.1')
 
 # ping port 1 from port 0 through the router
-client.ping_ip(src_port = 0, dst_ipv4 = '1.1.2.2', pkt_size = 64)
+client.ping_ip(src_port = 0, dst_ipv4 = '1.1.2.2', pkt_size = 64)        <1>
     
 # disable service mode
 client.set_service_mode(enabled = False)
 
 ----
+<1> Check connectivity
 
+
+==== IPv6 ND/DHCP client
+
+in progress 
 
 
 === Tutorials
