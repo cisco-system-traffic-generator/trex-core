@@ -103,8 +103,6 @@ extern "C" {
 
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
-extern "C" int rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id);
-void reorder_dpdk_ports();
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
 #define RTE_TEST_RX_DESC_DROP    0
@@ -5444,12 +5442,10 @@ int  update_dpdk_args(void){
             global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
             global_dpdk_args[global_dpdk_args_num++]=(char *)lpop->dump_interfaces[i].c_str();
         }
-    }
-    else {
-        for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
-            global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
-            global_dpdk_args[global_dpdk_args_num++]=(char *)global_platform_cfg_info.m_if_list[i].c_str();
-        }
+    } else {
+        // add here only first interface. if give them all, they will be sorted alphanumerically.
+        global_dpdk_args[global_dpdk_args_num++]=(char *)"-w";
+        global_dpdk_args[global_dpdk_args_num++]=(char *)global_platform_cfg_info.m_if_list[0].c_str();
     }
 
 
@@ -5598,7 +5594,27 @@ int main_test(int argc , char * argv[]){
         dump_interfaces_info();
         exit(0);
     }
-    reorder_dpdk_ports();
+
+    // now attach the rest of interfaces in "our" order
+    for (uint8_t i=1; i<global_platform_cfg_info.m_if_list.size(); i++) {
+        uint8_t port_id;
+        struct rte_pci_addr dev_addr;
+        std::string pci_addr_str(global_platform_cfg_info.m_if_list[i]);
+        if ( eal_parse_pci_BDF(pci_addr_str.c_str(), &dev_addr) == 0 ) {
+            pci_addr_str = "0000:" + pci_addr_str;
+        } else if (eal_parse_pci_DomBDF(pci_addr_str.c_str(), &dev_addr) != 0) {
+            rte_exit(EXIT_FAILURE, "Bad PCI address '%s'\n", global_platform_cfg_info.m_if_list[i].c_str());
+        }
+        ret = rte_eth_dev_attach(pci_addr_str.c_str(), &port_id);
+        if (ret < 0) {
+            rte_exit(EXIT_FAILURE, "Failed to attach PCI '%s'\n", global_platform_cfg_info.m_if_list[i].c_str());
+        }
+        if (i != port_id) {
+            rte_exit(EXIT_FAILURE, "Expected from DPDK to get port id: %d, but got: %d for PCI '%s'\n",
+                    i, port_id, global_platform_cfg_info.m_if_list[i].c_str());
+        }
+    }
+
     time_init();
 
     /* check if we are in simulation mode */
@@ -5743,36 +5759,6 @@ void wait_x_sec(int sec) {
     fflush(stdout);
 }
 
-/*
-Changes the order of rte_eth_devices array elements
-to be consistent with our /etc/trex_cfg.yaml
-*/
-void reorder_dpdk_ports() {
-    rte_eth_dev rte_eth_devices_temp[RTE_MAX_ETHPORTS];
-    uint8_t m_port_map[RTE_MAX_ETHPORTS];
-    struct rte_pci_addr addr;
-    uint8_t port_id;
-
-    // gather port relation information and save current array to temp
-    for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
-        memcpy(&rte_eth_devices_temp[i], &rte_eth_devices[i], sizeof rte_eth_devices[i]);
-        if (eal_parse_pci_BDF(global_platform_cfg_info.m_if_list[i].c_str(), &addr) != 0 && eal_parse_pci_DomBDF(global_platform_cfg_info.m_if_list[i].c_str(), &addr) != 0) {
-            printf("Failed mapping TRex port id to DPDK id: %d\n", i);
-            exit(1);
-        }
-        rte_eth_dev_get_port_by_addr(&addr, &port_id);
-        m_port_map[port_id] = i;
-        // print the relation in verbose mode
-        if ( CGlobalInfo::m_options.preview.getVMode() > 0){
-            printf("TRex cfg port id: %d <-> DPDK port id: %d\n", i, port_id);
-        }
-    }
-
-    // actual reorder
-    for (int i=0; i<(int)global_platform_cfg_info.m_if_list.size(); i++) {
-        memcpy(&rte_eth_devices[m_port_map[i]], &rte_eth_devices_temp[i], sizeof rte_eth_devices_temp[i]);
-    }
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////

@@ -450,8 +450,7 @@ rte_eth_dev_get_port_by_name(const char *name, uint8_t *port_id)
 	return -ENODEV;
 }
 
-/* TREX_PATCH removed "static" */
-int
+static int
 rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id)
 {
 	int i;
