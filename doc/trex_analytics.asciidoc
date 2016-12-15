@@ -1,4 +1,4 @@
-TRex Analytics Report
+TRex Performance Trend
 ======================
 :email: trex.tgen@gmail.com 
 :quotes.++:
