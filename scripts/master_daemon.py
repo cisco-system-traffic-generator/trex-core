@@ -162,6 +162,11 @@ def _check_path_under_current_or_temp(path):
 if getpass.getuser() != 'root':
     fail('Please run this program as root/with sudo')
 
+pid = os.getpid()
+ret = os.system('taskset -pc 0 %s' % pid)
+if ret:
+    fail('Could not set self affinity to core zero.')
+
 daemon_actions = OrderedDict([('start', 'start the daemon'),
                               ('stop', 'exit the daemon process'),
                               ('show', 'prompt the status of daemon process (running / not running)'),
