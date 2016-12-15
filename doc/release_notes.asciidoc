@@ -29,7 +29,8 @@ endif::backend-docbook[]
 ** Only CentOs/RedHat 7.2 and up is supported due to OFED issues
 ** Improve 64Byte Stateleess performance 
 * Cisco VIC is fully supported 
-* Stateless neighboring protocols infra and first protocols support/Python API - TBD point to documentation and examples  
+* Stateless L2/L3 configuration mode for ports - link:trex_stateless.html#_port_layer_mode_configuration[Port Layer Mode Configuration]
+* Stateless neighboring protocols infra and first protocols support/Python API - link:trex_stateless.html#_neighboring_protocols[Neighboring Protocols]
 * Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
 * Added Stateless performance trend document link:trex_analytics.html[trex performance trend]
 
