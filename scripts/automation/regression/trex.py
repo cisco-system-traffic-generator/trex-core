@@ -35,7 +35,7 @@ class CTRexScenario:
     report_dir       = 'reports'
     # logger         = None
     test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': []}
-    is_copied        = False
+    pkg_updated      = False
     GAManager        = None
     no_daemon        = False
     debug_image      = False

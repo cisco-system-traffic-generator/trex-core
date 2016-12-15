@@ -137,35 +137,29 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--stf', '--stateful', action="store_true", default = False,
                             dest="stateful",
                             help="Run stateful tests.")
-        parser.add_option('--pkg', action="store",
-                            dest="pkg",
-                            help="Run with given TRex package. Make sure the path available at server machine.")
+        parser.add_option('--pkg', type = str,
+                            help="Run with given TRex package. Make sure the path available at server machine. Implies --restart-daemon.")
+        parser.add_option('--restart-daemon', action="store_true", default = False,
+                            help="Flag that specifies to restart daemon. Implied by --pkg.")
         parser.add_option('--collect', action="store_true", default = False,
-                            dest="collect",
                             help="Alias to --collect-only.")
         parser.add_option('--warmup', action="store_true", default = False,
-                            dest="warmup",
                             help="Warm up the system for stateful: run 30 seconds 9k imix test without check of results.")
         parser.add_option('--test-client-package', '--test_client_package', action="store_true", default = False,
-                            dest="test_client_package",
                             help="Includes tests of client package.")
         parser.add_option('--long', action="store_true", default = False,
-                            dest="long",
                             help="Flag of long tests (stability).")
         parser.add_option('--ga', action="store_true", default = False,
-                            dest="ga",
                             help="Flag to send benchmarks to GA.")
         parser.add_option('--no-daemon', action="store_true", default = False,
                             dest="no_daemon",
                             help="Flag that specifies to use running stl server, no need daemons.")
         parser.add_option('--debug-image', action="store_true", default = False,
-                            dest="debug_image",
                             help="Flag that specifies to use t-rex-64-debug as TRex executable.")
-        parser.add_option('--trex-args', action='store', default = '',
-                            dest="trex_args",
+        parser.add_option('--trex-args', default = '',
                             help="Additional TRex arguments (--no-watchdog etc.).")
-        parser.add_option('-t', '--test', action='store', default = '', dest='test',
-                            help='Test name to run (without file, class etc.)')
+        parser.add_option('-t', '--test', type = str,
+                            help = 'Test name to run (without file, class etc.)')
 
 
     def configure(self, options, conf):
@@ -174,10 +168,13 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.stateless      = options.stateless
         self.stateful       = options.stateful
         self.pkg            = options.pkg
+        self.restart_daemon = options.restart_daemon
         self.json_verbose   = options.json_verbose
         self.telnet_verbose = options.telnet_verbose
         self.no_daemon      = options.no_daemon
         CTRexScenario.test  = options.test
+        if self.no_daemon and (self.pkg or self.restart_daemon):
+            raise Exception('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
         if self.collect_only or self.functional:
             return
         if CTRexScenario.setup_dir and options.config_path:
@@ -212,6 +209,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                                                   verbose     = self.json_verbose,
                                                   debug_image = options.debug_image,
                                                   trex_args   = options.trex_args)
+        if self.pkg or self.restart_daemon:
             if not CTRexScenario.trex.check_master_connectivity():
                 print('Could not connect to master daemon')
                 sys.exit(-1)
@@ -228,20 +226,20 @@ class CTRexTestConfiguringPlugin(Plugin):
 
     def begin (self):
         client = CTRexScenario.trex
-        if self.pkg and not CTRexScenario.is_copied:
+        if self.pkg and not CTRexScenario.pkg_updated:
             if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
-                print("Can't update TRex, it's running")
+                print("Can't update TRex, it's running. Consider adding --kill-running flag.")
                 sys.exit(-1)
             print('Updating TRex to %s' % self.pkg)
             if not client.master_daemon.update_trex(self.pkg):
-                print('Failed updating TRex')
+                print('Failed updating TRex.')
                 sys.exit(-1)
             else:
-                print('Updated')
-            CTRexScenario.is_copied = True
+                print('Updated.')
+            CTRexScenario.pkg_updated = True
         if self.functional or self.collect_only:
             return
-        if not self.no_daemon:
+        if self.pkg or self.restart_daemon:
             print('Restarting TRex daemon server')
             res = client.restart_trex_daemon()
             if not res:
