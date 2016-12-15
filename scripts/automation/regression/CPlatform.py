@@ -499,6 +499,8 @@ class CPlatform(object):
             
             client_net_next_hop = misc_methods.get_single_net_client_addr(dual_if.server_if.get_ipv6_addr(), {'7':1}, ip_type = 'ipv6' )
             server_net_next_hop = misc_methods.get_single_net_client_addr(dual_if.client_if.get_ipv6_addr(), {'7':1}, ip_type = 'ipv6' )
+            client_net_next_hop_v4 = misc_methods.get_single_net_client_addr(dual_if.server_if.get_ipv4_addr() )
+            server_net_next_hop_v4 = misc_methods.get_single_net_client_addr(dual_if.client_if.get_ipv4_addr() )
 
 
             client_if_command_set.append ('{mode}ipv6 enable'.format(mode = unconfig_str))
@@ -526,12 +528,23 @@ class CPlatform(object):
                     next_hop = server_net_next_hop, 
                     intf = dual_if.client_if.get_name(),
                     dest_mac = dual_if.client_if.get_ipv6_dest_mac()))
+                # For latency packets (which are IPv4), we need to configure also static ARP
+                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                    mode = unconfig_str,
+                    next_hop = server_net_next_hop_v4,
+                    dest_mac = dual_if.client_if.get_ipv6_dest_mac()))
+
             if dual_if.server_if.get_ipv6_dest_mac():
                 conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
-                    next_hop = client_net_next_hop, 
+                    next_hop = client_net_next_hop,
                     intf = dual_if.server_if.get_name(),
                     dest_mac = dual_if.server_if.get_ipv6_dest_mac()))
+                # For latency packets (which are IPv4), we need to configure also static ARP
+                conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
+                        mode = unconfig_str,
+                        next_hop = client_net_next_hop_v4,
+                        dest_mac = dual_if.server_if.get_ipv6_dest_mac()))
 
             conf_t_command_set.append('{mode}route-map {pre}_{p1}_to_{p2} permit 10'.format(
                     mode = unconfig_str,
