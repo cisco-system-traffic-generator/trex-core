@@ -186,6 +186,14 @@ image:images/trex07_trend_graph.png[title="trex07_trend_graph",align="left",widt
 include::build/images/trex07_trend_stats.csv[]
 |===
 
+== Comparison between Mellanox ConnectX-4 (2x100GbE) (trex-07) and XL710 (4x40GbE)  (trex-08)
+image:images/_comparison.png[title="comparison",align="left",width={p_width}, link="images/_comparison.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/_comparison_stats_table.csv[]
+|===
+
 
 == Raw information 
 
