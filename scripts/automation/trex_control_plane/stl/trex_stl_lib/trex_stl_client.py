@@ -101,7 +101,8 @@ class LoggerApi(object):
 
             def __enter__ (self):
                 self.saved_level = self.logger.get_verbose()
-                self.logger.set_verbose(self.level)
+                if self.level < self.saved_level:
+                    self.logger.set_verbose(self.level)
 
             def __exit__ (self, type, value, traceback):
                 self.logger.set_verbose(self.saved_level)
