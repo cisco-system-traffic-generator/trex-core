@@ -126,32 +126,32 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
 
 }
 
-rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,uint32_t extern_ip){
-    bool is_client_to_server=(port_id%2==0)?true:false;
+rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
+    bool is_client_to_server = (port_id % 2 == 0) ? true:false;
+    int dual_port_index = port_id >> 1;
+    uint32_t mask = dual_port_index * m_dual_port_mask;
+    uint32_t c = m_client_ip.v4;
+    uint32_t s = m_server_ip.v4;
 
-    int dual_port_index=(port_id>>1);
-    uint32_t c=m_client_ip.v4;
-    uint32_t s=m_server_ip.v4;
-    if ( extern_ip ){
-        c=extern_ip;
+    if (is_client_to_server) {
+        if ( extern_ip ) {
+            m_dummy_node.m_src_ip = extern_ip;
+        } else {
+            m_dummy_node.m_src_ip = c + mask;
+        }
+        m_dummy_node.m_dest_ip = s + mask;
+    } else {
+        if ( extern_ip ) {
+            m_dummy_node.m_dest_ip = extern_ip;
+        } else {
+            m_dummy_node.m_dest_ip = c + mask;
+        }
+        m_dummy_node.m_src_ip = s + mask;
     }
 
-    if (!is_client_to_server) {
-        /*swap */
-        uint32_t t=c;
-        c=s;
-        s=t;
-    }
-    uint32_t mask=dual_port_index*m_dual_port_mask;
-    if ( extern_ip==0 ){
-       c+=mask;
-    }
-    s+=mask;
-    m_dummy_node.m_src_ip  = c;
-    m_dummy_node.m_dest_ip   = s;
+    rte_mbuf_t *m = m_pkt_info.generate_new_mbuf(&m_dummy_node);
 
-    rte_mbuf_t * m=m_pkt_info.generate_new_mbuf(&m_dummy_node);
-    return (m);
+    return m;
 }
 
 void CLatencyPktInfo::set_ip(uint32_t src,
