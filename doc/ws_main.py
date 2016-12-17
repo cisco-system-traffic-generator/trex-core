@@ -1129,6 +1129,13 @@ def publish_perf(bld):
     rsync_int(bld, 'images/_detailed_table.csv', 'images/')
     rsync_ext(bld, 'images/_detailed_table.csv', 'images/')
 
+    rsync_int(bld, 'images/_comparison.png', 'images/')
+    rsync_ext(bld, 'images/_comparison.png', 'images/')
+
+    rsync_int(bld, 'images/_comparison_stats_table.csv', 'images/')
+    rsync_ext(bld, 'images/_comparison_stats_table.csv', 'images/')
+    
+
 
 def publish_test(bld):
     # copy all the files to our web server 
