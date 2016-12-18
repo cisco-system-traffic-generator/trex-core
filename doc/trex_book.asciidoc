@@ -973,7 +973,7 @@ The above configuration will divide the generator range of 255 clients to two cl
 of IPs in all groups in the client config file together, must cover the entire range of client IPs
 from the traffic profile file.
 
-MACs will be allocated incrementally, with a wrap around after count addresses.
+MACs will be allocated incrementally, with a wrap around after ``count'' addresses.
 
 e.g.
 
@@ -992,10 +992,12 @@ e.g.
 * 48.x.x.x -> 16.0.0.2  - dst_mac(from responder) : "00:00:00:02:00:01" , vlan:200
 
 and so on. +
-This means that the DUT MACs of each cluster has to be changed to be sequential. Other option is to
+ +
+This means that the MAC addresses of DUTs must be changed to be sequential. Other option is to
 specify instead of ``dst_mac'', ip address, using ``next_hop''. +
 For example, config file first group will look like:
 
+[source,bash]
 ----
 -    ip_start  : 16.0.0.1
      ip_end    : 16.0.0.204
@@ -1019,6 +1021,21 @@ IP in the relevant port section in the platform config file (/etc/trex_cfg.yaml)
 will exit with an error message. +
 If client config file is given, the ``dest_mac'' and ``default_gw'' parameters from the platform config
 file are ignored.
+
+Now, streams will look like: +
+*Initiator side: (packets with source in 16.x.x.x net)*
+
+* 16.0.0.1 -> 48.x.x.x - dst_mac: MAC of 1.1.1.1  vlan: 100
+* 16.0.0.2 -> 48.x.x.x - dst_mac: MAC of 1.1.1.2  vlan: 100
+* 16.0.0.3 -> 48.x.x.x - dst_mac: MAC of 1.1.1.3  vlan: 100
+* 16.0.0.4 -> 48.x.x.x - dst_mac: MAC of 1.1.1.4  vlan: 100
+* 16.0.0.5 -> 48.x.x.x - dst_mac: MAC of 1.1.1.1  vlan: 100
+* 16.0.0.6 -> 48.x.x.x - dst_mac: MAC of 1.1.1.2  vlan: 100
+
+*responder side: (packets with source in 48.x.x.x net)*
+
+* 48.x.x.x -> 16.0.0.1  - dst_mac: MAC of 2.2.2.1 , vlan:200
+* 48.x.x.x -> 16.0.0.2  - dst_mac: MAC of 2.2.2.2 , vlan:200
 
 
 [NOTE]
