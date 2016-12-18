@@ -41,7 +41,7 @@ def generate_dframe_arr_and_stats_of_tests_per_setup(date, setup_name, setup_dic
         dframe_arr_detailed.append(df_detailed)
         dframe_arr_trend.append(df)
         stats_arr.append(stats)
-        df_latest = float(setup_dict[test][-1][6])
+        df_latest = float(setup_dict[test][-1][5])
         dframe_arr_latest.append(df_latest)
     dframe_arr_latest = pd.DataFrame({'Date': [date] * len(dframe_arr_latest),
                                       'Setup': [setup_name],
@@ -129,6 +129,7 @@ def latest_runs_comparison_bar_chart(setup_name1, setup_name2, setup1_latest_res
     plt.title("Comparison between " + setup_name1 + " and " + setup_name2)
     if save_path:
         plt.savefig(os.path.join(save_path, "_comparison.png"))
+        compare_dframe = compare_dframe.round(2)
         compare_dframe.to_csv(os.path.join(save_path, '_comparison_stats_table.csv'))
     if show == 'yes':
         plt.show()
