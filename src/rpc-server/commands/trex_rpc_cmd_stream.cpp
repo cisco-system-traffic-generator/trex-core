@@ -40,7 +40,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
 
-    uint32_t stream_id  = parse_int(params, "stream_id", result);
+    uint32_t stream_id  = parse_uint32(params, "stream_id", result);
 
     const Json::Value &section = parse_object(params, "stream", result);
 
@@ -62,7 +62,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
 
     /* inter stream gap */
-    stream->m_isg_usec  = parse_double(section, "isg", result);
+    stream->m_isg_usec  = parse_udouble(section, "isg", result);
 
     stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
@@ -114,7 +114,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
             generate_parse_err(result, "RX stats is not supported on this interface");
         }
 
-        stream->m_rx_check.m_pg_id      = parse_int(rx, "stream_id", result);
+        stream->m_rx_check.m_pg_id      = parse_uint32(rx, "stream_id", result);
         std::string type = parse_string(rx, "rule_type", result);
         if (type == "latency") {
             stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
@@ -155,7 +155,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     } else if (type == "single_burst") {
 
-        uint32_t total_pkts      = parse_int(mode, "total_pkts", result);
+        uint32_t total_pkts      = parse_uint32(mode, "total_pkts", result);
 
         stream.reset(new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id));
         stream->set_single_burst(total_pkts);
@@ -163,9 +163,9 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     } else if (type == "multi_burst") {
 
-        double    ibg_usec         = parse_double(mode, "ibg", result);
-        uint32_t  num_bursts       = parse_int(mode, "count", result);
-        uint32_t  pkts_per_burst   = parse_int(mode, "pkts_per_burst", result);
+        double    ibg_usec         = parse_udouble(mode, "ibg", result);
+        uint32_t  num_bursts       = parse_uint32(mode, "count", result);
+        uint32_t  pkts_per_burst   = parse_uint32(mode, "pkts_per_burst", result);
 
         stream.reset(new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id ));
         stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
@@ -186,12 +186,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 void 
 TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
-    double value = parse_double(rate, "value", result);
-    if (value <= 0) {
-        std::stringstream ss;
-        ss << "rate value must be a positive number - got: '" << value << "'";
-        generate_parse_err(result, ss.str());
-    }
+    double value = parse_udouble(rate, "value", result);
 
     auto rate_types = {"pps", "bps_L1", "bps_L2", "percentage"};
     std::string rate_type = parse_choice(rate, "type", rate_types, result);
@@ -533,7 +528,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    uint32_t stream_id = parse_int(params, "stream_id", result);
+    uint32_t stream_id = parse_uint32(params, "stream_id", result);
     TrexStream *stream = port->get_stream_by_id(stream_id);
 
     if (!stream) {
@@ -615,7 +610,7 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     bool     get_pkt   = parse_bool(params, "get_pkt", result);
-    uint32_t stream_id = parse_int(params, "stream_id", result);
+    uint32_t stream_id = parse_uint32(params, "stream_id", result);
 
     TrexStream *stream = port->get_stream_by_id(stream_id);
 
@@ -660,9 +655,9 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
     std::string op     = parse_string(mul_obj, "op", result);
-    double      value  = parse_double(mul_obj, "value", result);
+    double      value  = parse_udouble(mul_obj, "value", result);
     
-    if ( value <=0 ){
+    if ( value == 0 ){
         generate_parse_err(result, "multiplier can't be zero");
     }
 

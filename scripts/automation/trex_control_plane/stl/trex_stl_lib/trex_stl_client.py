@@ -2509,7 +2509,8 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 ipg_usec : float
-                    Inter-packet gap in microseconds
+                    Inter-packet gap in microseconds.
+                    Exclusive with min_ipg_usec
 
                 speedup : float
                     A factor to adjust IPG. effectively IPG = IPG / speedup
@@ -2528,6 +2529,7 @@ class STLClient(object):
 
                 min_ipg_usec : float
                     Minimum inter-packet gap in microseconds to guard from too small ipg.
+                    Exclusive with ipg_usec
 
             :raises:
                 + :exc:`STLError`
@@ -2596,7 +2598,8 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 ipg_usec : float
-                    Inter-packet gap in microseconds
+                    Inter-packet gap in microseconds.
+                    Exclusive with min_ipg_usec
 
                 speedup : float
                     A factor to adjust IPG. effectively IPG = IPG / speedup
@@ -2624,6 +2627,7 @@ class STLClient(object):
 
                 min_ipg_usec : float
                     Minimum inter-packet gap in microseconds to guard from too small ipg.
+                    Exclusive with ipg_usec
 
             :raises:
                 + :exc:`STLError`
@@ -2640,6 +2644,8 @@ class STLClient(object):
         validate_type('vm', vm, (list, type(None)))
         validate_type('is_dual', is_dual, bool)
         validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
+        if all([ipg_usec, min_ipg_usec]):
+            raise STLError('Please specify either ipg or minimal ipg, not both.')
 
 
         # no support for > 1MB PCAP - use push remote
@@ -3696,24 +3702,24 @@ class STLClient(object):
 
         if opts.remote:
             self.push_remote(opts.file[0],
-                             ports     = opts.ports,
-                             ipg_usec  = opts.ipg_usec,
+                             ports          = opts.ports,
+                             ipg_usec       = opts.ipg_usec,
                              min_ipg_usec   = opts.min_ipg_usec,
-                             speedup   = opts.speedup,
-                             count     = opts.count,
-                             duration  = opts.duration,
-                             is_dual   = opts.dual)
+                             speedup        = opts.speedup,
+                             count          = opts.count,
+                             duration       = opts.duration,
+                             is_dual        = opts.dual)
 
         else:
             self.push_pcap(opts.file[0],
-                           ports     = opts.ports,
-                           ipg_usec  = opts.ipg_usec,
+                           ports          = opts.ports,
+                           ipg_usec       = opts.ipg_usec,
                            min_ipg_usec   = opts.min_ipg_usec,
-                           speedup   = opts.speedup,
-                           count     = opts.count,
-                           duration  = opts.duration,
-                           force     = opts.force,
-                           is_dual   = opts.dual)
+                           speedup        = opts.speedup,
+                           count          = opts.count,
+                           duration       = opts.duration,
+                           force          = opts.force,
+                           is_dual        = opts.dual)
 
         
 

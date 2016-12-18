@@ -1028,6 +1028,11 @@ class STLProfile(object):
         # check filename
         if not os.path.isfile(pcap_file):
             raise STLError("file '{0}' does not exists".format(pcap_file))
+        if speedup <= 0:
+            raise STLError('Speedup should not be negative.')
+        if min_ipg_usec and min_ipg_usec < 0:
+            raise STLError('min_ipg_usec should not be negative.')
+
 
         # make sure IPG is not less than 0.001 usec
         if (ipg_usec is not None and (ipg_usec < 0.001 * speedup) and
@@ -1092,34 +1097,24 @@ class STLProfile(object):
     def __pkts_to_streams (pkts, ipg_usec, min_ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
 
         streams = []
-        if speedup == 0:
-            raise STLError('Speedup should not be 0')
-        if min_ipg_usec and min_ipg_usec < 0:
-            raise STLError('min_ipg_usec should not be negative.')
-
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
 
-        if ipg_usec == None:
-            constant_diff = None
-        else:
-            constant_diff = ipg_usec / float(speedup)
-            if min_ipg_usec is not None:
-                constant_diff = max(constant_diff, min_ipg_usec)
-
         for i, (cap, meta) in enumerate(pkts, start = 1):
             # IPG - if not provided, take from cap
-            if constant_diff is None:
+            if ipg_usec is None:
                 packet_time = meta[0] * 1e6 + meta[1]
                 if i == 1:
-                    isg = min_ipg_usec if min_ipg_usec else 0
-                else:
-                    isg = (packet_time - prev_time) / float(speedup)
-                    if min_ipg_usec:
-                        isg = max(isg, min_ipg_usec)
+                    prev_time = packet_time
+                isg = (packet_time - prev_time) / float(speedup)
+                if min_ipg_usec and isg < min_ipg_usec:
+                    isg = min_ipg_usec
                 prev_time = packet_time
-            else:
-                isg = constant_diff
+            else: # user specified ipg
+                if min_ipg_usec:
+                    isg = min_ipg_usec
+                else:
+                    isg = ipg_usec / float(speedup)
 
             # handle last packet
             if i == len(pkts):
@@ -1128,28 +1123,12 @@ class STLProfile(object):
             else:
                 next = i + 1
                 action_count = 0
-            self_start = False if i != 1 else True
-
-            # add stream with delay that will not be part of loop: "delayed_start" -> 1 -> 2 -> 3 -> ... -> 1 -> 2
-            if start_delay_usec and i == 1:
-                if loop_count == 1: # no loop actually
-                    isg = start_delay_usec
-                else:
-                    streams.append(STLStream(name = 'delayed_start',
-                                             packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
-                                             mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
-                                             self_start = True,
-                                             isg = start_delay_usec,
-                                             action_count = action_count,
-                                             next = next))
-                    action_count = max(0, action_count - 1)
-                    self_start = False
 
             streams.append(STLStream(name = i,
                                      packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
                                      mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
-                                     self_start = self_start,
-                                     isg = isg,
+                                     self_start = True if (i == 1) else False,
+                                     isg = isg,  # usec
                                      action_count = action_count,
                                      next = next))
 

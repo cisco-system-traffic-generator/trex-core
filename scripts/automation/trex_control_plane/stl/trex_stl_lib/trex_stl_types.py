@@ -60,11 +60,10 @@ class RC():
             show_count = 10
             err_list = []
             err_count = 0
-            for x in self.rc_list:
-                if x.data and not x.rc:
-                    err_count += 1
-                    if len(err_list) < show_count:
-                        err_list.append(format_text(x.data, 'bold'))
+            for x in filter(len, listify(self.err())):
+                err_count += 1
+                if len(err_list) < show_count:
+                    err_list.append(format_text(x, 'bold'))
             s = '\n' if len(err_list) > 1 else ''
             if err_count > show_count:
                 s += format_text('Occurred %s errors, showing first %s:\n' % (err_count, show_count), 'bold')

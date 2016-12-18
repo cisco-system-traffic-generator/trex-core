@@ -909,8 +909,8 @@ TrexStatelessPort::add_stream(TrexStream *stream) {
 
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "add_stream");
 
-    if (m_stream_table.size() >= 20000) {
-        throw TrexException("Reached limit of 20k streams at the port.");
+    if (m_stream_table.size() >= MAX_STREAMS) {
+        throw TrexException("Reached limit of " + std::to_string(MAX_STREAMS) + " streams at the port.");
     }
     get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
 

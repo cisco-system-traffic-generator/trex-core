@@ -131,21 +131,13 @@ def yellow(text):
 def underline(text):
     return text_attribute(text, 'underline')
 
-
-start_end_newlines = re.compile('^(\n)*([^\n].*[^\n])?(\n)*$', re.DOTALL)
+# apply attribute on each non-empty line
 def text_attribute(text, attribute):
-    match = start_end_newlines.match(text)
-    try:
-        startpad, msg, endpad = match.groups('')
-    except:
-        startpad = endpad = ''
-        msg = text
-    return "{startpad}{startattr}{txt}{endattr}{endpad}".format(
-                startpad = startpad,
-                startattr = TEXT_CODES[attribute]['start'],
-                txt = msg,
-                endattr = TEXT_CODES[attribute]['end'],
-                endpad = endpad)
+    return '\n'.join(['{start}{txt}{end}'.format(
+            start = TEXT_CODES[attribute]['start'],
+            txt = line,
+            end = TEXT_CODES[attribute]['end'])
+                    if line else '' for line in ('%s' % text).split('\n')])
 
 
 FUNC_DICT = {'blue': blue,
