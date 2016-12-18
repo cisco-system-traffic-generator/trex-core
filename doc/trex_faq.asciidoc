@@ -84,7 +84,11 @@ a new firmware version is needed.
 Not yet. Support for FM10K and Mellanox Connectx5 is under development.
 
 ==== Is there a GUI?
-TRex team is not developing it. Have a look link:https://groups.google.com/forum/#!searchin/trex-tgn/sari%7Csort:relevance/trex-tgn/R92-N2Yjy2Q/DIUe06YCBgAJ[here] for TRex Stateless mode GUI from Exalt company.
+TRex team is not developing it.
+You can find GUI for statless mode developed by Exalt company in 
+link:https://github.com/exalt-tech/trex-stateless-gui#trex-stateless-gui-beta[this link]. +
+There is also work in progress for packet editor (not released yet) in link:https://github.com/cisco-system-traffic-generator/trex-packet-editor[here]. +
+New stateless GUI features are developed in link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here]. This is also work in progress, not released yet.
 
 ==== What is the maximum number of ports per TRex application?
 12 ports
@@ -119,7 +123,10 @@ This is still better than the Intel x520 (82559 based) which can reach ~30MPPS f
 ==== I have XL710 NIC with 2x40Gb/sec ports and I can not get line rate
 XL710-da2 with 2 40G ports can reach maximum of 40MPPS/50Gb (total for all ports) and not 60MPPS with small packets (64B)
 Intel had in mind redundancy use case when they produced a two port NIC. Card was not intended to reach 80G line rate.
-see link:trex_stateless_bench.html[xl710_benchmark.html] for more info 
+see link:trex_stateless_bench.html[xl710_benchmark.html] for more info.
+
+====  How does TRex calculate the throughput and where is this part of source code located?
+There is good answer in the mailing list link:https://groups.google.com/forum/#!topic/trex-tgn/Hk9IFJJ0KNs[here].
 
 ==== I want to contribute to the project
 You have several ways you can help: +
@@ -473,6 +480,12 @@ You can see example for defining and using tunables link:trex_stateless.html#_tu
 
 Correct. We use NIC capabilities for counting the packets or directing them to be handled by software. Each NIC has its own capabilities. Look link:trex_stateless.html#_tutorial_per_stream_statistics[here] for per stream statistics and link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] for latency details.
 
+===== I use per stream statistics on x710/xl710 card and rx-bps counter from python API (and rx bytes releated counters in console)
+always show N/A
+
+This is because on these card types, we use hardware counters (as opposed to counting in software in other card types).
+While this allows for counting of full 40G line rate streams, this does not allow for counting bytes (only packet
+count available), because the hardware on these NICs lacks this support.
 
 
 

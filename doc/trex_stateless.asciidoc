@@ -2878,6 +2878,8 @@ trex>
 ** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
 
 * Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
+* On x710/xl710 cards, all rx bytes counters (rx-bps, rx-bps-L1, ...) are not supported. This is because we use hardware
+counters which support only packets count on these cards.
 
 Two examples follow, one using the console and the other using the Python API.
 
