@@ -2003,6 +2003,8 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+        return rc.data()
+
     @__api_check(True)
     def get_util_stats(self):
         """
