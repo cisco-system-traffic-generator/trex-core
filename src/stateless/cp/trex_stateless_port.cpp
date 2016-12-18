@@ -99,20 +99,26 @@ protected:
  ************************************/
 class StreamsFeeder {
 public:
+    
     StreamsFeeder(TrexStatelessPort *port) {
-
         /* start pesimistic */
         m_success = false;
-
+        
+        m_port = port;
+    }
+    
+    void feed() {
+        
         /* fetch the original streams */
-        port->get_object_list(m_in_streams);
+        m_port->get_object_list(m_in_streams);
 
         for (const TrexStream *in_stream : m_in_streams) {
             TrexStream *out_stream = in_stream->clone(true);
 
-            get_stateless_obj()->m_rx_flow_stat.start_stream(out_stream);
-
             m_out_streams.push_back(out_stream);
+            
+            get_stateless_obj()->m_rx_flow_stat.start_stream(out_stream);
+            
         }
     }
 
@@ -147,6 +153,8 @@ private:
     vector<TrexStream *>  m_in_streams;
     vector<TrexStream *>  m_out_streams;
     bool                  m_success;
+    
+    TrexStatelessPort    *m_port;
 };
 
 
@@ -263,6 +271,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     double factor = calculate_effective_factor(mul, force);
 
     StreamsFeeder feeder(this);
+    feeder.feed();
 
     /* compiler it */
     std::vector<TrexStreamsCompiledObj *> compiled_objs;
