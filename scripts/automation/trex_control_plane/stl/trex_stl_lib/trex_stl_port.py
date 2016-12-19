@@ -114,7 +114,7 @@ class Port(object):
                 return port.err("{0} - port is not owned".format(func.__name__))
 
             if not port.is_writeable():
-                return port.err("{0} - port is not in a writeable state".format(func.__name__))
+                return port.err("{0} - port is active, please stop the port before executing command".format(func.__name__))
 
             return func(*args, **kwargs)
 
@@ -123,7 +123,7 @@ class Port(object):
 
 
     def err(self, msg):
-        return RC_ERR("port {0} : {1}\n".format(self.port_id, msg))
+        return RC_ERR("port {0} : *** {1}".format(self.port_id, msg))
 
     def ok(self, data = ""):
         return RC_OK(data)
@@ -519,7 +519,7 @@ class Port(object):
 
         return self.ok()
      
-    @owned
+    @writeable
     def set_l2_mode (self, dst_mac):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring L2 mode. Please enable service mode')
@@ -535,7 +535,7 @@ class Port(object):
         return self.sync()
         
         
-    @owned
+    @writeable
     def set_l3_mode (self, src_addr, dest_addr, resolved_mac = None):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring L3 mode. Please enable service mode')

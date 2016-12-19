@@ -799,7 +799,11 @@ TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
         generate_parse_err(result, ss.str());
     }
     
-    port->set_l2_mode(dst_mac);
+    try {
+        port->set_l2_mode(dst_mac);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
     
     return (TREX_RPC_CMD_OK);
 }
@@ -844,11 +848,19 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
             generate_parse_err(result, ss.str());
         } 
     
-        port->set_l3_mode(src_ipv4, dst_ipv4, mac);
+        try {
+            port->set_l3_mode(src_ipv4, dst_ipv4, mac);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
         
     } else {
+        try {
+            port->set_l3_mode(src_ipv4, dst_ipv4);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
         
-        port->set_l3_mode(src_ipv4, dst_ipv4);
     }
     
     return (TREX_RPC_CMD_OK);    

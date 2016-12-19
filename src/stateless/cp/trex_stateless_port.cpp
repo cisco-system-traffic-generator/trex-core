@@ -1004,6 +1004,9 @@ TrexStatelessPort::get_rx_queue_pkts() {
 void
 TrexStatelessPort::set_l2_mode(const uint8_t *dest_mac) {
     
+    /* not valid under traffic */
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l2_mode");
+    
     /* no IPv4 src */
     getPortAttrObj()->set_src_ipv4(0);
     
@@ -1019,6 +1022,9 @@ TrexStatelessPort::set_l2_mode(const uint8_t *dest_mac) {
  */
 void
 TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
+    
+    /* not valid under traffic */
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
     
     /* set src IPv4 */
     getPortAttrObj()->set_src_ipv4(src_ipv4);
@@ -1040,6 +1046,8 @@ TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
  */
 void
 TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac) {
+    
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
     
     /* set src IPv4 */
     getPortAttrObj()->set_src_ipv4(src_ipv4);

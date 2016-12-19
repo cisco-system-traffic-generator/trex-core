@@ -2973,11 +2973,6 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_resolvable_ports()
         ports = self._validate_port_list(ports)
             
-        active_ports = list_intersect(ports, self.get_active_ports())
-        if active_ports:
-            raise STLError('Port(s) {0} are active, please stop them before resolving'.format(active_ports))
-                     
-        
         self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         with self.logger.supress():
             rc = self.__resolve(ports, retries)
