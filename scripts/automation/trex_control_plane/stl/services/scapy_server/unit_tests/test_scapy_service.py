@@ -6,6 +6,7 @@ import re
 from basetest import *
 
 RE_MAC = "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"
+ether_chksum_sz = 4 # this chksum will be added automatically(outside of scapy/packet editor)
 
 TEST_MAC_1 = "10:10:10:10:10:10"
 # Test scapy structure
@@ -78,7 +79,7 @@ def test_build_Raw():
         ])
     assert(str(pkt[Raw].load == "hi"))
 
-def test_build_fixed_pkt_size_bytes_gen():
+def test_build_fixed_pkt_size_template_gen_64():
     pkt = build_pkt_get_scapy([
         layer_def("Ether"),
         layer_def("IP"),
@@ -91,9 +92,9 @@ def test_build_fixed_pkt_size_bytes_gen():
         })
         ])
     print(len(pkt))
-    assert(len(pkt) == 64)
+    assert(len(pkt) == 64 - ether_chksum_sz)
 
-def test_build_fixed_pkt_size_bytes_gen():
+def test_build_fixed_pkt_size_bytes_gen_256():
     pkt = build_pkt_get_scapy([
         layer_def("Ether"),
         layer_def("IP"),
@@ -105,7 +106,7 @@ def test_build_fixed_pkt_size_bytes_gen():
         })
         ])
     print(len(pkt))
-    assert(len(pkt) == 256)
+    assert(len(pkt) == 256 - ether_chksum_sz)
 
 def test_get_all():
     service.get_all(v_handler)
