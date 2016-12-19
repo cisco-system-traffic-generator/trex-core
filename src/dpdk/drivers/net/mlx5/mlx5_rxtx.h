@@ -173,8 +173,8 @@ struct hash_rxq_init {
 			uint16_t size;
 		} hdr;
 		struct ibv_exp_flow_spec_tcp_udp tcp_udp;
-		struct ibv_exp_flow_spec_ipv4 ipv4;
-		struct ibv_exp_flow_spec_ipv6 ipv6;
+		struct ibv_exp_flow_spec_ipv4_ext ipv4;
+		struct ibv_exp_flow_spec_ipv6_ext ipv6;
 		struct ibv_exp_flow_spec_eth eth;
 	} flow_spec; /* Flow specification template. */
 	const struct hash_rxq_init *underlayer; /* Pointer to underlayer. */

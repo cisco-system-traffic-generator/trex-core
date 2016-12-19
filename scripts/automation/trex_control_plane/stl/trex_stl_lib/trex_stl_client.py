@@ -12,7 +12,7 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer
+from .utils.common import *
 from .utils.text_opts import *
 from functools import wraps
 
@@ -24,6 +24,8 @@ import re
 import random
 import json
 import traceback
+import os.path
+
 
 ############################     logger     #############################
 ############################                #############################
@@ -32,9 +34,10 @@ import traceback
 # logger API for the client
 class LoggerApi(object):
     # verbose levels
-    VERBOSE_QUIET   = 0
-    VERBOSE_REGULAR = 1
-    VERBOSE_HIGH    = 2
+    VERBOSE_QUIET         = 0
+    VERBOSE_REGULAR_SYNC  = 1
+    VERBOSE_REGULAR       = 2
+    VERBOSE_HIGH          = 3
 
     def __init__(self):
         self.level = LoggerApi.VERBOSE_REGULAR
@@ -62,7 +65,7 @@ class LoggerApi(object):
 
 
     # simple log message with verbose
-    def log (self, msg, level = VERBOSE_REGULAR, newline = True):
+    def log (self, msg, level = VERBOSE_REGULAR_SYNC, newline = True):
         if not self.check_verbose(level):
             return
 
@@ -90,19 +93,20 @@ class LoggerApi(object):
 
 
     # supress object getter
-    def supress (self):
+    def supress (self, level = VERBOSE_QUIET):
         class Supress(object):
-            def __init__ (self, logger):
+            def __init__ (self, logger, level):
                 self.logger = logger
+                self.level = level
 
             def __enter__ (self):
                 self.saved_level = self.logger.get_verbose()
-                self.logger.set_verbose(LoggerApi.VERBOSE_QUIET)
+                self.logger.set_verbose(self.level)
 
             def __exit__ (self, type, value, traceback):
                 self.logger.set_verbose(self.saved_level)
 
-        return Supress(self)
+        return Supress(self, level)
 
 
 
@@ -175,8 +179,8 @@ class EventsHandler(object):
     def on_async_dead (self):
         if self.client.connected:
             msg = 'Lost connection to server'
-            self.__add_event_log('local', 'info', msg, True)
             self.client.connected = False
+            self.__add_event_log('local', 'info', msg, True)
 
 
     def on_async_alive (self):
@@ -322,25 +326,30 @@ class EventsHandler(object):
 
         # port attr changed
         elif (event_type == 8):
-            port_id = int(data['port_id'])
-            if data['attr'] == self.client.ports[port_id].attr:
-                return # false alarm
-            old_info = self.client.ports[port_id].get_info()
-            self.__async_event_port_attr_changed(port_id, data['attr'])
-            new_info = self.client.ports[port_id].get_info()
-            ev = "port {0} attributes changed".format(port_id)
-            for key, old_val in old_info.items():
-                new_val = new_info[key]
-                if old_val != new_val:
-                    ev += '\n  {key}: {old} -> {new}'.format(
-                            key = key, 
-                            old = old_val.lower() if type(old_val) is str else old_val,
-                            new = new_val.lower() if type(new_val) is str else new_val)
-            show_event = True
 
+            port_id = int(data['port_id'])
+            
+            diff = self.__async_event_port_attr_changed(port_id, data['attr'])
+            if not diff:
+                return
+
+            
+            ev = "port {0} attributes changed".format(port_id)
+            for key, (old_val, new_val) in diff.items():
+                ev += '\n  {key}: {old} -> {new}'.format(
+                        key = key, 
+                        old = old_val.lower() if type(old_val) is str else old_val,
+                        new = new_val.lower() if type(new_val) is str else new_val)
+                
+            show_event = True
+            
+         
+    
         # server stopped
         elif (event_type == 100):
             ev = "Server has stopped"
+            # to avoid any new messages on async
+            self.client.async_client.set_as_zombie()
             self.__async_event_server_stopped()
             show_event = True
 
@@ -392,7 +401,7 @@ class EventsHandler(object):
 
     def __async_event_port_attr_changed (self, port_id, attr):
         if port_id in self.client.ports:
-            self.client.ports[port_id].async_event_port_attr_changed(attr)
+            return self.client.ports[port_id].async_event_port_attr_changed(attr)
 
     # add event to log
     def __add_event_log (self, origin, ev_type, msg, show = False):
@@ -650,7 +659,7 @@ class STLClient(object):
 
         return rc
 
-
+ 
     def __add_streams(self, stream_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
@@ -799,17 +808,85 @@ class STLClient(object):
         return rc
 
 
+    def __resolve (self, port_id_list = None, retries = 0):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].arp_resolve(retries))
+
+        return rc
+
+
     def __set_port_attr (self, port_id_list = None, attr_dict = None):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
 
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].set_attr(attr_dict))
+        for port_id, port_attr_dict in zip(port_id_list, attr_dict):
+            rc.add(self.ports[port_id].set_attr(**port_attr_dict))
 
         return rc
 
 
+    def __set_rx_sniffer (self, port_id_list, base_filename, limit):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            head, tail = os.path.splitext(base_filename)
+            filename = "{0}-{1}{2}".format(head, port_id, tail)
+            rc.add(self.ports[port_id].set_rx_sniffer(filename, limit))
+
+        return rc
+
+
+    def __remove_rx_sniffer (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_rx_sniffer())
+
+        return rc
+
+    def __set_rx_queue (self, port_id_list, size):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_rx_queue(size))
+
+        return rc
+
+    def __remove_rx_queue (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_rx_queue())
+
+        return rc
+
+    def __get_rx_queue_pkts (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].get_rx_queue_pkts())
+
+        return rc
+
+    def __set_service_mode (self, port_id_list, enabled):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_service_mode(enabled))
+
+        return rc
+        
 
     # connect to server
     def __connect(self):
@@ -1008,7 +1085,7 @@ class STLClient(object):
             if not port_id in valid_ports:
                 raise STLError("Port ID '{0}' is not a valid port ID - valid values: {1}".format(port_id, valid_ports))
 
-        return port_id_list
+        return list_remove_dup(port_id_list)
 
 
     # transmit request on the RPC link
@@ -1313,6 +1390,18 @@ class STLClient(object):
                     if port_obj.is_active()]
 
 
+    def get_resolvable_ports (self):
+         return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.get_dst_addr()['ipv4'] is not None]
+         
+         
+    def get_service_enabled_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.is_service_mode_on()]
+
+        
     # get paused ports
     def get_paused_ports (self, owned = True):
         if owned:
@@ -1338,6 +1427,7 @@ class STLClient(object):
 
 
     # get stats
+    @__api_check(True)
     def get_stats (self, ports = None, sync_now = True):
         """
         Return dictionary containing statistics information gathered from the server.
@@ -1585,7 +1675,7 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        return [self.ports[port_id].get_info() for port_id in ports]
+        return [self.ports[port_id].get_formatted_info() for port_id in ports]
 
 
     ############################   Commands   #############################
@@ -1700,6 +1790,9 @@ class STLClient(object):
             self.__release(ports)
             raise STLError(rc)
 
+        for port_id in ports:
+            if not self.ports[port_id].is_resolved():
+                self.logger.log(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
 
     @__api_check(True)
     def release (self, ports = None):
@@ -1725,29 +1818,143 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+            
+
     @__api_check(True)
-    def ping(self):
+    def ping_rpc_server(self):
         """
-            Pings the server
+            Pings the RPC server
 
             :parameters:
-                None
-
+                 None
 
             :raises:
                 + :exc:`STLError`
 
         """
-
+        
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
-        
+            
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
+        
 
+    @__api_check(True)
+    def set_l2_mode (self, port, dst_mac):
+        """
+            Sets the port mode to L2
+
+            :parameters:
+                 port      - the port to set the source address
+                 dst_mac   - destination MAC
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+            
+        if not is_valid_mac(dst_mac):
+            raise STLError("dest_mac is not a valid MAC address: '{0}'".format(dst_mac))
+            
+        self.logger.pre_cmd("Setting port {0} in L2 mode: ".format(port))
+        rc = self.ports[port].set_l2_mode(dst_mac)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
+            
+    @__api_check(True)
+    def set_l3_mode (self, port, src_ipv4, dst_ipv4):
+        """
+            Sets the port mode to L3
+
+            :parameters:
+                 port      - the port to set the source address
+                 src_ipv4  - IPv4 source address for the port
+                 dst_ipv4  - IPv4 destination address
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+            
+        if not is_valid_ipv4(src_ipv4):
+            raise STLError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
+            
+        if not is_valid_ipv4(dst_ipv4):
+            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+            
+        self.logger.pre_cmd("Setting port {0} in L3 mode: ".format(port))
+        rc = self.ports[port].set_l3_mode(src_ipv4, dst_ipv4)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+    
+        # try to resolve
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.pre_cmd("ARP resolving address '{0}': ".format(dst_ipv4))
+            rc = self.ports[port].arp_resolve(0)
+            self.logger.post_cmd(rc)
+            if not rc:
+                raise STLError(rc)
+            
+
+    @__api_check(True)
+    def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
+        """
+            Pings an IP address through a port
+
+            :parameters:
+                 src_port - on which port_id to send the ICMP PING request
+                 dst_ipv4 - which IP to ping
+                 pkt_size - packet size to use
+                 count    - how many times to ping
+            :raises:
+                + :exc:`STLError`
+
+        """
+        # validate src port
+        validate_type('src_port', src_port, int)
+        if src_port not in self.get_all_ports():
+            raise STLError("src port is not a valid port id")
+        
+        if not is_valid_ipv4(dst_ipv4):
+            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+            
+        if (pkt_size < 64) or (pkt_size > 9216):
+            raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
+            
+        validate_type('count', count, int)
+ 
+        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
+                                                                                       src_port,
+                                                                                       pkt_size))
+        
+        # no async messages
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.log('')
+            for i in range(count):
+                rc = self.ports[src_port].ping(ping_ipv4 = dst_ipv4, pkt_size = pkt_size)
+                if not rc:
+                    raise STLError(rc)
+                    
+                self.logger.log(rc.data())
+                
+                if i != (count - 1):
+                    time.sleep(1)
+        
+        
+        
     @__api_check(True)
     def server_shutdown (self, force = False):
         """
@@ -1833,7 +2040,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def reset(self, ports = None):
+    def reset(self, ports = None, restart = False):
         """
             Force acquire ports, stop the traffic, remove all streams and clear stats
 
@@ -1841,7 +2048,9 @@ class STLClient(object):
                 ports : list
                    Ports on which to execute the command
 
-
+                restart: bool
+                   Restart the NICs (link down / up)
+                   
             :raises:
                 + :exc:`STLError`
 
@@ -1851,12 +2060,34 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        # force take the port and ignore any streams on it
-        self.acquire(ports, force = True, sync_streams = False)
-        self.stop(ports, rx_delay_ms = 0)
-        self.remove_all_streams(ports)
-        self.clear_stats(ports)
+        
+        if restart:
+            self.logger.pre_cmd("Hard resetting ports {0}:".format(ports))
+        else:
+            self.logger.pre_cmd("Resetting ports {0}:".format(ports))
+        
+        
+        try:
+            with self.logger.supress():
+            # force take the port and ignore any streams on it
+                self.acquire(ports, force = True, sync_streams = False)
+                self.stop(ports, rx_delay_ms = 0)
+                self.remove_all_streams(ports)
+                self.clear_stats(ports)
+                self.set_port_attr(ports,
+                                   promiscuous = False,
+                                   link_up = True if restart else None)
+                self.set_service_mode(ports, False)
+                self.remove_rx_sniffer(ports)
+                self.remove_rx_queue(ports)
+                
+        except STLError as e:
+            self.logger.post_cmd(False)
+            raise e
+                
 
+        self.logger.post_cmd(RC_OK())
+        
 
     @__api_check(True)
     def remove_all_streams (self, ports = None):
@@ -1995,7 +2226,28 @@ class STLClient(object):
             raise STLError(rc)
 
 
-   
+    # common checks for start API
+    def __pre_start_check (self, ports, force):
+        
+        # verify link status
+        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
+        if ports_link_down and not force:
+            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
+        
+        # verify ports are stopped or force stop them
+        active_ports = [port_id for port_id in ports if self.ports[port_id].is_active()]
+        if active_ports and not force:
+            raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
+            
+        # warn if ports are not resolved
+        unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
+        if unresolved_ports and not force:
+            raise STLError("Port(s) {0} have unresolved destination addresses - please resolve them or specify 'force'".format(unresolved_ports))
+     
+        if self.get_service_enabled_ports() and not force:
+            raise STLError("Port(s) {0} are under service mode - please disable service mode or specify 'force'".format(self.get_service_enabled_ports()))
+            
+        
     @__api_check(True)
     def start (self,
                ports = None,
@@ -2050,11 +2302,10 @@ class STLClient(object):
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (int, list))
 
-        # verify link status
-        ports_link_down = [port_id for port_id in ports if self.ports[port_id].attr.get('link',{}).get('up') == False]
-        if not force and ports_link_down:
-            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
-
+      
+        # some sanity checks before attempting start
+        self.__pre_start_check(ports, force)
+        
         #########################
         # decode core mask argument
         decoded_mask = self.__decode_core_mask(ports, core_mask)
@@ -2068,17 +2319,12 @@ class STLClient(object):
             raise STLArgumentError('mult', mult)
 
 
-        # verify ports are stopped or force stop them
+        # stop active ports if needed
         active_ports = list(set(self.get_active_ports()).intersection(ports))
-        if active_ports:
-            if not force:
-                raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
-            else:
-                rc = self.stop(active_ports)
-                if not rc:
-                    raise STLError(rc)
+        if active_ports and force:
+            self.stop(active_ports)
 
-
+        
         # start traffic
         self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
         rc = self.__start(mult_obj, duration, ports, force, decoded_mask)
@@ -2115,7 +2361,7 @@ class STLClient(object):
                 return
 
         ports = self._validate_port_list(ports)
-
+        
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
         self.logger.post_cmd(rc)
@@ -2392,7 +2638,7 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 if slave in ports:
-                    raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
+                    raise STLError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
                 if not slave in self.get_acquired_ports():
                     raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
@@ -2441,7 +2687,7 @@ class STLClient(object):
                 self.logger.post_cmd(RC_ERR(e))
                 raise
 
-            all_ports = ports + [p ^ 0x1 for p in ports]
+            all_ports = ports + [p ^ 0x1 for p in ports if profile_b]
 
             self.remove_all_streams(ports = all_ports)
 
@@ -2450,7 +2696,8 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 self.add_streams(profile_a.get_streams(), master)
-                self.add_streams(profile_b.get_streams(), slave)
+                if profile_b:
+                    self.add_streams(profile_b.get_streams(), slave)
 
             return self.start(ports = all_ports, duration = duration)
 
@@ -2612,7 +2859,7 @@ class STLClient(object):
         while set(self.get_active_ports()).intersection(ports):
 
             # make sure ASYNC thread is still alive - otherwise we will be stuck forever
-            if not self.async_client.is_thread_alive():
+            if not self.async_client.is_active():
                 raise STLError("subscriber thread is dead")
 
             time.sleep(0.01)
@@ -2626,16 +2873,22 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def set_port_attr (self, ports = None, promiscuous = None, link_up = None, led_on = None, flow_ctrl = None):
+    def set_port_attr (self, 
+                       ports = None,
+                       promiscuous = None,
+                       link_up = None,
+                       led_on = None,
+                       flow_ctrl = None,
+                       resolve = True):
         """
             Set port attributes
 
             :parameters:
-                promiscuous - True or False
-                link_up     - True or False
-                led_on      - True or False
-                flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-
+                promiscuous      - True or False
+                link_up          - True or False
+                led_on           - True or False
+                flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
+                resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
             :raises:
                 + :exe:'STLError'
 
@@ -2649,29 +2902,226 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
+    
+        # common attributes for all ports
+        cmn_attr_dict = {}
 
-        # build attributes
-        attr_dict = {}
-        if promiscuous is not None:
-            attr_dict['promiscuous'] = {'enabled': promiscuous}
-        if link_up is not None:
-            attr_dict['link_status'] = {'up': link_up}
-        if led_on is not None:
-            attr_dict['led_status'] = {'on': led_on}
-        if flow_ctrl is not None:
-            attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
+        cmn_attr_dict['promiscuous']     = promiscuous
+        cmn_attr_dict['link_status']     = link_up
+        cmn_attr_dict['led_status']      = led_on
+        cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
         
-        # no attributes to set
-        if not attr_dict:
-            return
-
+        # each port starts with a set of the common attributes
+        attr_dict = [dict(cmn_attr_dict) for _ in ports]
+    
         self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
         rc = self.__set_port_attr(ports, attr_dict)
+        self.logger.post_cmd(rc)
+            
+        if not rc:
+            raise STLError(rc)
+
+      
+            
+    
+    @__api_check(True)
+    def set_service_mode (self, ports = None, enabled = True):
+        """
+            Set service mode for port(s)
+            In service mode ports will respond to ARP, PING and etc.
+
+            :parameters:
+                ports          - for which ports to configure service mode on/off
+                enabled        - True for activating service mode, False for disabling
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default take all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        if enabled:
+            self.logger.pre_cmd('Enabling service mode on port(s) {0}:'.format(ports))
+        else:
+            self.logger.pre_cmd('Disabling service mode on port(s) {0}:'.format(ports))
+            
+        rc = self.__set_service_mode(ports, enabled)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
+
+    @__api_check(True)
+    def resolve (self, ports = None, retries = 0, verbose = True):
+        """
+            Resolves ports (ARP resolution)
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                retires        - how many times to retry on each port (intervals of 100 milliseconds)
+                verbose        - log for each request the response
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default - resolve all the ports that are configured with IPv4 dest
+        ports = ports if ports is not None else self.get_resolvable_ports()
+        ports = self._validate_port_list(ports)
+            
+        active_ports = list_intersect(ports, self.get_active_ports())
+        if active_ports:
+            raise STLError('Port(s) {0} are active, please stop them before resolving'.format(active_ports))
+                     
+        
+        self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
+        with self.logger.supress():
+            rc = self.__resolve(ports, retries)
+            
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+
+        # print the ARP transaction
+        if verbose:
+            self.logger.log(rc)
+            self.logger.log('')
+            
+            
+        
+    @__api_check(True)
+    def set_rx_sniffer (self, ports = None, base_filename = 'rx.pcap', limit = 1000):
+        """
+            Sets a RX sniffer for port(s) written to a PCAP file
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                base_filename  - filename will be appended with '-<port_number>', e.g. rx.pcap --> rx-0.pcap, rx-1.pcap etc.
+                limit          - limit how many packets will be written
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        # check arguments
+        validate_type('base_filename', base_filename, basestring)
+        validate_type('limit', limit, (int))
+        if limit <= 0:
+            raise STLError("'limit' must be a positive value")
+
+        self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
+        rc = self.__set_rx_sniffer(ports, base_filename, limit)
+        self.logger.post_cmd(rc)
+
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def remove_rx_sniffer (self, ports = None):
+        """
+            Removes RX sniffer from port(s)
+
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd("Removing RX sniffers on port(s) {0}:".format(ports))
+        rc = self.__remove_rx_sniffer(ports)
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
 
+    
+    @__api_check(True)
+    def set_rx_queue (self, ports = None, size = 1000):
+        """
+            Sets RX queue for port(s)
+            The queue is cyclic and will hold last 'size' packets
+
+            :parameters:
+                ports          - for which ports to apply a queue
+                size           - size of the queue
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        # check arguments
+        validate_type('size', size, (int))
+        if size <= 0:
+            raise STLError("'size' must be a positive value")
+
+        self.logger.pre_cmd("Setting RX queue on port(s) {0}:".format(ports))
+        rc = self.__set_rx_queue(ports, size)
+        self.logger.post_cmd(rc)
+
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def remove_rx_queue (self, ports = None):
+        """
+            Removes RX queue from port(s)
+
+            :parameters:
+                ports          - for which ports to remove the RX queue
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd("Removing RX queue on port(s) {0}:".format(ports))
+        rc = self.__remove_rx_queue(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def get_rx_queue_pkts (self, ports = None):
+        """
+            Returns any packets queued on the RX side by the server
+            return value is a dictonary per port
+            
+            :parameters:
+                ports          - for which ports to fetch
+        """
+        
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        rc = self.__get_rx_queue_pkts(ports)
+        if not rc:
+            raise STLError(rc)
+            
+        # decode the data back to the user
+        result = {}
+        for port, r in zip(ports, rc.data()):
+            result[port] = r
+        
+        return result
+            
+        
     def clear_events (self):
         """
             Clear all events
@@ -2701,7 +3151,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("\nAction has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
@@ -2715,10 +3165,30 @@ class STLClient(object):
 
     @__console
     def ping_line (self, line):
-        '''pings the server'''
-        self.ping()
-        return RC_OK()
+        '''pings the server / specific IP'''
+        
+        # no parameters - so ping server
+        if not line:
+            self.ping_rpc_server()
+            return True
+            
+        parser = parsing_opts.gen_parser(self,
+                                         "ping",
+                                         self.ping_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.PING_IPV4,
+                                         parsing_opts.PKT_SIZE,
+                                         parsing_opts.PING_COUNT)
 
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        # IP ping
+        # source ports maps to ports as a single port
+        self.ping_ip(opts.ports[0], opts.ping_ipv4, opts.pkt_size, opts.count)
+
+        
     @__console
     def shutdown_line (self, line):
         '''shutdown the server'''
@@ -2846,13 +3316,14 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "reset",
                                          self.reset_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.PORT_RESTART)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        self.reset(ports = opts.ports)
+        self.reset(ports = opts.ports, restart = opts.restart)
 
         return RC_OK()
 
@@ -2888,14 +3359,19 @@ class STLClient(object):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(opts.ports, core_mask)
 
+        # for better use experience - check this first
+        try:
+            self.__pre_start_check(opts.ports, opts.force)
+        except STLError as e:
+            msg = e.brief()
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_ERR(msg)
+            
+                
+        # stop ports if needed
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
-        if active_ports:
-            if not opts.force:
-                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
-                self.logger.log(format_text(msg, 'bold'))
-                return RC_ERR(msg)
-            else:
-                self.stop(active_ports)
+        if active_ports and opts.force:
+            self.stop(active_ports)
 
 
         # process tunables
@@ -3171,21 +3647,28 @@ class STLClient(object):
     @__console
     def push_line (self, line):
         '''Push a pcap file '''
+        args = [self,
+                "push",
+                self.push_line.__doc__,
+                parsing_opts.REMOTE_FILE,
+                parsing_opts.PORT_LIST_WITH_ALL,
+                parsing_opts.COUNT,
+                parsing_opts.DURATION,
+                parsing_opts.IPG,
+                parsing_opts.SPEEDUP,
+                parsing_opts.FORCE,
+                parsing_opts.DUAL]
 
-        parser = parsing_opts.gen_parser(self,
-                                         "push",
-                                         self.push_line.__doc__,
-                                         parsing_opts.FILE_PATH,
-                                         parsing_opts.REMOTE_FILE,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.COUNT,
-                                         parsing_opts.DURATION,
-                                         parsing_opts.IPG,
-                                         parsing_opts.SPEEDUP,
-                                         parsing_opts.FORCE,
-                                         parsing_opts.DUAL)
-
+        parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH_NO_CHECK]))
         opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if not opts:
+            return opts
+
+        if not opts.remote:
+            parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH]))
+            opts = parser.parse_args(line.split(), verify_acquired = True)
+
         if not opts:
             return opts
 
@@ -3230,7 +3713,7 @@ class STLClient(object):
         '''Sets port attributes '''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port_attr",
+                                         "portattr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.PROMISCUOUS,
@@ -3244,18 +3727,18 @@ class STLClient(object):
         if not opts:
             return opts
 
-        opts.prom      = parsing_opts.ON_OFF_DICT.get(opts.prom)
-        opts.link      = parsing_opts.UP_DOWN_DICT.get(opts.link)
-        opts.led       = parsing_opts.ON_OFF_DICT.get(opts.led)
-        opts.flow_ctrl = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
+        opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
+        opts.link            = parsing_opts.UP_DOWN_DICT.get(opts.link)
+        opts.led             = parsing_opts.ON_OFF_DICT.get(opts.led)
+        opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp]):
+        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp])):
             self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
             return
 
         if opts.supp:
-            info = self.ports[0].get_info() # assume for now all ports are same
+            info = self.ports[0].get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   yes')
@@ -3264,15 +3747,115 @@ class STLClient(object):
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
+             self.set_port_attr(opts.ports,
+                                opts.prom,
+                                opts.link,
+                                opts.led,
+                                opts.flow_ctrl)
+             
+             
+
+             
+    @__console
+    def set_rx_sniffer_line (self, line):
+        '''Sets a port sniffer on RX channel in form of a PCAP file'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "set_rx_sniffer",
+                                         self.set_rx_sniffer_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.OUTPUT_FILENAME,
+                                         parsing_opts.LIMIT)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+
+        return RC_OK()
+        
+
+    @__console
+    def resolve_line (self, line):
+        '''Performs a port ARP resolution'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "resolve",
+                                         self.resolve_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.RETRIES)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        ports = list_intersect(opts.ports, self.get_resolvable_ports())
+        if not ports:
+            if not opts.ports:
+                msg = 'resolve - no ports with IPv4 destination'
+            else:
+                msg = 'pause - none of ports {0} are configured with IPv4 destination'.format(opts.ports)
+                
+            self.logger.log(msg)
+            return RC_ERR(msg)
+                     
+        self.resolve(ports = ports, retries = opts.retries)
+
+        return RC_OK()
+        
+    
+    @__console
+    def set_l2_mode_line (self, line):
+        '''Configures a port in L2 mode'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.set_l2_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.DST_MAC,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
 
 
+        # source ports maps to ports as a single port
+        self.set_l2_mode(opts.ports[0], dst_mac = opts.dst_mac)
+
+        return RC_OK()
+        
+        
+    @__console
+    def set_l3_mode_line (self, line):
+        '''Configures a port in L3 mode'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.set_l3_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.SRC_IPV4,
+                                         parsing_opts.DST_IPV4,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+
+        # source ports maps to ports as a single port
+        self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4)
+
+        return RC_OK()
+        
+        
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port",
+                                         "profile",
                                          self.show_profile_line.__doc__,
                                          parsing_opts.FILE_PATH)
 
@@ -3364,7 +3947,38 @@ class STLClient(object):
             return "{0}(read-only)>".format(prefix)
 
         elif self.is_all_ports_acquired():
-            return "{0}>".format(prefix)
+            
+            p = prefix
+            
+            if self.get_service_enabled_ports():
+                if self.get_service_enabled_ports() == self.get_acquired_ports():
+                    p += '(service)'
+                else:
+                    p += '(service: {0})'.format(', '.join(map(str, self.get_service_enabled_ports())))
+                
+            return "{0}>".format(p)
 
         else:
-            return "{0} {1}>".format(prefix, self.get_acquired_ports())
+            return "{0} (ports: {1})>".format(prefix, ', '.join(map(str, self.get_acquired_ports())))
+            
+            
+
+    @__console
+    def service_line (self, line):
+        '''Configures port for service mode.
+           In service mode ports will reply to ARP, PING
+           and etc.
+        '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "service",
+                                         self.service_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.SERVICE_OFF)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
+        

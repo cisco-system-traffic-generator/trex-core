@@ -44,6 +44,7 @@ limitations under the License.
 #include <common/bitMan.h>
 #include <yaml-cpp/yaml.h>
 #include "trex_defs.h"
+#include "utl_ip.h"
 #include "os_time.h"
 #include "pal_utl.h"
 #include "rx_check_header.h"
@@ -72,14 +73,9 @@ class CGenNodePCAP;
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
 
-/* IP address, last 32-bits of IPv6 remaps IPv4 */
-typedef struct {
-    uint16_t v6[6];  /* First 96-bits of IPv6 */
-    uint32_t v4;  /* Last 32-bits IPv6 overloads v4 */
-} ipaddr_t;
-
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
+#define TOS_TTL_RESERVE_DUPLICATE 0x1
 
 /*
  * Length of string needed to hold the largest port (16-bit) address
@@ -173,38 +169,6 @@ typedef enum { VM_REPLACE_IP_OFFSET =0x12, /* fix ip at offset  */
 
 /* work only on x86 littel */
 #define	MY_B(b)	(((int)b)&0xff)
-
-// Routine to create IPv4 address string
-inline int ip_to_str(uint32_t ip,char * str){
-    uint32_t ipv4 = PKT_HTONL(ip);
-    inet_ntop(AF_INET, (const char *)&ipv4, str, INET_ADDRSTRLEN);
-    return(strlen(str));
-}
-
-inline std::string ip_to_str(uint32_t ip) {
-    char tmp[INET_ADDRSTRLEN];
-    ip_to_str(ip, tmp);
-    return tmp;
-}
-
-// Routine to create IPv6 address string
-inline int ipv6_to_str(ipaddr_t *ip,char * str){
-    int idx=0;
-    uint16_t ipv6[8];
-    for (uint8_t i=0; i<6; i++) {
-        ipv6[i] = PKT_HTONS(ip->v6[i]);
-    }
-    uint32_t ipv4 = PKT_HTONL(ip->v4);
-    ipv6[6] = ipv4 & 0xffff;
-    ipv6[7] = ipv4 >> 16;
-
-    str[idx++] = '[';
-    inet_ntop(AF_INET6, (const char *)&ipv6, &str[1], INET6_ADDRSTRLEN);
-    idx = strlen(str);
-    str[idx++] = ']';
-    str[idx] = 0;
-    return(idx);
-}
 
 class CFlowPktInfo ;
 
@@ -679,7 +643,6 @@ public:
     CMacAddrCfg (){
         memset(u.m_data,0,sizeof(u.m_data));
         u.m_mac.dest[3]=1;
-        u.m_mac.src[3]=1;
     }
     union {
         mac_align_t m_mac;
@@ -693,20 +656,18 @@ class CPerPortIPCfg {
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
     uint32_t get_vlan() {return m_vlan;}
-    bool grat_arp_needed() {return m_grat_arp_needed;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
     void set_vlan(uint16_t val) {m_vlan = val;}
-    void set_grat_arp_needed(bool val) {m_grat_arp_needed = val;}
 
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
-    bool m_grat_arp_needed;
 };
+
 
 class CParserOption {
 
@@ -824,6 +785,11 @@ public:
         return ( (m_expected_portd>>1)   * preview.getCores());
     }
     bool is_stateless(){
+        if (m_run_mode == RUN_MODE_INVALID) {
+            fprintf(stderr, "Internal bug: Calling is stateless before initializing run mode\n");
+            fprintf(stderr, "Try to put -i or -f <file> option as first in the option list\n");
+            exit(-1);
+        }
         return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
     bool is_latency_enabled() {
@@ -957,10 +923,16 @@ public:
     /* return  the map betwean virtual to phy id */
     virtual physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id)=0;
 
-    virtual bool thread_phy_is_master(physical_thread_id_t  phy_id)=0;
+
+    virtual physical_thread_id_t get_master_phy_id() = 0;
     virtual bool thread_phy_is_rx(physical_thread_id_t  phy_id)=0;
 
     virtual void dump(FILE *fd)=0;
+
+    bool thread_phy_is_master(physical_thread_id_t  phy_id) {
+        return (get_master_phy_id() == phy_id);
+    }
+
 };
 
 class CPlatformSocketInfoNoConfig : public CPlatformSocketInfoBase {
@@ -999,7 +971,7 @@ public:
     /* return  the map betwean virtual to phy id */
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
-    bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     virtual void dump(FILE *fd);
@@ -1045,7 +1017,7 @@ public:
     /* return  the map betwean virtual to phy id */
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
-    bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
 public:
@@ -1110,6 +1082,7 @@ public:
     physical_thread_id_t thread_virt_to_phy(virtual_thread_id_t virt_id);
 
     bool thread_phy_is_master(physical_thread_id_t  phy_id);
+    physical_thread_id_t get_master_phy_id();
     bool thread_phy_is_rx(physical_thread_id_t  phy_id);
 
     void dump(FILE *fd);
@@ -1192,12 +1165,13 @@ public:
     /* for simulation */
     static void free_pools();
 
-
     static inline rte_mbuf_t   * pktmbuf_alloc_small(socket_id_t socket){
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-
+    static inline rte_mbuf_t * pktmbuf_alloc_small_by_port(uint8_t port_id) {
+        return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
+    }
 
     /**
      * try to allocate small buffers too
@@ -1215,6 +1189,13 @@ public:
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
+    static inline rte_mbuf_t * pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
+        socket_id_t socket = m_socket.port_to_socket(port_id);
+        if (size<FIRST_PKT_SIZE) {
+            return ( pktmbuf_alloc_small(socket));
+        }
+        return (m_mem_pool[socket].pktmbuf_alloc(size));
+    }
 
     static inline bool is_learn_verify_mode(){
         return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED) && m_options.preview.get_learn_and_verify_mode_enable());
@@ -1543,7 +1524,7 @@ public:
     uint32_t            m_nat_tcp_seq_diff_server; // And some do seq num randomization for server->client also
     uint16_t            m_nat_external_port; // NAT client port
     uint16_t            m_nat_pad[1];
-    const ClientCfg    *m_client_cfg;
+    const ClientCfgBase *m_client_cfg;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
     uint32_t            m_end_of_cache_line[6];
@@ -1868,7 +1849,7 @@ typedef std::priority_queue<CGenNode *, std::vector<CGenNode *>,CGenNodeCompare>
 
 
 class CErfIF : public CVirtualIF {
-
+    friend class basic_client_cfg_test1_Test;
 public:
     CErfIF(){
         m_writer=NULL;
@@ -1907,7 +1888,7 @@ public:
 
 protected:
     void add_vlan(uint16_t vlan_id);
-    void apply_client_config(const ClientCfg *cfg, pkt_dir_t dir);
+    void apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir);
     virtual void fill_raw_packet(rte_mbuf_t * m,CGenNode * node,pkt_dir_t dir);
 
     CFileWriterBase         * m_writer;
@@ -2675,6 +2656,26 @@ public:
             return (0);
         }
     }
+
+
+    void  setTOSReserve(){
+        BP_ASSERT(l3.m_ipv4);
+        if (is_ipv6()) {
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass() | TOS_TTL_RESERVE_DUPLICATE );
+        }else{
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS()| TOS_TTL_RESERVE_DUPLICATE );
+        }
+    }
+
+    void  clearTOSReserve(){
+        BP_ASSERT(l3.m_ipv4);
+        if (is_ipv6()) {
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass()& (~TOS_TTL_RESERVE_DUPLICATE) );
+        }else{
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS() & (~TOS_TTL_RESERVE_DUPLICATE) );
+        }
+    }
+
     uint8_t getTTL(){
         BP_ASSERT(l3.m_ipv4);
         if (is_ipv6()) {
@@ -3047,6 +3048,8 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 printf(" %.3f : DP :  learn packet !\n",now_sec());
 #endif
                 ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
+                ipv4->setTOS(ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE); 
+
 
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
                 if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
@@ -3988,6 +3991,10 @@ public:
 
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
     int load_client_config_file(std::string file_name);
+    void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);
+    void get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret);
+    void set_client_config_resolved_macs(CManyIPInfo &pretest_result);
+    void dump_client_config(FILE *fd);
 
 public:
     void Dump(FILE *fd);
@@ -4233,6 +4240,33 @@ inline  pkt_dir_t CGenNode::cur_interface_dir(){
     }
 }
 
+/* Itay: move this to a better place (common for RX STL and RX STF) */
+class CRXCoreIgnoreStat {
+    friend class CCPortLatency;
+    friend class CLatencyManager;
+    friend class RXGratARP;
+ public:
+    inline CRXCoreIgnoreStat operator- (const CRXCoreIgnoreStat &t_in) const {
+        CRXCoreIgnoreStat t_out;
+        t_out.m_tx_arp = this->m_tx_arp - t_in.m_tx_arp;
+        t_out.m_tx_ipv6_n_solic = this->m_tx_ipv6_n_solic - t_in.m_tx_ipv6_n_solic;
+        t_out.m_tot_bytes = this->m_tot_bytes - t_in.m_tot_bytes;
+        return t_out;
+    }
+    uint64_t get_tx_bytes() {return m_tot_bytes;}
+    uint64_t get_tx_pkts() {return m_tx_arp + m_tx_ipv6_n_solic;}
+    uint64_t get_tx_arp() {return m_tx_arp;}
+    uint64_t get_tx_n_solic() {return m_tx_ipv6_n_solic;}
+    void clear() {
+        m_tx_arp = 0;
+        m_tx_ipv6_n_solic = 0;
+        m_tot_bytes = 0;
+    }
 
+ private:
+    uint64_t m_tx_arp;
+    uint64_t m_tx_ipv6_n_solic;
+    uint64_t m_tot_bytes;
+};
 
 #endif

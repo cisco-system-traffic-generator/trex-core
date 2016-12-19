@@ -24,6 +24,11 @@ class ICMPHeader
 {
 
 public:
+    enum {
+        TYPE_ECHO_REPLY   = 0,
+        TYPE_ECHO_REQUEST = 8,
+    };
+    
     ICMPHeader()
 	{
 		setCode(0);

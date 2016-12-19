@@ -270,7 +270,7 @@ class CTRexTestConfiguringPlugin(Plugin):
     def finalize(self, result):
         if self.functional or self.collect_only:
             return
-        CTRexScenario.is_init = False
+        #CTRexScenario.is_init = False
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:

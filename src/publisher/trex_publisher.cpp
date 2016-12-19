@@ -33,6 +33,8 @@ limitations under the License.
 bool 
 TrexPublisher::Create(uint16_t port, bool disable){
 
+    char thread_name[256];
+
     if (disable) {
         return (true);
     }
@@ -42,7 +44,15 @@ TrexPublisher::Create(uint16_t port, bool disable){
         show_zmq_last_error("can't connect to ZMQ library");
     }
 
+    /* change the pthread name temporarly for the socket creation */
+    pthread_getname_np(pthread_self(), thread_name, sizeof(thread_name));
+    pthread_setname_np(pthread_self(), "Trex Publisher");
+
     m_publisher = zmq_socket (m_context, ZMQ_PUB);
+
+    /* restore it */
+    pthread_setname_np(pthread_self(), thread_name);
+
     if ( m_context == 0 ) {
         show_zmq_last_error("can't create ZMQ socket");
     }

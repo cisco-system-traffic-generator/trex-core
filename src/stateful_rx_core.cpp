@@ -33,7 +33,7 @@ const uint8_t sctp_pkt[]={
     0x00,0x0e,0x2e,0x24,0x37,0x5f,
     0x08,0x00,
 
-    0x45,0x02,0x00,0x30,
+    0x45,0x03,0x00,0x30,
     0x00,0x00,0x40,0x00,
     0xff,0x84,0xbd,0x04,
     0x9b,0xe6,0x18,0x9b, //sIP
@@ -57,7 +57,7 @@ const uint8_t icmp_pkt[]={
     0x00,0x0e,0x2e,0x24,0x37,0x5f,
     0x08,0x00,
 
-    0x45,0x02,0x00,0x30,
+    0x45,0x03,0x00,0x30,
     0x00,0x00,0x40,0x00,
     0xff,0x01,0xbd,0x04,
     0x9b,0xe6,0x18,0x9b, //SIP
@@ -461,8 +461,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     }
 
     if ( (pkt_size-vlan_offset) != m_pkt_size ) {
-        m_length_error++;
-        return (false);
+        // patch for e1000 card. e1000 hands us the packet with Ethernet FCS, so it is 4 bytes longer
+        if ((pkt_size - vlan_offset - 4) != m_pkt_size ) {
+            m_length_error++;
+            return (false);
+        }
     }
     c_l_pkt_mode->update_recv(p + m_l4_offset + vlan_offset, &m_icmp_rx_seq, &m_icmp_tx_seq);
 #ifdef LATENCY_DEBUG
@@ -588,32 +591,56 @@ void  CLatencyManager::send_pkt_all_ports(){
     }
 }
 
-void  CLatencyManager::send_grat_arp_all_ports() {
-    for (int port_id = 0; port_id < m_max_ports; port_id++) {
-        if (! CGlobalInfo::m_options.m_ip_cfg[port_id].grat_arp_needed())
-            continue;
+double CLatencyManager::grat_arp_timeout() {
+    return (double)CGlobalInfo::m_options.m_arp_ref_per / m_arp_info.size();
+}
 
-        CLatencyManagerPerPort * lp = &m_ports[port_id];
-        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(port_id));
-        assert(m);
-        uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, 60); // ARP packet is shorter than 60
-        uint32_t sip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
-        uint8_t *src_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src;
-        uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
-        // gratuitous ARP. Requested IP is our source.
+void  CLatencyManager::add_grat_arp_src(COneIPv4Info &ip) {
+    m_arp_info.insert(ip);
+}
+
+void CLatencyManager::send_one_grat_arp() {
+    const COneIPInfo *ip_info;
+    uint16_t port_id;
+    CLatencyManagerPerPort * lp;
+    rte_mbuf_t *m;
+    uint8_t src_mac[ETHER_ADDR_LEN];
+    uint16_t vlan;
+    uint32_t sip;
+
+    ip_info = m_arp_info.get_next();
+    if (!ip_info)
+        ip_info = m_arp_info.get_next();
+    // Two times NULL means there are no addresses
+    if (!ip_info)
+        return;
+
+    port_id = ip_info->get_port();
+    lp = &m_ports[port_id];
+    m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(port_id));
+    assert(m);
+    uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, ip_info->get_grat_arp_len());
+    ip_info->get_mac(src_mac);
+    vlan = ip_info->get_vlan();
+    switch(ip_info->ip_ver()) {
+    case COneIPInfo::IP4_VER:
+        sip = ((COneIPv4Info *)ip_info)->get_ip();
         CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, port_id);
-
         if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
-            printf("Sending gratuitous ARP on port %d vlan:%d, sip:0x%08x\n", port_id, vlan, sip);
+            printf("Sending gratuitous ARP on port %d vlan:%d, sip:%s\n", port_id, vlan
+                   , ip_to_str(sip).c_str());
             utl_DumpBuffer(stdout, p, 60, 0);
         }
-
         if ( lp->m_io->tx(m) == 0 ) {
             lp->m_port.m_ign_stats.m_tx_arp++;
             lp->m_port.m_ign_stats.m_tot_bytes += 64; // mbuf size is smaller, but 64 bytes will be sent
         } else {
             lp->m_port.m_tx_pkt_err++;
         }
+        break;
+    case COneIPInfo::IP6_VER:
+        //??? implement ipv6
+        break;
     }
 }
 
@@ -651,58 +678,6 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
     }
 
     rte_pktmbuf_free(m);
-}
-
-// In VM, we receive the RX packets in DP core, and send message to RX core with the packet
-void CLatencyManager::handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg) {
-
-    assert(msg->m_latency_offset==0xdead);
-
-    uint8_t rx_port_index=(thread_id<<1)+(msg->m_dir&1);
-    assert( rx_port_index <m_max_ports ) ;
-    CLatencyManagerPerPort * lp=&m_ports[rx_port_index];
-    handle_rx_pkt(lp,(rte_mbuf_t *)msg->m_pkt);
-}
-
-
-void  CLatencyManager::run_rx_queue_msgs(uint8_t thread_id,
-                                         CNodeRing * r){
-
-    while ( true ) {
-        CGenNode * node;
-        if ( r->Dequeue(node)!=0 ){
-            break;
-        }
-        assert(node);
-
-        CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
-
-        uint8_t   msg_type =  msg->m_msg_type;
-        switch (msg_type ) {
-        case CGenNodeMsgBase::LATENCY_PKT:
-            handle_latency_pkt_msg(thread_id,(CGenNodeLatencyPktInfo *) msg);
-            break;
-        default:
-            printf("ERROR latency-thread message type is not valid %d \n",msg_type);
-            assert(0);
-        }
-
-        CGlobalInfo::free_node(node);
-    }
-}
-
-// VM mode function. Handle messages from DP
-void  CLatencyManager::try_rx_queues(){
-
-    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
-    uint8_t threads=CMsgIns::Ins()->get_num_threads();
-    int ti;
-    for (ti=0; ti<(int)threads; ti++) {
-        CNodeRing * r = rx_dp->getRingDpToCp(ti);
-        if ( !r->isEmpty() ){
-            run_rx_queue_msgs((uint8_t)ti,r);
-        }
-    }
 }
 
 void  CLatencyManager::try_rx(){
@@ -766,8 +741,6 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
         m_p_queue.push(node);
     }
 
-    bool do_try_rx_queue = CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
-
     if (activate_watchdog) {
         m_monitor.create("STF RX CORE", 1);
         TrexWatchDog::getInstance().register_monitor(&m_monitor);
@@ -782,9 +755,6 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             double dt = now_sec() - n_time ;
             if (dt> (0.0)) {
                 break;
-            }
-            if (do_try_rx_queue){
-                try_rx_queues();
             }
             try_rx();
             rte_pause();
@@ -815,9 +785,9 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
 
         case CGenNode::GRAT_ARP:
             m_cpu_dp_u.start_work1();
-            send_grat_arp_all_ports();
+            send_one_grat_arp();
             m_p_queue.pop();
-            node->m_time += (double)CGlobalInfo::m_options.m_arp_ref_per;
+            node->m_time += grat_arp_timeout();
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;

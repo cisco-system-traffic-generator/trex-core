@@ -55,13 +55,23 @@ if ! lsmod | grep -q igb_uio  ;  then
         fi
     else
         echo "ERROR: We don't have precompiled igb_uio.ko module for your kernel version"
-        echo "You can try compiling yourself, using the following commands:"
-        echo "\$cd ko/src  "
-        echo "\$make  "
-        echo "\$make install  "
-        echo "\$cd -  "
-        echo "Then try to run Trex again"
-        exit 1
+        echo Will try compiling automatically.
+        {
+            cd ko/src &&
+            make &&
+            make install &&
+            cd -
+        } &> /dev/null || {
+            echo Automatic compilation failed.
+            echo "You can try compiling yourself, using the following commands:"
+            echo "\$cd ko/src  "
+            echo "\$make  "
+            echo "\$make install  "
+            echo "\$cd -  "
+            echo "Then try to run TRex again"
+            exit 1
+        }
+        echo Success.
     fi
 fi
 

@@ -25,6 +25,7 @@ limitations under the License.
 #include <trex_streams_compiler.h>
 #include <common/basic_utils.h>
 #include <common/captureFile.h>
+#include "trex_stateless_rx_defs.h"
 
 #include <string>
 
@@ -156,9 +157,9 @@ private:
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
-    m_port_id = port_id;
-    m_port_state = PORT_STATE_IDLE;
-    m_platform_api = api;
+    m_port_id            = port_id;
+    m_port_state         = PORT_STATE_IDLE;
+    m_platform_api       = api;
 
     /* get the platform specific data */
     api->get_interface_info(port_id, m_api_info);
@@ -584,10 +585,9 @@ TrexStatelessPort::get_max_stream_id() const {
 }
 
 void
-TrexStatelessPort::get_properties(std::string &driver, uint32_t &speed) {
+TrexStatelessPort::get_properties(std::string &driver) {
 
     driver = m_api_info.driver_name;
-    speed = m_platform_api->getPortAttrObj(m_port_id)->get_link_speed();
 }
 
 bool
@@ -888,16 +888,6 @@ TrexStatelessPort::get_port_effective_rate(double &pps,
 }
 
 void
-TrexStatelessPort::get_macaddr(std::string &hw_macaddr,
-                               std::string &src_macaddr,
-                               std::string &dst_macaddr) {
-
-    utl_macaddr_to_str(m_api_info.mac_info.hw_macaddr, hw_macaddr);
-    utl_macaddr_to_str(m_api_info.mac_info.src_macaddr, src_macaddr);
-    utl_macaddr_to_str(m_api_info.mac_info.dst_macaddr, dst_macaddr);
-}
-
-void
 TrexStatelessPort::get_pci_info(std::string &pci_addr, int &numa_node) {
     pci_addr  = m_api_info.pci_addr;
     numa_node = m_api_info.numa_node;
@@ -942,6 +932,133 @@ TrexStatelessPort::remove_and_delete_all_streams() {
         remove_stream(stream);
         delete stream;
     }
+}
+
+void 
+TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
+    static MsgReply<bool> reply;
+    
+    reply.reset();
+    
+    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit, reply);
+    send_message_to_rx((TrexStatelessCpToRxMsgBase *)msg);
+    
+    /* as below, must wait for ACK from RX core before returning ACK */
+    reply.wait_for_reply();
+}
+
+void
+TrexStatelessPort::stop_rx_capture() {
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
+    send_message_to_rx(msg);
+}
+
+void 
+TrexStatelessPort::start_rx_queue(uint64_t size) {
+    static MsgReply<bool> reply;
+    
+    reply.reset();
+    
+    TrexStatelessRxStartQueue *msg = new TrexStatelessRxStartQueue(m_port_id, size, reply);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+    
+    /* we cannot return ACK to the user until the RX core has approved
+       this might cause the user to lose some packets from the queue
+     */
+    reply.wait_for_reply();
+}
+
+void
+TrexStatelessPort::stop_rx_queue() {
+    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopQueue(m_port_id);
+    send_message_to_rx(msg);
+}
+
+
+const RXPacketBuffer *
+TrexStatelessPort::get_rx_queue_pkts() {
+    static MsgReply<const RXPacketBuffer *> reply;
+    
+    reply.reset();
+
+    TrexStatelessRxQueueGetPkts *msg = new TrexStatelessRxQueueGetPkts(m_port_id, reply);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+
+    return reply.wait_for_reply();
+}
+
+
+/**
+ * configures port in L2 mode
+ * 
+ */
+void
+TrexStatelessPort::set_l2_mode(const uint8_t *dest_mac) {
+    
+    /* no IPv4 src */
+    getPortAttrObj()->set_src_ipv4(0);
+    
+    /* set destination as MAC */
+    getPortAttrObj()->get_dest().set_dest(dest_mac);
+    
+    TrexStatelessRxSetL2Mode *msg = new TrexStatelessRxSetL2Mode(m_port_id);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
+/**
+ * configures port in L3 mode - unresolved
+ */
+void
+TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
+    
+    /* set src IPv4 */
+    getPortAttrObj()->set_src_ipv4(src_ipv4);
+    
+    /* set dest IPv4 */
+    getPortAttrObj()->get_dest().set_dest(dest_ipv4);
+    
+    /* send RX core the relevant info */
+    CManyIPInfo ip_info;
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    
+    TrexStatelessRxSetL3Mode *msg = new TrexStatelessRxSetL3Mode(m_port_id, ip_info, false);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
+/**
+ * configures port in L3 mode - resolved
+ * 
+ */
+void
+TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac) {
+    
+    /* set src IPv4 */
+    getPortAttrObj()->set_src_ipv4(src_ipv4);
+    
+    /* set dest IPv4 + resolved MAC */
+    getPortAttrObj()->get_dest().set_dest(dest_ipv4, resolved_mac);
+    
+    /* send RX core the relevant info */
+    CManyIPInfo ip_info;
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    
+    bool is_grat_arp_needed = !getPortAttrObj()->is_loopback();
+    
+    TrexStatelessRxSetL3Mode *msg = new TrexStatelessRxSetL3Mode(m_port_id, ip_info, is_grat_arp_needed);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
+
+Json::Value
+TrexStatelessPort::rx_features_to_json() {
+    static MsgReply<Json::Value> reply;
+    
+    reply.reset();
+
+    TrexStatelessRxFeaturesToJson *msg = new TrexStatelessRxFeaturesToJson(m_port_id, reply);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+
+    return reply.wait_for_reply();
 }
 
 /************* Trex Port Owner **************/

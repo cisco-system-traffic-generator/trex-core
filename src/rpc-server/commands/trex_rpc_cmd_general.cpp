@@ -27,6 +27,8 @@ limitations under the License.
 
 #include <internal_api/trex_platform_api.h>
 
+#include "trex_stateless_rx_core.h"
+
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
@@ -289,19 +291,15 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["ports"] = Json::arrayValue;
 
     for (int i = 0; i < main->get_port_count(); i++) {
-        uint32_t speed;
         string driver;
-        string hw_macaddr;
-        string src_macaddr;
-        string dst_macaddr;
         string pci_addr;
         string description;
         supp_speeds_t supp_speeds;
         int numa;
 
         TrexStatelessPort *port = main->get_port_by_id(i);
-        port->get_properties(driver, speed);
-        port->get_macaddr(hw_macaddr, src_macaddr, dst_macaddr);
+
+        port->get_properties(driver);
 
         port->get_pci_info(pci_addr, numa);
         main->get_platform_api()->getPortAttrObj(i)->get_description(description);
@@ -311,9 +309,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
         section["ports"][i]["driver"]       = driver;
         section["ports"][i]["description"]  = description;
-        section["ports"][i]["hw_macaddr"]   = hw_macaddr;
-        section["ports"][i]["src_macaddr"]  = src_macaddr;
-        section["ports"][i]["dst_macaddr"]  = dst_macaddr;
 
         section["ports"][i]["pci_addr"]     = pci_addr;
         section["ports"][i]["numa"]         = numa;
@@ -330,7 +325,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
             section["ports"][i]["rx"]["caps"].append("rx_bytes");
         }
         section["ports"][i]["rx"]["counters"]  = port->get_rx_count_num();
-        section["ports"][i]["speed"] = (uint16_t) speed / 1000;
         section["ports"][i]["is_fc_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(i)->is_fc_change_supported();
         section["ports"][i]["is_led_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(i)->is_led_change_supported();
         section["ports"][i]["is_link_supported"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(i)->is_link_change_supported();
@@ -343,6 +337,24 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     }
 
     return (TREX_RPC_CMD_OK);
+}
+
+
+int
+TrexRpcCmdSetPortAttr::parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result) {
+    const std::string type = parse_choice(msg, "mode", {"hw", "all"}, result);
+
+    rx_filter_mode_e filter_mode;
+    if (type == "hw") {
+        filter_mode = RX_FILTER_MODE_HW;
+    } else if (type == "all") {
+        filter_mode = RX_FILTER_MODE_ALL;
+    } else {
+        /* can't happen - parsed choice */
+        assert(0);
+    }
+
+    return get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_rx_filter_mode(filter_mode);
 }
 
 /**
@@ -361,46 +373,54 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
 
     const Json::Value &attr = parse_object(params, "attr", result);
+
     int ret = 0;
-    bool changed = false;
+    
     /* iterate over all attributes in the dict */
     for (const std::string &name : attr.getMemberNames()) {
+
         if (name == "promiscuous") {
             bool enabled = parse_bool(attr[name], "enabled", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_promiscuous(enabled);
         }
+
         else if (name == "link_status") {
             bool up = parse_bool(attr[name], "up", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_link_up(up);
         }
+
         else if (name == "led_status") {
             bool on = parse_bool(attr[name], "on", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_led(on);
-        } else if (name == "flow_ctrl_mode") {
+        }
+
+        else if (name == "flow_ctrl_mode") {
             int mode = parse_int(attr[name], "mode", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_flow_ctrl(mode);
-        } else {
-            generate_execute_err(result, "Not recognized attribute: " + name);
-            break;
         }
-        if (ret != 0){
-            if ( ret == -ENOTSUP ) {
-                generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
-            }
-            else if (ret) {
-                generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
-            }
-            break;
-        } else {
-            changed = true;
-        }
-    }
-    if (changed) {
-        get_stateless_obj()->get_platform_api()->publish_async_port_attr_changed(port_id);
-    }
 
+        else if (name == "rx_filter_mode") {
+            const Json::Value &rx = parse_object(attr, name, result);
+            ret = parse_rx_filter_mode(rx, port_id, result);
+        }
+
+        /* unknown attribute */
+        else {
+            generate_execute_err(result, "unknown attribute type: '" + name + "'");
+            break;
+        }
+
+        /* check error code */
+        if ( ret == -ENOTSUP ) {
+            generate_execute_err(result, "Error applying " + name + ": operation is not supported for this NIC.");
+        } else if (ret) {
+            generate_execute_err(result, "Error applying " + name + " attribute, return value: " + to_string(ret));
+        }
+    }
+    
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
+   
 }
 
 
@@ -568,18 +588,17 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
     result["result"]["state"]         = port->get_state_as_string();
     result["result"]["max_stream_id"] = port->get_max_stream_id();
-    result["result"]["speed"]         = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_link_speed();
 
     /* attributes */
-    result["result"]["attr"]["promiscuous"]["enabled"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_promiscuous();
-    result["result"]["attr"]["link"]["up"] = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->is_link_up();
-    int mode;
-    int ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->get_flow_ctrl(mode);
-    if (ret != 0) {
-        mode = -1;
+    get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
+    
+    /* RX info */
+    try {
+        result["result"]["rx_info"] = port->rx_features_to_json();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
-    result["result"]["attr"]["fc"]["mode"] = mode;
-
+    
     return (TREX_RPC_CMD_OK);
 }
 
@@ -640,3 +659,198 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
 }
 
+/**
+ * set on/off RX software receive mode
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    /* decide which feature is being set */
+    const std::string type = parse_choice(params, "type", {"capture", "queue", "server"}, result);
+
+    if (type == "capture") {
+        parse_capture_msg(params, port, result);
+    } else if (type == "queue") {
+        parse_queue_msg(params, port, result);
+    } else if (type == "server") {
+        parse_server_msg(params, port, result);
+    } else {
+        assert(0);
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+   
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_capture_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+    
+    bool enabled = parse_bool(msg, "enabled", result);
+
+    if (enabled) {
+
+        std::string pcap_filename = parse_string(msg, "pcap_filename", result);
+        uint64_t limit = parse_uint32(msg, "limit", result);
+
+        if (limit == 0) {
+            generate_parse_err(result, "limit cannot be zero");
+        }
+
+        try {
+            port->start_rx_capture(pcap_filename, limit);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+
+    } else {
+
+        try {
+            port->stop_rx_capture();
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+
+    }
+
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+    bool enabled = parse_bool(msg, "enabled", result);
+
+    if (enabled) {
+
+        uint64_t size = parse_uint32(msg, "size", result);
+
+        if (size == 0) {
+            generate_parse_err(result, "queue size cannot be zero");
+        }
+
+        try {
+            port->start_rx_queue(size);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+
+    } else {
+
+        try {
+            port->stop_rx_queue();
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+
+    }
+
+}
+
+void 
+TrexRpcCmdSetRxFeature::parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
+}
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    try {
+        const RXPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
+        if (pkt_buffer) {
+            result["result"]["pkts"] = pkt_buffer->to_json();
+            delete pkt_buffer;
+            
+        } else {
+            result["result"]["pkts"] = Json::arrayValue;
+        }
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/**
+ * configures a port in L2 mode
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    
+    const std::string dst_mac_str  = parse_string(params, "dst_mac", result);
+ 
+    uint8_t dst_mac[6];
+    if (!utl_str_to_macaddr(dst_mac_str, dst_mac)) {
+        std::stringstream ss;
+        ss << "'invalid MAC address: '" << dst_mac_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+    
+    port->set_l2_mode(dst_mac);
+    
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * configures a port in L3 mode
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+ 
+    const std::string src_ipv4_str  = parse_string(params, "src_addr", result);
+    const std::string dst_ipv4_str  = parse_string(params, "dst_addr", result);
+    
+    uint32_t src_ipv4;
+    if (!utl_ipv4_to_uint32(src_ipv4_str.c_str(), src_ipv4)) {
+        std::stringstream ss;
+        ss << "invalid source IPv4 address: '" << src_ipv4_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+ 
+    uint32_t dst_ipv4;
+    if (!utl_ipv4_to_uint32(dst_ipv4_str.c_str(), dst_ipv4)) {
+        std::stringstream ss;
+        ss << "invalid destination IPv4 address: '" << dst_ipv4_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+     
+   
+    
+    /* did we get a resolved MAC as well ? */
+    if (params["resolved_mac"] != Json::Value::null) {
+        const std::string resolved_mac  = parse_string(params, "resolved_mac", result);
+        
+        uint8_t mac[6];
+        if (!utl_str_to_macaddr(resolved_mac, mac)) {
+            std::stringstream ss;
+            ss << "'invalid MAC address: '" << resolved_mac << "'";
+            generate_parse_err(result, ss.str());
+        } 
+    
+        port->set_l3_mode(src_ipv4, dst_ipv4, mac);
+        
+    } else {
+        
+        port->set_l3_mode(src_ipv4, dst_ipv4);
+    }
+    
+    return (TREX_RPC_CMD_OK);    
+    
+}

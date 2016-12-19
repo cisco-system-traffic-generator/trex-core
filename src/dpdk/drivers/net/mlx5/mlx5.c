@@ -181,6 +181,9 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	}
 	if (priv->reta_idx != NULL)
 		rte_free(priv->reta_idx);
+
+    mlx5_stats_free(dev);
+
 	priv_unlock(priv);
 	memset(priv, 0, sizeof(*priv));
 }
@@ -366,6 +369,13 @@ mlx5_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 	unsigned int mps;
 	int idx;
 	int i;
+    static int ibv_was_init=0;
+
+    if (ibv_was_init==0) {
+        ibv_fork_init();
+        ibv_was_init=1;
+    }
+
 
 	(void)pci_drv;
 	assert(pci_drv == &mlx5_driver.pci_drv);
@@ -511,7 +521,16 @@ mlx5_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		priv->mtu = ETHER_MTU;
 		priv->mps = mps; /* Enable MPW by default if supported. */
 		priv->cqe_comp = 1; /* Enable compression by default. */
+
+
 		err = mlx5_args(priv, pci_dev->devargs);
+
+		/* TREX PATCH */
+		/* set for maximum performance default */
+		priv->txq_inline  =128;
+		priv->txqs_inline =4;
+
+
 		if (err) {
 			ERROR("failed to process device arguments: %s",
 			      strerror(err));
@@ -751,7 +770,6 @@ rte_mlx5_pmd_init(const char *name, const char *args)
 	 * using this PMD, which is not supported in forked processes.
 	 */
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
-	ibv_fork_init();
 	rte_eal_pci_register(&mlx5_driver.pci_drv);
 	return 0;
 }

@@ -4,15 +4,16 @@
 
 
 ### TRex configuration:
-# hostname       - can be DNS name or IP for the TRex machine for ssh to the box
-# password       - root password for TRex machine
-# is_dual        - should the TRex inject with -p ?
-# version_path   - path to the TRex version and executable
-# cores          - how many cores should be used
-# latency        - rate of latency packets injected by the TRex
-# modes          - list of modes (tagging) of this setup (loopback, virtual etc.)
-# 	  * loopback - Trex works via loopback. Router and TFTP configurations may be skipped.
-#     * virtual  - virtual OS (accept low CPU utilization in tests)
+# hostname        - can be DNS name or IP for the TRex machine for ssh to the box
+# password        - root password for TRex machine
+# is_dual         - should the TRex inject with -p ?
+# version_path    - path to the TRex version and executable
+# cores           - how many cores should be used
+# latency         - rate of latency packets injected by the TRex
+# modes           - list of modes (tagging) of this setup (loopback etc.)
+# 	  * loopback  - Trex works via loopback. Router and TFTP configurations may be skipped.
+#     * VM        - Virtual OS (accept low CPU utilization in tests, latency can get spikes)
+#     * virt_nics - NICs are virtual (VMXNET3 etc.)
 
 ### Router configuration:
 # hostname       - the router hostname as apears in ______# cli prefix
@@ -35,4 +36,6 @@
 trex:
   hostname       : csi-trex-11
   cores          : 1
-  modes          : ['loopback', 'VM', 'virt_nics']
+  modes          : ['loopback']
+
+

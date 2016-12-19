@@ -227,9 +227,10 @@ class CFileWriterBase {
 
 public:
 
-	virtual ~CFileWriterBase(){};
-	virtual bool Create(char * name) = 0;
+    virtual ~CFileWriterBase(){};
+    virtual bool Create(char * name) = 0;
     virtual bool write_packet(CCapPktRaw * lpPacket)=0;
+    virtual void flush_to_disk() = 0;
 
 };
 

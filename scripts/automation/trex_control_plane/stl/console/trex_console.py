@@ -202,7 +202,7 @@ class TRexConsole(TRexGeneralCmd):
             func_name = f.__name__
             if func_name.startswith("do_"):
                 func_name = func_name[3:]
-
+                
             if not inst.stateless_client.is_connected():
                 print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
@@ -313,6 +313,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_shell (self, line):
         self.do_history(line)
 
+    @verify_connected
     def do_push (self, line):
         '''Push a local PCAP file\n'''
         self.stateless_client.push_line(line)
@@ -320,6 +321,7 @@ class TRexConsole(TRexGeneralCmd):
     def help_push (self):
         self.do_push("-h")
 
+    @verify_connected
     def do_portattr (self, line):
         '''Change/show port(s) attributes\n'''
         self.stateless_client.set_port_attr_line(line)
@@ -327,6 +329,42 @@ class TRexConsole(TRexGeneralCmd):
     def help_portattr (self):
         self.do_portattr("-h")
 
+    @verify_connected
+    def do_l2 (self, line):
+        '''Configures a port in L2 mode'''
+        self.stateless_client.set_l2_mode_line(line)
+        
+    def help_l2 (self):
+        self.do_l2("-h")
+    
+    @verify_connected
+    def do_l3 (self, line):
+        '''Configures a port in L3 mode'''
+        self.stateless_client.set_l3_mode_line(line)
+
+    def help_l3 (self):
+        self.do_l3("-h")
+
+        
+    @verify_connected
+    def do_set_rx_sniffer (self, line):
+        '''Sets a port sniffer on RX channel as PCAP recorder'''
+        self.stateless_client.set_rx_sniffer_line(line)
+
+    def help_sniffer (self):
+        self.do_set_rx_sniffer("-h")
+
+    @verify_connected
+    def do_resolve (self, line):
+        '''Resolve ARP for ports'''
+        self.stateless_client.resolve_line(line)
+
+    def help_resolve (self):
+        self.do_resolve("-h")
+
+    do_arp = do_resolve
+    help_arp = help_resolve
+    
     @verify_connected
     def do_map (self, line):
         '''Maps ports topology\n'''
@@ -416,6 +454,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Release ports\n'''
         self.stateless_client.release_line(line)
 
+    @verify_connected
     def do_reacquire (self, line):
         '''reacquire all the ports under your logged user name'''
         self.stateless_client.reacquire_line(line)
@@ -469,7 +508,7 @@ class TRexConsole(TRexGeneralCmd):
     ############# update
     @verify_connected
     def do_update(self, line):
-        '''update speed of port(s)currently transmitting traffic\n'''
+        '''update speed of port(s) currently transmitting traffic\n'''
 
         self.stateless_client.update_line(line)
 
@@ -530,6 +569,13 @@ class TRexConsole(TRexGeneralCmd):
         '''Clear cached local statistics\n'''
         self.stateless_client.clear_stats_line(line)
 
+    @verify_connected
+    def do_service (self, line):
+        '''Sets port(s) service mode state'''
+        self.stateless_client.service_line(line)
+        
+    def help_service (self, line):
+        self.do_service("-h")
 
     def help_clear(self):
         self.do_clear("-h")

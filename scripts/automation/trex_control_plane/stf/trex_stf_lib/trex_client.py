@@ -150,10 +150,8 @@ class CTRexClient(object):
         user = user or self.__default_user
         try:
             d = int(d)
-            if d < 30 and not trex_development:  # test duration should be at least 30 seconds, unless trex_development flag is specified.
-                raise ValueError
         except ValueError:
-            raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
+            raise ValueError('d parameter must be integer, specifying how long TRex run.')
 
         trex_cmd_options.update( {'f' : f, 'd' : d} )
         if not trex_cmd_options.get('l'):

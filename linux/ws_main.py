@@ -97,6 +97,7 @@ bp_sim_gtest = SrcGroup(dir='src',
         src_list=[
              'bp_gtest.cpp',
              'gtest/tuple_gen_test.cpp',
+             'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp'
              ])
@@ -118,7 +119,9 @@ main_src = SrcGroup(dir='src',
              'time_histogram.cpp',
              'utl_json.cpp',
              'utl_cpuu.cpp',
+             'utl_ip.cpp',
              'msg_manager.cpp',
+             'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'stateful_rx_core.cpp',
              'flow_stat.cpp',
@@ -167,6 +170,8 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
+                                    'rx/trex_stateless_rx_core.cpp',
+                                    'rx/trex_stateless_rx_port_mngr.cpp'
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',

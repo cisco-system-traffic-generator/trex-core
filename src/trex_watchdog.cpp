@@ -218,6 +218,8 @@ void TrexWatchDog::stop() {
  */
 void TrexWatchDog::_main() {
 
+    pthread_setname_np(pthread_self(), "Trex Watchdog");
+
     assert(m_enable == true);
 
     /* start main loop */

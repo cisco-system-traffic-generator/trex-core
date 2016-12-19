@@ -1,0 +1,196 @@
+TRex Analytics Report
+======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+
+include::trex_ga.asciidoc[]
+
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+endif::backend-docbook[]
+
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+
+= TRex performance trend 
+
+== Setup: XL710 (4x40GbE)  trex-08
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 2 NICS x ( 2x 40GbE ) Intel XL710, Total ports 4
+| NUMA    | NIC0-NUMA 0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Fedora 18 - baremetal
+|=================
+
+image:images/trex08_latest_test_runs.png[title="trex08 test runs",align="left",width={p_width}, link="images/trex08_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex08_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex08_trend_graph.png[title="trex08_trend_graph",align="left",width={p_width}, link="images/trex08_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex08_trend_stats.csv[]
+|===
+
+== Setup:  X710 (8x10GbE) trex-09 
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 2 NICS x ( 2x 40GbE ) Intel X710, Total 8 ports 
+| NUMA    | NIC0-NUMA0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Fedora 18 - baremetal
+|=================
+
+
+image:images/trex09_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/trex09_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex09_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex09_trend_graph.png[title="trex09_trend_graph",align="left",width={p_width}, link="images/trex09_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex09_trend_stats.csv[]
+|===
+
+
+//////////////////////////////////////////////////////////////
+
+== Setup:  82599EB (4x10GbE) kiwi02
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 220M3
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz (low end)
+| NICs:   | 2(NICS)x (2x10GbE) (4 ports) Intel 82599EB Total 4 ports
+| NUMA    | NIC0-NUMA0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 1x PCIe16 + 1xPCIe8
+| OS:     | Fedora 18 - baremetal
+|=================
+
+
+image:images/kiwi02_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/kiwi02_latest_test_runs.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/kiwi02_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Trend: Performance Over Time
+
+image:images/kiwi02_trend_graph.png[title="kiwi02_trend_graph",align="left",width={p_width}, link="images/kiwi02_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/kiwi02_trend_stats.csv[]
+|===
+
+
+//////////////////////////////////////////////////////////
+
+== Setup:   Cisco 1300 VIC (2x40GbE) trex-11
+
+[IMPORTANT]
+=====================================
+* this setup is not baremetal, performance are low due to that
+=====================================
+
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 2 NICS x ( 2x 40GbE ) Intel X710, Total 8 ports 
+| NUMA    | Unknown due to ESXi
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Ubuntu 14 - ESXi only 4 cores are utilized 
+|=================
+
+image:images/trex11_latest_test_runs.png[title="trex11 test runs",align="left",width={p_width}, link="images/trex11_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex11_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex11_trend_graph.png[title="trex11_trend_graph",align="left",width={p_width}, link="images/trex11_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex11_trend_stats.csv[]
+|===
+
+
+== Setup:  Mellanox ConnectX-4 (2x100GbE) trex-07
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 1 NIC x 100G (2 ports) Mellanox ConnectX-4 NUMA#1
+| NUMA    | One NIC on NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | CentOS 7.2 - baremetal
+|=================
+
+image:images/trex07_latest_test_runs.png[title="trex07 test runs",align="left",width={p_width}, link="images/trex07_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex07_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex07_trend_graph.png[title="trex07_trend_graph",align="left",width={p_width}, link="images/trex07_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex07_trend_stats.csv[]
+|===
+
+
+== Raw information 
+
+raw information can be found here link:images/_detailed_table.csv[raw_info.csv]
+
+
