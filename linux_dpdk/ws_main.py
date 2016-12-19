@@ -14,6 +14,11 @@ import uuid
 import subprocess
 import platform
 from waflib import Logs
+from waflib.Configure import conf
+from waflib import Build
+
+# use hostname as part of cache filename
+Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
@@ -134,15 +139,46 @@ def missing_pkg_msg(fedora, ubuntu):
     return msg
 
 
+@conf
+def check_ofed(ctx):
+    ctx.start_msg('Checking for OFED')
+    ofed_info='/usr/bin/ofed_info'
+    ofed_ver= '-3.4-'
+    ofed_ver_show= 'v3.4'
+
+    if not os.path.isfile(ofed_info):
+        ctx.end_msg('not found', 'YELLOW')
+        return False
+
+    ret, out = getstatusoutput(ofed_info)
+    if ret:
+        ctx.end_msg("Can't run %s to verify version:\n%s" % (ofed_info, out), 'YELLOW')
+        return False
+
+    lines = out.splitlines()
+    if len(lines) < 2:
+        ctx.end_msg('Expected several output lines from %s, got:\n%s' % (ofed_info, out), 'YELLOW')
+        return False
+
+    if ofed_ver not in lines[0]:
+        ctx.end_msg('Expected version: %s, got: %s.' % (ofed_ver, lines[0]), 'YELLOW')
+        return False
+
+    ctx.end_msg('Found needed version %s' % ofed_ver_show)
+    return True
+
+
 def configure(conf):
     conf.load('g++')
     conf.load('gcc')
     conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
-    try:
-        conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will try internal version.')
-    except:
-        pass
+    ofed_ok = conf.check_ofed(mandatory = False)
+    if ofed_ok:
+        conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
+    else:
+        Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' + 
+                              'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
 
 
 def getstatusoutput(cmd):
@@ -850,8 +886,10 @@ def build(bld):
     zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
     if bld.env['LIB_IBVERBS']:
+        Logs.pprint('GREEN', 'Info: Using external libverbs.')
         bld.read_shlib(name='ibverbs')
     else:
+        Logs.pprint('GREEN', 'Info: Using internal libverbs.')
         ibverbs_lib_path='external_libs/ibverbs/'
         dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
         bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
