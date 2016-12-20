@@ -343,7 +343,7 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 };
 
-class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase10G {
+class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase40G(){
         // Since we support only 128 counters per if, it is OK to configure here 4 statically.
@@ -362,6 +362,9 @@ public:
     }
 
     virtual void update_global_config_fdir(port_cfg_t * cfg){
+    }
+    virtual int get_min_sample_rate(void){
+        return (RX_CHECK_MIX_SAMPLE_RATE);
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -461,7 +464,7 @@ private:
 };
 
 
-class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase10G {
+class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
     }
@@ -478,6 +481,9 @@ public:
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
 
+    virtual int get_min_sample_rate(void){
+        return (RX_CHECK_MIX_SAMPLE_RATE);
+    }
     virtual void update_configuration(port_cfg_t * cfg);
 
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -686,6 +692,7 @@ enum { OPT_HELP,
        OPT_CHECKSUM_OFFLOAD,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
+       OPT_NO_OFED_CHECK,
 };
 
 /* these are the argument types:
@@ -695,54 +702,55 @@ enum { OPT_HELP,
 */
 static CSimpleOpt::SOption parser_options[] =
     {
-        { OPT_HELP,                   "-?",                SO_NONE   },
-        { OPT_HELP,                   "-h",                SO_NONE   },
-        { OPT_HELP,                   "--help",            SO_NONE   },
-        { OPT_UT,                     "--ut",              SO_NONE   },
-        { OPT_MODE_BATCH,             "-f",                SO_REQ_SEP},
-        { OPT_MODE_INTERACTIVE,       "-i",                SO_NONE   },
-        { OPT_PLAT_CFG_FILE,          "--cfg",             SO_REQ_SEP},
-        { OPT_SINGLE_CORE,            "-s",                SO_NONE  },
-        { OPT_FLIP_CLIENT_SERVER,"--flip",SO_NONE  },
-        { OPT_FLOW_FLIP_CLIENT_SERVER,"-p",SO_NONE  },
-        { OPT_FLOW_FLIP_CLIENT_SERVER_SIDE,"-e",SO_NONE  },
-        { OPT_NO_CLEAN_FLOW_CLOSE,"--nc",SO_NONE  },
-        { OPT_LIMT_NUM_OF_PORTS,"--limit-ports", SO_REQ_SEP },
-        { OPT_CORES     , "-c",         SO_REQ_SEP },
-        { OPT_NODE_DUMP , "-v",         SO_REQ_SEP },
-        { OPT_DUMP_INTERFACES , "--dump-interfaces",         SO_MULTI },
-        { OPT_LATENCY , "-l",         SO_REQ_SEP },
-        { OPT_DURATION     , "-d",  SO_REQ_SEP },
-        { OPT_PLATFORM_FACTOR     , "-pm",  SO_REQ_SEP },
-        { OPT_PUB_DISABLE     , "-pubd",  SO_NONE },
-        { OPT_RATE_MULT     , "-m",  SO_REQ_SEP },
-        { OPT_LATENCY_MASK     , "--lm",  SO_REQ_SEP },
-        { OPT_ONLY_LATENCY, "--lo",  SO_NONE  },
-        { OPT_LATENCY_PREVIEW ,       "-k",   SO_REQ_SEP   },
-        { OPT_WAIT_BEFORE_TRAFFIC ,   "-w",   SO_REQ_SEP   },
-        { OPT_PCAP,       "--pcap",       SO_NONE   },
-        { OPT_RX_CHECK,   "--rx-check",  SO_REQ_SEP },
-        { OPT_IO_MODE,   "--iom",  SO_REQ_SEP },
-        { OPT_RX_CHECK_HOPS, "--hops", SO_REQ_SEP },
-        { OPT_IPV6,       "--ipv6",       SO_NONE   },
-        { OPT_LEARN, "--learn",       SO_NONE   },
-        { OPT_LEARN_MODE, "--learn-mode",       SO_REQ_SEP   },
-        { OPT_LEARN_VERIFY, "--learn-verify",       SO_NONE   },
-        { OPT_L_PKT_MODE, "--l-pkt-mode",       SO_REQ_SEP   },
-        { OPT_NO_FLOW_CONTROL, "--no-flow-control-change",       SO_NONE   },
-        { OPT_VLAN,       "--vlan",       SO_NONE   },
-        { OPT_CLIENT_CFG_FILE, "--client_cfg", SO_REQ_SEP },
-        { OPT_CLIENT_CFG_FILE, "--client-cfg", SO_REQ_SEP },
-        { OPT_NO_KEYBOARD_INPUT ,"--no-key", SO_NONE   },
-        { OPT_VIRT_ONE_TX_RX_QUEUE, "--vm-sim", SO_NONE },
-        { OPT_PREFIX, "--prefix", SO_REQ_SEP },
-        { OPT_SEND_DEBUG_PKT, "--send-debug-pkt", SO_REQ_SEP },
-        { OPT_MBUF_FACTOR     , "--mbuf-factor",  SO_REQ_SEP },
-        { OPT_NO_WATCHDOG ,     "--no-watchdog",  SO_NONE  },
-        { OPT_ALLOW_COREDUMP ,  "--allow-coredump",  SO_NONE  },
-        { OPT_CHECKSUM_OFFLOAD, "--checksum-offload", SO_NONE },
-        { OPT_CLOSE, "--close-at-end", SO_NONE },
-        { OPT_ARP_REF_PER, "--arp-refresh-period", SO_REQ_SEP },
+        { OPT_HELP,                   "-?",                SO_NONE    },
+        { OPT_HELP,                   "-h",                SO_NONE    },
+        { OPT_HELP,                   "--help",            SO_NONE    },
+        { OPT_UT,                     "--ut",              SO_NONE    },
+        { OPT_MODE_BATCH,             "-f",                SO_REQ_SEP },
+        { OPT_MODE_INTERACTIVE,       "-i",                SO_NONE    },
+        { OPT_PLAT_CFG_FILE,          "--cfg",             SO_REQ_SEP },
+        { OPT_SINGLE_CORE,            "-s",                SO_NONE    },
+        { OPT_FLIP_CLIENT_SERVER,     "--flip",            SO_NONE    },
+        { OPT_FLOW_FLIP_CLIENT_SERVER,"-p",                SO_NONE    },
+        { OPT_FLOW_FLIP_CLIENT_SERVER_SIDE, "-e",          SO_NONE    },
+        { OPT_NO_CLEAN_FLOW_CLOSE,    "--nc",              SO_NONE    },
+        { OPT_LIMT_NUM_OF_PORTS,      "--limit-ports",     SO_REQ_SEP },
+        { OPT_CORES,                  "-c",                SO_REQ_SEP },
+        { OPT_NODE_DUMP,              "-v",                SO_REQ_SEP },
+        { OPT_DUMP_INTERFACES,        "--dump-interfaces", SO_MULTI   },
+        { OPT_LATENCY,                "-l",                SO_REQ_SEP },
+        { OPT_DURATION,               "-d",                SO_REQ_SEP },
+        { OPT_PLATFORM_FACTOR,        "-pm",               SO_REQ_SEP },
+        { OPT_PUB_DISABLE,            "-pubd",             SO_NONE    },
+        { OPT_RATE_MULT,              "-m",                SO_REQ_SEP },
+        { OPT_LATENCY_MASK,           "--lm",              SO_REQ_SEP },
+        { OPT_ONLY_LATENCY,           "--lo",              SO_NONE    },
+        { OPT_LATENCY_PREVIEW,        "-k",                SO_REQ_SEP },
+        { OPT_WAIT_BEFORE_TRAFFIC,    "-w",                SO_REQ_SEP },
+        { OPT_PCAP,                   "--pcap",            SO_NONE    },
+        { OPT_RX_CHECK,               "--rx-check",        SO_REQ_SEP },
+        { OPT_IO_MODE,                "--iom",             SO_REQ_SEP },
+        { OPT_RX_CHECK_HOPS,          "--hops",            SO_REQ_SEP },
+        { OPT_IPV6,                   "--ipv6",            SO_NONE    },
+        { OPT_LEARN,                  "--learn",           SO_NONE    },
+        { OPT_LEARN_MODE,             "--learn-mode",      SO_REQ_SEP },
+        { OPT_LEARN_VERIFY,           "--learn-verify",    SO_NONE    },
+        { OPT_L_PKT_MODE,             "--l-pkt-mode",      SO_REQ_SEP },
+        { OPT_NO_FLOW_CONTROL,        "--no-flow-control-change", SO_NONE },
+        { OPT_VLAN,                   "--vlan",            SO_NONE    },
+        { OPT_CLIENT_CFG_FILE,        "--client_cfg",      SO_REQ_SEP },
+        { OPT_CLIENT_CFG_FILE,        "--client-cfg",      SO_REQ_SEP },
+        { OPT_NO_KEYBOARD_INPUT,      "--no-key",          SO_NONE    },
+        { OPT_VIRT_ONE_TX_RX_QUEUE,   "--vm-sim",          SO_NONE    },
+        { OPT_PREFIX,                 "--prefix",          SO_REQ_SEP },
+        { OPT_SEND_DEBUG_PKT,         "--send-debug-pkt",  SO_REQ_SEP },
+        { OPT_MBUF_FACTOR,            "--mbuf-factor",     SO_REQ_SEP },
+        { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
+        { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
+        { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
+        { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
+        { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
+        { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         SO_END_OF_OPTIONS
     };
 
@@ -793,6 +801,7 @@ static int usage(){
     printf(" --nc                       : If set, will not wait for all flows to be closed, before terminating - see manual for more information \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it \n");
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
+    printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
@@ -1065,14 +1074,22 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_arp_ref_per=(uint16_t)tmp_data;
                 break;
+            case OPT_NO_OFED_CHECK:
+                break;
 
             default:
+                printf("Error: option %s is not handled.\n\n", args.OptionText());
                 usage();
                 return -1;
                 break;
             } // End of switch
         }// End of IF
         else {
+            if (args.LastError() == SO_OPT_INVALID) {
+                printf("Error: option %s is not recognized.\n\n", args.OptionText());
+            } else if (args.LastError() == SO_ARG_MISSING) {
+                printf("Error: option %s is expected to have argument.\n\n", args.OptionText());
+            }
             usage();
             return -1;
         }

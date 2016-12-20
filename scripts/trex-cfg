@@ -4,7 +4,7 @@ if [ -f /etc/debian_version ]; then
     OS=debian  
 elif [ -f /etc/redhat-release ]; then
     OS=redhat
-    systemctl stop firewalld.service
+    systemctl stop firewalld.service &> /dev/null
 else
     OS=unknown
 fi    
@@ -78,14 +78,6 @@ fi
 # try to bind the ports from the configuration file (new DPDK)
 PARENT_ARGS="$0 $@"
 
-if /usr/bin/python -V &> /dev/null; then
-    ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
-elif /usr/bin/python3 -V &> /dev/null; then
-    /usr/bin/python3 dpdk_setup_ports.py --parent "$PARENT_ARGS"
-elif python -V &> /dev/null; then
-    python ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
-else
-    echo "Could not find python to run dpdk_setup_ports.py script"
-    exit 1
-fi
+source find_python.sh
+$PYTHON ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
 

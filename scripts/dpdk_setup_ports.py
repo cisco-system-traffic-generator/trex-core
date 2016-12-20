@@ -15,6 +15,7 @@ from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
 import getpass
 import subprocess
+import platform
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -243,6 +244,7 @@ class map_driver(object):
     cfg_file='/etc/trex_cfg.yaml'
     parent_cfg = None
     dump_interfaces = None
+    no_ofed_check = None
 
 class DpdkSetup(Exception):
     pass
@@ -354,7 +356,7 @@ Other network devices
                subprocess.call(cmd, stdout=my_stderr,stderr=my_stderr, shell=True)
                my_stderr.close();
 
-    def check_ofe_version (self):
+    def check_ofed_version (self):
         ofed_info='/usr/bin/ofed_info'
         ofed_ver= '-3.4-'
         ofed_ver_show= '3.4-1'
@@ -377,7 +379,15 @@ Other network devices
                 print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
                 exit(-1);
 
-
+    def verify_ofed_os(self):
+        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.2\n'
+        err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
+        try:
+            dist = platform.dist()
+            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.2'):
+                print(err_msg)
+        except Exception as e:
+            print('Error while determining OS type: %s' % e)
 
     def load_config_file (self):
 
@@ -490,7 +500,10 @@ Other network devices
                 self.set_only_mellanox_nics()
 
         if self.get_only_mellanox_nics():
-            self.check_ofe_version ()
+            if not map_driver.no_ofed_check:
+                self.verify_ofed_os()
+                self.check_ofed_version()
+
             for key in if_list:
                 pci_id=self.m_devices[key]['Slot_str']
                 self.tune_mlx5_device (pci_id)
@@ -835,10 +848,12 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('-?', '-h', '--help', dest = 'help', action = 'store_true')
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
+    parent_parser.add_argument('--no-ofed-check', action = 'store_true')
+    parent_parser.add_argument('--no-watchdog', action = 'store_true')
     args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if args.help:
         sys.exit(0)
-    return (args.cfg, args.dump_interfaces)
+    return (args.cfg, args.dump_interfaces, args.no_ofed_check)
 
 def process_options ():
     parser = argparse.ArgumentParser(usage=""" 
@@ -955,7 +970,7 @@ To see more detailed info on interfaces (table):
 
     map_driver.args = parser.parse_args();
     if map_driver.args.parent :
-        map_driver.parent_cfg, map_driver.dump_interfaces = parse_parent_cfg (map_driver.args.parent)
+        map_driver.parent_cfg, map_driver.dump_interfaces, map_driver.no_ofed_check = parse_parent_cfg (map_driver.args.parent)
         if map_driver.parent_cfg != '':
             map_driver.cfg_file = map_driver.parent_cfg;
     if  map_driver.args.cfg :
@@ -999,4 +1014,3 @@ def main ():
 
 if __name__ == '__main__':
     main()
-
