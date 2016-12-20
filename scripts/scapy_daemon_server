@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, sys, getpass
+import os, sys
 import tempfile
 import time
 import subprocess, shlex
@@ -11,7 +11,7 @@ def fail(msg):
     print(msg)
     sys.exit(-1)
 
-if getpass.getuser() != 'root':
+if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
 
 pwd = os.path.abspath(os.path.dirname(__file__))
@@ -102,7 +102,7 @@ def start_daemon():
         return
     server_path = os.path.join(pwd, 'automation', 'trex_control_plane', 'stl', 'services', 'scapy_server')
     with tempfile.TemporaryFile() as stdout_file:
-        subprocess.Popen(shlex.split('sudo -u nobody %s scapy_zmq_server.py -s %s' % (sys.executable, args.daemon_port)), stdout = stdout_file,
+        subprocess.Popen(shlex.split("su -s /bin/bash -c '%s scapy_zmq_server.py -s %s' nobody" % (sys.executable, args.daemon_port)), stdout = stdout_file,
                     stderr = subprocess.STDOUT, cwd = server_path, close_fds = True, universal_newlines = True)
         ret = progress(is_running, 'Starting Scapy server', 'Scapy server is started', 'Scapy server failed to run')
         if ret:
@@ -151,8 +151,10 @@ if __name__ == '__main__':
         formatter_class = RawTextHelpFormatter,
     )
     
-    parser.add_argument('-p', '--port', type = int, default = 4507, metavar="PORT", dest="daemon_port", 
-            help="Select tcp port on which Scapy server listens.\nDefault port is 4507.", action="store")
+    parser.add_argument('-p', '--port', type = int, default = 4507, metavar = 'PORT', dest = 'daemon_port',
+            help='Select tcp port on which Scapy server will listen.\nDefault is 4507.')
+    #parser.add_argument('-c', '--core', type = int, default = 0,
+    #        help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
     parser.add_argument('action', choices=action_funcs.keys(),
                             action='store', help=actions_help)
     parser.usage = None

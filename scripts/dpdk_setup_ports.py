@@ -13,7 +13,6 @@ import shlex
 import traceback
 from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
-import getpass
 import subprocess
 import platform
 
@@ -984,7 +983,7 @@ To see more detailed info on interfaces (table):
 
 def main ():
     try:
-        if getpass.getuser() != 'root':
+        if os.getuid() != 0:
             raise DpdkSetup('Please run this program as root/with sudo')
 
         process_options ()

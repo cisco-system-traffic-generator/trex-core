@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, sys, getpass
+import os, sys
 import tempfile
 from time import time, sleep
 import subprocess, shlex, multiprocessing
@@ -11,7 +11,7 @@ def fail(msg):
     print(msg)
     sys.exit(-1)
 
-if getpass.getuser() != 'root':
+if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
 
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))

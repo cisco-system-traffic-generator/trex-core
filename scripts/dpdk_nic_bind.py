@@ -41,7 +41,6 @@ import texttable
 sys.path.remove(text_tables_path)
 import re
 import termios
-import getpass
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
@@ -729,7 +728,7 @@ def main():
     do_arg_actions()
 
 if __name__ == "__main__":
-    if getpass.getuser() != 'root':
+    if os.getuid() != 0:
         print('Please run this program as root/with sudo')
         exit(1)
     main()

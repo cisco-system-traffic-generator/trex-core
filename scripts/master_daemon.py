@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import os
 import sys
-import getpass
 import shutil
 import multiprocessing
 import logging
@@ -159,13 +158,13 @@ def _check_path_under_current_or_temp(path):
 
 ### Main ###
 
-if getpass.getuser() != 'root':
+if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
 
 pid = os.getpid()
-ret = os.system('taskset -pc 0 %s' % pid)
+ret, out, err = run_command('taskset -pc 0 %s' % pid)
 if ret:
-    fail('Could not set self affinity to core zero.')
+    fail('Could not set self affinity to core zero. Result: %s' % [ret, out, err])
 
 daemon_actions = OrderedDict([('start', 'start the daemon'),
                               ('stop', 'exit the daemon process'),
@@ -208,7 +207,7 @@ args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
-stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, 'sudo -u nobody %s rpc_proxy_server.py' % sys.executable, stl_rpc_proxy_dir)
+stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
 trex_daemon_server = SingletonDaemon('TRex daemon server', 'trex_daemon_server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
 master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 
