@@ -264,6 +264,34 @@ class Scapy_service_api():
         """
         pass
 
+    def get_templates(self,client_v_handler):
+        """ get_templates(self,client_v_handler)
+
+        Returns an array of templates, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        array of templates names
+        """
+        pass
+
+    def get_template(self,client_v_handler,template_name):
+        """ get_template(self,client_v_handler,template_name)
+
+        Returns a template, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        base64 of template content
+        """
+        pass
+
 def is_python(version):
     return version == sys.version_info[0]
 
@@ -932,7 +960,7 @@ class Scapy_service(Scapy_service_api):
         else:
             return pkt_class()
 
-        
+
     def _get_payload_classes(self, pkt_class):
         # tries to find, which subclasses allowed.
         # this can take long time, since it tries to build packets with all subclasses(O(N))
@@ -948,6 +976,20 @@ class Scapy_service(Scapy_service_api):
                     # no actions needed on fail, just sliently skip
                     pass
         return allowed_subclasses
+
+
+
+    def _get_templates(self,client_v_handler):
+        templates = []
+        for filename in os.listdir("templates"):
+            templates.append(filename)
+        return templates
+
+    def _get_template(self,client_v_handler,template_name):
+        with open('templates/' + template_name + '.trp', 'r') as content_file:
+            content = base64.b64encode(content_file.read())
+        return content
+
 
     def _get_fields_definition(self, pkt_class, fieldsDef):
         # fieldsDef - array of field definitions(or empty array)
@@ -1008,6 +1050,12 @@ class Scapy_service(Scapy_service_api):
         if protocolDef and protocolDef.get('payload'):
             return protocolDef['payload']
         return [c.__name__ for c in self._get_payload_classes(pkt_class)]
+
+    def get_templates(self,client_v_handler):
+        return self._get_templates(client_v_handler)
+
+    def get_template(self,client_v_handler,template_name):
+        return self._get_template(client_v_handler,template_name)
 
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
