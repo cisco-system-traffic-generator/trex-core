@@ -451,7 +451,7 @@ class Scapy_service(Scapy_service_api):
     def _append_intructions_help(self):
         for instruction_meta in self.field_engine_instructions_meta:
             clazz = eval(instruction_meta['id'])
-            instruction_meta['help'] = base64.b64encode(getdoc(clazz.__init__)).decode('ascii')
+            instruction_meta['help'] = base64.b64encode(getdoc(clazz.__init__).encode()).decode('ascii')
 
     def _all_protocol_structs(self):
         old_stdout = sys.stdout
