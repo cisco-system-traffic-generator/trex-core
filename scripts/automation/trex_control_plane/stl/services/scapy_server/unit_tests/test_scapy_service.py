@@ -289,3 +289,43 @@ def test_generate_vm_instructions():
     ttl_instruction = res['field_engine']['instructions']['instructions'][2]
     assert(ttl_instruction['min_value'] == 32)
     assert(ttl_instruction['max_value'] == 64)
+
+
+def test_get_templates():
+    tt = get_templates()
+    assert(tt[0]['id'])
+    assert(tt[7]["meta"]['name'])
+    try:
+        assert(tt[9]['id'])
+    except:
+        pass
+
+
+def test_get_template():
+    tt = get_templates()
+    t = tt[0]
+    res = get_template(t)
+    res2 = base64.b64decode(res)
+    obj = json.loads(res2)
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IP')
+    assert(obj['packet'][2]['id'] == 'ICMP')
+
+
+def test_get_template2():
+    tt = get_templates()
+    t = tt[7]
+    res = get_template(t)
+    res2 = base64.b64decode(res)
+    obj = json.loads(res2)
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IPv6')
+    assert(obj['packet'][2]['id'] == 'UDP')
+
+
+def test_get_template3():
+    tt = get_templates()
+    t = tt[7]
+    t["id"] = "../../" + t["id"]
+    res = get_template(t)
+    assert(res == '')

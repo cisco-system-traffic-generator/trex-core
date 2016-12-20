@@ -88,3 +88,12 @@ def adapt_json_protocol_fields(protocols_array):
         # change structure for easier
         if protocol.get("fields"):
             protocol["fields"] = fields_to_map(protocol["fields"])
+
+def get_templates():
+    return pass_result(service.get_templates(v_handler))
+
+
+
+def get_template(t):
+    return pass_result(service.get_template(v_handler, t))
+
