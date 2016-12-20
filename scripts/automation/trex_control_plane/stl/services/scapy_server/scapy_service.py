@@ -980,9 +980,24 @@ class Scapy_service(Scapy_service_api):
 
 
     def _get_templates(self,client_v_handler):
+        # Make sure you understand the three return values of os.walk:
+        #
+        # for root, subdirs, files in os.walk(rootdir):
+        #     has the following meaning:
+        #
+        # root: Current path which is "walked through"
+        # subdirs: Files in root of type directory
+        # files: Files in root (not in subdirs) of type other than directory
+        # And please use os.path.join instead of concatenating with a slash!
+        # Your problem is filePath = rootdir + '/' + file - you must concatenate the currently "walked" folder instead of the topmost folder.
+        # So that must be filePath = os.path.join(root, file). BTW "file" is a builtin, so you don't normally use it as variable name.
+
         templates = []
-        for filename in os.listdir("templates"):
-            templates.append(filename)
+        for root, subdirs, files in os.walk("templates"):
+            for file in files:
+                if file.endswith('.trp'):
+                    f = os.path.join(root, file)
+                    templates.append(f.replace("templates/", ""))
         return templates
 
     def _get_template(self,client_v_handler,template_name):

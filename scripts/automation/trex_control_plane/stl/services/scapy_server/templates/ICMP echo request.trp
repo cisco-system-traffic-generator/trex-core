@@ -1,0 +1,1 @@
+{"fileType":"trex-packet-editor","version":"1.0.0","metadata":{"caption":"ICMP echo request"},"packet":[{"id":"Ether","fields":[]},{"id":"IP","fields":[]},{"id":"ICMP","fields":[{"id":"type","value":"8"}]}],"fePrarameters":{"cache_size":"1000"},"feInstructions":[]}
