@@ -21,10 +21,93 @@ limitations under the License.
 #include <vector>
 #include "rte_ethdev_includes.h"
 #include "trex_defs.h"
+#include "common/basic_utils.h"
+#include <json/json.h>
+#include "trex_stateless_rx_defs.h"
+#include <string.h>
+
+/**
+ * destination port attribute
+ * 
+ */
+class DestAttr {
+    
+public:
+
+    DestAttr(uint8_t port_id);
+    
+    /**
+     * dest can be either MAC IPv4, or IPv4 unresolved
+     */
+    enum dest_type_e {
+        DEST_TYPE_IPV4 = 1,
+        DEST_TYPE_IPV4_UNRESOLVED,
+        DEST_TYPE_MAC,
+    };
+    
+    /**
+     * set dest as an IPv4 unresolved
+     */
+    void set_dest(uint32_t ipv4);
+    
+    /**
+     * set dest as a resolved IPv4 
+     */
+    void set_dest(uint32_t ipv4, const uint8_t *mac);
+    
+    /**
+     * set dest as a plain MAC
+     */
+    void set_dest(const uint8_t *mac);
+    
+   
+    /**
+     * return true if destination is resolved
+     */
+    bool is_resolved() const {
+        return (m_type != DEST_TYPE_IPV4_UNRESOLVED);
+    }
+    
+    /**
+     * get the dest mac 
+     * if the dest is not resolved 
+     * it will return the default MAC 
+     */
+    const uint8_t *get_dest_mac() const {
+        return m_mac;
+    }
+    
+    /**
+     * when link gets down - this should be called
+     * 
+     */
+    void on_link_down() {
+        if (m_type == DEST_TYPE_IPV4) {
+            /* reset the IPv4 dest with no resolution */
+            set_dest(m_ipv4);
+        }
+    }
+    
+    void to_json(Json::Value &output) const;
+    
+private:
+    uint32_t          m_ipv4;
+    uint8_t          *m_mac;
+    dest_type_e       m_type;
+    uint8_t           m_port_id;
+    
+private:
+    uint8_t m_default_mac[6];
+};
 
 
 class TRexPortAttr {
 public:
+
+    TRexPortAttr(uint8_t port_id) : m_dest(port_id) {
+        m_src_ipv4 = 0;
+    }
+    
     virtual ~TRexPortAttr(){}
 
 /*    UPDATES    */
@@ -33,10 +116,10 @@ public:
     virtual void update_device_info() = 0;
     virtual void reset_xstats() = 0;
     virtual void update_description() = 0;
-
+    
 /*    GETTERS    */
     virtual bool get_promiscuous() = 0;
-    virtual void macaddr_get(struct ether_addr *mac_addr) = 0;
+    virtual void get_hw_src_mac(struct ether_addr *mac_addr) = 0;
     virtual uint32_t get_link_speed() { return m_link.link_speed; } // L1 Mbps
     virtual bool is_link_duplex() { return (m_link.link_duplex ? true : false); }
     virtual bool is_link_autoneg() { return (m_link.link_autoneg ? true : false); }
@@ -50,25 +133,53 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual void get_description(std::string &description) { description = intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
+    virtual bool is_loopback() const = 0;
+    
+    uint32_t get_src_ipv4() const {return m_src_ipv4;}
+    DestAttr & get_dest() {return m_dest;}
+    
+    const uint8_t *get_src_mac() const;
+    std::string get_rx_filter_mode() const;
 
+    /* for a raw packet, write the src/dst MACs */
+    void update_src_dst_mac(uint8_t *raw_pkt) const;
+    
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
     virtual int add_mac(char * mac) = 0;
     virtual int set_link_up(bool up) = 0;
     virtual int set_flow_ctrl(int mode) = 0;
     virtual int set_led(bool on) = 0;
-
-/*    DUMPS    */
+    virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
+    
+    void set_src_ipv4(uint32_t addr);
+    
+    /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;
 
+    /* dump object status to JSON */
+    void to_json(Json::Value &output);
+    
+    uint8_t get_port_id() const {
+        return m_port_id;
+    }
+    
 protected:
-    uint8_t m_port_id;
-    rte_eth_link m_link;
-    struct rte_eth_dev_info dev_info;
-    bool flag_is_virtual;
-    bool flag_is_fc_change_supported;
-    bool flag_is_led_change_supported;
-    bool flag_is_link_change_supported;
+    
+    uint8_t                   m_port_id;
+    rte_eth_link              m_link;
+    uint32_t                  m_src_ipv4;
+    DestAttr                  m_dest;
+    
+    struct rte_eth_dev_info   dev_info;
+    
+    rx_filter_mode_e m_rx_filter_mode;
+
+    bool       flag_is_virtual;
+    bool       flag_is_fc_change_supported;
+    bool       flag_is_led_change_supported;
+    bool       flag_is_link_change_supported;
+    
 
     struct intf_info_st {
         std::string     pci_addr;
@@ -81,8 +192,11 @@ protected:
 class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
-    DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) {
+    DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) : TRexPortAttr(port_id) {
+
         m_port_id = port_id;
+        m_rx_filter_mode = RX_FILTER_MODE_HW;
+
         flag_is_virtual = is_virtual;
         int tmp;
         flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
@@ -101,12 +215,13 @@ public:
 
 /*    GETTERS    */
     virtual bool get_promiscuous();
-    virtual void macaddr_get(struct ether_addr *mac_addr);
+    virtual void get_hw_src_mac(struct ether_addr *mac_addr);
     virtual int get_xstats_values(xstats_values_t &xstats_values);
     virtual int get_xstats_names(xstats_names_t &xstats_names);
     virtual int get_flow_ctrl(int &mode);
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds);
-
+    virtual bool is_loopback() const;
+    
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled);
     virtual int add_mac(char * mac);
@@ -114,6 +229,7 @@ public:
     virtual int set_flow_ctrl(int mode);
     virtual int set_led(bool on);
 
+    virtual int set_rx_filter_mode(rx_filter_mode_e mode);
 
 /*    DUMPS    */
     virtual void dump_link(FILE *fd);
@@ -128,7 +244,7 @@ private:
 
 class SimTRexPortAttr : public TRexPortAttr {
 public:
-    SimTRexPortAttr() {
+    SimTRexPortAttr() : TRexPortAttr(0) {
         m_link.link_speed   = 10000;
         m_link.link_duplex  = 1;
         m_link.link_autoneg = 0;
@@ -146,7 +262,7 @@ public:
     void reset_xstats() {}
     void update_description() {}
     bool get_promiscuous() { return false; }
-    void macaddr_get(struct ether_addr *mac_addr) {}
+    void get_hw_src_mac(struct ether_addr *mac_addr) {}
     int get_xstats_values(xstats_values_t &xstats_values) { return -ENOTSUP; }
     int get_xstats_names(xstats_names_t &xstats_names) { return -ENOTSUP; }
     int get_flow_ctrl(int &mode) { return -ENOTSUP; }
@@ -158,6 +274,8 @@ public:
     int set_flow_ctrl(int mode) { return -ENOTSUP; }
     int set_led(bool on) { return -ENOTSUP; }
     void dump_link(FILE *fd) {}
+    int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
+    virtual bool is_loopback() const { return false; }
 };
 
 

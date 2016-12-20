@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <common/Network/Packet/Arp.h>
+#include <common/Network/Packet/MacAddress.h>
 #include "bp_sim.h"
 #include "trex_defs.h"
 
@@ -39,60 +40,80 @@ class CPreTestStats {
     }
 };
 
-class CPretestPortInfo {
+class CPretestOnePortInfo {
     friend class CPretest;
-    
- private:
-    enum CPretestPortInfoStates {
-        INIT_NEEDED,
+    enum CPretestOnePortInfoStates {
         RESOLVE_NEEDED,
-        RESOLVE_DONE,
         RESOLVE_NOT_NEEDED,
     };
 
-    CPretestPortInfo() {
-        m_state = INIT_NEEDED;
-        m_is_loopback = false;
-        m_stats.clear();
-    }
-    void dump(FILE *fd);
-    uint8_t *create_arp_req(uint16_t &pkt_size, uint8_t port, bool is_grat);
-    void set_params(CPerPortIPCfg port_cfg, const uint8_t *src_mac, bool resolve_needed);
-    void set_dst_mac(const uint8_t *dst_mac);
-    
- private:
-    uint32_t m_ip;
-    uint32_t m_def_gw;
-    uint16_t m_vlan;
-    uint8_t m_src_mac[6];
-    uint8_t m_dst_mac[6];
-    enum CPretestPortInfoStates m_state;
-    bool m_is_loopback;
-    CPreTestStats m_stats;
-};
+ public:
+    CPretestOnePortInfo();
+    ~CPretestOnePortInfo();
+    void add_src(uint32_t ip, uint16_t vlan, MacAddress mac);
+    void add_dst(uint32_t ip, uint16_t vlan);
+    void add_src(uint16_t ip[8], uint16_t vlan, MacAddress mac);
+    void add_dst(uint16_t ip[8], uint16_t vlan);
+    bool get_mac(uint32_t ip, uint16_t vlan, uint8_t *mac);
+    bool get_mac(uint16_t ip[8], uint16_t vlan, uint8_t *mac);
+    bool get_mac(COneIPInfo *ip, uint8_t *mac);
+    COneIPInfo *get_src(uint16_t vlan, uint8_t ip_ver);
+    void set_port_id(uint16_t port_id)  {m_port_id = port_id;}
+    void dump(FILE *fd, char *offset);
+    bool is_loopback() {return m_is_loopback;}
+    CPreTestStats get_stats() {return m_stats;}
+    bool resolve_needed();
+    void send_grat_arp_all();
+    void send_arp_req_all();
 
+ private:
+    COneIPv4Info *find_ip(uint32_t ip, uint16_t vlan);
+    COneIPv4Info *find_next_hop(uint32_t ip, uint16_t vlan);
+    COneIPv6Info *find_ipv6(uint16_t *ip, uint16_t vlan);
+    bool get_mac(COneIPInfo *ip, uint16_t vlan, uint8_t *mac, uint8_t ip_ver);
+
+ private:
+    bool m_is_loopback;
+    CPretestOnePortInfoStates m_state;
+    CPreTestStats m_stats;
+    uint16_t m_port_id;
+    std::vector<COneIPInfo *> m_src_info;
+    std::vector<COneIPInfo *> m_dst_info;
+};
 
 class CPretest {
  public:
     CPretest(uint16_t max_ports) {
         m_max_ports = max_ports;
+        for (int i =0; i < max_ports; i++) {
+            m_port_info[i].set_port_id(i);
+        }
     }
-    bool get_mac(uint16_t port, uint32_t ip, uint8_t *mac);
+    void add_ip(uint16_t port, uint32_t ip, uint16_t vlan, MacAddress src_mac);
+    void add_ip(uint16_t port, uint32_t ip, MacAddress src_mac);
+    void add_next_hop(uint16_t port, uint32_t ip, uint16_t vlan);
+    void add_next_hop(uint16_t port, uint32_t ip);
+    void add_ip(uint16_t port, uint16_t ip[8], uint16_t vlan, MacAddress src_mac);
+    void add_ip(uint16_t port, uint16_t ip[8], MacAddress src_mac);
+    void add_next_hop(uint16_t port, uint16_t ip[8], uint16_t vlan);
+    void add_next_hop(uint16_t port, uint16_t ip[8]);
+    bool get_mac(uint16_t port, uint32_t ip, uint16_t vlan, uint8_t *mac);
+    bool get_mac(uint16_t port, uint16_t ip[8], uint16_t vlan, uint8_t *mac);
     CPreTestStats get_stats(uint16_t port_id);
     bool is_loopback(uint16_t port);
-    void set_port_params(uint16_t port_id, const CPerPortIPCfg &port_cfg, const uint8_t *src_mac, bool resolve_needed);
     bool resolve_all();
-    void send_arp_req(uint16_t port, bool is_grat);
+    void send_arp_req_all();
     void send_grat_arp_all();
-    bool is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp);
+    bool is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_t &vlan_tag);
+    void get_results(CManyIPInfo &resolved_ips);
     void dump(FILE *fd);
     void test();
-    
+
  private:
     int handle_rx(int port, int queue_id);
 
  private:
-    CPretestPortInfo m_port_info[TREX_MAX_PORTS];
+    CPretestOnePortInfo m_port_info[TREX_MAX_PORTS];
     uint16_t m_max_ports;
 };
 

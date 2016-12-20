@@ -224,6 +224,13 @@ public:
     virtual bool Create(char *file_name);
     void Delete();
     virtual bool write_packet(CCapPktRaw * lpPacket);
+    
+    /**
+     * flush all packets to disk
+     * 
+     */
+    void flush_to_disk();
+    
 private:
     FILE *m_fd;
     int m_cnt;

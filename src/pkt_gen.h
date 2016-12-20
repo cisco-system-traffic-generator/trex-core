@@ -37,7 +37,8 @@ enum {
 enum {
     DPF_VLAN = 0x1,
     DPF_QINQ = 0X2,
-    DPF_RXCHECK = 0x4
+    DPF_RXCHECK = 0x4,
+    DPF_TOS_1 = 0x8,
 };
 
 class CTestPktGen {

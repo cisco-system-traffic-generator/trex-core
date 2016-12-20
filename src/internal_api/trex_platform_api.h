@@ -28,6 +28,7 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
+#include "trex_stateless_rx_defs.h"
 #include "trex_port_attr.h"
 #include <json/json.h>
 
@@ -112,19 +113,13 @@ public:
         IF_STAT_RX_BYTES_COUNT = 8, // Card support counting rx bytes
     };
 
-    struct mac_cfg_st {
-        uint8_t hw_macaddr[6];
-        uint8_t src_macaddr[6];
-        uint8_t dst_macaddr[6];
-    };
-
     /**
      * interface static info
      *
      */
     struct intf_info_st {
         std::string     driver_name;
-        mac_cfg_st      mac_info;
+        uint8_t         hw_macaddr[6];
         std::string     pci_addr;
         int             numa_node;
         bool            has_crc;
@@ -234,7 +229,7 @@ public:
         info.has_crc = true;
         info.numa_node = 0;
 
-        memset(&info.mac_info, 0, sizeof(info.mac_info));
+        memset(&info.hw_macaddr, 0, sizeof(info.hw_macaddr));
     }
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {

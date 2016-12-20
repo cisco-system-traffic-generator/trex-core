@@ -62,8 +62,10 @@ public:
 	inline EthernetHeader(uint8_t* packet);
 
     inline  uint8_t*  getPointer          (){return (uint8_t*)this;}
-    static inline  uint32_t  getSize             (){return (uint32_t)sizeof(EthernetHeader);}
-
+    inline  uint32_t  getSize () {
+        return ( (getNextProtocol() == Protocol::VLAN) ? 18 : 14);
+    }
+    
     // Get dest MAC pointer
     MacAddress *getDestMacP()             { return &myDestination; }
 

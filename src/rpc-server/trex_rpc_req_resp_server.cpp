@@ -56,6 +56,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() {
     std::stringstream ss;
     int zmq_rc;
 
+    pthread_setname_np(pthread_self(), "Trex ZMQ sync");
+
     m_monitor.create(m_name, 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
@@ -169,7 +171,12 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 void TrexRpcServerReqRes::handle_request(const std::string &request) {
     std::string response;
 
-    process_request(request, response);
+    if ( request.size() > MAX_RPC_MSG_LEN ) {
+        std::string err_msg = "Request is too large (" + std::to_string(request.size()) + " bytes). Consider splitting to smaller chunks.";
+        TrexJsonRpcV2Parser::generate_common_error(response, err_msg);
+    } else {
+        process_request(request, response);
+    }
 
     zmq_send(m_socket, response.c_str(), response.size(), 0);
 }
@@ -242,7 +249,12 @@ void TrexRpcServerReqRes::process_zipped_request(const std::string &request, std
 
     /* process the request */
     std::string raw_response;
-    process_request_raw(unzipped, raw_response);
+    if ( unzipped.size() > MAX_RPC_MSG_LEN ) {
+        std::string err_msg = "Request is too large (" + std::to_string(unzipped.size()) + " bytes). Consider splitting to smaller chunks.";
+        TrexJsonRpcV2Parser::generate_common_error(raw_response, err_msg);
+    } else {
+        process_request_raw(unzipped, raw_response);
+    }
 
     TrexRpcZip::compress(raw_response, response);
 
@@ -254,18 +266,14 @@ void TrexRpcServerReqRes::process_zipped_request(const std::string &request, std
  */
 void 
 TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
-    Json::FastWriter writer;
-    Json::Value response;
+    std::string response;
 
     /* generate error */
     TrexJsonRpcV2Parser::generate_common_error(response, specific_err);
 
-     /* write the JSON to string and sever on ZMQ */
-    std::string response_str = writer.write(response);
-    
-    verbose_json("Server Replied:  ", response_str);
+    verbose_json("Server Replied:  ", response);
 
-    zmq_send(m_socket, response_str.c_str(), response_str.size(), 0);
+    zmq_send(m_socket, response.c_str(), response.size(), 0);
 }
 
 

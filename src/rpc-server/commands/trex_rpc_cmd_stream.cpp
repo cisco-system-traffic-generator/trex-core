@@ -670,6 +670,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_parse_err(result, "start message can only specify absolute speed rate");
     }
 
+    dsec_t ts = now_sec();
     TrexPortMultiplier mul(type, op, value);
 
     try {
@@ -680,7 +681,8 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     }
 
     result["result"]["multiplier"] = port->get_multiplier();
-
+    result["result"]["ts"]         = ts;
+    
     return (TREX_RPC_CMD_OK);
 }
 

@@ -670,12 +670,19 @@ class CTRexInfoGenerator(object):
                                         ("promiscuous", []),
                                         ("flow ctrl", []),
                                         ("--", []),
-                                        ("HW src mac", []),
-                                        ("SW src mac", []),
-                                        ("SW dst mac", []),
+                                        ("src IPv4", []),
+                                        ("src MAC", []),
                                         ("---", []),
+                                        ("Destination", []),
+                                        ("ARP Resolution", []),
+                                        ("----", []),
                                         ("PCI Address", []),
                                         ("NUMA Node", []),
+                                        ("-----", []),
+                                        ("RX Filter Mode", []),
+                                        ("RX Queueing", []),
+                                        ("RX sniffer", []),
+                                        ("Grat ARP", []),
                                         ]
                                        )
 
@@ -1103,13 +1110,7 @@ class CPortStats(CTRexStats):
             port_state = format_text(port_state, 'bold')
 
         if self._port_obj:
-            if 'link' in self._port_obj.attr:
-                if self._port_obj.attr.get('link', {}).get('up') == False:
-                    link_state = format_text('DOWN', 'red', 'bold')
-                else:
-                    link_state = 'UP'
-            else:
-                link_state = 'N/A'
+            link_state = 'UP' if self._port_obj.is_up() else format_text('DOWN', 'red', 'bold')
         else:
             link_state = ''
 
@@ -1130,7 +1131,7 @@ class CPortStats(CTRexStats):
         return {"owner": owner,
                 "state": "{0}".format(port_state),
                 'link': link_state,
-                "speed": self._port_obj.get_formatted_speed() if self._port_obj else '',
+                "speed": "%g Gb/s" % self._port_obj.get_speed_gbps() if self._port_obj else '',
                 "CPU util.": "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
                                                format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85])) if self._port_obj else '' ,
                 "--": " ",

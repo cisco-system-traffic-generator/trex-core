@@ -29,7 +29,7 @@ public:
 
     MacAddress()
     {
-        set(0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef);
+        set(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
     };
 
     MacAddress(uint8_t a0,
@@ -47,15 +47,15 @@ public:
             a5);
     };
 
-	MacAddress(uint8_t macAddr[ETHER_ADDR_LEN])
-	{
-		set(macAddr[0],
-			macAddr[1],
-			macAddr[2],
-			macAddr[3],
-			macAddr[4],
-			macAddr[5]	);
-	};
+    MacAddress(const uint8_t macAddr[ETHER_ADDR_LEN])
+    {
+        set(macAddr[0],
+            macAddr[1],
+            macAddr[2],
+            macAddr[3],
+            macAddr[4],
+            macAddr[5]	);
+    };
 
     void    set(uint8_t a0,
                 uint8_t a1,
@@ -81,50 +81,83 @@ public:
         data[5]=val;
     }
 
+    void set(uint64_t val) {
+        for (int i = 0; i < 6; i++) {
+            data[i] = ( val >> ((5 - i) * 8) ) & 0xFF;
+        }
+    }
 
-	bool isInvalidAddress() const
-	{
-		static MacAddress allZeros(0,0,0,0,0,0);
-		static MacAddress cafeDeadBeef;
-		return (*this == allZeros || *this == cafeDeadBeef);
-	}
-	void setIdentifierAsBogusAddr(uint32_t identifier)
-	{
-		*(uint32_t*)data = identifier;
-	}
+    bool isDefaultAddress() const
+    {
+        static MacAddress defaultMac;
+        return (*this == defaultMac);
+    }
 
-	uint32_t getIdentifierFromBogusAddr()
-	{
-		return *(uint32_t*)data;
-	}
+    bool isInvalidAddress() const
+    {
+        static MacAddress allZeros(0,0,0,0,0,0);
+        static MacAddress defaultMac;
+        return (*this == allZeros || *this == defaultMac);
+    }
+    void setIdentifierAsBogusAddr(uint32_t identifier)
+    {
+        *(uint32_t*)data = identifier;
+    }
 
-	bool operator == (const MacAddress& rhs) const
-	{
-		for(int i = 0; i < ETHER_ADDR_LEN; i++)
-		{
-			if(data[i] != rhs.data[i])
-				return false;
-		}
+    uint32_t getIdentifierFromBogusAddr()
+    {
+        return *(uint32_t*)data;
+    }
 
-		return true;
-	}
+    MacAddress& operator+=(const int& val) {
+        uint64_t tmp = 0;
 
-	uint8_t*	GetBuffer()
-	{
-		return data;
-	}
+        for (int i = 0; i < 6; i++) {
+            tmp <<= 8;
+            tmp |= data[i];
+        }
 
-	const uint8_t*	GetConstBuffer() const
-	{
-		return data;
-	}
+        tmp += val;
+
+        for (int i = 0; i < 6; i++) {
+            data[i] = ( tmp >> ((5 - i) * 8) ) & 0xFF;
+        }
+
+        return *this;
+    }
+
+    bool operator == (const MacAddress& rhs) const
+    {
+        for(int i = 0; i < ETHER_ADDR_LEN; i++)
+        {
+            if(data[i] != rhs.data[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    MacAddress& operator = (const uint8_t *rhs) {
+        memcpy(data, rhs, ETHER_ADDR_LEN);
+        return (*this);
+    }
+     
+    uint8_t*	GetBuffer()
+    {
+        return data;
+    }
+
+    const uint8_t*	GetConstBuffer() const
+    {
+        return data;
+    }
     void dump(FILE *fd) const;
 
-	void copyToArray(uint8_t *arrayToFill) const
-	{
+    void copyToArray(uint8_t *arrayToFill) const
+    {
         ((uint32_t*)arrayToFill)[0] = ((uint32_t*)data)[0];//Copy first 32bit
-		((uint16_t*)arrayToFill)[2] = ((uint16_t*)data)[2];//Copy last 16bit
-	}
+        ((uint16_t*)arrayToFill)[2] = ((uint16_t*)data)[2];//Copy last 16bit
+    }
 
 public:
     uint8_t data[ETHER_ADDR_LEN];

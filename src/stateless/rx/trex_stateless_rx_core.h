@@ -21,10 +21,12 @@
 #ifndef __TREX_STATELESS_RX_CORE_H__
 #define __TREX_STATELESS_RX_CORE_H__
 #include <stdint.h>
+
 #include "stateful_rx_core.h"
 #include "os_time.h"
 #include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"
+#include "trex_stateless_rx_port_mngr.h"
 
 class TrexStatelessCpToRxMsgBase;
 
@@ -35,25 +37,6 @@ class CCPortLatencyStl {
  public:
     rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
     rx_per_flow_t m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-};
-
-class CLatencyManagerPerPortStl {
-public:
-     CCPortLatencyStl     m_port;
-     CPortLatencyHWBase * m_io;
-};
-
-class CRxSlCfg {
- public:
-    CRxSlCfg (){
-        m_max_ports = 0;
-        m_cps = 0.0;
-    }
-
- public:
-    uint32_t             m_max_ports;
-    double               m_cps;
-    CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
 };
 
 class CRFC2544Info {
@@ -109,12 +92,20 @@ class CRxCoreErrCntrs {
         m_old_flow = 0;
     }
 
- private:
+ public:
     uint64_t m_bad_header;
     uint64_t m_old_flow;
 };
 
+/**
+ * stateless RX core
+ * 
+ */
 class CRxCoreStateless {
+    
+    /**
+     * core states
+     */
     enum state_e {
         STATE_IDLE,
         STATE_WORKING,
@@ -129,47 +120,85 @@ class CRxCoreStateless {
                      , TrexPlatformApi::driver_stat_cap_e type);
     int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset);
     int get_rx_err_cntrs(CRxCoreErrCntrs *rx_err);
-    void work() {
-        m_state = STATE_WORKING;
-        m_err_cntrs.reset(); // When starting to work, reset global counters
-    }
-    void idle() {m_state = STATE_IDLE;}
+
+
     void quit() {m_state = STATE_QUIT;}
-    bool is_working() const {return (m_ack_start_work_msg == true);}
-    void set_working_msg_ack(bool val);
+    bool is_working() const {return (m_state == STATE_WORKING);}
     double get_cpu_util();
     void update_cpu_util();
 
+    const RXPacketBuffer *get_rx_queue_pkts(uint8_t port_id) {
+        return m_rx_port_mngr[port_id].get_pkt_buffer();
+    }
+
+    /**
+     * start capturing of RX packets on a specific port 
+     *  
+     */
+    void start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit);
+    void stop_recorder(uint8_t port_id);
+
+    /**
+     * start RX queueing of packets
+     * 
+     */
+    void start_queue(uint8_t port_id, uint64_t size);
+    void stop_queue(uint8_t port_id);
+
+    /**
+     * enable latency feature for RX packets
+     * will be apply to all ports
+     */
+    void enable_latency();
+    void disable_latency();
+
+    RXPortManager &get_rx_port_mngr(uint8_t port_id);
+    
+    /**
+     * fetch the ignored stats for a port
+     * 
+     */
+    void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
 
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
     bool periodic_check_for_cp_messages();
     void tickle();
     void idle_state_loop();
-    void handle_rx_pkt(CLatencyManagerPerPortStl * lp, rte_mbuf_t * m);
+
+    void recalculate_next_state();
+    bool are_any_features_active();
+
     void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
-    void flush_rx();
-    int try_rx();
-    void try_rx_queues();
-    bool is_flow_stat_id(uint32_t id);
-    bool is_flow_stat_payload_id(uint32_t id);
-    uint16_t get_hw_id(uint16_t id);
+    void handle_work_stage();
+    void port_manager_tick();
+    void handle_grat_arp();
 
+    int process_all_pending_pkts(bool flush_rx = false);
+
+    void flush_all_pending_pkts() {
+        process_all_pending_pkts(true);
+    }
+
+    void try_rx_queues();
+    
  private:
-    TrexMonitor     m_monitor;
-    uint32_t m_max_ports;
-    bool m_capture;
-    bool m_rcv_all;
-    CLatencyManagerPerPortStl m_ports[TREX_MAX_PORTS];
-    state_e   m_state;
-    CNodeRing *m_ring_from_cp;
-    CNodeRing *m_ring_to_cp;
-    CCpuUtlDp m_cpu_dp_u;
-    CCpuUtlCp m_cpu_cp_u;
+    TrexMonitor      m_monitor;
+    uint32_t         m_max_ports;
+    bool             m_capture;
+    state_e          m_state;
+    CNodeRing       *m_ring_from_cp;
+    CNodeRing       *m_ring_to_cp;
+    CCpuUtlDp        m_cpu_dp_u;
+    CCpuUtlCp        m_cpu_cp_u;
+
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
+
     CRxCoreErrCntrs m_err_cntrs;
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
+
+    RXPortManager m_rx_port_mngr[TREX_MAX_PORTS];
 };
 #endif

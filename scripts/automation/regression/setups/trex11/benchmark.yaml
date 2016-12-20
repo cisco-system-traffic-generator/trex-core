@@ -1,32 +1,58 @@
-################################################################
+###############################################################
 ####           TRex benchmark configuration file           ####
-################################################################
+###############################################################
 
-### stateful ###
+#### common templates ###
 
-test_jumbo:
-    multiplier          : 2.8
-    cores               : 1
-    bw_per_core         : 106.652
+#test_jumbo:
+#    multiplier          : 2.8
+#    cores               : 1
+#    bw_per_core         : 962.464
 
 
 test_routing_imix:
     multiplier          : 0.5
     cores               : 1
-    bw_per_core         : 11.577
+    bw_per_core         : 48.130
 
 
 test_routing_imix_64:
     multiplier          : 28
     cores               : 1
-    bw_per_core         : 2.030
+    bw_per_core         : 12.699
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 0.8
+    multiplier          : 0.5
     cores               : 1
-    bw_per_core         : 13.742
+    bw_per_core         : 50.561
 
+
+test_ipv6_simple:
+    multiplier          : 0.5
+    cores               : 1
+    bw_per_core         : 19.5
+
+
+test_rx_check_http: &rx_http
+    multiplier          : 1000
+    cores               : 1
+    rx_sample_rate      : 128
+    bw_per_core         : 49.464
+
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
+    bw_per_core         : 49.237
+
+test_rx_check_sfr: &rx_sfr
+    multiplier          : 8
+    cores               : 1
+    rx_sample_rate      : 128
+    bw_per_core         : 20.9
+
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 23.9
 
 
 ### stateless ###
@@ -140,16 +166,21 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
       - name            : stl/pcap.py
-        kwargs          : {ipg_usec: 4, loop_count: 0}
+        kwargs          : {ipg_usec: 2, loop_count: 0}
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_rand_len_9k.py
-        cpu_util        : 1
-        bw_per_core     : 1
+      #- name            : stl/udp_rand_len_9k.py
+      #  cpu_util        : 1
+      #  bw_per_core     : 1
 
-      - name            : stl/hlt/hlt_udp_rand_len_9k.py
-        cpu_util        : 1
-        bw_per_core     : 1
+      #- name            : stl/hlt/hlt_udp_rand_len_9k.py
+      #  cpu_util        : 1
+      #  bw_per_core     : 1
 
+                                  
 
+test_all_profiles :
+        mult          : "5%"
+        skip          : ['udp_rand_len_9k.py','udp_inc_len_9k.py'] # due to VIC 9K defect trex-282
+        

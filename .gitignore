@@ -96,7 +96,7 @@ src/GTAGS
 *.bak
 *.pyc
 __pycache__
-*_GENERATED.py
+*_GENERATED.*
  
 # Packages #
 ############

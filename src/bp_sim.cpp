@@ -160,8 +160,8 @@ uint64_t CPlatformSocketInfoNoConfig::get_cores_mask(){
     int i;
     int offset=0;
     /* master */
-    uint32_t res=1;
-    uint32_t mask=(1<<(offset+1));
+    uint64_t res=1;
+    uint64_t mask=(1LL<<(offset+1));
     for (i=0; i<(cores_number-1); i++) {
         res |= mask ;
         mask = mask <<1;
@@ -177,8 +177,8 @@ physical_thread_id_t CPlatformSocketInfoNoConfig::thread_virt_to_phy(virtual_thr
     return (virt_id);
 }
 
-bool CPlatformSocketInfoNoConfig::thread_phy_is_master(physical_thread_id_t  phy_id){
-    return (phy_id==0);
+physical_thread_id_t CPlatformSocketInfoNoConfig::get_master_phy_id() {
+    return (0);
 }
 
 bool CPlatformSocketInfoNoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
@@ -236,6 +236,13 @@ bool CPlatformSocketInfoConfig::init(){
                 printf("ERROR, the number of threads per dual ports should be the same for all dual ports\n");
                 exit(1);
             }
+        }
+
+        if (m_threads_per_dual_if > m_max_threads_per_dual_if) {
+            printf("ERROR: Maximum threads in platform section of config file is %d, unable to run with -c %d.\n",
+                    m_max_threads_per_dual_if, m_threads_per_dual_if);
+            printf("Please increase the pool in config or use lower -c.\n");
+            exit(1);
         }
 
             int j;
@@ -381,14 +388,14 @@ uint64_t CPlatformSocketInfoConfig::get_cores_mask(){
                 printf(" ERROR phy threads can't be higher than 64 \n");
                 exit(1);
             }
-            mask |=(1<<i);
+            mask |=(1LL<<i);
         }
     }
 
-    mask |=(1<<m_platform->m_master_thread);
+    mask |=(1LL<<m_platform->m_master_thread);
     assert(m_platform->m_master_thread<64);
     if (m_rx_is_enabled) {
-        mask |=(1<<m_platform->m_rx_thread);
+        mask |=(1LL<<m_platform->m_rx_thread);
         assert(m_platform->m_rx_thread<64);
     }
     return (mask);
@@ -402,8 +409,8 @@ physical_thread_id_t CPlatformSocketInfoConfig::thread_virt_to_phy(virtual_threa
     return ( m_thread_virt_to_phy[virt_id]);
 }
 
-bool CPlatformSocketInfoConfig::thread_phy_is_master(physical_thread_id_t  phy_id){
-    return (m_platform->m_master_thread==phy_id?true:false);
+physical_thread_id_t CPlatformSocketInfoConfig::get_master_phy_id() {
+    return m_platform->m_master_thread;
 }
 
 bool CPlatformSocketInfoConfig::thread_phy_is_rx(physical_thread_id_t  phy_id){
@@ -479,6 +486,10 @@ physical_thread_id_t CPlatformSocketInfo::thread_virt_to_phy(virtual_thread_id_t
 
 bool CPlatformSocketInfo::thread_phy_is_master(physical_thread_id_t  phy_id){
     return ( m_obj->thread_phy_is_master(phy_id));
+}
+
+physical_thread_id_t CPlatformSocketInfo::get_master_phy_id() {
+    return ( m_obj->get_master_phy_id());
 }
 
 bool CPlatformSocketInfo::thread_phy_is_rx(physical_thread_id_t  phy_id) {
@@ -1664,7 +1675,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         IPv6Header * ipv6=(IPv6Header *)(mp1 + 14);
         uint8_t save_header= ipv6->getNextHdr();
         ipv6->setNextHdr(RX_CHECK_V6_OPT_TYPE);
-        ipv6->setHopLimit(TTL_RESERVE_DUPLICATE);
+         ipv6->setHopLimit(TTL_RESERVE_DUPLICATE);
+        ipv6->setTrafficClass(ipv6->getTrafficClass()|TOS_TTL_RESERVE_DUPLICATE);
         ipv6->setPayloadLen( ipv6->getPayloadLen() +
                                   sizeof(CRx_check_header));
         rxhdr->m_option_type = save_header;
@@ -1674,6 +1686,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         ipv4->setHeaderLength(current_opt_len+opt_len);
         ipv4->setTotalLength(ipv4->getTotalLength()+opt_len);
         ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
+        ipv4->setTOS(ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE);
+
         rxhdr->m_option_type = RX_CHECK_V4_OPT_TYPE;
         rxhdr->m_option_len = RX_CHECK_V4_OPT_LEN;
     }
@@ -2144,6 +2158,7 @@ void CCapFileFlowInfo::update_info(){
             lp = GetPacket(1);
             assert(lp);
             lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+            lp->m_pkt_indication.setTOSReserve();
         }
     }
 
@@ -2229,6 +2244,9 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                      (ttl == (TTL_RESERVE_DUPLICATE-1)) ) {
                         pkt_indication.setTTL(TTL_RESERVE_DUPLICATE-4);
                 }
+
+                pkt_indication.clearTOSReserve();
+
 
                 // Validation for first packet in flow
                 if (is_fif) {
@@ -4415,7 +4433,7 @@ void CFlowGenListPerThread::stop_stateless_simulation_file(){
 }
 
 void CFlowGenListPerThread::start_stateless_daemon_simulation(){
-
+    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
     m_cur_time_sec = 0;
 
     /* if no pending CP messages - the core will simply be stuck forever */
@@ -4434,6 +4452,7 @@ bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_nod
 
 
 void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
+    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
     m_cur_time_sec = 0;
     /* set per thread global info, for performance */
     m_preview_mode = preview;
@@ -4558,6 +4577,22 @@ int CFlowGenList::load_client_config_file(std::string file_name) {
     return (0);
 }
 
+void CFlowGenList::set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg) {
+    m_client_config_info.set_tuple_gen_info(tg);
+}
+
+void CFlowGenList::get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret) {
+    m_client_config_info.get_entry_list(ret);
+}
+
+void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) {
+    m_client_config_info.set_resolved_macs(pretest_result);
+}
+
+void CFlowGenList::dump_client_config(FILE *fd) {
+    m_client_config_info.dump(fd);
+}
+
 int CFlowGenList::load_from_yaml(std::string file_name,
                                  uint32_t num_threads){
     uint8_t idx;
@@ -4669,7 +4704,7 @@ void CFlowGenList::Dump(FILE *fd){
     int i;
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_cap_gen[i];
-        lp->Dump(stdout);
+        lp->Dump(fd);
     }
 }
 
@@ -5213,11 +5248,11 @@ void CErfIF::add_vlan(uint16_t vlan_id) {
     m_raw->pkt_len += 4;
 }
 
-void CErfIF::apply_client_config(const ClientCfg *cfg, pkt_dir_t dir) {
+void CErfIF::apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir) {
     assert(cfg);
     uint8_t *p = (uint8_t *)m_raw->raw;
 
-    const ClientCfgDir &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
+    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {

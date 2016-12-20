@@ -1,0 +1,69 @@
+#! /bin/bash
+if [ "$(id -u)" != 0 ]; then
+  echo 'Error: Please run as root (sudo etc.)'
+  exit -1
+fi
+
+INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
+
+./trex-cfg $INPUT_ARGS
+RESULT=$?
+if [ $RESULT -ne 0 ]; then
+  exit $RESULT
+fi
+
+pci_desc_re='^(\S+) - (.+)$'
+source find_python.sh
+while read line
+do
+    if [[ "$line" =~ $pci_desc_re ]]; then
+        pci_name="pci$(echo ${BASH_REMATCH[1]} | tr ':' '_' | tr '.' '_')" # make alphanumeric name
+        export $pci_name="${BASH_REMATCH[2]}"
+    fi
+done <<< "$($PYTHON dpdk_setup_ports.py --dump-pci-description)"
+
+cd $(dirname $0)
+export LD_LIBRARY_PATH=$PWD
+
+#Add dummy lib in case we don't find it, e.g. there is no OFED installed  
+if ldd ./_t-rex-64  | grep "libibverbs.so" | grep -q "not found"; then 
+export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs                           
+fi
+            
+export VALGRIND_LIB=/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/lib/valgrind
+export VALGRIND_BIN="/auto/proj-pcube-b/apps/PL-b/tools/valgrind-dpdk/bin/valgrind --leak-check=full --error-exitcode=1 --suppressions=valgrind.sup"
+export GLIBCXX_FORCE_NEW=1
+
+if [ -t 0 ] && [ -t 1 ]; then
+    export is_tty=true
+    saveterm="$(stty -g)"
+else
+    export is_tty=false
+fi
+
+# if we have a new core run optimized trex 
+if  grep -q avx /proc/cpuinfo ; then
+    $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
+    RESULT=$?
+    if [ $RESULT -eq 132 ]; then
+        echo " WARNING this program is optimized for the new Intel processors.  "
+        echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
+        echo " try to run t-rex-64-o .. "
+
+        $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
+        RESULT=$?
+    fi
+else
+        $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
+        RESULT=$?
+fi
+
+if $is_tty; then
+    stty $saveterm
+fi
+
+if [ $RESULT -ne 0 ]; then
+  exit $RESULT
+fi
+
+

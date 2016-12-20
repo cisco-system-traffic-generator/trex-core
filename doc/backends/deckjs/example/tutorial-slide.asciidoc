@@ -1,0 +1,274 @@
+deck.js Support for Asciidoc
+=============================
+:author: Qingping Hou
+:email: <dave2008713@gmail.com>
+:description: a tutorial for writing deck.js presentation with asciidoc
+:revdate: 2014-06-30
+:revnumber: 0.9
+:deckjs_theme: neon
+:deckjs_transition: horizontal-slide
+:pygments:
+:pygments_style: native
+:scrollable:
+
+
+== What is deck.js?
+
+*deck.js* is a JavaScript library for building modern HTML presentations. *deck.js* is flexible enough to let advanced CSS and JavaScript authors craft highly customized decks, but also provides templates and themes for the HTML novice to build a standard slideshow.
+
+
+For more information, please check out its http://imakewebthings.github.com/deck.js/[project page].
+
+
+== What is deck.js backend for Asciidoc?
+
+*AsciiDoc-Deck.js* makes it possible to write deck.js slides in my favorite markup language *AsciiDoc*. To make life easier, I also bundled this backend with some thirdparty deck.js extensions:
+
+* https://github.com/barraq/deck.ext.js[deck.ext.js]
+* https://github.com/mikek70/deck.js-blank[deck.js-blank]
+* https://github.com/houqp/deck.split.js[deck.split.js]
+
+
+== How to generate deck.js with Asciidoc
+
+First, make sure you have at least asciidoc-8.6.6 installed and download this backend from the http://houqp.github.com/asciidoc-deckjs/[project page].
+
+Then install the backend:
+
+...........................................
+asciidoc --backend install deckjs-X.Y.Z.zip
+...........................................
+
+After the installation, it's just as simple as issuing following command:
+
+...........................................
+asciidoc -b deckjs file.asciidoc
+...........................................
+
+You can also use this backend without installation, please refer to https://github.com/houqp/asciidoc-deckjs/blob/master/README.md[README] for details.
+
+
+== Shortcuts
+
+Following are built-in shortcuts in deck.js:
+
+* jump to any slide by given number, `g`.
+* preview all slides, `m`.
+
+Shortcuts from deck.js's thirdparty extensions:
+
+* toggle table of content, `t`
+* toggle page blank/unblank, `b`
+
+
+== Syntax (basic)
+
+This part assumes that you are already familiar with some basic concepts in AsciiDoc.
+
+* slides are divided by *level 1* sections.
+...........................................
+== Slide1 title
+
+say whatever you want here.
+...........................................
+
+ifdef::backend-deckjs[<<<]
+
+* lists
+
+...........................................
+* entry1
+* entry2
+* entry3
+...........................................
+
+* ordered list
+
+...........................................
+1. entry1
+1. entry2
+1. entry3
+...........................................
+
+A complete guide for lists can be found at http://www.methods.co.nz/asciidoc/userguide.html#X64[this page]
+
+
+== Syntax (theming)
+
+You can choose theme and transition effect by specifying the *deckjs-theme* and *deckjs-transition* attributes:
+
+...........................................
+:deckjs_theme: neon
+:deckjs_transition: vertical-slide
+...........................................
+
+Refer to http://houqp.github.com/asciidoc-deckjs/example-template.asciidoc[boilerplate] for all the supported themes.
+
+
+== Syntax (nested slide)
+
+Nested slide (or subslide) give you the ability to create substeps in slides. In this backend, elements that given *incremental* attribute will be paused before show up.
+
+syntax:
+
+...........................................
+[incremental="true"]
+* this entry should show up first
+* this entry should show up following the first one
+* this entry should be the last one
+...........................................
+
+effect:
+
+[incremental="true"]
+* this entry should show up first
+* this entry should show up following the first one
+* this entry should be the last one
+
+
+== Syntax (literal block)
+syntax:
+
+	...........................................
+	<html>
+		<head>
+		</head>
+		<body>
+			<p>Hello World.</p>
+		</body>
+	</html>
+	...........................................
+
+effect:
+
+[incremental="true"]
+...........................................
+<html>
+	<head>
+	</head>
+	<body>
+		<p>Hello World.</p>
+	</body>
+</html>
+...........................................
+
+
+== Syntax (code block)
+
+syntax:
+
+...........................................
+[source,c,numbered]
+-------------------------------------------
+int swallow_redpill () {
+ unsigned char m[2+4], rpill[] = "\x0f\x01\x0d\x00\x00\x00\x00\xc3";
+ *((unsigned*)&rpill[3]) = (unsigned)m;
+ ((void(*)())&rpill)();
+ return (m[5]>0xd0) ? 1 : 0;
+}
+-------------------------------------------
+...........................................
+
+effect:
+
+[incremental="true"]
+[source,c,numbered]
+-------------------------------------------
+int swallow_redpill () {
+ unsigned char m[2+4], rpill[] = "\x0f\x01\x0d\x00\x00\x00\x00\xc3";
+ *((unsigned*)&rpill[3]) = (unsigned)m;
+ ((void(*)())&rpill)();
+ return (m[5]>0xd0) ? 1 : 0;
+}
+-------------------------------------------
+
+By default, AsciiDoc use *source-highlight* to highlight your code. If you want to use *Pygments*, you have to set _pygments_ attribute (refer to example template).
+
+
+== Syntax (quote block)
+QuoteBlocks syntax from Asciidoc is fully supported, you can find complete guide on http://www.methods.co.nz/asciidoc/userguide.html#_quote_blocks[this page].
+
+syntax:
+
+...........................................
+  [quote, L. Kronecker]
+  ___________________________________________
+  God made the natural number and all the rest is the work of man
+  ___________________________________________
+...........................................
+
+effect:
+
+[incremental="true"]
+[quote, L. Kronecker]
+___________________________________________
+God made the natural number and all the rest is the work of man
+___________________________________________
+
+
+
+== Syntax (split slide)
+If your slide is too long, you can manually split it into multiple slides.
+
+syntax:
+
+...........................................
+  This line will be shown in current slide.
+
+  ifdef::backend-deckjs[<<<]
+
+  This line will be shown in next slide with the same title.
+...........................................
+
+effect:
+
+This line will be shown in current slide.
+
+ifdef::backend-deckjs[<<<]
+
+This line will be shown in next slide with the same title.
+
+
+== Syntax (insert image)
+
+syntax:
+
+...........................................
+image::http://www.gnu.org/graphics/gnu-head-sm.jpg[title="Texinfo"]
+...........................................
+
+effect:
+
+[incremental="true"]
+image::http://www.gnu.org/graphics/gnu-head-sm.jpg[title="Levitating GNU"]
+
+
+== Syntax (insert video)
+
+syntax:
+
+...........................................
+video::http://www.youtube.com/embed/GP3zvc2dG5Y[width="420", height="315"]
+...........................................
+
+effect:
+
+[incremental="true"]
+video::http://www.youtube.com/embed/GP3zvc2dG5Y[width="420", height="315"]
+
+
+== The End
+
+The source code for this slide can be found here:
+
+http://houqp.github.com/asciidoc-deckjs/tutorial-slide.asciidoc
+
+You can get start with following template:
+
+http://houqp.github.com/asciidoc-deckjs/example-template.asciidoc
+
+
+That's all. Hope you enjoy this backend. :-)
+
+
+

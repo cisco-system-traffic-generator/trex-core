@@ -26,6 +26,8 @@
 #include "pal/linux/sanb_atomic.h"
 #include "trex_stateless_messaging.h"
 #include "trex_stateless_rx_core.h"
+#include "trex_stateless.h"
+
 
 void CRFC2544Info::create() {
     m_latency.Create();
@@ -64,15 +66,7 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
     obj.set_latency_json(json);
 };
 
-void CCPortLatencyStl::reset() {
-    for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        m_rx_pg_stat[i].clear();
-        m_rx_pg_stat_payload[i].clear();
-    }
-}
-
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
-    m_rcv_all = false;
     m_capture = false;
     m_max_ports = cfg.m_max_ports;
 
@@ -82,15 +76,21 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_ring_to_cp   = cp_rx->getRingDpToCp(0);
     m_state = STATE_IDLE;
 
-    for (int i = 0; i < m_max_ports; i++) {
-        CLatencyManagerPerPortStl * lp = &m_ports[i];
-        lp->m_io = cfg.m_ports[i];
-        lp->m_port.reset();
-    }
-    m_cpu_cp_u.Create(&m_cpu_dp_u);
-
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rfc2544[i].create();
+    }
+
+    m_cpu_cp_u.Create(&m_cpu_dp_u);
+
+    /* create per port manager */
+    for (int i = 0; i < m_max_ports; i++) {
+        const TRexPortAttr *port_attr = get_stateless_obj()->get_platform_api()->getPortAttrObj(i);
+        m_rx_port_mngr[i].create(port_attr,
+                                 cfg.m_ports[i],
+                                 m_rfc2544,
+                                 &m_err_cntrs,
+                                 &m_cpu_dp_u,
+                                 cfg.m_num_crc_fix_bytes);
     }
 }
 
@@ -124,8 +124,29 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
         handle_cp_msg(msg);
     }
 
+    /* a message might result in a change of state */
+    recalculate_next_state();
     return true;
 
+}
+
+void CRxCoreStateless::recalculate_next_state() {
+    if (m_state == STATE_QUIT) {
+        return;
+    }
+
+    /* next state is determine by the question are there any ports with active features ? */
+    m_state = (are_any_features_active() ? STATE_WORKING : STATE_IDLE);
+}
+
+bool CRxCoreStateless::are_any_features_active() {
+    for (int i = 0; i < m_max_ports; i++) {
+        if (m_rx_port_mngr[i].has_features_set()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void CRxCoreStateless::idle_state_loop() {
@@ -141,7 +162,7 @@ void CRxCoreStateless::idle_state_loop() {
             counter = 0;
             continue;
         } else {
-            flush_rx();
+            flush_all_pending_pkts();
         }
 
         /* enter deep sleep only if enough time had passed */
@@ -154,284 +175,113 @@ void CRxCoreStateless::idle_state_loop() {
     }
 }
 
-void CRxCoreStateless::start() {
-    int count = 0;
-    int i = 0;
-    bool do_try_rx_queue =CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ? true : false;
+/**
+ * for each port give a tick (for flushing if needed)
+ * 
+ */
+void CRxCoreStateless::port_manager_tick() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].tick();
+    }
+}
 
+/**
+ * for each port handle the grat ARP mechansim
+ * 
+ */
+void CRxCoreStateless::handle_grat_arp() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].send_next_grat_arp();
+    }
+}
+
+void CRxCoreStateless::handle_work_stage() {
+    
+    /* set the next sync time to */
+    dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
+    dsec_t tick_time_sec = now_sec() + 1.0;
+    dsec_t grat_arp_sec  = now_sec() + (double)CGlobalInfo::m_options.m_arp_ref_per;
+
+    while (m_state == STATE_WORKING) {
+        process_all_pending_pkts();
+
+        dsec_t now = now_sec();
+        
+        /* until a scheduler is added here - dirty IFs */
+
+        if ( (now - sync_time_sec) > 0 ) {
+            periodic_check_for_cp_messages();
+            sync_time_sec = now + (1.0 / 1000);
+        }
+        
+        if ( (now - tick_time_sec) > 0) {
+            port_manager_tick();
+            tick_time_sec = now + 1.0;
+        }
+
+        if ( (now - grat_arp_sec) > 0) {
+            handle_grat_arp();
+            grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
+        }
+
+        rte_pause();
+        
+    }
+}
+
+void CRxCoreStateless::start() {
     /* register a watchdog handle on current core */
     m_monitor.create("STL RX CORE", 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
-    while (true) {
-        if (m_state == STATE_WORKING) {
-            i++;
-            if (i == 100000) { // approx 10msec
-                i = 0;
-                periodic_check_for_cp_messages(); // m_state might change in here
-            }
-        } else {
-            if (m_state == STATE_QUIT)
-                break;
-            count = 0;
-            i = 0;
-            set_working_msg_ack(false);
+    recalculate_next_state();
+    
+    while (m_state != STATE_QUIT) {
+        switch (m_state) {
+        case STATE_IDLE:
             idle_state_loop();
-            set_working_msg_ack(true);
+            break;
+        case STATE_WORKING:
+            handle_work_stage();
+            break;
+
+        default:
+            assert(0);
+            break;
         }
-        if (do_try_rx_queue) {
-            try_rx_queues();
-        }
-        count += try_rx();
+
     }
-    rte_pause();
 
-    m_monitor.disable();
-}
-
-void CRxCoreStateless::handle_rx_pkt(CLatencyManagerPerPortStl *lp, rte_mbuf_t *m) {
-    CFlowStatParser parser;
-
-    if (m_rcv_all || parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
-        uint32_t ip_id;
-        if (m_rcv_all || (parser.get_ip_id(ip_id) == 0)) {
-            if (m_rcv_all || is_flow_stat_id(ip_id)) {
-                uint16_t hw_id;
-                if (m_rcv_all || is_flow_stat_payload_id(ip_id)) {
-                    bool good_packet = true;
-                    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
-                    struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)
-                        (p + m->pkt_len - sizeof(struct flow_stat_payload_header));
-                    hw_id = fsp_head->hw_id;
-                    CRFC2544Info *curr_rfc2544;
-
-                    if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
-                        good_packet = false;
-                        if (!m_rcv_all)
-                            m_err_cntrs.m_bad_header++;
-                    } else {
-                        curr_rfc2544 = &m_rfc2544[hw_id];
-
-                        if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
-                            // bad flow seq num
-                            // Might be the first packet of a new flow, packet from an old flow, or garbage.
-
-                            if (fsp_head->flow_seq == curr_rfc2544->get_prev_flow_seq()) {
-                                // packet from previous flow using this hw_id that arrived late
-                                good_packet = false;
-                                m_err_cntrs.m_old_flow++;
-                            } else {
-                                if (curr_rfc2544->no_flow_seq()) {
-                                    // first packet we see from this flow
-                                    good_packet = true;
-                                    curr_rfc2544->set_exp_flow_seq(fsp_head->flow_seq);
-                                } else {
-                                    // garbage packet
-                                    good_packet = false;
-                                    m_err_cntrs.m_bad_header++;
-                                }
-                            }
-                        }
-                    }
-
-                    if (good_packet) {
-                        uint32_t pkt_seq = fsp_head->seq;
-                        uint32_t exp_seq = curr_rfc2544->get_seq();
-                        if (unlikely(pkt_seq != exp_seq)) {
-                            if (pkt_seq < exp_seq) {
-                                if (exp_seq - pkt_seq > 100000) {
-                                    // packet loss while we had wrap around
-                                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-                                    curr_rfc2544->inc_seq_err_too_big();
-                                    curr_rfc2544->set_seq(pkt_seq + 1);
-                                } else {
-                                    if (pkt_seq == (exp_seq - 1)) {
-                                        curr_rfc2544->inc_dup();
-                                    } else {
-                                        curr_rfc2544->inc_ooo();
-                                        // We thought it was lost, but it was just out of order
-                                        curr_rfc2544->dec_seq_err();
-                                    }
-                                    curr_rfc2544->inc_seq_err_too_low();
-                                }
-                            } else {
-                                if (unlikely (pkt_seq - exp_seq > 100000)) {
-                                    // packet reorder while we had wrap around
-                                    if (pkt_seq == (exp_seq - 1)) {
-                                        curr_rfc2544->inc_dup();
-                                    } else {
-                                        curr_rfc2544->inc_ooo();
-                                        // We thought it was lost, but it was just out of order
-                                        curr_rfc2544->dec_seq_err();
-                                    }
-                                    curr_rfc2544->inc_seq_err_too_low();
-                                } else {
-                                // seq > curr_rfc2544->seq. Assuming lost packets
-                                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-                                    curr_rfc2544->inc_seq_err_too_big();
-                                    curr_rfc2544->set_seq(pkt_seq + 1);
-                                }
-                            }
-                        } else {
-                            curr_rfc2544->set_seq(pkt_seq + 1);
-                        }
-                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_pkts(1);
-                        lp->m_port.m_rx_pg_stat_payload[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
-                        uint64_t d = (os_get_hr_tick_64() - fsp_head->time_stamp );
-                        dsec_t ctime = ptime_convert_hr_dsec(d);
-                        curr_rfc2544->add_sample(ctime);
-                    }
-                } else {
-                    hw_id = get_hw_id(ip_id);
-                    if (hw_id < MAX_FLOW_STATS) {
-                        lp->m_port.m_rx_pg_stat[hw_id].add_pkts(1);
-                        lp->m_port.m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
-                    }
-                }
-            }
-        }
-    }
+    m_monitor.disable();  
 }
 
 void CRxCoreStateless::capture_pkt(rte_mbuf_t *m) {
 
 }
 
-// In VM setup, handle packets coming as messages from DP cores.
-void CRxCoreStateless::handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r) {
-    while ( true ) {
-        CGenNode * node;
-        if ( r->Dequeue(node) != 0 ) {
-            break;
-        }
-        assert(node);
+int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
 
-        CGenNodeMsgBase * msg = (CGenNodeMsgBase *)node;
-        CGenNodeLatencyPktInfo * l_msg;
-        uint8_t msg_type =  msg->m_msg_type;
-        uint8_t rx_port_index;
-        CLatencyManagerPerPortStl * lp;
-
-        switch (msg_type) {
-        case CGenNodeMsgBase::LATENCY_PKT:
-            l_msg = (CGenNodeLatencyPktInfo *)msg;
-            assert(l_msg->m_latency_offset == 0xdead);
-            rx_port_index = (thread_id << 1) + (l_msg->m_dir & 1);
-            assert( rx_port_index < m_max_ports );
-            lp = &m_ports[rx_port_index];
-            handle_rx_pkt(lp, (rte_mbuf_t *)l_msg->m_pkt);
-            if (m_capture)
-                capture_pkt((rte_mbuf_t *)l_msg->m_pkt);
-            rte_pktmbuf_free((rte_mbuf_t *)l_msg->m_pkt);
-            break;
-        default:
-            printf("ERROR latency-thread message type is not valid %d \n", msg_type);
-            assert(0);
-        }
-
-        CGlobalInfo::free_node(node);
+    int total_pkts = 0;
+    for (int i = 0; i < m_max_ports; i++) {
+        total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
     }
-}
 
-// VM mode function. Handle messages from DP
-void CRxCoreStateless::try_rx_queues() {
-
-    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
-    uint8_t threads=CMsgIns::Ins()->get_num_threads();
-    int ti;
-    for (ti = 0; ti < (int)threads; ti++) {
-        CNodeRing * r = rx_dp->getRingDpToCp(ti);
-        if ( ! r->isEmpty() ) {
-            handle_rx_queue_msgs((uint8_t)ti, r);
-        }
-    }
-}
-
-// exactly the same as try_rx, without the handle_rx_pkt
-// purpose is to flush rx queues when core is in idle state
-void CRxCoreStateless::flush_rx() {
-    rte_mbuf_t * rx_pkts[64];
-    int i, total_pkts = 0;
-    for (i = 0; i < m_max_ports; i++) {
-        CLatencyManagerPerPortStl * lp = &m_ports[i];
-        rte_mbuf_t * m;
-        /* try to read 64 packets clean up the queue */
-        uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
-        total_pkts += cnt_p;
-        if (cnt_p) {
-            m_cpu_dp_u.start_work1();
-            int j;
-            for (j = 0; j < cnt_p; j++) {
-                m = rx_pkts[j];
-                rte_pktmbuf_free(m);
-            }
-            /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit1();
-        }/* if work */
-    }// all ports
-}
-
-int CRxCoreStateless::try_rx() {
-    rte_mbuf_t * rx_pkts[64];
-    int i, total_pkts = 0;
-    for (i = 0; i < m_max_ports; i++) {
-        CLatencyManagerPerPortStl * lp = &m_ports[i];
-        rte_mbuf_t * m;
-        /* try to read 64 packets clean up the queue */
-        uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
-        total_pkts += cnt_p;
-        if (cnt_p) {
-            m_cpu_dp_u.start_work1();
-            int j;
-            for (j = 0; j < cnt_p; j++) {
-                m = rx_pkts[j];
-                handle_rx_pkt(lp, m);
-                rte_pktmbuf_free(m);
-            }
-            /* commit only if there was work to do ! */
-            m_cpu_dp_u.commit1();
-        }/* if work */
-    }// all ports
     return total_pkts;
-}
 
-bool CRxCoreStateless::is_flow_stat_id(uint32_t id) {
-    if ((id & 0x000fff00) == IP_ID_RESERVE_BASE) return true;
-    return false;
-}
-
-bool CRxCoreStateless::is_flow_stat_payload_id(uint32_t id) {
-    if (id == FLOW_STAT_PAYLOAD_IP_ID) return true;
-    return false;
-}
-
-uint16_t CRxCoreStateless::get_hw_id(uint16_t id) {
-    return (0x00ff & id);
 }
 
 void CRxCoreStateless::reset_rx_stats(uint8_t port_id) {
-    for (int hw_id = 0; hw_id < MAX_FLOW_STATS; hw_id++) {
-        m_ports[port_id].m_port.m_rx_pg_stat[hw_id].clear();
-    }
+    m_rx_port_mngr[port_id].clear_stats();
 }
 
 int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max
                                    , bool reset, TrexPlatformApi::driver_stat_cap_e type) {
-    for (int hw_id = min; hw_id <= max; hw_id++) {
-        if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-            rx_stats[hw_id - min] = m_ports[port_id].m_port.m_rx_pg_stat_payload[hw_id];
-        } else {
-            rx_stats[hw_id - min] = m_ports[port_id].m_port.m_rx_pg_stat[hw_id];
-        }
-        if (reset) {
-            if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                m_ports[port_id].m_port.m_rx_pg_stat_payload[hw_id].clear();
-            } else {
-                m_ports[port_id].m_port.m_rx_pg_stat[hw_id].clear();
-            }
-        }
-    }
-    return 0;
+
+    /* for now only latency stats */
+    m_rx_port_mngr[port_id].get_latency_stats(rx_stats, min, max, reset, type);
+    
+    return (0);
+    
 }
 
 int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset) {
@@ -458,17 +308,65 @@ int CRxCoreStateless::get_rx_err_cntrs(CRxCoreErrCntrs *rx_err) {
     return 0;
 }
 
-void CRxCoreStateless::set_working_msg_ack(bool val) {
-    sanb_smp_memory_barrier();
-    m_ack_start_work_msg = val;
-    sanb_smp_memory_barrier();
-}
-
-
 void CRxCoreStateless::update_cpu_util(){
     m_cpu_cp_u.Update();
 }
 
 double CRxCoreStateless::get_cpu_util() {
     return m_cpu_cp_u.GetVal();
+}
+
+
+void
+CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
+    m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit);
+    recalculate_next_state();
+}
+
+void
+CRxCoreStateless::stop_recorder(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_recorder();
+    recalculate_next_state();
+}
+
+void
+CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size) {
+    m_rx_port_mngr[port_id].start_queue(size);
+    recalculate_next_state();
+}
+
+void
+CRxCoreStateless::stop_queue(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_queue();
+    recalculate_next_state();
+}
+
+void
+CRxCoreStateless::enable_latency() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].enable_latency();
+    }
+    
+    recalculate_next_state();
+}
+
+void
+CRxCoreStateless::disable_latency() {
+    for (int i = 0; i < m_max_ports; i++) {
+        m_rx_port_mngr[i].disable_latency();
+    }
+    
+    recalculate_next_state();
+}
+
+RXPortManager &
+CRxCoreStateless::get_rx_port_mngr(uint8_t port_id) {
+    assert(port_id < m_max_ports);
+    return m_rx_port_mngr[port_id];
+    
+}
+
+void
+CRxCoreStateless::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
+    get_rx_port_mngr(port_id).get_ignore_stats(stat, get_diff);
 }

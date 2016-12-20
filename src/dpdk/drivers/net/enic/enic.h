@@ -92,6 +92,12 @@ struct enic_fdir {
 	struct rte_eth_fdir_stats stats;
 	struct rte_hash *hash;
 	struct enic_fdir_node *nodes[ENICPMD_FDIR_MAX];
+	u32 modes;
+	u32 types_mask;
+	void (*copy_fltr_fn)(struct filter_v2 *filt,
+			     struct rte_eth_fdir_input *input,
+			     struct rte_eth_fdir_masks *masks);
+
 };
 
 struct enic_soft_stats {
@@ -128,6 +134,7 @@ struct enic {
 	int link_status;
 	u8 hw_ip_checksum;
 	u16 max_mtu;
+	u16 adv_filters;
 
 	unsigned int flags;
 	unsigned int priv_flags;
@@ -273,4 +280,11 @@ uint16_t enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			       uint16_t nb_pkts);
 int enic_set_mtu(struct enic *enic, uint16_t new_mtu);
+void enic_fdir_info(struct enic *enic);
+void enic_fdir_info_get(struct enic *enic, struct rte_eth_fdir_info *stats);
+void copy_fltr_v1(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
+		  struct rte_eth_fdir_masks *masks);
+void copy_fltr_v2(__rte_unused struct filter_v2 *fltr,
+		  __rte_unused struct rte_eth_fdir_input *input,
+		  __rte_unused struct rte_eth_fdir_masks *masks);
 #endif /* _ENIC_H_ */

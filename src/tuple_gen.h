@@ -85,15 +85,15 @@ public:
        void setClientPort(uint16_t port) {
            m_client_port = port;
        }
-       void setClientCfg(ClientCfg *cfg) {
+       void setClientCfg(ClientCfgBase *cfg) {
            m_client_cfg = cfg;
        }
-       ClientCfg *getClientCfg() {
+       ClientCfgBase *getClientCfg() {
            return m_client_cfg;
        }
 
 
-       void setClientTuple(uint32_t ip, ClientCfg *cfg, uint16_t port) {
+       void setClientTuple(uint32_t ip, ClientCfgBase *cfg, uint16_t port) {
            setClient(ip);
            setClientPort(port);
            setClientCfg(cfg);
@@ -125,7 +125,7 @@ private:
        uint32_t m_server_ip;
        uint32_t m_server_idx;
 
-       ClientCfg *m_client_cfg;
+       ClientCfgBase *m_client_cfg;
 
        uint16_t m_client_port;
        uint16_t m_server_port;
@@ -337,7 +337,7 @@ template <typename T>
 class CConfiguredClientInfo : public T {
 
 public:
-    CConfiguredClientInfo(uint32_t ip, const ClientCfg &cfg) : m_cfg(cfg) {
+    CConfiguredClientInfo(uint32_t ip, const ClientCfgBase &cfg) : m_cfg(cfg) {
         T::set_ip(ip);
     }
 
@@ -348,7 +348,7 @@ public:
     }
 
 private:
-    ClientCfg m_cfg;
+    ClientCfgBase m_cfg;
 };
 
 
@@ -852,6 +852,9 @@ struct CTupleGenPoolYaml {
     uint32_t get_ip_start() {
         return m_ip_start;
     }
+    uint32_t get_ip_end() {
+        return m_ip_end;
+    }
     bool is_valid(uint32_t num_threads,bool is_plugins);
     void Dump(FILE *fd);
 };
@@ -888,6 +891,9 @@ public:
         exit(-1);
         return 0;
     }
+
+    bool find_port(uint32_t ip_start, uint32_t ip_end, uint8_t &port);
+    void dump(FILE *fd);
 };
 
 

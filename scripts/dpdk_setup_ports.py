@@ -14,6 +14,7 @@ import traceback
 from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
 import getpass
+import subprocess
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -41,51 +42,52 @@ class ConfigCreator(object):
                     cores[core] = cores[core][:1]
         include_lcores = [int(x) for x in include_lcores]
         exclude_lcores = [int(x) for x in exclude_lcores]
+
         self.has_zero_lcore = False
+        self.lcores_per_numa = {}
+        total_lcores = 0
         for numa, cores in self.cpu_topology.items():
+            self.lcores_per_numa[numa] = {'main': [], 'siblings': [], 'all': []}
             for core, lcores in cores.items():
-                for lcore in copy.copy(lcores):
+                total_lcores += len(lcores)
+                for lcore in list(lcores):
                     if include_lcores and lcore not in include_lcores:
                         cores[core].remove(lcore)
                     if exclude_lcores and lcore in exclude_lcores:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
-                    cores[core].remove(0)
-                    zero_lcore_numa = numa
-                    zero_lcore_core = core
-                    zero_lcore_siblings = cores[core]
-        if self.has_zero_lcore:
-            del self.cpu_topology[zero_lcore_numa][zero_lcore_core]
-            self.cpu_topology[zero_lcore_numa][zero_lcore_core] = zero_lcore_siblings
+                    lcores.remove(0)
+                    self.lcores_per_numa[numa]['siblings'].extend(lcores)
+                else:
+                    self.lcores_per_numa[numa]['main'].extend(lcores[:1])
+                    self.lcores_per_numa[numa]['siblings'].extend(lcores[1:])
+                self.lcores_per_numa[numa]['all'].extend(lcores)
+
         for interface in self.interfaces:
             for mandatory_interface_field in ConfigCreator.mandatory_interface_fields:
                 if mandatory_interface_field not in interface:
                     raise DpdkSetup("Expected '%s' field in interface dictionary, got: %s" % (mandatory_interface_field, interface))
+
         Device_str = self._verify_devices_same_type(self.interfaces)
         if '40Gb' in Device_str:
             self.speed = 40
         else:
             self.speed = 10
-        lcores_per_numa = OrderedDict()
-        system_lcores = int(self.has_zero_lcore)
-        for numa, core in self.cpu_topology.items():
-            for lcores in core.values():
-                if numa not in lcores_per_numa:
-                    lcores_per_numa[numa] = []
-                lcores_per_numa[numa].extend(lcores)
-                system_lcores += len(lcores)
-        minimum_required_lcores = len(self.interfaces) / 2 + 2
-        if system_lcores < minimum_required_lcores:
+
+        minimum_required_lcores = len(self.interfaces) // 2 + 2
+        if total_lcores < minimum_required_lcores:
             raise DpdkSetup('Your system should have at least %s cores for %s interfaces, and it has: %s.' %
-                    (minimum_required_lcores, len(self.interfaces), system_lcores + (0 if self.has_zero_lcore else 1)))
+                    (minimum_required_lcores, len(self.interfaces), total_lcores))
         interfaces_per_numa = defaultdict(int)
+
         for i in range(0, len(self.interfaces), 2):
-            if self.interfaces[i]['NUMA'] != self.interfaces[i+1]['NUMA'] and not ignore_numa:
+            numa = self.interfaces[i]['NUMA']
+            if numa != self.interfaces[i+1]['NUMA'] and not ignore_numa:
                 raise DpdkSetup('NUMA of each pair of interfaces should be the same. Got NUMA %s for client interface %s, NUMA %s for server interface %s' %
-                        (self.interfaces[i]['NUMA'], self.interfaces[i]['Slot_str'], self.interfaces[i+1]['NUMA'], self.interfaces[i+1]['Slot_str']))
-            interfaces_per_numa[self.interfaces[i]['NUMA']] += 2
-        self.lcores_per_numa     = lcores_per_numa
+                        (numa, self.interfaces[i]['Slot_str'], self.interfaces[i+1]['NUMA'], self.interfaces[i+1]['Slot_str']))
+            interfaces_per_numa[numa] += 2
+
         self.interfaces_per_numa = interfaces_per_numa
         self.prefix              = prefix
         self.zmq_pub_port        = zmq_pub_port
@@ -93,16 +95,15 @@ class ConfigCreator(object):
         self.ignore_numa         = ignore_numa
 
     @staticmethod
-    def _convert_mac(mac_string):
+    def verify_mac(mac_string):
         if not ConfigCreator.mac_re.match(mac_string):
             raise DpdkSetup('MAC address should be in format of 12:34:56:78:9a:bc, got: %s' % mac_string)
-        return ', '.join([('0x%s' % elem).lower() for elem in mac_string.split(':')])
+        return mac_string.lower()
 
     @staticmethod
     def _exit_if_bad_ip(ip):
         if not ConfigCreator._verify_ip(ip):
-            print("Got bad IP %s" % ip)
-            sys.exit(1)
+            raise DpdkSetup("Got bad IP %s" % ip)
 
     @staticmethod
     def _verify_ip(ip):
@@ -146,24 +147,28 @@ class ConfigCreator(object):
                 config_str += ' '*6 + '- ip: %s\n' % interface['ip']
                 config_str += ' '*8 + 'default_gw: %s\n' % interface['def_gw']
             else:
-                config_str += ' '*6 + '- dest_mac: [%s]' % self._convert_mac(interface['dest_mac'])
+                config_str += ' '*6 + '- dest_mac: %s' % self.verify_mac(interface['dest_mac'])
                 if interface.get('loopback_dest'):
                     config_str += " # MAC OF LOOPBACK TO IT'S DUAL INTERFACE\n"
                 else:
                     config_str += '\n'
-                config_str += ' '*8 + 'src_mac:  [%s]\n' % self._convert_mac(interface['src_mac'])
+                config_str += ' '*8 + 'src_mac:  %s\n' % self.verify_mac(interface['src_mac'])
             if index % 2:
                 config_str += '\n' # dual if barrier
+
         if not self.ignore_numa:
             config_str += '  platform:\n'
-            if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores, 1 core per dual_if
-                lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores])
-                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop())
+            if len(self.interfaces_per_numa.keys()) == 1 and -1 in self.interfaces_per_numa: # VM, use any cores
+                lcores_pool = sorted([lcore for lcores in self.lcores_per_numa.values() for lcore in lcores['all']])
+                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool.pop(0))
                 config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool.pop(0)
-                lcores_per_dual_if = int(len(lcores_pool) / len(self.interfaces))
+                lcores_per_dual_if = int(len(lcores_pool) * 2 / len(self.interfaces))
                 config_str += ' '*6 + 'dual_if:\n'
                 for i in range(0, len(self.interfaces), 2):
-                    lcores_for_this_dual_if = [str(lcores_pool.pop(0)) for _ in range(lcores_per_dual_if)]
+                    lcores_for_this_dual_if = list(map(str, sorted(lcores_pool[:lcores_per_dual_if])))
+                    lcores_pool = lcores_pool[lcores_per_dual_if:]
+                    if not lcores_for_this_dual_if:
+                        raise DpdkSetup('lcores_for_this_dual_if is empty (internal bug, please report with details of setup)')
                     config_str += ' '*8 + '- socket: 0\n'
                     config_str += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
             else:
@@ -171,26 +176,46 @@ class ConfigCreator(object):
                 lcores_per_dual_if = 99
                 extra_lcores = 1 if self.has_zero_lcore else 2
                 # worst case 3 iterations, to ensure master and "rx" have cores left
-                while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores) for lcores in self.lcores_per_numa.values()]):
+                while (lcores_per_dual_if * sum(self.interfaces_per_numa.values()) / 2) + extra_lcores > sum([len(lcores['all']) for lcores in self.lcores_per_numa.values()]):
                     lcores_per_dual_if -= 1
-                    for numa, cores in self.lcores_per_numa.items():
+                    for numa, lcores_dict in self.lcores_per_numa.items():
                         if not self.interfaces_per_numa[numa]:
                             continue
-                        lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(cores) / self.interfaces_per_numa[numa]))
+                        lcores_per_dual_if = min(lcores_per_dual_if, int(2 * len(lcores_dict['all']) / self.interfaces_per_numa[numa]))
                 lcores_pool = copy.deepcopy(self.lcores_per_numa)
                 # first, allocate lcores for dual_if section
                 dual_if_section = ' '*6 + 'dual_if:\n'
                 for i in range(0, len(self.interfaces), 2):
                     numa = self.interfaces[i]['NUMA']
                     dual_if_section += ' '*8 + '- socket: %s\n' % numa
-                    lcores_for_this_dual_if = [str(lcores_pool[numa].pop(0)) for _ in range(lcores_per_dual_if)]
+                    lcores_for_this_dual_if  = lcores_pool[numa]['all'][:lcores_per_dual_if]
+                    lcores_pool[numa]['all'] = lcores_pool[numa]['all'][lcores_per_dual_if:]
+                    for lcore in lcores_for_this_dual_if:
+                        if lcore in lcores_pool[numa]['main']:
+                            lcores_pool[numa]['main'].remove(lcore)
+                        elif lcore in lcores_pool[numa]['siblings']:
+                            lcores_pool[numa]['siblings'].remove(lcore)
+                        else:
+                            raise DpdkSetup('lcore not in main nor in siblings list (internal bug, please report with details of setup)')
                     if not lcores_for_this_dual_if:
                         raise DpdkSetup('Not enough cores at NUMA %s. This NUMA has %s processing units and %s interfaces.' % (numa, len(self.lcores_per_numa[numa]), self.interfaces_per_numa[numa]))
-                    dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(lcores_for_this_dual_if)
+                    dual_if_section += ' '*10 + 'threads: [%s]\n\n' % ','.join(list(map(str, sorted(lcores_for_this_dual_if))))
+
                 # take the cores left to master and rx
-                lcores_pool_left = [lcore for lcores in lcores_pool.values() for lcore in lcores]
-                config_str += ' '*6 + 'master_thread_id: %s\n' % (0 if self.has_zero_lcore else lcores_pool_left.pop(0))
-                config_str += ' '*6 + 'latency_thread_id: %s\n' % lcores_pool_left.pop(0)
+                mains_left = [lcore for lcores in lcores_pool.values() for lcore in lcores['main']]
+                siblings_left = [lcore for lcores in lcores_pool.values() for lcore in lcores['siblings']]
+                if mains_left:
+                    rx_core = mains_left.pop(0)
+                else:
+                    rx_core = siblings_left.pop(0)
+                if self.has_zero_lcore:
+                    master_core = 0
+                elif mains_left:
+                    master_core = mains_left.pop(0)
+                else:
+                    master_core = siblings_left.pop(0)
+                config_str += ' '*6 + 'master_thread_id: %s\n' % master_core
+                config_str += ' '*6 + 'latency_thread_id: %s\n' % rx_core
                 # add the dual_if section
                 config_str += dual_if_section
 
@@ -228,6 +253,7 @@ class CIfMap:
         self.m_cfg_file =cfg_file;
         self.m_cfg_dict={};
         self.m_devices={};
+        self.m_is_mellanox_mode=False;
 
     def dump_error (self,err):
         s="""%s  
@@ -265,6 +291,94 @@ Other network devices
         s= self.dump_error (err)
         raise DpdkSetup(s)
 
+    def set_only_mellanox_nics(self):
+        self.m_is_mellanox_mode=True;
+
+    def get_only_mellanox_nics(self):
+        return self.m_is_mellanox_mode
+
+
+    def read_pci (self,pci_id,reg_id):
+        out=subprocess.check_output(['setpci', '-s',pci_id, '%s.w' %(reg_id)])
+        out=out.decode(errors='replace');
+        return (out.strip());
+
+    def write_pci (self,pci_id,reg_id,val):
+        out=subprocess.check_output(['setpci','-s',pci_id, '%s.w=%s' %(reg_id,val)])
+        out=out.decode(errors='replace');
+        return (out.strip());
+
+    def tune_mlx5_device (self,pci_id):
+        # set PCIe Read to 1024 and not 512 ... need to add it to startup s
+        val=self.read_pci (pci_id,68)
+        if val[0]!='3':
+            val='3'+val[1:]
+            self.write_pci (pci_id,68,val)
+            assert(self.read_pci (pci_id,68)==val);
+
+    def get_mtu_mlx5 (self,dev_id):
+        if len(dev_id)>0:
+            out=subprocess.check_output(['ifconfig', dev_id])
+            out=out.decode(errors='replace');
+            obj=re.search(r'MTU:(\d+)',out,flags=re.MULTILINE|re.DOTALL);
+            if obj:
+                return int(obj.group(1));
+            else:
+                obj=re.search(r'mtu (\d+)',out,flags=re.MULTILINE|re.DOTALL);
+                if obj:
+                    return int(obj.group(1));
+                else:
+                    return -1
+
+    def set_mtu_mlx5 (self,dev_id,new_mtu):
+        if len(dev_id)>0:
+            out=subprocess.check_output(['ifconfig', dev_id,'mtu',str(new_mtu)])
+            out=out.decode(errors='replace');
+
+
+    def set_max_mtu_mlx5_device(self,dev_id):
+        mtu=9*1024+22
+        dev_mtu=self.get_mtu_mlx5 (dev_id);
+        if (dev_mtu>0) and (dev_mtu!=mtu):
+            self.set_mtu_mlx5(dev_id,mtu);
+            if self.get_mtu_mlx5(dev_id) != mtu: 
+                print("Could not set MTU to %d" % mtu)
+                exit(-1);
+
+
+    def disable_flow_control_mlx5_device (self,dev_id):
+
+           if len(dev_id)>0:
+               my_stderr = open("/dev/null","wb")
+               cmd ='ethtool -A '+dev_id + ' rx off tx off '
+               subprocess.call(cmd, stdout=my_stderr,stderr=my_stderr, shell=True)
+               my_stderr.close();
+
+    def check_ofe_version (self):
+        ofed_info='/usr/bin/ofed_info'
+        ofed_ver= '-3.4-'
+        ofed_ver_show= '3.4-1'
+
+
+        if not os.path.isfile(ofed_info):
+            print("OFED %s is not installed on this setup" % ofed_info)
+            exit(-1);
+
+        try:
+          out = subprocess.check_output([ofed_info])
+        except Exception as e:
+            print("OFED %s can't run " % (ofed_info))
+            exit(-1);
+
+        lines=out.splitlines();
+
+        if len(lines)>1:
+            if not (ofed_ver in str(lines[0])):
+                print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
+                exit(-1);
+
+
+
     def load_config_file (self):
 
         fcfg=self.m_cfg_file
@@ -300,13 +414,17 @@ Other network devices
             self.raise_error ('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
 
-    def do_bind_one (self,key):
-        cmd='%s dpdk_nic_bind.py --bind=igb_uio %s ' % (sys.executable, key)
+    def do_bind_one (self,key,mellanox):
+        if mellanox:
+            drv="mlx5_core"
+        else:
+            drv="igb_uio"
+
+        cmd='%s dpdk_nic_bind.py --bind=%s %s ' % (sys.executable, drv,key)
         print(cmd)
         res=os.system(cmd);
         if res!=0:
             raise DpdkSetup('')
-
 
 
     def pci_name_to_full_name (self,pci_name):
@@ -331,7 +449,7 @@ Other network devices
         dpdk_nic_bind.get_nic_details()
         self.m_devices= dpdk_nic_bind.devices
 
-    def do_run (self):
+    def do_run (self,only_check_all_mlx=False):
         self.run_dpdk_lspci ()
         if map_driver.dump_interfaces is None or (map_driver.dump_interfaces == [] and map_driver.parent_cfg):
             self.load_config_file()
@@ -344,27 +462,74 @@ Other network devices
                         if_list.append(dev['Slot'])
 
         if_list = list(map(self.pci_name_to_full_name, if_list))
+
+
+        # check how many mellanox cards we have
+        Mellanox_cnt=0;
         for key in if_list:
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
+            if 'Vendor_str' not in self.m_devices[key]:
+                err=" %s does not have Vendor_str " %key;
+                raise DpdkSetup(err)
+
+            if self.m_devices[key]['Vendor_str'].find("Mellanox")>-1 :
+                Mellanox_cnt=Mellanox_cnt+1
+
+
+        if not map_driver.dump_interfaces :
+            if  ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
+               err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
+               raise DpdkSetup(err)
+
+
+        if not map_driver.dump_interfaces :
+            if  Mellanox_cnt>0 :
+                self.set_only_mellanox_nics()
+
+        if self.get_only_mellanox_nics():
+            self.check_ofe_version ()
+            for key in if_list:
+                pci_id=self.m_devices[key]['Slot_str']
+                self.tune_mlx5_device (pci_id)
+                if 'Interface' in self.m_devices[key]:
+                    dev_id=self.m_devices[key]['Interface']
+                    self.disable_flow_control_mlx5_device (dev_id)
+                    self.set_max_mtu_mlx5_device(dev_id)
+
+
+        if only_check_all_mlx:
+            if Mellanox_cnt >0:
+                exit(1);
+            else:
+                exit(0);
+
+        for key in if_list:
+            if key not in self.m_devices:
+                err=" %s does not exist " %key;
+                raise DpdkSetup(err)
 
             if 'Driver_str' in self.m_devices[key]:
-                if self.m_devices[key]['Driver_str'] not in dpdk_nic_bind.dpdk_drivers :
-                    self.do_bind_one (key)
+                if self.m_devices[key]['Driver_str'] not in (dpdk_nic_bind.dpdk_drivers+dpdk_nic_bind.dpdk_and_kernel) :
+                    self.do_bind_one (key,(Mellanox_cnt>0))
+                    pass;
             else:
-                self.do_bind_one (key)
+                self.do_bind_one (key,(Mellanox_cnt>0))
+                pass;
 
-        if if_list and map_driver.args.parent and dpdk_nic_bind.get_igb_uio_usage():
-            pid = dpdk_nic_bind.get_pid_using_pci(if_list)
-            if pid:
-                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-                if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                    sys.exit(1)
-            else:
-                print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
+        if (Mellanox_cnt==0):
+            # We are not in Mellanox case, we can do this check only in case of Intel (another process is running) 
+            if if_list and map_driver.args.parent and (dpdk_nic_bind.get_igb_uio_usage()):
+                pid = dpdk_nic_bind.get_pid_using_pci(if_list)
+                if pid:
+                    cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                    print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                    if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
+                        sys.exit(1)
+                else:
+                       print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
 
     def do_return_to_linux(self):
         if not self.m_devices:
@@ -432,7 +597,7 @@ Other network devices
     # input: list of different descriptions of interfaces: index, pci, name etc.
     # Binds to dpdk wanted interfaces, not bound to any driver.
     # output: list of maps of devices in dpdk_* format (self.m_devices.values())
-    def _get_wanted_interfaces(self, input_interfaces):
+    def _get_wanted_interfaces(self, input_interfaces, get_macs = True):
         if type(input_interfaces) is not list:
             raise DpdkSetup('type of input interfaces should be list')
         if not len(input_interfaces):
@@ -460,46 +625,51 @@ Other network devices
             dev['Interface_argv'] = interface
             wanted_interfaces.append(dev)
 
-        unbound = []
-        dpdk_bound = []
-        for interface in wanted_interfaces:
-            if 'Driver_str' not in interface:
-                unbound.append(interface['Slot'])
-            elif interface.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
-                dpdk_bound.append(interface['Slot'])
-        if unbound or dpdk_bound:
-            for pci, info in dpdk_nic_bind.get_info_from_trex(unbound + dpdk_bound).items():
-                if pci not in self.m_devices:
-                    raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
-                self.m_devices[pci].update(info)
+        if get_macs:
+            unbound = []
+            dpdk_bound = []
+            for interface in wanted_interfaces:
+                if 'Driver_str' not in interface:
+                    unbound.append(interface['Slot'])
+                elif interface.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                    dpdk_bound.append(interface['Slot'])
+            if unbound or dpdk_bound:
+                for pci, info in dpdk_nic_bind.get_info_from_trex(unbound + dpdk_bound).items():
+                    if pci not in self.m_devices:
+                        raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
+                    self.m_devices[pci].update(info)
 
         return wanted_interfaces
 
     def do_create(self):
-        # gather info about NICS from dpdk_nic_bind.py
-        if not self.m_devices:
-            self.run_dpdk_lspci()
-        wanted_interfaces = self._get_wanted_interfaces(map_driver.args.create_interfaces)
 
         ips = map_driver.args.ips
         def_gws = map_driver.args.def_gws
         dest_macs = map_driver.args.dest_macs
-        if ips:
+        if map_driver.args.force_macs:
+            ip_config = False
+            if ips:
+                raise DpdkSetup("If using --force-macs, should not specify ips")
+            if def_gws:
+                raise DpdkSetup("If using --force-macs, should not specify default gateways")
+        elif ips:
             ip_config = True
             if not def_gws:
-                print("If specifying ips, must specify also def-gws")
-                sys.exit(1)
+                raise DpdkSetup("If specifying ips, must specify also def-gws")
             if dest_macs:
-                print("If specifying ips, should not specify dest--macs")
-                sys.exit(1)
-            if len(ips) != len(def_gws) or len(ips) != len(wanted_interfaces):
-                print("Number of given IPs should equal number of given def-gws and number of interfaces")
-                sys.exit(1)
+                raise DpdkSetup("If specifying ips, should not specify dest--macs")
+            if len(ips) != len(def_gws) or len(ips) != len(map_driver.args.create_interfaces):
+                raise DpdkSetup("Number of given IPs should equal number of given def-gws and number of interfaces")
         else:
             if dest_macs:
                 ip_config = False
             else:
                 ip_config = True
+
+        # gather info about NICS from dpdk_nic_bind.py
+        if not self.m_devices:
+            self.run_dpdk_lspci()
+        wanted_interfaces = self._get_wanted_interfaces(map_driver.args.create_interfaces, get_macs = not ip_config)
 
         for i, interface in enumerate(wanted_interfaces):
             dual_index = i + 1 - (i % 2) * 2
@@ -513,15 +683,17 @@ Other network devices
                 else:
                     interface['def_gw'] = ".".join(list(str(dual_index+1))*4)
             else:
+                dual_if = wanted_interfaces[dual_index]
                 if 'MAC' not in interface:
                     raise DpdkSetup('Could not determine MAC of interface: %s. Please verify with -t flag.' % interface['Interface_argv'])
+                if 'MAC' not in dual_if:
+                    raise DpdkSetup('Could not determine MAC of interface: %s. Please verify with -t flag.' % dual_if['Interface_argv'])
                 interface['src_mac'] = interface['MAC']
                 if isinstance(dest_macs, list) and len(dest_macs) > i:
                     interface['dest_mac'] = dest_macs[i]
-
-                if 'dest_mac' not in wanted_interfaces[dual_index]:
-                    wanted_interfaces[dual_index]['dest_mac'] = interface['MAC'] # loopback
-                    wanted_interfaces[dual_index]['loopback_dest'] = True
+                else:
+                    interface['dest_mac'] = dual_if['MAC']
+                    interface['loopback_dest'] = True
 
         config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
@@ -533,8 +705,7 @@ Other network devices
         cpu_topology = self._get_cpu_topology()
         total_lcores = sum([len(lcores) for cores in cpu_topology.values() for lcores in cores.values()])
         if total_lcores < 1:
-            print('Script could not determine number of cores of the system, exiting.')
-            sys.exit(1)
+            raise DpdkSetup('Script could not determine number of cores of the system, exiting.')
         elif total_lcores < 2:
             if dpdk_nic_bind.confirm("You only have 1 core and can't run TRex at all. Ignore and continue? (y/N): "):
                 ignore_numa = True
@@ -545,9 +716,18 @@ Other network devices
                 ignore_numa = True
             else:
                 sys.exit(1)
+
+        if map_driver.args.force_macs:
+            ip_based = False
+        elif dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to use MAC based config? (y/N)"):
+            ip_based = False
+        else:
+            ip_based = True
+            ip_addr_digit = 1
+
         if not self.m_devices:
             self.run_dpdk_lspci()
-        dpdk_nic_bind.show_table()
+        dpdk_nic_bind.show_table(get_macs = not ip_based)
         print('Please choose even number of interfaces from the list above, either by ID , PCI or Linux IF')
         print('Stateful will use order of interfaces: Client1 Server1 Client2 Server2 etc. for flows.')
         print('Stateless can be in any order.')
@@ -576,12 +756,6 @@ Other network devices
                 if not dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
                     sys.exit(1)
 
-        if dpdk_nic_bind.confirm("By default, IP based configuration file will be created. Do you want to change to MAC based config? (y/N)"):
-            ip_based = False
-        else:
-            ip_based = True
-            ip_addr_digit = 1
-
         for i, interface in enumerate(wanted_interfaces):
             if not ip_based:
                 if 'MAC' not in interface:
@@ -598,7 +772,6 @@ Other network devices
                     return
 
             if ip_based:
-                loopback_dest = True
                 if ip_addr_digit % 2 == 0:
                     dual_ip_digit = ip_addr_digit - 1
                 else:
@@ -659,9 +832,12 @@ Other network devices
 
 def parse_parent_cfg (parent_cfg):
     parent_parser = argparse.ArgumentParser(add_help = False)
+    parent_parser.add_argument('-?', '-h', '--help', dest = 'help', action = 'store_true')
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
-    args, unkown = parent_parser.parse_known_args(shlex.split(parent_cfg))
+    args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
+    if args.help:
+        sys.exit(0)
     return (args.cfg, args.dump_interfaces)
 
 def process_options ():
@@ -674,7 +850,7 @@ To return to Linux the DPDK bound interfaces (for ifconfig etc.)
   sudo ./dpdk_set_ports.py -l
 
 To create TRex config file using interactive mode
-  sudo ./dpdk_set_ports.py -l
+  sudo ./dpdk_set_ports.py -i
 
 To create a default config file (example1)
   sudo ./dpdk_setup_ports.py -c 02:00.0 02:00.1 -o /etc/trex_cfg.yaml
@@ -734,6 +910,10 @@ To see more detailed info on interfaces (table):
                       help="""Destination MACs to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
 
+    parser.add_argument("--force-macs", default=False, action='store_true',
+                      help="""Use MACs in created config file.""",
+     )
+
     parser.add_argument("--ips", nargs='*', default=[], action='store',
                       help="""IP addresses to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
@@ -783,6 +963,9 @@ To see more detailed info on interfaces (table):
 
 def main ():
     try:
+        if getpass.getuser() != 'root':
+            raise DpdkSetup('Please run this program as root/with sudo')
+
         process_options ()
 
         if map_driver.args.show:
@@ -812,9 +995,8 @@ def main ():
         print(e)
         exit(-1)
 
+
+
 if __name__ == '__main__':
-    if getpass.getuser() != 'root':
-        print('Please run this program as root/with sudo')
-        exit(1)
     main()
 

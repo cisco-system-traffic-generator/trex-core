@@ -112,15 +112,6 @@ void TrexStateless::shutdown() {
 void
 TrexStateless::launch_control_plane() {
 
-    /* pin this process to the current running CPU
-       any new thread will be called on the same CPU
-       (control plane restriction)
-     */
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(sched_getcpu(), &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
-
     /* start RPC server */
     m_rpc_server->start();
 }

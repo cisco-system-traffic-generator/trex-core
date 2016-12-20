@@ -1,0 +1,57 @@
+{
+   DL issue
+   Memcheck:Cond
+   fun:index
+   fun:expand_dynamic_string_token
+   fun:fillin_rpath
+   fun:_dl_init_paths
+   fun:dl_main
+   fun:_dl_sysdep_start
+   fun:_dl_start_final
+   fun:_dl_start
+   obj:/lib/x86_64-linux-gnu/ld-2.19.so
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+}
+
+{
+   DPDK threads
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:rte_eal_init
+   fun:_Z9main_testiPPc
+   fun:(below main)
+}
+
+{
+   DPDK interrupt thread
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:rte_eal_intr_init
+   fun:rte_eal_init
+   fun:_Z9main_testiPPc
+   fun:(below main)
+}
+
+{
+   DPDK epoll ctl
+   Memcheck:Param
+   epoll_ctl(event)
+   fun:epoll_ctl
+   fun:eal_intr_thread_main
+   fun:start_thread
+   fun:clone
+}
+

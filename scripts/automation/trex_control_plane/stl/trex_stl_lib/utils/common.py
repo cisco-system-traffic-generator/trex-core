@@ -3,6 +3,8 @@ import sys
 import string
 import random
 import time
+import socket
+import re
 
 try:
     import pwd
@@ -86,3 +88,23 @@ class PassiveTimer(object):
 
         return (time.time() > self.expr_sec)
 
+def is_valid_ipv4 (addr):
+    try:
+        socket.inet_pton(socket.AF_INET, addr)
+        return True
+    except (socket.error, TypeError):
+        return False
+        
+def is_valid_mac (mac):
+    return bool(re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()))
+
+def list_remove_dup (l):
+    tmp = list()
+    
+    for x in l:
+        if not x in tmp:
+            tmp.append(x)
+            
+    return tmp
+            
+        

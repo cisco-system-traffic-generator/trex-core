@@ -106,7 +106,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
      0x07, 0x08, 0x50, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x08, 0x0a, 0x01, 0x02, 0x03, 0x04,
      //     bad - 0x03, 0x04, 0x06, 0x02, 0x20, 0x00, 0xBB, 0x79, 0x00, 0x00};
     0x03, 0x04, 0x50, 0x02, 0x20, 0x00, 0xBB, 0x79, 0x00, 0x00};
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(0, sizeof(test_pkt));
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_by_port(0, sizeof(test_pkt));
     char *p = rte_pktmbuf_append(m, sizeof(test_pkt));
     assert(p);
 
@@ -141,7 +141,12 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
     }
 
     pkt = CTestPktGen::create_test_pkt(l3_type, l4_proto, ttl, ip_id, flags, 1000, pkt_size);
-    m = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
+
+    /* DEBUG print the packet
+    utl_k12_pkt_format(stdout,pkt,  pkt_size) ;
+    */
+
+    m = CGlobalInfo::pktmbuf_alloc_by_port(0, pkt_size);
     if ( unlikely(m == 0) )  {
         printf("ERROR no packets \n");
         return (NULL);
@@ -156,7 +161,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
 #endif
 
 rte_mbuf_t *CTrexDebug::create_pkt(uint8_t *pkt, int pkt_size) {
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_by_port(0, pkt_size);
     if ( unlikely(m == 0) ) {
         printf("ERROR no packets \n");
         return 0;
@@ -170,7 +175,7 @@ rte_mbuf_t *CTrexDebug::create_pkt(uint8_t *pkt, int pkt_size) {
 }
 
 rte_mbuf_t *CTrexDebug::create_pkt_indirect(rte_mbuf_t *m, uint32_t new_pkt_size){
-    rte_mbuf_t *d = CGlobalInfo::pktmbuf_alloc(0, 60);
+    rte_mbuf_t *d = CGlobalInfo::pktmbuf_alloc_by_port(0, 60);
     assert(d);
 
     rte_pktmbuf_attach(d, m);
@@ -341,7 +346,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
     rte_mbuf_t *m = NULL;
     CPhyEthIF * lp;
     rte_mbuf_t * rx_pkts[32];
-    int sent_num = 20;
+    int sent_num = 8;   /* reduce the size, there are driver that can handle only burst of 8 in QUEUE 0 */
     int ret = 0;
 
     for (int pkt_num = 0; pkt_num < sizeof(test_pkts) / sizeof (test_pkts[0]); pkt_num++) {
@@ -365,6 +370,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
             case STL:
                 if ( CGlobalInfo::m_options.is_stateless() ) {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 } else {
                     exp_q = MAIN_DPDK_DATA_Q;
                 }
@@ -374,6 +380,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                     exp_q = MAIN_DPDK_DATA_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 }
                 break;
             default:

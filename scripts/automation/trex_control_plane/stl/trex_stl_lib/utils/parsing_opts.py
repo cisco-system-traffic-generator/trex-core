@@ -1,6 +1,6 @@
 import argparse
 from collections import namedtuple, OrderedDict
-from .common import list_intersect, list_difference
+from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_mac, list_remove_dup
 from .text_opts import format_text
 from ..trex_stl_types import *
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
@@ -43,6 +43,25 @@ CORE_MASK = 26
 DUAL = 27
 FLOW_CTRL = 28
 SUPPORTED = 29
+FILE_PATH_NO_CHECK = 30
+
+OUTPUT_FILENAME = 31
+LIMIT = 33
+PORT_RESTART   = 34
+
+RETRIES = 37
+
+SINGLE_PORT = 38
+DST_MAC = 39
+
+PING_IPV4 = 40
+PING_COUNT = 41
+PKT_SIZE = 42
+
+SERVICE_OFF = 43
+
+SRC_IPV4 = 44
+DST_IPV4 = 45
 
 GLOBAL_STATS = 50
 PORT_STATS = 51
@@ -217,8 +236,30 @@ def is_valid_file(filename):
 
     return filename
 
+def check_ipv4_addr (ipv4_str):
+    if not is_valid_ipv4(ipv4_str):
+        raise argparse.ArgumentTypeError("invalid IPv4 address: '{0}'".format(ipv4_str))
 
+    return ipv4_str
 
+def check_pkt_size (pkt_size):
+    try:
+        pkt_size = int(pkt_size)
+    except ValueError:
+        raise argparse.ArgumentTypeError("invalid packet size type: '{0}'".format(pkt_size))
+        
+    if (pkt_size < 64) or (pkt_size > 9216):
+        raise argparse.ArgumentTypeError("invalid packet size: '{0}' - valid range is 64 to 9216".format(pkt_size))
+    
+    return pkt_size
+    
+def check_mac_addr (addr):
+    if not is_valid_mac(addr):
+        raise argparse.ArgumentTypeError("not a valid MAC address: '{0}'".format(addr))
+        
+    return addr
+
+    
 def decode_tunables (tunable_str):
     tunables = {}
 
@@ -303,6 +344,53 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                     'dest': 'flow_ctrl',
                                     'choices': FLOW_CTRL_DICT}),
 
+              SRC_IPV4: ArgumentPack(['--src'],
+                                     {'help': 'Configure source IPv4 address',
+                                      'dest': 'src_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
+              DST_IPV4: ArgumentPack(['--dst'],
+                                     {'help': 'Configure destination IPv4 address',
+                                      'dest': 'dst_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
+
+              DST_MAC: ArgumentPack(['--dst'],
+                                    {'help': 'Configure destination MAC address',
+                                     'dest': 'dst_mac',
+                                     'required': True,
+                                     'type': check_mac_addr}),
+              
+              RETRIES: ArgumentPack(['-r', '--retries'],
+                                    {'help': 'retries count [default is zero]',
+                                     'dest': 'retries',
+                                     'default':  0,
+                                     'type': int}),
+                
+
+              OUTPUT_FILENAME: ArgumentPack(['-o', '--output'],
+                                            {'help': 'Output PCAP filename',
+                                             'dest': 'output_filename',
+                                             'default': None,
+                                             'required': True,
+                                             'type': str}),
+
+
+              PORT_RESTART: ArgumentPack(['-r', '--restart'],
+                                         {'help': 'hard restart port(s)',
+                                          'dest': 'restart',
+                                          'default': False,
+                                          'action': 'store_true'}),
+
+              LIMIT: ArgumentPack(['-l', '--limit'],
+                                  {'help': 'Limit the packet count to be written to the file',
+                                   'dest': 'limit',
+                                   'default':  1000,
+                                   'type': int}),
+
+
               SUPPORTED: ArgumentPack(['--supp'],
                                    {'help': 'Show which attributes are supported by current NICs',
                                     'default': None,
@@ -325,6 +413,33 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'help': "A list of ports on which to apply the command",
                                          'default': []}),
 
+              
+              SINGLE_PORT: ArgumentPack(['--port', '-p'],
+                                        {'dest':'ports',
+                                         'type': int,
+                                         'metavar': 'PORT',
+                                         'help': 'source port for the action',
+                                         'required': True}),
+              
+              PING_IPV4: ArgumentPack(['-d'],
+                                      {'help': 'which IPv4 to ping',
+                                      'dest': 'ping_ipv4',
+                                      'required': True,
+                                      'type': check_ipv4_addr}),
+              
+              PING_COUNT: ArgumentPack(['-n', '--count'],
+                                       {'help': 'How many times to ping [default is 5]',
+                                        'dest': 'count',
+                                        'default':  5,
+                                        'type': int}),
+                  
+              PKT_SIZE: ArgumentPack(['-s'],
+                                     {'dest':'pkt_size',
+                                      'help': 'packet size to use',
+                                      'default': 64,
+                                      'type': check_pkt_size}),
+              
+              
               ALL_PORTS: ArgumentPack(['-a'],
                                         {"action": "store_true",
                                          "dest": "all_ports",
@@ -360,6 +475,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'nargs': 1,
                                        'required': True,
                                        'type': is_valid_file,
+                                       'help': "File path to load"}),
+
+              FILE_PATH_NO_CHECK: ArgumentPack(['-f'],
+                                      {'metavar': 'FILE',
+                                       'dest': 'file',
+                                       'nargs': 1,
+                                       'required': True,
+                                       'type': str,
                                        'help': "File path to load"}),
 
               FILE_FROM_DB: ArgumentPack(['--db'],
@@ -447,10 +570,17 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'default': None,
                                        'help': "Core mask - only cores responding to the bit mask will be active"}),
 
+              SERVICE_OFF: ArgumentPack(['--off'],
+                                        {'action': 'store_false',
+                                         'dest': 'enabled',
+                                         'default': True,
+                                         'help': 'Deactivates services on port(s)'}),
+                
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
                                                 {'required': False}),
+
 
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
@@ -515,6 +645,8 @@ class CCmdArgParser(argparse.ArgumentParser):
             if not self.has_ports_cfg(opts):
                 return opts
 
+            opts.ports = listify(opts.ports)
+            
             # if all ports are marked or 
             if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
                 if default_ports is None:
@@ -522,10 +654,17 @@ class CCmdArgParser(argparse.ArgumentParser):
                 else:
                     opts.ports = default_ports
 
+            opts.ports = list_remove_dup(opts.ports)
+            
             # so maybe we have ports configured
             invalid_ports = list_difference(opts.ports, self.stateless_client.get_all_ports())
             if invalid_ports:
-                msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                
+                if len(invalid_ports) > 1:
+                    msg = "{0}: port(s) {1} are not valid port IDs".format(self.cmd_name, invalid_ports)
+                else:
+                    msg = "{0}: port {1} is not a valid port ID".format(self.cmd_name, invalid_ports[0])
+                    
                 self.stateless_client.logger.log(format_text(msg, 'bold'))
                 return RC_ERR(msg)
 

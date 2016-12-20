@@ -12,6 +12,8 @@ import copy;
 import re
 import uuid
 import subprocess
+import platform
+from waflib import Logs
 
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
@@ -30,6 +32,16 @@ USERS_ALLOWED_TO_RELEASE = ['hhaim']
 #######################################
 # utility for group source code 
 ###################################
+
+orig_system = os.system
+
+def verify_system(cmd):
+    ret = orig_system(cmd)
+    if ret:
+        raise Exception('Return code %s on command: system("%s")' % (ret, cmd))
+
+os.system = verify_system
+
 
 class SrcGroup:
     ' group of source by directory '
@@ -88,9 +100,50 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
 
+
+def check_ibverbs_deps(bld):
+    if 'LDD' not in bld.env or not len(bld.env['LDD']):
+        bld.fatal('Please run configure. Missing key LDD.')
+    cmd = '%s %s/external_libs/ibverbs/libibverbs.so' % (bld.env['LDD'][0], top)
+    ret, out = getstatusoutput(cmd)
+    if ret or not out:
+        bld.fatal("Command of checking libraries '%s' failed.\nReturn status: %s\nOutput: %s" % (cmd, ret, out))
+    if '=> not found' in out:
+        Logs.pprint('YELLOW', 'Could not find dependency libraries of libibverbs.so:')
+        for line in out.splitlines():
+            if '=> not found' in line:
+                Logs.pprint('YELLOW', line)
+        dumy_libs_path = os.path.abspath(top + 'scripts/dumy_libs')
+        Logs.pprint('YELLOW', 'Adding rpath of %s' % dumy_libs_path)
+        rpath_linkage.append(dumy_libs_path)
+
+
+def missing_pkg_msg(fedora, ubuntu):
+    msg = 'not found\n'
+    fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
+    ubuntu_install = 'Ubuntu install:\nsudo apt install %s\n' % ubuntu
+    try:
+        if platform.linux_distribution()[0].capitalize() == 'Ubuntu':
+            msg += ubuntu_install
+        elif platform.linux_distribution()[0].capitalize() == 'Fedora':
+            msg += fedora_install
+        else:
+            raise
+    except:
+        msg += 'Could not determine Linux distribution.\n%s\n%s' % (ubuntu_install, fedora_install)
+    return msg
+
+
 def configure(conf):
     conf.load('g++')
     conf.load('gcc')
+    conf.find_program('ldd')
+    conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
+    try:
+        conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will try internal version.')
+    except:
+        pass
+
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
@@ -127,11 +180,13 @@ main_src = SrcGroup(dir='src',
              'time_histogram.cpp',
              'os_time.cpp',
              'utl_cpuu.cpp',
+             'utl_ip.cpp',
              'utl_json.cpp',
              'utl_yaml.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
              'msg_manager.cpp',
+             'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
@@ -202,7 +257,8 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp'
+                                    'rx/trex_stateless_rx_core.cpp',
+                                    'rx/trex_stateless_rx_port_mngr.cpp'
                                     ])
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -315,6 +371,21 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
+
+                 'drivers/net/mlx5/mlx5_mr.c',
+                 'drivers/net/mlx5/mlx5_ethdev.c',
+                 'drivers/net/mlx5/mlx5_mac.c',
+                 'drivers/net/mlx5/mlx5_rxmode.c',
+                 'drivers/net/mlx5/mlx5_rxtx.c',
+                 'drivers/net/mlx5/mlx5_stats.c',
+                 'drivers/net/mlx5/mlx5_txq.c',
+                 'drivers/net/mlx5/mlx5.c',
+                 'drivers/net/mlx5/mlx5_fdir.c',
+                 'drivers/net/mlx5/mlx5_rss.c',
+                 'drivers/net/mlx5/mlx5_rxq.c',
+                 'drivers/net/mlx5/mlx5_trigger.c',
+                 'drivers/net/mlx5/mlx5_vlan.c',
+
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -515,6 +586,9 @@ includes_path =''' ../src/pal/linux_dpdk/
 ../src/dpdk/lib/librte_ring/
               ''';
 
+
+dpdk_includes_verb_path =''
+
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
                         ../src/pal/linux_dpdk/dpdk
@@ -577,6 +651,8 @@ dpdk_includes_path =''' ../src/
 ''';
 
 
+
+
 DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
 
 client_external_libs = [
@@ -588,6 +664,7 @@ client_external_libs = [
         'texttable-0.8.4',
         ]
 
+rpath_linkage = []
 
 RELEASE_    = "release"
 DEBUG_      = "debug"
@@ -693,6 +770,8 @@ class build_option:
 
     def get_c_flags (self):
         flags = self.get_common_flags()
+        if  self.isRelease () :
+            flags += ['-DNDEBUG'];
 
         # for C no special flags yet
         return (flags)
@@ -719,9 +798,6 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='external_libs/zmq/'
-    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
-
     #rte_libs =[
     #         'dpdk'];
 
@@ -733,13 +809,11 @@ def build_prog (bld, build_obj):
     # add electric fence only for debug image  
     debug_file_list='';
     if not build_obj.isRelease ():
-        #debug 
         debug_file_list +=ef_src.file_list(top)
-
 
     bld.objects(
       features='c ',
-      includes = dpdk_includes_path,
+      includes = dpdk_includes_path+dpdk_includes_verb_path,
       
       cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
@@ -751,8 +825,9 @@ def build_prog (bld, build_obj):
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl', 'z'],
-                use =[build_obj.get_dpdk_target(),'zmq'],
+                use =[build_obj.get_dpdk_target(),'zmq','ibverbs'],
                 source = bp.file_list(top) + debug_file_list,
+                rpath = rpath_linkage,
                 target = build_obj.get_target())
 
 
@@ -768,8 +843,20 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+    global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
+
+    zmq_lib_path='external_libs/zmq/'
+    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
+    if bld.env['LIB_IBVERBS']:
+        bld.read_shlib(name='ibverbs')
+    else:
+        ibverbs_lib_path='external_libs/ibverbs/'
+        dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
+        bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+        check_ibverbs_deps(bld)
+
     for obj in build_types:
         build_type(bld,obj);
 
@@ -883,12 +970,11 @@ files_list=[
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
-            't-rex-debug-gdb',
+            't-rex-64-debug-gdb',
             'stl-sim',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',
-            'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
@@ -898,7 +984,7 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp','dumy_libs']
 
 
 class Env(object):

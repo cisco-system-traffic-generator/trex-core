@@ -198,11 +198,14 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_for_trex_crash(self):
         pass
 
-    def get_benchmark_param (self, param, sub_param = None, test_name = None):
+    def get_benchmark_param (self, param, sub_param = None, test_name = None,default=None):
         if not test_name:
             test_name = self.get_name()
         if test_name not in self.benchmark:
-            self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            if default ==None:
+               self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            else:
+                return default
         if sub_param:
             return self.benchmark[test_name][param].get(sub_param)
         else:
@@ -254,7 +257,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     allowed_latency = 1000
                 if max(trex_res.get_max_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency)
-    
+
                 # check that avg latency does not exceed 1 msec
                 if self.is_VM:
                     allowed_latency = 9999999
@@ -262,6 +265,15 @@ class CTRexGeneral_Test(unittest.TestCase):
                     allowed_latency = 1000
                 if max(trex_res.get_avg_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Average latency exceeds %s (usec)' % allowed_latency)
+
+                ports_names = trex_res.get_last_value('trex-latecny-v2.data', 'port\-\d+')
+                if not ports_names:
+                    raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
+                for port_name in ports_names:
+                    path = 'trex-latecny-v2.data.%s.hist.cnt' % port_name
+                    lat_count = trex_res.get_last_value(path)
+                    if lat_count == 0:
+                        self.fail('LatencyError: Number of latency packets received on %s is 0' % port_name)
 
             if not self.is_loopback:
                 # check router number of drops --> deliberately masked- need to be figured out!!!!!
@@ -356,7 +368,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     print("Can't get TRex log:", e)
             if len(self.fail_reasons):
                 sys.stdout.flush()
-                raise Exception('The test is failed, reasons:\n%s' % '\n'.join(self.fail_reasons))
+                raise Exception('Test failed. Reasons:\n%s' % '\n'.join(self.fail_reasons))
         sys.stdout.flush()
 
     def check_for_trex_crash(self):

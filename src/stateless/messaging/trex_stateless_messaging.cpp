@@ -241,13 +241,15 @@ TrexDpPortEventMsg::handle() {
 }
 
 /************************* messages from CP to RX **********************/
-bool TrexStatelessRxStartMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->work();
+bool TrexStatelessRxEnableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->enable_latency();
+    m_reply.set_reply(true);
+    
     return true;
 }
 
-bool TrexStatelessRxStopMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->idle();
+bool TrexStatelessRxDisableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->disable_latency();
     return true;
 }
 
@@ -255,3 +257,76 @@ bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
     rx_core->quit();
     return true;
 }
+
+
+bool
+TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
+    rx_core->start_recorder(m_port_id, m_pcap_filename, m_limit);
+
+    /* mark as done */
+    m_reply.set_reply(true);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
+    rx_core->stop_recorder(m_port_id);
+
+    return true;
+}
+
+bool
+TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->start_queue(m_port_id, m_size);
+    
+    /* mark as done */
+    m_reply.set_reply(true);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->stop_queue(m_port_id);
+
+    return true;
+}
+
+
+
+bool
+TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
+    const RXPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
+    
+    /* set the reply */
+    m_reply.set_reply(pkt_buffer);
+
+    return true;
+}
+
+
+bool
+TrexStatelessRxFeaturesToJson::handle(CRxCoreStateless *rx_core) {
+    Json::Value output = rx_core->get_rx_port_mngr(m_port_id).to_json();
+    
+    /* set the reply */
+    m_reply.set_reply(output);
+
+    return true;
+}
+
+bool
+TrexStatelessRxSetL2Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l2_mode();
+    
+    return true;
+}
+
+bool
+TrexStatelessRxSetL3Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l3_mode(m_src_addr, m_is_grat_arp_needed);
+    
+    return true;
+}
+

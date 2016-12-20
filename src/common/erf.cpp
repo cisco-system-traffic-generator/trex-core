@@ -280,7 +280,11 @@ bool CErfFileWriter::write_packet(CCapPktRaw * lpPacket){
 	return true;
 }
 
-
+void CErfFileWriter::flush_to_disk() {
+    if (m_fd) {
+        fflush(m_fd);
+    }
+}
 
 bool CPcapFileWriter::Create(char *file_name){
     m_fd=CAP_FOPEN_64(file_name,"wb");

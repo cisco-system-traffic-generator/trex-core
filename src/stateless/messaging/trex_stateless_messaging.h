@@ -24,11 +24,67 @@ limitations under the License.
 
 #include "msg_manager.h"
 #include "trex_dp_port_events.h"
+#include "trex_exception.h"
+#include "trex_stateless_rx_defs.h"
+#include "os_time.h"
+#include "utl_ip.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
+class RXPacketBuffer;
+
+/**
+ * Generic message reply object
+ * 
+ * @author imarom (11/27/2016)
+ */
+template<typename T> class MsgReply {
+
+public:
+    
+    MsgReply() {
+        reset();
+    }
+
+    void reset() {
+        m_pending = true;
+    }
+    
+    bool is_pending() const {
+        return m_pending;
+    }
+
+    void set_reply(const T &reply) {
+        m_reply = reply;
+
+        /* before marking as done make sure all stores are committed */
+        asm volatile("mfence" ::: "memory");
+        m_pending = false;
+    }
+
+    T wait_for_reply(int timeout_ms = 500, int backoff_ms = 1) {
+        int guard = timeout_ms;
+
+        while (is_pending()) {
+            guard -= backoff_ms;
+            if (guard < 0) {
+                throw TrexException("timeout: failed to get reply from core");
+            }
+
+            delay(backoff_ms);
+        }
+        
+        return m_reply;
+
+    }
+    
+protected:
+    volatile bool  m_pending;
+    T              m_reply;
+};
+
 
 /**
  * defines the base class for CP to DP messages
@@ -312,7 +368,7 @@ private:
 /************************* messages from DP to CP **********************/
 
 /**
- * defines the base class for CP to DP messages
+ * defines the base class for DP to CP messages
  *
  * @author imarom (27-Oct-15)
  */
@@ -404,16 +460,171 @@ public:
 
 };
 
-class TrexStatelessRxStartMsg : public TrexStatelessCpToRxMsgBase {
+
+class TrexStatelessRxEnableLatency : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxEnableLatency(MsgReply<bool> &reply) : m_reply(reply) {
+    }
+    
     bool handle (CRxCoreStateless *rx_core);
+    
+private:
+    MsgReply<bool>    &m_reply;
 };
 
-class TrexStatelessRxStopMsg : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxDisableLatency : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
 };
 
 class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
     bool handle (CRxCoreStateless *rx_core);
+};
+
+
+
+class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStartCapture(uint8_t port_id,
+                                const std::string &pcap_filename,
+                                uint64_t limit,
+                                MsgReply<bool> &reply) : m_reply(reply) {
+        
+        m_port_id          = port_id;
+        m_limit            = limit;
+        m_pcap_filename    = pcap_filename;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t            m_port_id;
+    std::string        m_pcap_filename;
+    uint64_t           m_limit;
+    MsgReply<bool>    &m_reply;
+};
+
+
+class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStopCapture(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t m_port_id;
+};
+
+
+class TrexStatelessRxStartQueue : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStartQueue(uint8_t port_id,
+                              uint64_t size,
+                              MsgReply<bool> &reply) : m_reply(reply) {
+        
+        m_port_id = port_id;
+        m_size    = size;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    uint64_t          m_size;
+    MsgReply<bool>   &m_reply;
+};
+
+
+class TrexStatelessRxStopQueue : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxStopQueue(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t m_port_id;
+};
+
+
+
+class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
+public:
+
+    TrexStatelessRxQueueGetPkts(uint8_t port_id, MsgReply<const RXPacketBuffer *> &reply) : m_reply(reply) {
+        m_port_id = port_id;
+    }
+
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t                              m_port_id;
+    MsgReply<const RXPacketBuffer *>    &m_reply;
+    
+};
+
+/**
+ * updates the RX core that we are in L2 mode
+ */
+class TrexStatelessRxSetL2Mode : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxSetL2Mode(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+};
+
+/**
+ * updates the RX core that we are in a L3 mode
+ */
+class TrexStatelessRxSetL3Mode : public TrexStatelessCpToRxMsgBase {
+public:
+    TrexStatelessRxSetL3Mode(uint8_t port_id,
+                             const CManyIPInfo &src_addr,
+                             bool is_grat_arp_needed) {
+        
+        m_port_id              = port_id;
+        m_src_addr             = src_addr;
+        m_is_grat_arp_needed   = is_grat_arp_needed;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    CManyIPInfo       m_src_addr;
+    bool              m_is_grat_arp_needed;
+};
+
+/**
+ * a request from RX core to dump to Json the RX features
+ */
+class TrexStatelessRxFeaturesToJson : public TrexStatelessCpToRxMsgBase {
+public:
+    
+    TrexStatelessRxFeaturesToJson(uint8_t port_id, MsgReply<Json::Value> &reply) : m_reply(reply) {
+        m_port_id = port_id;
+    }
+     
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+    
+private:
+    uint8_t                  m_port_id;
+    MsgReply<Json::Value>   &m_reply;
 };
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */
