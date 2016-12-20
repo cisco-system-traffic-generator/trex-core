@@ -87,19 +87,7 @@ public:
 class RXPacket {
 public:
 
-    RXPacket(const rte_mbuf_t *m) {
-        /* assume single part packet */
-        assert(m->nb_segs == 1);
-
-        m_size = m->pkt_len;
-        const uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
-
-        m_raw = new uint8_t[m_size];
-        memcpy(m_raw, p, m_size);
-        
-        /* generate a packet timestamp */
-        m_timestamp = now_sec();
-    }
+    RXPacket(const rte_mbuf_t *m);
 
     /* slow path and also RVO - pass by value is ok */
     Json::Value to_json() {

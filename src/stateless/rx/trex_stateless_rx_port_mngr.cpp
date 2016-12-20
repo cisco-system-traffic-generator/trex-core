@@ -25,6 +25,44 @@
 #include "common/Network/Packet/Arp.h"
 #include "pkt_gen.h"
 
+/**
+ * copy MBUF to a flat buffer
+ * 
+ * @author imarom (12/20/2016)
+ * 
+ * @param dest - buffer with at least rte_pktmbuf_pkt_len(m) 
+ *               bytes
+ * @param m - MBUF to copy 
+ * 
+ * @return uint8_t* 
+ */
+void copy_mbuf(uint8_t *dest, const rte_mbuf_t *m) {
+    
+    int index = 0;
+    for (const rte_mbuf_t *it = m; it != NULL; it = it->next) {
+        const uint8_t *src = rte_pktmbuf_mtod(it, const uint8_t *);
+        memcpy(dest + index, src, it->data_len);
+        index += it->data_len;
+    }
+}
+
+/**************************************
+ * RX packet
+ * 
+ *************************************/
+RXPacket::RXPacket(const rte_mbuf_t *m) {
+
+    /* allocate buffer */
+    m_size = m->pkt_len;
+    m_raw = new uint8_t[m_size];
+
+    /* copy data */
+    copy_mbuf(m_raw, m);
+
+    /* generate a packet timestamp */
+    m_timestamp = now_sec();
+}
+
 /**************************************
  * latency RX feature
  * 
@@ -377,9 +415,8 @@ RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
     m_pkt.time_nsec = t_c.m_time_nsec;
     m_pkt.time_sec  = t_c.m_time_sec;
 
-    const uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+    copy_mbuf((uint8_t *)m_pkt.raw, m);
     m_pkt.pkt_len = m->pkt_len;
-    memcpy(m_pkt.raw, p, m->pkt_len);
     
     m_writer->write_packet(&m_pkt);
     m_count++;
@@ -634,8 +671,6 @@ RXServer::handle_arp(RXPktParser &parser) {
 
 rte_mbuf_t *
 RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
-    /* RX packets should always be one segment */
-    assert(m->nb_segs == 1);
     
     /* allocate */
     rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(m_port_id, rte_pktmbuf_pkt_len(m));
@@ -650,8 +685,7 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
     }
     
     /* copy data */
-    const uint8_t *src = rte_pktmbuf_mtod(m, const uint8_t *);
-    memcpy(dest, src, rte_pktmbuf_pkt_len(m));
+    copy_mbuf(dest, m);
     
     return clone_mbuf;
 }
