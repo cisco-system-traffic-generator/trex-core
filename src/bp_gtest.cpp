@@ -833,7 +833,7 @@ public:
         m_port_id=0;
     }
 
-    virtual int tx(rte_mbuf_t * m){
+    virtual int tx(rte_mbuf_t *m) {
         assert(m_queue==0);
         //printf(" tx on port %d \n",m_port_id);
       //  utl_DumpBuffer(stdout,rte_pktmbuf_mtod(m, uint8_t*),rte_pktmbuf_pkt_len(m),0);
@@ -841,6 +841,10 @@ public:
         return (0);
     }
 
+    virtual int tx_latency(rte_mbuf_t *m) {
+        return tx(m);
+    }
+    
     virtual rte_mbuf_t * rx(){
         //printf(" rx on port %d \n",m_port_id);
         rte_mbuf_t * m=0;

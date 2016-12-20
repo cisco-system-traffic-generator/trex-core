@@ -323,7 +323,6 @@ public:
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {}
     /* flush all pending packets into the stream */
     virtual int flush_tx_queue(void)=0;
-    virtual void handle_rx_queue(void) {};
     /* update the source and destination mac-addr of a given mbuf by global database */
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t dir, uint8_t * p)=0;
     /* translate port_id to the correct dir on the core */
@@ -3753,6 +3752,7 @@ public:
         m_monitor.tickle();
     }
 
+    
     /* return the dual port ID this thread is attached to in 4 ports configuration
        there are 2 dual-ports
 
@@ -3858,9 +3858,13 @@ public:
         return ( m_cpu_cp_u.GetVal());
     }
 
+    
+    bool check_msgs();
+    
 private:
-    void check_msgs(void);
-
+    
+    bool check_msgs_from_rx();
+    
     void handle_nat_msg(CGenNodeNatInfo * msg);
     void handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg);
 
@@ -4268,5 +4272,8 @@ class CRXCoreIgnoreStat {
     uint64_t m_tx_ipv6_n_solic;
     uint64_t m_tot_bytes;
 };
+
+static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
+static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
 
 #endif

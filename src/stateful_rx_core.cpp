@@ -580,7 +580,7 @@ void  CLatencyManager::send_pkt_all_ports(){
                 uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                 c_l_pkt_mode->send_debug_print(p + 34);
 #endif
-                if ( lp->m_io->tx(m) == 0 ){
+                if ( lp->m_io->tx_latency(m) == 0 ){
                     lp->m_port.m_tx_pkt_ok++;
                 }else{
                     lp->m_port.m_tx_pkt_err++;

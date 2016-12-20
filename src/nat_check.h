@@ -171,10 +171,11 @@ public:
 struct CGenNodeLatencyPktInfo : public CGenNodeMsgBase {
     uint8_t       m_dir;
     uint16_t      m_latency_offset;
- #if __x86_64__
-    uint32_t      m_pad3;
-#endif
-    struct rte_mbuf *   m_pkt;
+    
+    uint8_t       m_update_ts;
+    uint8_t       m_pad3[3];
+    
+    struct rte_mbuf *m_pkt;
 
     uint32_t      m_pad4[MAX_PKT_MSG_INFO];
 };

@@ -2519,10 +2519,11 @@ public:
         m_tx_queue_id=tx_queue;
         m_rx_queue_id=rx_queue;
     }
-
-    virtual int tx(rte_mbuf_t * m){
-        rte_mbuf_t * tx_pkts[2];
-        tx_pkts[0]=m;
+    
+    virtual int tx(rte_mbuf_t *m) {
+        rte_mbuf_t *tx_pkts[2];
+        
+        tx_pkts[0] = m;
         if ( likely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
             /* vlan mode is the default */
             /* set the vlan */
@@ -2546,6 +2547,13 @@ public:
 
         return (0);
     }
+    
+    
+    /* nothing special with HW implementation */
+    virtual int tx_latency(rte_mbuf_t *m) {
+        return tx(m);
+    }
+    
     virtual rte_mbuf_t * rx(){
         rte_mbuf_t * rx_pkts[1];
         uint16_t cnt=m_port->rx_burst(m_rx_queue_id,rx_pkts,1);
@@ -2556,6 +2564,7 @@ public:
         }
     }
 
+    
     virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
                               uint16_t nb_pkts){
         uint16_t cnt=m_port->rx_burst(m_rx_queue_id,rx_pkts,nb_pkts);
@@ -2572,36 +2581,24 @@ private:
 
 class CLatencyVmPort : public CPortLatencyHWBase {
 public:
-    void Create(uint8_t port_index,CNodeRing * ring,
-                CLatencyManager * mgr, CPhyEthIF  * p) {
-        m_dir        = (port_index%2);
+    void Create(uint8_t port_index,
+                CNodeRing *ring,
+                CLatencyManager *mgr,
+                CPhyEthIF  *p) {
+        
+        m_dir        = (port_index % 2);
         m_ring_to_dp = ring;
         m_mgr        = mgr;
-        m_port = p;
+        m_port       = p;
     }
 
-    virtual int tx(rte_mbuf_t * m){
-        if ( likely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-            /* vlan mode is the default */
-            /* set the vlan */
-            m->ol_flags = PKT_TX_VLAN_PKT;
-            m->vlan_tci =CGlobalInfo::m_options.m_vlan_port[0];
-            m->l2_len   =14;
-        }
-
-        /* allocate node */
-        CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
-        if ( node ) {
-            node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
-            node->m_dir      = m_dir;
-            node->m_pkt      = m;
-            node->m_latency_offset = m_mgr->get_latency_header_offset();
-
-            if ( m_ring_to_dp->Enqueue((CGenNode*)node) ==0 ){
-                return (0);
-            }
-        }
-        return (-1);
+  
+    virtual int tx(rte_mbuf_t *m) {
+        return tx_common(m, false);
+    }
+    
+    virtual int tx_latency(rte_mbuf_t *m) {
+        return tx_common(m, true);
     }
 
     virtual rte_mbuf_t * rx() {
@@ -2620,6 +2617,40 @@ public:
     }
 
 private:
+      virtual int tx_common(rte_mbuf_t *m, bool fix_timestamp) {
+        
+        if ( likely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
+            /* vlan mode is the default */
+            /* set the vlan */
+            m->ol_flags = PKT_TX_VLAN_PKT;
+            m->vlan_tci =CGlobalInfo::m_options.m_vlan_port[0];
+            m->l2_len   =14;
+        }
+
+        /* allocate node */
+        CGenNodeLatencyPktInfo *node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
+        if (!node) {
+            return (-1);
+        }
+        
+        node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
+        node->m_dir      = m_dir;
+        node->m_pkt      = m;
+
+        if (fix_timestamp) {
+            node->m_latency_offset = m_mgr->get_latency_header_offset();
+            node->m_update_ts = 1;
+        } else {
+            node->m_update_ts = 0;
+        }
+            
+        if ( m_ring_to_dp->Enqueue((CGenNode*)node) != 0 ){
+            return (-1);
+        }
+        
+        return (0);
+    }
+      
     CPhyEthIF  * m_port;
     uint8_t                          m_dir;
     CNodeRing *                      m_ring_to_dp;   /* ring dp -> latency thread */

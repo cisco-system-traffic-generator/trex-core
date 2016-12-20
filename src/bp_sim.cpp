@@ -4025,8 +4025,10 @@ void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thr
 void
 CNodeGenerator::handle_maintenance(CFlowGenListPerThread *thread) {
 
-    thread->tickle();         /* tickle the watchdog */
-    thread->check_msgs();     /* check messages */
+    /* tickle and check messages */
+    thread->tickle();
+    thread->check_msgs();
+    
     m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
     /* save last sync time as realtime */
@@ -4296,11 +4298,13 @@ void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg)
     #endif
 
     /* update timestamp */
-    struct rte_mbuf * m;
-    m=msg->m_pkt;
-    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
-    latency_header * h=(latency_header *)(p+msg->m_latency_offset);
-    h->time_stamp = os_get_hr_tick_64();
+    if (msg->m_update_ts) {
+        struct rte_mbuf *m = msg->m_pkt;
+        uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+        latency_header * h = (latency_header *)(p+msg->m_latency_offset);
+        h->time_stamp = os_get_hr_tick_64();
+    }
+    
 
     m_node_gen.m_v_if->send_one_pkt((pkt_dir_t)msg->m_dir,msg->m_pkt);
 }
@@ -4376,13 +4380,9 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     }
 }
 
-void CFlowGenListPerThread::check_msgs(void) {
-
-    /* inlined for performance */
-    m_stateless_dp_info.periodic_check_for_cp_messages();
-
+bool CFlowGenListPerThread::check_msgs_from_rx() {
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
-        return;
+        return false;
     }
 
     #ifdef  NAT_TRACE_
@@ -4416,6 +4416,24 @@ void CFlowGenListPerThread::check_msgs(void) {
 
         CGlobalInfo::free_node(node);
     }
+    
+    return true;
+}
+
+bool CFlowGenListPerThread::check_msgs() {
+
+    bool had_msg = false;
+    
+    /* inlined for performance */
+    if (m_stateless_dp_info.periodic_check_for_cp_messages()) {
+        had_msg = true;
+    }
+
+    if (check_msgs_from_rx()) {
+        had_msg = true;
+    }
+    
+    return had_msg;
 }
 
 

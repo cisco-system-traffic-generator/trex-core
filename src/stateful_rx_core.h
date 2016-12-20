@@ -199,13 +199,23 @@ public:
 
 
 class CPortLatencyHWBase {
- public:
-    virtual int tx(rte_mbuf_t * m)=0;
-    virtual rte_mbuf_t * rx()=0;
-    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
-                               uint16_t nb_pkts){
-        return(0);
-    }
+public:
+    
+    /**
+     * sends a packet
+     * 
+     */
+    virtual int tx(rte_mbuf_t *m) = 0;
+    
+    /**
+     * sends a latency packet 
+     * if needed, timestamp will be updated 
+     * 
+     */
+    virtual int tx_latency(rte_mbuf_t *m) = 0;
+    
+    virtual rte_mbuf_t * rx() = 0;
+    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) = 0;
 };
 
 
