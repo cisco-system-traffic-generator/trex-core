@@ -944,6 +944,7 @@ class STLClient(object):
         self.supported_cmds = sorted(rc.data())
 
         # create ports
+        self.ports.clear()
         for port_id in range(self.system_info["port_count"]):
             info = self.system_info['ports'][port_id]
 
@@ -3227,15 +3228,14 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "connect",
                                          self.connect_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.FORCE)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
+        opts = parser.parse_args(line.split())
         if not opts:
             return opts
 
         self.connect()
-        self.acquire(ports = opts.ports, force = opts.force)
+        self.acquire(force = opts.force)
 
         return RC_OK()
 
