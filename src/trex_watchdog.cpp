@@ -126,12 +126,15 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
  *************************************/
 
 void TrexMonitor::create(const std::string &name, double timeout_sec) {
-    m_active       = true;   
-    m_tid          = pthread_self();
-    m_name         = name;
-    m_timeout_sec  = timeout_sec;
-    m_tickled      = true;
-    m_ts           = 0;
+    m_active_time_sec  = now_sec();   
+    m_tid              = pthread_self();
+    m_name             = name;
+    m_timeout_sec      = timeout_sec;
+    m_tickled          = true;
+    m_ts               = 0;
+    
+    /* the rare case of m_active_time_sec set out of order with tickled */
+    asm volatile("mfence" ::: "memory");
 }
 
 /**************************************
@@ -236,7 +239,7 @@ void TrexWatchDog::_main() {
             TrexMonitor *monitor = m_monitors[i];
 
             /* skip non active monitors */
-            if (!monitor->is_active()) {
+            if (!monitor->is_active(now)) {
                 continue;
             }
 

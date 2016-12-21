@@ -36,7 +36,8 @@ limitations under the License.
  * @author imarom (19-Jun-16)
  */
 class TrexMonitor {
-
+    friend class TrexWatchDog;
+    
 public:
 
     /**
@@ -52,13 +53,28 @@ public:
     void create(const std::string &name, double timeout_sec);
 
     /**
-     * disable the monitor - it will be ignored
+     * disable the monitor for 'time_sec' 
+     * by default it will disable it for a long period of time 
+     * (forever) 
      * 
      */
-    void disable() {
-        m_active = false;
+    void disable(dsec_t time_sec = 1e9) {
+        /* double writes are atomic on x86_64 (aligned to 8 bytes) */
+        m_active_time_sec = now_sec() + time_sec;
     }
 
+    /**
+     * re-enable a monitor after it was disabled
+     * 
+     */
+    void enable() {
+        /* before enabling - must tickle o.w the watchdog might crash this thread */
+        tickle();
+        /* memory fence - make sure the main thread sees this by order */
+        asm volatile("mfence" ::: "memory");
+        m_active_time_sec = now_sec();
+    }
+    
     /**
      * tickle the monitor - this should be called from the thread 
      * to avoid the watchdog from detecting a stuck thread 
@@ -72,6 +88,23 @@ public:
         }
     }
 
+    const std::string &get_name() const {
+        return m_name;
+    }
+    
+    /* return how much time has passed since last tickle */
+    dsec_t get_interval(dsec_t now) const {
+        return (now - m_ts);
+    }
+
+
+    dsec_t get_timeout_sec() const {
+        return m_timeout_sec;
+    }
+
+
+private:
+
     /**
      * called by the watchdog to reset the monitor for a new round
      * 
@@ -81,26 +114,14 @@ public:
         m_ts      = now;
     }
 
-
-    /* return how much time has passed since last tickle */
-    dsec_t get_interval(dsec_t now) const {
-        return (now - m_ts);
-    }
-
+   
     pthread_t get_tid() const {
         return m_tid;
     }
 
-    const std::string &get_name() const {
-        return m_name;
-    }
-
-    dsec_t get_timeout_sec() const {
-        return m_timeout_sec;
-    }
-
-    volatile bool is_active() const {
-        return m_active;
+   
+    volatile bool is_active(dsec_t now) const {
+        return ( (now - m_active_time_sec) > 0 );
     }
 
     volatile bool is_tickled() const {
@@ -112,16 +133,14 @@ public:
     }
 
 
-private:
-
     /* write fields are first */
-    volatile bool   m_active;
-    volatile bool   m_tickled;
-    int             m_handle;
-    dsec_t          m_ts;
-    double          m_timeout_sec;
-    pthread_t       m_tid;
-    std::string     m_name;
+    volatile dsec_t  m_active_time_sec;
+    volatile bool    m_tickled;
+    int              m_handle;
+    dsec_t           m_ts;
+    double           m_timeout_sec;
+    pthread_t        m_tid;
+    std::string      m_name;
 
 
 } __rte_cache_aligned;
@@ -179,10 +198,10 @@ public:
 private:
 
     TrexWatchDog() {
-        m_thread    = NULL;
-        m_enable    = false;
-        m_active    = false;
-        m_mon_count = 0;
+        m_thread        = NULL;
+        m_enable        = false;
+        m_active        = false;
+        m_mon_count     = 0;
     }
 
     void register_signal();

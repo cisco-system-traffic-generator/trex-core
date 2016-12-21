@@ -761,17 +761,11 @@ class Port(object):
 
     # invalidates the current ARP
     def invalidate_arp (self):
-        dest = self.__attr['dest']
-
         if not self.is_l3_mode():
             return self.err('port is not configured with L3')
         
-        self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'])
+        return self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'])
         
-        if dest['type'] != 'mac':
-            return self.set_attr(dest = dest['ipv4'])
-        else:
-            return self.ok()
         
         
     def print_profile (self, mult, duration):
