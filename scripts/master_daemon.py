@@ -41,15 +41,20 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if ret_code:
         raise Exception('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
     # clean old unpacked dirs
-    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
-    for unpacked_dir in unpacked_dirs:
-        shutil.rmtree(unpacked_dir)
+    tmp_files = glob(os.path.join(tmp_dir, '*'))
+    for tmp_file in tmp_files:
+        if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
+            shutil.rmtree(tmp_file)
     # unpacking
-    ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 60, cwd = tmp_dir)
+    ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 120, cwd = tmp_dir)
     if ret_code:
         raise Exception('Could not untar the package. %s' % [ret_code, stdout, stderr])
-    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
-    if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
+    tmp_files = glob(os.path.join(tmp_dir, '*'))
+    unpacked_dirs = []
+    for tmp_file in tmp_files:
+        if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
+            unpacked_dirs.append(tmp_file)
+    if len(unpacked_dirs) != 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
     cur_dir = args.trex_dir
     if os.path.islink(cur_dir) or os.path.isfile(cur_dir):
