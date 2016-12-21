@@ -129,16 +129,13 @@ class ARPResolver(Resolver):
         
     # before resolve
     def pre_send (self):
+        
+        if not self.port.is_l3_mode():
+            return self.port.err("arp - port is not configured as L3 layer")
+            
         self.dst = self.port.get_dst_addr()
         self.src = self.port.get_src_addr()
-        
-        if self.dst['ipv4'] is None:
-            return self.port.err("Port has a non-IPv4 destination: '{0}'".format(self.dst['mac']))
             
-        if self.src['ipv4'] is None:
-            return self.port.err('Port must have an IPv4 source address configured')
-
-        # invalidate the current ARP resolution (if exists)
         return self.port.invalidate_arp()
         
 
@@ -158,7 +155,7 @@ class ARPResolver(Resolver):
             return None
 
         arp = scapy_pkt['ARP']
-
+        
         # check this is the right ARP (ARP reply with the address)
         if (arp.op != 2) or (arp.psrc != self.dst['ipv4']):
             return None
@@ -187,15 +184,15 @@ class PingResolver(Resolver):
         self.pkt_size = pkt_size
                 
     def pre_send (self):
+        if not self.port.is_l3_mode():
+            return self.port.err('ping - port is not configured as L3 layer')
+        
+        if not self.port.is_resolved():
+            return self.port.err('ping - port has an unresolved destination, cannot determine next hop MAC address')
             
         self.src = self.port.get_src_addr()
         self.dst = self.port.get_dst_addr()
         
-        if self.src['ipv4'] is None:
-            return self.port.err('Ping - port does not have an IPv4 address configured')
-            
-        if self.dst['mac'] is None:
-            return self.port.err('Ping - port has an unresolved destination, cannot determine next hop MAC address')
         
         return self.port.ok()
             
@@ -208,7 +205,6 @@ class PingResolver(Resolver):
         
         base_pkt = base_pkt / (pad * 'x')
         
-        #base_pkt.show2()
         s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
 
         self.base_pkt = base_pkt

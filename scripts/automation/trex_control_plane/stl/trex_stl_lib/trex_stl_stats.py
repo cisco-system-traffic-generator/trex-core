@@ -670,6 +670,7 @@ class CTRexInfoGenerator(object):
                                         ("promiscuous", []),
                                         ("flow ctrl", []),
                                         ("--", []),
+                                        ("layer mode", []),
                                         ("src IPv4", []),
                                         ("src MAC", []),
                                         ("---", []),

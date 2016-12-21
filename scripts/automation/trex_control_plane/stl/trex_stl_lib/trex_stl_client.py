@@ -27,7 +27,6 @@ import json
 import traceback
 import os.path
 
-
 ############################     logger     #############################
 ############################                #############################
 ############################                #############################
@@ -909,7 +908,7 @@ class STLClient(object):
         if not rc:
             return rc
 
-
+        
         # API sync
         rc = self._transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
         if not rc:
@@ -1708,7 +1707,6 @@ class STLClient(object):
 
         self.logger.set_verbose(modes[level])
 
-
     @__api_check(False)
     def connect (self):
         """
@@ -1722,7 +1720,6 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-
         rc = self.__connect()
         if not rc:
             raise STLError(rc)
@@ -3809,17 +3806,8 @@ class STLClient(object):
         if not opts:
             return opts
 
-        ports = list_intersect(opts.ports, self.get_resolvable_ports())
-        if not ports:
-            if not opts.ports:
-                msg = 'resolve - no ports with IPv4 destination'
-            else:
-                msg = 'pause - none of ports {0} are configured with IPv4 destination'.format(opts.ports)
-                
-            self.logger.log(msg)
-            return RC_ERR(msg)
-                     
-        self.resolve(ports = ports, retries = opts.retries)
+        
+        self.resolve(ports = opts.ports, retries = opts.retries)
 
         return RC_OK()
         

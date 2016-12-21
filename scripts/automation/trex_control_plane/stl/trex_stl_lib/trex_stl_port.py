@@ -762,6 +762,11 @@ class Port(object):
     # invalidates the current ARP
     def invalidate_arp (self):
         dest = self.__attr['dest']
+
+        if not self.is_l3_mode():
+            return self.err('port is not configured with L3')
+        
+        self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'])
         
         if dest['type'] != 'mac':
             return self.set_attr(dest = dest['ipv4'])
@@ -867,6 +872,8 @@ class Port(object):
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
+        info['layer_mode'] = 'IPv4' if self.is_l3_mode() else 'Ethernet'
+
         # src MAC and IPv4
         info['src_mac']   = attr['src_mac']
         info['src_ipv4']  = attr['src_ipv4']
@@ -939,6 +946,8 @@ class Port(object):
         else:
             assert(0)
     
+    def is_l3_mode (self):
+        return self.get_dst_addr()['ipv4'] is not None
         
     # port is considered resolved if it's dest is either MAC or resolved IPv4
     def is_resolved (self):
@@ -976,7 +985,7 @@ class Port(object):
                 "src MAC":          info['src_mac'],
                 "src IPv4":         info['src_ipv4'],
                 "Destination":      info['dest'],
-                "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red') if info['arp'] == 'unresolved' else info['arp'],
+                "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red' if info['arp'] == 'unresolved' else None),
                 "PCI Address":      info['pci_addr'],
                 "NUMA Node":        info['numa'],
                 "--": "",
@@ -989,6 +998,7 @@ class Port(object):
                 "promiscuous" : info['prom'],
                 "flow ctrl" : info['fc'],
 
+                "layer mode": format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta'),
                 "RX Filter Mode": info['rx_filter_mode'],
                 "RX Queueing": info['rx_queue'],
                 "RX sniffer": info['rx_sniffer'],
