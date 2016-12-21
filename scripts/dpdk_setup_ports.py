@@ -543,7 +543,11 @@ Other network devices
                 else:
                        print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
         if map_driver.parent_args.stl:
-            ret = os.system('%s scapy_daemon_server restart' % sys.executable)
+            try:
+                master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
+            except:
+                master_core = 0
+            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
             if ret:
                 sys.exit(1)
 

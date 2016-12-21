@@ -73,7 +73,7 @@ def run_command(command, timeout = 15, poll_rate = 0.1, cwd = None):
 def get_daemon_pid():
     pid = None
     for conn in netstat.netstat():
-        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.port and conn[6] == 'LISTEN':
             pid = conn[7]
             if pid is None:
                 raise Exception('Found the connection, but could not determine pid: %s' % conn)
@@ -84,7 +84,7 @@ def get_daemon_pid():
 # faster variant of get_daemon_pid
 def is_running():
     for conn in netstat.netstat(with_pid = False):
-        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.port and conn[6] == 'LISTEN':
             return True
     return False
 
@@ -102,8 +102,8 @@ def start_daemon():
         return
     server_path = os.path.join(pwd, 'automation', 'trex_control_plane', 'stl', 'services', 'scapy_server')
     with tempfile.TemporaryFile() as stdout_file:
-        subprocess.Popen(shlex.split("su -s /bin/bash -c '%s scapy_zmq_server.py -s %s' nobody" % (sys.executable, args.daemon_port)), stdout = stdout_file,
-                    stderr = subprocess.STDOUT, cwd = server_path, close_fds = True, universal_newlines = True)
+        subprocess.Popen(shlex.split("taskset -c %s su -s /bin/bash -c '%s scapy_zmq_server.py -s %s' nobody" % (args.core, sys.executable, args.port)),
+                    stdout = stdout_file, stderr = subprocess.STDOUT, cwd = server_path, close_fds = True, universal_newlines = True)
         ret = progress(is_running, 'Starting Scapy server', 'Scapy server is started', 'Scapy server failed to run')
         if ret:
             stdout_file.seek(0)
@@ -151,10 +151,10 @@ if __name__ == '__main__':
         formatter_class = RawTextHelpFormatter,
     )
     
-    parser.add_argument('-p', '--port', type = int, default = 4507, metavar = 'PORT', dest = 'daemon_port',
+    parser.add_argument('-p', '--port', type = int, default = 4507,
             help='Select tcp port on which Scapy server will listen.\nDefault is 4507.')
-    #parser.add_argument('-c', '--core', type = int, default = 0,
-    #        help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
+    parser.add_argument('-c', '--core', type = int, default = 0,
+            help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
     parser.add_argument('action', choices=action_funcs.keys(),
                             action='store', help=actions_help)
     parser.usage = None
