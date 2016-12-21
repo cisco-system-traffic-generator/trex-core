@@ -1056,12 +1056,12 @@ sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml
 
 TRex can learn dynamic NAT/PAT translation. To enable this feature add `--learn-mode <mode>` to the command line.
 To learn the NAT translation, TRex must embed information describing the flow a packet belongs to, in the first
-packet of each flow. This can be done in two different methods, depending on the chosen <mode>.
+packet of each flow. This can be done in different methods, depending on the chosen <mode>.
 
 *mode 1:*::
 
-Flow info is embedded in the ACK of the first TCP SYN.
-In this mode, there is a limitation that bidirectional UDP templates (for example, DNS) are not supported. 
+In case of TCP flow, flow info is embedded in the ACK of the first TCP SYN. +
+In case of UDP flow, flow info is embedded in the IP identification field of the first packet in the flow. +
 This mode was developed for testing NAT with firewalls (which usually do not work with mode 2).
 In this mode, TRex also learn and compensate for TCP sequence number randomization that might be done by the DUT.
 TRex can learn and compensate for seq num randomization in both directions of the connection.

@@ -88,15 +88,21 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
 
     def test_nat_simple_mode1(self):
-        self.nat_simple_helper(learn_mode=1)
+        self.nat_simple_helper(learn_mode=1, traffic_file='cap2/http_simple.yaml')
 
     def test_nat_simple_mode2(self):
-        self.nat_simple_helper(learn_mode=2)
+        self.nat_simple_helper(learn_mode=2, traffic_file='cap2/http_simple.yaml')
 
     def test_nat_simple_mode3(self):
-        self.nat_simple_helper(learn_mode=3)
+        self.nat_simple_helper(learn_mode=3, traffic_file='cap2/http_simple.yaml')
 
-    def nat_simple_helper(self, learn_mode=1):
+    def test_nat_simple_mode1_udp(self):
+        self.nat_simple_helper(learn_mode=1, traffic_file='cap2/dns.yaml')
+
+    def test_nat_simple_mode3_udp(self):
+        self.nat_simple_helper(learn_mode=3, traffic_file='cap2/dns.yaml')
+
+    def nat_simple_helper(self, learn_mode=1, traffic_file='cap2/http_simple.yaml'):
         # test initializtion
         self.router.configure_basic_interfaces()
 
@@ -119,7 +125,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             m = mult,
             learn_mode = learn_mode,
             d = 100,
-            f = 'cap2/http_simple.yaml',
+            f = traffic_file,
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
