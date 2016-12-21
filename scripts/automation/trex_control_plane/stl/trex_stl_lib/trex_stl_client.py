@@ -2991,19 +2991,20 @@ class STLClient(object):
         ports = self._validate_port_list(ports)
             
         self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
-        with self.logger.supress():
+        
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
             rc = self.__resolve(ports, retries)
             
         self.logger.post_cmd(rc)
-        
+
+        if verbose:
+            for x in filter(bool, rc.data()):
+                self.logger.log(format_text("{0}".format(x), 'bold'))
+                
         if not rc:
             raise STLError(rc)
 
-        # print the ARP transaction
-        if verbose:
-            self.logger.log(rc)
-            self.logger.log('')
-            
+
             
         
     @__api_check(True)

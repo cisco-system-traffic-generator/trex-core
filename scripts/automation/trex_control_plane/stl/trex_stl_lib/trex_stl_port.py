@@ -4,7 +4,10 @@ from collections import namedtuple, OrderedDict
 from .trex_stl_packet_builder_scapy import STLPktBuilder
 from .trex_stl_streams import STLStream
 from .trex_stl_types import *
-from .trex_stl_rx_features import ARPResolver, PingResolver
+
+from .rx_services.trex_stl_rx_service_arp import RXServiceARP
+from .rx_services.trex_stl_rx_service_icmp import RXServiceICMP
+
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
@@ -953,17 +956,32 @@ class Port(object):
         
     @writeable
     def arp_resolve (self, retries):
-        if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing ARP resolution. Please enable service mode')
+        
+        # execute the ARP service
+        rc = RXServiceARP(self).execute(retries)
+        if not rc:
+            return rc
             
-        return ARPResolver(self).resolve(retries)
+        # fetch the data returned
+        arp_rc = rc.data()
+        
+        # first invalidate current ARP if exists
+        rc = self.invalidate_arp()
+        if not rc:
+            return rc
+
+        # update the port with L3 full configuration
+        rc = self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'], arp_rc['hwsrc'])
+        if not rc:
+            return rc
+            
+        return self.ok('Port {0} - Recieved ARP reply from: {1}, hw: {2}'.format(self.port_id, arp_rc['psrc'], arp_rc['hwsrc']))
+            
+        
 
     @writeable
     def ping (self, ping_ipv4, pkt_size):
-        if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing ping. Please enable service mode')
-            
-        return PingResolver(self, ping_ipv4, pkt_size).resolve()
+        return RXServiceICMP(self, ping_ipv4, pkt_size).execute()
 
         
     ################# stats handler ######################

@@ -64,7 +64,7 @@ class RC():
                 err_count += 1
                 if len(err_list) < show_count:
                     err_list.append(format_text(x, 'bold'))
-            s = '\n' if len(err_list) > 1 else ''
+            s = '\n'
             if err_count > show_count:
                 s += format_text('Occurred %s errors, showing first %s:\n' % (err_count, show_count), 'bold')
             s += '\n'.join(err_list)
