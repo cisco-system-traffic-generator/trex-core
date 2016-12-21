@@ -2656,7 +2656,7 @@ TEST_F(file_flow_info, load_cap_file_errors) {
 
     po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND;
     // udp in tcp learn mode
-    load_cap_file_errors_helper("cap2/dns.pcap", CCapFileFlowInfo::kNoTCPFromServer);
+    load_cap_file_errors_helper("cap2/dns.pcap", CCapFileFlowInfo::kOK);
     // no SYN in first packet
     load_cap_file_errors_helper("./exp/tcp_no_syn.pcap", CCapFileFlowInfo::kNoSyn);
     // TCP flags offset is too big. We don't allow IP option, so can comment this.

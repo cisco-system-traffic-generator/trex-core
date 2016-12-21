@@ -38,7 +38,6 @@ limitations under the License.
 #include <valgrind/callgrind.h>
 #endif
 
-
 CPluginCallback * CPluginCallback::callback;
 
 
@@ -1776,7 +1775,7 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
     return (p);
 }
 
-void   CFlowPktInfo::mask_as_learn(){
+void CFlowPktInfo::mark_as_learn(){
     CNatOption *lpNat;
     if ( m_pkt_indication.is_ipv6() ) {
         lpNat=(CNatOption *)push_ipv6_option_offline(CNatOption::noOPTION_LEN);
@@ -1940,7 +1939,12 @@ void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
         // check if flow is two direction
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ) {
             /* we are in learn mode */
-            lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK, node);  /* associate flow_id=>node */
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION) ||
+                node->m_pkt_info->m_pkt_indication.l3.m_ipv4->getProtocol() == IPPROTO_TCP) {
+                lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_TCP_ACK, node);  /* associate flow_id=>node */
+            } else {
+                lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_IP_ID, node);  /* associate flow_id=>node */
+            }
             node->set_nat_first_state();
         }
     }
@@ -2047,6 +2051,8 @@ typedef flow_tmp_map_t::iterator flow_tmp_map_iter_t;
 
 enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_load_time(){
    int i;
+   bool is_tcp = false;
+
     for (i=0; i<Size(); i++) {
         CFlowPktInfo * lp= GetPacket((uint32_t)i);
         CPacketIndication * lpd=&lp->m_pkt_indication;
@@ -2063,13 +2069,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_loa
                 fprintf(stderr, "Error: Bad CAP file. In learn (NAT) mode, no IP options allowed \n");
                 return kIPOptionNotAllowed;
             }
-            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
-                if (lpd->getIpProto() != IPPROTO_TCP && !lpd->m_desc.IsInitSide()) {
-                    fprintf(stderr, "Error: In the chosen learn mode, all packets from server to client in CAP file should be TCP.\n");
-                    fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                    return kNoTCPFromServer;
-                }
-            }
         }
     }
 
@@ -2081,7 +2080,8 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_loa
             return kPlugInWithLearn;
         }
 
-        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) && (pkt_0_indication.getIpProto() == IPPROTO_TCP)) {
+            is_tcp = true;
             if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
                 if (Size() < 3) {
                     fprintf(stderr
@@ -2113,7 +2113,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_loa
                 fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
                 return kTCPOffsetTooBig;
             }
-            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK) && is_tcp) {
                 // To support TCP seq randomization from server to client, we need second packet in flow to be the server SYN+ACK
                 bool error = false;
                 if (pkt_1_indication.getIpProto() != IPPROTO_TCP) {
@@ -2229,7 +2229,9 @@ void CCapFileFlowInfo::update_info(CFlowYamlInfo *  flow_info){
             lp->m_pkt_indication.m_desc.SetBiPluginEnable(true);
         }
 
-
+        if (CGlobalInfo::is_learn_mode()) {
+            lp->m_pkt_indication.setIpIdNat(false);
+        }
         lpCurPacket->SetMaxPkts(lpFlow->m_per_dir[dir].m_pkt_id);
         lp->m_pkt_indication.m_desc.SetMaxPktsPerFlow(lpFlow->m_max_pkts);
         lp->m_pkt_indication.m_desc.SetMaxFlowTimeout(lpFlow->m_max_aging_sec);
@@ -2257,17 +2259,24 @@ void CCapFileFlowInfo::update_info(CFlowYamlInfo *  flow_info){
     if ( CGlobalInfo::is_learn_mode() ) {
         CFlowPktInfo * lp= GetPacket(0);
         assert(lp);
-        /* only for bi directionl traffic mask the learn flag , only for the first packet */
+        /* only for bi directionl traffic, first packet, put learn flag */
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ){
-            lp->mask_as_learn();
+            lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+            lp->m_pkt_indication.setTOSReserve();
+            lp->mark_as_learn();
+            lp->m_pkt_indication.setIpIdNat(true);
         }
 
         if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-            // In this mode, we need to see the SYN+ACK as well.
-            lp = GetPacket(1);
-            assert(lp);
-            lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
-            lp->m_pkt_indication.setTOSReserve();
+            if (Size() > 1) {
+                // In this mode, we need to see the SYN+ACK as well.
+                lp = GetPacket(1);
+                assert(lp);
+                if (lp->m_pkt_indication.getIpProto() == IPPROTO_TCP) {
+                    lp->m_pkt_indication.setTTL(TTL_RESERVE_DUPLICATE);
+                    lp->m_pkt_indication.setTOSReserve();
+                }
+            }
         }
     }
 
@@ -3743,23 +3752,23 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
 
 
 #define unsafe_container_of(var,ptr, type, member)              \
-	((type *) ((uint8_t *)(ptr) - offsetof(type, member)))  
+    ((type *) ((uint8_t *)(ptr) - offsetof(type, member)))
 
 
-/*TEARDOWN is true for stateful in second phase we wait for all the flow to finish 
-with --nc there is no TEARDOWN 
+/*TEARDOWN is true for stateful in second phase we wait for all the flow to finish
+with --nc there is no TEARDOWN
 
 first phase ==> TEARDOWN =false
 last phase ==> TEARDOWN  =true
 
-this is relevant for repeatable flows 
+this is relevant for repeatable flows
 */
 
 template<bool TEARDOWN>
 inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
 
     #ifdef TREX_SIM
-    node->m_time=m_cur_time_sec; 
+    node->m_time=m_cur_time_sec;
     #endif
     #ifdef _DEBUG
     m_node_gen.update_stats(node);
@@ -3769,7 +3778,7 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
     if ( likely (!node->is_repeat_flow()) ) {
         if ( likely (!node->is_last_in_flow()) ) {
             m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_tw() );
-        }else{                              
+        }else{
             free_last_flow_node( node);
         }
     }else{
@@ -3778,11 +3787,11 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
 
             if ( TEARDOWN == false ){
                 node->m_time=m_cur_time_sec; /* update the node time as we schedule it */
-                reschedule_flow(node); 
+                reschedule_flow(node);
             }else{
                 free_last_flow_node( node);
             }
-                
+
         }else{
             m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_tw() );
         }
@@ -3794,7 +3803,7 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
 # define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
 # define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
 #define GCC_DIAG_OFF(x) GCC_DIAG_PRAGMA(push) \
-	GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W,x))
+    GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W,x))
 #define GCC_DIAG_ON() GCC_DIAG_PRAGMA(pop)
 
 #define UNSAFE_CONTAINER_OF_PUSH GCC_DIAG_OFF(invalid-offsetof)
@@ -3882,9 +3891,9 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
                     m_p_queue.pop();
                     if ( ON_TERMINATE == false) {
                         thread->m_cur_time_sec = node->m_time ;
-    
+
                         thread->generate_flows_roundrobin(&done);
-    
+
                         if (!done) {
                             node->m_time +=d_time;
                             m_p_queue.push(node);
@@ -3894,7 +3903,7 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
                     }else{
                         thread->free_node(node);
                     }
-    
+
                 }else{
                     exit_scheduler = handle_slow_messages(type,node,thread,ON_TERMINATE);
                 }
@@ -4072,14 +4081,14 @@ FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
 }
 
 /**
- * when time is streched - the flow_sync node 
- * might be postpond too much 
- * this can result a watchdog crash and lack 
- * of responsivness from the DP core 
- * (no handling of messages) 
- * 
+ * when time is streched - the flow_sync node
+ * might be postpond too much
+ * this can result a watchdog crash and lack
+ * of responsivness from the DP core
+ * (no handling of messages)
+ *
  * @author imarom (7/31/2016)
- * 
+ *
  */
 void CNodeGenerator::handle_time_strech(CGenNode * &node,
                                         dsec_t &cur_time,
@@ -4212,7 +4221,7 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
 
 void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
 
-    
+
     /* flow sync message is a sync point for time */
     thread->m_cur_time_sec = node->m_time;
 
@@ -4240,7 +4249,7 @@ CNodeGenerator::handle_maintenance(CFlowGenListPerThread *thread) {
     /* tickle and check messages */
     thread->tickle();
     thread->check_msgs();
-    
+
     m_v_if->flush_tx_queue(); /* flush pkt each timeout */
 
     /* save last sync time as realtime */
@@ -4495,7 +4504,13 @@ void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
     } else {
         m_stats.m_nat_lookup_wait_ack_state++;
     }
-    m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid());
+
+    if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION) ||
+        p->m_pkt_info->m_pkt_indication.l3.m_ipv4->getProtocol() == IPPROTO_TCP) {
+        m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid() & NAT_FLOW_ID_MASK_TCP_ACK);
+    } else {
+        m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid() & NAT_FLOW_ID_MASK_IP_ID);
+    }
     free_last_flow_node( p);
 }
 
@@ -4516,7 +4531,7 @@ void CFlowGenListPerThread::handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg)
         latency_header * h = (latency_header *)(p+msg->m_latency_offset);
         h->time_stamp = os_get_hr_tick_64();
     }
-    
+
 
     m_node_gen.m_v_if->send_one_pkt((pkt_dir_t)msg->m_dir,msg->m_pkt);
 }
@@ -4541,7 +4556,8 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
 
         // Calculate diff between tcp seq of SYN packet, and TCP ack of SYN+ACK packet
         // For supporting firewalls who do TCP seq num randomization
-        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP)) {
+        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) &&
+            (node->m_pkt_info->m_pkt_indication.getIpProto() == IPPROTO_TCP)) {
             if (node->is_nat_wait_state()) {
                 char *syn_pkt = node->m_flow_info->GetPacket(0)->m_packet->raw;
                 TCPHeader *tcp = (TCPHeader *)(syn_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
@@ -4628,14 +4644,14 @@ bool CFlowGenListPerThread::check_msgs_from_rx() {
 
         CGlobalInfo::free_node(node);
     }
-    
+
     return true;
 }
 
 bool CFlowGenListPerThread::check_msgs() {
 
     bool had_msg = false;
-    
+
     /* inlined for performance */
     if (m_stateless_dp_info.periodic_check_for_cp_messages()) {
         had_msg = true;
@@ -4644,7 +4660,7 @@ bool CFlowGenListPerThread::check_msgs() {
     if (check_msgs_from_rx()) {
         had_msg = true;
     }
-    
+
     return had_msg;
 }
 

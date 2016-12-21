@@ -78,7 +78,6 @@ class CGenNodePCAP;
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
 #define TOS_TTL_RESERVE_DUPLICATE 0x1
-
 /*
  * Length of string needed to hold the largest port (16-bit) address
  */
@@ -1687,7 +1686,7 @@ public:
 
 public:
     inline uint32_t get_short_fid(void){
-        return (((uint32_t)m_flow_id) & NAT_FLOW_ID_MASK);
+        return (((uint32_t)m_flow_id) & NAT_FLOW_ID_MASK_TCP_ACK);
     }
 
     inline uint8_t get_thread_id(void){
@@ -2681,6 +2680,17 @@ public:
         }
     }
 
+    // if is_nat is true, turn on MSB of IP_ID, else turn it off
+    void setIpIdNat(bool is_nat) {
+        BP_ASSERT(l3.m_ipv4);
+        if (! is_ipv6()) {
+            if (is_nat) {
+                l3.m_ipv4->setId(l3.m_ipv4->getId() | 0x8000);
+            } else {
+                l3.m_ipv4->setId(l3.m_ipv4->getId() & 0x7fff);
+            }
+        }
+    }
 
     void  setTOSReserve(){
         BP_ASSERT(l3.m_ipv4);
@@ -2909,10 +2919,10 @@ public:
      * mark this packet as learn packet
      * should
      * 1. push ipv4 option ( 8 bytes)
-     * 2. mask the packet as learn
+     * 2. mark the packet as learn
      * 3. update the option pointer
      */
-    void   mask_as_learn();
+    void   mark_as_learn();
 
 private:
     inline void append_big_mbuf(rte_mbuf_t * m,
@@ -3038,11 +3048,6 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
     IPHeader       * ipv4=
         (IPHeader       *)(p + m_pkt_indication.getFastIpOffsetFast());
 
-    EthernetHeader * et  =
-        (EthernetHeader * )(p + m_pkt_indication.getFastEtherOffset());
-
-    (void)et;
-
     uint16_t src_port =   node->m_src_port;
     uint32_t tcp_seq_diff_client = 0;
     uint32_t tcp_seq_diff_server = 0;
@@ -3071,19 +3076,15 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 #ifdef NAT_TRACE_
                 printf(" %.3f : DP :  learn packet !\n",now_sec());
 #endif
-                ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
-                ipv4->setTOS(ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE); 
-
-
                 /* first ipv4 option add the info in case of learn packet, usualy only the first packet */
                 if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION)) {
                     CNatOption *lpNat =(CNatOption *)ipv4->getOption();
                     lpNat->set_fid(node->get_short_fid());
                     lpNat->set_thread_id(node->get_thread_id());
                 } else {
-                    // This method only work on first TCP SYN
                     if (ipv4->getProtocol() == IPPROTO_TCP) {
                         TCPHeader *tcp = (TCPHeader *)(((uint8_t *)ipv4) + ipv4->getHeaderLength());
+                        // Put NAT info in first TCP SYN
                         if (tcp->getSynFlag()) {
                             tcp->setAckNumber(CNatRxManager::calc_tcp_ack_val(node->get_short_fid(), node->get_thread_id()));
                         }
@@ -3092,6 +3093,9 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                                ,now_sec(), node->get_short_fid(), node->get_thread_id(), tcp->getAckNumber()
                                , tcp->getSeqNumber());
 #endif
+                    } else {
+                        // If protocol is not TCP, put NAT info in IP_ID
+                        ipv4->setId(CNatRxManager::calc_ip_id_val(node->get_short_fid(), node->get_thread_id()));
                     }
                 }
             }
@@ -3121,7 +3125,6 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 ipv4->updateIpDst(node->get_nat_ipv4_addr());
             }
 
-            /* TBD remove this */
 #ifdef NAT_TRACE_
             if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
                 if ( m_pkt_indication.m_desc.IsInitSide() ==false ){
@@ -3935,7 +3938,7 @@ private:
 
 private:
      FORCE_NO_INLINE void associate(uint32_t fid,CGenNode *     node ){
-        assert(m_flow_id_to_node_lookup.lookup(fid)==0);
+         assert(m_flow_id_to_node_lookup.lookup(fid)==0);
         m_stats.m_nat_lookup_add_flow_id++;
         m_flow_id_to_node_lookup.add(fid,node);
     }
@@ -4059,13 +4062,6 @@ public:
     std::vector<CFlowGenListPerThread   *>  m_threads_info;
     ClientCfgDB                             m_client_config_info;
 };
-
-
-
-
-
-
-
 
 inline void CFlowGeneratorRecPerThread::generate_flow(CNodeGenerator * gen,
                                                       dsec_t time,

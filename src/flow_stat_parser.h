@@ -52,24 +52,34 @@ class CFlowStatParser {
     uint8_t * get_l4() {return m_l4;}
 
     inline bool IsNatInfoPkt(bool &first) {
-        if (!m_ipv4 || (m_l4_proto != IPPROTO_TCP)) {
+        if (! m_ipv4 ) {
             return false;
         }
-        if ((m_l4 + TCP_HEADER_LEN) > (uint8_t *)m_ipv4 + get_pkt_size()) {
-            return false;
-        }
-        // If we are here, relevant fields from tcp header are inside the packet boundaries
-        // We want to handle SYN and SYN+ACK packets
-        TCPHeader *tcp = (TCPHeader *)m_l4;
-        if (! tcp->getSynFlag())
-            return false;
 
-        if (! tcp->getAckFlag()) {
-            first = true;
+        if (m_l4_proto == IPPROTO_TCP) {
+            if ((m_l4 + TCP_HEADER_LEN) > (uint8_t *)m_ipv4 + get_pkt_size()) {
+                return false;
+            }
+            // If we are here, relevant fields from tcp header are inside the packet boundaries
+            // We want to handle SYN and SYN+ACK packets
+            TCPHeader *tcp = (TCPHeader *)m_l4;
+            if (! tcp->getSynFlag())
+                return false;
+
+            if (! tcp->getAckFlag()) {
+                first = true;
+            } else {
+                first = false;
+            }
+            return true;
         } else {
-            first = false;
+            if ((m_ipv4->getId() & 0x8000) != 0) {
+                first = true;
+                return true;
+            } else {
+                return false;
+            }
         }
-        return true;
     }
 
  private:
@@ -122,24 +132,34 @@ class CSimplePacketParser {
     // first - set to true if this is the first packet of the flow. false otherwise.
     //         relevant only if return value is true
     inline bool IsNatInfoPkt(bool &first) {
-        if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
+        if (! m_ipv4 ) {
             return false;
         }
-        if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
-            return false;
-        }
-        // If we are here, relevant fields from tcp header are guaranteed to be in first mbuf
-        // We want to handle SYN and SYN+ACK packets
-        TCPHeader *tcp = (TCPHeader *)m_l4;
-        if (! tcp->getSynFlag())
-            return false;
 
-        if (! tcp->getAckFlag()) {
-            first = true;
+        if (m_ipv4->getProtocol() == IPPROTO_TCP) {
+            if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
+                return false;
+            }
+            // If we are here, relevant fields from tcp header are inside the packet boundaries
+            // We want to handle SYN and SYN+ACK packets
+            TCPHeader *tcp = (TCPHeader *)m_l4;
+            if (! tcp->getSynFlag())
+                return false;
+
+            if (! tcp->getAckFlag()) {
+                first = true;
+            } else {
+                first = false;
+            }
+            return true;
         } else {
-            first = false;
+            if ((m_ipv4->getId() & 0x8000) != 0) {
+                first = true;
+                return true;
+            } else {
+                return false;
+            }
         }
-        return true;
     }
 
  public:

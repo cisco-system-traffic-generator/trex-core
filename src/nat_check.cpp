@@ -18,7 +18,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-/* 
+/*
 This file is for testing devices implementing NAT.
 For each flow, we need to learn the NAT translation in order to send server responses.
 Algorithm is as described below:
@@ -26,14 +26,14 @@ We send first packet from client, and look at it on other side to see how it was
 the server flow with the appropriate change. To keep track of which flow the packet belongs to, we attach to the
 first packet of each flow, flow id and thread id (thread handling the flow).
 Information attaching method can be chosen be using --learn-mode option.
-The information is attached either in special IP option, or in ACK number of first SYN packet.
+The information is attached either in special IP option, or in ACK number of first SYN packet if protocol is TCP
+and in IP_ID of first flow packet if it is UDP.
 */
 
 #include <stdint.h>
 #include <common/basic_utils.h>
 #include "nat_check.h"
 #include "bp_sim.h"
-
 
 void CGenNodeNatInfo::dump(FILE *fd){
 
@@ -113,7 +113,7 @@ void CNatRxManager::handle_aging(){
 }
 
 void CNatRxManager::flush_node(CNatPerThreadInfo * thread_info){
-        // try send 
+        // try send
         int cnt=0;
         while (true) {
             if ( thread_info->m_ring->Enqueue((CGenNode*)thread_info->m_cur_nat_msg) == 0 ){
@@ -136,7 +136,12 @@ void CNatRxManager::flush_node(CNatPerThreadInfo * thread_info){
 
 void CNatRxManager::get_info_from_tcp_ack(uint32_t tcp_ack, uint32_t &fid, uint8_t &thread_info) {
     thread_info = (uint8_t) tcp_ack;
-    fid = (tcp_ack >> 8) & NAT_FLOW_ID_MASK;
+    fid = (tcp_ack >> 8) & NAT_FLOW_ID_MASK_TCP_ACK;
+}
+
+void CNatRxManager::get_info_from_ip_id(uint16_t ip_id, uint32_t &fid, uint8_t &thread_info) {
+    thread_info = ((uint8_t) ip_id) & 0x3f;
+    fid = (ip_id >> 6) & NAT_FLOW_ID_MASK_IP_ID;
 }
 
 /*
@@ -156,37 +161,50 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, bool 
     uint32_t fid=0;
     uint32_t tcp_seq;
 
-    /* Extract info from the packet ! */
+
     uint32_t ext_ip   = ipv4->getSourceIp();
     uint8_t proto     = ipv4->getProtocol();
-    /* must be TCP/UDP this is the only supported proto */
-    if (!( (proto==6) || (proto==17) )){
+    TCPHeader *tcp = (TCPHeader *) (((char *)ipv4)+ ipv4->getHeaderLength());
+    UDPHeader *udp = (UDPHeader *) (((char *)ipv4)+ ipv4->getHeaderLength());;
+    uint16_t ext_port;
+
+    switch(proto) {
+    case IPPROTO_TCP:
+        ext_port = tcp->getSourcePort();
+        tcp_seq = tcp->getSeqNumber();
+        break;
+    case IPPROTO_UDP:
+        ext_port = udp->getSourcePort();
+        tcp_seq = 0;
+        break;
+    default:
         m_stats.m_err_no_valid_proto++;
         return;
     }
-    /* we support only TCP/UDP so take the source port , post IP header */
-    TCPHeader *tcp = (TCPHeader *) (((char *)ipv4)+ ipv4->getHeaderLength());
-    uint16_t ext_port = tcp->getSourcePort();
-
-    tcp_seq = tcp->getSeqNumber();
 
     if (option) {
-	thread_info = get_thread_info(option->get_thread_id());
-	fid = option->get_fid();
+        thread_info = get_thread_info(option->get_thread_id());
+        fid = option->get_fid();
     } else {
         uint8_t thread_id;
 
         if (is_first) {
-            uint32_t tcp_ack = tcp->getAckNumber();
-            get_info_from_tcp_ack(tcp_ack, fid, thread_id);
-            thread_info = get_thread_info(thread_id);
-            if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                uint32_t dst_ip = ipv4->getDestIp();
-                uint16_t dst_port = tcp->getDestPort();
-                uint64_t map_key = (dst_ip << 16) + dst_port;
-                double time_stamp = now_sec();
-                m_ft.insert(map_key, tcp_ack, time_stamp);
-                m_ft.clear_old(time_stamp - 1);
+            if (proto == IPPROTO_TCP) {
+                uint32_t tcp_ack = tcp->getAckNumber();
+                get_info_from_tcp_ack(tcp_ack, fid, thread_id);
+                thread_info = get_thread_info(thread_id);
+                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                    uint32_t dst_ip = ipv4->getDestIp();
+                    uint16_t dst_port = tcp->getDestPort();
+                    uint64_t map_key = (dst_ip << 16) + dst_port;
+                    double time_stamp = now_sec();
+                    m_ft.insert(map_key, tcp_ack, time_stamp);
+                    m_ft.clear_old(time_stamp - 1);
+                }
+            } else {
+                uint16_t ip_id = ipv4->getId();
+                get_info_from_ip_id(ip_id, fid, thread_id);
+                thread_info = get_thread_info(thread_id);
             }
         } else {
             uint32_t val;
@@ -232,7 +250,7 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, bool 
     }
     msg->m_tcp_seq = tcp_seq;
     msg->m_fid           = fid;
-    msg->m_pad           = 0xee; 
+    msg->m_pad           = 0xee;
 
     if ( node->is_full() ){
         flush_node(thread_info);
