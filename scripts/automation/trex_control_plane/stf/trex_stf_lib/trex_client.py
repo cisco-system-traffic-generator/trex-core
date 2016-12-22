@@ -1371,7 +1371,7 @@ class CTRexResult(object):
 
         """
         # add latest dump to history
-        if latest_dump != {}:
+        if latest_dump:
             self._history.append(latest_dump)
             if not self.valid:
                 self.valid = True 
@@ -1383,8 +1383,8 @@ class CTRexResult(object):
 
             self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
-                # check for up to 2% change between expected and actual
-                if (self._current_tx_rate['m_tx_bps'] > 0.98 * self._expected_tx_rate['m_tx_expected_bps']):
+                # check for up to 4% change between expected and actual
+                if (self._current_tx_rate['m_tx_bps'] > 0.96 * self._expected_tx_rate['m_tx_expected_bps']):
                     self._done_warmup = True
                     latest_dump['warmup_barrier'] = True
 
