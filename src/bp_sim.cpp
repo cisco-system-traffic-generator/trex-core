@@ -2358,8 +2358,8 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
                 /* check that we don't have reserved TTL */
                 uint8_t ttl = pkt_indication.getTTL();
-                if ( ttl > 127) {
-                    pkt_indication.setTTL(127);
+                if ( ttl > 128) {
+                    pkt_indication.setTTL(128);
                 }
 
                 pkt_indication.clearTOSReserve();
