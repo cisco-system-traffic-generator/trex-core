@@ -2356,11 +2356,10 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                 /* inc pkt_id inside the flow */
                 lpflow->pkt_id++;
 
-                /* check that we don't have reserve TTL for duplication  */
+                /* check that we don't have reserved TTL */
                 uint8_t ttl = pkt_indication.getTTL();
-                if ( (ttl == TTL_RESERVE_DUPLICATE) ||
-                     (ttl == (TTL_RESERVE_DUPLICATE-1)) ) {
-                        pkt_indication.setTTL(TTL_RESERVE_DUPLICATE-4);
+                if ( ttl > 127) {
+                    pkt_indication.setTTL(127);
                 }
 
                 pkt_indication.clearTOSReserve();

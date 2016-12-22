@@ -6193,11 +6193,10 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * _if) {
     uint8_t port_id=_if->get_rte_port_id();
-    uint16_t hops = get_rx_check_hops();
-    uint16_t v4_hops = (hops << 8)&0xff00;
+    uint16_t base_hop = get_rx_check_hops();
 
     /* enable rule 0 SCTP -> queue 1 for latency  */
-    /* 1<<21 means that queue 1 is for SCTP */
+    /* 1 << 21 means send to queue */
     _if->pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
     _if->pci_reg_write(IXGBE_FTQF(0),
                        IXGBE_FTQF_PROTOCOL_SCTP|
@@ -6205,23 +6204,19 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
                        ((0x0f)<<IXGBE_FTQF_5TUPLE_MASK_SHIFT)|IXGBE_FTQF_QUEUE_ENABLE);
 
     // IPv4: bytes being compared are {TTL, Protocol}
-    uint16_t ff_rules_v4[6]={
-        (uint16_t)(0xFF11 - v4_hops),
-        (uint16_t)(0xFE11 - v4_hops),
-        (uint16_t)(0xFF06 - v4_hops),
-        (uint16_t)(0xFE06 - v4_hops),
-        (uint16_t)(0xFF01 - v4_hops),
-        (uint16_t)(0xFE01 - v4_hops),
+    uint16_t ff_rules_v4[3] = {
+        0xFF11,
+        0xFF06,
+        0xFF01,
     };
     // IPv6: bytes being compared are {NextHdr, HopLimit}
-    uint16_t ff_rules_v6[6]={
-        (uint16_t)(0x3CFF - hops),
-        (uint16_t)(0x3CFE - hops),
+    uint16_t ff_rules_v6[1] = {
+        0x3CFF
     };
 
     uint16_t *ff_rules;
     uint16_t num_rules;
-    int  rule_id;
+    int  rule_id = 1;
 
     if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
         ff_rules = &ff_rules_v6[0];
@@ -6231,29 +6226,37 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
         num_rules = sizeof(ff_rules_v4)/sizeof(ff_rules_v4[0]);
     }
 
-    for (rule_id=0; rule_id<num_rules; rule_id++ ) {
+    for (int rule_num = 0; rule_num < num_rules; rule_num++ ) {
         struct rte_eth_fdir_filter fdir_filter;
-        uint16_t ff_rule = ff_rules[rule_id];
+        uint16_t ff_rule = ff_rules[rule_num];
         int res = 0;
+        uint16_t v4_hops;
 
-        memset(&fdir_filter,0,sizeof(fdir_filter));
-        /* TOS/PROTO */
-        if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
-            fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
-        }else{
-            fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
-        }
-        fdir_filter.soft_id = rule_id;
+        // configure rule sending packets to RX queue for 10 TTL values
+        for (int hops = base_hop; hops < base_hop + 10; hops++) {
+            memset(&fdir_filter, 0, sizeof(fdir_filter));
+            /* TOS/PROTO */
+            if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ) {
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV6_OTHER;
+                fdir_filter.input.flow_ext.flexbytes[0] = (ff_rule >> 8) & 0xff;
+                fdir_filter.input.flow_ext.flexbytes[1] = (ff_rule - hops) & 0xff;
+            } else {
+                v4_hops = hops << 8;
+                fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
+                fdir_filter.input.flow_ext.flexbytes[0] = ((ff_rule - v4_hops) >> 8) & 0xff;
+                fdir_filter.input.flow_ext.flexbytes[1] = ff_rule & 0xff;
+            }
+            fdir_filter.soft_id = rule_id++;
+            fdir_filter.action.rx_queue = 1;
+            fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
+            fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
+            res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
 
-        fdir_filter.input.flow_ext.flexbytes[0] = (ff_rule >> 8) & 0xff;
-        fdir_filter.input.flow_ext.flexbytes[1] = ff_rule & 0xff;
-        fdir_filter.action.rx_queue = 1;
-        fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
-        fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
-        res = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
-
-        if (res != 0) {
-            rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_statefull: %d\n",res);
+            if (res != 0) {
+                rte_exit(EXIT_FAILURE
+                         , "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_statefull rule_id:%d: %d\n"
+                         , rule_id, res);
+            }
         }
     }
     return (0);
@@ -6492,7 +6495,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statefull(CPhyEthIF * 
     int i;
 
     rte_eth_fdir_stats_reset(port_id, NULL, 0, 1);
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < 10; i++) {
         uint8_t ttl = TTL_RESERVE_DUPLICATE - i - hops;
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
         add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
