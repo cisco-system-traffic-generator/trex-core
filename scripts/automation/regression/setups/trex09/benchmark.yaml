@@ -10,10 +10,10 @@ test_jumbo:
     bw_per_core         : 767.198
 
 
-#test_routing_imix:
-#    multiplier          : 64
-#    cores               : 2
-#    bw_per_core         : 35.889
+test_routing_imix:
+    multiplier          : 64
+    cores               : 2
+    bw_per_core         : 35.889
 
 
 test_routing_imix_64:
