@@ -698,11 +698,11 @@ Other network devices
                 if isinstance(ips, list) and len(ips) > i:
                     interface['ip'] = ips[i]
                 else:
-                    interface['ip'] = ".".join(list(str(i+1))*4)
+                    interface['ip'] = '.'.join([str(i+1) for _ in range(4)])
                 if isinstance(def_gws, list) and len(def_gws) > i:
                     interface['def_gw'] = def_gws[i]
                 else:
-                    interface['def_gw'] = ".".join(list(str(dual_index+1))*4)
+                    interface['def_gw'] = '.'.join([str(dual_index+1) for _ in range(4)])
             else:
                 dual_if = wanted_interfaces[dual_index]
                 if 'MAC' not in interface:
