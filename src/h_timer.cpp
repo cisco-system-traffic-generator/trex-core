@@ -27,6 +27,10 @@ void CHTimerObj::Dump(FILE *fd){
 }
 
 
+
+void detach_all(void *userdata,htw_on_tick_cb_t cb);
+
+
 RC_HTW_t CHTimerOneWheel::Create(uint32_t wheel_size){
 
     CHTimerWheelLink *bucket;
@@ -66,6 +70,26 @@ RC_HTW_t CHTimerOneWheel::Delete(){
     return (RC_HTW_OK );
 }
 
+
+
+uint32_t CHTimerOneWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
+
+    uint32_t m_total_events=0;
+    int i;
+    for (i = 0; i < m_wheel_size; i++) {
+        CHTimerWheelLink  * lp=&m_buckets[i];
+        CHTimerWheelLink  * first;
+
+        while (!lp->is_self()) {
+            first = lp->m_next;
+            first->detach();
+            m_total_events++;
+            assert(cb);
+            cb(userdata,(CHTimerObj *)first);
+        }
+    }
+    return (m_total_events);
+}
 
 RC_HTW_t CHTimerOneWheel::timer_stop(CHTimerObj *tmr){
     if ( tmr->is_running() ) {
@@ -107,11 +131,27 @@ void  CHTimerOneWheel::dump_link_list(uint32_t bucket_index,
 }
 
 
+void CHTimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
+    #ifndef _DEBUG 
+    if (m_total_events==0) {
+        return;
+    }
+    #endif
+    int i;
+    uint32_t res=0;
+    for (i=0;i<m_num_wheels; i++) {
+        CHTimerOneWheel * lp=&m_timer_w[i];
+        res=lp->detach_all(userdata,cb);
+        assert(m_total_events>=res);
+        m_total_events -=res;
+    }
+    assert(m_total_events==0);
+}
+
+
 void CHTimerWheel::on_tick(void *userdata,htw_on_tick_cb_t cb){
 
     int i;
-
-
     for (i=0;i<m_num_wheels; i++) {
         CHTimerOneWheel * lp=&m_timer_w[i];
         CHTimerObj * event;

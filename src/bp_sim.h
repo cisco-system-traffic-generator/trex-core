@@ -1498,6 +1498,14 @@ public:
     }
 
     void free_base();
+
+    bool is_flow_node(){
+        if ((m_type == FLOW_PKT) || (m_type == FLOW_PKT_NAT)) {
+            return (true);
+        }else{
+            return (false);
+        }
+    }
 };
 
 
@@ -1556,6 +1564,9 @@ public:
 
     /* update the node time for accurate scheduler */
     inline void update_next_pkt_in_flow_as(void);
+
+    inline uint32_t update_next_pkt_in_flow_both(void);
+
 
     inline void reset_pkt_in_flow(void);
     inline uint8_t get_plugin_id(void){
@@ -4107,6 +4118,17 @@ inline void CGenNode::update_next_pkt_in_flow_as(void){
     pkt_index++;
     m_pkt_info = m_flow_info->GetPacket((pkt_index-1));
 }
+
+
+inline uint32_t CGenNode::update_next_pkt_in_flow_both(void){
+    m_time     += m_pkt_info->m_pkt_indication.m_cap_ipg;
+    uint32_t dticks = m_pkt_info->m_pkt_indication.m_ticks;
+    uint32_t pkt_index   = m_pkt_info->m_pkt_indication.m_packet->pkt_cnt;
+    pkt_index++;
+    m_pkt_info = m_flow_info->GetPacket((pkt_index-1));
+    return (dticks);
+}
+
 
 inline uint32_t CGenNode::update_next_pkt_in_flow_tw(void){
 

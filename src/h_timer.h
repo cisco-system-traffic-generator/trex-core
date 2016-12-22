@@ -40,9 +40,64 @@ typedef enum {
 
 } RC_HTW_t;
 
+class CHTimerWheelErrorStr {
+public:
+    CHTimerWheelErrorStr(RC_HTW_t val){
+        m_err=val;
+    }
+    const char * get_str(void){
+        switch (m_err) {
+        case RC_HTW_OK:
+            return ("RC_HTW_OK");
+            break;
+        case RC_HTW_ERR_NO_RESOURCES :
+            return ("RC_HTW_ERR_NO_RESOURCES");
+            break;
+        case RC_HTW_ERR_TIMER_IS_ON :
+            return ("RC_HTW_ERR_TIMER_IS_ON");
+            break;
+        case RC_HTW_ERR_NO_LOG2 :
+            return ("RC_HTW_ERR_NO_LOG2");
+            break;
+        case RC_HTW_ERR_MAX_WHEELS :
+            return ("RC_HTW_ERR_MAX_WHEELS");
+            break;
+        case RC_HTW_ERR_NOT_ENOUGH_BITS :
+            return ("RC_HTW_ERR_NOT_ENOUGH_BITS");
+            break;
+        default:
+            assert(0);
+        }
+    }
 
+    const char * get_help_str(void){
+        switch (m_err) {
+        case RC_HTW_OK:
+            return ("ok");
+            break;
+        case RC_HTW_ERR_NO_RESOURCES :
+            return ("not enough memory");
+            break;
+        case RC_HTW_ERR_TIMER_IS_ON :
+            return ("timer is already on, you should stop before start");
+            break;
+        case RC_HTW_ERR_NO_LOG2 :
+            return ("number of buckets should be log2");
+            break;
+        case RC_HTW_ERR_MAX_WHEELS :
+            return ("maximum number of wheels is limited to 4");
+            break;
+        case RC_HTW_ERR_NOT_ENOUGH_BITS :
+            return ("(log2(buckets) * number of wheels)  should be less than 32, try to reduce the number of wheels");
+            break;
+        default:
+            assert(0);
+        }
+    }
 
-
+private:
+    RC_HTW_t m_err;
+};
 
 class CHTimerWheelLink {
 
@@ -76,7 +131,7 @@ public:
     }
 
     void detach(void){
-        #ifdef HTW_DEBUG 
+        #ifdef _DEBUG 
         assert(m_next);
         #endif
         CHTimerWheelLink *next;
@@ -134,7 +189,7 @@ public:
     inline RC_HTW_t timer_start(CHTimerObj  *tmr, 
                                 htw_ticks_t   ticks){
 
-        #ifdef HTW_DEBUG 
+        #ifdef _DEBUG 
         if ( tmr->is_running() ){
             return( RC_HTW_ERR_TIMER_IS_ON);
         }
@@ -145,6 +200,8 @@ public:
     }
 
     RC_HTW_t timer_stop (CHTimerObj *tmr);
+
+    uint32_t detach_all(void *userdata,htw_on_tick_cb_t cb);
 
     inline bool check_timer_tick_cycle(){
         return (m_tick_done);
@@ -247,6 +304,7 @@ public:
 
     RC_HTW_t Delete();
 
+
     inline RC_HTW_t timer_start(CHTimerObj  *tmr, 
                                 htw_ticks_t  ticks){
         m_total_events++;
@@ -265,7 +323,9 @@ public:
     bool is_any_events_left(){
         return(m_total_events>0?true:false);
     }
-    
+
+    /* iterate all, detach and call the callback */
+    void detach_all(void *userdata,htw_on_tick_cb_t cb);
 
 
 private:

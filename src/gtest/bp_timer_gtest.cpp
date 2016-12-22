@@ -189,6 +189,17 @@ void my_test_on_tick_cb7(void *userdata,CHTimerObj *tmr){
     lp->timer_start(tmr,9);
 }
 
+void my_test_on_tick_cb_free(void *userdata,CHTimerObj *tmr){
+
+
+    //CHTimerWheel * lp=(CHTimerWheel *)userdata;
+    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+    CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
+    #pragma GCC diagnostic pop
+    printf(" [event %d ]",lpobj->m_id);
+    delete lpobj;
+}
+
 
 TEST_F(gt_r_timer, timer7) {
 
@@ -592,4 +603,54 @@ TEST_F(gt_r_timer, timer16) {
         test.start_test();
         test.Delete();
 }
+
+
+/* test free of iterator */
+TEST_F(gt_r_timer, timer17) {
+
+    CHTimerWheel  timer;
+
+    CMyTestObject * tmr1;
+    tmr1 = new CMyTestObject();
+    tmr1->m_id=12;
+
+    CMyTestObject * tmr2;
+    tmr2 = new CMyTestObject();
+    tmr2->m_id=13;
+
+    CMyTestObject * tmr3;
+    tmr3 = new CMyTestObject();
+    tmr3->m_id=14;
+
+
+    EXPECT_EQ( timer.Create(4,4),RC_HTW_OK);
+    timer.timer_start(&tmr1->m_timer,80);
+    timer.timer_start(&tmr2->m_timer,1);
+    timer.timer_start(&tmr3->m_timer,0);
+
+    timer.detach_all((void *)&timer,my_test_on_tick_cb_free);
+    EXPECT_EQ( timer.Delete(),RC_HTW_OK);
+}
+
+
+TEST_F(gt_r_timer, timer18) {
+
+    RC_HTW_t res[]={
+        RC_HTW_OK,
+        RC_HTW_ERR_NO_RESOURCES,
+        RC_HTW_ERR_TIMER_IS_ON,
+        RC_HTW_ERR_NO_LOG2,
+        RC_HTW_ERR_MAX_WHEELS,
+        RC_HTW_ERR_NOT_ENOUGH_BITS
+    };
+
+    int i;
+    for (i=0; i<sizeof(res)/sizeof(RC_HTW_t); i++) {
+        CHTimerWheelErrorStr err(res[i]);
+        printf(" %-30s  - %s \n",err.get_str(),err.get_help_str());
+    }
+}
+
+
+
 

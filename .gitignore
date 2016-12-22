@@ -80,6 +80,16 @@ scripts/exp/udp_64B_vm_mask5.pcap
 scripts/exp/udp_64B_vm_mask6.pcap
 scripts/exp/stl_vm_enable0_cache_10-0.erf
 scripts/exp/stl_vm_enable1_cache_500-0.erf
+scripts/exp/imix-0.erf
+scripts/exp/imix_v6-0.erf
+scripts/exp/ipv4_vlan-0.erf
+scripts/exp/ipv6-0.erf
+scripts/exp/ipv6_vlan-0.erf
+scripts/exp/limit_multi_pkt-0.erf
+scripts/exp/limit_single_pkt-0.erf
+scripts/exp/imix_64_fast-0.erf
+scripts/exp/pcap_mode2-0.erf
+
 
 
 

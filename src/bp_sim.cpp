@@ -3475,8 +3475,12 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  0 ,
                                                  socket_id);
 
-    m_tw.Create(TW_BUCKETS,3);
-
+     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,3); 
+     if (tw_res != RC_HTW_OK){
+         CHTimerWheelErrorStr err(tw_res);
+         printf("ERROR  %-30s  - %s \n",err.get_str(),err.get_help_str());
+         exit(1);  
+     }
 
     m_node_gen.Create(this);
     m_flow_id_to_node_lookup.Create();
@@ -3542,19 +3546,6 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job(CGenNode *p){
     }
 }
 
-FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
-    /* flush the pending job of free ports */
-    if (m_tcp_dpc) {
-        handler_defer_job((CGenNode *)m_tcp_dpc);
-        free_node((CGenNode *)m_tcp_dpc);
-        m_tcp_dpc=0;
-    }
-    if (m_udp_dpc) {
-        handler_defer_job((CGenNode *)m_udp_dpc);
-        free_node((CGenNode *)m_udp_dpc);
-        m_udp_dpc=0;
-    }
-}
 
 
 void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
@@ -3767,7 +3758,10 @@ template<bool TEARDOWN>
 inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
 
     #ifdef TREX_SIM
-    node->m_time=m_cur_time_sec;
+    /* for sim, we need to update the node from tick time*/
+    if ( likely (!node->is_repeat_flow() ) ){
+        node->m_time=m_cur_time_sec; 
+    }
     #endif
     #ifdef _DEBUG
     m_node_gen.update_stats(node);
@@ -3777,22 +3771,22 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
     if ( likely (!node->is_repeat_flow()) ) {
         if ( likely (!node->is_last_in_flow()) ) {
             m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_tw() );
-        }else{
-            free_last_flow_node( node);
+        }else{                              
+            free_last_flow_node(node);
         }
     }else{
         /* repeatable flow, we need to stop it in case of repeat */
         if ( node->is_last_in_flow() ) {
 
             if ( TEARDOWN == false ){
-                node->m_time=m_cur_time_sec; /* update the node time as we schedule it */
-                reschedule_flow(node);
+                reschedule_flow(node); 
             }else{
-                free_last_flow_node( node);
+                free_last_flow_node(node);
             }
 
         }else{
-            m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_tw() );
+            /* need to update both accurate time and bucket time in this case update_next_pkt_in_flow_both() for reschedule to be accurate */
+            m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_both() );
         }
     }
 }
@@ -3809,6 +3803,19 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
 #define UNSAFE_CONTAINER_OF_POP  GCC_DIAG_ON()
 
 
+static void tw_free_node(void *userdata,
+                       CHTimerObj *tmr){
+    CFlowGenListPerThread * thread=(CFlowGenListPerThread * )userdata;
+    UNSAFE_CONTAINER_OF_PUSH;
+    CGenNode * node=unsafe_container_of(node,tmr,CGenNode,m_tmr);
+    UNSAFE_CONTAINER_OF_POP;
+    if (node->is_flow_node()) {
+        /* this is a flow*/
+        thread->free_last_flow_node(node);
+    }else{
+        thread->free_node(node);
+    }
+}
 
 
 static void tw_on_tick_per_thread_cb_always(void *userdata,
@@ -3832,6 +3839,26 @@ void tw_on_tick_per_thread_cb(void *userdata,
 
     thread->on_flow_tick<false>(node);
 }
+
+
+FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
+
+    /* free the objects letf in TW */
+    m_tw.detach_all((void *)this,tw_free_node);
+
+    /* flush the pending job of free ports */
+    if (m_tcp_dpc) {
+        handler_defer_job((CGenNode *)m_tcp_dpc);
+        free_node((CGenNode *)m_tcp_dpc);
+        m_tcp_dpc=0;
+    }
+    if (m_udp_dpc) {
+        handler_defer_job((CGenNode *)m_udp_dpc);
+        free_node((CGenNode *)m_udp_dpc);
+        m_udp_dpc=0;
+    }
+}
+
 
 
 inline bool CNodeGenerator::do_work_stl(CGenNode * node,
@@ -3883,7 +3910,6 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
                 /* PKT */
                 m_p_queue.pop();
                 thread->on_flow_tick<ON_TERMINATE>(node);
-                //printf(" MOVE from PKT->TW\n");
             }else{
                 if ((type == CGenNode::FLOW_FIF)) {
                    /* callback to our method */
@@ -3968,6 +3994,7 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
     }else{
         // free the left other
         thread->handler_defer_job_flush();
+
     }
     return (0);
 }
@@ -4211,7 +4238,7 @@ void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thre
     }
     m_p_queue.pop();
     if ( node->is_last_in_flow() ) {
-        thread->free_last_flow_node( node);
+        thread->free_last_flow_node(node);
     } else {
         node->update_next_pkt_in_flow_as();
         m_p_queue.push(node);
@@ -4510,7 +4537,7 @@ void CFlowGenListPerThread::terminate_nat_flows(CGenNode *p){
     } else {
         m_flow_id_to_node_lookup.remove_no_lookup(p->get_short_fid() & NAT_FLOW_ID_MASK_IP_ID);
     }
-    free_last_flow_node( p);
+    free_last_flow_node(p);
 }
 
 

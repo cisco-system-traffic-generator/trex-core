@@ -263,7 +263,7 @@ TEST_F(basic, limit_single_pkt) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
-/*TEST_F(basic, limit_multi_pkt) {
+TEST_F(basic, limit_multi_pkt) {
 
      CTestBasic t1;
      CParserOption * po =&CGlobalInfo::m_options;
@@ -273,7 +273,7 @@ TEST_F(basic, limit_single_pkt) {
      po->out_file ="exp/limit_multi_pkt";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
-} */
+} 
 
 TEST_F(basic, imix) {
 
@@ -283,6 +283,18 @@ TEST_F(basic, imix) {
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/imix.yaml";
      po->out_file ="exp/imix";
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+TEST_F(basic, imix_fast) {
+
+     CTestBasic t1;
+     CParserOption * po =&CGlobalInfo::m_options;
+     po->preview.setVMode(3);
+     po->preview.setFileWrite(true);
+     po->cfg_file ="cap2/imix_64_fast.yaml";
+     po->out_file ="exp/imix_64_fast";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
