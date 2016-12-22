@@ -797,8 +797,8 @@ Other network devices
                     dual_ip_digit = ip_addr_digit - 1
                 else:
                     dual_ip_digit = ip_addr_digit + 1
-                ip = ".".join(list(str(ip_addr_digit))*4)
-                def_gw= ".".join(list(str(dual_ip_digit))*4)
+                ip = '.'.join([str(ip_addr_digit) for _ in range(4)])
+                def_gw= '.'.join([str(dual_ip_digit) for _ in range(4)])
                 ip_addr_digit += 1
 
                 print("For interface %s, assuming loopback to it's dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
