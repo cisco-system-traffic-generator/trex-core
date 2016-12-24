@@ -1,0 +1,26 @@
+- duration : 0.1
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 0
+          udp_aging      : 0
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  #cap_ipg    : true
+  cap_info : 
+     - name: cap2/190_packet.pcap
+       cps : 90
+       ipg : 100
+       rtt : 100
+       w   : 1
+     - name: cap2/190_packet.pcap
+       cps : 10
+       ipg : 5000000
+       rtt : 5000000
+       w   : 1
+
