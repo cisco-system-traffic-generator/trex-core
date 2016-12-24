@@ -2403,6 +2403,8 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
 int CCoreEthIF::send_node(CGenNode * node) {
 
+#ifdef OPT_REPEAT_MBUF
+
     if ( unlikely( node->get_cache_mbuf() !=NULL ) ) {
         pkt_dir_t       dir;
         rte_mbuf_t *    m=node->get_cache_mbuf();
@@ -2413,7 +2415,7 @@ int CCoreEthIF::send_node(CGenNode * node) {
         send_pkt(lp_port,m,lp_stats);
         return (0);
     }
-
+#endif
 
     CFlowPktInfo *  lp=node->m_pkt_info;
     rte_mbuf_t *    m=lp->generate_new_mbuf(node);
@@ -2466,6 +2468,8 @@ int CCoreEthIF::send_node(CGenNode * node) {
         lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
         lp_stats->m_template.inc_template( node->get_template_id( ));
     }else{
+
+#ifdef OPT_REPEAT_MBUF
         // cache only if it is not sample as this is more complex mbuf struct
         if ( unlikely( node->can_cache_mbuf() ) ) {
             if ( !CGlobalInfo::m_options.preview.isMbufCacheDisabled() ){
@@ -2478,6 +2482,8 @@ int CCoreEthIF::send_node(CGenNode * node) {
                 }
             }
         }
+#endif
+
     }
 
     /*printf("send packet -- \n");
