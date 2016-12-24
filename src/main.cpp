@@ -289,12 +289,14 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
+            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
             return sf.run();
         }
 
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
+            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;
