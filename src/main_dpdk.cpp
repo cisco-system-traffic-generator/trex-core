@@ -6383,6 +6383,11 @@ static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
 void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
                                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx) {
+    // We want to allow the use of X710 in "VM mode", for performance testing.
+    // In this mode, we don't want any hardware rules. Everything done by software.
+    if ( get_vm_one_queue_enable())
+         return;
+
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
     static int filter_soft_id = 0;
 
