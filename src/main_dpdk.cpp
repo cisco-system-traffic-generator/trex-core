@@ -4766,13 +4766,14 @@ int CGlobalTRex::run_in_master() {
             slow_path_counter = 0;
         }
 
+        m_monitor.disable(30); //assume we will wake up
 
         cp_lock.unlock();
         delay(FASTPATH_DELAY_MS);
         slow_path_counter += FASTPATH_DELAY_MS;
         cp_lock.lock();
 
-        m_monitor.tickle();
+        m_monitor.enable();
     }
 
     /* on exit release the lock */
@@ -7465,6 +7466,21 @@ bool DpdkTRexPortAttr::is_loopback() const {
     uint8_t port_id;
     return g_trex.lookup_port_by_mac(m_layer_cfg.get_ether().get_dst(), port_id);
 }
+
+
+int
+DpdkTRexPortAttrMlnx5G::set_link_up(bool up) {
+    TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
+    if (cur_monitor != NULL) {
+        cur_monitor->disable(5); // should take ~2.5 seconds
+    }
+    int result = DpdkTRexPortAttr::set_link_up(up);
+    if (cur_monitor != NULL) {
+        cur_monitor->enable();
+    }
+    return result;
+}
+
 
 /**
  * marks the control plane for a total server shutdown

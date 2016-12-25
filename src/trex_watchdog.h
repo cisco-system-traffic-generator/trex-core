@@ -168,7 +168,14 @@ public:
     }
 
     void init(bool enable);
-   
+
+    /**
+     * get monitor of current thread if registered
+     * (NULL if not registered)
+     * 
+     */
+    TrexMonitor * get_current_monitor();
+
     /**
      * add a monitor to the watchdog 
      * from now on this monitor will be watched 

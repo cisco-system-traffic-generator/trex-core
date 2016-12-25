@@ -350,6 +350,13 @@ private:
 };
 
 
+class DpdkTRexPortAttrMlnx5G : public DpdkTRexPortAttr {
+public:
+    DpdkTRexPortAttrMlnx5G(uint8_t port_id, bool is_virtual, bool fc_change_allowed) : DpdkTRexPortAttr(port_id, is_virtual, fc_change_allowed) {}
+    virtual int set_link_up(bool up);
+};
+
+
 class SimTRexPortAttr : public TRexPortAttr {
 public:
     SimTRexPortAttr() : TRexPortAttr(0) {

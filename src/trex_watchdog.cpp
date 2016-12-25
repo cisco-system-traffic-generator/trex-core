@@ -149,6 +149,25 @@ void TrexWatchDog::init(bool enable){
 }
 
 /**
+ * get pointer to monitor of current thread
+ * (NULL if no monitor)
+ * 
+ */
+TrexMonitor * TrexWatchDog::get_current_monitor() {
+    TrexMonitor * cur_monitor = NULL;
+
+    for (int i = 0; i < m_mon_count; i++) {
+        if ( m_monitors[i]->get_tid() == pthread_self() ) {
+            cur_monitor = m_monitors[i];
+            break;
+        }
+    }
+
+    return cur_monitor;
+}
+
+
+/**
  * register a monitor 
  * this function is thread safe 
  * 
@@ -162,12 +181,11 @@ void TrexWatchDog::register_monitor(TrexMonitor *monitor) {
     std::unique_lock<std::mutex> lock(m_lock);
 
     /* sanity - not a must but why not... */
-    for (int i = 0; i < m_mon_count; i++) {
-        if ( (monitor == m_monitors[i]) || (m_monitors[i]->get_tid() == pthread_self()) ) {
-            std::stringstream ss;
-            ss << "WATCHDOG: double register detected\n\n" << Backtrace();
-            throw TrexException(ss.str());
-        }
+    TrexMonitor * cur_monitor = get_current_monitor();
+    if ( cur_monitor != NULL || cur_monitor == monitor ) {
+        std::stringstream ss;
+        ss << "WATCHDOG: double register detected\n\n" << Backtrace();
+        throw TrexException(ss.str());
     }
 
     /* check capacity */
