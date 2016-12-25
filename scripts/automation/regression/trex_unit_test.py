@@ -74,6 +74,10 @@ nose.suite.ContextSuite.__str__  = __suite_repr__
 
 # /nose overrides
 
+def fatal(txt):
+    print(txt)
+    sys.exit(1)
+
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
         return os.path.abspath(trex_path)
@@ -88,7 +92,7 @@ def get_trex_path():
     if not latest_build_path:
         latest_build_path = check_trex_path(os.path.join(os.pardir, os.pardir))
     if not latest_build_path:
-        raise Exception('Could not determine trex_under_test folder, try setting env.var. TREX_UNDER_TEST')
+        fatal('Could not determine trex_under_test folder, try setting env.var. TREX_UNDER_TEST')
     return latest_build_path
 
 
@@ -174,15 +178,17 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.no_daemon      = options.no_daemon
         CTRexScenario.test  = options.test
         if self.no_daemon and (self.pkg or self.restart_daemon):
-            raise Exception('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
+            fatal('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
+        if self.no_daemon and self.stateful :
+            fatal("Can't run stateful without daemon.")
         if self.collect_only or self.functional:
             return
         if CTRexScenario.setup_dir and options.config_path:
-            raise Exception('Please either define --cfg or use env. variable SETUP_DIR, not both.')
+            fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
             options.config_path = CTRexScenario.setup_dir
         if not options.config_path:
-            raise Exception('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
+            fatal('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
         options.config_path = options.config_path.rstrip('/')
         CTRexScenario.setup_name = os.path.basename(options.config_path)
         self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
@@ -209,10 +215,10 @@ class CTRexTestConfiguringPlugin(Plugin):
                                                   verbose     = self.json_verbose,
                                                   debug_image = options.debug_image,
                                                   trex_args   = options.trex_args)
+
         if self.pkg or self.restart_daemon:
             if not CTRexScenario.trex.check_master_connectivity():
-                print('Could not connect to master daemon')
-                sys.exit(-1)
+                fatal('Could not connect to master daemon')
         if options.ga and CTRexScenario.setup_name:
             CTRexScenario.GAManager  = GAmanager_Regression(GoogleID         = 'UA-75220362-3',
                                                             AnalyticsUserID  = CTRexScenario.setup_name,
@@ -228,12 +234,10 @@ class CTRexTestConfiguringPlugin(Plugin):
         client = CTRexScenario.trex
         if self.pkg and not CTRexScenario.pkg_updated:
             if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
-                print("Can't update TRex, it's running. Consider adding --kill-running flag.")
-                sys.exit(-1)
+                fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
             print('Updating TRex to %s' % self.pkg)
             if not client.master_daemon.update_trex(self.pkg):
-                print('Failed updating TRex.')
-                sys.exit(-1)
+                fatal('Failed to update TRex.')
             else:
                 print('Updated.')
             CTRexScenario.pkg_updated = True
@@ -243,16 +247,20 @@ class CTRexTestConfiguringPlugin(Plugin):
             print('Restarting TRex daemon server')
             res = client.restart_trex_daemon()
             if not res:
-                print('Could not restart TRex daemon server')
-                sys.exit(-1)
+                fatal('Could not restart TRex daemon server')
             print('Restarted.')
 
             if self.kill_running:
                 client.kill_all_trexes()
             else:
                 if client.get_trex_cmds():
-                    print('TRex is already running')
-                    sys.exit(-1)
+                    fatal('TRex is already running')
+        if not self.no_daemon:
+            try:
+                client.check_server_connectivity()
+            except Exception as e:
+                fatal(e)
+
 
         if 'loopback' not in self.modes:
             CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
