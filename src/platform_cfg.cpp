@@ -344,6 +344,11 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
 
     /* must have interfaces */
     const YAML::Node& interfaces = node["interfaces"];
+    if ( interfaces.size() > TREX_MAX_PORTS ) {
+        printf("ERROR: Maximal number of interfaces is: %d, and you have specified: %d.\n",
+                    TREX_MAX_PORTS, (int) interfaces.size());
+        exit(-1);
+    }
     for(unsigned i=0;i<interfaces.size();i++) {
         std::string  fi;
         const YAML::Node & node = interfaces;

@@ -28,6 +28,7 @@ limitations under the License.
 #include <vector>
 #include <string>
 #include "tw_cfg.h"
+#include "trex_defs.h"
 
 
 #define CONST_NB_MBUF_2_10G  (16380/2)

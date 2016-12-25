@@ -122,7 +122,7 @@ static inline int get_is_rx_thread_enabled() {
 
 struct port_cfg_t;
 
-#define MAX_DPDK_ARGS 40
+#define MAX_DPDK_ARGS 50
 static CPlatformYamlInfo global_platform_cfg_info;
 static int global_dpdk_args_num ;
 static char * global_dpdk_args[MAX_DPDK_ARGS];

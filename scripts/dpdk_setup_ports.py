@@ -391,7 +391,7 @@ Other network devices
         fcfg=self.m_cfg_file
 
         if not os.path.isfile(fcfg) :
-            self.raise_error ("There is no valid configuration file %s " % fcfg)
+            self.raise_error ("There is no valid configuration file %s\n" % fcfg)
 
         try:
           stream = open(fcfg, 'r')
@@ -403,22 +403,22 @@ Other network devices
         stream.close();
         cfg_dict = self.m_cfg_dict[0]
         if 'version' not in cfg_dict:
-            self.raise_error ("Configuration file %s is old, should include version field\n" % fcfg )
+            raise DpdkSetup("Configuration file %s is old, should include version field\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
-            self.raise_error ("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
+            raise DpdkSetup("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
 
         if 'interfaces' not in self.m_cfg_dict[0]:
-            self.raise_error ("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
+            raise DpdkSetup("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
         l=len(if_list);
-        if (l>20):
-            self.raise_error ("Configuration file %s should include interfaces field with maximum of number of elemets" % (fcfg,l))
-        if ((l % 2)==1):
-            self.raise_error ("Configuration file %s should include even number of interfaces " % (fcfg,l))
+        if l > 16:
+            raise DpdkSetup("Configuration file %s should include interfaces field with maximum 16 elements, got: %s." % (fcfg,l))
+        if l % 2:
+            raise DpdkSetup("Configuration file %s should include even number of interfaces " % (fcfg,l))
         if 'port_limit' in cfg_dict and cfg_dict['port_limit'] > len(if_list):
-            self.raise_error ('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
+            raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
 
     def do_bind_one (self,key,mellanox):
