@@ -22,6 +22,8 @@ limitations under the License.
 #include <common/gtest.h>
 #include <common/basic_utils.h>
 #include "h_timer.h"
+#include <common/utl_gcc_diag.h>
+
 
 
 class gt_r_timer  : public testing::Test {
@@ -150,9 +152,9 @@ void my_test_on_tick_cb(void *userdata,CHTimerObj *tmr){
 
 
     CHTimerWheel * lp=(CHTimerWheel *)userdata;
-    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+    UNSAFE_CONTAINER_OF_PUSH
     CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
-    #pragma GCC diagnostic pop
+    UNSAFE_CONTAINER_OF_POP
     printf(" [event %d ]",lpobj->m_id);
     lp->timer_start(tmr,2);
 }
@@ -182,9 +184,9 @@ void my_test_on_tick_cb7(void *userdata,CHTimerObj *tmr){
 
 
     CHTimerWheel * lp=(CHTimerWheel *)userdata;
-    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+    UNSAFE_CONTAINER_OF_PUSH
     CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
-    #pragma GCC diagnostic pop
+    UNSAFE_CONTAINER_OF_POP
     printf(" [event %d ]",lpobj->m_id);
     lp->timer_start(tmr,9);
 }
@@ -193,9 +195,9 @@ void my_test_on_tick_cb_free(void *userdata,CHTimerObj *tmr){
 
 
     //CHTimerWheel * lp=(CHTimerWheel *)userdata;
-    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+    UNSAFE_CONTAINER_OF_PUSH
     CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
-    #pragma GCC diagnostic pop
+    UNSAFE_CONTAINER_OF_POP
     printf(" [event %d ]",lpobj->m_id);
     delete lpobj;
 }
@@ -262,9 +264,9 @@ private:
 
 void my_test_on_tick_cb8(void *userdata,CHTimerObj *tmr){
     CHTimerWheelBase * lp=(CHTimerWheelBase *)userdata;
-    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+    UNSAFE_CONTAINER_OF_PUSH
     CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
-    #pragma GCC diagnostic pop
+    UNSAFE_CONTAINER_OF_POP
     lp->on_tick(lpobj);
 }
 

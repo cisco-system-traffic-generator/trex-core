@@ -26,6 +26,7 @@ limitations under the License.
 #include "msg_manager.h"
 #include "trex_watchdog.h"
 #include "utl_ipg_bucket.h"
+#include <common/utl_gcc_diag.h>
 
 #include <common/basic_utils.h>
 
@@ -3791,16 +3792,6 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
     }
 }
 
-#define GCC_DIAG_STR(s) #s
-#define GCC_DIAG_JOINSTR(x,y) GCC_DIAG_STR(x ## y)
-# define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
-# define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
-#define GCC_DIAG_OFF(x) GCC_DIAG_PRAGMA(push) \
-    GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W,x))
-#define GCC_DIAG_ON() GCC_DIAG_PRAGMA(pop)
-
-#define UNSAFE_CONTAINER_OF_PUSH GCC_DIAG_OFF(invalid-offsetof)
-#define UNSAFE_CONTAINER_OF_POP  GCC_DIAG_ON()
 
 
 static void tw_free_node(void *userdata,
