@@ -31,7 +31,7 @@ class RXServiceICMP(RXServiceAPI):
     # return a list of streams for request
     def generate_request (self):
 
-        base_pkt = Ether(dst = self.layer_cfg['ether']['dst'])/IP(src = self.layer_cfg['ipv4']['src'], dst = self.layer_cfg['ipv4']['dst'])/ICMP(type = 8)
+        base_pkt = Ether(dst = self.layer_cfg['ether']['dst'])/IP(src = self.layer_cfg['ipv4']['src'], dst = self.ping_ip)/ICMP(type = 8)
         pad = max(0, self.pkt_size - len(base_pkt))
 
         base_pkt = base_pkt / (pad * 'x')
