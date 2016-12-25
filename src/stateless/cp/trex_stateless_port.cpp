@@ -1012,12 +1012,10 @@ TrexStatelessPort::set_l2_mode(const uint8_t *dest_mac) {
     /* not valid under traffic */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l2_mode");
     
-    /* no IPv4 src */
-    getPortAttrObj()->set_src_ipv4(0);
-    
-    /* set destination as MAC */
-    getPortAttrObj()->get_dest().set_dest(dest_mac);
-    
+    /* configure port attributes for L2 */
+    getPortAttrObj()->set_l2_mode(dest_mac);
+
+    /* update RX core */
     TrexStatelessRxSetL2Mode *msg = new TrexStatelessRxSetL2Mode(m_port_id);
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
 }
@@ -1031,15 +1029,12 @@ TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
     /* not valid under traffic */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
     
-    /* set src IPv4 */
-    getPortAttrObj()->set_src_ipv4(src_ipv4);
-    
-    /* set dest IPv4 */
-    getPortAttrObj()->get_dest().set_dest(dest_ipv4);
-    
+    /* configure port attributes with L3 */
+    getPortAttrObj()->set_l3_mode(src_ipv4, dest_ipv4);
+
     /* send RX core the relevant info */
     CManyIPInfo ip_info;
-    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_layer_cfg().get_ether().get_src()));
     
     TrexStatelessRxSetL3Mode *msg = new TrexStatelessRxSetL3Mode(m_port_id, ip_info, false);
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
@@ -1054,15 +1049,12 @@ TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint
     
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
     
-    /* set src IPv4 */
-    getPortAttrObj()->set_src_ipv4(src_ipv4);
-    
-    /* set dest IPv4 + resolved MAC */
-    getPortAttrObj()->get_dest().set_dest(dest_ipv4, resolved_mac);
+    /* configure port attributes with L3 */
+    getPortAttrObj()->set_l3_mode(src_ipv4, dest_ipv4, resolved_mac);
     
     /* send RX core the relevant info */
     CManyIPInfo ip_info;
-    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_src_mac()));
+    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_layer_cfg().get_ether().get_src()));
     
     bool is_grat_arp_needed = !getPortAttrObj()->is_loopback();
     

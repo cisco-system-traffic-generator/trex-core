@@ -373,8 +373,13 @@ class TRexConsole(TRexGeneralCmd):
             print("No ports acquired\n")
             return
 
-        with self.stateless_client.logger.supress():
-            table = stl_map_ports(self.stateless_client, ports = ports)
+        
+        try:    
+            with self.stateless_client.logger.supress():
+                table = stl_map_ports(self.stateless_client, ports = ports)
+        except STLError as e:
+            print(format_text(e.brief() + "\n", 'bold'))
+            return
 
         
         print(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))

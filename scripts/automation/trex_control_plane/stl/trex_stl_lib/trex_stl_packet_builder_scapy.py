@@ -57,7 +57,7 @@ def mac_str_to_num (mac_buffer):
     return _buffer_to_num(mac_buffer)
 
 
-def is_valid_ipv4(ip_addr):
+def is_valid_ipv4_ret(ip_addr):
     """
     Return buffer in network order
     """
@@ -75,7 +75,7 @@ def is_valid_ipv4(ip_addr):
         raise CTRexPacketBuildException(-10,"Not valid ipv4 format");
 
 
-def is_valid_ipv6(ipv6_addr):
+def is_valid_ipv6_ret(ipv6_addr):
     """
     Return buffer in network order
     """
@@ -136,8 +136,8 @@ class CTRexScIpv4SimpleRange(CTRexScFieldRangeBase):
         super(CTRexScIpv4SimpleRange, self).__init__(field_name,field_type)
         self.min_ip = min_ip
         self.max_ip = max_ip
-        mmin=ipv4_str_to_num (is_valid_ipv4(min_ip))
-        mmax=ipv4_str_to_num (is_valid_ipv4(max_ip))
+        mmin=ipv4_str_to_num (is_valid_ipv4_ret(min_ip))
+        mmax=ipv4_str_to_num (is_valid_ipv4_ret(max_ip))
         if  mmin > mmax :
             raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
@@ -152,8 +152,8 @@ class CTRexScIpv4TupleGen(CTRexScriptsBase):
         super(CTRexScIpv4TupleGen, self).__init__()
         self.min_ip = min_ipv4
         self.max_ip = max_ipv4
-        mmin=ipv4_str_to_num (is_valid_ipv4(min_ipv4))
-        mmax=ipv4_str_to_num (is_valid_ipv4(max_ipv4))
+        mmin=ipv4_str_to_num (is_valid_ipv4_ret(min_ipv4))
+        mmax=ipv4_str_to_num (is_valid_ipv4_ret(max_ipv4))
         if  mmin > mmax :
             raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
@@ -619,7 +619,7 @@ def convert_val (val):
     if is_integer(val):
         return val
     if type(val) == str:
-        return ipv4_str_to_num (is_valid_ipv4(val))
+        return ipv4_str_to_num (is_valid_ipv4_ret(val))
     raise CTRexPacketBuildException(-11,("init val invalid %s ") % val  );
 
 def check_for_int (val):

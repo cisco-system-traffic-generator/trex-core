@@ -1762,7 +1762,7 @@ bool DpdkTRexPortAttr::update_link_status_nowait(){
 
         /* in case of link status change - notify the dest object */
         if (new_link.link_status != m_link.link_status) {
-            get_dest().on_link_down();
+            on_link_down();
         }
     }
 
@@ -3407,8 +3407,8 @@ void CGlobalTRex::pre_test() {
                     m_trex_stateless->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg, dst_mac);
                 }
 
-                /* L2 mode */
-            } else {
+            /* L2 mode */
+            } else if (CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.is_set) {
                 m_trex_stateless->get_port_by_id(port_id)->set_l2_mode(dst_mac);
             }
         }
@@ -4041,7 +4041,7 @@ void CGlobalTRex::dump_links_status(FILE *fd){
 
 bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     for (int i = 0; i < m_max_ports; i++) {
-        if (memcmp(m_ports[i].get_port_attr()->get_src_mac(), mac, 6) == 0) {
+        if (memcmp(m_ports[i].get_port_attr()->get_layer_cfg().get_ether().get_src(), mac, 6) == 0) {
             port_id = i;
             return true;
         }
@@ -5364,6 +5364,8 @@ int update_global_info_from_platform_file(){
         for (i=0; i<port_size; i++){
             cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
+            CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.is_set = 1;
+            
             CGlobalInfo::m_options.m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             CGlobalInfo::m_options.m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
@@ -7441,7 +7443,7 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 
 bool DpdkTRexPortAttr::is_loopback() const {
     uint8_t port_id;
-    return g_trex.lookup_port_by_mac(m_dest.get_dest_mac(), port_id);
+    return g_trex.lookup_port_by_mac(m_layer_cfg.get_ether().get_dst(), port_id);
 }
 
 /**

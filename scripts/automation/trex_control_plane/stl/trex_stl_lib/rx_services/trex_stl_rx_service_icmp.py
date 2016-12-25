@@ -23,9 +23,7 @@ class RXServiceICMP(RXServiceAPI):
         if not self.port.is_resolved():
             return self.port.err('ping - port has an unresolved destination, cannot determine next hop MAC address')
 
-        self.src = self.port.get_src_addr()
-        self.dst = self.port.get_dst_addr()
-
+        self.layer_cfg = dict(self.port.get_layer_cfg())
 
         return self.port.ok()
 
@@ -33,7 +31,7 @@ class RXServiceICMP(RXServiceAPI):
     # return a list of streams for request
     def generate_request (self):
 
-        base_pkt = Ether(dst = self.dst['mac'])/IP(src = self.src['ipv4'], dst = self.ping_ip)/ICMP(type = 8)
+        base_pkt = Ether(dst = self.layer_cfg['ether']['dst'])/IP(src = self.layer_cfg['ipv4']['src'], dst = self.layer_cfg['ipv4']['dst'])/ICMP(type = 8)
         pad = max(0, self.pkt_size - len(base_pkt))
 
         base_pkt = base_pkt / (pad * 'x')
@@ -51,7 +49,7 @@ class RXServiceICMP(RXServiceAPI):
             return None
 
         ip = scapy_pkt['IP']
-        if ip.dst != self.src['ipv4']:
+        if ip.dst != self.layer_cfg['ipv4']['src']:
             return None
 
         icmp = scapy_pkt['ICMP']

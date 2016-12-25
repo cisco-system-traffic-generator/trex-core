@@ -16,15 +16,16 @@ class RXServiceARP(RXServiceAPI):
         
     def pre_execute (self):
 
-        self.dst = self.port.get_dst_addr()
-        self.src = self.port.get_src_addr()
-
+        self.layer_cfg = dict(self.port.get_layer_cfg())
         return self.port.ok()
 
     # return a list of streams for request
     def generate_request (self):
 
-        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = self.src['ipv4'], pdst = self.dst['ipv4'], hwsrc = self.src['mac'])
+        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc = self.layer_cfg['ipv4']['src'],
+                                                      pdst = self.layer_cfg['ipv4']['dst'],
+                                                      hwsrc = self.layer_cfg['ether']['src'])
+        
         s1 = STLStream( packet = STLPktBuilder(pkt = base_pkt), mode = STLTXSingleBurst(total_pkts = 1) )
 
         return [s1]
@@ -41,13 +42,11 @@ class RXServiceARP(RXServiceAPI):
         arp = scapy_pkt['ARP']
 
         # check this is the right ARP (ARP reply with the address)
-        if (arp.op != 2) or (arp.psrc != self.dst['ipv4']):
+        if (arp.op != 2) or (arp.psrc != self.layer_cfg['ipv4']['dst']):
             return None
 
-
+        # return the data gathered from the ARP response
         return self.port.ok({'psrc' : arp.psrc, 'hwsrc': arp.hwsrc})
-        
-        #return self.port.ok('Port {0} - Recieved ARP reply from: {1}, hw: {2}'.format(self.port.port_id, arp.psrc, arp.hwsrc))
 
 
     def on_timeout_err (self, retries):

@@ -27,84 +27,168 @@ limitations under the License.
 #include <string.h>
 
 /**
- * destination port attribute
- * 
+ * holds L2 MAC configuration
  */
-class DestAttr {
-    
+class LayerConfigMAC {
 public:
-
-    DestAttr(uint8_t port_id);
     
     /**
-     * dest can be either MAC IPv4, or IPv4 unresolved
+     * IPv4 state of resolution
      */
-    enum dest_type_e {
-        DEST_TYPE_IPV4 = 1,
-        DEST_TYPE_IPV4_UNRESOLVED,
-        DEST_TYPE_MAC,
+    enum ether_state_e {
+        STATE_UNCONFIGRED,
+        STATE_CONFIGURED
     };
     
-    /**
-     * set dest as an IPv4 unresolved
-     */
-    void set_dest(uint32_t ipv4);
+    LayerConfigMAC(uint8_t port_id);
+    
+    void set_src(const uint8_t *src_mac) {
+        memcpy(m_src_mac, src_mac, 6);
+    }
+    
+    void set_dst(const uint8_t *dst_mac) {
+        memcpy(m_dst_mac, dst_mac, 6);
+    }
+    
+    const uint8_t *get_src() const {
+        return m_src_mac;
+    }
+    
+    const uint8_t *get_dst() const {
+        return m_dst_mac;
+    }
+    
+    void set_state(ether_state_e state) {
+        m_state = state;    
+    }
+    
+    ether_state_e get_state() const {
+        return m_state;
+    }
+    
+    Json::Value to_json() const;
+    
+private:
+    uint8_t         *m_src_mac;
+    uint8_t         *m_dst_mac;
+    ether_state_e    m_state;
+};
+
+/**
+ * holds L3 IPv4 configuration
+ */
+class LayerConfigIPv4 {
+    
+public:
     
     /**
-     * set dest as a resolved IPv4 
+     * IPv4 state of resolution
      */
-    void set_dest(uint32_t ipv4, const uint8_t *mac);
+    enum ipv4_state_e {
+        STATE_NONE,
+        STATE_UNRESOLVED,
+        STATE_RESOLVED
+    };
     
-    /**
-     * set dest as a plain MAC
-     */
-    void set_dest(const uint8_t *mac);
+    LayerConfigIPv4() {
+        m_state = STATE_NONE;
+    }
     
-   
-    /**
-     * return true if destination is resolved
-     */
-    bool is_resolved() const {
-        return (m_type != DEST_TYPE_IPV4_UNRESOLVED);
+    void set_src(uint32_t src_ipv4) {
+        m_src_ipv4 = src_ipv4;
+    }
+    
+    void set_dst(uint32_t dst_ipv4) {
+        m_dst_ipv4 = dst_ipv4;
+    }
+    
+    void set_state(ipv4_state_e state) {
+        m_state = state;
+    }
+    
+    uint32_t get_src() const {
+        return m_src_ipv4;
+    }
+    
+    uint32_t get_dst() const {
+        return m_dst_ipv4;
+    }
+    
+    ipv4_state_e get_state() const {
+        return m_state;
+    }
+    
+    Json::Value to_json() const;
+    
+private:
+    ipv4_state_e    m_state;
+    uint32_t        m_src_ipv4;
+    uint32_t        m_dst_ipv4;
+};
+
+/**
+ * holds all layer configuration
+ * 
+ * @author imarom (12/25/2016)
+ */
+class LayerConfig {
+public:
+    
+    LayerConfig(uint8_t port_id) : m_l2_config(port_id) {
+        m_port_id = port_id;
     }
     
     /**
-     * get the dest mac 
-     * if the dest is not resolved 
-     * it will return the default MAC 
-     */
-    const uint8_t *get_dest_mac() const {
-        return m_mac;
-    }
-    
-    /**
-     * when link gets down - this should be called
+     * configure port for L2 (no L3)
      * 
      */
-    void on_link_down() {
-        if (m_type == DEST_TYPE_IPV4) {
-            /* reset the IPv4 dest with no resolution */
-            set_dest(m_ipv4);
-        }
+    void set_l2_mode(const uint8_t *dst_mac);
+    
+    /**
+     * configure port IPv4 (unresolved)
+     * 
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4);
+    
+    /**
+     * configure port IPv4 (resolved)
+     * 
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4, const uint8_t *resolved_mac);
+    
+    /**
+     * event handler in case of a link down event
+     * 
+     * @author imarom (12/22/2016)
+     */
+    void on_link_down();
+    
+    const LayerConfigMAC& get_ether() const {
+        return m_l2_config;
     }
     
-    void to_json(Json::Value &output) const;
+    const LayerConfigIPv4& get_ipv4() const {
+        return m_l3_ipv4_config;
+    }
     
+    /**
+     * write state to JSON
+     * 
+     */
+    Json::Value to_json() const;
+        
 private:
-    uint32_t          m_ipv4;
-    uint8_t          *m_mac;
-    dest_type_e       m_type;
-    uint8_t           m_port_id;
     
-private:
-    uint8_t m_default_mac[6];
+    uint8_t          m_port_id;
+    LayerConfigMAC   m_l2_config;
+    LayerConfigIPv4  m_l3_ipv4_config;
 };
 
 
 class TRexPortAttr {
 public:
 
-    TRexPortAttr(uint8_t port_id) : m_dest(port_id) {
+    TRexPortAttr(uint8_t port_id) : m_layer_cfg(port_id) {
         m_src_ipv4 = 0;
     }
     
@@ -135,15 +219,8 @@ public:
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
     virtual bool is_loopback() const = 0;
     
-    uint32_t get_src_ipv4() const {return m_src_ipv4;}
-    DestAttr & get_dest() {return m_dest;}
-    
-    const uint8_t *get_src_mac() const;
     std::string get_rx_filter_mode() const;
 
-    /* for a raw packet, write the src/dst MACs */
-    void update_src_dst_mac(uint8_t *raw_pkt) const;
-    
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
     virtual int add_mac(char * mac) = 0;
@@ -152,8 +229,34 @@ public:
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
     
-    void set_src_ipv4(uint32_t addr);
+    /**
+     * configures port for L2 mode
+     * 
+     */
+    void set_l2_mode(const uint8_t *dest_mac) {
+        m_layer_cfg.set_l2_mode(dest_mac);
+    }
+
+    /**
+     * configures port in L3 mode
+     * unresolved
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4) {
+        m_layer_cfg.set_l3_mode(src_ipv4, dst_ipv4);
+    }
     
+    /**
+     * configure port for L3 mode 
+     * resolved
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4, const uint8_t *resolved_mac) {
+        m_layer_cfg.set_l3_mode(src_ipv4, dst_ipv4, resolved_mac);
+    }
+
+    const LayerConfig & get_layer_cfg() const {
+        return m_layer_cfg;
+    }
+
     /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;
 
@@ -164,12 +267,17 @@ public:
         return m_port_id;
     }
     
+    /**
+     * event handler for link down event
+     */
+    void on_link_down();
+    
 protected:
     
     uint8_t                   m_port_id;
     rte_eth_link              m_link;
     uint32_t                  m_src_ipv4;
-    DestAttr                  m_dest;
+    LayerConfig               m_layer_cfg;
     
     struct rte_eth_dev_info   dev_info;
     

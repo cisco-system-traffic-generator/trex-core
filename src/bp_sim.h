@@ -635,7 +635,8 @@ private:
 typedef  struct mac_align_t_ {
         uint8_t dest[6];
         uint8_t src[6];
-        uint8_t pad[4];
+        uint8_t is_set;
+        uint8_t pad[3];
 } mac_align_t  ;
 
 struct CMacAddrCfg {
@@ -643,6 +644,7 @@ public:
     CMacAddrCfg (){
         memset(u.m_data,0,sizeof(u.m_data));
         u.m_mac.dest[3]=1;
+        u.m_mac.is_set = 0;
     }
     union {
         mac_align_t m_mac;

@@ -539,14 +539,14 @@ class Port(object):
         
         
     @writeable
-    def set_l3_mode (self, src_addr, dest_addr, resolved_mac = None):
+    def set_l3_mode (self, src_addr, dst_addr, resolved_mac = None):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring L3 mode. Please enable service mode')
         
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
                   "src_addr":       src_addr,
-                  "dst_addr":       dest_addr}
+                  "dst_addr":       dst_addr}
 
         if resolved_mac:
             params["resolved_mac"] = resolved_mac
@@ -767,7 +767,10 @@ class Port(object):
         if not self.is_l3_mode():
             return self.err('port is not configured with L3')
         
-        return self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'])
+        layer_cfg = self.get_layer_cfg()
+        
+        # reconfigure server with unresolved IPv4 information
+        return self.set_l3_mode(layer_cfg['ipv4']['src'], layer_cfg['ipv4']['dst'])
         
         
         
@@ -869,29 +872,32 @@ class Port(object):
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
-        info['layer_mode'] = 'IPv4' if self.is_l3_mode() else 'Ethernet'
-
-        # src MAC and IPv4
-        info['src_mac']   = attr['src_mac']
-        info['src_ipv4']  = attr['src_ipv4']
+        # holds the information about all the layers configured for the port
+        layer_cfg = attr['layer_cfg']
         
-        if info['src_ipv4'] is None:
-            info['src_ipv4'] = '-'
+        info['src_mac'] = attr['layer_cfg']['ether']['src']
+        
+        # pretty show per mode
+        
+        if layer_cfg['ipv4']['state'] == 'none':
+            info['layer_mode'] = 'Ethernet'
+            info['src_ipv4']   = '-'
+            info['dest']       = layer_cfg['ether']['dst'] if layer_cfg['ether']['state'] == 'configured' else 'unconfigured'
+            info['arp']        = '-'
+            
+        elif layer_cfg['ipv4']['state'] == 'unresolved':
+            info['layer_mode'] = 'IPv4'
+            info['src_ipv4']   = layer_cfg['ipv4']['src']
+            info['dest']       = layer_cfg['ipv4']['dst']
+            info['arp']        = 'unresolved'
+            
+        elif layer_cfg['ipv4']['state'] == 'resolved':
+            info['layer_mode'] = 'IPv4'
+            info['src_ipv4']   = layer_cfg['ipv4']['src']
+            info['dest']       = layer_cfg['ipv4']['dst']
+            info['arp']        = layer_cfg['ether']['dst']
+            
 
-        # dest
-        dest = attr['dest']
-        if dest['type'] == 'mac':
-            info['dest']  = dest['mac']
-            info['arp']   = '-'
-            
-        elif dest['type'] == 'ipv4':
-            info['dest']  = dest['ipv4']
-            info['arp']   = dest['arp']
-            
-        elif dest['type'] == 'ipv4_u':
-            info['dest']  = dest['ipv4']
-            info['arp']   = 'unresolved'
-            
             
         # RX info
         rx_info = self.status['rx_info']
@@ -919,41 +925,24 @@ class Port(object):
     def get_port_state_name(self):
         return self.STATES_MAP.get(self.state, "Unknown")
 
-    def get_src_addr (self):
-        src_mac  = self.__attr['src_mac']
-        src_ipv4 = self.__attr['src_ipv4']
-            
-        return {'mac': src_mac, 'ipv4': src_ipv4}
+    def get_layer_cfg (self):
+        return self.__attr['layer_cfg']
         
     def get_rx_filter_mode (self):
         return self.__attr['rx_filter_mode']
         
-    def get_dst_addr (self):
-        dest = self.__attr['dest']
-        
-        if dest['type'] == 'mac':
-            return {'ipv4': None, 'mac': dest['mac']}
-            
-        elif dest['type'] == 'ipv4':
-            return {'ipv4': dest['ipv4'], 'mac': dest['arp']}
-            
-        elif dest['type'] == 'ipv4_u':
-            return {'ipv4': dest['ipv4'], 'mac': None}
-            
-        else:
-            assert(0)
-    
     def is_l3_mode (self):
-        return self.get_dst_addr()['ipv4'] is not None
+        return self.get_layer_cfg()['ipv4']['state'] != 'none'
         
-    # port is considered resolved if it's dest is either MAC or resolved IPv4
     def is_resolved (self):
-        return (self.get_dst_addr()['mac'] is not None)
+        # for L3
+        if self.is_l3_mode():
+            return self.get_layer_cfg()['ipv4']['state'] != 'unresolved'
+        # for L2
+        else:
+            return self.get_layer_cfg()['ether']['state'] != 'unconfigured'
+            
     
-    # return True if the port is valid for resolve (has an IPv4 address as dest)
-    def is_resolvable (self):
-        return (self.get_dst_addr()['ipv4'] is not None)
-        
     @writeable
     def arp_resolve (self, retries):
         
@@ -971,7 +960,7 @@ class Port(object):
             return rc
 
         # update the port with L3 full configuration
-        rc = self.set_l3_mode(self.get_src_addr()['ipv4'], self.get_dst_addr()['ipv4'], arp_rc['hwsrc'])
+        rc = self.set_l3_mode(self.get_layer_cfg()['ipv4']['src'], self.get_layer_cfg()['ipv4']['dst'], arp_rc['hwsrc'])
         if not rc:
             return rc
             
@@ -996,7 +985,7 @@ class Port(object):
                 "description":      info.get('description', 'N/A')[:18],
                 "src MAC":          info['src_mac'],
                 "src IPv4":         info['src_ipv4'],
-                "Destination":      info['dest'],
+                "Destination":      format_text("{0}".format(info['dest']), 'bold', 'red' if info['dest'] == 'unconfigured' else None),
                 "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red' if info['arp'] == 'unresolved' else None),
                 "PCI Address":      info['pci_addr'],
                 "NUMA Node":        info['numa'],

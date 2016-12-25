@@ -1089,10 +1089,10 @@ def generate_packet(**user_kwargs):
                 fix_ipv4_checksum = True
                 ip_src_addr = kwargs['ip_src_addr']
                 if type(ip_src_addr) is str:
-                    ip_src_addr = ipv4_str_to_num(is_valid_ipv4(ip_src_addr))
+                    ip_src_addr = ipv4_str_to_num(is_valid_ipv4_ret(ip_src_addr))
                 step = kwargs['ip_src_step']
                 if type(step) is str:
-                    step = ipv4_str_to_num(is_valid_ipv4(step))
+                    step = ipv4_str_to_num(is_valid_ipv4_ret(step))
 
                 if step < 1:
                     raise STLError('ip_src_step has to be at least 1')
@@ -1129,11 +1129,11 @@ def generate_packet(**user_kwargs):
                 fix_ipv4_checksum = True
                 ip_dst_addr = kwargs['ip_dst_addr']
                 if type(ip_dst_addr) is str:
-                    ip_dst_addr = ipv4_str_to_num(is_valid_ipv4(ip_dst_addr))
+                    ip_dst_addr = ipv4_str_to_num(is_valid_ipv4_ret(ip_dst_addr))
                 step = kwargs['ip_dst_step']
 
                 if type(step) is str:
-                    step = ipv4_str_to_num(is_valid_ipv4(step))
+                    step = ipv4_str_to_num(is_valid_ipv4_ret(step))
 
                 if step < 1:
                     raise STLError('ip_dst_step has to be at least 1')
@@ -1188,11 +1188,11 @@ def generate_packet(**user_kwargs):
             if count < 0:
                 raise STLError('ipv6_src_count has to be at least 1')
             if count > 0 or kwargs['ipv6_src_mode'] == 'random':
-                ipv6_src_addr_num = ipv4_str_to_num(is_valid_ipv6(kwargs['ipv6_src_addr'])[-4:])
+                ipv6_src_addr_num = ipv4_str_to_num(is_valid_ipv6_ret(kwargs['ipv6_src_addr'])[-4:])
                 step = kwargs['ipv6_src_step']
 
                 if type(step) is str: # convert ipv6 step to number
-                    step = ipv4_str_to_num(is_valid_ipv6(step)[-4:])
+                    step = ipv4_str_to_num(is_valid_ipv6_ret(step)[-4:])
 
                 if step < 1:
                     raise STLError('ipv6_src_step has to be at least 1')
@@ -1226,11 +1226,11 @@ def generate_packet(**user_kwargs):
             if count < 0:
                 raise STLError('ipv6_dst_count has to be at least 1')
             if count > 0 or kwargs['ipv6_dst_mode'] == 'random':
-                ipv6_dst_addr_num = ipv4_str_to_num(is_valid_ipv6(kwargs['ipv6_dst_addr'])[-4:])
+                ipv6_dst_addr_num = ipv4_str_to_num(is_valid_ipv6_ret(kwargs['ipv6_dst_addr'])[-4:])
                 step = kwargs['ipv6_dst_step']
 
                 if type(step) is str: # convert ipv6 step to number
-                    step = ipv4_str_to_num(is_valid_ipv6(step)[-4:])
+                    step = ipv4_str_to_num(is_valid_ipv6_ret(step)[-4:])
 
                 if step < 1:
                     raise STLError('ipv6_dst_step has to be at least 1')

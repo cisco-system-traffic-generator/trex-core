@@ -1,5 +1,6 @@
 from .trex_stl_streams import *
 from .trex_stl_packet_builder_scapy import *
+from .utils.common import *
 
 # map ports
 # will destroy all streams/data on the ports
@@ -8,6 +9,10 @@ def stl_map_ports (client, ports = None):
     if ports is None:
         ports = client.get_all_ports()
 
+    unresolved_ports = list_difference(ports, client.get_resolved_ports())
+    if unresolved_ports:
+        raise STLError("Port(s) {0} have unresolved destination addresses".format(unresolved_ports))
+            
     stl_send_3_pkts(client, ports)
 
     tx_pkts = {}
