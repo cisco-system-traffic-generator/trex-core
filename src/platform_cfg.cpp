@@ -404,6 +404,11 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_platform.m_is_exists=true;
     }
 
+    if ( node.FindValue("tw") ){
+        node["tw"] >> plat_info.m_tw;
+    }
+
+
     if ( node.FindValue("port_info")  ) {
         const YAML::Node& mac_info = node["port_info"];
         for(unsigned i=0;i<mac_info.size();i++) {
@@ -510,4 +515,5 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }
     m_memory.Dump(fd);
     m_platform.Dump(fd);
+    m_tw.Dump(fd);
 }

@@ -1307,6 +1307,12 @@ Cpu Utilization : 0.1 %                                                         
 <7> Enable vlan feature. See xref:trex_vlan[trex_vlan section] for info.
 <8> Enable MAC address replacement by client IP.
 
+
+==== Timer Wheel section configuration  
+
+(from v2.13)
+see xref:timer_w[Timer Wheel section] 
+
 ==== Per template section 
 // clarify "per template"  
 
@@ -1526,6 +1532,31 @@ We added configuration to the /etc/trex_cfg.yaml:
                threads  : [9, 10, 11, 12, 13, 14, 15]
 
 This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
+
+
+==== Timer Wheeel  section configuration  
+
+anchor:timer_w[]
+
+The memory section is optional. It is used when there is a need to tune the amount of memory used by TRex packet manager.
+Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can
+eliminate this section.
+
+==== Timer Wheel section configuration  
+The flow scheduler uses timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values.
+This is an advance configuration, don't use it if you don't know what you are doing. it can be configure in trex_cfg file and trex traffic profile.
+
+[source,python]
+----
+  tw :                             
+     buckets : 1024                <1>
+     levels  : 3                   <2>
+     bucket_time_usec : 20.0       <3>
+----
+<1> the number of buckets in each level, higher number will improve performance, but will reduce the maximum levels.
+<2> how many levels.  
+<3> bucket time in usec. higher number will create more bursts  
+
 
 === Command line options 
 
@@ -2532,10 +2563,10 @@ image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
 
 *Comments*::
  
-1. For Stateless 64B profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
+1. MLX5 can reach ~50MPPS while XL710 is limited to 35MPPS. (With potential future fix it will be ~65MPPS)
 2. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
-3. In average stateful senario, ConnectX-4 is slightly better.
-4. MLX5 can reach ~90MPPS while XL710 is limited to 35MPPS. 
+3. In the average stateful scenario, ConnectX-4 is the same as XL710.
+4. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
 
 
 [NOTE]

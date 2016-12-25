@@ -62,6 +62,7 @@ limitations under the License.
 #include "trex_watchdog.h"
 #include "trex_client_config.h"
 #include "h_timer.h"
+#include "tw_cfg.h"
 
 
 #include <trex_stateless_dp_core.h>
@@ -723,10 +724,16 @@ public:
         m_l_pkt_mode = 0;
         m_rx_thread_enabled = false;
         m_arp_ref_per = 120; // in seconds
+        m_tw_buckets = 1024;
+        m_tw_levels  = 3;
+        m_tw_bucket_time_sec = (20.0/1000000.0);
+
     }
 
 
     CPreviewMode    preview;
+    uint16_t        m_tw_buckets;
+    uint16_t        m_tw_levels;
     float           m_factor;
     float           m_mbuf_factor;
     float           m_duration;
@@ -765,6 +772,8 @@ public:
 
 
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
+    double          m_tw_bucket_time_sec;
+    
 
     uint8_t *       get_src_mac_addr(int if_index){
         return (m_mac_addr[if_index].u.m_mac.src);
@@ -803,6 +812,32 @@ public:
     void set_rx_enabled() {
         m_rx_thread_enabled = true;
     }
+
+    inline double get_tw_bucket_time_in_sec(void){
+        return (m_tw_bucket_time_sec);
+    }
+
+    void set_tw_bucket_time_in_usec(double usec){
+        m_tw_bucket_time_sec=(usec/1000000.0);
+    }
+
+    void     set_tw_buckets(uint16_t buckets){
+        m_tw_buckets=buckets;
+    }
+
+    inline uint16_t get_tw_buckets(void){
+        return (m_tw_buckets);
+    }
+
+    void     set_tw_levels(uint16_t levels){
+        m_tw_levels=levels;
+    }
+
+    inline uint16_t get_tw_levels(void){
+        return (m_tw_levels);
+    }
+
+
 
     inline void set_rxcheck_const_ts(){
         m_run_flags |= RUN_FLAGS_RXCHECK_CONST_TS;
@@ -3584,6 +3619,9 @@ public:
     std::vector     <CFlowYamlInfo> m_vec;
 
     bool            m_is_plugin_configured; /* any plugin  is configured */
+
+    CTimerWheelYamlInfo         m_tw;
+
 public:
     void Dump(FILE *fd);
     int load_from_yaml_file(std::string file_name);
@@ -3755,11 +3793,10 @@ private:
     bool           server_seq_init;  /* TCP seq been init for server? */
 };
 
-#define BUCKET_TIME_USEC (20)
-#define TW_BUCKETS       (1024)
-#define BUCKET_TIME_SEC ((double)BUCKET_TIME_USEC/1000000.0)
+#define TW_BUCKETS       (CGlobalInfo::m_options.get_tw_buckets())
+#define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
+#define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
 
-#define TW_BUCKETS_MAX_TIME       (BUCKET_TIME_USEC *TW_BUCKETS)
 
 
 /////////////////////////////////////////////////////////////////////////////////

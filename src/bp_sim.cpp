@@ -2862,6 +2862,11 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
            flows_info.m_tuple_gen.get_server_pool_id(fi.m_server_pool_name);
        flows_info.m_vec.push_back(fi);
    }
+
+   if ( node.FindValue("tw") ){
+       node["tw"] >> flows_info.m_tw;
+   }
+
 }
 
 void CVlanYamlInfo::Dump(FILE *fd){
@@ -2931,6 +2936,7 @@ void CFlowsYamlInfo::Dump(FILE *fd){
     for (i=0; i<(int)m_vec.size(); i++) {
         m_vec[i].Dump(fd);
     }
+    m_tw.Dump(fd);
 }
 
 
@@ -3015,6 +3021,7 @@ bool CFlowsYamlInfo::verify_correctness(uint32_t num_threads) {
 
 int CFlowsYamlInfo::load_from_yaml_file(std::string file_name){
     m_vec.clear();
+    m_tw.reset();
 
     if ( !utl_is_file_exists (file_name)  ){
         printf(" ERROR file %s does not exist \n",file_name.c_str());
@@ -3063,6 +3070,21 @@ int CFlowsYamlInfo::load_from_yaml_file(std::string file_name){
       if ( m_vec[i].m_plugin_id ){
           m_is_plugin_configured=true;
       }
+    }
+
+    if ( m_tw.m_info_exist ){
+
+        CTimerWheelYamlInfo *lp=&m_tw;
+        std::string  err;
+        if (!lp->Verify(err)){
+            std::cout << err << "\n";
+            exit(-1);
+        }
+
+        CParserOption* po = &CGlobalInfo::m_options;
+        po->set_tw_bucket_time_in_usec(lp->m_bucket_time_usec);
+        po->set_tw_buckets(lp->m_buckets);
+        po->set_tw_levels(lp->m_levels);
     }
    return 0;
 }
@@ -3476,9 +3498,10 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  0 ,
                                                  socket_id);
 
-     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,3); 
+     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_LEVELS); 
      if (tw_res != RC_HTW_OK){
          CHTimerWheelErrorStr err(tw_res);
+         printf("Timer wheel configuration error,please look into the manual for details  \n");
          printf("ERROR  %-30s  - %s \n",err.get_str(),err.get_help_str());
          exit(1);  
      }
@@ -5194,7 +5217,12 @@ void CParserOption::dump(FILE *fd){
     fprintf(fd," latency         : %d pkt/sec \n",m_latency_rate);
     fprintf(fd," zmq_port        : %d \n",m_zmq_port);
     fprintf(fd," telnet_port     : %d \n",m_telnet_port);
-    fprintf(fd," expected_ports  : %d \n",m_expected_portd);
+    fprintf(fd," expected_ports  : %d \n",m_expected_portd);   
+    fprintf(fd," tw_bucket_usec  : %f usec \n",get_tw_bucket_time_in_sec()*1000000.0);   
+    fprintf(fd," tw_buckets      : %lu usec \n",(ulong)get_tw_buckets());   
+    fprintf(fd," tw_levels       : %lu usec \n",(ulong)get_tw_levels());   
+
+
     if (preview.get_vlan_mode_enable() ) {
        fprintf(fd," vlans     : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
     }

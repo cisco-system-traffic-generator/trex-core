@@ -1171,10 +1171,21 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             parse_err("Single core is not supported with interactive (stateless) mode ");
         }
 
-    }
-    else {
+    } else {
         if ( !po->m_duration ) {
             po->m_duration = 3600.0;
+        }
+        if ( global_platform_cfg_info.m_tw.m_info_exist ){
+
+            CTimerWheelYamlInfo *lp=&global_platform_cfg_info.m_tw;
+            std::string  err;
+            if (!lp->Verify(err)){
+                parse_err(err);
+            }
+
+            po->set_tw_bucket_time_in_usec(lp->m_bucket_time_usec);
+            po->set_tw_buckets(lp->m_buckets);
+            po->set_tw_levels(lp->m_levels);
         }
     }
     return 0;
@@ -3815,6 +3826,10 @@ bool CGlobalTRex::Create(){
     m_stats_cnt =0;
     if (!get_is_stateless()) {
         pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+        if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+            CGlobalInfo::m_options.dump(stdout);
+            CGlobalInfo::m_memory_cfg.Dump(stdout);
+        }
     }
 
     if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
