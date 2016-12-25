@@ -26,7 +26,6 @@ limitations under the License.
 #include <assert.h>
 #include <rte_prefetch.h>
 #include "pal_utl.h"
-#include "mbuf.h"
 
 
 
