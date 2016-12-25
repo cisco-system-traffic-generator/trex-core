@@ -29,20 +29,20 @@ test_jumbo:
 
 test_routing_imix:
     multiplier          : 10
-    cores               : 1
+    cores               : 2
     bw_per_core         : 34.128
 
 
 test_routing_imix_64:
     multiplier          : 430
-    cores               : 1
+    cores               : 2
     bw_per_core         : 5.893
 
 
 test_static_routing_imix: &test_static_routing_imix
     stat_route_dict     : *stat_route_dict
     multiplier          : 8
-    cores               : 1
+    cores               : 2
     bw_per_core         : 34.339
 
 test_static_routing_imix_asymmetric: *test_static_routing_imix
