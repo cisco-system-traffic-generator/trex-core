@@ -16,10 +16,10 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         if CTRexScenario.stl_init_error:
             self.skip(CTRexScenario.stl_init_error)
 
-    def connect(self, timeout = 100):
+    def connect(self, tries = 10):
         # need delay and check only because TRex process might be still starting
         sys.stdout.write('Connecting')
-        for i in range(timeout):
+        for i in range(tries):
             try:
                 sys.stdout.write('.')
                 sys.stdout.flush()
@@ -27,20 +27,24 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 print('')
                 return True
             except:
-                time.sleep(0.1)
+                time.sleep(0.5)
         print('')
         return False
 
-    def map_ports(self, timeout = 100):
+    def map_ports(self, tries = 10):
         sys.stdout.write('Mapping ports')
-        for i in range(timeout):
+        for i in range(tries):
             sys.stdout.write('.')
             sys.stdout.flush()
-            CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-            if self.verify_bidirectional(CTRexScenario.stl_ports_map):
-                print('')
-                return True
-            time.sleep(0.1)
+            try:
+                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
+                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                    print('')
+                    return True
+            except Exception as e:
+                print('\nException during mapping: %s' % e)
+                return False
+            time.sleep(0.5)
         print('')
         return False
 
