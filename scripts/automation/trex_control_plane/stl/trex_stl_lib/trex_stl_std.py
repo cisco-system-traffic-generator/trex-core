@@ -9,6 +9,8 @@ def stl_map_ports (client, ports = None):
     if ports is None:
         ports = client.get_all_ports()
 
+    client.reset(ports)
+    
     unresolved_ports = list_difference(ports, client.get_resolved_ports())
     if unresolved_ports:
         raise STLError("Port(s) {0} have unresolved destination addresses".format(unresolved_ports))
