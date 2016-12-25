@@ -27,39 +27,41 @@ Realistic and Stateful traffic generators are needed in order to:
 
 TRex addresses these problems through an innovative and extendable software implementation and by leveraging standard and open SW and x86/UCS HW.
 
-=== TRex in a Nutshell
+=== TRex Stateful in a Nutshell
 
-* Cisco Pioneer Award Winner 2015
 * Fueled by DPDK 
 * Generates and analyzes L4-7 traffic and able to provide in one tool capabilities provided by commercial L7 tools.
 * Stateful traffic generator based on pre-processing and smart replay of real traffic templates.
 * Generates and *amplifies* both client and server side traffic.
 * Customized functionality can be added.
-* Scale to 200Gb/sec for one UCS ( using Intel 40Gb/sec NICS)
+* Scale to 200Gb/sec for one UCS 
 * Low cost
 * Virtual interfaces support, enable TRex to be used in a fully virtual environment without physical NICs and the following example use cases:
 ** Amazon AWS
 ** TRex on your laptop
 ** Self-contained packaging 
+* Cisco Pioneer Award Winner 2015
+
+=== Current General TRex Feature sets 
+
+* Support DPDK 1/2.5/10/25/50/40/100Gbps interfaces 
+* Virtualization interfaces support (virtio/VMXNET3/E1000)
 
 === Current Stateful TRex Feature sets 
 
-* Support Intel DPDK 1/10/40Gbps interfaces 
 * High scale of realistic traffic (number of clients, number of server, bandwidth)-up to 200Gb/sec in one UCS
-* Virtualization interfaces support (VMXNET3/E1000 )
-* Some stateless support for example IMIX traffic generation 
 * Latency/Jitter measurements
 * Flow ordering checks
 * NAT, PAT dynamic translation learning
+* Learn TCP SYN sequence randomization - vASA use case
+* Cluster mode for Controler tests
 * IPV6 inline replacement 
 * Some cross flow support (e.g RTSP/SIP)
 * Python automation API 
-* Windows GUI for real-time latency/jitter/flow order  
 
 === *New* TRex Stateless feature sets 
 
-* Large scale - Supports about 10-22 million packets per second (mpps) per core, scalable with the number of cores 
-* Support for 1, 10, 25, 40 interfaces
+* Large scale - Supports about 10-30 million packets per second (mpps) per core, scalable with the number of cores 
 * Profile can support multiple streams, scalable to 10K parallel streams 
 * Supported for each stream:
 ** Packet template - ability to build any packet (including malformed) using link:https://en.wikipedia.org/wiki/Scapy[Scapy] (example: MPLS/IPv4/Ipv6/GRE/VXLAN/NSH) 
@@ -159,9 +161,8 @@ Or via Cisco Devnet portal link:http://communities.cisco.com/community/developer
 
 === Roadmap 
 
-* L2 emulation plugin support IPV6-ND/ARP/DHCP 
 * High speed TCP stack support 
-
+* Intel FM10K support 
 
 
 
