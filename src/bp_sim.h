@@ -727,6 +727,7 @@ public:
         m_tw_buckets = 1024;
         m_tw_levels  = 3;
         m_tw_bucket_time_sec = (20.0/1000000.0);
+        m_active_flows=0;
 
     }
 
@@ -734,6 +735,7 @@ public:
     CPreviewMode    preview;
     uint16_t        m_tw_buckets;
     uint16_t        m_tw_levels;
+    uint32_t        m_active_flows;
     float           m_factor;
     float           m_mbuf_factor;
     float           m_duration;
@@ -3561,6 +3563,7 @@ public:
 
 public:
     void update_min_ipg(dsec_t min_ipg, dsec_t override_ipg);
+    void update_ipg_by_factor(double factor,CFlowYamlInfo *  flow_info);
     void update_pcap_mode();
     void Dump(FILE *fd);
 
@@ -3712,6 +3715,8 @@ public:
 
     void Dump(FILE *fd);
     void getFlowStats(CFlowStats * stats);
+    void updateIpg(double factor);
+
 public:
     CCapFileFlowInfo m_flow_info;
     CFlowYamlInfo *  m_info;
@@ -4100,6 +4105,8 @@ public:
     double GetCpuUtilRaw();
 
 public:
+    /* update ipg in a way for */ 
+    int update_active_flows(uint32_t active_flows);
     double get_total_kcps();
     double get_total_pps();
     double get_total_tx_bps();

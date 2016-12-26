@@ -693,6 +693,7 @@ enum { OPT_HELP,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
+       OPT_ACTIVE_FLOW
 };
 
 /* these are the argument types:
@@ -748,9 +749,11 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
+        { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
+        
         SO_END_OF_OPTIONS
     };
 
@@ -818,6 +821,11 @@ static int usage(){
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" --vm-sim                   : Simulate vm with driver of one input queue and one output queue \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+
+    printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
+    printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
+    printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
+
     printf("\n");
     printf(" Examples: ");
     printf(" basic trex run for 20 sec and multiplier of 10 \n");
@@ -876,6 +884,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
     uint32_t tmp_data;
+    float tmp_double;
 
     po->m_run_mode = CParserOption::RUN_MODE_INVALID;
 
@@ -1036,6 +1045,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_PCAP:
                 po->preview.set_pcap_mode_enable(true);
+                break;
+            case OPT_ACTIVE_FLOW:
+                sscanf(args.OptionArg(),"%f", &tmp_double);
+                po->m_active_flows=(uint32_t)tmp_double;
                 break;
             case OPT_RX_CHECK :
                 sscanf(args.OptionArg(),"%d", &tmp_data);
@@ -4943,6 +4956,10 @@ int CGlobalTRex::start_master_statefull() {
 
     m_fl.Create();
     m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
+
+    if ( CGlobalInfo::m_options.m_active_flows>0 ) {
+        m_fl.update_active_flows(CGlobalInfo::m_options.m_active_flows);
+    }
 
     /* client config */
     if (CGlobalInfo::m_options.client_cfg_file != "") {

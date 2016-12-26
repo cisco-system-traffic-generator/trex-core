@@ -2502,6 +2502,33 @@ double CCapFileFlowInfo::get_cap_file_length_sec(){
 }
 
 
+
+void CCapFileFlowInfo::update_ipg_by_factor(double factor,
+                                            CFlowYamlInfo *  flow_info){
+    int i;
+
+    CCalcIpgDiff dtick_util(BUCKET_TIME_SEC);
+
+    for (i=0; i<(int)Size(); i++) {
+        CFlowPktInfo * lp=GetPacket((uint32_t)i);
+
+        /* update dtick from ipg */
+        double  dtime=0;
+
+        if ( likely ( lp->m_pkt_indication.m_desc.IsPcapTiming()) ){
+            dtime     = lp->m_pkt_indication.m_cap_ipg ;
+        }else{
+            if ( lp->m_pkt_indication.m_desc.IsRtt() ){
+                dtime     = flow_info->m_rtt_sec ;
+            }else{
+                dtime     = flow_info->m_ipg_sec;
+            }
+        }
+        lp->m_pkt_indication.m_cap_ipg = dtime*factor;
+        lp->m_pkt_indication.m_ticks = dtick_util.do_calc(dtime*factor);
+    }
+}
+
 void CCapFileFlowInfo::update_min_ipg(dsec_t min_ipg,
                                       dsec_t override_ipg){
 
@@ -3252,6 +3279,12 @@ void CFlowGeneratorRec::Dump(FILE *fd){
 }
 
 
+void CFlowGeneratorRec::updateIpg(double factor){
+    m_flow_info.update_ipg_by_factor(factor,m_info);
+}
+
+
+
 void CFlowGeneratorRec::getFlowStats(CFlowStats * stats){
 
     double t_pkt=(double)m_flow_info.Size();
@@ -3260,13 +3293,9 @@ void CFlowGeneratorRec::getFlowStats(CFlowStats * stats){
     double mb_sec   = (cps*t_bytes*8.0)/(_1Mb_DOUBLE);
     double mB_sec   = (cps*t_bytes)/(_1Mb_DOUBLE);
 
-    double c_flow_windows_sec=0.0;
+    double c_flow_windows_sec;
 
-    if (m_info->m_cap_mode) {
-        c_flow_windows_sec  = m_flow_info.get_cap_file_length_sec();
-    }else{
-        c_flow_windows_sec  = t_pkt * m_info->m_ipg_sec;
-    }
+    c_flow_windows_sec  = m_flow_info.get_cap_file_length_sec();
 
     m_flow_info.get_total_memory(stats->m_memory);
 
@@ -4886,6 +4915,36 @@ void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) 
 
 void CFlowGenList::dump_client_config(FILE *fd) {
     m_client_config_info.dump(fd);
+}
+
+int CFlowGenList::update_active_flows(uint32_t active_flows){
+    double d_active_flow=(double)active_flows;
+    CFlowStats stats;
+    CFlowStats sum;
+    int i;
+
+    for (i=0; i<(int)m_cap_gen.size(); i++) {
+        CFlowGeneratorRec * lp=m_cap_gen[i];
+        lp->getFlowStats(&stats);
+        sum.Add(stats);
+    }
+
+    if (sum.m_c_flows <10) {
+        /* nothing to do */
+        return (0);
+    }
+    double ipg_factor = d_active_flow/sum.m_c_flows;
+
+    /* calc it again */
+    sum.Clear();
+    for (i=0; i<(int)m_cap_gen.size(); i++) {
+        CFlowGeneratorRec * lp=m_cap_gen[i];
+        lp->updateIpg(ipg_factor);
+        lp->getFlowStats(&stats);
+        sum.Add(stats);
+    }
+
+    return(0);
 }
 
 int CFlowGenList::load_from_yaml(std::string file_name,
