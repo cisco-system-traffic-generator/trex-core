@@ -26,6 +26,7 @@ limitations under the License.
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <assert.h>
 
 #include "mbuf.h"
 #include "os_time.h"
@@ -59,8 +60,7 @@ public:
      * 
      */
     void disable(dsec_t time_sec = 1e9) {
-        /* double writes are atomic on x86_64 (aligned to 8 bytes) */
-        m_active_time_sec = now_sec() + time_sec;
+        set_timeout(time_sec);
     }
 
     /**
@@ -68,11 +68,32 @@ public:
      * 
      */
     void enable() {
-        /* before enabling - must tickle o.w the watchdog might crash this thread */
-        tickle();
-        /* memory fence - make sure the main thread sees this by order */
-        asm volatile("mfence" ::: "memory");
-        m_active_time_sec = now_sec();
+        set_timeout(m_base_timeout_sec);
+    }
+    
+    /**
+     * not thread safe 
+     * call from current thread only 
+     */
+    void io_begin() {
+        /**
+         * holds a ref cnt 
+         * a thread might start many IO operations 
+         */
+        m_io_ref_cnt++;
+        set_timeout(IO_TIMEOUT_SEC);
+    }
+    
+     /**
+     * not thread safe 
+     * call from current thread only 
+     */
+    void io_end() {
+        assert(m_io_ref_cnt > 0);
+        m_io_ref_cnt--;
+        if (m_io_ref_cnt == 0) {
+            set_timeout(m_base_timeout_sec);
+        }
     }
     
     /**
@@ -119,11 +140,6 @@ private:
         return m_tid;
     }
 
-   
-    volatile bool is_active(dsec_t now) const {
-        return ( (now - m_active_time_sec) > 0 );
-    }
-
     volatile bool is_tickled() const {
         return m_tickled;
     }
@@ -132,16 +148,26 @@ private:
         return ( get_interval(now) > m_timeout_sec );
     }
 
+    void set_timeout(double timeout_sec) {
+        /* before changing timeout we MUST tickle and memory fence o.w the main thread might crash */
+        tickle();
+        asm volatile("mfence" ::: "memory");
+        m_timeout_sec = timeout_sec;
+    }
+
 
     /* write fields are first */
-    volatile dsec_t  m_active_time_sec;
     volatile bool    m_tickled;
     int              m_handle;
     dsec_t           m_ts;
     double           m_timeout_sec;
+    double           m_base_timeout_sec;
     pthread_t        m_tid;
     std::string      m_name;
 
+    uint32_t         m_io_ref_cnt;
+    
+    static const int IO_TIMEOUT_SEC = 30;
 
 } __rte_cache_aligned;
 
