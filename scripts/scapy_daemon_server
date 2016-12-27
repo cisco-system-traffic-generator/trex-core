@@ -11,9 +11,6 @@ def fail(msg):
     print(msg)
     sys.exit(-1)
 
-if os.getuid() != 0:
-    fail('Please run this program as root/with sudo')
-
 pwd = os.path.abspath(os.path.dirname(__file__))
 ext_libs_path = os.path.join(pwd, 'external_libs')
 if ext_libs_path not in sys.path:
