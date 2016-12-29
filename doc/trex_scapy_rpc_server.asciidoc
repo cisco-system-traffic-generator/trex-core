@@ -16,9 +16,9 @@ include::trex_ga.asciidoc[]
 [options="header",cols="^1,^h,3a"]
 |=================
 | Version |  name   |  meaning
-| 1.00    |  Itamar Raviv (itraviv) |
-- first version
-| 2.00    |  Anton (XORED) | update by xored software
+| 1.00    |  Itamar Raviv (itraviv)   | first version
+| 2.00    |  Anton Kiselev (kisel)    | Add description for updated compatibilities of packet creation and modification
+| 3.00    |  Vyacheslav Ogai (hedjuo) | Add description for supporting Filed Engine and predefined packet templates
 |=================
 
 
@@ -56,7 +56,7 @@ Error codes are given according to this table: [also follows the JSON-RPC spec, 
 
 
 == Data Bases and Data Structures used in Scapy Server
-=== build_pkt, reconstruct_pkt packet model [[build_pkt_input]]
+=== build_pkt, build_pkt_ex, reconstruct_pkt packet model [[build_pkt_input]]
 
 Following JSON represents a Scapy structure, which can be used to build packet from scratch(build_pkt) or to modify particular fields in the prococol(reconstruct_pkt). Most fields can be omitted, in this case default or calculated values will be used.
 For reconstruct_pkt default values will be taken from the original packet.
@@ -77,6 +77,35 @@ Ether(src="de:ad:be:ef:de:ad")/Dot1Q()/Dot1Q(vtype=1)/IP(src="127.0.0.1", chksum
         { "id": "IP", "fields": [{"id": "src", "value": "127.0.0.1"}, {"id": "chksum", "value": "0x312"}] },
         { "id": "TCP", "fields": [{"id": "sport", "value": "443"}] }
 ]
+----
+
+Field Engine VM instruction model +
+For more reference see link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/field_engine.html[Field Engine modules spec]
+
+[source,python]
+----
+{
+    "field_engine":{
+        "instructions":[
+            {
+                "id":"STLVmFlowVar",
+                "parameters": {
+                    "name": "Ether_dst",
+                    "init_value": "00:00:00:01:00:00", #can be a string or an integer
+                    "max_value": "0",                  #can be a string or an integer
+                    "min_value": "0",                  #can be a string or an integer
+                    "step": "1",
+                    "size": "4",
+                    "op": "inc"
+                }
+            },
+            ...
+        ],
+        "global_parameters":{
+            "cache_size":"1000"
+        }
+    }
+}
 ----
 
 === Scapy server value types
@@ -113,7 +142,7 @@ Ether()/IP()/TCP()/Raw(load=my_payload)
 ----
 
 === Scapy packet result payload [[build_pkt_output]]
-build_pkt and reconstruct pkt take packet model and produce result JSON,
+build_pkt, build_pkt_ex and reconstruct pkt take packet model and produce result JSON,
 with the binary payload and field values and offsets defined
 
 [source,python]
@@ -262,6 +291,44 @@ with the binary payload and field values and offsets defined
     ]
 }
 
+----
+
+=== Scapy packet result payload in extended mode [[build_pkt_ex_output]]
+[source,python]
+----
+{
+    "binary": #same as in build_pkt
+    "data": #same as in build_pkt
+    "field_engine": {
+        "error": "",
+        "instructions": {
+            "cache": 1000,
+            "instructions": [
+                ...
+                #FlowVar definition instruction
+                {
+                    "name": "Ether_dst",
+                    "max_value": 0,
+                    "min_value": 0,
+                    "init_value": 65536,
+                    "step": 1,
+                    "size": 4,
+                    "type": "flow_var",
+                    "op": "inc"
+                },
+                #FlowVar write instruction
+                {
+                    "name": "Ether_dst", 
+                    "is_big_endian": true,
+                    "pkt_offset": 6,
+                    "type": "write_flow_var", 
+                    "add_value": 0
+                }
+                ...
+            ]
+        }
+    }
+}
 ----
 
 === Scapy server field definitions [[get_definitions_model]]
@@ -745,6 +812,12 @@ The following RPC commands are supported. Please refer to databases section for 
 * *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
 * *Paramters* - JSON xref:build_pkt_input[packet definition model].
 
+=== Build Packet and VM instructions
+* *Name* - 'build_pkt_ex'
+* *Description* - Builds a new packet with VM instructions from the definition and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_ex_output[Scapy packet result with VM instructions payload].
+* *Paramters* - JSON xref:build_pkt_input[Packet definition model].
+
 === Create packet from binary data and modify fields
 * *Name* - 'reconstruct_pkt'
 * *Description* - Builds a new packet from the binary data and returns binary data and json structure +
@@ -794,9 +867,35 @@ User can still create non valid hierarchies. (such as Ether()/DNS()/IP())
 }
 ----
 
+=== Get a list of predefined packet templates
+* *Name* - 'get_templates'
+* *Description* - returns a list of predefined templates.
+* *Parameters* - none
+* *Result* [array] - A list of predefined templates.
+
+*Example:*
+
+[source,python]
+----
+[
+    {
+        "id": "TCP-SYN",
+        "meta": {
+            "name": "TCP-SYN",
+            "description": ""
+        },
+    }
+]
+----
+=== Get predefined packet template
+* *Name* - 'get_template'
+* *Description* - returns a JSON template encoded in Base64.
+* *Parameters* - none
+* *Result* [string] - String contains Base64 encoded JSON.
+
 
 == Usage of Scapy RPC Server
-Notice the existance of the following files: 
+Notice the existence of the following files: 
 
 * scapy_service.py 
 * scapy_zmq_server.py 
