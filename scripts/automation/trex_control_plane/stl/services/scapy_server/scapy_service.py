@@ -881,7 +881,7 @@ class Scapy_service(Scapy_service_api):
         for instruction_def in instructions_def:
             instruction_id = instruction_def['id']
             instruction_class = self._vm_instructions[instruction_id]
-            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].iteritems()}
+            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].items()}
             instructions.append(instruction_class(**parameters))
 
         fe_parameters = field_engine_model_descriptor['global_parameters']
