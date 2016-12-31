@@ -183,4 +183,53 @@ test_CPU_benchmark:
 test_all_profiles :
         mult          : "5%"
         skip          : ['udp_rand_len_9k.py','udp_inc_len_9k.py'] # due to VIC 9K defect trex-282
-        
+
+
+test_performance_vm_single_cpu:
+    cfg:
+        mult                    : "40%"
+        mpps_per_core_golden    : 
+                                   min: 1
+                                   max: 99
+
+
+test_performance_vm_single_cpu_cached:
+    cfg:
+        mult                    : "40%"
+        mpps_per_core_golden    : 
+                                   min: 1
+                                   max: 99
+
+
+
+test_performance_syn_attack_single_cpu:
+     cfg:
+        mult                    : "40%"
+        mpps_per_core_golden    :
+                                  min: 1
+                                  max: 99
+
+test_performance_vm_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 1
+                                  max: 99
+
+
+test_performance_vm_multi_cpus_cached:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 1
+                                  max: 99
+
+test_performance_syn_attack_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "40%"
+        mpps_per_core_golden   :
+                                  min: 1
+                                  max: 99

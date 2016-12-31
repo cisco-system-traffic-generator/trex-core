@@ -238,7 +238,7 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 ############################################# test's infra functions ###########################################
 
-    def execute_single_scenario (self, scenario_cfg, iterations = 4):
+    def execute_single_scenario (self, scenario_cfg, iterations = 0):
         golden = scenario_cfg['mpps_per_core_golden']
         
 
