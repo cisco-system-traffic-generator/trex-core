@@ -296,7 +296,8 @@ class STLPerformance_Test(CStlGeneral_Test):
             # sample bps/pps
             for _ in range(0, 20):
                 stats = self.c.get_stats(ports = 0)
-                if stats['global'][ 'queue_full']>10000:
+                max_queue_full = 100000 if self.is_VM else 10000 
+                if stats['global'][ 'queue_full'] > max_queue_full:
                     assert 0, "Queue is full need to tune the multiplier"
 
                     # CPU results are not valid cannot use them 
