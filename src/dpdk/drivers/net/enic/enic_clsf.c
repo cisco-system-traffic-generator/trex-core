@@ -145,7 +145,7 @@ copy_fltr_recv_all(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
     memset(&eth_mask, 0, sizeof(eth_mask));
     memset(&eth_val, 0, sizeof(eth_val));
 
-    eth_val.ether_type = 0x0806;
+    eth_val.ether_type = 0xdead;
     eth_mask.ether_type = 0;
 
     gp->position = 0;
@@ -381,14 +381,6 @@ int enic_fdir_del_fltr(struct enic *enic, struct rte_eth_fdir_filter *params)
 		/* The entry is present in the table */
 		key = enic->fdir.nodes[pos];
 
-#ifdef TREX_PATCH
-        switch (params->soft_id) {
-        case 100:
-            // remove promisc when we delete 'receive all' filter
-            vnic_dev_packet_filter(enic->vdev, 1, 1, 1, 0, 1);
-            break;
-        }
-#endif
 		/* Delete the filter */
 		vnic_dev_classifier(enic->vdev, CLSF_DEL,
 			&key->fltr_id, NULL);
@@ -498,7 +490,6 @@ int enic_fdir_add_fltr(struct enic *enic, struct rte_eth_fdir_filter *params)
 #ifdef TREX_PATCH
     switch (params->soft_id) {
     case 100:
-        vnic_dev_packet_filter(enic->vdev, 1, 1, 1, 1, 1);
         copy_fltr_recv_all(&fltr, &params->input, &enic->rte_dev->data->dev_conf.fdir_conf.mask);
         break;
     default:

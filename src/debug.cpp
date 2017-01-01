@@ -290,8 +290,8 @@ struct pkt_params {
 };
 
 struct pkt_params test_pkts[] = {
-    {"ARP", 1, IPPROTO_UDP, 255, 5, 0, ZERO},
-    {"VLAN ARP", 1, IPPROTO_UDP, 255, 5, DPF_VLAN, ZERO},
+    {"ARP req", 1, IPPROTO_UDP, 255, 5, 0, ZERO},
+    {"VLAN ARP req", 1, IPPROTO_UDP, 255, 5, DPF_VLAN, ZERO},
     {"ipv4 TCP ttl 255", 4, IPPROTO_TCP, 255, 5, 0, STF},
     {"ipv4 TCP ttl 246", 4, IPPROTO_TCP, 246, 5, 0, STF},
     {"ipv4 TCP ttl 245", 4, IPPROTO_TCP, 245, 5, 0, ZERO},
