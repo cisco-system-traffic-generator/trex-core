@@ -403,13 +403,13 @@ Other network devices
         stream.close();
         cfg_dict = self.m_cfg_dict[0]
         if 'version' not in cfg_dict:
-            raise DpdkSetup("Configuration file %s is old, should include version field\n" % fcfg )
+            raise DpdkSetup("Configuration file %s is old, it should include version field\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
             raise DpdkSetup("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
 
         if 'interfaces' not in self.m_cfg_dict[0]:
-            raise DpdkSetup("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
+            raise DpdkSetup("Configuration file %s is old, it should include interfaces field with even number of elements" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
         l=len(if_list);
