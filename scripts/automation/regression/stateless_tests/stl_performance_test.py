@@ -238,24 +238,19 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 ############################################# test's infra functions ###########################################
 
-    def execute_single_scenario (self, scenario_cfg, iterations = 0):
+    def execute_single_scenario (self, scenario_cfg):
         golden = scenario_cfg['mpps_per_core_golden']
-        
 
-        for i in range(iterations, -1, -1):
-            report = self.execute_single_scenario_iteration(scenario_cfg)
-            rc = report.check_golden(golden)
+        report = self.execute_single_scenario_iteration(scenario_cfg)
+        if self.GAManager:
+            report.report_to_analytics(self.GAManager, golden)
 
-            if (rc == PerformanceReport.GOLDEN_NORMAL) or (rc == PerformanceReport.GOLDEN_BETTER):
-                if self.GAManager:
-                    report.report_to_analytics(self.GAManager, golden)
+        rc = report.check_golden(golden)
 
-                return
+        if rc == PerformanceReport.GOLDEN_NORMAL or rc == PerformanceReport.GOLDEN_BETTER:
+            return
 
-            if rc == PerformanceReport.GOLDEN_BETTER:
-                return
-
-            print("\n*** Measured Mpps per core '{0}' is lower than expected golden '{1} - re-running scenario...{2} attempts left".format(report.avg_mpps_per_core, scenario_cfg['mpps_per_core_golden'], i))
+        print("\n*** Measured Mpps per core '{0}' is lower than expected golden '{1}'".format(report.avg_mpps_per_core, scenario_cfg['mpps_per_core_golden']))
 
         assert 0, "performance failure"
 
