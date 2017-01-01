@@ -3739,7 +3739,7 @@ int  CGlobalTRex::ixgbe_start(void){
         /* wait for ports to be stable */
         get_ex_drv()->wait_for_stable_link();
 
-        if ( !is_all_links_are_up(true) /*&& !get_is_stateless()*/ ){ // disable start with link down for now
+        if ( !is_all_links_are_up() /*&& !get_is_stateless()*/ ){ // disable start with link down for now
 
             /* temporary solution for trex-192 issue, solve the case for X710/XL710, will work for both Statless and Stateful */
             if (  get_ex_drv()->drop_packets_incase_of_linkdown() ){
