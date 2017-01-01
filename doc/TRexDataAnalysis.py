@@ -110,7 +110,7 @@ def create_all_data_per_setup(setup_dict, setup_name, start_date, end_date, show
 
 
 def create_detailed_table(dframe_arr_detailed):
-    result = reduce(lambda x, y: pd.merge(x, y, on=('Build Id', 'Setup')), dframe_arr_detailed)
+    result = reduce(lambda x, y: pd.merge(x, y, how='outer'), dframe_arr_detailed)
     return result
 
 
