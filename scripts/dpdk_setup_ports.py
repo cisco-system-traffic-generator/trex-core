@@ -234,7 +234,7 @@ class ConfigCreator(object):
                     return config_str
             with open(filename, 'w') as f:
                 f.write(config_str)
-            print('Saved.')
+            print('Saved to %s.' % filename)
         return config_str
 
 
@@ -719,7 +719,11 @@ Other network devices
         config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
                                prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, zmq_pub_port = map_driver.args.zmq_pub_port)
-        config.create_config(filename = map_driver.args.o, print_config = map_driver.args.dump)
+        if map_driver.args.output_config:
+            config.create_config(filename = map_driver.args.output_config)
+        else:
+            print('### Dumping config to screen, use -o flag to save to file')
+            config.create_config(print_config = True)
 
     def do_interactive_create(self):
         ignore_numa = False
@@ -922,10 +926,6 @@ To see more detailed info on interfaces (table):
                       help="""Black list of cores to exclude. Make sure there will be enough for each NUMA.""",
      )
 
-    parser.add_argument("--dump", default=False, action='store_true',
-                      help="""Dump created config to screen.""",
-     )
-
     parser.add_argument("--no-ht", default=False, dest='no_ht', action='store_true',
                       help="""Use only one thread of each Core in created config yaml (No Hyper-Threading).""",
      )
@@ -946,7 +946,7 @@ To see more detailed info on interfaces (table):
                       help="""Default gateways to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
 
-    parser.add_argument("-o", default=None, action='store', metavar='PATH',
+    parser.add_argument("-o", default=None, action='store', metavar='PATH', dest = 'output_config',
                       help="""Output the config to this file.""",
      )
 
