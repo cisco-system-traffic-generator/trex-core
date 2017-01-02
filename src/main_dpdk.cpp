@@ -693,6 +693,7 @@ enum { OPT_HELP,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
+       OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW
 };
 
@@ -749,11 +750,11 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
-        { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP    },
+        { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
-        
+        { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         SO_END_OF_OPTIONS
     };
 
@@ -1090,10 +1091,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_NO_OFED_CHECK:
                 break;
+            case OPT_NO_SCAPY_SERVER:
+                break;
 
             default:
                 printf("Error: option %s is not handled.\n\n", args.OptionText());
-                usage();
                 return -1;
                 break;
             } // End of switch

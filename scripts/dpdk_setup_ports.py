@@ -542,13 +542,14 @@ Other network devices
                         sys.exit(1)
                 else:
                        print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
-        if map_driver.parent_args.stl:
+        if map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
             try:
                 master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
             except:
                 master_core = 0
             ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
             if ret:
+                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(1)
 
 
@@ -861,6 +862,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
+    parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
