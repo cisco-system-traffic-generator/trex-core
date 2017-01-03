@@ -132,7 +132,7 @@ include::build/images/kiwi02_trend_stats.csv[]
 |=================
 | Server  | Cisco UCS 240M3 
 | CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
-| NICs:   | 2 NICS x ( 2x 40GbE ) Intel X710, Total 8 ports 
+| NICs:   | 1 NIC x ( 2x 40GbE ) Cisco 1300 VIC
 | NUMA    | Unknown due to ESXi
 | Memory  | 2x16GB 
 | PCIe    | 2x PCIe16 + 2xPCIe4
