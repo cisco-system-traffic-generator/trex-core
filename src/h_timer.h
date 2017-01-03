@@ -344,4 +344,78 @@ private:
 } ;
 
 
+
+
+#define HNA_TIMER_LEVELS  (2)
+#define HNA_MAX_LEVEL1_EVENTS (64) /* small bursts */
+
+typedef enum {
+    TW_FIRST_FINISH =17,
+    TW_FIRST_FINISH_ANY =18,
+    TW_FIRST_BATCH   =19,
+    TW_NEXT_BATCH   =20,
+    TW_END_BATCH    =21
+} NA_HTW_STATE_t;
+
+typedef uint8_t na_htw_state_num_t;
+
+
+/* two levels 0,1. level 1 would be less accurate */ 
+class CNATimerWheel {
+
+public:
+    CNATimerWheel(){
+        reset();
+    }
+
+    RC_HTW_t Create(uint32_t wheel_size,uint8_t level1_div);
+
+    RC_HTW_t Delete();
+
+
+    inline RC_HTW_t timer_start(CHTimerObj  *tmr, 
+                                htw_ticks_t  ticks){
+        m_total_events++;
+        if (likely(ticks<m_wheel_size)) {
+            tmr->m_ticks_left=0;
+            tmr->m_wheel=0;
+            return (m_timer_w[0].timer_start(tmr,ticks));
+        }
+        return ( timer_start_rest(tmr, ticks));
+    }
+
+    RC_HTW_t timer_stop (CHTimerObj *tmr);
+
+    void on_tick_level0(void *userdata,htw_on_tick_cb_t cb);
+
+    na_htw_state_num_t on_tick_level1(void *userdata,htw_on_tick_cb_t cb);
+
+    bool is_any_events_left(){
+        return(m_total_events>0?true:false);
+    }
+
+    /* iterate all, detach and call the callback */
+    void detach_all(void *userdata,htw_on_tick_cb_t cb);
+
+
+private:
+    void reset(void);
+
+    RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
+                              htw_ticks_t  ticks);
+
+private:
+    htw_ticks_t         m_ticks[HNA_TIMER_LEVELS];               
+    uint32_t            m_wheel_size;  //e.g. 256
+    uint32_t            m_wheel_mask;  //e.g 256-1
+    uint32_t            m_wheel_shift; // e.g 8
+    uint32_t            m_wheel_level1_shift; //e.g 16 
+    uint32_t            m_wheel_level1_err; //e.g 16 
+
+    uint64_t            m_total_events;
+    CHTimerOneWheel     m_timer_w[HNA_TIMER_LEVELS];
+    na_htw_state_num_t  m_state;
+} ;
+
+
 #endif

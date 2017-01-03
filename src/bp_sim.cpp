@@ -3413,7 +3413,7 @@ bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
    m_socket_id =0;
    m_realtime_his.Create();
    m_last_sync_time_sec = 0;
-
+   m_tw_level1_next_sec = 0;
    return(true);
 }
 
@@ -3527,7 +3527,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  0 ,
                                                  socket_id);
 
-     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_LEVELS); 
+     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV); 
      if (tw_res != RC_HTW_OK){
          CHTimerWheelErrorStr err(tw_res);
          printf("Timer wheel configuration error,please look into the manual for details  \n");
@@ -3934,7 +3934,7 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
             /* update bucket time */
             thread->m_cur_time_sec = node->m_time;
             if ( ON_TERMINATE ) {
-                thread->m_tw.on_tick((void*)thread,tw_on_tick_per_thread_cb_always);
+                thread->m_tw.on_tick_level0((void*)thread,tw_on_tick_per_thread_cb_always);
                 if ( thread->m_tw.is_any_events_left() ){
                     node->m_time += BUCKET_TIME_SEC;
                     m_p_queue.push(node);
@@ -3942,7 +3942,7 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
                     thread->free_node(node);
                 }
             }else{
-                thread->m_tw.on_tick((void*)thread,tw_on_tick_per_thread_cb);
+                thread->m_tw.on_tick_level0((void*)thread,tw_on_tick_per_thread_cb);
                 node->m_time += BUCKET_TIME_SEC;;
                 m_p_queue.push(node);
             }
@@ -4058,6 +4058,7 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     }else{
         add_exit_node(thread,max_time);
     }
+    m_scheduler_offset = offset;
 
     thread->m_cpu_dp_u.start_work1();
 
@@ -4169,6 +4170,8 @@ void CNodeGenerator::handle_time_strech(CGenNode * &node,
     /* fix the time offset */
     dsec_t dt = cur_time - n_time;
     offset += dt;
+    /* set new offset */
+    m_scheduler_offset = offset;
 
     /* check if flow sync message was delayed too much */
     if ( (cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT ) {
@@ -4241,6 +4244,59 @@ int CNodeGenerator::flush_file(dsec_t max_time,
     #endif
 }
 
+
+void CNodeGenerator::handle_batch_tw_level1(CGenNode *node, 
+                                            CFlowGenListPerThread *thread,
+                                            bool &exit_scheduler,
+                                            bool on_terminate) {
+
+    m_p_queue.pop();
+    /* update bucket time */
+    thread->m_cur_time_sec = node->m_time;
+
+    bool stop_loop=false;
+
+    while (!stop_loop) {
+        na_htw_state_num_t tw_state = thread->m_tw.on_tick_level1((void*)thread,tw_on_tick_per_thread_cb);
+        if ( (tw_state == TW_FIRST_FINISH) || (tw_state == TW_FIRST_FINISH_ANY)){
+            node->m_time += BUCKET_TIME_SEC_LEVEL1;
+            stop_loop=true;
+        }else{
+            switch (tw_state) {
+            case TW_FIRST_BATCH:
+                m_tw_level1_next_sec = node->m_time + BUCKET_TIME_SEC_LEVEL1;
+                node->m_time = now_sec()-m_scheduler_offset; /* spread if we can */
+                if (m_tw_level1_next_sec+m_scheduler_offset > now_sec() ) {
+                    stop_loop=true;
+                }
+                break;
+            case TW_NEXT_BATCH :
+                node->m_time = now_sec()-m_scheduler_offset; /* spread if we can */
+                if (m_tw_level1_next_sec+m_scheduler_offset > now_sec() ) {
+                    stop_loop=true;
+                }
+                break;
+            case TW_END_BATCH:
+                if (m_tw_level1_next_sec+m_scheduler_offset > now_sec() ) {
+                    node->m_time = m_tw_level1_next_sec;
+                }else{
+                    node->m_time = m_tw_level1_next_sec;  /* too late but we don't have anyting to do  */
+                }
+                stop_loop=true;
+              break;
+            default:
+                assert(0);
+            };
+        }
+    }
+
+    if ( on_terminate &&  
+         (thread->m_tw.is_any_events_left()==false) ){
+        thread->free_node(node);
+    }else{
+        m_p_queue.push(node);
+    }
+}
 
 
 void CNodeGenerator::handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread) {
@@ -4385,6 +4441,10 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
 
     case CGenNode::COMMAND:
         handle_command(node, thread, exit_scheduler);
+        break;
+
+    case CGenNode::TW_SYNC1:
+        handle_batch_tw_level1(node, thread, exit_scheduler,on_terminate);
         break;
 
     default:
@@ -4677,6 +4737,26 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     }
 }
 
+
+void   CFlowGenListPerThread::no_memory_error(){
+    printf("--------\n");
+    printf("\n");
+    printf("\n");
+    printf("ERROR, not enough flow objects, try to enlarge the number of objects in trex_cfg file or reduce the bandwidth \n");
+    printf("See in the manual how to enlarge the number of objects.\n");
+    printf("\n");
+    printf("\n");
+    printf(" Check your active flows, 'Active-flows    :  6771863', If it too high reduce the multiplier \n");
+    printf(" or use --active-flows directive to reduce the number of flows\n");
+    printf(" If you don't have enough memory for flows you should add something like that in your config file            \n");                                
+    printf("\n");
+    printf(" memory    :             \n");                                
+    printf("      dp_flows    : 4048576 \n");
+    printf("--------\n");
+    exit(1);
+}
+
+
 bool CFlowGenListPerThread::check_msgs_from_rx() {
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return false;
@@ -4824,6 +4904,11 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         node= create_node() ;
         node->m_type = CGenNode::TW_SYNC;
         node->m_time = m_cur_time_sec + BUCKET_TIME_SEC ;
+        m_node_gen.add_node(node);
+
+        node= create_node() ;
+        node->m_type = CGenNode::TW_SYNC1;
+        node->m_time = m_cur_time_sec + BUCKET_TIME_SEC_LEVEL1 ;
         m_node_gen.add_node(node);
     }
 

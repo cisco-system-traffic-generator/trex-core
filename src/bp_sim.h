@@ -370,6 +370,13 @@ public:
 #define CONST_9k_MBUF_SIZE   (MAX_PKT_ALIGN_BUF_9K + MBUF_PKT_PREFIX)
 
 
+#define TW_BUCKETS       (CGlobalInfo::m_options.get_tw_buckets())
+#define TW_BUCKETS_LEVEL1_DIV (16)
+#define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
+#define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
+#define BUCKET_TIME_SEC_LEVEL1 (CGlobalInfo::m_options.get_tw_bucket_level1_time_in_sec())
+
+
 class CPreviewMode {
 public:
     CPreviewMode(){
@@ -726,7 +733,7 @@ public:
         m_arp_ref_per = 120; // in seconds
         m_tw_buckets = 1024;
         m_tw_levels  = 3;
-        m_tw_bucket_time_sec = (20.0/1000000.0);
+        set_tw_bucket_time_in_usec(20.0);
         m_active_flows=0;
 
     }
@@ -775,6 +782,7 @@ public:
 
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;
+    double          m_tw_bucket_time_sec_level1;
     
 
     uint8_t *       get_src_mac_addr(int if_index){
@@ -819,8 +827,13 @@ public:
         return (m_tw_bucket_time_sec);
     }
 
+    inline double get_tw_bucket_level1_time_in_sec(void){
+        return (m_tw_bucket_time_sec_level1);
+    }
+
     void set_tw_bucket_time_in_usec(double usec){
-        m_tw_bucket_time_sec=(usec/1000000.0);
+        m_tw_bucket_time_sec= (usec/1000000.0);
+        m_tw_bucket_time_sec_level1 = (m_tw_bucket_time_sec*(double)m_tw_buckets)/((double)TW_BUCKETS_LEVEL1_DIV);
     }
 
     void     set_tw_buckets(uint16_t buckets){
@@ -1469,7 +1482,9 @@ public:
         EXIT_PORT_SCHED         =8,
         PCAP_PKT                =9,
         GRAT_ARP                =10,
-        TW_SYNC                 =11
+        TW_SYNC                 =11,
+        TW_SYNC1                =12,
+
     };
 
     /* flags MASKS*/
@@ -2215,6 +2230,8 @@ private:
     void handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
     void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
     void handle_maintenance(CFlowGenListPerThread *thread);
+    void handle_batch_tw_level1(CGenNode *node, CFlowGenListPerThread *thread,bool &exit_scheduler,bool on_terminate);
+
 
 public:
     pqueue_t                  m_p_queue;
@@ -2226,8 +2243,10 @@ public:
     uint64_t                  m_non_active;
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
+    dsec_t                    m_scheduler_offset;
 
     dsec_t                    m_last_sync_time_sec;
+    dsec_t                    m_tw_level1_next_sec;
 };
 
 
@@ -3798,9 +3817,6 @@ private:
     bool           server_seq_init;  /* TCP seq been init for server? */
 };
 
-#define TW_BUCKETS       (CGlobalInfo::m_options.get_tw_buckets())
-#define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
-#define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
 
 
 
@@ -3957,6 +3973,8 @@ public:
     
 private:
     
+    FORCE_NO_INLINE void   no_memory_error();
+
     bool check_msgs_from_rx();
     
     void handle_nat_msg(CGenNodeNatInfo * msg);
@@ -4016,7 +4034,7 @@ public:
 
 public:
     CNodeGenerator                   m_node_gen;
-    CHTimerWheel                     m_tw;
+    CNATimerWheel                    m_tw;
 
 public:
     uint32_t                         m_cur_template;
@@ -4051,7 +4069,7 @@ private:
 inline CGenNode * CFlowGenListPerThread::create_node(void){
     CGenNode * res;
     if ( unlikely (rte_mempool_sc_get(m_node_pool, (void **)&res) <0) ){
-        rte_exit(EXIT_FAILURE, "cant allocate object , need more \n");
+        no_memory_error();
         return (0);
     }
     return (res);

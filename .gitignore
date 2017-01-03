@@ -97,6 +97,26 @@ scripts/5.cap
 scripts/6.cap
 scripts/7.cap
 scripts/8.cap
+scripts/exp/rtsp_short1-0.erf
+scripts/exp/rtsp_short1_ipv6_rxcheck.erf
+scripts/exp/rtsp_short1_rxcheck.erf
+scripts/exp/rtsp_short1_v6-0.erf
+scripts/exp/rtsp_short2-0.erf
+scripts/exp/rtsp_short2_v6-0.erf
+scripts/exp/rtsp_short3-0.erf
+scripts/exp/rtsp_short3_v6-0.erf
+scripts/exp/sip_short1-0.erf
+scripts/exp/sip_short1_v6-0.erf
+scripts/exp/sip_short2-0.erf
+scripts/exp/sip_short2_v6-0.erf
+scripts/exp/sip_short3-0.erf
+scripts/exp/sip_short3_v6-0.erf
+scripts/exp/imix-0.erf
+scripts/exp/imix_v6-0.erf
+scripts/exp/limit_single_pkt-0.erf
+scripts/exp/pcap_mode1-0.erf
+
+
 
 
 
