@@ -838,10 +838,10 @@ def show_intro (logger, c):
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
-        if 'supp_speeds' in port:
+        if 'supp_speeds' in port and port['supp_speeds']:
             speed = max(port['supp_speeds']) // 1000
         else:
-            speed = port['speed']
+            speed = c.ports[port['index']].get_speed_gbps()
         key = (speed, port.get('description', port['driver']))
         if key not in port_types:
             port_types[key] = 0
