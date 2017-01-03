@@ -295,7 +295,10 @@ class STLClient_Test(CStlGeneral_Test):
                     self.c.resume(ports = [self.tx_port, self.rx_port])
                     time.sleep(100 / 1000.0)
 
-                self.c.stop(ports = [self.tx_port, self.rx_port])
+                if CTRexScenario.setup_name == 'trex07':
+                    self.c.stop(ports = [self.tx_port, self.rx_port], rx_delay_ms = 100)
+                else:
+                    self.c.stop(ports = [self.tx_port, self.rx_port])
 
                 stats = self.c.get_stats()
 

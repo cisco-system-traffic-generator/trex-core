@@ -930,7 +930,10 @@ class Port(object):
         
     def get_rx_filter_mode (self):
         return self.__attr['rx_filter_mode']
-        
+
+    def is_virtual(self):
+        return self.info.get('is_virtual')
+
     def is_l3_mode (self):
         return self.get_layer_cfg()['ipv4']['state'] != 'none'
         

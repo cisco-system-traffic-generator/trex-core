@@ -2342,7 +2342,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def stop (self, ports = None, rx_delay_ms = 10):
+    def stop (self, ports = None, rx_delay_ms = None):
         """
             Stop port(s)
 
@@ -2375,6 +2375,12 @@ class STLClient(object):
 
         if not rc:
             raise STLError(rc)
+
+        if rx_delay_ms is None:
+            if self.ports[ports[0]].is_virtual(): # assume all ports have same type
+                rx_delay_ms = 100
+            else:
+                rx_delay_ms = 10
 
         # remove any RX filters
         rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
@@ -2847,7 +2853,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = 10):
+    def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = None):
         """
             .. _wait_on_traffic:
 
@@ -2890,6 +2896,12 @@ class STLClient(object):
             time.sleep(0.01)
             if timer.has_expired():
                 raise STLTimeoutError(timeout)
+
+        if rx_delay_ms is None:
+            if self.ports[ports[0]].is_virtual(): # assume all ports have same type
+                rx_delay_ms = 100
+            else:
+                rx_delay_ms = 10
 
         # remove any RX filters
         rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
