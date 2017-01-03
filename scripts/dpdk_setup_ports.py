@@ -3,7 +3,9 @@
 import sys
 import os
 python_ver = 'python%s' % sys.version_info[0]
-sys.path.append(os.path.join('external_libs', 'pyyaml-3.11', python_ver))
+yaml_path = os.path.join('external_libs', 'pyyaml-3.11', python_ver)
+if yaml_path not in sys.path:
+    sys.path.append(yaml_path)
 import yaml
 import dpdk_nic_bind
 import re
@@ -831,7 +833,7 @@ Other network devices
                         input_mac = dpdk_nic_bind.read_line('Please enter new destination MAC of interface %s: ' % interface['Interface_argv'])
                         try:
                             if input_mac:
-                                ConfigCreator._convert_mac(input_mac) # verify format
+                                ConfigCreator.verify_mac(input_mac) # verify format
                                 dest_mac = input_mac
                                 loopback_dest = False
                             else:
