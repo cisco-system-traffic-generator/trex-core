@@ -906,17 +906,16 @@ def main():
     if options.readonly:
         logger.log(format_text("\nRead only mode - only few commands will be available", 'bold'))
 
-    show_intro(logger, stateless_client)
-    
-
-    # a script mode
-    if options.batch:
-        cont = run_script_file(options.batch[0], stateless_client)
-        if not cont:
-            return
-        
     # console
     try:
+        show_intro(logger, stateless_client)
+
+        # a script mode
+        if options.batch:
+            cont = run_script_file(options.batch[0], stateless_client)
+            if not cont:
+                return
+
         console = TRexConsole(stateless_client, options.verbose)
         logger.prompt_redraw = console.prompt_redraw
 
