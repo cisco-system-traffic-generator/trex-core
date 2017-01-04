@@ -63,6 +63,9 @@ PKT_SIZE
 
 SERVICE_OFF
 
+TX_PORT_LIST
+RX_PORT_LIST
+
 SRC_IPV4
 DST_IPV4
 
@@ -590,6 +593,24 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'dest': 'enabled',
                                          'default': True,
                                          'help': 'Deactivates services on port(s)'}),
+                
+              TX_PORT_LIST: ArgumentPack(['--tx'],
+                                         {'nargs': '+',
+                                          'dest':'tx_port_list',
+                                          'metavar': 'TX',
+                                          'action': 'merge',
+                                          'type': int,
+                                          'help': 'A list of ports to capture on the TX side',
+                                          'default': []}),
+               
+              RX_PORT_LIST: ArgumentPack(['--rx'],
+                                         {'nargs': '+',
+                                          'dest':'rx_port_list',
+                                          'metavar': 'RX',
+                                          'action': 'merge',
+                                          'type': int,
+                                          'help': 'A list of ports to capture on the RX side',
+                                          'default': []}),
                 
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,

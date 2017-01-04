@@ -26,12 +26,14 @@ limitations under the License.
 #include "trex_dp_port_events.h"
 #include "trex_stateless_rx_defs.h"
 #include "trex_stream.h"
+#include "trex_exception.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessCpToDpMsgBase;
 class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
-class RXPacketBuffer;
+class TrexPktBuffer;
 
 
 /**
@@ -113,6 +115,56 @@ private:
     static const std::string g_unowned_handler;
 };
 
+/**
+ * enforces in/out from service mode
+ * 
+ * @author imarom (1/4/2017)
+ */
+class TrexServiceMode {
+public:
+    TrexServiceMode(uint8_t port_id, const TrexPlatformApi *api) {
+        m_is_enabled   = false;
+        m_has_rx_queue = false;
+        m_port_id      = port_id;
+        m_port_attr    = api->getPortAttrObj(port_id);
+    }
+
+    void enable() {
+        m_port_attr->set_rx_filter_mode(RX_FILTER_MODE_ALL);
+        m_is_enabled = true;
+    }
+
+    void disable() {
+        if (m_has_rx_queue) {
+            throw TrexException("unable to disable service mode - please remove RX queue");
+        }
+
+        if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
+            throw TrexException("unable to disable service - an active capture on port " + std::to_string(m_port_id) + " exists");
+        }
+        
+        m_port_attr->set_rx_filter_mode(RX_FILTER_MODE_HW);
+        m_is_enabled = false;
+    }
+
+    bool is_enabled() const {
+        return m_is_enabled;
+    }
+
+    void set_rx_queue() {
+        m_has_rx_queue = true;
+    }
+
+    void unset_rx_queue() {
+        m_has_rx_queue = false;
+    }
+
+private:
+    bool            m_is_enabled;
+    bool            m_has_rx_queue;
+    TRexPortAttr   *m_port_attr;
+    uint8_t         m_port_id;
+};
 
 class AsyncStopEvent;
 
@@ -150,7 +202,15 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-
+    /**
+     * port capture mode
+     */
+    enum capture_mode_e {
+        PORT_CAPTURE_NONE = 0,
+        PORT_CAPTURE_RX,
+        PORT_CAPTURE_ALL
+    };
+    
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
 
     ~TrexStatelessPort();
@@ -227,6 +287,20 @@ public:
                      double            duration,
                      bool              is_dual);
 
+    /** 
+     * moves port to / out service mode 
+     */
+    void set_service_mode(bool enabled) {
+        if (enabled) {
+            m_service_mode.enable();
+        } else {
+            m_service_mode.disable();
+        }
+    }
+    bool is_service_mode_on() const {
+        return m_service_mode.is_enabled();
+    }
+    
     /**
      * get the port state
      *
@@ -367,16 +441,16 @@ public:
 
 
     /**
-     * enable RX capture on port
+     * starts capturing packets
      * 
      */
-    void start_rx_capture(const std::string &pcap_filename, uint64_t limit);
+    void start_capture(capture_mode_e mode, uint64_t limit);
 
     /**
-     * disable RX capture if on
+     * stops capturing packets
      * 
      */
-    void stop_rx_capture();
+    void stop_capture();
 
     /**
      * start RX queueing of packets
@@ -398,7 +472,7 @@ public:
      * fetch the RX queue packets from the queue
      * 
      */
-    const RXPacketBuffer *get_rx_queue_pkts();
+    const TrexPktBuffer *get_rx_queue_pkts();
 
     /**
      * configures port for L2 mode
@@ -429,7 +503,9 @@ public:
     }
     
 private:
-
+    void set_service_mode_on();
+    void set_service_mode_off();
+    
     bool is_core_active(int core_id);
 
     const std::vector<uint8_t> get_core_id_list () {
@@ -514,6 +590,9 @@ private:
     TrexPortOwner       m_owner;
 
     int m_pending_async_stop_event;
+    
+    TrexServiceMode m_service_mode;
+
     static const uint32_t MAX_STREAMS = 20000;
 
 };

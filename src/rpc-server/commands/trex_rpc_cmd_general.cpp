@@ -28,6 +28,7 @@ limitations under the License.
 #include <internal_api/trex_platform_api.h>
 
 #include "trex_stateless_rx_core.h"
+#include "trex_stateless_capture.h"
 
 #include <fstream>
 #include <iostream>
@@ -339,24 +340,6 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
-
-int
-TrexRpcCmdSetPortAttr::parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result) {
-    const std::string type = parse_choice(msg, "mode", {"hw", "all"}, result);
-
-    rx_filter_mode_e filter_mode;
-    if (type == "hw") {
-        filter_mode = RX_FILTER_MODE_HW;
-    } else if (type == "all") {
-        filter_mode = RX_FILTER_MODE_ALL;
-    } else {
-        /* can't happen - parsed choice */
-        assert(0);
-    }
-
-    return get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_rx_filter_mode(filter_mode);
-}
-
 /**
  * set port commands
  *
@@ -397,11 +380,6 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
         else if (name == "flow_ctrl_mode") {
             int mode = parse_int(attr[name], "mode", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_flow_ctrl(mode);
-        }
-
-        else if (name == "rx_filter_mode") {
-            const Json::Value &rx = parse_object(attr, name, result);
-            ret = parse_rx_filter_mode(rx, port_id, result);
         }
 
         /* unknown attribute */
@@ -588,7 +566,8 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
     result["result"]["state"]         = port->get_state_as_string();
     result["result"]["max_stream_id"] = port->get_max_stream_id();
-
+    result["result"]["service"]       = port->is_service_mode_on();
+    
     /* attributes */
     get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
     
@@ -660,6 +639,27 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
 }
 
+
+/**
+ * set service mode on/off
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    bool enabled = parse_bool(params, "enabled", result);
+    
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    try {
+        port->set_service_mode(enabled);
+    } catch (TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
+ 
 /**
  * set on/off RX software receive mode
  *
@@ -670,12 +670,14 @@ TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    if (!port->is_service_mode_on()) {
+        generate_execute_err(result, "rx_feature - available only under service mode");
+    }
+    
     /* decide which feature is being set */
-    const std::string type = parse_choice(params, "type", {"capture", "queue", "server"}, result);
+    const std::string type = parse_choice(params, "type", {"queue", "server"}, result);
 
-    if (type == "capture") {
-        parse_capture_msg(params, port, result);
-    } else if (type == "queue") {
+    if (type == "queue") {
         parse_queue_msg(params, port, result);
     } else if (type == "server") {
         parse_server_msg(params, port, result);
@@ -686,38 +688,6 @@ TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
    
-}
-
-void 
-TrexRpcCmdSetRxFeature::parse_capture_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result) {
-    
-    bool enabled = parse_bool(msg, "enabled", result);
-
-    if (enabled) {
-
-        std::string pcap_filename = parse_string(msg, "pcap_filename", result);
-        uint64_t limit = parse_uint32(msg, "limit", result);
-
-        if (limit == 0) {
-            generate_parse_err(result, "limit cannot be zero");
-        }
-
-        try {
-            port->start_rx_capture(pcap_filename, limit);
-        } catch (const TrexException &ex) {
-            generate_execute_err(result, ex.what());
-        }
-
-    } else {
-
-        try {
-            port->stop_rx_capture();
-        } catch (const TrexException &ex) {
-            generate_execute_err(result, ex.what());
-        }
-
-    }
-
 }
 
 void 
@@ -762,8 +732,13 @@ TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    if (!port->is_service_mode_on()) {
+        generate_execute_err(result, "get_rx_queue_pkts - available only under service mode");
+    }
+
+    
     try {
-        const RXPacketBuffer *pkt_buffer = port->get_rx_queue_pkts();
+        const TrexPktBuffer *pkt_buffer = port->get_rx_queue_pkts();
         if (pkt_buffer) {
             result["result"]["pkts"] = pkt_buffer->to_json();
             delete pkt_buffer;
@@ -806,6 +781,7 @@ TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
     
+    result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
 }
 
@@ -863,7 +839,50 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
         }
         
     }
-    
+   
+    result["result"] = Json::objectValue; 
     return (TREX_RPC_CMD_OK);    
     
+}
+   
+/**
+ * starts PCAP capturing
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdStartCapture::_run(const Json::Value &params, Json::Value &result) {
+    
+    uint32_t limit             = parse_uint32(params, "limit", result);
+    const Json::Value &tx_json = parse_array(params, "tx", result);
+    const Json::Value &rx_json = parse_array(params, "rx", result);
+    
+    CaptureFilter filter;
+    
+    std::set<uint8_t> ports;
+    
+    /* populate the filter */
+    for (int i = 0; i < tx_json.size(); i++) {
+        uint8_t tx_port = parse_byte(tx_json, i, result);
+        filter.add_tx(tx_port);
+        ports.insert(tx_port);
+    }
+    
+    for (int i = 0; i < rx_json.size(); i++) {
+        uint8_t rx_port = parse_byte(rx_json, i, result);
+        filter.add_rx(rx_port);
+        ports.insert(rx_port);
+    }
+    
+    /* check that all ports are under service mode */
+    for (uint8_t port_id : ports) {
+        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+        if (!port->is_service_mode_on()) {
+            generate_parse_err(result, "start_capture is available only under service mode");
+        }
+    }
+    
+    get_stateless_obj()->start_capture(filter, limit);
+    
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
 }

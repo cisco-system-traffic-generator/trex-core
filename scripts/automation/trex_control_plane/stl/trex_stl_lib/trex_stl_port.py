@@ -56,7 +56,8 @@ class Port(object):
     def __init__ (self, port_id, user, comm_link, session_id, info):
         self.port_id = port_id
         
-        self.state = self.STATE_IDLE
+        self.state        = self.STATE_IDLE
+        self.service_mode = False
         
         self.handler = None
         self.comm_link = comm_link
@@ -247,14 +248,16 @@ class Port(object):
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
         self.owner = rc.data()['owner']
-
+        
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
         self.status = rc.data()
-
+        
         # replace the attributes in a thread safe manner
         self.set_ts_attr(rc.data()['attr'])
-
+        
+        self.service_mode = rc.data()['service']
+        
         return self.ok()
 
 
@@ -490,33 +493,17 @@ class Port(object):
 
     
     @owned
-    def set_rx_sniffer (self, pcap_filename, limit):
+    def start_capture (self, pcap_filename, mode, limit):
 
-        if not self.is_service_mode_on():
+        if mode != 'tx' and not self.is_service_mode_on():
             return self.err('port service mode must be enabled for performing RX capturing. Please enable service mode')
             
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
-                  "type":           "capture",
-                  "enabled":        True,
-                  "pcap_filename":  pcap_filename,
+                  "mode":           mode,
                   "limit":          limit}
 
-        rc = self.transmit("set_rx_feature", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
-
-      
-    @owned
-    def remove_rx_sniffer (self):
-        params = {"handler":        self.handler,
-                  "port_id":        self.port_id,
-                  "type":           "capture",
-                  "enabled":        False}
-
-        rc = self.transmit("set_rx_feature", params)
+        rc = self.transmit("start_capture", params)
         if rc.bad():
             return self.err(rc.err())
 
@@ -719,23 +706,21 @@ class Port(object):
     
     @owned
     def set_service_mode (self, enabled):
-        rc = self.set_attr(rx_filter_mode = 'all' if enabled else 'hw')
-        if not rc:
-            return rc
-            
-        if not enabled:
-            rc = self.remove_rx_queue()
-            if not rc:
-                return rc
-                
-            rc = self.remove_rx_sniffer()
-            if not rc:
-                return rc
-                
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "enabled": enabled}
+
+        rc = self.transmit("service", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        self.service_mode = enabled
         return self.ok()
+        
 
     def is_service_mode_on (self):
-        return self.get_rx_filter_mode() == 'all'
+        return self.service_mode
+        
                 
     @writeable
     def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler, min_ipg_usec):
@@ -902,11 +887,6 @@ class Port(object):
         # RX info
         rx_info = self.status['rx_info']
 
-        # RX sniffer
-        sniffer = rx_info['sniffer']
-        info['rx_sniffer'] = '{0}\n[{1} / {2}]'.format(sniffer['pcap_filename'], sniffer['count'], sniffer['limit']) if sniffer['is_active'] else 'off'
-        
-
         # RX queue
         queue = rx_info['queue']
         info['rx_queue'] = '[{0} / {1}]'.format(queue['count'], queue['size']) if queue['is_active'] else 'off'
@@ -927,9 +907,6 @@ class Port(object):
 
     def get_layer_cfg (self):
         return self.__attr['layer_cfg']
-        
-    def get_rx_filter_mode (self):
-        return self.__attr['rx_filter_mode']
         
     def is_l3_mode (self):
         return self.get_layer_cfg()['ipv4']['state'] != 'none'
@@ -1002,7 +979,6 @@ class Port(object):
                 "layer mode": format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta'),
                 "RX Filter Mode": info['rx_filter_mode'],
                 "RX Queueing": info['rx_queue'],
-                "RX sniffer": info['rx_sniffer'],
                 "Grat ARP": info['grat_arp'],
 
                 }

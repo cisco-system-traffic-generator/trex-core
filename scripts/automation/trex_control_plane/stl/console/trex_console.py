@@ -347,12 +347,12 @@ class TRexConsole(TRexGeneralCmd):
 
         
     @verify_connected
-    def do_set_rx_sniffer (self, line):
-        '''Sets a port sniffer on RX channel as PCAP recorder'''
-        self.stateless_client.set_rx_sniffer_line(line)
+    def do_capture (self, line):
+        '''Start PCAP capturing on port'''
+        self.stateless_client.start_capture_line(line)
 
-    def help_sniffer (self):
-        self.do_set_rx_sniffer("-h")
+    def help_capture (self):
+        self.do_capture("-h")
 
     @verify_connected
     def do_resolve (self, line):

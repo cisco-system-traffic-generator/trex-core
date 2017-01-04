@@ -162,7 +162,7 @@ private:
  * trex stateless port
  * 
  **************************/
-TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
+TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this), m_service_mode(port_id, api) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
     m_port_id            = port_id;
@@ -948,24 +948,6 @@ TrexStatelessPort::remove_and_delete_all_streams() {
     }
 }
 
-void 
-TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
-    static MsgReply<bool> reply;
-    
-    reply.reset();
-    
-    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit, reply);
-    send_message_to_rx((TrexStatelessCpToRxMsgBase *)msg);
-    
-    /* as below, must wait for ACK from RX core before returning ACK */
-    reply.wait_for_reply();
-}
-
-void
-TrexStatelessPort::stop_rx_capture() {
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
-    send_message_to_rx(msg);
-}
 
 void 
 TrexStatelessPort::start_rx_queue(uint64_t size) {
@@ -980,18 +962,22 @@ TrexStatelessPort::start_rx_queue(uint64_t size) {
        this might cause the user to lose some packets from the queue
      */
     reply.wait_for_reply();
+
+    m_service_mode.set_rx_queue();
 }
 
 void
 TrexStatelessPort::stop_rx_queue() {
     TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopQueue(m_port_id);
     send_message_to_rx(msg);
+
+    m_service_mode.unset_rx_queue();
 }
 
 
-const RXPacketBuffer *
+const TrexPktBuffer *
 TrexStatelessPort::get_rx_queue_pkts() {
-    static MsgReply<const RXPacketBuffer *> reply;
+    static MsgReply<const TrexPktBuffer *> reply;
     
     reply.reset();
 

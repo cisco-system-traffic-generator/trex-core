@@ -28,12 +28,13 @@ limitations under the License.
 #include "trex_stateless_rx_defs.h"
 #include "os_time.h"
 #include "utl_ip.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
-class RXPacketBuffer;
+class TrexPktBuffer;
 
 /**
  * Generic message reply object
@@ -487,36 +488,35 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 
 class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStartCapture(uint8_t port_id,
-                                const std::string &pcap_filename,
+    TrexStatelessRxStartCapture(const CaptureFilter& filter,
                                 uint64_t limit,
-                                MsgReply<bool> &reply) : m_reply(reply) {
+                                MsgReply<capture_id_t> &reply) : m_reply(reply) {
         
-        m_port_id          = port_id;
-        m_limit            = limit;
-        m_pcap_filename    = pcap_filename;
+        m_limit  = limit;
+        m_filter = filter;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t            m_port_id;
-    std::string        m_pcap_filename;
-    uint64_t           m_limit;
-    MsgReply<bool>    &m_reply;
+    uint8_t                    m_port_id;
+    uint64_t                   m_limit;
+    CaptureFilter              m_filter;
+    MsgReply<capture_id_t>    &m_reply;
 };
 
 
 class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStopCapture(uint8_t port_id) {
-        m_port_id = port_id;
+    TrexStatelessRxStopCapture(capture_id_t capture_id, MsgReply<capture_id_t> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t m_port_id;
+    capture_id_t              m_capture_id;
+    MsgReply<capture_id_t>   &m_reply;
 };
 
 
@@ -556,7 +556,7 @@ private:
 class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
 public:
 
-    TrexStatelessRxQueueGetPkts(uint8_t port_id, MsgReply<const RXPacketBuffer *> &reply) : m_reply(reply) {
+    TrexStatelessRxQueueGetPkts(uint8_t port_id, MsgReply<const TrexPktBuffer *> &reply) : m_reply(reply) {
         m_port_id = port_id;
     }
 
@@ -568,7 +568,7 @@ public:
 
 private:
     uint8_t                              m_port_id;
-    MsgReply<const RXPacketBuffer *>    &m_reply;
+    MsgReply<const TrexPktBuffer *>     &m_reply;
     
 };
 

@@ -102,6 +102,7 @@ public:
  * defines the TRex stateless operation mode
  * 
  */
+class CaptureFilter;
 class TrexStateless {
 public:
 
@@ -132,32 +133,21 @@ public:
 
 
     /**
+     * starts a capture on a 'filter' of ports 
+     * with a limit of packets 
+     */
+    capture_id_t start_capture(const CaptureFilter &filter, uint64_t limit);
+    
+    /**
+     * stops an active capture
+     * 
+     */
+    capture_id_t stop_capture(capture_id_t capture_id);
+    
+    /**
      * shutdown the server
      */
     void shutdown();
-
-    /**
-     * fetch xstats names (keys of dict)
-     * 
-     */
-    void encode_xstats_names(Json::Value &global);
-
-    /**
-     * fetch xstats values
-     * 
-     */
-    void encode_xstats_values(Json::Value &global);
-
-    /**
-     * fetch all the stats
-     * 
-     */
-    void               encode_stats(Json::Value &global);
-
-    /**
-     * generate a snapshot for publish
-     */
-    void generate_publish_snapshot(std::string &snapshot);
 
     const TrexPlatformApi * get_platform_api() {
         return (m_platform_api);

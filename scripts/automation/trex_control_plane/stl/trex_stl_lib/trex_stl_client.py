@@ -601,11 +601,9 @@ class STLClient(object):
                                                                  self.xstats,
                                                                  self.async_client.monitor)
 
-
-
-
     ############# private functions - used by the class itself ###########
 
+    
     # some preprocessing for port argument
     def __ports (self, port_id_list):
 
@@ -832,27 +830,6 @@ class STLClient(object):
         return rc
 
 
-    def __set_rx_sniffer (self, port_id_list, base_filename, limit):
-        port_id_list = self.__ports(port_id_list)
-        rc = RC()
-
-        for port_id in port_id_list:
-            head, tail = os.path.splitext(base_filename)
-            filename = "{0}-{1}{2}".format(head, port_id, tail)
-            rc.add(self.ports[port_id].set_rx_sniffer(filename, limit))
-
-        return rc
-
-
-    def __remove_rx_sniffer (self, port_id_list):
-        port_id_list = self.__ports(port_id_list)
-        rc = RC()
-
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].remove_rx_sniffer())
-
-        return rc
-
     def __set_rx_queue (self, port_id_list, size):
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -1071,7 +1048,7 @@ class STLClient(object):
 
     ############ functions used by other classes but not users ##############
 
-    def _validate_port_list (self, port_id_list):
+    def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
         if isinstance(port_id_list, int):
             port_id_list = [port_id_list]
@@ -1080,7 +1057,7 @@ class STLClient(object):
         if not isinstance(port_id_list, list):
             raise STLTypeError('port_id_list', type(port_id_list), list)
 
-        if not port_id_list:
+        if not port_id_list and not allow_empty:
             raise STLError('No ports provided')
 
         valid_ports = self.get_all_ports()
@@ -2084,9 +2061,9 @@ class STLClient(object):
                 self.set_port_attr(ports,
                                    promiscuous = False,
                                    link_up = True if restart else None)
-                self.set_service_mode(ports, False)
-                self.remove_rx_sniffer(ports)
                 self.remove_rx_queue(ports)
+                self.set_service_mode(ports, False)
+                
                 
         except STLError as e:
             self.logger.post_cmd(False)
@@ -3013,29 +2990,39 @@ class STLClient(object):
             
         
     @__api_check(True)
-    def set_rx_sniffer (self, ports = None, base_filename = 'rx.pcap', limit = 1000):
+    def start_capture (self, tx_ports, rx_ports, limit = 1000):
         """
-            Sets a RX sniffer for port(s) written to a PCAP file
+            Starts a capture to PCAP on port(s)
 
             :parameters:
-                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
-                base_filename  - filename will be appended with '-<port_number>', e.g. rx.pcap --> rx-0.pcap, rx-1.pcap etc.
+                tx_ports       - on which ports to capture TX
+                rx_ports       - on which ports to capture RX
                 limit          - limit how many packets will be written
             :raises:
                 + :exe:'STLError'
 
         """
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
-
+        
+        tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
+        rx_ports = self._validate_port_list(rx_ports, allow_empty = True)
+        merge_ports = set(tx_ports + rx_ports)
+        
+        if not merge_ports:
+            raise STLError("start_capture - must get at least one port to capture")
+            
         # check arguments
-        validate_type('base_filename', base_filename, basestring)
         validate_type('limit', limit, (int))
         if limit <= 0:
             raise STLError("'limit' must be a positive value")
 
-        self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
-        rc = self.__set_rx_sniffer(ports, base_filename, limit)
+        non_service_ports =  list_difference(set(tx_ports + rx_ports), self.get_service_enabled_ports())
+        if non_service_ports:
+            raise STLError("Port(s) {0} are not under service mode. PCAP capturing requires all ports to be in service mode")
+        
+            
+        self.logger.pre_cmd("Starting PCAP capturing up to {0} packets".format(limit))
+        
+        rc = self._transmit("start_capture", params = {'limit': limit, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
 
 
@@ -3045,7 +3032,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def remove_rx_sniffer (self, ports = None):
+    def stop_capture (self, ports = None):
         """
             Removes RX sniffer from port(s)
 
@@ -3779,21 +3766,21 @@ class STLClient(object):
 
              
     @__console
-    def set_rx_sniffer_line (self, line):
-        '''Sets a port sniffer on RX channel in form of a PCAP file'''
+    def start_capture_line (self, line):
+        '''Starts PCAP recorder on port(s)'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "set_rx_sniffer",
-                                         self.set_rx_sniffer_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.OUTPUT_FILENAME,
+                                         "capture",
+                                         self.start_capture_line.__doc__,
+                                         parsing_opts.TX_PORT_LIST,
+                                         parsing_opts.RX_PORT_LIST,
                                          parsing_opts.LIMIT)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+        self.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
 
         return RC_OK()
         

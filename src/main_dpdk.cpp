@@ -2169,6 +2169,8 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
                            CVirtualIFPerSideStats  * lp_stats){
 
+    //assert(m_ring_to_rx->Enqueue((CGenNode *)0x0) == 0);
+    
     uint16_t ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,lp_port->m_table,len);
 #ifdef DELAY_IF_NEEDED
     while ( unlikely( ret<len ) ){
@@ -3617,8 +3619,9 @@ void CGlobalTRex::rx_sl_configure(void) {
     int i;
 
     rx_sl_cfg.m_max_ports = m_max_ports;
+    rx_sl_cfg.m_tx_cores  = get_cores_tx();
     rx_sl_cfg.m_num_crc_fix_bytes = get_ex_drv()->get_num_crc_fix_bytes();
-
+        
     if ( get_vm_one_queue_enable() ) {
         /* vm mode, indirect queues  */
         for (i=0; i < m_max_ports; i++) {

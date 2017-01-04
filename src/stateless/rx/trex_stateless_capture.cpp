@@ -53,22 +53,36 @@ TrexStatelessCapture::handle_pkt_rx(const rte_mbuf_t *m, int port) {
     m_pkt_buffer->push(m);
 }
 
+void
+TrexStatelessCaptureMngr::update_global_filter() {
+    CaptureFilter new_filter;
+    
+    for (TrexStatelessCapture *capture : m_captures) {
+        new_filter += capture->get_filter();
+    }
+    
+    m_global_filter = new_filter;
+}
+
 capture_id_t
 TrexStatelessCaptureMngr::add(uint64_t limit, const CaptureFilter &filter) {
     
     if (m_captures.size() > MAX_CAPTURE_SIZE) {
-        throw TrexException(TrexException::T_CAPTURE_MAX_INSTANCES);
+        return CAPTURE_TOO_MANY_CAPTURES;
     }
     
 
     int new_id = m_id_counter++;
     TrexStatelessCapture *new_buffer = new TrexStatelessCapture(new_id, limit, filter);
     m_captures.push_back(new_buffer);
+ 
+    /* update global filter */
+    update_global_filter();
     
     return new_id;
 }
 
-void
+capture_id_t
 TrexStatelessCaptureMngr::remove(capture_id_t id) {
     
     int index = -1;
@@ -81,12 +95,18 @@ TrexStatelessCaptureMngr::remove(capture_id_t id) {
     
     /* does not exist */
     if (index == -1) {
-        throw TrexException(TrexException::T_CAPTURE_INVALID_ID);
+        return CAPTURE_ID_NOT_FOUND;
     }
     
     TrexStatelessCapture *capture =  m_captures[index];
     m_captures.erase(m_captures.begin() + index);
-    delete capture; 
+    
+    delete capture;
+    
+    /* update global filter */
+    update_global_filter();
+    
+    return id;
 }
 
 void

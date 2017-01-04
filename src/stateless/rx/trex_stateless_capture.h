@@ -31,16 +31,16 @@ limitations under the License.
 class CaptureFilter {
 public:
     CaptureFilter() {
-        tx_active = 0;
-        rx_active = 0;
+        m_tx_active = 0;
+        m_rx_active = 0;
     }
     
     void add_tx(uint8_t port_id) {
-        tx_active |= (1LL << port_id);
+        m_tx_active |= (1LL << port_id);
     }
 
     void add_rx(uint8_t port_id) {
-        rx_active |= (1LL << port_id);
+        m_rx_active |= (1LL << port_id);
     }
     
     void add(uint8_t port_id) {
@@ -63,21 +63,36 @@ public:
     
     bool in_rx(uint8_t port_id) const {
         uint64_t bit = (1LL << port_id);
-        return ((rx_active & bit) == bit);
+        return ((m_rx_active & bit) == bit);
     }
     
     bool in_tx(uint8_t port_id) const {
         uint64_t bit = (1LL << port_id);
-        return ((tx_active & bit) == bit);
+        return ((m_tx_active & bit) == bit);
+    }
+    
+    bool in_any(uint8_t port_id) const {
+        return ( in_tx(port_id) || in_rx(port_id) );
+    }
+    
+    CaptureFilter& operator +=(const CaptureFilter &other) {
+        m_tx_active |= other.m_tx_active;
+        m_rx_active |= other.m_rx_active;
+        
+        return *this;
     }
     
 private:
     
-    uint64_t  tx_active;
-    uint64_t  rx_active;
+    uint64_t  m_tx_active;
+    uint64_t  m_rx_active;
 };
 
-typedef uint64_t capture_id_t;
+typedef int64_t capture_id_t;
+enum {
+    CAPTURE_ID_NOT_FOUND = -1,
+    CAPTURE_TOO_MANY_CAPTURES = -2,
+};
 
 class TrexStatelessCapture {
 public:
@@ -91,6 +106,10 @@ public:
     
     uint64_t get_id() const {
         return m_id;
+    }
+    
+    const CaptureFilter & get_filter() const {
+        return m_filter;
     }
     
 private:
@@ -122,9 +141,11 @@ public:
    
      
     /**
-     * stops capture mode
+     * stops capture mode 
+     * on success, will return the ID of the removed one 
+     * o.w it will be an error 
      */
-    void remove(capture_id_t id);
+    capture_id_t remove(capture_id_t id);
     
     /**
      * removes all captures
@@ -139,8 +160,8 @@ public:
      * 
      * @return bool 
      */
-    bool is_active() const {
-        return (m_captures.size() != 0);
+    bool is_active(uint8_t port) const {
+        return m_global_filter.in_any(port);
     }
     
     /**
@@ -153,7 +174,7 @@ public:
      */
     void handle_pkt_rx(const rte_mbuf_t *m, int port) {
         /* fast path */
-        if (!is_active()) {
+        if (!is_active(port)) {
             return;
         }
         
@@ -169,10 +190,14 @@ private:
     }
     
     void handle_pkt_rx_slow_path(const rte_mbuf_t *m, int port);
+    void update_global_filter();
     
     std::vector<TrexStatelessCapture *> m_captures;
     
     capture_id_t m_id_counter;
+    
+    /* a union of all the filters curently active */
+    CaptureFilter m_global_filter;
     
     static const int MAX_CAPTURE_SIZE = 10;
 };

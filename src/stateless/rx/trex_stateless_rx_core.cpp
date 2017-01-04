@@ -69,11 +69,11 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     m_capture = false;
     m_max_ports = cfg.m_max_ports;
-
+    m_tx_cores  = cfg.m_tx_cores;
+    
     CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
 
     m_ring_from_cp = cp_rx->getRingCpToDp(0);
-    m_ring_to_cp   = cp_rx->getRingDpToCp(0);
     m_state = STATE_IDLE;
 
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
@@ -130,6 +130,36 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
 
 }
 
+void
+CRxCoreStateless::periodic_check_for_dp_messages() {
+
+    for (int i = 0; i < m_tx_cores; i++) {
+        periodic_check_for_dp_messages_core(i);
+    }
+    
+}
+
+void
+CRxCoreStateless::periodic_check_for_dp_messages_core(uint32_t core_id) {
+
+    CNodeRing *ring = CMsgIns::Ins()->getRxDp()->getRingDpToCp(core_id);
+    
+    /* fast path */
+    if ( likely ( ring->isEmpty() ) ) {
+        return;
+    }
+
+    while (true) {
+        CGenNode *node = NULL;
+
+        if (ring->Dequeue(node) != 0) {
+            break;
+        }
+        
+        //assert(node);
+    }
+}
+
 void CRxCoreStateless::recalculate_next_state() {
     if (m_state == STATE_QUIT) {
         return;
@@ -176,16 +206,6 @@ void CRxCoreStateless::idle_state_loop() {
 }
 
 /**
- * for each port give a tick (for flushing if needed)
- * 
- */
-void CRxCoreStateless::port_manager_tick() {
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].tick();
-    }
-}
-
-/**
  * for each port handle the grat ARP mechansim
  * 
  */
@@ -199,7 +219,6 @@ void CRxCoreStateless::handle_work_stage() {
     
     /* set the next sync time to */
     dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
-    dsec_t tick_time_sec = now_sec() + 1.0;
     dsec_t grat_arp_sec  = now_sec() + (double)CGlobalInfo::m_options.m_arp_ref_per;
 
     while (m_state == STATE_WORKING) {
@@ -211,14 +230,10 @@ void CRxCoreStateless::handle_work_stage() {
 
         if ( (now - sync_time_sec) > 0 ) {
             periodic_check_for_cp_messages();
+            //periodic_check_for_dp_messages();
             sync_time_sec = now + (1.0 / 1000);
         }
         
-        if ( (now - tick_time_sec) > 0) {
-            port_manager_tick();
-            tick_time_sec = now + 1.0;
-        }
-
         if ( (now - grat_arp_sec) > 0) {
             handle_grat_arp();
             grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
@@ -317,16 +332,14 @@ double CRxCoreStateless::get_cpu_util() {
 }
 
 
-void
-CRxCoreStateless::start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit) {
-    m_rx_port_mngr[port_id].start_recorder(pcap_filename, limit);
-    recalculate_next_state();
+capture_id_t
+CRxCoreStateless::start_capture(uint64_t limit, const CaptureFilter &filter) {
+    return TrexStatelessCaptureMngr::getInstance().add(limit, filter);
 }
 
-void
-CRxCoreStateless::stop_recorder(uint8_t port_id) {
-    m_rx_port_mngr[port_id].stop_recorder();
-    recalculate_next_state();
+capture_id_t
+CRxCoreStateless::stop_capture(capture_id_t capture_id) {
+    return TrexStatelessCaptureMngr::getInstance().remove(capture_id);
 }
 
 void
