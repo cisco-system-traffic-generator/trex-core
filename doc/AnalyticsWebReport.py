@@ -1,7 +1,7 @@
 import os
 import sys
 import AnalyticsConnect as ac
-import TRexDataAnalysis as tr
+import TRexDataAnalysisV2 as tr
 import time
 import datetime
 
@@ -20,8 +20,8 @@ def main(verbose=False, detailed_test_stats=''):
         print('Saving data to %s' % dest_path)
         if detailed_test_stats:
             print('generating detailed table for test results')
-    tr.create_all_data(ga_all_data_dict, setups, start_date, current_date, save_path=dest_path,
-                       add_stats='yes', detailed_test_stats=detailed_test_stats)
+    tr.create_all_data(ga_all_data_dict, start_date, current_date, save_path=dest_path,
+                       detailed_test_stats=detailed_test_stats)
     if verbose:
         print('Done without errors.')
 
