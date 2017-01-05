@@ -230,4 +230,5 @@ test_performance_syn_attack_multi_cpus:
 
 test_all_profiles :
         mult          : "5%"
+        skip          : ['udp_rand_len_9k.py', 'udp_inc_len_9k.py']
         
