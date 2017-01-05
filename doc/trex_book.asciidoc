@@ -2765,7 +2765,7 @@ if __name__ == '__main__':
 
 This script iterate between 100 to 8M active flows and save the results to csv file.
 
-==== The results v2.12 vs v2.13 
+==== The results v2.12 vs v2.14
 
 .MPPS/core 
 image:images/tw1_0.png[title="results",align="center"]
@@ -2773,13 +2773,13 @@ image:images/tw1_0.png[title="results",align="center"]
 .MPPS/core 
 image:images/tw0_0_chart.png[title="results",align="center",width=800]
 
-* TW0 - v2.13 default configuration 
+* TW0 - v2.14 default configuration 
 * PQ  - v2.12 default configuration 
 
 * To run the same script on v2.12 (that does not support `active_flows` directive) a patch was introduced.
 
 *Observation*::
-  * TW works better (up to 250%) in case of 200-500K flows 
+  * TW works better (up to 250%) in case of 25-100K flows 
   * TW scale better with active-flows
 
 ==== Tunning 
@@ -2851,9 +2851,9 @@ in *TW2* mode we have the same template, duplicated one with short IPG and anoth
 
 
 * PQ - v2.12 default configuration 
-* TW0 - v2.13 default configuration 
-* TW1 - v2.13 more buckets 16K
-* TW2 - v2.13 two templates 
+* TW0 - v2.14 default configuration 
+* TW1 - v2.14 more buckets 16K
+* TW2 - v2.14 two templates 
 
 .MPPS/core Comparison
 image:images/tw1.png[title="results",align="center",width=800]
