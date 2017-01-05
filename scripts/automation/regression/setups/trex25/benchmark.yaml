@@ -118,7 +118,7 @@ test_rx_check_http_negative:
 
 
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 6.8
+    multiplier          : 3.2
     cores               : 1
     rx_sample_rate      : 16
     bw_per_core         : 16.063
