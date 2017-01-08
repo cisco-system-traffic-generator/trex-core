@@ -569,7 +569,7 @@ private:
         register_driver(std::string("rte_igb_pmd"),CTRexExtendedDriverBase1G::create);
         register_driver(std::string("rte_i40e_pmd"),CTRexExtendedDriverBase40G::create);
         register_driver(std::string("rte_enic_pmd"),CTRexExtendedDriverBaseVIC::create);
-        register_driver(std::string("librte_pmd_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
+        register_driver(std::string("net_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
 
 
         /* virtual devices */
