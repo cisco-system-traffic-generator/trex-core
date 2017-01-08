@@ -6833,7 +6833,7 @@ void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t
 
     ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
     if ( ret != 0 ) {
-        if (((op == RTE_ETH_FILTER_ADD) && (ret == EEXIST)) || ((op == RTE_ETH_FILTER_DELETE) && (ret == ENOENT)))
+        if (((op == RTE_ETH_FILTER_ADD) && (ret == -EEXIST)) || ((op == RTE_ETH_FILTER_DELETE) && (ret == -ENOENT)))
             return;
 
         rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_ctrl: err=%d, port=%u\n",
