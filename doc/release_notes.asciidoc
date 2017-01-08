@@ -28,6 +28,8 @@ endif::backend-docbook[]
 * Another performance improvement for stateful case with high active flows. There are less less burstiness. 
 * Scapy server - warning in case of permissions errors 
 * Maximum supported ports is 16 (instead on 12)
+* ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases.
+
 
 === fix issues: ===
 
