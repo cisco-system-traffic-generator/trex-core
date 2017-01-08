@@ -84,6 +84,34 @@ enum {
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF = 0x1016,
 };
 
+struct mlx5_stats_priv {
+
+    struct rte_eth_stats m_shadow;
+    uint32_t      n_stats; /* number of counters */
+
+    void    *  et_stats  ;/* point to ethtool counter struct ethtool_stats*/
+
+    /* index into ethtool */
+    uint16_t inx_rx_vport_unicast_bytes;
+    uint16_t inx_rx_vport_multicast_bytes;
+    uint16_t inx_rx_vport_broadcast_bytes;
+    uint16_t inx_rx_vport_unicast_packets;
+    uint16_t inx_rx_vport_multicast_packets;
+    uint16_t inx_rx_vport_broadcast_packets;
+    uint16_t inx_tx_vport_unicast_bytes;
+    uint16_t inx_tx_vport_multicast_bytes;
+    uint16_t inx_tx_vport_broadcast_bytes;
+    uint16_t inx_tx_vport_unicast_packets;
+    uint16_t inx_tx_vport_multicast_packets;
+    uint16_t inx_tx_vport_broadcast_packets;
+    uint16_t inx_rx_wqe_err;
+    uint16_t inx_rx_crc_errors_phy;
+    uint16_t inx_rx_in_range_len_errors_phy;
+    uint16_t inx_rx_symbol_err_phy;
+    uint16_t inx_tx_errors_phy;
+};
+
+
 struct priv {
 	struct rte_eth_dev *dev; /* Ethernet device. */
 	struct ibv_context *ctx; /* Verbs context. */
@@ -137,6 +165,7 @@ struct priv {
 	struct fdir_queue *fdir_drop_queue; /* Flow director drop queue. */
 	uint32_t link_speed_capa; /* Link speed capabilities. */
 	rte_spinlock_t lock; /* Lock for control functions. */
+    struct mlx5_stats_priv m_stats;
 };
 
 /* Local storage for secondary process data. */
@@ -246,6 +275,7 @@ void mlx5_allmulticast_disable(struct rte_eth_dev *);
 
 void mlx5_stats_get(struct rte_eth_dev *, struct rte_eth_stats *);
 void mlx5_stats_reset(struct rte_eth_dev *);
+void mlx5_stats_free(struct rte_eth_dev *dev);
 
 /* mlx5_vlan.c */
 

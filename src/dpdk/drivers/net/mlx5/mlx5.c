@@ -181,6 +181,9 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	}
 	if (priv->reta_idx != NULL)
 		rte_free(priv->reta_idx);
+
+    mlx5_stats_free(dev);
+
 	priv_unlock(priv);
 	memset(priv, 0, sizeof(*priv));
 }
@@ -1289,7 +1292,6 @@ rte_mlx5_pmd_init(void)
 	 * using this PMD, which is not supported in forked processes.
 	 */
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
-	ibv_fork_init();
 	rte_eal_pci_register(&mlx5_driver.pci_drv);
 }
 
