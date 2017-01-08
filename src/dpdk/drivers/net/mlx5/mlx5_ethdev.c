@@ -50,7 +50,7 @@
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_atomic.h>
 #include <rte_ethdev.h>
@@ -60,7 +60,7 @@
 #include <rte_alarm.h>
 #include <rte_malloc.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5.h"
@@ -583,7 +583,8 @@ mlx5_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 		 (DEV_RX_OFFLOAD_IPV4_CKSUM |
 		  DEV_RX_OFFLOAD_UDP_CKSUM |
 		  DEV_RX_OFFLOAD_TCP_CKSUM) :
-		 0);
+		 0) |
+		(priv->hw_vlan_strip ? DEV_RX_OFFLOAD_VLAN_STRIP : 0);
 	if (!priv->mps)
 		info->tx_offload_capa = DEV_TX_OFFLOAD_VLAN_INSERT;
 	if (priv->hw_csum)
@@ -599,15 +600,10 @@ mlx5_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 	 * size if it is not fixed.
 	 * The API should be updated to solve this problem. */
 	info->reta_size = priv->ind_table_max_size;
-	info->speed_capa =
-			ETH_LINK_SPEED_1G |
-			ETH_LINK_SPEED_10G |
-			ETH_LINK_SPEED_20G |
-			ETH_LINK_SPEED_25G |
-			ETH_LINK_SPEED_40G |
-			ETH_LINK_SPEED_50G |
-			ETH_LINK_SPEED_56G |
-			ETH_LINK_SPEED_100G;
+	info->hash_key_size = ((*priv->rss_conf) ?
+			       (*priv->rss_conf)[0]->rss_key_len :
+			       0);
+	info->speed_capa = priv->link_speed_capa;
 	priv_unlock(priv);
 }
 
@@ -630,7 +626,7 @@ mlx5_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 }
 
 /**
- * DPDK callback to retrieve physical link information (unlocked version).
+ * Retrieve physical link information (unlocked version using legacy ioctl).
  *
  * @param dev
  *   Pointer to Ethernet device structure.
@@ -638,11 +634,11 @@ mlx5_dev_supported_ptypes_get(struct rte_eth_dev *dev)
  *   Wait for request completion (ignored).
  */
 static int
-mlx5_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
+mlx5_link_update_unlocked_gset(struct rte_eth_dev *dev, int wait_to_complete)
 {
 	struct priv *priv = mlx5_get_priv(dev);
 	struct ethtool_cmd edata = {
-		.cmd = ETHTOOL_GSET
+		.cmd = ETHTOOL_GSET /* Deprecated since Linux v4.5. */
 	};
 	struct ifreq ifr;
 	struct rte_eth_link dev_link;
@@ -667,6 +663,19 @@ mlx5_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
 		dev_link.link_speed = 0;
 	else
 		dev_link.link_speed = link_speed;
+	priv->link_speed_capa = 0;
+	if (edata.supported & SUPPORTED_Autoneg)
+		priv->link_speed_capa |= ETH_LINK_SPEED_AUTONEG;
+	if (edata.supported & (SUPPORTED_1000baseT_Full |
+			       SUPPORTED_1000baseKX_Full))
+		priv->link_speed_capa |= ETH_LINK_SPEED_1G;
+	if (edata.supported & SUPPORTED_10000baseKR_Full)
+		priv->link_speed_capa |= ETH_LINK_SPEED_10G;
+	if (edata.supported & (SUPPORTED_40000baseKR4_Full |
+			       SUPPORTED_40000baseCR4_Full |
+			       SUPPORTED_40000baseSR4_Full |
+			       SUPPORTED_40000baseLR4_Full))
+		priv->link_speed_capa |= ETH_LINK_SPEED_40G;
 	dev_link.link_duplex = ((edata.duplex == DUPLEX_HALF) ?
 				ETH_LINK_HALF_DUPLEX : ETH_LINK_FULL_DUPLEX);
 	dev_link.link_autoneg = !(dev->data->dev_conf.link_speeds &
@@ -678,6 +687,123 @@ mlx5_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
 	}
 	/* Link status is still the same. */
 	return -1;
+}
+
+/**
+ * Retrieve physical link information (unlocked version using new ioctl from
+ * Linux 4.5).
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param wait_to_complete
+ *   Wait for request completion (ignored).
+ */
+static int
+mlx5_link_update_unlocked_gs(struct rte_eth_dev *dev, int wait_to_complete)
+{
+#ifdef ETHTOOL_GLINKSETTINGS
+	struct priv *priv = mlx5_get_priv(dev);
+	struct ethtool_link_settings edata = {
+		.cmd = ETHTOOL_GLINKSETTINGS,
+	};
+	struct ifreq ifr;
+	struct rte_eth_link dev_link;
+	uint64_t sc;
+
+	(void)wait_to_complete;
+	if (priv_ifreq(priv, SIOCGIFFLAGS, &ifr)) {
+		WARN("ioctl(SIOCGIFFLAGS) failed: %s", strerror(errno));
+		return -1;
+	}
+	memset(&dev_link, 0, sizeof(dev_link));
+	dev_link.link_status = ((ifr.ifr_flags & IFF_UP) &&
+				(ifr.ifr_flags & IFF_RUNNING));
+	ifr.ifr_data = (void *)&edata;
+	if (priv_ifreq(priv, SIOCETHTOOL, &ifr)) {
+		DEBUG("ioctl(SIOCETHTOOL, ETHTOOL_GLINKSETTINGS) failed: %s",
+		      strerror(errno));
+		return -1;
+	}
+	dev_link.link_speed = edata.speed;
+	sc = edata.link_mode_masks[0] |
+		((uint64_t)edata.link_mode_masks[1] << 32);
+	priv->link_speed_capa = 0;
+	/* Link speeds available in kernel v4.5. */
+	if (sc & ETHTOOL_LINK_MODE_Autoneg_BIT)
+		priv->link_speed_capa |= ETH_LINK_SPEED_AUTONEG;
+	if (sc & (ETHTOOL_LINK_MODE_1000baseT_Full_BIT |
+		  ETHTOOL_LINK_MODE_1000baseKX_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_1G;
+	if (sc & (ETHTOOL_LINK_MODE_10000baseKX4_Full_BIT |
+		  ETHTOOL_LINK_MODE_10000baseKR_Full_BIT |
+		  ETHTOOL_LINK_MODE_10000baseR_FEC_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_10G;
+	if (sc & (ETHTOOL_LINK_MODE_20000baseMLD2_Full_BIT |
+		  ETHTOOL_LINK_MODE_20000baseKR2_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_20G;
+	if (sc & (ETHTOOL_LINK_MODE_40000baseKR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_40000baseCR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_40000baseSR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_40000baseLR4_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_40G;
+	if (sc & (ETHTOOL_LINK_MODE_56000baseKR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_56000baseCR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_56000baseSR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_56000baseLR4_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_56G;
+	/* Link speeds available in kernel v4.6. */
+#ifdef HAVE_ETHTOOL_LINK_MODE_25G
+	if (sc & (ETHTOOL_LINK_MODE_25000baseCR_Full_BIT |
+		  ETHTOOL_LINK_MODE_25000baseKR_Full_BIT |
+		  ETHTOOL_LINK_MODE_25000baseSR_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_25G;
+#endif
+#ifdef HAVE_ETHTOOL_LINK_MODE_50G
+	if (sc & (ETHTOOL_LINK_MODE_50000baseCR2_Full_BIT |
+		  ETHTOOL_LINK_MODE_50000baseKR2_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_50G;
+#endif
+#ifdef HAVE_ETHTOOL_LINK_MODE_100G
+	if (sc & (ETHTOOL_LINK_MODE_100000baseKR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_100000baseSR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_100000baseCR4_Full_BIT |
+		  ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT))
+		priv->link_speed_capa |= ETH_LINK_SPEED_100G;
+#endif
+	dev_link.link_duplex = ((edata.duplex == DUPLEX_HALF) ?
+				ETH_LINK_HALF_DUPLEX : ETH_LINK_FULL_DUPLEX);
+	dev_link.link_autoneg = !(dev->data->dev_conf.link_speeds &
+				  ETH_LINK_SPEED_FIXED);
+	if (memcmp(&dev_link, &dev->data->dev_link, sizeof(dev_link))) {
+		/* Link status changed. */
+		dev->data->dev_link = dev_link;
+		return 0;
+	}
+#else
+	(void)dev;
+	(void)wait_to_complete;
+#endif
+	/* Link status is still the same. */
+	return -1;
+}
+
+/**
+ * DPDK callback to retrieve physical link information (unlocked version).
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param wait_to_complete
+ *   Wait for request completion (ignored).
+ */
+int
+mlx5_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
+{
+	int ret;
+
+	ret = mlx5_link_update_unlocked_gs(dev, wait_to_complete);
+	if (ret < 0)
+		ret = mlx5_link_update_unlocked_gset(dev, wait_to_complete);
+	return ret;
 }
 
 /**
@@ -807,7 +933,7 @@ recover:
 		if (rehash)
 			ret = rxq_rehash(dev, rxq_ctrl);
 		else
-			ret = rxq_ctrl_setup(dev, rxq_ctrl, rxq->elts_n,
+			ret = rxq_ctrl_setup(dev, rxq_ctrl, 1 << rxq->elts_n,
 					     rxq_ctrl->socket, NULL, rxq->mp);
 		if (!ret)
 			continue;
@@ -1067,8 +1193,8 @@ mlx5_dev_link_status_handler(void *arg)
 	assert(priv->pending_alarm == 1);
 	ret = priv_dev_link_status_handler(priv, dev);
 	priv_unlock(priv);
-	if (ret)
-		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC);
+	//if (ret)
+	//	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL);
 }
 
 /**
@@ -1090,8 +1216,8 @@ mlx5_dev_interrupt_handler(struct rte_intr_handle *intr_handle, void *cb_arg)
 	priv_lock(priv);
 	ret = priv_dev_link_status_handler(priv, dev);
 	priv_unlock(priv);
-	if (ret)
-		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC);
+	//if (ret)
+	//	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL);
 }
 
 /**
@@ -1308,12 +1434,14 @@ mlx5_secondary_data_setup(struct priv *priv)
 			continue;
 		primary_txq_ctrl = container_of(primary_txq,
 						struct txq_ctrl, txq);
-		txq_ctrl = rte_calloc_socket("TXQ", 1, sizeof(*txq_ctrl), 0,
+		txq_ctrl = rte_calloc_socket("TXQ", 1, sizeof(*txq_ctrl) +
+					     (1 << primary_txq->elts_n) *
+					     sizeof(struct rte_mbuf *), 0,
 					     primary_txq_ctrl->socket);
 		if (txq_ctrl != NULL) {
 			if (txq_ctrl_setup(priv->dev,
-					   primary_txq_ctrl,
-					   primary_txq->elts_n,
+					   txq_ctrl,
+					   1 << primary_txq->elts_n,
 					   primary_txq_ctrl->socket,
 					   NULL) == 0) {
 				txq_ctrl->txq.stats.idx =
@@ -1397,10 +1525,6 @@ priv_select_tx_function(struct priv *priv)
 	} else if ((priv->sriov == 0) && priv->mps) {
 		priv->dev->tx_pkt_burst = mlx5_tx_burst_mpw;
 		DEBUG("selected MPW TX function");
-	} else if (priv->txq_inline && (priv->txqs_n >= priv->txqs_inline)) {
-		priv->dev->tx_pkt_burst = mlx5_tx_burst_inline;
-		DEBUG("selected inline TX function (%u >= %u queues)",
-		      priv->txqs_n, priv->txqs_inline);
 	}
 }
 

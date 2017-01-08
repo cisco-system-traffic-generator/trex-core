@@ -40,25 +40,25 @@
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/verbs.h>
 #include <infiniband/arch.h>
 #include <infiniband/mlx5_hw.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
 #include <rte_ethdev.h>
 #include <rte_common.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5.h"
@@ -102,7 +102,7 @@ const struct hash_rxq_init hash_rxq_init[] = {
 				ETH_RSS_FRAG_IPV4),
 		.flow_priority = 1,
 		.flow_spec.ipv4 = {
-			.type = IBV_EXP_FLOW_SPEC_IPV4_EXT,
+			.type = IBV_EXP_FLOW_SPEC_IPV4,
 			.size = sizeof(hash_rxq_init[0].flow_spec.ipv4),
 		},
 		.underlayer = &hash_rxq_init[HASH_RXQ_ETH],
@@ -140,7 +140,7 @@ const struct hash_rxq_init hash_rxq_init[] = {
 				ETH_RSS_FRAG_IPV6),
 		.flow_priority = 1,
 		.flow_spec.ipv6 = {
-			.type = IBV_EXP_FLOW_SPEC_IPV6_EXT,
+			.type = IBV_EXP_FLOW_SPEC_IPV6,
 			.size = sizeof(hash_rxq_init[0].flow_spec.ipv6),
 		},
 		.underlayer = &hash_rxq_init[HASH_RXQ_ETH],
@@ -723,7 +723,7 @@ rxq_free_elts(struct rxq_ctrl *rxq_ctrl)
 	if (rxq_ctrl->rxq.elts == NULL)
 		return;
 
-	for (i = 0; (i != rxq_ctrl->rxq.elts_n); ++i) {
+	for (i = 0; (i != (1u << rxq_ctrl->rxq.elts_n)); ++i) {
 		if ((*rxq_ctrl->rxq.elts)[i] != NULL)
 			rte_pktmbuf_free_seg((*rxq_ctrl->rxq.elts)[i]);
 		(*rxq_ctrl->rxq.elts)[i] = NULL;
@@ -745,6 +745,8 @@ rxq_cleanup(struct rxq_ctrl *rxq_ctrl)
 
 	DEBUG("cleaning up %p", (void *)rxq_ctrl);
 	rxq_free_elts(rxq_ctrl);
+	if (rxq_ctrl->fdir_queue != NULL)
+		priv_fdir_queue_destroy(rxq_ctrl->priv, rxq_ctrl->fdir_queue);
 	if (rxq_ctrl->if_wq != NULL) {
 		assert(rxq_ctrl->priv != NULL);
 		assert(rxq_ctrl->priv->ctx != NULL);
@@ -805,7 +807,7 @@ rxq_cleanup(struct rxq_ctrl *rxq_ctrl)
 int
 rxq_rehash(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl)
 {
-	unsigned int elts_n = rxq_ctrl->rxq.elts_n;
+	unsigned int elts_n = 1 << rxq_ctrl->rxq.elts_n;
 	unsigned int i;
 	struct ibv_exp_wq_attr mod;
 	int err;
@@ -868,7 +870,7 @@ rxq_setup(struct rxq_ctrl *tmpl)
 	struct ibv_cq *ibcq = tmpl->cq;
 	struct mlx5_cq *cq = to_mxxx(cq, cq);
 	struct mlx5_rwq *rwq = container_of(tmpl->wq, struct mlx5_rwq, wq);
-	struct rte_mbuf *(*elts)[tmpl->rxq.elts_n] =
+	struct rte_mbuf *(*elts)[1 << tmpl->rxq.elts_n] =
 		rte_calloc_socket("RXQ", 1, sizeof(*elts), 0, tmpl->socket);
 
 	if (cq->cqe_sz != RTE_CACHE_LINE_SIZE) {
@@ -879,7 +881,7 @@ rxq_setup(struct rxq_ctrl *tmpl)
 	if (elts == NULL)
 		return ENOMEM;
 	tmpl->rxq.rq_db = rwq->rq.db;
-	tmpl->rxq.cqe_n = ibcq->cqe + 1;
+	tmpl->rxq.cqe_n = log2above(ibcq->cqe);
 	tmpl->rxq.cq_ci = 0;
 	tmpl->rxq.rq_ci = 0;
 	tmpl->rxq.cq_db = cq->dbrec;
@@ -922,8 +924,9 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		.priv = priv,
 		.socket = socket,
 		.rxq = {
-			.elts_n = desc,
+			.elts_n = log2above(desc),
 			.mp = mp,
+			.rss_hash = priv->rxqs_n > 1,
 		},
 	};
 	struct ibv_exp_wq_attr mod;
@@ -943,6 +946,11 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 	(void)conf; /* Thresholds configuration (ignored). */
 	/* Enable scattered packets support for this queue if necessary. */
 	assert(mb_len >= RTE_PKTMBUF_HEADROOM);
+	/* If smaller than MRU, multi-segment support must be enabled. */
+	if (mb_len < (priv->mtu > dev->data->dev_conf.rxmode.max_rx_pkt_len ?
+		     dev->data->dev_conf.rxmode.max_rx_pkt_len :
+		     priv->mtu))
+		dev->data->dev_conf.rxmode.jumbo_frame = 1;
 	if ((dev->data->dev_conf.rxmode.jumbo_frame) &&
 	    (dev->data->dev_conf.rxmode.max_rx_pkt_len >
 	     (mb_len - RTE_PKTMBUF_HEADROOM))) {
@@ -1146,7 +1154,7 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 	}
 	/* Reuse buffers from original queue if possible. */
 	if (rxq_ctrl->rxq.elts_n) {
-		assert(rxq_ctrl->rxq.elts_n == desc);
+		assert(1 << rxq_ctrl->rxq.elts_n == desc);
 		assert(rxq_ctrl->rxq.elts != tmpl.rxq.elts);
 		ret = rxq_alloc_elts(&tmpl, desc, rxq_ctrl->rxq.elts);
 	} else
@@ -1259,7 +1267,7 @@ mlx5_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		      (void *)dev, (void *)rxq_ctrl);
 		(*priv->rxqs)[idx] = &rxq_ctrl->rxq;
 		/* Update receive callback. */
-		dev->rx_pkt_burst = mlx5_rx_burst;
+		priv_select_rx_function(priv);
 	}
 	priv_unlock(priv);
 	return -ret;
