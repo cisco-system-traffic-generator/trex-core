@@ -29,13 +29,17 @@ endif::backend-docbook[]
 * Scapy server - warning in case of permissions errors 
 * Maximum supported ports is 16 (instead on 12)
 * ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases.
-
+* Early support for Intel XL710/X710/599 VF support [TBD add pointer for more info]
+* Fix Cluster mode breakage (v2.12-v2.13)
+* Stateless GUI v3.0 works with this version
 
 === fix issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-319[trex-319]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-322[trex-322]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-326[trex-326]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-330[trex-330]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-329[trex-329]
 
 
 == Release 2.13 ==
