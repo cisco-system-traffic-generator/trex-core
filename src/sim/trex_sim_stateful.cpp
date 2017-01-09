@@ -169,6 +169,9 @@ int load_list_of_cap_files(CParserOption * op){
     if (op->client_cfg_file != "") {
         try {
             fl.load_client_config_file(op->client_cfg_file);
+            // The simulator only test MAC address configs, so this parameter is not used
+            CManyIPInfo pretest_result;
+            fl.set_client_config_resolved_macs(pretest_result);
         } catch (const std::runtime_error &e) {
             std::cout << "\n*** " << e.what() << "\n\n";
             exit(-1);
