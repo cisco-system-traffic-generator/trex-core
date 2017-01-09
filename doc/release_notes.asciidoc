@@ -25,9 +25,9 @@ endif::backend-docbook[]
 
 == Release 2.14 ==
 
-* Another performance improvement for stateful case with high active flows. There are less less burstiness. 
+* Another performance improvement in Stateful case with high active flows. There is less burstiness. 
 * Scapy server - warning in case of permissions errors 
-* Maximum supported ports is 16 (instead on 12)
+* Maximum supported ports are 16 (instead of 12)
 * ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases.
 * Early support for Intel XL710/X710/599 VF support [TBD add pointer for more info]
 * Fix Cluster mode breakage (v2.12-v2.13)
