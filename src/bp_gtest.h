@@ -19,6 +19,16 @@ limitations under the License.
 
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
+class trexTest  : public testing::Test {
+ protected:
+  virtual void SetUp() {
+        CGlobalInfo::m_options.reset();
+  }
+  virtual void TearDown() {
+  }
+public:
+};
+
 class CTestBasic {
 
 public:
