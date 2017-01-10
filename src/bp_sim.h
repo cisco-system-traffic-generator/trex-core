@@ -649,9 +649,12 @@ typedef  struct mac_align_t_ {
 
 struct CMacAddrCfg {
 public:
-    CMacAddrCfg (){
-        memset(u.m_data,0,sizeof(u.m_data));
-        u.m_mac.dest[3]=1;
+    CMacAddrCfg () {
+        reset();
+    }
+    void reset () {
+        memset(u.m_data, 0, sizeof(u.m_data));
+        u.m_mac.dest[3] = 1;
         u.m_mac.is_set = 0;
     }
     union {
@@ -708,36 +711,49 @@ public:
     };
 
 public:
-    CParserOption(){
-        m_factor=1.0;
-        m_mbuf_factor=1.0;
-        m_duration=0.0;
-        m_latency_rate =0;
-        m_latency_mask =0xffffffff;
-        m_latency_prev=0;
-        m_wait_before_traffic=1;
-        m_zmq_port=4500;
-        m_telnet_port =4501;
-        m_platform_factor=1.0;
-        m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less */
-        m_vlan_port[0]=100;
-        m_vlan_port[1]=100;
-        m_rx_check_sample=0;
-        m_rx_check_hops = 0;
-        m_io_mode=1;
-        m_run_flags=0;
-        prefix="";
-        m_run_mode = RUN_MODE_INVALID;
-        m_l_pkt_mode = 0;
-        m_rx_thread_enabled = false;
-        m_arp_ref_per = 120; // in seconds
-        m_tw_buckets = 1024;
-        m_tw_levels  = 3;
-        set_tw_bucket_time_in_usec(20.0);
-        m_active_flows=0;
 
+    void reset() {
+        preview.clean();
+        m_tw_buckets = 1024;
+        m_tw_levels = 3;
+        m_active_flows = 0;
+        m_factor = 1.0;
+        m_mbuf_factor = 1.0;
+        m_duration = 0.0;
+        m_platform_factor = 1.0;
+        m_vlan_port[0] = 100;
+        m_vlan_port[1] = 100;
+        memset(m_src_ipv6, 0, sizeof(m_src_ipv6));
+        memset(m_dst_ipv6, 0, sizeof(m_dst_ipv6));
+        memset(m_ip_cfg, 0, sizeof(m_ip_cfg));
+        m_latency_rate = 0;
+        m_latency_mask = 0xffffffff;
+        m_latency_prev = 0;
+        m_rx_check_sample = 0;
+        m_rx_check_hops = 0;
+        m_wait_before_traffic = 1;
+        m_zmq_port = 4500;
+        m_telnet_port = 4501;
+        m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less */
+        m_io_mode = 1;
+        m_run_flags = 0;
+        m_l_pkt_mode = 0;
+        m_learn_mode = 0;
+        m_debug_pkt_proto = 0;
+        m_arp_ref_per = 120; // in seconds
+        m_rx_thread_enabled = false;
+        m_run_mode = RUN_MODE_INVALID;
+        cfg_file = "";
+        client_cfg_file = "";
+        platform_cfg_file = "";
+        out_file = "";
+        prefix = "";
+        set_tw_bucket_time_in_usec(20.0);
     }
 
+    CParserOption(){
+        reset();
+    }
 
     CPreviewMode    preview;
     uint16_t        m_tw_buckets;
@@ -768,23 +784,17 @@ public:
     uint16_t        m_arp_ref_per;
     bool            m_rx_thread_enabled;
     trex_run_mode_e    m_run_mode;
-
-
-
     std::string        cfg_file;
     std::string        client_cfg_file;
     std::string        platform_cfg_file;
-
     std::string        out_file;
     std::string        prefix;
     std::vector<std::string> dump_interfaces;
-
-
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
-    
 
+public:
     uint8_t *       get_src_mac_addr(int if_index){
         return (m_mac_addr[if_index].u.m_mac.src);
     }
@@ -792,7 +802,6 @@ public:
         return (m_mac_addr[if_index].u.m_mac.dest);
     }
 
-public:
     uint32_t get_expected_ports(){
         return (m_expected_portd);
     }

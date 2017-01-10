@@ -27,6 +27,7 @@ scripts/automation/trex_control_plane/doc/_build/*
 scripts/automation/trex_control_plane/doc_stl/_build/*
 scripts/a.pcap
 
+scripts/exp/client_cfg_dns-0.erf
 scripts/exp/pcap_remote_dual-0.erf
 scripts/exp/stl_vm_split_client_var.erf-0.erf
 scripts/exp/stl_vm_split_flow_var_big_range.erf-0.erf

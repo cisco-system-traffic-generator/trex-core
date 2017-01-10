@@ -1,6 +1,6 @@
 /*
  Ido Barnea
- 
+
  Cisco Systems, Inc.
 */
 
@@ -23,6 +23,16 @@ limitations under the License.
 #include "../bp_sim.h"
 #include <common/gtest.h>
 #include <common/basic_utils.h>
+#include "bp_gtest.h"
+
+class client_cfg : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
 
 class basic_client_cfg : public testing::Test {
     protected:
@@ -33,6 +43,7 @@ class basic_client_cfg : public testing::Test {
    public:
 };
 
+// testing IP resolution relevant classes
 TEST_F(basic_client_cfg, test1) {
     uint32_t ip_start = 0x10010101;
     uint32_t ip_end = 0x100101ff;
@@ -58,8 +69,8 @@ TEST_F(basic_client_cfg, test1) {
     tg_yam_info.m_client_pool.push_back(s_pool);
 
     CGlobalInfo::m_options.m_expected_portd = 4;
-    printf("Expected ports %d\n", CGlobalInfo::m_options.m_expected_portd);    
-    
+    printf("Expected ports %d\n", CGlobalInfo::m_options.m_expected_portd);
+
     std::string tmp_file_name = "client_cfg_gtest_GENERATED.yaml";
     FILE *fd = fopen(tmp_file_name.c_str(), "w");
 
@@ -72,7 +83,7 @@ TEST_F(basic_client_cfg, test1) {
     cfg_ext.m_responder.set_next_hop(next_hop_resp);
     cfg_ext.m_initiator.set_vlan(vlan_init);
     cfg_ext.m_responder.set_vlan(vlan_resp);
-    
+
     cfg_ent.set_params(ip_start, ip_end, test_count);
     cfg_ent.set_cfg(cfg_ext);
 
@@ -95,7 +106,7 @@ TEST_F(basic_client_cfg, test1) {
     test_db.load_yaml_file(tmp_file_name);
     test_db.set_tuple_gen_info(&tg_yam_info);
     test_db.get_entry_list(ent_list);
-    
+
 
     // We expect ports for first two groups to be found.
     // This group addresses should not appear in the list, since
@@ -114,13 +125,13 @@ TEST_F(basic_client_cfg, test1) {
         case 2:
             assert(port == i);
             assert(vlan == vlan_init);
-            assert(dst_ip == next_hop_init);            
+            assert(dst_ip == next_hop_init);
             break;
         case 1:
         case 3:
             assert(port == i);
             assert(vlan == vlan_resp);
-            assert(dst_ip == next_hop_resp); 
+            assert(dst_ip == next_hop_resp);
             break;
         default:
             fprintf(stderr, "Test failed. Too many entries returned\n");
@@ -141,12 +152,12 @@ TEST_F(basic_client_cfg, test1) {
     COneIPv4Info ip0_2(next_hop_init + 1, vlan_init, mac1, 0);
     COneIPv4Info ip1_1(next_hop_resp, vlan_resp, mac2, 1);
     COneIPv4Info ip1_2(next_hop_resp + 1, vlan_resp, mac3, 1);
-    
+
     many_ip.insert(ip0_1);
     many_ip.insert(ip0_2);
     many_ip.insert(ip1_1);
     many_ip.insert(ip1_2);
-    
+
     test_db.set_resolved_macs(many_ip);
 
     ClientCfgBase cfg0;
@@ -167,7 +178,7 @@ TEST_F(basic_client_cfg, test1) {
     ent0->assign(cfg0);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac3.GetConstBuffer(), ETHER_ADDR_LEN));
-    
+
     assert(ent1 != NULL);
     ent1->assign(cfg0);
     assert (!memcmp(cfg0.m_initiator.get_dst_mac_addr()
@@ -181,6 +192,24 @@ TEST_F(basic_client_cfg, test1) {
     ent1->assign(cfg0);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac3.GetConstBuffer(), ETHER_ADDR_LEN));
-    
+
 }
 
+// simulation testing of MAC based client config
+// basic_* tests are checked for memory leaks with valgrind. When running yaml file load/parse, test suite name
+// should not start with basic_
+TEST_F(client_cfg, test2) {
+    CTestBasic t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+
+    po->reset();
+    po->preview.setVMode(3);
+    po->preview.setFileWrite(true);
+    po->cfg_file = "cap2/dns.yaml";
+    po->out_file = "exp/client_cfg_dns";
+    po->client_cfg_file = "cap2/cluster_example.yaml";
+
+    bool res = t1.init();
+
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
