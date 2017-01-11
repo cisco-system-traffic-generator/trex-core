@@ -22,7 +22,146 @@ limitations under the License.
 #define __TREX_STATELESS_CAPTURE_H__
 
 #include <stdint.h>
+#include <assert.h>
+
 #include "trex_stateless_pkt.h"
+#include "trex_stateless_capture_msg.h"
+
+typedef int64_t capture_id_t;
+
+class TrexCaptureRC {
+public:
+
+    TrexCaptureRC() {
+        m_rc = RC_INVALID;
+        m_pkt_buffer = NULL;
+    }
+
+    enum rc_e {
+        RC_INVALID = 0,
+        RC_OK = 1,
+        RC_CAPTURE_NOT_FOUND,
+        RC_CAPTURE_LIMIT_REACHED,
+        RC_CAPTURE_FETCH_UNDER_ACTIVE
+    };
+
+    bool operator !() const {
+        return (m_rc != RC_OK);
+    }
+    
+    std::string get_err() const {
+        assert(m_rc != RC_INVALID);
+        
+        switch (m_rc) {
+        case RC_OK:
+            return "";
+        case RC_CAPTURE_LIMIT_REACHED:
+            return "capture limit has reached";
+        case RC_CAPTURE_NOT_FOUND:
+            return "capture ID not found";
+        case RC_CAPTURE_FETCH_UNDER_ACTIVE:
+            return "fetch command cannot be executed on an active capture";
+        default:
+            assert(0);
+        }
+    }
+    
+    void set_err(rc_e rc) {
+        m_rc = rc;
+    }
+    
+    Json::Value get_json() const {
+        return m_json_rc;
+    }
+    
+public:
+    rc_e              m_rc;
+    capture_id_t      m_capture_id;
+    TrexPktBuffer    *m_pkt_buffer;
+    Json::Value       m_json_rc;
+};
+
+class TrexCaptureRCStart : public TrexCaptureRC {
+public:
+
+    void set_new_id(capture_id_t new_id) {
+        m_capture_id = new_id;
+        m_rc = RC_OK;
+    }
+    
+    capture_id_t get_new_id() const {
+        return m_capture_id;
+    }
+    
+private:
+    capture_id_t  m_capture_id;
+};
+
+
+class TrexCaptureRCStop : public TrexCaptureRC {
+public:
+    void set_count(uint32_t pkt_count) {
+        m_pkt_count = pkt_count;
+        m_rc = RC_OK;
+    }
+    
+    uint32_t get_pkt_count() const {
+        return m_pkt_count;
+    }
+    
+private:
+    uint32_t m_pkt_count;
+};
+
+class TrexCaptureRCFetch : public TrexCaptureRC {
+public:
+
+    TrexCaptureRCFetch() {
+        m_pkt_buffer = nullptr;
+        m_pending    = 0;
+    }
+    
+    void set_pkt_buffer(const TrexPktBuffer *pkt_buffer, uint32_t pending) {
+        m_pkt_buffer = pkt_buffer;
+        m_pending = pending;
+        m_rc = RC_OK;
+    }
+    
+    const TrexPktBuffer *get_pkt_buffer() const {
+        return m_pkt_buffer;
+    }
+    
+    uint32_t get_pending() const {
+        return m_pending;
+    }
+    
+private:
+    const TrexPktBuffer *m_pkt_buffer;
+    uint32_t             m_pending;
+};
+
+class TrexCaptureRCRemove : public TrexCaptureRC {
+public:
+    void set_ok() {
+        m_rc = RC_OK;
+    }
+};
+
+class TrexCaptureRCStatus : public TrexCaptureRC {
+public:
+    
+    void set_status(const Json::Value &json) {
+        m_json = json;
+        m_rc   = RC_OK;
+    }
+    
+    const Json::Value & get_status() const {
+        return m_json;
+    }
+    
+private:
+    Json::Value m_json;
+};
 
 /**
  * capture filter 
@@ -82,20 +221,27 @@ public:
         return *this;
     }
     
+    Json::Value to_json() const {
+        Json::Value output = Json::objectValue;
+        output["tx"] = Json::UInt64(m_tx_active);
+        output["rx"] = Json::UInt64(m_rx_active);
+
+        return output;
+    }
+
 private:
     
     uint64_t  m_tx_active;
     uint64_t  m_rx_active;
 };
 
-typedef int64_t capture_id_t;
-enum {
-    CAPTURE_ID_NOT_FOUND = -1,
-    CAPTURE_TOO_MANY_CAPTURES = -2,
-};
 
 class TrexStatelessCapture {
 public:
+    enum state_e {
+        STATE_ACTIVE,
+        STATE_STOPPED,
+    };
     
     TrexStatelessCapture(capture_id_t id, uint64_t limit, const CaptureFilter &filter);
     
@@ -112,7 +258,24 @@ public:
         return m_filter;
     }
     
+    Json::Value to_json() const;
+
+    void stop() {
+        m_state = STATE_STOPPED;
+    }
+    
+    TrexPktBuffer * fetch(uint32_t pkt_limit, uint32_t &pending);
+    
+    bool is_active() const {
+        return m_state == STATE_ACTIVE;
+    }
+    
+    uint32_t get_pkt_count() const {
+        return m_pkt_buffer->get_element_count();
+    }
+    
 private:
+    state_e          m_state;
     TrexPktBuffer   *m_pkt_buffer;
     CaptureFilter    m_filter;
     uint64_t         m_id;
@@ -134,24 +297,35 @@ public:
     }
     
     /**
-     * adds a capture buffer
-     * returns ID 
+     * starts a new capture
      */
-    capture_id_t add(uint64_t limit, const CaptureFilter &filter);
+    void start(const CaptureFilter &filter, uint64_t limit, TrexCaptureRCStart &rc);
    
-     
     /**
-     * stops capture mode 
-     * on success, will return the ID of the removed one 
-     * o.w it will be an error 
+     * stops an existing capture
+     * 
      */
-    capture_id_t remove(capture_id_t id);
+    void stop(capture_id_t capture_id, TrexCaptureRCStop &rc);
+    
+    /**
+     * fetch packets from an existing capture
+     * 
+     */
+    void fetch(capture_id_t capture_id, uint32_t pkt_limit, TrexCaptureRCFetch &rc);
+
+    /** 
+     * removes an existing capture 
+     * all packets captured will be detroyed 
+     */
+    void remove(capture_id_t capture_id, TrexCaptureRCRemove &rc);
+    
     
     /**
      * removes all captures
      * 
      */
     void reset();
+    
     
     /**
      * return true if any filter is active
@@ -182,12 +356,17 @@ public:
         handle_pkt_rx_slow_path(m, port);
     }
     
+    Json::Value to_json() const;
+        
 private:
     
     TrexStatelessCaptureMngr() {
         /* init this to 1 */
         m_id_counter = 1;
     }
+    
+    
+    TrexStatelessCapture * lookup(capture_id_t capture_id);
     
     void handle_pkt_rx_slow_path(const rte_mbuf_t *m, int port);
     void update_global_filter();

@@ -26,6 +26,7 @@ import random
 import json
 import traceback
 import os.path
+import argparse
 
 ############################     logger     #############################
 ############################                #############################
@@ -2961,7 +2962,7 @@ class STLClient(object):
             Resolves ports (ARP resolution)
 
             :parameters:
-                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                ports          - which ports to resolve
                 retires        - how many times to retry on each port (intervals of 100 milliseconds)
                 verbose        - log for each request the response
             :raises:
@@ -3022,7 +3023,7 @@ class STLClient(object):
             
         self.logger.pre_cmd("Starting PCAP capturing up to {0} packets".format(limit))
         
-        rc = self._transmit("start_capture", params = {'limit': limit, 'tx': tx_ports, 'rx': rx_ports})
+        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
 
 
@@ -3032,23 +3033,81 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def stop_capture (self, ports = None):
+    def stop_capture (self, capture_id, output_filename):
         """
-            Removes RX sniffer from port(s)
+            Stops an active capture
+
+            :parameters:
+                capture_id        - an active capture ID to stop
+                output_filename   - output filename to save capture
 
             :raises:
                 + :exe:'STLError'
 
         """
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
 
-        self.logger.pre_cmd("Removing RX sniffers on port(s) {0}:".format(ports))
-        rc = self.__remove_rx_sniffer(ports)
+        
+        
+        # stopping a capture requires:
+        # 1. stopping
+        # 2. fetching
+        # 3. saving to file
+        
+        # stop
+        
+        self.logger.pre_cmd("Stopping PCAP capture {0}".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'stop', 'capture_id': capture_id})
         self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
+        
+        # pkt count
+        pkt_count = rc.data()['pkt_count']
+            
+        if not output_filename or pkt_count == 0:
+            return
+        
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
+
+        # create a PCAP file
+        writer = RawPcapWriter(output_filename, linktype = 1)
+        writer._write_header(None)
+        
+        # fetch
+        while True:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            if not rc:
+                self.logger.post_cmd(rc)
+                raise STLError(rc)
+        
+            pkts = rc.data()['pkts']
+            for pkt in pkts:
+                ts = pkt['ts']
+                pkt_bin = base64.b64decode(pkt['binary'])
+                writer._write_packet(pkt_bin, sec = 0, usec = 0)
+                
+            if rc.data()['pending'] == 0:
+                break
+        
+        self.logger.post_cmd(rc)
+        
+
+    # get capture status
+    @__api_check(True)
+    def get_capture_status (self):
+        """
+            returns a list of all active captures
+            each element in the list is an object containing
+            info about the capture
+
+        """
+
+        rc = self._transmit("capture", params = {'command': 'status'})
 
         if not rc:
             raise STLError(rc)
+
+        return rc.data()
 
     
     @__api_check(True)
@@ -3766,23 +3825,71 @@ class STLClient(object):
 
              
     @__console
-    def start_capture_line (self, line):
-        '''Starts PCAP recorder on port(s)'''
+    def capture_line (self, line):
+        '''Manage PCAP recorders'''
 
-        parser = parsing_opts.gen_parser(self,
-                                         "capture",
-                                         self.start_capture_line.__doc__,
-                                         parsing_opts.TX_PORT_LIST,
-                                         parsing_opts.RX_PORT_LIST,
-                                         parsing_opts.LIMIT)
+        # default
+        if not line:
+            line = "show"
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        parser = parsing_opts.gen_parser(self, "capture", self.capture_line.__doc__)
+        subparsers = parser.add_subparsers(title = "commands", dest="commands")
+
+        # start
+        start_parser = subparsers.add_parser('start', help = "starts a new capture")
+        start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
+                                  parsing_opts.RX_PORT_LIST,
+                                  parsing_opts.LIMIT)
+
+        # stop
+        stop_parser = subparsers.add_parser('stop', help = "stops an active capture")
+        stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
+                                 parsing_opts.OUTPUT_FILENAME)
+
+        # show
+        show_parser = subparsers.add_parser('show', help = "show all active captures")
+
+        opts = parser.parse_args(line.split())
+
         if not opts:
             return opts
 
-        self.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
+        # start
+        if opts.commands == 'start':
+            if not opts.tx_port_list and not opts.rx_port_list:
+                start_parser.formatted_error('please provide either --tx or --rx')
+                return
+
+            self.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
+
+        # stop
+        elif opts.commands == 'stop':
+            self.stop_capture(opts.capture_id, opts.output_filename)
+
+        # show
+        else:
+            data = self.get_capture_status()
+
+            stats_table = text_tables.TRexTextTable()
+            stats_table.set_cols_align(["c"] * 6)
+            stats_table.set_cols_width([15] * 6)
+
+            for elem in data:
+                row = [elem['id'],
+                       elem['state'],
+                       '[{0}/{1}]'.format(elem['count'], elem['limit']),
+                       format_num(elem['bytes'], suffix = 'B'),
+                       bitfield_to_str(elem['filter']['tx']),
+                       bitfield_to_str(elem['filter']['rx'])]
+                
+                stats_table.add_rows([row], header=False)
+
+            stats_table.header(['ID', 'Status', 'Count', 'Bytes', 'TX Ports', 'RX Ports'])
+            text_tables.print_table_with_header(stats_table, "Captures")
+            
 
         return RC_OK()
+
         
 
     @__console

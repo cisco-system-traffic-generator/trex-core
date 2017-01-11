@@ -29,6 +29,7 @@ limitations under the License.
 
 #include "trex_stateless_rx_core.h"
 #include "trex_stateless_capture.h"
+#include "trex_stateless_messaging.h"
 
 #include <fstream>
 #include <iostream>
@@ -844,13 +845,38 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);    
     
 }
-   
+
+
+/**
+ * capture command tree
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
+    const std::string cmd = parse_choice(params, "command", {"start", "stop", "fetch", "status"}, result);
+    
+    if (cmd == "start") {
+        parse_cmd_start(params, result);
+    } else if (cmd == "stop") {
+        parse_cmd_stop(params, result);
+    } else if (cmd == "fetch") {
+        parse_cmd_fetch(params, result);
+    } else if (cmd == "status") {
+        parse_cmd_status(params, result);
+    } else {
+        /* can't happen */
+        assert(0);
+    }
+    
+    return TREX_RPC_CMD_OK;
+}
+
 /**
  * starts PCAP capturing
  * 
  */
-trex_rpc_cmd_rc_e
-TrexRpcCmdStartCapture::_run(const Json::Value &params, Json::Value &result) {
+void
+TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &result) {
     
     uint32_t limit             = parse_uint32(params, "limit", result);
     const Json::Value &tx_json = parse_array(params, "tx", result);
@@ -881,8 +907,90 @@ TrexRpcCmdStartCapture::_run(const Json::Value &params, Json::Value &result) {
         }
     }
     
-    get_stateless_obj()->start_capture(filter, limit);
+    static MsgReply<TrexCaptureRCStart> reply;
+    reply.reset();
+    
+    TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, reply);
+    get_stateless_obj()->send_msg_to_rx(start_msg);
+    
+    TrexCaptureRCStart rc = reply.wait_for_reply();
+    if (!rc) {
+        generate_execute_err(result, rc.get_err());
+    }
     
     result["result"] = Json::objectValue;
-    return (TREX_RPC_CMD_OK);
 }
+
+/**
+ * stops PCAP capturing
+ * 
+ */
+void
+TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result) {
+    
+    uint32_t capture_id = parse_uint32(params, "capture_id", result);
+    
+    static MsgReply<TrexCaptureRCStop> reply;
+    reply.reset();
+    
+    TrexStatelessRxCaptureStop *stop_msg = new TrexStatelessRxCaptureStop(capture_id, reply);
+    get_stateless_obj()->send_msg_to_rx(stop_msg);
+    
+    TrexCaptureRCStop rc = reply.wait_for_reply();
+    if (!rc) {
+        generate_execute_err(result, rc.get_err());
+    }
+    
+    result["result"]["pkt_count"] = rc.get_pkt_count();
+}
+
+/**
+ * gets the status of all captures in the system
+ * 
+ */
+void
+TrexRpcCmdCapture::parse_cmd_status(const Json::Value &params, Json::Value &result) {
+    
+    /* generate a status command */
+    
+    static MsgReply<TrexCaptureRCStatus> reply;
+    reply.reset();
+    
+    TrexStatelessRxCaptureStatus *status_msg = new TrexStatelessRxCaptureStatus(reply);
+    get_stateless_obj()->send_msg_to_rx(status_msg);
+    
+    TrexCaptureRCStatus rc = reply.wait_for_reply();
+    if (!rc) {
+        generate_execute_err(result, rc.get_err());
+    }
+    
+    result["result"] = rc.get_status();
+}
+
+/**
+ * fetch packets from a capture
+ * 
+ */
+void
+TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &result) {
+    
+    uint32_t capture_id = parse_uint32(params, "capture_id", result);
+    uint32_t pkt_limit  = parse_uint32(params, "pkt_limit", result);
+    
+    /* generate a fetch command */
+    
+    static MsgReply<TrexCaptureRCFetch> reply;
+    reply.reset();
+    
+    TrexStatelessRxCaptureFetch *fetch_msg = new TrexStatelessRxCaptureFetch(capture_id, pkt_limit, reply);
+    get_stateless_obj()->send_msg_to_rx(fetch_msg);
+    
+    TrexCaptureRCFetch rc = reply.wait_for_reply();
+    if (!rc) {
+        generate_execute_err(result, rc.get_err());
+    }
+    
+    result["result"]["pkts"]    = rc.get_pkt_buffer()->to_json();
+    result["result"]["pending"] = rc.get_pending();
+}
+

@@ -102,7 +102,6 @@ public:
  * defines the TRex stateless operation mode
  * 
  */
-class CaptureFilter;
 class TrexStateless {
 public:
 
@@ -133,16 +132,9 @@ public:
 
 
     /**
-     * starts a capture on a 'filter' of ports 
-     * with a limit of packets 
+     * send a message to the RX core
      */
-    capture_id_t start_capture(const CaptureFilter &filter, uint64_t limit);
-    
-    /**
-     * stops an active capture
-     * 
-     */
-    capture_id_t stop_capture(capture_id_t capture_id);
+    void send_msg_to_rx(TrexStatelessCpToRxMsgBase *msg) const;
     
     /**
      * shutdown the server

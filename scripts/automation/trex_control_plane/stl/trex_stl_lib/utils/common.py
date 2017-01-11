@@ -107,4 +107,18 @@ def list_remove_dup (l):
             
     return tmp
             
-        
+def bitfield_to_list (bf):
+    rc = []
+    bitpos = 0
+
+    while bf > 0:
+        if bf & 0x1:
+            rc.append(bitpos)
+        bitpos += 1
+        bf = bf >> 1
+
+    return rc
+
+def bitfield_to_str (bf):
+    lst = bitfield_to_list(bf)
+    return "-" if not lst else ', '.join([str(x) for x in lst])

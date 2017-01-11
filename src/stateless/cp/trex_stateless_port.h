@@ -140,7 +140,7 @@ public:
         }
 
         if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
-            throw TrexException("unable to disable service - an active capture on port " + std::to_string(m_port_id) + " exists");
+            throw TrexException("unable to disable service mode - an active capture on port " + std::to_string(m_port_id) + " exists");
         }
         
         m_port_attr->set_rx_filter_mode(RX_FILTER_MODE_HW);
@@ -438,19 +438,6 @@ public:
                                  double &percentage);
 
     void get_pci_info(std::string &pci_addr, int &numa_node);
-
-
-    /**
-     * starts capturing packets
-     * 
-     */
-    void start_capture(capture_mode_e mode, uint64_t limit);
-
-    /**
-     * stops capturing packets
-     * 
-     */
-    void stop_capture();
 
     /**
      * start RX queueing of packets

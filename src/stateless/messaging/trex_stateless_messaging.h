@@ -485,12 +485,16 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 };
 
 
-
-class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStartCapture(const CaptureFilter& filter,
+    virtual bool handle (CRxCoreStateless *rx_core) = 0;
+};
+
+class TrexStatelessRxCaptureStart : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureStart(const CaptureFilter& filter,
                                 uint64_t limit,
-                                MsgReply<capture_id_t> &reply) : m_reply(reply) {
+                                MsgReply<TrexCaptureRCStart> &reply) : m_reply(reply) {
         
         m_limit  = limit;
         m_filter = filter;
@@ -499,24 +503,52 @@ public:
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t                    m_port_id;
-    uint64_t                   m_limit;
-    CaptureFilter              m_filter;
-    MsgReply<capture_id_t>    &m_reply;
+    uint8_t                          m_port_id;
+    uint64_t                         m_limit;
+    CaptureFilter                    m_filter;
+    MsgReply<TrexCaptureRCStart>    &m_reply;
 };
 
 
-class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxCaptureStop : public TrexStatelessRxCapture {
 public:
-    TrexStatelessRxStopCapture(capture_id_t capture_id, MsgReply<capture_id_t> &reply) : m_reply(reply) {
+    TrexStatelessRxCaptureStop(capture_id_t capture_id, MsgReply<TrexCaptureRCStop> &reply) : m_reply(reply) {
         m_capture_id = capture_id;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    capture_id_t              m_capture_id;
-    MsgReply<capture_id_t>   &m_reply;
+    capture_id_t                   m_capture_id;
+    MsgReply<TrexCaptureRCStop>   &m_reply;
+};
+
+
+class TrexStatelessRxCaptureFetch : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureFetch(capture_id_t capture_id, uint32_t pkt_limit, MsgReply<TrexCaptureRCFetch> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
+        m_pkt_limit  = pkt_limit;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    capture_id_t                   m_capture_id;
+    uint32_t                       m_pkt_limit;
+    MsgReply<TrexCaptureRCFetch>  &m_reply;
+};
+
+
+class TrexStatelessRxCaptureStatus : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureStatus(MsgReply<TrexCaptureRCStatus> &reply) : m_reply(reply) {
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    MsgReply<TrexCaptureRCStatus>   &m_reply;
 };
 
 

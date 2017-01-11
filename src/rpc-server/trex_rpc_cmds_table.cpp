@@ -79,7 +79,7 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdSetL2());
     register_command(new TrexRpcCmdSetL3());
     
-    register_command(new TrexRpcCmdStartCapture());
+    register_command(new TrexRpcCmdCapture());
 }
 
 

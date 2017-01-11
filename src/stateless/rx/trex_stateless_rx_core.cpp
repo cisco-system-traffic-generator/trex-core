@@ -270,10 +270,6 @@ void CRxCoreStateless::start() {
     m_monitor.disable();  
 }
 
-void CRxCoreStateless::capture_pkt(rte_mbuf_t *m) {
-
-}
-
 int CRxCoreStateless::process_all_pending_pkts(bool flush_rx) {
 
     int total_pkts = 0;
@@ -331,16 +327,6 @@ double CRxCoreStateless::get_cpu_util() {
     return m_cpu_cp_u.GetVal();
 }
 
-
-capture_id_t
-CRxCoreStateless::start_capture(uint64_t limit, const CaptureFilter &filter) {
-    return TrexStatelessCaptureMngr::getInstance().add(limit, filter);
-}
-
-capture_id_t
-CRxCoreStateless::stop_capture(capture_id_t capture_id) {
-    return TrexStatelessCaptureMngr::getInstance().remove(capture_id);
-}
 
 void
 CRxCoreStateless::start_queue(uint8_t port_id, uint64_t size) {

@@ -131,14 +131,7 @@ class CRxCoreStateless {
     const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id) {
         return m_rx_port_mngr[port_id].get_pkt_buffer();
     }
-
-    /**
-     * start capturing packets
-     *  
-     */
-    capture_id_t start_capture(uint64_t limit, const CaptureFilter &filter);
-    capture_id_t stop_capture(capture_id_t capture_id);
-
+    
     /**
      * start RX queueing of packets
      * 
@@ -175,7 +168,6 @@ class CRxCoreStateless {
     void recalculate_next_state();
     bool are_any_features_active();
 
-    void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
     void handle_grat_arp();

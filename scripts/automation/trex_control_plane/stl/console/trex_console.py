@@ -348,8 +348,8 @@ class TRexConsole(TRexGeneralCmd):
         
     @verify_connected
     def do_capture (self, line):
-        '''Start PCAP capturing on port'''
-        self.stateless_client.start_capture_line(line)
+        '''Manage PCAP captures'''
+        self.stateless_client.capture_line(line)
 
     def help_capture (self):
         self.do_capture("-h")

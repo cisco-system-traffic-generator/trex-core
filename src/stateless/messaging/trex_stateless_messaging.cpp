@@ -262,23 +262,57 @@ bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
 
 
 bool
-TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
-    capture_id_t capture_id = rx_core->start_capture(m_limit, m_filter);
-
+TrexStatelessRxCaptureStart::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStart start_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().start(m_filter, m_limit, start_rc);
+    
     /* mark as done */
-    m_reply.set_reply(capture_id);
+    m_reply.set_reply(start_rc);
     
     return true;
 }
 
 bool
-TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
-    capture_id_t rc = rx_core->stop_capture(m_capture_id);
+TrexStatelessRxCaptureStop::handle(CRxCoreStateless *rx_core) {
     
-    m_reply.set_reply(rc);
+    TrexCaptureRCStop stop_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().stop(m_capture_id, stop_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(stop_rc);
     
     return true;
 }
+
+bool
+TrexStatelessRxCaptureFetch::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCFetch fetch_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().fetch(m_capture_id, m_pkt_limit, fetch_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(fetch_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureStatus::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStatus status_rc;
+    
+    status_rc.set_status(TrexStatelessCaptureMngr::getInstance().to_json()); 
+    
+    /* mark as done */
+    m_reply.set_reply(status_rc);
+    
+    return true;
+}
+
 
 bool
 TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {

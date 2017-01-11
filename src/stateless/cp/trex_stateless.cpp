@@ -19,7 +19,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//#include <sched.h>
 #include <iostream>
 #include <unistd.h>
 
@@ -142,35 +141,11 @@ TrexStateless::get_dp_core_count() {
     return m_platform_api->get_dp_core_count();
 }
 
-capture_id_t
-TrexStateless::start_capture(const CaptureFilter &filter, uint64_t limit) {
-    static MsgReply<capture_id_t> reply;
-    
-    reply.reset();
-    
+void
+TrexStateless::send_msg_to_rx(TrexStatelessCpToRxMsgBase *msg) const {
+
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(filter, limit, reply);
-     
     ring->Enqueue((CGenNode *)msg);
-    
-    capture_id_t new_id = reply.wait_for_reply();
-    
-    return (new_id);
 }
 
-capture_id_t
-TrexStateless::stop_capture(capture_id_t capture_id) {
-    static MsgReply<capture_id_t> reply;
-    
-    reply.reset();
-    
-    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    TrexStatelessRxStopCapture *msg = new TrexStatelessRxStopCapture(capture_id, reply);
-     
-    ring->Enqueue((CGenNode *)msg);
-    
-    capture_id_t rc = reply.wait_for_reply();
-    
-    return (rc);
-}
 

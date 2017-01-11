@@ -25,6 +25,7 @@ TrexStatelessCapture::TrexStatelessCapture(capture_id_t id, uint64_t limit, cons
     m_id         = id;
     m_pkt_buffer = new TrexPktBuffer(limit, TrexPktBuffer::MODE_DROP_TAIL);
     m_filter     = filter;
+    m_state      = STATE_ACTIVE;
 }
 
 TrexStatelessCapture::~TrexStatelessCapture() {
@@ -35,9 +36,15 @@ TrexStatelessCapture::~TrexStatelessCapture() {
 
 void
 TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
+
+    if (m_state != STATE_ACTIVE) {
+        delete pkt;
+        return;
+    }
     
     /* if not in filter - back off */
     if (!m_filter.in_filter(pkt)) {
+        delete pkt;
         return;
     }
     
@@ -46,11 +53,66 @@ TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
 
 void
 TrexStatelessCapture::handle_pkt_rx(const rte_mbuf_t *m, int port) {
+
+    if (m_state != STATE_ACTIVE) {
+        return;
+    }
+    
     if (!m_filter.in_rx(port)) {
         return;
     }
     
     m_pkt_buffer->push(m);
+}
+
+
+Json::Value
+TrexStatelessCapture::to_json() const {
+    Json::Value output = Json::objectValue;
+
+    output["id"]     = Json::UInt64(m_id);
+    output["filter"] = m_filter.to_json();
+    output["count"]  = m_pkt_buffer->get_element_count();
+    output["bytes"]  = m_pkt_buffer->get_bytes();
+    output["limit"]  = m_pkt_buffer->get_capacity();
+    
+    switch (m_state) {
+    case STATE_ACTIVE:
+        output["state"]  = "ACTIVE";
+        break;
+        
+    case STATE_STOPPED:
+        output["state"]  = "STOPPED";
+        break;
+        
+    default:
+        assert(0);
+        
+    }
+    
+    return output;
+}
+
+TrexPktBuffer *
+TrexStatelessCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
+    
+    /* if the total sum of packets is within the limit range - take it */
+    if (m_pkt_buffer->get_element_count() <= pkt_limit) {
+        TrexPktBuffer *current = m_pkt_buffer;
+        m_pkt_buffer = new TrexPktBuffer(m_pkt_buffer->get_capacity(), m_pkt_buffer->get_mode());
+        pending = 0;
+        return current;
+    }
+    
+    /* harder part - partial fetch */
+    TrexPktBuffer *partial = new TrexPktBuffer(pkt_limit);
+    for (int i = 0; i < pkt_limit; i++) {
+        const TrexPkt *pkt = m_pkt_buffer->pop();
+        partial->push(pkt);
+    }
+    
+    pending = m_pkt_buffer->get_element_count();
+    return partial;
 }
 
 void
@@ -64,11 +126,25 @@ TrexStatelessCaptureMngr::update_global_filter() {
     m_global_filter = new_filter;
 }
 
-capture_id_t
-TrexStatelessCaptureMngr::add(uint64_t limit, const CaptureFilter &filter) {
+TrexStatelessCapture *
+TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) {
     
+    for (int i = 0; i < m_captures.size(); i++) {
+        if (m_captures[i]->get_id() == capture_id) {
+            return m_captures[i];
+        }
+    }
+    
+    /* does not exist */
+    return nullptr;
+}
+
+void
+TrexStatelessCaptureMngr::start(const CaptureFilter &filter, uint64_t limit, TrexCaptureRCStart &rc) {
+
     if (m_captures.size() > MAX_CAPTURE_SIZE) {
-        return CAPTURE_TOO_MANY_CAPTURES;
+        rc.set_err(TrexCaptureRC::RC_CAPTURE_LIMIT_REACHED);
+        return;
     }
     
 
@@ -79,15 +155,46 @@ TrexStatelessCaptureMngr::add(uint64_t limit, const CaptureFilter &filter) {
     /* update global filter */
     update_global_filter();
     
-    return new_id;
+    /* result */
+    rc.set_new_id(new_id);
 }
 
-capture_id_t
-TrexStatelessCaptureMngr::remove(capture_id_t id) {
+void
+TrexStatelessCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
+    TrexStatelessCapture *capture = lookup(capture_id);
+    if (!capture) {
+        rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
+        return;
+    }
     
+    capture->stop();
+    rc.set_count(capture->get_pkt_count());
+}
+
+void
+TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, TrexCaptureRCFetch &rc) {
+    TrexStatelessCapture *capture = lookup(capture_id);
+    if (!capture) {
+        rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
+        return;
+    }
+    if (capture->is_active()) {
+        rc.set_err(TrexCaptureRC::RC_CAPTURE_FETCH_UNDER_ACTIVE);
+        return;
+    }
+    
+    uint32_t pending = 0;
+    TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
+    
+    rc.set_pkt_buffer(pkt_buffer, pending);
+}
+
+void
+TrexStatelessCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &rc) {
+
     int index = -1;
     for (int i = 0; i < m_captures.size(); i++) {
-        if (m_captures[i]->get_id() == id) {
+        if (m_captures[i]->get_id() == capture_id) {
             index = i;
             break;
         }
@@ -95,24 +202,26 @@ TrexStatelessCaptureMngr::remove(capture_id_t id) {
     
     /* does not exist */
     if (index == -1) {
-        return CAPTURE_ID_NOT_FOUND;
+        rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
+        return;
     }
     
     TrexStatelessCapture *capture =  m_captures[index];
     m_captures.erase(m_captures.begin() + index);
     
+    /* free memory */
     delete capture;
     
     /* update global filter */
     update_global_filter();
-    
-    return id;
 }
 
 void
 TrexStatelessCaptureMngr::reset() {
+    TrexCaptureRCRemove dummy;
+    
     while (m_captures.size() > 0) {
-        remove(m_captures[0]->get_id());
+        remove(m_captures[0]->get_id(), dummy);
     }
 }
 
@@ -128,5 +237,16 @@ TrexStatelessCaptureMngr::handle_pkt_rx_slow_path(const rte_mbuf_t *m, int port)
     for (TrexStatelessCapture *capture : m_captures) {
         capture->handle_pkt_rx(m, port);
     }
+}
+
+Json::Value
+TrexStatelessCaptureMngr::to_json() const {
+    Json::Value lst = Json::arrayValue;
+
+    for (TrexStatelessCapture *capture : m_captures) {
+        lst.append(capture->to_json());
+    }
+
+    return lst;
 }
 

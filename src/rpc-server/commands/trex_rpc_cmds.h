@@ -160,7 +160,13 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetRxQueuePkts, "get_rx_queue_pkts", 1, true, APIC
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdSetServiceMode, "service", 2, true, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdStartCapture, "start_capture", 3, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdCapture,  "capture", 1, false, APIClass::API_CLASS_TYPE_CORE, 
+    void parse_cmd_start(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_stop(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_status(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_fetch(const Json::Value &msg, Json::Value &result);
+);
+
 
 #endif /* __TREX_RPC_CMD_H__ */
 
