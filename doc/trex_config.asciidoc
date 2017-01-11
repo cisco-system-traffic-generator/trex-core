@@ -266,8 +266,8 @@ file must contain the following (instead of the ``ip'' and ``default_gw'').
 
 [source,python]
 ----
- arp 12.12.12.2 0000.0002.0000 ARPA  #<1>
- arp 11.11.11.2 0000.0004.0000 ARPA  #<2>
+ arp 11.11.11.2 0000.0002.0000 ARPA  #<1>
+ arp 12.12.12.2 0000.0004.0000 ARPA  #<2>
 ----
 <1> TRex port 0 source mac-address.
 <2> TRex port 1 source mac-address.
@@ -284,9 +284,12 @@ route add -net 16.0.0.0 netmask 255.0.0.0 gw 11.11.11.2
 * If you have MAC based TRex config, you should also add:
 [source,python]
 ----
-arp -s 12.12.12.2 00:00:00:04:00:00
-arp -s 11.11.11.2 00:00:00:04:00:00
+arp -s 11.11.11.2 00:00:00:02:00:00 #<1>
+arp -s 12.12.12.2 00:00:00:04:00:00 #<2>
 ----
+<1> TRex port 0 source mac-address.
+<2> TRex port 1 source mac-address.
+
 
 == Static route configuration - IPV6
 
