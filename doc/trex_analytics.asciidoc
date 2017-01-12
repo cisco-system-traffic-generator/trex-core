@@ -22,6 +22,19 @@ endif::backend-xhtml11[]
 
 
 = TRex performance trend 
+Performance is measured in a metric called MPPS/Core (Norm), which stands for Mega-Packet per second (Norm). +
+ +
+How the calculation is made? +
+ +
+We measure the MPPS of the dut in it's best working point. +
+The measurement is then scaled to fit 100% CPU utilization, and finally divided by the number of cores the device has,
+to get a normalized MPPS/Core which is denoted as MPPS/Core (Norm) +
+ +
+How to run these tests? +
+[source,python]
+----
+       trex-core/scripts> ./run_regression --stl -t <name of test> --cfg setups/<name of setup>
+----
 
 == Setup: XL710 (4x40GbE)  trex-08
 

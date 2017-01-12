@@ -2,19 +2,48 @@
 import pandas as pd
 import numpy as np
 import matplotlib
+from enum import IntEnum
 
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import os
 import time
 
+"""
+This Module is structured to work with a raw data at the following JSON format:
 
-### TODO: insert a description of a test query
+ {'setup_name': {'test1_name':[QUERY1,QUERY2,QUERY3],
+                'test2_name':[QUERY1,QUERY2,QUERY3]
+                }
+  'setup_name2': {'test1_name':[QUERY1,QUERY2,QUERY3],
+                'test2_name':[QUERY1,QUERY2,QUERY3]
+                }
+ }
+
+ The Query structure is set (currently) to this:
+ (test_name,state, date,hour,minute,mpps_result,mpps_min,mpps_max,build_id)
+
+ it can be changed to support other formats of queries, simply change the enum class to support your desired structure
+ the enums specify the indexes of the data within the query tuple
+
+"""
+
+
+class TestQuery(IntEnum):
+    QUERY_DATE = 2  # date format is yyyymmdd
+    QUERY_HOUR = 3
+    QUERY_MINUTE = 4
+    QUERY_MPPS_RESULT = 5
+    QUERY_TEST_MIN = 6
+    QUERY_TEST_MAX = 7
+    QUERY_BUILD_ID = 8
+
 
 class Test:
-    def __init__(self, name, setup_name):
+    def __init__(self, name, setup_name, end_date):
         self.name = name
         self.setup_name = setup_name
+        self.end_date = end_date
         self.stats = []  # tuple
         self.results_df = []  # dataFrame
         self.latest_result = []  # float
@@ -27,15 +56,17 @@ class Test:
         test_mins = set()
         test_maxs = set()
         for query in raw_test_data:
-            test_results.append(float(query[5]))
-            date_formatted = time.strftime("%d-%m-%Y", time.strptime(query[2], "%Y%m%d"))
-            time_of_res = date_formatted + '-' + query[3] + ':' + query[4]
+            date_formatted = time.strftime("%d-%m-%Y", time.strptime(query[int(TestQuery.QUERY_DATE)], "%Y%m%d"))
+            time_of_res = date_formatted + '-' + query[int(TestQuery.QUERY_HOUR)] + ':' + query[
+                int(TestQuery.QUERY_MINUTE)]
             test_dates.append(time_of_res)
-            test_build_ids.append(query[8])
-            test_mins.add(float(query[6]))
-            test_maxs.add(float(query[7]))
-        test_results_df = pd.DataFrame({self.name: test_results, (self.name + ' Date'): test_dates,
-                                        "Setup": ([self.setup_name] * len(test_results)), "Build Id": test_build_ids})
+            test_results.append(float(query[int(TestQuery.QUERY_MPPS_RESULT)]))
+            test_build_ids.append(query[int(TestQuery.QUERY_BUILD_ID)])
+            test_mins.add(float(query[int(TestQuery.QUERY_TEST_MIN)]))
+            test_maxs.add(float(query[int(TestQuery.QUERY_TEST_MAX)]))
+        test_results_df = pd.DataFrame({self.name: test_results, self.name + ' Date': test_dates,
+                                        "Setup": ([self.setup_name] * len(test_results)), "Build Id": test_build_ids},
+                                       dtype='str')
         stats = tuple(
             [float(test_results_df[self.name].mean()), min(test_mins), max(test_maxs)])  # stats = (avg_mpps,min,max)
         self.latest_result = float(test_results_df[self.name].iloc[-1])
@@ -58,7 +89,7 @@ class Setup:
 
     def analyze_all_tests(self):
         for test_name in self.test_names:
-            t = Test(test_name, self.name)
+            t = Test(test_name, self.name, self.end_date)
             t.analyze_all_test_data(self.raw_setup_data[test_name])
             self.tests.append(t)
 
@@ -93,7 +124,7 @@ class Setup:
 
     def plot_trend_graph_all_tests(self, save_path='', file_name='_trend_graph.png'):
         for test_name in self.test_names:
-            self.all_tests_data_table[test_name].plot()
+            self.all_tests_data_table[test_name].plot(style=['.-'])
             plt.legend(fontsize='small', loc='best')
         plt.ylabel('MPPS/Core (Norm)')
         plt.title('Setup: ' + self.name)
