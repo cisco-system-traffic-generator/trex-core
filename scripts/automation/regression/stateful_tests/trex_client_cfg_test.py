@@ -12,8 +12,7 @@ from nose.tools import nottest
 class CTRexClientCfg_Test(CTRexNbar_Test):
     """This class defines the IMIX testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
-        # super(CTRexClientCfg_Test, self).__init__()
-        CTRexGeneral_Test.__init__(self, *args, **kwargs)
+        CTRexNbar_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
         if CTRexScenario.setup_name == 'kiwi02':
