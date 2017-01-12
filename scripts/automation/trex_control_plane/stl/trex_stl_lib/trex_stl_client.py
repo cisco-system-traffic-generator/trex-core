@@ -449,16 +449,16 @@ class CCommLink(object):
         if not self.virtual:
             return self.rpc_link.disconnect()
 
-    def transmit(self, method_name, params = None, api_class = 'core'):
+    def transmit(self, method_name, params = None, api_class = 'core', retry = 0):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params, api_class)
             print(msg)
             return
         else:
-            return self.rpc_link.invoke_rpc_method(method_name, params, api_class)
+            return self.rpc_link.invoke_rpc_method(method_name, params, api_class, retry = retry)
 
-    def transmit_batch(self, batch_list):
+    def transmit_batch(self, batch_list, retry = 0):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             print([msg
@@ -469,7 +469,7 @@ class CCommLink(object):
             for command in batch_list:
                 batch.add(command.method, command.params, command.api_class)
             # invoke the batch
-            return batch.invoke()
+            return batch.invoke(retry = retry)
 
     def _prompt_virtual_tx_msg(self):
         print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
@@ -2997,7 +2997,7 @@ class STLClient(object):
 
             :parameters:
                 ports          - for which ports to apply a unique sniffer (each port gets a unique file)
-                retires        - how many times to retry on each port (intervals of 100 milliseconds)
+                retries        - how many times to retry on each port (intervals of 100 milliseconds)
                 verbose        - log for each request the response
             :raises:
                 + :exe:'STLError'
@@ -3015,7 +3015,7 @@ class STLClient(object):
         self.logger.post_cmd(rc)
 
         if verbose:
-            for x in filter(bool, rc.data()):
+            for x in filter(bool, listify(rc.data())):
                 self.logger.log(format_text("{0}".format(x), 'bold'))
                 
         if not rc:
@@ -3757,7 +3757,7 @@ class STLClient(object):
                                          parsing_opts.SUPPORTED,
                                          )
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
         if not opts:
             return opts
 
@@ -3767,8 +3767,9 @@ class STLClient(object):
         opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not list(filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp])):
-            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
+        if not list(filter(lambda opt:opt[0] not in ('all_ports', 'ports') and opt[1] is not None, opts._get_kwargs())):
+            ports = opts.ports if opts.ports else self.get_all_ports()
+            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in ports)))
             return
 
         if opts.supp:
@@ -3781,11 +3782,13 @@ class STLClient(object):
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-             self.set_port_attr(opts.ports,
-                                opts.prom,
-                                opts.link,
-                                opts.led,
-                                opts.flow_ctrl)
+            if not opts.ports:
+                raise STLError('No acquired ports!')
+            self.set_port_attr(opts.ports,
+                               opts.prom,
+                               opts.link,
+                               opts.led,
+                               opts.flow_ctrl)
              
              
 

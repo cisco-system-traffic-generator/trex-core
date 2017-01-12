@@ -826,6 +826,7 @@ static int usage(){
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it \n");
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
+    printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");

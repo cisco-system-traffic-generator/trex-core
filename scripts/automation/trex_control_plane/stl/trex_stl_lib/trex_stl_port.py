@@ -264,7 +264,7 @@ class Port(object):
     def add_streams (self, streams_list):
 
         # listify
-        streams_list = streams_list if isinstance(streams_list, list) else [streams_list]
+        streams_list = listify(streams_list)
         
         lookup = {}
 
@@ -338,7 +338,7 @@ class Port(object):
     def remove_streams (self, stream_id_list):
 
         # single element to list
-        stream_id_list = stream_id_list if isinstance(stream_id_list, list) else [stream_id_list]
+        stream_id_list = listify(stream_id_list)
 
         # verify existance
         if not all([stream_id in self.streams for stream_id in stream_id_list]):
@@ -751,7 +751,7 @@ class Port(object):
                   "slave_handler": slave_handler,
                   "min_ipg_usec": min_ipg_usec if min_ipg_usec else 0}
 
-        rc = self.transmit("push_remote", params)
+        rc = self.transmit("push_remote", params, retry = 4)
         if rc.bad():
             return self.err(rc.err())
 

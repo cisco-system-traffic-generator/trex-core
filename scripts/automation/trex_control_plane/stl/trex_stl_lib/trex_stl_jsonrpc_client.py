@@ -32,7 +32,7 @@ class BatchMessage(object):
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_class, encode = False)
         self.batch_list.append(msg)
 
-    def invoke(self, block = False, chunk_size = 500000):
+    def invoke(self, block = False, chunk_size = 500000, retry = 0):
         if not self.rpc_client.connected:
             return RC_ERR("Not connected to server")
 
@@ -54,7 +54,7 @@ class BatchMessage(object):
             return response_batch
         else:
             batch_json = json.dumps(self.batch_list)
-            return self.rpc_client.send_msg(batch_json)
+            return self.rpc_client.send_msg(batch_json, retry = retry)
 
 
 # JSON RPC v2.0 client
@@ -127,16 +127,16 @@ class JsonRpcClient(object):
             return id, msg
 
 
-    def invoke_rpc_method (self, method_name, params = None, api_class = 'core'):
+    def invoke_rpc_method (self, method_name, params = None, api_class = 'core', retry = 0):
         if not self.connected:
             return RC_ERR("Not connected to server")
 
         id, msg = self.create_jsonrpc_v2(method_name, params, api_class)
 
-        return self.send_msg(msg)
+        return self.send_msg(msg, retry = retry)
 
    
-    def send_msg (self, msg):
+    def send_msg (self, msg, retry = 0):
         # print before
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
             self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
@@ -145,9 +145,9 @@ class JsonRpcClient(object):
         buffer = msg.encode()
 
         if self.zipper.check_threshold(buffer):
-            response = self.send_raw_msg(self.zipper.compress(buffer))
+            response = self.send_raw_msg(self.zipper.compress(buffer), retry = retry)
         else:
-            response = self.send_raw_msg(buffer)
+            response = self.send_raw_msg(buffer, retry = retry)
 
         if not response:
             return response
@@ -175,16 +175,16 @@ class JsonRpcClient(object):
 
 
     # low level send of string message
-    def send_raw_msg (self, msg):
+    def send_raw_msg (self, msg, retry = 0):
 
-        tries = 0
+        retry_left = retry
         while True:
             try:
                 self.socket.send(msg)
                 break
             except zmq.Again:
-                tries += 1
-                if tries > 5:
+                retry_left -= 1
+                if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
@@ -193,14 +193,14 @@ class JsonRpcClient(object):
                 self.reconnect()
                 raise e
 
-        tries = 0
+        retry_left = retry
         while True:
             try:
                 response = self.socket.recv()
                 break
             except zmq.Again:
-                tries += 1
-                if tries > 5:
+                retry_left -= 1
+                if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
 
