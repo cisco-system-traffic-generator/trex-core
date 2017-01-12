@@ -1,6 +1,7 @@
 import os
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
+import pprint
 
 def avg (values):
     return (sum(values) / float(len(values)))
@@ -66,6 +67,42 @@ class PerformanceReport(object):
                           GoldenMax = golden_mpps['max'])
 
         ga.emptyAndReportQ()
+
+    def norm_senario (self):
+        s=self.scenario
+        s='+'.join(s.split(' '));
+        s='+'.join(s.split('-'));
+        s='+'.join(s.split(','));
+        l=s.split('+')
+        lr=[]
+        for obj in l:
+            if len(obj):
+                lr.append(obj);
+        s='-'.join(lr);
+        return(s);
+
+    def report_to_elk(self, elk,elk_obj, golden_mpps):
+        print("\n* Reporting to elk *\n")
+        elk_obj['test']={ "name" : self.norm_senario(),
+                    "type"  : "stateless",
+                    "cores" : self.core_count,
+                    "cpu%"  : self.avg_cpu,
+                    "mpps" :  self.avg_mpps,
+                    "streams_count" : 1,
+                    "mpps_pc" :  self.avg_mpps_per_core,
+                    "gbps_pc" :  self.avg_gbps_per_core,
+                    "gbps" :  self.avg_gbps,
+                    "avg-pktsize" : ((1000.0*self.avg_gbps/(8.0*self.avg_mpps))),
+                    "latecny" : { "min" : -1.0,
+                                  "max" : -1.0,
+                                  "avr" : -1.0
+                                 }
+            };
+
+        #pprint.pprint(elk_obj);
+        # push to elk 
+        elk.perf.push_data(elk_obj)
+
 
 
 class STLPerformance_Test(CStlGeneral_Test):
@@ -242,8 +279,14 @@ class STLPerformance_Test(CStlGeneral_Test):
         golden = scenario_cfg['mpps_per_core_golden']
 
         report = self.execute_single_scenario_iteration(scenario_cfg)
+
         if self.GAManager:
             report.report_to_analytics(self.GAManager, golden)
+
+        #report to elk
+        if self.elk:
+            elk_obj = self.get_elk_obj()
+            report.report_to_elk(self.elk,elk_obj, golden)
 
         rc = report.check_golden(golden)
 

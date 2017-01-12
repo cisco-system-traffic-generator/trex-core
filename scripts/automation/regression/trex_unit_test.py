@@ -27,7 +27,7 @@ Description:
 import os
 import sys
 import outer_packages
-
+import datetime
 import nose
 from nose.plugins import Plugin
 from nose.selector import Selector
@@ -40,6 +40,7 @@ from trex_stf_lib.trex_client import *
 from trex_stf_lib.trex_exceptions import *
 from trex_stl_lib.api import *
 from trex_stl_lib.utils.GAObjClass import GAmanager_Regression
+import trex_elk
 import trex
 import socket
 from pprint import pprint
@@ -228,6 +229,52 @@ class CTRexTestConfiguringPlugin(Plugin):
                                                             BlockingMode     = 0,
                                                             appName          = 'TRex',
                                                             appVer           = CTRexScenario.trex_version)
+
+            CTRexScenario.elk = trex_elk.TRexEs('sceasr-b20',9200);
+            self.set_cont_elk_info ()
+
+    def set_cont_elk_info (self):
+        elk_info={}
+        timestamp = datetime.datetime.now(); # need to update this
+        info = {};
+
+
+        img={}
+        img['sha'] = "v2.14"                #TBD
+        img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        img['version'] = CTRexScenario.trex_version
+        img['formal'] = False
+
+        setup={}
+
+        setup['distro']='None'            #TBD 'Ubunto14.03'
+        setup['kernel']='None'           #TBD '2.6.12'
+        setup['baremetal']=True          #TBD
+        setup['hypervisor']='None'       #TBD
+        setup['name']=CTRexScenario.setup_name
+
+        setup['cpu-sockets']=0           #TBD  2
+        setup['cores']=0                 #TBD 16
+        setup['cpu-speed']=-1            #TBD 3.5
+
+        setup['dut'] ='None'             #TBD 'loopback'
+        setup['drv-name']='None'         #TBD 'mlx5'
+        setup['nic-ports']=0             #TBD 2
+        setup['total-nic-ports']=0       #TBD 2
+        setup['nic-speed'] = "None"      #"40GbE" TBD
+
+
+
+        info['image'] = img
+        info['setup'] = setup
+
+        elk_info['info'] =info;
+
+        elk_info['timestamp']=timestamp.strftime("%Y-%m-%d %H:%M:%S")  # need to update it
+        elk_info['build_id']=os.environ.get('BUILD_ID')
+        elk_info['scenario']=os.environ.get('SCENARIO')
+
+        CTRexScenario.elk_info = elk_info
 
 
     def begin (self):

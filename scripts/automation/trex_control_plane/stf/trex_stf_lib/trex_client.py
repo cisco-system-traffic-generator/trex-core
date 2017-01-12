@@ -1116,6 +1116,7 @@ class CTRexResult(object):
                 "Done warmup?            {arg}\n".format( arg = self.is_done_warmup() ) +
                 "Expected tx rate:       {arg}\n".format( arg = self.get_expected_tx_rate() ) +
                 "Current tx rate:        {arg}\n".format( arg = self.get_current_tx_rate() ) +
+                "Minimum latency:        {arg}\n".format( arg = self.get_min_latency() ) +
                 "Maximum latency:        {arg}\n".format( arg = self.get_max_latency() ) +
                 "Average latency:        {arg}\n".format( arg = self.get_avg_latency() ) +
                 "Average window latency: {arg}\n".format( arg = self.get_avg_window_latency() ) +
@@ -1161,6 +1162,36 @@ class CTRexResult(object):
 
         """
         return self._max_latency
+
+    def get_min_latency (self):
+        """
+        Fetches the minimum latency measured on each of the interfaces
+
+        :parameters:        
+            None
+
+        :return: 
+            dictionary containing the maximum latency, where the key is the measurement interface (`c` indicates client), and the value is the measurement value.
+
+        """
+        return self._min_latency
+
+        
+
+    def get_jitter_latency (self):
+        """
+        Fetches the jitter latency measured on each of the interfaces from the start of TRex run
+
+        :parameters:        
+            None
+
+        :return: 
+            dictionary containing the average latency, where the key is the measurement interface (`c` indicates client), and the value is the measurement value.
+
+            The `all` key represents the average of all interfaces' average
+
+        """
+        return self._jitter_latency
 
     def get_avg_latency (self):
         """
@@ -1397,8 +1428,11 @@ class CTRexResult(object):
 
                 latency_per_port         = self.get_last_value("trex-latency-v2.data", "port-")
                 self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
+                self._min_latency        = self.__get_filtered_min_latency(latency_per_port) 
                 avg_latency              = self.get_last_value("trex-latency.data", "avg-")
                 self._avg_latency        = CTRexResult.__avg_all_and_rename_keys(avg_latency)
+                jitter_latency           = self.get_last_value("trex-latency.data", "jitter-")
+                self._jitter_latency        = CTRexResult.__avg_all_and_rename_keys(jitter_latency)
                 avg_win_latency_list     = self.get_value_list("trex-latency.data", "avg-")
                 self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
@@ -1424,7 +1458,9 @@ class CTRexResult(object):
         self._expected_tx_rate   = None
         self._current_tx_rate    = None
         self._max_latency        = None
+        self._min_latency        = None
         self._avg_latency        = None
+        self._jitter_latency     = None
         self._avg_window_latency = None
         self._total_drops        = None
         self._drop_rate          = None
@@ -1485,6 +1521,21 @@ class CTRexResult(object):
                 tmp_key = "port"+reg_res.group(1)
                 res[tmp_key] = val  # don't touch original fields values
         return res
+
+    @staticmethod
+    def __get_filtered_min_latency(src_dict):
+        result = {}
+        if src_dict:
+            for port, data in src_dict.items():
+                if not port.startswith('port-'):
+                    continue
+                res = data['hist']['min_usec']
+                min_port = 'min-%s' % port[5:]
+                result[min_port] = int(res)
+
+        return(result);
+
+
 
     @staticmethod
     def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):

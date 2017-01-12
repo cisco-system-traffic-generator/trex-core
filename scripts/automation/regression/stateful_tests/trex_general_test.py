@@ -28,6 +28,7 @@ from nose.plugins.skip import SkipTest
 import trex
 from trex import CTRexScenario
 import misc_methods
+import pprint
 import sys
 import os
 # from CPlatformUnderTest import *
@@ -60,6 +61,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
         self.GAManager             = CTRexScenario.GAManager
+        self.elk                   = CTRexScenario.elk
         self.no_daemon             = CTRexScenario.no_daemon
         self.skipping              = False
         self.fail_reasons          = []
@@ -68,6 +70,20 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.is_loopback           = True if 'loopback' in self.modes else False
         self.is_virt_nics          = True if 'virt_nics' in self.modes else False
         self.is_VM                 = True if 'VM' in self.modes else False
+
+        #update elk const object 
+        setup = CTRexScenario.elk_info['info']['setup']
+
+        if self.is_loopback :
+            setup['dut'] ='loopback' 
+        else:
+            setup['dut'] ='router' 
+
+        if self.is_VM:
+            setup['baremetal']=False
+            setup['hypervisor']='ESXi'       #TBD
+        else:
+            setup['baremetal']=True         
 
         if not CTRexScenario.is_init:
             if self.trex and not self.no_daemon: # stateful
@@ -82,6 +98,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 CTRexScenario.router.launch_connection(device_cfg)
                 if CTRexScenario.router_cfg['forceImageReload']:
                     running_image = CTRexScenario.router.get_running_image_details()['image']
+                    setup['dut'] =CTRexScenario.router.get_running_image_details()['model']
                     print('Current router image: %s' % running_image)
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
@@ -107,7 +124,9 @@ class CTRexGeneral_Test(unittest.TestCase):
 #           raise RuntimeError('CTRexScenario class is not initialized!')
         self.router = CTRexScenario.router
 
-
+    def get_elk_obj (self):
+        obj=trex.copy_elk_info ()
+        return (obj);
 
 #   def assert_dict_eq (self, dict, key, val, error=''):
 #           v1 = int(dict[key]))
@@ -142,6 +161,7 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85):
         cpu_util          = trex_res.get_avg_steady_state_value('trex-global.data.m_cpu_util_raw')
         trex_tx_bps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_bps')
+        trex_tx_pps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_pps')
         expected_norm_cpu = self.get_benchmark_param('bw_per_core')
         cores             = self.get_benchmark_param('cores')
         ports_count       = trex_res.get_ports_count()
@@ -172,16 +192,42 @@ class CTRexGeneral_Test(unittest.TestCase):
         #if calc_error_precent > err and cpu_util > 10:
         #    self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
+        trex_tx_gbps       = trex_tx_bps/1e9
+        trex_tx_mpps       = trex_tx_pps/1e6
+
+        trex_tx_gbps_pc  = trex_tx_gbps*100.0/(cpu_util*cores);
+        trex_tx_mpps_pc  = trex_tx_mpps*100.0/(cpu_util*cores)
+
+        trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
+        trex_drops      = trex_res.get_total_drops()
+        trex_drop_precent = trex_drops *100.0/trex_tx_pckt;
+
         # report benchmarks
-        if self.GAManager:
-            try:
-                pass
-                #setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
-                #self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
-                #self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
-                #self.GAManager.emptyAndReportQ()
-            except Exception as e:
-                print('Sending GA failed: %s' % e)
+        if self.elk:
+            elk_obj = self.get_elk_obj()
+            print("Reporting to elk")
+            elk_obj['test']={ "name" : self.get_name(),
+                        "type"  : "stateful",
+                        "cores" : cores,
+                        "cpu%"  : cpu_util,
+                        "mpps" :  (trex_tx_mpps),
+                        "streams_count" :1,
+                        "mpps_pc" :  (trex_tx_mpps_pc),
+                        "gbps_pc" :  (trex_tx_gbps_pc),
+                        "gbps" :  (trex_tx_gbps),
+                        "kcps"  : (trex_res.get_last_value("trex-global.data.m_tx_cps")/1000.0),
+                        "avg-pktsize" : round((1000.0*trex_tx_gbps/(8.0*trex_tx_mpps))),
+                        "latecny" : { "min" : min(trex_res.get_min_latency().values()),
+                                      "max" : max(trex_res.get_max_latency().values()),
+                                      "avr" : max(trex_res.get_avg_latency().values()),
+                                      "jitter" : max(trex_res.get_jitter_latency().values()),
+                                      "max-win" : max(trex_res.get_avg_window_latency ().values()),
+                                      "drop-rate" :trex_drop_precent
+                                     }
+                };
+            pprint.pprint(elk_obj['test']);
+            self.elk.perf.push_data(elk_obj)
+
 
     def check_results_gt (self, res, name, val):
         if res is None:

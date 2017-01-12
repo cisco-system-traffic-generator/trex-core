@@ -10,6 +10,7 @@ import time
 from CProgressDisp import TimedProgressBar
 from stateful_tests.tests_exceptions import TRexInUseError
 import datetime
+import copy
 
 class CTRexScenario:
     modes            = set() # list of modes of this setup: loopback, virtual etc.
@@ -41,6 +42,20 @@ class CTRexScenario:
     debug_image      = False
     test             = None
     json_verbose     = False
+    elk              = None
+    elk_info         = None
+
+def copy_elk_info ():
+   assert(CTRexScenario.elk_info)
+   d = copy.deepcopy(CTRexScenario.elk_info);
+
+   timestamp = datetime.datetime.now(); # need to update this
+   d['timestamp']=timestamp.strftime("%Y-%m-%d %H:%M:%S")
+   return(d)
+
+    
+
+
 
 class CTRexRunner:
     """This is an instance for generating a CTRexRunner"""
