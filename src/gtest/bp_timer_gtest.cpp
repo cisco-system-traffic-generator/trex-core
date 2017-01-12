@@ -23,7 +23,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 #include "h_timer.h"
 #include <common/utl_gcc_diag.h>
-
+#include <cmath>
 
 
 class gt_r_timer  : public testing::Test {
@@ -711,7 +711,7 @@ void CNATimerWheelTest1::on_tick(CMyTestObject *lpobj){
         if (expect_min>m_div_err) {
             expect_min-=m_div_err*2;
         }
-        double pre=abs(100.0-100.0*(double)m_ticks/(double)m_expect_tick);
+        double pre=std::abs(100.0-100.0*(double)m_ticks/(double)m_expect_tick);
         if (pre>m_max_err){
             m_max_err=pre;
         }
@@ -1051,7 +1051,7 @@ void CNATimerWheelTest2::on_tick(CMyTestObject *lp){
     }
     m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
     if (!m_cfg.m_dont_check){
-        double pre=abs(100.0-100.0*(double)m_ticks/(double)lp->m_t_tick);
+        double pre=std::abs(100.0-100.0*(double)m_ticks/(double)lp->m_t_tick);
         if (pre>(200.0/(double)m_div_err)) {
             printf(" =====>tick:%d  %f \n",m_ticks,pre);
             assert(0);

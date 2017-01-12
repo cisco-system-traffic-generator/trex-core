@@ -135,7 +135,7 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
     CPktNsecTimeStamp t2(obj->time_sec,obj->time_nsec);
     if ( t1.diff(t2) > dsec ){
         if ( dump ){
-            printf(" ERROR: diff of 1 msec in time  \n");
+            printf(" ERROR: diff of %lf seconds while only %lf allowed\n", t1.diff(t2), dsec);
         }
         return (false);
     }
