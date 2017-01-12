@@ -19,32 +19,61 @@ class CPlatform(object):
         self.needed_image_path  = None
         self.tftp_cfg           = None
         self.config_history     = { 'basic_if_config' : False, 'tftp_server_config' : False }
+        self.client_vlan        = "100"
+        self.server_vlan        = "200"
 
-    def configure_basic_interfaces(self, mtu = 9050):
+    def configure_basic_interfaces(self, mtu = 9050, vlan=False):
 
         cache = CCommandCache()
         for dual_if in self.if_mngr.get_dual_if_list():
             client_if_command_set   = []
             server_if_command_set   = []
+            client_if_command_set_vlan   = []
+            server_if_command_set_vlan   = []
+
+            client_if_name = dual_if.client_if.get_name()
+            server_if_name = dual_if.server_if.get_name()
+
+            if vlan:
+                client_if_name_vlan = client_if_name + "." + self.client_vlan
+                server_if_name_vlan = server_if_name + "." + self.server_vlan
+                client_if_command_set_vlan.append('encapsulation dot1Q {vlan}'. format(vlan = self.client_vlan));
+                server_if_command_set_vlan.append('encapsulation dot1Q {vlan}'. format(vlan = self.server_vlan));
 
             client_if_command_set.append ('mac-address {mac}'.format( mac = dual_if.client_if.get_src_mac_addr()) )
             client_if_command_set.append ('mtu %s' % mtu)
-            client_if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = dual_if.client_if.get_ipv4_addr() ))
-            client_if_command_set.append ('ipv6 address {ip}/64'.format( ip = dual_if.client_if.get_ipv6_addr() ))
 
-            cache.add('IF', client_if_command_set, dual_if.client_if.get_name())
+            client_ip_command = 'ip address {ip} 255.255.255.0'.format( ip = dual_if.client_if.get_ipv4_addr() )
+            client_ipv6_command = 'ipv6 address {ip}/64'.format( ip = dual_if.client_if.get_ipv6_addr() )
+            if vlan:
+                client_if_command_set_vlan.append (client_ip_command)
+                client_if_command_set_vlan.append (client_ipv6_command)
+            else:
+                client_if_command_set.append (client_ip_command)
+                client_if_command_set.append (client_ipv6_command)
+
+            cache.add('IF', client_if_command_set, client_if_name)
+            if vlan:
+                cache.add('IF', client_if_command_set_vlan, client_if_name_vlan)
 
             server_if_command_set.append ('mac-address {mac}'.format( mac = dual_if.server_if.get_src_mac_addr()) )
             server_if_command_set.append ('mtu %s' % mtu)
-            server_if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = dual_if.server_if.get_ipv4_addr() ))
-            server_if_command_set.append ('ipv6 address {ip}/64'.format( ip = dual_if.server_if.get_ipv6_addr() ))
 
-            cache.add('IF', server_if_command_set, dual_if.server_if.get_name())
+            server_ip_command = 'ip address {ip} 255.255.255.0'.format( ip = dual_if.server_if.get_ipv4_addr() )
+            server_ipv6_command = 'ipv6 address {ip}/64'.format( ip = dual_if.server_if.get_ipv6_addr() )
+            if vlan:
+                server_if_command_set_vlan.append (server_ip_command)
+                server_if_command_set_vlan.append (server_ipv6_command)
+            else:
+                server_if_command_set.append (server_ip_command)
+                server_if_command_set.append (server_ipv6_command)
+
+            cache.add('IF', server_if_command_set, server_if_name)
+            if vlan:
+                cache.add('IF', server_if_command_set_vlan, server_if_name_vlan)
 
         self.cmd_link.run_single_command(cache)
         self.config_history['basic_if_config'] = True
-
-
 
     def configure_basic_filtered_interfaces(self, intf_list, mtu = 9050):
 
@@ -54,8 +83,9 @@ class CPlatform(object):
 
             if_command_set.append ('mac-address {mac}'.format( mac = intf.get_src_mac_addr()) )
             if_command_set.append ('mtu %s' % mtu)
-            if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = intf.get_ipv4_addr() ))
-            if_command_set.append ('ipv6 address {ip}/64'.format( ip = intf.get_ipv6_addr() ))
+            if vlan:
+                if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = intf.get_ipv4_addr() ))
+                if_command_set.append ('ipv6 address {ip}/64'.format( ip = intf.get_ipv6_addr() ))
 
             cache.add('IF', if_command_set, intf.get_name())
 
@@ -75,7 +105,7 @@ class CPlatform(object):
                     continue
                 raise Exception('Could not load clean config, response: %s' % res)
 
-    def config_pbr (self, mode = 'config'):
+    def config_pbr (self, mode = 'config', vlan = False):
         idx = 1
         unconfig_str = '' if mode=='config' else 'no '
 
@@ -93,30 +123,30 @@ class CPlatform(object):
             if dual_if.is_duplicated():
                 # define the relevant VRF name
                 pre_commit_set.add('{mode}ip vrf {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
-                
+
                 # assign VRF to interfaces, config interfaces with relevant route-map
                 client_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
-                client_if_command_set.append ('{mode}ip policy route-map {dup}_{p1}_to_{p2}'.format( 
+                client_if_command_set.append ('{mode}ip policy route-map {dup}_{p1}_to_{p2}'.format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
                 server_if_command_set.append ('{mode}ip vrf forwarding {dup}'.format( mode = unconfig_str, dup = dual_if.get_vrf_name()) )
-                server_if_command_set.append ('{mode}ip policy route-map {dup}_{p2}_to_{p1}'.format( 
+                server_if_command_set.append ('{mode}ip policy route-map {dup}_{p2}_to_{p1}'.format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
 
                 # config route-map routing
                 conf_t_command_set.append('{mode}route-map {dup}_{p1}_to_{p2} permit 10'.format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
                 if mode == 'config':
                     conf_t_command_set.append('set ip next-hop {next_hop}'.format(
                          next_hop = client_net_next_hop) )
                 conf_t_command_set.append('{mode}route-map {dup}_{p2}_to_{p1} permit 10'.format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
                 if mode == 'config':
                     conf_t_command_set.append('set ip next-hop {next_hop}'.format(
@@ -127,21 +157,21 @@ class CPlatform(object):
                 if dual_if.client_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        dup = dual_if.get_vrf_name(), 
-                        next_hop = server_net_next_hop, 
+                        dup = dual_if.get_vrf_name(),
+                        next_hop = server_net_next_hop,
                         dest_mac = dual_if.client_if.get_dest_mac()))
                 if dual_if.server_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                        mode = unconfig_str, 
-                        dup = dual_if.get_vrf_name(), 
-                        next_hop = client_net_next_hop, 
+                        mode = unconfig_str,
+                        dup = dual_if.get_vrf_name(),
+                        next_hop = client_net_next_hop,
                         dest_mac = dual_if.server_if.get_dest_mac()))
             else:
                 # config interfaces with relevant route-map
-                client_if_command_set.append ('{mode}ip policy route-map {p1}_to_{p2}'.format( 
+                client_if_command_set.append ('{mode}ip policy route-map {p1}_to_{p2}'.format(
                     mode = unconfig_str,
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
-                server_if_command_set.append ('{mode}ip policy route-map {p2}_to_{p1}'.format( 
+                server_if_command_set.append ('{mode}ip policy route-map {p2}_to_{p1}'.format(
                     mode = unconfig_str,
                     p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
 
@@ -164,17 +194,22 @@ class CPlatform(object):
                 if dual_if.client_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        next_hop = server_net_next_hop, 
+                        next_hop = server_net_next_hop,
                         dest_mac = dual_if.client_if.get_dest_mac()))
                 if dual_if.server_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        next_hop = client_net_next_hop, 
+                        next_hop = client_net_next_hop,
                         dest_mac = dual_if.server_if.get_dest_mac()))
 
             # assign generated config list to cache
-            cache.add('IF', server_if_command_set, dual_if.server_if.get_name())
-            cache.add('IF', client_if_command_set, dual_if.client_if.get_name())
+            client_if_name = dual_if.client_if.get_name()
+            server_if_name = dual_if.server_if.get_name()
+            if vlan:
+                client_if_name += "." + self.client_vlan
+                server_if_name += "." + self.server_vlan
+            cache.add('IF', server_if_command_set, server_if_name)
+            cache.add('IF', client_if_command_set, client_if_name)
             cache.add('CONF', conf_t_command_set)
             idx += 2
 
@@ -186,12 +221,12 @@ class CPlatform(object):
         # deploy the configs (order is important!)
         self.cmd_link.run_command( [pre_commit_cache, cache] )
         if self.config_history['basic_if_config']:
-            # in this case, duplicated interfaces will lose its ip address. 
+            # in this case, duplicated interfaces will lose its ip address.
             # re-config IPv4 addresses
             self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if() )
 
-    def config_no_pbr (self):
-        self.config_pbr(mode = 'unconfig')
+    def config_no_pbr (self, vlan = False):
+        self.config_pbr(mode = 'unconfig', vlan = vlan)
 
     def config_static_routing (self, stat_route_obj, mode = 'config'):
 
@@ -241,13 +276,13 @@ class CPlatform(object):
 
                 conf_t_command_set.append( "{mode}ip route vrf {dup} {next_net} {dest_mask} {next_hop}".format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     next_net = client_net,
                     dest_mask = stat_route_obj.client_mask,
                     next_hop = client_net_next_hop))
                 conf_t_command_set.append( "{mode}ip route vrf {dup} {next_net} {dest_mask} {next_hop}".format(
                     mode = unconfig_str,
-                    dup = dual_if.get_vrf_name(), 
+                    dup = dual_if.get_vrf_name(),
                     next_net = server_net,
                     dest_mask = stat_route_obj.server_mask,
                     next_hop = server_net_next_hop))
@@ -256,14 +291,14 @@ class CPlatform(object):
                 if dual_if.client_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        dup = dual_if.get_vrf_name(), 
-                        next_hop = server_net_next_hop, 
+                        dup = dual_if.get_vrf_name(),
+                        next_hop = server_net_next_hop,
                         dest_mac = dual_if.client_if.get_dest_mac()))
                 if dual_if.server_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp vrf {dup} {next_hop} {dest_mac} arpa'.format(
-                        mode = unconfig_str, 
-                        dup = dual_if.get_vrf_name(), 
-                        next_hop = client_net_next_hop, 
+                        mode = unconfig_str,
+                        dup = dual_if.get_vrf_name(),
+                        next_hop = client_net_next_hop,
                         dest_mac = dual_if.server_if.get_dest_mac()))
 
                 # assign generated interfaces config list to cache
@@ -286,12 +321,12 @@ class CPlatform(object):
                 if dual_if.client_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        next_hop = server_net_next_hop, 
+                        next_hop = server_net_next_hop,
                         dest_mac = dual_if.client_if.get_dest_mac()))
                 if dual_if.server_if.get_dest_mac():
                     conf_t_command_set.append('{mode}arp {next_hop} {dest_mac} arpa'.format(
                         mode = unconfig_str,
-                        next_hop = client_net_next_hop, 
+                        next_hop = client_net_next_hop,
                         dest_mac = dual_if.server_if.get_dest_mac()))
 
             # bump up to the next client network address
@@ -309,7 +344,7 @@ class CPlatform(object):
         # deploy the configs (order is important!)
         self.cmd_link.run_command( [pre_commit_cache, cache] )
         if self.config_history['basic_if_config']:
-            # in this case, duplicated interfaces will lose its ip address. 
+            # in this case, duplicated interfaces will lose its ip address.
             # re-config IPv4 addresses
             self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if() )
 
@@ -424,7 +459,7 @@ class CPlatform(object):
     def config_zbf (self, mode = 'config'):
         cache               = CCommandCache()
         pre_commit_cache    = CCommandCache()
-        conf_t_command_set  = []        
+        conf_t_command_set  = []
 
         # toggle all duplicate interfaces down
         self.toggle_duplicated_intf(action = 'down')
@@ -460,7 +495,7 @@ class CPlatform(object):
 
     def config_no_zbf (self):
         cache               = CCommandCache()
-        conf_t_command_set  = []        
+        conf_t_command_set  = []
 
         # define security zones and security service policy to be applied on the interfaces
         conf_t_command_set.append('no zone-pair security in2out source z_in destination z_out')
@@ -485,7 +520,7 @@ class CPlatform(object):
         # self.__toggle_interfaces(dup_ifs)
 
 
-    def config_ipv6_pbr (self, mode = 'config'):
+    def config_ipv6_pbr (self, mode = 'config', vlan=False):
         idx = 1
         unconfig_str = '' if mode=='config' else 'no '
         cache               = CCommandCache()
@@ -496,7 +531,7 @@ class CPlatform(object):
         for dual_if in self.if_mngr.get_dual_if_list():
             client_if_command_set   = []
             server_if_command_set   = []
-            
+
             client_net_next_hop = misc_methods.get_single_net_client_addr(dual_if.server_if.get_ipv6_addr(), {'7':1}, ip_type = 'ipv6' )
             server_net_next_hop = misc_methods.get_single_net_client_addr(dual_if.client_if.get_ipv6_addr(), {'7':1}, ip_type = 'ipv6' )
             client_net_next_hop_v4 = misc_methods.get_single_net_client_addr(dual_if.server_if.get_ipv4_addr() )
@@ -510,22 +545,22 @@ class CPlatform(object):
                 prefix = 'ipv6_' + dual_if.get_vrf_name()
             else:
                 prefix = 'ipv6'
-                
+
             # config interfaces with relevant route-map
-            client_if_command_set.append ('{mode}ipv6 policy route-map {pre}_{p1}_to_{p2}'.format( 
+            client_if_command_set.append ('{mode}ipv6 policy route-map {pre}_{p1}_to_{p2}'.format(
                 mode = unconfig_str,
-                pre = prefix, 
+                pre = prefix,
                 p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
-            server_if_command_set.append ('{mode}ipv6 policy route-map {pre}_{p2}_to_{p1}'.format( 
+            server_if_command_set.append ('{mode}ipv6 policy route-map {pre}_{p2}_to_{p1}'.format(
                 mode = unconfig_str,
-                pre = prefix, 
+                pre = prefix,
                 p1 = 'p'+str(idx), p2 = 'p'+str(idx+1) ) )
 
             # config global arp to interfaces net address and vrf
             if dual_if.client_if.get_ipv6_dest_mac():
                 conf_t_command_set.append('{mode}ipv6 neighbor {next_hop} {intf} {dest_mac}'.format(
                     mode = unconfig_str,
-                    next_hop = server_net_next_hop, 
+                    next_hop = server_net_next_hop,
                     intf = dual_if.client_if.get_name(),
                     dest_mac = dual_if.client_if.get_ipv6_dest_mac()))
                 # For latency packets (which are IPv4), we need to configure also static ARP
@@ -561,17 +596,24 @@ class CPlatform(object):
                 conf_t_command_set.append('exit')
 
             # assign generated config list to cache
-            cache.add('IF', server_if_command_set, dual_if.server_if.get_name())
-            cache.add('IF', client_if_command_set, dual_if.client_if.get_name())
+            client_if_name = dual_if.client_if.get_name()
+            server_if_name = dual_if.server_if.get_name()
+            if vlan:
+                client_if_name += "." + self.client_vlan
+                server_if_name += "." + self.server_vlan
+
+            cache.add('IF', server_if_command_set, server_if_name)
+            cache.add('IF', client_if_command_set, client_if_name)
+
             idx += 2
 
         cache.add('CONF', conf_t_command_set)
-        
+
         # deploy the configs (order is important!)
         self.cmd_link.run_command( [cache] )
 
-    def config_no_ipv6_pbr (self):
-        self.config_ipv6_pbr(mode = 'unconfig')
+    def config_no_ipv6_pbr (self, vlan = False):
+        self.config_ipv6_pbr(mode = 'unconfig', vlan = vlan)
 
     # show methods
     def get_cpu_util (self):
@@ -679,7 +721,7 @@ class CPlatform(object):
         parsed_info = CShowParser.parse_show_image_version(response)
         self.running_image = parsed_info
         return parsed_info
-        
+
 
     def check_image_existence (self, img_name):
         """ check_image_existence(self, img_name) -> boolean
@@ -716,7 +758,7 @@ class CPlatform(object):
 #       tmp_tftp_config = external_tftp_config if external_tftp_config is not None else self.tftp_server_config
         self.tftp_cfg   = device_cfg_obj.get_tftp_info()
         cache           = CCommandCache()
-        
+
         command = "ip tftp source-interface {intf}".format( intf = device_cfg_obj.get_mgmt_interface() )
         cache.add('CONF', command )
         self.cmd_link.run_single_command(cache)
@@ -737,12 +779,12 @@ class CPlatform(object):
         """
         if not self.check_image_existence(img_filename): # check if this image isn't already saved in platform
             #tmp_tftp_config = external_tftp_config if external_tftp_config is not None else self.tftp_cfg
-        
+
             if self.config_history['tftp_server_config']:  # make sure a TFTP configuration has been loaded
                 cache = CCommandCache()
                 if self.running_image is None:
                     self.get_running_image_details()
-                
+
                 command = "copy tftp://{tftp_ip}/{img_path}/{image} bootflash:".format(
                     tftp_ip  = self.tftp_cfg['ip_address'],
                     img_path = self.tftp_cfg['images_path'],
@@ -795,7 +837,7 @@ class CPlatform(object):
             An image file to compare router running image
 
         Compares image name to router running image, returns match result.
-        
+
         """
         if self.running_image is None:
             self.get_running_image_details()
@@ -839,7 +881,7 @@ class CPlatform(object):
         i = 0
         sleep_time = 30 # seconds
 
-        try: 
+        try:
             cache = CCommandCache()
 
             cache.add('EXEC', ['reload','n\r','\r'] )
@@ -861,7 +903,7 @@ class CPlatform(object):
                     raise TimeoutError('Platform failed to reload after reboot for over {minutes} minutes!'.format(minutes = round(1 + i * sleep_time / 60)))
                 else:
                     i += 1
-                    
+
             time.sleep(30)
             self.reload_connection(device_cfg_obj)
             progress_thread.join()
