@@ -2,8 +2,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib
-from enum import IntEnum
-
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import os
@@ -21,7 +19,10 @@ This Module is structured to work with a raw data at the following JSON format:
  }
 
  The Query structure is set (currently) to this:
- (test_name,state, date,hour,minute,mpps_result,mpps_min,mpps_max,build_id)
+
+ (test_name,state, date,hour,minute,mpps_result,mpps_min,mpps_max,build_id) example:
+
+ ["syn attack - 64 bytes, single CPU", "stl", "20161226", "01", "39", "9.631898", "9.5", "11.5", "54289"]
 
  it can be changed to support other formats of queries, simply change the enum class to support your desired structure
  the enums specify the indexes of the data within the query tuple
@@ -29,7 +30,7 @@ This Module is structured to work with a raw data at the following JSON format:
 """
 
 
-class TestQuery(IntEnum):
+class TestQuery(object):
     QUERY_DATE = 2  # date format is yyyymmdd
     QUERY_HOUR = 3
     QUERY_MINUTE = 4
