@@ -75,19 +75,26 @@ class CPlatform(object):
         self.cmd_link.run_single_command(cache)
         self.config_history['basic_if_config'] = True
 
-    def configure_basic_filtered_interfaces(self, intf_list, mtu = 9050):
+    def configure_basic_filtered_interfaces(self, intf_list, mtu = 9050, vlan = False):
 
         cache = CCommandCache()
         for intf in intf_list:
             if_command_set   = []
+            if_command_set_vlan = []
 
             if_command_set.append ('mac-address {mac}'.format( mac = intf.get_src_mac_addr()) )
             if_command_set.append ('mtu %s' % mtu)
+            ip_commands = ['ip address {ip} 255.255.255.0'.format( ip = intf.get_ipv4_addr() ),
+                           'ipv6 address {ip}/64'.format( ip = intf.get_ipv6_addr() )]
             if vlan:
-                if_command_set.append ('ip address {ip} 255.255.255.0'.format( ip = intf.get_ipv4_addr() ))
-                if_command_set.append ('ipv6 address {ip}/64'.format( ip = intf.get_ipv6_addr() ))
+                if_command_set_vlan.extend(ip_commands)
+            else:
+                if_command_set.extend(ip_commands)
 
             cache.add('IF', if_command_set, intf.get_name())
+            if vlan:
+                if_name = intf.get_name() + '.' + (self.client_vlan if intf.is_client() else self.server_vlan)
+                cache.add('IF', if_command_set_vlan, if_name)
 
         self.cmd_link.run_single_command(cache)
 
@@ -104,6 +111,7 @@ class CPlatform(object):
                 if i < 4:
                     continue
                 raise Exception('Could not load clean config, response: %s' % res)
+            break
 
     def config_pbr (self, mode = 'config', vlan = False):
         idx = 1
@@ -223,7 +231,7 @@ class CPlatform(object):
         if self.config_history['basic_if_config']:
             # in this case, duplicated interfaces will lose its ip address.
             # re-config IPv4 addresses
-            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if() )
+            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if(), vlan = vlan)
 
     def config_no_pbr (self, vlan = False):
         self.config_pbr(mode = 'unconfig', vlan = vlan)
@@ -346,7 +354,7 @@ class CPlatform(object):
         if self.config_history['basic_if_config']:
             # in this case, duplicated interfaces will lose its ip address.
             # re-config IPv4 addresses
-            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if() )
+            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if(), vlan = vlan)
 
 
     def config_no_static_routing (self, stat_route_obj = None):

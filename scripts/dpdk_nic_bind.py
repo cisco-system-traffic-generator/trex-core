@@ -625,7 +625,7 @@ def show_table(get_macs = True):
         get_nic_details()
     dpdk_drv = []
     for d in devices.keys():
-        if devices[d].get("Driver_str") in (dpdk_drivers+dpdk_and_kernel):
+        if devices[d].get("Driver_str") in dpdk_drivers:
             dpdk_drv.append(d)
 
     if get_macs:

@@ -128,13 +128,19 @@ class Setup:
         self.all_tests_data_table = reduce(lambda x, y: pd.merge(x, y, how='outer'), all_tests_trend_data)
 
     def plot_trend_graph_all_tests(self, save_path='', file_name='_trend_graph.png'):
-        time_format = '%d-%m-%Y-%H:%M'
+        time_format1 = '%d-%m-%Y-%H:%M'
+        time_format2 = '%Y-%m-%d-%H:%M'
         for test in self.tests:
             test_data = test.results_df[test.results_df.columns[2]].tolist()
             test_time_stamps = test.results_df[test.results_df.columns[3]].tolist()
             test_time_stamps.append(self.end_date+'-23:59')
             test_data.append(test_data[-1])
-            float_test_time_stamps = [matdates.date2num(datetime.strptime(x, time_format)) for x in test_time_stamps]
+            float_test_time_stamps = []
+            for ts in test_time_stamps:
+                try:
+                   float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format1)))
+                except:
+                   float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format2)))
             plt.plot_date(x=float_test_time_stamps, y=test_data, label=test.name, fmt='-', xdate=True)
             plt.legend(fontsize='small', loc='best')
         plt.ylabel('MPPS/Core (Norm)')
