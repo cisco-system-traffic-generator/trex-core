@@ -354,7 +354,7 @@ class CPlatform(object):
         if self.config_history['basic_if_config']:
             # in this case, duplicated interfaces will lose its ip address.
             # re-config IPv4 addresses
-            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if(), vlan = vlan)
+            self.configure_basic_filtered_interfaces(self.if_mngr.get_duplicated_if())
 
 
     def config_no_static_routing (self, stat_route_obj = None):
