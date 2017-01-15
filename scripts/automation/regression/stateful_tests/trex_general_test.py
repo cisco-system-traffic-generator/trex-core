@@ -97,9 +97,11 @@ class CTRexGeneral_Test(unittest.TestCase):
                 CTRexScenario.router.load_platform_data_from_file(device_cfg)
                 CTRexScenario.router.launch_connection(device_cfg)
                 if CTRexScenario.router_cfg['forceImageReload']:
-                    running_image = CTRexScenario.router.get_running_image_details()['image']
-                    setup['dut'] =CTRexScenario.router.get_running_image_details()['model']
+                    image_d=CTRexScenario.router.get_running_image_details();
+                    running_image = image_d['image']
+                    setup['dut'] =image_d.get('model','router');
                     print('Current router image: %s' % running_image)
+                    print('Current router model : %s' % setup['dut'])
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
                         print('Setting router image: %s' % needed_image)
