@@ -154,8 +154,7 @@ class CTRexClient(object):
             raise ValueError('d parameter must be integer, specifying how long TRex run.')
 
         trex_cmd_options.update( {'f' : f, 'd' : d} )
-        if not trex_cmd_options.get('l'):
-            self.result_obj.latency_checked = False
+        self.result_obj.latency_checked = 'l' in trex_cmd_options
         if 'k' in trex_cmd_options:
             timeout += int(trex_cmd_options['k']) # during 'k' seconds TRex stays in 'Starting' state
 
