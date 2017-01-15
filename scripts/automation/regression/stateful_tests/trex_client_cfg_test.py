@@ -1,6 +1,6 @@
 #!/router/bin/python
 from .trex_general_test import CTRexGeneral_Test, CTRexScenario
-from .trex_nbar_test import CTRexNbar_Test
+from .trex_nbar_test import CTRexNbarBase
 from CPlatform import CStaticRouteConfig
 from .tests_exceptions import *
 #import sys
@@ -9,26 +9,25 @@ from nose.tools import nottest
 
 # Testing client cfg ARP resolve. Actually, just need to check that TRex run finished with no errors.
 # If resolve will fail, TRex will exit with exit code != 0
-class CTRexClientCfg_Test(CTRexNbar_Test):
+class CTRexClientCfg_Test(CTRexNbarBase):
     """This class defines the IMIX testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
-        CTRexNbar_Test.__init__(self, *args, **kwargs)
+        CTRexNbarBase.__init__(self, *args, **kwargs)
 
     def setUp(self):
         if CTRexScenario.setup_name == 'kiwi02':
             self.skip("Can't run currently on kiwi02")
+
         super(CTRexClientCfg_Test, self).setUp() # launch super test class setUp process
-        pass
 
     def test_client_cfg_nbar(self):
-        # test initializtion
         if self.is_loopback:
-            return
-        else:
-            self.router.configure_basic_interfaces()
-            self.router.config_pbr(mode = "config")
-            self.router.config_nbar_pd()
-            
+            self.skip('No NBAR on loopback')
+
+        self.router.configure_basic_interfaces()
+        self.router.config_pbr(mode = "config")
+        self.router.config_nbar_pd()
+
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
 
@@ -49,13 +48,11 @@ class CTRexClientCfg_Test(CTRexNbar_Test):
         self.match_classification()
 
     def test_client_cfg_vlan(self):
-        # test initializtion
         if self.is_loopback:
-            return
-        else:
-            self.router.configure_basic_interfaces(vlan = True)
-            self.router.config_pbr(mode = "config", vlan = True)
-            self.router.config_nbar_pd()
+            self.skip('Not relevant on loopback')
+
+        self.router.configure_basic_interfaces(vlan = True)
+        self.router.config_pbr(mode = "config", vlan = True)
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
@@ -74,9 +71,9 @@ class CTRexClientCfg_Test(CTRexNbar_Test):
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
         self.check_general_scenario_results(trex_res, check_latency = False) # no latency with client config
-        
+
     def tearDown(self):
-        CTRexGeneral_Test.tearDown(self)
+        CTRexNbarBase.tearDown(self)
         pass
 
 if __name__ == "__main__":
