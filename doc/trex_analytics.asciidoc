@@ -22,11 +22,14 @@ endif::backend-xhtml11[]
 
 
 = TRex performance trend 
-Performance is measured in a metric called MPPS/Core (Norm), which stands for Mega-Packet per second (Norm). +
+
+This document tracks the performance of TRex Stateless use-cases of various hardware and NICS.
+The intention is to track the TRex software performance and not the NIC driver performance, however from this document you can learn the difference between different driver implementation (cycles/packets)
+Performance is measured in a metric called MPPS/Core (Norm), which stands for Mega-Packet per second (Norm). 
  +
 How the calculation is made? +
  +
-We measure the MPPS of the dut in it's best working point. +
+We measure the MPPS of the DUT in its best working point. +
 The measurement is then scaled to fit 100% CPU utilization, and finally divided by the number of cores the device has,
 to get a normalized MPPS/Core which is denoted as MPPS/Core (Norm) +
  +
