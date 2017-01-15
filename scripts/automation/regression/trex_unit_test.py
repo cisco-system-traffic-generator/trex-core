@@ -31,6 +31,8 @@ import datetime
 import nose
 from nose.plugins import Plugin
 from nose.selector import Selector
+from nose.exc import SkipTest
+from nose.pyversion import force_unicode, format_exception
 import CustomLogger
 import misc_methods
 from rednose import RedNose
@@ -46,6 +48,21 @@ import socket
 from pprint import pprint
 import time
 from distutils.dir_util import mkpath
+import re
+from io import StringIO
+
+
+
+TEST_ID = re.compile(r'^(.*?)(\(.*\))$')
+
+def id_split(idval):
+    m = TEST_ID.match(idval)
+    if m:
+        name, fargs = m.groups()
+        head, tail = name.rsplit(".", 1)
+        return [head, tail+fargs]
+    else:
+        return idval.rsplit(".", 1)
 
 # nose overrides
 
@@ -106,7 +123,169 @@ def address_to_ip(address):
     return socket.gethostbyname(address)
 
 
+class TRexTee(object):
+    def __init__(self, encoding, *args):
+        self._encoding = encoding
+        self._streams = args
+
+    def write(self, data):
+        data = force_unicode(data, self._encoding)
+        for s in self._streams:
+            s.write(data)
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+    def flush(self):
+        for s in self._streams:
+            s.flush()
+
+    def isatty(self):
+        return False
+
+
 class CTRexTestConfiguringPlugin(Plugin):
+    encoding = 'UTF-8'
+
+    def __init__(self):
+        super(CTRexTestConfiguringPlugin, self).__init__()
+        self._capture_stack = []
+        self._currentStdout = None
+        self._currentStderr = None
+
+    def _timeTaken(self):
+        if hasattr(self, '_timer'):
+            taken = time.time() - self._timer
+        else:
+            # test died before it ran (probably error in setup())
+            # or success/failure added before test started probably 
+            # due to custom TestResult munging
+            taken = 0.0
+        return taken
+
+    def _startCapture(self):
+        self._capture_stack.append((sys.stdout, sys.stderr))
+        self._currentStdout = StringIO()
+        self._currentStderr = StringIO()
+        sys.stdout = TRexTee(self.encoding, self._currentStdout, sys.stdout)
+        sys.stderr = TRexTee(self.encoding, self._currentStderr, sys.stderr)
+
+    def startContext(self, context):
+        self._startCapture()
+
+    def stopContext(self, context):
+        self._endCapture()
+
+    def beforeTest(self, test):
+        self._timer = time.time()
+        self._startCapture()
+
+    def _endCapture(self):
+        if self._capture_stack:
+            sys.stdout, sys.stderr = self._capture_stack.pop()
+
+    def afterTest(self, test):
+        self._endCapture()
+        self._currentStdout = None
+        self._currentStderr = None
+
+    def _getCapturedStdout(self):
+        if self._currentStdout:
+            value = self._currentStdout.getvalue()
+            if value:
+                return '<system-out><![CDATA[%s]]></system-out>' % escape_cdata(
+                        value)
+        return ''
+
+    def _getCapturedStderr(self):
+        if self._currentStderr:
+            value = self._currentStderr.getvalue()
+            if value:
+                return '<system-err><![CDATA[%s]]></system-err>' % escape_cdata(
+                        value)
+        return ''
+
+    def addError(self, test, err, capt=None):
+
+        taken = self._timeTaken()
+
+        if issubclass(err[0], SkipTest):
+            _type = 'SKIPPED'
+        else:
+            _type = 'ERROR'
+
+        tb = format_exception(err, self.encoding)
+        id = test.id()
+        err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+        name=id_split(id)[-1]
+
+        elk = CTRexScenario.elk 
+        if elk:
+            elk_obj = trex.copy_elk_info ()
+            elk_obj['test']={ 
+                       "name"   : name,
+                        "type"  : self.get_operation_mode (),
+                        "duration_sec"  : taken,
+                        "result" :  _type,
+                        "stdout" : err_msg,
+            };
+            #pprint(elk_obj['test']);
+            elk.reg.push_data(elk_obj)
+
+
+
+    def addFailure(self, test, err, capt=None, tb_info=None):
+        taken = self._timeTaken()
+        tb = format_exception(err, self.encoding)
+        id = test.id()
+        err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+        name=id_split(id)[-1]
+
+        elk = CTRexScenario.elk 
+        if elk:
+            elk_obj = trex.copy_elk_info ()
+            elk_obj['test']={ 
+                       "name"   : name,
+                        "type"  : self.get_operation_mode (),
+                        "duration_sec"  : taken,
+                        "result" :  "FAILURE",
+                        "stdout" : err_msg,
+            };
+            #pprint(elk_obj['test']);
+            elk.reg.push_data(elk_obj)
+
+
+
+    def addSuccess(self, test, capt=None):
+        taken = self._timeTaken()
+        id = test.id()
+        name=id_split(id)[-1]
+        elk = CTRexScenario.elk 
+        if elk:
+            elk_obj = trex.copy_elk_info ()
+            elk_obj['test']={ 
+                       "name"   : name,
+                        "type"  : self.get_operation_mode (),
+                        "duration_sec"  : taken,
+                        "result" :  "PASS",
+                        "stdout" : "",
+            };
+            #pprint(elk_obj['test']);
+            elk.reg.push_data(elk_obj)
+
+
+
+    def get_operation_mode (self):
+        if self.stateful:
+            return('stateful');
+        return('stateless');
+
+      
+
+
+##### option/configure
+
     def options(self, parser, env = os.environ):
         super(CTRexTestConfiguringPlugin, self).options(parser, env)
         parser.add_option('--cfg', '--trex-scenario-config', action='store',
@@ -321,6 +500,9 @@ class CTRexTestConfiguringPlugin(Plugin):
             CustomLogger.setup_custom_logger('TRexLogger')
 
     def finalize(self, result):
+        while self._capture_stack:
+            self._endCapture()
+
         if self.functional or self.collect_only:
             return
         #CTRexScenario.is_init = False
