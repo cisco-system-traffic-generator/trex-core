@@ -242,7 +242,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         img={}
         img['sha'] = "v2.14"                #TBD
         img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        img['version'] = CTRexScenario.trex_version
+        img['version'] = "v2.14"           #TBD need to fix  
         img['formal'] = False
 
         setup={}
