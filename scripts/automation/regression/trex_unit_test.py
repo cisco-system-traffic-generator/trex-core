@@ -413,7 +413,7 @@ class CTRexTestConfiguringPlugin(Plugin):
 
     def set_cont_elk_info (self):
         elk_info={}
-        timestamp = datetime.datetime.now(); # need to update this
+        timestamp = datetime.datetime.now() - datetime.timedelta(hours=2); # need to update this
         info = {};
 
 
