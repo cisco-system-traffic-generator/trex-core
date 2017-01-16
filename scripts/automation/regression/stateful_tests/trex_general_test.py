@@ -71,21 +71,22 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.is_virt_nics          = True if 'virt_nics' in self.modes else False
         self.is_VM                 = True if 'VM' in self.modes else False
 
-        #update elk const object 
-        setup = CTRexScenario.elk_info['info']['setup']
-
-        if self.is_loopback :
-            setup['dut'] ='loopback' 
-        else:
-            setup['dut'] ='router' 
-
-        if self.is_VM:
-            setup['baremetal']=False
-            setup['hypervisor']='ESXi'       #TBD
-        else:
-            setup['baremetal']=True         
-
         if not CTRexScenario.is_init:
+            #update elk const object 
+            if self.elk:
+                setup = CTRexScenario.elk_info['info']['setup']
+
+                if self.is_loopback :
+                    setup['dut'] = 'loopback' 
+                else:
+                    setup['dut'] = 'router' 
+
+                if self.is_VM:
+                    setup['baremetal'] = False
+                    setup['hypervisor'] = 'ESXi'       #TBD
+                else:
+                    setup['baremetal'] = True
+
             if self.trex and not self.no_daemon: # stateful
                 CTRexScenario.trex_version = self.trex.get_trex_version()
             if not self.is_loopback:
@@ -97,11 +98,12 @@ class CTRexGeneral_Test(unittest.TestCase):
                 CTRexScenario.router.load_platform_data_from_file(device_cfg)
                 CTRexScenario.router.launch_connection(device_cfg)
                 if CTRexScenario.router_cfg['forceImageReload']:
-                    image_d=CTRexScenario.router.get_running_image_details();
+                    image_d = CTRexScenario.router.get_running_image_details();
                     running_image = image_d['image']
-                    setup['dut'] =image_d.get('model','router');
                     print('Current router image: %s' % running_image)
-                    print('Current router model : %s' % setup['dut'])
+                    if self.elk:
+                        setup['dut'] = image_d.get('model','router');
+                        print('Current router model : %s' % setup['dut'])
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
                         print('Setting router image: %s' % needed_image)

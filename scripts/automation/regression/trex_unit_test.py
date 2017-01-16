@@ -30,6 +30,7 @@ import outer_packages
 import datetime
 import nose
 from nose.plugins import Plugin
+from nose.plugins.xunit import escape_cdata
 from nose.selector import Selector
 from nose.exc import SkipTest
 from nose.pyversion import force_unicode, format_exception
