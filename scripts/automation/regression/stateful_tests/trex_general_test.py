@@ -169,6 +169,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         expected_norm_cpu = self.get_benchmark_param('bw_per_core')
         cores             = self.get_benchmark_param('cores')
         ports_count       = trex_res.get_ports_count()
+        total_dp_cores    = cores * (ports_count/2);
         if not (cpu_util and ports_count and cores):
             print("Can't calculate CPU benchmark, need to divide by zero: cpu util: %s, ports: %s, cores: %s" % (cpu_util, ports_count, cores))
             test_norm_cpu = -1
@@ -199,8 +200,8 @@ class CTRexGeneral_Test(unittest.TestCase):
         trex_tx_gbps       = trex_tx_bps/1e9
         trex_tx_mpps       = trex_tx_pps/1e6
 
-        trex_tx_gbps_pc  = trex_tx_gbps*100.0/(cpu_util*cores);
-        trex_tx_mpps_pc  = trex_tx_mpps*100.0/(cpu_util*cores)
+        trex_tx_gbps_pc  = trex_tx_gbps*100.0/(cpu_util*total_dp_cores);
+        trex_tx_mpps_pc  = trex_tx_mpps*100.0/(cpu_util*total_dp_cores)
 
         trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
         trex_drops      = trex_res.get_total_drops()
@@ -212,7 +213,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             print("Reporting to elk")
             elk_obj['test']={ "name" : self.get_name(),
                         "type"  : "stateful",
-                        "cores" : cores,
+                        "cores" : total_dp_cores,
                         "cpu%"  : cpu_util,
                         "mpps" :  (trex_tx_mpps),
                         "streams_count" :1,
