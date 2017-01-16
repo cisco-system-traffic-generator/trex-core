@@ -208,28 +208,22 @@ class CTRexTestConfiguringPlugin(Plugin):
         return ''
 
     def addError(self, test, err, capt=None):
-
-        taken = self._timeTaken()
-
-        if issubclass(err[0], SkipTest):
-            _type = 'SKIPPED'
-        else:
-            _type = 'ERROR'
-
-        tb = format_exception(err, self.encoding)
-        id = test.id()
-        err_msg=self._getCapturedStdout()+self._getCapturedStderr();
-        name=id_split(id)[-1]
-
         elk = CTRexScenario.elk 
         if elk:
+            taken = self._timeTaken()
+            id = test.id()
+            err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+            name=id_split(id)[-1]
+
             elk_obj = trex.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
-                        "type"  : self.get_operation_mode (),
-                        "duration_sec"  : taken,
-                        "result" :  _type,
-                        "stdout" : err_msg,
+                       "name_key"   : name,
+                       "name_full"  : id,
+                       "type"  : self.get_operation_mode (),
+                       "duration_sec"  : taken,
+                       "result" :  "ERROR",
+                       "stdout" : err_msg,
             };
             #pprint(elk_obj['test']);
             elk.reg.push_data(elk_obj)
@@ -237,17 +231,19 @@ class CTRexTestConfiguringPlugin(Plugin):
 
 
     def addFailure(self, test, err, capt=None, tb_info=None):
-        taken = self._timeTaken()
-        tb = format_exception(err, self.encoding)
-        id = test.id()
-        err_msg=self._getCapturedStdout()+self._getCapturedStderr();
-        name=id_split(id)[-1]
-
         elk = CTRexScenario.elk 
         if elk:
+            taken = self._timeTaken()
+            tb = format_exception(err, self.encoding)
+            id = test.id()
+            err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+            name=id_split(id)[-1]
+
             elk_obj = trex.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
+                       "name_key"   : name,
+                       "name_full"  : id,
                         "type"  : self.get_operation_mode (),
                         "duration_sec"  : taken,
                         "result" :  "FAILURE",
@@ -259,18 +255,20 @@ class CTRexTestConfiguringPlugin(Plugin):
 
 
     def addSuccess(self, test, capt=None):
-        taken = self._timeTaken()
-        id = test.id()
-        name=id_split(id)[-1]
         elk = CTRexScenario.elk 
         if elk:
+            taken = self._timeTaken()
+            id = test.id()
+            name=id_split(id)[-1]
             elk_obj = trex.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
-                        "type"  : self.get_operation_mode (),
-                        "duration_sec"  : taken,
-                        "result" :  "PASS",
-                        "stdout" : "",
+                       "name_key"   : name,
+                       "name_full"  : id,
+                       "type"  : self.get_operation_mode (),
+                       "duration_sec"  : taken,
+                       "result" :  "PASS",
+                       "stdout" : "",
             };
             #pprint(elk_obj['test']);
             elk.reg.push_data(elk_obj)

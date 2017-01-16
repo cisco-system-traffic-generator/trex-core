@@ -291,11 +291,13 @@ class TRexEs(object):
 
                   "test"     : {
                                 "properties": {
-                                    "name"        : { "type": "text" }, # name of the test 
-                                    "type"        : { "type": "keyword" }, # stateless,stateful, other
-                                    "duration_sec" : { "type": "double" }, # sec
-                                    "result"      : { "type": "keyword" }, # PASS,FAIL,SKIP
-                                    "stdout"      : { "type": "text" },  # output in case of faliue
+                                    "name"            : { "type" : "text" }, # name of the test 
+                                    "name_key"        : { "type" : "keyword" }, # name of the test 
+                                    "name_full"       : { "type" : "keyword" }, # full name of the test 
+                                    "type"            : { "type" : "keyword" }, # stateless,stateful, other
+                                    "duration_sec"    : { "type": "double" }, # sec
+                                    "result"          : { "type" : "keyword" }, # PASS,FAIL,SKIP
+                                    "stdout"          : { "type" : "text" },  # output in case of faliue
                                 }
                            }       
             }
