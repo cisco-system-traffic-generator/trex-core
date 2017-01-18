@@ -552,6 +552,21 @@ private:
 };
 
 
+
+class TrexStatelessRxCaptureRemove : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureRemove(capture_id_t capture_id, MsgReply<TrexCaptureRCRemove> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    capture_id_t                   m_capture_id;
+    MsgReply<TrexCaptureRCRemove> &m_reply;
+};
+
+
 class TrexStatelessRxStartQueue : public TrexStatelessCpToRxMsgBase {
 public:
     TrexStatelessRxStartQueue(uint8_t port_id,

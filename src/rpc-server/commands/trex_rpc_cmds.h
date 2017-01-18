@@ -165,6 +165,7 @@ TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdCapture,  "capture", 1, false, APIClass::
     void parse_cmd_stop(const Json::Value &msg, Json::Value &result);
     void parse_cmd_status(const Json::Value &msg, Json::Value &result);
     void parse_cmd_fetch(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_remove(const Json::Value &params, Json::Value &result);
 );
 
 

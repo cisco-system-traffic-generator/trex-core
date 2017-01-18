@@ -85,6 +85,10 @@ STREAMS_MASK
 CORE_MASK_GROUP
 CAPTURE_PORTS_GROUP
 
+MONITOR_TYPE_VERBOSE
+MONITOR_TYPE_PIPE
+MONITOR_TYPE
+
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
 
@@ -606,6 +610,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'help': 'A list of ports to capture on the TX side',
                                           'default': []}),
                
+              
               RX_PORT_LIST: ArgumentPack(['--rx'],
                                          {'nargs': '+',
                                           'dest':'rx_port_list',
@@ -614,7 +619,21 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'type': int,
                                           'help': 'A list of ports to capture on the RX side',
                                           'default': []}),
-                
+              
+              
+              MONITOR_TYPE_VERBOSE: ArgumentPack(['-v', '--verbose'],
+                                                 {'action': 'store_true',
+                                                  'dest': 'verbose',
+                                                  'default': False,
+                                                  'help': 'output to screen as verbose'}),
+              
+              MONITOR_TYPE_PIPE: ArgumentPack(['-p', '--pipe'],
+                                              {'action': 'store_true',
+                                               'dest': 'pipe',
+                                               'default': False,
+                                               'help': 'forward packets to a pipe'}),
+
+
               CAPTURE_ID: ArgumentPack(['-i', '--id'],
                                   {'help': "capture ID to remove",
                                    'dest': "capture_id",
@@ -646,6 +665,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                               {'required': False}),
 
               CAPTURE_PORTS_GROUP: ArgumentGroup(NON_MUTEX, [TX_PORT_LIST, RX_PORT_LIST], {}),
+              
+              
+              MONITOR_TYPE: ArgumentGroup(MUTEX, [MONITOR_TYPE_VERBOSE,
+                                                  MONITOR_TYPE_PIPE],
+                                          {'required': False}),
+              
               }
 
 class _MergeAction(argparse._AppendAction):
@@ -760,7 +785,7 @@ class CCmdArgParser(argparse.ArgumentParser):
 
     def formatted_error (self, msg):
         self.print_usage()
-        self.stateless_client.logger.log(msg)
+        self._print_message(('%s: error: %s\n') % (self.prog, msg))
 
 
 def get_flags (opt):

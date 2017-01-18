@@ -27,7 +27,7 @@ limitations under the License.
 #include "trex_stateless_pkt.h"
 #include "trex_stateless_capture_msg.h"
 
-typedef int64_t capture_id_t;
+typedef int32_t capture_id_t;
 
 class TrexCaptureRC {
 public:

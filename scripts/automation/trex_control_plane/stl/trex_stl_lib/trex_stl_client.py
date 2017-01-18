@@ -17,10 +17,12 @@ from .utils.text_opts import *
 from functools import wraps
 from texttable import ansi_len
 
+
 from collections import namedtuple
 from yaml import YAMLError
 import time
 import datetime
+import threading
 import re
 import random
 import json
@@ -601,7 +603,7 @@ class STLClient(object):
                                                                  self.util_stats,
                                                                  self.xstats,
                                                                  self.async_client.monitor)
-
+        
     ############# private functions - used by the class itself ###########
 
     
@@ -2981,7 +2983,7 @@ class STLClient(object):
         self.logger.post_cmd(rc)
 
         if verbose:
-            for x in filter(bool, rc.data()):
+            for x in filter(bool, listify(rc.data())):
                 self.logger.log(format_text("{0}".format(x), 'bold'))
                 
         if not rc:
@@ -2999,6 +3001,10 @@ class STLClient(object):
                 tx_ports       - on which ports to capture TX
                 rx_ports       - on which ports to capture RX
                 limit          - limit how many packets will be written
+                
+            :returns:
+                the new capture_id
+                
             :raises:
                 + :exe:'STLError'
 
@@ -3018,7 +3024,7 @@ class STLClient(object):
 
         non_service_ports =  list_difference(set(tx_ports + rx_ports), self.get_service_enabled_ports())
         if non_service_ports:
-            raise STLError("Port(s) {0} are not under service mode. PCAP capturing requires all ports to be in service mode")
+            raise STLError("Port(s) {0} are not under service mode. PCAP capturing requires all ports to be in service mode".format(non_service_ports))
         
             
         self.logger.pre_cmd("Starting PCAP capturing up to {0} packets".format(limit))
@@ -3030,8 +3036,39 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+        return rc.data()['capture_id']
 
 
+        
+                
+    def __fetch_capture_packets (self, capture_id, output_filename, pkt_count):
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
+
+        # create a PCAP file
+        writer = RawPcapWriter(output_filename, linktype = 1)
+        writer._write_header(None)
+        
+        # fetch
+        pending = pkt_count
+        rc = RC_OK()
+        while pending > 0:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            if not rc:
+                self.logger.post_cmd(rc)
+                raise STLError(rc)
+        
+            pkts = rc.data()['pkts']
+            for pkt in pkts:
+                ts = pkt['ts']
+                pkt_bin = base64.b64decode(pkt['binary'])
+                writer._write_packet(pkt_bin, sec = 0, usec = 0)
+                
+            pending = rc.data()['pending']
+            
+        
+        self.logger.post_cmd(rc)
+        
+        
     @__api_check(True)
     def stop_capture (self, capture_id, output_filename):
         """
@@ -3045,8 +3082,6 @@ class STLClient(object):
                 + :exe:'STLError'
 
         """
-
-        
         
         # stopping a capture requires:
         # 1. stopping
@@ -3063,36 +3098,19 @@ class STLClient(object):
         
         # pkt count
         pkt_count = rc.data()['pkt_count']
-            
-        if not output_filename or pkt_count == 0:
-            return
         
-        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
-
-        # create a PCAP file
-        writer = RawPcapWriter(output_filename, linktype = 1)
-        writer._write_header(None)
+        # fetch packets    
+        if output_filename:
+            self.__fetch_capture_packets(capture_id, output_filename, pkt_count)
         
-        # fetch
-        while True:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
-            if not rc:
-                self.logger.post_cmd(rc)
-                raise STLError(rc)
-        
-            pkts = rc.data()['pkts']
-            for pkt in pkts:
-                ts = pkt['ts']
-                pkt_bin = base64.b64decode(pkt['binary'])
-                writer._write_packet(pkt_bin, sec = 0, usec = 0)
-                
-            if rc.data()['pending'] == 0:
-                break
-        
+        # remove
+        self.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
         self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
         
 
-    # get capture status
     @__api_check(True)
     def get_capture_status (self):
         """
@@ -3109,7 +3127,25 @@ class STLClient(object):
 
         return rc.data()
 
-    
+    @__api_check(True)
+    def remove_all_captures (self):
+        """
+            Removes any existing captures
+        """
+        captures = self.get_capture_status()
+        
+        self.logger.pre_cmd("Removing all PCAP captures from server")
+        
+        for c in captures:
+            # remove
+            rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': c['id']})
+            if not rc:
+                raise STLError(rc)
+
+        self.logger.post_cmd(RC_OK())
+                
+
+        
     @__api_check(True)
     def set_rx_queue (self, ports = None, size = 1000):
         """
@@ -3229,6 +3265,7 @@ class STLClient(object):
             return rc
 
         return wrap
+
 
     @__console
     def ping_line (self, line):
@@ -3820,77 +3857,9 @@ class STLClient(object):
                                 opts.link,
                                 opts.led,
                                 opts.flow_ctrl)
+                         
+               
              
-             
-
-             
-    @__console
-    def capture_line (self, line):
-        '''Manage PCAP recorders'''
-
-        # default
-        if not line:
-            line = "show"
-
-        parser = parsing_opts.gen_parser(self, "capture", self.capture_line.__doc__)
-        subparsers = parser.add_subparsers(title = "commands", dest="commands")
-
-        # start
-        start_parser = subparsers.add_parser('start', help = "starts a new capture")
-        start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
-                                  parsing_opts.RX_PORT_LIST,
-                                  parsing_opts.LIMIT)
-
-        # stop
-        stop_parser = subparsers.add_parser('stop', help = "stops an active capture")
-        stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
-                                 parsing_opts.OUTPUT_FILENAME)
-
-        # show
-        show_parser = subparsers.add_parser('show', help = "show all active captures")
-
-        opts = parser.parse_args(line.split())
-
-        if not opts:
-            return opts
-
-        # start
-        if opts.commands == 'start':
-            if not opts.tx_port_list and not opts.rx_port_list:
-                start_parser.formatted_error('please provide either --tx or --rx')
-                return
-
-            self.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
-
-        # stop
-        elif opts.commands == 'stop':
-            self.stop_capture(opts.capture_id, opts.output_filename)
-
-        # show
-        else:
-            data = self.get_capture_status()
-
-            stats_table = text_tables.TRexTextTable()
-            stats_table.set_cols_align(["c"] * 6)
-            stats_table.set_cols_width([15] * 6)
-
-            for elem in data:
-                row = [elem['id'],
-                       elem['state'],
-                       '[{0}/{1}]'.format(elem['count'], elem['limit']),
-                       format_num(elem['bytes'], suffix = 'B'),
-                       bitfield_to_str(elem['filter']['tx']),
-                       bitfield_to_str(elem['filter']['rx'])]
-                
-                stats_table.add_rows([row], header=False)
-
-            stats_table.header(['ID', 'Status', 'Count', 'Bytes', 'TX Ports', 'RX Ports'])
-            text_tables.print_table_with_header(stats_table, "Captures")
-            
-
-        return RC_OK()
-
-        
 
     @__console
     def resolve_line (self, line):
@@ -4089,3 +4058,4 @@ class STLClient(object):
             
         self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
         
+

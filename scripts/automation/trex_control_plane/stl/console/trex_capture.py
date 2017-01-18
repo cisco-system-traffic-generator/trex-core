@@ -1,7 +1,7 @@
 from trex_stl_lib.api import *
 from trex_stl_lib.utils import parsing_opts, text_tables
 import threading
-
+import tempfile
 
 class CaptureMonitorWriter(object):
     def init (self):
@@ -27,7 +27,7 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
     def init (self):
         self.logger.log(format_text("\nStarting capture monitor on selected ports", 'bold'))
         self.logger.log(format_text("*** any captured packet will be displayed on screen ***\n"))
-        self.logger.log(format_text("('capture monitor --stop' to abort capturing...)\n", 'bold')) 
+        self.logger.log(format_text("('capture monitor stop' to abort capturing...)\n", 'bold')) 
         
         
     def deinit (self):
@@ -81,18 +81,42 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         self.logger   = logger
         
     def init (self):
-        self.fifo_name = '/tmp/out.fif'
-        if os.path.exists(self.fifo_name):
-            os.unlink(self.fifo_name)
-            
-        os.mkfifo(self.fifo_name)
-        self.fifo = os.open(self.fifo_name, os.O_WRONLY)
+        self.fifo_name = tempfile.mktemp()
         
-        self.writer = RawPcapWriter(self.fifo_name, linktype = 1, sync = True)
-        self.writer._write_header(None)
-    
+        try:
+            os.mkfifo(self.fifo_name)
+
+            self.logger.log(format_text("\nPlease run 'wireshark -k -i {0}'".format(self.fifo_name), 'bold'))
+            self.logger.log('\nWaiting for Wireshark connection...')
+            
+            self.fifo = os.open(self.fifo_name, os.O_WRONLY)
+            self.logger.log('Successfuly connected to Wireshark...')
+            self.logger.log(format_text('\n*** Capture monitoring started ***\n', 'bold'))
+            
+            self.writer = RawPcapWriter(self.fifo_name, linktype = 1, sync = True)
+            self.writer._write_header(None)
+
+        except KeyboardInterrupt as e:
+            os.unlink(self.fifo_name)
+            raise STLError("*** pipe monitor aborted...cleaning up")
+
+        except OSError as e:
+            os.unlink(self.fifo_name)
+            raise STLError("failed to create pipe {0}\n{1}".format(self.fifo_name, str(e)))
+        
+        
+    def deinit (self):
+        os.unlink(self.fifo_name)
+
+        
     def handle_pkts (self, pkts):
-        pass
+        for pkt in pkts:
+            pkt_bin = base64.b64decode(pkt['binary'])
+            try:
+                self.writer._write_packet(pkt_bin, sec = 0, usec = 0)
+            except IOError:
+                klgjdf
+
         
         
 class CaptureMonitor(object):
@@ -127,14 +151,14 @@ class CaptureMonitor(object):
             raise STLError('unknown writer type')
             
         
-        self.writer.init()
-    
         with self.logger.supress():
                 self.capture_id = self.client.start_capture(tx_port_list, rx_port_list, limit = rate_pps)
 
         self.tx_port_list = tx_port_list
         self.rx_port_list = rx_port_list
         
+        self.writer.init()
+
         self.t = threading.Thread(target = self.__thread_cb)
         self.t.setDaemon(True)
         
@@ -154,6 +178,7 @@ class CaptureMonitor(object):
             self.client.stop_capture(self.capture_id, None)
             self.capture_id = -1
             self.writer.deinit()
+
             
     def get_mon_row (self):
         if not self.is_active():
@@ -215,7 +240,7 @@ class CaptureMonitor(object):
             pkts = rc.data()['pkts']
             if not pkts:
                 continue
-                
+            
             self.writer.handle_pkts(pkts)
                 
 
@@ -232,33 +257,50 @@ class CaptureManager(object):
         # install parsers
         
         self.parser = parsing_opts.gen_parser(self, "capture", self.parse_line_internal.__doc__)
-        subparsers = self.parser.add_subparsers(title = "commands", dest="commands")
+        self.subparsers = self.parser.add_subparsers(title = "commands", dest="commands")
 
-        # start
-        self.start_parser = subparsers.add_parser('start', help = "starts a new buffered capture")
-        self.start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
-                                       parsing_opts.RX_PORT_LIST,
-                                       parsing_opts.LIMIT)
-
-        # stop
-        self.stop_parser = subparsers.add_parser('stop', help = "stops an active capture")
-        self.stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
-                                      parsing_opts.OUTPUT_FILENAME)
-
+        self.install_record_parser()
+        self.install_monitor_parser()
+        
         # show
-        self.show_parser = subparsers.add_parser('show', help = "show all active captures")
-
-        # monitor
-        self.monitor_parser = subparsers.add_parser('monitor', help = "attach a constant monitor to port(s)")
-        self.monitor_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
-                                         parsing_opts.RX_PORT_LIST,
-                                         parsing_opts.MONITOR_TYPE)
-
+        self.show_parser = self.subparsers.add_parser('show', help = "show all active captures")
+     
         # reset
-        self.clear_parser = subparsers.add_parser('clear', help = "remove all active captures")
+        self.clear_parser = self.subparsers.add_parser('clear', help = "remove all active captures")
        
         # register handlers
-        self.cmds = {'start': self.parse_start, 'stop' : self.parse_stop, 'clear': self.parse_clear, 'monitor': self.parse_monitor, 'show' : self.parse_show} 
+        self.cmds = {'record': self.parse_record, 'monitor' : self.parse_monitor, 'clear': self.parse_clear, 'show' : self.parse_show} 
+        
+        
+    def install_record_parser (self):
+        # recording
+        self.record_parser = self.subparsers.add_parser('record', help = "PCAP recording")
+        record_sub = self.record_parser.add_subparsers(title = 'commands', dest = 'record_cmd')
+        self.record_start_parser = record_sub.add_parser('start', help = "starts a new buffered capture")
+        self.record_stop_parser  = record_sub.add_parser('stop', help = "stops an active buffered capture")
+
+        # start
+        self.record_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
+                                              parsing_opts.RX_PORT_LIST,
+                                              parsing_opts.LIMIT)
+
+        # stop
+        self.record_stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
+                                             parsing_opts.OUTPUT_FILENAME)
+
+        
+        
+    def install_monitor_parser (self):
+        # monitor
+        self.monitor_parser = self.subparsers.add_parser('monitor', help = 'live monitoring')
+        monitor_sub = self.monitor_parser.add_subparsers(title = 'commands', dest = 'mon_cmd')
+        self.monitor_start_parser = monitor_sub.add_parser('start', help = 'starts a monitor')
+        self.monitor_stop_parser  = monitor_sub.add_parser('stop', help = 'stops an active monitor')
+
+        self.monitor_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
+                                               parsing_opts.RX_PORT_LIST,
+                                               parsing_opts.MONITOR_TYPE)
+
         
         
     def stop (self):
@@ -289,22 +331,48 @@ class CaptureManager(object):
         self.cmds[opts.commands](opts)
 
 
-    def parse_start (self, opts):
+    # record methods
+    def parse_record (self, opts):
+        if opts.record_cmd == 'start':
+            self.parse_record_start(opts)
+        elif opts.record_cmd == 'stop':
+            self.parse_record_stop(opts)
+        else:
+            assert(0)
+            
+    def parse_record_start (self, opts):
         if not opts.tx_port_list and not opts.rx_port_list:
-            self.start_parser.formatted_error('please provide either --tx or --rx')
+            self.record_start_parser.formatted_error('please provide either --tx or --rx')
             return
 
         self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
             
         
-    def parse_stop (self, opts):
-        if self.monitor.is_active() and self.monitor.get_capture_id() == opts.capture_id:
-            self.monitor.stop()
-        else:
-            self.c.stop_capture(opts.capture_id, opts.output_filename)
+    def parse_record_stop (self, opts):
+        captures = self.c.get_capture_status()
+        ids = [c['id'] for c in captures]
+        
+        if opts.capture_id == self.monitor.get_capture_id():
+            self.record_stop_parser.formatted_error("'{0}' is a monitor, please use 'capture monitor stop'".format(opts.capture_id))
+            return
+            
+        if opts.capture_id not in ids:
+            self.record_stop_parser.formatted_error("'{0}' is not an active capture ID".format(opts.capture_id))
+            return
+            
+        self.c.stop_capture(opts.capture_id, opts.output_filename)
 
             
+    # monitor methods
     def parse_monitor (self, opts):
+        if opts.mon_cmd == 'start':
+            self.parse_monitor_start(opts)
+        elif opts.mon_cmd == 'stop':
+            self.parse_monitor_stop(opts)
+        else:
+            assert(0)
+            
+    def parse_monitor_start (self, opts):
         mon_type = 'compact'
         
         if opts.verbose:
@@ -312,10 +380,15 @@ class CaptureManager(object):
         elif opts.pipe:
             mon_type = 'pipe'
             
-            
+        if not opts.tx_port_list and not opts.rx_port_list:
+            self.monitor_start_parser.formatted_error('please provide either --tx or --rx')
+            return
+        
         self.monitor.stop()
-        self.monitor.start(opts.tx_port_list, opts.rx_port_list, 10, mon_type)
+        self.monitor.start(opts.tx_port_list, opts.rx_port_list, 100, mon_type)
     
+    def parse_monitor_stop (self, opts):
+        self.monitor.stop()
         
     def parse_clear (self, opts):
         self.monitor.stop()
@@ -357,9 +430,9 @@ class CaptureManager(object):
         mon_table.header(['ID', 'Packets Seen', 'Bytes Seen', 'TX Ports', 'RX Ports'])
 
         if cap_table._rows:
-            text_tables.print_table_with_header(cap_table, "Buffers")
+            text_tables.print_table_with_header(cap_table, '\nActive Recorders')
 
         if mon_table._rows:
-            text_tables.print_table_with_header(mon_table, "Monitors")
+            text_tables.print_table_with_header(mon_table, '\nActive Monitor')
 
 

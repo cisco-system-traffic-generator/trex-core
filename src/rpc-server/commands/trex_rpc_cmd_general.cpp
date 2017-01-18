@@ -853,7 +853,7 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
-    const std::string cmd = parse_choice(params, "command", {"start", "stop", "fetch", "status"}, result);
+    const std::string cmd = parse_choice(params, "command", {"start", "stop", "fetch", "status", "remove"}, result);
     
     if (cmd == "start") {
         parse_cmd_start(params, result);
@@ -863,6 +863,8 @@ TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
         parse_cmd_fetch(params, result);
     } else if (cmd == "status") {
         parse_cmd_status(params, result);
+    } else if (cmd == "remove") {
+        parse_cmd_remove(params, result);
     } else {
         /* can't happen */
         assert(0);
@@ -878,10 +880,9 @@ TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
 void
 TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &result) {
     
-    uint32_t limit             = parse_uint32(params, "limit", result);
-    const Json::Value &tx_json = parse_array(params, "tx", result);
-    const Json::Value &rx_json = parse_array(params, "rx", result);
-    
+    uint32_t limit              = parse_uint32(params, "limit", result);
+    const Json::Value &tx_json  = parse_array(params, "tx", result);
+    const Json::Value &rx_json  = parse_array(params, "rx", result);
     CaptureFilter filter;
     
     std::set<uint8_t> ports;
@@ -909,7 +910,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     
     static MsgReply<TrexCaptureRCStart> reply;
     reply.reset();
-    
+  
     TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, reply);
     get_stateless_obj()->send_msg_to_rx(start_msg);
     
@@ -918,7 +919,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         generate_execute_err(result, rc.get_err());
     }
     
-    result["result"] = Json::objectValue;
+    result["result"]["capture_id"] = rc.get_new_id();
 }
 
 /**
@@ -990,7 +991,33 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
         generate_execute_err(result, rc.get_err());
     }
     
-    result["result"]["pkts"]    = rc.get_pkt_buffer()->to_json();
+    const TrexPktBuffer *pkt_buffer = rc.get_pkt_buffer();
+    
     result["result"]["pending"] = rc.get_pending();
+    result["result"]["pkts"]    = pkt_buffer->to_json();
+    
+    /* delete the buffer */
+    delete pkt_buffer;
+}
+
+void
+TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &result) {
+    
+    uint32_t capture_id = parse_uint32(params, "capture_id", result);
+ 
+    /* generate a remove command */
+    
+    static MsgReply<TrexCaptureRCRemove> reply;
+    reply.reset();
+    
+    TrexStatelessRxCaptureRemove *remove_msg = new TrexStatelessRxCaptureRemove(capture_id, reply);
+    get_stateless_obj()->send_msg_to_rx(remove_msg);
+    
+    TrexCaptureRCRemove rc = reply.wait_for_reply();
+    if (!rc) {
+        generate_execute_err(result, rc.get_err());
+    }
+    
+    result["result"] = Json::objectValue;
 }
 

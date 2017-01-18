@@ -62,7 +62,7 @@ TrexStatelessCapture::handle_pkt_rx(const rte_mbuf_t *m, int port) {
         return;
     }
     
-    m_pkt_buffer->push(m);
+    m_pkt_buffer->push(m, port, TrexPkt::ORIGIN_RX);
 }
 
 
@@ -87,7 +87,6 @@ TrexStatelessCapture::to_json() const {
         
     default:
         assert(0);
-        
     }
     
     return output;
@@ -178,10 +177,6 @@ TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, Tre
         rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
         return;
     }
-    if (capture->is_active()) {
-        rc.set_err(TrexCaptureRC::RC_CAPTURE_FETCH_UNDER_ACTIVE);
-        return;
-    }
     
     uint32_t pending = 0;
     TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
@@ -214,6 +209,8 @@ TrexStatelessCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &r
     
     /* update global filter */
     update_global_filter();
+    
+    rc.set_ok();
 }
 
 void

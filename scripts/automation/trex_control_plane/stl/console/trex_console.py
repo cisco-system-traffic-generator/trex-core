@@ -29,6 +29,8 @@ import string
 import os
 import sys
 import tty, termios
+from threading import Lock
+import threading
 
 try:
     import stl_path
@@ -39,6 +41,7 @@ from trex_stl_lib.api import *
 from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils.common import user_input, get_current_user
 from trex_stl_lib.utils import parsing_opts
+from .trex_capture import CaptureManager
 
 try:
     import trex_tui
@@ -172,6 +175,8 @@ class TRexConsole(TRexGeneralCmd):
 
     def __init__(self, stateless_client, verbose = False):
 
+        self.cmd_lock = Lock()
+        
         self.stateless_client = stateless_client
 
         TRexGeneralCmd.__init__(self)
@@ -184,8 +189,11 @@ class TRexConsole(TRexGeneralCmd):
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
+        self.cap_mngr = CaptureManager(stateless_client, self.cmd_lock)
+
         self.postcmd(False, "")
 
+        
 
     ################### internal section ########################
 
@@ -231,6 +239,7 @@ class TRexConsole(TRexGeneralCmd):
 
         lines = line.split(';')
         try:
+            self.cmd_lock.acquire()
             for line in lines:
                 stop = self.onecmd(line)
                 stop = self.postcmd(stop, line)
@@ -238,9 +247,14 @@ class TRexConsole(TRexGeneralCmd):
                     return "quit"
     
             return ""
+            
         except STLError as e:
             print(e)
             return ''
+
+        finally:
+            self.cmd_lock.release()
+
 
 
     def postcmd(self, stop, line):
@@ -349,7 +363,7 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_capture (self, line):
         '''Manage PCAP captures'''
-        self.stateless_client.capture_line(line)
+        self.cap_mngr.parse_line(line)
 
     def help_capture (self):
         self.do_capture("-h")
@@ -443,7 +457,9 @@ class TRexConsole(TRexGeneralCmd):
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
-
+        
+        # stop any monitors before disconnecting
+        self.cap_mngr.stop()
         self.stateless_client.disconnect_line(line)
 
 
@@ -688,6 +704,7 @@ class TRexConsole(TRexGeneralCmd):
              l=help.splitlines()
              print("{:<30} {:<30}".format(cmd + " - ",l[0] ))
 
+             
     # a custorm cmdloop wrapper
     def start(self):
         while True:
@@ -701,6 +718,9 @@ class TRexConsole(TRexGeneralCmd):
                     print("")
                     self.intro = None
                     continue
+
+            finally:
+                self.cap_mngr.stop()
 
         if self.terminal:
             self.terminal.kill()
@@ -933,6 +953,8 @@ def main():
     finally:
         with stateless_client.logger.supress():
             stateless_client.disconnect(stop_traffic = False)
+
+
 
 if __name__ == '__main__':
     

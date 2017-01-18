@@ -313,6 +313,19 @@ TrexStatelessRxCaptureStatus::handle(CRxCoreStateless *rx_core) {
     return true;
 }
 
+bool
+TrexStatelessRxCaptureRemove::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCRemove remove_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().remove(m_capture_id, remove_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(remove_rc);
+    
+    return true;
+}
+
 
 bool
 TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
