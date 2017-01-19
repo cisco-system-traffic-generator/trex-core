@@ -28,14 +28,15 @@ This Module is structured to work with a raw data at the following JSON format:
 
  ["syn attack - 64 bytes, single CPU", "stl", "20161226", "01", "39", "9.631898", "9.5", "11.5", "54289"]
 
- it can be changed to support other formats of queries, simply change the enum class to support your desired structure
- the enums specify the indexes of the data within the query tuple
+ it can be changed to support other formats of queries, simply change the query class to support your desired structure
+ the query class specify the indexes of the data within the query tuple
 
 """
 
 
 class TestQuery(object):
-    QUERY_DATE = 2  # date format is yyyymmdd
+    query_dateformat = "%Y%m%d"  # date format in the query
+    QUERY_DATE = 2
     QUERY_HOUR = 3
     QUERY_MINUTE = 4
     QUERY_MPPS_RESULT = 5
@@ -61,7 +62,8 @@ class Test:
         test_mins = set()
         test_maxs = set()
         for query in raw_test_data:
-            date_formatted = time.strftime("%d-%m-%Y", time.strptime(query[int(TestQuery.QUERY_DATE)], "%Y%m%d"))
+            date_formatted = time.strftime("%d-%m-%Y",
+                                           time.strptime(query[int(TestQuery.QUERY_DATE)], TestQuery.query_dateformat))
             time_of_res = date_formatted + '-' + query[int(TestQuery.QUERY_HOUR)] + ':' + query[
                 int(TestQuery.QUERY_MINUTE)]
             test_dates.append(time_of_res)
@@ -133,14 +135,14 @@ class Setup:
         for test in self.tests:
             test_data = test.results_df[test.results_df.columns[2]].tolist()
             test_time_stamps = test.results_df[test.results_df.columns[3]].tolist()
-            test_time_stamps.append(self.end_date+'-23:59')
+            test_time_stamps.append(self.end_date + '-23:59')
             test_data.append(test_data[-1])
             float_test_time_stamps = []
             for ts in test_time_stamps:
                 try:
-                   float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format1)))
+                    float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format1)))
                 except:
-                   float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format2)))
+                    float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format2)))
             plt.plot_date(x=float_test_time_stamps, y=test_data, label=test.name, fmt='-', xdate=True)
             plt.legend(fontsize='small', loc='best')
         plt.ylabel('MPPS/Core (Norm)')
