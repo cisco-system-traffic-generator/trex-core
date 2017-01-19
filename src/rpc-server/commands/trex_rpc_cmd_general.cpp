@@ -920,6 +920,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     }
     
     result["result"]["capture_id"] = rc.get_new_id();
+    result["result"]["ts"]         = now_sec();
 }
 
 /**

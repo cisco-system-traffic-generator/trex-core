@@ -3003,7 +3003,8 @@ class STLClient(object):
                 limit          - limit how many packets will be written
                 
             :returns:
-                the new capture_id
+                returns a dictionary containing
+                {'id: <new_id>, 'ts': <starting timestamp>}
                 
             :raises:
                 + :exe:'STLError'
@@ -3036,7 +3037,7 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        return rc.data()['capture_id']
+        return {'id': rc.data()['capture_id'], 'ts': rc.data()['ts']}
 
 
         
@@ -3070,7 +3071,7 @@ class STLClient(object):
         
         
     @__api_check(True)
-    def stop_capture (self, capture_id, output_filename):
+    def stop_capture (self, capture_id, output_filename = None):
         """
             Stops an active capture
 
