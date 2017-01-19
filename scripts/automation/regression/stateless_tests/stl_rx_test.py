@@ -32,6 +32,12 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_average': 100,
                         'latency_9k_max_latency': 250,
                         },
+                'rte_i40evf_pmd': {
+                        'rate_percent': 80,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
                 'rte_igb_pmd': {
                         'rate_percent': 80,
                         'total_pkts': 500,
