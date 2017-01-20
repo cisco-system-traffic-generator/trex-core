@@ -112,7 +112,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         ret = self.trex.start_trex(
             c = core,
             m = mult,
-            p  = True,
+            e  = True,
             nc = True,
             d = 60,   
             f = 'cap2/imix_fast_1g.yaml',
@@ -164,7 +164,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_CPU_benchmark(trex_res, minimal_cpu = 25)
 
 
-    def test_jumbo(self, duration = 100, **kwargs):
+    def test_jumbo(self, duration = 5, **kwargs):
         if not self.is_loopback:
             self.router.configure_basic_interfaces(mtu = 9216)
             self.router.config_pbr(mode = "config")
@@ -188,7 +188,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         # you may see all the results keys by simply calling here for 'print trex_res.result'
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
-
+        self.fail('boo')
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res, minimal_cpu = 0, maximal_cpu = 10)
 
