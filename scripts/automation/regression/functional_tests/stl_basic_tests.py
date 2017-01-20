@@ -25,6 +25,71 @@ import shlex
 from threading import Thread
 from collections import defaultdict
 
+
+def scapy_pkt_show_to_str (scapy_pkt):
+    capture = StringIO()
+    save_stdout = sys.stdout
+    sys.stdout = capture
+    scapy_pkt.show()
+    sys.stdout = save_stdout
+    return capture.getvalue()
+
+
+def compare_caps (output, golden, max_diff_sec = 0.000005):
+    pkts1 = []
+    pkts2 = []
+    pkts_ts_buckets = defaultdict(list)
+
+    for pkt in RawPcapReader(output):
+        ts = pkt[1][0] * 1e6 + pkt[1][1]
+        pkts_ts_buckets[ts].append(pkt)
+    # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
+    #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
+    for ts in sorted(pkts_ts_buckets.keys()):
+        pkts1.extend(sorted(pkts_ts_buckets[ts]))
+    pkts_ts_buckets.clear()
+
+    for pkt in RawPcapReader(golden):
+        ts = pkt[1][0] * 1e6 + pkt[1][1]
+        pkts_ts_buckets[ts].append(pkt)
+    # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
+    #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
+    for ts in sorted(pkts_ts_buckets.keys()):
+        pkts2.extend(sorted(pkts_ts_buckets[ts]))
+
+    assert_equal(len(pkts1), len(pkts2), 'Lengths of generated pcap (%s) and golden (%s) are different' % (output, golden))
+
+    for pkt1, pkt2, i in zip(pkts1, pkts2, range(1, len(pkts1))):
+        ts1 = float(pkt1[1][0]) + (float(pkt1[1][1]) / 1e6)
+        ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
+
+        if abs(ts1-ts2) > max_diff_sec: # 5 nsec
+            raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
+
+        if pkt1[0] != pkt2[0]:
+            errmsg = "RAW error: output file '{0}', differs from golden '{1}' in cap #{2}".format(output, golden, i)
+            print(errmsg)
+
+            print(format_text("\ndifferent fields for packet #{0}:".format(i), 'underline'))
+
+            scapy_pkt1_info = scapy_pkt_show_to_str(Ether(pkt1[0])).split('\n')
+            scapy_pkt2_info = scapy_pkt_show_to_str(Ether(pkt2[0])).split('\n')
+
+            print(format_text("\nGot:\n", 'bold', 'underline'))
+            for line, ref in zip(scapy_pkt1_info, scapy_pkt2_info):
+                if line != ref:
+                    print(format_text(line, 'bold'))
+            
+            print(format_text("\nExpected:\n", 'bold', 'underline'))
+            for line, ref in zip(scapy_pkt2_info, scapy_pkt1_info):
+                if line != ref:
+                    print(format_text(line, 'bold'))
+
+            print("\n")
+            raise AssertionError(errmsg)
+
+
+
 @attr('run_on_trex')
 class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp (self):
@@ -73,69 +138,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             raise Exception("cannot find '{0}'".format(name))
 
 
-    def scapy_pkt_show_to_str (self, scapy_pkt):
-        capture = StringIO()
-        save_stdout = sys.stdout
-        sys.stdout = capture
-        scapy_pkt.show()
-        sys.stdout = save_stdout
-        return capture.getvalue()
-
-
-    def compare_caps (self, output, golden, max_diff_sec = 0.01):
-        pkts1 = []
-        pkts2 = []
-        pkts_ts_buckets = defaultdict(list)
-
-        for pkt in RawPcapReader(output):
-            ts = pkt[1][0] * 1e6 + pkt[1][1]
-            pkts_ts_buckets[ts].append(pkt)
-        # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
-        #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
-        for ts in sorted(pkts_ts_buckets.keys()):
-            pkts1.extend(sorted(pkts_ts_buckets[ts]))
-        pkts_ts_buckets.clear()
-
-        for pkt in RawPcapReader(golden):
-            ts = pkt[1][0] * 1e6 + pkt[1][1]
-            pkts_ts_buckets[ts].append(pkt)
-        # don't take last ts bucket, it can be cut in middle and packets inside bucket might be different
-        #for ts in sorted(pkts_ts_buckets.keys())[:-1]:
-        for ts in sorted(pkts_ts_buckets.keys()):
-            pkts2.extend(sorted(pkts_ts_buckets[ts]))
-
-        assert_equal(len(pkts1), len(pkts2), 'Lengths of generated pcap (%s) and golden (%s) are different' % (output, golden))
-
-        for pkt1, pkt2, i in zip(pkts1, pkts2, range(1, len(pkts1))):
-            ts1 = float(pkt1[1][0]) + (float(pkt1[1][1]) / 1e6)
-            ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
-
-            if abs(ts1-ts2) > 0.000005: # 5 nsec
-                raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
-
-            if pkt1[0] != pkt2[0]:
-                errmsg = "RAW error: output file '{0}', differs from golden '{1}' in cap #{2}".format(output, golden, i)
-                print(errmsg)
-
-                print(format_text("\ndifferent fields for packet #{0}:".format(i), 'underline'))
-
-                scapy_pkt1_info = self.scapy_pkt_show_to_str(Ether(pkt1[0])).split('\n')
-                scapy_pkt2_info = self.scapy_pkt_show_to_str(Ether(pkt2[0])).split('\n')
-
-                print(format_text("\nGot:\n", 'bold', 'underline'))
-                for line, ref in zip(scapy_pkt1_info, scapy_pkt2_info):
-                    if line != ref:
-                        print(format_text(line, 'bold'))
-                
-                print(format_text("\nExpected:\n", 'bold', 'underline'))
-                for line, ref in zip(scapy_pkt2_info, scapy_pkt1_info):
-                    if line != ref:
-                        print(format_text(line, 'bold'))
-
-                print("\n")
-                raise AssertionError(errmsg)
-
-
     def run_sim (self, yaml, output, options = "", silent = False, obj = None, tunables = None):
         if output:
             user_cmd = "-f {0} -o {1} {2} -p {3}".format(yaml, output, options, self.scripts_path)
@@ -169,7 +171,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                              tunables = None):
 
         print('Testing profile: %s' % profile)
-        output_cap = "a.pcap"
+        output_cap = "generated/a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
         if os.path.exists(output_cap):
@@ -186,7 +188,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             #os.system(s)
 
             if compare:
-                self.compare_caps(output_cap, golden_file)
+                compare_caps(output_cap, golden_file)
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)
@@ -208,7 +210,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                 assert_equal(rc, True, 'Simulation on profile %s (generated) failed.' % profile)
 
                 if compare:
-                    self.compare_caps(output_cap, golden_file)
+                    compare_caps(output_cap, golden_file)
 
 
             finally:

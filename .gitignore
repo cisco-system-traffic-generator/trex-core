@@ -90,14 +90,6 @@ scripts/exp/limit_multi_pkt-0.erf
 scripts/exp/limit_single_pkt-0.erf
 scripts/exp/imix_64_fast-0.erf
 scripts/exp/pcap_mode2-0.erf
-scripts/1.cap
-scripts/2.cap
-scripts/3.cap
-scripts/4.cap
-scripts/5.cap
-scripts/6.cap
-scripts/7.cap
-scripts/8.cap
 scripts/exp/rtsp_short1-0.erf
 scripts/exp/rtsp_short1_ipv6_rxcheck.erf
 scripts/exp/rtsp_short1_rxcheck.erf
@@ -138,6 +130,7 @@ src/GTAGS
 *.pyc
 __pycache__
 *_GENERATED.*
+scripts/generated/*
  
 # Packages #
 ############
