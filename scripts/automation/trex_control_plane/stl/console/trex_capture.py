@@ -22,8 +22,6 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
     def __init__ (self, logger, is_brief):
         self.logger      = logger
         self.is_brief    = is_brief
-        self.pkt_count   = 0
-        self.byte_count  = 0
 
         self.RX_ARROW = u'\u25c0\u2500\u2500'
         self.TX_ARROW = u'\u25b6\u2500\u2500'
@@ -45,11 +43,13 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
         return RC_OK()
         
     def handle_pkts (self, pkts):
+        byte_count = 0
+        
         for pkt in pkts:
-            self.__handle_pkt(pkt)
+            byte_count += self.__handle_pkt(pkt)
         
         self.logger.prompt_redraw()
-        return True
+        return RC_OK(byte_count)
         
         
     def get_scapy_name (self, pkt_scapy):
@@ -72,11 +72,8 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
     def __handle_pkt (self, pkt):
         pkt_bin = base64.b64decode(pkt['binary'])
 
-        self.pkt_count  += 1
-        self.byte_count += len(pkt_bin)
-
         pkt_scapy = Ether(pkt_bin)
-        self.logger.log(format_text(u'\n\n#{} Port: {} {}\n'.format(self.pkt_count, pkt['port'], self.format_origin(pkt['origin'])), 'bold', ''))
+        self.logger.log(format_text(u'\n\n#{} Port: {} {}\n'.format(pkt['index'], pkt['port'], self.format_origin(pkt['origin'])), 'bold', ''))
         self.logger.log(format_text('    Type: {}, Size: {} B, TS: {:.2f} [sec]\n'.format(self.get_scapy_name(pkt_scapy), len(pkt_bin), pkt['ts'] - self.start_ts), 'bold'))
 
         
@@ -86,6 +83,7 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
             pkt_scapy.show(label_lvl = '    ')
             self.logger.log('')
 
+        return len(pkt_bin)
 
 #
 class CaptureMonitorWriterPipe(CaptureMonitorWriter):
@@ -148,18 +146,22 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         if not rc:
             return rc
         
+        byte_count = 0
+        
         for pkt in pkts:
             pkt_bin = base64.b64decode(pkt['binary'])
-            ts = pkt['ts'] - self.start_ts
-            sec = int(ts)
-            usec = int( (ts - sec) * 1e6 )
+            ts      = pkt['ts']
+            sec     = int(ts)
+            usec    = int( (ts - sec) * 1e6 )
                 
             try:
                 self.writer._write_packet(pkt_bin, sec = sec, usec = usec)
             except IOError:
                 return RC_ERR("*** failed to write packet to pipe ***")
-                
-        return RC_OK()
+             
+            byte_count += len(pkt_bin)
+               
+        return RC_OK(byte_count)
         
         
 class CaptureMonitor(object):
@@ -170,7 +172,7 @@ class CaptureMonitor(object):
         self.capture_id  = None
         self.logger      = client.logger
         self.writer      = None
-                
+        
     def is_active (self):
         return self.active
         
@@ -179,7 +181,7 @@ class CaptureMonitor(object):
         return self.capture_id
         
         
-    def start (self,  tx_port_list, rx_port_list, rate_pps, mon_type):
+    def start (self, tx_port_list, rx_port_list, rate_pps, mon_type):
         try:
             self.start_internal(tx_port_list, rx_port_list, rate_pps, mon_type)
         except Exception as e:
@@ -221,12 +223,21 @@ class CaptureMonitor(object):
             self.t.start()
         except Exception as e:
             self.active = False
-            self.client.stop_capture(self.capture_id)
+            self.stop()
             raise e
         
-        
+    # entry point stop 
     def stop (self):
+
+        if self.active:
+            self.stop_logged()
+        else:
+            self.__stop()
+        
+    # wraps stop with a logging
+    def stop_logged (self):
         self.logger.pre_cmd("Stopping capture monitor")
+        
         try:
             self.__stop()
         except Exception as e:
@@ -235,6 +246,7 @@ class CaptureMonitor(object):
         
         self.logger.post_cmd(RC_OK())
             
+    # internal stop
     def __stop (self):
 
         # shutdown thread
@@ -247,15 +259,28 @@ class CaptureMonitor(object):
             self.writer.deinit()
             self.writer = None
             
-        # cleanup capture ID
-        if self.capture_id is not None:
-            try:
-                with self.logger.supress():
-                    self.client.stop_capture(self.capture_id)
-                    self.capture_id = None
-            except STLError as e:
-                self.logger.post_cmd(RC_ERR(""))
-                raise e
+        # cleanup capture ID if possible
+        if self.capture_id is None:
+            return
+
+        capture_id = self.capture_id
+        self.capture_id = None
+        
+        # if we are disconnected - we cannot cleanup the capture
+        if not self.client.is_connected():
+            return
+            
+        try:
+            captures = [x['id'] for x in self.client.get_capture_status()]
+            if capture_id not in captures:
+                return
+                
+            with self.logger.supress():
+                self.client.stop_capture(capture_id)
+            
+        except STLError as e:
+            self.logger.post_cmd(RC_ERR(""))
+            raise e
             
                 
     def get_mon_row (self):
@@ -311,6 +336,7 @@ class CaptureMonitor(object):
         self.byte_count = 0
         
         while self.active:
+            
             # sleep
             if not self.__sleep():
                 break
@@ -325,6 +351,8 @@ class CaptureMonitor(object):
                 break
                 
             try:
+                if not self.client.is_connected():
+                    return RC_ERR('*** client has been disconnected, aborting monitoring ***')
                 rc = self.client._transmit("capture", params = {'command': 'fetch', 'capture_id': self.capture_id, 'pkt_limit': 10})
                 if not rc:
                     return rc
@@ -340,6 +368,9 @@ class CaptureMonitor(object):
             rc = self.writer.handle_pkts(pkts)
             if not rc:
                 return rc
+            
+            self.pkt_count  += len(pkts)
+            self.byte_count += rc.data()
                 
         # graceful shutdown
         return RC_OK()
@@ -446,8 +477,11 @@ class CaptureManager(object):
             self.record_start_parser.formatted_error('please provide either --tx or --rx')
             return
 
-        self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
-            
+        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
+        
+        self.logger.log(format_text("*** Capturing ID is set to '{0}' ***".format(rc['id']), 'bold'))
+        self.logger.log(format_text("*** Please call 'capture record stop --id {0} -o <out.pcap>' when done ***\n".format(rc['id']), 'bold'))
+
         
     def parse_record_stop (self, opts):
         captures = self.c.get_capture_status()

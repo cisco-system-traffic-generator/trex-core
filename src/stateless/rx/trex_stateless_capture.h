@@ -121,10 +121,11 @@ public:
         m_pending    = 0;
     }
     
-    void set_pkt_buffer(const TrexPktBuffer *pkt_buffer, uint32_t pending) {
-        m_pkt_buffer = pkt_buffer;
-        m_pending = pending;
-        m_rc = RC_OK;
+    void set_pkt_buffer(const TrexPktBuffer *pkt_buffer, uint32_t pending, dsec_t start_ts) {
+        m_pkt_buffer  = pkt_buffer;
+        m_pending     = pending;
+        m_start_ts    = start_ts;
+        m_rc          = RC_OK;
     }
     
     const TrexPktBuffer *get_pkt_buffer() const {
@@ -135,9 +136,14 @@ public:
         return m_pending;
     }
     
+    dsec_t get_start_ts() const {
+        return m_start_ts;
+    }
+    
 private:
     const TrexPktBuffer *m_pkt_buffer;
     uint32_t             m_pending;
+    dsec_t               m_start_ts;
 };
 
 class TrexCaptureRCRemove : public TrexCaptureRC {
@@ -245,7 +251,7 @@ public:
     
     TrexStatelessCapture(capture_id_t id, uint64_t limit, const CaptureFilter &filter);
     
-    void handle_pkt_tx(const TrexPkt *pkt);
+    void handle_pkt_tx(TrexPkt *pkt);
     void handle_pkt_rx(const rte_mbuf_t *m, int port);
     
     ~TrexStatelessCapture();
@@ -274,11 +280,17 @@ public:
         return m_pkt_buffer->get_element_count();
     }
     
+    dsec_t get_start_ts() const {
+        return m_start_ts;
+    }
+    
 private:
     state_e          m_state;
     TrexPktBuffer   *m_pkt_buffer;
+    dsec_t           m_start_ts;
     CaptureFilter    m_filter;
     uint64_t         m_id;
+    uint64_t         m_pkt_index;
 };
 
 class TrexStatelessCaptureMngr {
@@ -341,7 +353,7 @@ public:
     /**
      *  handle packet from TX
      */
-    void handle_pkt_tx(const TrexPkt *pkt);
+    void handle_pkt_tx(TrexPkt *pkt);
     
     /** 
      * handle packet from RX 

@@ -184,7 +184,7 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 5:
+                if tries > 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
@@ -200,7 +200,7 @@ class JsonRpcClient(object):
                 break
             except zmq.Again:
                 tries += 1
-                if tries > 5:
+                if tries > 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
 

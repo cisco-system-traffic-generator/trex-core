@@ -26,6 +26,8 @@ TrexStatelessCapture::TrexStatelessCapture(capture_id_t id, uint64_t limit, cons
     m_pkt_buffer = new TrexPktBuffer(limit, TrexPktBuffer::MODE_DROP_TAIL);
     m_filter     = filter;
     m_state      = STATE_ACTIVE;
+    m_start_ts   = now_sec();
+    m_pkt_index  = 0;
 }
 
 TrexStatelessCapture::~TrexStatelessCapture() {
@@ -35,7 +37,7 @@ TrexStatelessCapture::~TrexStatelessCapture() {
 }
 
 void
-TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
+TrexStatelessCapture::handle_pkt_tx(TrexPkt *pkt) {
 
     if (m_state != STATE_ACTIVE) {
         delete pkt;
@@ -48,6 +50,12 @@ TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
         return;
     }
     
+    if (pkt->get_ts() < m_start_ts) {
+        delete pkt;
+        return;
+    }
+    
+    pkt->set_index(++m_pkt_index);
     m_pkt_buffer->push(pkt);
 }
 
@@ -62,7 +70,7 @@ TrexStatelessCapture::handle_pkt_rx(const rte_mbuf_t *m, int port) {
         return;
     }
     
-    m_pkt_buffer->push(m, port, TrexPkt::ORIGIN_RX);
+    m_pkt_buffer->push(m, port, TrexPkt::ORIGIN_RX, ++m_pkt_index);
 }
 
 
@@ -110,7 +118,8 @@ TrexStatelessCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
         partial->push(pkt);
     }
     
-    pending = m_pkt_buffer->get_element_count();
+    pending  = m_pkt_buffer->get_element_count();
+    
     return partial;
 }
 
@@ -181,7 +190,7 @@ TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, Tre
     uint32_t pending = 0;
     TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
     
-    rc.set_pkt_buffer(pkt_buffer, pending);
+    rc.set_pkt_buffer(pkt_buffer, pending, capture->get_start_ts());
 }
 
 void
@@ -223,7 +232,7 @@ TrexStatelessCaptureMngr::reset() {
 }
 
 void 
-TrexStatelessCaptureMngr::handle_pkt_tx(const TrexPkt *pkt) {
+TrexStatelessCaptureMngr::handle_pkt_tx(TrexPkt *pkt) {
     for (TrexStatelessCapture *capture : m_captures) {
         capture->handle_pkt_tx(pkt);
     }

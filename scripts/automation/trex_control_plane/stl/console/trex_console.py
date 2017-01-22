@@ -707,20 +707,21 @@ class TRexConsole(TRexGeneralCmd):
              
     # a custorm cmdloop wrapper
     def start(self):
-        while True:
-            try:
-                self.cmdloop()
-                break
-            except KeyboardInterrupt as e:
-                if not readline.get_line_buffer():
-                    raise KeyboardInterrupt
-                else:
-                    print("")
-                    self.intro = None
-                    continue
-
-            finally:
-                self.cap_mngr.stop()
+        try:
+            while True:
+                try:
+                    self.cmdloop()
+                    break
+                except KeyboardInterrupt as e:
+                    if not readline.get_line_buffer():
+                        raise KeyboardInterrupt
+                    else:
+                        print("")
+                        self.intro = None
+                        continue
+    
+        finally:
+            self.cap_mngr.stop()
 
         if self.terminal:
             self.terminal.kill()

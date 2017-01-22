@@ -3058,13 +3058,19 @@ class STLClient(object):
                 self.logger.post_cmd(rc)
                 raise STLError(rc)
         
-            pkts = rc.data()['pkts']
+            pkts      = rc.data()['pkts']
+            pending   = rc.data()['pending']
+            start_ts  = rc.data()['start_ts']
+            
             for pkt in pkts:
-                ts = pkt['ts']
-                pkt_bin = base64.b64decode(pkt['binary'])
-                writer._write_packet(pkt_bin, sec = 0, usec = 0)
+                ts = pkt['ts'] - start_ts
+                ts_sec  = int(ts)
+                ts_usec = int( (ts - ts_sec) * 1e6 )
                 
-            pending = rc.data()['pending']
+                pkt_bin = base64.b64decode(pkt['binary'])
+                writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
+                
+            
             
         
         self.logger.post_cmd(rc)

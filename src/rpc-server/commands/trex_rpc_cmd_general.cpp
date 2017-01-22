@@ -994,8 +994,9 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
     
     const TrexPktBuffer *pkt_buffer = rc.get_pkt_buffer();
     
-    result["result"]["pending"] = rc.get_pending();
-    result["result"]["pkts"]    = pkt_buffer->to_json();
+    result["result"]["pending"]     = rc.get_pending();
+    result["result"]["start_ts"]    = rc.get_start_ts();
+    result["result"]["pkts"]        = pkt_buffer->to_json();
     
     /* delete the buffer */
     delete pkt_buffer;
