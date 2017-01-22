@@ -25,7 +25,6 @@ limitations under the License.
 #include <assert.h>
 
 #include "trex_stateless_pkt.h"
-#include "trex_stateless_capture_msg.h"
 
 typedef int32_t capture_id_t;
 
