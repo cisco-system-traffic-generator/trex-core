@@ -121,6 +121,11 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         core  = self.get_benchmark_param('cores')
 
+
+        # in case of VMXNET3 the number of bytes reported is 60 bytes for 64B 
+        if self.is_VM:
+            self.trex.result_obj.set_warmup (0.89)
+
 #       trex_res = self.trex.run(multiplier = mult, cores = core, duration = 30, l = 1000, p = True)
         ret = self.trex.start_trex(
             c = core,
@@ -140,6 +145,10 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
+
+        if self.is_VM:
+            self.trex.result_obj.set_warmup_default()
+
 
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def dummy(self):
