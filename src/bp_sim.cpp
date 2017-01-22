@@ -2349,7 +2349,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                 pkt_indication.m_desc.SetId(_id);
                 bool is_fif;
                 CFlow * lpflow=flow.process(pkt_indication.m_flow_key,is_fif);
-                m_total_bytes += pkt_indication.m_packet->pkt_len;
+                m_total_bytes += (pkt_indication.m_packet->pkt_len+4); /* L2 include CRC*/
                 pkt_indication.m_cap_ipg = raw_packet.get_time();
 
                 pkt_indication.m_flow =lpflow;
