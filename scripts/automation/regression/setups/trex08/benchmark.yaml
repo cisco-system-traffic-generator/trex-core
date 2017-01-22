@@ -4,6 +4,25 @@
 
 ### stateful ###
 
+test_short_flow:
+    multiplier          : 50000
+    cores               : 7
+    bw_per_core         : 1000
+
+test_short_flow_high_active:
+    multiplier          : 40000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+test_short_flow_high_active2:
+    multiplier          : 30000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
+    
+
+
 test_jumbo:
     multiplier          : 150
     cores               : 2

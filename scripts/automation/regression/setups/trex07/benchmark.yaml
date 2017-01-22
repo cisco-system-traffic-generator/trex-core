@@ -4,6 +4,24 @@
 
 #### common templates ###
 
+test_short_flow:
+    multiplier          : 25000
+    cores               : 7
+    bw_per_core         : 1000
+
+test_short_flow_high_active:
+    multiplier          : 20000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+test_short_flow_high_active2:
+    multiplier          : 10000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+
 test_jumbo:
     multiplier          : 120
     cores               : 4

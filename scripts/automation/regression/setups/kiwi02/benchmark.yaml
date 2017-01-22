@@ -4,6 +4,24 @@
 
 #### common templates ###
 
+test_short_flow:
+    multiplier          : 20000
+    cores               : 4
+    bw_per_core         : 1000
+
+test_short_flow_high_active:
+    multiplier          : 20000
+    cores               : 4
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+test_short_flow_high_active2:
+    multiplier          : 15000
+    cores               : 4
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+
 stat_route_dict: &stat_route_dict
     clients_start           : 16.0.0.1
     servers_start           : 48.0.0.1
