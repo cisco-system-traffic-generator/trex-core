@@ -313,6 +313,7 @@ YAMLParserWrapper::parse_mac_addr(const YAML::Node &node, const std::string &nam
     }
 
     assert(0);
+    return(0);
 }
 
 uint64_t

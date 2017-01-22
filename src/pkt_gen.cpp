@@ -123,6 +123,9 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
             pkt_size += sizeof(struct CRx_check_header);
         }
         break;
+    case EthernetHeader::Protocol::ARP:
+        pkt_size += sizeof(ArpHdr);
+        break;
     }
 
     switch (l4_proto) {
@@ -192,8 +195,12 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         ipv6->setPayloadLen(pkt_size - 14 - sizeof(ipv6_header));
         ipv6->setFlowLabel(ip_id);
         break;
+    case EthernetHeader::Protocol::ARP:
+        uint16_t vlan = (flags & DPF_VLAN) ? 200 : 0;
+        create_arp_req((uint8_t *)p_start, 0x01020304, 0x05060708, src_mac, vlan, 0);
+        return p_start;
+        break;
     }
-
 
     struct TCPHeader *tcp = (TCPHeader *)p;
     struct ICMPHeader *icmp= (ICMPHeader *)p;

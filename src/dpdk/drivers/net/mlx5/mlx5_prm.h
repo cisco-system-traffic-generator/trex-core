@@ -37,12 +37,14 @@
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/mlx5_hw.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
+
+#include "mlx5_autoconf.h"
 
 /* Get CQE owner bit. */
 #define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
@@ -65,11 +67,43 @@
 /* Maximum number of packets a multi-packet WQE can handle. */
 #define MLX5_MPW_DSEG_MAX 5
 
-/* Room for inline data in regular work queue element. */
-#define MLX5_WQE64_INL_DATA 12
+/* WQE DWORD size */
+#define MLX5_WQE_DWORD_SIZE 16
+
+/* WQE size */
+#define MLX5_WQE_SIZE (4 * MLX5_WQE_DWORD_SIZE)
+
+/* Compute the number of DS. */
+#define MLX5_WQE_DS(n) \
+	(((n) + MLX5_WQE_DWORD_SIZE - 1) / MLX5_WQE_DWORD_SIZE)
 
 /* Room for inline data in multi-packet WQE. */
 #define MLX5_MWQE64_INL_DATA 28
+
+//#ifndef HAVE_VERBS_MLX5_OPCODE_TSO
+//#define MLX5_OPCODE_TSO MLX5_OPCODE_LSO_MPW /* Compat with OFED 3.3. */
+//#endif
+
+/* IPv4 packet. */
+#define MLX5_CQE_RX_IPV4_PACKET (1u << 2)
+
+/* IPv6 packet. */
+#define MLX5_CQE_RX_IPV6_PACKET (1u << 3)
+
+/* Outer IPv4 packet. */
+#define MLX5_CQE_RX_OUTER_IPV4_PACKET (1u << 7)
+
+/* Outer IPv6 packet. */
+#define MLX5_CQE_RX_OUTER_IPV6_PACKET (1u << 8)
+
+/* Tunnel packet bit in the CQE. */
+#define MLX5_CQE_RX_TUNNEL_PACKET (1u << 4)
+
+/* Outer IP checksum OK. */
+#define MLX5_CQE_RX_OUTER_IP_CSUM_OK (1u << 5)
+
+/* Outer UDP header and checksum OK. */
+#define MLX5_CQE_RX_OUTER_TCP_UDP_CSUM_OK (1u << 6)
 
 /* Subset of struct mlx5_wqe_eth_seg. */
 struct mlx5_wqe_eth_seg_small {
@@ -79,58 +113,25 @@ struct mlx5_wqe_eth_seg_small {
 	uint16_t mss;
 	uint32_t rsvd2;
 	uint16_t inline_hdr_sz;
+	uint8_t inline_hdr[2];
 };
 
-/* Regular WQE. */
-struct mlx5_wqe_regular {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg eseg;
-	struct mlx5_wqe_data_seg dseg;
-} __rte_aligned(64);
-
-/* Inline WQE. */
-struct mlx5_wqe_inl {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg eseg;
+struct mlx5_wqe_inl_small {
 	uint32_t byte_cnt;
-	uint8_t data[MLX5_WQE64_INL_DATA];
-} __rte_aligned(64);
-
-/* Multi-packet WQE. */
-struct mlx5_wqe_mpw {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg_small eseg;
-	struct mlx5_wqe_data_seg dseg[2];
-} __rte_aligned(64);
-
-/* Multi-packet WQE with inline. */
-struct mlx5_wqe_mpw_inl {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg_small eseg;
-	uint32_t byte_cnt;
-	uint8_t data[MLX5_MWQE64_INL_DATA];
-} __rte_aligned(64);
-
-/* Union of all WQE types. */
-union mlx5_wqe {
-	struct mlx5_wqe_regular wqe;
-	struct mlx5_wqe_inl inl;
-	struct mlx5_wqe_mpw mpw;
-	struct mlx5_wqe_mpw_inl mpw_inl;
-	uint8_t data[64];
+	uint8_t raw;
 };
+
+/* Small common part of the WQE. */
+struct mlx5_wqe {
+	uint32_t ctrl[4];
+	struct mlx5_wqe_eth_seg_small eseg;
+};
+
+/* WQE. */
+struct mlx5_wqe64 {
+	struct mlx5_wqe hdr;
+	uint8_t raw[32];
+} __rte_aligned(64);
 
 /* MPW session status. */
 enum mlx5_mpw_state {
@@ -145,7 +146,7 @@ struct mlx5_mpw {
 	unsigned int pkts_n;
 	unsigned int len;
 	unsigned int total_len;
-	volatile union mlx5_wqe *wqe;
+	volatile struct mlx5_wqe *wqe;
 	union {
 		volatile struct mlx5_wqe_data_seg *dseg[MLX5_MPW_DSEG_MAX];
 		volatile uint8_t *raw;
@@ -157,7 +158,21 @@ struct mlx5_cqe {
 #if (RTE_CACHE_LINE_SIZE == 128)
 	uint8_t padding[64];
 #endif
-	struct mlx5_cqe64 cqe64;
+	uint8_t pkt_info;
+	uint8_t rsvd0[11];
+	uint32_t rx_hash_res;
+	uint8_t rx_hash_type;
+	uint8_t rsvd1[11];
+	uint8_t hds_ip_ext;
+	uint8_t l4_hdr_type_etc;
+	uint16_t vlan_info;
+	uint8_t rsvd2[12];
+	uint32_t byte_cnt;
+	uint64_t timestamp;
+	uint8_t rsvd3[4];
+	uint16_t wqe_counter;
+	uint8_t rsvd4;
+	uint8_t op_own;
 };
 
 #endif /* RTE_PMD_MLX5_PRM_H_ */

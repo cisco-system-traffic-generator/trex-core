@@ -59,7 +59,7 @@ def create_plot_for_dframe_arr(dframe_arr, setup_name, start_date, end_date, sho
     dframe_all = dframe_all.astype(float)
     dframe_all.plot()
     plt.legend(fontsize='small', loc='best')
-    plt.ylabel('MPPS')
+    plt.ylabel('MPPS/Core (Norm)')
     plt.title('Setup: ' + setup_name)
     plt.tick_params(
         axis='x',
@@ -81,7 +81,7 @@ def create_bar_plot_for_latest_runs_per_setup(dframe_all_tests_latest, setup_nam
     dframe_all_tests_latest = dframe_all_tests_latest[['Test Name', 'Setup', 'Date', 'MPPS']]
     plt.xticks(rotation='horizontal')
     plt.xlabel('Index of Tests')
-    plt.ylabel('MPPS')
+    plt.ylabel('MPPS/Core (Norm)')
     plt.title("Test Runs for Setup: " + setup_name)
     if save_path:
         plt.savefig(os.path.join(save_path, setup_name + '_latest_test_runs.png'))
@@ -110,7 +110,7 @@ def create_all_data_per_setup(setup_dict, setup_name, start_date, end_date, show
 
 
 def create_detailed_table(dframe_arr_detailed):
-    result = reduce(lambda x, y: pd.merge(x, y, on=('Build Id', 'Setup')), dframe_arr_detailed)
+    result = reduce(lambda x, y: pd.merge(x, y, how='outer'), dframe_arr_detailed)
     return result
 
 

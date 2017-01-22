@@ -1,0 +1,65 @@
+# 
+# Cluster configuration example file
+# The file must contain the following fields
+#
+# 'vlan'   - Set to true, if the entire configuration is under VLAN. False otherwise.
+#            if set to true, each client group must include vlan configuration
+#
+# 'groups' - Each client group must contain range of IPs
+#            and initiator and responder maps 
+#            'count' is the number of devices on the group.
+#
+# initiator and responder can contain 'vlan', 'src_mac', 'dst_mac', 'next_hop'.
+#
+
+vlan: true
+
+groups:
+
+-    ip_start  : 16.0.0.1
+     ip_end    : 16.0.0.4
+     initiator :
+                 vlan    : 100
+                 dst_mac : "00:00:00:01:00:00"
+     responder :
+                 vlan    : 200
+                 dst_mac : "00:00:00:01:00:00"
+
+     count     : 2
+ 
+-    ip_start  : 16.0.0.5
+     ip_end    : 16.0.0.12
+     initiator :
+                 vlan    : 101
+                 dst_mac : "01:00:00:00:01:01"
+
+     responder :
+                 vlan    : 201
+                 dst_mac : "01:00:00:00:02:01"
+
+     count     : 4
+
+-    ip_start  : 16.0.0.13
+     ip_end    : 16.0.0.30
+
+     initiator :
+                vlan    : 103
+                dst_mac : "02:00:00:00:01:01"
+     responder :
+
+                vlan    : 203
+                dst_mac : "02:00:00:00:02:01"
+
+     count     : 8
+
+-    ip_start  : 16.0.0.31
+     ip_end    : 16.0.1.255
+
+     initiator :
+                vlan    : 104
+                dst_mac : "04:00:00:00:01:01"
+     responder :
+
+                vlan    : 204
+                dst_mac : "04:00:00:00:02:01"
+

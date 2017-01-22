@@ -821,7 +821,6 @@ ef_malloc(size_t size)
 
     lock();
     allocation=ef_memalign(EF_ALIGNMENT, size); 
-
     /* put 0xaa into the memset to find uninit issues */
     memset(allocation,0xaa,size);
     #if 0
@@ -896,6 +895,14 @@ calloc(size_t nelem, size_t elsize)
 {
     return (ef_calloc(nelem, elsize));
 }
+
+extern C_LINKAGE int
+posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    *memptr=ef_malloc(size);
+    return(0);
+}
+
 
 /*
  * This will catch more bugs if you remove the page alignment, but it

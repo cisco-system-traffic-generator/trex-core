@@ -21,7 +21,7 @@ limitations under the License.
 #ifndef __TREX_DEFS_H__
 #define __TREX_DEFS_H__
 
-#define TREX_MAX_PORTS 12
+#define TREX_MAX_PORTS 16
 
 // maximum number of IP ID type flow stats we support
 #define MAX_FLOW_STATS 127

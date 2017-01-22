@@ -859,10 +859,10 @@ def show_intro (logger, c):
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
-        if 'supp_speeds' in port:
+        if 'supp_speeds' in port and port['supp_speeds']:
             speed = max(port['supp_speeds']) // 1000
         else:
-            speed = port['speed']
+            speed = c.ports[port['index']].get_speed_gbps()
         key = (speed, port.get('description', port['driver']))
         if key not in port_types:
             port_types[key] = 0
@@ -927,17 +927,16 @@ def main():
     if options.readonly:
         logger.log(format_text("\nRead only mode - only few commands will be available", 'bold'))
 
-    show_intro(logger, stateless_client)
-    
-
-    # a script mode
-    if options.batch:
-        cont = run_script_file(options.batch[0], stateless_client)
-        if not cont:
-            return
-        
     # console
     try:
+        show_intro(logger, stateless_client)
+
+        # a script mode
+        if options.batch:
+            cont = run_script_file(options.batch[0], stateless_client)
+            if not cont:
+                return
+
         console = TRexConsole(stateless_client, options.verbose)
         logger.prompt_redraw = console.prompt_redraw
 

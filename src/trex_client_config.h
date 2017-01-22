@@ -202,7 +202,7 @@ public:
     ClientCfgDirBase m_responder;
 };
 
-class ClientCfgExt : public ClientCfgBase {
+class ClientCfgExt {
 public:
     virtual void dump (FILE *fd) const {
         fprintf(fd, "    initiator:\n");
@@ -281,7 +281,8 @@ public:
      * @param info
      */
     void assign(ClientCfgBase &info) {
-        info = m_cfg;
+        info.m_initiator = m_cfg.m_initiator;
+        info.m_responder = m_cfg.m_responder;
         info.update(m_iterator, &m_cfg);
 
         /* advance for the next assign */

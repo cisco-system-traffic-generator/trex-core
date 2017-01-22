@@ -33,30 +33,19 @@
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_ethdev.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_defs.h"
 
-
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
-
-/**
- * DPDK callback to get device statistics.
- *
- * @param dev
- *   Pointer to Ethernet device structure.
- * @param[out] stats
- *   Stats structure output buffer.
- */
-
 
 static void
 mlx5_stats_read_hw(struct rte_eth_dev *dev,
@@ -271,7 +260,8 @@ mlx5_stats_diff(struct rte_eth_stats *a,
     MLX5_DIFF(rx_nombuf);
 }
 
- 
+
+
 void
 mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 {

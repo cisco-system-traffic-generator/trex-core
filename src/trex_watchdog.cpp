@@ -155,16 +155,14 @@ void TrexWatchDog::init(bool enable){
  * 
  */
 TrexMonitor * TrexWatchDog::get_current_monitor() {
-    TrexMonitor * cur_monitor = NULL;
 
     for (int i = 0; i < m_mon_count; i++) {
         if ( m_monitors[i]->get_tid() == pthread_self() ) {
-            cur_monitor = m_monitors[i];
-            break;
+            return m_monitors[i];
         }
     }
 
-    return cur_monitor;
+    return NULL;
 }
 
 

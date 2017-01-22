@@ -264,6 +264,34 @@ class Scapy_service_api():
         """
         pass
 
+    def get_templates(self,client_v_handler):
+        """ get_templates(self,client_v_handler)
+
+        Returns an array of templates, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        array of templates
+        """
+        pass
+
+    def get_template(self,client_v_handler,template):
+        """ get_template(self,client_v_handler,template)
+
+        Returns a template, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        base64 of template content
+        """
+        pass
+
 def is_python(version):
     return version == sys.version_info[0]
 
@@ -853,7 +881,7 @@ class Scapy_service(Scapy_service_api):
         for instruction_def in instructions_def:
             instruction_id = instruction_def['id']
             instruction_class = self._vm_instructions[instruction_id]
-            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].iteritems()}
+            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].items()}
             instructions.append(instruction_class(**parameters))
 
         fe_parameters = field_engine_model_descriptor['global_parameters']
@@ -933,7 +961,7 @@ class Scapy_service(Scapy_service_api):
         else:
             return pkt_class()
 
-        
+
     def _get_payload_classes(self, pkt_class):
         # tries to find, which subclasses allowed.
         # this can take long time, since it tries to build packets with all subclasses(O(N))
@@ -949,6 +977,61 @@ class Scapy_service(Scapy_service_api):
                     # no actions needed on fail, just sliently skip
                     pass
         return allowed_subclasses
+
+
+
+    def _get_templates(self):
+        # Make sure you understand the three return values of os.walk:
+        #
+        # for root, subdirs, files in os.walk(rootdir):
+        #     has the following meaning:
+        #
+        # root: Current path which is "walked through"
+        # subdirs: Files in root of type directory
+        # files: Files in root (not in subdirs) of type other than directory
+        # And please use os.path.join instead of concatenating with a slash!
+        # Your problem is filePath = rootdir + '/' + file - you must concatenate the currently "walked" folder instead of the topmost folder.
+        # So that must be filePath = os.path.join(root, file). BTW "file" is a builtin, so you don't normally use it as variable name.
+
+        templates = []
+        for root, subdirs, files in os.walk("templates"):
+            for file in files:
+                if file.endswith('.trp'):
+                    try:
+                        f = os.path.join(root, file)
+                        o = open(f)
+                        c = json.loads(o.read())
+                        o.close()
+                        id = f.replace("templates" + os.path.sep, "", 1)
+                        id = id.split(os.path.sep)
+                        id[-1] = id[-1].replace(".trp", "", 1)
+                        id = "/".join(id)
+                        t = {
+                                "id": id,
+                                 "meta": {
+                                     "name": c["metadata"]["caption"],
+                                     "description": ""
+                                 }
+                            }
+                        templates.append(t)
+                    except:
+                        pass
+        return templates
+
+    def _get_template(self,template):
+        id = template["id"]
+        f2 = "templates" + os.path.sep + os.path.sep.join(id.split("/")) + ".trp"
+        for c in r'[]\;,><&*:%=+@!#^()|?^':
+            id = id.replace(c,'')
+        id = id.replace("..", "")
+        id = id.split("/")
+        f = "templates" + os.path.sep + os.path.sep.join(id) + ".trp"
+        if f != f2:
+            return ""
+        with open(f, 'r') as content_file:
+            content = base64.b64encode(content_file.read())
+        return content
+
 
     def _get_fields_definition(self, pkt_class, fieldsDef):
         # fieldsDef - array of field definitions(or empty array)
@@ -1009,6 +1092,12 @@ class Scapy_service(Scapy_service_api):
         if protocolDef and protocolDef.get('payload'):
             return protocolDef['payload']
         return [c.__name__ for c in self._get_payload_classes(pkt_class)]
+
+    def get_templates(self,client_v_handler):
+        return self._get_templates()
+
+    def get_template(self,client_v_handler,template):
+        return self._get_template(template)
 
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):

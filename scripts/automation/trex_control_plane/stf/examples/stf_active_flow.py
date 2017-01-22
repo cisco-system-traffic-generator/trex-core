@@ -14,8 +14,8 @@ def minimal_stateful_test(server,csv_file,a_active_flows):
     trex_client.start_trex(
             c = 7,
             m = 30000,
-#            f = 'cap2/cur_flow_single.yaml',
-            f = 'cap2/cur_flow.yaml',
+            f = 'cap2/cur_flow_single.yaml',
+#            f = 'cap2/cur_flow.yaml',
             d = 30,
             l = 1000,
             p=True,
@@ -39,6 +39,7 @@ def minimal_stateful_test(server,csv_file,a_active_flows):
         print("WARNING QUEU WAS FULL");
 
     tuple=(active_flows[-5],cpu_utl[-5],pps[-5],queue_full[-1])
+    print(tuple)
     file_writer = csv.writer(test_file)
     file_writer.writerow(tuple);
     
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     max_flows = 8000000;
     min_flows = 100;
     active_flow = min_flows;
-    num_point = 10
+    num_point = 40
     factor = math.exp(math.log(max_flows/min_flows,math.e)/num_point);
     for i in range(num_point+1):
         print("<<=====================>>",i,math.floor(active_flow))

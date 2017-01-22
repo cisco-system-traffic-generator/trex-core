@@ -23,9 +23,28 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.14 ==
+
+* Another performance improvement in Stateful case with high active flows. There is less burstiness. 
+* Scapy server - warning in case of permissions errors 
+* Maximum supported ports are 16 (instead of 12)
+* ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases.
+* Early support for Intel XL710/X710/599 VF support [TBD add pointer for more info]
+* Fix Cluster mode breakage (v2.12-v2.13)
+* Stateless GUI v3.0 works with this version
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-319[trex-319]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-322[trex-322]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-326[trex-326]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-330[trex-330]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-329[trex-329]
+
+
 == Release 2.13 ==
 
-* Significatly improve performance and scale for stateful case with high active flows (70%-300% better)  see here link:trex_manual.html#_more_active_flows[More active flows]
+* Significantly improve performance and scale for stateful case with high active flows (70%-300% better)  see here link:trex_manual.html#_more_active_flows[More active flows]
 * Stateful with low active repeatable flows - an optimization was removed, for example `cap2/imix_fast_1g.yaml`. users that want to get this in high performance are adviced to move to Stateles mode. Removing this support improved the common case.
 * Support NAT without IPv4.option and UDP flows- for ASA  link:https://trex-tgn.cisco.com/youtrack/issue/trex-274[trex-274]
 * Scapy server is restart automatically - for future Stateless GUI link:https://trex-tgn.cisco.com/youtrack/issue/trex-291[trex-291]

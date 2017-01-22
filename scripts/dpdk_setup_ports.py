@@ -3,7 +3,9 @@
 import sys
 import os
 python_ver = 'python%s' % sys.version_info[0]
-sys.path.append(os.path.join('external_libs', 'pyyaml-3.11', python_ver))
+yaml_path = os.path.join('external_libs', 'pyyaml-3.11', python_ver)
+if yaml_path not in sys.path:
+    sys.path.append(yaml_path)
 import yaml
 import dpdk_nic_bind
 import re
@@ -234,7 +236,7 @@ class ConfigCreator(object):
                     return config_str
             with open(filename, 'w') as f:
                 f.write(config_str)
-            print('Saved.')
+            print('Saved to %s.' % filename)
         return config_str
 
 
@@ -391,7 +393,7 @@ Other network devices
         fcfg=self.m_cfg_file
 
         if not os.path.isfile(fcfg) :
-            self.raise_error ("There is no valid configuration file %s " % fcfg)
+            self.raise_error ("There is no valid configuration file %s\n" % fcfg)
 
         try:
           stream = open(fcfg, 'r')
@@ -403,22 +405,22 @@ Other network devices
         stream.close();
         cfg_dict = self.m_cfg_dict[0]
         if 'version' not in cfg_dict:
-            self.raise_error ("Configuration file %s is old, should include version field\n" % fcfg )
+            raise DpdkSetup("Configuration file %s is old, it should include version field\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
-            self.raise_error ("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
+            raise DpdkSetup("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
 
         if 'interfaces' not in self.m_cfg_dict[0]:
-            self.raise_error ("Configuration file %s is old, should include interfaces field even number of elemets" % fcfg)
+            raise DpdkSetup("Configuration file %s is old, it should include interfaces field with even number of elements" % fcfg)
 
         if_list=self.m_cfg_dict[0]['interfaces']
         l=len(if_list);
-        if (l>20):
-            self.raise_error ("Configuration file %s should include interfaces field with maximum of number of elemets" % (fcfg,l))
-        if ((l % 2)==1):
-            self.raise_error ("Configuration file %s should include even number of interfaces " % (fcfg,l))
+        if l > 16:
+            raise DpdkSetup("Configuration file %s should include interfaces field with maximum 16 elements, got: %s." % (fcfg,l))
+        if l % 2:
+            raise DpdkSetup("Configuration file %s should include even number of interfaces " % (fcfg,l))
         if 'port_limit' in cfg_dict and cfg_dict['port_limit'] > len(if_list):
-            self.raise_error ('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
+            raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
 
     def do_bind_one (self,key,mellanox):
@@ -542,13 +544,14 @@ Other network devices
                         sys.exit(1)
                 else:
                        print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
-        if map_driver.parent_args.stl:
+        if map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
             try:
                 master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
             except:
                 master_core = 0
             ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
             if ret:
+                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(1)
 
 
@@ -719,7 +722,11 @@ Other network devices
         config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
                                prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, zmq_pub_port = map_driver.args.zmq_pub_port)
-        config.create_config(filename = map_driver.args.o, print_config = map_driver.args.dump)
+        if map_driver.args.output_config:
+            config.create_config(filename = map_driver.args.output_config)
+        else:
+            print('### Dumping config to screen, use -o flag to save to file')
+            config.create_config(print_config = True)
 
     def do_interactive_create(self):
         ignore_numa = False
@@ -826,7 +833,7 @@ Other network devices
                         input_mac = dpdk_nic_bind.read_line('Please enter new destination MAC of interface %s: ' % interface['Interface_argv'])
                         try:
                             if input_mac:
-                                ConfigCreator._convert_mac(input_mac) # verify format
+                                ConfigCreator.verify_mac(input_mac) # verify format
                                 dest_mac = input_mac
                                 loopback_dest = False
                             else:
@@ -857,6 +864,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--cfg', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
+    parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
@@ -922,10 +930,6 @@ To see more detailed info on interfaces (table):
                       help="""Black list of cores to exclude. Make sure there will be enough for each NUMA.""",
      )
 
-    parser.add_argument("--dump", default=False, action='store_true',
-                      help="""Dump created config to screen.""",
-     )
-
     parser.add_argument("--no-ht", default=False, dest='no_ht', action='store_true',
                       help="""Use only one thread of each Core in created config yaml (No Hyper-Threading).""",
      )
@@ -946,7 +950,7 @@ To see more detailed info on interfaces (table):
                       help="""Default gateways to be used in created yaml file. Without them, will assume loopback (0<->1, 2<->3 etc.)""",
      )
 
-    parser.add_argument("-o", default=None, action='store', metavar='PATH',
+    parser.add_argument("-o", default=None, action='store', metavar='PATH', dest = 'output_config',
                       help="""Output the config to this file.""",
      )
 

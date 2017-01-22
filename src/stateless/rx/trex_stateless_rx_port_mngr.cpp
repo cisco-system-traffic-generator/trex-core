@@ -265,6 +265,9 @@ public:
         m_icmp     = NULL;
         m_vlan_tag = 0;
         
+        if (m_size_left < 14)
+            return;
+
         /* ethernet */
         m_ether = (EthernetHeader *)parse_bytes(14);
         

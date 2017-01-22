@@ -1,7 +1,7 @@
 #!/router/bin/python
-
 import sys, site
 import platform, os
+import pprint
 
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__)) # alternate use  with: os.getcwd()
 TREX_PATH           = os.getenv('TREX_UNDER_TEST')     # path to <trex-core>/scripts directory, env. variable TREX_UNDER_TEST should override it.
@@ -18,8 +18,11 @@ NIGHTLY_MODULES = [ {'name': 'ansi2html'},
                     {'name': 'rednose-0.4.1'},
                     {'name': 'progressbar-2.2'},
                     {'name': 'termstyle'},
+                    {'name': 'urllib3'},
+                    {'name': 'elasticsearch'},
+                    {'name': 'requests'},
                     {'name': 'pyyaml-3.11', 'py-dep': True},
-                    {'name': 'nose-1.3.4', 'py-dep': True}
+                    {'name': 'nose-1.3.4', 'py-dep': True},
                     ]
 
 
@@ -62,6 +65,7 @@ def import_nightly_modules ():
     sys.path.append(PATH_STL_API)
     sys.path.append(PATH_STF_API)
     import_module_list(NIGHTLY_MODULES)
+    #pprint.pprint(sys.path)
 
 
 import_nightly_modules()

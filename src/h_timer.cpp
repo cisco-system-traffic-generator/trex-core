@@ -266,6 +266,168 @@ RC_HTW_t CHTimerWheel::Delete(){
     return(RC_HTW_OK);
 }
 
+////////////////////////////////////////////////////////
+
+
+
+void CNATimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
+    #ifndef _DEBUG 
+    if (m_total_events==0) {
+        return;
+    }
+    #endif
+    int i;
+    uint32_t res=0;
+    for (i=0;i<HNA_TIMER_LEVELS; i++) {
+        CHTimerOneWheel * lp=&m_timer_w[i];
+        res=lp->detach_all(userdata,cb);
+        assert(m_total_events>=res);
+        m_total_events -=res;
+    }
+    assert(m_total_events==0);
+}
+
+
+void CNATimerWheel::on_tick_level0(void *userdata,htw_on_tick_cb_t cb){
+
+    CHTimerOneWheel * lp=&m_timer_w[0];
+    CHTimerObj * event;
+
+    while (  true ) {
+        event = lp->pop_event();
+        if (!event) {
+            break;
+        }
+        m_total_events--;
+        cb(userdata,event);
+   }
+   lp->timer_tick();
+   m_ticks[0]++;
+}
+
+/* almost always we will have burst here */
+na_htw_state_num_t CNATimerWheel::on_tick_level1(void *userdata,htw_on_tick_cb_t cb){
+
+    CHTimerOneWheel * lp=&m_timer_w[1];
+    CHTimerObj * event;
+    uint32_t cnt=0;
+
+    while (  true ) {
+        event = lp->pop_event();
+        if (!event) {
+            break;
+        }
+        if (event->m_ticks_left==0) {
+            m_total_events--;
+            cb(userdata,event);
+        }else{
+            timer_start_rest(event,event->m_ticks_left);
+        }
+        cnt++;
+        if (cnt>HNA_MAX_LEVEL1_EVENTS) {
+            /* need another batch */
+            na_htw_state_num_t old_state;
+            old_state=m_state;
+            m_state=TW_NEXT_BATCH;
+            if (old_state ==TW_FIRST_FINISH){
+               return(TW_FIRST_BATCH);
+            }else{
+               return(TW_NEXT_BATCH);
+            }
+        }
+   }
+   lp->timer_tick();
+   m_ticks[1]++;
+   if (m_state==TW_FIRST_FINISH) {
+       if (cnt>0) {
+           return (TW_FIRST_FINISH_ANY);
+       }else{
+           return (TW_FIRST_FINISH);
+       }
+   }else{
+       assert(m_state==TW_NEXT_BATCH);
+       m_state=TW_FIRST_FINISH;
+       return(TW_END_BATCH);
+   }
+}
+
+
+
+RC_HTW_t CNATimerWheel::timer_stop (CHTimerObj *tmr){
+    if ( tmr->is_running() ) {
+        assert(tmr->m_wheel<HNA_TIMER_LEVELS);
+        m_timer_w[tmr->m_wheel].timer_stop(tmr);
+        m_total_events--;
+    }
+    return (RC_HTW_OK);
+}
+
+
+
+RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr, 
+                                        htw_ticks_t  ticks){
+
+    htw_ticks_t nticks = (ticks+m_wheel_level1_err)>>m_wheel_level1_shift; 
+    if (nticks<m_wheel_size) {
+        if (nticks<2) {
+            nticks=2; /* not on the same bucket*/
+        }
+        tmr->m_ticks_left=0;
+        tmr->m_wheel=1;
+        m_timer_w[1].timer_start(tmr,nticks-1);
+    }else{
+        tmr->m_ticks_left = ticks - ((m_wheel_size-1)<<m_wheel_level1_shift);
+        tmr->m_wheel=1;
+        m_timer_w[1].timer_start(tmr,m_wheel_size-1);
+    }
+    return (RC_HTW_OK);
+}
+
+
+void CNATimerWheel::reset(){
+    m_wheel_shift=0;
+    m_total_events=0;
+    m_wheel_size=0;
+    m_wheel_mask=0;
+    m_wheel_level1_shift=0;
+    m_wheel_level1_err=0;
+    m_state=TW_FIRST_FINISH;
+    int i;
+    for (i=0; i<HNA_TIMER_LEVELS; i++) {
+        m_ticks[i]=0;
+    }
+
+}
+
+
+RC_HTW_t CNATimerWheel::Create(uint32_t wheel_size,
+                               uint8_t level1_div){
+    RC_HTW_t res;
+    int i;
+    for (i=0; i<HNA_TIMER_LEVELS; i++) {
+        res = m_timer_w[i].Create(wheel_size);
+        if ( res !=RC_HTW_OK ){
+            return (res);
+        }
+        m_ticks[i]=0;
+    }
+    m_wheel_shift = utl_log2_shift(wheel_size);
+    m_wheel_mask  = utl_mask_log2(wheel_size);
+    m_wheel_size  = wheel_size;
+    m_wheel_level1_shift = m_wheel_shift - utl_log2_shift((uint32_t)level1_div);
+    m_wheel_level1_err  = ((1<<(m_wheel_level1_shift))-1);
+    assert(m_wheel_shift>utl_log2_shift((uint32_t)level1_div));
+
+    return(RC_HTW_OK);
+}
+
+RC_HTW_t CNATimerWheel::Delete(){
+    int i;
+    for (i=0; i<HNA_TIMER_LEVELS; i++) {
+        m_timer_w[i].Delete();
+    }
+    return(RC_HTW_OK);
+}
 
 
 

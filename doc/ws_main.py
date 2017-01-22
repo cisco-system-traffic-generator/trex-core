@@ -1088,7 +1088,7 @@ def rsync_int(bld, src, dst):
            dst = dst)
     ret = os.system(cmd)
     if ret:
-        bld.fatal("cmd '%s' exited with return status" % (cmd, ret))
+        bld.fatal("cmd '%s' exited with return status: %s" % (cmd, ret))
 
 
 def rsync_ext(bld, src, dst):
@@ -1101,7 +1101,7 @@ def rsync_ext(bld, src, dst):
            dst  = dst)
     ret = os.system(cmd)
     if ret:
-        bld.fatal("cmd '%s' exited with return status" % (cmd, ret))
+        bld.fatal("cmd '%s' exited with return status: %s" % (cmd, ret))
 
 
 def publish(bld):

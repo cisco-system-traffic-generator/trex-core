@@ -122,7 +122,7 @@ static inline int get_is_rx_thread_enabled() {
 
 struct port_cfg_t;
 
-#define MAX_DPDK_ARGS 40
+#define MAX_DPDK_ARGS 50
 static CPlatformYamlInfo global_platform_cfg_info;
 static int global_dpdk_args_num ;
 static char * global_dpdk_args[MAX_DPDK_ARGS];
@@ -286,6 +286,27 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
     }
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
+};
+
+class CTRexExtendedDriverVf : public CTRexExtendedDriverBase1GVm {
+
+public:
+    CTRexExtendedDriverVf(){
+        /* we are working in mode in which we have we have 1 queue for rx and one queue for tx*/
+        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+    }
+    virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+        uint64_t prev_ipackets = stats->ipackets;
+        uint64_t prev_opackets = stats->opackets;
+
+        CTRexExtendedDriverBase1GVm::get_extended_stats(_if, stats);
+        // Since this driver report byte counts without Ethernet FCS (4 bytes), we need to fix the reported numbers
+        stats->ibytes += (stats->ipackets - prev_ipackets) * 4;
+        stats->obytes += (stats->opackets - prev_opackets) * 4;
+    }
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverVf() );
+    }
 };
 
 class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverBase1GVm {
@@ -569,16 +590,14 @@ private:
         register_driver(std::string("rte_igb_pmd"),CTRexExtendedDriverBase1G::create);
         register_driver(std::string("rte_i40e_pmd"),CTRexExtendedDriverBase40G::create);
         register_driver(std::string("rte_enic_pmd"),CTRexExtendedDriverBaseVIC::create);
-        register_driver(std::string("librte_pmd_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
-
+        register_driver(std::string("net_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
 
         /* virtual devices */
         register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBaseE1000::create);
         register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBase1GVm::create);
         register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBase1GVm::create);
-
-
-
+        register_driver(std::string("rte_ixgbevf_pmd"),CTRexExtendedDriverVf::create);
+        register_driver(std::string("rte_i40evf_pmd"),CTRexExtendedDriverVf::create);
 
         m_driver_was_set=false;
         m_drv=0;
@@ -693,6 +712,7 @@ enum { OPT_HELP,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
+       OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW
 };
 
@@ -749,11 +769,11 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
-        { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP    },
+        { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
-        
+        { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         SO_END_OF_OPTIONS
     };
 
@@ -806,6 +826,7 @@ static int usage(){
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it \n");
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
+    printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
@@ -1090,10 +1111,11 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_NO_OFED_CHECK:
                 break;
+            case OPT_NO_SCAPY_SERVER:
+                break;
 
             default:
                 printf("Error: option %s is not handled.\n\n", args.OptionText());
-                usage();
                 return -1;
                 break;
             } // End of switch
@@ -1799,7 +1821,15 @@ int DpdkTRexPortAttr::add_mac(char * mac){
     for (int i=0; i<6;i++) {
         mac_addr.addr_bytes[i] =mac[i];
     }
-    return rte_eth_dev_mac_addr_add(m_port_id, &mac_addr,0);
+
+    if ( ! get_vm_one_queue_enable() ) {
+        if ( rte_eth_dev_mac_addr_add(m_port_id, &mac_addr,0) != 0) {
+            printf("Failed setting MAC for port %d \n", m_port_id);
+            exit(-1);
+        }
+    }
+
+    return 0;
 }
 
 int DpdkTRexPortAttr::set_promiscuous(bool enable){
@@ -2169,8 +2199,18 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
                            CVirtualIFPerSideStats  * lp_stats){
 
-    //assert(m_ring_to_rx->Enqueue((CGenNode *)0x0) == 0);
-    
+#ifdef DEBUG_SEND_BURST
+    if (CGlobalInfo::m_options.preview.getVMode() > 10) {
+        fprintf(stdout, "send_burst port:%d queue:%d len:%d\n", lp_port->m_port->get_rte_port_id()
+                , lp_port->m_tx_queue_id, len);
+        for (int i = 0; i < lp_port->m_len; i++) {
+            fprintf(stdout, "packet %d:\n", i);
+            rte_mbuf_t *m = lp_port->m_table[i];
+            utl_DumpBuffer(stdout, rte_pktmbuf_mtod(m, uint8_t*), rte_pktmbuf_pkt_len(m), 0);
+        }
+    }
+#endif
+
     uint16_t ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,lp_port->m_table,len);
 #ifdef DELAY_IF_NEEDED
     while ( unlikely( ret<len ) ){
@@ -3742,7 +3782,7 @@ int  CGlobalTRex::ixgbe_start(void){
         /* wait for ports to be stable */
         get_ex_drv()->wait_for_stable_link();
 
-        if ( !is_all_links_are_up(true) /*&& !get_is_stateless()*/ ){ // disable start with link down for now
+        if ( !is_all_links_are_up() /*&& !get_is_stateless()*/ ){ // disable start with link down for now
 
             /* temporary solution for trex-192 issue, solve the case for X710/XL710, will work for both Statless and Stateful */
             if (  get_ex_drv()->drop_packets_incase_of_linkdown() ){
@@ -3929,21 +3969,22 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
     m_max_ports  = rte_eth_dev_count();
     if (m_max_ports == 0)
-        rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
+        rte_exit(EXIT_FAILURE, "Error: Could not find supported ethernet ports. You are probably trying to use unsupported NIC \n");
 
     printf(" Number of ports found: %d \n",m_max_ports);
 
     if ( m_max_ports %2 !=0 ) {
-        rte_exit(EXIT_FAILURE, " Number of ports %d should be even, mask the one port in the configuration file  \n, ",
+        rte_exit(EXIT_FAILURE, " Number of ports in config file is %d. It should be even. Please use --limit-ports, or change 'port_limit:' in the config file\n",
                  m_max_ports);
     }
 
     if ( CGlobalInfo::m_options.get_expected_ports() > TREX_MAX_PORTS ) {
-        rte_exit(EXIT_FAILURE, " Maximum ports supported are %d, use the configuration file to set the expected number of ports   \n",TREX_MAX_PORTS);
+        rte_exit(EXIT_FAILURE, " Maximum number of ports supported is %d. You are trying to use %d. Please use --limit-ports, or change 'port_limit:' in the config file\n"
+                 ,TREX_MAX_PORTS, CGlobalInfo::m_options.get_expected_ports());
     }
 
     if ( CGlobalInfo::m_options.get_expected_ports() > m_max_ports ){
-        rte_exit(EXIT_FAILURE, " There are %d ports you expected more %d,use the configuration file to set the expected number of ports   \n",
+        rte_exit(EXIT_FAILURE, " There are %d ports available. You are trying to use %d. Please use --limit-ports, or change 'port_limit:' in the config file\n",
                  m_max_ports,
                  CGlobalInfo::m_options.get_expected_ports());
     }
@@ -5217,70 +5258,6 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
     }
 
     return 0;
-}
-
-// If needed, send packets to rx core for processing.
-// This is relevant only in VM case, where we receive packets to the working DP core (only 1 DP core in this case)
-bool CCoreEthIF::process_rx_pkt(pkt_dir_t dir, rte_mbuf_t * m) {
-    CFlowStatParser parser;
-    uint32_t ip_id;
-
-    if (parser.parse(rte_pktmbuf_mtod(m, uint8_t*), rte_pktmbuf_pkt_len(m)) != 0) {
-        return false;
-    }
-    bool send=false;
-
-    // e1000 on ESXI hands us the packet with the ethernet FCS
-    if (parser.get_pkt_size() < rte_pktmbuf_pkt_len(m)) {
-        rte_pktmbuf_trim(m, rte_pktmbuf_pkt_len(m) - parser.get_pkt_size());
-    }
-
-    if ( get_is_stateless() ) {
-        // In stateless RX, we only care about flow stat packets
-        if ((parser.get_ip_id(ip_id) == 0) && ((ip_id & 0xff00) == IP_ID_RESERVE_BASE)) {
-            send = true;
-        }
-    } else {
-        CLatencyPktMode *c_l_pkt_mode = g_trex.m_mg.c_l_pkt_mode;
-        bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt((IPHeader *)parser.get_l4()) &
-            CCPortLatency::IsLatencyPkt(parser.get_l4() + c_l_pkt_mode->l4_header_len());
-
-        if (is_lateancy_pkt) {
-            send = true;
-        } else {
-            if ( get_is_rx_filter_enable() ) {
-                uint8_t max_ttl = 0xff - get_rx_check_hops();
-                uint8_t pkt_ttl = parser.get_ttl();
-                if ( (pkt_ttl==max_ttl) || (pkt_ttl==(max_ttl-1) ) ) {
-                    send=true;
-                }
-            }
-        }
-    }
-
-
-    if (send) {
-        CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
-        if ( node ) {
-            node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
-            node->m_dir      = dir;
-            node->m_latency_offset = 0xdead;
-            node->m_pkt      = m;
-            if ( m_ring_to_rx->Enqueue((CGenNode*)node)==0 ){
-            }else{
-                CGlobalInfo::free_node((CGenNode *)node);
-                send=false;
-            }
-
-#ifdef LATENCY_QUEUE_TRACE_
-            printf("rx to cp --\n");
-            rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
-#endif
-        }else{
-            send=false;
-        }
-    }
-    return (send);
 }
 
 TrexStateless * get_stateless_obj() {
@@ -6678,8 +6655,8 @@ void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
     stats->ipackets += stats1.ipackets - prev_stats->ipackets;
     stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
     stats->opackets += stats1.opackets - prev_stats->opackets;
-    stats->obytes   += stats1.obytes - prev_stats->obytes
-        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
+    // Since this driver report obytes count without Ethernet FCS (4 bytes), we need to fix the reported numbers
+    stats->obytes   += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * 4;
     stats->f_ipackets += 0;
     stats->f_ibytes   += 0;
     stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
@@ -6834,7 +6811,7 @@ void CTRexExtendedDriverBaseMlnx5G::add_del_rules(enum rte_filter_op op, uint8_t
 
     ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
     if ( ret != 0 ) {
-        if (((op == RTE_ETH_FILTER_ADD) && (ret == EEXIST)) || ((op == RTE_ETH_FILTER_DELETE) && (ret == ENOENT)))
+        if (((op == RTE_ETH_FILTER_ADD) && (ret == -EEXIST)) || ((op == RTE_ETH_FILTER_DELETE) && (ret == -ENOENT)))
             return;
 
         rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_ctrl: err=%d, port=%u\n",

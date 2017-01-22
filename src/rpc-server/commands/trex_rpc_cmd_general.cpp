@@ -629,10 +629,21 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
     }
 
 
+    /* IO might take time, increase timeout of WD */
+    TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
+    if (cur_monitor != NULL) {
+        cur_monitor->io_begin();
+    }
+
     try {
         port->push_remote(pcap_filename, ipg_usec, min_ipg_sec, speedup, count, duration, is_dual);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
+    }
+
+    /* revert timeout of WD */
+    if (cur_monitor != NULL) {
+        cur_monitor->io_end();
     }
 
     result["result"] = Json::objectValue;

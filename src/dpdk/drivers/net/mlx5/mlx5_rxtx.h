@@ -40,22 +40,23 @@
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5_hw.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
+#include <rte_common.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5_utils.h"
@@ -87,6 +88,8 @@ struct mlx5_txq_stats {
 struct fdir_queue {
 	struct ibv_qp *qp; /* Associated RX QP. */
 	struct ibv_exp_rwq_ind_table *ind_table; /* Indirection table. */
+	struct ibv_exp_wq *wq; /* Work queue. */
+	struct ibv_cq *cq; /* Completion queue. */
 };
 
 struct priv;
@@ -107,16 +110,18 @@ struct rxq {
 	unsigned int vlan_strip:1; /* Enable VLAN stripping. */
 	unsigned int crc_present:1; /* CRC must be subtracted. */
 	unsigned int sges_n:2; /* Log 2 of SGEs (max buffers per packet). */
+	unsigned int cqe_n:4; /* Log 2 of CQ elements. */
+	unsigned int elts_n:4; /* Log 2 of Mbufs. */
+	unsigned int port_id:8;
+	unsigned int rss_hash:1; /* RSS hash result is enabled. */
+	unsigned int :9; /* Remaining bits. */
+	volatile uint32_t *rq_db;
+	volatile uint32_t *cq_db;
 	uint16_t rq_ci;
 	uint16_t cq_ci;
-	uint16_t elts_n;
-	uint16_t cqe_n; /* Number of CQ elements. */
-	uint16_t port_id;
 	volatile struct mlx5_wqe_data_seg(*wqes)[];
 	volatile struct mlx5_cqe(*cqes)[];
 	struct rxq_zip zip; /* Compressed context. */
-	volatile uint32_t *rq_db;
-	volatile uint32_t *cq_db;
 	struct rte_mbuf *(*elts)[];
 	struct rte_mempool *mp;
 	struct mlx5_rxq_stats stats;
@@ -128,7 +133,7 @@ struct rxq_ctrl {
 	struct ibv_cq *cq; /* Completion Queue. */
 	struct ibv_exp_wq *wq; /* Work Queue. */
 	struct ibv_exp_res_domain *rd; /* Resource Domain. */
-	struct fdir_queue fdir_queue; /* Flow director queue. */
+	struct fdir_queue *fdir_queue; /* Flow director queue. */
 	struct ibv_mr *mr; /* Memory Region (for mp). */
 	struct ibv_exp_wq_family *if_wq; /* WQ burst interface. */
 	struct ibv_exp_cq_family_v1 *if_cq; /* CQ interface. */
@@ -235,22 +240,30 @@ struct hash_rxq {
 		[MLX5_MAX_SPECIAL_FLOWS][MLX5_MAX_VLAN_IDS];
 };
 
+/** C extension macro for environments lacking C11 features. */
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
+#define RTE_STD_C11 __extension__
+#else
+#define RTE_STD_C11
+#endif
+
 /* TX queue descriptor. */
+RTE_STD_C11
 struct txq {
 	uint16_t elts_head; /* Current index in (*elts)[]. */
 	uint16_t elts_tail; /* First element awaiting completion. */
 	uint16_t elts_comp; /* Counter since last completion request. */
-	uint16_t elts_n; /* (*elts)[] length. */
 	uint16_t cq_ci; /* Consumer index for completion queue. */
-	uint16_t cqe_n; /* Number of CQ elements. */
 	uint16_t wqe_ci; /* Consumer index for work queue. */
-	uint16_t wqe_n; /* Number of WQ elements. */
+	uint16_t elts_n:4; /* (*elts)[] length (in log2). */
+	uint16_t cqe_n:4; /* Number of CQ elements (in log2). */
+	uint16_t wqe_n:4; /* Number of of WQ elements (in log2). */
+	uint16_t bf_buf_size:4; /* Log2 Blueflame size. */
 	uint16_t bf_offset; /* Blueflame offset. */
-	uint16_t bf_buf_size; /* Blueflame size. */
-	uint16_t max_inline; /* Maximum size to inline in a WQE. */
+	uint16_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
 	uint32_t qp_num_8s; /* QP number shifted by 8. */
 	volatile struct mlx5_cqe (*cqes)[]; /* Completion queue. */
-	volatile union mlx5_wqe (*wqes)[]; /* Work queue. */
+	volatile struct mlx5_wqe64 (*wqes)[]; /* Work queue. */
 	volatile uint32_t *qp_db; /* Work queue doorbell. */
 	volatile uint32_t *cq_db; /* Completion queue doorbell. */
 	volatile void *bf_reg; /* Blueflame register. */
@@ -312,7 +325,6 @@ uint16_t mlx5_tx_burst_secondary_setup(void *, struct rte_mbuf **, uint16_t);
 /* mlx5_rxtx.c */
 
 uint16_t mlx5_tx_burst(void *, struct rte_mbuf **, uint16_t);
-uint16_t mlx5_tx_burst_inline(void *, struct rte_mbuf **, uint16_t);
 uint16_t mlx5_tx_burst_mpw(void *, struct rte_mbuf **, uint16_t);
 uint16_t mlx5_tx_burst_mpw_inline(void *, struct rte_mbuf **, uint16_t);
 uint16_t mlx5_rx_burst(void *, struct rte_mbuf **, uint16_t);

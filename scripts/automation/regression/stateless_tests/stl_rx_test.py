@@ -52,7 +52,7 @@ class STLRX_Test(CStlGeneral_Test):
                         'allow_packets_drop_num': 1, # allow 1 pkt drop
                         },
 
-                 'librte_pmd_mlx5': {
+                 'net_mlx5': {
                         'rate_percent': 80,
                         'total_pkts': 1000,
                         'rate_latency': 1,

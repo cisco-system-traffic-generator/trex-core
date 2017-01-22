@@ -23,7 +23,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 #include "h_timer.h"
 #include <common/utl_gcc_diag.h>
-
+#include <cmath>
 
 
 class gt_r_timer  : public testing::Test {
@@ -216,9 +216,9 @@ TEST_F(gt_r_timer, timer7) {
 
     int i;
     for (i=0; i<150; i++) {
-        printf(" tick %d :",i);
+        //printf(" tick %d :",i);
         timer.on_tick((void *)&timer,my_test_on_tick_cb7);
-        printf(" \n");
+        //printf(" \n");
     }
 
     EXPECT_EQ( timer.Delete(),RC_HTW_OK);
@@ -655,4 +655,460 @@ TEST_F(gt_r_timer, timer18) {
 
 
 
+/////////////////////////////////////////////////////////////////
+/* test for NA class */
+
+class CNATimerWheelTest1Cfg {
+public:
+    uint32_t m_wheel_size;
+    uint32_t m_level1_div;
+    uint32_t m_start_tick;
+    uint32_t m_restart_tick;
+    uint32_t m_total_ticks;
+    int     m_verbose;
+    bool     m_dont_assert;
+};
+
+
+class CNATimerWheelTest1 : public CHTimerWheelBase {
+
+public:
+    bool Create(CNATimerWheelTest1Cfg & cfg);
+    void Delete();
+    void start_test();
+    virtual void on_tick(CMyTestObject *lpobj);
+
+private:
+    CNATimerWheelTest1Cfg m_cfg;
+    CNATimerWheel         m_timer;
+    CMyTestObject         m_event;
+    uint32_t              m_ticks;
+    uint32_t              m_total_ticks;
+    uint32_t              m_expected_total_ticks;
+    uint32_t              m_div_err;
+
+    uint32_t              m_expect_tick;
+    double                m_max_err;
+};
+
+void my_test_on_tick_cb18(void *userdata,CHTimerObj *tmr){
+    CHTimerWheelBase * lp=(CHTimerWheelBase *)userdata;
+    UNSAFE_CONTAINER_OF_PUSH
+    CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
+    UNSAFE_CONTAINER_OF_POP
+    lp->on_tick(lpobj);
+}
+
+
+void CNATimerWheelTest1::on_tick(CMyTestObject *lpobj){
+    assert(lpobj->m_id==17);
+    m_total_ticks++;
+    if (m_cfg.m_verbose) {
+        printf(" [event(%d)-%d]",lpobj->m_timer.m_wheel,lpobj->m_id);
+    }
+    if (!m_cfg.m_dont_assert){
+        uint32_t expect_min=m_expect_tick;
+        if (expect_min>m_div_err) {
+            expect_min-=m_div_err*2;
+        }
+        double pre=std::abs(100.0-100.0*(double)m_ticks/(double)m_expect_tick);
+        if (pre>m_max_err){
+            m_max_err=pre;
+        }
+        if (pre>(200.0/(double)m_div_err)) {
+            printf(" =====>tick:%d expect [%d -%d] %f \n",m_ticks,expect_min,m_expect_tick+(m_div_err*2),pre);
+        }
+    }
+    m_timer.timer_start(&lpobj->m_timer,m_cfg.m_restart_tick);
+    m_expect_tick+=m_cfg.m_restart_tick;
+}
+
+
+void CNATimerWheelTest1::start_test(){
+
+    if (m_cfg.m_verbose) {
+        printf(" test start %d,restart: %d \n",m_cfg.m_start_tick,m_cfg.m_restart_tick);
+    }
+    int i;
+    m_expected_total_ticks=0;
+    uint32_t cnt=m_cfg.m_start_tick;
+    for (i=0; i<m_cfg.m_total_ticks; i++) {
+        if (i==cnt) {
+            m_expected_total_ticks++;
+            cnt+=m_cfg.m_restart_tick;
+        }
+    }
+
+    m_div_err =m_cfg.m_wheel_size/m_cfg.m_level1_div;
+    m_total_ticks=0;
+    m_event.m_id=17;
+    m_timer.timer_start(&m_event.m_timer,m_cfg.m_start_tick);
+
+    m_ticks=0;
+    m_expect_tick= m_cfg.m_start_tick;
+
+    for (i=0; i<m_cfg.m_total_ticks; i++) {
+        if (m_cfg.m_verbose) {
+          printf(" tick %d :",i);
+        }
+        m_ticks=i;
+        m_timer.on_tick_level0((void *)this,my_test_on_tick_cb18);
+        /* level 2 */
+        if ((i>=m_div_err) && (i%m_div_err==0)) {
+            int cnt_rerty=0;
+            while (true){
+                if (m_cfg.m_verbose>1) {
+                  printf("\n level1 - try %d \n",cnt_rerty);
+                }
+
+                na_htw_state_num_t state;
+                state = m_timer.on_tick_level1((void *)this,my_test_on_tick_cb18);
+                if (m_cfg.m_verbose>1) {
+                  printf("\n state - %lu \n",(ulong)state);
+                }
+
+                if ( state !=TW_NEXT_BATCH){
+                    break;
+                }
+                cnt_rerty++;
+            }
+            if (m_cfg.m_verbose>1) {
+               printf("\n level1 - stop %d \n",cnt_rerty);
+            }
+        }
+        if (m_cfg.m_verbose) {
+          printf(" \n");
+        }
+    }
+    if (m_cfg.m_verbose) {
+       printf(" %d == %d \n",m_expected_total_ticks,m_total_ticks);
+    }
+    if (!m_cfg.m_dont_assert){
+      //assert( (m_expected_total_ticks==m_total_ticks) || ((m_expected_total_ticks+1) ==m_total_ticks) );
+    } 
+}
+
+
+bool CNATimerWheelTest1::Create(CNATimerWheelTest1Cfg & cfg){
+    m_cfg = cfg;
+    m_max_err=0.0;
+    assert(m_timer.Create(m_cfg.m_wheel_size,m_cfg.m_level1_div)==RC_HTW_OK);
+    m_ticks=0;
+    return (true);
+}
+
+void CNATimerWheelTest1::Delete(){
+    //printf (" %f \n",m_max_err);
+    assert(m_timer.Delete()==RC_HTW_OK);
+}
+
+
+TEST_F(gt_r_timer, timer20) {
+
+    CNATimerWheelTest1 test;
+
+    CNATimerWheelTest1Cfg  cfg ={
+        .m_wheel_size    = 32,
+        .m_level1_div    = 4,
+        .m_start_tick    = 2,
+        .m_restart_tick  = 2,
+        .m_total_ticks   = 1024,
+        .m_verbose=0
+    };
+    test.Create(cfg);
+    test.start_test();
+    test.Delete();
+}
+
+TEST_F(gt_r_timer, timer21) {
+
+    CNATimerWheelTest1 test;
+
+    CNATimerWheelTest1Cfg  cfg ={
+        .m_wheel_size    = 32,
+        .m_level1_div    = 4,
+        .m_start_tick    = 2,
+        .m_restart_tick  = 34,
+        .m_total_ticks   = 100,
+        .m_verbose=0
+    };
+    test.Create(cfg);
+    test.start_test();
+    test.Delete();
+}
+
+
+TEST_F(gt_r_timer, timer22) {
+
+    CNATimerWheelTest1 test;
+
+    CNATimerWheelTest1Cfg  cfg ={
+        .m_wheel_size    = 32,
+        .m_level1_div    = 4,
+        .m_start_tick    = 2,
+        .m_restart_tick  = 55,
+        .m_total_ticks   = 1000,
+        .m_verbose=0,
+        .m_dont_assert =0
+    };
+    test.Create(cfg);
+    test.start_test();
+    test.Delete();
+}
+
+TEST_F(gt_r_timer, timer23) {
+
+    int i,j;
+
+    for (i=0; i<100; i++) {
+        for (j=1; j<100; j++) {
+            CNATimerWheelTest1 test;
+            CNATimerWheelTest1Cfg  cfg ={
+                .m_wheel_size    = 32,
+                .m_level1_div    = 4,
+                .m_start_tick    = (uint32_t)i,
+                .m_restart_tick  = (uint32_t)j,
+                .m_total_ticks   = 1000,
+                .m_verbose=0,
+                .m_dont_assert =0
+            };
+
+            cfg.m_total_ticks= (uint32_t)(i*2+j*10);
+            test.Create(cfg);
+            test.start_test();
+            test.Delete();
+        }
+    }
+}
+
+
+
+#if 0
+// too long, skip for now 
+TEST_F(gt_r_timer, timer24) {
+
+    int i,j;
+
+    for (i=0; i<2048; i++) {
+        printf(" %d \n",i);
+        for (j=1024; j<2048; j=j+7) {
+            CNATimerWheelTest1 test;
+            CNATimerWheelTest1Cfg  cfg ={
+                .m_wheel_size    = 1024,
+                .m_level1_div    = 32,
+                .m_start_tick    = (uint32_t)i,
+                .m_restart_tick  = (uint32_t)j,
+                .m_total_ticks   = 3000,
+                .m_verbose=0,
+                .m_dont_assert =0
+            };
+
+            cfg.m_total_ticks= (uint32_t)(i*2+j*10);
+            test.Create(cfg);
+            test.start_test();
+            test.Delete();
+        }
+    }
+}
+#endif
+
+/* very long flow, need to restart it */
+TEST_F(gt_r_timer, timer25) {
+
+
+        CNATimerWheelTest1 test;
+
+        CNATimerWheelTest1Cfg  cfg ={
+            .m_wheel_size    = 32,
+            .m_level1_div    = 4,
+            .m_start_tick    = 2,
+            .m_restart_tick  = 512,
+            .m_total_ticks   = 1000,
+            .m_verbose=0,
+            .m_dont_assert =0
+        };
+
+        test.Create(cfg);
+        test.start_test();
+        test.Delete();
+}
+
+
+
+////////////////////////////////////////////////////////
+
+class CNATimerWheelTest2Cfg {
+public:
+    uint32_t m_wheel_size;
+    uint32_t m_level1_div;
+    uint32_t m_number_of_con_event;
+    uint32_t m_total_ticks;
+    bool     m_random;
+    bool     m_burst;
+    int      m_verbose;
+    bool     m_dont_check;
+};
+
+class CNATimerWheelTest2 : public CHTimerWheelBase {
+
+public:
+    bool Create(CNATimerWheelTest2Cfg & cfg);
+    void Delete();
+    void start_test();
+    virtual void on_tick(CMyTestObject *lpobj);
+
+private:
+    CNATimerWheelTest2Cfg  m_cfg;
+    CNATimerWheel          m_timer;
+    uint32_t              m_ticks;
+    uint32_t              m_div_err;
+};
+
+bool CNATimerWheelTest2::Create(CNATimerWheelTest2Cfg & cfg){
+    m_cfg = cfg;
+    assert(m_timer.Create(m_cfg.m_wheel_size,m_cfg.m_level1_div)==RC_HTW_OK);
+    m_ticks=0;
+    return (true);
+}
+
+void CNATimerWheelTest2::Delete(){
+    assert(m_timer.Delete()==RC_HTW_OK);
+}
+
+
+void CNATimerWheelTest2::start_test(){
+
+    CMyTestObject *  m_events = new CMyTestObject[m_cfg.m_number_of_con_event]; 
+    int i;
+    for (i=0; i<m_cfg.m_number_of_con_event; i++) {
+        CMyTestObject * lp=&m_events[i];
+        lp->m_id=i+1;
+        if (m_cfg.m_random) {
+            lp->m_d_tick = ((rand() % m_cfg.m_number_of_con_event)+1);
+            if (m_cfg.m_verbose) {
+                printf(" flow %d : %d \n",i,lp->m_d_tick);
+            }
+        }else{
+            if (m_cfg.m_burst){
+                lp->m_d_tick = m_cfg.m_wheel_size*2; /* all in the same bucket */
+            }else{
+                lp->m_d_tick=i+1;
+            }
+        }
+        lp->m_t_tick=lp->m_d_tick;
+        m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+    }
+
+    m_div_err =m_cfg.m_wheel_size/m_cfg.m_level1_div;
+
+    for (i=0; i<m_cfg.m_total_ticks; i++) {
+        if (m_cfg.m_verbose) {
+          printf(" tick %d :",i);
+        }
+        m_ticks=i;
+        m_timer.on_tick_level0((void *)this,my_test_on_tick_cb18);
+
+        if ((i>=m_div_err) && (i%m_div_err==0)) {
+            int cnt_rerty=0;
+            while (true){
+                if (m_cfg.m_verbose>1) {
+                  printf("\n level1 - try %d \n",cnt_rerty);
+                }
+
+                na_htw_state_num_t state;
+                state = m_timer.on_tick_level1((void *)this,my_test_on_tick_cb18);
+                if (m_cfg.m_verbose>1) {
+                  printf("\n state - %lu \n",(ulong)state);
+                }
+
+                if ( state !=TW_NEXT_BATCH){
+                    break;
+                }
+
+                cnt_rerty++;
+            }
+            if (m_cfg.m_verbose>1) {
+               printf("\n level1 - stop %d \n",cnt_rerty);
+            }
+        }
+
+
+        if (m_cfg.m_verbose) {
+          printf(" \n");
+        }
+    }
+    delete []m_events;
+}
+
+
+void CNATimerWheelTest2::on_tick(CMyTestObject *lp){
+
+    if (!m_cfg.m_random && !m_cfg.m_burst) {
+        assert(lp->m_id==lp->m_d_tick);
+    }
+    if (m_cfg.m_verbose) {
+        printf(" [event %d ]",lp->m_id);
+    }
+    m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+    if (!m_cfg.m_dont_check){
+        double pre=std::abs(100.0-100.0*(double)m_ticks/(double)lp->m_t_tick);
+        if (pre>(200.0/(double)m_div_err)) {
+            printf(" =====>tick:%d  %f \n",m_ticks,pre);
+            assert(0);
+        }
+    }
+    lp->m_t_tick+=lp->m_d_tick;
+}
+
+
+TEST_F(gt_r_timer, timer30) {
+
+        CNATimerWheelTest2 test;
+        CNATimerWheelTest2Cfg  cfg ={
+            .m_wheel_size    = 32,
+            .m_level1_div    = 4,
+            .m_number_of_con_event   = 100,
+            .m_total_ticks =1000,
+            .m_random=false,
+            .m_burst=false,
+            .m_verbose =false
+        };
+        test.Create(cfg);
+        test.start_test();
+        test.Delete();
+}
+
+TEST_F(gt_r_timer, timer31) {
+
+        CNATimerWheelTest2 test;
+        CNATimerWheelTest2Cfg  cfg ={
+            .m_wheel_size    = 32,
+            .m_level1_div    = 4,
+            .m_number_of_con_event   = 500,
+            .m_total_ticks =5000,
+            .m_random=true,
+            .m_burst=false,
+            .m_verbose =false
+        };
+        test.Create(cfg);
+        test.start_test();
+        test.Delete();
+}
+
+TEST_F(gt_r_timer, timer32) {
+
+        CNATimerWheelTest2 test;
+        CNATimerWheelTest2Cfg  cfg ={
+            .m_wheel_size    = 32,
+            .m_level1_div    = 4,
+            .m_number_of_con_event   = 500,
+            .m_total_ticks =100,
+            .m_random=false,
+            .m_burst=true,
+            .m_verbose =0
+        };
+        test.Create(cfg);
+        test.start_test();
+        test.Delete();
+}
 
