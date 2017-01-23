@@ -677,4 +677,42 @@ private:
     MsgReply<Json::Value>   &m_reply;
 };
 
+
+class TrexStatelessRxQuery : public TrexStatelessCpToRxMsgBase {
+public:
+
+    /**
+     * query type to request
+     */
+    enum query_type_e {
+        SERVICE_MODE_ON,
+        SERVICE_MODE_OFF,
+    };
+    
+    /**
+     * RC types for queries
+     */
+    enum query_rc_e {
+        RC_OK,
+        RC_FAIL_RX_QUEUE_ACTIVE,
+        RC_FAIL_CAPTURE_ACTIVE,
+    };
+    
+    TrexStatelessRxQuery(uint8_t port_id, query_type_e query_type, MsgReply<query_rc_e> &reply) : m_reply(reply) {
+        m_port_id    = port_id;
+        m_query_type = query_type;
+    }
+     
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+    
+private:
+    uint8_t                m_port_id;
+    query_type_e           m_query_type;
+    MsgReply<query_rc_e>  &m_reply;
+};
+
 #endif /* __TREX_STATELESS_MESSAGING_H__ */

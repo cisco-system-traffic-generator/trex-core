@@ -381,3 +381,40 @@ TrexStatelessRxSetL3Mode::handle(CRxCoreStateless *rx_core) {
     return true;
 }
 
+bool
+TrexStatelessRxQuery::handle(CRxCoreStateless *rx_core) {
+
+    query_rc_e rc = RC_OK;
+    
+    switch (m_query_type) {
+   
+    case SERVICE_MODE_ON:
+        /* for service mode on - always allow this */
+        rc = RC_OK;
+        break;
+        
+    case SERVICE_MODE_OFF:
+        /* cannot leave service mode when RX queue is active */
+        if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::QUEUE)) {
+            rc = RC_FAIL_RX_QUEUE_ACTIVE;
+            break;
+        }
+        
+        /* cannot leave service mode if PCAP capturing is active */
+        if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
+            rc = RC_FAIL_CAPTURE_ACTIVE;
+            break;
+        }
+        
+        break;
+    
+    default:
+        assert(0);
+        break;
+        
+    }
+    
+    m_reply.set_reply(rc);
+    
+    return true;
+}

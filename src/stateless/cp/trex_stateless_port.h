@@ -115,57 +115,6 @@ private:
     static const std::string g_unowned_handler;
 };
 
-/**
- * enforces in/out from service mode
- * 
- * @author imarom (1/4/2017)
- */
-class TrexServiceMode {
-public:
-    TrexServiceMode(uint8_t port_id, const TrexPlatformApi *api) {
-        m_is_enabled   = false;
-        m_has_rx_queue = false;
-        m_port_id      = port_id;
-        m_port_attr    = api->getPortAttrObj(port_id);
-    }
-
-    void enable() {
-        m_port_attr->set_rx_filter_mode(RX_FILTER_MODE_ALL);
-        m_is_enabled = true;
-    }
-
-    void disable() {
-        if (m_has_rx_queue) {
-            throw TrexException("unable to disable service mode - please remove RX queue");
-        }
-
-        if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
-            throw TrexException("unable to disable service mode - an active capture on port " + std::to_string(m_port_id) + " exists");
-        }
-        
-        m_port_attr->set_rx_filter_mode(RX_FILTER_MODE_HW);
-        m_is_enabled = false;
-    }
-
-    bool is_enabled() const {
-        return m_is_enabled;
-    }
-
-    void set_rx_queue() {
-        m_has_rx_queue = true;
-    }
-
-    void unset_rx_queue() {
-        m_has_rx_queue = false;
-    }
-
-private:
-    bool            m_is_enabled;
-    bool            m_has_rx_queue;
-    TRexPortAttr   *m_port_attr;
-    uint8_t         m_port_id;
-};
-
 class AsyncStopEvent;
 
 /**
@@ -287,20 +236,20 @@ public:
                      double            duration,
                      bool              is_dual);
 
-    /** 
-     * moves port to / out service mode 
-     */
-    void set_service_mode(bool enabled) {
-        if (enabled) {
-            m_service_mode.enable();
-        } else {
-            m_service_mode.disable();
-        }
-    }
-    bool is_service_mode_on() const {
-        return m_service_mode.is_enabled();
-    }
     
+    /**
+     * sets service mode
+     * 
+     * @author imarom (1/22/2017)
+     * 
+     * @param enabled 
+     */
+    void set_service_mode(bool enabled);
+    
+    bool is_service_mode_on() const {
+        return m_is_service_mode_on;
+    }
+     
     /**
      * get the port state
      *
@@ -578,8 +527,8 @@ private:
 
     int m_pending_async_stop_event;
     
-    TrexServiceMode m_service_mode;
-
+    bool  m_is_service_mode_on;
+    
     static const uint32_t MAX_STREAMS = 20000;
 
 };

@@ -305,9 +305,12 @@ public:
         return (m_features != NO_FEATURES);
     }
 
-
     bool no_features_set() {
         return (!has_features_set());
+    }
+
+    bool is_feature_set(feature_t feature) const {
+        return ( (m_features & feature) == feature );
     }
 
     /**
@@ -334,11 +337,7 @@ private:
     void unset_feature(feature_t feature) {
         m_features &= (~feature);
     }
-
-    bool is_feature_set(feature_t feature) const {
-        return ( (m_features & feature) == feature );
-    }
-
+  
     uint32_t                     m_features;
     uint8_t                      m_port_id;
     RXLatency                    m_latency;
