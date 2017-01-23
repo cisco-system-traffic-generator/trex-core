@@ -1253,6 +1253,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             po->set_tw_levels(lp->m_levels);
         }
     }
+
+    /* DEBUG MODE FOR REGRESSION - REMOVE THIS */
+    po->preview.set_rt_prio_mode(true);
+
     return 0;
 }
 
