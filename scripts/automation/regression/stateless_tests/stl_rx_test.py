@@ -526,19 +526,37 @@ class STLRX_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
+    def _run_fcs_stream (self,is_vm):
+        """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
+        res=True
+        try:
+            all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
+            for port in all_ports:
+                for l in [True,False]:
+                    print(" test port {0} latency : {1} ".format(port,l))
+                    self.send_1_burst(port,l,100)
+        except Exception as e:
+            if is_vm :
+                res=False
+            else:
+                raise e
+        return(res);
+
+
 
 
     def test_fcs_stream(self):
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
 
-        if self.is_virt_nics:
-            self.skip('Skip this for virtual NICs')
-
-        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
-        for port in all_ports:
-            for l in [True,False]:
-                print(" test port {0} latency : {1} ".format(port,l))
-                self.send_1_burst(port,l,100)
+        is_vm=self.is_virt_nics # in case of VM and vSwitch there are drop of packets in some cases, let retry number of times 
+                                # in this case we just want to check functionality that packet of 64 is reported as 64 in all levels 
+        retry=1
+        if is_vm:
+            retry=4
+        for i in range(0,retry):
+            if self._run_fcs_stream (is_vm):
+                break;
+            print("==> retry  %d .." %(i));
 
 
     # this test adds more and more latency streams and re-test with incremental

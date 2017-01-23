@@ -288,6 +288,27 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
 };
 
+
+class CTRexExtendedDriverBaseVmxnet3 : public CTRexExtendedDriverBase1GVm {
+public:
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverBaseVmxnet3() );
+    }
+
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+};
+
+class CTRexExtendedDriverBaseVirtio : public CTRexExtendedDriverBase1GVm {
+public:
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverBaseVmxnet3() );
+    }
+
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+};
+
+
+
 class CTRexExtendedDriverVf : public CTRexExtendedDriverBase1GVm {
 
 public:
@@ -320,6 +341,9 @@ public:
     }
     // e1000 driver handing us packets with ethernet CRC, so we need to chop them
     virtual uint8_t get_num_crc_fix_bytes() {return 4;}
+
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+
 };
 
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
@@ -594,8 +618,8 @@ private:
 
         /* virtual devices */
         register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBaseE1000::create);
-        register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBase1GVm::create);
-        register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBase1GVm::create);
+        register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBaseVmxnet3::create);
+        register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBaseVirtio::create);
         register_driver(std::string("rte_ixgbevf_pmd"),CTRexExtendedDriverVf::create);
         register_driver(std::string("rte_i40evf_pmd"),CTRexExtendedDriverVf::create);
 
@@ -7192,6 +7216,89 @@ void CTRexExtendedDriverBase1GVm::clear_extended_stats(CPhyEthIF * _if){
 int CTRexExtendedDriverBase1GVm::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
     return (0);
 }
+
+void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes     += stats1.ibytes - prev_stats->ibytes ;
+    stats->opackets   += stats1.opackets - prev_stats->opackets;
+    stats->obytes     += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * 4;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
+
+void CTRexExtendedDriverBaseVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes     += stats1.ibytes - prev_stats->ibytes +(stats1.ipackets - prev_stats->ipackets) * 4;
+    stats->opackets   += stats1.opackets - prev_stats->opackets;
+    stats->obytes     += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * 4;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
+void CTRexExtendedDriverBaseVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
+    stats->ibytes     += stats1.ibytes - prev_stats->ibytes +(stats1.ipackets - prev_stats->ipackets) * 4;
+    stats->opackets   += stats1.opackets - prev_stats->opackets;
+    stats->obytes     += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * 4;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
 
 void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
     struct rte_eth_stats stats1;
