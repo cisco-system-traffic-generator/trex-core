@@ -713,7 +713,8 @@ enum { OPT_HELP,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
-       OPT_ACTIVE_FLOW
+       OPT_ACTIVE_FLOW,
+       OPT_RT
 };
 
 /* these are the argument types:
@@ -774,6 +775,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
+        { OPT_RT,                     "--rt",              SO_NONE    },
         SO_END_OF_OPTIONS
     };
 
@@ -828,6 +830,7 @@ static int usage(){
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
     printf(" --no-watchdog              : Disable watchdog \n");
+    printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
     printf("    e.g --pm 2.0 will multiply all the results bps in this factor \n");
@@ -956,6 +959,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.set_ipv6_mode_enable(true);
                 break;
 
+            case OPT_RT:
+                po->preview.set_rt_prio_mode(true);
+                break;
 
             case OPT_LEARN :
                 po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
@@ -4845,8 +4851,20 @@ int CGlobalTRex::run_in_master() {
 
 int CGlobalTRex::run_in_rx_core(void){
 
+    CPreviewMode *lp = &CGlobalInfo::m_options.preview;
+    
     rte_thread_setname(pthread_self(), "TRex RX");
-
+    
+    /* set RT mode if set */
+    if (lp->get_rt_prio_mode()) {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+            perror("setting RT priroity mode on RX core failed with error");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     if (get_is_stateless()) {
         m_sl_rx_running = true;
         m_rx_sl.start();
@@ -4863,11 +4881,22 @@ int CGlobalTRex::run_in_rx_core(void){
 
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     std::stringstream ss;
-
+    CPreviewMode *lp = &CGlobalInfo::m_options.preview;
+    
     ss << "Trex DP core " << int(virt_core_id);
     rte_thread_setname(pthread_self(), ss.str().c_str());
+    
+    /* set RT mode if set */
+    if (lp->get_rt_prio_mode()) {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+            perror("setting RT priroity mode on DP core failed with error");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    CPreviewMode *lp=&CGlobalInfo::m_options.preview;
+    
     if ( lp->getSingleCore() &&
          (virt_core_id==2 ) &&
          (lp-> getCores() ==1) ){

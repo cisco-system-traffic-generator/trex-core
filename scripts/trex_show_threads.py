@@ -17,7 +17,8 @@ def read_task_stats (task_path):
     stat_data = open(stat, 'r').readline().split()
 
     stats_dict['last_sched_cpu'] = stat_data[-14]
-
+    stats_dict['priority'] = stat_data[17] if stat_data[43] == '0' else 'RT'
+    
     return stats_dict
 
 
@@ -26,7 +27,7 @@ def show_threads (pid):
     task_paths = ["{0}/{1}".format(process_dir, task) for task in os.listdir(process_dir)]
 
     
-    header = [ 'Task Name', 'PID', 'Allowed CPU', 'Last Sched CPU', 'Asked Ctx Switch', 'Forced Ctx Switch']
+    header = [ 'Task Name', 'PID', 'Priority', 'Allowed CPU', 'Last Sched CPU', 'Asked Ctx Switch', 'Forced Ctx Switch']
     for x in header:
         print('{:^20}'.format(x)),
     print("")
@@ -41,6 +42,7 @@ def show_threads (pid):
         # name
         print("{:<20}".format(task['name'])),
         print("{:^20}".format(task['pid'])),
+        print("{:^20}".format(task['priority'])),
         print("{:^20}".format(task['cpus_allowed_list'])),
         print("{:^20}".format(task['last_sched_cpu'])),
         print("{:^20}".format(task['voluntary_ctxt_switches'])),
