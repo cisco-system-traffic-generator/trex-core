@@ -1254,9 +1254,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         }
     }
 
-    /* DEBUG MODE FOR REGRESSION - REMOVE THIS */
-    po->preview.set_rt_prio_mode(true);
-
     return 0;
 }
 
