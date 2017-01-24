@@ -157,14 +157,14 @@ TrexStatelessCaptureMngr::start(const CaptureFilter &filter, uint64_t limit, Tre
     
 
     int new_id = m_id_counter++;
-    TrexStatelessCapture *new_buffer = new TrexStatelessCapture(new_id, limit, filter);
-    m_captures.push_back(new_buffer);
+    TrexStatelessCapture *new_capture = new TrexStatelessCapture(new_id, limit, filter);
+    m_captures.push_back(new_capture);
  
     /* update global filter */
     update_global_filter();
     
     /* result */
-    rc.set_new_id(new_id);
+    rc.set_rc(new_id, new_capture->get_start_ts());
 }
 
 void
@@ -176,7 +176,7 @@ TrexStatelessCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
     }
     
     capture->stop();
-    rc.set_count(capture->get_pkt_count());
+    rc.set_rc(capture->get_pkt_count());
 }
 
 void

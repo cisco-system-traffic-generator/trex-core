@@ -32,32 +32,44 @@
 /**
  * copies MBUF to a flat buffer
  * 
- * @author imarom (1/1/2017)
- * 
- * @param dest 
- * @param m 
  */
-void copy_mbuf(uint8_t *dest, const rte_mbuf_t *m);
+void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m);
 
-/**                
- * describes a single saved packet
+/**************************************
+ * TRex packet
  * 
- */
+ *************************************/
 class TrexPkt {
 public:
 
+    /**
+     * origin of the created packet
+     */
     enum origin_e {
         ORIGIN_NONE = 1,
         ORIGIN_TX,
         ORIGIN_RX
     };
     
+    /**
+     * generate a packet from MBUF
+     */
     TrexPkt(const rte_mbuf_t *m, int port = -1, origin_e origin = ORIGIN_NONE, uint64_t index = 0);
+    
+    /**
+     * duplicate an existing packet
+     */
     TrexPkt(const TrexPkt &other);
  
+    
+    /**
+     * sets a packet index 
+     * used by a buffer of packets 
+     */
     void set_index(uint64_t index) {
         m_index = index;
     }
+    
     
     /* slow path and also RVO - pass by value is ok */
     Json::Value to_json() const {
@@ -115,6 +127,10 @@ private:
 };
 
 
+/**************************************
+ * TRex packet buffer
+ * 
+ *************************************/
 class TrexPktBuffer {
 public:
 
@@ -136,10 +152,23 @@ public:
     ~TrexPktBuffer();
 
     /**
-     * push a packet to the buffer
-     * 
+     * push a packet to the buffer 
+     * packet will be generated from a MBUF 
+     *  
      */
-    void push(const rte_mbuf_t *m, int port = -1, TrexPkt::origin_e origin = TrexPkt::ORIGIN_NONE, uint64_t pkt_index = 0);
+    void push(const rte_mbuf_t *m,
+              int port = -1,
+              TrexPkt::origin_e origin = TrexPkt::ORIGIN_NONE,
+              uint64_t pkt_index = 0);
+    
+    /**
+     * push an existing packet structure 
+     * packet will *not* be duplicated 
+     *  
+     * after calling this function 
+     * the packet is no longer usable 
+     * from caller prespective 
+     */
     void push(const TrexPkt *pkt);
     
     /**
@@ -171,6 +200,10 @@ public:
         return (m_size - 1);
     }
     
+    /**
+     * see mode_e
+     * 
+     */
     mode_e get_mode() const {
         return m_mode;
     }
@@ -180,6 +213,9 @@ public:
      */
     uint32_t get_element_count() const;
     
+    /**
+     * current bytes holded by the buffer
+     */
     uint32_t get_bytes() const {
         return m_bytes; 
     }

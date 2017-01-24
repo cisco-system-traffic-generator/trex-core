@@ -901,12 +901,16 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     /* populate the filter */
     for (int i = 0; i < tx_json.size(); i++) {
         uint8_t tx_port = parse_byte(tx_json, i, result);
+        validate_port_id(tx_port, result);
+        
         filter.add_tx(tx_port);
         ports.insert(tx_port);
     }
     
     for (int i = 0; i < rx_json.size(); i++) {
         uint8_t rx_port = parse_byte(rx_json, i, result);
+        validate_port_id(rx_port, result);
+        
         filter.add_rx(rx_port);
         ports.insert(rx_port);
     }
@@ -922,6 +926,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     static MsgReply<TrexCaptureRCStart> reply;
     reply.reset();
   
+    /* send a start message to RX core */
     TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, reply);
     get_stateless_obj()->send_msg_to_rx(start_msg);
     
@@ -931,7 +936,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     }
     
     result["result"]["capture_id"] = rc.get_new_id();
-    result["result"]["ts"]         = now_sec();
+    result["result"]["start_ts"]   = rc.get_start_ts();
 }
 
 /**

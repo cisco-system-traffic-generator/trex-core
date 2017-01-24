@@ -34,7 +34,7 @@
  * 
  * @return uint8_t* 
  */
-void copy_mbuf(uint8_t *dest, const rte_mbuf_t *m) {
+void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m) {
     
     int index = 0;
     for (const rte_mbuf_t *it = m; it != NULL; it = it->next) {
@@ -55,7 +55,7 @@ TrexPkt::TrexPkt(const rte_mbuf_t *m, int port, origin_e origin, uint64_t index)
     m_raw = new uint8_t[m_size];
 
     /* copy data */
-    copy_mbuf(m_raw, m);
+    mbuf_to_buffer(m_raw, m);
 
     /* generate a packet timestamp */
     m_timestamp = now_sec();
@@ -75,6 +75,12 @@ TrexPkt::TrexPkt(const TrexPkt &other) {
     m_origin = other.m_origin;
     m_index  = other.m_index;
 }
+
+
+/**************************************
+ * TRex packet buffer
+ * 
+ *************************************/
 
 TrexPktBuffer::TrexPktBuffer(uint64_t size, mode_e mode) {
     m_mode             = mode;
@@ -117,13 +123,14 @@ TrexPktBuffer::push(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uin
     /* push packet */
     m_buffer[m_head] = new TrexPkt(m, port, origin, pkt_index);
     m_bytes += m_buffer[m_head]->get_size();
-        
-    m_head = next(m_head);
     
+    /* advance */
+    m_head = next(m_head);
 }
 
 /**
  * packet will be handled internally 
+ * packet pointer is invalid after this call 
  */
 void 
 TrexPktBuffer::push(const TrexPkt *pkt) {
@@ -140,6 +147,8 @@ TrexPktBuffer::push(const TrexPkt *pkt) {
 
     /* push packet */
     m_buffer[m_head] = pkt;
+    m_bytes += pkt->get_size();
+    
     m_head = next(m_head);
 }
 
@@ -178,5 +187,4 @@ TrexPktBuffer::to_json() const {
 
     return output;
 }
-
 

@@ -492,7 +492,7 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
     }
     
     /* copy data */
-    copy_mbuf(dest, m);
+    mbuf_to_buffer(dest, m);
     
     return clone_mbuf;
 }

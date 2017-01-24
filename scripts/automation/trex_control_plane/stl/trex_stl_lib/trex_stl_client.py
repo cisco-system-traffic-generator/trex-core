@@ -3049,7 +3049,7 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        return {'id': rc.data()['capture_id'], 'ts': rc.data()['ts']}
+        return {'id': rc.data()['capture_id'], 'ts': rc.data()['start_ts']}
 
 
         

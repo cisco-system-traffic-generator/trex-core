@@ -83,23 +83,30 @@ public:
 class TrexCaptureRCStart : public TrexCaptureRC {
 public:
 
-    void set_new_id(capture_id_t new_id) {
-        m_capture_id = new_id;
-        m_rc = RC_OK;
+    void set_rc(capture_id_t new_id, dsec_t start_ts) {
+        m_capture_id  = new_id;
+        m_start_ts    = start_ts;
+        m_rc          = RC_OK;
+        
     }
     
     capture_id_t get_new_id() const {
         return m_capture_id;
     }
     
+    dsec_t get_start_ts() const {
+        return m_start_ts;
+    }
+    
 private:
     capture_id_t  m_capture_id;
+    dsec_t        m_start_ts;
 };
 
 
 class TrexCaptureRCStop : public TrexCaptureRC {
 public:
-    void set_count(uint32_t pkt_count) {
+    void set_rc(uint32_t pkt_count) {
         m_pkt_count = pkt_count;
         m_rc = RC_OK;
     }
