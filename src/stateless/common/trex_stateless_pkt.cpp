@@ -120,12 +120,7 @@ TrexPktBuffer::push(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uin
         }
     }
 
-    /* push packet */
-    m_buffer[m_head] = new TrexPkt(m, port, origin, pkt_index);
-    m_bytes += m_buffer[m_head]->get_size();
-    
-    /* advance */
-    m_head = next(m_head);
+    push_internal(new TrexPkt(m, port, origin, pkt_index));
 }
 
 /**
@@ -133,19 +128,32 @@ TrexPktBuffer::push(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uin
  * packet pointer is invalid after this call 
  */
 void 
-TrexPktBuffer::push(const TrexPkt *pkt) {
+TrexPktBuffer::push(const TrexPkt *pkt, uint64_t pkt_index) {
     /* if full - decide by the policy */
     if (is_full()) {
         if (m_mode == MODE_DROP_HEAD) {
             delete pop();
         } else {
             /* drop the tail (current packet) */
-            delete pkt;
             return;
         }
     }
 
-    /* push packet */
+    /* duplicate packet */
+    TrexPkt *dup = new TrexPkt(*pkt);
+    
+    /* update packet index if given */
+    if (pkt_index != 0) {
+        dup->set_index(pkt_index);
+    }
+    
+    push_internal(dup);
+}
+
+
+void 
+TrexPktBuffer::push_internal(const TrexPkt *pkt) {
+    /* push the packet */
     m_buffer[m_head] = pkt;
     m_bytes += pkt->get_size();
     
@@ -188,3 +196,20 @@ TrexPktBuffer::to_json() const {
     return output;
 }
 
+TrexPktBuffer *
+TrexPktBuffer::pop_n(uint32_t count) {
+    /* can't pop more than total */
+    assert(count <= get_element_count());
+    
+    // TODO: consider returning NULL if no packets exists
+    //       to avoid mallocing
+ 
+    TrexPktBuffer *partial = new TrexPktBuffer(count);
+    
+    for (int i = 0; i < count; i++) {
+        const TrexPkt *pkt = pop();
+        partial->push_internal(pkt);
+    }
+    
+    return partial;
+}

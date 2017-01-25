@@ -892,6 +892,12 @@ void
 TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &result) {
     
     uint32_t limit              = parse_uint32(params, "limit", result);
+    
+    /* parse mode type */
+    const std::string mode_str  = parse_choice(params, "mode", {"fixed", "cyclic"}, result);
+    TrexPktBuffer::mode_e mode  = ( (mode_str == "fixed") ? TrexPktBuffer::MODE_DROP_TAIL : TrexPktBuffer::MODE_DROP_HEAD);
+    
+    /* parse filters */
     const Json::Value &tx_json  = parse_array(params, "tx", result);
     const Json::Value &rx_json  = parse_array(params, "rx", result);
     CaptureFilter filter;
@@ -927,7 +933,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     reply.reset();
   
     /* send a start message to RX core */
-    TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, reply);
+    TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, mode, reply);
     get_stateless_obj()->send_msg_to_rx(start_msg);
     
     TrexCaptureRCStart rc = reply.wait_for_reply();

@@ -3005,7 +3005,7 @@ class STLClient(object):
             
         
     @__api_check(True)
-    def start_capture (self, tx_ports, rx_ports, limit = 1000):
+    def start_capture (self, tx_ports, rx_ports, limit = 1000, mode = 'fixed'):
         """
             Starts a capture to PCAP on port(s)
 
@@ -3014,6 +3014,11 @@ class STLClient(object):
                 rx_ports       - on which ports to capture RX
                 limit          - limit how many packets will be written
                 
+                mode           - 'fixed': when full, future packets will be
+                                  dropped
+                                  'cyclic: when full, oldest packets will be
+                                  dropped
+                                  
             :returns:
                 returns a dictionary containing
                 {'id: <new_id>, 'ts': <starting timestamp>}
@@ -3023,6 +3028,7 @@ class STLClient(object):
 
         """
         
+        # check arguments
         tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
         rx_ports = self._validate_port_list(rx_ports, allow_empty = True)
         merge_ports = set(tx_ports + rx_ports)
@@ -3030,27 +3036,28 @@ class STLClient(object):
         if not merge_ports:
             raise STLError("start_capture - must get at least one port to capture")
             
-        # check arguments
         validate_type('limit', limit, (int))
         if limit <= 0:
             raise STLError("'limit' must be a positive value")
 
+        if mode not in ('fixed', 'cyclic'):
+            raise STLError("'mode' must be either 'fixed' or 'cyclic'")
+        
+        # verify service mode
         non_service_ports =  list_difference(set(tx_ports + rx_ports), self.get_service_enabled_ports())
         if non_service_ports:
             raise STLError("Port(s) {0} are not under service mode. PCAP capturing requires all ports to be in service mode".format(non_service_ports))
         
             
+        # actual job
         self.logger.pre_cmd("Starting PCAP capturing up to {0} packets".format(limit))
-        
-        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'tx': tx_ports, 'rx': rx_ports})
+        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'mode': mode, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
-
 
         if not rc:
             raise STLError(rc)
 
         return {'id': rc.data()['capture_id'], 'ts': rc.data()['start_ts']}
-
 
         
                 

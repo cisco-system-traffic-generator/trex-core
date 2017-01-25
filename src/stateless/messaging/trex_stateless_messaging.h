@@ -494,10 +494,12 @@ class TrexStatelessRxCaptureStart : public TrexStatelessRxCapture {
 public:
     TrexStatelessRxCaptureStart(const CaptureFilter& filter,
                                 uint64_t limit,
+                                TrexPktBuffer::mode_e mode,
                                 MsgReply<TrexCaptureRCStart> &reply) : m_reply(reply) {
         
         m_limit  = limit;
         m_filter = filter;
+        m_mode   = mode;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
@@ -506,6 +508,7 @@ private:
     uint8_t                          m_port_id;
     uint64_t                         m_limit;
     CaptureFilter                    m_filter;
+    TrexPktBuffer::mode_e            m_mode;
     MsgReply<TrexCaptureRCStart>    &m_reply;
 };
 

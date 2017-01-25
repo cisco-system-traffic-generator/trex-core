@@ -88,7 +88,10 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
 #
 class CaptureMonitorWriterPipe(CaptureMonitorWriter):
     def __init__ (self, logger):
-        self.logger   = logger
+        self.logger    = logger
+        self.fifo_name = None
+        self.fifo      = None
+        self.start_ts  = None
         
     def init (self, start_ts):
         self.start_ts  = start_ts
@@ -125,7 +128,14 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         
     def deinit (self):
         try:
-            os.unlink(self.fifo_name)
+            if self.fifo:
+                os.close(self.fifo)
+                self.fifo = None
+                
+            if self.fifo_name:
+                os.unlink(self.fifo_name)
+                self.fifo_name = None
+                
         except OSError:
             pass
 
@@ -207,7 +217,7 @@ class CaptureMonitor(object):
             
         
         with self.logger.supress():
-            data = self.client.start_capture(tx_port_list, rx_port_list, limit = rate_pps)
+            data = self.client.start_capture(tx_port_list, rx_port_list, limit = rate_pps, mode = 'cyclic')
         
         self.capture_id = data['id']
         self.start_ts   = data['ts']
@@ -477,7 +487,7 @@ class CaptureManager(object):
             self.record_start_parser.formatted_error('please provide either --tx or --rx')
             return
 
-        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit)
+        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit, mode = 'fixed')
         
         self.logger.log(format_text("*** Capturing ID is set to '{0}' ***".format(rc['id']), 'bold'))
         self.logger.log(format_text("*** Please call 'capture record stop --id {0} -o <out.pcap>' when done ***\n".format(rc['id']), 'bold'))

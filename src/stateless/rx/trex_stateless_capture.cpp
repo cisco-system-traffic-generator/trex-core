@@ -21,9 +21,17 @@ limitations under the License.
 #include "trex_stateless_capture.h"
 #include "trex_exception.h"
 
-TrexStatelessCapture::TrexStatelessCapture(capture_id_t id, uint64_t limit, const CaptureFilter &filter) {
+/**************************************
+ * Capture
+ *  
+ * A single instance of a capture
+ *************************************/
+TrexStatelessCapture::TrexStatelessCapture(capture_id_t id,
+                                           uint64_t limit,
+                                           const CaptureFilter &filter,
+                                           TrexPktBuffer::mode_e mode) {
     m_id         = id;
-    m_pkt_buffer = new TrexPktBuffer(limit, TrexPktBuffer::MODE_DROP_TAIL);
+    m_pkt_buffer = new TrexPktBuffer(limit, mode);
     m_filter     = filter;
     m_state      = STATE_ACTIVE;
     m_start_ts   = now_sec();
@@ -37,26 +45,22 @@ TrexStatelessCapture::~TrexStatelessCapture() {
 }
 
 void
-TrexStatelessCapture::handle_pkt_tx(TrexPkt *pkt) {
+TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
 
     if (m_state != STATE_ACTIVE) {
-        delete pkt;
         return;
     }
     
     /* if not in filter - back off */
     if (!m_filter.in_filter(pkt)) {
-        delete pkt;
         return;
     }
     
     if (pkt->get_ts() < m_start_ts) {
-        delete pkt;
         return;
     }
     
-    pkt->set_index(++m_pkt_index);
-    m_pkt_buffer->push(pkt);
+    m_pkt_buffer->push(pkt, ++m_pkt_index);
 }
 
 void
@@ -100,9 +104,13 @@ TrexStatelessCapture::to_json() const {
     return output;
 }
 
+/**
+ * fetch up to 'pkt_limit' from the capture
+ * 
+ */
 TrexPktBuffer *
 TrexStatelessCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
-    
+
     /* if the total sum of packets is within the limit range - take it */
     if (m_pkt_buffer->get_element_count() <= pkt_limit) {
         TrexPktBuffer *current = m_pkt_buffer;
@@ -111,22 +119,29 @@ TrexStatelessCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
         return current;
     }
     
-    /* harder part - partial fetch */
-    TrexPktBuffer *partial = new TrexPktBuffer(pkt_limit);
-    for (int i = 0; i < pkt_limit; i++) {
-        const TrexPkt *pkt = m_pkt_buffer->pop();
-        partial->push(pkt);
-    }
-    
+    /* partial fetch - take a partial list */
+    TrexPktBuffer *partial = m_pkt_buffer->pop_n(pkt_limit);
     pending  = m_pkt_buffer->get_element_count();
     
     return partial;
 }
 
+
+/**************************************
+ * Capture Manager 
+ * handles all the captures 
+ * in the system 
+ *************************************/
+
+/**
+ * holds the global filter in the capture manager 
+ * which ports in the entire system are monitored 
+ */
 void
 TrexStatelessCaptureMngr::update_global_filter() {
     CaptureFilter new_filter;
     
+    /* recalculates the global filter */
     for (TrexStatelessCapture *capture : m_captures) {
         new_filter += capture->get_filter();
     }
@@ -134,6 +149,10 @@ TrexStatelessCaptureMngr::update_global_filter() {
     m_global_filter = new_filter;
 }
 
+
+/**
+ * lookup a specific capture by ID
+ */
 TrexStatelessCapture *
 TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) {
     
@@ -147,17 +166,37 @@ TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) {
     return nullptr;
 }
 
-void
-TrexStatelessCaptureMngr::start(const CaptureFilter &filter, uint64_t limit, TrexCaptureRCStart &rc) {
 
-    if (m_captures.size() > MAX_CAPTURE_SIZE) {
+int
+TrexStatelessCaptureMngr::lookup_index(capture_id_t capture_id) {
+    for (int i = 0; i < m_captures.size(); i++) {
+        if (m_captures[i]->get_id() == capture_id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+/**
+ * starts a new capture
+ * 
+ */
+void
+TrexStatelessCaptureMngr::start(const CaptureFilter &filter,
+                                uint64_t limit,
+                                TrexPktBuffer::mode_e mode,
+                                TrexCaptureRCStart &rc) {
+
+    /* check for maximum active captures */
+    if (m_captures.size() >= MAX_CAPTURE_SIZE) {
         rc.set_err(TrexCaptureRC::RC_CAPTURE_LIMIT_REACHED);
         return;
     }
     
-
+    /* create a new capture*/
     int new_id = m_id_counter++;
-    TrexStatelessCapture *new_capture = new TrexStatelessCapture(new_id, limit, filter);
+    TrexStatelessCapture *new_capture = new TrexStatelessCapture(new_id, limit, filter, mode);
     m_captures.push_back(new_capture);
  
     /* update global filter */
@@ -179,6 +218,7 @@ TrexStatelessCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
     rc.set_rc(capture->get_pkt_count());
 }
 
+
 void
 TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, TrexCaptureRCFetch &rc) {
     TrexStatelessCapture *capture = lookup(capture_id);
@@ -190,21 +230,14 @@ TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, Tre
     uint32_t pending = 0;
     TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
     
-    rc.set_pkt_buffer(pkt_buffer, pending, capture->get_start_ts());
+    rc.set_rc(pkt_buffer, pending, capture->get_start_ts());
 }
 
 void
 TrexStatelessCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &rc) {
-
-    int index = -1;
-    for (int i = 0; i < m_captures.size(); i++) {
-        if (m_captures[i]->get_id() == capture_id) {
-            index = i;
-            break;
-        }
-    }
     
-    /* does not exist */
+    /* lookup index */
+    int index = lookup_index(capture_id);
     if (index == -1) {
         rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
         return;
@@ -219,7 +252,7 @@ TrexStatelessCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &r
     /* update global filter */
     update_global_filter();
     
-    rc.set_ok();
+    rc.set_rc();
 }
 
 void
@@ -228,11 +261,12 @@ TrexStatelessCaptureMngr::reset() {
     
     while (m_captures.size() > 0) {
         remove(m_captures[0]->get_id(), dummy);
+        assert(!!dummy);
     }
 }
 
 void 
-TrexStatelessCaptureMngr::handle_pkt_tx(TrexPkt *pkt) {
+TrexStatelessCaptureMngr::handle_pkt_tx_slow_path(const TrexPkt *pkt) {
     for (TrexStatelessCapture *capture : m_captures) {
         capture->handle_pkt_tx(pkt);
     }

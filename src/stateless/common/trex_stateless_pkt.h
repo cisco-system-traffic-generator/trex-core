@@ -70,6 +70,9 @@ public:
         m_index = index;
     }
     
+    uint64_t get_index() const {
+        return m_index;
+    }
     
     /* slow path and also RVO - pass by value is ok */
     Json::Value to_json() const {
@@ -163,19 +166,25 @@ public:
     
     /**
      * push an existing packet structure 
-     * packet will *not* be duplicated 
-     *  
-     * after calling this function 
-     * the packet is no longer usable 
-     * from caller prespective 
+     * packet will be duplicated 
+     * if pkt_index is non zero - it will be updated 
      */
-    void push(const TrexPkt *pkt);
+    void push(const TrexPkt *pkt, uint64_t pkt_index = 0);
     
     /**
      * pops a packet from the buffer
      * usually for internal usage
      */
     const TrexPkt * pop();
+    
+    /**
+     * pops N packets from the buffer
+     * N must be <= get_element_count() 
+     *  
+     * returns a new buffer 
+     */
+    TrexPktBuffer * pop_n(uint32_t count);
+    
     
     /**
      * generate a JSON output of the queue
@@ -225,6 +234,8 @@ private:
         return ( (v + 1) % m_size );
     }
 
+    void push_internal(const TrexPkt *pkt);
+    
     mode_e          m_mode;
     int             m_head;
     int             m_tail;

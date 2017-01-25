@@ -266,7 +266,7 @@ TrexStatelessRxCaptureStart::handle(CRxCoreStateless *rx_core) {
     
     TrexCaptureRCStart start_rc;
     
-    TrexStatelessCaptureMngr::getInstance().start(m_filter, m_limit, start_rc);
+    TrexStatelessCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
     
     /* mark as done */
     m_reply.set_reply(start_rc);
@@ -305,7 +305,7 @@ TrexStatelessRxCaptureStatus::handle(CRxCoreStateless *rx_core) {
     
     TrexCaptureRCStatus status_rc;
     
-    status_rc.set_status(TrexStatelessCaptureMngr::getInstance().to_json()); 
+    status_rc.set_rc(TrexStatelessCaptureMngr::getInstance().to_json()); 
     
     /* mark as done */
     m_reply.set_reply(status_rc);
