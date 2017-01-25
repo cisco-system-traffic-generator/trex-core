@@ -23,6 +23,17 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.15 ==
+
+* XL710/X710 VF mode work (SR-IOV) works better now
+* 599 VF mode work (SR-IOV) is not supported due to issues
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-333[trex-333]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-331[trex-331]
+
+
 == Release 2.14 ==
 
 * Another performance improvement in Stateful case with high active flows. There is less burstiness. 
