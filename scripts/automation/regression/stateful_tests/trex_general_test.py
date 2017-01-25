@@ -313,7 +313,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 # check that max latency does not exceed 1 msec
                 if self.configuration.trex['trex_name'] == '10.56.217.210': # temporary workaround for latency issue in kiwi02, remove it ASAP. http://trex-tgn.cisco.com/youtrack/issue/trex-194
                     allowed_latency = 8000
-                elif self.is_VM:
+                elif self.is_VM or self.is_virt_nics:
                     allowed_latency = 9999999
                 else: # no excuses, check 1ms
                     allowed_latency = 1000
@@ -321,7 +321,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     self.fail('LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency)
 
                 # check that avg latency does not exceed 1 msec
-                if self.is_VM:
+                if self.is_VM or self.is_virt_nics:
                     allowed_latency = 9999999
                 else: # no excuses, check 1ms
                     allowed_latency = 1000
