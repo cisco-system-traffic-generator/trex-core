@@ -174,7 +174,9 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
                                     'rx/trex_stateless_rx_core.cpp',
-                                    'rx/trex_stateless_rx_port_mngr.cpp'
+                                    'rx/trex_stateless_rx_port_mngr.cpp',
+                                    'rx/trex_stateless_capture.cpp',
+                                    'common/trex_stateless_pkt.cpp'
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
@@ -273,6 +275,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
                    ../src/stateless/rx/
+                   ../src/stateless/common/
                    ../src/stateless/messaging/
                    ../external_libs/json/
                    ../external_libs/zmq/include/

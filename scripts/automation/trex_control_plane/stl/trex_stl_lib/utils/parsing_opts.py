@@ -689,19 +689,23 @@ class _MergeAction(argparse._AppendAction):
 
 class CCmdArgParser(argparse.ArgumentParser):
 
-    def __init__(self, stateless_client = None, x = None, *args, **kwargs):
+    def __init__(self, stateless_client = None, *args, **kwargs):
         super(CCmdArgParser, self).__init__(*args, **kwargs)
         self.stateless_client = stateless_client
         self.cmd_name = kwargs.get('prog')
         self.register('action', 'merge', _MergeAction)
 
 
+        
     def add_arg_list (self, *args):
         populate_parser(self, *args)
 
+        
+    # a simple hook for add subparsers to add stateless client
     def add_subparsers(self, *args, **kwargs):
         sub = super(CCmdArgParser, self).add_subparsers(*args, **kwargs)
 
+        # save pointer to the original add parser method
         add_parser = sub.add_parser
         stateless_client = self.stateless_client
 
@@ -710,13 +714,17 @@ class CCmdArgParser(argparse.ArgumentParser):
             parser.stateless_client = stateless_client
             return parser
 
+        # override with the hook
         sub.add_parser = add_parser_hook
+        
         return sub
 
+        
     # hook this to the logger
     def _print_message(self, message, file=None):
         self.stateless_client.logger.log(message)
 
+        
     def error(self, message):
         self.print_usage()
         self._print_message(('%s: error: %s\n') % (self.prog, message))
@@ -782,6 +790,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         except SystemExit:
             # recover from system exit scenarios, such as "help", or bad arguments.
             return RC_ERR("'{0}' - {1}".format(self.cmd_name, "no action"))
+
 
     def formatted_error (self, msg):
         self.print_usage()

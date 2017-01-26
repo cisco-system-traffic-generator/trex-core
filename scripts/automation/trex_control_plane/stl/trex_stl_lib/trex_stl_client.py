@@ -22,13 +22,11 @@ from collections import namedtuple
 from yaml import YAMLError
 import time
 import datetime
-import threading
 import re
 import random
 import json
 import traceback
 import os.path
-import argparse
 
 ############################     logger     #############################
 ############################                #############################
@@ -3007,32 +3005,42 @@ class STLClient(object):
     @__api_check(True)
     def start_capture (self, tx_ports, rx_ports, limit = 1000, mode = 'fixed'):
         """
-            Starts a capture to PCAP on port(s)
+            Starts a low rate packet capturing on the server
 
             :parameters:
                 tx_ports       - on which ports to capture TX
                 rx_ports       - on which ports to capture RX
                 limit          - limit how many packets will be written
+                                 memory requierment is O(9K * limit)
                 
-                mode           - 'fixed': when full, future packets will be
+                mode           - 'fixed': when full, newer packets will be
                                   dropped
-                                  'cyclic: when full, oldest packets will be
+                                  
+                                  'cyclic: when full, older packets will be
                                   dropped
                                   
             :returns:
-                returns a dictionary containing
+                returns a dictionary:
                 {'id: <new_id>, 'ts': <starting timestamp>}
+                
+                where 'id' is the new capture ID for future commands
+                and 'ts' is that server monotonic timestamp when
+                the capture was created
                 
             :raises:
                 + :exe:'STLError'
 
         """
-        
+        # TODO: remove this when TX is implemented
+        if tx_ports:
+            raise STLError('TX port capturing is not yet implemented')
+            
         # check arguments
         tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
         rx_ports = self._validate_port_list(rx_ports, allow_empty = True)
         merge_ports = set(tx_ports + rx_ports)
         
+        # make sure at least one port to capture
         if not merge_ports:
             raise STLError("start_capture - must get at least one port to capture")
             
@@ -3044,13 +3052,13 @@ class STLClient(object):
             raise STLError("'mode' must be either 'fixed' or 'cyclic'")
         
         # verify service mode
-        non_service_ports =  list_difference(set(tx_ports + rx_ports), self.get_service_enabled_ports())
+        non_service_ports =  list_difference(merge_ports, self.get_service_enabled_ports())
         if non_service_ports:
-            raise STLError("Port(s) {0} are not under service mode. PCAP capturing requires all ports to be in service mode".format(non_service_ports))
+            raise STLError("Port(s) {0} are not under service mode. packet capturing requires all ports to be in service mode".format(non_service_ports))
         
             
         # actual job
-        self.logger.pre_cmd("Starting PCAP capturing up to {0} packets".format(limit))
+        self.logger.pre_cmd("Starting packet capturing up to {0} packets".format(limit))
         rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'mode': mode, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
 
@@ -3059,50 +3067,18 @@ class STLClient(object):
 
         return {'id': rc.data()['capture_id'], 'ts': rc.data()['start_ts']}
 
-        
-                
-    def __fetch_capture_packets (self, capture_id, output_filename, pkt_count):
-        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
 
-        # create a PCAP file
-        writer = RawPcapWriter(output_filename, linktype = 1)
-        writer._write_header(None)
-        
-        # fetch
-        pending = pkt_count
-        rc = RC_OK()
-        while pending > 0:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
-            if not rc:
-                self.logger.post_cmd(rc)
-                raise STLError(rc)
-        
-            pkts      = rc.data()['pkts']
-            pending   = rc.data()['pending']
-            start_ts  = rc.data()['start_ts']
-            
-            for pkt in pkts:
-                ts = pkt['ts'] - start_ts
-                ts_sec  = int(ts)
-                ts_usec = int( (ts - ts_sec) * 1e6 )
-                
-                pkt_bin = base64.b64decode(pkt['binary'])
-                writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
-                
-            
-            
-        
-        self.logger.post_cmd(rc)
-        
         
     @__api_check(True)
     def stop_capture (self, capture_id, output_filename = None):
         """
-            Stops an active capture
+            Stops an active capture and optionally save it to a PCAP file
 
             :parameters:
                 capture_id        - an active capture ID to stop
                 output_filename   - output filename to save capture
+                                    if None all captured packets 
+                                    will be discarded
 
             :raises:
                 + :exe:'STLError'
@@ -3116,7 +3092,7 @@ class STLClient(object):
         
         # stop
         
-        self.logger.pre_cmd("Stopping PCAP capture {0}".format(capture_id))
+        self.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
         rc = self._transmit("capture", params = {'command': 'stop', 'capture_id': capture_id})
         self.logger.post_cmd(rc)
         if not rc:
@@ -3137,6 +3113,47 @@ class STLClient(object):
             raise STLError(rc)
         
 
+            
+    # fetch packets from the server and save them to a file
+    def __fetch_capture_packets (self, capture_id, output_filename, pkt_count):
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
+
+        # create a PCAP file
+        writer = RawPcapWriter(output_filename, linktype = 1)
+        writer._write_header(None)
+
+        pending = pkt_count
+        rc = RC_OK()
+        
+        # fetch with iteratios - each iteration up to 50 packets
+        while pending > 0:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            if not rc:
+                self.logger.post_cmd(rc)
+                raise STLError(rc)
+
+            # make sure we are getting some progress
+            assert(rc.data()['pending'] < pending)
+            
+            pkts      = rc.data()['pkts']
+            pending   = rc.data()['pending']
+            start_ts  = rc.data()['start_ts']
+            
+            # write packets
+            for pkt in pkts:
+                # split the server timestamp relative to the capture start time
+                ts_sec, ts_usec = sec_split_usec(pkt['ts'] - start_ts)
+                
+                pkt_bin = base64.b64decode(pkt['binary'])
+                writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
+
+
+
+
+        self.logger.post_cmd(rc)
+
+            
+            
     @__api_check(True)
     def get_capture_status (self):
         """
@@ -3145,14 +3162,13 @@ class STLClient(object):
             info about the capture
 
         """
-
         rc = self._transmit("capture", params = {'command': 'status'})
-
         if not rc:
             raise STLError(rc)
 
         return rc.data()
 
+        
     @__api_check(True)
     def remove_all_captures (self):
         """
@@ -3160,7 +3176,7 @@ class STLClient(object):
         """
         captures = self.get_capture_status()
         
-        self.logger.pre_cmd("Removing all PCAP captures from server")
+        self.logger.pre_cmd("Removing all packet captures from server")
         
         for c in captures:
             # remove

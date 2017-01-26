@@ -492,22 +492,6 @@ class Port(object):
         return self.ok()
 
     
-    @owned
-    def start_capture (self, pcap_filename, mode, limit):
-
-        if mode != 'tx' and not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for performing RX capturing. Please enable service mode')
-            
-        params = {"handler":        self.handler,
-                  "port_id":        self.port_id,
-                  "mode":           mode,
-                  "limit":          limit}
-
-        rc = self.transmit("start_capture", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
      
     @writeable
     def set_l2_mode (self, dst_mac):

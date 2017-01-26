@@ -175,6 +175,8 @@ class TRexConsole(TRexGeneralCmd):
 
     def __init__(self, stateless_client, verbose = False):
 
+        # cmd lock is used to make sure background job
+        # of the console is not done while the user excutes commands
         self.cmd_lock = Lock()
         
         self.stateless_client = stateless_client
@@ -721,6 +723,7 @@ class TRexConsole(TRexGeneralCmd):
                         continue
     
         finally:
+            # capture manager is not presistent - kill it before going out
             self.cap_mngr.stop()
 
         if self.terminal:
@@ -955,8 +958,6 @@ def main():
             stateless_client.disconnect(stop_traffic = False)
 
 
-
 if __name__ == '__main__':
-    
     main()
 

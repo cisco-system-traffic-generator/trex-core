@@ -10,6 +10,7 @@ import struct
 from .trex_stl_types import *
 from .utils.common import random_id_gen
 from .utils.zipmsg import ZippedMsg
+from threading import Lock
 
 class bcolors:
     BLUE = '\033[94m'
@@ -72,6 +73,8 @@ class JsonRpcClient(object):
         self.id_gen = random_id_gen()
         self.zipper = ZippedMsg()
 
+        self.lock = Lock()
+        
     def get_connection_details (self):
         rc = {}
         rc['server'] = self.server
@@ -137,6 +140,12 @@ class JsonRpcClient(object):
 
    
     def send_msg (self, msg, retry = 0):
+        # REQ/RESP pattern in ZMQ requires no interrupts during the send
+        with self.lock:
+            return self.__send_msg(msg, retry)
+        
+        
+    def __send_msg (self, msg, retry = 0):
         # print before
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
             self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")

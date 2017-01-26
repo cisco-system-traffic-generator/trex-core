@@ -71,6 +71,11 @@ def list_difference (l1, l2):
 def is_sub_list (l1, l2):
     return set(l1) <= set(l2)
 
+# splits a timestamp in seconds to sec/usec
+def sec_split_usec (ts):
+    return int(ts), int( (ts - int(ts)) * 1e6 )
+    
+    
 # a simple passive timer
 class PassiveTimer(object):
 
