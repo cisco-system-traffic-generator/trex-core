@@ -3008,16 +3008,18 @@ class STLClient(object):
             Starts a low rate packet capturing on the server
 
             :parameters:
-                tx_ports       - on which ports to capture TX
-                rx_ports       - on which ports to capture RX
-                limit          - limit how many packets will be written
-                                 memory requierment is O(9K * limit)
-                
-                mode           - 'fixed': when full, newer packets will be
-                                  dropped
-                                  
-                                  'cyclic: when full, older packets will be
-                                  dropped
+                tx_ports: list
+                    on which ports to capture TX
+                    
+                rx_ports: list
+                    on which ports to capture RX
+                    
+                limit: int
+                    limit how many packets will be written memory requierment is O(9K * limit)
+                    
+                mode: str
+                    'fixed'  - when full, newer packets will be dropped
+                    'cyclic' - when full, older packets will be dropped
                                   
             :returns:
                 returns a dictionary:
@@ -3075,10 +3077,12 @@ class STLClient(object):
             Stops an active capture and optionally save it to a PCAP file
 
             :parameters:
-                capture_id        - an active capture ID to stop
-                output_filename   - output filename to save capture
-                                    if None all captured packets 
-                                    will be discarded
+                capture_id: int
+                    an active capture ID to stop
+                    
+                output_filename: str
+                    output filename to save capture
+                    if 'None', all captured packets will be discarded
 
             :raises:
                 + :exe:'STLError'
