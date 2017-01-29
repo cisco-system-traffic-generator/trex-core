@@ -3296,7 +3296,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("\nAction has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("\nAction has failed with the following error:\n\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
