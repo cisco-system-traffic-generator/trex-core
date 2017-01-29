@@ -141,6 +141,8 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
 
+
+
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def dummy(self):
         ret = self.trex.start_trex(

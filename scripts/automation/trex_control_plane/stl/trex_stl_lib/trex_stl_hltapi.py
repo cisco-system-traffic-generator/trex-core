@@ -1536,7 +1536,7 @@ def get_TOS(user_kwargs, kwargs):
     if user_args & (TOS2 - TOS1) and user_args & (TOS1 - TOS2):
         raise STLError('You have mixed %s and %s TOS parameters' % (TOS1, TOS2))
     if user_args & (TOS0 - TOS1 - TOS2):
-        return (kwargs['ip_precedence'] << 5) + (kwargs['ip_tos_field'] << 2) + kwargs['ip_mbz']
+        return (kwargs['ip_precedence'] << 5) + (kwargs['ip_tos_field'] << 1) + kwargs['ip_mbz']
     if user_args & (TOS1 - TOS2):
         return (kwargs['ip_precedence'] << 5) + (kwargs['ip_delay'] << 4) + (kwargs['ip_throughput'] << 3) + (kwargs['ip_reliability'] << 2) + (kwargs['ip_cost'] << 1) + kwargs['ip_reserved']
     return (kwargs['ip_dscp'] << 2) + kwargs['ip_cu']

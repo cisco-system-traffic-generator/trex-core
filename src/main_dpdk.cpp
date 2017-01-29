@@ -133,7 +133,6 @@ static char global_master_id_str[10];
 
 class CTRexExtendedDriverBase {
 public:
-
     /* by default NIC driver adds CRC */
     virtual bool has_crc_added() {
         return true;
@@ -154,6 +153,7 @@ public:
     }
 
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
+    void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link();
@@ -237,10 +237,10 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 };
 
-class CTRexExtendedDriverBase1GVm : public CTRexExtendedDriverBase {
+class CTRexExtendedDriverVirtio : public CTRexExtendedDriverBase {
 
 public:
-    CTRexExtendedDriverBase1GVm(){
+    CTRexExtendedDriverVirtio() {
         /* we are working in mode that we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
     }
@@ -254,12 +254,10 @@ public:
     }
 
     static CTRexExtendedDriverBase * create(){
-        return ( new CTRexExtendedDriverBase1GVm() );
+        return ( new CTRexExtendedDriverVirtio() );
     }
 
-    virtual void update_global_config_fdir(port_cfg_t * cfg){
-
-    }
+    virtual void update_global_config_fdir(port_cfg_t * cfg) {}
 
     virtual int get_min_sample_rate(void){
         return ( RX_CHECK_MIX_SAMPLE_RATE_1G);
@@ -288,28 +286,53 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
 };
 
-class CTRexExtendedDriverVf : public CTRexExtendedDriverBase1GVm {
-
+class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtio {
 public:
-    CTRexExtendedDriverVf(){
-        /* we are working in mode in which we have we have 1 queue for rx and one queue for tx*/
+    CTRexExtendedDriverVmxnet3(){
+        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
+        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+    }
+
+    static CTRexExtendedDriverBase * create() {
+        return ( new CTRexExtendedDriverVmxnet3() );
+    }
+
+    virtual void update_configuration(port_cfg_t * cfg);
+};
+
+class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtio {
+public:
+    CTRexExtendedDriverI40evf(){
+        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-        uint64_t prev_ipackets = stats->ipackets;
-        uint64_t prev_opackets = stats->opackets;
-
-        CTRexExtendedDriverBase1GVm::get_extended_stats(_if, stats);
-        // Since this driver report byte counts without Ethernet FCS (4 bytes), we need to fix the reported numbers
-        stats->ibytes += (stats->ipackets - prev_ipackets) * 4;
-        stats->obytes += (stats->opackets - prev_opackets) * 4;
+        get_extended_stats_fixed(_if, stats, 0, 4);
     }
-    static CTRexExtendedDriverBase * create(){
-        return ( new CTRexExtendedDriverVf() );
+
+    virtual void update_configuration(port_cfg_t * cfg);
+    static CTRexExtendedDriverBase * create() {
+        return ( new CTRexExtendedDriverI40evf() );
     }
 };
 
-class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverBase1GVm {
+class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
+
+public:
+    CTRexExtendedDriverIxgbevf(){
+        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
+        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+    }
+    virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+        get_extended_stats_fixed(_if, stats, 4, 4);
+    }
+
+    static CTRexExtendedDriverBase * create() {
+        return ( new CTRexExtendedDriverIxgbevf() );
+    }
+};
+
+class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtio {
     CTRexExtendedDriverBaseE1000() {
         // E1000 driver is only relevant in VM in our case
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
@@ -320,6 +343,9 @@ public:
     }
     // e1000 driver handing us packets with ethernet CRC, so we need to chop them
     virtual uint8_t get_num_crc_fix_bytes() {return 4;}
+
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+
 };
 
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
@@ -593,11 +619,11 @@ private:
         register_driver(std::string("net_mlx5"),CTRexExtendedDriverBaseMlnx5G::create);
 
         /* virtual devices */
-        register_driver(std::string("rte_em_pmd"),CTRexExtendedDriverBaseE1000::create);
-        register_driver(std::string("rte_vmxnet3_pmd"),CTRexExtendedDriverBase1GVm::create);
-        register_driver(std::string("rte_virtio_pmd"),CTRexExtendedDriverBase1GVm::create);
-        register_driver(std::string("rte_ixgbevf_pmd"),CTRexExtendedDriverVf::create);
-        register_driver(std::string("rte_i40evf_pmd"),CTRexExtendedDriverVf::create);
+        register_driver(std::string("rte_em_pmd"), CTRexExtendedDriverBaseE1000::create);
+        register_driver(std::string("rte_vmxnet3_pmd"), CTRexExtendedDriverVmxnet3::create);
+        register_driver(std::string("rte_virtio_pmd"), CTRexExtendedDriverVirtio::create);
+        register_driver(std::string("rte_i40evf_pmd"), CTRexExtendedDriverI40evf::create);
+        register_driver(std::string("rte_ixgbevf_pmd"), CTRexExtendedDriverIxgbevf::create);
 
         m_driver_was_set=false;
         m_drv=0;
@@ -713,7 +739,8 @@ enum { OPT_HELP,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
-       OPT_ACTIVE_FLOW
+       OPT_ACTIVE_FLOW,
+       OPT_RT
 };
 
 /* these are the argument types:
@@ -774,6 +801,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
+        { OPT_RT,                     "--rt",              SO_NONE    },
         SO_END_OF_OPTIONS
     };
 
@@ -828,6 +856,7 @@ static int usage(){
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
     printf(" --no-watchdog              : Disable watchdog \n");
+    printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
     printf("    e.g --pm 2.0 will multiply all the results bps in this factor \n");
@@ -956,6 +985,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->preview.set_ipv6_mode_enable(true);
                 break;
 
+            case OPT_RT:
+                po->preview.set_rt_prio_mode(true);
+                break;
 
             case OPT_LEARN :
                 po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
@@ -1223,6 +1255,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             po->set_tw_levels(lp->m_levels);
         }
     }
+
     return 0;
 }
 
@@ -3685,6 +3718,7 @@ void CGlobalTRex::rx_sl_configure(void) {
 
 int  CGlobalTRex::ixgbe_start(void){
     int i;
+    
     for (i=0; i<m_max_ports; i++) {
         socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
         assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
@@ -3693,14 +3727,14 @@ int  CGlobalTRex::ixgbe_start(void){
         uint16_t rx_rss = get_ex_drv()->enable_rss_drop_workaround();
 
         if ( get_vm_one_queue_enable() ) {
-            /* VMXNET3 does claim to support 16K but somehow does not work */
-            /* reduce to 2000 */
             m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = 2000;
             /* In VM case, there is one tx q and one rx q */
             _if->configure(1, 1, &m_port_cfg.m_port_conf);
             // Only 1 rx queue, so use it for everything
             m_rx_core_tx_q_id = 0;
             _if->set_rx_queue(0);
+            // We usually have less memory in VM, so don't use the 9k pool. This means that large packets will
+            // be received in chain of few mbufs
             _if->rx_queue_setup(0, RTE_TEST_RX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_rx_conf,
                                 CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
             // 1 TX queue in VM case
@@ -4846,8 +4880,20 @@ int CGlobalTRex::run_in_master() {
 
 int CGlobalTRex::run_in_rx_core(void){
 
+    CPreviewMode *lp = &CGlobalInfo::m_options.preview;
+    
     rte_thread_setname(pthread_self(), "TRex RX");
-
+    
+    /* set RT mode if set */
+    if (lp->get_rt_prio_mode()) {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+            perror("setting RT priroity mode on RX core failed with error");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     if (get_is_stateless()) {
         m_sl_rx_running = true;
         m_rx_sl.start();
@@ -4864,11 +4910,22 @@ int CGlobalTRex::run_in_rx_core(void){
 
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     std::stringstream ss;
-
+    CPreviewMode *lp = &CGlobalInfo::m_options.preview;
+    
     ss << "Trex DP core " << int(virt_core_id);
     rte_thread_setname(pthread_self(), ss.str().c_str());
+    
+    /* set RT mode if set */
+    if (lp->get_rt_prio_mode()) {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+            perror("setting RT priroity mode on DP core failed with error");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    CPreviewMode *lp=&CGlobalInfo::m_options.preview;
+    
     if ( lp->getSingleCore() &&
          (virt_core_id==2 ) &&
          (lp-> getCores() ==1) ){
@@ -5868,6 +5925,35 @@ CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
     return parser;
 }
 
+void CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
+    struct rte_eth_stats stats1;
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_stats_get(_if->get_port_id(), &stats1);
+
+    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
+    // Some drivers report input byte counts without Ethernet FCS (4 bytes), we need to fix the reported numbers
+    stats->ibytes += stats1.ibytes - prev_stats->ibytes + (stats1.ipackets - prev_stats->ipackets) * fix_i;
+    stats->opackets   += stats1.opackets - prev_stats->opackets;
+    // Some drivers report output byte counts without Ethernet FCS (4 bytes), we need to fix the reported numbers
+    stats->obytes += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * fix_o;
+    stats->f_ipackets += 0;
+    stats->f_ibytes   += 0;
+    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
+        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
+    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
+    stats->imcasts    += 0;
+    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
+
+    prev_stats->ipackets = stats1.ipackets;
+    prev_stats->ibytes = stats1.ibytes;
+    prev_stats->opackets = stats1.opackets;
+    prev_stats->obytes = stats1.obytes;
+    prev_stats->imissed = stats1.imissed;
+    prev_stats->oerrors = stats1.oerrors;
+    prev_stats->ierrors = stats1.ierrors;
+    prev_stats->rx_nombuf = stats1.rx_nombuf;
+}
+
 // in 1G we need to wait if links became ready to soon
 void CTRexExtendedDriverBase1G::wait_after_link_up(){
     wait_x_sec(6 + CGlobalInfo::m_options.m_wait_before_traffic);
@@ -6648,31 +6734,7 @@ int CTRexExtendedDriverBase40G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
 }
 
 void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    struct rte_eth_stats stats1;
-    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    rte_eth_stats_get(_if->get_port_id(), &stats1);
-
-    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes;
-    stats->opackets += stats1.opackets - prev_stats->opackets;
-    // Since this driver report obytes count without Ethernet FCS (4 bytes), we need to fix the reported numbers
-    stats->obytes   += stats1.obytes - prev_stats->obytes + (stats1.opackets - prev_stats->opackets) * 4;
-    stats->f_ipackets += 0;
-    stats->f_ibytes   += 0;
-    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
-        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
-    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
-    stats->imcasts    += 0;
-    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
-
-    prev_stats->ipackets = stats1.ipackets;
-    prev_stats->ibytes = stats1.ibytes;
-    prev_stats->opackets = stats1.opackets;
-    prev_stats->obytes = stats1.obytes;
-    prev_stats->imissed = stats1.imissed;
-    prev_stats->oerrors = stats1.oerrors;
-    prev_stats->ierrors = stats1.ierrors;
-    prev_stats->rx_nombuf = stats1.rx_nombuf;
+    get_extended_stats_fixed(_if, stats, 0, 4);
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
@@ -6892,33 +6954,7 @@ int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE 
 }
 
 void CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-
-    struct rte_eth_stats stats1;
-    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    rte_eth_stats_get(_if->get_port_id(), &stats1);
-
-    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes +
-        + (stats1.ipackets << 2) - (prev_stats->ipackets << 2);
-    stats->opackets += stats1.opackets - prev_stats->opackets;
-    stats->obytes   += stats1.obytes - prev_stats->obytes
-        + (stats1.opackets << 2) - (prev_stats->opackets << 2);
-    stats->f_ipackets += 0;
-    stats->f_ibytes   += 0;
-    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
-        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
-    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
-    stats->imcasts    += 0;
-    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
-
-    prev_stats->ipackets = stats1.ipackets;
-    prev_stats->ibytes = stats1.ibytes;
-    prev_stats->opackets = stats1.opackets;
-    prev_stats->obytes = stats1.obytes;
-    prev_stats->imissed = stats1.imissed;
-    prev_stats->oerrors = stats1.oerrors;
-    prev_stats->ierrors = stats1.ierrors;
-    prev_stats->rx_nombuf = stats1.rx_nombuf;
+        get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
 int CTRexExtendedDriverBaseMlnx5G::wait_for_stable_link(){
@@ -7055,31 +7091,8 @@ void CTRexExtendedDriverBaseVIC::clear_extended_stats(CPhyEthIF * _if){
 }
 
 void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    struct rte_eth_stats stats1;
-    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    rte_eth_stats_get(_if->get_port_id(), &stats1);
-
-    stats->ipackets += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes   += stats1.ibytes - prev_stats->ibytes
-         - ((stats1.ipackets << 2) - (prev_stats->ipackets << 2));
-    stats->opackets += stats1.opackets - prev_stats->opackets;
-    stats->obytes   += stats1.obytes - prev_stats->obytes;
-    stats->f_ipackets += 0;
-    stats->f_ibytes   += 0;
-    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
-        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
-    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
-    stats->imcasts    += 0;
-    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
-
-    prev_stats->ipackets = stats1.ipackets;
-    prev_stats->ibytes = stats1.ibytes;
-    prev_stats->opackets = stats1.opackets;
-    prev_stats->obytes = stats1.obytes;
-    prev_stats->imissed = stats1.imissed;
-    prev_stats->oerrors = stats1.oerrors;
-    prev_stats->ierrors = stats1.ierrors;
-    prev_stats->rx_nombuf = stats1.rx_nombuf;
+    // In VIC, we need to reduce 4 bytes from the amount reported for each incoming packet
+    get_extended_stats_fixed(_if, stats, -4, 0);
 }
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
@@ -7137,66 +7150,54 @@ CFlowStatParser *CTRexExtendedDriverBaseVIC::get_flow_stat_parser() {
 
 
 /////////////////////////////////////////////////////////////////////////////////////
-
-
-void CTRexExtendedDriverBase1GVm::update_configuration(port_cfg_t * cfg){
-    struct rte_eth_dev_info dev_info;
-    rte_eth_dev_info_get((uint8_t) 0,&dev_info);
-
+void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
-    cfg->m_tx_conf.txq_flags=dev_info.default_txconf.txq_flags;
-
+    // must have this, otherwise the driver fail at init
+    cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMS;
 }
 
-
-int CTRexExtendedDriverBase1GVm::configure_rx_filter_rules(CPhyEthIF * _if){
+int CTRexExtendedDriverVirtio::configure_rx_filter_rules(CPhyEthIF * _if){
     return (0);
 }
 
-void CTRexExtendedDriverBase1GVm::clear_extended_stats(CPhyEthIF * _if){
-
+void CTRexExtendedDriverVirtio::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_port_id());
-
 }
 
-int CTRexExtendedDriverBase1GVm::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
+int CTRexExtendedDriverVirtio::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
     return (0);
 }
 
-void CTRexExtendedDriverBase1GVm::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-    struct rte_eth_stats stats1;
-    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    rte_eth_stats_get(_if->get_port_id(), &stats1);
-
-    stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
-    stats->ibytes     += stats1.ibytes - prev_stats->ibytes;
-    stats->opackets   += stats1.opackets - prev_stats->opackets;
-    stats->obytes     += stats1.obytes - prev_stats->obytes;
-    stats->f_ipackets += 0;
-    stats->f_ibytes   += 0;
-    stats->ierrors    += stats1.imissed + stats1.ierrors + stats1.rx_nombuf
-        - prev_stats->imissed - prev_stats->ierrors - prev_stats->rx_nombuf;
-    stats->oerrors    += stats1.oerrors - prev_stats->oerrors;
-    stats->imcasts    += 0;
-    stats->rx_nombuf  += stats1.rx_nombuf - prev_stats->rx_nombuf;
-
-    prev_stats->ipackets = stats1.ipackets;
-    prev_stats->ibytes = stats1.ibytes;
-    prev_stats->opackets = stats1.opackets;
-    prev_stats->obytes = stats1.obytes;
-    prev_stats->imissed = stats1.imissed;
-    prev_stats->oerrors = stats1.oerrors;
-    prev_stats->ierrors = stats1.ierrors;
-    prev_stats->rx_nombuf = stats1.rx_nombuf;
+void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    get_extended_stats_fixed(_if, stats, 0, 4);
 }
 
-int CTRexExtendedDriverBase1GVm::wait_for_stable_link(){
+void CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+int CTRexExtendedDriverVirtio::wait_for_stable_link(){
     wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
 }
 
+/////////////////////////////////////////////////////////// VMxnet3
+void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = 0;
+    // must have this, otherwise the driver fail at init
+    cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMSCTP;
+}
+
+///////////////////////////////////////////////////////// VF
+void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+}
 
 
 /**

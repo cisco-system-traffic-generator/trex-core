@@ -2551,7 +2551,6 @@ NIC with two ports will work better from performance prospective, so it is bette
 ==== Limitation/Issues  
 
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-260[64B performance issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-273[Fedora 21 & OFED 3.4.1]

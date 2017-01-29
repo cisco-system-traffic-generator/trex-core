@@ -628,6 +628,14 @@ public:
         return (btGetMaskBit32(m_flags1, 9, 9) ? true : false);
     }
 
+    void set_rt_prio_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 10, 10, (enable ? 1 : 0) );
+    }
+
+    bool get_rt_prio_mode() {
+        return (btGetMaskBit32(m_flags1, 10, 10) ? true : false);
+    }
+    
 public:
     void Dump(FILE *fd);
 

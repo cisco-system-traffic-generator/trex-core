@@ -696,12 +696,6 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
     /* did we exceeded the max L1 line rate ? */
     double expected_l1_rate = m_graph_obj->get_max_bps_l1(factor);
 
-    /* if not force and exceeded - throw exception */
-    if ( (!force) && (expected_l1_rate > get_port_speed_bps()) ) {
-        stringstream ss;
-        ss << "Expected L1 B/W: '" << bps_to_gbps(expected_l1_rate) << " Gbps' exceeds port line rate: '" << bps_to_gbps(get_port_speed_bps()) << " Gbps'";
-        throw TrexException(ss.str());
-    }
 
     /* L1 BW must be positive */
     if (expected_l1_rate <= 0){
@@ -717,7 +711,23 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
         throw TrexException(ss.str());
     }
 
-    return factor;
+    /* if force simply return the value */
+    if (force) {
+        return factor;
+    } else {
+        
+        /* due to float calculations we allow 0.1% roundup */
+        if ( (expected_l1_rate / get_port_speed_bps()) > 1.0001 )  {
+            stringstream ss;
+            ss << "Expected L1 B/W: '" << bps_to_gbps(expected_l1_rate) << " Gbps' exceeds port line rate: '" << bps_to_gbps(get_port_speed_bps()) << " Gbps'";
+            throw TrexException(ss.str());
+        }
+        
+        /* in any case, without force, do not return any value higher than the max factor */
+        double max_factor = m_graph_obj->get_factor_bps_l1(get_port_speed_bps());
+        return std::min(max_factor, factor);
+    }
+    
 }
 
 double

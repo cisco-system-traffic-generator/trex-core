@@ -853,13 +853,13 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     result["result"]["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
     result["result"]["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
     result["result"]["rate"]["max_pps"]       = graph->get_max_pps();
-    result["result"]["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.0;
+    result["result"]["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.01;
 
     /* min values */
     result["result"]["rate"]["min_bps_l2"]    = graph->get_max_bps_l2(0);
     result["result"]["rate"]["min_bps_l1"]    = graph->get_max_bps_l1(0);
     result["result"]["rate"]["min_pps"]       = graph->get_max_pps(0);
-    result["result"]["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.0;
+    result["result"]["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.01;
 
     result["result"]["graph"]["expected_duration"] = graph->get_duration();
     result["result"]["graph"]["events_count"] = (int)graph->get_events().size();

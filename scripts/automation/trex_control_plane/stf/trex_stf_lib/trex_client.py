@@ -1110,6 +1110,13 @@ class CTRexResult(object):
         self.clear_results()
         self.latency_checked = True
         self.filtered_latency_amount = filtered_latency_amount
+        self.set_warmup_default()
+
+    def set_warmup_default (self):
+        self.set_warmup(0.96)
+
+    def set_warmup (self,new_warmup_max):
+        self.warmup_max = new_warmup_max
 
     def __repr__(self):
         return ("Is valid history?       {arg}\n".format( arg = self.is_valid_hist() ) +
@@ -1414,7 +1421,7 @@ class CTRexResult(object):
             self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
                 # check for up to 4% change between expected and actual
-                if (self._current_tx_rate['m_tx_bps'] > 0.96 * self._expected_tx_rate['m_tx_expected_bps']):
+                if (self._current_tx_rate['m_tx_bps'] > self.warmup_max * self._expected_tx_rate['m_tx_expected_bps']):
                     self._done_warmup = True
                     latest_dump['warmup_barrier'] = True
 
