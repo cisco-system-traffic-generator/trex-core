@@ -350,6 +350,11 @@ class TRexConsole(TRexGeneralCmd):
         '''Resolve ARP for ports'''
         self.stateless_client.resolve_line(line)
 
+    @verify_connected
+    def do_scan6(self, line):
+        '''Search for IPv6 neighbors'''
+        self.stateless_client.scan6_line(line)
+
     def help_resolve (self):
         self.do_resolve("-h")
 

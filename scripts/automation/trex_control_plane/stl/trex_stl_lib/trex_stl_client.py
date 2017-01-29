@@ -13,12 +13,12 @@ from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
 from .utils.common import *
+from .utils.text_tables import TRexTextTable
 from .utils.text_opts import *
 from functools import wraps
 from texttable import ansi_len
 
-
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from yaml import YAMLError
 import time
 import datetime
@@ -547,7 +547,7 @@ class STLClient(object):
         self.connected = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 0 } ]
+        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 1 } ]
         self.api_h = {'core': None}
 
         # logger
@@ -818,6 +818,17 @@ class STLClient(object):
             rc.add(self.ports[port_id].arp_resolve(retries))
 
         return rc
+
+
+    def __scan6(self, port_id_list = None, timeout = 5):
+        port_id_list = self.__ports(port_id_list)
+
+        resp = {}
+
+        for port_id in port_id_list:
+            resp[port_id] = self.ports[port_id].scan6(timeout)
+
+        return resp
 
 
     def __set_port_attr (self, port_id_list = None, attr_dict = None):
@@ -1893,13 +1904,13 @@ class STLClient(object):
             
 
     @__api_check(True)
-    def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5, interval_sec = 1):
+    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1):
         """
             Pings an IP address through a port
 
             :parameters:
                  src_port     - on which port_id to send the ICMP PING request
-                 dst_ipv4     - which IP to ping
+                 dst_ip       - which IP to ping
                  pkt_size     - packet size to use
                  count        - how many times to ping
                  interval_sec - how much time to wait between pings
@@ -1912,8 +1923,8 @@ class STLClient(object):
         if src_port not in self.get_all_ports():
             raise STLError("src port is not a valid port id")
         
-        if not is_valid_ipv4(dst_ipv4):
-            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+        if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
+            raise STLError("dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
             
         if (pkt_size < 64) or (pkt_size > 9216):
             raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
@@ -1921,15 +1932,23 @@ class STLClient(object):
         validate_type('count', count, int)
         validate_type('interval_sec', interval_sec, (int, float))
         
-        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
+        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
                                                                                        src_port,
                                                                                        pkt_size))
         
         # no async messages
         with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
             self.logger.log('')
+            dst_mac = None
+            if ':' in dst_ip: # ipv6
+                rc = self.ports[src_port].scan6(dst_ip = dst_ip)
+                if not rc:
+                    raise STLError(rc)
+                replies = rc.data()
+                if len(replies) == 1:
+                    dst_mac = replies[0]['mac']
             for i in range(count):
-                rc = self.ports[src_port].ping(ping_ipv4 = dst_ipv4, pkt_size = pkt_size)
+                rc = self.ports[src_port].ping(ping_ip = dst_ip, pkt_size = pkt_size, dst_mac = dst_mac)
                 if not rc:
                     raise STLError(rc)
                     
@@ -2895,7 +2914,8 @@ class STLClient(object):
                        link_up = None,
                        led_on = None,
                        flow_ctrl = None,
-                       resolve = True):
+                       resolve = True,
+                       multicast = None):
         """
             Set port attributes
 
@@ -2905,6 +2925,7 @@ class STLClient(object):
                 led_on           - True or False
                 flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
                 resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
+                multicast        - enable receiving multicast, True or False
             :raises:
                 + :exe:'STLError'
 
@@ -2918,6 +2939,7 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
+        validate_type('multicast', multicast, (bool, type(None)))
     
         # common attributes for all ports
         cmn_attr_dict = {}
@@ -2926,6 +2948,7 @@ class STLClient(object):
         cmn_attr_dict['link_status']     = link_up
         cmn_attr_dict['led_status']      = led_on
         cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
+        cmn_attr_dict['multicast']       = multicast
         
         # each port starts with a set of the common attributes
         attr_dict = [dict(cmn_attr_dict) for _ in ports]
@@ -3022,8 +3045,62 @@ class STLClient(object):
 
     # alias
     arp = resolve
-            
-        
+
+
+    @__api_check(True)
+    def scan6(self, ports = None, timeout = 5, verbose = False):
+        """
+            Search for IPv6 devices on ports
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                timeout        - how much time to wait for responses
+                verbose        - log for each request the response
+            :return:
+                list of dictionaries per neighbor:
+                    type   - type of device: 'Router' or 'Host'
+                    mac    - MAC address of device
+                    ipv6   - IPv6 address of device
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd('Scanning network for IPv6 nodes on port(s) {0}:'.format(ports))
+
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            rc_per_port = self.__scan6(ports, timeout)
+
+        self.logger.post_cmd(rc_per_port)
+
+        if verbose:
+            for port, rc in rc_per_port.items():
+                if not rc:
+                    self.logger.log(format_text(rc, 'bold'))
+                elif rc.data():
+                    scan_table = TRexTextTable()
+                    scan_table.set_cols_align(['c', 'c', 'l'])
+                    scan_table.header(['Device', 'MAC', 'IPv6 address'])
+                    scan_table.set_cols_width([9, 19, 42])
+
+                    resp = 'Port %s - IPv6 search result:' % port
+                    self.logger.log(format_text(resp, 'bold'))
+                    node_types = defaultdict(list)
+                    for reply in rc.data():
+                        node_types[reply['type']].append(reply)
+                    for key in sorted(node_types.keys()):
+                        for reply in node_types[key]:
+                            scan_table.add_row([key, reply['mac'], reply['ipv6']])
+                    self.logger.log(scan_table.draw())
+                    self.logger.log('')
+                else:
+                    self.logger.log(format_text('Port %s: no replies! Try to ping with explicit address.' % port, 'bold'))
+
+        return rc_per_port
+
+
     @__api_check(True)
     def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed'):
         """
@@ -3372,7 +3449,7 @@ class STLClient(object):
                                          "ping",
                                          self.ping_line.__doc__,
                                          parsing_opts.SINGLE_PORT,
-                                         parsing_opts.PING_IPV4,
+                                         parsing_opts.PING_IP,
                                          parsing_opts.PKT_SIZE,
                                          parsing_opts.PING_COUNT)
 
@@ -3382,7 +3459,7 @@ class STLClient(object):
             
         # IP ping
         # source ports maps to ports as a single port
-        self.ping_ip(opts.ports[0], opts.ping_ipv4, opts.pkt_size, opts.count)
+        self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count)
 
         
     @__console
@@ -3918,6 +3995,7 @@ class STLClient(object):
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
                                          parsing_opts.SUPPORTED,
+                                         parsing_opts.MULTICAST,
                                          )
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
@@ -3925,6 +4003,7 @@ class STLClient(object):
             return opts
 
         opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
+        opts.mult            = parsing_opts.ON_OFF_DICT.get(opts.mult)
         opts.link            = parsing_opts.UP_DOWN_DICT.get(opts.link)
         opts.led             = parsing_opts.ON_OFF_DICT.get(opts.led)
         opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
@@ -3940,6 +4019,7 @@ class STLClient(object):
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   yes')
+            print('  Multicast:     yes')
             print('  Link status:   %s' % info['link_change_supported'])
             print('  LED status:    %s' % info['led_change_supported'])
             print('  Flow control:  %s' % info['fc_supported'])
@@ -3951,10 +4031,29 @@ class STLClient(object):
                                opts.prom,
                                opts.link,
                                opts.led,
-                               opts.flow_ctrl)
-                         
-               
-             
+                               opts.flow_ctrl,
+                               multicast = opts.mult)
+
+
+    @__console
+    def set_rx_sniffer_line (self, line):
+        '''Sets a port sniffer on RX channel in form of a PCAP file'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "set_rx_sniffer",
+                                         self.set_rx_sniffer_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.OUTPUT_FILENAME,
+                                         parsing_opts.LIMIT)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+
+        return RC_OK()
+        
 
     @__console
     def resolve_line (self, line):
@@ -3976,6 +4075,27 @@ class STLClient(object):
         return RC_OK()
         
     
+    @__console
+    def scan6_line(self, line):
+        '''Search for IPv6 neighbors'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "scan6",
+                                         self.scan6_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.TIMEOUT)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        rc_per_port = self.scan6(ports = opts.ports, timeout = opts.timeout, verbose = True)
+        #for port, rc in rc_per_port.items():
+        #    if rc and len(rc.data()) == 1 and not self.ports[port].is_resolved():
+        #        self.ports[port].set_l2_mode(rc.data()[0][1])
+        return RC_OK()
+
+
     @__console
     def set_l2_mode_line (self, line):
         '''Configures a port in L2 mode'''

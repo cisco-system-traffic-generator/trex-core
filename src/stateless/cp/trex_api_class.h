@@ -82,7 +82,7 @@ public:
     }
 
     std::string get_server_ver() {
-        return ver(m_major, m_major);
+        return ver(m_major, m_minor);
     }
 
     std::string & verify_api(int major, int minor) {

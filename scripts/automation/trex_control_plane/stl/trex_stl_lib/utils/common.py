@@ -99,7 +99,14 @@ def is_valid_ipv4 (addr):
         return True
     except (socket.error, TypeError):
         return False
-        
+
+def is_valid_ipv6(addr):
+    try:
+        socket.inet_pton(socket.AF_INET6, addr)
+        return True
+    except (socket.error, TypeError):
+        return False
+
 def is_valid_mac (mac):
     return bool(re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()))
 

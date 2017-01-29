@@ -1,6 +1,6 @@
 import argparse
 from collections import namedtuple, OrderedDict
-from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_mac, list_remove_dup
+from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_remove_dup
 from .text_opts import format_text
 from ..trex_stl_types import *
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
@@ -26,6 +26,7 @@ FILE_FROM_DB
 SERVER_IP
 STREAM_FROM_PATH_OR_FILE
 DURATION
+TIMEOUT
 FORCE
 DRY_RUN
 XTERM
@@ -36,6 +37,7 @@ MIN_IPG
 SPEEDUP
 COUNT
 PROMISCUOUS
+MULTICAST
 LINK_STATUS
 LED_STATUS
 TUNABLES
@@ -57,7 +59,7 @@ RETRIES
 SINGLE_PORT
 DST_MAC
 
-PING_IPV4
+PING_IP
 PING_COUNT
 PKT_SIZE
 
@@ -263,6 +265,12 @@ def check_ipv4_addr (ipv4_str):
 
     return ipv4_str
 
+def check_ip_addr(addr):
+    if not (is_valid_ipv4(addr) or is_valid_ipv6(addr)):
+        raise argparse.ArgumentTypeError("invalid IPv4/6 address: '{0}'".format(addr))
+
+    return addr
+
 def check_pkt_size (pkt_size):
     try:
         pkt_size = int(pkt_size)
@@ -357,6 +365,10 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {'help': "Set port promiscuous on/off",
                                          'choices': ON_OFF_DICT}),
 
+              MULTICAST: ArgumentPack(['--mult'],
+                                      {'help': "Set port multicast on/off",
+                                       'choices': ON_OFF_DICT}),
+
               LINK_STATUS: ArgumentPack(['--link'],
                                      {'help': 'Set link status up/down',
                                       'choices': UP_DOWN_DICT}),
@@ -446,11 +458,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'help': 'source port for the action',
                                          'required': True}),
               
-              PING_IPV4: ArgumentPack(['-d'],
-                                      {'help': 'which IPv4 to ping',
-                                      'dest': 'ping_ipv4',
+              PING_IP: ArgumentPack(['-d'],
+                                      {'help': 'which IPv4/6 to ping',
+                                      'dest': 'ping_ip',
                                       'required': True,
-                                      'type': check_ipv4_addr}),
+                                      'type': check_ip_addr}),
               
               PING_COUNT: ArgumentPack(['-n', '--count'],
                                        {'help': 'How many times to ping [default is 5]',
@@ -478,6 +490,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'type': match_time_unit,
                                          'default': -1.0,
                                          'help': "Set duration time for job."}),
+
+              TIMEOUT: ArgumentPack(['-t'],
+                                        {'action': "store",
+                                         'metavar': 'TIMEOUT',
+                                         'dest': 'timeout',
+                                         'type': int,
+                                         'default': None,
+                                         'help': "Timeout for operation in seconds."}),
 
               FORCE: ArgumentPack(['--force'],
                                         {"action": "store_true",

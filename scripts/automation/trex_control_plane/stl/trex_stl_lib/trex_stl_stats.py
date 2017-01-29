@@ -668,6 +668,7 @@ class CTRexInfoGenerator(object):
                                         ("link speed", []),
                                         ("port status", []),
                                         ("promiscuous", []),
+                                        ("multicast", []),
                                         ("flow ctrl", []),
                                         ("--", []),
                                         ("layer mode", []),

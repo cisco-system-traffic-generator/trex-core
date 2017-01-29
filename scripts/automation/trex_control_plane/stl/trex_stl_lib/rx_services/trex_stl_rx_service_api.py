@@ -9,10 +9,16 @@ class RXServiceAPI(object):
     LAYER_MODE_L2  = 1
     LAYER_MODE_L3  = 2
     
-    def __init__ (self, port, layer_mode = LAYER_MODE_ANY, queue_size = 100):
+    def __init__(self, port, layer_mode = LAYER_MODE_ANY, queue_size = 100, timeout = None, retries = None, retry_delay = 0.1):
         self.port = port
         self.queue_size = queue_size
         self.layer_mode = layer_mode
+        self.timeout = timeout
+        self.retries = retries
+        if retries is None and timeout is None:
+            self.retries = 0
+        self.retry_delay = retry_delay
+        self.init_ts = time.time()
 
     ################### virtual methods ######################
     
@@ -47,7 +53,7 @@ class RXServiceAPI(object):
         """
         raise NotImplementedError()
 
-    def on_pkt_rx (self, pkt, start_ts):
+    def on_pkt_rx(self, pkt, start_ts):
         """
             called for each packet arriving on RX
 
@@ -65,13 +71,10 @@ class RXServiceAPI(object):
         raise NotImplementedError()
 
         
-    def on_timeout_err (self, retries):
+    def on_timeout(self):
         """
             called when a timeout occurs
 
-            :parameters:
-                retries - how many times was the service retring before failing
-                
             :returns:
                 RC object
 
@@ -80,7 +83,7 @@ class RXServiceAPI(object):
 
         
     ##################### API ######################
-    def execute (self, retries = 0):
+    def execute(self, *a, **k):
         
         # sanity check
         rc = self.__sanity()
@@ -97,12 +100,12 @@ class RXServiceAPI(object):
         try:
 
             # add the stream(s)
-            self.port.add_streams(self.generate_request())
+            self.port.add_streams(self.generate_request(*a, **k))
             rc = self.port.set_rx_queue(size = self.queue_size)
             if not rc:
                 return rc
 
-            return self.__execute_internal(retries)
+            return self.__execute_internal()
 
         finally:
             # best effort restore
@@ -137,20 +140,21 @@ class RXServiceAPI(object):
         
 
     # main resolve function
-    def __execute_internal (self, retries):
+    def __execute_internal (self):
 
-        # retry for 'retries'
+        # retry for 'retries' or until timeout
         index = 0
         while True:
             rc = self.execute_iteration()
             if rc is not None:
                 return rc
 
-            if index >= retries:
-                return self.on_timeout_err(retries)
+            if (self.retries is not None and index >= self.retries or
+                        self.timeout is not None and time.time() - self.init_ts >= self.timeout):
+                return self.on_timeout()
 
             index += 1
-            time.sleep(0.1)
+            time.sleep(self.retry_delay)
 
 
 

@@ -916,6 +916,11 @@ TrexStatelessPort::get_pci_info(std::string &pci_addr, int &numa_node) {
 }
 
 void
+TrexStatelessPort::get_hw_mac(std::string &hw_mac) {
+    utl_macaddr_to_str(m_api_info.hw_macaddr, hw_mac);
+}
+
+void
 TrexStatelessPort::add_stream(TrexStream *stream) {
 
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "add_stream");

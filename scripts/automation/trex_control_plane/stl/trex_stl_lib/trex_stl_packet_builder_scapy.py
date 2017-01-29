@@ -57,6 +57,40 @@ def mac_str_to_num (mac_buffer):
     return _buffer_to_num(mac_buffer)
 
 
+# RFC 3513
+def generate_ipv6(mac_str, prefix = 'fe80'):
+    mac_arr = mac_str.split(':')
+    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
+    mac_arr[0] = '%x' % (int(mac_arr[0], 16) ^ 2) # invert second bit
+    return '%s::%s%s:%sff:fe%s:%s%s' % tuple([prefix] + mac_arr[:3] + mac_arr[3:])
+
+# RFC 4291
+def generate_ipv6_solicited_node(mac_str):
+    mac_arr = mac_str.split(':')
+    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
+    return 'ff02::1:ff%s:%s%s' % tuple(mac_arr[3:])
+
+
+# return full ipv6 ff02::1 -> ff02:0:0:0:0:0:0:1
+def expand_ipv6(addr):
+    addr_arr = addr.split(':')
+    if addr.startswith(':'):
+        addr_arr[0] = '0'
+    if addr.endswith(':'):
+        addr_arr[-1] = '0'
+    for i, e in enumerate(addr_arr):
+        if not e:
+            return ':'.join(addr_arr[:i] + ['0'] * (9 - len(addr_arr)) + addr_arr[i + 1:])
+    return ':'.join(addr_arr)
+
+
+# return multicast mac based on ipv6 ff02::1 -> 33:33:00:00:00:01
+def multicast_mac_from_ipv6(addr):
+    addr = expand_ipv6(addr)
+    addr_arr = addr.split(':')
+    return '33:33:%02x:%02x:%02x:%02x' % (divmod(int(addr_arr[-2], 16), 256) + divmod(int(addr_arr[-1], 16), 256))
+
+
 def is_valid_ipv4_ret(ip_addr):
     """
     Return buffer in network order

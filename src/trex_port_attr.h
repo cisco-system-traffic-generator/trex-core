@@ -203,6 +203,7 @@ public:
     
 /*    GETTERS    */
     virtual bool get_promiscuous() = 0;
+    virtual bool get_multicast() = 0;
     virtual void get_hw_src_mac(struct ether_addr *mac_addr) = 0;
     virtual uint32_t get_link_speed() { return m_link.link_speed; } // L1 Mbps
     virtual bool is_link_duplex() { return (m_link.link_duplex ? true : false); }
@@ -223,6 +224,7 @@ public:
 
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
+    virtual int set_multicast(bool enabled) = 0;
     virtual int add_mac(char * mac) = 0;
     virtual int set_link_up(bool up) = 0;
     virtual int set_flow_ctrl(int mode) = 0;
@@ -323,6 +325,7 @@ public:
 
 /*    GETTERS    */
     virtual bool get_promiscuous();
+    virtual bool get_multicast();
     virtual void get_hw_src_mac(struct ether_addr *mac_addr);
     virtual int get_xstats_values(xstats_values_t &xstats_values);
     virtual int get_xstats_names(xstats_names_t &xstats_names);
@@ -332,6 +335,7 @@ public:
     
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled);
+    virtual int set_multicast(bool enabled);
     virtual int add_mac(char * mac);
     virtual int set_link_up(bool up);
     virtual int set_flow_ctrl(int mode);
@@ -377,6 +381,7 @@ public:
     void reset_xstats() {}
     void update_description() {}
     bool get_promiscuous() { return false; }
+    bool get_multicast() { return false; }
     void get_hw_src_mac(struct ether_addr *mac_addr) {}
     int get_xstats_values(xstats_values_t &xstats_values) { return -ENOTSUP; }
     int get_xstats_names(xstats_names_t &xstats_names) { return -ENOTSUP; }
@@ -384,6 +389,7 @@ public:
     void get_description(std::string &description) {}
     void get_supported_speeds(supp_speeds_t &supp_speeds) {}
     int set_promiscuous(bool enabled) { return -ENOTSUP; }
+    int set_multicast(bool enabled) { return -ENOTSUP; }
     int add_mac(char * mac) { return -ENOTSUP; }
     int set_link_up(bool up) { return -ENOTSUP; }
     int set_flow_ctrl(int mode) { return -ENOTSUP; }

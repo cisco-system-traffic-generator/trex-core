@@ -1874,6 +1874,15 @@ int DpdkTRexPortAttr::set_promiscuous(bool enable){
     return 0;
 }
 
+int DpdkTRexPortAttr::set_multicast(bool enable){
+    if (enable) {
+        rte_eth_allmulticast_enable(m_port_id);
+    }else{
+        rte_eth_allmulticast_disable(m_port_id);
+    }
+    return 0;
+}
+
 int DpdkTRexPortAttr::set_link_up(bool up){
     if (up) {
         return rte_eth_dev_set_link_up(m_port_id);
@@ -1886,6 +1895,17 @@ bool DpdkTRexPortAttr::get_promiscuous(){
     int ret=rte_eth_promiscuous_get(m_port_id);
     if (ret<0) {
         rte_exit(EXIT_FAILURE, "rte_eth_promiscuous_get: "
+                 "err=%d, port=%u\n",
+                 ret, m_port_id);
+
+    }
+    return ( ret?true:false);
+}
+
+bool DpdkTRexPortAttr::get_multicast(){
+    int ret=rte_eth_allmulticast_get(m_port_id);
+    if (ret<0) {
+        rte_exit(EXIT_FAILURE, "rte_eth_allmulticast_get: "
                  "err=%d, port=%u\n",
                  ret, m_port_id);
 

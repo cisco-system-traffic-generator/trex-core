@@ -8,8 +8,8 @@ from scapy.layers.l2 import Ether, ARP
 
 class RXServiceARP(RXServiceAPI):
     
-    def __init__ (self, port_id):
-        super(RXServiceARP, self).__init__(port_id, layer_mode = RXServiceAPI.LAYER_MODE_L3)
+    def __init__(self, port_id, *a, **k):
+        super(RXServiceARP, self).__init__(port_id, layer_mode = RXServiceAPI.LAYER_MODE_L3, *a, **k)
 
     def get_name (self):
         return "ARP"
@@ -49,8 +49,8 @@ class RXServiceARP(RXServiceAPI):
         return self.port.ok({'psrc' : arp.psrc, 'hwsrc': arp.hwsrc})
 
 
-    def on_timeout_err (self, retries):
-        return self.port.err('failed to receive ARP response ({0} retries)'.format(retries))
+    def on_timeout(self):
+        return self.port.err('failed to receive ARP response ({0} retries)'.format(self.retries))
 
 
 

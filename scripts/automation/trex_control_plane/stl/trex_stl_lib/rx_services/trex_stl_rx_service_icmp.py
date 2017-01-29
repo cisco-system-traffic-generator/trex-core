@@ -9,9 +9,9 @@ from scapy.layers.inet import IP, ICMP
 
 class RXServiceICMP(RXServiceAPI):
     
-    def __init__ (self, port, ping_ip, pkt_size):
+    def __init__ (self, port, ping_ip, pkt_size, *a, **k):
         
-        super(RXServiceICMP, self).__init__(port, layer_mode = RXServiceAPI.LAYER_MODE_L3)
+        super(RXServiceICMP, self).__init__(port, layer_mode = RXServiceAPI.LAYER_MODE_L3, *a, **k)
         self.ping_ip  = ping_ip
         self.pkt_size = pkt_size
 
@@ -78,6 +78,6 @@ class RXServiceICMP(RXServiceAPI):
 
 
     # return the str of a timeout err
-    def on_timeout_err (self, retries):
+    def on_timeout(self):
         return self.port.ok('Request timed out.')
 

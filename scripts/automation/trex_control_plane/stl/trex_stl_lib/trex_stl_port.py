@@ -7,6 +7,7 @@ from .trex_stl_types import *
 
 from .rx_services.trex_stl_rx_service_arp import RXServiceARP
 from .rx_services.trex_stl_rx_service_icmp import RXServiceICMP
+from .rx_services.trex_stl_rx_service_ipv6 import *
 
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
@@ -127,7 +128,7 @@ class Port(object):
 
 
     def err(self, msg):
-        return RC_ERR("port {0} : *** {1}".format(self.port_id, msg))
+        return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
 
     def ok(self, data = ""):
         return RC_OK(data)
@@ -662,7 +663,10 @@ class Port(object):
         
         if kwargs.get('promiscuous') is not None:
             json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
-        
+
+        if kwargs.get('multicast') is not None:
+            json_attr['multicast'] = {'enabled': kwargs.get('multicast')}
+
         if kwargs.get('link_status') is not None:
             json_attr['link_status'] = {'up': kwargs.get('link_status')}
         
@@ -812,6 +816,11 @@ class Port(object):
         else:
             info['prom'] = "N/A"
 
+        if 'multicast' in attr:
+            info['mult'] = "on" if attr['multicast']['enabled'] else "off"
+        else:
+            info['mult'] = "N/A"
+
         if 'description' not in info:
             info['description'] = "N/A"
 
@@ -909,10 +918,10 @@ class Port(object):
             
     
     @writeable
-    def arp_resolve (self, retries):
+    def arp_resolve(self, retries):
         
         # execute the ARP service
-        rc = RXServiceARP(self).execute(retries)
+        rc = RXServiceARP(self, retries = retries).execute()
         if not rc:
             return rc
             
@@ -934,8 +943,18 @@ class Port(object):
         
 
     @writeable
-    def ping (self, ping_ipv4, pkt_size):
-        return RXServiceICMP(self, ping_ipv4, pkt_size).execute()
+    def scan6(self, timeout = None, dst_ip = 'ff02::1'):
+        if timeout is None:
+            timeout = 5
+        return RXServiceIPv6Scan(self, timeout = timeout, dst_ip = dst_ip).execute()
+
+
+    @writeable
+    def ping(self, ping_ip, pkt_size, dst_mac = None):
+        if '.' in ping_ip:
+            return RXServiceICMP(self, ping_ip, pkt_size).execute()
+        else:
+            return RXServiceICMPv6(self, pkt_size, dst_mac, dst_ip = ping_ip).execute()
 
         
     ################# stats handler ######################
@@ -962,6 +981,7 @@ class Port(object):
                 "port status": info['status'],
                 "link status": info['link'],
                 "promiscuous" : info['prom'],
+                "multicast" : info['mult'],
                 "flow ctrl" : info['fc'],
 
                 "layer mode": format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta'),

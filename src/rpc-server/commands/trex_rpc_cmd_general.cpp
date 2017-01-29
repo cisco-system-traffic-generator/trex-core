@@ -296,12 +296,14 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         string driver;
         string pci_addr;
         string description;
+        string hw_mac;
         supp_speeds_t supp_speeds;
         int numa;
 
         TrexStatelessPort *port = main->get_port_by_id(i);
 
         port->get_properties(driver);
+        port->get_hw_mac(hw_mac);
 
         port->get_pci_info(pci_addr, numa);
         main->get_platform_api()->getPortAttrObj(i)->get_description(description);
@@ -314,6 +316,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
         section["ports"][i]["pci_addr"]     = pci_addr;
         section["ports"][i]["numa"]         = numa;
+        section["ports"][i]["hw_mac"]       = hw_mac;
 
         uint16_t caps = port->get_rx_caps();
         section["ports"][i]["rx"]["caps"]      = Json::arrayValue;
@@ -366,6 +369,11 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
         if (name == "promiscuous") {
             bool enabled = parse_bool(attr[name], "enabled", result);
             ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_promiscuous(enabled);
+        }
+
+        else if (name == "multicast") {
+            bool enabled = parse_bool(attr[name], "enabled", result);
+            ret = get_stateless_obj()->get_platform_api()->getPortAttrObj(port_id)->set_multicast(enabled);
         }
 
         else if (name == "link_status") {
