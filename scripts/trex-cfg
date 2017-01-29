@@ -47,13 +47,7 @@ if ! lsmod | grep -q igb_uio  ;  then
         exit 1
     fi
     km=ko/$SYS/igb_uio.ko
-    if [ -e $km ] ; then 
-        insmod $km
-        if [ $? -ne 0 ]; then
-            echo "Failed inserting igb_uio module"
-            exit 1
-        fi
-    else
+    if [ ! -e $km ]; then
         echo "ERROR: We don't have precompiled igb_uio.ko module for your kernel version"
         echo Will try compiling automatically.
         {
@@ -72,6 +66,13 @@ if ! lsmod | grep -q igb_uio  ;  then
             exit 1
         }
         echo Success.
+    fi
+    if [ -e $km ]; then
+        insmod $km
+        if [ $? -ne 0 ]; then
+            echo "Failed inserting igb_uio module"
+            exit 1
+        fi
     fi
 fi
 
