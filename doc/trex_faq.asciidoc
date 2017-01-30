@@ -195,6 +195,38 @@ We are planning to add MACs to `./dpdk_setup_ports.py -s`
 ==== TRex traffic does not show up on Wireshark, so I can not capture the traffic from the TRex port
 TRex uses DPDK which takes ownership of the ports, so using Wireshark is not possible. You can use switch with port mirroring to capture the traffic.
 
+==== Running first time, igb_uio.ko problems
+
+Q::
+Command: +
+sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10 -1 1000 +
+ +
+Output: +
+Loading kernel drivers for the first time +
+ERROR: We don't have precompiled igb_uio.ko module for your kernel version +
+Will try compiling automatically. +
+Automatic compilation failed. +
+You can try compiling yourself, using the following commands: +
+$cd ko/src +
+$make +
+$make install +
+$cd - +
+Then try to run TRex again
+
+A::
+Usually we have pre-compiled igb_uio.ko for common Kernels of supported OS. +
+If you have different Kernel (due to update of packages or slightly different OS version), you will need to compile that module. +
+Simply follow the instructions printed above. +
+Note: you might need additional Linux packages for that:
+* Fedora/CentOS:
+** sudo yum install kernel-devel-\`uname -r`
+** sudo yum group install "Development tools"
+* Ubuntu:
+** sudo apt install linux-headers-\`uname -r`
+** sudo apt install build-essential
+
+
+
 ===  Stateful 
 
 ==== How do I start using the stateful mode?
