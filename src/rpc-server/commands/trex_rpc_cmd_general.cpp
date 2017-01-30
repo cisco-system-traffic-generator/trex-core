@@ -682,10 +682,6 @@ TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if (!port->is_service_mode_on()) {
-        generate_execute_err(result, "rx_feature - available only under service mode");
-    }
-    
     /* decide which feature is being set */
     const std::string type = parse_choice(params, "type", {"queue", "server"}, result);
 
@@ -707,6 +703,10 @@ TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexStatelessPor
     bool enabled = parse_bool(msg, "enabled", result);
 
     if (enabled) {
+        
+        if (!port->is_service_mode_on()) {
+            generate_execute_err(result, "setting RX queue is only available under service mode");
+        }
 
         uint64_t size = parse_uint32(msg, "size", result);
 
@@ -745,7 +745,7 @@ TrexRpcCmdGetRxQueuePkts::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     if (!port->is_service_mode_on()) {
-        generate_execute_err(result, "get_rx_queue_pkts - available only under service mode");
+        generate_execute_err(result, "fetching RX queue packets is only available under service mode");
     }
 
     
