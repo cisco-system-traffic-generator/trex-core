@@ -1,0 +1,19 @@
+#-------------------------------------------
+# Various global parameters of regression
+#-------------------------------------------
+
+
+########## Reporting results #########
+
+elk:
+    server: sceasr-b20
+    port: 9200
+
+google:
+    id: UA-75220362-3
+    queue_size: 100
+    timeout: 5
+    blocking: 0
+
+
+

@@ -399,16 +399,19 @@ class CTRexTestConfiguringPlugin(Plugin):
             if not CTRexScenario.trex.check_master_connectivity():
                 fatal('Could not connect to master daemon')
         if options.ga and CTRexScenario.setup_name:
-            CTRexScenario.GAManager  = GAmanager_Regression(GoogleID         = 'UA-75220362-3',
-                                                            AnalyticsUserID  = CTRexScenario.setup_name,
-                                                            QueueSize        = 100,
-                                                            Timeout          = 3,  # seconds
-                                                            UserPermission   = 1,
-                                                            BlockingMode     = 0,
-                                                            appName          = 'TRex',
-                                                            appVer           = CTRexScenario.trex_version)
+            CTRexScenario.GAManager  = GAmanager_Regression(
+                    GoogleID         = CTRexScenario.global_cfg['google']['id'],
+                    AnalyticsUserID  = CTRexScenario.setup_name,
+                    QueueSize        = CTRexScenario.global_cfg['google']['queue_size'],
+                    Timeout          = CTRexScenario.global_cfg['google']['timeout'],  # seconds
+                    UserPermission   = 1,
+                    BlockingMode     = CTRexScenario.global_cfg['google']['blocking'],
+                    appName          = 'TRex',
+                    appVer           = CTRexScenario.trex_version)
 
-            CTRexScenario.elk = trex_elk.TRexEs('sceasr-b20',9200);
+            CTRexScenario.elk = trex_elk.TRexEs(
+                    CTRexScenario.global_cfg['elk']['server'],
+                    CTRexScenario.global_cfg['elk']['port']);
             self.set_cont_elk_info ()
 
     def set_cont_elk_info (self):
