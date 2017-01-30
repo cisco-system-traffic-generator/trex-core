@@ -3080,10 +3080,13 @@ class STLClient(object):
                 if not rc:
                     self.logger.log(format_text(rc, 'bold'))
                 elif rc.data():
+                    max_ip_len = 0
+                    for resp in rc.data():
+                        max_ip_len = max(max_ip_len, len(resp['ipv6']))
                     scan_table = TRexTextTable()
                     scan_table.set_cols_align(['c', 'c', 'l'])
                     scan_table.header(['Device', 'MAC', 'IPv6 address'])
-                    scan_table.set_cols_width([9, 19, 42])
+                    scan_table.set_cols_width([9, 19, max_ip_len + 2])
 
                     resp = 'Port %s - IPv6 search result:' % port
                     self.logger.log(format_text(resp, 'bold'))
@@ -4001,6 +4004,8 @@ class STLClient(object):
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
         if not opts:
             return opts
+        print(opts)
+        print(parsing_opts.ON_OFF_DICT)
 
         opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
         opts.mult            = parsing_opts.ON_OFF_DICT.get(opts.mult)
