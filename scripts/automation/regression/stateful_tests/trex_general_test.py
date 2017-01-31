@@ -75,6 +75,28 @@ class CTRexGeneral_Test(unittest.TestCase):
         if not CTRexScenario.is_init:
             if self.trex and not self.no_daemon: # stateful
                 CTRexScenario.trex_version = self.trex.get_trex_version()
+            #update elk const object 
+            if self.elk:
+                timediff  = timedelta(hours=2) # workaround to get IL timezone
+                date_str  = CTRexScenario.trex_version['Date'].strip()
+                timestamp = datetime.strptime(date_str, '%b %d %Y , %H:%M:%S') - timediff
+
+                img               = CTRexScenario.elk_info['info']['image']
+                img['sha']        = CTRexScenario.trex_version['Git SHA']
+                img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                img['version']    = CTRexScenario.trex_version['Version']
+
+                setup = CTRexScenario.elk_info['info']['setup']
+                if self.is_loopback :
+                    setup['dut'] = 'loopback' 
+                else:
+                    setup['dut'] = 'router' 
+
+                if self.is_VM:
+                    setup['baremetal'] = False
+                    setup['hypervisor'] = 'ESXi'       #TBD
+                else:
+                    setup['baremetal'] = True
             if not self.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
@@ -107,30 +129,6 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             if self.modes:
                 print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
-
-            #update elk const object 
-            if self.elk:
-                timediff  = timedelta(hours=2) # workaround to get IL timezone
-                date_str  = CTRexScenario.trex_version['Date'].strip()
-                timestamp = datetime.strptime(date_str, '%b %d %Y , %H:%M:%S') - timediff
-
-                img               = CTRexScenario.elk_info['info']['image']
-                img['sha']        = CTRexScenario.trex_version['Git SHA']
-                img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                img['version']    = CTRexScenario.trex_version['Version']
-
-                setup = CTRexScenario.elk_info['info']['setup']
-                if self.is_loopback :
-                    setup['dut'] = 'loopback' 
-                else:
-                    setup['dut'] = 'router' 
-
-                if self.is_VM:
-                    setup['baremetal'] = False
-                    setup['hypervisor'] = 'ESXi'       #TBD
-                else:
-                    setup['baremetal'] = True
-
 
             CTRexScenario.is_init = True
             print(termstyle.green("Done instantiating TRex scenario!\n"))
