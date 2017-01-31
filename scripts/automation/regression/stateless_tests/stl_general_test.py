@@ -115,3 +115,13 @@ class STLBasic_Test(CStlGeneral_Test):
             self.fail(CTRexScenario.stl_init_error)
             return
         print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
+
+        #update elk const object 
+        if self.elk:
+            stl_info = self.stl_trex.get_server_system_info()
+            setup = CTRexScenario.elk_info['info']['setup']
+            setup['drv-name']  = stl_info['ports'][0]['driver']
+            setup['nic-ports'] = stl_info['port_count']
+            setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
+
+

@@ -426,22 +426,22 @@ class CTRexTestConfiguringPlugin(Plugin):
         img['version'] = "v2.14"           #TBD need to fix  
         img['formal'] = False
 
-        setup={}
+        setup = {}
 
-        setup['distro']='None'            #TBD 'Ubunto14.03'
-        setup['kernel']='None'           #TBD '2.6.12'
-        setup['baremetal']=True          #TBD
-        setup['hypervisor']='None'       #TBD
-        setup['name']=CTRexScenario.setup_name
+        setup['distro'] = 'None'            #TBD 'Ubunto14.03'
+        setup['kernel'] = 'None'           #TBD '2.6.12'
+        setup['baremetal'] = True          #TBD
+        setup['hypervisor'] = 'None'       #TBD
+        setup['name'] = CTRexScenario.setup_name
 
-        setup['cpu-sockets']=0           #TBD  2
-        setup['cores']=0                 #TBD 16
-        setup['cpu-speed']=-1            #TBD 3.5
+        setup['cpu-sockets'] = 0           #TBD  2
+        setup['cores'] = 0                 #TBD 16
+        setup['cpu-speed'] = -1            #TBD 3.5
 
-        setup['dut'] ='None'             #TBD 'loopback'
-        setup['drv-name']='None'         #TBD 'mlx5'
-        setup['nic-ports']=0             #TBD 2
-        setup['total-nic-ports']=0       #TBD 2
+        setup['dut'] = 'None'             #TBD 'loopback'
+        setup['drv-name'] = 'None'         #TBD 'mlx5'
+        setup['nic-ports'] = 0             #TBD 2
+        setup['total-nic-ports'] = 0       #TBD 2
         setup['nic-speed'] = "None"      #"40GbE" TBD
 
 
@@ -451,9 +451,9 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         elk_info['info'] =info;
 
-        elk_info['timestamp']=timestamp.strftime("%Y-%m-%d %H:%M:%S")  # need to update it
-        elk_info['build_id']=os.environ.get('BUILD_ID')
-        elk_info['scenario']=os.environ.get('SCENARIO')
+        elk_info['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")  # need to update it
+        elk_info['build_id'] = os.environ.get('BUILD_ID')
+        elk_info['scenario'] = os.environ.get('SCENARIO')
 
         CTRexScenario.elk_info = elk_info
 
@@ -608,6 +608,13 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins)
+        if len(CTRexScenario.test_types['stateless_tests']):
+            additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
+            if not test_client_package:
+                additional_args.extend(['-a', '!client_package'])
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if len(CTRexScenario.test_types['stateful_tests']):
             additional_args = ['--stf']
             if '--warmup' in sys.argv:
@@ -617,13 +624,6 @@ if __name__ == "__main__":
                 additional_args.extend(['-a', '!client_package'])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
-            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
-        if len(CTRexScenario.test_types['stateless_tests']):
-            additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
-            if not test_client_package:
-                additional_args.extend(['-a', '!client_package'])
-            if xml_arg:
-                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
     #except Exception as e:
     #    result = False
