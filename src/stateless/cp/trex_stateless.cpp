@@ -18,12 +18,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <trex_stateless.h>
-#include <trex_stateless_port.h>
 
-#include <sched.h>
 #include <iostream>
 #include <unistd.h>
+
+#include "trex_stateless.h"
+#include "trex_stateless_port.h"
+#include "trex_stateless_messaging.h"
 
 using namespace std;
 
@@ -141,53 +142,10 @@ TrexStateless::get_dp_core_count() {
 }
 
 void
-TrexStateless::encode_stats(Json::Value &global) {
+TrexStateless::send_msg_to_rx(TrexStatelessCpToRxMsgBase *msg) const {
 
-    TrexPlatformGlobalStats stats;
-    m_platform_api->get_global_stats(stats);
-
-    global["cpu_util"] = stats.m_stats.m_cpu_util;
-    global["rx_cpu_util"] = stats.m_stats.m_rx_cpu_util;
-
-    global["tx_bps"]   = stats.m_stats.m_tx_bps;
-    global["rx_bps"]   = stats.m_stats.m_rx_bps;
-
-    global["tx_pps"]   = stats.m_stats.m_tx_pps;
-    global["rx_pps"]   = stats.m_stats.m_rx_pps;
-
-    global["total_tx_pkts"] = Json::Value::UInt64(stats.m_stats.m_total_tx_pkts);
-    global["total_rx_pkts"] = Json::Value::UInt64(stats.m_stats.m_total_rx_pkts);
-
-    global["total_tx_bytes"] = Json::Value::UInt64(stats.m_stats.m_total_tx_bytes);
-    global["total_rx_bytes"] = Json::Value::UInt64(stats.m_stats.m_total_rx_bytes);
-
-    global["tx_rx_errors"]    = Json::Value::UInt64(stats.m_stats.m_tx_rx_errors);
-
-    for (uint8_t i = 0; i < m_port_count; i++) {
-        std::stringstream ss;
-
-        ss << "port " << i;
-        Json::Value &port_section = global[ss.str()];
-
-        m_ports[i]->encode_stats(port_section);
-    }
+    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->Enqueue((CGenNode *)msg);
 }
 
-/**
- * generate a snapshot for publish (async publish)
- * 
- */
-void
-TrexStateless::generate_publish_snapshot(std::string &snapshot) {
-    Json::FastWriter writer;
-    Json::Value root;
-
-    root["name"] = "trex-stateless-info";
-    root["type"] = 0;
-
-    /* stateless specific info goes here */
-    root["data"] = Json::nullValue;
-
-    snapshot = writer.write(root);
-}
 

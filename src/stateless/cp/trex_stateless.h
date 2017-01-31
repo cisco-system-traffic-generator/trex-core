@@ -132,32 +132,14 @@ public:
 
 
     /**
+     * send a message to the RX core
+     */
+    void send_msg_to_rx(TrexStatelessCpToRxMsgBase *msg) const;
+    
+    /**
      * shutdown the server
      */
     void shutdown();
-
-    /**
-     * fetch xstats names (keys of dict)
-     * 
-     */
-    void encode_xstats_names(Json::Value &global);
-
-    /**
-     * fetch xstats values
-     * 
-     */
-    void encode_xstats_values(Json::Value &global);
-
-    /**
-     * fetch all the stats
-     * 
-     */
-    void               encode_stats(Json::Value &global);
-
-    /**
-     * generate a snapshot for publish
-     */
-    void generate_publish_snapshot(std::string &snapshot);
 
     const TrexPlatformApi * get_platform_api() {
         return (m_platform_api);

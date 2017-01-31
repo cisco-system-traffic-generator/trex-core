@@ -134,10 +134,10 @@ def underline(text):
 # apply attribute on each non-empty line
 def text_attribute(text, attribute):
     return '\n'.join(['{start}{txt}{end}'.format(
-            start = TEXT_CODES[attribute]['start'],
-            txt = line,
-            end = TEXT_CODES[attribute]['end'])
-                    if line else '' for line in ('%s' % text).split('\n')])
+        start = TEXT_CODES[attribute]['start'],
+        txt = line,
+        end = TEXT_CODES[attribute]['end'])
+                      if line else '' for line in ('%s' % text).split('\n')])
 
 
 FUNC_DICT = {'blue': blue,

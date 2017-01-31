@@ -28,12 +28,13 @@ limitations under the License.
 #include "trex_stateless_rx_defs.h"
 #include "os_time.h"
 #include "utl_ip.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
-class RXPacketBuffer;
+class TrexPktBuffer;
 
 /**
  * Generic message reply object
@@ -484,39 +485,88 @@ class TrexStatelessRxQuit : public TrexStatelessCpToRxMsgBase {
 };
 
 
-
-class TrexStatelessRxStartCapture : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxCapture : public TrexStatelessCpToRxMsgBase {
 public:
-    TrexStatelessRxStartCapture(uint8_t port_id,
-                                const std::string &pcap_filename,
+    virtual bool handle (CRxCoreStateless *rx_core) = 0;
+};
+
+class TrexStatelessRxCaptureStart : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureStart(const CaptureFilter& filter,
                                 uint64_t limit,
-                                MsgReply<bool> &reply) : m_reply(reply) {
+                                TrexPktBuffer::mode_e mode,
+                                MsgReply<TrexCaptureRCStart> &reply) : m_reply(reply) {
         
-        m_port_id          = port_id;
-        m_limit            = limit;
-        m_pcap_filename    = pcap_filename;
+        m_limit  = limit;
+        m_filter = filter;
+        m_mode   = mode;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t            m_port_id;
-    std::string        m_pcap_filename;
-    uint64_t           m_limit;
-    MsgReply<bool>    &m_reply;
+    uint8_t                          m_port_id;
+    uint64_t                         m_limit;
+    CaptureFilter                    m_filter;
+    TrexPktBuffer::mode_e            m_mode;
+    MsgReply<TrexCaptureRCStart>    &m_reply;
 };
 
 
-class TrexStatelessRxStopCapture : public TrexStatelessCpToRxMsgBase {
+class TrexStatelessRxCaptureStop : public TrexStatelessRxCapture {
 public:
-    TrexStatelessRxStopCapture(uint8_t port_id) {
-        m_port_id = port_id;
+    TrexStatelessRxCaptureStop(capture_id_t capture_id, MsgReply<TrexCaptureRCStop> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
     }
 
     virtual bool handle(CRxCoreStateless *rx_core);
 
 private:
-    uint8_t m_port_id;
+    capture_id_t                   m_capture_id;
+    MsgReply<TrexCaptureRCStop>   &m_reply;
+};
+
+
+class TrexStatelessRxCaptureFetch : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureFetch(capture_id_t capture_id, uint32_t pkt_limit, MsgReply<TrexCaptureRCFetch> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
+        m_pkt_limit  = pkt_limit;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    capture_id_t                   m_capture_id;
+    uint32_t                       m_pkt_limit;
+    MsgReply<TrexCaptureRCFetch>  &m_reply;
+};
+
+
+class TrexStatelessRxCaptureStatus : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureStatus(MsgReply<TrexCaptureRCStatus> &reply) : m_reply(reply) {
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    MsgReply<TrexCaptureRCStatus>   &m_reply;
+};
+
+
+
+class TrexStatelessRxCaptureRemove : public TrexStatelessRxCapture {
+public:
+    TrexStatelessRxCaptureRemove(capture_id_t capture_id, MsgReply<TrexCaptureRCRemove> &reply) : m_reply(reply) {
+        m_capture_id = capture_id;
+    }
+
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    capture_id_t                   m_capture_id;
+    MsgReply<TrexCaptureRCRemove> &m_reply;
 };
 
 
@@ -556,7 +606,7 @@ private:
 class TrexStatelessRxQueueGetPkts : public TrexStatelessCpToRxMsgBase {
 public:
 
-    TrexStatelessRxQueueGetPkts(uint8_t port_id, MsgReply<const RXPacketBuffer *> &reply) : m_reply(reply) {
+    TrexStatelessRxQueueGetPkts(uint8_t port_id, MsgReply<const TrexPktBuffer *> &reply) : m_reply(reply) {
         m_port_id = port_id;
     }
 
@@ -568,7 +618,7 @@ public:
 
 private:
     uint8_t                              m_port_id;
-    MsgReply<const RXPacketBuffer *>    &m_reply;
+    MsgReply<const TrexPktBuffer *>     &m_reply;
     
 };
 
@@ -628,6 +678,44 @@ public:
 private:
     uint8_t                  m_port_id;
     MsgReply<Json::Value>   &m_reply;
+};
+
+
+class TrexStatelessRxQuery : public TrexStatelessCpToRxMsgBase {
+public:
+
+    /**
+     * query type to request
+     */
+    enum query_type_e {
+        SERVICE_MODE_ON,
+        SERVICE_MODE_OFF,
+    };
+    
+    /**
+     * RC types for queries
+     */
+    enum query_rc_e {
+        RC_OK,
+        RC_FAIL_RX_QUEUE_ACTIVE,
+        RC_FAIL_CAPTURE_ACTIVE,
+    };
+    
+    TrexStatelessRxQuery(uint8_t port_id, query_type_e query_type, MsgReply<query_rc_e> &reply) : m_reply(reply) {
+        m_port_id    = port_id;
+        m_query_type = query_type;
+    }
+     
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+    
+private:
+    uint8_t                m_port_id;
+    query_type_e           m_query_type;
+    MsgReply<query_rc_e>  &m_reply;
 };
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */

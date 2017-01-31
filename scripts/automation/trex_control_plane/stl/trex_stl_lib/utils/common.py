@@ -71,6 +71,11 @@ def list_difference (l1, l2):
 def is_sub_list (l1, l2):
     return set(l1) <= set(l2)
 
+# splits a timestamp in seconds to sec/usec
+def sec_split_usec (ts):
+    return int(ts), int( (ts - int(ts)) * 1e6 )
+    
+    
 # a simple passive timer
 class PassiveTimer(object):
 
@@ -107,4 +112,18 @@ def list_remove_dup (l):
             
     return tmp
             
-        
+def bitfield_to_list (bf):
+    rc = []
+    bitpos = 0
+
+    while bf > 0:
+        if bf & 0x1:
+            rc.append(bitpos)
+        bitpos += 1
+        bf = bf >> 1
+
+    return rc
+
+def bitfield_to_str (bf):
+    lst = bitfield_to_list(bf)
+    return "-" if not lst else ', '.join([str(x) for x in lst])

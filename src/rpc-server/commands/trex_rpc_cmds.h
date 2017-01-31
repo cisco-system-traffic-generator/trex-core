@@ -94,8 +94,6 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsValues, "get_port_xstats_values", 1, 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetPortXStatsNames,  "get_port_xstats_names",  1, false, APIClass::API_CLASS_TYPE_CORE);
 
 TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetPortAttr, "set_port_attr", 2, true,  APIClass::API_CLASS_TYPE_CORE,
-                             
-    int parse_rx_filter_mode(const Json::Value &msg, uint8_t port_id, Json::Value &result);
 );
 
 
@@ -150,16 +148,26 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdPushRemote, "push_remote", 6, true, APIClass::API_
 
 TREX_RPC_CMD_DEFINE(TrexRpcCmdShutdown, "shutdown", 2, false, APIClass::API_CLASS_TYPE_CORE);
 
-TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetRxFeature, "set_rx_feature", 3, false, APIClass::API_CLASS_TYPE_CORE,
-    void parse_capture_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetRxFeature, "set_rx_feature", 3, true, APIClass::API_CLASS_TYPE_CORE,
     void parse_queue_msg(const Json::Value &msg,  TrexStatelessPort *port, Json::Value &result);
     void parse_server_msg(const Json::Value &msg, TrexStatelessPort *port, Json::Value &result);
 
 );
 
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL2, "set_l2", 2, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL3, "set_l3", 3, false, APIClass::API_CLASS_TYPE_CORE);
-TREX_RPC_CMD_DEFINE(TrexRpcCmdGetRxQueuePkts, "get_rx_queue_pkts", 2, false, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL2, "set_l2", 2, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetL3, "set_l3", 3, true, APIClass::API_CLASS_TYPE_CORE);
+TREX_RPC_CMD_DEFINE(TrexRpcCmdGetRxQueuePkts, "get_rx_queue_pkts", 1, true, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE(TrexRpcCmdSetServiceMode, "service", 2, true, APIClass::API_CLASS_TYPE_CORE);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdCapture,  "capture", 1, false, APIClass::API_CLASS_TYPE_CORE, 
+    void parse_cmd_start(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_stop(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_status(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_fetch(const Json::Value &msg, Json::Value &result);
+    void parse_cmd_remove(const Json::Value &params, Json::Value &result);
+);
+
 
 #endif /* __TREX_RPC_CMD_H__ */
 

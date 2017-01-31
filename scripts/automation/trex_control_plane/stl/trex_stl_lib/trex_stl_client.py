@@ -17,6 +17,7 @@ from .utils.text_opts import *
 from functools import wraps
 from texttable import ansi_len
 
+
 from collections import namedtuple
 from yaml import YAMLError
 import time
@@ -600,12 +601,10 @@ class STLClient(object):
                                                                  self.util_stats,
                                                                  self.xstats,
                                                                  self.async_client.monitor)
-
-
-
-
+        
     ############# private functions - used by the class itself ###########
 
+    
     # some preprocessing for port argument
     def __ports (self, port_id_list):
 
@@ -832,27 +831,6 @@ class STLClient(object):
         return rc
 
 
-    def __set_rx_sniffer (self, port_id_list, base_filename, limit):
-        port_id_list = self.__ports(port_id_list)
-        rc = RC()
-
-        for port_id in port_id_list:
-            head, tail = os.path.splitext(base_filename)
-            filename = "{0}-{1}{2}".format(head, port_id, tail)
-            rc.add(self.ports[port_id].set_rx_sniffer(filename, limit))
-
-        return rc
-
-
-    def __remove_rx_sniffer (self, port_id_list):
-        port_id_list = self.__ports(port_id_list)
-        rc = RC()
-
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].remove_rx_sniffer())
-
-        return rc
-
     def __set_rx_queue (self, port_id_list, size):
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -1071,7 +1049,7 @@ class STLClient(object):
 
     ############ functions used by other classes but not users ##############
 
-    def _validate_port_list (self, port_id_list):
+    def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
         if isinstance(port_id_list, int):
             port_id_list = [port_id_list]
@@ -1080,7 +1058,7 @@ class STLClient(object):
         if not isinstance(port_id_list, list):
             raise STLTypeError('port_id_list', type(port_id_list), list)
 
-        if not port_id_list:
+        if not port_id_list and not allow_empty:
             raise STLError('No ports provided')
 
         valid_ports = self.get_all_ports()
@@ -2084,9 +2062,9 @@ class STLClient(object):
                 self.set_port_attr(ports,
                                    promiscuous = False,
                                    link_up = True if restart else None)
-                self.set_service_mode(ports, False)
-                self.remove_rx_sniffer(ports)
                 self.remove_rx_queue(ports)
+                self.set_service_mode(ports, False)
+                
                 
         except STLError as e:
             self.logger.post_cmd(False)
@@ -2996,7 +2974,7 @@ class STLClient(object):
             Resolves ports (ARP resolution)
 
             :parameters:
-                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                ports          - which ports to resolve
                 retries        - how many times to retry on each port (intervals of 100 milliseconds)
                 verbose        - log for each request the response
             :raises:
@@ -3025,57 +3003,195 @@ class STLClient(object):
             
         
     @__api_check(True)
-    def set_rx_sniffer (self, ports = None, base_filename = 'rx.pcap', limit = 1000):
+    def start_capture (self, tx_ports, rx_ports, limit = 1000, mode = 'fixed'):
         """
-            Sets a RX sniffer for port(s) written to a PCAP file
+            Starts a low rate packet capturing on the server
 
             :parameters:
-                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
-                base_filename  - filename will be appended with '-<port_number>', e.g. rx.pcap --> rx-0.pcap, rx-1.pcap etc.
-                limit          - limit how many packets will be written
+                tx_ports: list
+                    on which ports to capture TX
+                    
+                rx_ports: list
+                    on which ports to capture RX
+                    
+                limit: int
+                    limit how many packets will be written memory requierment is O(9K * limit)
+                    
+                mode: str
+                    'fixed'  - when full, newer packets will be dropped
+                    'cyclic' - when full, older packets will be dropped
+                                  
+            :returns:
+                returns a dictionary:
+                {'id: <new_id>, 'ts': <starting timestamp>}
+                
+                where 'id' is the new capture ID for future commands
+                and 'ts' is that server monotonic timestamp when
+                the capture was created
+                
             :raises:
                 + :exe:'STLError'
 
         """
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
-
+        # TODO: remove this when TX is implemented
+        if tx_ports:
+            raise STLError('TX port capturing is not yet implemented')
+            
         # check arguments
-        validate_type('base_filename', base_filename, basestring)
+        tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
+        rx_ports = self._validate_port_list(rx_ports, allow_empty = True)
+        merge_ports = set(tx_ports + rx_ports)
+        
+        # make sure at least one port to capture
+        if not merge_ports:
+            raise STLError("start_capture - must get at least one port to capture")
+            
         validate_type('limit', limit, (int))
         if limit <= 0:
             raise STLError("'limit' must be a positive value")
 
-        self.logger.pre_cmd("Setting RX sniffers on port(s) {0}:".format(ports))
-        rc = self.__set_rx_sniffer(ports, base_filename, limit)
+        if mode not in ('fixed', 'cyclic'):
+            raise STLError("'mode' must be either 'fixed' or 'cyclic'")
+        
+        # verify service mode
+        non_service_ports =  list_difference(merge_ports, self.get_service_enabled_ports())
+        if non_service_ports:
+            raise STLError("Port(s) {0} are not under service mode. packet capturing requires all ports to be in service mode".format(non_service_ports))
+        
+            
+        # actual job
+        self.logger.pre_cmd("Starting packet capturing up to {0} packets".format(limit))
+        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'mode': mode, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
-
 
         if not rc:
             raise STLError(rc)
 
+        return {'id': rc.data()['capture_id'], 'ts': rc.data()['start_ts']}
 
 
+        
     @__api_check(True)
-    def remove_rx_sniffer (self, ports = None):
+    def stop_capture (self, capture_id, output_filename = None):
         """
-            Removes RX sniffer from port(s)
+            Stops an active capture and optionally save it to a PCAP file
+
+            :parameters:
+                capture_id: int
+                    an active capture ID to stop
+                    
+                output_filename: str
+                    output filename to save capture
+                    if 'None', all captured packets will be discarded
 
             :raises:
                 + :exe:'STLError'
 
         """
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
+        
+        # stopping a capture requires:
+        # 1. stopping
+        # 2. fetching
+        # 3. saving to file
+        
+        # stop
+        
+        self.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'stop', 'capture_id': capture_id})
+        self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
+        
+        # pkt count
+        pkt_count = rc.data()['pkt_count']
+        
+        # fetch packets    
+        if output_filename:
+            self.__fetch_capture_packets(capture_id, output_filename, pkt_count)
+        
+        # remove
+        self.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
+        self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
+        
 
-        self.logger.pre_cmd("Removing RX sniffers on port(s) {0}:".format(ports))
-        rc = self.__remove_rx_sniffer(ports)
+            
+    # fetch packets from the server and save them to a file
+    def __fetch_capture_packets (self, capture_id, output_filename, pkt_count):
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
+
+        # create a PCAP file
+        writer = RawPcapWriter(output_filename, linktype = 1)
+        writer._write_header(None)
+
+        pending = pkt_count
+        rc = RC_OK()
+        
+        # fetch with iteratios - each iteration up to 50 packets
+        while pending > 0:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            if not rc:
+                self.logger.post_cmd(rc)
+                raise STLError(rc)
+
+            # make sure we are getting some progress
+            assert(rc.data()['pending'] < pending)
+            
+            pkts      = rc.data()['pkts']
+            pending   = rc.data()['pending']
+            start_ts  = rc.data()['start_ts']
+            
+            # write packets
+            for pkt in pkts:
+                # split the server timestamp relative to the capture start time
+                ts_sec, ts_usec = sec_split_usec(pkt['ts'] - start_ts)
+                
+                pkt_bin = base64.b64decode(pkt['binary'])
+                writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
+
+
+
+
         self.logger.post_cmd(rc)
 
+            
+            
+    @__api_check(True)
+    def get_capture_status (self):
+        """
+            returns a list of all active captures
+            each element in the list is an object containing
+            info about the capture
+
+        """
+        rc = self._transmit("capture", params = {'command': 'status'})
         if not rc:
             raise STLError(rc)
 
-    
+        return rc.data()
+
+        
+    @__api_check(True)
+    def remove_all_captures (self):
+        """
+            Removes any existing captures
+        """
+        captures = self.get_capture_status()
+        
+        self.logger.pre_cmd("Removing all packet captures from server")
+        
+        for c in captures:
+            # remove
+            rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': c['id']})
+            if not rc:
+                raise STLError(rc)
+
+        self.logger.post_cmd(RC_OK())
+                
+
+        
     @__api_check(True)
     def set_rx_queue (self, ports = None, size = 1000):
         """
@@ -3184,7 +3300,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("\nAction has failed with the following error:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("\nAction has failed with the following error:\n\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
@@ -3195,6 +3311,7 @@ class STLClient(object):
             return rc
 
         return wrap
+
 
     @__console
     def ping_line (self, line):
@@ -3789,29 +3906,9 @@ class STLClient(object):
                                opts.link,
                                opts.led,
                                opts.flow_ctrl)
+                         
+               
              
-             
-
-             
-    @__console
-    def set_rx_sniffer_line (self, line):
-        '''Sets a port sniffer on RX channel in form of a PCAP file'''
-
-        parser = parsing_opts.gen_parser(self,
-                                         "set_rx_sniffer",
-                                         self.set_rx_sniffer_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.OUTPUT_FILENAME,
-                                         parsing_opts.LIMIT)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if not opts:
-            return opts
-
-        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
-
-        return RC_OK()
-        
 
     @__console
     def resolve_line (self, line):
@@ -4010,3 +4107,4 @@ class STLClient(object):
             
         self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
         
+

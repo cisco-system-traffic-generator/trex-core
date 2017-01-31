@@ -63,8 +63,13 @@ PKT_SIZE
 
 SERVICE_OFF
 
+TX_PORT_LIST
+RX_PORT_LIST
+
 SRC_IPV4
 DST_IPV4
+
+CAPTURE_ID
 
 GLOBAL_STATS
 PORT_STATS
@@ -78,12 +83,18 @@ EXTENDED_INC_ZERO_STATS
 
 STREAMS_MASK
 CORE_MASK_GROUP
+CAPTURE_PORTS_GROUP
+
+MONITOR_TYPE_VERBOSE
+MONITOR_TYPE_PIPE
+MONITOR_TYPE
 
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
 
 # list of ArgumentGroup types
 MUTEX
+NON_MUTEX
 
 '''
 
@@ -389,7 +400,6 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                             {'help': 'Output PCAP filename',
                                              'dest': 'output_filename',
                                              'default': None,
-                                             'required': True,
                                              'type': str}),
 
 
@@ -591,6 +601,45 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'default': True,
                                          'help': 'Deactivates services on port(s)'}),
                 
+              TX_PORT_LIST: ArgumentPack(['--tx'],
+                                         {'nargs': '+',
+                                          'dest':'tx_port_list',
+                                          'metavar': 'TX',
+                                          'action': 'merge',
+                                          'type': int,
+                                          'help': 'A list of ports to capture on the TX side',
+                                          'default': []}),
+               
+              
+              RX_PORT_LIST: ArgumentPack(['--rx'],
+                                         {'nargs': '+',
+                                          'dest':'rx_port_list',
+                                          'metavar': 'RX',
+                                          'action': 'merge',
+                                          'type': int,
+                                          'help': 'A list of ports to capture on the RX side',
+                                          'default': []}),
+              
+              
+              MONITOR_TYPE_VERBOSE: ArgumentPack(['-v', '--verbose'],
+                                                 {'action': 'store_true',
+                                                  'dest': 'verbose',
+                                                  'default': False,
+                                                  'help': 'output to screen as verbose'}),
+              
+              MONITOR_TYPE_PIPE: ArgumentPack(['-p', '--pipe'],
+                                              {'action': 'store_true',
+                                               'dest': 'pipe',
+                                               'default': False,
+                                               'help': 'forward packets to a pipe'}),
+
+
+              CAPTURE_ID: ArgumentPack(['-i', '--id'],
+                                  {'help': "capture ID to remove",
+                                   'dest': "capture_id",
+                                   'type': int,
+                                   'required': True}),
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
@@ -615,6 +664,13 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                       CORE_MASK],
                                               {'required': False}),
 
+              CAPTURE_PORTS_GROUP: ArgumentGroup(NON_MUTEX, [TX_PORT_LIST, RX_PORT_LIST], {}),
+              
+              
+              MONITOR_TYPE: ArgumentGroup(MUTEX, [MONITOR_TYPE_VERBOSE,
+                                                  MONITOR_TYPE_PIPE],
+                                          {'required': False}),
+              
               }
 
 class _MergeAction(argparse._AppendAction):
@@ -633,16 +689,42 @@ class _MergeAction(argparse._AppendAction):
 
 class CCmdArgParser(argparse.ArgumentParser):
 
-    def __init__(self, stateless_client, *args, **kwargs):
+    def __init__(self, stateless_client = None, *args, **kwargs):
         super(CCmdArgParser, self).__init__(*args, **kwargs)
         self.stateless_client = stateless_client
         self.cmd_name = kwargs.get('prog')
         self.register('action', 'merge', _MergeAction)
 
+
+        
+    def add_arg_list (self, *args):
+        populate_parser(self, *args)
+
+        
+    # a simple hook for add subparsers to add stateless client
+    def add_subparsers(self, *args, **kwargs):
+        sub = super(CCmdArgParser, self).add_subparsers(*args, **kwargs)
+
+        # save pointer to the original add parser method
+        add_parser = sub.add_parser
+        stateless_client = self.stateless_client
+
+        def add_parser_hook (self, *args, **kwargs):
+            parser = add_parser(self, *args, **kwargs)
+            parser.stateless_client = stateless_client
+            return parser
+
+        # override with the hook
+        sub.add_parser = add_parser_hook
+        
+        return sub
+
+        
     # hook this to the logger
     def _print_message(self, message, file=None):
         self.stateless_client.logger.log(message)
 
+        
     def error(self, message):
         self.print_usage()
         self._print_message(('%s: error: %s\n') % (self.prog, message))
@@ -710,12 +792,15 @@ class CCmdArgParser(argparse.ArgumentParser):
             return RC_ERR("'{0}' - {1}".format(self.cmd_name, "no action"))
 
 
+    def formatted_error (self, msg):
+        self.print_usage()
+        self._print_message(('%s: error: %s\n') % (self.prog, msg))
+
+
 def get_flags (opt):
     return OPTIONS_DB[opt].name_or_flags
 
-def gen_parser(stateless_client, op_name, description, *args):
-    parser = CCmdArgParser(stateless_client, prog=op_name, conflict_handler='resolve',
-                           description=description)
+def populate_parser (parser, *args):
     for param in args:
         try:
 
@@ -731,6 +816,12 @@ def gen_parser(stateless_client, op_name, description, *args):
                     for sub_argument in argument.args:
                         group.add_argument(*OPTIONS_DB[sub_argument].name_or_flags,
                                            **OPTIONS_DB[sub_argument].options)
+
+                elif argument.type == NON_MUTEX:
+                    group = parser.add_argument_group(**argument.options)
+                    for sub_argument in argument.args:
+                        group.add_argument(*OPTIONS_DB[sub_argument].name_or_flags,
+                                           **OPTIONS_DB[sub_argument].options)
                 else:
                     # ignore invalid objects
                     continue
@@ -743,6 +834,12 @@ def gen_parser(stateless_client, op_name, description, *args):
         except KeyError as e:
             cause = e.args[0]
             raise KeyError("The attribute '{0}' is missing as a field of the {1} option.\n".format(cause, param))
+
+def gen_parser(stateless_client, op_name, description, *args):
+    parser = CCmdArgParser(stateless_client, prog=op_name, conflict_handler='resolve',
+                           description=description)
+
+    populate_parser(parser, *args)
     return parser
 
 

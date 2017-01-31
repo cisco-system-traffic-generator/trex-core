@@ -262,21 +262,70 @@ bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
 
 
 bool
-TrexStatelessRxStartCapture::handle(CRxCoreStateless *rx_core) {
-    rx_core->start_recorder(m_port_id, m_pcap_filename, m_limit);
-
+TrexStatelessRxCaptureStart::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStart start_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
+    
     /* mark as done */
-    m_reply.set_reply(true);
+    m_reply.set_reply(start_rc);
     
     return true;
 }
 
 bool
-TrexStatelessRxStopCapture::handle(CRxCoreStateless *rx_core) {
-    rx_core->stop_recorder(m_port_id);
-
+TrexStatelessRxCaptureStop::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStop stop_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().stop(m_capture_id, stop_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(stop_rc);
+    
     return true;
 }
+
+bool
+TrexStatelessRxCaptureFetch::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCFetch fetch_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().fetch(m_capture_id, m_pkt_limit, fetch_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(fetch_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureStatus::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStatus status_rc;
+    
+    status_rc.set_rc(TrexStatelessCaptureMngr::getInstance().to_json()); 
+    
+    /* mark as done */
+    m_reply.set_reply(status_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureRemove::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCRemove remove_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().remove(m_capture_id, remove_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(remove_rc);
+    
+    return true;
+}
+
 
 bool
 TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
@@ -299,7 +348,7 @@ TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
 
 bool
 TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
-    const RXPacketBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
+    const TrexPktBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
     
     /* set the reply */
     m_reply.set_reply(pkt_buffer);
@@ -332,3 +381,40 @@ TrexStatelessRxSetL3Mode::handle(CRxCoreStateless *rx_core) {
     return true;
 }
 
+bool
+TrexStatelessRxQuery::handle(CRxCoreStateless *rx_core) {
+
+    query_rc_e rc = RC_OK;
+    
+    switch (m_query_type) {
+   
+    case SERVICE_MODE_ON:
+        /* for service mode on - always allow this */
+        rc = RC_OK;
+        break;
+        
+    case SERVICE_MODE_OFF:
+        /* cannot leave service mode when RX queue is active */
+        if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::QUEUE)) {
+            rc = RC_FAIL_RX_QUEUE_ACTIVE;
+            break;
+        }
+        
+        /* cannot leave service mode if PCAP capturing is active */
+        if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
+            rc = RC_FAIL_CAPTURE_ACTIVE;
+            break;
+        }
+        
+        break;
+    
+    default:
+        assert(0);
+        break;
+        
+    }
+    
+    m_reply.set_reply(rc);
+    
+    return true;
+}

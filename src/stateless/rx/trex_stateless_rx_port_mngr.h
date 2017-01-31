@@ -25,8 +25,7 @@
 #include <stdint.h>
 #include "common/base64.h"
 
-#include "common/captureFile.h"
-
+#include "trex_stateless_pkt.h"
 
 class CPortLatencyHWBase;
 class CRFC2544Info;
@@ -80,96 +79,11 @@ public:
     CRxCoreErrCntrs      *m_err_cntrs;
 };
 
-/**                
- * describes a single saved RX packet
- * 
- */
-class RXPacket {
-public:
-
-    RXPacket(const rte_mbuf_t *m);
-
-    /* slow path and also RVO - pass by value is ok */
-    Json::Value to_json() {
-        Json::Value output;
-        output["ts"]      = m_timestamp;
-        output["binary"]  = base64_encode(m_raw, m_size);
-        return output;
-    }
-
-    ~RXPacket() {
-        if (m_raw) {
-            delete [] m_raw;
-        }
-    }
-
-private:
-
-    uint8_t   *m_raw;
-    uint16_t   m_size;
-    dsec_t     m_timestamp;
-};
-
 
 /**************************************
  * RX feature queue 
  * 
  *************************************/
-
-class RXPacketBuffer {
-public:
-
-    RXPacketBuffer(uint64_t size);
-    ~RXPacketBuffer();
-
-    /**
-     * push a packet to the buffer
-     * 
-     */
-    void push(const rte_mbuf_t *m);
-    
-    /**
-     * generate a JSON output of the queue
-     * 
-     */
-    Json::Value to_json() const;
-
-
-    bool is_empty() const {
-        return (m_head == m_tail);
-    }
-
-    bool is_full() const {
-        return ( next(m_head) == m_tail);
-    }
-
-    /**
-     * return the total amount of space possible
-     */
-    uint64_t get_capacity() const {
-        /* one slot is used for diff between full/empty */
-        return (m_size - 1);
-    }
-    
-    /**
-     * returns how many elements are in the queue
-     */
-    uint64_t get_element_count() const;
-    
-private:
-    int next(int v) const {
-        return ( (v + 1) % m_size );
-    }
-
-    /* pop in case of full queue - internal usage */
-    RXPacket * pop();
-
-    int             m_head;
-    int             m_tail;
-    int             m_size;
-    RXPacket      **m_buffer;
-};
-
 
 class RXQueue {
 public:
@@ -191,7 +105,7 @@ public:
      * fetch the current buffer
      * return NULL if no packets
      */
-    const RXPacketBuffer * fetch();
+    const TrexPktBuffer * fetch();
     
     /**
      * stop RX queue
@@ -204,42 +118,7 @@ public:
     Json::Value to_json() const;
     
 private:
-    RXPacketBuffer  *m_pkt_buffer;
-};
-
-/**************************************
- * RX feature PCAP recorder 
- * 
- *************************************/
-
-class RXPacketRecorder {
-public:
-    RXPacketRecorder();
-    
-    ~RXPacketRecorder() {
-        stop();
-    }
-    
-    void start(const std::string &pcap, uint64_t limit);
-    void stop();
-    void handle_pkt(const rte_mbuf_t *m);
-
-    /**
-     * flush any cached packets to disk
-     * 
-     */
-    void flush_to_disk();
-    
-    Json::Value to_json() const;
-    
-private:
-    CFileWriterBase  *m_writer;
-    std::string       m_pcap_filename;
-    CCapPktRaw        m_pkt;
-    dsec_t            m_epoch;
-    uint64_t          m_limit;
-    uint64_t          m_count;
-    bool              m_pending_flush;
+    TrexPktBuffer  *m_pkt_buffer;
 };
 
 
@@ -311,7 +190,6 @@ public:
     enum feature_t {
         NO_FEATURES  = 0x0,
         LATENCY      = 0x1,
-        RECORDER     = 0x2,
         QUEUE        = 0x4,
         SERVER       = 0x8,
         GRAT_ARP     = 0x10,
@@ -354,17 +232,6 @@ public:
         unset_feature(LATENCY);
     }
 
-    /* recorder */
-    void start_recorder(const std::string &pcap, uint64_t limit_pkts) {
-        m_recorder.start(pcap, limit_pkts);
-        set_feature(RECORDER);
-    }
-
-    void stop_recorder() {
-        m_recorder.stop();
-        unset_feature(RECORDER);
-    }
-
     /* queue */
     void start_queue(uint32_t size) {
         m_queue.start(size);
@@ -376,7 +243,7 @@ public:
         unset_feature(QUEUE); 
     }
 
-    const RXPacketBuffer *get_pkt_buffer() {
+    const TrexPktBuffer *get_pkt_buffer() {
         if (!is_feature_set(QUEUE)) {
             return nullptr;
         }
@@ -415,13 +282,6 @@ public:
     void handle_pkt(const rte_mbuf_t *m);
 
     /**
-     * maintenance
-     * 
-     * @author imarom (11/24/2016)
-     */
-    void tick();
-    
-    /**
      * send next grat arp (if on)
      * 
      * @author imarom (12/13/2016)
@@ -445,9 +305,12 @@ public:
         return (m_features != NO_FEATURES);
     }
 
-
     bool no_features_set() {
         return (!has_features_set());
+    }
+
+    bool is_feature_set(feature_t feature) const {
+        return ( (m_features & feature) == feature );
     }
 
     /**
@@ -474,15 +337,10 @@ private:
     void unset_feature(feature_t feature) {
         m_features &= (~feature);
     }
-
-    bool is_feature_set(feature_t feature) const {
-        return ( (m_features & feature) == feature );
-    }
-
+  
     uint32_t                     m_features;
     uint8_t                      m_port_id;
     RXLatency                    m_latency;
-    RXPacketRecorder             m_recorder;
     RXQueue                      m_queue;
     RXServer                     m_server;
     RXGratARP                    m_grat_arp;

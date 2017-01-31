@@ -26,12 +26,14 @@ limitations under the License.
 #include "trex_dp_port_events.h"
 #include "trex_stateless_rx_defs.h"
 #include "trex_stream.h"
+#include "trex_exception.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessCpToDpMsgBase;
 class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
-class RXPacketBuffer;
+class TrexPktBuffer;
 
 
 /**
@@ -113,7 +115,6 @@ private:
     static const std::string g_unowned_handler;
 };
 
-
 class AsyncStopEvent;
 
 /**
@@ -150,7 +151,15 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-
+    /**
+     * port capture mode
+     */
+    enum capture_mode_e {
+        PORT_CAPTURE_NONE = 0,
+        PORT_CAPTURE_RX,
+        PORT_CAPTURE_ALL
+    };
+    
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
 
     ~TrexStatelessPort();
@@ -227,6 +236,20 @@ public:
                      double            duration,
                      bool              is_dual);
 
+    
+    /**
+     * sets service mode
+     * 
+     * @author imarom (1/22/2017)
+     * 
+     * @param enabled 
+     */
+    void set_service_mode(bool enabled);
+    
+    bool is_service_mode_on() const {
+        return m_is_service_mode_on;
+    }
+     
     /**
      * get the port state
      *
@@ -365,19 +388,6 @@ public:
 
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
-
-    /**
-     * enable RX capture on port
-     * 
-     */
-    void start_rx_capture(const std::string &pcap_filename, uint64_t limit);
-
-    /**
-     * disable RX capture if on
-     * 
-     */
-    void stop_rx_capture();
-
     /**
      * start RX queueing of packets
      * 
@@ -398,7 +408,7 @@ public:
      * fetch the RX queue packets from the queue
      * 
      */
-    const RXPacketBuffer *get_rx_queue_pkts();
+    const TrexPktBuffer *get_rx_queue_pkts();
 
     /**
      * configures port for L2 mode
@@ -429,7 +439,9 @@ public:
     }
     
 private:
-
+    void set_service_mode_on();
+    void set_service_mode_off();
+    
     bool is_core_active(int core_id);
 
     const std::vector<uint8_t> get_core_id_list () {
@@ -514,6 +526,9 @@ private:
     TrexPortOwner       m_owner;
 
     int m_pending_async_stop_event;
+    
+    bool  m_is_service_mode_on;
+    
     static const uint32_t MAX_STREAMS = 20000;
 
 };

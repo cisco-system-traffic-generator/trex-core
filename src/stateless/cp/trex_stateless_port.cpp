@@ -165,10 +165,11 @@ private:
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api) : m_dp_events(this) {
     std::vector<std::pair<uint8_t, uint8_t>> core_pair_list;
 
-    m_port_id            = port_id;
-    m_port_state         = PORT_STATE_IDLE;
-    m_platform_api       = api;
-
+    m_port_id             = port_id;
+    m_port_state          = PORT_STATE_IDLE;
+    m_platform_api        = api;
+    m_is_service_mode_on  = false;
+    
     /* get the platform specific data */
     api->get_interface_info(port_id, m_api_info);
 
@@ -958,24 +959,44 @@ TrexStatelessPort::remove_and_delete_all_streams() {
     }
 }
 
+/**
+ * enable/disable service mode 
+ * sends a query to the RX core 
+ * 
+ */
 void 
-TrexStatelessPort::start_rx_capture(const std::string &pcap_filename, uint64_t limit) {
-    static MsgReply<bool> reply;
-    
+TrexStatelessPort::set_service_mode(bool enabled) {
+    static MsgReply<TrexStatelessRxQuery::query_rc_e> reply;
     reply.reset();
     
-    TrexStatelessRxStartCapture *msg = new TrexStatelessRxStartCapture(m_port_id, pcap_filename, limit, reply);
-    send_message_to_rx((TrexStatelessCpToRxMsgBase *)msg);
+    TrexStatelessRxQuery::query_type_e query_type = (enabled ? TrexStatelessRxQuery::SERVICE_MODE_ON : TrexStatelessRxQuery::SERVICE_MODE_OFF);
     
-    /* as below, must wait for ACK from RX core before returning ACK */
-    reply.wait_for_reply();
+    TrexStatelessRxQuery *msg = new TrexStatelessRxQuery(m_port_id, query_type, reply);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+    
+    TrexStatelessRxQuery::query_rc_e rc = reply.wait_for_reply();
+    
+    switch (rc) {
+    case TrexStatelessRxQuery::RC_OK:
+        if (enabled) {
+            getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_ALL);
+        } else {
+            getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_HW);
+        }
+        m_is_service_mode_on = enabled;
+        return;
+        
+    case TrexStatelessRxQuery::RC_FAIL_RX_QUEUE_ACTIVE:
+        throw TrexException("unable to disable service mode - please remove RX queue");
+        
+    case TrexStatelessRxQuery::RC_FAIL_CAPTURE_ACTIVE:
+        throw TrexException("unable to disable service mode - an active capture on port " + std::to_string(m_port_id) + " exists");
+        
+    default:
+        assert(0);
+    }
 }
 
-void
-TrexStatelessPort::stop_rx_capture() {
-    TrexStatelessCpToRxMsgBase *msg = new TrexStatelessRxStopCapture(m_port_id);
-    send_message_to_rx(msg);
-}
 
 void 
 TrexStatelessPort::start_rx_queue(uint64_t size) {
@@ -999,9 +1020,9 @@ TrexStatelessPort::stop_rx_queue() {
 }
 
 
-const RXPacketBuffer *
+const TrexPktBuffer *
 TrexStatelessPort::get_rx_queue_pkts() {
-    static MsgReply<const RXPacketBuffer *> reply;
+    static MsgReply<const TrexPktBuffer *> reply;
     
     reply.reset();
 

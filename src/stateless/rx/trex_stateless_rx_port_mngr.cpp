@@ -20,48 +20,10 @@
 */
 #include "bp_sim.h"
 #include "trex_stateless_rx_port_mngr.h"
-#include "common/captureFile.h"
 #include "trex_stateless_rx_core.h"
 #include "common/Network/Packet/Arp.h"
 #include "pkt_gen.h"
-
-/**
- * copy MBUF to a flat buffer
- * 
- * @author imarom (12/20/2016)
- * 
- * @param dest - buffer with at least rte_pktmbuf_pkt_len(m) 
- *               bytes
- * @param m - MBUF to copy 
- * 
- * @return uint8_t* 
- */
-void copy_mbuf(uint8_t *dest, const rte_mbuf_t *m) {
-    
-    int index = 0;
-    for (const rte_mbuf_t *it = m; it != NULL; it = it->next) {
-        const uint8_t *src = rte_pktmbuf_mtod(it, const uint8_t *);
-        memcpy(dest + index, src, it->data_len);
-        index += it->data_len;
-    }
-}
-
-/**************************************
- * RX packet
- * 
- *************************************/
-RXPacket::RXPacket(const rte_mbuf_t *m) {
-
-    /* allocate buffer */
-    m_size = m->pkt_len;
-    m_raw = new uint8_t[m_size];
-
-    /* copy data */
-    copy_mbuf(m_raw, m);
-
-    /* generate a packet timestamp */
-    m_timestamp = now_sec();
-}
+#include "trex_stateless_capture.h"
 
 /**************************************
  * latency RX feature
@@ -231,79 +193,12 @@ RXLatency::to_json() const {
  * 
  *************************************/
 
-RXPacketBuffer::RXPacketBuffer(uint64_t size) {
-    m_buffer           = nullptr;
-    m_head             = 0;
-    m_tail             = 0;
-    m_size             = (size + 1); // for the empty/full difference 1 slot reserved
-
-    /* generate queue */
-    m_buffer = new RXPacket*[m_size](); // zeroed
-}
-
-RXPacketBuffer::~RXPacketBuffer() {
-    assert(m_buffer);
-
-    while (!is_empty()) {
-        RXPacket *pkt = pop();
-        delete pkt;
-    }
-    delete [] m_buffer;
-}
-
-void 
-RXPacketBuffer::push(const rte_mbuf_t *m) {
-    /* if full - pop the oldest */
-    if (is_full()) {
-        delete pop();
-    }
-
-    /* push packet */
-    m_buffer[m_head] = new RXPacket(m);
-    m_head = next(m_head);
-}
-
-RXPacket *
-RXPacketBuffer::pop() {
-    assert(!is_empty());
-    
-    RXPacket *pkt = m_buffer[m_tail];
-    m_tail = next(m_tail);
-    
-    return pkt;
-}
-
-uint64_t
-RXPacketBuffer::get_element_count() const {
-    if (m_head >= m_tail) {
-        return (m_head - m_tail);
-    } else {
-        return ( get_capacity() - (m_tail - m_head - 1) );
-    }
-}
-
-Json::Value
-RXPacketBuffer::to_json() const {
-
-    Json::Value output = Json::arrayValue;
-
-    int tmp = m_tail;
-    while (tmp != m_head) {
-        RXPacket *pkt = m_buffer[tmp];
-        output.append(pkt->to_json());
-        tmp = next(tmp);
-    }
-
-    return output;
-}
-
-
 void
 RXQueue::start(uint64_t size) {
     if (m_pkt_buffer) {
         delete m_pkt_buffer;
     }
-    m_pkt_buffer = new RXPacketBuffer(size);
+    m_pkt_buffer = new TrexPktBuffer(size, TrexPktBuffer::MODE_DROP_HEAD);
 }
 
 void
@@ -314,7 +209,7 @@ RXQueue::stop() {
     }
 }
 
-const RXPacketBuffer *
+const TrexPktBuffer *
 RXQueue::fetch() {
 
     /* if no buffer or the buffer is empty - give a NULL one */
@@ -323,10 +218,10 @@ RXQueue::fetch() {
     }
     
     /* hold a pointer to the old one */
-    RXPacketBuffer *old_buffer = m_pkt_buffer;
+    TrexPktBuffer *old_buffer = m_pkt_buffer;
 
     /* replace the old one with a new one and freeze the old */
-    m_pkt_buffer = new RXPacketBuffer(old_buffer->get_capacity());
+    m_pkt_buffer = new TrexPktBuffer(old_buffer->get_capacity(), old_buffer->get_mode());
 
     return old_buffer;
 }
@@ -344,97 +239,6 @@ RXQueue::to_json() const {
     
     output["size"]    = Json::UInt64(m_pkt_buffer->get_capacity());
     output["count"]   = Json::UInt64(m_pkt_buffer->get_element_count());
-    
-    return output;
-}
-
-/**************************************
- * RX feature recorder
- * 
- *************************************/
-
-RXPacketRecorder::RXPacketRecorder() {
-    m_writer = NULL;
-    m_count  = 0;
-    m_limit  = 0;
-    m_epoch  = -1;
-    
-    m_pending_flush = false;
-}
-
-void
-RXPacketRecorder::start(const std::string &pcap, uint64_t limit) {
-    m_writer = CCapWriterFactory::CreateWriter(LIBPCAP, (char *)pcap.c_str());
-    if (m_writer == NULL) {
-        std::stringstream ss;
-        ss << "unable to create PCAP file: " << pcap;
-        throw TrexException(ss.str());
-    }
-
-    assert(limit > 0);
-    
-    m_limit = limit;
-    m_count = 0;
-    m_pending_flush = false;
-    m_pcap_filename = pcap;
-}
-
-void
-RXPacketRecorder::stop() {
-    if (!m_writer) {
-        return;
-    }
-    
-    delete m_writer;
-    m_writer = NULL;
-}
-
-void
-RXPacketRecorder::flush_to_disk() {
-    
-    if (m_writer && m_pending_flush) {
-        m_writer->flush_to_disk();
-        m_pending_flush = false;
-    }
-}
-
-void
-RXPacketRecorder::handle_pkt(const rte_mbuf_t *m) {
-    if (!m_writer) {
-        return;
-    }
-
-    dsec_t now = now_sec();
-    if (m_epoch < 0) {
-        m_epoch = now;
-    }
-
-    dsec_t dt = now - m_epoch;
-
-    CPktNsecTimeStamp t_c(dt);
-    m_pkt.time_nsec = t_c.m_time_nsec;
-    m_pkt.time_sec  = t_c.m_time_sec;
-
-    copy_mbuf((uint8_t *)m_pkt.raw, m);
-    m_pkt.pkt_len = m->pkt_len;
-    
-    m_writer->write_packet(&m_pkt);
-    m_count++;
-    m_pending_flush = true;
-    
-    if (m_count == m_limit) {
-        stop();
-    }
-    
-}
-
-Json::Value
-RXPacketRecorder::to_json() const {
-    Json::Value output = Json::objectValue;
-    
-    output["pcap_filename"] = m_pcap_filename;
-    output["limit"]         = Json::UInt64(m_limit);
-    output["count"]         = Json::UInt64(m_count);
     
     return output;
 }
@@ -688,7 +492,7 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
     }
     
     /* copy data */
-    copy_mbuf(dest, m);
+    mbuf_to_buffer(dest, m);
     
     return clone_mbuf;
 }
@@ -789,10 +593,6 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_latency.handle_pkt(m);
     }
 
-    if (is_feature_set(RECORDER)) {
-        m_recorder.handle_pkt(m);
-    }
-
     if (is_feature_set(QUEUE)) {
         m_queue.handle_pkt(m);
     }
@@ -800,6 +600,9 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
     if (is_feature_set(SERVER)) {
         m_server.handle_pkt(m);
     }
+    
+    /* capture */
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_rx(m, m_port_id);
 }
 
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {
@@ -835,13 +638,6 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
 
     return cnt_p;
-}
-
-void
-RXPortManager::tick() {
-    if (is_feature_set(RECORDER)) {
-        m_recorder.flush_to_disk();
-    }
 }
 
 void
@@ -888,13 +684,6 @@ RXPortManager::to_json() const {
         output["latency"]["is_active"] = true;
     } else {
         output["latency"]["is_active"] = false;
-    }
-
-    if (is_feature_set(RECORDER)) {
-        output["sniffer"] = m_recorder.to_json();
-        output["sniffer"]["is_active"] = true;
-    } else {
-        output["sniffer"]["is_active"] = false;
     }
 
     if (is_feature_set(QUEUE)) {

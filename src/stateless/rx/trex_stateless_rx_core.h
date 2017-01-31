@@ -27,6 +27,7 @@
 #include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"
 #include "trex_stateless_rx_port_mngr.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessCpToRxMsgBase;
 
@@ -127,17 +128,10 @@ class CRxCoreStateless {
     double get_cpu_util();
     void update_cpu_util();
 
-    const RXPacketBuffer *get_rx_queue_pkts(uint8_t port_id) {
+    const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id) {
         return m_rx_port_mngr[port_id].get_pkt_buffer();
     }
-
-    /**
-     * start capturing of RX packets on a specific port 
-     *  
-     */
-    void start_recorder(uint8_t port_id, const std::string &pcap_filename, uint64_t limit);
-    void stop_recorder(uint8_t port_id);
-
+    
     /**
      * start RX queueing of packets
      * 
@@ -162,17 +156,20 @@ class CRxCoreStateless {
 
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
+
     bool periodic_check_for_cp_messages();
+
+    void periodic_check_for_dp_messages();
+    void periodic_check_for_dp_messages_core(uint32_t core_id);
+    
     void tickle();
     void idle_state_loop();
 
     void recalculate_next_state();
     bool are_any_features_active();
 
-    void capture_pkt(rte_mbuf_t *m);
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
-    void port_manager_tick();
     void handle_grat_arp();
 
     int process_all_pending_pkts(bool flush_rx = false);
@@ -186,10 +183,10 @@ class CRxCoreStateless {
  private:
     TrexMonitor      m_monitor;
     uint32_t         m_max_ports;
+    uint32_t         m_tx_cores;
     bool             m_capture;
     state_e          m_state;
     CNodeRing       *m_ring_from_cp;
-    CNodeRing       *m_ring_to_cp;
     CCpuUtlDp        m_cpu_dp_u;
     CCpuUtlCp        m_cpu_cp_u;
 
