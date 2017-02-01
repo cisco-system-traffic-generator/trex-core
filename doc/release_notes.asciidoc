@@ -25,8 +25,8 @@ endif::backend-docbook[]
 
 == Release 2.15 ==
 
-* XL710/X710 VF mode work (SR-IOV) works better now
-* 599 VF mode work (SR-IOV) is not supported due to issues
+* XL710/X710 VF (SR-IOV) mode works better 
+* 599 VF mode is *not* supported 
 
 === fix issues: ===
 
@@ -36,10 +36,10 @@ endif::backend-docbook[]
 
 == Release 2.14 ==
 
-* Another performance improvement in Stateful case with high active flows. There is less burstiness. 
+* Another performance improvement in Stateful case with high active flows. There is less burstiness 
 * Scapy server - warning in case of permissions errors 
 * Maximum supported ports are 16 (instead of 12)
-* ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases.
+* ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases
 * Early support for Intel XL710/X710/599 VF support [TBD add pointer for more info]
 * Fix Cluster mode breakage (v2.12-v2.13)
 * Stateless GUI v3.0 works with this version
