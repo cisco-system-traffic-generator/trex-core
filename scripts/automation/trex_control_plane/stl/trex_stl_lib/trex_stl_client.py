@@ -829,8 +829,7 @@ class STLClient(object):
             rc.add(self.ports[port_id].set_attr(**port_attr_dict))
 
         return rc
-
-
+        
     def __set_rx_queue (self, port_id_list, size):
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -1894,15 +1893,16 @@ class STLClient(object):
             
 
     @__api_check(True)
-    def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5):
+    def ping_ip (self, src_port, dst_ipv4, pkt_size = 64, count = 5, interval_sec = 1):
         """
             Pings an IP address through a port
 
             :parameters:
-                 src_port - on which port_id to send the ICMP PING request
-                 dst_ipv4 - which IP to ping
-                 pkt_size - packet size to use
-                 count    - how many times to ping
+                 src_port     - on which port_id to send the ICMP PING request
+                 dst_ipv4     - which IP to ping
+                 pkt_size     - packet size to use
+                 count        - how many times to ping
+                 interval_sec - how much time to wait between pings
             :raises:
                 + :exc:`STLError`
 
@@ -1919,7 +1919,8 @@ class STLClient(object):
             raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
             
         validate_type('count', count, int)
- 
+        validate_type('interval_sec', interval_sec, (int, float))
+        
         self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ipv4,
                                                                                        src_port,
                                                                                        pkt_size))
@@ -1935,7 +1936,7 @@ class STLClient(object):
                 self.logger.log(rc.data())
                 
                 if i != (count - 1):
-                    time.sleep(1)
+                    time.sleep(interval_sec)
         
         
         
@@ -2938,7 +2939,27 @@ class STLClient(object):
 
       
             
+    @__api_check(True)
+    def get_port_attr (self, port):
+        """
+            get the port attributes currently set
+            
+            :parameters:
+                ports          - for which ports to configure service mode on/off
+           
+                     
+            :raises:
+                + :exe:'STLError'
+                
+        """
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("'{0}' is not a valid port id".format(port))
+            
+        return self.ports[port].get_formatted_info()
+            
     
+        
     @__api_check(True)
     def set_service_mode (self, ports = None, enabled = True):
         """
@@ -2999,11 +3020,12 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-
+    # alias
+    arp = resolve
             
         
     @__api_check(True)
-    def start_capture (self, tx_ports, rx_ports, limit = 1000, mode = 'fixed'):
+    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed'):
         """
             Starts a low rate packet capturing on the server
 
@@ -3033,6 +3055,11 @@ class STLClient(object):
                 + :exe:'STLError'
 
         """
+
+        # default values for TX / RX ports
+        tx_ports = tx_ports if tx_ports is not None else []
+        rx_ports = rx_ports if rx_ports is not None else []
+        
         # TODO: remove this when TX is implemented
         if tx_ports:
             raise STLError('TX port capturing is not yet implemented')
@@ -3072,7 +3099,7 @@ class STLClient(object):
 
         
     @__api_check(True)
-    def stop_capture (self, capture_id, output_filename = None):
+    def stop_capture (self, capture_id, output = None):
         """
             Stops an active capture and optionally save it to a PCAP file
 
@@ -3080,9 +3107,10 @@ class STLClient(object):
                 capture_id: int
                     an active capture ID to stop
                     
-                output_filename: str
-                    output filename to save capture
-                    if 'None', all captured packets will be discarded
+                output: None/ str / list
+                    if output is None - all the packets will be discarded
+                    if output is a 'str' - it will be interpeted as output filename
+                    if it is a list, the API will populate the list with packet objects
 
             :raises:
                 + :exe:'STLError'
@@ -3093,6 +3121,10 @@ class STLClient(object):
         # 1. stopping
         # 2. fetching
         # 3. saving to file
+        
+        
+        validate_type('capture_id', capture_id, (int))
+        validate_type('output', output, (type(None), str, list))
         
         # stop
         
@@ -3105,9 +3137,9 @@ class STLClient(object):
         # pkt count
         pkt_count = rc.data()['pkt_count']
         
-        # fetch packets    
-        if output_filename:
-            self.__fetch_capture_packets(capture_id, output_filename, pkt_count)
+        # fetch packets
+        if output is not None:
+            self.__fetch_capture_packets(capture_id, output, pkt_count)
         
         # remove
         self.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
@@ -3119,12 +3151,18 @@ class STLClient(object):
 
             
     # fetch packets from the server and save them to a file
-    def __fetch_capture_packets (self, capture_id, output_filename, pkt_count):
-        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output_filename))
-
+    def __fetch_capture_packets (self, capture_id, output, pkt_count):
+        write_to_file = isinstance(output, basestring)
+        
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
+        
         # create a PCAP file
-        writer = RawPcapWriter(output_filename, linktype = 1)
-        writer._write_header(None)
+        if write_to_file:
+            writer = RawPcapWriter(output, linktype = 1)
+            writer._write_header(None)
+        else:
+            # clear the list
+            del output[:]
 
         pending = pkt_count
         rc = RC_OK()
@@ -3145,11 +3183,15 @@ class STLClient(object):
             
             # write packets
             for pkt in pkts:
-                # split the server timestamp relative to the capture start time
-                ts_sec, ts_usec = sec_split_usec(pkt['ts'] - start_ts)
+                ts = pkt['ts'] - start_ts
                 
-                pkt_bin = base64.b64decode(pkt['binary'])
-                writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
+                pkt['binary'] = base64.b64decode(pkt['binary'])
+                
+                if write_to_file:
+                    ts_sec, ts_usec = sec_split_usec(ts)
+                    writer._write_packet(pkt['binary'], sec = ts_sec, usec = ts_usec)
+                else:
+                    output.append(pkt)
 
 
 
@@ -3161,16 +3203,20 @@ class STLClient(object):
     @__api_check(True)
     def get_capture_status (self):
         """
-            returns a list of all active captures
-            each element in the list is an object containing
-            info about the capture
+            Returns a dictionary where each key is an capture ID
+            Each value is an object describing the capture
 
         """
         rc = self._transmit("capture", params = {'command': 'status'})
         if not rc:
             raise STLError(rc)
 
-        return rc.data()
+        # reformat as dictionary
+        output = {}
+        for c in rc.data():
+            output[c['id']] = c
+            
+        return output
 
         
     @__api_check(True)
@@ -3182,9 +3228,9 @@ class STLClient(object):
         
         self.logger.pre_cmd("Removing all packet captures from server")
         
-        for c in captures:
+        for capture_id in captures.keys():
             # remove
-            rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': c['id']})
+            rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
             if not rc:
                 raise STLError(rc)
 

@@ -3,6 +3,9 @@ from trex_stl_lib.utils import parsing_opts, text_tables
 import threading
 import tempfile
 import select
+from distutils import spawn
+from subprocess import Popen
+import subprocess
 
 # defines a generic monitor writer
 class CaptureMonitorWriter(object):
@@ -88,7 +91,7 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
             # make sure to restore the logger
             self.logger.prompt_redraw()
 
-
+    
 # a pipe based monitor
 class CaptureMonitorWriterPipe(CaptureMonitorWriter):
     def __init__ (self, logger, start_ts):
@@ -100,16 +103,27 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         # generate a temp fifo pipe
         self.fifo_name = tempfile.mktemp()
         
+        self.wireshark_pid = None
+        
         try:
             self.logger.pre_cmd('Starting pipe capture monitor')
             os.mkfifo(self.fifo_name)
             self.logger.post_cmd(RC_OK)
 
-            self.logger.log(format_text("*** Please run 'wireshark -k -i {0}' ***".format(self.fifo_name), 'bold'))
+            # try to locate wireshark on the machine
+            self.wireshark_exe = self.locate_wireshark()
             
-            self.logger.pre_cmd("Waiting for Wireshark pipe connection")
+            # we found wireshark - try to launch a process
+            if self.wireshark_exe:
+                self.wireshark_pid = self.launch_wireshark()
+                
+            # did we succeed ?
+            if not self.wireshark_pid:
+                self.logger.log(format_text("*** Please manually run 'wireshark -k -i {0}' ***".format(self.fifo_name), 'bold'))
+            
             
             # blocks until pipe is connected
+            self.logger.pre_cmd("Waiting for Wireshark pipe connection")
             self.fifo = os.open(self.fifo_name, os.O_WRONLY)
             self.logger.post_cmd(RC_OK())
             
@@ -125,17 +139,60 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         
             self.is_init = True
                 
+       
         except KeyboardInterrupt as e:
             self.deinit()
             self.logger.post_cmd(RC_ERR(""))
             raise STLError("*** pipe monitor aborted...cleaning up")
-
+                
         except OSError as e:
             self.deinit()
             self.logger.post_cmd(RC_ERR(""))
             raise STLError("failed to create pipe {0}\n{1}".format(self.fifo_name, str(e)))
         
+       
+    def locate_wireshark (self):
+        self.logger.pre_cmd('Trying to locate Wireshark')
+        wireshark_exe = spawn.find_executable('wireshark')
+        self.logger.post_cmd(RC_OK() if wireshark_exe else RC_ERR())
         
+        if not wireshark_exe:
+            return None
+            
+        dumpcap = os.path.join(os.path.dirname(wireshark_exe), 'dumpcap')
+        
+        self.logger.pre_cmd("Checking permissions on '{}'".format(dumpcap))
+        if not os.access(dumpcap, os.X_OK):
+            self.logger.post_cmd(RC_ERR('bad permissions on dumpcap'))
+            return None
+        
+        self.logger.post_cmd(RC_OK())
+        
+        return wireshark_exe
+        
+    # try to launch wireshark... returns true on success
+    def launch_wireshark (self):
+        
+        cmd = '{0} -k -i {1}'.format(self.wireshark_exe, self.fifo_name)
+        self.logger.pre_cmd("Launching '{0}'".format(cmd))
+                
+        try:
+            devnull = open(os.devnull, 'w')
+            self.wireshark_pid = Popen(cmd.split(),
+                                       stdout     = devnull,
+                                       stderr     = devnull,
+                                       stdin      = subprocess.PIPE,
+                                       preexec_fn = os.setpgrp,
+                                       close_fds  = True)
+                            
+            self.logger.post_cmd(RC_OK())
+            return True
+            
+        except OSError as e:
+            self.wireshark_pid = None
+            self.logger.post_cmd(RC_ERR())
+            return False
+            
         
     def deinit (self):
         try:
@@ -260,7 +317,7 @@ class CaptureMonitor(object):
             return
             
         # make sure the capture is active on the server
-        captures = [x['id'] for x in self.client.get_capture_status()]
+        captures = self.client.get_capture_status().keys()
         if capture_id not in captures:
             return
             
@@ -493,8 +550,7 @@ class CaptureManager(object):
 
         
     def parse_record_stop (self, opts):
-        captures = self.c.get_capture_status()
-        ids = [c['id'] for c in captures]
+        ids = self.c.get_capture_status().keys()
         
         if self.monitor and (opts.capture_id == self.monitor.get_capture_id()):
             self.record_stop_parser.formatted_error("'{0}' is a monitor, please use 'capture monitor stop'".format(opts.capture_id))
@@ -564,15 +620,14 @@ class CaptureManager(object):
         mon_table.set_cols_align(["c"] * 6)
         mon_table.set_cols_width([15] * 6)
 
-        for elem in data:
-            id = elem['id']
+        for capture_id, elem in data.items():
 
-            if self.monitor and (self.monitor.get_capture_id() == id):
+            if self.monitor and (self.monitor.get_capture_id() == capture_id):
                 row = self.monitor.get_mon_row()
                 mon_table.add_rows([row], header=False)
 
             else:
-                row = [id,
+                row = [capture_id,
                        format_text(elem['state'], 'bold'),
                        '[{0}/{1}]'.format(elem['count'], elem['limit']),
                        format_num(elem['bytes'], suffix = 'B'),

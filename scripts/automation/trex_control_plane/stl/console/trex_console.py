@@ -39,7 +39,7 @@ except:
 from trex_stl_lib.api import *
 
 from trex_stl_lib.utils.text_opts import *
-from trex_stl_lib.utils.common import user_input, get_current_user
+from trex_stl_lib.utils.common import user_input, get_current_user, set_window_always_on_top
 from trex_stl_lib.utils import parsing_opts
 from .trex_capture import CaptureManager
 
@@ -72,31 +72,6 @@ class ConsoleLogger(LoggerApi):
         if ( (self.level >= LoggerApi.VERBOSE_REGULAR) and self.prompt_redraw ):
             self.prompt_redraw()
             self.flush()
-
-
-def set_window_always_on_top (title):
-    # we need the GDK module, if not available - ignroe this command
-    try:
-        if sys.version_info < (3,0):
-            from gtk import gdk
-        else:
-            #from gi.repository import Gdk as gdk
-            return
-
-    except ImportError:
-        return
-
-    # search the window and set it as above
-    root = gdk.get_default_root_window()
-
-    for id in root.property_get('_NET_CLIENT_LIST')[2]:
-        w = gdk.window_foreign_new(id)
-        if w:
-            name = w.property_get('WM_NAME')[2]
-            if name == title:
-                w.set_keep_above(True)
-                gdk.window_process_all_updates()
-                break
 
 
 class TRexGeneralCmd(cmd.Cmd):
