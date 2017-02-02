@@ -234,7 +234,7 @@ class STLCapture_Test(CStlGeneral_Test):
             
             count = 50
             
-            self.c.ping_ip(src_port = self.tx_port, dst_ipv4 = rx_ipv4, pkt_size = 1500, count = count, interval_sec = 0.01)
+            self.c.ping_ip(src_port = self.tx_port, dst_ip = rx_ipv4, pkt_size = 1500, count = count, interval_sec = 0.01)
 
             pkts = []
             self.c.stop_capture(capture_info['id'], output = pkts)
