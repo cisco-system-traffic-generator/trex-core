@@ -390,19 +390,6 @@ public:
 
     void get_hw_mac(std::string &hw_mac);
 
-
-    /**
-     * enable RX capture on port
-     * 
-     */
-    void start_rx_capture(const std::string &pcap_filename, uint64_t limit);
-
-    /**
-     * disable RX capture if on
-     * 
-     */
-    void stop_rx_capture();
-
     /**
      * start RX queueing of packets
      * 

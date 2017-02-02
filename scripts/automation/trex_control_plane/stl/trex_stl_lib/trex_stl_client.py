@@ -4004,8 +4004,6 @@ class STLClient(object):
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
         if not opts:
             return opts
-        print(opts)
-        print(parsing_opts.ON_OFF_DICT)
 
         opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
         opts.mult            = parsing_opts.ON_OFF_DICT.get(opts.mult)
