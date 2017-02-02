@@ -821,7 +821,7 @@ class YAMLLoader(object):
             yaml_str = f.read()
 
             try:
-                objects = yaml.load(yaml_str)
+                objects = yaml.safe_load(yaml_str)
             except yaml.parser.ParserError as e:
                 raise STLError(str(e))
 

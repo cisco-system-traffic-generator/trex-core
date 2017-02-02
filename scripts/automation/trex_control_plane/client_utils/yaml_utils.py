@@ -150,7 +150,7 @@ class CTRexYAMLLoader(object):
 
 def load_yaml_to_obj(file_path):
     try:
-        return yaml.load(file(file_path, 'r'))
+        return yaml.safe_load(file(file_path, 'r'))
     except yaml.YAMLError as e:
         raise
     except Exception as e:

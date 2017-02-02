@@ -128,7 +128,7 @@ def load_complete_config_file (filepath):
 
     try:
         with open(filepath, 'r') as f:
-            config = yaml.load(f)
+            config = yaml.safe_load(f)
             
             # Handle TRex configuration
             trex_config['trex_name']         = config["trex"]["hostname"]
@@ -176,7 +176,7 @@ def load_complete_config_file (filepath):
 def load_object_config_file (filepath):
     try:
         with open(filepath, 'r') as f:
-            config = yaml.load(f)
+            config = yaml.safe_load(f)
             return config
     except Exception as inst:
         print("\nBad configuration file provided: '{0}'\n".format(filepath))
@@ -229,7 +229,7 @@ def load_benchmark_config_file (filepath):
 
     try:
         with open(filepath, 'r') as f:
-            benchmark_config = yaml.load(f)
+            benchmark_config = yaml.safe_load(f)
 
     except Exception as inst:
         print("\nBad configuration file provided: '{0}'\n".format(filepath))
