@@ -5,7 +5,6 @@
 *.dll
 *.exe
 *.o
-*.so
 .lock*
 linux_dpdk/.waf*
 linux_dpdk/build*
@@ -159,7 +158,8 @@ scripts/generated/*
 .Trashes
 ehthumbs.db
 Thumbs.db
-
+.nfs*
+*.swp
 
 # IDE/ Editors files #
 ######################
