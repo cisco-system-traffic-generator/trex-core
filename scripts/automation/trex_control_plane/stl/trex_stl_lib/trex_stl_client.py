@@ -1395,7 +1395,7 @@ class STLClient(object):
     def get_service_enabled_ports(self):
         return [port_id
                 for port_id, port_obj in self.ports.items()
-                if port_obj.is_acquired() and port_obj.is_service_mode_on()]
+                if port_obj.is_service_mode_on()]
 
         
     # get paused ports

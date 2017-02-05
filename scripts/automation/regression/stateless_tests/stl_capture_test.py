@@ -124,7 +124,6 @@ class STLCapture_Test(CStlGeneral_Test):
             
             self.c.add_streams(ports = self.tx_port, streams = [stream])
             self.c.start(ports = self.tx_port, force = True)
-            
             captures = [{'capture_id': None, 'limit': 50}, {'capture_id': None, 'limit': 80}, {'capture_id': None, 'limit': 100}]
             
             for i in range(0, 100):
@@ -133,7 +132,17 @@ class STLCapture_Test(CStlGeneral_Test):
                     capture['capture_id'] = self.c.start_capture(rx_ports = [self.rx_port], limit = capture['limit'])['id']
                 
                 # a little time to wait for captures to be full
-                server_captures = self.c.get_capture_status()
+                wait_iterations = 0
+                while True:
+                    server_captures = self.c.get_capture_status()
+                    counts = ([c['count'] for c in server_captures.values()])
+                    if {50, 80, 100} == set(counts):
+                        break
+                        
+                    time.sleep(0.1)
+                    wait_iterations += 1
+                    assert(wait_iterations <= 5)
+                    
                 
                 for capture in captures:
                     capture_id = capture['capture_id']
