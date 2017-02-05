@@ -4969,7 +4969,8 @@ ixgbe_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 			rxdctl = IXGBE_READ_REG(hw, IXGBE_RXDCTL(rxq->reg_idx));
 		} while (--poll_ms && (rxdctl & IXGBE_RXDCTL_ENABLE));
 		if (!poll_ms)
-			PMD_INIT_LOG(ERR, "Could not disable Rx Queue %d",
+            // TREX_PATCH - changed log level from ERR to DEBUG
+			PMD_INIT_LOG(DEBUG, "Could not disable Rx Queue %d",
 				     rx_queue_id);
 
 		rte_delay_us(RTE_IXGBE_WAIT_100_US);

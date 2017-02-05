@@ -74,8 +74,11 @@
 #define I40E_FDIR_UDP_DEFAULT_LEN           400
 
 /* Wait count and interval for fdir filter programming */
-#define I40E_FDIR_WAIT_COUNT       10
-#define I40E_FDIR_WAIT_INTERVAL_US 1000
+#define TREX_PATCH
+// TREX_PATCH - Values were 10 and 1000. These numbers give much better performance when
+// configuring large amount of rules
+#define I40E_FDIR_WAIT_COUNT       100
+#define I40E_FDIR_WAIT_INTERVAL_US 100
 
 /* Wait count and interval for fdir filter flush */
 #define I40E_FDIR_FLUSH_RETRY       50
@@ -751,6 +754,9 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 					fdir_input->flow.ip4_flow.ttl :
 					I40E_FDIR_IP_DEFAULT_TTL;
 		ip->type_of_service = fdir_input->flow.ip4_flow.tos;
+#ifdef TREX_PATCH
+        ip->packet_id = rte_cpu_to_be_16(fdir_input->flow.ip4_flow.ip_id);
+#endif
 		/*
 		 * The source and destination fields in the transmitted packet
 		 * need to be presented in a reversed order with respect
@@ -771,7 +777,11 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		ip6->vtc_flow =
 			rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW |
 					 (fdir_input->flow.ipv6_flow.tc <<
-					  I40E_FDIR_IPv6_TC_OFFSET));
+					  I40E_FDIR_IPv6_TC_OFFSET)
+#ifdef TREX_PATCH
+                             | (fdir_input->flow.ipv6_flow.flow_label & 0x000fffff)
+#endif
+                             );
 		ip6->payload_len =
 			rte_cpu_to_be_16(I40E_FDIR_IPv6_PAYLOAD_LEN);
 		ip6->proto = fdir_input->flow.ipv6_flow.proto ?
@@ -1272,8 +1282,12 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 	fdirdp->dtype_cmd_cntindex |=
 			rte_cpu_to_le_32(I40E_TXD_FLTR_QW1_CNT_ENA_MASK);
 	fdirdp->dtype_cmd_cntindex |=
+#ifdef TREX_PATCH
+			rte_cpu_to_le_32((fdir_action->stat_count_index <<
+#else
 			rte_cpu_to_le_32(
 			((uint32_t)pf->fdir.match_counter_index <<
+#endif
 			I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
 			I40E_TXD_FLTR_QW1_CNTINDEX_MASK);
 
@@ -1297,11 +1311,17 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 	I40E_PCI_REG_WRITE(txq->qtx_tail, txq->tx_tail);
 
 	for (i = 0; i < I40E_FDIR_WAIT_COUNT; i++) {
+#ifndef TREX_PATCH
+        /* itay: moved this delay after the check to avoid first check */
 		rte_delay_us(I40E_FDIR_WAIT_INTERVAL_US);
+#endif
 		if ((txdp->cmd_type_offset_bsz &
 				rte_cpu_to_le_64(I40E_TXD_QW1_DTYPE_MASK)) ==
 				rte_cpu_to_le_64(I40E_TX_DESC_DTYPE_DESC_DONE))
 			break;
+#ifdef TREX_PATCH
+        rte_delay_us(I40E_FDIR_WAIT_INTERVAL_US);
+#endif
 	}
 	if (i >= I40E_FDIR_WAIT_COUNT) {
 		PMD_DRV_LOG(ERR, "Failed to program FDIR filter:"
@@ -1309,7 +1329,10 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 		return -ETIMEDOUT;
 	}
 	/* totally delay 10 ms to check programming status*/
+#ifndef TREX_PATCH
+    /* itay: tests show this is not needed */
 	rte_delay_us((I40E_FDIR_WAIT_COUNT - i) * I40E_FDIR_WAIT_INTERVAL_US);
+#endif
 	if (i40e_check_fdir_programming_status(rxq) < 0) {
 		PMD_DRV_LOG(ERR, "Failed to program FDIR filter:"
 			    " programming status reported.");

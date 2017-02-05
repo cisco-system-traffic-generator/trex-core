@@ -689,6 +689,9 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
+    // TREX_PATCH - The code in #if 0 caused tx queue to hang when running:
+    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundeling.yaml -m 35 -p -d 100
+#if 0
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
 	 * call it in the case where we know we are the uniq holder of
@@ -700,7 +703,7 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 		rte_mbuf_refcnt_set(m, 1 + value);
 		return 1 + value;
 	}
-
+#endif
 	return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
 }
 

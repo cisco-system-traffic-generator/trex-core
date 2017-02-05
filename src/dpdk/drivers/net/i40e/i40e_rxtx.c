@@ -1708,12 +1708,21 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t base, bsf, tc_mapping;
 	int use_def_burst_func = 1;
 
+#define TREX_PATCH_LOW_LATENCY
+#ifdef TREX_PATCH_LOW_LATENCY
+    int is_vf = 0;
+#endif
+
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		struct i40e_vf *vf =
 			I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
-	} else
+#ifdef TREX_PATCH_LOW_LATENCY
+        is_vf = 1;
+#endif
+	} else {
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
+    }
 
 	if (vsi == NULL) {
 		PMD_DRV_LOG(ERR, "VSI not available or queue "
@@ -1829,6 +1838,12 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		ad->rx_bulk_alloc_allowed = false;
 	}
 
+#ifdef TREX_PATCH_LOW_LATENCY
+    if (! is_vf)
+        rxq->dcb_tc =0;
+    else // The entire for below is in the else
+#endif
+
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -1936,12 +1951,24 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t tx_rs_thresh, tx_free_thresh;
 	uint16_t i, base, bsf, tc_mapping;
 
+#ifdef TREX_PATCH_LOW_LATENCY
+    u8 low_latency = 0;
+    int is_vf = 1;
+#endif
+
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		struct i40e_vf *vf =
 			I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
-	} else
+	} else {
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
+#ifdef TREX_PATCH_LOW_LATENCY
+        if (queue_idx == pf->dev_data->nb_tx_queues-1) {
+            low_latency = 1;
+        }
+        is_vf = 0;
+#endif
+    }
 
 	if (vsi == NULL) {
 		PMD_DRV_LOG(ERR, "VSI is NULL, or queue index (%u) "
@@ -2096,6 +2123,15 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	/* Use a simple TX queue without offloads or multi segs if possible */
 	i40e_set_tx_function_flag(dev, txq);
 
+#ifdef TREX_PATCH_LOW_LATENCY
+    if (! is_vf) {
+        if (low_latency) {
+            txq->dcb_tc=1;
+        }else{
+            txq->dcb_tc=0;
+        }
+    } else // The entire for below is in the else
+#endif
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
