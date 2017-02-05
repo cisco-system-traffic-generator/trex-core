@@ -1,7 +1,7 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
+ *   Copyright (C) IBM Corporation 2016.
  *   All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
@@ -31,27 +31,17 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <rte_common.h>
-#include <rte_log.h>
-
-#include <eal_private.h>
-
-/*
- * set the log to default function, called during eal init process,
- * once memzones are available.
- */
-int
-rte_eal_log_init(const char *id __rte_unused, int facility __rte_unused)
-{
-	if (rte_eal_common_log_init(stderr) < 0)
-		return -1;
-	return 0;
-}
+#include "acl_run_altivec.h"
 
 int
-rte_eal_log_early_init(void)
+rte_acl_classify_altivec(const struct rte_acl_ctx *ctx, const uint8_t **data,
+	uint32_t *results, uint32_t num, uint32_t categories)
 {
-	rte_openlog_stream(stderr);
-	return 0;
+	if (likely(num >= MAX_SEARCHES_ALTIVEC8))
+		return search_altivec_8(ctx, data, results, num, categories);
+	else if (num >= MAX_SEARCHES_ALTIVEC4)
+		return search_altivec_4(ctx, data, results, num, categories);
+	else
+		return rte_acl_classify_scalar(ctx, data, results, num,
+			categories);
 }

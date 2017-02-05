@@ -53,6 +53,7 @@
 
 #include <stdio.h>
 #include <rte_memory.h>
+#include <rte_common.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,13 +79,11 @@ struct rte_memzone {
 	char name[RTE_MEMZONE_NAMESIZE];  /**< Name of the memory zone. */
 
 	phys_addr_t phys_addr;            /**< Start physical address. */
+	RTE_STD_C11
 	union {
 		void *addr;                   /**< Start virtual address. */
 		uint64_t addr_64;             /**< Makes sure addr is always 64-bits */
 	};
-#ifdef RTE_LIBRTE_IVSHMEM
-	phys_addr_t ioremap_addr;         /**< Real physical address inside the VM */
-#endif
 	size_t len;                       /**< Length of the memzone. */
 
 	uint64_t hugepage_sz;             /**< The page size of underlying memory */
@@ -256,12 +255,10 @@ const struct rte_memzone *rte_memzone_reserve_bounded(const char *name,
 /**
  * Free a memzone.
  *
- * Note: an IVSHMEM zone cannot be freed.
- *
  * @param mz
  *   A pointer to the memzone
  * @return
- *  -EINVAL - invalid parameter, IVSHMEM memzone.
+ *  -EINVAL - invalid parameter.
  *  0 - success
  */
 int rte_memzone_free(const struct rte_memzone *mz);
@@ -280,7 +277,7 @@ int rte_memzone_free(const struct rte_memzone *mz);
 const struct rte_memzone *rte_memzone_lookup(const char *name);
 
 /**
- * Dump all reserved memzones to the console.
+ * Dump all reserved memzones to a file.
  *
  * @param f
  *   A pointer to a file for output

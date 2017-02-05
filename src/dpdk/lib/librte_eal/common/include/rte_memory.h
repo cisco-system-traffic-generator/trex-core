@@ -44,6 +44,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include <rte_config.h>
+
 #ifdef RTE_EXEC_ENV_LINUXAPP
 #include <exec-env/rte_dom0_common.h>
 #endif
@@ -54,6 +56,7 @@ extern "C" {
 
 #include <rte_common.h>
 
+__extension__
 enum rte_page_sizes {
 	RTE_PGSIZE_4K    = 1ULL << 12,
 	RTE_PGSIZE_64K   = 1ULL << 16,
@@ -103,13 +106,11 @@ typedef uint64_t phys_addr_t; /**< Physical address definition. */
  */
 struct rte_memseg {
 	phys_addr_t phys_addr;      /**< Start physical address. */
+	RTE_STD_C11
 	union {
 		void *addr;         /**< Start virtual address. */
 		uint64_t addr_64;   /**< Makes sure addr is always 64 bits */
 	};
-#ifdef RTE_LIBRTE_IVSHMEM
-	phys_addr_t ioremap_addr; /**< Real physical address inside the VM */
-#endif
 	size_t len;               /**< Length of the segment. */
 	uint64_t hugepage_sz;       /**< The pagesize of underlying memory */
 	int32_t socket_id;          /**< NUMA socket ID. */
@@ -161,7 +162,7 @@ phys_addr_t rte_mem_virt2phy(const void *virt);
 const struct rte_memseg *rte_eal_get_physmem_layout(void);
 
 /**
- * Dump the physical memory layout to the console.
+ * Dump the physical memory layout to a file.
  *
  * @param f
  *   A pointer to a file for output

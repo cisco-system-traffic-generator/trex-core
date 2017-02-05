@@ -31,14 +31,17 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _RTE_VECT_H_
-#define _RTE_VECT_H_
+#ifndef _RTE_VECT_X86_H_
+#define _RTE_VECT_X86_H_
 
 /**
  * @file
  *
  * RTE SSE/AVX related header.
  */
+
+#include <stdint.h>
+#include "generic/rte_vect.h"
 
 #if (defined(__ICC) || (__GNUC__ == 4 &&  __GNUC_MINOR__ < 4))
 
@@ -106,7 +109,8 @@ typedef union rte_ymm {
 #endif /* __AVX__ */
 
 #ifdef RTE_ARCH_I686
-#define _mm_cvtsi128_si64(a) ({ \
+#define _mm_cvtsi128_si64(a)    \
+__extension__ ({                \
 	rte_xmm_t m;            \
 	m.x = (a);              \
 	(m.u64[0]);             \
@@ -117,7 +121,8 @@ typedef union rte_ymm {
  * Prior to version 12.1 icc doesn't support _mm_set_epi64x.
  */
 #if (defined(__ICC) && __ICC < 1210)
-#define _mm_set_epi64x(a, b)  ({ \
+#define _mm_set_epi64x(a, b)     \
+__extension__ ({                 \
 	rte_xmm_t m;             \
 	m.u64[0] = b;            \
 	m.u64[1] = a;            \
@@ -129,4 +134,4 @@ typedef union rte_ymm {
 }
 #endif
 
-#endif /* _RTE_VECT_H_ */
+#endif /* _RTE_VECT_X86_H_ */

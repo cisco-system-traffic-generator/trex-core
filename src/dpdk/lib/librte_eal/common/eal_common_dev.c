@@ -48,6 +48,9 @@
 /** Global list of device drivers. */
 static struct rte_driver_list dev_driver_list =
 	TAILQ_HEAD_INITIALIZER(dev_driver_list);
+/** Global list of device drivers. */
+static struct rte_device_list dev_device_list =
+	TAILQ_HEAD_INITIALIZER(dev_device_list);
 
 /* register a driver */
 void
@@ -63,42 +66,25 @@ rte_eal_driver_unregister(struct rte_driver *driver)
 	TAILQ_REMOVE(&dev_driver_list, driver, next);
 }
 
-int
-rte_eal_vdev_init(const char *name, const char *args)
+void rte_eal_device_insert(struct rte_device *dev)
 {
-	struct rte_driver *driver;
+	TAILQ_INSERT_TAIL(&dev_device_list, dev, next);
+}
 
-	if (name == NULL)
-		return -EINVAL;
-
-	TAILQ_FOREACH(driver, &dev_driver_list, next) {
-		if (driver->type != PMD_VDEV)
-			continue;
-
-		/*
-		 * search a driver prefix in virtual device name.
-		 * For example, if the driver is pcap PMD, driver->name
-		 * will be "eth_pcap", but "name" will be "eth_pcapN".
-		 * So use strncmp to compare.
-		 */
-		if (!strncmp(driver->name, name, strlen(driver->name)))
-			return driver->init(name, args);
-	}
-
-	RTE_LOG(ERR, EAL, "no driver found for %s\n", name);
-	return -EINVAL;
+void rte_eal_device_remove(struct rte_device *dev)
+{
+	TAILQ_REMOVE(&dev_device_list, dev, next);
 }
 
 int
 rte_eal_dev_init(void)
 {
 	struct rte_devargs *devargs;
-	struct rte_driver *driver;
 
 	/*
 	 * Note that the dev_driver_list is populated here
 	 * from calls made to rte_eal_driver_register from constructor functions
-	 * embedded into PMD modules via the PMD_REGISTER_DRIVER macro
+	 * embedded into PMD modules via the RTE_PMD_REGISTER_VDEV macro
 	 */
 
 	/* call the init function for each virtual device */
@@ -115,38 +101,53 @@ rte_eal_dev_init(void)
 		}
 	}
 
-	/* Once the vdevs are initalized, start calling all the pdev drivers */
-	TAILQ_FOREACH(driver, &dev_driver_list, next) {
-		if (driver->type != PMD_PDEV)
-			continue;
-		/* PDEV drivers don't get passed any parameters */
-		driver->init(NULL, NULL);
-	}
 	return 0;
 }
 
-int
-rte_eal_vdev_uninit(const char *name)
+int rte_eal_dev_attach(const char *name, const char *devargs)
 {
-	struct rte_driver *driver;
+	struct rte_pci_addr addr;
 
-	if (name == NULL)
+	if (name == NULL || devargs == NULL) {
+		RTE_LOG(ERR, EAL, "Invalid device or arguments provided\n");
 		return -EINVAL;
-
-	TAILQ_FOREACH(driver, &dev_driver_list, next) {
-		if (driver->type != PMD_VDEV)
-			continue;
-
-		/*
-		 * search a driver prefix in virtual device name.
-		 * For example, if the driver is pcap PMD, driver->name
-		 * will be "eth_pcap", but "name" will be "eth_pcapN".
-		 * So use strncmp to compare.
-		 */
-		if (!strncmp(driver->name, name, strlen(driver->name)))
-			return driver->uninit(name);
 	}
 
-	RTE_LOG(ERR, EAL, "no driver found for %s\n", name);
+	if (eal_parse_pci_DomBDF(name, &addr) == 0) {
+		if (rte_eal_pci_probe_one(&addr) < 0)
+			goto err;
+
+	} else {
+		if (rte_eal_vdev_init(name, devargs))
+			goto err;
+	}
+
+	return 0;
+
+err:
+	RTE_LOG(ERR, EAL, "Driver cannot attach the device (%s)\n", name);
+	return -EINVAL;
+}
+
+int rte_eal_dev_detach(const char *name)
+{
+	struct rte_pci_addr addr;
+
+	if (name == NULL) {
+		RTE_LOG(ERR, EAL, "Invalid device provided.\n");
+		return -EINVAL;
+	}
+
+	if (eal_parse_pci_DomBDF(name, &addr) == 0) {
+		if (rte_eal_pci_detach(&addr) < 0)
+			goto err;
+	} else {
+		if (rte_eal_vdev_uninit(name))
+			goto err;
+	}
+	return 0;
+
+err:
+	RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n", name);
 	return -EINVAL;
 }

@@ -114,7 +114,8 @@ struct rxq {
 	unsigned int elts_n:4; /* Log 2 of Mbufs. */
 	unsigned int port_id:8;
 	unsigned int rss_hash:1; /* RSS hash result is enabled. */
-	unsigned int :9; /* Remaining bits. */
+	unsigned int mark:1; /* Marked flow available on the queue. */
+	unsigned int :8; /* Remaining bits. */
 	volatile uint32_t *rq_db;
 	volatile uint32_t *cq_db;
 	uint16_t rq_ci;
@@ -178,8 +179,8 @@ struct hash_rxq_init {
 			uint16_t size;
 		} hdr;
 		struct ibv_exp_flow_spec_tcp_udp tcp_udp;
-		struct ibv_exp_flow_spec_ipv4_ext ipv4;
-		struct ibv_exp_flow_spec_ipv6_ext ipv6;
+		struct ibv_exp_flow_spec_ipv4 ipv4;
+		struct ibv_exp_flow_spec_ipv6 ipv6;
 		struct ibv_exp_flow_spec_eth eth;
 	} flow_spec; /* Flow specification template. */
 	const struct hash_rxq_init *underlayer; /* Pointer to underlayer. */
@@ -240,13 +241,6 @@ struct hash_rxq {
 		[MLX5_MAX_SPECIAL_FLOWS][MLX5_MAX_VLAN_IDS];
 };
 
-/** C extension macro for environments lacking C11 features. */
-#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
-#define RTE_STD_C11 __extension__
-#else
-#define RTE_STD_C11
-#endif
-
 /* TX queue descriptor. */
 RTE_STD_C11
 struct txq {
@@ -255,15 +249,14 @@ struct txq {
 	uint16_t elts_comp; /* Counter since last completion request. */
 	uint16_t cq_ci; /* Consumer index for completion queue. */
 	uint16_t wqe_ci; /* Consumer index for work queue. */
+	uint16_t wqe_pi; /* Producer index for work queue. */
 	uint16_t elts_n:4; /* (*elts)[] length (in log2). */
 	uint16_t cqe_n:4; /* Number of CQ elements (in log2). */
 	uint16_t wqe_n:4; /* Number of of WQ elements (in log2). */
-	uint16_t bf_buf_size:4; /* Log2 Blueflame size. */
-	uint16_t bf_offset; /* Blueflame offset. */
 	uint16_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
 	uint32_t qp_num_8s; /* QP number shifted by 8. */
 	volatile struct mlx5_cqe (*cqes)[]; /* Completion queue. */
-	volatile struct mlx5_wqe64 (*wqes)[]; /* Work queue. */
+	volatile void *wqes; /* Work queue (use volatile to write into). */
 	volatile uint32_t *qp_db; /* Work queue doorbell. */
 	volatile uint32_t *cq_db; /* Completion queue doorbell. */
 	volatile void *bf_reg; /* Blueflame register. */

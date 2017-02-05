@@ -56,7 +56,7 @@
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
 #include <rte_string_fns.h>
-#include <rte_dev.h>
+#include <rte_vdev.h>
 #include <cmdline_parse.h>
 #include <cmdline_parse_etheraddr.h>
 
@@ -69,8 +69,6 @@
 
 /* virtio_idx is increased after new device is created.*/
 static int virtio_idx = 0;
-
-static const char *drivername = "xen virtio PMD";
 
 static struct rte_eth_link pmd_link = {
 		.link_speed = ETH_SPEED_NUM_10G,
@@ -331,13 +329,11 @@ eth_dev_info(struct rte_eth_dev *dev,
 	struct pmd_internals *internals = dev->data->dev_private;
 
 	RTE_SET_USED(internals);
-	dev_info->driver_name = drivername;
 	dev_info->max_mac_addrs = 1;
 	dev_info->max_rx_pktlen = (uint32_t)2048;
 	dev_info->max_rx_queues = (uint16_t)1;
 	dev_info->max_tx_queues = (uint16_t)1;
 	dev_info->min_rx_bufsize = 0;
-	dev_info->pci_dev = NULL;
 }
 
 static void
@@ -620,6 +616,7 @@ enum dev_action {
 	DEV_ATTACH
 };
 
+static struct rte_vdev_driver pmd_xenvirt_drv;
 
 static int
 eth_dev_xenvirt_create(const char *name, const char *params,
@@ -654,7 +651,7 @@ eth_dev_xenvirt_create(const char *name, const char *params,
 		goto err;
 
 	/* reserve an ethdev entry */
-	eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	eth_dev = rte_eth_dev_allocate(name);
 	if (eth_dev == NULL)
 		goto err;
 
@@ -673,9 +670,9 @@ eth_dev_xenvirt_create(const char *name, const char *params,
 	eth_dev->data = data;
 	eth_dev->dev_ops = &ops;
 
-	eth_dev->data->dev_flags = RTE_PCI_DRV_DETACHABLE;
+	eth_dev->data->dev_flags = RTE_ETH_DEV_DETACHABLE;
 	eth_dev->data->kdrv = RTE_KDRV_NONE;
-	eth_dev->data->drv_name = drivername;
+	eth_dev->data->drv_name = pmd_xenvirt_drv.driver.name;
 	eth_dev->driver = NULL;
 	eth_dev->data->numa_node = numa_node;
 
@@ -729,7 +726,7 @@ eth_dev_xenvirt_free(const char *name, const unsigned numa_node)
 
 /*TODO: Support multiple process model */
 static int
-rte_pmd_xenvirt_devinit(const char *name, const char *params)
+rte_pmd_xenvirt_probe(const char *name, const char *params)
 {
 	if (virtio_idx == 0) {
 		if (xenstore_init() != 0) {
@@ -746,7 +743,7 @@ rte_pmd_xenvirt_devinit(const char *name, const char *params)
 }
 
 static int
-rte_pmd_xenvirt_devuninit(const char *name)
+rte_pmd_xenvirt_remove(const char *name)
 {
 	eth_dev_xenvirt_free(name, rte_socket_id());
 
@@ -759,12 +756,12 @@ rte_pmd_xenvirt_devuninit(const char *name)
 	return 0;
 }
 
-static struct rte_driver pmd_xenvirt_drv = {
-	.type = PMD_VDEV,
-	.init = rte_pmd_xenvirt_devinit,
-	.uninit = rte_pmd_xenvirt_devuninit,
+static struct rte_vdev_driver pmd_xenvirt_drv = {
+	.probe = rte_pmd_xenvirt_probe,
+	.remove = rte_pmd_xenvirt_remove,
 };
 
-PMD_REGISTER_DRIVER(pmd_xenvirt_drv, eth_xenvirt);
-DRIVER_REGISTER_PARAM_STRING(eth_xenvirt,
+RTE_PMD_REGISTER_VDEV(net_xenvirt, pmd_xenvirt_drv);
+RTE_PMD_REGISTER_ALIAS(net_xenvirt, eth_xenvirt);
+RTE_PMD_REGISTER_PARAM_STRING(net_xenvirt,
 	"mac=<mac addr>");

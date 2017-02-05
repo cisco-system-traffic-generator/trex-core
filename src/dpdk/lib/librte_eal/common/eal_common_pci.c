@@ -82,8 +82,10 @@
 
 #include "eal_private.h"
 
-struct pci_driver_list pci_driver_list;
-struct pci_device_list pci_device_list;
+struct pci_driver_list pci_driver_list =
+	TAILQ_HEAD_INITIALIZER(pci_driver_list);
+struct pci_device_list pci_device_list =
+	TAILQ_HEAD_INITIALIZER(pci_device_list);
 
 #define SYSFS_PCI_DEVICES "/sys/bus/pci/devices"
 
@@ -151,7 +153,7 @@ pci_unmap_resource(void *requested_addr, size_t size)
 }
 
 /*
- * If vendor/device ID match, call the devinit() function of the
+ * If vendor/device ID match, call the probe() function of the
  * driver.
  */
 static int
@@ -183,42 +185,45 @@ rte_eal_pci_probe_one_driver(struct rte_pci_driver *dr, struct rte_pci_device *d
 
 		RTE_LOG(INFO, EAL, "PCI device "PCI_PRI_FMT" on NUMA socket %i\n",
 				loc->domain, loc->bus, loc->devid, loc->function,
-				dev->numa_node);
+				dev->device.numa_node);
 
 		/* no initialization when blacklisted, return without error */
-		if (dev->devargs != NULL &&
-			dev->devargs->type == RTE_DEVTYPE_BLACKLISTED_PCI) {
+		if (dev->device.devargs != NULL &&
+			dev->device.devargs->type ==
+				RTE_DEVTYPE_BLACKLISTED_PCI) {
 			RTE_LOG(INFO, EAL, "  Device is blacklisted, not initializing\n");
 			return 1;
 		}
 
 		RTE_LOG(INFO, EAL, "  probe driver: %x:%x %s\n", dev->id.vendor_id,
-				dev->id.device_id, dr->name);
+				dev->id.device_id, dr->driver.name);
 
 		if (dr->drv_flags & RTE_PCI_DRV_NEED_MAPPING) {
 			/* map resources for devices that use igb_uio */
 			ret = rte_eal_pci_map_device(dev);
 			if (ret != 0)
 				return ret;
-		} else if (dr->drv_flags & RTE_PCI_DRV_FORCE_UNBIND &&
-				rte_eal_process_type() == RTE_PROC_PRIMARY) {
-			/* unbind current driver */
-			if (pci_unbind_kernel_driver(dev) < 0)
-				return -1;
 		}
 
 		/* reference driver structure */
 		dev->driver = dr;
 
-		/* call the driver devinit() function */
-		return dr->devinit(dr, dev);
+		/* call the driver probe() function */
+		ret = dr->probe(dr, dev);
+		if (ret) {
+			dev->driver = NULL;
+			if (dr->drv_flags & RTE_PCI_DRV_NEED_MAPPING)
+				rte_eal_pci_unmap_device(dev);
+		}
+
+		return ret;
 	}
 	/* return positive value if driver doesn't support this device */
 	return 1;
 }
 
 /*
- * If vendor/device ID match, call the devuninit() function of the
+ * If vendor/device ID match, call the remove() function of the
  * driver.
  */
 static int
@@ -250,12 +255,12 @@ rte_eal_pci_detach_dev(struct rte_pci_driver *dr,
 
 		RTE_LOG(DEBUG, EAL, "PCI device "PCI_PRI_FMT" on NUMA socket %i\n",
 				loc->domain, loc->bus, loc->devid,
-				loc->function, dev->numa_node);
+				loc->function, dev->device.numa_node);
 
 		RTE_LOG(DEBUG, EAL, "  remove driver: %x:%x %s\n", dev->id.vendor_id,
-				dev->id.device_id, dr->name);
+				dev->id.device_id, dr->driver.name);
 
-		if (dr->devuninit && (dr->devuninit(dev) < 0))
+		if (dr->remove && (dr->remove(dev) < 0))
 			return -1;	/* negative value is an error */
 
 		/* clear driver structure */
@@ -273,7 +278,7 @@ rte_eal_pci_detach_dev(struct rte_pci_driver *dr,
 }
 
 /*
- * If vendor/device ID match, call the devinit() function of all
+ * If vendor/device ID match, call the probe() function of all
  * registered driver for the given device. Return -1 if initialization
  * failed, return 1 if no driver is found for this device.
  */
@@ -285,6 +290,10 @@ pci_probe_all_drivers(struct rte_pci_device *dev)
 
 	if (dev == NULL)
 		return -1;
+
+	/* Check if a driver is already loaded */
+	if (dev->driver != NULL)
+		return 0;
 
 	TAILQ_FOREACH(dr, &pci_driver_list, next) {
 		rc = rte_eal_pci_probe_one_driver(dr, dev);
@@ -300,7 +309,7 @@ pci_probe_all_drivers(struct rte_pci_device *dev)
 }
 
 /*
- * If vendor/device ID match, call the devuninit() function of all
+ * If vendor/device ID match, call the remove() function of all
  * registered driver for the given device. Return -1 if initialization
  * failed, return 1 if no driver is found for this device.
  */
@@ -339,21 +348,27 @@ rte_eal_pci_probe_one(const struct rte_pci_addr *addr)
 	if (addr == NULL)
 		return -1;
 
+	/* update current pci device in global list, kernel bindings might have
+	 * changed since last time we looked at it.
+	 */
+	if (pci_update_device(addr) < 0)
+		goto err_return;
+
 	TAILQ_FOREACH(dev, &pci_device_list, next) {
 		if (rte_eal_compare_pci_addr(&dev->addr, addr))
 			continue;
 
 		ret = pci_probe_all_drivers(dev);
-		if (ret < 0)
+		if (ret)
 			goto err_return;
 		return 0;
 	}
 	return -1;
 
 err_return:
-	RTE_LOG(WARNING, EAL, "Requested device " PCI_PRI_FMT
-			" cannot be used\n", dev->addr.domain, dev->addr.bus,
-			dev->addr.devid, dev->addr.function);
+	RTE_LOG(WARNING, EAL,
+		"Requested device " PCI_PRI_FMT " cannot be used\n",
+		addr->domain, addr->bus, addr->devid, addr->function);
 	return -1;
 }
 
@@ -378,6 +393,7 @@ rte_eal_pci_detach(const struct rte_pci_addr *addr)
 			goto err_return;
 
 		TAILQ_REMOVE(&pci_device_list, dev, next);
+		free(dev);
 		return 0;
 	}
 	return -1;
@@ -390,7 +406,7 @@ err_return:
 }
 
 /*
- * Scan the content of the PCI bus, and call the devinit() function for
+ * Scan the content of the PCI bus, and call the probe() function for
  * all registered drivers that have a matching entry in its id_table
  * for discovered devices.
  */
@@ -410,7 +426,7 @@ rte_eal_pci_probe(void)
 		/* set devargs in PCI structure */
 		devargs = pci_devargs_lookup(dev);
 		if (devargs != NULL)
-			dev->devargs = devargs;
+			dev->device.devargs = devargs;
 
 		/* probe all or only whitelisted devices */
 		if (probe_all)
@@ -463,11 +479,13 @@ void
 rte_eal_pci_register(struct rte_pci_driver *driver)
 {
 	TAILQ_INSERT_TAIL(&pci_driver_list, driver, next);
+	rte_eal_driver_register(&driver->driver);
 }
 
 /* unregister a driver */
 void
 rte_eal_pci_unregister(struct rte_pci_driver *driver)
 {
+	rte_eal_driver_unregister(&driver->driver);
 	TAILQ_REMOVE(&pci_driver_list, driver, next);
 }

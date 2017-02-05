@@ -959,7 +959,7 @@ int setup_rss(struct port_info *pi)
 	dev_debug(adapter, "%s:  pi->rss_size = %u; pi->n_rx_qsets = %u\n",
 		  __func__, pi->rss_size, pi->n_rx_qsets);
 
-	if (!pi->flags & PORT_RSS_DONE) {
+	if (!(pi->flags & PORT_RSS_DONE)) {
 		if (adapter->flags & FULL_INIT_DONE) {
 			/* Fill default values with equal distribution */
 			for (j = 0; j < pi->rss_size; j++)
@@ -1150,7 +1150,7 @@ int cxgbe_probe(struct adapter *adapter)
 		 */
 
 		/* reserve an ethdev entry */
-		pi->eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_PCI);
+		pi->eth_dev = rte_eth_dev_allocate(name);
 		if (!pi->eth_dev)
 			goto out_free;
 
@@ -1163,16 +1163,14 @@ int cxgbe_probe(struct adapter *adapter)
 		pi->eth_dev->data = data;
 
 allocate_mac:
-		pi->eth_dev->pci_dev = adapter->pdev;
+		pi->eth_dev->device = &adapter->pdev->device;
 		pi->eth_dev->data->dev_private = pi;
 		pi->eth_dev->driver = adapter->eth_dev->driver;
 		pi->eth_dev->dev_ops = adapter->eth_dev->dev_ops;
 		pi->eth_dev->tx_pkt_burst = adapter->eth_dev->tx_pkt_burst;
 		pi->eth_dev->rx_pkt_burst = adapter->eth_dev->rx_pkt_burst;
 
-		rte_eth_copy_pci_info(pi->eth_dev, pi->eth_dev->pci_dev);
-
-		TAILQ_INIT(&pi->eth_dev->link_intr_cbs);
+		rte_eth_copy_pci_info(pi->eth_dev, adapter->pdev);
 
 		pi->eth_dev->data->mac_addrs = rte_zmalloc(name,
 							   ETHER_ADDR_LEN, 0);

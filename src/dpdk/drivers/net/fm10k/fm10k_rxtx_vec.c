@@ -67,6 +67,8 @@ fm10k_reset_tx_queue(struct fm10k_tx_queue *txq);
 #define RXEFLAG_SHIFT     (13)
 /* IPE/L4E flag shift */
 #define L3L4EFLAG_SHIFT     (14)
+/* shift PKT_RX_L4_CKSUM_GOOD into one byte by 1 bit */
+#define CKSUM_SHIFT     (1)
 
 static inline void
 fm10k_desc_to_olflags_v(__m128i descs[4], struct rte_mbuf **rx_pkts)
@@ -92,11 +94,18 @@ fm10k_desc_to_olflags_v(__m128i descs[4], struct rte_mbuf **rx_pkts)
 			0x0000, 0x0000, 0x0000, 0x0000,
 			0x0001, 0x0001, 0x0001, 0x0001);
 
+	/* mask the lower byte of ol_flags */
+	const __m128i ol_flags_msk = _mm_set_epi16(
+			0x0000, 0x0000, 0x0000, 0x0000,
+			0x00FF, 0x00FF, 0x00FF, 0x00FF);
+
 	const __m128i l3l4cksum_flag = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
 			0, 0, 0, 0,
-			PKT_RX_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_BAD, PKT_RX_L4_CKSUM_BAD, 0);
+			(PKT_RX_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD) >> CKSUM_SHIFT,
+			(PKT_RX_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD) >> CKSUM_SHIFT,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD) >> CKSUM_SHIFT,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_GOOD) >> CKSUM_SHIFT);
 
 	const __m128i rxe_flag = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
@@ -139,6 +148,10 @@ fm10k_desc_to_olflags_v(__m128i descs[4], struct rte_mbuf **rx_pkts)
 	/* Process L4/L3 checksum error flags */
 	cksumflag = _mm_srli_epi16(cksumflag, L3L4EFLAG_SHIFT);
 	cksumflag = _mm_shuffle_epi8(l3l4cksum_flag, cksumflag);
+
+	/* clean the higher byte and shift back the flag bits */
+	cksumflag = _mm_and_si128(cksumflag, ol_flags_msk);
+	cksumflag = _mm_slli_epi16(cksumflag, CKSUM_SHIFT);
 	vtag1 = _mm_or_si128(cksumflag, vtag1);
 
 	vol.dword = _mm_cvtsi128_si64(vtag1);
@@ -234,11 +247,8 @@ fm10k_rx_vec_condition_check(struct rte_eth_dev *dev)
 	if (fconf->mode != RTE_FDIR_MODE_NONE)
 		return -1;
 
-	/* - no csum error report support
-	 * - no header split support
-	 */
-	if (rxmode->hw_ip_checksum == 1 ||
-	    rxmode->header_split == 1)
+	/* no header split support */
+	if (rxmode->header_split == 1)
 		return -1;
 
 	return 0;
@@ -406,7 +416,7 @@ fm10k_recv_raw_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,
 	 */
 	rxdp = rxq->hw_ring + next_dd;
 
-	_mm_prefetch((const void *)rxdp, _MM_HINT_T0);
+	rte_prefetch0(rxdp);
 
 	/* See if we need to rearm the RX queue - gives the prefetch a bit
 	 * of time to act
@@ -468,6 +478,7 @@ fm10k_recv_raw_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,
 		/* Read desc statuses backwards to avoid race condition */
 		/* A.1 load 4 pkts desc */
 		descs0[3] = _mm_loadu_si128((__m128i *)(rxdp + 3));
+		rte_compiler_barrier();
 
 		/* B.2 copy 2 mbuf point into rx_pkts  */
 		_mm_storeu_si128((__m128i *)&rx_pkts[pos], mbp1);
@@ -476,8 +487,10 @@ fm10k_recv_raw_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,
 		mbp2 = _mm_loadu_si128((__m128i *)&mbufp[pos+2]);
 
 		descs0[2] = _mm_loadu_si128((__m128i *)(rxdp + 2));
+		rte_compiler_barrier();
 		/* B.1 load 2 mbuf point */
 		descs0[1] = _mm_loadu_si128((__m128i *)(rxdp + 1));
+		rte_compiler_barrier();
 		descs0[0] = _mm_loadu_si128((__m128i *)(rxdp));
 
 		/* B.2 copy 2 mbuf point into rx_pkts  */

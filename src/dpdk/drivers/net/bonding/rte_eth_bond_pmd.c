@@ -42,7 +42,7 @@
 #include <rte_ip_frag.h>
 #include <rte_devargs.h>
 #include <rte_kvargs.h>
-#include <rte_dev.h>
+#include <rte_vdev.h>
 #include <rte_alarm.h>
 #include <rte_cycles.h>
 
@@ -122,6 +122,15 @@ bond_ethdev_rx_burst_active_backup(void *queue, struct rte_mbuf **bufs,
 			bd_rx_q->queue_id, bufs, nb_pkts);
 }
 
+static inline uint8_t
+is_lacp_packets(uint16_t ethertype, uint8_t subtype, uint16_t vlan_tci)
+{
+	const uint16_t ether_type_slow_be = rte_be_to_cpu_16(ETHER_TYPE_SLOW);
+
+	return !vlan_tci && (ethertype == ether_type_slow_be &&
+		(subtype == SLOW_SUBTYPE_MARKER || subtype == SLOW_SUBTYPE_LACP));
+}
+
 static uint16_t
 bond_ethdev_rx_burst_8023ad(void *queue, struct rte_mbuf **bufs,
 		uint16_t nb_pkts)
@@ -141,6 +150,7 @@ bond_ethdev_rx_burst_8023ad(void *queue, struct rte_mbuf **bufs,
 	uint8_t collecting;  /* current slave collecting status */
 	const uint8_t promisc = internals->promiscuous_en;
 	uint8_t i, j, k;
+	uint8_t subtype;
 
 	rte_eth_macaddr_get(internals->port_id, &bond_mac);
 	/* Copy slave list to protect against slave up/down changes during tx
@@ -166,10 +176,12 @@ bond_ethdev_rx_burst_8023ad(void *queue, struct rte_mbuf **bufs,
 				rte_prefetch0(rte_pktmbuf_mtod(bufs[j + 3], void *));
 
 			hdr = rte_pktmbuf_mtod(bufs[j], struct ether_hdr *);
+			subtype = ((struct slow_protocol_frame *)hdr)->slow_protocol.subtype;
+
 			/* Remove packet from array if it is slow packet or slave is not
 			 * in collecting state or bondign interface is not in promiscus
 			 * mode and packet address does not match. */
-			if (unlikely(hdr->ether_type == ether_type_slow_be ||
+			if (unlikely(is_lacp_packets(hdr->ether_type, subtype, bufs[j]->vlan_tci) ||
 				!collecting || (!promisc &&
 					!is_multicast_ether_addr(&hdr->d_addr) &&
 					!is_same_ether_addr(&bond_mac, &hdr->d_addr)))) {
@@ -888,7 +900,6 @@ bond_ethdev_tx_burst_alb(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		}
 
 		num_tx_total += num_send;
-		num_not_send += slave_bufs_pkts[RTE_MAX_ETHPORTS] - num_send;
 	}
 
 	return num_tx_total;
@@ -1305,8 +1316,6 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	struct bond_rx_queue *bd_rx_q;
 	struct bond_tx_queue *bd_tx_q;
 
-	uint16_t old_nb_tx_queues = slave_eth_dev->data->nb_tx_queues;
-	uint16_t old_nb_rx_queues = slave_eth_dev->data->nb_rx_queues;
 	int errval;
 	uint16_t q_id;
 
@@ -1335,6 +1344,9 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 				bonded_eth_dev->data->dev_conf.rxmode.mq_mode;
 	}
 
+	slave_eth_dev->data->dev_conf.rxmode.hw_vlan_filter =
+			bonded_eth_dev->data->dev_conf.rxmode.hw_vlan_filter;
+
 	/* Configure device */
 	errval = rte_eth_dev_configure(slave_eth_dev->data->port_id,
 			bonded_eth_dev->data->nb_rx_queues,
@@ -1347,9 +1359,7 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	}
 
 	/* Setup Rx Queues */
-	/* Use existing queues, if any */
-	for (q_id = old_nb_rx_queues;
-	     q_id < bonded_eth_dev->data->nb_rx_queues; q_id++) {
+	for (q_id = 0; q_id < bonded_eth_dev->data->nb_rx_queues; q_id++) {
 		bd_rx_q = (struct bond_rx_queue *)bonded_eth_dev->data->rx_queues[q_id];
 
 		errval = rte_eth_rx_queue_setup(slave_eth_dev->data->port_id, q_id,
@@ -1365,9 +1375,7 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	}
 
 	/* Setup Tx Queues */
-	/* Use existing queues, if any */
-	for (q_id = old_nb_tx_queues;
-	     q_id < bonded_eth_dev->data->nb_tx_queues; q_id++) {
+	for (q_id = 0; q_id < bonded_eth_dev->data->nb_tx_queues; q_id++) {
 		bd_tx_q = (struct bond_tx_queue *)bonded_eth_dev->data->tx_queues[q_id];
 
 		errval = rte_eth_tx_queue_setup(slave_eth_dev->data->port_id, q_id,
@@ -1439,6 +1447,9 @@ slave_remove(struct bond_dev_private *internals,
 				(internals->slave_count - i - 1));
 
 	internals->slave_count--;
+
+	/* force reconfiguration of slave interfaces */
+	_rte_eth_dev_reset(slave_eth_dev);
 }
 
 static void
@@ -1637,7 +1648,10 @@ bond_ethdev_stop(struct rte_eth_dev *eth_dev)
 void
 bond_ethdev_close(struct rte_eth_dev *dev)
 {
+	struct bond_dev_private *internals = dev->data->dev_private;
+
 	bond_ethdev_free_queues(dev);
+	rte_bitmap_reset(internals->vlan_filter_bmp);
 }
 
 /* forward declaration */
@@ -1657,13 +1671,41 @@ bond_ethdev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_tx_queues = (uint16_t)512;
 
 	dev_info->min_rx_bufsize = 0;
-	dev_info->pci_dev = NULL;
 
 	dev_info->rx_offload_capa = internals->rx_offload_capa;
 	dev_info->tx_offload_capa = internals->tx_offload_capa;
 	dev_info->flow_type_rss_offloads = internals->flow_type_rss_offloads;
 
 	dev_info->reta_size = internals->reta_size;
+}
+
+static int
+bond_ethdev_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
+{
+	int res;
+	uint8_t i;
+	struct bond_dev_private *internals = dev->data->dev_private;
+
+	/* don't do this while a slave is being added */
+	rte_spinlock_lock(&internals->lock);
+
+	if (on)
+		rte_bitmap_set(internals->vlan_filter_bmp, vlan_id);
+	else
+		rte_bitmap_clear(internals->vlan_filter_bmp, vlan_id);
+
+	for (i = 0; i < internals->slave_count; i++) {
+		uint8_t port_id = internals->slaves[i].port_id;
+
+		res = rte_eth_dev_vlan_filter(port_id, vlan_id, on);
+		if (res == ENOTSUP)
+			RTE_LOG(WARNING, PMD,
+				"Setting VLAN filter on slave port %u not supported.\n",
+				port_id);
+	}
+
+	rte_spinlock_unlock(&internals->lock);
+	return 0;
 }
 
 static int
@@ -1923,7 +1965,7 @@ bond_ethdev_delayed_lsc_propagation(void *arg)
 		return;
 
 	_rte_eth_dev_callback_process((struct rte_eth_dev *)arg,
-			RTE_ETH_EVENT_INTR_LSC);
+			RTE_ETH_EVENT_INTR_LSC, NULL);
 }
 
 void
@@ -1985,6 +2027,16 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 			/* Inherit eth dev link properties from first active slave */
 			link_properties_set(bonded_eth_dev,
 					&(slave_eth_dev->data->dev_link));
+		} else {
+			if (link_properties_valid(
+				&bonded_eth_dev->data->dev_link, &link) != 0) {
+				slave_eth_dev->data->dev_flags &=
+					(~RTE_ETH_DEV_BONDED_SLAVE);
+				RTE_LOG(ERR, PMD,
+					"port %u invalid speed/duplex\n",
+					port_id);
+				return;
+			}
 		}
 
 		activate_slave(bonded_eth_dev, port_id);
@@ -2034,7 +2086,7 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 						(void *)bonded_eth_dev);
 			else
 				_rte_eth_dev_callback_process(bonded_eth_dev,
-						RTE_ETH_EVENT_INTR_LSC);
+						RTE_ETH_EVENT_INTR_LSC, NULL);
 
 		} else {
 			if (internals->link_down_delay_ms > 0)
@@ -2043,7 +2095,7 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 						(void *)bonded_eth_dev);
 			else
 				_rte_eth_dev_callback_process(bonded_eth_dev,
-						RTE_ETH_EVENT_INTR_LSC);
+						RTE_ETH_EVENT_INTR_LSC, NULL);
 		}
 	}
 }
@@ -2161,6 +2213,7 @@ const struct eth_dev_ops default_dev_ops = {
 	.dev_close            = bond_ethdev_close,
 	.dev_configure        = bond_ethdev_configure,
 	.dev_infos_get        = bond_ethdev_info,
+	.vlan_filter_set      = bond_ethdev_vlan_filter_set,
 	.rx_queue_setup       = bond_ethdev_rx_queue_setup,
 	.tx_queue_setup       = bond_ethdev_tx_queue_setup,
 	.rx_queue_release     = bond_ethdev_rx_queue_release,
@@ -2177,7 +2230,7 @@ const struct eth_dev_ops default_dev_ops = {
 };
 
 static int
-bond_init(const char *name, const char *params)
+bond_probe(const char *name, const char *params)
 {
 	struct bond_dev_private *internals;
 	struct rte_kvargs *kvlist;
@@ -2244,7 +2297,7 @@ parse_error:
 }
 
 static int
-bond_uninit(const char *name)
+bond_remove(const char *name)
 {
 	int  ret;
 
@@ -2508,15 +2561,15 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static struct rte_driver bond_drv = {
-	.type = PMD_VDEV,
-	.init = bond_init,
-	.uninit = bond_uninit,
+struct rte_vdev_driver pmd_bond_drv = {
+	.probe = bond_probe,
+	.remove = bond_remove,
 };
 
-PMD_REGISTER_DRIVER(bond_drv, eth_bond);
+RTE_PMD_REGISTER_VDEV(net_bonding, pmd_bond_drv);
+RTE_PMD_REGISTER_ALIAS(net_bonding, eth_bond);
 
-DRIVER_REGISTER_PARAM_STRING(eth_bond,
+RTE_PMD_REGISTER_PARAM_STRING(net_bonding,
 	"slave=<ifc> "
 	"primary=<ifc> "
 	"mode=[0-6] "

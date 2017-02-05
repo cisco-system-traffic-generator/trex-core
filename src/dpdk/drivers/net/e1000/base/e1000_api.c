@@ -298,6 +298,23 @@ s32 e1000_set_mac_type(struct e1000_hw *hw)
 	case E1000_DEV_ID_PCH_I218_V3:
 		mac->type = e1000_pch_lpt;
 		break;
+	case E1000_DEV_ID_PCH_SPT_I219_LM:
+	case E1000_DEV_ID_PCH_SPT_I219_V:
+	case E1000_DEV_ID_PCH_SPT_I219_LM2:
+	case E1000_DEV_ID_PCH_SPT_I219_V2:
+	case E1000_DEV_ID_PCH_LBG_I219_LM3:
+	case E1000_DEV_ID_PCH_SPT_I219_LM4:
+	case E1000_DEV_ID_PCH_SPT_I219_V4:
+	case E1000_DEV_ID_PCH_SPT_I219_LM5:
+	case E1000_DEV_ID_PCH_SPT_I219_V5:
+		mac->type = e1000_pch_spt;
+		break;
+	case E1000_DEV_ID_PCH_CNP_I219_LM6:
+	case E1000_DEV_ID_PCH_CNP_I219_V6:
+	case E1000_DEV_ID_PCH_CNP_I219_LM7:
+	case E1000_DEV_ID_PCH_CNP_I219_V7:
+		mac->type = e1000_pch_cnp;
+		break;
 	case E1000_DEV_ID_82575EB_COPPER:
 	case E1000_DEV_ID_82575EB_FIBER_SERDES:
 	case E1000_DEV_ID_82575GB_QUAD_COPPER:
@@ -448,6 +465,8 @@ s32 e1000_setup_init_funcs(struct e1000_hw *hw, bool init_device)
 	case e1000_pchlan:
 	case e1000_pch2lan:
 	case e1000_pch_lpt:
+	case e1000_pch_spt:
+	case e1000_pch_cnp:
 		e1000_init_function_pointers_ich8lan(hw);
 		break;
 	case e1000_82575:
@@ -632,8 +651,6 @@ s32 e1000_reset_hw(struct e1000_hw *hw)
 	return -E1000_ERR_CONFIG;
 }
 
-//TREX_PATCH
-extern int eal_err_read_from_file_is_error;
 /**
  *  e1000_init_hw - Initialize hardware
  *  @hw: pointer to the HW structure
@@ -643,9 +660,6 @@ extern int eal_err_read_from_file_is_error;
  **/
 s32 e1000_init_hw(struct e1000_hw *hw)
 {
-    //TREX_PATCH
-    eal_err_read_from_file_is_error = 0;
-
 	if (hw->mac.ops.init_hw)
 		return hw->mac.ops.init_hw(hw);
 

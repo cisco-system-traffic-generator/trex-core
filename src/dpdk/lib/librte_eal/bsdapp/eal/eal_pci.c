@@ -87,15 +87,6 @@
  * enabling bus master.
  */
 
-/* unbind kernel driver for this device */
-int
-pci_unbind_kernel_driver(struct rte_pci_device *dev __rte_unused)
-{
-	RTE_LOG(ERR, EAL, "RTE_PCI_DRV_FORCE_UNBIND flag is not implemented "
-		"for BSD\n");
-	return -ENOTSUP;
-}
-
 /* Map pci device */
 int
 rte_eal_pci_map_device(struct rte_pci_device *dev)
@@ -287,7 +278,7 @@ pci_scan_one(int dev_pci_fd, struct pci_conf *conf)
 	dev->max_vfs = 0;
 
 	/* FreeBSD has no NUMA support (yet) */
-	dev->numa_node = 0;
+	dev->device.numa_node = 0;
 
 	/* FreeBSD has only one pass through driver */
 	dev->kdrv = RTE_KDRV_NIC_UIO;
@@ -398,6 +389,55 @@ rte_eal_pci_scan(void)
 	close(fd);
 
 	RTE_LOG(ERR, EAL, "PCI scan found %u devices\n", dev_count);
+	return 0;
+
+error:
+	if (fd >= 0)
+		close(fd);
+	return -1;
+}
+
+int
+pci_update_device(const struct rte_pci_addr *addr)
+{
+	int fd;
+	struct pci_conf matches[2];
+	struct pci_match_conf match = {
+		.pc_sel = {
+			.pc_domain = addr->domain,
+			.pc_bus = addr->bus,
+			.pc_dev = addr->devid,
+			.pc_func = addr->function,
+		},
+	};
+	struct pci_conf_io conf_io = {
+		.pat_buf_len = 0,
+		.num_patterns = 1,
+		.patterns = &match,
+		.match_buf_len = sizeof(matches),
+		.matches = &matches[0],
+	};
+
+	fd = open("/dev/pci", O_RDONLY);
+	if (fd < 0) {
+		RTE_LOG(ERR, EAL, "%s(): error opening /dev/pci\n", __func__);
+		goto error;
+	}
+
+	if (ioctl(fd, PCIOCGETCONF, &conf_io) < 0) {
+		RTE_LOG(ERR, EAL, "%s(): error with ioctl on /dev/pci: %s\n",
+				__func__, strerror(errno));
+		goto error;
+	}
+
+	if (conf_io.num_matches != 1)
+		goto error;
+
+	if (pci_scan_one(fd, &matches[0]) < 0)
+		goto error;
+
+	close(fd);
+
 	return 0;
 
 error:
@@ -623,9 +663,6 @@ rte_eal_pci_ioport_unmap(struct rte_pci_ioport *p)
 int
 rte_eal_pci_init(void)
 {
-	TAILQ_INIT(&pci_driver_list);
-	TAILQ_INIT(&pci_device_list);
-
 	/* for debug purposes, PCI can be disabled */
 	if (internal_config.no_pci)
 		return 0;

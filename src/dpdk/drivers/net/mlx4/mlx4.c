@@ -61,16 +61,16 @@
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/verbs.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_ether.h>
 #include <rte_ethdev.h>
@@ -87,7 +87,7 @@
 #include <rte_alarm.h>
 #include <rte_memory.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* Generated configuration header. */
@@ -2961,19 +2961,25 @@ rxq_cq_to_pkt_type(uint32_t flags)
 	if (flags & IBV_EXP_CQ_RX_TUNNEL_PACKET)
 		pkt_type =
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_OUTER_IPV4_PACKET, RTE_PTYPE_L3_IPV4) |
+				  IBV_EXP_CQ_RX_OUTER_IPV4_PACKET,
+				  RTE_PTYPE_L3_IPV4_EXT_UNKNOWN) |
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_OUTER_IPV6_PACKET, RTE_PTYPE_L3_IPV6) |
+				  IBV_EXP_CQ_RX_OUTER_IPV6_PACKET,
+				  RTE_PTYPE_L3_IPV6_EXT_UNKNOWN) |
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_IPV4_PACKET, RTE_PTYPE_INNER_L3_IPV4) |
+				  IBV_EXP_CQ_RX_IPV4_PACKET,
+				  RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN) |
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_IPV6_PACKET, RTE_PTYPE_INNER_L3_IPV6);
+				  IBV_EXP_CQ_RX_IPV6_PACKET,
+				  RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN);
 	else
 		pkt_type =
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_IPV4_PACKET, RTE_PTYPE_L3_IPV4) |
+				  IBV_EXP_CQ_RX_IPV4_PACKET,
+				  RTE_PTYPE_L3_IPV4_EXT_UNKNOWN) |
 			TRANSPOSE(flags,
-			          IBV_EXP_CQ_RX_IPV6_PACKET, RTE_PTYPE_L3_IPV6);
+				  IBV_EXP_CQ_RX_IPV6_PACKET,
+				  RTE_PTYPE_L3_IPV6_EXT_UNKNOWN);
 	return pkt_type;
 }
 
@@ -2995,25 +3001,20 @@ rxq_cq_to_ol_flags(const struct rxq *rxq, uint32_t flags)
 
 	if (rxq->csum)
 		ol_flags |=
-			TRANSPOSE(~flags,
+			TRANSPOSE(flags,
 				  IBV_EXP_CQ_RX_IP_CSUM_OK,
-				  PKT_RX_IP_CKSUM_BAD) |
-			TRANSPOSE(~flags,
+				  PKT_RX_IP_CKSUM_GOOD) |
+			TRANSPOSE(flags,
 				  IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK,
-				  PKT_RX_L4_CKSUM_BAD);
-	/*
-	 * PKT_RX_IP_CKSUM_BAD and PKT_RX_L4_CKSUM_BAD are used in place
-	 * of PKT_RX_EIP_CKSUM_BAD because the latter is not functional
-	 * (its value is 0).
-	 */
+				  PKT_RX_L4_CKSUM_GOOD);
 	if ((flags & IBV_EXP_CQ_RX_TUNNEL_PACKET) && (rxq->csum_l2tun))
 		ol_flags |=
-			TRANSPOSE(~flags,
+			TRANSPOSE(flags,
 				  IBV_EXP_CQ_RX_OUTER_IP_CSUM_OK,
-				  PKT_RX_IP_CKSUM_BAD) |
-			TRANSPOSE(~flags,
+				  PKT_RX_IP_CKSUM_GOOD) |
+			TRANSPOSE(flags,
 				  IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK,
-				  PKT_RX_L4_CKSUM_BAD);
+				  PKT_RX_L4_CKSUM_GOOD);
 	return ol_flags;
 }
 
@@ -4426,6 +4427,8 @@ mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 	unsigned int max;
 	char ifname[IF_NAMESIZE];
 
+	info->pci_dev = RTE_DEV_TO_PCI(dev->device);
+
 	if (priv == NULL)
 		return;
 	priv_lock(priv);
@@ -4826,7 +4829,7 @@ end:
 }
 
 /**
- * DPDK callback to retrieve physical link information (unlocked version).
+ * DPDK callback to retrieve physical link information.
  *
  * @param dev
  *   Pointer to Ethernet device structure.
@@ -4834,15 +4837,17 @@ end:
  *   Wait for request completion (ignored).
  */
 static int
-mlx4_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
+mlx4_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 {
-	struct priv *priv = mlx4_get_priv(dev);
+	const struct priv *priv = mlx4_get_priv(dev);
 	struct ethtool_cmd edata = {
 		.cmd = ETHTOOL_GSET
 	};
 	struct ifreq ifr;
 	struct rte_eth_link dev_link;
 	int link_speed = 0;
+
+	/* priv_lock() is not taken to allow concurrent calls. */
 
 	if (priv == NULL)
 		return -EINVAL;
@@ -4876,28 +4881,6 @@ mlx4_link_update_unlocked(struct rte_eth_dev *dev, int wait_to_complete)
 	}
 	/* Link status is still the same. */
 	return -1;
-}
-
-/**
- * DPDK callback to retrieve physical link information.
- *
- * @param dev
- *   Pointer to Ethernet device structure.
- * @param wait_to_complete
- *   Wait for request completion (ignored).
- */
-static int
-mlx4_link_update(struct rte_eth_dev *dev, int wait_to_complete)
-{
-	struct priv *priv = mlx4_get_priv(dev);
-	int ret;
-
-	if (priv == NULL)
-		return -EINVAL;
-	priv_lock(priv);
-	ret = mlx4_link_update_unlocked(dev, wait_to_complete);
-	priv_unlock(priv);
-	return ret;
 }
 
 /**
@@ -5416,7 +5399,7 @@ priv_dev_link_status_handler(struct priv *priv, struct rte_eth_dev *dev)
 		struct rte_eth_link *link = &dev->data->dev_link;
 
 		priv->pending_alarm = 0;
-		mlx4_link_update_unlocked(dev, 0);
+		mlx4_link_update(dev, 0);
 		if (((link->link_speed == 0) && link->link_status) ||
 		    ((link->link_speed != 0) && !link->link_status)) {
 			/* Inconsistent status, check again later. */
@@ -5448,7 +5431,7 @@ mlx4_dev_link_status_handler(void *arg)
 	ret = priv_dev_link_status_handler(priv, dev);
 	priv_unlock(priv);
 	if (ret)
-		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC);
+		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL);
 }
 
 /**
@@ -5471,7 +5454,7 @@ mlx4_dev_interrupt_handler(struct rte_intr_handle *intr_handle, void *cb_arg)
 	ret = priv_dev_link_status_handler(priv, dev);
 	priv_unlock(priv);
 	if (ret)
-		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC);
+		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL);
 }
 
 /**
@@ -5544,7 +5527,7 @@ static struct eth_driver mlx4_driver;
  *   0 on success, negative errno value on failure.
  */
 static int
-mlx4_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
+mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 {
 	struct ibv_device **list;
 	struct ibv_device *ibv_dev;
@@ -5803,7 +5786,7 @@ mlx4_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 			snprintf(name, sizeof(name), "%s port %u",
 				 ibv_get_device_name(ibv_dev), port);
-			eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_PCI);
+			eth_dev = rte_eth_dev_allocate(name);
 		}
 		if (eth_dev == NULL) {
 			ERROR("can not allocate rte ethdev");
@@ -5839,11 +5822,9 @@ mlx4_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			eth_dev->rx_pkt_burst = mlx4_rx_burst_secondary_setup;
 		} else {
 			eth_dev->data->dev_private = priv;
-			eth_dev->data->rx_mbuf_alloc_failed = 0;
-			eth_dev->data->mtu = ETHER_MTU;
 			eth_dev->data->mac_addrs = priv->mac;
 		}
-		eth_dev->pci_dev = pci_dev;
+		eth_dev->device = &pci_dev->device;
 
 		rte_eth_copy_pci_info(eth_dev, pci_dev);
 
@@ -5851,7 +5832,6 @@ mlx4_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 		priv->dev = eth_dev;
 		eth_dev->dev_ops = &mlx4_dev_ops;
-		TAILQ_INIT(&eth_dev->link_intr_cbs);
 
 		/* Bring Ethernet device up. */
 		DEBUG("forcing Ethernet interface up");
@@ -5911,9 +5891,11 @@ static const struct rte_pci_id mlx4_pci_id_map[] = {
 
 static struct eth_driver mlx4_driver = {
 	.pci_drv = {
-		.name = MLX4_DRIVER_NAME,
+		.driver = {
+			.name = MLX4_DRIVER_NAME
+		},
 		.id_table = mlx4_pci_id_map,
-		.devinit = mlx4_pci_devinit,
+		.probe = mlx4_pci_probe,
 		.drv_flags = RTE_PCI_DRV_INTR_LSC,
 	},
 	.dev_private_size = sizeof(struct priv)
@@ -5922,12 +5904,10 @@ static struct eth_driver mlx4_driver = {
 /**
  * Driver initialization routine.
  */
-static int
-rte_mlx4_pmd_init(const char *name, const char *args)
+RTE_INIT(rte_mlx4_pmd_init);
+static void
+rte_mlx4_pmd_init(void)
 {
-	(void)name;
-	(void)args;
-
 	RTE_BUILD_BUG_ON(sizeof(wr_id_t) != sizeof(uint64_t));
 	/*
 	 * RDMAV_HUGEPAGES_SAFE tells ibv_fork_init() we intend to use
@@ -5938,13 +5918,9 @@ rte_mlx4_pmd_init(const char *name, const char *args)
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
 	ibv_fork_init();
 	rte_eal_pci_register(&mlx4_driver.pci_drv);
-	return 0;
 }
 
-static struct rte_driver rte_mlx4_driver = {
-	.type = PMD_PDEV,
-	.init = rte_mlx4_pmd_init,
-};
-
-PMD_REGISTER_DRIVER(rte_mlx4_driver, mlx4);
-DRIVER_REGISTER_PCI_TABLE(mlx4, mlx4_pci_id_map);
+RTE_PMD_EXPORT_NAME(net_mlx4, __COUNTER__);
+RTE_PMD_REGISTER_PCI_TABLE(net_mlx4, mlx4_pci_id_map);
+RTE_PMD_REGISTER_KMOD_DEP(net_mlx4,
+	"* ib_uverbs & mlx4_en & mlx4_core & mlx4_ib");

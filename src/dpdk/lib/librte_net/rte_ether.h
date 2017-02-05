@@ -84,7 +84,7 @@ extern "C" {
  * See http://standards.ieee.org/regauth/groupmac/tutorial.html
  */
 struct ether_addr {
-	uint8_t addr_bytes[ETHER_ADDR_LEN]; /**< Address bytes in transmission order */
+	uint8_t addr_bytes[ETHER_ADDR_LEN]; /**< Addr bytes in tx order */
 } __attribute__((__packed__));
 
 #define ETHER_LOCAL_ADMIN_ADDR 0x02 /**< Locally assigned Eth. address. */
@@ -224,7 +224,7 @@ static inline int is_local_admin_ether_addr(const struct ether_addr *ea)
  */
 static inline int is_valid_assigned_ether_addr(const struct ether_addr *ea)
 {
-	return is_unicast_ether_addr(ea) && (! is_zero_ether_addr(ea));
+	return is_unicast_ether_addr(ea) && (!is_zero_ether_addr(ea));
 }
 
 /**
@@ -236,7 +236,7 @@ static inline int is_valid_assigned_ether_addr(const struct ether_addr *ea)
 static inline void eth_random_addr(uint8_t *addr)
 {
 	uint64_t rand = rte_rand();
-	uint8_t *p = (uint8_t*)&rand;
+	uint8_t *p = (uint8_t *)&rand;
 
 	rte_memcpy(addr, p, ETHER_ADDR_LEN);
 	addr[0] &= ~ETHER_GROUP_ADDR;       /* clear multicast bit */
@@ -329,6 +329,7 @@ struct vxlan_hdr {
 #define ETHER_TYPE_ARP  0x0806 /**< Arp Protocol. */
 #define ETHER_TYPE_RARP 0x8035 /**< Reverse Arp Protocol. */
 #define ETHER_TYPE_VLAN 0x8100 /**< IEEE 802.1Q VLAN tagging. */
+#define ETHER_TYPE_QINQ 0x88A8 /**< IEEE 802.1ad QinQ tagging. */
 #define ETHER_TYPE_1588 0x88F7 /**< IEEE 802.1AS 1588 Precise Time Protocol. */
 #define ETHER_TYPE_SLOW 0x8809 /**< Slow protocols (LACP and Marker). */
 #define ETHER_TYPE_TEB  0x6558 /**< Transparent Ethernet Bridging. */

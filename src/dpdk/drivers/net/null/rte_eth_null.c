@@ -35,7 +35,7 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
-#include <rte_dev.h>
+#include <rte_vdev.h>
 #include <rte_kvargs.h>
 #include <rte_spinlock.h>
 
@@ -88,7 +88,6 @@ struct pmd_internals {
 
 
 static struct ether_addr eth_addr = { .addr_bytes = {0} };
-static const char *drivername = "Null PMD";
 static struct rte_eth_link pmd_link = {
 	.link_speed = ETH_SPEED_NUM_10G,
 	.link_duplex = ETH_LINK_FULL_DUPLEX,
@@ -295,13 +294,11 @@ eth_dev_info(struct rte_eth_dev *dev,
 		return;
 
 	internals = dev->data->dev_private;
-	dev_info->driver_name = drivername;
 	dev_info->max_mac_addrs = 1;
 	dev_info->max_rx_pktlen = (uint32_t)-1;
 	dev_info->max_rx_queues = RTE_DIM(internals->rx_null_queues);
 	dev_info->max_tx_queues = RTE_DIM(internals->tx_null_queues);
 	dev_info->min_rx_bufsize = 0;
-	dev_info->pci_dev = NULL;
 	dev_info->reta_size = internals->reta_size;
 	dev_info->flow_type_rss_offloads = internals->flow_type_rss_offloads;
 }
@@ -480,6 +477,8 @@ static const struct eth_dev_ops ops = {
 	.rss_hash_conf_get = eth_rss_hash_conf_get
 };
 
+static struct rte_vdev_driver pmd_null_drv;
+
 int
 eth_dev_null_create(const char *name,
 		const unsigned numa_node,
@@ -517,7 +516,7 @@ eth_dev_null_create(const char *name,
 		goto error;
 
 	/* reserve an ethdev entry */
-	eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	eth_dev = rte_eth_dev_allocate(name);
 	if (eth_dev == NULL)
 		goto error;
 
@@ -550,12 +549,10 @@ eth_dev_null_create(const char *name,
 	eth_dev->data = data;
 	eth_dev->dev_ops = &ops;
 
-	TAILQ_INIT(&eth_dev->link_intr_cbs);
-
 	eth_dev->driver = NULL;
 	data->dev_flags = RTE_ETH_DEV_DETACHABLE;
 	data->kdrv = RTE_KDRV_NONE;
-	data->drv_name = drivername;
+	data->drv_name = pmd_null_drv.driver.name;
 	data->numa_node = numa_node;
 
 	/* finally assign rx and tx ops */
@@ -611,7 +608,7 @@ get_packet_copy_arg(const char *key __rte_unused,
 }
 
 static int
-rte_pmd_null_devinit(const char *name, const char *params)
+rte_pmd_null_probe(const char *name, const char *params)
 {
 	unsigned numa_node;
 	unsigned packet_size = default_packet_size;
@@ -663,7 +660,7 @@ free_kvlist:
 }
 
 static int
-rte_pmd_null_devuninit(const char *name)
+rte_pmd_null_remove(const char *name)
 {
 	struct rte_eth_dev *eth_dev = NULL;
 
@@ -686,13 +683,13 @@ rte_pmd_null_devuninit(const char *name)
 	return 0;
 }
 
-static struct rte_driver pmd_null_drv = {
-	.type = PMD_VDEV,
-	.init = rte_pmd_null_devinit,
-	.uninit = rte_pmd_null_devuninit,
+static struct rte_vdev_driver pmd_null_drv = {
+	.probe = rte_pmd_null_probe,
+	.remove = rte_pmd_null_remove,
 };
 
-PMD_REGISTER_DRIVER(pmd_null_drv, eth_null);
-DRIVER_REGISTER_PARAM_STRING(eth_null,
+RTE_PMD_REGISTER_VDEV(net_null, pmd_null_drv);
+RTE_PMD_REGISTER_ALIAS(net_null, eth_null);
+RTE_PMD_REGISTER_PARAM_STRING(net_null,
 	"size=<int> "
 	"copy=<int>");

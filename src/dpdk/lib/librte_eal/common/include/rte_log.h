@@ -1,7 +1,7 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
+ *   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.
  *   All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
@@ -42,8 +42,6 @@
  * This file provides a log API to RTE applications.
  */
 
-#include "rte_common.h" /* for __rte_deprecated macro */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -56,7 +54,7 @@ extern "C" {
 struct rte_logs {
 	uint32_t type;  /**< Bitfield with enabled logs. */
 	uint32_t level; /**< Log level. */
-	FILE *file;     /**< Pointer to current FILE* for logs. */
+	FILE *file;     /**< Output file set by rte_openlog_stream, or NULL. */
 };
 
 /** Global log informations */
@@ -81,6 +79,7 @@ extern struct rte_logs rte_logs;
 #define RTE_LOGTYPE_PIPELINE 0x00008000 /**< Log related to pipeline. */
 #define RTE_LOGTYPE_MBUF    0x00010000 /**< Log related to mbuf. */
 #define RTE_LOGTYPE_CRYPTODEV 0x00020000 /**< Log related to cryptodev. */
+#define RTE_LOGTYPE_EFD     0x00040000 /**< Log related to EFD. */
 
 /* these log types can be used in an application */
 #define RTE_LOGTYPE_USER1   0x01000000 /**< User-defined log type 1. */
@@ -102,9 +101,6 @@ extern struct rte_logs rte_logs;
 #define RTE_LOG_INFO     7U  /**< Informational.                    */
 #define RTE_LOG_DEBUG    8U  /**< Debug-level messages.             */
 
-/** The default log stream. */
-extern FILE *eal_default_log_stream;
-
 /**
  * Change the stream that will be used by the logging system.
  *
@@ -123,9 +119,8 @@ int rte_openlog_stream(FILE *f);
 /**
  * Set the global log level.
  *
- * After this call, all logs that are lower or equal than level and
- * lower or equal than the RTE_LOG_LEVEL configuration option will be
- * displayed.
+ * After this call, logs with a level lower or equal than the level
+ * passed as argument will be displayed.
  *
  * @param level
  *   Log level. A value between RTE_LOG_EMERG (1) and RTE_LOG_DEBUG (8).
@@ -181,45 +176,6 @@ int rte_log_cur_msg_loglevel(void);
 int rte_log_cur_msg_logtype(void);
 
 /**
- * @deprecated
- * Enable or disable the history (enabled by default)
- *
- * @param enable
- *   true to enable, or 0 to disable history.
- */
-__rte_deprecated
-void rte_log_set_history(int enable);
-
-/**
- * @deprecated
- * Dump the log history to a file
- *
- * @param f
- *   A pointer to a file for output
- */
-__rte_deprecated
-void rte_log_dump_history(FILE *f);
-
-/**
- * @deprecated
- * Add a log message to the history.
- *
- * This function can be called from a user-defined log stream. It adds
- * the given message in the history that can be dumped using
- * rte_log_dump_history().
- *
- * @param buf
- *   A data buffer containing the message to be saved in the history.
- * @param size
- *   The length of the data buffer.
- * @return
- *   - 0: Success.
- *   - (-ENOBUFS) if there is no room to store the message.
- */
-__rte_deprecated
-int rte_log_add_in_history(const char *buf, size_t size);
-
-/**
  * Generates a log message.
  *
  * The message will be sent in the stream defined by the previous call
@@ -228,9 +184,8 @@ int rte_log_add_in_history(const char *buf, size_t size);
  * The level argument determines if the log should be displayed or
  * not, depending on the global rte_logs variable.
  *
- * The preferred alternative is the RTE_LOG() function because debug logs may
- * be removed at compilation time if optimization is enabled. Moreover,
- * logs are automatically prefixed by type when using the macro.
+ * The preferred alternative is the RTE_LOG() because it adds the
+ * level and type in the logged string.
  *
  * @param level
  *   Log level. A value between RTE_LOG_EMERG (1) and RTE_LOG_DEBUG (8).
@@ -261,8 +216,8 @@ int rte_log(uint32_t level, uint32_t logtype, const char *format, ...)
  * not, depending on the global rte_logs variable. A trailing
  * newline may be added if needed.
  *
- * The preferred alternative is the RTE_LOG() because debug logs may be
- * removed at compilation time.
+ * The preferred alternative is the RTE_LOG() because it adds the
+ * level and type in the logged string.
  *
  * @param level
  *   Log level. A value between RTE_LOG_EMERG (1) and RTE_LOG_DEBUG (8).
@@ -283,15 +238,8 @@ int rte_vlog(uint32_t level, uint32_t logtype, const char *format, va_list ap)
 /**
  * Generates a log message.
  *
- * The RTE_LOG() is equivalent to rte_log() with two differences:
-
- * - RTE_LOG() can be used to remove debug logs at compilation time,
- *   depending on RTE_LOG_LEVEL configuration option, and compilation
- *   optimization level. If optimization is enabled, the tests
- *   involving constants only are pre-computed. If compilation is done
- *   with -O0, these tests will be done at run time.
- * - The log level and log type names are smaller, for example:
- *   RTE_LOG(INFO, EAL, "this is a %s", "log");
+ * The RTE_LOG() is a helper that prefixes the string with the log level
+ * and type, and call rte_log().
  *
  * @param l
  *   Log level. A value between EMERG (1) and DEBUG (8). The short name is
@@ -307,7 +255,31 @@ int rte_vlog(uint32_t level, uint32_t logtype, const char *format, va_list ap)
  *   - Negative on error.
  */
 #define RTE_LOG(l, t, ...)					\
-	(void)((RTE_LOG_ ## l <= RTE_LOG_LEVEL) ?		\
+	 rte_log(RTE_LOG_ ## l,					\
+		 RTE_LOGTYPE_ ## t, # t ": " __VA_ARGS__)
+
+/**
+ * Generates a log message for data path.
+ *
+ * Similar to RTE_LOG(), except that it is removed at compilation time
+ * if the RTE_LOG_DP_LEVEL configuration option is lower than the log
+ * level argument.
+ *
+ * @param l
+ *   Log level. A value between EMERG (1) and DEBUG (8). The short name is
+ *   expanded by the macro, so it cannot be an integer value.
+ * @param t
+ *   The log type, for example, EAL. The short name is expanded by the
+ *   macro, so it cannot be an integer value.
+ * @param ...
+ *   The fmt string, as in printf(3), followed by the variable arguments
+ *   required by the format.
+ * @return
+ *   - 0: Success.
+ *   - Negative on error.
+ */
+#define RTE_LOG_DP(l, t, ...)					\
+	(void)((RTE_LOG_ ## l <= RTE_LOG_DP_LEVEL) ?		\
 	 rte_log(RTE_LOG_ ## l,					\
 		 RTE_LOGTYPE_ ## t, # t ": " __VA_ARGS__) :	\
 	 0)

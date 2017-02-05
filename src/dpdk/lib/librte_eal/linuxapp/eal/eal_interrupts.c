@@ -73,9 +73,6 @@
 
 static RTE_DEFINE_PER_LCORE(int, _epfd) = -1; /**< epoll fd per thread */
 
-// TREX_PATCH
-int eal_err_read_from_file_is_error = 1;
-
 /**
  * union for pipe fds.
  */
@@ -139,7 +136,7 @@ static pthread_t intr_thread;
 
 /* enable legacy (INTx) interrupts */
 static int
-vfio_enable_intx(struct rte_intr_handle *intr_handle) {
+vfio_enable_intx(const struct rte_intr_handle *intr_handle) {
 	struct vfio_irq_set *irq_set;
 	char irq_set_buf[IRQ_SET_BUF_LEN];
 	int len, ret;
@@ -186,7 +183,7 @@ vfio_enable_intx(struct rte_intr_handle *intr_handle) {
 
 /* disable legacy (INTx) interrupts */
 static int
-vfio_disable_intx(struct rte_intr_handle *intr_handle) {
+vfio_disable_intx(const struct rte_intr_handle *intr_handle) {
 	struct vfio_irq_set *irq_set;
 	char irq_set_buf[IRQ_SET_BUF_LEN];
 	int len, ret;
@@ -229,7 +226,7 @@ vfio_disable_intx(struct rte_intr_handle *intr_handle) {
 
 /* enable MSI interrupts */
 static int
-vfio_enable_msi(struct rte_intr_handle *intr_handle) {
+vfio_enable_msi(const struct rte_intr_handle *intr_handle) {
 	int len, ret;
 	char irq_set_buf[IRQ_SET_BUF_LEN];
 	struct vfio_irq_set *irq_set;
@@ -258,7 +255,7 @@ vfio_enable_msi(struct rte_intr_handle *intr_handle) {
 
 /* disable MSI interrupts */
 static int
-vfio_disable_msi(struct rte_intr_handle *intr_handle) {
+vfio_disable_msi(const struct rte_intr_handle *intr_handle) {
 	struct vfio_irq_set *irq_set;
 	char irq_set_buf[IRQ_SET_BUF_LEN];
 	int len, ret;
@@ -281,9 +278,30 @@ vfio_disable_msi(struct rte_intr_handle *intr_handle) {
 	return ret;
 }
 
+static int
+get_max_intr(const struct rte_intr_handle *intr_handle)
+{
+	struct rte_intr_source *src;
+
+	TAILQ_FOREACH(src, &intr_sources, next) {
+		if (src->intr_handle.fd != intr_handle->fd)
+			continue;
+
+		if (!src->intr_handle.max_intr)
+			src->intr_handle.max_intr = 1;
+		else if (src->intr_handle.max_intr > RTE_MAX_RXTX_INTR_VEC_ID)
+			src->intr_handle.max_intr
+				= RTE_MAX_RXTX_INTR_VEC_ID + 1;
+
+		return src->intr_handle.max_intr;
+	}
+
+	return -1;
+}
+
 /* enable MSI-X interrupts */
 static int
-vfio_enable_msix(struct rte_intr_handle *intr_handle) {
+vfio_enable_msix(const struct rte_intr_handle *intr_handle) {
 	int len, ret;
 	char irq_set_buf[MSIX_IRQ_SET_BUF_LEN];
 	struct vfio_irq_set *irq_set;
@@ -293,12 +311,15 @@ vfio_enable_msix(struct rte_intr_handle *intr_handle) {
 
 	irq_set = (struct vfio_irq_set *) irq_set_buf;
 	irq_set->argsz = len;
-	if (!intr_handle->max_intr)
-		intr_handle->max_intr = 1;
-	else if (intr_handle->max_intr > RTE_MAX_RXTX_INTR_VEC_ID)
-		intr_handle->max_intr = RTE_MAX_RXTX_INTR_VEC_ID + 1;
 
-	irq_set->count = intr_handle->max_intr;
+	ret = get_max_intr(intr_handle);
+	if (ret < 0) {
+		RTE_LOG(ERR, EAL, "Invalid number of MSI-X irqs for fd %d\n",
+			intr_handle->fd);
+		return -1;
+	}
+
+	irq_set->count = ret;
 	irq_set->flags = VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER;
 	irq_set->index = VFIO_PCI_MSIX_IRQ_INDEX;
 	irq_set->start = 0;
@@ -321,7 +342,7 @@ vfio_enable_msix(struct rte_intr_handle *intr_handle) {
 
 /* disable MSI-X interrupts */
 static int
-vfio_disable_msix(struct rte_intr_handle *intr_handle) {
+vfio_disable_msix(const struct rte_intr_handle *intr_handle) {
 	struct vfio_irq_set *irq_set;
 	char irq_set_buf[MSIX_IRQ_SET_BUF_LEN];
 	int len, ret;
@@ -346,7 +367,7 @@ vfio_disable_msix(struct rte_intr_handle *intr_handle) {
 #endif
 
 static int
-uio_intx_intr_disable(struct rte_intr_handle *intr_handle)
+uio_intx_intr_disable(const struct rte_intr_handle *intr_handle)
 {
 	unsigned char command_high;
 
@@ -370,7 +391,7 @@ uio_intx_intr_disable(struct rte_intr_handle *intr_handle)
 }
 
 static int
-uio_intx_intr_enable(struct rte_intr_handle *intr_handle)
+uio_intx_intr_enable(const struct rte_intr_handle *intr_handle)
 {
 	unsigned char command_high;
 
@@ -394,7 +415,7 @@ uio_intx_intr_enable(struct rte_intr_handle *intr_handle)
 }
 
 static int
-uio_intr_disable(struct rte_intr_handle *intr_handle)
+uio_intr_disable(const struct rte_intr_handle *intr_handle)
 {
 	const int value = 0;
 
@@ -408,7 +429,7 @@ uio_intr_disable(struct rte_intr_handle *intr_handle)
 }
 
 static int
-uio_intr_enable(struct rte_intr_handle *intr_handle)
+uio_intr_enable(const struct rte_intr_handle *intr_handle)
 {
 	const int value = 1;
 
@@ -422,7 +443,7 @@ uio_intr_enable(struct rte_intr_handle *intr_handle)
 }
 
 int
-rte_intr_callback_register(struct rte_intr_handle *intr_handle,
+rte_intr_callback_register(const struct rte_intr_handle *intr_handle,
 			rte_intr_callback_fn cb, void *cb_arg)
 {
 	int ret, wake_thread;
@@ -494,7 +515,7 @@ rte_intr_callback_register(struct rte_intr_handle *intr_handle,
 }
 
 int
-rte_intr_callback_unregister(struct rte_intr_handle *intr_handle,
+rte_intr_callback_unregister(const struct rte_intr_handle *intr_handle,
 			rte_intr_callback_fn cb_fn, void *cb_arg)
 {
 	int ret;
@@ -558,7 +579,7 @@ rte_intr_callback_unregister(struct rte_intr_handle *intr_handle,
 }
 
 int
-rte_intr_enable(struct rte_intr_handle *intr_handle)
+rte_intr_enable(const struct rte_intr_handle *intr_handle)
 {
 	if (!intr_handle || intr_handle->fd < 0 || intr_handle->uio_cfg_fd < 0)
 		return -1;
@@ -602,7 +623,7 @@ rte_intr_enable(struct rte_intr_handle *intr_handle)
 }
 
 int
-rte_intr_disable(struct rte_intr_handle *intr_handle)
+rte_intr_disable(const struct rte_intr_handle *intr_handle)
 {
 	if (!intr_handle || intr_handle->fd < 0 || intr_handle->uio_cfg_fd < 0)
 		return -1;
@@ -712,19 +733,10 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 				if (errno == EINTR || errno == EWOULDBLOCK)
 					continue;
 
-                // TREX_PATCH. Because of issues with e1000, we want this message to
-                // have lower priority only if running on e1000 card
-                if (eal_err_read_from_file_is_error) {
-                    RTE_LOG(ERR, EAL, "Error reading from file "
-                            "descriptor %d: %s\n",
-                            events[n].data.fd,
-                            strerror(errno));
-                } else {
-                    RTE_LOG(INFO, EAL, "Error reading from file "
-                            "descriptor %d: %s\n",
-                            events[n].data.fd,
-                            strerror(errno));
-                }
+				RTE_LOG(ERR, EAL, "Error reading from file "
+					"descriptor %d: %s\n",
+					events[n].data.fd,
+					strerror(errno));
 			} else if (bytes_read == 0)
 				RTE_LOG(ERR, EAL, "Read nothing from file "
 					"descriptor %d\n", events[n].data.fd);
@@ -1169,7 +1181,7 @@ rte_intr_efd_enable(struct rte_intr_handle *intr_handle, uint32_t nb_efd)
 				RTE_LOG(ERR, EAL,
 					"can't setup eventfd, error %i (%s)\n",
 					errno, strerror(errno));
-				return -1;
+				return -errno;
 			}
 			intr_handle->efds[i] = fd;
 		}

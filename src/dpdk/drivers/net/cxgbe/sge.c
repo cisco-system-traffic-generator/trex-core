@@ -338,12 +338,12 @@ static inline void ring_fl_db(struct adapter *adap, struct sge_fl *q)
 		 * mechanism.
 		 */
 		if (unlikely(!q->bar2_addr)) {
-			t4_write_reg(adap, MYPF_REG(A_SGE_PF_KDOORBELL),
-				     val | V_QID(q->cntxt_id));
+			t4_write_reg_relaxed(adap, MYPF_REG(A_SGE_PF_KDOORBELL),
+					     val | V_QID(q->cntxt_id));
 		} else {
-			writel(val | V_QID(q->bar2_qid),
-			       (void *)((uintptr_t)q->bar2_addr +
-			       SGE_UDB_KDOORBELL));
+			writel_relaxed(val | V_QID(q->bar2_qid),
+				       (void *)((uintptr_t)q->bar2_addr +
+				       SGE_UDB_KDOORBELL));
 
 			/*
 			 * This Write memory Barrier will force the write to
@@ -890,14 +890,10 @@ static inline int should_tx_packet_coalesce(struct sge_eth_txq *txq,
 	struct sge_txq *q = &txq->q;
 	unsigned int flits, ndesc;
 	unsigned char type = 0;
-	int credits, hw_cidx = ntohs(q->stat->cidx);
-	int in_use = q->pidx - hw_cidx + flits_to_desc(q->coalesce.flits);
+	int credits;
 
 	/* use coal WR type 1 when no frags are present */
 	type = (mbuf->nb_segs == 1) ? 1 : 0;
-
-	if (in_use < 0)
-		in_use += q->size;
 
 	if (unlikely(type != q->coalesce.type && q->coalesce.idx))
 		ship_tx_pkt_coalesce_wr(adap, txq);
@@ -1645,7 +1641,8 @@ int t4_sge_alloc_rxq(struct adapter *adap, struct sge_rspq *iq, bool fwevtq,
 	iq->size = cxgbe_roundup(iq->size, 16);
 
 	snprintf(z_name, sizeof(z_name), "%s_%s_%d_%d",
-		 eth_dev->driver->pci_drv.name, fwevtq ? "fwq_ring" : "rx_ring",
+		 eth_dev->driver->pci_drv.driver.name,
+		 fwevtq ? "fwq_ring" : "rx_ring",
 		 eth_dev->data->port_id, queue_id);
 	snprintf(z_name_sw, sizeof(z_name_sw), "%s_sw_ring", z_name);
 
@@ -1697,7 +1694,7 @@ int t4_sge_alloc_rxq(struct adapter *adap, struct sge_rspq *iq, bool fwevtq,
 		fl->size = cxgbe_roundup(fl->size, 8);
 
 		snprintf(z_name, sizeof(z_name), "%s_%s_%d_%d",
-			 eth_dev->driver->pci_drv.name,
+			 eth_dev->driver->pci_drv.driver.name,
 			 fwevtq ? "fwq_ring" : "fl_ring",
 			 eth_dev->data->port_id, queue_id);
 		snprintf(z_name_sw, sizeof(z_name_sw), "%s_sw_ring", z_name);
@@ -1893,7 +1890,7 @@ int t4_sge_alloc_eth_txq(struct adapter *adap, struct sge_eth_txq *txq,
 	nentries = txq->q.size + s->stat_len / sizeof(struct tx_desc);
 
 	snprintf(z_name, sizeof(z_name), "%s_%s_%d_%d",
-		 eth_dev->driver->pci_drv.name, "tx_ring",
+		 eth_dev->driver->pci_drv.driver.name, "tx_ring",
 		 eth_dev->data->port_id, queue_id);
 	snprintf(z_name_sw, sizeof(z_name_sw), "%s_sw_ring", z_name);
 

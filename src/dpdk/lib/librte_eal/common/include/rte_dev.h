@@ -100,37 +100,56 @@ rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
 	} \
 } while (0)
 
+/**
+ * A generic memory resource representation.
+ */
+struct rte_mem_resource {
+	uint64_t phys_addr; /**< Physical address, 0 if not resource. */
+	uint64_t len;       /**< Length of the resource. */
+	void *addr;         /**< Virtual address, NULL when not mapped. */
+};
 
 /** Double linked list of device drivers. */
 TAILQ_HEAD(rte_driver_list, rte_driver);
+/** Double linked list of devices. */
+TAILQ_HEAD(rte_device_list, rte_device);
+
+/* Forward declaration */
+struct rte_driver;
 
 /**
- * Initialization function called for each device driver once.
+ * A structure describing a generic device.
  */
-typedef int (rte_dev_init_t)(const char *name, const char *args);
-
-/**
- * Uninitilization function called for each device driver once.
- */
-typedef int (rte_dev_uninit_t)(const char *name);
-
-/**
- * Driver type enumeration
- */
-enum pmd_type {
-	PMD_VDEV = 0,
-	PMD_PDEV = 1,
+struct rte_device {
+	TAILQ_ENTRY(rte_device) next; /**< Next device */
+	const struct rte_driver *driver;/**< Associated driver */
+	int numa_node;                /**< NUMA node connection */
+	struct rte_devargs *devargs;  /**< Device user arguments */
 };
+
+/**
+ * Insert a device detected by a bus scanning.
+ *
+ * @param dev
+ *   A pointer to a rte_device structure describing the detected device.
+ */
+void rte_eal_device_insert(struct rte_device *dev);
+
+/**
+ * Remove a device (e.g. when being unplugged).
+ *
+ * @param dev
+ *   A pointer to a rte_device structure describing the device to be removed.
+ */
+void rte_eal_device_remove(struct rte_device *dev);
 
 /**
  * A structure describing a device driver.
  */
 struct rte_driver {
 	TAILQ_ENTRY(rte_driver) next;  /**< Next in list. */
-	enum pmd_type type;		   /**< PMD Driver type */
 	const char *name;                   /**< Driver name. */
-	rte_dev_init_t *init;              /**< Device init. function. */
-	rte_dev_uninit_t *uninit;          /**< Device uninit. function. */
+	const char *alias;              /**< Driver alias. */
 };
 
 /**
@@ -178,29 +197,71 @@ int rte_eal_vdev_init(const char *name, const char *args);
  */
 int rte_eal_vdev_uninit(const char *name);
 
-#define DRIVER_EXPORT_NAME_ARRAY(n, idx) n##idx[]
+/**
+ * Attach a device to a registered driver.
+ *
+ * @param name
+ *   The device name, that refers to a pci device (or some private
+ *   way of designating a vdev device). Based on this device name, eal
+ *   will identify a driver capable of handling it and pass it to the
+ *   driver probing function.
+ * @param devargs
+ *   Device arguments to be passed to the driver.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_eal_dev_attach(const char *name, const char *devargs);
 
-#define DRIVER_EXPORT_NAME(name, idx) \
-static const char DRIVER_EXPORT_NAME_ARRAY(this_pmd_name, idx) \
+/**
+ * Detach a device from its driver.
+ *
+ * @param name
+ *   Same description as for rte_eal_dev_attach().
+ *   Here, eal will call the driver detaching function.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_eal_dev_detach(const char *name);
+
+#define RTE_PMD_EXPORT_NAME_ARRAY(n, idx) n##idx[]
+
+#define RTE_PMD_EXPORT_NAME(name, idx) \
+static const char RTE_PMD_EXPORT_NAME_ARRAY(this_pmd_name, idx) \
 __attribute__((used)) = RTE_STR(name)
-
-#define PMD_REGISTER_DRIVER(drv, nm)\
-void devinitfn_ ##drv(void);\
-void __attribute__((constructor, used)) devinitfn_ ##drv(void)\
-{\
-	(drv).name = RTE_STR(nm);\
-	rte_eal_driver_register(&drv);\
-} \
-DRIVER_EXPORT_NAME(nm, __COUNTER__)
 
 #define DRV_EXP_TAG(name, tag) __##name##_##tag
 
-#define DRIVER_REGISTER_PCI_TABLE(name, table) \
+#define RTE_PMD_REGISTER_PCI_TABLE(name, table) \
 static const char DRV_EXP_TAG(name, pci_tbl_export)[] __attribute__((used)) = \
 RTE_STR(table)
 
-#define DRIVER_REGISTER_PARAM_STRING(name, str) \
+#define RTE_PMD_REGISTER_PARAM_STRING(name, str) \
 static const char DRV_EXP_TAG(name, param_string_export)[] \
+__attribute__((used)) = str
+
+/**
+ * Advertise the list of kernel modules required to run this driver
+ *
+ * This string lists the kernel modules required for the devices
+ * associated to a PMD. The format of each line of the string is:
+ * "<device-pattern> <kmod-expression>".
+ *
+ * The possible formats for the device pattern are:
+ *   "*"                     all devices supported by this driver
+ *   "pci:*"                 all PCI devices supported by this driver
+ *   "pci:v8086:d*:sv*:sd*"  all PCI devices supported by this driver
+ *                           whose vendor id is 0x8086.
+ *
+ * The format of the kernel modules list is a parenthesed expression
+ * containing logical-and (&) and logical-or (|).
+ *
+ * The device pattern and the kmod expression are separated by a space.
+ *
+ * Example:
+ * - "* igb_uio | uio_pci_generic | vfio"
+ */
+#define RTE_PMD_REGISTER_KMOD_DEP(name, str) \
+static const char DRV_EXP_TAG(name, kmod_dep_export)[] \
 __attribute__((used)) = str
 
 #ifdef __cplusplus

@@ -54,45 +54,6 @@
  * IGB_UIO driver (or doesn't initialize, if the device wasn't bound to it).
  */
 
-/* unbind kernel driver for this device */
-int
-pci_unbind_kernel_driver(struct rte_pci_device *dev)
-{
-	int n;
-	FILE *f;
-	char filename[PATH_MAX];
-	char buf[BUFSIZ];
-	struct rte_pci_addr *loc = &dev->addr;
-
-	/* open /sys/bus/pci/devices/AAAA:BB:CC.D/driver */
-	snprintf(filename, sizeof(filename),
-		"%s/" PCI_PRI_FMT "/driver/unbind", pci_get_sysfs_path(),
-		loc->domain, loc->bus, loc->devid, loc->function);
-
-	f = fopen(filename, "w");
-	if (f == NULL) /* device was not bound */
-		return 0;
-
-	n = snprintf(buf, sizeof(buf), PCI_PRI_FMT "\n",
-	             loc->domain, loc->bus, loc->devid, loc->function);
-	if ((n < 0) || (n >= (int)sizeof(buf))) {
-		RTE_LOG(ERR, EAL, "%s(): snprintf failed\n", __func__);
-		goto error;
-	}
-	if (fwrite(buf, n, 1, f) == 0) {
-		RTE_LOG(ERR, EAL, "%s(): could not write to %s\n", __func__,
-				filename);
-		goto error;
-	}
-
-	fclose(f);
-	return 0;
-
-error:
-	fclose(f);
-	return -1;
-}
-
 static int
 pci_get_kernel_driver_by_path(const char *filename, char *dri_name)
 {
@@ -267,8 +228,7 @@ error:
 
 /* Scan one pci sysfs entry, and fill the devices list from it. */
 static int
-pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
-	     uint8_t devid, uint8_t function)
+pci_scan_one(const char *dirname, const struct rte_pci_addr *addr)
 {
 	char filename[PATH_MAX];
 	unsigned long tmp;
@@ -281,10 +241,7 @@ pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
 		return -1;
 
 	memset(dev, 0, sizeof(*dev));
-	dev->addr.domain = domain;
-	dev->addr.bus = bus;
-	dev->addr.devid = devid;
-	dev->addr.function = function;
+	dev->addr = *addr;
 
 	/* get vendor id */
 	snprintf(filename, sizeof(filename), "%s/vendor", dirname);
@@ -350,13 +307,13 @@ pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
 		 dirname);
 	if (access(filename, R_OK) != 0) {
 		/* if no NUMA support, set default to 0 */
-		dev->numa_node = 0;
+		dev->device.numa_node = 0;
 	} else {
 		if (eal_parse_sysfs_value(filename, &tmp) < 0) {
 			free(dev);
 			return -1;
 		}
-		dev->numa_node = tmp;
+		dev->device.numa_node = tmp;
 	}
 
 	/* parse resources */
@@ -390,6 +347,7 @@ pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
 
 	/* device is valid, add in list (sorted) */
 	if (TAILQ_EMPTY(&pci_device_list)) {
+		rte_eal_device_insert(&dev->device);
 		TAILQ_INSERT_TAIL(&pci_device_list, dev, next);
 	} else {
 		struct rte_pci_device *dev2;
@@ -402,6 +360,7 @@ pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
 
 			if (ret < 0) {
 				TAILQ_INSERT_BEFORE(dev2, dev, next);
+				rte_eal_device_insert(&dev->device);
 			} else { /* already registered */
 				dev2->kdrv = dev->kdrv;
 				dev2->max_vfs = dev->max_vfs;
@@ -411,18 +370,30 @@ pci_scan_one(const char *dirname, uint16_t domain, uint8_t bus,
 			}
 			return 0;
 		}
+		rte_eal_device_insert(&dev->device);
 		TAILQ_INSERT_TAIL(&pci_device_list, dev, next);
 	}
 
 	return 0;
 }
 
+int
+pci_update_device(const struct rte_pci_addr *addr)
+{
+	char filename[PATH_MAX];
+
+	snprintf(filename, sizeof(filename), "%s/" PCI_PRI_FMT,
+		 pci_get_sysfs_path(), addr->domain, addr->bus, addr->devid,
+		 addr->function);
+
+	return pci_scan_one(filename, addr);
+}
+
 /*
  * split up a pci address into its constituent parts.
  */
 static int
-parse_pci_addr_format(const char *buf, int bufsize, uint16_t *domain,
-		uint8_t *bus, uint8_t *devid, uint8_t *function)
+parse_pci_addr_format(const char *buf, int bufsize, struct rte_pci_addr *addr)
 {
 	/* first split on ':' */
 	union splitaddr {
@@ -450,10 +421,10 @@ parse_pci_addr_format(const char *buf, int bufsize, uint16_t *domain,
 
 	/* now convert to int values */
 	errno = 0;
-	*domain = (uint16_t)strtoul(splitaddr.domain, NULL, 16);
-	*bus = (uint8_t)strtoul(splitaddr.bus, NULL, 16);
-	*devid = (uint8_t)strtoul(splitaddr.devid, NULL, 16);
-	*function = (uint8_t)strtoul(splitaddr.function, NULL, 10);
+	addr->domain = (uint16_t)strtoul(splitaddr.domain, NULL, 16);
+	addr->bus = (uint8_t)strtoul(splitaddr.bus, NULL, 16);
+	addr->devid = (uint8_t)strtoul(splitaddr.devid, NULL, 16);
+	addr->function = (uint8_t)strtoul(splitaddr.function, NULL, 10);
 	if (errno != 0)
 		goto error;
 
@@ -474,8 +445,7 @@ rte_eal_pci_scan(void)
 	struct dirent *e;
 	DIR *dir;
 	char dirname[PATH_MAX];
-	uint16_t domain;
-	uint8_t bus, devid, function;
+	struct rte_pci_addr addr;
 
 	dir = opendir(pci_get_sysfs_path());
 	if (dir == NULL) {
@@ -488,13 +458,12 @@ rte_eal_pci_scan(void)
 		if (e->d_name[0] == '.')
 			continue;
 
-		if (parse_pci_addr_format(e->d_name, sizeof(e->d_name), &domain,
-				&bus, &devid, &function) != 0)
+		if (parse_pci_addr_format(e->d_name, sizeof(e->d_name), &addr) != 0)
 			continue;
 
 		snprintf(dirname, sizeof(dirname), "%s/%s",
 				pci_get_sysfs_path(), e->d_name);
-		if (pci_scan_one(dirname, domain, bus, devid, function) < 0)
+		if (pci_scan_one(dirname, &addr) < 0)
 			goto error;
 	}
 	closedir(dir);
@@ -743,9 +712,6 @@ rte_eal_pci_ioport_unmap(struct rte_pci_ioport *p)
 int
 rte_eal_pci_init(void)
 {
-	TAILQ_INIT(&pci_driver_list);
-	TAILQ_INIT(&pci_device_list);
-
 	/* for debug purposes, PCI can be disabled */
 	if (internal_config.no_pci)
 		return 0;

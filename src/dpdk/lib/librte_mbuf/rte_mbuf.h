@@ -44,7 +44,7 @@
  * buffers. The message buffers are stored in a mempool, using the
  * RTE mempool library.
  *
- * This library provide an API to allocate/free packet mbufs, which are
+ * This library provides an API to allocate/free packet mbufs, which are
  * used to carry network packets.
  *
  * To understand the concepts of packet buffers or mbufs, you
@@ -60,6 +60,7 @@
 #include <rte_atomic.h>
 #include <rte_prefetch.h>
 #include <rte_branch_prediction.h>
+#include <rte_mbuf_ptype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,8 +91,25 @@ extern "C" {
 
 #define PKT_RX_RSS_HASH      (1ULL << 1)  /**< RX packet with RSS hash result. */
 #define PKT_RX_FDIR          (1ULL << 2)  /**< RX packet with FDIR match indicate. */
-#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)  /**< L4 cksum of RX pkt. is not OK. */
-#define PKT_RX_IP_CKSUM_BAD  (1ULL << 4)  /**< IP cksum of RX pkt. is not OK. */
+
+/**
+ * Deprecated.
+ * Checking this flag alone is deprecated: check the 2 bits of
+ * PKT_RX_L4_CKSUM_MASK.
+ * This flag was set when the L4 checksum of a packet was detected as
+ * wrong by the hardware.
+ */
+#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
+
+/**
+ * Deprecated.
+ * Checking this flag alone is deprecated: check the 2 bits of
+ * PKT_RX_IP_CKSUM_MASK.
+ * This flag was set when the IP checksum of a packet was detected as
+ * wrong by the hardware.
+ */
+#define PKT_RX_IP_CKSUM_BAD  (1ULL << 4)
+
 #define PKT_RX_EIP_CKSUM_BAD (1ULL << 5)  /**< External IP header checksum error. */
 
 /**
@@ -101,7 +119,35 @@ extern "C" {
  */
 #define PKT_RX_VLAN_STRIPPED (1ULL << 6)
 
-/* hole, some bits can be reused here  */
+/**
+ * Mask of bits used to determine the status of RX IP checksum.
+ * - PKT_RX_IP_CKSUM_UNKNOWN: no information about the RX IP checksum
+ * - PKT_RX_IP_CKSUM_BAD: the IP checksum in the packet is wrong
+ * - PKT_RX_IP_CKSUM_GOOD: the IP checksum in the packet is valid
+ * - PKT_RX_IP_CKSUM_NONE: the IP checksum is not correct in the packet
+ *   data, but the integrity of the IP header is verified.
+ */
+#define PKT_RX_IP_CKSUM_MASK ((1ULL << 4) | (1ULL << 7))
+
+#define PKT_RX_IP_CKSUM_UNKNOWN 0
+#define PKT_RX_IP_CKSUM_BAD     (1ULL << 4)
+#define PKT_RX_IP_CKSUM_GOOD    (1ULL << 7)
+#define PKT_RX_IP_CKSUM_NONE    ((1ULL << 4) | (1ULL << 7))
+
+/**
+ * Mask of bits used to determine the status of RX L4 checksum.
+ * - PKT_RX_L4_CKSUM_UNKNOWN: no information about the RX L4 checksum
+ * - PKT_RX_L4_CKSUM_BAD: the L4 checksum in the packet is wrong
+ * - PKT_RX_L4_CKSUM_GOOD: the L4 checksum in the packet is valid
+ * - PKT_RX_L4_CKSUM_NONE: the L4 checksum is not correct in the packet
+ *   data, but the integrity of the L4 data is verified.
+ */
+#define PKT_RX_L4_CKSUM_MASK ((1ULL << 3) | (1ULL << 8))
+
+#define PKT_RX_L4_CKSUM_UNKNOWN 0
+#define PKT_RX_L4_CKSUM_BAD     (1ULL << 3)
+#define PKT_RX_L4_CKSUM_GOOD    (1ULL << 8)
+#define PKT_RX_L4_CKSUM_NONE    ((1ULL << 3) | (1ULL << 8))
 
 #define PKT_RX_IEEE1588_PTP  (1ULL << 9)  /**< RX IEEE1588 L2 Ethernet PT Packet. */
 #define PKT_RX_IEEE1588_TMST (1ULL << 10) /**< RX IEEE1588 L2/L4 timestamped packet.*/
@@ -124,9 +170,34 @@ extern "C" {
  */
 #define PKT_RX_QINQ_PKT      PKT_RX_QINQ_STRIPPED
 
+/**
+ * When packets are coalesced by a hardware or virtual driver, this flag
+ * can be set in the RX mbuf, meaning that the m->tso_segsz field is
+ * valid and is set to the segment size of original packets.
+ */
+#define PKT_RX_LRO           (1ULL << 16)
+
 /* add new RX flags here */
 
 /* add new TX flags here */
+
+/**
+ * Offload the MACsec. This flag must be set by the application to enable
+ * this offload feature for a packet to be transmitted.
+ */
+#define PKT_TX_MACSEC        (1ULL << 44)
+
+/**
+ * Bits 45:48 used for the tunnel type.
+ * When doing Tx offload like TSO or checksum, the HW needs to configure the
+ * tunnel type into the HW descriptors.
+ */
+#define PKT_TX_TUNNEL_VXLAN   (0x1ULL << 45)
+#define PKT_TX_TUNNEL_GRE     (0x2ULL << 45)
+#define PKT_TX_TUNNEL_IPIP    (0x3ULL << 45)
+#define PKT_TX_TUNNEL_GENEVE  (0x4ULL << 45)
+/* add new TX TUNNEL type here */
+#define PKT_TX_TUNNEL_MASK    (0xFULL << 45)
 
 /**
  * Second VLAN insertion (QinQ) flag.
@@ -218,506 +289,25 @@ extern "C" {
  */
 #define PKT_TX_OUTER_IPV6    (1ULL << 60)
 
+/**
+ * Bitmask of all supported packet Tx offload features flags,
+ * which can be set for packet.
+ */
+#define PKT_TX_OFFLOAD_MASK (    \
+		PKT_TX_IP_CKSUM |        \
+		PKT_TX_L4_MASK |         \
+		PKT_TX_OUTER_IP_CKSUM |  \
+		PKT_TX_TCP_SEG |         \
+		PKT_TX_QINQ_PKT |        \
+		PKT_TX_VLAN_PKT |        \
+		PKT_TX_TUNNEL_MASK)
+
 #define __RESERVED           (1ULL << 61) /**< reserved for future mbuf use */
 
 #define IND_ATTACHED_MBUF    (1ULL << 62) /**< Indirect attached mbuf */
 
 /* Use final bit of flags to indicate a control mbuf */
 #define CTRL_MBUF_FLAG       (1ULL << 63) /**< Mbuf contains control data */
-
-/*
- * 32 bits are divided into several fields to mark packet types. Note that
- * each field is indexical.
- * - Bit 3:0 is for L2 types.
- * - Bit 7:4 is for L3 or outer L3 (for tunneling case) types.
- * - Bit 11:8 is for L4 or outer L4 (for tunneling case) types.
- * - Bit 15:12 is for tunnel types.
- * - Bit 19:16 is for inner L2 types.
- * - Bit 23:20 is for inner L3 types.
- * - Bit 27:24 is for inner L4 types.
- * - Bit 31:28 is reserved.
- *
- * To be compatible with Vector PMD, RTE_PTYPE_L3_IPV4, RTE_PTYPE_L3_IPV4_EXT,
- * RTE_PTYPE_L3_IPV6, RTE_PTYPE_L3_IPV6_EXT, RTE_PTYPE_L4_TCP, RTE_PTYPE_L4_UDP
- * and RTE_PTYPE_L4_SCTP should be kept as below in a contiguous 7 bits.
- *
- * Note that L3 types values are selected for checking IPV4/IPV6 header from
- * performance point of view. Reading annotations of RTE_ETH_IS_IPV4_HDR and
- * RTE_ETH_IS_IPV6_HDR is needed for any future changes of L3 type values.
- *
- * Note that the packet types of the same packet recognized by different
- * hardware may be different, as different hardware may have different
- * capability of packet type recognition.
- *
- * examples:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=0x29
- * | 'version'=6, 'next header'=0x3A
- * | 'ICMPv6 header'>
- * will be recognized on i40e hardware as packet type combination of,
- * RTE_PTYPE_L2_ETHER |
- * RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
- * RTE_PTYPE_TUNNEL_IP |
- * RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
- * RTE_PTYPE_INNER_L4_ICMP.
- *
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=0x2F
- * | 'GRE header'
- * | 'version'=6, 'next header'=0x11
- * | 'UDP header'>
- * will be recognized on i40e hardware as packet type combination of,
- * RTE_PTYPE_L2_ETHER |
- * RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
- * RTE_PTYPE_TUNNEL_GRENAT |
- * RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
- * RTE_PTYPE_INNER_L4_UDP.
- */
-#define RTE_PTYPE_UNKNOWN                   0x00000000
-/**
- * Ethernet packet type.
- * It is used for outer packet for tunneling cases.
- *
- * Packet format:
- * <'ether type'=[0x0800|0x86DD]>
- */
-#define RTE_PTYPE_L2_ETHER                  0x00000001
-/**
- * Ethernet packet type for time sync.
- *
- * Packet format:
- * <'ether type'=0x88F7>
- */
-#define RTE_PTYPE_L2_ETHER_TIMESYNC         0x00000002
-/**
- * ARP (Address Resolution Protocol) packet type.
- *
- * Packet format:
- * <'ether type'=0x0806>
- */
-#define RTE_PTYPE_L2_ETHER_ARP              0x00000003
-/**
- * LLDP (Link Layer Discovery Protocol) packet type.
- *
- * Packet format:
- * <'ether type'=0x88CC>
- */
-#define RTE_PTYPE_L2_ETHER_LLDP             0x00000004
-/**
- * NSH (Network Service Header) packet type.
- *
- * Packet format:
- * <'ether type'=0x894F>
- */
-#define RTE_PTYPE_L2_ETHER_NSH              0x00000005
-/**
- * Mask of layer 2 packet types.
- * It is used for outer packet for tunneling cases.
- */
-#define RTE_PTYPE_L2_MASK                   0x0000000f
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for outer packet for tunneling cases, and does not contain any
- * header option.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=5>
- */
-#define RTE_PTYPE_L3_IPV4                   0x00000010
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for outer packet for tunneling cases, and contains header
- * options.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=[6-15], 'options'>
- */
-#define RTE_PTYPE_L3_IPV4_EXT               0x00000030
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for outer packet for tunneling cases, and does not contain any
- * extension header.
- *
- * Packet format:
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=0x3B>
- */
-#define RTE_PTYPE_L3_IPV6                   0x00000040
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for outer packet for tunneling cases, and may or maynot contain
- * header options.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=[5-15], <'options'>>
- */
-#define RTE_PTYPE_L3_IPV4_EXT_UNKNOWN       0x00000090
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for outer packet for tunneling cases, and contains extension
- * headers.
- *
- * Packet format:
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=[0x0|0x2B|0x2C|0x32|0x33|0x3C|0x87],
- *   'extension headers'>
- */
-#define RTE_PTYPE_L3_IPV6_EXT               0x000000c0
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for outer packet for tunneling cases, and may or maynot contain
- * extension headers.
- *
- * Packet format:
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=[0x3B|0x0|0x2B|0x2C|0x32|0x33|0x3C|0x87],
- *   <'extension headers'>>
- */
-#define RTE_PTYPE_L3_IPV6_EXT_UNKNOWN       0x000000e0
-/**
- * Mask of layer 3 packet types.
- * It is used for outer packet for tunneling cases.
- */
-#define RTE_PTYPE_L3_MASK                   0x000000f0
-/**
- * TCP (Transmission Control Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=6, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=6>
- */
-#define RTE_PTYPE_L4_TCP                    0x00000100
-/**
- * UDP (User Datagram Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=17, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=17>
- */
-#define RTE_PTYPE_L4_UDP                    0x00000200
-/**
- * Fragmented IP (Internet Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * It refers to those packets of any IP types, which can be recognized as
- * fragmented. A fragmented packet cannot be recognized as any other L4 types
- * (RTE_PTYPE_L4_TCP, RTE_PTYPE_L4_UDP, RTE_PTYPE_L4_SCTP, RTE_PTYPE_L4_ICMP,
- * RTE_PTYPE_L4_NONFRAG).
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'MF'=1>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=44>
- */
-#define RTE_PTYPE_L4_FRAG                   0x00000300
-/**
- * SCTP (Stream Control Transmission Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=132, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=132>
- */
-#define RTE_PTYPE_L4_SCTP                   0x00000400
-/**
- * ICMP (Internet Control Message Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=1, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=1>
- */
-#define RTE_PTYPE_L4_ICMP                   0x00000500
-/**
- * Non-fragmented IP (Internet Protocol) packet type.
- * It is used for outer packet for tunneling cases.
- *
- * It refers to those packets of any IP types, while cannot be recognized as
- * any of above L4 types (RTE_PTYPE_L4_TCP, RTE_PTYPE_L4_UDP,
- * RTE_PTYPE_L4_FRAG, RTE_PTYPE_L4_SCTP, RTE_PTYPE_L4_ICMP).
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'!=[6|17|132|1], 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'!=[6|17|44|132|1]>
- */
-#define RTE_PTYPE_L4_NONFRAG                0x00000600
-/**
- * Mask of layer 4 packet types.
- * It is used for outer packet for tunneling cases.
- */
-#define RTE_PTYPE_L4_MASK                   0x00000f00
-/**
- * IP (Internet Protocol) in IP (Internet Protocol) tunneling packet type.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=[4|41]>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=[4|41]>
- */
-#define RTE_PTYPE_TUNNEL_IP                 0x00001000
-/**
- * GRE (Generic Routing Encapsulation) tunneling packet type.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=47>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=47>
- */
-#define RTE_PTYPE_TUNNEL_GRE                0x00002000
-/**
- * VXLAN (Virtual eXtensible Local Area Network) tunneling packet type.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=17
- * | 'destination port'=4798>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=17
- * | 'destination port'=4798>
- */
-#define RTE_PTYPE_TUNNEL_VXLAN              0x00003000
-/**
- * NVGRE (Network Virtualization using Generic Routing Encapsulation) tunneling
- * packet type.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=47
- * | 'protocol type'=0x6558>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=47
- * | 'protocol type'=0x6558'>
- */
-#define RTE_PTYPE_TUNNEL_NVGRE              0x00004000
-/**
- * GENEVE (Generic Network Virtualization Encapsulation) tunneling packet type.
- *
- * Packet format:
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=17
- * | 'destination port'=6081>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=17
- * | 'destination port'=6081>
- */
-#define RTE_PTYPE_TUNNEL_GENEVE             0x00005000
-/**
- * Tunneling packet type of Teredo, VXLAN (Virtual eXtensible Local Area
- * Network) or GRE (Generic Routing Encapsulation) could be recognized as this
- * packet type, if they can not be recognized independently as of hardware
- * capability.
- */
-#define RTE_PTYPE_TUNNEL_GRENAT             0x00006000
-/**
- * Mask of tunneling packet types.
- */
-#define RTE_PTYPE_TUNNEL_MASK               0x0000f000
-/**
- * Ethernet packet type.
- * It is used for inner packet type only.
- *
- * Packet format (inner only):
- * <'ether type'=[0x800|0x86DD]>
- */
-#define RTE_PTYPE_INNER_L2_ETHER            0x00010000
-/**
- * Ethernet packet type with VLAN (Virtual Local Area Network) tag.
- *
- * Packet format (inner only):
- * <'ether type'=[0x800|0x86DD], vlan=[1-4095]>
- */
-#define RTE_PTYPE_INNER_L2_ETHER_VLAN       0x00020000
-/**
- * Mask of inner layer 2 packet types.
- */
-#define RTE_PTYPE_INNER_L2_MASK             0x000f0000
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for inner packet only, and does not contain any header option.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=5>
- */
-#define RTE_PTYPE_INNER_L3_IPV4             0x00100000
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for inner packet only, and contains header options.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=[6-15], 'options'>
- */
-#define RTE_PTYPE_INNER_L3_IPV4_EXT         0x00200000
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for inner packet only, and does not contain any extension header.
- *
- * Packet format (inner only):
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=0x3B>
- */
-#define RTE_PTYPE_INNER_L3_IPV6             0x00300000
-/**
- * IP (Internet Protocol) version 4 packet type.
- * It is used for inner packet only, and may or maynot contain header options.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'ihl'=[5-15], <'options'>>
- */
-#define RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN 0x00400000
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for inner packet only, and contains extension headers.
- *
- * Packet format (inner only):
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=[0x0|0x2B|0x2C|0x32|0x33|0x3C|0x87],
- *   'extension headers'>
- */
-#define RTE_PTYPE_INNER_L3_IPV6_EXT         0x00500000
-/**
- * IP (Internet Protocol) version 6 packet type.
- * It is used for inner packet only, and may or maynot contain extension
- * headers.
- *
- * Packet format (inner only):
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=[0x3B|0x0|0x2B|0x2C|0x32|0x33|0x3C|0x87],
- *   <'extension headers'>>
- */
-#define RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN 0x00600000
-/**
- * Mask of inner layer 3 packet types.
- */
-#define RTE_PTYPE_INNER_L3_MASK             0x00f00000
-/**
- * TCP (Transmission Control Protocol) packet type.
- * It is used for inner packet only.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=6, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=6>
- */
-#define RTE_PTYPE_INNER_L4_TCP              0x01000000
-/**
- * UDP (User Datagram Protocol) packet type.
- * It is used for inner packet only.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=17, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=17>
- */
-#define RTE_PTYPE_INNER_L4_UDP              0x02000000
-/**
- * Fragmented IP (Internet Protocol) packet type.
- * It is used for inner packet only, and may or maynot have layer 4 packet.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'MF'=1>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=44>
- */
-#define RTE_PTYPE_INNER_L4_FRAG             0x03000000
-/**
- * SCTP (Stream Control Transmission Protocol) packet type.
- * It is used for inner packet only.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=132, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=132>
- */
-#define RTE_PTYPE_INNER_L4_SCTP             0x04000000
-/**
- * ICMP (Internet Control Message Protocol) packet type.
- * It is used for inner packet only.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'=1, 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'=1>
- */
-#define RTE_PTYPE_INNER_L4_ICMP             0x05000000
-/**
- * Non-fragmented IP (Internet Protocol) packet type.
- * It is used for inner packet only, and may or maynot have other unknown layer
- * 4 packet types.
- *
- * Packet format (inner only):
- * <'ether type'=0x0800
- * | 'version'=4, 'protocol'!=[6|17|132|1], 'MF'=0>
- * or,
- * <'ether type'=0x86DD
- * | 'version'=6, 'next header'!=[6|17|44|132|1]>
- */
-#define RTE_PTYPE_INNER_L4_NONFRAG          0x06000000
-/**
- * Mask of inner layer 4 packet types.
- */
-#define RTE_PTYPE_INNER_L4_MASK             0x0f000000
-
-/**
- * Check if the (outer) L3 header is IPv4. To avoid comparing IPv4 types one by
- * one, bit 4 is selected to be used for IPv4 only. Then checking bit 4 can
- * determine if it is an IPV4 packet.
- */
-#define  RTE_ETH_IS_IPV4_HDR(ptype) ((ptype) & RTE_PTYPE_L3_IPV4)
-
-/**
- * Check if the (outer) L3 header is IPv4. To avoid comparing IPv4 types one by
- * one, bit 6 is selected to be used for IPv4 only. Then checking bit 6 can
- * determine if it is an IPV4 packet.
- */
-#define  RTE_ETH_IS_IPV6_HDR(ptype) ((ptype) & RTE_PTYPE_L3_IPV6)
-
-/* Check if it is a tunneling packet */
-#define RTE_ETH_IS_TUNNEL_PKT(ptype) ((ptype) & (RTE_PTYPE_TUNNEL_MASK | \
-                                                 RTE_PTYPE_INNER_L2_MASK | \
-                                                 RTE_PTYPE_INNER_L3_MASK | \
-                                                 RTE_PTYPE_INNER_L4_MASK))
 
 /** Alignment constraint of mbuf private area. */
 #define RTE_MBUF_PRIV_ALIGN 8
@@ -733,6 +323,20 @@ extern "C" {
 const char *rte_get_rx_ol_flag_name(uint64_t mask);
 
 /**
+ * Dump the list of RX offload flags in a buffer
+ *
+ * @param mask
+ *   The mask describing the RX flags.
+ * @param buf
+ *   The output buffer.
+ * @param buflen
+ *   The length of the buffer.
+ * @return
+ *   0 on success, (-1) on error.
+ */
+int rte_get_rx_ol_flag_list(uint64_t mask, char *buf, size_t buflen);
+
+/**
  * Get the name of a TX offload flag
  *
  * @param mask
@@ -743,6 +347,20 @@ const char *rte_get_rx_ol_flag_name(uint64_t mask);
  *   The name of this flag, or NULL if it's not a valid TX flag.
  */
 const char *rte_get_tx_ol_flag_name(uint64_t mask);
+
+/**
+ * Dump the list of TX offload flags in a buffer
+ *
+ * @param mask
+ *   The mask describing the TX flags.
+ * @param buf
+ *   The output buffer.
+ * @param buflen
+ *   The length of the buffer.
+ * @return
+ *   0 on success, (-1) on error.
+ */
+int rte_get_tx_ol_flag_list(uint64_t mask, char *buf, size_t buflen);
 
 /**
  * Some NICs need at least 2KB buffer to RX standard Ethernet frame without
@@ -756,8 +374,11 @@ const char *rte_get_tx_ol_flag_name(uint64_t mask);
 
 /* define a set of marker types that can be used to refer to set points in the
  * mbuf */
+__extension__
 typedef void    *MARKER[0];   /**< generic marker for a point in a structure */
+__extension__
 typedef uint8_t  MARKER8[0];  /**< generic marker with 1B alignment */
+__extension__
 typedef uint64_t MARKER64[0]; /**< marker that allows us to overwrite 8 bytes
                                * with a single assignment */
 
@@ -784,6 +405,7 @@ struct rte_mbuf {
 	 * or non-atomic) is controlled by the CONFIG_RTE_MBUF_REFCNT_ATOMIC
 	 * config option.
 	 */
+	RTE_STD_C11
 	union {
 		rte_atomic16_t refcnt_atomic; /**< Atomically accessed refcnt */
 		uint16_t refcnt;              /**< Non-atomically accessed refcnt */
@@ -803,6 +425,7 @@ struct rte_mbuf {
 	 * would have RTE_PTYPE_L2_ETHER and not RTE_PTYPE_L2_VLAN because the
 	 * vlan is stripped from the data.
 	 */
+	RTE_STD_C11
 	union {
 		uint32_t packet_type; /**< L2/L3/L4 and tunnel information. */
 		struct {
@@ -824,6 +447,7 @@ struct rte_mbuf {
 	union {
 		uint32_t rss;     /**< RSS hash result if RSS enabled */
 		struct {
+			RTE_STD_C11
 			union {
 				struct {
 					uint16_t hash;
@@ -851,6 +475,7 @@ struct rte_mbuf {
 	/* second cache line - fields only used in slow path or on TX */
 	MARKER cacheline1 __rte_cache_min_aligned;
 
+	RTE_STD_C11
 	union {
 		void *userdata;   /**< Can be used for external metadata */
 		uint64_t udata64; /**< Allow 8-byte userdata on 32-bit */
@@ -860,10 +485,15 @@ struct rte_mbuf {
 	struct rte_mbuf *next;    /**< Next segment of scattered packet. */
 
 	/* fields to support TX offloads */
+	RTE_STD_C11
 	union {
 		uint64_t tx_offload;       /**< combined for easy fetch */
+		__extension__
 		struct {
-			uint64_t l2_len:7; /**< L2 (MAC) Header Length. */
+			uint64_t l2_len:7;
+			/**< L2 (MAC) Header Length for non-tunneling pkt.
+			 * Outer_L4_len + ... + Inner_L2_len for tunneling pkt.
+			 */
 			uint64_t l3_len:9; /**< L3 (IP) Header Length. */
 			uint64_t l4_len:8; /**< L4 (TCP/UDP) Header Length. */
 			uint64_t tso_segsz:16; /**< TCP TSO segment size */
@@ -1059,9 +689,6 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
-    // TREX_PATCH - The code in #if 0 caused tx queue to hang when running:
-    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundeling.yaml -m 35 -p -d 100
-#if 0
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
 	 * call it in the case where we know we are the uniq holder of
@@ -1073,7 +700,7 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 		rte_mbuf_refcnt_set(m, 1 + value);
 		return 1 + value;
 	}
-#endif
+
 	return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
 }
 
@@ -1158,13 +785,6 @@ static inline struct rte_mbuf *rte_mbuf_raw_alloc(struct rte_mempool *mp)
 	__rte_mbuf_sanity_check(m, 0);
 
 	return m;
-}
-
-/* compat with older versions */
-__rte_deprecated static inline struct rte_mbuf *
-__rte_mbuf_raw_alloc(struct rte_mempool *mp)
-{
-	return rte_mbuf_raw_alloc(mp);
 }
 
 /**
@@ -1388,6 +1008,19 @@ rte_pktmbuf_priv_size(struct rte_mempool *mp)
 }
 
 /**
+ * Reset the data_off field of a packet mbuf to its default value.
+ *
+ * The given mbuf must have only one segment, which should be empty.
+ *
+ * @param m
+ *   The packet mbuf's data_off field has to be reset.
+ */
+static inline void rte_pktmbuf_reset_headroom(struct rte_mbuf *m)
+{
+	m->data_off = RTE_MIN(RTE_PKTMBUF_HEADROOM, (uint16_t)m->buf_len);
+}
+
+/**
  * Reset the fields of a packet mbuf to their default values.
  *
  * The given mbuf must have only one segment.
@@ -1407,8 +1040,7 @@ static inline void rte_pktmbuf_reset(struct rte_mbuf *m)
 
 	m->ol_flags = 0;
 	m->packet_type = 0;
-	m->data_off = (RTE_PKTMBUF_HEADROOM <= m->buf_len) ?
-			RTE_PKTMBUF_HEADROOM : m->buf_len;
+	rte_pktmbuf_reset_headroom(m);
 
 	m->data_len = 0;
 	__rte_mbuf_sanity_check(m, 1);
@@ -1526,7 +1158,6 @@ static inline void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *m)
 	mi->buf_addr = m->buf_addr;
 	mi->buf_len = m->buf_len;
 
-	mi->next = m->next;
 	mi->data_off = m->data_off;
 	mi->data_len = m->data_len;
 	mi->port = m->port;
@@ -1572,7 +1203,7 @@ static inline void rte_pktmbuf_detach(struct rte_mbuf *m)
 	m->buf_addr = (char *)m + mbuf_size;
 	m->buf_physaddr = rte_mempool_virt2phy(mp, m) + mbuf_size;
 	m->buf_len = (uint16_t)buf_len;
-	m->data_off = RTE_MIN(RTE_PKTMBUF_HEADROOM, (uint16_t)m->buf_len);
+	rte_pktmbuf_reset_headroom(m);
 	m->data_len = 0;
 	m->ol_flags = 0;
 
@@ -1961,6 +1592,41 @@ static inline int rte_pktmbuf_is_contiguous(const struct rte_mbuf *m)
 }
 
 /**
+ * @internal used by rte_pktmbuf_read().
+ */
+const void *__rte_pktmbuf_read(const struct rte_mbuf *m, uint32_t off,
+	uint32_t len, void *buf);
+
+/**
+ * Read len data bytes in a mbuf at specified offset.
+ *
+ * If the data is contiguous, return the pointer in the mbuf data, else
+ * copy the data in the buffer provided by the user and return its
+ * pointer.
+ *
+ * @param m
+ *   The pointer to the mbuf.
+ * @param off
+ *   The offset of the data in the mbuf.
+ * @param len
+ *   The amount of bytes to read.
+ * @param buf
+ *   The buffer where data is copied if it is not contigous in mbuf
+ *   data. Its length should be at least equal to the len parameter.
+ * @return
+ *   The pointer to the data, either in the mbuf if it is contiguous,
+ *   or in the user buffer. If mbuf is too small, NULL is returned.
+ */
+static inline const void *rte_pktmbuf_read(const struct rte_mbuf *m,
+	uint32_t off, uint32_t len, void *buf)
+{
+	if (likely(off + len <= rte_pktmbuf_data_len(m)))
+		return rte_pktmbuf_mtod_offset(m, char *, off);
+	else
+		return __rte_pktmbuf_read(m, off, len, buf);
+}
+
+/**
  * Chain an mbuf to another, thereby creating a segmented packet.
  *
  * Note: The implementation will do a linear walk over the segments to find
@@ -1999,7 +1665,109 @@ static inline int rte_pktmbuf_chain(struct rte_mbuf *head, struct rte_mbuf *tail
 }
 
 /**
- * Dump an mbuf structure to the console.
+ * Validate general requirements for Tx offload in mbuf.
+ *
+ * This function checks correctness and completeness of Tx offload settings.
+ *
+ * @param m
+ *   The packet mbuf to be validated.
+ * @return
+ *   0 if packet is valid
+ */
+static inline int
+rte_validate_tx_offload(const struct rte_mbuf *m)
+{
+	uint64_t ol_flags = m->ol_flags;
+	uint64_t inner_l3_offset = m->l2_len;
+
+	/* Does packet set any of available offloads? */
+	if (!(ol_flags & PKT_TX_OFFLOAD_MASK))
+		return 0;
+
+	if (ol_flags & PKT_TX_OUTER_IP_CKSUM)
+		inner_l3_offset += m->outer_l2_len + m->outer_l3_len;
+
+	/* Headers are fragmented */
+	if (rte_pktmbuf_data_len(m) < inner_l3_offset + m->l3_len + m->l4_len)
+		return -ENOTSUP;
+
+	/* IP checksum can be counted only for IPv4 packet */
+	if ((ol_flags & PKT_TX_IP_CKSUM) && (ol_flags & PKT_TX_IPV6))
+		return -EINVAL;
+
+	/* IP type not set when required */
+	if (ol_flags & (PKT_TX_L4_MASK | PKT_TX_TCP_SEG))
+		if (!(ol_flags & (PKT_TX_IPV4 | PKT_TX_IPV6)))
+			return -EINVAL;
+
+	/* Check requirements for TSO packet */
+	if (ol_flags & PKT_TX_TCP_SEG)
+		if ((m->tso_segsz == 0) ||
+				((ol_flags & PKT_TX_IPV4) &&
+				!(ol_flags & PKT_TX_IP_CKSUM)))
+			return -EINVAL;
+
+	/* PKT_TX_OUTER_IP_CKSUM set for non outer IPv4 packet. */
+	if ((ol_flags & PKT_TX_OUTER_IP_CKSUM) &&
+			!(ol_flags & PKT_TX_OUTER_IPV4))
+		return -EINVAL;
+
+	return 0;
+}
+
+/**
+ * Linearize data in mbuf.
+ *
+ * This function moves the mbuf data in the first segment if there is enough
+ * tailroom. The subsequent segments are unchained and freed.
+ *
+ * @param mbuf
+ *   mbuf to linearize
+ * @return
+ *   - 0, on success
+ *   - -1, on error
+ */
+static inline int
+rte_pktmbuf_linearize(struct rte_mbuf *mbuf)
+{
+	int seg_len, copy_len;
+	struct rte_mbuf *m;
+	struct rte_mbuf *m_next;
+	char *buffer;
+
+	if (rte_pktmbuf_is_contiguous(mbuf))
+		return 0;
+
+	/* Extend first segment to the total packet length */
+	copy_len = rte_pktmbuf_pkt_len(mbuf) - rte_pktmbuf_data_len(mbuf);
+
+	if (unlikely(copy_len > rte_pktmbuf_tailroom(mbuf)))
+		return -1;
+
+	buffer = rte_pktmbuf_mtod_offset(mbuf, char *, mbuf->data_len);
+	mbuf->data_len = (uint16_t)(mbuf->pkt_len);
+
+	/* Append data from next segments to the first one */
+	m = mbuf->next;
+	while (m != NULL) {
+		m_next = m->next;
+
+		seg_len = rte_pktmbuf_data_len(m);
+		rte_memcpy(buffer, rte_pktmbuf_mtod(m, char *), seg_len);
+		buffer += seg_len;
+
+		rte_pktmbuf_free_seg(m);
+		m = m_next;
+	}
+
+	mbuf->next = NULL;
+	mbuf->nb_segs = 1;
+
+	return 0;
+}
+
+/**
+ * Dump an mbuf structure to a file.
  *
  * Dump all fields for the given packet mbuf and all its associated
  * segments (in the case of a chained buffer).

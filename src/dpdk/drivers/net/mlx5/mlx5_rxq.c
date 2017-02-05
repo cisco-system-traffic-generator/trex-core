@@ -102,7 +102,7 @@ const struct hash_rxq_init hash_rxq_init[] = {
 				ETH_RSS_FRAG_IPV4),
 		.flow_priority = 1,
 		.flow_spec.ipv4 = {
-			.type = IBV_EXP_FLOW_SPEC_IPV4_EXT,
+			.type = IBV_EXP_FLOW_SPEC_IPV4,
 			.size = sizeof(hash_rxq_init[0].flow_spec.ipv4),
 		},
 		.underlayer = &hash_rxq_init[HASH_RXQ_ETH],
@@ -140,7 +140,7 @@ const struct hash_rxq_init hash_rxq_init[] = {
 				ETH_RSS_FRAG_IPV6),
 		.flow_priority = 1,
 		.flow_spec.ipv6 = {
-			.type = IBV_EXP_FLOW_SPEC_IPV6_EXT,
+			.type = IBV_EXP_FLOW_SPEC_IPV6,
 			.size = sizeof(hash_rxq_init[0].flow_spec.ipv6),
 		},
 		.underlayer = &hash_rxq_init[HASH_RXQ_ETH],

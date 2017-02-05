@@ -64,6 +64,7 @@
 #include <rte_string_fns.h>
 #include <rte_cpuflags.h>
 #include <rte_interrupts.h>
+#include <rte_bus.h>
 #include <rte_pci.h>
 #include <rte_dev.h>
 #include <rte_devargs.h>
@@ -496,13 +497,13 @@ rte_eal_init(int argc, char **argv)
 	char cpuset[RTE_CPU_AFFINITY_STR_LEN];
 	char thread_name[RTE_MAX_THREAD_NAME_LEN];
 
+	/* checks if the machine is adequate */
+	rte_cpu_check_supported();
+
 	if (!rte_atomic32_test_and_set(&run_once))
 		return -1;
 
 	thread_id = pthread_self();
-
-	if (rte_eal_log_early_init() < 0)
-		rte_panic("Cannot init early logs\n");
 
 	eal_log_level_parse(argc, argv);
 
@@ -552,9 +553,6 @@ rte_eal_init(int argc, char **argv)
 	if (rte_eal_tailqs_init() < 0)
 		rte_panic("Cannot init tail queues for objects\n");
 
-/*	if (rte_eal_log_init(argv[0], internal_config.syslog_facility) < 0)
-		rte_panic("Cannot init logs\n");*/
-
 	if (rte_eal_alarm_init() < 0)
 		rte_panic("Cannot init interrupt-handling thread\n");
 
@@ -580,8 +578,8 @@ rte_eal_init(int argc, char **argv)
 		rte_config.master_lcore, thread_id, cpuset,
 		ret == 0 ? "" : "...");
 
-	if (rte_eal_dev_init() < 0)
-		rte_panic("Cannot init pmd devices\n");
+	if (rte_bus_scan())
+		rte_panic("Cannot scan the buses for devices\n");
 
 	RTE_LCORE_FOREACH_SLAVE(i) {
 
@@ -615,9 +613,16 @@ rte_eal_init(int argc, char **argv)
 	rte_eal_mp_remote_launch(sync_func, NULL, SKIP_MASTER);
 	rte_eal_mp_wait_lcore();
 
+	/* Probe all the buses and devices/drivers on them */
+	if (rte_bus_probe())
+		rte_panic("Cannot probe devices\n");
+
 	/* Probe & Initialize PCI devices */
 	if (rte_eal_pci_probe())
 		rte_panic("Cannot probe PCI\n");
+
+	if (rte_eal_dev_init() < 0)
+		rte_panic("Cannot init pmd devices\n");
 
 	rte_eal_mcfg_complete();
 

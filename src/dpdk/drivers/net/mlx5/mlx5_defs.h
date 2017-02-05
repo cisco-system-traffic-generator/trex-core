@@ -54,9 +54,6 @@
  */
 #define MLX5_TX_COMP_THRESH 32
 
-/* RSS Indirection table size. */
-#define RSS_INDIRECTION_TABLE_SIZE 256
-
 /*
  * Maximum number of cached Memory Pools (MPs) per TX queue. Each RTE MP
  * from which buffers are to be transmitted will have to be mapped by this
@@ -79,41 +76,7 @@
 /* Alarm timeout. */
 #define MLX5_ALARM_TIMEOUT_US 100000
 
-
-//#ifdef TREX_PATCH_DPDK PATH for DPDK16.11 should be removed 
-
-/**
- * Mask of bits used to determine the status of RX IP checksum.
- * - PKT_RX_IP_CKSUM_UNKNOWN: no information about the RX IP checksum
- * - PKT_RX_IP_CKSUM_BAD: the IP checksum in the packet is wrong
- * - PKT_RX_IP_CKSUM_GOOD: the IP checksum in the packet is valid
- * - PKT_RX_IP_CKSUM_NONE: the IP checksum is not correct in the packet
- *   data, but the integrity of the IP header is verified.
- */
-#define PKT_RX_IP_CKSUM_MASK ((1ULL << 4) | (1ULL << 7))
-
-#define PKT_RX_IP_CKSUM_UNKNOWN 0
-#define PKT_RX_IP_CKSUM_BAD     (1ULL << 4)
-#define PKT_RX_IP_CKSUM_GOOD    (1ULL << 7)
-#define PKT_RX_IP_CKSUM_NONE    ((1ULL << 4) | (1ULL << 7))
-
-/**
- * Mask of bits used to determine the status of RX L4 checksum.
- * - PKT_RX_L4_CKSUM_UNKNOWN: no information about the RX L4 checksum
- * - PKT_RX_L4_CKSUM_BAD: the L4 checksum in the packet is wrong
- * - PKT_RX_L4_CKSUM_GOOD: the L4 checksum in the packet is valid
- * - PKT_RX_L4_CKSUM_NONE: the L4 checksum is not correct in the packet
- *   data, but the integrity of the L4 data is verified.
- */
-#define PKT_RX_L4_CKSUM_MASK ((1ULL << 3) | (1ULL << 8))
-
-#define PKT_RX_L4_CKSUM_UNKNOWN 0
-#define PKT_RX_L4_CKSUM_BAD     (1ULL << 3)
-#define PKT_RX_L4_CKSUM_GOOD    (1ULL << 8)
-#define PKT_RX_L4_CKSUM_NONE    ((1ULL << 3) | (1ULL << 8))
-
-
-//#endif
-
+/* Maximum number of extended statistics counters. */
+#define MLX5_MAX_XSTATS 32
 
 #endif /* RTE_PMD_MLX5_DEFS_H_ */

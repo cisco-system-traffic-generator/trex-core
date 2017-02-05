@@ -17,7 +17,7 @@
  * The set of PCI devices this driver supports
  */
 #define BROADCOM_PCI_VENDOR_ID 0x14E4
-static struct rte_pci_id pci_id_bnx2x_map[] = {
+static const struct rte_pci_id pci_id_bnx2x_map[] = {
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57800) },
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57711) },
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57810) },
@@ -33,7 +33,7 @@ static struct rte_pci_id pci_id_bnx2x_map[] = {
 	{ .vendor_id = 0, }
 };
 
-static struct rte_pci_id pci_id_bnx2xvf_map[] = {
+static const struct rte_pci_id pci_id_bnx2xvf_map[] = {
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57800_VF) },
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57810_VF) },
 	{ RTE_PCI_DEVICE(BROADCOM_PCI_VENDOR_ID, CHIP_NUM_57811_VF) },
@@ -119,12 +119,12 @@ bnx2x_interrupt_action(struct rte_eth_dev *dev)
 }
 
 static __rte_unused void
-bnx2x_interrupt_handler(__rte_unused struct rte_intr_handle *handle, void *param)
+bnx2x_interrupt_handler(struct rte_intr_handle *handle, void *param)
 {
 	struct rte_eth_dev *dev = (struct rte_eth_dev *)param;
 
 	bnx2x_interrupt_action(dev);
-	rte_intr_enable(&(dev->pci_dev->intr_handle));
+	rte_intr_enable(handle);
 }
 
 /*
@@ -187,10 +187,10 @@ bnx2x_dev_start(struct rte_eth_dev *dev)
 	}
 
 	if (IS_PF(sc)) {
-		rte_intr_callback_register(&(dev->pci_dev->intr_handle),
+		rte_intr_callback_register(&sc->pci_dev->intr_handle,
 				bnx2x_interrupt_handler, (void *)dev);
 
-		if(rte_intr_enable(&(dev->pci_dev->intr_handle)))
+		if (rte_intr_enable(&sc->pci_dev->intr_handle))
 			PMD_DRV_LOG(ERR, "rte_intr_enable failed");
 	}
 
@@ -202,8 +202,6 @@ bnx2x_dev_start(struct rte_eth_dev *dev)
 
 	/* Print important adapter info for the user. */
 	bnx2x_print_adapter_info(sc);
-
-	DELAY_MS(2500);
 
 	return ret;
 }
@@ -217,8 +215,8 @@ bnx2x_dev_stop(struct rte_eth_dev *dev)
 	PMD_INIT_FUNC_TRACE();
 
 	if (IS_PF(sc)) {
-		rte_intr_disable(&(dev->pci_dev->intr_handle));
-		rte_intr_callback_unregister(&(dev->pci_dev->intr_handle),
+		rte_intr_disable(&sc->pci_dev->intr_handle);
+		rte_intr_callback_unregister(&sc->pci_dev->intr_handle,
 				bnx2x_interrupt_handler, (void *)dev);
 	}
 
@@ -258,6 +256,8 @@ bnx2x_promisc_enable(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 	sc->rx_mode = BNX2X_RX_MODE_PROMISC;
+	if (rte_eth_allmulticast_get(dev->data->port_id) == 1)
+		sc->rx_mode = BNX2X_RX_MODE_ALLMULTI_PROMISC;
 	bnx2x_set_rx_mode(sc);
 }
 
@@ -268,6 +268,8 @@ bnx2x_promisc_disable(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 	sc->rx_mode = BNX2X_RX_MODE_NORMAL;
+	if (rte_eth_allmulticast_get(dev->data->port_id) == 1)
+		sc->rx_mode = BNX2X_RX_MODE_ALLMULTI;
 	bnx2x_set_rx_mode(sc);
 }
 
@@ -278,6 +280,8 @@ bnx2x_dev_allmulticast_enable(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 	sc->rx_mode = BNX2X_RX_MODE_ALLMULTI;
+	if (rte_eth_promiscuous_get(dev->data->port_id) == 1)
+		sc->rx_mode = BNX2X_RX_MODE_ALLMULTI_PROMISC;
 	bnx2x_set_rx_mode(sc);
 }
 
@@ -288,6 +292,8 @@ bnx2x_dev_allmulticast_disable(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 	sc->rx_mode = BNX2X_RX_MODE_NORMAL;
+	if (rte_eth_promiscuous_get(dev->data->port_id) == 1)
+		sc->rx_mode = BNX2X_RX_MODE_PROMISC;
 	bnx2x_set_rx_mode(sc);
 }
 
@@ -424,6 +430,7 @@ bnx2x_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 			xstats[num].value =
 					  *(uint64_t *)((char *)&sc->eth_stats +
 					  bnx2x_xstats_strings[num].offset_lo);
+		xstats[num].id = num;
 	}
 
 	return num;
@@ -433,6 +440,7 @@ static void
 bnx2x_dev_infos_get(struct rte_eth_dev *dev, __rte_unused struct rte_eth_dev_info *dev_info)
 {
 	struct bnx2x_softc *sc = dev->data->dev_private;
+	dev_info->pci_dev = RTE_DEV_TO_PCI(dev->device);
 	dev_info->max_rx_queues  = sc->max_rx_queues;
 	dev_info->max_tx_queues  = sc->max_tx_queues;
 	dev_info->min_rx_bufsize = BNX2X_MIN_RX_BUF_SIZE;
@@ -518,7 +526,7 @@ bnx2x_common_dev_init(struct rte_eth_dev *eth_dev, int is_vf)
 	PMD_INIT_FUNC_TRACE();
 
 	eth_dev->dev_ops = is_vf ? &bnx2xvf_eth_dev_ops : &bnx2x_eth_dev_ops;
-	pci_dev = eth_dev->pci_dev;
+	pci_dev = RTE_DEV_TO_PCI(eth_dev->device);
 
 	rte_eth_copy_pci_info(eth_dev, pci_dev);
 
@@ -577,6 +585,8 @@ bnx2x_common_dev_init(struct rte_eth_dev *eth_dev, int is_vf)
 			eth_dev->data->port_id, pci_dev->id.vendor_id, pci_dev->id.device_id);
 
 	if (IS_VF(sc)) {
+		rte_spinlock_init(&sc->vf2pf_lock);
+
 		if (bnx2x_dma_alloc(sc, sizeof(struct bnx2x_vf_mbx_msg),
 				    &sc->vf2pf_mbox_mapping, "vf2pf_mbox",
 				    RTE_CACHE_LINE_SIZE) != 0)
@@ -618,9 +628,10 @@ eth_bnx2xvf_dev_init(struct rte_eth_dev *eth_dev)
 
 static struct eth_driver rte_bnx2x_pmd = {
 	.pci_drv = {
-		.name = "rte_bnx2x_pmd",
 		.id_table = pci_id_bnx2x_map,
 		.drv_flags = RTE_PCI_DRV_NEED_MAPPING | RTE_PCI_DRV_INTR_LSC,
+		.probe = rte_eth_dev_pci_probe,
+		.remove = rte_eth_dev_pci_remove,
 	},
 	.eth_dev_init = eth_bnx2x_dev_init,
 	.dev_private_size = sizeof(struct bnx2x_softc),
@@ -631,41 +642,18 @@ static struct eth_driver rte_bnx2x_pmd = {
  */
 static struct eth_driver rte_bnx2xvf_pmd = {
 	.pci_drv = {
-		.name = "rte_bnx2xvf_pmd",
 		.id_table = pci_id_bnx2xvf_map,
 		.drv_flags = RTE_PCI_DRV_NEED_MAPPING,
+		.probe = rte_eth_dev_pci_probe,
+		.remove = rte_eth_dev_pci_remove,
 	},
 	.eth_dev_init = eth_bnx2xvf_dev_init,
 	.dev_private_size = sizeof(struct bnx2x_softc),
 };
 
-static int rte_bnx2x_pmd_init(const char *name __rte_unused, const char *params __rte_unused)
-{
-	PMD_INIT_FUNC_TRACE();
-	rte_eth_driver_register(&rte_bnx2x_pmd);
-
-	return 0;
-}
-
-static int rte_bnx2xvf_pmd_init(const char *name __rte_unused, const char *params __rte_unused)
-{
-	PMD_INIT_FUNC_TRACE();
-	rte_eth_driver_register(&rte_bnx2xvf_pmd);
-
-	return 0;
-}
-
-static struct rte_driver rte_bnx2x_driver = {
-	.type = PMD_PDEV,
-	.init = rte_bnx2x_pmd_init,
-};
-
-static struct rte_driver rte_bnx2xvf_driver = {
-	.type = PMD_PDEV,
-	.init = rte_bnx2xvf_pmd_init,
-};
-
-PMD_REGISTER_DRIVER(rte_bnx2x_driver, bnx2x);
-DRIVER_REGISTER_PCI_TABLE(bnx2x, pci_id_bnx2x_map);
-PMD_REGISTER_DRIVER(rte_bnx2xvf_driver, bnx2xvf);
-DRIVER_REGISTER_PCI_TABLE(bnx2xvf, pci_id_bnx2xvf_map);
+RTE_PMD_REGISTER_PCI(net_bnx2x, rte_bnx2x_pmd.pci_drv);
+RTE_PMD_REGISTER_PCI_TABLE(net_bnx2x, pci_id_bnx2x_map);
+RTE_PMD_REGISTER_KMOD_DEP(net_bnx2x, "* igb_uio | uio_pci_generic | vfio");
+RTE_PMD_REGISTER_PCI(net_bnx2xvf, rte_bnx2xvf_pmd.pci_drv);
+RTE_PMD_REGISTER_PCI_TABLE(net_bnx2xvf, pci_id_bnx2xvf_map);
+RTE_PMD_REGISTER_KMOD_DEP(net_bnx2xvf, "* igb_uio | vfio");
