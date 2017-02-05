@@ -92,3 +92,111 @@ void i40e_trex_fdir_reg_init(int port_id, int mode)
 	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0,44), 0x000C00FF);
 	I40E_WRITE_FLUSH(hw);
 }
+
+// fill stats array with fdir rules match count statistics
+// Notice that we read statistics from start to start + len, but we fill the stats are
+//  starting from 0 with len values
+void
+i40e_trex_fdir_stats_get(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+    }
+}
+
+void
+i40e_trex_fdir_stats_reset(struct rte_eth_dev *dev, uint32_t *stats, uint32_t start, uint32_t len)
+{
+    int i;
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    for (i = 0; i < len; i++) {
+        if (stats) {
+            stats[i] = I40E_READ_REG(hw, I40E_GLQF_PCNT(i + start));
+        }
+        I40E_WRITE_REG(hw, I40E_GLQF_PCNT(i + start), 0xffffffff);
+    }
+}
+
+int
+i40e_trex_get_fw_ver(struct rte_eth_dev *dev, uint32_t *nvm_ver)
+{
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
+    *nvm_ver = hw->nvm.version;
+    return 0;
+}
+
+/* This function existed in older DPDK versions. We keep it */
+int
+rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id)
+{
+	int i;
+	struct rte_pci_device *pci_dev = NULL;
+
+	if (addr == NULL) {
+		RTE_PMD_DEBUG_TRACE("Null pointer is specified\n");
+		return -EINVAL;
+	}
+
+	*port_id = RTE_MAX_ETHPORTS;
+
+	for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
+		if (
+			!rte_eal_compare_pci_addr(&rte_eth_devices[i].device->devargs->pci.addr, addr)) {
+
+			*port_id = i;
+
+			return 0;
+		}
+	}
+	return -ENODEV;
+}
+
+// return in stats, statistics starting from start, for len counters.
+int
+rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    i40e_trex_fdir_stats_get(dev, stats, start, len);
+
+    return 0;
+}
+
+// zero statistics counters, starting from start, for len counters.
+int
+rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    i40e_trex_fdir_stats_reset(dev, stats, start, len);
+
+    return 0;
+}
+
+int
+rte_eth_get_fw_ver(int port_id, uint32_t *version)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+
+    // Only xl710 support this
+    return i40e_trex_get_fw_ver(dev, version);
+}

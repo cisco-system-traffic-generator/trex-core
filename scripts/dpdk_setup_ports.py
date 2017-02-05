@@ -573,13 +573,15 @@ Other network devices
                 if not dpdk_nic_bind.confirm('Confirm (y/N):'):
                     return
         drivers_table = {
-            'rte_ixgbe_pmd': 'ixgbe',
-            'rte_igb_pmd': 'igb',
-            'rte_i40e_pmd': 'i40e',
-            'rte_em_pmd': 'e1000',
-            'rte_vmxnet3_pmd': 'vmxnet3',
-            'rte_virtio_pmd': 'virtio-pci',
-            'rte_enic_pmd': 'enic',
+            'net_ixgbe': 'ixgbe',
+            'net_ixgbe_vf': 'ixgbe_vf',
+            'net_e1000_igb': 'e1000_igb',
+            'net_i40e': 'i40e',
+            'net_i40e_vf': 'i40e_vf',
+            'net_e1000_em': 'e1000_em',
+            'net_vmxnet3': 'vmxnet3',
+            'net_virtio': 'virtio-pci',
+            'net_enic': 'enic',
         }
         for pci, info in dpdk_nic_bind.get_info_from_trex(dpdk_interfaces).items():
             if pci not in self.m_devices:

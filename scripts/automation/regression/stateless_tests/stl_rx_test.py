@@ -10,13 +10,13 @@ class STLRX_Test(CStlGeneral_Test):
 
     def setUp(self):
         per_driver_params = {
-                'rte_vmxnet3_pmd': {
+                'net_vmxnet3': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_ixgbe_pmd': {
+                'net_ixgbe': {
                         'rate_percent': 30,
                         'total_pkts': 1000,
                         'rate_latency': 1,
@@ -24,7 +24,14 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_average': 300,
                         'latency_9k_max_latency': 400,
                         },
-                'rte_i40e_pmd': {
+                'net_ixgbe_vf': {
+                        'rate_percent': 30,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+
+                'net_i40e': {
                         'rate_percent': 80,
                         'total_pkts': 1000,
                         'rate_latency': 1,
@@ -32,25 +39,25 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_average': 100,
                         'latency_9k_max_latency': 250,
                         },
-                'rte_i40evf_pmd': {
+                'net_i40e_vf': {
                         'rate_percent': 80,
                         'total_pkts': 1000,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_igb_pmd': {
+                'net_e1000_igb': {
                         'rate_percent': 80,
                         'total_pkts': 500,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_em_pmd': {
+                'net_e1000_em': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_virtio_pmd': {
+                'net_virtio': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
@@ -67,7 +74,7 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_latency': 250,
                         },
 
-                 'rte_enic_pmd': {
+                 'net_enic': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
@@ -93,7 +100,7 @@ class STLRX_Test(CStlGeneral_Test):
         self.cap = cap
 
         drv_name = port_info['driver']
-        if drv_name == 'rte_ixgbe_pmd':
+        if drv_name == 'net_ixgbe':
             self.ipv6_support = False
         else:
             self.ipv6_support = True

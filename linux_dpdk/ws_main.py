@@ -402,6 +402,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/base/ixgbe_dcb.c',
                  'drivers/net/ixgbe/base/ixgbe_dcb_82598.c',
                  'drivers/net/ixgbe/base/ixgbe_dcb_82599.c',
+                 'drivers/net/ixgbe/base/ixgbe_hv_vf.c',
                  'drivers/net/ixgbe/base/ixgbe_mbx.c',
                  'drivers/net/ixgbe/base/ixgbe_phy.c',
                  'drivers/net/ixgbe/base/ixgbe_vf.c',
@@ -409,6 +410,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/base/ixgbe_x550.c',
                  'drivers/net/ixgbe/ixgbe_ethdev.c',
                  'drivers/net/ixgbe/ixgbe_fdir.c',
+                 'drivers/net/ixgbe/ixgbe_flow.c',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
@@ -422,6 +424,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/mlx5/mlx5_txq.c',
                  'drivers/net/mlx5/mlx5.c',
                  'drivers/net/mlx5/mlx5_fdir.c',
+                 'drivers/net/mlx5/mlx5_flow.c',
                  'drivers/net/mlx5/mlx5_rss.c',
                  'drivers/net/mlx5/mlx5_rxq.c',
                  'drivers/net/mlx5/mlx5_trigger.c',
@@ -437,7 +440,8 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/i40e_ethdev_vf.c',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
-                 'drivers/net/i40e/i40e_rxtx_vec.c',
+                 'drivers/net/i40e/i40e_flow.c',
+                 '/drivers/net/i40e/i40e_rxtx_vec_sse.c',
                  'drivers/net/i40e/i40e_fdir.c',
                  'drivers/net/i40e/i40e_ethdev.c',
                  'drivers/net/null/rte_eth_null.c',
@@ -447,11 +451,18 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_rxtx.c',
                  'drivers/net/virtio/virtio_rxtx_simple.c',
                  'drivers/net/virtio/virtqueue.c',
+                 'drivers/net/virtio/virtio_rxtx_simple_sse.c',
+                 '/drivers/net/virtio/virtio_user_ethdev.c',
+                 'drivers/net/virtio/virtio_user/vhost_kernel.c',
+                 '/drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
+                 '/drivers/net/virtio/virtio_user/vhost_user.c',
+                 '/drivers/net/virtio/virtio_user/virtio_user_dev.c',
                  '/drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  '/drivers/net/vmxnet3/vmxnet3_rxtx.c',
                  'lib/librte_cfgfile/rte_cfgfile.c',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
+                 '/lib/librte_eal/common/eal_common_bus.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
@@ -469,6 +480,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
+                 'lib/librte_eal/common/eal_common_vdev.c',
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
                  'lib/librte_eal/common/rte_keepalive.c',
@@ -478,7 +490,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_debug.c',
                  'lib/librte_eal/linuxapp/eal/eal_hugepage_info.c',
                  'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
-                 'lib/librte_eal/linuxapp/eal/eal_ivshmem.c',
                  'lib/librte_eal/linuxapp/eal/eal_lcore.c',
                  'lib/librte_eal/linuxapp/eal/eal_log.c',
                  'lib/librte_eal/linuxapp/eal/eal_memory.c',
@@ -490,12 +501,15 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio.c',
                  'lib/librte_ether/rte_ethdev.c',
+                 'lib/librte_ether/rte_flow.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
+                 'lib/librte_mbuf/rte_mbuf_ptype.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
                  'lib/librte_mempool/rte_mempool_ring.c',
+                 'lib/librte_net/rte_net.c',
                  'lib/librte_pipeline/rte_pipeline.c',
                  'lib/librte_ring/rte_ring.c',
             ]);
@@ -537,7 +551,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-include','../src/pal/linux_dpdk/dpdk0716/rte_config.h'
+                '-include','../src/pal/linux_dpdk/dpdk1702/rte_config.h'
                ]
 
 common_flags_new = common_flags + [
@@ -566,6 +580,7 @@ common_flags_old = common_flags + [
 
 
 includes_path =''' ../src/pal/linux_dpdk/
+                   ../src/pal/linux_dpdk/dpdk1702/
                    ../src/pal/common/
                    ../src/
                    
@@ -633,7 +648,7 @@ dpdk_includes_verb_path =''
 
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk
+                        ../src/pal/linux_dpdk/dpdk1702/
 ../src/dpdk/drivers/
 ../src/dpdk/drivers/net/
 ../src/dpdk/drivers/net/af_packet/
@@ -658,6 +673,7 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/drivers/net/pcap/
 ../src/dpdk/drivers/net/ring/
 ../src/dpdk/drivers/net/virtio/
+../src/dpdk/drivers/net/virtio/virtio_user/
 ../src/dpdk/drivers/net/vmxnet3/
 ../src/dpdk/drivers/net/vmxnet3/base
 ../src/dpdk/drivers/net/xenvirt/

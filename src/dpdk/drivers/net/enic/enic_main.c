@@ -175,11 +175,15 @@ void enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 	 */
 	rx_packet_errors = rte_atomic64_read(&soft_stats->rx_packet_errors);
 	rx_truncated = rx_packet_errors - stats->rx.rx_errors;
+#define TREX_PATCH
+#ifdef TREX_PATCH
+    // This used to be in older DPDK version, and seems to be needed. Was removed for some reason in dpdk1702.
+		rx_truncated -= stats->rx.rx_no_bufs;
+#endif
 
 	r_stats->ipackets = stats->rx.rx_frames_ok - rx_truncated;
 	r_stats->opackets = stats->tx.tx_frames_ok;
 
-#define TREX_PATCH
 #ifdef TREX_PATCH
     r_stats->ibytes = stats->rx.rx_unicast_bytes_ok+stats->rx.rx_multicast_bytes_ok+stats->rx.rx_broadcast_bytes_ok;
 #else
