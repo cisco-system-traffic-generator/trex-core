@@ -8,7 +8,8 @@ ucs_ver = 'ucs2' if sys.maxunicode == 65535 else 'ucs4'
 CURRENT_PATH         = os.path.dirname(os.path.realpath(__file__))                
 ROOT_PATH            = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
 PATH_TO_PYTHON_LIB   = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pardir, 'external_libs'))
-ZMQ_PATH = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', python_ver, ucs_ver, '64bit'))
+ZMQ_PATH             = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', python_ver, ucs_ver, '64bit'))
+YAML_PATH            = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyyaml-3.11', python_ver))
 
 SERVER_MODULES = ['enum34-1.0.4',
                   'zmq',
@@ -23,10 +24,9 @@ def import_server_modules():
     # must be in a higher priority
     if PATH_TO_PYTHON_LIB not in sys.path:
         sys.path.insert(0, PATH_TO_PYTHON_LIB)
-    if ZMQ_PATH not in sys.path:
-        sys.path.insert(0, ZMQ_PATH)
-    if ROOT_PATH not in sys.path:
-        sys.path.append(ROOT_PATH)
+    for path in (ROOT_PATH, ZMQ_PATH, YAML_PATH):
+        if path not in sys.path:
+            sys.path.insert(0, path)
     import_module_list(SERVER_MODULES)
 
 

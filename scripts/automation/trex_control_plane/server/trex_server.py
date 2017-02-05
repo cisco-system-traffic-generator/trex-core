@@ -7,6 +7,7 @@ import sys
 import time
 import outer_packages
 import zmq
+import yaml
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import jsonrpclib
 from jsonrpclib import Fault
@@ -471,6 +472,8 @@ class CTRexServer(object):
         if trex_args:
             trex_cmd_options += ' %s' % trex_args
 
+        self._check_zmq_port(trex_cmd_options)
+
         if not stateless:
             if 'f' not in kwargs:
                 raise Exception('Argument -f should be specified in stateful command')
@@ -487,6 +490,28 @@ class CTRexServer(object):
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 
         return (cmd, export_path, kwargs.get('d', 0))
+
+
+    def _check_zmq_port(self, trex_cmd_options):
+        zmq_cfg_port = 4500 # default
+        parser = ArgumentParser()
+        parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
+        args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
+        if not os.path.exists(args.cfg):
+            raise Exception('Platform config file "%s" does not exist!' % args.cfg)
+        with open(args.cfg) as f:
+            trex_cfg = yaml.safe_load(f.read())
+        if type(trex_cfg) is not list:
+            raise Exception('Platform config file "%s" content should be array.' % args.cfg)
+        if not len(trex_cfg):
+            raise Exception('Platform config file "%s" content should be array with one element.' % args.cfg)
+        trex_cfg = trex_cfg[0]
+        if 'enable_zmq_pub' in trex_cfg and trex_cfg['enable_zmq_pub'] == False:
+            raise Exception('TRex daemon expects ZMQ publisher to be enabled. Please change "enable_zmq_pub" to true.')
+        if 'zmq_pub_port' in trex_cfg:
+            zmq_cfg_port = trex_cfg['zmq_pub_port']
+        if zmq_cfg_port != self.trex_zmq_port:
+            raise Exception('ZMQ port does not match: platform config file is configured to: %s, daemon server to: %s' % (zmq_cfg_port, self.trex_zmq_port))
 
 
     def __check_trex_path_validity(self):
