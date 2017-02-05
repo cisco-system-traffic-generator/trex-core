@@ -193,6 +193,8 @@ public:
         return instance;
     }
 
+    class IOFunction;
+
     void init(bool enable);
 
     /**
@@ -252,5 +254,30 @@ private:
     static bool                g_signal_init;
 };
 
+class TrexWatchDog::IOFunction {
+public:
+    static void io_begin() {
+        TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
+        if (cur_monitor != NULL) {
+            cur_monitor->io_begin();
+        }
+    }
+
+    static void io_end() {
+        TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
+        if (cur_monitor != NULL) {
+            cur_monitor->io_end();
+        }
+    }
+
+    IOFunction() {
+        IOFunction::io_begin();
+    }
+
+    ~IOFunction() {
+        IOFunction::io_end();
+    }
+
+};
 
 #endif /* __TREX_WATCHDOG_H__ */

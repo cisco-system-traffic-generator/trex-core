@@ -1282,10 +1282,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_min_ipg_sec    = min_ipg_sec;
 
     /* increase timeout of WD due to io */
-    TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
-    if (cur_monitor != NULL) {
-        cur_monitor->io_begin();
-    }
+    TrexWatchDog::IOFunction::io_begin();
 
     /* mark this node as slow path */
     set_slow_path(true);
@@ -1351,10 +1348,7 @@ void CGenNodePCAP::destroy() {
     }
 
     /* end of io, return normal timeout of WD */
-    TrexMonitor * cur_monitor = TrexWatchDog::getInstance().get_current_monitor();
-    if (cur_monitor != NULL) {
-        cur_monitor->io_end();
-    }
+    TrexWatchDog::IOFunction::io_end();
 
     m_state = PCAP_INVALID;
 }
