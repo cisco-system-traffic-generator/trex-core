@@ -112,9 +112,9 @@ void LayerConfig::set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4, const uint8_
 void
 LayerConfig::on_link_down() {
 
-    m_l2_config.set_state(LayerConfigMAC::STATE_UNCONFIGRED);
-    
+    /* on IPv4 only - when the state is resolved, move to unresolved and invalidate the MAC */ 
     if (m_l3_ipv4_config.get_state() == LayerConfigIPv4::STATE_RESOLVED) {
+        m_l2_config.set_state(LayerConfigMAC::STATE_UNCONFIGRED);
         m_l3_ipv4_config.set_state(LayerConfigIPv4::STATE_UNRESOLVED);
     }
 }
