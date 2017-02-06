@@ -65,8 +65,13 @@ def get_number(input):
 def list_intersect(l1, l2):
     return list(filter(lambda x: x in l2, l1))
 
+# actually first list minus second
 def list_difference (l1, l2):
     return list(filter(lambda x: x not in l2, l1))
+
+# symmetric diff
+def list_xor(l1, l2):
+    return list(set(l1) ^ set(l2))
 
 def is_sub_list (l1, l2):
     return set(l1) <= set(l2)

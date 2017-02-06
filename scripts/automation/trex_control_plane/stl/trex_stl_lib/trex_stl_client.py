@@ -3065,8 +3065,18 @@ class STLClient(object):
                 + :exe:'STLError'
 
         """
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
+
+        if ports is None:
+            ports = self.get_acquired_ports()
+        else:
+            ports = self._validate_port_list(ports)
+            not_acquired = list_difference(ports, self.get_acquired_ports())
+            if not_acquired:
+                raise STLError('Following ports are not acquired: %s' % ', '.join(map(str, not_acquired)))
+
+        not_in_service = list_difference(ports, self.get_service_enabled_ports())
+        if not_in_service:
+            raise STLError('Following ports are not in service mode: %s' % ', '.join(map(str, not_in_service)))
 
         self.logger.pre_cmd('Scanning network for IPv6 nodes on port(s) {0}:'.format(ports))
 
@@ -3075,13 +3085,22 @@ class STLClient(object):
 
         self.logger.post_cmd(rc_per_port)
 
+        err = RC()
+        replies_per_port = {}
+        for port, rc in rc_per_port.items():
+            if not rc:
+                err.add(rc)
+            else:
+                replies_per_port[port] = rc.data()
+
+        if err.rc_list:
+            raise STLError(err)
+
         if verbose:
-            for port, rc in rc_per_port.items():
-                if not rc:
-                    self.logger.log(format_text(rc, 'bold'))
-                elif rc.data():
+            for port, replies in replies_per_port.items():
+                if replies:
                     max_ip_len = 0
-                    for resp in rc.data():
+                    for resp in replies:
                         max_ip_len = max(max_ip_len, len(resp['ipv6']))
                     scan_table = TRexTextTable()
                     scan_table.set_cols_align(['c', 'c', 'l'])
@@ -3091,7 +3110,7 @@ class STLClient(object):
                     resp = 'Port %s - IPv6 search result:' % port
                     self.logger.log(format_text(resp, 'bold'))
                     node_types = defaultdict(list)
-                    for reply in rc.data():
+                    for reply in replies:
                         node_types[reply['type']].append(reply)
                     for key in sorted(node_types.keys()):
                         for reply in node_types[key]:
@@ -3101,7 +3120,7 @@ class STLClient(object):
                 else:
                     self.logger.log(format_text('Port %s: no replies! Try to ping with explicit address.' % port, 'bold'))
 
-        return rc_per_port
+        return replies_per_port
 
 
     @__api_check(True)
