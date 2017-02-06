@@ -3334,6 +3334,112 @@ Use the following command within the TRex console to run the profile.
 TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a     
 ----
 
+=== Functional Tutorials
+
+
+On functional tests we demonstrate a way to test certain cases
+which does not require high bandwidth but instead require more flexibility
+such as fetching all the packets on the RX side.
+
+==== Tutorial: Testing Dot1Q VLAN tagging
+
+*Goal*:: Generate a Dot1Q packet with a vlan tag and verify the returned packet is on the same vlan
+
+*File*:: link:{github_stl_examples_path}/stl_functional.py[stl_functional.py]
+
+The below example has been reduced to be concise, please refer to the file above for the full
+working example
+
+[source,python]
+----
+#passed a connected client object and two ports
+def test_dot1q (c, rx_port, tx_port):
+   
+    # activate service mode on RX code
+    c.set_service_mode(ports = rx_port)
+
+    # generate a simple Dot1Q
+    pkt = Ether() / Dot1Q(vlan = 100) / IP()
+
+    # start a capture
+    capture = c.start_capture(rx_ports = rx_port)
+
+    # push the Dot1Q packet to TX port... we need 'force' because this is under service mode
+    print('\nSending 1 Dot1Q packet(s) on port {}'.format(tx_port))
+
+    c.push_packets(ports = tx_port, pkts = pkt, force = True)
+    c.wait_on_traffic(ports = tx_port)
+
+    rx_pkts = []
+    c.stop_capture(capture_id = capture['id'], output = rx_pkts)
+
+    print('\nRecived {} packets on port {}:\n'.format(len(rx_pkts), rx_port))
+    
+    c.set_service_mode(ports = rx_port, enabled = False)
+
+    # got back one packet
+    assert(len(rx_pkts) == 1)
+    rx_scapy_pkt = Ether(rx_pkts[0]['binary'])
+
+    # it's a Dot1Q with the same VLAN
+    assert('Dot1Q' in rx_scapy_pkt)
+    assert(rx_scapy_pkt.vlan == 100)
+
+    
+    rx_scapy_pkt.show2()
+----
+
+
+==== Tutorial: Testing IPv4 ping - echo request / echo reply
+
+*Goal*:: Generate a ICMP echo request from one interface to another one and validate the response
+
+*File*:: link:{github_stl_examples_path}/stl_functional.py[stl_functional.py]
+
+[source,python]
+----
+# test a echo request / echo reply
+def test_ping (c, tx_port, rx_port):
+    
+    # activate service mode on RX code
+    c.set_service_mode(ports = [tx_port, rx_port])
+
+    # fetch the config
+    tx_port_attr = c.get_port_attr(port = tx_port)
+    rx_port_attr = c.get_port_attr(port = rx_port)
+    
+    assert(tx_port_attr['layer_mode'] == 'IPv4')
+    assert(rx_port_attr['layer_mode'] == 'IPv4')
+    
+    pkt = Ether() / IP(src = tx_port_attr['src_ipv4'], dst = rx_port_attr['src_ipv4']) / ICMP(type = 8)
+
+    # start a capture on the sending port
+    capture = c.start_capture(rx_ports = tx_port)
+    
+    print('\nSending ping request on port {}'.format(tx_port))
+
+    # send the ping packet
+    c.push_packets(ports = tx_port, pkts = pkt, force = True)
+    c.wait_on_traffic(ports = tx_port)
+
+    # fetch the packet
+    rx_pkts = []
+    c.stop_capture(capture_id = capture['id'], output = rx_pkts)
+
+    print('\nRecived {} packets on port {}:\n'.format(len(rx_pkts), tx_port))
+    
+    c.set_service_mode(ports = rx_port, enabled = False)
+
+    # got back one packet
+    assert(len(rx_pkts) == 1)
+    rx_scapy_pkt = Ether(rx_pkts[0]['binary'])
+
+    # check for ICMP reply
+    assert('ICMP' in rx_scapy_pkt)
+    assert(rx_scapy_pkt['ICMP'].type == 0)
+    
+    rx_scapy_pkt.show2()
+----
 
 === PCAP Based Traffic Tutorials
 

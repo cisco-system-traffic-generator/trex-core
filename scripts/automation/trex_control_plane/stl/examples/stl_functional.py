@@ -8,6 +8,7 @@ It can be used for various tasks and can replace simple Pagent/Scapy
 low rate tests
 """
 
+# passed a connected client object and two ports
 def test_dot1q (c, rx_port, tx_port):
    
     # activate service mode on RX code
