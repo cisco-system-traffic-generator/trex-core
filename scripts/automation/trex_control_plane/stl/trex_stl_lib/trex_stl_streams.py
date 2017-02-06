@@ -1047,6 +1047,9 @@ class STLProfile(object):
 
             if split_mode is None:
                 pkts = PCAPReader(pcap_file).read_all()
+                if len(pkts) == 0:
+                    raise STLError("'{0}' does not contain any packets".format(pcap_file))
+                    
                 return STLProfile.__pkts_to_streams(pkts,
                                                     ipg_usec,
                                                     min_ipg_usec,
@@ -1056,7 +1059,9 @@ class STLProfile(object):
                                                     packet_hook)
             else:
                 pkts_a, pkts_b = PCAPReader(pcap_file).read_all(split_mode = split_mode)
-
+                if (len(pkts_a) + len(pkts_b)) == 0:
+                    raise STLError("'{0}' does not contain any packets".format(pcap_file))
+                    
                 # swap the packets if a is empty, or the ts of first packet in b is earlier
                 if not pkts_a:
                     pkts_a, pkts_b = pkts_b, pkts_a

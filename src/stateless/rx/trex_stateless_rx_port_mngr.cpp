@@ -367,18 +367,24 @@ RXServer::create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src
 
 void
 RXServer::handle_pkt(const rte_mbuf_t *m) {
-
-    RXPktParser parser(m);
-    
-    if (parser.m_icmp) {
-        handle_icmp(parser);
-    } else if (parser.m_arp) {
-        handle_arp(parser);
-    } else {
+    try {
+        
+        RXPktParser parser(m);
+        
+        if (parser.m_icmp) {
+            handle_icmp(parser);
+        } else if (parser.m_arp) {
+            handle_arp(parser);
+        } else {
+            return;
+        }
+        
+    } catch (const TrexException &e) {
         return;
     }
 
 }
+
 void
 RXServer::handle_icmp(RXPktParser &parser) {
     

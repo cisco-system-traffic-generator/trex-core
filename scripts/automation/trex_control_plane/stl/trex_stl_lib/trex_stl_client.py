@@ -20,12 +20,14 @@ from texttable import ansi_len
 
 from collections import namedtuple, defaultdict
 from yaml import YAMLError
+from contextlib import contextmanager
 import time
 import datetime
 import re
 import random
 import json
 import traceback
+import tempfile
 import os.path
 
 ############################     logger     #############################
@@ -2691,8 +2693,8 @@ class STLClient(object):
 
             self.remove_all_streams(ports = ports)
             id_list = self.add_streams(profile.get_streams(), ports)
-
-            return self.start(ports = ports, duration = duration)
+            
+            return self.start(ports = ports, duration = duration, force = force)
 
         else:
 
@@ -2728,11 +2730,91 @@ class STLClient(object):
                 if profile_b:
                     self.add_streams(profile_b.get_streams(), slave)
 
-            return self.start(ports = all_ports, duration = duration)
+            return self.start(ports = all_ports, duration = duration, force = force)
 
 
 
 
+    @__api_check(True)
+    def push_packets (self,
+                      pkts,
+                      ports = None,
+                      ipg_usec = 100,
+                      count = 1,
+                      duration = -1,
+                      force = False,
+                      vm = None):
+        
+        """
+            Pushes a list of packets to the server
+            a 'packet' can be anything with a bytes representation
+            such as Scapy object, a simple string, a byte array and etc.
+            
+            Total size, as for PCAP pushing is limited to 1MB
+            unless 'force' is specified
+            
+            the list of packets will be saved to a temporary file
+            which will be deleted when the function exists
+            
+            :parameters:
+                pkts : list or 
+                    PCAP filename (accessible locally)
+
+                ports : list
+                    Ports on which to execute the command
+
+                ipg_usec : float
+                    Inter-packet gap in microseconds.
+
+                count: int
+                    How many times to transmit the list
+
+                duration: float
+                    Limit runtime by duration in seconds
+
+                force: bool
+                    Ignore size limit - push any size to the server
+
+                vm: list of VM instructions
+                    VM instructions to apply for every packet
+
+            :raises:
+                + :exc:`STLError`
+        """
+        validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
+        if ipg_usec < 0:
+            raise STLError("'ipg_usec' should not be negative")
+            
+        # create a temporary file while will be deleted when leaving scope
+        with tempfile.NamedTemporaryFile(delete = True) as f:
+        
+            # write packets to file
+            writer = RawPcapWriter(f.name, linktype = 1)
+            writer._write_header(None)
+        
+            # write to the file
+            for i, pkt in enumerate(listify(pkts)):
+                ts = (ipg_usec * i) / 1.0e6
+                ts_sec, ts_usec = sec_split_usec(ts)
+                writer._write_packet(bytes(pkt), sec = ts_sec, usec = ts_usec)
+            
+            # close the writer      
+            writer.close()
+            
+            # now inject the file
+            self.push_pcap(f.name,
+                           ports = ports,
+                           ipg_usec = ipg_usec,
+                           speedup = 1,
+                           count = count,
+                           duration = duration,
+                           force = force,
+                           vm = vm,
+                           packet_hook = None,
+                           is_dual = False,
+                           min_ipg_usec = None)
+        
+    
 
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = -1, total = False):
@@ -3011,7 +3093,15 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
             
-
+    @contextmanager
+    def service_mode (self, ports):
+        self.set_service_mode(ports = ports)
+        try:
+            yield
+        finally:
+            self.set_service_mode(ports = ports, enabled = False)
+        
+        
     @__api_check(True)
     def resolve (self, ports = None, retries = 0, verbose = True):
         """
@@ -3206,11 +3296,19 @@ class STLClient(object):
                 capture_id: int
                     an active capture ID to stop
                     
-                output: None/ str / list
+                output: None / str / list
                     if output is None - all the packets will be discarded
                     if output is a 'str' - it will be interpeted as output filename
                     if it is a list, the API will populate the list with packet objects
 
+                    in case 'output' is a list, each element in the list is an object
+                    containing:
+                    'binary' - binary bytes of the packet
+                    'origin' - RX or TX origin
+                    'ts'     - timestamp relative to the start of the capture
+                    'index'  - order index in the capture
+                    'port'   - on which port did the packet arrive or was transmitted from
+                    
             :raises:
                 + :exe:'STLError'
 

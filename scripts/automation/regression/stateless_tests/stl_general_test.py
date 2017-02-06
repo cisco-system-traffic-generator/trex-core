@@ -37,6 +37,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             sys.stdout.write('.')
             sys.stdout.flush()
             try:
+                CTRexScenario.stl_trex.remove_all_captures()
                 CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
                 if self.verify_bidirectional(CTRexScenario.stl_ports_map):
                     print('')
