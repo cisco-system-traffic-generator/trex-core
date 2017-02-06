@@ -23,6 +23,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.16 ==
+
+* IPv6 console basic support:
+** scan6 function to search for IPv6-enabled neighbors
+** ping can be used with IPv6 addresses to ping nearby devices
+
 == Release 2.15 ==
 
 * XL710/X710 VF (SR-IOV) mode works better 

@@ -14,6 +14,7 @@ class RXServiceICMP(RXServiceAPI):
         super(RXServiceICMP, self).__init__(port, layer_mode = RXServiceAPI.LAYER_MODE_L3, *a, **k)
         self.ping_ip  = ping_ip
         self.pkt_size = pkt_size
+        self.result = {}
 
     def get_name (self):
         return "PING"
@@ -61,14 +62,21 @@ class RXServiceICMP(RXServiceAPI):
             # check seq
             if icmp.seq != self.base_pkt['ICMP'].seq:
                 return None
-            return self.port.ok('Reply from {0}: bytes={1}, time={2:.2f}ms, TTL={3}'.format(ip.src, len(pkt['binary']), dt * 1000, ip.ttl))
+            self.result['formatted_string'] = 'Reply from {0}: bytes={1}, time={2:.2f}ms, TTL={3}'.format(ip.src, len(pkt['binary']), dt * 1000, ip.ttl)
+            self.result['src_ip'] = ip.src
+            self.result['rtt'] = dt * 1000
+            self.result['ttl'] = ip.ttl
+            self.result['status'] = 'success'
+            return self.port.ok(self.result)
 
         # unreachable
         elif icmp.type == 3:
             # check seq
             if icmp.payload.seq != self.base_pkt['ICMP'].seq:
                 return None
-            return self.port.ok('Reply from {0}: Destination host unreachable'.format(icmp.src))
+            self.result['formatted_string'] = 'Reply from {0}: Destination host unreachable'.format(icmp.src)
+            self.result['status'] = 'unreachable'
+            return self.port.ok(self.result)
 
         else:
             # skip any other types
@@ -79,5 +87,7 @@ class RXServiceICMP(RXServiceAPI):
 
     # return the str of a timeout err
     def on_timeout(self):
-        return self.port.ok('Request timed out.')
+        self.result['formatted_string'] = 'Request timed out.'
+        self.result['status'] = 'timeout'
+        return self.port.ok(self.result)
 

@@ -926,6 +926,8 @@ class STLProfile(object):
 
         # fetch defaults
         defaults = func.__defaults__
+        if defaults is None:
+            return {}
         if len(defaults) != (argc - 1):
             raise STLError("Module should provide default values for all arguments on get_streams()")
 

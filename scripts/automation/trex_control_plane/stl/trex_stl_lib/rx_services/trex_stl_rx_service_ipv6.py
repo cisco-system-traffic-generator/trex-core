@@ -126,6 +126,7 @@ class RXServiceICMPv6(RXServiceIPv6):
         super(RXServiceICMPv6, self).__init__(port, *a, **k)
         self.pkt_size = pkt_size
         self.dst_mac  = dst_mac
+        self.result = {}
 
     def get_name(self):
         return 'PING6'
@@ -159,21 +160,38 @@ class RXServiceICMPv6(RXServiceIPv6):
             node_ip = scapy_pkt.getlayer(IPv6).src
             hlim = scapy_pkt.getlayer(IPv6).hlim
             dst_ip = scapy_pkt.getlayer(IPv6).dst
-
             if dst_ip != self.src_ip: # not our ping
                 return
 
             dt = pkt['ts'] - start_ts
-            return self.port.ok('Reply from {0}: bytes={1}, time={2:.2f}ms, hlim={3}'.format(node_ip, len(pkt['binary']), dt * 1000, hlim))
+            self.result['formatted_string'] = 'Reply from {0}: bytes={1}, time={2:.2f}ms, hlim={3}'.format(node_ip, len(pkt['binary']), dt * 1000, hlim)
+            self.result['src_ip'] = node_ip
+            self.result['rtt'] = dt * 1000
+            self.result['ttl'] = hlim
+            self.result['status'] = 'success'
+            return self.port.ok(self.result)
 
         if scapy_pkt.haslayer('ICMPv6ND_NS') and scapy_pkt.haslayer('ICMPv6NDOptSrcLLAddr'):
             node_mac = scapy_pkt.getlayer(ICMPv6NDOptSrcLLAddr).lladdr
             node_ip = scapy_pkt.getlayer(IPv6).src
+            dst_ip = scapy_pkt.getlayer(IPv6).dst
+            if dst_ip != self.src_ip: # not our ping
+                return
             self.send_intermediate(self.generate_ns_na(node_mac, node_ip))
 
+        if scapy_pkt.haslayer('ICMPv6DestUnreach'):
+            node_ip = scapy_pkt.getlayer(IPv6).src
+            dst_ip = scapy_pkt.getlayer(IPv6).dst
+            if dst_ip != self.src_ip: # not our ping
+                return
+            self.result['formatted_string'] = 'Reply from {0}: Destination host unreachable'.format(node_ip)
+            self.result['status'] = 'unreachable'
+            return self.port.ok(self.result)
 
     # return the str of a timeout err
     def on_timeout(self):
-        return self.port.ok('Request timed out.')
+        self.result['formatted_string'] = 'Request timed out.'
+        self.result['status'] = 'timeout'
+        return self.port.ok(self.result)
 
 

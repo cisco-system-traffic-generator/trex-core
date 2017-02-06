@@ -1916,6 +1916,23 @@ class STLClient(object):
                  pkt_size     - packet size to use
                  count        - how many times to ping
                  interval_sec - how much time to wait between pings
+
+            :returns:
+                List of replies per 'count'
+
+                Each element is dictionary with following items:
+
+                Always available keys:
+
+                * formatted_string - string, human readable output, for example: 'Request timed out.'
+                * status - string, one of options: 'success', 'unreachable', 'timeout'
+
+                Available only if status is 'success':
+
+                * src_ip - string, IP replying to request
+                * rtt - float, latency of the ping (round trip time)
+                * ttl - int, time to live in IPv4 or hop limit in IPv6
+
             :raises:
                 + :exc:`STLError`
 
@@ -1938,6 +1955,7 @@ class STLClient(object):
                                                                                        src_port,
                                                                                        pkt_size))
         
+        responses_arr = []
         # no async messages
         with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
             self.logger.log('')
@@ -1954,10 +1972,13 @@ class STLClient(object):
                 if not rc:
                     raise STLError(rc)
                     
-                self.logger.log(rc.data())
+                responses_arr.append(rc.data())
+                self.logger.log(rc.data()['formatted_string'])
                 
                 if i != (count - 1):
                     time.sleep(interval_sec)
+
+        return responses_arr
         
         
         
@@ -3148,9 +3169,10 @@ class STLClient(object):
                 verbose        - log for each request the response
             :return:
                 list of dictionaries per neighbor:
-                    type   - type of device: 'Router' or 'Host'
-                    mac    - MAC address of device
-                    ipv6   - IPv6 address of device
+
+                    * type   - type of device: 'Router' or 'Host'
+                    * mac    - MAC address of device
+                    * ipv6   - IPv6 address of device
             :raises:
                 + :exe:'STLError'
 
