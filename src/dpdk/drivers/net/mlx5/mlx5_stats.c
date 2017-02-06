@@ -246,6 +246,223 @@ free:
 	rte_free(strings);
 }
 
+
+
+static void
+mlx5_stats_read_hw(struct rte_eth_dev *dev,
+                struct rte_eth_stats *stats){
+    struct priv *priv = mlx5_get_priv(dev);
+    struct mlx5_stats_priv * lps = &priv->m_stats;
+    unsigned int i;
+
+    struct rte_eth_stats tmp = {0};
+    struct ethtool_stats    *et_stats   = (struct ethtool_stats    *)lps->et_stats;
+    struct ifreq ifr;
+
+    et_stats->cmd = ETHTOOL_GSTATS;
+    et_stats->n_stats = lps->n_stats;
+
+    ifr.ifr_data = (caddr_t) et_stats;
+
+    if (priv_ifreq(priv, SIOCETHTOOL, &ifr) != 0) { 
+        WARN("unable to get statistic values for mlnx5 "); 
+    }
+
+    tmp.ibytes += et_stats->data[lps->inx_rx_vport_unicast_bytes] +
+                  et_stats->data[lps->inx_rx_vport_multicast_bytes] +
+                  et_stats->data[lps->inx_rx_vport_broadcast_bytes];
+
+    tmp.ipackets += et_stats->data[lps->inx_rx_vport_unicast_packets] +
+                et_stats->data[lps->inx_rx_vport_multicast_packets] +
+                et_stats->data[lps->inx_rx_vport_broadcast_packets];
+
+    tmp.ierrors += 	(et_stats->data[lps->inx_rx_wqe_err] +
+                    et_stats->data[lps->inx_rx_crc_errors_phy] +
+                    et_stats->data[lps->inx_rx_in_range_len_errors_phy] +
+                    et_stats->data[lps->inx_rx_symbol_err_phy]);
+
+    tmp.obytes += et_stats->data[lps->inx_tx_vport_unicast_bytes] +
+                  et_stats->data[lps->inx_tx_vport_multicast_bytes] +
+                  et_stats->data[lps->inx_tx_vport_broadcast_bytes];
+
+    tmp.opackets += (et_stats->data[lps->inx_tx_vport_unicast_packets] +
+                     et_stats->data[lps->inx_tx_vport_multicast_packets] +
+                     et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+
+    tmp.oerrors += et_stats->data[lps->inx_tx_errors_phy];
+
+    /* SW Rx */
+    for (i = 0; (i != priv->rxqs_n); ++i) {
+        struct rxq *rxq = (*priv->rxqs)[i];
+        if (rxq) {
+            tmp.imissed += rxq->stats.idropped;
+            tmp.rx_nombuf += rxq->stats.rx_nombuf;
+        }
+    }
+
+    /*SW Tx */
+    for (i = 0; (i != priv->txqs_n); ++i) {
+        struct txq *txq = (*priv->txqs)[i];
+        if (txq) {
+            tmp.oerrors += txq->stats.odropped;
+        }
+    }
+
+    *stats =tmp;
+}
+
+void
+mlx5_stats_free(struct rte_eth_dev *dev)
+{
+    struct priv *priv = mlx5_get_priv(dev);
+    struct mlx5_stats_priv * lps = &priv->m_stats;
+
+    if ( lps->et_stats ){
+        free(lps->et_stats);
+        lps->et_stats=0;
+    }
+}
+
+
+static void
+mlx5_stats_init(struct rte_eth_dev *dev)
+{
+    struct priv *priv = mlx5_get_priv(dev);
+    struct mlx5_stats_priv * lps = &priv->m_stats;
+    struct rte_eth_stats tmp = {0};
+
+    unsigned int i;
+    unsigned int idx;
+    char ifname[IF_NAMESIZE];
+    struct ifreq ifr;
+
+    struct ethtool_stats    *et_stats   = NULL;
+    struct ethtool_drvinfo drvinfo;
+    struct ethtool_gstrings *strings = NULL;
+    unsigned int n_stats, sz_str, sz_stats;
+
+    if (priv_get_ifname(priv, &ifname)) {
+            WARN("unable to get interface name");
+            return;
+    }
+    /* How many statistics are available ? */
+    drvinfo.cmd = ETHTOOL_GDRVINFO;
+    ifr.ifr_data = (caddr_t) &drvinfo;
+    if (priv_ifreq(priv, SIOCETHTOOL, &ifr) != 0) {
+            WARN("unable to get driver info for %s", ifname);
+            return;
+    }
+
+    n_stats = drvinfo.n_stats;
+    if (n_stats < 1) {
+            WARN("no statistics available for %s", ifname);
+            return;
+    }
+    lps->n_stats = n_stats;
+
+    /* Allocate memory to grab stat names and values */ 
+    sz_str = n_stats * ETH_GSTRING_LEN; 
+    sz_stats = n_stats * sizeof(uint64_t); 
+    strings = calloc(1, sz_str + sizeof(struct ethtool_gstrings)); 
+    if (!strings) { 
+        WARN("unable to allocate memory for strings"); 
+        return;
+    } 
+
+    et_stats = calloc(1, sz_stats + sizeof(struct ethtool_stats)); 
+    if (!et_stats) { 
+        free(strings);
+        WARN("unable to allocate memory for stats"); 
+    } 
+
+    strings->cmd = ETHTOOL_GSTRINGS; 
+    strings->string_set = ETH_SS_STATS; 
+    strings->len = n_stats; 
+    ifr.ifr_data = (caddr_t) strings; 
+    if (priv_ifreq(priv, SIOCETHTOOL, &ifr) != 0) { 
+        WARN("unable to get statistic names for %s", ifname); 
+        free(strings);
+        free(et_stats);
+        return;
+    } 
+
+    for (i = 0; (i != n_stats); ++i) {
+
+            const char * curr_string = (const char*) &(strings->data[i * ETH_GSTRING_LEN]);
+
+            if (!strcmp("rx_vport_unicast_bytes", curr_string)) lps->inx_rx_vport_unicast_bytes = i;
+            if (!strcmp("rx_vport_multicast_bytes", curr_string)) lps->inx_rx_vport_multicast_bytes = i;
+            if (!strcmp("rx_vport_broadcast_bytes", curr_string)) lps->inx_rx_vport_broadcast_bytes = i;
+
+            if (!strcmp("rx_vport_unicast_packets", curr_string)) lps->inx_rx_vport_unicast_packets = i;
+            if (!strcmp("rx_vport_multicast_packets", curr_string)) lps->inx_rx_vport_multicast_packets = i;
+            if (!strcmp("rx_vport_broadcast_packets", curr_string)) lps->inx_rx_vport_broadcast_packets = i;
+
+            if (!strcmp("tx_vport_unicast_bytes", curr_string)) lps->inx_tx_vport_unicast_bytes = i;
+            if (!strcmp("tx_vport_multicast_bytes", curr_string)) lps->inx_tx_vport_multicast_bytes = i;
+            if (!strcmp("tx_vport_broadcast_bytes", curr_string)) lps->inx_tx_vport_broadcast_bytes = i;
+
+            if (!strcmp("tx_vport_unicast_packets", curr_string)) lps->inx_tx_vport_unicast_packets = i;
+            if (!strcmp("tx_vport_multicast_packets", curr_string)) lps->inx_tx_vport_multicast_packets = i;
+            if (!strcmp("tx_vport_broadcast_packets", curr_string)) lps->inx_tx_vport_broadcast_packets = i;
+
+            if (!strcmp("rx_wqe_err", curr_string)) lps->inx_rx_wqe_err = i;
+            if (!strcmp("rx_crc_errors_phy", curr_string)) lps->inx_rx_crc_errors_phy = i;
+            if (!strcmp("rx_in_range_len_errors_phy", curr_string)) lps->inx_rx_in_range_len_errors_phy = i;
+            if (!strcmp("rx_symbol_err_phy", curr_string)) lps->inx_rx_symbol_err_phy = i;
+
+            if (!strcmp("tx_errors_phy", curr_string)) lps->inx_tx_errors_phy = i;
+    }
+
+    lps->et_stats =(void *)et_stats;
+
+    if (!lps->inx_rx_vport_unicast_bytes ||
+    !lps->inx_rx_vport_multicast_bytes ||
+    !lps->inx_rx_vport_broadcast_bytes || 
+    !lps->inx_rx_vport_unicast_packets ||
+    !lps->inx_rx_vport_multicast_packets ||
+    !lps->inx_rx_vport_broadcast_packets ||
+    !lps->inx_tx_vport_unicast_bytes || 
+    !lps->inx_tx_vport_multicast_bytes ||
+    !lps->inx_tx_vport_broadcast_bytes ||
+    !lps->inx_tx_vport_unicast_packets ||
+    !lps->inx_tx_vport_multicast_packets ||
+    !lps->inx_tx_vport_broadcast_packets ||
+    !lps->inx_rx_wqe_err ||
+    !lps->inx_rx_crc_errors_phy ||
+    !lps->inx_rx_in_range_len_errors_phy) {
+        WARN("Counters are not recognized %s", ifname);
+        return;
+    }
+
+    mlx5_stats_read_hw(dev,&tmp);
+
+    /* copy yo shadow at first time */
+    lps->m_shadow = tmp;
+
+    free(strings);
+}
+
+
+static void
+mlx5_stats_diff(struct rte_eth_stats *a,
+                struct rte_eth_stats *b,
+                struct rte_eth_stats *c){
+    #define MLX5_DIFF(cnt) { a->cnt = (b->cnt - c->cnt);  }
+
+    MLX5_DIFF(ipackets);
+    MLX5_DIFF(opackets); 
+    MLX5_DIFF(ibytes); 
+    MLX5_DIFF(obytes);
+    MLX5_DIFF(imissed);
+
+    MLX5_DIFF(ierrors); 
+    MLX5_DIFF(oerrors); 
+    MLX5_DIFF(rx_nombuf);
+}
+
+
+
 /**
  * Get device extended statistics.
  *
@@ -295,68 +512,25 @@ priv_xstats_reset(struct priv *priv)
 		xstats_ctrl->base[i] = counters[i];
 }
 
-/**
- * DPDK callback to get device statistics.
- *
- * @param dev
- *   Pointer to Ethernet device structure.
- * @param[out] stats
- *   Stats structure output buffer.
- */
 void
 mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 {
 	struct priv *priv = mlx5_get_priv(dev);
-	struct rte_eth_stats tmp = {0};
-	unsigned int i;
-	unsigned int idx;
 
-	priv_lock(priv);
-	/* Add software counters. */
-	for (i = 0; (i != priv->rxqs_n); ++i) {
-		struct rxq *rxq = (*priv->rxqs)[i];
+    struct mlx5_stats_priv * lps = &priv->m_stats;
+    priv_lock(priv);
 
-		if (rxq == NULL)
-			continue;
-		idx = rxq->stats.idx;
-		if (idx < RTE_ETHDEV_QUEUE_STAT_CNTRS) {
-#ifdef MLX5_PMD_SOFT_COUNTERS
-			tmp.q_ipackets[idx] += rxq->stats.ipackets;
-			tmp.q_ibytes[idx] += rxq->stats.ibytes;
-#endif
-			tmp.q_errors[idx] += (rxq->stats.idropped +
-					      rxq->stats.rx_nombuf);
-		}
-#ifdef MLX5_PMD_SOFT_COUNTERS
-		tmp.ipackets += rxq->stats.ipackets;
-		tmp.ibytes += rxq->stats.ibytes;
-#endif
-		tmp.ierrors += rxq->stats.idropped;
-		tmp.rx_nombuf += rxq->stats.rx_nombuf;
-	}
-	for (i = 0; (i != priv->txqs_n); ++i) {
-		struct txq *txq = (*priv->txqs)[i];
+    if (lps->et_stats == NULL) {
+        mlx5_stats_init(dev);
+    }
+    struct rte_eth_stats tmp = {0};
 
-		if (txq == NULL)
-			continue;
-		idx = txq->stats.idx;
-		if (idx < RTE_ETHDEV_QUEUE_STAT_CNTRS) {
-#ifdef MLX5_PMD_SOFT_COUNTERS
-			tmp.q_opackets[idx] += txq->stats.opackets;
-			tmp.q_obytes[idx] += txq->stats.obytes;
-#endif
-			tmp.q_errors[idx] += txq->stats.odropped;
-		}
-#ifdef MLX5_PMD_SOFT_COUNTERS
-		tmp.opackets += txq->stats.opackets;
-		tmp.obytes += txq->stats.obytes;
-#endif
-		tmp.oerrors += txq->stats.odropped;
-	}
-#ifndef MLX5_PMD_SOFT_COUNTERS
-	/* FIXME: retrieve and add hardware counters. */
-#endif
-	*stats = tmp;
+    mlx5_stats_read_hw(dev,&tmp);
+
+    mlx5_stats_diff(stats,
+                    &tmp,
+                    &lps->m_shadow);
+
 	priv_unlock(priv);
 }
 
@@ -370,29 +544,24 @@ void
 mlx5_stats_reset(struct rte_eth_dev *dev)
 {
 	struct priv *priv = dev->data->dev_private;
-	unsigned int i;
-	unsigned int idx;
+    struct mlx5_stats_priv * lps = &priv->m_stats;
 
-	priv_lock(priv);
-	for (i = 0; (i != priv->rxqs_n); ++i) {
-		if ((*priv->rxqs)[i] == NULL)
-			continue;
-		idx = (*priv->rxqs)[i]->stats.idx;
-		(*priv->rxqs)[i]->stats =
-			(struct mlx5_rxq_stats){ .idx = idx };
-	}
-	for (i = 0; (i != priv->txqs_n); ++i) {
-		if ((*priv->txqs)[i] == NULL)
-			continue;
-		idx = (*priv->txqs)[i]->stats.idx;
-		(*priv->txqs)[i]->stats =
-			(struct mlx5_txq_stats){ .idx = idx };
-	}
-#ifndef MLX5_PMD_SOFT_COUNTERS
-	/* FIXME: reset hardware counters. */
-#endif
+    priv_lock(priv);
+
+    if (lps->et_stats == NULL) {
+        mlx5_stats_init(dev);
+    }
+    struct rte_eth_stats tmp = {0};
+
+
+    mlx5_stats_read_hw(dev,&tmp);
+
+    /* copy to shadow */
+    lps->m_shadow = tmp;
+
 	priv_unlock(priv);
 }
+
 
 /**
  * DPDK callback to get extended device statistics.
