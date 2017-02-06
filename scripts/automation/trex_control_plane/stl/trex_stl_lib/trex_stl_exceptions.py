@@ -23,9 +23,9 @@ class STLError(Exception):
         
         s += format_text("\nFull error report:\n\n", 'underline')
         
-        for line in reversed(self.tb):
+        for line in reversed(self.tb[:-1]):
             fname, lineno, func, src = os.path.split(line[0])[1], line[1], line[2], line[3]
-            s += "         {:}:{:<20} - '{}'\n".format(format_text(fname, 'bold'), format_text(lineno, 'bold'), format_text(src.strip(), 'bold'))
+            s += "         {:<50} - '{}'\n".format(format_text(fname, 'bold') + ':' + format_text(lineno, 'bold'), format_text(src.strip(), 'bold'))
 
         return s
 
