@@ -2360,11 +2360,11 @@ Following distro was tested and did *not* work for us.
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download 3.4-2 OFED tar for your distro  
+* Download 3.4-2/4.0 OFED tar for your distro  
 
 [IMPORTANT]
 =====================================
-The version must be *MLNX_OFED_LINUX-3.4-2* 
+The version must be *MLNX_OFED_LINUX-3.4-2* or higher (4.0.x)
 =====================================
 
 [IMPORTANT]
