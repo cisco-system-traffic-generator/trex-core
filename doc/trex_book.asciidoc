@@ -2146,6 +2146,22 @@ sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 ----
 
 === Configure Linux to use VF on Intel X710 and 82599 NICs
+
+TRex supports paravirtualized interfaces such as VMXNET3/virtio/E1000 however when connected to a vSwitch, the vSwitch limits the performance. VPP or OVS-DPDK can improve the performance but require more software resources to handle the rate.
+SR-IOV can accelerate the performance and reduce CPU resource usage as well as latency by utilizing NIC hardware switch capability (the switching  is done by hardware).
+TRex version 2.15 now includes SR-IOV support for XL710 and X710.
+The following diagram compares between vSwitch and SR-IOV.
+
+image:images/sr_iov_vswitch.png[title="vSwitch_main",width=850]
+
+One use case which shows the performance gain that can be acheived by using SR-IOV is when a user wants to create a pool of TRex VMs that tests a pool of virtual DUTs (e.g. ASAv,CSR etc.)
+When using newly supported SR-IOV, compute, storage and networking resources can be controlled dynamically (e.g by using OpenStack)
+ 
+image:images/sr_iov_trex.png[title="vSwitch_main",width=850]
+
+The above diagram is an example of one server with two NICS. TRex VMs can be allocated on one NIC while the DUTs can be allocated on another.
+
+
 Following are some links we used and lessons we learned while putting up an environment for testing TRex with VF interfaces (using SR-IOV).
 This is by no means a full toturial of VF usage, and different Linux distributions might need slightly different handling.
 
