@@ -357,7 +357,10 @@ Other network devices
 
     def check_ofed_version (self):
         ofed_info='/usr/bin/ofed_info'
-        ofed_ver= '-3.4-'
+
+        ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+
+        ofed_ver= 34
         ofed_ver_show= '3.4-1'
 
 
@@ -374,9 +377,16 @@ Other network devices
         lines=out.splitlines();
 
         if len(lines)>1:
-            if not (ofed_ver in str(lines[0])):
-                print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
+            m= ofed_ver_re.match(str(lines[0]))
+            if m:
+                ver=int(m.group(1))*10+int(m.group(2))
+                if ver < ofed_ver:
+                  print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
+                  exit(-1);
+            else:
+                print("not found valid  OFED version '%s' " % (lines[0]))
                 exit(-1);
+
 
     def verify_ofed_os(self):
         err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.2\n'
