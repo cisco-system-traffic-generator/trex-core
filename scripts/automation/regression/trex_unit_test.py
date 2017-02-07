@@ -70,13 +70,13 @@ def id_split(idval):
 # option to select wanted test by name without file, class etc.
 def new_Selector_wantMethod(self, method, orig_Selector_wantMethod = Selector.wantMethod):
     result = orig_Selector_wantMethod(self, method)
-    return result and (not CTRexScenario.test or filter(lambda t: t in getattr(method, '__name__', ''), CTRexScenario.test.split(',')))
+    return result and (not CTRexScenario.test or list(filter(lambda t: t in getattr(method, '__name__', ''), CTRexScenario.test.split(','))))
 
 Selector.wantMethod = new_Selector_wantMethod
 
 def new_Selector_wantFunction(self, function, orig_Selector_wantFunction = Selector.wantFunction):
     result = orig_Selector_wantFunction(self, function)
-    return result and (not CTRexScenario.test or filter(lambda t: t in getattr(function, '__name__', ''), CTRexScenario.test.split(',')))
+    return result and (not CTRexScenario.test or list(filter(lambda t: t in getattr(function, '__name__', ''), CTRexScenario.test.split(','))))
 
 Selector.wantFunction = new_Selector_wantFunction
 
