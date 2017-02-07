@@ -1054,10 +1054,10 @@ def _copy_single_system1 (bld, exec_p, build_obj):
 
 def _copy_single_system2 (bld, exec_p, build_obj):
     o='../scripts/';
-    src_file =  os.path.realpath(o+build_obj.get_mlx5so_target()[1:])
+    src_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
     print(src_file)
     if os.path.exists(src_file):
-        dest_file = exec_p +build_obj.get_mlx5so_target()[1:]
+        dest_file = exec_p +build_obj.get_mlx5so_target()
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
