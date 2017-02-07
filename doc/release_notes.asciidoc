@@ -25,9 +25,18 @@ endif::backend-docbook[]
 
 == Release 2.16 ==
 
-* IPv6 console basic support:
+* IPv6 console basic support TBD link here 
 ** scan6 function to search for IPv6-enabled neighbors
 ** ping can be used with IPv6 addresses to ping nearby devices
+* Stateless Rx capturing mode support TBD link here 
+* Stateless support functional testing / send packet /expect RX packet etc link:trex_stateless.html#_functional_tutorials[functional]
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-258[trex-258]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-337[trex-337]
+
 
 == Release 2.15 ==
 
