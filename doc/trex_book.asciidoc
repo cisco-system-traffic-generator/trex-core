@@ -127,6 +127,7 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | Chipset              | Bandwidth  (Gb/sec)  |  Example
 | Intel I350           | 1   | Intel 4x1GE 350-T4 NIC
 | Intel 82599          | 10  |   Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
+| Intel 82599 VF       | x  | 
 | Intel X710           | 10  | Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
 | Intel XL710          | 40  | Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
 | Intel XL710/X710 VF  | x  | 
@@ -2144,6 +2145,65 @@ sudo arp -s 10.0.0.100 <Second TRex port MAC>
 sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 ----
 
+=== Configure Linux to use VF on Intel X710 and 82599 NICs
+Following are some links we used and lessons we learned while putting up an environment for testing TRex with VF interfaces (using SR-IOV).
+This is by no means a full toturial of VF usage, and different Linux distributions might need slightly different handling.
+
+==== Links and resources
+link:http://www.intel.com/content/dam/www/public/us/en/documents/technology-briefs/xl710-sr-iov-config-guide-gbe-linux-brief.pdf[This]
+is a good tutorial by Intel of SR-IOV and how to configure. +
+
+link:http://dpdk.org/doc/guides/nics/intel_vf.html[This] is a tutorial from DPDK documentation. +
+
+==== Linux configuration
+First, need to verify BIOS support for the feature. Can consult link:http://kpanic.de/node/8[this link] for directions. +
+Second, need to make sure you have the correct kernel options. +
+We added the following options to the kernel boot command on Grub: ``iommu=pt intel_iommu=on pci_pt_e820_access=on''. This
+was needed on Fedora and Ubuntu. When using Centos, adding these options was not needed. +
+To load the kernel module with the correct VF parameters after reboot add following line ``options i40e max_vfs=1,1'' to some file in ``/etc/modprobe.d/'' +
+On Centos, we needed to also add the following file (example for x710 ): +
+
+[source,bash]
+----
+cat /etc/sysconfig/modules/i40e.modules
+#!/bin/sh
+rmmod i40e >/dev/null 2>&1
+exec /sbin/modprobe i40e >/dev/null 2>&1
+----
+
+==== x710 specific instructions
+For x710 (i40e driver), we needed to download latest kernel driver. On all distributions we were using, existing driver was not new enough. +
+To make the system use your new compiled driver with the correct parameters: +
+Copy the .ko file to /lib/modules/Your kernel version as seen by uname -r/kernel/drivers/net/ethernet/intel/i40e/i40e.ko +
+
+==== 82599 specific instructions
+In order to make VF interfaces work correctly, we had to increase mtu on related PF interfaces. +
+For example, if you run with max_vfs=1,1 (one VF per PF), you will have something like this:
+
+[source,bash]
+----
+sudo ./dpdk_nic_bind.py -s
+Network devices using DPDK-compatible driver
+============================================
+0000:03:10.0 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+0000:03:10.1 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+
+Network devices using kernel driver
+===================================
+0000:01:00.0 'I350 Gigabit Network Connection' if=eth0 drv=igb unused=igb_uio *Active*
+0000:03:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth2 drv=ixgbe unused=igb_uio
+0000:03:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth3 drv=ixgbe unused=igb_uio
+----
+
+In order to work with 0000:03:10.0 and 0000:03:10.1, you will have to run the following +
+[source,bash]
+----
+sudo ifconfig eth3 up mtu 9000
+sudo ifconfig eth2 up mtu 9000
+----
+
+==== Performance
+See the performance tests we did link:trex_vm_bench.html[here]
 
 === Mellanox ConnectX-4 support 
 

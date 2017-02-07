@@ -975,6 +975,9 @@ def build(bld):
         source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html',scan=ascii_doc_scan)
 
     bld(rule=convert_to_html_toc_book,
+        source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
+
+    bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
