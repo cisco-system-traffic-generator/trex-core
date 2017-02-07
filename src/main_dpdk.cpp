@@ -5564,7 +5564,12 @@ int  update_dpdk_args(void){
     /* set the DPDK options */
     global_dpdk_args_num = 0;
 
+    
+
     global_dpdk_args[global_dpdk_args_num++]=(char *)"xx";
+    //global_dpdk_args[global_dpdk_args_num++]=(char *)"-d";
+    //global_dpdk_args[global_dpdk_args_num++]=(char *)"../linux_dpdk/build_dpdk/linux_dpdk/libmlx5-64-o.so";
+
     global_dpdk_args[global_dpdk_args_num++]=(char *)"-c";
     global_dpdk_args[global_dpdk_args_num++]=(char *)global_cores_str;
     global_dpdk_args[global_dpdk_args_num++]=(char *)"-n";

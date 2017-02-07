@@ -415,21 +415,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
 
-                 'drivers/net/mlx5/mlx5_mr.c',
-                 'drivers/net/mlx5/mlx5_ethdev.c',
-                 'drivers/net/mlx5/mlx5_mac.c',
-                 'drivers/net/mlx5/mlx5_rxmode.c',
-                 'drivers/net/mlx5/mlx5_rxtx.c',
-                 'drivers/net/mlx5/mlx5_stats.c',
-                 'drivers/net/mlx5/mlx5_txq.c',
-                 'drivers/net/mlx5/mlx5.c',
-                 'drivers/net/mlx5/mlx5_fdir.c',
-                 'drivers/net/mlx5/mlx5_flow.c',
-                 'drivers/net/mlx5/mlx5_rss.c',
-                 'drivers/net/mlx5/mlx5_rxq.c',
-                 'drivers/net/mlx5/mlx5_trigger.c',
-                 'drivers/net/mlx5/mlx5_vlan.c',
-
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -441,7 +426,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
                  'drivers/net/i40e/i40e_flow.c',
-                 '/drivers/net/i40e/i40e_rxtx_vec_sse.c',
+                 'drivers/net/i40e/i40e_rxtx_vec_sse.c',
                  'drivers/net/i40e/i40e_fdir.c',
                  'drivers/net/i40e/i40e_ethdev.c',
                  'drivers/net/null/rte_eth_null.c',
@@ -452,17 +437,17 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_rxtx_simple.c',
                  'drivers/net/virtio/virtqueue.c',
                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
-                 '/drivers/net/virtio/virtio_user_ethdev.c',
+                 'drivers/net/virtio/virtio_user_ethdev.c',
                  'drivers/net/virtio/virtio_user/vhost_kernel.c',
-                 '/drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
-                 '/drivers/net/virtio/virtio_user/vhost_user.c',
-                 '/drivers/net/virtio/virtio_user/virtio_user_dev.c',
-                 '/drivers/net/vmxnet3/vmxnet3_ethdev.c',
-                 '/drivers/net/vmxnet3/vmxnet3_rxtx.c',
+                 'drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
+                 'drivers/net/virtio/virtio_user/vhost_user.c',
+                 'drivers/net/virtio/virtio_user/virtio_user_dev.c',
+                 'drivers/net/vmxnet3/vmxnet3_ethdev.c',
+                 'drivers/net/vmxnet3/vmxnet3_rxtx.c',
                  'lib/librte_cfgfile/rte_cfgfile.c',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
-                 '/lib/librte_eal/common/eal_common_bus.c',
+                 'lib/librte_eal/common/eal_common_bus.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
@@ -514,9 +499,33 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_ring/rte_ring.c',
             ]);
 
+mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
+                src_list=[
+
+                 'drivers/net/mlx5/mlx5_mr.c',
+                 'drivers/net/mlx5/mlx5_ethdev.c',
+                 'drivers/net/mlx5/mlx5_mac.c',
+                 'drivers/net/mlx5/mlx5_rxmode.c',
+                 'drivers/net/mlx5/mlx5_rxtx.c',
+                 'drivers/net/mlx5/mlx5_stats.c',
+                 'drivers/net/mlx5/mlx5_txq.c',
+                 'drivers/net/mlx5/mlx5.c',
+                 'drivers/net/mlx5/mlx5_fdir.c',
+                 'drivers/net/mlx5/mlx5_flow.c',
+                 'drivers/net/mlx5/mlx5_rss.c',
+                 'drivers/net/mlx5/mlx5_rxq.c',
+                 'drivers/net/mlx5/mlx5_trigger.c',
+                 'drivers/net/mlx5/mlx5_vlan.c',
+            ]);
+
 bp_dpdk =SrcGroups([
                 dpdk_src
                 ]);
+
+mlx5_dpdk =SrcGroups([
+                mlx5_dpdk_src
+                ]);
+
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -794,6 +803,9 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk");
 
+    def get_mlx5_target (self):
+        return self.update_executable_name("mlx5");
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -878,12 +890,22 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target() 
       );
 
+    bld.shlib(
+      features='c',
+      includes = dpdk_includes_path+dpdk_includes_verb_path,
+      cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+      use =['ibverbs'],
+
+      source   = mlx5_dpdk.file_list(top),
+      target   = build_obj.get_mlx5_target() 
+   )
+
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl', 'z'],
-                use =[build_obj.get_dpdk_target(),'zmq','ibverbs'],
+                use =[build_obj.get_dpdk_target(),'zmq'],
                 source = bp.file_list(top) + debug_file_list,
                 rpath = rpath_linkage,
                 target = build_obj.get_target())
