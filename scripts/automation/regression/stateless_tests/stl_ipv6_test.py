@@ -19,7 +19,7 @@ class STLIPv6_Test(CStlGeneral_Test):
         ping_count = 5
         expected_replies = 4 # allow one loss
         results = self.stl_trex.ping_ip(src_port = 0, dst_ip = 'ff02::1', count = ping_count)
-        good_replies = len(filter(lambda result: result['status'] == 'success', results))
+        good_replies = len(list(filter(lambda result: result['status'] == 'success', results)))
         if self.is_loopback:
             # negative test, loopback
             if good_replies > 0:
@@ -35,7 +35,7 @@ class STLIPv6_Test(CStlGeneral_Test):
 
         # negative test, unknown IP
         results = self.stl_trex.ping_ip(src_port = 0, dst_ip = '1234::1234', count = ping_count)
-        good_replies = len(filter(lambda result: result['status'] == 'success', results))
+        good_replies = len(list(filter(lambda result: result['status'] == 'success', results)))
         if good_replies > 0:
             self.fail('We have answers from unknown IPv6, bug!\nOutput: %s' % results)
         else:
