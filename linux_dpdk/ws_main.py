@@ -886,7 +886,7 @@ def build_prog (bld, build_obj):
 
     bld.objects(
       features='c ',
-      includes = dpdk_includes_path+dpdk_includes_verb_path,
+      includes = dpdk_includes_path,
       
       cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
@@ -952,8 +952,8 @@ def build_info(bld):
 def do_create_link (src,dst,exec_p):
     if os.path.exists(src):
         dest_file = exec_p +dst
-        print(dest_file)
         if not os.path.lexists(dest_file):
+            print(dest_file)
             relative_path = os.path.relpath(src, exec_p)
             os.symlink(relative_path, dest_file);
 
