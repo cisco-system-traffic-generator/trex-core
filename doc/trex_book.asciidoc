@@ -2202,6 +2202,115 @@ sudo ifconfig eth3 up mtu 9000
 sudo ifconfig eth2 up mtu 9000
 ----
 
+
+TRex stateful performance::
+
+Using the following command, running on x710 card with VF driver, we can see that TRex can reach 30GBps, using only one core. We can also see that the average latency is around 20 usec, which is pretty much the same value we get on loopback ports with x710 physical function without VF.
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+[source,python]
+----
+
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+  -Per port stats table
+      ports |               0 |               1
+  -----------------------------------------------------------------------------------------
+   opackets |       106573954 |       107433792
+     obytes |     99570878833 |    100374254956
+   ipackets |       107413075 |       106594490
+     ibytes | 100354899813    |     99590070585
+    ierrors |            1038 |            1027
+    oerrors |               0 |               0
+      Tx Bw |      15.33 Gbps |      15.45 Gbps
+ 
+-Global stats enabled
+Cpu Utilization : 91.5  %  67.3 Gb/core
+Platform_factor : 1.0
+Total-Tx :      30.79 Gbps
+Total-Rx :      30.79 Gbps
+Total-PPS :       4.12 Mpps
+Total-CPS :     111.32 Kcps
+ 
+Expected-PPS :       4.11 Mpps
+Expected-CPS :     111.04 Kcps
+Expected-BPS :      30.71 Gbps
+ 
+Active-flows :    14651  Clients : 255   Socket-util : 0.0912 %
+Open-flows :  5795073  Servers : 65535   Socket :    14652 Socket/Clients :  57.5
+drop-rate :       0.00 bps
+current time : 53.9 sec
+test duration : 3546.1 sec
+ 
+ -Latency stats enabled
+Cpu Utilization : 23.4 %
+if| tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter         
+   | ,        ,          , ,   average   , max  ,    (usec)
+  -------------------------------------------------------------------------------
+0 | 5233,    5233,         0, 0,         19  , 580,       5      | 37  37  37 4
+1 | 5233,    5233,         0, 0,         22  , 577,       5      | 38  40  39 3
+----
+
+TRex stateless performance::
+
+[source,python]
+----
+
+$sudo ./t-rex-64 -i -c 1
+
+trex>portattr
+Port Status
+ 
+     port |          0           |          1
+  -------------------------------------------------------------
+  driver          | net_i40e_vf      |     net_i40e_vf
+  description     | XL710/X710 Virtual  |  XL710/X710 Virtual
+ 
+With the console command:
+start -f stl/imix.py -m 8mpps --force --port 0
+We can see, that we can reach 8M packet per second, which in this case is around 24.28 Gbit/second.
+ 
+Global Statistics
+ 
+connection   : localhost, Port 4501                  total_tx_L2  : 24.28 Gb/sec
+version      : v2.15 total_tx_L1  : 25.55 Gb/sec
+cpu_util.    : 80.6% @ 1 cores (1 per port)          total_rx     : 24.28 Gb/sec
+rx_cpu_util. : 66.8%                                 total_pps    : 7.99 Mpkt/sec
+async_util.  : 0.18% / 1.84 KB/sec                   drop_rate    : 0.00 b/sec
+queue_full   : 3,467 pkts
+ 
+Port Statistics
+ 
+   port    |         0         |         1         | total
+  ----------------------------------------------------------------------
+  owner      |           ibarnea |           ibarnea |
+  link       |                UP |                UP |
+  state      | TRANSMITTING      |              IDLE |
+  speed      |           40 Gb/s |           40 Gb/s |
+  CPU util.  | 80.6%             |              0.0% |
+  --         |                   |                   |
+  Tx bps L2  | 24.28 Gbps        |          0.00 bps |        24.28 Gbps
+  Tx bps L1  | 25.55 Gbps        |             0 bps |        25.55 Gbps
+  Tx pps     | 7.99 Mpps         |          0.00 pps |         7.99 Mpps
+  Line Util. |           63.89 % |            0.00 % |
+  ---        |                   |                   |
+  Rx bps     | 0.00 bps          |        24.28 Gbps |        24.28 Gbps
+  Rx pps     | 0.00 pps          |         7.99 Mpps |         7.99 Mpps
+  ----       |                   |                   |
+  opackets   | 658532501         |                 0 |         658532501
+  ipackets   |                 0 |         658612569 |         658612569
+  obytes     | 250039721918      |                 0 |      250039721918
+  ibytes     |                 0 |      250070124150 |      250070124150
+  tx-bytes   | 250.04 GB         |               0 B |         250.04 GB
+  rx-bytes   |               0 B |         250.07 GB |         250.07 GB
+  tx-pkts    | 658.53 Mpkts      |            0 pkts |      658.53 Mpkts
+  rx-pkts    | 0 pkts            |      658.61 Mpkts |      658.61 Mpkts
+  -----      |                   |                   |
+  oerrors    |                 0 |                 0 |                 0
+  ierrors    |                 0 |            15,539 |            15,539
+----
+
+
 ==== Performance
 See the performance tests we did link:trex_vm_bench.html[here]
 

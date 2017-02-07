@@ -23,6 +23,15 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.17 ==
+
+* hotfix release 
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
+
+
 == Release 2.16 ==
 
 * IPv6 console basic support (link:trex_stateless.html#_ipv6_nd_client[ipv6]):
@@ -33,7 +42,6 @@ endif::backend-docbook[]
 
 === fix issues: ===
 
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-258[trex-258]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-337[trex-337]
 
