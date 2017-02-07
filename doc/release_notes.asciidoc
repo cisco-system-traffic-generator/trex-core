@@ -25,7 +25,7 @@ endif::backend-docbook[]
 
 == Release 2.16 ==
 
-* IPv6 console basic support TBD link here 
+* IPv6 console basic support (link:trex_stateless.html#_ipv6_nd_client[ipv6]):
 ** scan6 function to search for IPv6-enabled neighbors
 ** ping can be used with IPv6 addresses to ping nearby devices
 * Stateless Rx capturing mode support TBD link here 

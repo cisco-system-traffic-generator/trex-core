@@ -590,9 +590,33 @@ client.set_service_mode(enabled = False)
 <1> Check connectivity
 
 
-==== IPv6 ND/DHCP client
+==== IPv6 ND client
 
-in progress 
+At this phase, implemented scanning of network for IPv6 enabled neighbors and ping nearby devices from the console. +
+Next phase, planned support at the CPP server. +
+The advantage of those methods is that they can be easily extended to simulate lots of clients in automation.
+
+*Scanning example:*
+
+image:images/console_scan6.png[title="Console scan6", align="left", link="images/console_scan6.png"]
+
+*Ping example:*
+
+image:images/console_ping.png[title="Console ping", align="left", link="images/console_ping.png"]
+
+Those utilities (available from API as well) can help user to configure next hop.
+From the console, one could set "l2" destination MAC taken from the scan6 result:
+
+image:images/console_l2_dst_mac.png[title="Console ping", align="left", link="images/console_l2_dst_mac.png"]
+
+For setting own IPv6, we use local address as described in link:https://www.ietf.org/rfc/rfc3513.txt[RFC 3513]. +
+For scanning of network, we ping the multicast address ff02::1 and establish connection via NS/ND conversations.
+
+Additional links on scanning network:
+
+* link:https://tools.ietf.org/html/draft-ietf-opsec-ipv6-host-scanning-00#page-5[RFC draft of scanning]
+* Scanning of network in Ubuntu: link:http://manpages.ubuntu.com/manpages/zesty/man1/scan6.1.html[scan6]
+
 
 
 === Tutorials
