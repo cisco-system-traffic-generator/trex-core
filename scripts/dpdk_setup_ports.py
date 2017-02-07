@@ -1027,7 +1027,7 @@ def main ():
         elif map_driver.args.linux:
             obj.do_return_to_linux();
         else:
-            exit(obj.do_run())
+            exit(obj.do_run());
         print('')
     except DpdkSetup as e:
         print(e)
