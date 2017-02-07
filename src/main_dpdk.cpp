@@ -130,6 +130,12 @@ static char global_cores_str[100];
 static char global_prefix_str[100];
 static char global_loglevel_str[20];
 static char global_master_id_str[10];
+static char global_mlx5_so_id_str[50];
+static char global_image_postfix[10];
+#define TREX_NAME "_t-rex-64"
+
+
+
 
 class CTRexExtendedDriverBase {
 public:
@@ -740,7 +746,8 @@ enum { OPT_HELP,
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW,
-       OPT_RT
+       OPT_RT,
+       OPT_MLX5_SO 
 };
 
 /* these are the argument types:
@@ -797,6 +804,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
+        { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
@@ -987,6 +995,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_RT:
                 po->preview.set_rt_prio_mode(true);
+                break;
+
+            case OPT_MLX5_SO:
+                po->preview.set_mlx5_so_mode(true);
                 break;
 
             case OPT_LEARN :
@@ -5564,11 +5576,13 @@ int  update_dpdk_args(void){
     /* set the DPDK options */
     global_dpdk_args_num = 0;
 
-    
-
     global_dpdk_args[global_dpdk_args_num++]=(char *)"xx";
-    //global_dpdk_args[global_dpdk_args_num++]=(char *)"-d";
-    //global_dpdk_args[global_dpdk_args_num++]=(char *)"../linux_dpdk/build_dpdk/linux_dpdk/libmlx5-64-o.so";
+
+    if ( CGlobalInfo::m_options.preview.get_mlx5_so_mode() ){
+        global_dpdk_args[global_dpdk_args_num++]=(char *)"-d";
+        snprintf(global_mlx5_so_id_str, sizeof(global_mlx5_so_id_str), "libmlx5-64%s.so",global_image_postfix );
+        global_dpdk_args[global_dpdk_args_num++]=(char *)global_mlx5_so_id_str;
+    }
 
     global_dpdk_args[global_dpdk_args_num++]=(char *)"-c";
     global_dpdk_args[global_dpdk_args_num++]=(char *)global_cores_str;
@@ -5677,8 +5691,19 @@ void dump_interfaces_info() {
     }
 }
 
+
+int learn_image_postfix(char * image_name){
+
+    char *p = strstr(image_name,TREX_NAME);
+    if (p) {
+        strcpy(global_image_postfix,p+strlen(TREX_NAME));
+    }
+    return(0);
+}
+
 int main_test(int argc , char * argv[]){
 
+    learn_image_postfix(argv[0]);
 
     utl_termio_init();
 

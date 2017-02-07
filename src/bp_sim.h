@@ -635,7 +635,15 @@ public:
     bool get_rt_prio_mode() {
         return (btGetMaskBit32(m_flags1, 10, 10) ? true : false);
     }
-    
+
+    void set_mlx5_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 11, 11, (enable ? 1 : 0) );
+    }
+
+    bool get_mlx5_so_mode() {
+        return (btGetMaskBit32(m_flags1, 11, 11) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
