@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from CPlatform import CStaticRouteConfig
 from .tests_exceptions import *
 #import sys
@@ -21,7 +21,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
     def test_short_flow(self):
         """ short UDP flow with 64B packets, this test with small number of active flows """
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -50,7 +50,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
     def test_short_flow_high_active(self):
         """ short UDP flow with 64B packets, this test with 8M  active flows """
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -82,7 +82,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
     def test_short_flow_high_active2(self):
         """ short UDP flow with 64B packets, this test with 8M  active flows """
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -113,7 +113,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
     def test_routing_imix_64(self):
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -160,7 +160,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
     def test_routing_imix (self):
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
@@ -193,7 +193,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         if self.is_loopback:
             self.skip('In loopback mode the test is same as test_routing_imix')
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
 
             # Configure static routing based on benchmark data input
@@ -228,7 +228,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
     def test_static_routing_imix_asymmetric (self):
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
 
             # Configure static routing based on benchmark data input
@@ -260,7 +260,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
 
     def test_jumbo(self, duration = 100, **kwargs):
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces(mtu = 9216)
             self.router.config_pbr(mode = "config")
 

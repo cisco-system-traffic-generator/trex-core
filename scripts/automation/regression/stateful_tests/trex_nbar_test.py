@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from .tests_exceptions import *
 from interfaces_e import IFType
 from nose.tools import nottest
@@ -56,10 +56,11 @@ class CTRexNbar_Test(CTRexNbarBase):
     def test_nbar_simple(self):
         # test initializtion
         deviation_compare_value = 0.03   # default value of deviation - 3%
-        self.router.configure_basic_interfaces()
 
-        self.router.config_pbr(mode = "config")
-        self.router.config_nbar_pd()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+            self.router.config_nbar_pd()
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
@@ -89,9 +90,10 @@ class CTRexNbar_Test(CTRexNbarBase):
 
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def NBarLong(self):
-        self.router.configure_basic_interfaces()
-        self.router.config_pbr(mode = "config")
-        self.router.config_nbar_pd()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+            self.router.config_nbar_pd()
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')

@@ -23,10 +23,10 @@ class CTRexClientCfg_Test(CTRexNbarBase):
     def test_client_cfg_nbar(self):
         if self.is_loopback:
             self.skip('No NBAR on loopback')
-
-        self.router.configure_basic_interfaces()
-        self.router.config_pbr(mode = "config")
-        self.router.config_nbar_pd()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+            self.router.config_nbar_pd()
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
@@ -51,8 +51,9 @@ class CTRexClientCfg_Test(CTRexNbarBase):
         if self.is_loopback:
             self.skip('Not relevant on loopback')
 
-        self.router.configure_basic_interfaces(vlan = True)
-        self.router.config_pbr(mode = "config", vlan = True)
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces(vlan = True)
+            self.router.config_pbr(mode = "config", vlan = True)
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')

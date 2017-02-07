@@ -73,14 +73,15 @@ class STLBasic_Test(CStlGeneral_Test):
         if not self.is_loopback:
             try:
                 sys.stdout.flush()
-                sys.stdout.write('Configuring DUT... ')
-                start_time = time.time()
-                if CTRexScenario.router_cfg['forceCleanConfig']:
-                    CTRexScenario.router.load_clean_config()
-                CTRexScenario.router.configure_basic_interfaces()
-                CTRexScenario.router.config_pbr(mode = "config")
-                CTRexScenario.router.config_ipv6_pbr(mode = "config")
-                sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+                if not CTRexScenario.router_cfg['no_dut_config']:
+                    sys.stdout.write('Configuring DUT... ')
+                    start_time = time.time()
+                    if CTRexScenario.router_cfg['forceCleanConfig']:
+                        CTRexScenario.router.load_clean_config()
+                    CTRexScenario.router.configure_basic_interfaces()
+                    CTRexScenario.router.config_pbr(mode = "config")
+                    CTRexScenario.router.config_ipv6_pbr(mode = "config")
+                    sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
             except Exception as e:
                 print('')
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e

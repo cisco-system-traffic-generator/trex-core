@@ -8,8 +8,8 @@ class STLIPv6_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
         print('')
-        self.stl_trex.set_service_mode(ports = [0])
         self.stl_trex.reset()
+        self.stl_trex.set_service_mode(ports = [0])
 
     def tearDown(self):
         CStlGeneral_Test.tearDown(self)

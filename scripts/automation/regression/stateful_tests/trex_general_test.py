@@ -403,7 +403,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print('')
-            if not self.stl_trex: # stateful
+            if not self.stl_trex and CTRexScenario.router_cfg['forceCleanConfig']:
                 self.router.load_clean_config()
             self.router.clear_counters()
             self.router.clear_packet_drop_stats()

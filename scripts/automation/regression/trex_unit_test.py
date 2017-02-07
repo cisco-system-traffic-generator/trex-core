@@ -70,13 +70,13 @@ def id_split(idval):
 # option to select wanted test by name without file, class etc.
 def new_Selector_wantMethod(self, method, orig_Selector_wantMethod = Selector.wantMethod):
     result = orig_Selector_wantMethod(self, method)
-    return result and (not CTRexScenario.test or CTRexScenario.test in getattr(method, '__name__', ''))
+    return result and (not CTRexScenario.test or filter(lambda t: t in getattr(method, '__name__', ''), CTRexScenario.test.split(',')))
 
 Selector.wantMethod = new_Selector_wantMethod
 
 def new_Selector_wantFunction(self, function, orig_Selector_wantFunction = Selector.wantFunction):
     result = orig_Selector_wantFunction(self, function)
-    return result and (not CTRexScenario.test or CTRexScenario.test in getattr(function, '__name__', ''))
+    return result and (not CTRexScenario.test or filter(lambda t: t in getattr(function, '__name__', ''), CTRexScenario.test.split(',')))
 
 Selector.wantFunction = new_Selector_wantFunction
 
@@ -342,7 +342,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--trex-args', default = '',
                             help="Additional TRex arguments (--no-watchdog etc.).")
         parser.add_option('-t', '--test', type = str,
-                            help = 'Test name to run (without file, class etc.)')
+                            help = 'Test name to run (without file, class etc.). Can choose several names splitted by comma.')
+        parser.add_option('--no-dut-config', action = 'store_true',
+                            help = 'Skip the config of DUT to save time. Implies --skip-clean.')
 
 
     def configure(self, options, conf):
@@ -378,6 +380,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.kill_running  = options.kill_running
         self.load_image    = options.load_image
         self.clean_config  = False if options.skip_clean_config else True
+        self.no_dut_config = options.no_dut_config
+        if self.no_dut_config:
+            self.clean_config = False
         self.server_logs   = options.server_logs
         if options.log_path:
             self.loggerPath = options.log_path
@@ -495,6 +500,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                                             forceImageReload = self.load_image,
                                             silent_mode      = not self.telnet_verbose,
                                             forceCleanConfig = self.clean_config,
+                                            no_dut_config    = self.no_dut_config,
                                             tftp_config_dict = self.configuration.tftp)
         try:
             CustomLogger.setup_custom_logger('TRexLogger', self.loggerPath)
