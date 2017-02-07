@@ -5,12 +5,18 @@ if [ "$(id -u)" != 0 ]; then
 fi
 
 INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
+EXTRA_INPUT_ARGS=""
 
 ./trex-cfg $INPUT_ARGS
 RESULT=$?
-if [ $RESULT -ne 0 ]; then
+if [ $RESULT -lt 0 ]; then
   exit $RESULT
 fi
+
+if [ $RESULT -eq 1 ]; then
+EXTRA_INPUT_ARGS="--mlx5-so"
+fi
+
 
 pci_desc_re='^(\S+) - (.+)$'
 source find_python.sh
@@ -35,17 +41,17 @@ fi
 
 # if we have a new core run optimized trex 
 if  grep -q avx /proc/cpuinfo ; then
-    ./_$(basename $0) $INPUT_ARGS
+    ./_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS
     RESULT=$?
     if [ $RESULT -eq 132 ]; then
         echo " WARNING this program is optimized for the new Intel processors.  "
         echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
         echo " try to run t-rex-64-o .. "
-        ./_t-rex-64-o $INPUT_ARGS
+        ./_t-rex-64-o $INPUT_ARGS  $EXTRA_INPUT_ARGS
         RESULT=$?
     fi
 else
-        ./_t-rex-64-o $INPUT_ARGS
+        ./_t-rex-64-o $INPUT_ARGS $EXTRA_INPUT_ARGS
         RESULT=$?
 fi
 

@@ -459,6 +459,8 @@ Other network devices
         self.m_devices= dpdk_nic_bind.devices
 
     def do_run (self,only_check_all_mlx=False):
+        """ return the number of mellanox drivers"""
+
         self.run_dpdk_lspci ()
         if (map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
@@ -553,6 +555,12 @@ Other network devices
             if ret:
                 print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(1)
+
+        if Mellanox_cnt:
+            return 1
+        else:
+            return 0
+
 
 
     def do_return_to_linux(self):
@@ -1019,7 +1027,7 @@ def main ():
         elif map_driver.args.linux:
             obj.do_return_to_linux();
         else:
-            obj.do_run();
+            exit(obj.do_run())
         print('')
     except DpdkSetup as e:
         print(e)
