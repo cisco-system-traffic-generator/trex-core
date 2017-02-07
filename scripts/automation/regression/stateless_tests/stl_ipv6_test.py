@@ -9,12 +9,13 @@ class STLIPv6_Test(CStlGeneral_Test):
         CStlGeneral_Test.setUp(self)
         print('')
         self.stl_trex.set_service_mode(ports = [0])
+        self.stl_trex.reset()
 
     def tearDown(self):
         CStlGeneral_Test.tearDown(self)
         self.stl_trex.set_service_mode(ports = [0], enabled = False)
 
-    def test_ipv6_ping(self):
+    def test_stl_ipv6_ping(self):
         ping_count = 5
         expected_replies = 4 # allow one loss
         results = self.stl_trex.ping_ip(src_port = 0, dst_ip = 'ff02::1', count = ping_count)
@@ -40,7 +41,7 @@ class STLIPv6_Test(CStlGeneral_Test):
         else:
             print('Got no replies from unknown IPv6 as expected.')
 
-    def test_ipv6_scan6(self):
+    def test_stl_ipv6_scan6(self):
         results = self.stl_trex.scan6(ports = 0)
         if self.is_loopback:
             # negative test, loopback
