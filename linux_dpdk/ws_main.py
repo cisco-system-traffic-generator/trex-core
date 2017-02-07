@@ -806,6 +806,9 @@ class build_option:
     def get_mlx5_target (self):
         return self.update_executable_name("mlx5");
 
+    def get_mlx5so_target (self):
+        return self.update_executable_name("libmlx5")+'.so';
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -945,16 +948,26 @@ def build(bld):
 
 def build_info(bld):
     pass;
-      
-def install_single_system (bld, exec_p, build_obj):
-    o='build_dpdk/linux_dpdk/';
-    src_file =  os.path.realpath(o+build_obj.get_target())
-    if os.path.exists(src_file):
-        dest_file = exec_p +build_obj.get_target()
+
+def do_create_link (src,dst,exec_p):
+    if os.path.exists(src):
+        dest_file = exec_p +dst
         print(dest_file)
         if not os.path.lexists(dest_file):
-            relative_path = os.path.relpath(src_file, exec_p)
+            relative_path = os.path.relpath(src, exec_p)
             os.symlink(relative_path, dest_file);
+
+def install_single_system (bld, exec_p, build_obj):
+    o='build_dpdk/linux_dpdk/';
+
+    src_file =  os.path.realpath(o+build_obj.get_target())
+    dest_file = exec_p +build_obj.get_target()
+    do_create_link(src_file,dest_file,exec_p);
+
+    src_mlx_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
+    dest_mlx_file = exec_p + build_obj.get_mlx5so_target()
+    do_create_link(src_mlx_file,dest_mlx_file,exec_p);
+
 
 
 def pre_build(bld):
@@ -1039,12 +1052,24 @@ def _copy_single_system1 (bld, exec_p, build_obj):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
+def _copy_single_system2 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_mlx5so_target()[1:])
+    print(src_file)
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_mlx5so_target()[1:]
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
 
 def copy_single_system (bld, exec_p, build_obj):
     _copy_single_system (bld, exec_p, build_obj)
 
 def copy_single_system1 (bld, exec_p, build_obj):
     _copy_single_system1 (bld, exec_p, build_obj)
+
+def copy_single_system2 (bld, exec_p, build_obj):
+    _copy_single_system2 (bld, exec_p, build_obj)
 
 
 files_list=[
@@ -1159,8 +1184,9 @@ def release(bld, custom_dir = None):
     os.system(' mkdir -p '+exec_p);
 
     for obj in build_types:
-        copy_single_system (bld,exec_p,obj);
-        copy_single_system1 (bld,exec_p,obj)
+        copy_single_system(bld,exec_p,obj)
+        copy_single_system1(bld,exec_p,obj)
+        copy_single_system2(bld,exec_p,obj)
 
     for obj in files_list:
         src_file =  '../scripts/'+obj
