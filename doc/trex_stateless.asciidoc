@@ -617,6 +617,9 @@ Additional links on scanning network:
 * link:https://tools.ietf.org/html/draft-ietf-opsec-ipv6-host-scanning-00#page-5[RFC draft of scanning]
 * Scanning of network in Ubuntu: link:http://manpages.ubuntu.com/manpages/zesty/man1/scan6.1.html[scan6]
 
+Example of using IPv6 methods in automation:
+
+* link:{github_stl_examples_path}/stl_ipv6_tools.py[stl_ipv6_tools.py]
 
 
 === Tutorials
