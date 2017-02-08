@@ -32,6 +32,14 @@ endif::backend-docbook[]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
 
 
+== Release 2.16 ==
+
+* IPv6 console basic support (link:trex_stateless.html#_ipv6_nd_client[ipv6]):
+** scan6 function to search for IPv6-enabled neighbors
+** ping can be used with IPv6 addresses to ping nearby devices
+* Stateless Rx capturing mode support link:trex_stateless.html#_packet_capturing[capturing] 
+* Stateless support functional testing / send packet /expect RX packet etc link:trex_stateless.html#_functional_tutorials[functional]
+
 === Video Tutorials (Beta) : ===
 Our first video tutorial on YouTube:
 
@@ -48,13 +56,6 @@ endif::backend-xhtml11[]
 The Tutorial shows a little bit of our new packet capture ability
 which was released on v2.16
 
-== Release 2.16 ==
-
-* IPv6 console basic support (link:trex_stateless.html#_ipv6_nd_client[ipv6]):
-** scan6 function to search for IPv6-enabled neighbors
-** ping can be used with IPv6 addresses to ping nearby devices
-* Stateless Rx capturing mode support link:trex_stateless.html#_packet_capturing[capturing] 
-* Stateless support functional testing / send packet /expect RX packet etc link:trex_stateless.html#_functional_tutorials[functional]
 
 === fix issues: ===
 

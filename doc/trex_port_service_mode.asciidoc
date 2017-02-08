@@ -90,7 +90,8 @@ For example,
 A queue of 1 million packets can be allocated as a cyclic queue and be active under a rate of couple of Mpps.
 It effectively provide a sampling of the last 1 million packets seen by the server with the given filters.
 
-==== API Usage
+==== Packet Capturing API Usage
+
 The Python API usages is fairly simple:
 
 .Python API:
@@ -113,13 +114,14 @@ client.set_service_mode(ports = 1, enabled = False)
 
 ----
 
-=== Console Usage
+==== Packet Capturing Console Usage
+
 The console provides couple of flexible ways to handle packet capturing
 
 * *Capture Monitoring*
 * *Capture Recording*
 
-==== Capture Monitoring
+===== Capture Monitoring
 Capture monitoring is a non-persistent way to capture and show packets from either TX / RX
 of one or more ports
 
@@ -234,7 +236,7 @@ Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8
 
 image::images/capture_wireshark_pipe.png[title="Wireshark Pipe",align="left",width={p_width}, link="images/capture_wireshark_pipe.png"]
 
-==== Capture Recording
+===== Capture Recording
 In addition to monitoring, the console allows a simple recording as well.
 
 Recording allows the user to define a fixed size queue which then can
@@ -302,4 +304,19 @@ trex(service)>
 <4> Start traffic on port *0* which is connected to port *3*
 <5> Showing the capture status - full
 <6> Save 200 packets to an output file called */tmp/rx_3.pcap*
+
+
+==== Packet Capturing Video Tutorials 
+
+ifdef::backend-xhtml11[]
+++++++++++++++++++
+
+<iframe width="420" height="315"
+allowfullscreen="allowfullscreen"
+src="https://www.youtube.com/embed/Vsb0A4RNGz0">
+</iframe>
+++++++++++++++++++
+endif::backend-xhtml11[]
+
+The Tutorial shows a little bit of our new packet capture ability 
 
