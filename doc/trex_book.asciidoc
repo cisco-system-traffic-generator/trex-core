@@ -663,7 +663,7 @@ include::trex_book_basic.asciidoc[]
 
 == Advanced features
 
-=== VLAN Trunk support 
+=== Utilizing maximum port bandwidth in case of asymmetric traffic profile 
 
 anchor:trex_vlan[]
 
