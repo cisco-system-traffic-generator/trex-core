@@ -1048,7 +1048,7 @@ eth_i40e_dev_init(struct rte_eth_dev *dev)
 	intr_handle = &pci_dev->intr_handle;
 
 	rte_eth_copy_pci_info(dev, pci_dev);
-	dev->data->dev_flags = RTE_ETH_DEV_DETACHABLE;
+	dev->data->dev_flags |= RTE_ETH_DEV_DETACHABLE;
 
 	pf->adapter = I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	pf->adapter->eth_dev = dev;
@@ -2223,11 +2223,11 @@ i40e_dev_link_update(struct rte_eth_dev *dev,
 		}
 
 		link.link_status = link_status.link_info & I40E_AQ_LINK_UP;
-		if (!wait_to_complete)
+		if (!wait_to_complete || link.link_status)
 			break;
 
 		rte_delay_ms(CHECK_INTERVAL);
-	} while (!link.link_status && rep_cnt--);
+	} while (--rep_cnt);
 
 	if (!link.link_status)
 		goto out;
@@ -6777,6 +6777,12 @@ i40e_tunnel_filter_convert(struct i40e_aqc_add_remove_cloud_filters_element_data
 	ether_addr_copy((struct ether_addr *)&cld_filter->inner_mac,
 			(struct ether_addr *)&tunnel_filter->input.inner_mac);
 	tunnel_filter->input.inner_vlan = cld_filter->inner_vlan;
+	if ((rte_le_to_cpu_16(cld_filter->flags) &
+	     I40E_AQC_ADD_CLOUD_FLAGS_IPV6) ==
+	    I40E_AQC_ADD_CLOUD_FLAGS_IPV6)
+		tunnel_filter->input.ip_type = I40E_TUNNEL_IPTYPE_IPV6;
+	else
+		tunnel_filter->input.ip_type = I40E_TUNNEL_IPTYPE_IPV4;
 	tunnel_filter->input.flags = cld_filter->flags;
 	tunnel_filter->input.tenant_id = cld_filter->tenant_id;
 	tunnel_filter->queue = cld_filter->queue_number;
@@ -8804,6 +8810,10 @@ i40e_pctype_to_flowtype(enum i40e_filter_pctype pctype)
 #define I40E_GL_SWR_PRI_JOIN_MAP_2_VALUE 0x011f0200
 #define I40E_GL_SWR_PRI_JOIN_MAP_2       0x26CE08
 
+/* For X722 */
+#define I40E_X722_GL_SWR_PRI_JOIN_MAP_0_VALUE 0x20000200
+#define I40E_X722_GL_SWR_PRI_JOIN_MAP_2_VALUE 0x013F0200
+
 /* For X710 */
 #define I40E_GL_SWR_PM_UP_THR_EF_VALUE   0x03030303
 /* For XL710 */
@@ -8826,7 +8836,6 @@ i40e_dev_sync_phy_type(struct i40e_hw *hw)
 	return 0;
 }
 
-
 static void
 i40e_configure_registers(struct i40e_hw *hw)
 {
@@ -8834,8 +8843,8 @@ i40e_configure_registers(struct i40e_hw *hw)
 		uint32_t addr;
 		uint64_t val;
 	} reg_table[] = {
-		{I40E_GL_SWR_PRI_JOIN_MAP_0, I40E_GL_SWR_PRI_JOIN_MAP_0_VALUE},
-		{I40E_GL_SWR_PRI_JOIN_MAP_2, I40E_GL_SWR_PRI_JOIN_MAP_2_VALUE},
+		{I40E_GL_SWR_PRI_JOIN_MAP_0, 0},
+		{I40E_GL_SWR_PRI_JOIN_MAP_2, 0},
 		{I40E_GL_SWR_PM_UP_THR, 0}, /* Compute value dynamically */
 	};
 	uint64_t reg;
@@ -8843,6 +8852,24 @@ i40e_configure_registers(struct i40e_hw *hw)
 	int ret;
 
 	for (i = 0; i < RTE_DIM(reg_table); i++) {
+		if (reg_table[i].addr == I40E_GL_SWR_PRI_JOIN_MAP_0) {
+			if (hw->mac.type == I40E_MAC_X722) /* For X722 */
+				reg_table[i].val =
+					I40E_X722_GL_SWR_PRI_JOIN_MAP_0_VALUE;
+			else /* For X710/XL710/XXV710 */
+				reg_table[i].val =
+					I40E_GL_SWR_PRI_JOIN_MAP_0_VALUE;
+		}
+
+		if (reg_table[i].addr == I40E_GL_SWR_PRI_JOIN_MAP_2) {
+			if (hw->mac.type == I40E_MAC_X722) /* For X722 */
+				reg_table[i].val =
+					I40E_X722_GL_SWR_PRI_JOIN_MAP_2_VALUE;
+			else /* For X710/XL710/XXV710 */
+				reg_table[i].val =
+					I40E_GL_SWR_PRI_JOIN_MAP_2_VALUE;
+		}
+
 		if (reg_table[i].addr == I40E_GL_SWR_PM_UP_THR) {
 			if (I40E_PHY_TYPE_SUPPORT_40G(hw->phy.phy_types) || /* For XL710 */
 			    I40E_PHY_TYPE_SUPPORT_25G(hw->phy.phy_types)) /* For XXV710 */
@@ -10338,16 +10365,14 @@ i40e_filter_restore(struct i40e_pf *pf)
 	i40e_fdir_filter_restore(pf);
 }
 
-static int
-is_i40e_pmd(const char *driver_name)
+static bool
+is_device_supported(struct rte_eth_dev *dev, struct eth_driver *drv)
 {
-	if (!strstr(driver_name, "i40e"))
-		return -ENOTSUP;
+	if (strcmp(dev->driver->pci_drv.driver.name,
+		   drv->pci_drv.driver.name))
+		return false;
 
-	if (strstr(driver_name, "i40e_vf"))
-		return -ENOTSUP;
-
-	return 0;
+	return true;
 }
 
 int
@@ -10360,7 +10385,7 @@ rte_pmd_i40e_ping_vfs(uint8_t port, uint16_t vf)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10389,7 +10414,7 @@ rte_pmd_i40e_set_vf_mac_anti_spoof(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10493,7 +10518,7 @@ rte_pmd_i40e_set_vf_vlan_anti_spoof(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10751,7 +10776,7 @@ rte_pmd_i40e_set_tx_loopback(uint8_t port, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10793,7 +10818,7 @@ rte_pmd_i40e_set_vf_unicast_promisc(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10834,7 +10859,7 @@ rte_pmd_i40e_set_vf_multicast_promisc(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10880,7 +10905,7 @@ rte_pmd_i40e_set_vf_mac_addr(uint8_t port, uint16_t vf_id,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10917,7 +10942,7 @@ rte_pmd_i40e_set_vf_vlan_stripq(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -10960,7 +10985,7 @@ int rte_pmd_i40e_set_vf_vlan_insert(uint8_t port, uint16_t vf_id,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -11024,7 +11049,7 @@ int rte_pmd_i40e_set_vf_broadcast(uint8_t port, uint16_t vf_id,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -11080,7 +11105,7 @@ int rte_pmd_i40e_set_vf_vlan_tag(uint8_t port, uint16_t vf_id, uint8_t on)
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -11143,7 +11168,7 @@ int rte_pmd_i40e_set_vf_vlan_filter(uint8_t port, uint16_t vlan_id,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	if (vlan_id > ETHER_MAX_VLAN_ID) {
@@ -11206,7 +11231,7 @@ rte_pmd_i40e_get_vf_stats(uint8_t port,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
@@ -11250,7 +11275,7 @@ rte_pmd_i40e_reset_vf_stats(uint8_t port,
 
 	dev = &rte_eth_devices[port];
 
-	if (is_i40e_pmd(dev->data->drv_name))
+	if (!is_device_supported(dev, &rte_i40e_pmd))
 		return -ENOTSUP;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);

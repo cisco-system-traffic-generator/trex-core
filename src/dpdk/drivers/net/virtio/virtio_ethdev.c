@@ -1835,6 +1835,8 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	uint64_t tso_mask, host_features;
 	struct virtio_hw *hw = dev->data->dev_private;
 
+	dev_info->speed_capa = ETH_LINK_SPEED_10G; /* fake value */
+
 	dev_info->pci_dev = dev->device ? RTE_DEV_TO_PCI(dev->device) : NULL;
 	dev_info->max_rx_queues =
 		RTE_MIN(hw->max_queue_pairs, VIRTIO_MAX_RX_QUEUES);
@@ -1869,7 +1871,6 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
 	if ((hw->guest_features & tso_mask) == tso_mask)
 		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
-	dev_info->speed_capa = ETH_LINK_SPEED_10G;
 }
 
 /*

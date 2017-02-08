@@ -80,6 +80,11 @@
 #include "base/ixgbe_common.h"
 #include "ixgbe_rxtx.h"
 
+#ifdef RTE_LIBRTE_IEEE1588
+#define IXGBE_TX_IEEE1588_TMST PKT_TX_IEEE1588_TMST
+#else
+#define IXGBE_TX_IEEE1588_TMST 0
+#endif
 /* Bit Mask to indicate what bits required for building TX context */
 #define IXGBE_TX_OFFLOAD_MASK (			 \
 		PKT_TX_VLAN_PKT |		 \
@@ -87,7 +92,8 @@
 		PKT_TX_L4_MASK |		 \
 		PKT_TX_TCP_SEG |		 \
 		PKT_TX_MACSEC |			 \
-		PKT_TX_OUTER_IP_CKSUM)
+		PKT_TX_OUTER_IP_CKSUM |		 \
+		IXGBE_TX_IEEE1588_TMST)
 
 #define IXGBE_TX_OFFLOAD_NOTSUP_MASK \
 		(PKT_TX_OFFLOAD_MASK ^ IXGBE_TX_OFFLOAD_MASK)
@@ -1460,17 +1466,19 @@ ixgbe_rx_scan_hw_ring(struct ixgbe_rx_queue *rxq)
 	for (i = 0; i < RTE_PMD_IXGBE_RX_MAX_BURST;
 	     i += LOOK_AHEAD, rxdp += LOOK_AHEAD, rxep += LOOK_AHEAD) {
 		/* Read desc statuses backwards to avoid race condition */
-		for (j = LOOK_AHEAD-1; j >= 0; --j)
+		for (j = 0; j < LOOK_AHEAD; j++)
 			s[j] = rte_le_to_cpu_32(rxdp[j].wb.upper.status_error);
 
-		for (j = LOOK_AHEAD - 1; j >= 0; --j)
-			pkt_info[j] = rte_le_to_cpu_32(rxdp[j].wb.lower.
-						       lo_dword.data);
+		rte_smp_rmb();
 
 		/* Compute how many status bits were set */
-		nb_dd = 0;
-		for (j = 0; j < LOOK_AHEAD; ++j)
-			nb_dd += s[j] & IXGBE_RXDADV_STAT_DD;
+		for (nb_dd = 0; nb_dd < LOOK_AHEAD &&
+				(s[nb_dd] & IXGBE_RXDADV_STAT_DD); nb_dd++)
+			;
+
+		for (j = 0; j < nb_dd; j++)
+			pkt_info[j] = rte_le_to_cpu_32(rxdp[j].wb.lower.
+						       lo_dword.data);
 
 		nb_rx += nb_dd;
 
