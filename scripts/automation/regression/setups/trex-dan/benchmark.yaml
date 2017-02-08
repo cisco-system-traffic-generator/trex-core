@@ -35,7 +35,7 @@ test_routing_imix:
 
 test_routing_imix_64:
     multiplier          : 150
-    cores               : 4
+    cores               : 2
     bw_per_core         : .681
 
 
