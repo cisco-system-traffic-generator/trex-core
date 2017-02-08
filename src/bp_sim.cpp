@@ -3541,6 +3541,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     /* split the clients to threads */
     CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
+    double active_flows_per_core = flow_list->get_worse_case_active_flows()/(double)m_max_threads;
+
     m_smart_gen.Create(0,m_thread_id);
 
     /* split the clients to threads using the mask */
@@ -3553,8 +3555,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
         m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
                                     portion.m_ip_start,
                                     portion.m_ip_end,
-                                    get_longest_flow(i,true),
-                                    get_total_kcps(i,true)*1000,
+                                    active_flows_per_core,
                                     m_flow_list->m_client_config_info,
                                     tuple_gen->m_client_pool[i].m_tcp_aging_sec,
                                     tuple_gen->m_client_pool[i].m_udp_aging_sec
@@ -3567,13 +3568,12 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
         m_smart_gen.add_server_pool(tuple_gen->m_server_pool[i].m_dist,
                         portion.m_ip_start,
                         portion.m_ip_end,
-                        get_longest_flow(i,false),
-                        get_total_kcps(i,false)*1000,
+                        active_flows_per_core,
                         tuple_gen->m_server_pool[i].m_is_bundling);
     }
 
 
-    init_from_global(portion);
+    init_from_global();
 
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
@@ -3645,7 +3645,7 @@ void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
 
 
 /* copy all info from global and div by num of threads */
-void CFlowGenListPerThread::init_from_global(CIpPortion& portion){
+void CFlowGenListPerThread::init_from_global(){
     /* copy generator , it is the same */
     m_yaml_info =m_flow_list->m_yaml_info;
 
@@ -5000,6 +5000,25 @@ void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) 
 
 void CFlowGenList::dump_client_config(FILE *fd) {
     m_client_config_info.dump(fd);
+}
+
+/* take the total CPS and multi by the longest flow */
+double CFlowGenList::get_worse_case_active_flows(){
+    CFlowStats sum;
+    CFlowStats stats;
+    int i;
+    double max_duration=-1.0;
+
+    for (i=0; i<(int)m_cap_gen.size(); i++) {
+        CFlowGeneratorRec * lp=m_cap_gen[i];
+        lp->getFlowStats(&stats);
+        
+        if ( stats.duration_sec > max_duration){
+            max_duration=stats.duration_sec;
+        }
+        sum.Add(stats);
+    }
+    return (sum.m_cps*max_duration);
 }
 
 int CFlowGenList::update_active_flows(uint32_t active_flows){

@@ -26,17 +26,26 @@ limitations under the License.
 #include "bp_sim.h"
 #include "tuple_gen.h"
 
+static bool _enough_ips(uint32_t total_ip,
+                       double active_flows){
+    /* Socket utilization is lower than 20% */
+    if ( (active_flows/((double)total_ip*(double)MAX_PORT))>0.10 ) {
+        return(false);
+    }
+    return (true);
+}
+
 void CServerPool::Create(IP_DIST_t  dist_value,
             uint32_t min_ip,
             uint32_t max_ip,
-            double l_flow,
-            double t_cps) {
+            double active_flows
+            ) {
     gen = new CIpPool();
     gen->set_dist(dist_value);
     uint32_t total_ip = max_ip - min_ip +1;
     gen->m_ip_info.resize(total_ip);
 
-    if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
+    if ( _enough_ips(total_ip,active_flows) ) {
         for(int idx=0;idx<total_ip;idx++){
             gen->m_ip_info[idx] = new CServerInfoL();
             gen->m_ip_info[idx]->set_ip(min_ip+idx);
@@ -55,8 +64,7 @@ void CServerPool::Create(IP_DIST_t  dist_value,
 void CClientPool::Create(IP_DIST_t       dist_value,
                          uint32_t        min_ip,
                          uint32_t        max_ip,
-                         double          l_flow,
-                         double          t_cps,
+                         double          active_flows,
                          ClientCfgDB     &client_info,
                          uint16_t        tcp_aging,
                          uint16_t        udp_aging) {
@@ -66,7 +74,7 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     set_dist(dist_value);
 
     uint32_t total_ip  = max_ip - min_ip +1;
-    bool is_long_range = total_ip > (l_flow * t_cps / MAX_PORT);
+    bool is_long_range = _enough_ips(total_ip,active_flows);
 
     m_ip_info.resize(total_ip);
 
@@ -148,8 +156,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                                           uint32_t        min_client,
                                           uint32_t        max_client,
-                                          double          l_flow,
-                                          double          t_cps,
+                                          double          active_flows,
                                           ClientCfgDB     &client_info,
                                           uint16_t        tcp_aging,
                                           uint16_t        udp_aging) {
@@ -158,8 +165,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
     pool->Create(client_dist,
                  min_client,
                  max_client,
-                 l_flow,
-                 t_cps,
+                 active_flows,
                  client_info,
                  tcp_aging,
                  udp_aging);
@@ -171,8 +177,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
 bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
                                           uint32_t min_server,
                                           uint32_t max_server,
-                                          double l_flow,
-                                          double t_cps,
+                                          double   active_flows,
                                           bool is_bundling){
     assert(max_server>=min_server);
     CServerPoolBase* pool;
@@ -181,8 +186,8 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
     else
         pool = new CServerPoolSimple();
     // we currently only supports mac mapping file for client
-    pool->Create(server_dist, min_server, max_server,
-                 l_flow, t_cps);
+    pool->Create(server_dist, min_server, max_server,active_flows);
+
     m_server_pool.push_back(pool);
     return(true);
 }

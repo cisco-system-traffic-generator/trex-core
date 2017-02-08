@@ -4000,7 +4000,7 @@ private:
     void terminate_nat_flows(CGenNode *node);
 
 
-    void init_from_global(CIpPortion &);
+    void init_from_global();
     void defer_client_port_free(CGenNode *p);
     void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port,
                                 uint8_t pool_idx, CTupleGeneratorSmart*gen);
@@ -4142,6 +4142,8 @@ public:
 public:
     /* update ipg in a way for */ 
     int update_active_flows(uint32_t active_flows);
+    double get_worse_case_active_flows();
+
     double get_total_kcps();
     double get_total_pps();
     double get_total_tx_bps();

@@ -513,8 +513,7 @@ public:
     void Create(IP_DIST_t       dist_value,
                 uint32_t        min_ip,
                 uint32_t        max_ip,
-                double          l_flow,
-                double          t_cps,
+                double          active_flows,
                 ClientCfgDB     &client_info,
                 uint16_t        tcp_aging,
                 uint16_t        udp_aging); 
@@ -547,8 +546,7 @@ class CServerPoolBase {
     virtual void Create(IP_DIST_t  dist_value,
                uint32_t min_ip,
                uint32_t max_ip,
-               double l_flow,
-               double t_cps) = 0; 
+               double active_flows) = 0; 
  
 };
 
@@ -557,8 +555,8 @@ public:
     void Create(IP_DIST_t  dist_value,
                uint32_t min_ip,
                uint32_t max_ip,
-               double l_flow,
-               double t_cps) {
+                double active_flows
+               ) {
         m_max_server_ip = max_ip;
         m_min_server_ip = min_ip;
         m_cur_server_ip = min_ip;
@@ -598,8 +596,7 @@ public:
     void Create(IP_DIST_t  dist_value,
                 uint32_t min_ip,
                 uint32_t max_ip,
-                double l_flow,
-                double t_cps); 
+                double active_flows); 
  
     void Delete() {
         if (gen!=NULL) {
@@ -690,8 +687,7 @@ public:
     bool add_client_pool(IP_DIST_t     client_dist,
                          uint32_t      min_client,
                          uint32_t      max_client,
-                         double        l_flow,
-                         double        t_cps,
+                         double        active_flows,
                          ClientCfgDB   &client_info,
                          uint16_t      tcp_aging,
                          uint16_t      udp_aging);
@@ -699,8 +695,7 @@ public:
     bool add_server_pool(IP_DIST_t  server_dist,
                          uint32_t   min_server,
                          uint32_t   max_server,
-                         double     l_flow,
-                         double     t_cps,
+                         double     active_flows,
                          bool       is_bundling);
 
     CClientPool* get_client_pool(uint8_t idx) {
