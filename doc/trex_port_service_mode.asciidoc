@@ -234,7 +234,7 @@ Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8
 <5> Send ARP request
 
 
-image::images/capture_wireshark_pipe.PNG[title="Wireshark Pipe",align="left",width={p_width}, link="images/capture_wireshark_pipe.png"]
+image::images/capture_wireshark_pipe.png[title="Wireshark Pipe",align="left",width={p_width}, link="images/capture_wireshark_pipe.png"]
 
 ===== Capture Recording
 In addition to monitoring, the console allows a simple recording as well.
