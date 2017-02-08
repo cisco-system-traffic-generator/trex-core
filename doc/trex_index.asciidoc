@@ -79,6 +79,8 @@ link:../client_gui/[stateful GUI]
 link:trex_stateless_bench.html[xl710_benchmark.html] 
 | TRex performance trend per platform/NIC  | 
 link:trex_analytics.html[trex_perf_trend.html] 
+| TRex performance SR_IOV  | 
+link:trex_vm_bench.html[sr_iov_bench]
 |=================
 
 == For Developers
