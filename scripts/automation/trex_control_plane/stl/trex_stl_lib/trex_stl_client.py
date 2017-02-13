@@ -3271,10 +3271,6 @@ class STLClient(object):
         tx_ports = tx_ports if tx_ports is not None else []
         rx_ports = rx_ports if rx_ports is not None else []
         
-        # TODO: remove this when TX is implemented
-        if tx_ports:
-            raise STLError('TX port capturing is not yet implemented')
-            
         # check arguments
         tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
         rx_ports = self._validate_port_list(rx_ports, allow_empty = True)

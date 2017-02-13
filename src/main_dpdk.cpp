@@ -2310,6 +2310,9 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     uint16_t len = lp_port->m_len;
     lp_port->m_table[len]=m;
     len++;
+    
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
+    
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
         send_burst(lp_port, MAX_PKT_BURST,lp_stats);
@@ -2324,6 +2327,8 @@ int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPer
     // We allow sending only from first core of each port. This is serious internal bug otherwise.
     assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
+    
     int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
 
 #ifdef DELAY_IF_NEEDED

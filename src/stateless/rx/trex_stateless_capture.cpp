@@ -45,36 +45,18 @@ TrexStatelessCapture::~TrexStatelessCapture() {
 }
 
 void
-TrexStatelessCapture::handle_pkt_tx(const TrexPkt *pkt) {
+TrexStatelessCapture::handle_pkt(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
 
     if (m_state != STATE_ACTIVE) {
         return;
     }
     
     /* if not in filter - back off */
-    if (!m_filter.in_filter(pkt)) {
+    if (!m_filter.in_x(port, origin)) {
         return;
     }
     
-    if (pkt->get_ts() < m_start_ts) {
-        return;
-    }
-    
-    m_pkt_buffer->push(pkt, ++m_pkt_index);
-}
-
-void
-TrexStatelessCapture::handle_pkt_rx(const rte_mbuf_t *m, int port) {
-
-    if (m_state != STATE_ACTIVE) {
-        return;
-    }
-    
-    if (!m_filter.in_rx(port)) {
-        return;
-    }
-    
-    m_pkt_buffer->push(m, port, TrexPkt::ORIGIN_RX, ++m_pkt_index);
+    m_pkt_buffer->push(m, port, origin, ++m_pkt_index);
 }
 
 
@@ -266,16 +248,11 @@ TrexStatelessCaptureMngr::reset() {
 }
 
 void 
-TrexStatelessCaptureMngr::handle_pkt_tx_slow_path(const TrexPkt *pkt) {
+TrexStatelessCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
+    std::unique_lock<std::mutex> lock(m_lock);
+    
     for (TrexStatelessCapture *capture : m_captures) {
-        capture->handle_pkt_tx(pkt);
-    }
-}
-
-void 
-TrexStatelessCaptureMngr::handle_pkt_rx_slow_path(const rte_mbuf_t *m, int port) {
-    for (TrexStatelessCapture *capture : m_captures) {
-        capture->handle_pkt_rx(m, port);
+        capture->handle_pkt(m, port, origin);
     }
 }
 
@@ -290,3 +267,4 @@ TrexStatelessCaptureMngr::to_json() const {
     return lst;
 }
 
+TrexStatelessCaptureMngr TrexStatelessCaptureMngr::g_instance;

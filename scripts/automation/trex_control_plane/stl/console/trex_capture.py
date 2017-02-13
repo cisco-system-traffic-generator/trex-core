@@ -31,7 +31,7 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
         
         # unicode arrows
         self.RX_ARROW = u'\u25c0\u2500\u2500'
-        self.TX_ARROW = u'\u25b6\u2500\u2500'
+        self.TX_ARROW = u'\u2500\u2500\u25b6'
         
         # decode issues with Python 2
         if sys.version_info < (3,0):

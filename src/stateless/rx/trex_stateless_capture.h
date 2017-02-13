@@ -23,6 +23,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <assert.h>
+#include <mutex>
 
 #include "trex_stateless_pkt.h"
 #include "trex_stateless_capture_rc.h"
@@ -59,17 +60,12 @@ public:
         add_rx(port_id);
     }
     
-    bool in_filter(const TrexPkt *pkt) {
-        switch (pkt->get_origin()) {
-        case TrexPkt::ORIGIN_TX:
-            return in_tx(pkt->get_port());
-            
-        case TrexPkt::ORIGIN_RX:
-            return in_rx(pkt->get_port());
-            
-        default:
-            return false;
-        }
+    bool in_x(uint8_t port_id, TrexPkt::origin_e origin) {
+        return ( 
+                 ( (origin == TrexPkt::ORIGIN_RX) && (in_rx(port_id)) )
+                 ||
+                 ( (origin == TrexPkt::ORIGIN_TX) && (in_tx(port_id)) )
+               );
     }
     
     bool in_rx(uint8_t port_id) const {
@@ -133,14 +129,9 @@ public:
     ~TrexStatelessCapture();
     
     /**
-     * handles a packet from the TX side
+     * handles a packet
      */
-    void handle_pkt_tx(const TrexPkt *pkt);
-    
-    /**
-     * handles a packet from the RX side
-     */
-    void handle_pkt_rx(const rte_mbuf_t *m, int port);
+    void handle_pkt(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin);
     
     
     uint64_t get_id() const {
@@ -199,10 +190,9 @@ class TrexStatelessCaptureMngr {
     
 public:
     
+    static TrexStatelessCaptureMngr g_instance;
     static TrexStatelessCaptureMngr& getInstance() {
-        static TrexStatelessCaptureMngr instance;
-
-        return instance;
+        return g_instance;
     }
 
     
@@ -257,27 +247,27 @@ public:
     }
     
     /**
-     *  handle packet from TX
+     * handle packet on TX side
      */
-    void handle_pkt_tx(const TrexPkt *pkt) {
-        if (!m_global_filter.in_filter(pkt)) {
-            return;
+    inline void handle_pkt_tx(const rte_mbuf_t *m, int port) {
+        
+        /* fast bail out IF */
+        if (unlikely(m_global_filter.in_tx(port))) {
+            handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_TX);
         }
         
-        handle_pkt_tx_slow_path(pkt);
     }
     
     /** 
-     * handle packet from RX 
+     * handle packet on RX side
      */
-    void handle_pkt_rx(const rte_mbuf_t *m, int port) {
-        /* fast path - check the global filter */
-        if (!m_global_filter.in_rx(port)) {
-            return;
+    inline void handle_pkt_rx(const rte_mbuf_t *m, int port) {
+        
+        /* fast bail out IF */
+        if (unlikely(m_global_filter.in_rx(port))) {
+            handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_RX);
         }
         
-        /* slow path */
-        handle_pkt_rx_slow_path(m, port);
     }
     
     Json::Value to_json() const;
@@ -293,9 +283,8 @@ private:
     TrexStatelessCapture * lookup(capture_id_t capture_id);
     int lookup_index(capture_id_t capture_id);
     
-    void handle_pkt_rx_slow_path(const rte_mbuf_t *m, int port);
-    void handle_pkt_tx_slow_path(const TrexPkt *pkt);
-    
+    void handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) __attribute__ ((noinline));
+   
     void update_global_filter();
     
     std::vector<TrexStatelessCapture *> m_captures;
@@ -305,7 +294,11 @@ private:
     /* a union of all the filters curently active */
     CaptureFilter m_global_filter;
     
+    /* slow path lock*/
+    std::mutex    m_lock;
+    
     static const int MAX_CAPTURE_SIZE = 10;
+    
 };
 
 #endif /* __TREX_STATELESS_CAPTURE_H__ */
