@@ -385,6 +385,7 @@ public:
     void clean(){
         m_flags = 0;
         m_flags1=0;
+        set_vlan_mode_enable(false);
         setCores(1);
         set_zmq_publish_enable(true);
     }
