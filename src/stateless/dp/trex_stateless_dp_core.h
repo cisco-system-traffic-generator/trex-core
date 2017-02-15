@@ -34,6 +34,7 @@ class CGenNodeStateless;
 class TrexStreamsCompiledObj;
 class TrexStream;
 class CGenNodePCAP;
+class DPCoreWrapper;
 
 class CDpOneStream  {
 public:
@@ -116,6 +117,7 @@ public:
 /* for now */
 #define NUM_PORTS_PER_CORE 2
 
+
 class TrexStatelessDpCore {
 
 public:
@@ -131,12 +133,10 @@ public:
 
     };
 
-    TrexStatelessDpCore() {
-        m_thread_id = 0;
-        m_core = NULL;
-        m_duration = -1;
-    }
-
+    TrexStatelessDpCore();
+    ~TrexStatelessDpCore();
+    
+    
     /**
      * "static constructor"
      * 
@@ -273,6 +273,10 @@ public:
         return get_port_db(port_id)->is_active();
     }
 
+    /**
+     * enabled/disable service mode
+     */
+    void set_service_mode(uint8_t port_id, bool enabled);
 
 private:
 
@@ -335,6 +339,9 @@ private:
     CFlowGenListPerThread   * m_core;
 
     double                 m_duration;
+    
+    DPCoreWrapper          *m_wrapper;
+    bool                   m_is_service_mode;
 };
 
 #endif /* __TREX_STATELESS_DP_CORE_H__ */

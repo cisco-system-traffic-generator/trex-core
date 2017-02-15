@@ -319,8 +319,15 @@ public:
     virtual ~CVirtualIF() {}
     virtual int open_file(std::string file_name)=0;
     virtual int close_file(void)=0;
+
     /* send one packet */
     virtual int send_node(CGenNode * node)=0;
+    
+    /* by default does the same */
+    virtual int send_node_service_mode(CGenNode *node) {
+        return send_node(node);
+    }
+    
     /* send one packet to a specific dir. flush all packets */
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {}
     /* flush all pending packets into the stream */

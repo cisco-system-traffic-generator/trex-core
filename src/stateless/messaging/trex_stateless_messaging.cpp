@@ -233,6 +233,24 @@ TrexStatelessDpBarrier::clone() {
     return new_msg;
 }
 
+/*************************
+  service mode message
+ ************************/
+
+bool
+TrexStatelessDpServiceMode::handle(TrexStatelessDpCore *dp_core) {
+    dp_core->set_service_mode(m_port_id, m_enabled);
+    return true;
+}
+
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpServiceMode::clone() {
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpServiceMode(m_port_id, m_enabled);
+
+    return new_msg;
+}
+
 /************************* messages from DP to CP **********************/
 bool
 TrexDpPortEventMsg::handle() {

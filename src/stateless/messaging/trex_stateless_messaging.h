@@ -140,7 +140,7 @@ protected:
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(uint8_t m_port_id, int m_event_id, TrexStreamsCompiledObj *obj, double duration);
+    TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration);
 
     ~TrexStatelessDpStart();
 
@@ -368,6 +368,29 @@ private:
     int     m_event_id;
 };
 
+
+/**
+ * move a DP core in/out of service mode (slower as it might do
+ * capturing and etc.) 
+ *
+ */
+class TrexStatelessDpServiceMode : public TrexStatelessCpToDpMsgBase {
+public:
+
+    TrexStatelessDpServiceMode(uint8_t port_id, bool enabled) {
+        m_port_id = port_id;
+        m_enabled = enabled;
+    }
+
+    virtual TrexStatelessCpToDpMsgBase * clone();
+
+    virtual bool handle(TrexStatelessDpCore *dp_core);
+
+private:
+
+    uint8_t   m_port_id;
+    bool      m_enabled;
+};
 
 /************************* messages from DP to CP **********************/
 

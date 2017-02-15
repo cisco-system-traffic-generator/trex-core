@@ -989,7 +989,7 @@ TrexStatelessPort::set_service_mode(bool enabled) {
             getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_HW);
         }
         m_is_service_mode_on = enabled;
-        return;
+        break;
         
     case TrexStatelessRxQuery::RC_FAIL_RX_QUEUE_ACTIVE:
         throw TrexException("unable to disable service mode - please remove RX queue");
@@ -1000,6 +1000,10 @@ TrexStatelessPort::set_service_mode(bool enabled) {
     default:
         assert(0);
     }
+    
+    /* update the dp cores */
+    TrexStatelessDpServiceMode *dp_msg = new TrexStatelessDpServiceMode(m_port_id, enabled);
+    send_message_to_all_dp(dp_msg);
 }
 
 

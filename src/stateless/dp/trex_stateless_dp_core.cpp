@@ -28,6 +28,53 @@ limitations under the License.
 #include "mbuf.h"
 
 
+class DPCoreWrapper : public CVirtualIF {
+public:
+    
+    DPCoreWrapper() {
+        m_wrapped = nullptr;
+    }
+    
+    void set_wrapped_object(CVirtualIF *wrapped) {
+        m_wrapped = wrapped;
+    }
+    
+    CVirtualIF *get_wrapped_object() const {
+        return m_wrapped;
+    }
+    
+    virtual int close_file(void) {
+        return m_wrapped->close_file();
+    }
+    
+    virtual int flush_tx_queue(void) {
+        return m_wrapped->flush_tx_queue();
+    }
+    
+    virtual int open_file(std::string file_name) {
+        return m_wrapped->open_file(file_name);
+    }
+    
+    /* move to service mode */
+    virtual int send_node(CGenNode *node) {
+        return m_wrapped->send_node_service_mode(node);
+    }
+    
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t dir, uint8_t *p) {
+        return m_wrapped->update_mac_addr_from_global_cfg(dir, p);
+    }
+    
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
+        return m_wrapped->port_id_to_dir(port_id);
+    }
+    
+    virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {
+        m_wrapped->send_one_pkt(dir, m);
+    }
+    
+private:
+    CVirtualIF *m_wrapped;
+};
 
 
 void CGenNodeStateless::cache_mbuf_array_init(){
@@ -592,6 +639,18 @@ void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
 }
 
 
+TrexStatelessDpCore::TrexStatelessDpCore() {
+    m_thread_id       = 0;
+    m_core            = NULL;
+    m_duration        = -1;
+    m_is_service_mode = NULL;
+    m_wrapper         = new DPCoreWrapper();
+}
+
+TrexStatelessDpCore::~TrexStatelessDpCore() {
+    delete m_wrapper;
+}
+
 
 void
 TrexStatelessDpCore::create(uint8_t thread_id, CFlowGenListPerThread *core) {
@@ -717,6 +776,7 @@ void TrexStatelessDpCore::quit_main_loop(){
  */
 void
 TrexStatelessDpCore::start_scheduler() {
+    
     /* creates a maintenace job using the scheduler */
     CGenNode * node_sync = m_core->create_node() ;
     node_sync->m_type = CGenNode::FLOW_SYNC;
@@ -1253,6 +1313,32 @@ TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
                                                                    port_id,
                                                                    event_id);
     ring->Enqueue((CGenNode *)event_msg);
+}
+
+void
+TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
+    /* ignore the same message */
+    if (enabled == m_is_service_mode) {
+        return;
+    }
+    
+    if (enabled) {
+        /* sanity */
+        assert(m_core->m_node_gen.m_v_if != m_wrapper);
+        
+        /* set the wrapper object and make the VIF point to it */
+        m_wrapper->set_wrapped_object(m_core->m_node_gen.m_v_if);
+        m_core->m_node_gen.m_v_if = m_wrapper;
+        m_is_service_mode = true;
+        
+    } else {
+        /* sanity */
+        assert(m_core->m_node_gen.m_v_if == m_wrapper);
+        
+        /* restore the wrapped object and make the VIF point to it */
+        m_core->m_node_gen.m_v_if = m_wrapper->get_wrapped_object();
+        m_is_service_mode = false;
+    }
 }
 
 

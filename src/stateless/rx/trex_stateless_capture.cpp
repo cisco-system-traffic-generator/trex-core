@@ -46,7 +46,7 @@ TrexStatelessCapture::~TrexStatelessCapture() {
 
 void
 TrexStatelessCapture::handle_pkt(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
-
+    
     if (m_state != STATE_ACTIVE) {
         return;
     }
@@ -127,7 +127,7 @@ TrexStatelessCaptureMngr::update_global_filter() {
     for (TrexStatelessCapture *capture : m_captures) {
         new_filter += capture->get_filter();
     }
-    
+  
     m_global_filter = new_filter;
 }
 
@@ -136,7 +136,7 @@ TrexStatelessCaptureMngr::update_global_filter() {
  * lookup a specific capture by ID
  */
 TrexStatelessCapture *
-TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) {
+TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) const {
     
     for (int i = 0; i < m_captures.size(); i++) {
         if (m_captures[i]->get_id() == capture_id) {
@@ -150,7 +150,7 @@ TrexStatelessCaptureMngr::lookup(capture_id_t capture_id) {
 
 
 int
-TrexStatelessCaptureMngr::lookup_index(capture_id_t capture_id) {
+TrexStatelessCaptureMngr::lookup_index(capture_id_t capture_id) const {
     for (int i = 0; i < m_captures.size(); i++) {
         if (m_captures[i]->get_id() == capture_id) {
             return i;
@@ -179,10 +179,19 @@ TrexStatelessCaptureMngr::start(const CaptureFilter &filter,
     /* create a new capture*/
     int new_id = m_id_counter++;
     TrexStatelessCapture *new_capture = new TrexStatelessCapture(new_id, limit, filter, mode);
+    
+    /**
+     * add the new capture in a safe mode 
+     * (TX might be active) 
+     */
+    std::unique_lock<std::mutex> ulock(m_lock);
     m_captures.push_back(new_capture);
- 
+
     /* update global filter */
     update_global_filter();
+    
+    /* done with critical section */
+    ulock.unlock();
     
     /* result */
     rc.set_rc(new_id, new_capture->get_start_ts());
@@ -196,7 +205,9 @@ TrexStatelessCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
         return;
     }
     
+    std::unique_lock<std::mutex> ulock(m_lock);
     capture->stop();
+    
     rc.set_rc(capture->get_pkt_count());
 }
 
@@ -210,7 +221,11 @@ TrexStatelessCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, Tre
     }
     
     uint32_t pending = 0;
+    
+    /* take a lock before fetching all the packets */
+    std::unique_lock<std::mutex> ulock(m_lock);
     TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
+    ulock.unlock();
     
     rc.set_rc(pkt_buffer, pending, capture->get_start_ts());
 }
@@ -226,14 +241,21 @@ TrexStatelessCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &r
     }
     
     TrexStatelessCapture *capture =  m_captures[index];
+    
+    /* remove from list under lock */
+    std::unique_lock<std::mutex> ulock(m_lock);
+    
     m_captures.erase(m_captures.begin() + index);
+    
+    /* update global filter under lock (for barrier) */
+    update_global_filter();
+    
+    /* done with critical section */
+    ulock.unlock();
     
     /* free memory */
     delete capture;
-    
-    /* update global filter */
-    update_global_filter();
-    
+
     rc.set_rc();
 }
 
@@ -247,24 +269,39 @@ TrexStatelessCaptureMngr::reset() {
     }
 }
 
+//#define STRESS_TEST
 void 
 TrexStatelessCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
-    std::unique_lock<std::mutex> lock(m_lock);
+    
+    #ifdef STRESS_TEST
+        static int sanity = 0;
+        assert(__sync_fetch_and_add(&sanity, 1) == 0);
+    #endif
     
     for (TrexStatelessCapture *capture : m_captures) {
         capture->handle_pkt(m, port, origin);
     }
+    
+    #ifdef STRESS_TEST
+        assert(__sync_fetch_and_sub(&sanity, 1) == 1);
+    #endif
 }
 
-Json::Value
-TrexStatelessCaptureMngr::to_json() const {
-    Json::Value lst = Json::arrayValue;
 
+Json::Value
+TrexStatelessCaptureMngr::to_json() {
+    Json::Value lst = Json::arrayValue;
+    
+    std::unique_lock<std::mutex> ulock(m_lock);
+    
     for (TrexStatelessCapture *capture : m_captures) {
         lst.append(capture->to_json());
     }
 
+    ulock.unlock();
+    
     return lst;
 }
 
 TrexStatelessCaptureMngr TrexStatelessCaptureMngr::g_instance;
+

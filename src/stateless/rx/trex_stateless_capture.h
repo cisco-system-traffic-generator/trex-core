@@ -101,6 +101,14 @@ public:
         return output;
     }
 
+    uint64_t get_tx_active_map() const {
+        return m_tx_active;
+    }
+    
+    uint64_t get_rx_active_map() const {
+        return m_rx_active;
+    }
+    
 private:
     
     uint64_t  m_tx_active;
@@ -247,30 +255,56 @@ public:
     }
     
     /**
-     * handle packet on TX side
+     * handle packet on TX side 
+     * always with a lock 
      */
     inline void handle_pkt_tx(const rte_mbuf_t *m, int port) {
+
+        /* fast path */
+        if (likely(!m_global_filter.in_tx(port))) {
+            return;
+        }
         
-        /* fast bail out IF */
-        if (unlikely(m_global_filter.in_tx(port))) {
+        /* TX core always locks */
+        std::unique_lock<std::mutex> ulock(m_lock);
+        
+        /* check again the global filter (because of RX fast path might not lock) */
+        if (m_global_filter.in_tx(port)) {
             handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_TX);
         }
+        
+        ulock.unlock();
         
     }
     
     /** 
-     * handle packet on RX side
+     * handle packet on RX side 
+     * RX side might or might not use a lock - depends if there are 
+     * other TX cores being captured 
      */
     inline void handle_pkt_rx(const rte_mbuf_t *m, int port) {
         
+        /* fast path */
+        if (likely(!m_global_filter.in_rx(port))) {
+            return;
+        }
+        
+        /* create a RAII object lock but do not lock yet */
+        std::unique_lock<std::mutex> ulock(m_lock, std::defer_lock);
+        
+        /* if we are not alone - lock */
+        if (m_global_filter.get_tx_active_map() != 0) {
+            ulock.lock();
+        }
+        
         /* fast bail out IF */
-        if (unlikely(m_global_filter.in_rx(port))) {
+        if (m_global_filter.in_rx(port)) {
             handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_RX);
         }
         
     }
     
-    Json::Value to_json() const;
+    Json::Value to_json();
         
 private:
     
@@ -280,10 +314,10 @@ private:
     }
     
     
-    TrexStatelessCapture * lookup(capture_id_t capture_id);
-    int lookup_index(capture_id_t capture_id);
+    TrexStatelessCapture * lookup(capture_id_t capture_id) const;
+    int lookup_index(capture_id_t capture_id) const;
     
-    void handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) __attribute__ ((noinline));
+    void handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin);
    
     void update_global_filter();
     

@@ -2166,10 +2166,27 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-    virtual int send_node(CGenNode * node);
+    
+    /**
+     * fast path version
+     */
+    virtual int send_node(CGenNode *node);
+    
+    /**
+     * slow path version
+     */
+    virtual int send_node_service_mode(CGenNode *node);
+    
 protected:
-    int handle_slow_path_node(CGenNode *node);
-    int send_pcap_node(CGenNodePCAP *pcap_node);
+    template <bool SERVICE_MODE> inline int send_node_common(CGenNode *no);
+    
+    inline rte_mbuf_t * generate_node_pkt(CGenNodeStateless *node_sl)   __attribute__ ((always_inline));
+    inline int send_node_packet(CGenNodeStateless      *node_sl,
+                                rte_mbuf_t             *m,
+                                CCorePerPort           *lp_port,
+                                CVirtualIFPerSideStats *lp_stats)   __attribute__ ((always_inline));
+    
+    rte_mbuf_t * generate_slow_path_node_pkt(CGenNodeStateless *node_sl);
 };
 
 bool CCoreEthIF::Create(uint8_t             core_id,
@@ -2311,8 +2328,6 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     lp_port->m_table[len]=m;
     len++;
     
-    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
-    
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
         send_burst(lp_port, MAX_PKT_BURST,lp_stats);
@@ -2414,25 +2429,20 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     return 0;
 }
 
-int CCoreEthIFStateless::send_node(CGenNode * no) {
-    /* if a node is marked as slow path - single IF to redirect it to slow path */
-    if (no->get_is_slow_path()) {
-        return handle_slow_path_node(no);
+inline rte_mbuf_t *
+CCoreEthIFStateless::generate_node_pkt(CGenNodeStateless *node_sl) {
+    if (unlikely(node_sl->get_is_slow_path())) {
+        return generate_slow_path_node_pkt(node_sl);
     }
-
-    CGenNodeStateless * node_sl=(CGenNodeStateless *) no;
-
+    
     /* check that we have mbuf  */
-    rte_mbuf_t *    m;
-
-    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
-    CCorePerPort *  lp_port=&m_ports[dir];
-    CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
+    rte_mbuf_t *m;
+    
     if ( likely(node_sl->is_cache_mbuf_array()) ) {
-        m=node_sl->cache_mbuf_array_get_cur();
+        m = node_sl->cache_mbuf_array_get_cur();
         rte_pktmbuf_refcnt_update(m,1);
     }else{
-        m=node_sl->get_cache_mbuf();
+        m = node_sl->get_cache_mbuf();
 
         if (m) {
             /* cache case */
@@ -2443,6 +2453,15 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
         }
     }
 
+    return m;
+}
+
+inline int
+CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
+                                      rte_mbuf_t             *m,
+                                      CCorePerPort           *lp_port,
+                                      CVirtualIFPerSideStats *lp_stats) {
+    
     if (unlikely(node_sl->is_stat_needed())) {
         if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
             // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
@@ -2451,38 +2470,49 @@ int CCoreEthIFStateless::send_node(CGenNode * no) {
         }
         return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
     } else {
-        send_pkt(lp_port,m,lp_stats);
+        return send_pkt(lp_port, m, lp_stats);
     }
+}
 
-    return (0);
-};
+int CCoreEthIFStateless::send_node(CGenNode *no) {
+    return send_node_common<false>(no);
+}
 
-int CCoreEthIFStateless::send_pcap_node(CGenNodePCAP *pcap_node) {
-    rte_mbuf_t *m = pcap_node->get_pkt();
-    if (!m) {
-        return (-1);
+int CCoreEthIFStateless::send_node_service_mode(CGenNode *no) {
+    return send_node_common<true>(no);
+}
+
+template <bool SERVICE_MODE>
+int CCoreEthIFStateless::send_node_common(CGenNode *no) {
+    CGenNodeStateless * node_sl = (CGenNodeStateless *) no;
+    
+    pkt_dir_t dir                     = (pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *lp_port             = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
+    
+    rte_mbuf_t *m = generate_node_pkt(node_sl);
+    
+    /* template boolean - this will be removed at compile time */
+    if (SERVICE_MODE) {
+        TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
     }
-
-    pkt_dir_t dir = (pkt_dir_t)pcap_node->get_mbuf_dir();
-    CCorePerPort *lp_port=&m_ports[dir];
-    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-
-    send_pkt(lp_port, m, lp_stats);
-
-    return (0);
+    
+    return send_node_packet(node_sl, m, lp_port, lp_stats);
 }
 
 /**
  * slow path code goes here
  *
  */
-int CCoreEthIFStateless::handle_slow_path_node(CGenNode * no) {
+rte_mbuf_t *
+CCoreEthIFStateless::generate_slow_path_node_pkt(CGenNodeStateless *node_sl) {
 
-    if (no->m_type == CGenNode::PCAP_PKT) {
-        return send_pcap_node((CGenNodePCAP *)no);
+    if (node_sl->m_type == CGenNode::PCAP_PKT) {
+        CGenNodePCAP *pcap_node = (CGenNodePCAP *)node_sl;
+        return pcap_node->get_pkt();
     }
 
-    return (-1);
+    return (NULL);
 }
 
 void CCoreEthIF::apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
