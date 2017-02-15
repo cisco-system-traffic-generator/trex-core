@@ -1,220 +1,189 @@
+#!/usr/bin/python
 import os
-import dpkt
-import struct
 import socket
 import sys
-import argparse;
+import argparse
+import outer_packages
+from scapy.all import *
+import texttable
 
-
-H_SCRIPT_VER = "0.1"
 
 class sock_driver(object):
-     args=None;
+    args = None;
+    cap_server_port = None
 
-
-def nl (buf):
-    return ( struct.unpack('>I', buf)[0]);
-
-def dump_tuple (t):
-    for obj in t:
-        print hex(obj),",",
-
-class CFlowRec:
-    def __init__ (self):
-        self.is_init_dir=False;
-        self.bytes=0;
-        self.data=None;
-
-    def __str__ (self):
-        if self.is_init_dir :
-            s=" client "
-        else:
-            s=" server "
-        s+= " %d " %(self.bytes)
-        return (s);
-
-
+def fail(msg):
+    print('\nError: %s\n' % msg)
+    sys.exit(1)
 
 class CPcapFileReader:
-    def __init__ (self,file_name):
-        self.file_name=file_name;
-        self.tuple=None;
-        self.swap=False;
-        self.info=[];
+    def __init__ (self, file_name):
+        self.file_name = file_name
+        self.pkts = []
+        self.__build_pkts()
+        if not self.pkts:
+            fail('No payloads were found in the pcap.')
 
-    def dump_info (self):
-        for obj in self.info:
-            print obj
-            #print "'",obj.data,"'"
+    def __build_pkts(self):
+        if not os.path.exists(self.file_name):
+            fail('Filename %s does not exist!' % self.file_name)
+        pcap = RawPcapReader(self.file_name).read_all()
+        if not pcap:
+            fail('Empty pcap!')
+        first_tuple = None
 
-    def is_client_side (self,swap):
-        if self.swap ==swap:
-            return (True);
-        else:
-            return (False);
+        for index, (raw_pkt, _) in enumerate(pcap):
+            scapy_pkt = Ether(raw_pkt)
 
-    def add_server(self,server,data):
-        r=CFlowRec();
-        r.is_init_dir =False;
-        r.bytes = server
-        r.data=data
-        self.info.append(r);
-
-    def add_client(self,client,data):
-        r=CFlowRec();
-        r.is_init_dir =True;
-        r.bytes = client
-        r.data=data
-        self.info.append(r);
-
-    def check_tcp_flow (self):
-        f = open(self.file_name)
-        pcap = dpkt.pcap.Reader(f)
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            ip = eth.data
-            tcp = ip.data
-            if ip.p != 6 :
-                raise Exception("not a TCP flow ..");
-            if tcp.flags  != dpkt.tcp.TH_SYN :
-                raise Exception("first packet should be with SYN");
-            break;
-        f.close();
-
-    def check_one_flow (self):
-        cnt=1
-        client=0;
-        server=0;
-        client_data=''
-        server_data=''
-        is_c=False # the direction
-        is_s=False
-        f = open(self.file_name)
-        pcap = dpkt.pcap.Reader(f)
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            ip = eth.data
-            tcp = ip.data
-            pld = tcp.data;
-            
-            pkt_swap=False
-            if nl(ip.src) > nl(ip.dst):
-                pkt_swap=True
-                tuple= (nl(ip.dst),nl(ip.src), tcp.dport ,tcp.sport,ip.p );
+            # check L3
+            ipv4 = scapy_pkt.getlayer('IP')
+            ipv6 = scapy_pkt.getlayer('IPv6')
+            garbage = 0
+            if ipv4 and ipv6:
+                scapy_pkt.show2()
+                fail('Packet #%s in pcap has both IPv4 and IPv6!' % index)
+            elif ipv4:
+                l3 = ipv4
+                garbage = len(ipv4) - ipv4.len
+            elif ipv6:
+                l3 = ipv6
+                garbage = len(ipv6) - ipv6.plen - 40
             else:
-                tuple= (nl(ip.src),nl(ip.dst) ,tcp.sport,tcp.dport,ip.p );
+                scapy_pkt.show2()
+                fail('Packet #%s in pcap is not IPv4/6.' % index)
 
-            if self.tuple == None:
-                self.swap=pkt_swap
-                self.tuple=tuple
+            # check L4
+            tcp = scapy_pkt.getlayer('TCP')
+            udp = scapy_pkt.getlayer('UDP')
+            if tcp and udp:
+                scapy_pkt.show2()
+                fail('Packet #%s in pcap has both TCP and UDP!' % index)
+            elif tcp:
+                l4 = tcp
+            elif udp:
+                l4 = udp
             else:
-                if self.tuple != tuple:
-                    raise Exception("More than one flow - can't process this flow");
+                scapy_pkt.show2()
+                fail('Packet #%s in pcap is not TCP or UDP.' % index)
 
-            
-            print " %5d," % (cnt),
-            if self.is_client_side (pkt_swap):
-                print "client",
-                if len(pld) >0 :
-                    if is_c==False:
-                        is_c=True
-                    if is_s:
-                        self.add_server(server,server_data);
-                        server=0;
-                        server_data=''
-                        is_s=False;
-    
-                    client+=len(pld);
-                    client_data=client_data+pld;
+            pkt = {}
+            pkt['src_ip'] = l3.src
+            pkt['dst_ip'] = l3.dst
+            pkt['src_port'] = l4.sport
+            pkt['dst_port'] = l4.dport
+            if tcp:
+                pkt['tcp_seq'] = tcp.seq
+            if garbage:
+                pkt['pld'] = bytes(l4.payload)[:-garbage]
             else:
-                if len(pld) >0 :
-                    if is_s==False:
-                        is_s=True
-                    if is_c:
-                        self.add_client(client,client_data);
-                        client=0;
-                        client_data=''
-                        is_c=False;
-    
-                    server+=len(pld)
-                    server_data=server_data+pld;
+                pkt['pld'] = bytes(l4.payload)
 
-                print "server",
-            print " %5d" % (len(pld)),
-            dump_tuple (tuple)
-            print 
+            if index == 0:
+                if tcp and tcp.flags != 2:
+                    scapy_pkt.show2()
+                    fail('First TCP packet should be with SYN')
+                first_tuple = (l3.dst, l3.src, l4.dport, l4.sport, l4.name)
+                sock_driver.cap_server_port = l4.dport
 
-            cnt=cnt+1
+            if first_tuple == (l3.dst, l3.src, l4.dport, l4.sport, l4.name):
+                pkt['is_client'] = True
+            elif first_tuple == (l3.src, l3.dst, l4.sport, l4.dport, l4.name):
+                pkt['is_client'] = False
+            else:
+                fail('More than one flow in this pcap.\nFirst tuple is: %s,\nPacket #%s has tuple: %s' % (first_tuple, (l3.dst, l3.src, l4.dport, l4.sport, l4.name)))
 
-        if is_c:
-            self.add_client(client,client_data);
-        if is_s:
-            self.add_server(server,server_data);
+            if pkt['pld']: # has some data
+                if tcp:
+                    is_retransmission = False
+                    # check retransmission and out of order
+                    for old_pkt in reversed(self.pkts):
+                        if old_pkt['is_client'] == pkt['is_client']: # same side
+                            if old_pkt['tcp_seq'] == tcp.seq:
+                                is_retransmission = True
+                            if old_pkt['tcp_seq'] > tcp.seq:
+                                fail('Out of order in TCP packet #%s, please check the pcap manually.' % index)
+                        break
+                    if is_retransmission:
+                        continue # to next packet
 
-        f.close();
+                self.pkts.append(pkt)
+
+
+    def dump_info(self):
+        t = texttable.Texttable(max_width = 200)
+        t.set_deco(0)
+        t.set_cols_align(['r', 'c', 'l', 'l', 'r', 'r', 'r'])
+        t.header(['Index', 'Side', 'Dst IP', 'Src IP', 'Dst port', 'Src port', 'PLD len'])
+        for index, pkt in enumerate(self.pkts):
+            t.add_row([index, 'Client' if pkt['is_client'] else 'Server', pkt['dst_ip'], pkt['src_ip'], pkt['dst_port'], pkt['src_port'], len(pkt['pld'])])
+        print(t.draw())
+        print('')
 
 
 class CClientServerCommon(object):
 
-    def __init__ (self):
-        pass;
+    def send_pkt(self, pkt):
+        self.connection.sendall(pkt)
+        print('>>> sent %d bytes' % (len(pkt)))
 
-    def send_info (self,data):
-         print "server send %d bytes" % (len(data))
-         self.connection.sendall(data)
+    def rcv_pkt(self, pkt):
+        size = len(pkt)
+        rcv = b''
+        while len(rcv) < size:
+            chunk = self.connection.recv(min(size - len(rcv), 2048))
+            if not chunk:
+                raise Exception('Socket connection broken')
+            rcv += chunk
+        if len(rcv) != size:
+            fail('Size of data does not match.\nExpected :s, got: %s' % (size, len(rcv)))
+        if len(rcv) != len(pkt):
+            for i in range(size):
+                if rcv[i] != pkt[i]:
+                    fail('Byte number #%s is expected to be: %s, got: %s.' % (i, rcv[i], pkt[i]))
+        print('<<< recv %d bytes' % (len(rcv)))
 
-    def rcv_info (self,msg_size):
-        print "server wait for %d bytes" % (msg_size)
+    def process(self, is_client):
+        for pkt in self.pcapr.pkts:
+            time.sleep(sock_driver.args.ipg)
+            if is_client ^ pkt['is_client']:
+                self.rcv_pkt(pkt['pld'])
+            else:
+                self.send_pkt(pkt['pld'])
 
-        bytes_recd = 0
-        while bytes_recd < msg_size:
-            chunk = self.connection.recv(min(msg_size - bytes_recd, 2048))
-            if chunk == '':
-                raise RuntimeError("socket connection broken")
-            bytes_recd = bytes_recd + len(chunk)
-
-
-    def process (self,is_server):
-         pcapinfo=self.pcapr.info
-         for obj in pcapinfo:
-             if is_server:
-                 if obj.is_init_dir:
-                     self.rcv_info (obj.bytes);
-                 else:
-                     self.send_info (obj.data);
-             else:
-                 if obj.is_init_dir:
-                     self.send_info (obj.data);
-                 else:
-                     self.rcv_info (obj.bytes);
-
-         self.connection.close();
-         self.connection = None
+        self.connection.close()
+        self.connection = None
 
 
 class CServer(CClientServerCommon) :
-    def __init__ (self,pcapr,port):
-        super(CServer, self).__init__()
+    def __init__ (self, pcapr, port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         server_address = ('', port)
-        print 'starting up on %s port %s' % server_address
-        sock.bind(server_address)
+        print('Starting up on %sport %s' % ('%s ' % server_address[0] if server_address[0] else '', server_address[1]))
+        try:
+            sock.bind(server_address)
+        except socket.error as e:
+            fail(e)
         sock.listen(1)
+        self.connection = None
 
-        self.pcapr=pcapr; # save the info 
+        self.pcapr=pcapr; # save the info
 
         while True:
-            # Wait for a connection
-            print 'waiting for a connection'
-            connection, client_address = sock.accept()
-
             try:
-               print 'connection from', client_address
-               self.connection = connection;
+                # Wait for a connection
+                print('Waiting for new connection')
+                self.connection, client_address = sock.accept()
 
-               self.process(True);
+                print('Got connection from %s:%s' % client_address)
+                self.process(False)
+
+            except KeyboardInterrupt:
+                print('    Ctrl+C')
+                break
+            except Exception as e:
+                print(e)
             finally:
                 if self.connection :
                    self.connection.close()
@@ -222,331 +191,65 @@ class CServer(CClientServerCommon) :
 
 
 class CClient(CClientServerCommon):
-    def __init__ (self,pcapr,ip,port):
-        super(CClient, self).__init__()
+    def __init__ (self, pcapr, ip, port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #sock.setsockopt(socket.SOL_SOCKET,socket.TCP_MAXSEG,300)
         server_address = (ip, port)
-        print 'connecting to %s port %s' % server_address
-
-        sock.connect(server_address)
-        self.connection=sock;
-        self.pcapr=pcapr; # save the info 
+        self.pcapr = pcapr # save the info
+        self.connection = None
 
         try:
+            print('Connecting to %s:%s' % server_address)
+            sock.connect(server_address)
+            self.connection = sock
 
-            self.process(False);
+            self.process(True);
+        except KeyboardInterrupt:
+            print('    Ctrl+C')
         finally:
             if self.connection :
                self.connection.close()
                self.connection = None
 
 
-def test_file_load ():
-    pcapr= CPcapFileReader("delay_10_http_browsing_0.pcap")
-    pcapr.check_tcp_flow ()
-    pcapr.check_one_flow ()
-    pcapr.dump_info();
-
-
 def process_options ():
-    parser = argparse.ArgumentParser(usage=""" 
-    sock [-s|-c] -f file_name 
+    parser = argparse.ArgumentParser(
+        description = 'Simulates TCP application in low rate by sending payloads of given pcap.',
+        usage="""    
+    Server side: (should be run first, need sudo permissions to use server side ports lower than 1024.)
+        sock.py -s -f filename
+    Client side:
+        sock.py -c -f filename --ip <server ip>""",
+        epilog=" written by hhaim");
 
-    """,
-                                    description="offline process a pcap file",
-                                    epilog=" written by hhaim");
-
-    parser.add_argument("-f",  dest="file_name",
-                        help=""" the file name to process """,
-                        required=True)
-
-    parser.add_argument('-c', action='store_true',
-                        help='client side')
-
-    parser.add_argument('-s', action='store_true',
-                        help='server side  ')
-
-    parser.add_argument('--fix-time', action='store_true',
-                        help='fix_time  ')
-
-    parser.add_argument('--port', type=int,  default=1000,
-                        help='server_port  ')
-
-    parser.add_argument('--ip',   default='127.0.0.1',
-                        help='socket ip  ')
-
-    parser.add_argument('--debug', action='store_true',
-                        help='debug mode')
-
-    parser.add_argument('--version', action='version',
-                        version=H_SCRIPT_VER )
-
-
-
+    parser.add_argument("-f",  dest = "file_name", required = True, help='pcap filename to process')
+    parser.add_argument('-c', action = 'store_true', help = 'client side flag')
+    parser.add_argument('-s', action = 'store_true', help = 'server side flag')
+    parser.add_argument('--port', type = int, help = 'server port, default is taken from the cap')
+    parser.add_argument('--ip', default = '127.0.0.1', help = 'server ip')
+    parser.add_argument('-i', '--ipg', type = float, default = 0.001, help = 'ipg (msec)')
+    parser.add_argument('-v', '--verbose', action='store_true', help = 'verbose')
     sock_driver.args = parser.parse_args();
 
-    if sock_driver.args.fix_time :
-        return ;
-    if (sock_driver.args.c ^ sock_driver.args.s) ==0:
-        raise Exception ("you must set either client or server mode");
+    if not (sock_driver.args.c ^ sock_driver.args.s):
+        fail('You must choose either client or server side with -c or -s flags.');
 
-def load_pcap_file ():
-    pcapr= CPcapFileReader(sock_driver.args.file_name)
-    pcapr.check_tcp_flow ()
-    pcapr.check_one_flow ()
-    pcapr.dump_info();
-    return pcapr
-
-def run_client_side ():
-    pcapr=load_pcap_file ()
-    socket_client = CClient(pcapr,sock_driver.args.ip,sock_driver.args.port);
-
-
-def run_server_side ():
-    pcapr=load_pcap_file ()
-    socket_server = CServer(pcapr,sock_driver.args.port);
-
-
-class CPktWithTime:
-    def __init__ (self,pkt,ts):
-        self.pkt=pkt;
-        self.ts=ts
-    def __cmp__ (self,other):
-        return cmp(self.ts,other.ts);
-
-    def __repr__ (self):
-        s=" %x:%d" %(self.pkt,self.ts)
-        return s;
-
-
-class CPcapFixTime:
-    def __init__ (self,in_file_name,
-                       out_file_name):
-        self.in_file_name  = in_file_name;
-        self.out_file_name = out_file_name;
-        self.tuple=None;
-        self.swap=False;
-        self.rtt =0;
-        self.rtt_syn_ack_ack =0; # ack on the syn ack 
-        self.pkts=[] 
-
-    def calc_rtt (self):
-        f = open(self.in_file_name)
-        pcap = dpkt.pcap.Reader(f)
-        cnt=0;
-        first_time_set=False;
-        first_time=0;
-        last_syn_time=0;
-        rtt=0;
-        rtt_syn_ack_ack=0;
-
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            ip = eth.data
-            tcp = ip.data
-
-            if first_time_set ==False:
-                first_time=ts;
-                first_time_set=True;
-            else:
-                rtt=ts-first_time;
-
-            if ip.p != 6 :
-                raise Exception("not a TCP flow ..");
-
-            if cnt==0 or cnt==1:
-                if (tcp.flags & dpkt.tcp.TH_SYN)  != dpkt.tcp.TH_SYN :
-                    raise Exception("first packet should be with SYN");
-
-            if cnt==1:
-                last_syn_time=ts;
-
-            if cnt==2:
-                rtt_syn_ack_ack=ts-last_syn_time;
-
-            if cnt > 1 :
-                break;
-            cnt = cnt +1;
-
-        f.close();
-        self.rtt_syn_ack_ack = rtt_syn_ack_ack;
-        return (rtt);
-
-    def is_client_side (self,swap):
-        if self.swap ==swap:
-            return (True);
-        else:
-            return (False);
-
-    def calc_timing (self):
-        self.rtt=self.calc_rtt ();
-
-    def fix_timing (self):
-
-        rtt=self.calc_rtt ();
-        print "RTT is %f msec" % (rtt*1000)
-
-        if (rtt/2)*1000<5:
-            raise Exception ("RTT is less than 5msec, you should replay it");
-
-        time_to_center=rtt/4; 
-
-        f = open(self.in_file_name)
-        fo = open(self.out_file_name,"wb")
-        pcap = dpkt.pcap.Reader(f)
-        pcap_out = dpkt.pcap.Writer(fo)
-
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            ip = eth.data
-            tcp = ip.data
-            pld = tcp.data;
-
-            pkt_swap=False
-            if nl(ip.src) > nl(ip.dst):
-                pkt_swap=True
-                tuple= (nl(ip.dst),nl(ip.src), tcp.dport ,tcp.sport,ip.p );
-            else:
-                tuple= (nl(ip.src),nl(ip.dst) ,tcp.sport,tcp.dport,ip.p );
-
-            if self.tuple == None:
-                self.swap=pkt_swap
-                self.tuple=tuple
-            else:
-                if self.tuple != tuple:
-                    raise Exception("More than one flow - can't process this flow");
-
-            if self.is_client_side (pkt_swap):
-                self.pkts.append(CPktWithTime( buf,ts+time_to_center));
-            else:
-                self.pkts.append(CPktWithTime( buf,ts-time_to_center));
-
-        self.pkts.sort();
-        for pkt in self.pkts:
-            pcap_out.writepkt(pkt.pkt, pkt.ts)
-
-        f.close()
-        fo.close();
-
-    
 
 def main ():
     process_options ()
+    pcapr = CPcapFileReader(sock_driver.args.file_name)
+    if sock_driver.args.verbose:
+        pcapr.dump_info()
 
-    if sock_driver.args.fix_time:
-        pcap = CPcapFixTime(sock_driver.args.file_name ,sock_driver.args.file_name+".fix.pcap")
-        pcap.fix_timing ()
+    port = sock_driver.cap_server_port
+    if sock_driver.args.port:
+        port = sock_driver.args.port
+    if port == 22:
+        fail('Port 22 is used by ssh, exiting.')
 
     if sock_driver.args.c:
-        run_client_side ();
-
+        CClient(pcapr, sock_driver.args.ip, port)
     if sock_driver.args.s:
-        run_server_side ();
+        CServer(pcapr, port)
 
-
-files_to_convert=[
-'citrix_0',
-'exchange_0',
-'http_browsing_0',
-'http_get_0',
-'http_post_0',
-'https_0',
-'mail_pop_0',
-'mail_pop_1',
-'mail_pop_2',
-'oracle_0',
-'rtsp_0',
-'smtp_0',
-'smtp_1',
-'smtp_2'
-];
-
-
-#files_to_convert=[
-#'http_browsing_0',
-#];
-
-def test_pcap_file ():
-    for file in files_to_convert:
-        fn='tun_'+file+'.pcap';
-        fno='_tun_'+file+'_fixed.pcap';
-        print "convert ",fn
-        pcap = CPcapFixTime(fn,fno)
-        pcap.fix_timing ()
-
-
-
-
-class CPcapFileState:
-    def __init__ (self,file_name):
-        self.file_name = file_name
-        self.is_one_tcp_flow = False;
-        self.is_rtt_valid = False;
-        self.rtt=0;
-        self.rtt_ack=0;
-
-    def calc_stats (self):
-        file = CPcapFileReader(self.file_name);
-        try:
-            file.check_tcp_flow()
-            file.check_one_flow ()
-            self.is_one_tcp_flow = True;
-        except Exception :
-            self.is_one_tcp_flow = False;
-
-        print self.is_one_tcp_flow
-        if self.is_one_tcp_flow :
-            pcap= CPcapFixTime(self.file_name,"");
-            try:
-                pcap.calc_timing ()
-                print "rtt : %d %d \n" % (pcap.rtt*1000,pcap.rtt_syn_ack_ack*1000);
-                if (pcap.rtt*1000) > 10 and (pcap.rtt_syn_ack_ack*1000) >0.0 and   (pcap.rtt_syn_ack_ack*1000) <2.0 :
-                    self.is_rtt_valid = True
-                    self.rtt = pcap.rtt*1000;
-                    self.rtt_ack =pcap.rtt_syn_ack_ack*1000;
-            except Exception :
-                pass;
-
-
-def test_pcap_file (file_name):
-    p= CPcapFileState(file_name)
-    p.calc_stats(); 
-    if p.is_rtt_valid:
-        return True
-    else:
-        return False
-
-def iterate_tree_files (dirwalk,path_to):
-    fl=open("res.csv","w+");
-    cnt=0;
-    cnt_valid=0
-    for root, _, files in os.walk(dirwalk):
-        for f in files:
-            fullpath = os.path.join(root, f)
-            p= CPcapFileState(fullpath)
-            p.calc_stats(); 
-
-            valid=test_pcap_file (fullpath)
-            s='%s,%d,%d,%d \n' %(fullpath,p.is_rtt_valid,p.rtt,p.rtt_ack)
-            cnt = cnt +1 ;
-            if p.is_rtt_valid:
-                cnt_valid =  cnt_valid +1;
-                diro=path_to+"/"+root;
-                fo = os.path.join(diro, f)
-                os.system("mkdir -p "+ diro);
-                pcap = CPcapFixTime(fullpath,fo)
-                pcap.fix_timing ()
-
-            print s
-            fl.write(s);
-    print " %d %% %d valids \n" % (100*cnt_valid/cnt,cnt);
-    fl.close();
-
-path_code="/scratch/tftp/pFidelity/pcap_repository"
-
-iterate_tree_files (path_code,"output")
-#test_pcap_file ()
-#test_pcap_file ()
-#main();
+main()
 
