@@ -107,6 +107,10 @@ test_client_cfg_vlan:
     cores               : 1
     multiplier          : 10
 
+test_platform_cfg_vlan:
+    cores               : 1
+    multiplier          : 10
+
 test_rx_check_http: &rx_http
     multiplier          : 8800
     cores               : 1

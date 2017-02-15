@@ -1229,7 +1229,8 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
     if ( get_is_stateless() ) {
         if ( opt_vlan_was_set ) {
-            po->preview.set_vlan_mode_enable(true);
+            // Only purpose of this in stateless is for configuring the 82599 rules correctly
+            po->preview.set_vlan_mode(CPreviewMode::VLAN_MODE_NORMAL);
         }
         if (CGlobalInfo::m_options.client_cfg_file != "") {
             parse_err("Client config file is not supported with interactive (stateless) mode ");
@@ -1355,7 +1356,7 @@ public:
         if (get_is_stateless()) {
             m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
             /* Increment offset 4 bytes for the case where we add VLAN */
-            if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) {
+            if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) {
                 m_port_conf.fdir_conf.flexbytes_offset += (4/2);
             }
         } else {
@@ -1366,7 +1367,7 @@ public:
             }
 
             /* Increment offset 4 bytes for the case where we add VLAN */
-            if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) {
+            if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE ) {
                 m_port_conf.fdir_conf.flexbytes_offset += (4/2);
             }
         }
@@ -2152,8 +2153,6 @@ protected:
                  rte_mbuf_t *m,
                  CVirtualIFPerSideStats  * lp_stats);
 
-    void add_vlan(rte_mbuf_t *m, uint16_t vlan_id);
-
 protected:
     uint8_t      m_core_id;
     uint16_t     m_mbuf_cache;
@@ -2545,13 +2544,6 @@ void CCoreEthIF::apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_d
     }
 }
 
-
-void CCoreEthIF::add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
-    m->ol_flags = PKT_TX_VLAN_PKT;
-    m->l2_len   = 14;
-    m->vlan_tci = vlan_id;
-}
-
 /**
  * slow path features goes here (avoid multiple IFs)
  *
@@ -2600,17 +2592,26 @@ int CCoreEthIF::send_node(CGenNode * node) {
     single_port = node->get_is_all_flow_from_same_dir() ;
 
 
-    if ( unlikely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-        /* which vlan to choose 0 or 1*/
-        uint8_t vlan_port = (node->m_src_ip &1);
-        uint16_t vlan_id  = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
+                  != CPreviewMode::VLAN_MODE_NONE) ) {
+        uint16_t vlan_id=0;
 
-        if (likely( vlan_id >0 ) ) {
-            dir = dir ^ vlan_port;
-        }else{
-            /* both from the same dir but with VLAN0 */
-            vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
-            dir = dir ^ 0;
+        if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
+            /* which vlan to choose 0 or 1*/
+            uint8_t vlan_port = (node->m_src_ip & 1);
+            vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+            if (likely( vlan_id > 0 ) ) {
+                dir = dir ^ vlan_port;
+            } else {
+                /* both from the same dir but with VLAN0 */
+                vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
+            }
+        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_NORMAL) {
+            CCorePerPort *lp_port = &m_ports[dir];
+            uint8_t port_id = lp_port->m_port->get_port_id();
+            vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
         }
 
         add_vlan(m, vlan_id);
@@ -2704,12 +2705,14 @@ public:
         rte_mbuf_t *tx_pkts[2];
         
         tx_pkts[0] = m;
-        if ( likely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-            /* vlan mode is the default */
-            /* set the vlan */
-            m->ol_flags = PKT_TX_VLAN_PKT;
-            m->vlan_tci =CGlobalInfo::m_options.m_vlan_port[0];
-            m->l2_len   =14;
+        uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
+        if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
+            if ( vlan_mode == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
+                add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
+            } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
+                uint8_t port_id = m_port->get_rte_port_id();
+                add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+            }
         }
         uint16_t res=m_port->tx_burst(m_tx_queue_id,tx_pkts,1);
         if ( res == 0 ) {
@@ -2799,12 +2802,15 @@ public:
 private:
       virtual int tx_common(rte_mbuf_t *m, bool fix_timestamp) {
         
-        if ( likely( CGlobalInfo::m_options.preview.get_vlan_mode_enable() ) ){
-            /* vlan mode is the default */
-            /* set the vlan */
-            m->ol_flags = PKT_TX_VLAN_PKT;
-            m->vlan_tci =CGlobalInfo::m_options.m_vlan_port[0];
-            m->l2_len   =14;
+
+        uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
+        if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
+            if ( vlan_mode == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
+                add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
+            } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
+                uint8_t port_id = m_port->get_rte_port_id();
+                add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+            }
         }
 
         /* allocate node */
@@ -4002,7 +4008,7 @@ bool CGlobalTRex::Create(){
     }
 
     if ( pre_yaml_info.m_vlan_info.m_enable ){
-        CGlobalInfo::m_options.preview.set_vlan_mode_enable(true);
+        CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_LOAD_BALANCE);
     }
     /* End update pre flags */
 
@@ -5514,6 +5520,10 @@ int update_global_info_from_platform_file(){
             CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             CGlobalInfo::m_options.m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
             CGlobalInfo::m_options.m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
+            // If one of the ports has vlan, work in vlan mode
+            if (cg->m_mac_info[i].get_vlan() != 0) {
+                CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+            }
         }
     }
 
@@ -6145,7 +6155,7 @@ int CTRexExtendedDriverBase1G::configure_rx_filter_rules_statefull(CPhyEthIF * _
             _if->pci_reg_write( (E1000_FHFT(rule_id)+i) , 0);
         }
 
-        if (  CGlobalInfo::m_options.preview.get_vlan_mode_enable() ){
+        if (CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) {
             len += 8;
             if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ){
                 // IPv6 VLAN: NextHdr/HopLimit offset = 0x18
@@ -6544,7 +6554,8 @@ int CTRexExtendedDriverBase10G::wait_for_stable_link(){
 }
 
 CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
-    CFlowStatParser *parser = new C82599Parser(CGlobalInfo::m_options.preview.get_vlan_mode_enable() ? true:false);
+    CFlowStatParser *parser = new C82599Parser((CGlobalInfo::m_options.preview.get_vlan_mode()
+                                                != CPreviewMode::VLAN_MODE_NONE) ? true:false);
     assert (parser);
     return parser;
 }

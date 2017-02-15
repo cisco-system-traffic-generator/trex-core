@@ -449,8 +449,8 @@ TEST_F(basic, ipv4_vlan) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/ipv4_vlan.yaml";
-     po->out_file ="exp/ipv4_vlan";
+     po->cfg_file ="cap2/ipv4_load_balance.yaml";
+     po->out_file ="exp/ipv4_load_balance";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
@@ -462,8 +462,8 @@ TEST_F(basic, ipv6_vlan) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/ipv6_vlan.yaml";
-     po->out_file ="exp/ipv6_vlan";
+     po->cfg_file ="cap2/ipv6_load_balance.yaml";
+     po->out_file ="exp/ipv6_load_balance";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }

@@ -758,10 +758,21 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," flow-flip       : %d\n", (int)getClientServerFlowFlip() );
     fprintf(fd," no clean close  : %d\n", (int)getNoCleanFlowClose() );
     fprintf(fd," zmq_publish     : %d\n", (int)get_zmq_publish_enable() );
-    fprintf(fd," vlan_enable     : %d\n", (int)get_vlan_mode_enable() );
+    fprintf(fd," vlan mode       : %d\n",  get_vlan_mode());
     fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
     fprintf(fd," vm mode         : %d\n", (int)get_vm_one_queue_enable()?1:0 );
+}
+
+void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {
+        // validate that there is no vlan both in platform config file and traffic profile
+    if ((CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) &&
+        ( CGlobalInfo::m_options.preview.get_vlan_mode() != mode ) ) {
+        fprintf(stderr, "Error: You are not allowed to specify vlan both in platform config file (--cfg) and traffic config file (-f)\n");
+        fprintf(stderr, "       Please remove vlan definition from one of the files, and try again.\n");
+        exit(1);
+    }
+    set_vlan_mode(mode);
 }
 
 void CFlowGenStats::clear(){
@@ -5060,9 +5071,14 @@ int CFlowGenList::load_from_yaml(std::string file_name,
     }
 
     /* move it to global info, better CPU D-cache  usage */
-    CGlobalInfo::m_options.preview.set_vlan_mode_enable(m_yaml_info.m_vlan_info.m_enable);
-    CGlobalInfo::m_options.m_vlan_port[0] =   m_yaml_info.m_vlan_info.m_vlan_per_port[0];
-    CGlobalInfo::m_options.m_vlan_port[1] =   m_yaml_info.m_vlan_info.m_vlan_per_port[1];
+    if (m_yaml_info.m_vlan_info.m_enable) {
+        CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_LOAD_BALANCE);
+        CGlobalInfo::m_options.m_vlan_port[0] = m_yaml_info.m_vlan_info.m_vlan_per_port[0];
+        CGlobalInfo::m_options.m_vlan_port[1] = m_yaml_info.m_vlan_info.m_vlan_per_port[1];
+    } else {
+        CGlobalInfo::m_options.m_vlan_port[0] = 0;
+        CGlobalInfo::m_options.m_vlan_port[1] = 0;
+    }
     CGlobalInfo::m_options.preview.set_mac_ip_overide_enable(m_yaml_info.m_mac_replace_by_ip);
 
     if ( m_yaml_info.m_mac_base.size() != 6 ){
@@ -5386,8 +5402,8 @@ void CParserOption::dump(FILE *fd){
     fprintf(fd," tw_levels       : %lu usec \n",(ulong)get_tw_levels());   
 
 
-    if (preview.get_vlan_mode_enable() ) {
-       fprintf(fd," vlans     : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
+    if (preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
+       fprintf(fd," vlans (for load balance) : [%d,%d] \n",m_vlan_port[0],m_vlan_port[1]);
     }
 
     int i;
@@ -5397,15 +5413,23 @@ void CParserOption::dump(FILE *fd){
         dump_mac_addr(fd,lp->u.m_mac.dest);
         fprintf(fd,"  src:");
         dump_mac_addr(fd,lp->u.m_mac.src);
+        if (preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) {
+            fprintf(fd, " vlan:%d", m_ip_cfg[i].get_vlan());
+        }
         fprintf(fd,"\n");
     }
+
 }
 
 void CParserOption::verify() {
     /* check for mutual exclusion options */
-    if (preview.get_is_client_cfg_enable()) {
-        if (preview.get_vlan_mode_enable() || preview.get_mac_ip_overide_enable()) {
-            throw std::runtime_error("VLAN / MAC override cannot be combined with client configuration");
+    if ( preview.get_is_client_cfg_enable() ) {
+        if ( preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
+            throw std::runtime_error("--client_cfg_file option can not be combined with specifing VLAN in traffic profile");
+        }
+
+        if (preview.get_mac_ip_overide_enable()) {
+            throw std::runtime_error("MAC override can not be combined with --client_cfg_file option");
         }
     }
 }
@@ -5754,9 +5778,11 @@ int CErfIF::send_node(CGenNode *node){
     if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
         apply_client_config(node->m_client_cfg, dir);
 
-    } else if (CGlobalInfo::m_options.preview.get_vlan_mode_enable()) {
+        // for simulation, VLAN_MODE_NORMAL is not relevant, since it uses vlan_id set in platform config file
+    } else if (CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
         uint8_t vlan_port = (node->m_src_ip & 1);
         uint16_t vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+
         add_vlan(vlan_id);
     }
 

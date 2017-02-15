@@ -386,14 +386,20 @@ public:
 
 class CPreviewMode {
 public:
+    enum {
+        VLAN_MODE_NONE = 0,
+        VLAN_MODE_NORMAL = 1,
+        VLAN_MODE_LOAD_BALANCE = 2,
+    };
+
     CPreviewMode(){
         clean();
     }
     void clean(){
         m_flags = 0;
         m_flags1=0;
-        set_vlan_mode_enable(false);
         setCores(1);
+        set_vlan_mode(VLAN_MODE_NONE);
         set_zmq_publish_enable(true);
     }
 
@@ -511,7 +517,13 @@ public:
         return (btGetMaskBit32(m_flags,25,25) ? true:false);
     }
 
-    // bit 26 is free. Was deprecated option.
+    void set_pcap_mode_enable(bool enable){
+        btSetMaskBit32(m_flags,26,26,enable?1:0);
+    }
+
+    bool get_pcap_mode_enable(){
+        return (btGetMaskBit32(m_flags,26,26) ? true:false);
+    }
 
     void set_zmq_publish_enable(bool enable){
         btSetMaskBit32(m_flags,27,27,enable?1:0);
@@ -521,23 +533,15 @@ public:
         return (btGetMaskBit32(m_flags,27,27) ? true:false);
     }
 
-    void set_pcap_mode_enable(bool enable){
-        btSetMaskBit32(m_flags,28,28,enable?1:0);
+    uint8_t get_vlan_mode() {
+        return (btGetMaskBit32(m_flags, 29, 28));
     }
 
-    bool get_pcap_mode_enable(){
-        return (btGetMaskBit32(m_flags,28,28) ? true:false);
+    void set_vlan_mode(uint8_t mode) {
+        btSetMaskBit32(m_flags, 29, 28, mode);
     }
 
-    /* VLAN enable/disable */
-    bool get_vlan_mode_enable(){
-        return (btGetMaskBit32(m_flags,29,29) ? true:false);
-    }
-
-    void set_vlan_mode_enable(bool enable){
-        btSetMaskBit32(m_flags,29,29,enable?1:0);
-    }
-
+    void set_vlan_mode_verify(uint8_t mode);
     bool get_mac_ip_overide_enable(){
         return (btGetMaskBit32(m_flags,30,30) ? true:false);
     }

@@ -11,8 +11,6 @@
           tcp_aging      : 1
           udp_aging      : 1
   mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
-  #vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
-  #mac_override_by_ip : true
   cap_info : 
      - name: cap2/jumbo.pcap
        cps : 1.0

@@ -889,6 +889,31 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    def get_trex_config(self):
+        """
+        Get Trex config file (/etc/trex_cfg.yaml).
+
+        :return:
+            String representation of TRex config file
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case file could not be read.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        try:
+            res = binascii.a2b_base64(self.server.get_trex_config())
+            if type(res) is bytes:
+                return res.decode()
+            return res
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+
     def push_files (self, filepaths):
         """
         Pushes a file (or a list of files) to store locally on server. 
