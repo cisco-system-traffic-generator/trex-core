@@ -1443,11 +1443,11 @@ struct CFlowYamlInfo {
     uint32_t        m_wlength;
     uint32_t        m_limit;
     uint32_t        m_flowcnt;
-    uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */
-    uint8_t         m_client_pool_idx;
-    uint8_t         m_server_pool_idx;
-    bool            m_one_app_server;
+    pool_index_t    m_client_pool_idx;
+    pool_index_t    m_server_pool_idx;
     uint32_t        m_server_addr;
+    uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */
+    bool            m_one_app_server;
     bool            m_one_app_server_was_set;
     bool            m_cap_mode;
     bool            m_cap_mode_was_set;
@@ -1865,8 +1865,8 @@ struct CGenNodeDeferPort  {
 
     uint32_t            m_clients[DEFER_CLIENTS_NUM];
     uint16_t            m_ports[DEFER_CLIENTS_NUM];
-    uint8_t             m_pool_idx[DEFER_CLIENTS_NUM];
-    uint64_t            m_pad4[8];
+    pool_index_t        m_pool_idx[DEFER_CLIENTS_NUM];
+    uint64_t            m_pad4[6];
 
 public:
     void init(void){
@@ -1875,7 +1875,7 @@ public:
     }
 
     /* return true if object is full */
-    bool add_client(uint8_t pool_idx, uint32_t client,
+    bool add_client(pool_index_t pool_idx, uint32_t client,
                    uint16_t port){
         m_clients[m_cnt]=client;
         m_ports[m_cnt]=port;
@@ -3912,10 +3912,10 @@ public:
     uint32_t getDualPortId();
 public :
     double get_total_kcps();
-    double get_total_kcps(uint8_t pool_idx, bool is_client);
+    double get_total_kcps(pool_index_t pool_idx, bool is_client);
     double get_delta_flow_is_sec();
     double get_longest_flow();
-    double get_longest_flow(uint8_t pool_idx, bool is_client);
+    double get_longest_flow(pool_index_t pool_idx, bool is_client);
     void inc_current_template(void);
     int generate_flows_roundrobin(bool *done);
     int reschedule_flow(CGenNode *node);
@@ -4023,7 +4023,7 @@ private:
     void init_from_global();
     void defer_client_port_free(CGenNode *p);
     void defer_client_port_free(bool is_tcp,uint32_t c_ip,uint16_t port,
-                                uint8_t pool_idx, CTupleGeneratorSmart*gen);
+                                pool_index_t pool_idx, CTupleGeneratorSmart*gen);
 
 
     FORCE_NO_INLINE void   handler_defer_job(CGenNode *p);

@@ -323,6 +323,10 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
     utl_yaml_read_ ## type (node, #field , target); \
     } else { printf("generator definition mising " #field "\n"); } 
 
+#define UTL_YAML_READ_NO_MSG(type, field, target) if (node.FindValue(#field)) { \
+    utl_yaml_read_ ## type (node, #field , target); \
+    } 
+
 IP_DIST_t convert_distribution (const YAML::Node& node) {
     std::string tmp;
     node["distribution"] >> tmp ;
@@ -336,11 +340,11 @@ IP_DIST_t convert_distribution (const YAML::Node& node) {
 }
 
 void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
-    UTL_YAML_READ(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
-    UTL_YAML_READ(uint32, min_clients, fi.m_min_clients);
-    UTL_YAML_READ(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
-    UTL_YAML_READ(uint16, tcp_aging, fi.m_tcp_aging_sec);
-    UTL_YAML_READ(uint16, udp_aging, fi.m_udp_aging_sec);
+    UTL_YAML_READ_NO_MSG(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
+    UTL_YAML_READ_NO_MSG(uint32, min_clients, fi.m_min_clients);
+    UTL_YAML_READ_NO_MSG(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
+    UTL_YAML_READ_NO_MSG(uint16, tcp_aging, fi.m_tcp_aging_sec);
+    UTL_YAML_READ_NO_MSG(uint16, udp_aging, fi.m_udp_aging_sec);
 }
 
 void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
@@ -416,6 +420,11 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         printf("no client generator pool configured, using default pool\n");
     } 
 
+    if (fi.m_client_pool.size() >= CS_MAX_POOLS) {
+        printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_client_pool.size(),(ulong)CS_MAX_POOLS);
+        exit(1);
+    }
+
     if (node.FindValue("generator_servers")) {
         const YAML::Node& s_pool_info = node["generator_servers"];
         for (uint16_t idx=0;idx<s_pool_info.size();idx++) {
@@ -429,6 +438,12 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     } else {
         printf("no server generator pool configured, using default pool\n");
     } 
+
+    if (fi.m_server_pool.size() >= CS_MAX_POOLS) {
+        printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_server_pool.size(),(ulong)CS_MAX_POOLS);
+        exit(1);
+    }
+
 }
 
 bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){

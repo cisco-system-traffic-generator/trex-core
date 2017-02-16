@@ -3615,7 +3615,7 @@ FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job(CGenNode *p){
 void CFlowGenListPerThread::defer_client_port_free(bool is_tcp,
                                                    uint32_t c_idx,
                                                    uint16_t port,
-                                                   uint8_t c_pool_idx,
+                                                   pool_index_t c_pool_idx,
                                                    CTupleGeneratorSmart * gen){
     /* free is not required in this case */
     if (!gen->IsFreePortRequired(c_pool_idx) ){
@@ -4510,7 +4510,7 @@ uint32_t CFlowGenListPerThread::getDualPortId(){
     return ( ::getDualPortId(m_thread_id) );
 }
 
-double CFlowGenListPerThread::get_longest_flow(uint8_t pool_idx, bool is_client){
+double CFlowGenListPerThread::get_longest_flow(pool_index_t pool_idx, bool is_client){
     int i;
     double longest_flow = 0.0;
     for (i=0;i<(int)m_cap_gen.size(); i++) {
@@ -4545,7 +4545,7 @@ double CFlowGenListPerThread::get_longest_flow(){
     return longest_flow;
 }
 
-double CFlowGenListPerThread::get_total_kcps(uint8_t pool_idx, bool is_client){
+double CFlowGenListPerThread::get_total_kcps(pool_index_t pool_idx, bool is_client){
     int i;
     double total=0.0;
     for (i=0; i<(int)m_cap_gen.size(); i++) {

@@ -41,6 +41,9 @@ limitations under the License.
 
 #include <random>
 
+typedef uint16_t  pool_index_t;
+#define CS_MAX_POOLS UINT16_MAX
+
 class CTupleBase {
 public:
 
@@ -649,17 +652,17 @@ public:
     }
 
     
-    void FreePort(uint8_t pool_idx, uint32_t id, uint16_t port) {
+    void FreePort(pool_index_t pool_idx, uint32_t id, uint16_t port) {
         get_client_pool(pool_idx)->FreePort(id, port);
     }
         
-    bool IsFreePortRequired(uint8_t pool_idx){
+    bool IsFreePortRequired(pool_index_t pool_idx){
         return(get_client_pool(pool_idx)->IsFreePortRequired());
     }
-    uint16_t get_tcp_aging(uint8_t pool_idx) {
+    uint16_t get_tcp_aging(pool_index_t pool_idx) {
         return (get_client_pool(pool_idx)->get_tcp_aging());
     }
-    uint16_t get_udp_aging(uint8_t pool_idx) {
+    uint16_t get_udp_aging(pool_index_t pool_idx) {
         return (get_client_pool(pool_idx)->get_udp_aging());
     }
 
@@ -698,16 +701,16 @@ public:
                          double     active_flows,
                          bool       is_bundling);
 
-    CClientPool* get_client_pool(uint8_t idx) {
+    CClientPool* get_client_pool(pool_index_t idx) {
         return m_client_pool[idx];
     }
-    uint8_t get_client_pool_num() {
+    pool_index_t get_client_pool_num() {
         return m_client_pool.size();
     }
-    uint8_t get_server_pool_num() {
+    pool_index_t get_server_pool_num() {
         return m_server_pool.size();
     }
-    CServerPoolBase* get_server_pool(uint8_t idx) {
+    CServerPoolBase* get_server_pool(pool_index_t idx) {
         return m_server_pool[idx];
     }
 private:
@@ -762,7 +765,9 @@ public:
 
 public:
 
-    bool Create( CTupleGeneratorSmart * gen,uint8_t c_pool,uint8_t s_pool){
+    bool Create( CTupleGeneratorSmart * gen,
+                 pool_index_t c_pool,
+                 pool_index_t s_pool){
         m_gen=gen;
         m_is_single_server=false;
         m_server_ip=0;
@@ -861,11 +866,11 @@ struct CTupleGenYamlInfo {
         
 public:
     bool is_valid(uint32_t num_threads,bool is_plugins);
-    uint8_t get_server_pool_id(std::string name){
+    pool_index_t get_server_pool_id(std::string name){
          if (name=="default") {
              return 0;
          }
-        for (uint8_t i=0;i<m_server_pool.size();i++) {
+        for (pool_index_t i=0;i<m_server_pool.size();i++) {
             if (m_server_pool[i].m_name==name) 
                 return i;
         }
@@ -874,11 +879,11 @@ public:
         return 0;
     }
 
-    uint8_t get_client_pool_id(std::string name){
+    pool_index_t get_client_pool_id(std::string name){
          if (name=="default") {
              return 0;
          }
-        for (uint8_t i=0;i<m_client_pool.size();i++) {
+        for (pool_index_t i=0;i<m_client_pool.size();i++) {
             if (m_client_pool[i].m_name==name) 
                 return i;
         }
