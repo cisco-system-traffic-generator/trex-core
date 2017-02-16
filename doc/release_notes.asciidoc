@@ -26,17 +26,17 @@ endif::backend-docbook[]
 == Release 2.18 ==
 
 * DPDK 17.02 
-** Support ConnectX-5 (wasn't verified) 
+** Should supports ConnectX-5 (wasn't verified) 
 ** ixgbe SR-IOV works 
-* Ability to add VLAN per direction
-* Stateless packet capture - ability to capture port tx side  
-* mlx5 dpdk driver is share object. Reduce image OFED dependency
+* Ability to add VLAN per direction link:trex_manual.html#_vlan_dot1q_support[vlan_dot1q_support]
+* Stateless packet capture - ability to capture tx side  
+* mlx5 dpdk driver is share object. Reduce image OFED libs dependency
 
 === fix issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-344[trex-344]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-269[trex-269]
-
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-339[trex-339]
 
 == Release 2.17 ==
 
