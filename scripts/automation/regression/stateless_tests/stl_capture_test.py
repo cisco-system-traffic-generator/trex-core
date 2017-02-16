@@ -52,9 +52,11 @@ class STLCapture_Test(CStlGeneral_Test):
         
         try:
             # move to service mode
-            self.c.set_service_mode(ports = self.rx_port)
+            self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
+            
             # start a capture
-            rc = self.c.start_capture(rx_ports = [self.rx_port], limit = pkt_count)
+            txc = self.c.start_capture(tx_ports = self.tx_port, limit = pkt_count)
+            rxc = self.c.start_capture(rx_ports = self.rx_port, limit = pkt_count)
             
             # inject few packets with a VM
             vm = STLScVmRaw( [STLVmFlowVar ( "ip_src",  min_value="16.0.0.0", max_value="16.255.255.255", size=4, step = 7, op = "inc"),
@@ -77,15 +79,23 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.start(ports = self.tx_port, force = True)
             self.c.wait_on_traffic(ports = self.tx_port)
             
-            pkt_list = []
-            self.c.stop_capture(rc['id'], output = pkt_list)
+            tx_pkt_list = []
+            rx_pkt_list = []
             
-            assert (len(pkt_list) == pkt_count)
+            self.c.stop_capture(txc['id'], output = tx_pkt_list)
+            self.c.stop_capture(rxc['id'], output = rx_pkt_list)
+            
+            assert (len(tx_pkt_list) == len(rx_pkt_list) == pkt_count)
+            
+            # make sure we have the same binaries in both lists
+            tx_bin = [pkt['binary'] for pkt in tx_pkt_list]
+            rx_bin = [pkt['binary'] for pkt in rx_pkt_list]
+            assert(set(tx_bin) == set(rx_bin))
             
             # generate all the values that should be
             expected_src_ips = [ip_add('16.0.0.0', i * 7) for i in range(pkt_count)]
             
-            for i, pkt in enumerate(pkt_list):
+            for i, pkt in enumerate(rx_pkt_list):
                 pkt_scapy = Ether(pkt['binary'])
                 pkt_ts    = pkt['ts']
                 
@@ -276,3 +286,41 @@ class STLCapture_Test(CStlGeneral_Test):
              self.c.set_service_mode(ports = [self.tx_port, self.rx_port], enabled = False)
 
 
+             
+             
+    # in this test we stress TX & RX captures in parallel
+    def test_stress_tx_rx (self):
+        pkt_count = 100
+        
+        try:
+            # move to service mode
+            self.c.set_service_mode(ports = [self.rx_port, self.tx_port])
+            
+            # start heavy traffic
+            pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
+            
+            stream = STLStream(name = 'burst',
+                               packet = pkt,
+                               mode = STLTXCont(percentage = self.percentage)
+                               )
+            
+            self.c.add_streams(ports = self.tx_port, streams = [stream])
+            self.c.start(ports = self.tx_port, mult = "50%", force = True)
+            
+            
+            # start a capture on the RX port
+            capture_rx = self.c.start_capture(rx_ports = self.rx_port, limit = 1000)
+            
+            # now under traffic start/stop the TX capture
+            for i in range(0, 1000):
+                # start a common capture
+                capture_txrx = self.c.start_capture(rx_ports = self.rx_port, tx_ports = self.tx_port, limit = 1000)
+                self.c.stop_capture(capture_txrx['id'])
+                
+              
+        except STLError as e:
+            assert False , '{0}'.format(e)
+            
+        finally:
+            self.c.remove_all_captures()
+            self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
