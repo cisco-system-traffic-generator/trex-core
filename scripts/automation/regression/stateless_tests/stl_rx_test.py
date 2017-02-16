@@ -71,7 +71,7 @@ class STLRX_Test(CStlGeneral_Test):
                         'rate_latency': 1,
                         'latency_9k_enable': True,
                         'latency_9k_max_average': 100,
-                        'latency_9k_max_latency': 250,
+                        'latency_9k_max_latency': 450,    #see latency issue trex-261 
                         },
 
                  'net_enic': {
