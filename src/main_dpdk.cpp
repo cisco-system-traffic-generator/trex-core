@@ -2342,8 +2342,6 @@ int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPer
     // We allow sending only from first core of each port. This is serious internal bug otherwise.
     assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
-    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
-    
     int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
 
 #ifdef DELAY_IF_NEEDED
@@ -2474,22 +2472,28 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
     }
 }
 
-int CCoreEthIFStateless::send_node(CGenNode *no) {
-    return send_node_common<false>(no);
+int CCoreEthIFStateless::send_node(CGenNode *node) {
+    return send_node_common<false>(node);
 }
 
-int CCoreEthIFStateless::send_node_service_mode(CGenNode *no) {
-    return send_node_common<true>(no);
+int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
+    return send_node_common<true>(node);
 }
 
+/**
+ * this is the common function and it is templated 
+ * for two compiler evaluation for performance 
+ * 
+ */
 template <bool SERVICE_MODE>
-int CCoreEthIFStateless::send_node_common(CGenNode *no) {
-    CGenNodeStateless * node_sl = (CGenNodeStateless *) no;
+int CCoreEthIFStateless::send_node_common(CGenNode *node) {
+    CGenNodeStateless * node_sl = (CGenNodeStateless *) node;
     
     pkt_dir_t dir                     = (pkt_dir_t)node_sl->get_mbuf_cache_dir();
     CCorePerPort *lp_port             = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
     
+    /* generate packet (can never fail) */
     rte_mbuf_t *m = generate_node_pkt(node_sl);
     
     /* template boolean - this will be removed at compile time */
@@ -2497,6 +2501,7 @@ int CCoreEthIFStateless::send_node_common(CGenNode *no) {
         TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
     }
     
+    /* send */
     return send_node_packet(node_sl, m, lp_port, lp_stats);
 }
 
@@ -2512,6 +2517,8 @@ CCoreEthIFStateless::generate_slow_path_node_pkt(CGenNodeStateless *node_sl) {
         return pcap_node->get_pkt();
     }
 
+    /* unhandled case of slow path node */
+    assert(0);
     return (NULL);
 }
 

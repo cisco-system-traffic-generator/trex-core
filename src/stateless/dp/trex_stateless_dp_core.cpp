@@ -27,11 +27,16 @@ limitations under the License.
 #include "trex_streams_compiler.h"
 #include "mbuf.h"
 
-
-class DPCoreWrapper : public CVirtualIF {
+/**
+ * a wrapper for service mode 
+ * it will move the fast send_node virtual call 
+ * to send_node_service_mode which does capturing 
+ * 
+ */
+class ServiceModeWrapper : public CVirtualIF {
 public:
-    
-    DPCoreWrapper() {
+
+    ServiceModeWrapper() {
         m_wrapped = nullptr;
     }
     
@@ -644,7 +649,7 @@ TrexStatelessDpCore::TrexStatelessDpCore() {
     m_core            = NULL;
     m_duration        = -1;
     m_is_service_mode = NULL;
-    m_wrapper         = new DPCoreWrapper();
+    m_wrapper         = new ServiceModeWrapper();
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {

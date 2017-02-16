@@ -34,7 +34,7 @@ class CGenNodeStateless;
 class TrexStreamsCompiledObj;
 class TrexStream;
 class CGenNodePCAP;
-class DPCoreWrapper;
+class ServiceModeWrapper;
 
 class CDpOneStream  {
 public:
@@ -340,7 +340,7 @@ private:
 
     double                 m_duration;
     
-    DPCoreWrapper          *m_wrapper;
+    ServiceModeWrapper    *m_wrapper;
     bool                   m_is_service_mode;
 };
 

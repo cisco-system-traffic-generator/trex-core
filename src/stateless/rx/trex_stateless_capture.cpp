@@ -269,7 +269,9 @@ TrexStatelessCaptureMngr::reset() {
     }
 }
 
+/* define this macro to stress test the critical section */
 //#define STRESS_TEST
+
 void 
 TrexStatelessCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
     

@@ -1001,7 +1001,7 @@ TrexStatelessPort::set_service_mode(bool enabled) {
         assert(0);
     }
     
-    /* update the dp cores */
+    /* update the all the relevant dp cores to move to service mode */
     TrexStatelessDpServiceMode *dp_msg = new TrexStatelessDpServiceMode(m_port_id, enabled);
     send_message_to_all_dp(dp_msg);
 }
