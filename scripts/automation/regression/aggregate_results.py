@@ -264,6 +264,7 @@ if __name__ == '__main__':
     build_id                = os.environ.get('BUILD_ID')
     trex_repo               = os.environ.get('TREX_CORE_REPO')
     last_commit_info_file   = os.environ.get('LAST_COMMIT_INFO')
+    last_commit_branch_file = os.environ.get('LAST_COMMIT_BRANCH')
     python_ver              = os.environ.get('PYTHON_VER')
     if not scenario:
         print('Warning: no environment variable SCENARIO, using default')
@@ -288,6 +289,11 @@ if __name__ == '__main__':
                     continue # to next parameters
                 trex_info_dict[key_value[0].strip()] = key_value[1].strip()
             break
+
+    branch_name = ''
+    if last_commit_branch_file and os.path.exists(last_commit_branch_file):
+        with open(last_commit_branch_file) as f:
+            branch_name = f.read().strip()
 
     trex_last_commit_info = ''
     trex_last_commit_hash = trex_info_dict.get('Git SHA')
@@ -661,6 +667,8 @@ if __name__ == '__main__':
 
 # mail title
     mailtitle_output = scenario.capitalize()
+    if branch_name:
+        mailtitle_output += ' (%s)' % branch_name
     if build_id:
         mailtitle_output += ' - Build #%s' % build_id
     mailtitle_output += ' - %s!' % current_status
