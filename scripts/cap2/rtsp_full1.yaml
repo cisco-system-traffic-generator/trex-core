@@ -6,7 +6,6 @@
   cap_ipg    : true
   #cap_ipg_min    : 100
   #cap_override_ipg    : 200
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
   cap_info : 
      - name: avl/delay_10_rtp_250k_full.pcap
        cps : 1.0

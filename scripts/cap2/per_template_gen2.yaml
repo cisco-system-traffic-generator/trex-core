@@ -30,7 +30,6 @@
                 ip_start : "38.0.0.1"
                 ip_end : "38.0.1.255"
                 track_ports : false
-  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
   cap_info : 
      - name: cap2/http_get.pcap
        client_pool: "c1"

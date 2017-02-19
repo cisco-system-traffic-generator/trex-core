@@ -14,9 +14,6 @@
      buckets : 32768
      levels  : 2
      bucket_time_usec : 20.0
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
-  #vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
-  #mac_override_by_ip : true
   cap_info : 
      - name: cap2/dns.pcap
        cps : 1.0

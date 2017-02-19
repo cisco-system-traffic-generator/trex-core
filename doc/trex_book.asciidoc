@@ -1309,23 +1309,19 @@ Cpu Utilization : 0.1 %                                                         
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 1
           udp_aging      : 1
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00] <3>
-  cap_ipg    : true                            <4>
-  cap_ipg_min    : 30                          <5>
-  cap_override_ipg    : 200                    <6>
-  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 } <7>
-  mac_override_by_ip : true  <8>
+  cap_ipg    : true                            <3>
+  cap_ipg_min    : 30                          <4>
+  cap_override_ipg    : 200                    <5>
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 } <6>
+  mac_override_by_ip : true  <7>
 ----
 <1> Test duration (seconds). Can be overridden using the `-d` option.
-<2> See the link:trex_manual.html#_clients_servers_ip_allocation_scheme[generator] section.
-// what does note 2 mean? see somewhere else? isn't this simply the generator section?
-<3> Default source/destination MAC address. The configuration YAML can override this.
-<4> true (default) indicates that the IPG is taken from the cap file (also taking into account cap_ipg_min and cap_override_ipg if they exist). false indicates that IPG is taken from per template section.
-<5> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg} )
-<6> Value to override (microseconds), as described in note above.
-<7> Enable load balance feature. See xref:trex_load_bal[trex load balance section] for info.
-<8> Enable MAC address replacement by client IP.
-
+<2> See full explanation on generator section link:trex_manual.html#_clients_servers_ip_allocation_scheme[here].
+<3> true (default) indicates that the IPG is taken from the cap file (also taking into account cap_ipg_min and cap_override_ipg if they exist). false indicates that IPG is taken from per template section.
+<4> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg} )
+<5> Value to override (microseconds), as described in note above.
+<6> Enable load balance feature. See xref:trex_load_bal[trex load balance section] for info.
+<7> Enable MAC address replacement by client IP.
 
 ==== Timer Wheel section configuration  
 

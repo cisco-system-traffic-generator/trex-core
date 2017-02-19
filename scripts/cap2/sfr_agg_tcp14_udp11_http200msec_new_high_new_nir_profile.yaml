@@ -3,7 +3,6 @@
   max_src_ip : 0x90000001
   min_dst_ip : 0xa0000001
   max_dst_ip : 0xb0000001
-  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
   cap_info : 
      - name: cap2/Oracle.pcap
        cps : 60

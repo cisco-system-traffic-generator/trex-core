@@ -3643,9 +3643,6 @@ inline CFlowPktInfo * CCapFileFlowInfo::GetPacket(uint32_t index){
 struct CFlowsYamlInfo {
 public:
     double          m_duration_sec;    //duration in sec for the cap file
-
-// IPv4 addressing
-
 // IPv6 addressing
     std::vector     <uint16_t> m_src_ipv6;
     std::vector     <uint16_t> m_dst_ipv6;
@@ -3671,12 +3668,7 @@ public:
     CVlanYamlInfo   m_vlan_info;
     CTupleGenYamlInfo m_tuple_gen;
     bool              m_tuple_gen_was_set;
-
-
-    std::vector     <uint8_t> m_mac_base;
-
     std::vector     <CFlowYamlInfo> m_vec;
-
     bool            m_is_plugin_configured; /* any plugin  is configured */
 
     CTimerWheelYamlInfo         m_tw;

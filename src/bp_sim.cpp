@@ -2882,14 +2882,6 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        flows_info.m_mac_replace_by_ip =false;
    }
 
-   const YAML::Node& mac_info = node["mac"];
-   for(unsigned i=0;i<mac_info.size();i++) {
-       uint32_t fi;
-       const YAML::Node & node =mac_info;
-       node[i]  >> fi;
-       flows_info.m_mac_base.push_back(fi);
-   }
-
    const YAML::Node& cap_info = node["cap_info"];
    for(unsigned i=0;i<cap_info.size();i++) {
        CFlowYamlInfo fi;
@@ -2958,20 +2950,9 @@ void CFlowsYamlInfo::Dump(FILE *fd){
 
     m_vlan_info.Dump(fd);
 
-    fprintf(fd," mac base   : ");
-    int i;
-    for (i=0; i<(int)m_mac_base.size(); i++) {
-        if (i< (int)(m_mac_base.size()-1) ) {
-            fprintf(fd,"0x%02x,",m_mac_base[i]);
-        }else{
-            fprintf(fd,"0x%02x",m_mac_base[i]);
-        }
-    }
-    fprintf(fd,"\n");
-
     fprintf(fd," cap file info \n");
     fprintf(fd," ------------- \n");
-    for (i=0; i<(int)m_vec.size(); i++) {
+    for (int i=0; i<(int)m_vec.size(); i++) {
         m_vec[i].Dump(fd);
     }
     m_tw.Dump(fd);
@@ -5080,11 +5061,6 @@ int CFlowGenList::load_from_yaml(std::string file_name,
         CGlobalInfo::m_options.m_vlan_port[1] = 0;
     }
     CGlobalInfo::m_options.preview.set_mac_ip_overide_enable(m_yaml_info.m_mac_replace_by_ip);
-
-    if ( m_yaml_info.m_mac_base.size() != 6 ){
-        printf(" mac addr is not valid \n");
-        exit(0);
-    }
 
     if (m_yaml_info.m_ipv6_set == true) {
         // Copy the most significant 96-bits from yaml data
