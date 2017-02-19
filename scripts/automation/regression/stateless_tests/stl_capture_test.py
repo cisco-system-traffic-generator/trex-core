@@ -36,7 +36,10 @@ class STLCapture_Test(CStlGeneral_Test):
 
         self.percentage = 5 if self.is_virt_nics else 50
 
-
+        # some setups (enic) might add VLAN always
+        self.nic_adds_vlan = CTRexScenario.setup_name in ['trex11']
+        
+        
     @classmethod
     def tearDownClass(cls):
         if CTRexScenario.stl_init_error:
@@ -46,6 +49,24 @@ class STLCapture_Test(CStlGeneral_Test):
             CTRexScenario.stl_trex.connect()
 
 
+    def __compare_captures (self, tx_pkt_list, rx_pkt_list):
+        # make sure we have the same binaries in both lists
+        tx_pkt_list_bin = {pkt['binary'] for pkt in tx_pkt_list}
+        rx_pkt_list_bin = {pkt['binary'] for pkt in rx_pkt_list}
+        
+        if tx_pkt_list_bin != rx_pkt_list_bin:
+            # if the NIC does not add VLAN - a simple binary compare will do
+            if not self.nic_adds_vlan:
+                assert 0, "TX and RX captures do not match"
+            
+            # the NIC adds VLAN - compare IP level
+            tx_pkt_list_ip = { bytes((Ether(pkt))['IP']) for pkt in tx_pkt_list_bin}
+            rx_pkt_list_ip = { bytes((Ether(pkt))['IP']) for pkt in rx_pkt_list_bin}
+            
+            if tx_pkt_list_ip != rx_pkt_list_ip:
+                assert 0, "TX and RX captures do not match"
+        
+            
     # a simple capture test - inject packets and see the packets arrived the same
     def test_basic_capture (self):
         pkt_count = 100
@@ -88,22 +109,15 @@ class STLCapture_Test(CStlGeneral_Test):
             assert (len(tx_pkt_list) == len(rx_pkt_list) == pkt_count)
             
             # make sure we have the same binaries in both lists
-            tx_bin = [pkt['binary'] for pkt in tx_pkt_list]
-            rx_bin = [pkt['binary'] for pkt in rx_pkt_list]
-            assert(set(tx_bin) == set(rx_bin))
+            self.__compare_captures(tx_pkt_list, rx_pkt_list)
             
+
             # generate all the values that should be
-            expected_src_ips = [ip_add('16.0.0.0', i * 7) for i in range(pkt_count)]
+            expected_src_ips = {ip_add('16.0.0.0', i * 7) for i in range(pkt_count)}
+            got_src_ips = {(Ether(pkt['binary']))['IP'].src for pkt in rx_pkt_list}
             
-            for i, pkt in enumerate(rx_pkt_list):
-                pkt_scapy = Ether(pkt['binary'])
-                pkt_ts    = pkt['ts']
-                
-                assert('IP' in pkt_scapy)
-                assert(pkt_scapy['IP'].src in expected_src_ips)
-                
-                # remove the match
-                del expected_src_ips[expected_src_ips.index(pkt_scapy['IP'].src)]
+            if expected_src_ips != got_src_ips:
+                assert 0, "recieved packets do not match expected packets"
                 
             
         except STLError as e:
