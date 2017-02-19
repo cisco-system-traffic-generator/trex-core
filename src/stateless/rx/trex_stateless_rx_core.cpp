@@ -38,8 +38,10 @@ void CRFC2544Info::create() {
 
 // after calling stop, packets still arriving will be considered error
 void CRFC2544Info::stop() {
-    m_prev_flow_seq = m_exp_flow_seq;
-    m_exp_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
+    if (m_exp_flow_seq != FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ) {
+        m_prev_flow_seq = m_exp_flow_seq;
+        m_exp_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
+    }
 }
 
 void CRFC2544Info::reset() {
