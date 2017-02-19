@@ -316,6 +316,10 @@ public:
         get_extended_stats_fixed(_if, stats, 0, 4);
     }
 
+    virtual bool has_crc_added() {
+        return true;
+    }
+    
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverI40evf() );
