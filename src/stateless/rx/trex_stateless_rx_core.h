@@ -107,7 +107,6 @@ class CRxCoreStateless {
     /**
      * core states 
      *  
-     * STATE_IDLE - only checking for messages periodically 
      * STATE_COLD - will sleep until a packet arrives 
      *              then it will move to a faster pace
      *              until no packet arrives for some time
@@ -115,7 +114,6 @@ class CRxCoreStateless {
      * STATE_HOT  - 100% checking for packets (latency check)
      */
     enum state_e {
-        STATE_IDLE,
         STATE_COLD,
         STATE_HOT,
         STATE_QUIT
@@ -170,7 +168,6 @@ class CRxCoreStateless {
     void tickle();
 
     /* states */
-    //void idle_state_loop();
     void hot_state_loop();
     void cold_state_loop();
     void init_work_stage();
