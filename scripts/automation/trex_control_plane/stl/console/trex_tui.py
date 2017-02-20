@@ -848,7 +848,7 @@ class AsyncKeys:
         rc = self.STATUS_NONE
 
         # fetch the stdin buffer
-        seq = os.read(sys.stdin.fileno(), 1024).decode()
+        seq = os.read(sys.stdin.fileno(), 1024).decode('ascii', errors = 'ignore')
         if not seq:
             return self.STATUS_NONE
 
