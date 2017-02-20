@@ -26,7 +26,7 @@ endif::backend-docbook[]
 == Release 2.18 ==
 
 * DPDK 17.02 
-** Should supports ConnectX-5 (wasn't verified) 
+** Should supports ConnectX-5 but has an OFED issue see link:https://trex-tgn.cisco.com/youtrack/issue/trex-353[trex-353]
 ** ixgbe SR-IOV works 
 * Ability to add VLAN per direction link:trex_manual.html#_vlan_dot1q_support[vlan_dot1q_support]
 * Stateless packet capture - ability to capture tx side  
