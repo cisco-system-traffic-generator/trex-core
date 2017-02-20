@@ -334,9 +334,10 @@ class CTRexServer(object):
                     logger.info("TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))
                     return Fault(-33, "TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))  # raise at client TRexRequestDenied
             elif self.trex.get_status() != TRexStatus.Idle:
-                logger.info("TRex is already taken, cannot create another run until done.")
-                return Fault(-13, '')  # raise at client TRexInUseError
-            
+                err = 'TRex is already taken, cannot create another run until done.'
+                logger.info(err)
+                return Fault(-13, err) # raise at client TRexInUseError
+
             try:
                 server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
                 self.zmq_monitor.first_dump = True
