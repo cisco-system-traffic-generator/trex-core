@@ -2789,6 +2789,35 @@ There is a task to automate the production of thess reports
 * run TRex server with '-v 7' for example `$sudo ./t-rex-64 -i -v 7`
 
 
+==== Limitations/Issues
+
+* The order of the mlx5 PCI addrees in /etc/trex_cfg.yaml should be in the same order reported by `./dpdk_setup_ports.py` tool see link:https://groups.google.com/forum/#!searchin/trex-tgn/unable$20to$20run$20rx-check$20with$204$20port%7Csort:relevance/trex-tgn/DsORbw3AbaU/IT-KLcZbDgAJ[issue_thread] and link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295] else there would be reported this error.
+
+.Will work
+[source,bash]
+----
+ - version         : 2
+   interfaces      : ["03:00.0","03:00.1"]
+   port_limit      : 2 
+----
+
+.Will not work
+[source,bash]
+----
+ - version         : 2
+   interfaces      : ["03:00.1","03:00.0"]
+   port_limit      : 2 
+----
+
+.The error 
+[source,bash]
+----
+ PMD: net_mlx5: 0x7ff2dcfcb2c0: flow director mode 0 not supported
+ EAL: Error - exiting with code: 1
+   Cause: rte_eth_dev_filter_ctrl: err=-22, port=2
+----
+
+
 === Cisco VIC support 
 
 anchor:ciscovic_support[]
@@ -2871,6 +2900,10 @@ PMD: rte_enic_pmd: vNIC MAC addr 00:25:b5:99:00:5c wq/rq 256/512 mtu 1500, max
 
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
+* VLAN 0 Priority Tagging
+If a vNIC is configured in TRUNK mode by the UCS manager, the adapter will priority tag egress packets according to 802.1Q if they were not already VLAN tagged by software. If the adapter is connected to a properly configured switch, there will be no unexpected behavior.
+In test setups where an Ethernet port of a Cisco adapter in TRUNK mode is connected point-to-point to another adapter port or connected though a router instead of a switch, all ingress packets will be VLAN tagged. TRex can work with that see more link:http://www.cisco.com/c/en/us/support/docs/servers-unified-computing/ucs-c-series-rack-servers/117637-technote-UCS-00.html[upstream VIC]
+Upstream the VIC always tags packets with an 802.1p header.In downstream it is possible to remove the tag (not supported by TRex yet)
 
 
 === More active flows   

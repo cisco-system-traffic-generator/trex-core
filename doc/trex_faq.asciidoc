@@ -85,10 +85,10 @@ Not yet. Support for FM10K and Mellanox Connectx5 is under development.
 
 ==== Is there a GUI?
 TRex team is not developing it.
-You can find GUI for statless mode developed by Exalt company in 
+You can find GUI for statless mode developed by Exalt/XORED company in 
 link:https://github.com/exalt-tech/trex-stateless-gui#trex-stateless-gui-beta[this link]. +
 There is also work in progress for packet editor (not released yet) in link:https://github.com/cisco-system-traffic-generator/trex-packet-editor[here]. +
-New stateless GUI features are developed in link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here]. This is also work in progress, not released yet.
+New stateless GUI features are developed in link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here]. v3.1.1 was released 
 
 ==== What is the maximum number of ports per TRex application?
 12 ports
@@ -225,6 +225,45 @@ Note: you might need additional Linux packages for that:
 ** sudo apt install linux-headers-\`uname -r`
 ** sudo apt install build-essential
 
+
+==== Running with ESXi/KVM I get WATCHDOG crash 
+
+While running TRex on ESXi/KVM I get this error 
+
+[source,bash]
+----
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  WATCHDOG: task 'ZMQ sync request-response' has not responded for more than 1.58321 seconds - timeout is 1 seconds
+ 
+*** traceback follows ***
+ ./_t-rex-64-o() [0x48aa96]
+ /lib/x86_64-linux-gnu/libpthread.so.0(+0x10340) 
+ __poll + 45
+ /home/trex/v2.05/libzmq.so.3(+0x26642) 
+ /home/trex/v2.05/libzmq.so.3(+0x183da) 
+ /home/trex/v2.05/libzmq.so.3(+0x274c3) 
+ /home/trex/v2.05/libzmq.so.3(+0x27b95) 
+ /home/trex/v2.05/libzmq.so.3(+0x3afe9) 
+ TrexRpcServerReqRes::fetch_one_request(std::string&)
+ TrexRpcServerReqRes::_rpc_thread_cb() + 1062
+ /usr/lib/x86_64-linux-gnu/libstdc++.so.6(+0xb1a40) 
+ /lib/x86_64-linux-gnu/libpthread.so.0(+0x8182) 
+ clone + 109
+----
+
+Try to disable Hypervisor Hyper thread (HT) for TRex threads . two TRex threads can't share cores.
+Moving to 'none' (ESXi) only disable sharing of hyper threading, this mitigates the problem but does not solve it.
+The full solution is to provide pinning of cores *exclusively* to TRex.
+This means making sure on your Hypervisor that *only* TRex VM gets those specific cores and no other guest shares them.
+(we handle Linux processor affinity but cannot handle the Hypervisor affinity)
+If you cannot make sure your cores are pinned to the TRex guest you can run TRex without watchdog:
+
+[source,bash]
+----
+$sudo ./t-rex-64 -i --no-watchdog
+----
+
+This will hide the problem that some threads do not get reasonable response time, but will allow to work anyway.
 
 
 ===  Stateful 
