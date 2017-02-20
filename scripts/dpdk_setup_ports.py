@@ -18,6 +18,12 @@ from distutils.util import strtobool
 import subprocess
 import platform
 
+# exit code is Important should be
+# -1 : don't continue 
+# 0  : no errors - no need to load mlx share object
+# 1  : no errors - mlx share object should be loaded 
+
+
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
@@ -553,7 +559,7 @@ Other network devices
                     cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
                     print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
                     if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                        sys.exit(1)
+                        sys.exit(-1)
                 else:
                        print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
         if map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
@@ -564,7 +570,7 @@ Other network devices
             ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
             if ret:
                 print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
-                sys.exit(1)
+                sys.exit(-1)
 
         if Mellanox_cnt:
             return 1
@@ -802,7 +808,7 @@ Other network devices
             if interface['Active']:
                 print('Interface %s is active. Using it by TRex might close ssh connections etc.' % interface['Interface_argv'])
                 if not dpdk_nic_bind.confirm('Ignore and continue? (y/N): '):
-                    sys.exit(1)
+                    sys.exit(-1)
 
         for i, interface in enumerate(wanted_interfaces):
             if not ip_based:
