@@ -105,11 +105,19 @@ class CRxCoreErrCntrs {
 class CRxCoreStateless {
     
     /**
-     * core states
+     * core states 
+     *  
+     * STATE_IDLE - only checking for messages periodically 
+     * STATE_COLD - will sleep until a packet arrives 
+     *              then it will move to a faster pace
+     *              until no packet arrives for some time
+     *  
+     * STATE_HOT  - 100% checking for packets (latency check)
      */
     enum state_e {
         STATE_IDLE,
-        STATE_WORKING,
+        STATE_COLD,
+        STATE_HOT,
         STATE_QUIT
     };
 
@@ -124,7 +132,7 @@ class CRxCoreStateless {
 
 
     void quit() {m_state = STATE_QUIT;}
-    bool is_working() const {return (m_state == STATE_WORKING);}
+    bool is_working() const {return (m_state != STATE_QUIT);}
     double get_cpu_util();
     void update_cpu_util();
 
@@ -159,14 +167,17 @@ class CRxCoreStateless {
 
     bool periodic_check_for_cp_messages();
 
-    void periodic_check_for_dp_messages();
-    void periodic_check_for_dp_messages_core(uint32_t core_id);
-    
     void tickle();
-    void idle_state_loop();
 
+    /* states */
+    //void idle_state_loop();
+    void hot_state_loop();
+    void cold_state_loop();
+    void init_work_stage();
+    bool work_tick();
+    
     void recalculate_next_state();
-    bool are_any_features_active();
+    bool is_latency_active();
 
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
@@ -190,6 +201,9 @@ class CRxCoreStateless {
     CCpuUtlDp        m_cpu_dp_u;
     CCpuUtlCp        m_cpu_cp_u;
 
+    dsec_t           m_sync_time_sec;
+    dsec_t           m_grat_arp_sec;
+    
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
 

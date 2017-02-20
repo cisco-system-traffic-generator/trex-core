@@ -76,7 +76,7 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
     CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
 
     m_ring_from_cp = cp_rx->getRingCpToDp(0);
-    m_state = STATE_IDLE;
+    m_state = STATE_COLD;
 
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rfc2544[i].create();
@@ -132,48 +132,23 @@ bool CRxCoreStateless::periodic_check_for_cp_messages() {
 
 }
 
-void
-CRxCoreStateless::periodic_check_for_dp_messages() {
-
-    for (int i = 0; i < m_tx_cores; i++) {
-        periodic_check_for_dp_messages_core(i);
-    }
-    
-}
-
-void
-CRxCoreStateless::periodic_check_for_dp_messages_core(uint32_t core_id) {
-
-    CNodeRing *ring = CMsgIns::Ins()->getRxDp()->getRingDpToCp(core_id);
-    
-    /* fast path */
-    if ( likely ( ring->isEmpty() ) ) {
-        return;
-    }
-
-    while (true) {
-        CGenNode *node = NULL;
-
-        if (ring->Dequeue(node) != 0) {
-            break;
-        }
-        
-        //assert(node);
-    }
-}
 
 void CRxCoreStateless::recalculate_next_state() {
     if (m_state == STATE_QUIT) {
         return;
     }
 
-    /* next state is determine by the question are there any ports with active features ? */
-    m_state = (are_any_features_active() ? STATE_WORKING : STATE_IDLE);
+    /* only latency requires the 'hot' state */
+    m_state = (is_latency_active() ? STATE_HOT : STATE_COLD);
 }
 
-bool CRxCoreStateless::are_any_features_active() {
+
+/**
+ * return true if any port has latency enabled
+ */
+bool CRxCoreStateless::is_latency_active() {
     for (int i = 0; i < m_max_ports; i++) {
-        if (m_rx_port_mngr[i].has_features_set()) {
+        if (m_rx_port_mngr[i].is_feature_set(RXPortManager::LATENCY)) {
             return true;
         }
     }
@@ -181,30 +156,94 @@ bool CRxCoreStateless::are_any_features_active() {
     return false;
 }
 
-void CRxCoreStateless::idle_state_loop() {
-    const int SHORT_DELAY_MS    = 2;
-    const int LONG_DELAY_MS     = 50;
-    const int DEEP_SLEEP_LIMIT  = 2000;
+
+/**
+ * when in hot state we busy poll as fast as possible 
+ * because of latency packets 
+ * 
+ */
+void CRxCoreStateless::hot_state_loop() {
+    
+    while (m_state == STATE_HOT) {
+        work_tick();
+        rte_pause();
+    }
+}
+
+
+/**
+ * on cold state loop we adapt to work actually done
+ * 
+ */
+void CRxCoreStateless::cold_state_loop() {
+    const uint32_t COLD_LIMIT_ITER = 1000;
+    const uint32_t COLD_SLEEP_MS  = 10;
 
     int counter = 0;
-
-    while (m_state == STATE_IDLE) {
-        bool had_msg = periodic_check_for_cp_messages();
-        if (had_msg) {
+ 
+    while (m_state == STATE_COLD) {
+        bool did_something = work_tick();
+        if (did_something) {
             counter = 0;
+            /* we are hot - continue with no delay */
             continue;
-        } else {
-            flush_all_pending_pkts();
         }
-
-        /* enter deep sleep only if enough time had passed */
-        if (counter < DEEP_SLEEP_LIMIT) {
-            delay(SHORT_DELAY_MS);
+        
+        if (counter < COLD_LIMIT_ITER) {
+            /* hot stage */
             counter++;
+            rte_pause();
         } else {
-            delay(LONG_DELAY_MS);
+            /* cold stage */
+            delay(COLD_SLEEP_MS);
         }
+        
     }
+}
+
+/**
+ * init the 'IF' scheduler values
+ * 
+ * @author imarom (2/20/2017)
+ */
+void CRxCoreStateless::init_work_stage() {
+    
+    /* set the next sync time to */
+    m_sync_time_sec = now_sec() + (1.0 / 1000);
+    m_grat_arp_sec  = now_sec() + (double)CGlobalInfo::m_options.m_arp_ref_per;
+}
+    
+/**
+ * performs once tick of work
+ * return true if anything was done
+ */
+bool CRxCoreStateless::work_tick() {
+    bool did_something = false;
+    
+    /* if any packet arrived - mark as */
+    if (process_all_pending_pkts()) {
+        did_something = true;
+    }
+    
+    dsec_t now = now_sec();
+        
+    /* until a scheduler is added here - dirty IFs */
+
+    if ( (now - m_sync_time_sec) > 0 ) {
+
+        if (periodic_check_for_cp_messages()) {
+            did_something = true;
+        }
+        
+        m_sync_time_sec = now + (1.0 / 1000);
+    }
+        
+    if ( (now - m_grat_arp_sec) > 0) {
+        handle_grat_arp();
+        m_grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
+    }
+    
+    return did_something;
 }
 
 /**
@@ -217,34 +256,6 @@ void CRxCoreStateless::handle_grat_arp() {
     }
 }
 
-void CRxCoreStateless::handle_work_stage() {
-    
-    /* set the next sync time to */
-    dsec_t sync_time_sec = now_sec() + (1.0 / 1000);
-    dsec_t grat_arp_sec  = now_sec() + (double)CGlobalInfo::m_options.m_arp_ref_per;
-
-    while (m_state == STATE_WORKING) {
-        process_all_pending_pkts();
-
-        dsec_t now = now_sec();
-        
-        /* until a scheduler is added here - dirty IFs */
-
-        if ( (now - sync_time_sec) > 0 ) {
-            periodic_check_for_cp_messages();
-            //periodic_check_for_dp_messages();
-            sync_time_sec = now + (1.0 / 1000);
-        }
-        
-        if ( (now - grat_arp_sec) > 0) {
-            handle_grat_arp();
-            grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
-        }
-
-        rte_pause();
-        
-    }
-}
 
 void CRxCoreStateless::start() {
     /* register a watchdog handle on current core */
@@ -253,13 +264,18 @@ void CRxCoreStateless::start() {
 
     recalculate_next_state();
     
+    init_work_stage();
+    
     while (m_state != STATE_QUIT) {
+
         switch (m_state) {
-        case STATE_IDLE:
-            idle_state_loop();
+
+        case STATE_HOT:
+            hot_state_loop();
             break;
-        case STATE_WORKING:
-            handle_work_stage();
+            
+        case STATE_COLD:
+            cold_state_loop();
             break;
 
         default:
