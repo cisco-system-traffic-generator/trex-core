@@ -175,7 +175,6 @@ public:
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
-    virtual uint8_t get_num_crc_fix_bytes() {return 0;}
 
     /* Does this NIC type support automatic packet dropping in case of a link down?
        in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
@@ -243,24 +242,15 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 };
 
-class CTRexExtendedDriverVirtio : public CTRexExtendedDriverBase {
-
+// Base for all virtual drivers. No constructor. Should not create object from this type.
+class CTRexExtendedDriverVirtBase : public CTRexExtendedDriverBase {
 public:
-    CTRexExtendedDriverVirtio() {
-        /* we are working in mode that we have 1 queue for rx and one queue for tx*/
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
-    }
-
     TRexPortAttr * create_port_attr(uint8_t port_id) {
         return new DpdkTRexPortAttr(port_id, true, true);
     }
 
     virtual bool has_crc_added() {
         return false;
-    }
-
-    static CTRexExtendedDriverBase * create(){
-        return ( new CTRexExtendedDriverVirtio() );
     }
 
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
@@ -281,7 +271,7 @@ public:
     }
 
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
@@ -292,7 +282,19 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
 };
 
-class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtio {
+class CTRexExtendedDriverVirtio : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverVirtio() {
+        /* we are working in mode that we have 1 queue for rx and one queue for tx*/
+        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+    }
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverVirtio() );
+    }
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+};
+
+class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverVmxnet3(){
         /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
@@ -302,11 +304,11 @@ public:
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverVmxnet3() );
     }
-
+    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
 };
 
-class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtio {
+class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverI40evf(){
         /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
@@ -342,7 +344,7 @@ public:
     }
 };
 
-class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtio {
+class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtBase {
     CTRexExtendedDriverBaseE1000() {
         // E1000 driver is only relevant in VM in our case
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
@@ -352,8 +354,7 @@ public:
         return ( new CTRexExtendedDriverBaseE1000() );
     }
     // e1000 driver handing us packets with ethernet CRC, so we need to chop them
-    virtual uint8_t get_num_crc_fix_bytes() {return 4;}
-
+    virtual void update_configuration(port_cfg_t * cfg);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
 };
@@ -3777,7 +3778,6 @@ void CGlobalTRex::rx_sl_configure(void) {
 
     rx_sl_cfg.m_max_ports = m_max_ports;
     rx_sl_cfg.m_tx_cores  = get_cores_tx();
-    rx_sl_cfg.m_num_crc_fix_bytes = get_ex_drv()->get_num_crc_fix_bytes();
         
     if ( get_vm_one_queue_enable() ) {
         /* vm mode, indirect queues  */
@@ -7260,7 +7260,7 @@ CFlowStatParser *CTRexExtendedDriverBaseVIC::get_flow_stat_parser() {
 
 
 /////////////////////////////////////////////////////////////////////////////////////
-void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
+void CTRexExtendedDriverVirtBase::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
@@ -7268,30 +7268,41 @@ void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMS;
 }
 
-int CTRexExtendedDriverVirtio::configure_rx_filter_rules(CPhyEthIF * _if){
+int CTRexExtendedDriverVirtBase::configure_rx_filter_rules(CPhyEthIF * _if){
     return (0);
 }
 
-void CTRexExtendedDriverVirtio::clear_extended_stats(CPhyEthIF * _if){
+void CTRexExtendedDriverVirtBase::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_port_id());
 }
 
-int CTRexExtendedDriverVirtio::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
+int CTRexExtendedDriverVirtBase::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
     return (0);
 }
 
-void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-    get_extended_stats_fixed(_if, stats, 0, 4);
+int CTRexExtendedDriverVirtBase::wait_for_stable_link(){
+    wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
+    return (0);
 }
 
 void CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
-int CTRexExtendedDriverVirtio::wait_for_stable_link(){
-    wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
-    return (0);
+void CTRexExtendedDriverVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    get_extended_stats_fixed(_if, stats, 4, 4);
 }
+
+void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    get_extended_stats_fixed(_if, stats, 0, 4);
+}
+
+void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
+    // We configure hardware not to strip CRC. Then DPDK driver removes the CRC.
+    // If configuring "hardware" to remove CRC, due to bug in ESXI e1000 emulation, we got packets with CRC.
+    cfg->m_port_conf.rxmode.hw_strip_crc = 0;
+}
+
 
 /////////////////////////////////////////////////////////// VMxnet3
 void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){

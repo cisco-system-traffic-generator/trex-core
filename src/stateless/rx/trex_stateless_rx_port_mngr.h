@@ -201,15 +201,12 @@ public:
                 CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
-                CCpuUtlDp *cpu_util,
-                uint8_t crc_bytes_num);
+                CCpuUtlDp *cpu_util);
 
-    
     void clear_stats() {
         m_latency.reset_stats();
     }
 
-    
     void get_latency_stats(rx_per_flow_t *rx_stats,
                            int min,
                            int max,
@@ -344,10 +341,6 @@ private:
     RXQueue                      m_queue;
     RXServer                     m_server;
     RXGratARP                    m_grat_arp;
-    
-    // compensate for the fact that hardware send us packets without Ethernet CRC, and we report with it
-    uint8_t m_num_crc_fix_bytes;
-    
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
     CManyIPInfo                  m_src_addr;

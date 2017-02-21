@@ -37,7 +37,6 @@ class CRxSlCfg {
     CRxSlCfg (){
         m_max_ports = 0;
         m_cps = 0.0;
-        m_num_crc_fix_bytes = 0;
         m_tx_cores = 0;
     }
 
@@ -46,7 +45,6 @@ class CRxSlCfg {
     uint32_t             m_tx_cores;
     double               m_cps;
     CPortLatencyHWBase * m_ports[TREX_MAX_PORTS];
-    uint8_t              m_num_crc_fix_bytes;
 };
 
 /**

@@ -91,8 +91,7 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
                                  cfg.m_ports[i],
                                  m_rfc2544,
                                  &m_err_cntrs,
-                                 &m_cpu_dp_u,
-                                 cfg.m_num_crc_fix_bytes);
+                                 &m_cpu_dp_u);
     }
 }
 

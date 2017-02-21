@@ -102,6 +102,12 @@ RXLatency::handle_pkt(const rte_mbuf_t *m) {
                                     curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
                                     curr_rfc2544->inc_seq_err_too_big();
                                     curr_rfc2544->set_seq(pkt_seq + 1);
+#ifdef LAT_DEBUG
+                                    printf("magic:%x flow_seq:%x hw_id:%x seq %x exp %x\n"
+                                           , fsp_head->magic, fsp_head->flow_seq, fsp_head->hw_id, pkt_seq
+                                           , exp_seq);
+                                    utl_DumpBuffer(stdout, rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len, 0);
+#endif
                                 } else {
                                     if (pkt_seq == (exp_seq - 1)) {
                                         curr_rfc2544->inc_dup();
@@ -128,6 +134,9 @@ RXLatency::handle_pkt(const rte_mbuf_t *m) {
                                     curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
                                     curr_rfc2544->inc_seq_err_too_big();
                                     curr_rfc2544->set_seq(pkt_seq + 1);
+#ifdef LAT_DEBUG
+                                    printf("2:seq %d exp %d\n", exp_seq, pkt_seq);
+#endif
                                 }
                             }
                         } else {
@@ -574,13 +583,10 @@ RXPortManager::create(const TRexPortAttr *port_attr,
                       CPortLatencyHWBase *io,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
-                      CCpuUtlDp *cpu_util,
-                      uint8_t crc_bytes_num) {
-    
+                      CCpuUtlDp *cpu_util) {
     m_port_id = port_attr->get_port_id();
     m_io = io;
     m_cpu_dp_u = cpu_util;
-    m_num_crc_fix_bytes = crc_bytes_num;
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
@@ -628,11 +634,6 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
         rte_mbuf_t *m = rx_pkts[j];
 
         if (!flush_rx) {
-            // patch relevant only for e1000 driver
-            if (m_num_crc_fix_bytes) {
-                rte_pktmbuf_trim(m, m_num_crc_fix_bytes);
-            }
-
             handle_pkt(m);
         }
 
