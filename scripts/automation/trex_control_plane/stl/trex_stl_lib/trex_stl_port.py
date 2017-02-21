@@ -191,6 +191,9 @@ class Port(object):
       
     # sync all the streams with the server
     def sync_streams (self):
+
+        self.streams = {}
+        
         params = {"port_id": self.port_id}
 
         rc = self.transmit("get_all_streams", params)
@@ -1003,10 +1006,13 @@ class Port(object):
         return self.port_stats.invalidate()
 
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self):
+    def generate_loaded_streams_sum(self, sync = True):
         if self.state == self.STATE_DOWN:
             return {}
 
+        if sync:
+            self.sync_streams()
+        
         data = {}
         for id, obj in self.streams.items():
 
