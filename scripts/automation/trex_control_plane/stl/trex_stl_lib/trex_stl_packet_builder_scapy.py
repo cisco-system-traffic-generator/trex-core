@@ -485,7 +485,7 @@ class CTRexScapyPktUtl(object):
         for pkt in self.pkt_iter ():
             if pkt.name == name:
                 if cnt==0:
-                    return (pkt, pkt.offset)
+                    return (pkt, pkt._offset)
                 else:
                     cnt=cnt -1
 
@@ -500,7 +500,7 @@ class CTRexScapyPktUtl(object):
         for pkt in self.pkt_iter ():
             if pkt.name == name:
                 if cnt==0:
-                    return pkt.offset
+                    return pkt._offset
                 else:
                     cnt=cnt -1
 
@@ -513,12 +513,11 @@ class CTRexScapyPktUtl(object):
         t=self._layer_offset(layer,layer_cnt);
         l_offset=t[1];
         layer_pkt=t[0]
-
         #layer_pkt.dump_fields_offsets ()
 
         for f in layer_pkt.fields_desc:
             if f.name == field_name:
-                return (l_offset+f.offset,f.get_size_bytes ());
+                return (l_offset+f._offset,f.get_size_bytes ());
 
         raise CTRexPacketBuildException(-11, "No layer %s-%d." % (field_name, layer_cnt))
 
