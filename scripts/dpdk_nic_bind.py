@@ -603,7 +603,7 @@ def get_info_from_trex(pci_addr_list):
         else:
             print('Error upon running TRex to get interfaces info:\n%s' % stdout)
         sys.exit(1)
-    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S+)'
+    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S*)'
     pci_mac_re = re.compile(pci_mac_str)
     for line in stdout.splitlines():
         match = pci_mac_re.match(line)

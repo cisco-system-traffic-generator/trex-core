@@ -607,12 +607,15 @@ Other network devices
             'net_virtio': 'virtio-pci',
             'net_enic': 'enic',
         }
-        for pci, info in dpdk_nic_bind.get_info_from_trex(dpdk_interfaces).items():
+        nics_info = dpdk_nic_bind.get_info_from_trex(dpdk_interfaces)
+        if not nics_info:
+            raise DpdkSetup('Could not determine interfaces information. Try to run manually: sudo ./t-rex-64 --dump-interfaces')
+        for pci, info in nics_info.items():
             if pci not in self.m_devices:
                 raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
             dev = self.m_devices[pci]
             if info['TRex_Driver'] not in drivers_table:
-                print('Got unknown driver %s, description: %s' % (info['TRex_Driver'], dev['Device_str']))
+                print("Got unknown driver '%s', description: %s" % (info['TRex_Driver'], dev['Device_str']))
             else:
                 print('Returning to Linux %s' % pci)
                 dpdk_nic_bind.bind_one(pci, drivers_table[info['TRex_Driver']], False)

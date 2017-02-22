@@ -5743,7 +5743,7 @@ void dump_interfaces_info() {
         ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
         printf("PCI: %04x:%02x:%02x.%d - MAC: %s - Driver: %s\n",
             pci_addr.domain, pci_addr.bus, pci_addr.devid, pci_addr.function, mac_str,
-            rte_eth_devices[port_id].device->devargs->virt.drv_name);
+            rte_eth_devices[port_id].data->drv_name);
     }
 }
 
