@@ -139,7 +139,8 @@ static char global_image_postfix[10];
 
 class CTRexExtendedDriverBase {
 public:
-    /* by default NIC driver adds CRC */
+    
+    /* need to remove this function - see bug trex-359 */
     virtual bool has_crc_added() {
         return true;
     }
@@ -250,7 +251,7 @@ public:
     }
 
     virtual bool has_crc_added() {
-        return false;
+        return true;
     }
 
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
