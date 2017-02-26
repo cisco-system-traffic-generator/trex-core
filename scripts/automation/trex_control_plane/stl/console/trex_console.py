@@ -580,6 +580,14 @@ class TRexConsole(TRexGeneralCmd):
     def help_service (self, line):
         self.do_service("-h")
 
+    @verify_connected
+    def do_pkt (self, line):
+        '''Sends a scapy notation packet'''
+        self.stateless_client.pkt_line(line)
+
+    def help_pkt (self, line):
+        self.do_pkt("-h")
+
     def help_clear(self):
         self.do_clear("-h")
 

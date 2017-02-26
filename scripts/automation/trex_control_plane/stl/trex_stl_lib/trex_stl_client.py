@@ -4412,3 +4412,49 @@ class STLClient(object):
         self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
         
 
+    @__console
+    def pkt_line (self, line):
+        '''
+            Sends a Scapy format packet
+        '''
+        
+        parser = parsing_opts.gen_parser(self,
+                                         "pkt",
+                                         self.pkt_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.FORCE,
+                                         parsing_opts.COUNT,
+                                         parsing_opts.DRY_RUN,
+                                         parsing_opts.SCAPY_PKT_CMD)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        # show layers option
+        if opts.layers:
+            self.logger.log(format_text('\nRegistered Layers:\n', 'underline'))
+            self.logger.log(parsing_opts.ScapyDecoder.formatted_layers())
+            return
+
+        # dry run option
+        if opts.dry:
+            self.logger.log(format_text('\nPacket (Size: {0}):\n'.format(format_num(len(opts.scapy_pkt), suffix = 'B')), 'bold', 'underline'))
+            opts.scapy_pkt.show2()
+            self.logger.log(format_text('\n*** DRY RUN - no traffic was injected ***\n', 'bold'))
+            return
+            
+            
+        self.logger.pre_cmd("Pushing {0} packet(s) (size: {1}) on port(s) {2}:".format(opts.count if opts.count else 'infinite',
+                                                                                       len(opts.scapy_pkt), opts.ports))
+        
+        try:
+            with self.logger.supress():
+                self.push_packets(pkts = bytes(opts.scapy_pkt), ports = opts.ports, force = opts.force, count = opts.count)
+        except STLError as e:
+            self.logger.post_cmd(False)
+            raise
+        else:
+            self.logger.post_cmd(RC_OK())
+        
+    

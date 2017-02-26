@@ -8,6 +8,8 @@ from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
 import sys
 import re
 import os
+import inspect
+
 
 ArgumentPack = namedtuple('ArgumentPack', ['name_or_flags', 'options'])
 ArgumentGroup = namedtuple('ArgumentGroup', ['type', 'args', 'options'])
@@ -73,6 +75,10 @@ DST_IPV4
 
 CAPTURE_ID
 
+SCAPY_PKT
+SHOW_LAYERS
+SCAPY_PKT_CMD
+
 GLOBAL_STATS
 PORT_STATS
 PORT_STATUS
@@ -90,6 +96,8 @@ CAPTURE_PORTS_GROUP
 MONITOR_TYPE_VERBOSE
 MONITOR_TYPE_PIPE
 MONITOR_TYPE
+
+
 
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
@@ -259,6 +267,59 @@ def is_valid_file(filename):
 
     return filename
 
+# scapy decoder class for parsing opts
+class ScapyDecoder(object):
+    scapy_layers = None
+    
+    @staticmethod
+    def init ():
+        # one time
+        if ScapyDecoder.scapy_layers:
+            return
+        
+        
+            
+        import scapy.all
+        import scapy.layers.dhcp
+        
+        raw = {}
+        
+        # default layers
+        raw.update(scapy.all.__dict__)
+        
+        # extended layers - add here
+        raw.update(scapy.layers.dhcp.__dict__)
+        
+        ScapyDecoder.scapy_layers = {k: v for k, v in raw.items() if inspect.isclass(v) and issubclass(v, scapy.all.Packet)}
+        
+        
+    @staticmethod
+    def to_scapy(scapy_str):
+        ScapyDecoder.init()
+        
+        try:
+            scapy_obj = eval(scapy_str, {'__builtins__': {}, 'True': True, 'False': False}, ScapyDecoder.scapy_layers)
+            len(scapy_obj)
+            return scapy_obj
+        except Exception as e:
+            raise argparse.ArgumentTypeError("invalid scapy expression: '{0}' - {1}".format(scapy_str, str(e)))
+
+        
+    @staticmethod
+    def formatted_layers ():
+        ScapyDecoder.init()
+        
+        output = ''
+        for k, v in sorted(ScapyDecoder.scapy_layers.items()):
+            name    = format_text("'{}'".format(k), 'bold')
+            descr   = v.name
+            #fields  = ", ".join(["'%s'" % f.name for f in v.fields_desc])
+            #print("{:<50} - {} ({})".format(name ,descr, fields))
+            output += "{:<50} - {}\n".format(name ,descr)
+            
+        return output
+        
+        
 def check_ipv4_addr (ipv4_str):
     if not is_valid_ipv4(ipv4_str):
         raise argparse.ArgumentTypeError("invalid IPv4 address: '{0}'".format(ipv4_str))
@@ -355,7 +416,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                     'default':  1.0,
                                     'type': float}),
 
-              COUNT: ArgumentPack(['-n', '--count'],
+              COUNT: ArgumentPack(['-c', '--count'],
                                   {'help': "How many times to perform action [default is 1, 0 means forever]",
                                    'dest': "count",
                                    'default':  1,
@@ -660,6 +721,23 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                    'type': int,
                                    'required': True}),
 
+              
+              SCAPY_PKT: ArgumentPack(['-s'],
+                                      {'dest':'scapy_pkt',
+                                       'metavar': 'PACKET',
+                                       'type': ScapyDecoder.to_scapy,
+                                       'help': 'A scapy notation packet (e.g.: Ether()/IP())'}),
+               
+              SHOW_LAYERS: ArgumentPack(['--layers', '-l'],
+                                        {'action': 'store_true',
+                                         'dest': 'layers',
+                                         'help': "Show all registered layers / inspect a specific layer"}),
+              
+              
+              SCAPY_PKT_CMD: ArgumentGroup(MUTEX, [SCAPY_PKT,
+                                                   SHOW_LAYERS],
+                                           {'required': True}),
+              
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],
