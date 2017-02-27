@@ -102,10 +102,16 @@ enum {
 
 #define IB_USER_VERBS_CMD_FLAG_EXTENDED		0x80ul
 
+/* use this mask for creating extended commands */
+#define IB_USER_VERBS_CMD_EXTENDED_MASK \
+	(IB_USER_VERBS_CMD_FLAG_EXTENDED << \
+	 IB_USER_VERBS_CMD_FLAGS_SHIFT)
+
 
 enum {
-	IB_USER_VERBS_CMD_CREATE_FLOW = (IB_USER_VERBS_CMD_FLAG_EXTENDED <<
-					 IB_USER_VERBS_CMD_FLAGS_SHIFT) +
+	IB_USER_VERBS_CMD_QUERY_DEVICE_EX = IB_USER_VERBS_CMD_EXTENDED_MASK |
+					    IB_USER_VERBS_CMD_QUERY_DEVICE,
+	IB_USER_VERBS_CMD_CREATE_FLOW = IB_USER_VERBS_CMD_EXTENDED_MASK +
 					IB_USER_VERBS_CMD_THRESHOLD,
 	IB_USER_VERBS_CMD_DESTROY_FLOW
 };
@@ -147,18 +153,10 @@ struct ex_hdr {
 	};
 };
 
-enum ibv_event_rsc_type {
-	IBV_EVENT_RSC_CQ,
-	IBV_EVENT_RSC_QP,
-	IBV_EVENT_RSC_DCT,
-	IBV_EVENT_RSC_SRQ,
-	IBV_EVENT_RSC_DEVICE,
-};
-
 struct ibv_kern_async_event {
 	__u64 element;
 	__u32 event_type;
-	__u32 rsc_type;
+	__u32 reserved;
 };
 
 struct ibv_comp_event {
@@ -256,6 +254,29 @@ struct ibv_query_device_resp {
 	__u8  reserved[4];
 };
 
+struct ibv_query_device_ex {
+	struct ex_hdr	hdr;
+	__u32		comp_mask;
+	__u32		reserved;
+};
+
+struct ibv_odp_caps_resp {
+	__u64 general_caps;
+	struct {
+		__u32 rc_odp_caps;
+		__u32 uc_odp_caps;
+		__u32 ud_odp_caps;
+	} per_transport_caps;
+	__u32 reserved;
+};
+
+struct ibv_query_device_resp_ex {
+	struct ibv_query_device_resp base;
+	__u32 comp_mask;
+	__u32 response_length;
+	struct ibv_odp_caps_resp odp_caps;
+};
+
 struct ibv_query_port {
 	__u32 command;
 	__u16 in_words;
@@ -349,6 +370,26 @@ struct ibv_reg_mr_resp {
 	__u32 rkey;
 };
 
+struct ibv_rereg_mr {
+	__u32 command;
+	__u16 in_words;
+	__u16 out_words;
+	__u64 response;
+	__u32 mr_handle;
+	__u32 flags;
+	__u64 start;
+	__u64 length;
+	__u64 hca_va;
+	__u32 pd_handle;
+	__u32 access_flags;
+	__u64 driver_data[0];
+};
+
+struct ibv_rereg_mr_resp {
+	__u32 lkey;
+	__u32 rkey;
+};
+
 struct ibv_dereg_mr {
 	__u32 command;
 	__u16 in_words;
@@ -376,6 +417,7 @@ struct ibv_dealloc_mw {
 	__u16 in_words;
 	__u16 out_words;
 	__u32 mw_handle;
+	__u32 reserved;
 };
 
 struct ibv_create_comp_channel {

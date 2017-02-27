@@ -165,8 +165,9 @@ enum ibv_exp_device_attr_comp_mask {
 	IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN	= (1 << 20),
 	IBV_EXP_DEVICE_ATTR_TSO_CAPS		= (1 << 21),
 	IBV_EXP_DEVICE_ATTR_PACKET_PACING_CAPS	= (1 << 22),
+	IBV_EXP_DEVICE_ATTR_EC_GF_BASE		= (1 << 23),
 	/* set supported bits for validity check */
-	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 23),
+	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 24),
 };
 
 struct ibv_exp_device_calc_cap {
@@ -197,7 +198,7 @@ enum ibv_odp_general_cap_bits {
 	IBV_EXP_ODP_SUPPORT = 1 << 0,
 };
 
-enum ibv_odp_transport_cap_bits {
+enum ibv_exp_odp_transport_cap_bits {
 	IBV_EXP_ODP_SUPPORT_SEND     = 1 << 0,
 	IBV_EXP_ODP_SUPPORT_RECV     = 1 << 1,
 	IBV_EXP_ODP_SUPPORT_WRITE    = 1 << 2,
@@ -349,6 +350,11 @@ struct ibv_exp_device_attr {
 	int			rx_pad_end_addr_align;
 	struct ibv_exp_tso_caps	tso_caps;
 	struct ibv_exp_packet_pacing_caps packet_pacing_caps;
+	uint32_t ec_w_mask;
+};
+
+enum {
+	IBV_EXP_ACCESS_FLAGS_SHIFT = 0x0F
 };
 
 enum ibv_exp_access_flags {
@@ -428,10 +434,10 @@ enum ibv_exp_wr_opcode {
 	IBV_EXP_WR_RDMA_READ		= IBV_WR_RDMA_READ,
 	IBV_EXP_WR_ATOMIC_CMP_AND_SWP	= IBV_WR_ATOMIC_CMP_AND_SWP,
 	IBV_EXP_WR_ATOMIC_FETCH_AND_ADD	= IBV_WR_ATOMIC_FETCH_AND_ADD,
+	IBV_EXP_WR_LOCAL_INV		= IBV_WR_LOCAL_INV,
+	IBV_EXP_WR_BIND_MW		= IBV_WR_BIND_MW,
+	IBV_EXP_WR_SEND_WITH_INV	= IBV_WR_SEND_WITH_INV,
 
-	IBV_EXP_WR_SEND_WITH_INV	= 8 + IBV_EXP_START_ENUM,
-	IBV_EXP_WR_LOCAL_INV		= 10 + IBV_EXP_START_ENUM,
-	IBV_EXP_WR_BIND_MW		= 14 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_TSO			= 15 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_SEND_ENABLE		= 0x20 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_RECV_ENABLE,
@@ -1083,22 +1089,6 @@ struct ibv_exp_cq_attr {
 	uint32_t		cq_cap_flags;
 };
 
-enum ibv_exp_rereg_mr_flags {
-	IBV_EXP_REREG_MR_CHANGE_TRANSLATION	= IBV_REREG_MR_CHANGE_TRANSLATION,
-	IBV_EXP_REREG_MR_CHANGE_PD		= IBV_REREG_MR_CHANGE_PD,
-	IBV_EXP_REREG_MR_CHANGE_ACCESS		= IBV_REREG_MR_CHANGE_ACCESS,
-	IBV_EXP_REREG_MR_KEEP_VALID		= IBV_REREG_MR_KEEP_VALID,
-	IBV_EXP_REREG_MR_FLAGS_SUPPORTED	= ((IBV_EXP_REREG_MR_KEEP_VALID << 1) - 1)
-};
-
-enum ibv_exp_rereg_mr_attr_mask {
-	IBV_EXP_REREG_MR_ATTR_RESERVED		= (1 << 0)
-};
-
-struct ibv_exp_rereg_mr_attr {
-	uint32_t	comp_mask;  /* use ibv_exp_rereg_mr_attr_mask */
-};
-
 /*
  * Flags for ibv_exp_reg_shared_mr_in struct comp_mask
  */
@@ -1317,7 +1307,7 @@ enum ibv_exp_wc_opcode {
 	IBV_EXP_WC_COMP_SWAP,
 	IBV_EXP_WC_FETCH_ADD,
 	IBV_EXP_WC_BIND_MW,
-	IBV_EXP_WC_LOCAL_INV		=	7,
+	IBV_EXP_WC_LOCAL_INV,
 	IBV_EXP_WC_MASKED_COMP_SWAP	=	9,
 	IBV_EXP_WC_MASKED_FETCH_ADD	=	10,
 	IBV_EXP_WC_TSO,
@@ -1333,8 +1323,8 @@ enum ibv_exp_wc_opcode {
 enum ibv_exp_wc_flags {
 	IBV_EXP_WC_GRH		= IBV_WC_GRH,
 	IBV_EXP_WC_WITH_IMM	= IBV_WC_WITH_IMM,
+	IBV_EXP_WC_WITH_INV	= IBV_WC_WITH_INV,
 
-	IBV_EXP_WC_WITH_INV			= IBV_EXP_START_FLAG << 2,
 	IBV_EXP_WC_WITH_SL			= IBV_EXP_START_FLAG << 4,
 	IBV_EXP_WC_WITH_SLID			= IBV_EXP_START_FLAG << 5,
 	IBV_EXP_WC_WITH_TIMESTAMP		= IBV_EXP_START_FLAG << 6,
@@ -1513,18 +1503,6 @@ struct ibv_exp_mkey_list_container_attr {
 	uint32_t mkey_list_type;  /* use ibv_exp_mkey_list_type */
 	uint32_t max_klm_list_size;
 	uint32_t comp_mask; /*use ibv_exp_alloc_mkey_list_comp_mask */
-};
-
-/*
- * Flags for ibv_exp_rereg_out struct comp_mask
- */
-enum ibv_exp_rereg_mr_comp_mask {
-	IBV_EXP_REREG_MR_RESERVED	= (1 << 0)
-};
-
-struct ibv_exp_rereg_out {
-	int need_dofork;
-	uint32_t comp_mask; /* use ibv_exp_rereg_mr_comp_mask */
 };
 
 /*
@@ -2218,6 +2196,8 @@ struct ibv_exp_peer_abort_peek;
 
 struct verbs_context_exp {
 	/*  "grows up" - new fields go here */
+	struct ibv_ah * (*drv_exp_ibv_create_kah)(struct ibv_pd *pd,
+						  struct ibv_exp_ah_attr *attr_exp);
 	int (*exp_peer_peek_cq)(struct ibv_cq *ibcq,
 				struct ibv_exp_peer_peek *peek_ctx);
 	int (*exp_peer_abort_peek_cq)(struct ibv_cq *ibcq,
@@ -2285,12 +2265,8 @@ struct verbs_context_exp {
 			      const char *value, int overwrite);
 	struct verbs_environment *venv;
 	int (*drv_exp_dereg_mr)(struct ibv_mr *mr, struct ibv_exp_dereg_out *out);
-	int (*exp_rereg_mr)(struct ibv_mr *mr, int flags, struct ibv_pd *pd,
-			    void *addr, size_t length, uint64_t access,
-			    struct ibv_exp_rereg_mr_attr *attr);
-	int (*drv_exp_rereg_mr)(struct ibv_mr *mr, int flags, struct ibv_pd *pd,
-				void *addr, size_t length, uint64_t access,
-				struct ibv_exp_rereg_mr_attr *attr, struct ibv_exp_rereg_out *out);
+	void (*ABI_placeholder2)(void);
+	void (*ABI_placeholder1)(void);
 	int (*drv_exp_prefetch_mr)(struct ibv_mr *mr,
 				   struct ibv_exp_prefetch_attr *attr);
 	int (*lib_exp_prefetch_mr)(struct ibv_mr *mr,
@@ -2368,6 +2344,7 @@ struct verbs_context_exp {
 			/* must be located as last field	*/
 };
 
+#define ETHERNET_LL_SIZE 6
 
 static inline struct verbs_context_exp *verbs_get_exp_ctx(struct ibv_context *ctx)
 {
@@ -2955,7 +2932,7 @@ static inline int ibv_exp_query_port(struct ibv_context *context,
 				      &port_attr->port_attr);
 
 	/* Check that only valid flags were given */
-	if ((!port_attr->comp_mask & IBV_EXP_QUERY_PORT_ATTR_MASK1) ||
+	if (!(port_attr->comp_mask & IBV_EXP_QUERY_PORT_ATTR_MASK1) ||
 	    (port_attr->comp_mask & ~IBV_EXP_QUERY_PORT_ATTR_MASKS) ||
 	    (port_attr->mask1 & ~IBV_EXP_QUERY_PORT_MASK)) {
 		errno = EINVAL;
@@ -3354,28 +3331,6 @@ ibv_exp_alloc_mkey_list_memory(struct ibv_exp_mkey_list_container_attr *attr)
 					      IBV_EXP_MKEY_LIST_CONTAINER_RESERVED - 1);
 
 	return vctx->lib_exp_alloc_mkey_list_memory(attr);
-}
-
-/**
- * ibv_rereg_mr - Re-Register a memory region
- *
- * For exp_access use ibv_exp_access_flags
- */
-static inline int ibv_exp_rereg_mr(struct ibv_mr *mr, int flags,
-				   struct ibv_pd *pd, void *addr,
-				   size_t length, uint64_t exp_access,
-				   struct ibv_exp_rereg_mr_attr *attr)
-{
-	struct verbs_context_exp *vctx;
-
-	vctx = verbs_get_exp_ctx_op(mr->context, exp_rereg_mr);
-	if (!vctx)
-		return errno = ENOSYS;
-
-	IBV_EXP_RET_EINVAL_ON_INVALID_COMP_MASK(attr->comp_mask,
-						IBV_EXP_REREG_MR_ATTR_RESERVED - 1);
-
-	return vctx->exp_rereg_mr(mr, flags, pd, addr, length, exp_access, attr);
 }
 
 /**

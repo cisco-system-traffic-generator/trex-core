@@ -2813,6 +2813,62 @@ There is a task to automate the production of thess reports
    Cause: rte_eth_dev_filter_ctrl: err=-22, port=2
 ----
 
+==== Build with native OFED 
+
+In some case there is a need to build the dpdk-mlx5 with different OFED (not just 4.0 maybe newer) 
+to do so run this on native machine 
+
+[source,bash]
+---- 
+[csi-trex-07]> ./b configure
+Setting top to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core 
+Setting out to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core/linux_dpdk/build_dpdk 
+Checking for program 'g++, c++'          : /bin/g++ 
+Checking for program 'ar'                : /bin/ar 
+Checking for program 'gcc, cc'           : /bin/gcc 
+Checking for program 'ar'                : /bin/ar 
+Checking for program 'ldd'               : /bin/ldd 
+Checking for library z                   : yes 
+Checking for OFED                        : Found needed version 4.0   #1 
+Checking for library ibverbs             : yes 
+'configure' finished successfully (1.826s)
+---- 
+<1> make sure it was identify 
+
+
+[source,python]
+---- 
+        index fba7540..a55fe6b 100755
+        --- a/linux_dpdk/ws_main.py
+        +++ b/linux_dpdk/ws_main.py
+        @@ -143,8 +143,11 @@ def missing_pkg_msg(fedora, ubuntu):
+         def check_ofed(ctx):
+             ctx.start_msg('Checking for OFED')
+             ofed_info='/usr/bin/ofed_info'
+        -    ofed_ver= '-3.4-'
+        -    ofed_ver_show= 'v3.4'
+        +
+        +    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+        +
+        +    ofed_ver= 40                                     <1>
+        +    ofed_ver_show= '4.0'
+        
+        
+        --- a/scripts/dpdk_setup_ports.py
+        +++ b/scripts/dpdk_setup_ports.py
+        @@ -366,8 +366,8 @@ Other network devices
+         
+                 ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+         
+        -        ofed_ver= 34
+        -        ofed_ver_show= '3.4-1'
+        +        ofed_ver= 40                                 <2>
+        +        ofed_ver_show= '4.0'
+---- 
+<1> change to new version 
+<2> change to new version 
+ 
+
 
 === Cisco VIC support 
 

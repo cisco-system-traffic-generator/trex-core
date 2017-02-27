@@ -31,6 +31,7 @@
 #define MLX5_CQ_DB_REQ_NOT			(0 << 24)
 #define MLX5E_CQE_FORMAT_MASK 0xc
 
+
 enum mlx5_alloc_type { MXM_MLX5_ALLOC_TYPE_DUMMY };
 enum mlx5_rsc_type   { MXM_MLX5_RSC_TYPE_DUMMY };
 enum mlx5_db_method { MXM_MLX5_DB_TYPE_DUMMY };
@@ -51,13 +52,11 @@ enum {
 	MLX5_OPCODE_SEND_IMM = 0x0b,
 	MLX5_OPCODE_TSO = 0x0e,
 	MLX5_OPC_MOD_MPW = 0x01,
-    MLX5_OPCODE_LSO_MPW =  0x0e,
 	MLX5_OPCODE_RDMA_READ = 0x10,
 	MLX5_OPCODE_ATOMIC_CS = 0x11,
 	MLX5_OPCODE_ATOMIC_FA = 0x12,
 	MLX5_OPCODE_ATOMIC_MASKED_CS = 0x14,
 	MLX5_OPCODE_ATOMIC_MASKED_FA = 0x15,
-	MLX5_OPCODE_BIND_MW = 0x18,
 	MLX5_OPCODE_FMR = 0x19,
 	MLX5_OPCODE_LOCAL_INVAL = 0x1b,
 	MLX5_OPCODE_CONFIG_CMD = 0x1f,
@@ -249,7 +248,7 @@ struct mlx5_wqe_umr_ctrl_seg {
 	uint8_t		flags;
 	uint8_t		rsvd0[3];
 	uint16_t	klm_octowords;
-	uint16_t	bsf_octowords;
+	uint16_t	translation_offset;
 	uint64_t	mkey_mask;
 	uint8_t		rsvd1[32];
 };
@@ -571,6 +570,7 @@ struct mlx5_wq {
 	volatile uint32_t	       *db;
 	int				wqe_shift;
 	int				offset;
+	uint32_t			*wr_data;
 };
 
 
@@ -640,6 +640,7 @@ struct mlx5_qp {
 struct mlx5_ah {
 	struct ibv_ah			ibv_ah;
 	struct mlx5_wqe_av		av;
+	int				kern_ah;
 };
 
 

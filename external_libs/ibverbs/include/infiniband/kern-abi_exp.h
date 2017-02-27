@@ -310,7 +310,8 @@ struct ibv_exp_query_device_resp {
 	__u32 max_device_ctx;
 	struct ibv_exp_mp_rq_caps_resp mp_rq_caps;
 	__u16 wq_vlan_offloads_cap;
-	__u8 reserved1[6];
+	__u8 reserved1[2];
+	__u32 ec_w_mask;
 	struct ibv_exp_ec_caps_resp ec_caps;
 	struct ibv_exp_masked_atomic_caps masked_atomic_caps;
 	__u16 rx_pad_end_addr_align;
@@ -443,9 +444,9 @@ struct ibv_exp_modify_qp {
 	__u64 dct_key;
 	__u32 exp_attr_mask;
 	__u32 flow_entropy;
-	__u64 driver_data[0];
 	__u32 rate_limit;
 	__u32 reserved1;
+	__u64 driver_data[0];
 };
 
 enum ibv_exp_create_cq_comp_mask {
@@ -573,14 +574,8 @@ struct ibv_exp_create_wq {
 	__u64 user_handle;
 	__u32 pd_handle;
 	__u32 cq_handle;
-	__u32 srq_handle;
 	__u32 max_recv_wr;
 	__u32 max_recv_sge;
-	__u32 reserved;
-	struct ibv_exp_cmd_wq_mp_rq mp_rq;
-	__u16 wq_vlan_offloads;
-	__u8 reserved1[6];
-	__u64 flags;
 };
 
 struct ibv_exp_create_wq_resp {
@@ -598,22 +593,25 @@ struct ib_exp_destroy_wq {
 	__u32 wq_handle;
 };
 
+struct ibv_destroy_wq_resp {
+	__u32 comp_mask;
+	__u32 response_length;
+	__u32 events_reported;
+	__u32 reserved;
+};
+
 struct ib_exp_modify_wq  {
 	struct ex_hdr hdr;
 	__u32 comp_mask;
 	__u32 wq_handle;
 	__u32 wq_state;
 	__u32 curr_wq_state;
-	__u16 wq_vlan_offloads;
-	__u8 reserved[6];
 };
 
 struct ibv_exp_create_rwq_ind_table {
 	struct ex_hdr hdr;
 	__u32 comp_mask;
-	__u32 pd_handle;
 	__u32 log_ind_tbl_size;
-	__u32 reserved;
 	/* Following are wq handles based on log_ind_tbl_size, must be 64 bytes aligned.
 	 * __u32 wq_handle1
 	 * __u32 wq_handle2

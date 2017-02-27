@@ -125,13 +125,6 @@ int ibv_exp_cmd_create_rwq_ind_table(struct ibv_context *context,
 				     size_t resp_core_size,
 				     size_t resp_size);
 int ibv_exp_cmd_destroy_rwq_ind_table(struct ibv_exp_rwq_ind_table *rwq_ind_table);
-int ibv_exp_cmd_rereg_mr(struct ibv_mr *mr, uint32_t flags, void *addr,
-			 size_t length, uint64_t hca_va, int access,
-			 struct ibv_pd *pd, struct ibv_exp_rereg_mr_attr *attr,
-			 struct ibv_exp_rereg_mr *cmd,
-			 size_t lib_cmd_sz, size_t drv_cmd_sz,
-			 struct ibv_exp_rereg_mr_resp *resp,
-			 size_t lib_resp_sz, size_t drv_resp_sz);
 /*
  * ibv_exp_cmd_getenv
  *

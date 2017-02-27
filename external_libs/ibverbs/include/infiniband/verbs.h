@@ -41,6 +41,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <infiniband/ofa_verbs.h>
+#include <string.h>
 
 #ifdef __cplusplus
 #  define BEGIN_C_DECLS extern "C" {
@@ -124,7 +125,11 @@ enum ibv_device_cap_flags {
 	IBV_DEVICE_RC_RNR_NAK_GEN	= 1 << 12,
 	IBV_DEVICE_SRQ_RESIZE		= 1 << 13,
 	IBV_DEVICE_N_NOTIFY_CQ		= 1 << 14,
+	IBV_DEVICE_MEM_WINDOW		= 1 << 17,
 	IBV_DEVICE_XRC			= 1 << 20,
+	IBV_DEVICE_MEM_MGT_EXTENSIONS	= 1 << 21,
+	IBV_DEVICE_MEM_WINDOW_TYPE_2A	= 1 << 23,
+	IBV_DEVICE_MEM_WINDOW_TYPE_2B	= 1 << 24,
 	IBV_DEVICE_MANAGED_FLOW_STEERING = 1 << 29
 };
 
@@ -145,7 +150,7 @@ struct ibv_device_attr {
 	uint32_t		hw_ver;
 	int			max_qp;
 	int			max_qp_wr;
-	int			device_cap_flags;
+	uint32_t		device_cap_flags;
 	int			max_sge;
 	int			max_sge_rd;
 	int			max_cq;
@@ -175,6 +180,39 @@ struct ibv_device_attr {
 	uint16_t		max_pkeys;
 	uint8_t			local_ca_ack_delay;
 	uint8_t			phys_port_cnt;
+};
+
+/* An extensible input struct for possible future extensions of the
+ * ibv_query_device_ex verb. */
+struct ibv_query_device_ex_input {
+	uint32_t		comp_mask;
+};
+
+enum ibv_odp_transport_cap_bits {
+	IBV_ODP_SUPPORT_SEND     = 1 << 0,
+	IBV_ODP_SUPPORT_RECV     = 1 << 1,
+	IBV_ODP_SUPPORT_WRITE    = 1 << 2,
+	IBV_ODP_SUPPORT_READ     = 1 << 3,
+	IBV_ODP_SUPPORT_ATOMIC   = 1 << 4,
+};
+
+struct ibv_odp_caps {
+	uint64_t general_caps;
+	struct {
+		uint32_t rc_odp_caps;
+		uint32_t uc_odp_caps;
+		uint32_t ud_odp_caps;
+	} per_transport_caps;
+};
+
+enum ibv_odp_general_caps {
+	IBV_ODP_SUPPORT = 1 << 0,
+};
+
+struct ibv_device_attr_ex {
+	struct ibv_device_attr	orig_attr;
+	uint32_t		comp_mask;
+	struct ibv_odp_caps	odp_caps;
 };
 
 enum ibv_mtu {
@@ -327,6 +365,7 @@ enum ibv_wc_opcode {
 	IBV_WC_COMP_SWAP,
 	IBV_WC_FETCH_ADD,
 	IBV_WC_BIND_MW,
+	IBV_WC_LOCAL_INV,
 /*
  * Set value of IBV_WC_RECV so consumers can test if a completion is a
  * receive by testing (opcode & IBV_WC_RECV).
@@ -337,7 +376,8 @@ enum ibv_wc_opcode {
 
 enum ibv_wc_flags {
 	IBV_WC_GRH		= 1 << 0,
-	IBV_WC_WITH_IMM		= 1 << 1
+	IBV_WC_WITH_IMM		= 1 << 1,
+	IBV_WC_WITH_INV		= 1 << 3
 };
 
 struct ibv_wc {
@@ -346,7 +386,10 @@ struct ibv_wc {
 	enum ibv_wc_opcode	opcode;
 	uint32_t		vendor_err;
 	uint32_t		byte_len;
-	uint32_t		imm_data;	/* in network byte order */
+	/* When (wc_flags & IBV_WC_WITH_IMM): Immediate data in network byte order.
+	 * When (wc_flags & IBV_WC_WITH_INV): Stores the invalidated rkey.
+	 */
+	uint32_t		imm_data;
 	uint32_t		qp_num;
 	uint32_t		src_qp;
 	int			wc_flags;
@@ -361,7 +404,16 @@ enum ibv_access_flags {
 	IBV_ACCESS_REMOTE_WRITE		= (1<<1),
 	IBV_ACCESS_REMOTE_READ		= (1<<2),
 	IBV_ACCESS_REMOTE_ATOMIC	= (1<<3),
-	IBV_ACCESS_MW_BIND		= (1<<4)
+	IBV_ACCESS_MW_BIND		= (1<<4),
+	IBV_ACCESS_ZERO_BASED		= (1<<5),
+	IBV_ACCESS_ON_DEMAND		= (1<<6),
+};
+
+struct ibv_mw_bind_info {
+	struct ibv_mr	*mr;
+	uint64_t	 addr;
+	uint64_t	 length;
+	int		 mw_access_flags; /* use ibv_access_flags */
 };
 
 struct ibv_pd {
@@ -389,7 +441,8 @@ enum ibv_rereg_mr_flags {
 	IBV_REREG_MR_CHANGE_TRANSLATION	= (1 << 0),
 	IBV_REREG_MR_CHANGE_PD		= (1 << 1),
 	IBV_REREG_MR_CHANGE_ACCESS	= (1 << 2),
-	IBV_REREG_MR_KEEP_VALID		= (1 << 3)
+	IBV_REREG_MR_KEEP_VALID		= (1 << 3),
+	IBV_REREG_MR_FLAGS_SUPPORTED	= ((IBV_REREG_MR_KEEP_VALID << 1) - 1)
 };
 
 struct ibv_mr {
@@ -411,6 +464,8 @@ struct ibv_mw {
 	struct ibv_context     *context;
 	struct ibv_pd	       *pd;
 	uint32_t		rkey;
+	uint32_t		handle;
+	enum ibv_mw_type	type;
 };
 
 struct ibv_global_route {
@@ -678,7 +733,10 @@ enum ibv_wr_opcode {
 	IBV_WR_SEND_WITH_IMM,
 	IBV_WR_RDMA_READ,
 	IBV_WR_ATOMIC_CMP_AND_SWP,
-	IBV_WR_ATOMIC_FETCH_AND_ADD
+	IBV_WR_ATOMIC_FETCH_AND_ADD,
+	IBV_WR_LOCAL_INV,
+	IBV_WR_BIND_MW,
+	IBV_WR_SEND_WITH_INV,
 };
 
 enum ibv_send_flags {
@@ -728,6 +786,11 @@ struct ibv_send_wr {
 
 		uint32_t		xrc_remote_srq_num;
 	};
+	struct {
+		struct ibv_mw	*mw;
+		uint32_t		rkey;
+		struct ibv_mw_bind_info	bind_info;
+	} bind_mw;
 };
 
 struct ibv_recv_wr {
@@ -739,11 +802,8 @@ struct ibv_recv_wr {
 
 struct ibv_mw_bind {
 	uint64_t		wr_id;
-	struct ibv_mr	       *mr;
-	void		       *addr;
-	size_t			length;
 	int			send_flags;
-	int			mw_access_flags;
+	struct ibv_mw_bind_info bind_info;
 };
 
 struct ibv_srq {
@@ -964,7 +1024,7 @@ struct ibv_context_ops {
 	int			(*dealloc_pd)(struct ibv_pd *pd);
 	struct ibv_mr *		(*reg_mr)(struct ibv_pd *pd, void *addr, size_t length,
 					  int access);
-	struct ibv_mr *		(*rereg_mr)(struct ibv_mr *mr,
+	int			(*rereg_mr)(struct ibv_mr *mr,
 					    int flags,
 					    struct ibv_pd *pd, void *addr,
 					    size_t length,
@@ -1032,6 +1092,10 @@ enum verbs_context_mask {
 };
 
 struct verbs_context {
+	int (*query_device_ex)(struct ibv_context *context,
+		       const struct ibv_query_device_ex_input *input,
+		       struct ibv_device_attr_ex *attr,
+		       size_t attr_size);
 	/*  "grows up" - new fields go here */
 	int (*_reserved_2) (void);
 	int (*destroy_flow) (struct ibv_flow *flow);
@@ -1234,6 +1298,26 @@ static inline int ibv_close_xrcd(struct ibv_xrcd *xrcd)
 struct ibv_mr *ibv_reg_mr(struct ibv_pd *pd, void *addr,
 			  size_t length, int access);
 
+
+enum ibv_rereg_mr_err_code {
+	/* Old MR is valid, invalid input */
+	IBV_REREG_MR_ERR_INPUT = -1,
+	/* Old MR is valid, failed via dont fork on new address range */
+	IBV_REREG_MR_ERR_DONT_FORK_NEW = -2,
+	/* New MR is valid, failed via do fork on old address range */
+	IBV_REREG_MR_ERR_DO_FORK_OLD = -3,
+	/* MR shouldn't be used, command error */
+	IBV_REREG_MR_ERR_CMD = -4,
+	/* MR shouldn't be used, command error, invalid fork state on new address range */
+	IBV_REREG_MR_ERR_CMD_AND_DO_FORK_NEW = -5,
+};
+
+/**
+ * ibv_rereg_mr - Re-Register a memory region
+ */
+int ibv_rereg_mr(struct ibv_mr *mr, int flags,
+		 struct ibv_pd *pd, void *addr,
+		 size_t length, int access);
 /**
  * ibv_dereg_mr - Deregister a memory region
  */
@@ -1243,18 +1327,16 @@ int ibv_dereg_mr(struct ibv_mr *mr);
  * ibv_alloc_mw - Allocate a memory window
  */
 static inline struct ibv_mw *ibv_alloc_mw(struct ibv_pd *pd,
-		enum ibv_mw_type type)
+					  enum ibv_mw_type type)
 {
+	struct ibv_mw *mw;
+
 	if (!pd->context->ops.alloc_mw) {
 		errno = ENOSYS;
 		return NULL;
 	}
 
-	struct ibv_mw *mw = pd->context->ops.alloc_mw(pd, type);
-	if (mw) {
-		mw->context = pd->context;
-		mw->pd      = pd;
-	}
+	mw = pd->context->ops.alloc_mw(pd, type);
 	return mw;
 }
 
@@ -1267,13 +1349,26 @@ static inline int ibv_dealloc_mw(struct ibv_mw *mw)
 }
 
 /**
- * ibv_inc_rkey - increase the 8 lsb in the given rkey
+ * ibv_inc_rkey - Increase the 8 lsb in the given rkey
  */
 static inline uint32_t ibv_inc_rkey(uint32_t rkey)
 {
 	const uint32_t mask = 0x000000ff;
-	uint8_t newtag = (uint8_t) ((rkey + 1) & mask);
+	uint8_t newtag = (uint8_t)((rkey + 1) & mask);
+
 	return (rkey & ~mask) | newtag;
+}
+
+/**
+ * ibv_bind_mw - Bind a memory window to a region
+ */
+static inline int ibv_bind_mw(struct ibv_qp *qp, struct ibv_mw *mw,
+			      struct ibv_mw_bind *mw_bind)
+{
+	if (mw->type != IBV_MW_TYPE_1)
+		return EINVAL;
+
+	return mw->context->ops.bind_mw(qp, mw, mw_bind);
 }
 
 /**
@@ -1486,6 +1581,33 @@ ibv_create_qp_ex(struct ibv_context *context, struct ibv_qp_init_attr_ex *qp_ini
 		return NULL;
 	}
 	return vctx->create_qp_ex(context, qp_init_attr_ex);
+}
+
+/**
+ * ibv_query_device_ex - Get extended device properties
+ */
+static inline int
+ibv_query_device_ex(struct ibv_context *context,
+		    const struct ibv_query_device_ex_input *input,
+		    struct ibv_device_attr_ex *attr)
+{
+	struct verbs_context *vctx;
+	int ret;
+
+	vctx = verbs_get_ctx_op(context, query_device_ex);
+	if (!vctx)
+		goto legacy;
+
+	ret = vctx->query_device_ex(context, input, attr, sizeof(*attr));
+	if (ret == ENOSYS)
+		goto legacy;
+
+	return ret;
+
+legacy:
+	memset(attr, 0, sizeof(*attr));
+	ret = ibv_query_device(context, &attr->orig_attr);
+	return ret;
 }
 
 /**

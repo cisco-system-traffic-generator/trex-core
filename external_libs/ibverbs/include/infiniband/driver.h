@@ -86,12 +86,6 @@ enum verbs_qp_mask {
 	VERBS_QP_RESERVED	= 1 << 1
 };
 
-struct verbs_mw {
-	struct ibv_mw		mw;
-	uint32_t		handle;
-	enum ibv_mw_type        type;
-};
-
 struct verbs_qp {
 	struct ibv_qp		qp;
 	uint32_t		comp_mask;
@@ -111,6 +105,16 @@ int ibv_cmd_query_device(struct ibv_context *context,
 			 struct ibv_device_attr *device_attr,
 			 uint64_t *raw_fw_ver,
 			 struct ibv_query_device *cmd, size_t cmd_size);
+int ibv_cmd_query_device_ex(struct ibv_context *context,
+			    const struct ibv_query_device_ex_input *input,
+			    struct ibv_device_attr_ex *attr, size_t attr_size,
+			    uint64_t *raw_fw_ver,
+			    struct ibv_query_device_ex *cmd,
+			    size_t cmd_core_size,
+			    size_t cmd_size,
+			    struct ibv_query_device_resp_ex *resp,
+			    size_t resp_core_size,
+			    size_t resp_size);
 int ibv_cmd_query_port(struct ibv_context *context, uint8_t port_num,
 		       struct ibv_port_attr *port_attr,
 		       struct ibv_query_port *cmd, size_t cmd_size);
@@ -135,12 +139,17 @@ int ibv_cmd_reg_mr(struct ibv_pd *pd, void *addr, size_t length,
 		   struct ibv_mr *mr, struct ibv_reg_mr *cmd,
 		   size_t cmd_size,
 		   struct ibv_reg_mr_resp *resp, size_t resp_size);
+int ibv_cmd_rereg_mr(struct ibv_mr *mr, uint32_t flags, void *addr,
+		     size_t length, uint64_t hca_va, int access,
+		     struct ibv_pd *pd, struct ibv_rereg_mr *cmd,
+		     size_t cmd_sz, struct ibv_rereg_mr_resp *resp,
+		     size_t resp_sz);
 int ibv_cmd_dereg_mr(struct ibv_mr *mr);
 int ibv_cmd_alloc_mw(struct ibv_pd *pd, enum ibv_mw_type type,
-		     struct verbs_mw *mw, struct ibv_alloc_mw *cmd,
+		     struct ibv_mw *mw, struct ibv_alloc_mw *cmd,
 		     size_t cmd_size,
 		     struct ibv_alloc_mw_resp *resp, size_t resp_size);
-int ibv_cmd_dealloc_mw(struct verbs_mw *mw,
+int ibv_cmd_dealloc_mw(struct ibv_mw *mw,
 		       struct ibv_dealloc_mw *cmd, size_t cmd_size);
 int ibv_cmd_create_cq(struct ibv_context *context, int cqe,
 		      struct ibv_comp_channel *channel,
@@ -197,7 +206,9 @@ int ibv_cmd_post_recv(struct ibv_qp *ibqp, struct ibv_recv_wr *wr,
 int ibv_cmd_post_srq_recv(struct ibv_srq *srq, struct ibv_recv_wr *wr,
 			  struct ibv_recv_wr **bad_wr);
 int ibv_cmd_create_ah(struct ibv_pd *pd, struct ibv_ah *ah,
-		      struct ibv_ah_attr *attr);
+		      struct ibv_ah_attr *attr,
+		      struct ibv_create_ah_resp *resp,
+		      size_t resp_size);
 int ibv_cmd_destroy_ah(struct ibv_ah *ah);
 int ibv_cmd_attach_mcast(struct ibv_qp *qp, const union ibv_gid *gid, uint16_t lid);
 int ibv_cmd_detach_mcast(struct ibv_qp *qp, const union ibv_gid *gid, uint16_t lid);
@@ -211,10 +222,10 @@ int ibv_cmd_destroy_flow(struct ibv_flow *flow_id);
 
 int ibv_dontfork_range(void *base, size_t size);
 int ibv_dofork_range(void *base, size_t size);
-void ibv_cmd_query_device_assign(struct ibv_device_attr *device_attr,
-				 uint64_t *raw_fw_ver,
-				 struct ibv_query_device_resp *resp);
 
+void copy_query_dev_fields(struct ibv_device_attr *device_attr,
+				  struct ibv_query_device_resp *resp,
+				  uint64_t *raw_fw_ver);
 /*
  * sysfs helper functions
  */
