@@ -122,7 +122,6 @@ public:
         uint8_t         hw_macaddr[6];
         std::string     pci_addr;
         int             numa_node;
-        bool            has_crc;
     };
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
@@ -226,7 +225,6 @@ public:
     virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
-        info.has_crc = true;
         info.numa_node = 0;
 
         memset(&info.hw_macaddr, 0, sizeof(info.hw_macaddr));
