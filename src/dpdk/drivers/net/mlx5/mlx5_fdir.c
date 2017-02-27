@@ -332,7 +332,7 @@ priv_fdir_flow_add(struct priv *priv,
 #else
     // empty mask means "match everything". This rule will match all packets, no matter what is the ether type
     if (desc->ip_id == 2) {
-        spec_eth->val.ether_type = 0x0806;
+        spec_eth->val.ether_type = 0x0000;
         spec_eth->mask.ether_type = 0x0000;
         goto create_flow;
     }
