@@ -76,10 +76,15 @@ TrexPublisher::Delete(){
         zmq_close (m_publisher);
         m_publisher = NULL;
     }
+
+/* Deadlock inside ZMQ better to have leakage in termination - see 
+  https://trex-tgn.cisco.com/youtrack/issue/trex-361 */
+#if 0
     if (m_context) {
         zmq_ctx_destroy (m_context);
         m_context = NULL;
     }
+#endif
 }
 
 
