@@ -488,7 +488,7 @@ Other network devices
             if_list = map_driver.parent_args.dump_interfaces
             if not if_list:
                 for dev in self.m_devices.values():
-                    if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                    if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel:
                         if_list.append(dev['Slot'])
 
         if_list = list(map(self.pci_name_to_full_name, if_list))
@@ -1051,6 +1051,9 @@ def main ():
         print('')
     except DpdkSetup as e:
         print(e)
+        exit(-1)
+    except Exception:
+        traceback.print_exc()
         exit(-1)
 
 
