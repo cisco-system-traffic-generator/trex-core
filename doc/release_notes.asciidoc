@@ -23,6 +23,27 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.19 ==
+
+* mlx5 dpdk driver works only with OFED 4.0 (OFED 3.4 will not be supported)
+** ConnectX-5 should work now 
+
+
+=== fix issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-361[trex-361]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-362[trex-362]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-360[trex-360]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-359[trex-359]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-358[trex-358]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-354[trex-354]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-350[trex-350]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-355[trex-355]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-352[trex-352]
+
+
+WARNING: you must upgrade to OFED 4.0 even with ConnectX-4 cards 
+
 == Release 2.18 ==
 
 * DPDK 17.02 
