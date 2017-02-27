@@ -21,7 +21,8 @@ import platform
 # exit code is Important should be
 # -1 : don't continue 
 # 0  : no errors - no need to load mlx share object
-# 1  : no errors - mlx share object should be loaded 
+# 32  : no errors - mlx share object should be loaded 
+MLX_EXIT_CODE = 32
 
 
 class ConfigCreator(object):
@@ -534,7 +535,7 @@ Other network devices
 
         if only_check_all_mlx:
             if Mellanox_cnt >0:
-                exit(1);
+                exit(MLX_EXIT_CODE);
             else:
                 exit(0);
 
@@ -573,7 +574,7 @@ Other network devices
                 sys.exit(-1)
 
         if Mellanox_cnt:
-            return 1
+            return MLX_EXIT_CODE
         else:
             return 0
 

@@ -1,11 +1,20 @@
 #! /bin/bash
 export LD_LIBRARY_PATH=`pwd`
 
-#Add dummy lib in case we don't find it, e.g. there is no OFED installed  
-if ldd _t-rex-64  | grep "libibverbs.so" | grep -q "not found"; then 
-export LD_LIBRARY_PATH=$PWD:$PWD/dumy_libs                           
-fi
-            
+EXTRA_INPUT_ARGS=""
 
-/usr/bin/gdb --args ./_t-rex-64-debug $@
+./trex-cfg $INPUT_ARGS
+RESULT=$?
+
+if [ $RESULT -eq 255 ]; then
+  echo "ERROR encountered while configuring trex system"
+  exit $RESULT
+fi
+
+if [ $RESULT -eq 32 ]; then
+  EXTRA_INPUT_ARGS="--mlx5-so"
+fi
+
+
+/usr/bin/gdb --args ./_t-rex-64-debug $@ $EXTRA_INPUT_ARGS
 

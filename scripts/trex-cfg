@@ -1,4 +1,10 @@
 #! /bin/bash
+
+# exit code is Important should be
+# -1 : don't continue 
+# 0  : no errors - no need to load mlx share object
+# 32  : no errors - mlx share object should be loaded (returned by dpdk_setup_ports.py)
+
 SYS=`uname -r`
 if [ -f /etc/debian_version ]; then
     OS=debian  
@@ -12,7 +18,7 @@ fi
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} != 'x86_64' ]; then
   echo "ERROR, only 64bit operating systems are supported, please reinstall x86 64 bit OS"
-  exit 1
+  exit -1
 fi
 
 
@@ -44,7 +50,7 @@ if ! lsmod | grep -q igb_uio  ;  then
     modprobe uio
     if [ $? -ne 0 ]; then
         echo "Failed inserting uio module, please check if it is installed"
-        exit 1
+        exit -1
     fi
     km=ko/$SYS/igb_uio.ko
     if [ ! -e $km ]; then
@@ -56,14 +62,21 @@ if ! lsmod | grep -q igb_uio  ;  then
             make install &&
             cd -
         } &> /dev/null || {
-            echo Automatic compilation failed.
+            echo -e "Automatic compilation failed.\n"
             echo "You can try compiling yourself, using the following commands:"
-            echo "\$cd ko/src  "
-            echo "\$make  "
-            echo "\$make install  "
-            echo "\$cd -  "
-            echo "Then try to run TRex again"
-            exit 1
+            echo "  \$cd ko/src  "
+            echo "  \$make  "
+            echo "  \$make install  "
+            echo -e "  \$cd -  \n"
+            echo -e "Then, try to run TRex again.\n"
+            echo 'Note: you might need additional Linux packages for that:'
+            echo '  * yum based (Fedora, CentOS, RedHat):'
+            echo '        sudo yum install kernel-devel-`uname -r`'
+            echo '        sudo yum group install "Development tools"'
+            echo '  * apt based (Ubuntu):'
+            echo '        sudo apt install linux-headers-`uname -r`'
+            echo '        sudo apt install build-essential'
+            exit -1
         }
         echo Success.
     fi
@@ -71,7 +84,7 @@ if ! lsmod | grep -q igb_uio  ;  then
         insmod $km
         if [ $? -ne 0 ]; then
             echo "Failed inserting igb_uio module"
-            exit 1
+            exit -1
         fi
     fi
 fi
