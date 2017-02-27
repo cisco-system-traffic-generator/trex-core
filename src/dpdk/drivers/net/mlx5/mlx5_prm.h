@@ -80,6 +80,7 @@
 /* Room for inline data in multi-packet WQE. */
 #define MLX5_MWQE64_INL_DATA 28
 
+#define HAVE_VERBS_MLX5_OPCODE_TSO
 #ifndef HAVE_VERBS_MLX5_OPCODE_TSO
 #define MLX5_OPCODE_TSO MLX5_OPCODE_LSO_MPW /* Compat with OFED 3.3. */
 #endif

@@ -366,8 +366,8 @@ Other network devices
 
         ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
 
-        ofed_ver= 34
-        ofed_ver_show= '3.4-1'
+        ofed_ver= 40
+        ofed_ver_show= '4.0'
 
 
         if not os.path.isfile(ofed_info):

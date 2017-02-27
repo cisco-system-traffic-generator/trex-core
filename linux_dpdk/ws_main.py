@@ -143,8 +143,11 @@ def missing_pkg_msg(fedora, ubuntu):
 def check_ofed(ctx):
     ctx.start_msg('Checking for OFED')
     ofed_info='/usr/bin/ofed_info'
-    ofed_ver= '-3.4-'
-    ofed_ver_show= 'v3.4'
+
+    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+
+    ofed_ver= 40
+    ofed_ver_show= '4.0'
 
     if not os.path.isfile(ofed_info):
         ctx.end_msg('not found', 'YELLOW')
@@ -160,8 +163,14 @@ def check_ofed(ctx):
         ctx.end_msg('Expected several output lines from %s, got:\n%s' % (ofed_info, out), 'YELLOW')
         return False
 
-    if ofed_ver not in lines[0]:
-        ctx.end_msg('Expected version: %s, got: %s.' % (ofed_ver, lines[0]), 'YELLOW')
+    m= ofed_ver_re.match(str(lines[0]))
+    if m:
+        ver=int(m.group(1))*10+int(m.group(2))
+        if ver < ofed_ver:
+          ctx.end_msg("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show),'YELLOW')
+          return False
+    else:
+        ctx.end_msg("not found valid  OFED version '%s' " % (lines[0]),'YELLOW')
         return False
 
     ctx.end_msg('Found needed version %s' % ofed_ver_show)
