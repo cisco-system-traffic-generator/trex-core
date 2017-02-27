@@ -1944,6 +1944,8 @@ void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
     node->m_dest_idx = tuple.getServerId();
     node->m_src_port = tuple.getClientPort();
     node->m_client_cfg = tuple.getClientCfg();
+    node->set_nat_tcp_seq_diff_client(0);
+    node->set_nat_tcp_seq_diff_server(0);
 
     node->m_plugin_info =(void *)0;
 
