@@ -134,7 +134,7 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | Intel 82599 VF       | x  | 
 | Intel FM10420        | 25/100 | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*) 
 | Mellanox ConnectX-4  | 25/40/50/56/100 | QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
-| Mellanox ConnectX-5  | 25/40/50/56/100 | Not supported yet 
+| Mellanox ConnectX-5  | 25/40/50/56/100 | Supported 
 | Cisco 1300 series    | 40              | QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
 | VMXNET / +
 VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
@@ -2343,11 +2343,11 @@ Port Statistics
 ==== Performance
 See the performance tests we did link:trex_vm_bench.html[here]
 
-=== Mellanox ConnectX-4 support 
+=== Mellanox ConnectX-4/5 support 
 
 anchor:connectx_support[]
 
-Mellanox ConnectX-4 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds. 
+Mellanox ConnectX-4/5 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds. 
 Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[here].
 Intel NICs do not require additional kernel drivers (except for igb_uio which is already supported in most distributions). ConnectX-4 works on top of Infiniband API (verbs) and requires special kernel modules/user space libs. 
 This means that it is required to install OFED package to be able to work with this NIC.
@@ -2372,11 +2372,11 @@ Following distro was tested and did *not* work for us.
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download 3.4-2/4.0 OFED tar for your distro  
+* Download 4.0 OFED tar for your distro  
 
 [IMPORTANT]
 =====================================
-The version must be *MLNX_OFED_LINUX-3.4-2* or higher (4.0.x)
+The version must be *MLNX_OFED_LINUX-4.0* or higher (4.0.x)
 =====================================
 
 [IMPORTANT]
@@ -2387,15 +2387,15 @@ Make sure you have an internet connection without firewalls for HTTPS/HTTP - req
 .Verify md5
 [source,bash]
 ----
-$md5sum md5sum MLNX_OFED_LINUX-3.4-2.0.0.0-rhel7.2-x86_64.tgz
-58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-3.4-2.0.0.0-rhel7.2-x86_64.tgz
+$md5sum md5sum MLNX_OFED_LINUX-4.0.0.0.0-rhel7.2-x86_64.tgz
+58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-4.0-xx.0.0.0-rhel7.2-x86_64.tgz
 ----
 
 .Open the tar
 [source,bash]
 ----
-$tar -xvzf MLNX_OFED_LINUX-3.4-2.0.0.0-rhel7.2-x86_64.tgz
-$cd MLNX_OFED_LINUX-3.4-2.0.0.0-rhel7.2-x86_64
+$tar -xvzf MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64.tgz
+$cd MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64
 ----
 
 .Run Install script
@@ -2829,13 +2829,14 @@ Checking for program 'gcc, cc'           : /bin/gcc
 Checking for program 'ar'                : /bin/ar 
 Checking for program 'ldd'               : /bin/ldd 
 Checking for library z                   : yes 
-Checking for OFED                        : Found needed version 4.0   #1 
+Checking for OFED                        : Found needed version 4.0   #<1> 
 Checking for library ibverbs             : yes 
 'configure' finished successfully (1.826s)
 ---- 
 <1> make sure it was identify 
 
 
+.Code change need for new OFED 
 [source,python]
 ---- 
         index fba7540..a55fe6b 100755
