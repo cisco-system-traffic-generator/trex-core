@@ -104,6 +104,7 @@ def options(opt):
     opt.add_option('--pkg-dir', '--pkg_dir', dest='pkg_dir', default=False, action='store', help="Destination folder for 'pkg' option.")
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
+    opt.add_option('--no-mlx', dest='no_mlx', default=False, action='store_true', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
 
 
 def check_ibverbs_deps(bld):
@@ -182,12 +183,16 @@ def configure(conf):
     conf.load('gcc')
     conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
-    ofed_ok = conf.check_ofed(mandatory = False)
-    if ofed_ok:
-        conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
-    else:
-        Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' + 
-                              'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
+    no_mlx = conf.options.no_mlx
+
+    conf.env.NO_MLX = no_mlx
+    if not no_mlx:
+        ofed_ok = conf.check_ofed(mandatory = False)
+        if ofed_ok:
+            conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
+        else:
+            Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' + 
+                                  'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
 
 
 def getstatusoutput(cmd):
@@ -902,15 +907,16 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target() 
       );
 
-    bld.shlib(
-      features='c',
-      includes = dpdk_includes_path+dpdk_includes_verb_path,
-      cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
-      use =['ibverbs'],
-
-      source   = mlx5_dpdk.file_list(top),
-      target   = build_obj.get_mlx5_target() 
-   )
+    if bld.env.NO_MLX == False:
+        bld.shlib(
+          features='c',
+          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+          use =['ibverbs'],
+    
+          source   = mlx5_dpdk.file_list(top),
+          target   = build_obj.get_mlx5_target() 
+       )
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
@@ -941,15 +947,17 @@ def build(bld):
 
     zmq_lib_path='external_libs/zmq/'
     bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
-    if bld.env['LIB_IBVERBS']:
-        Logs.pprint('GREEN', 'Info: Using external libverbs.')
-        bld.read_shlib(name='ibverbs')
-    else:
-        Logs.pprint('GREEN', 'Info: Using internal libverbs.')
-        ibverbs_lib_path='external_libs/ibverbs/'
-        dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
-        bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
-        check_ibverbs_deps(bld)
+
+    if bld.env.NO_MLX == False:
+        if bld.env['LIB_IBVERBS']:
+            Logs.pprint('GREEN', 'Info: Using external libverbs.')
+            bld.read_shlib(name='ibverbs')
+        else:
+            Logs.pprint('GREEN', 'Info: Using internal libverbs.')
+            ibverbs_lib_path='external_libs/ibverbs/'
+            dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
+            bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+            check_ibverbs_deps(bld)
 
     for obj in build_types:
         build_type(bld,obj);
