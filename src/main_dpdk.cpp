@@ -4074,12 +4074,14 @@ bool CGlobalTRex::Create(){
 void CGlobalTRex::Delete(){
 
     m_zmq_publisher.Delete();
-    m_fl.Delete();
 
     if (m_trex_stateless) {
         delete m_trex_stateless;
         m_trex_stateless = NULL;
     }
+
+    m_fl.Delete();
+
 }
 
 
