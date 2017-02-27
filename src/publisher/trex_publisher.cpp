@@ -73,6 +73,13 @@ TrexPublisher::Create(uint16_t port, bool disable){
 void 
 TrexPublisher::Delete(){
     if (m_publisher) {
+        
+        /* before calling zmq_close set the linger property to zero
+           (othersie zmq_ctx_destroy might hang forever)
+         */
+        int val = 0;
+        zmq_setsockopt(m_publisher, ZMQ_LINGER, &val, sizeof(val));
+        
         zmq_close (m_publisher);
         m_publisher = NULL;
     }
