@@ -104,6 +104,7 @@ extern "C" {
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 extern "C" int rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id);
+void set_driver();
 void reorder_dpdk_ports();
 
 #define RTE_TEST_TX_DESC_DEFAULT 512
@@ -142,6 +143,11 @@ public:
     
     /* need to remove this function - see bug trex-359 */
     virtual bool has_crc_added() {
+        return true;
+    }
+
+    /* currently all NICs support it except Mellanox */
+    virtual bool supports_port_reorder() {
         return true;
     }
 
@@ -570,6 +576,10 @@ public:
 
     virtual uint16_t enable_rss_drop_workaround(void) {
         return (5);
+    }
+
+    virtual bool supports_port_reorder() {
+        return false;
     }
 
 private:
@@ -4132,14 +4142,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         printf("tx_offload_capa : %x \n",dev_info.tx_offload_capa);
     }
 
-
-
-    if ( !CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name) ){
-        printf(" Error: driver %s is not supported. Please consult the documentation for a list of supported drivers\n"
-               ,dev_info.driver_name);
-        exit(1);
-    }
-
     int i;
     struct rte_eth_dev_info dev_info1;
 
@@ -4151,7 +4153,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         }
     }
 
-    CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
     m_drv = CTRexExtendedDriverDb::Ins()->get_drv();
 
     // check if firmware version is new enough
@@ -5830,6 +5831,7 @@ int main_test(int argc , char * argv[]){
         printf(" You might need to run ./trex-cfg  once  \n");
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
+    set_driver();
     if (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_DUMP_INFO) {
         dump_interfaces_info();
         exit(0);
@@ -5979,9 +5981,30 @@ void wait_x_sec(int sec) {
     fflush(stdout);
 }
 
+/* should be called after rte_eal_init() */
+void set_driver() {
+    uint8_t m_max_ports = rte_eth_dev_count();
+    if ( !m_max_ports ) {
+        printf("Could not find interfaces.\n");
+        exit(1);
+    }
+    struct rte_eth_dev_info dev_info;
+    rte_eth_dev_info_get(0, &dev_info);
+
+    if ( !CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name) ){
+        printf("\nError: driver %s is not supported. Please consult the documentation for a list of supported drivers\n"
+               ,dev_info.driver_name);
+        exit(1);
+    }
+
+    CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
+
+}
+
 /*
 Changes the order of rte_eth_devices array elements
 to be consistent with our /etc/trex_cfg.yaml
+(this is workaround, full solution would be mapping between our ports and DPDK)
 */
 void reorder_dpdk_ports() {
     rte_eth_dev rte_eth_devices_temp[RTE_MAX_ETHPORTS];
@@ -5997,6 +6020,12 @@ void reorder_dpdk_ports() {
             exit(1);
         }
         rte_eth_dev_get_port_by_addr(&addr, &port_id);
+        if ( port_id != i && !CTRexExtendedDriverDb::Ins()->get_drv()->supports_port_reorder() ) {
+            printf("\nCurrent driver does not support custom order of ports.\n"
+                   "They must be in order of PCI address in platform config file, section 'interfaces'.\n"
+                   "See https://trex-tgn.cisco.com/youtrack/issue/trex-295 for further info\n");
+            exit(1);
+        }
         m_port_map[port_id] = i;
         // print the relation in verbose mode
         if ( CGlobalInfo::m_options.preview.getVMode() > 0){
