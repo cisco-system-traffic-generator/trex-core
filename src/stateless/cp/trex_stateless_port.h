@@ -358,18 +358,6 @@ public:
         return m_rx_count_num;
     }
 
-    /**
-     * return true if port adds CRC to a packet (not occurs for
-     * VNICs)
-     *
-     * @author imarom (24-Feb-16)
-     *
-     * @return bool
-     */
-    bool has_crc_added() const {
-        return m_api_info.has_crc;
-    }
-
     TrexPortOwner & get_owner() {
         return m_owner;
     }

@@ -85,9 +85,6 @@ extern "C" {
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
 
-
-#define SOCKET0         0
-
 #define MAX_PKT_BURST   32
 
 #define BP_MAX_CORES 32
@@ -139,32 +136,42 @@ static char global_image_postfix[10];
 
 
 class CTRexExtendedDriverBase {
+protected:
+    enum {
+        // Is there HW support for dropping packets arriving to certain queue?
+        TREX_DRV_CAP_DROP_Q = 0x1,
+        /* Does this NIC type support automatic packet dropping in case of a link down?
+           in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
+           this interface is used as a workaround to let TRex work without link in stateless mode, driver that
+           does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
+        TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN = 0x2,
+        // Does the driver support changing MAC address?
+        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
+        /* Mellanox driver does not work well with the DPDK port reorder we do */
+        TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE = 0x8,
+    } trex_drv_cap;
+
 public:
-    
-    /* need to remove this function - see bug trex-359 */
-    virtual bool has_crc_added() {
-        return true;
-    }
-
-    /* currently all NICs support it except Mellanox */
-    virtual bool supports_port_reorder() {
-        return true;
-    }
-
     virtual int get_min_sample_rate(void)=0;
     virtual void update_configuration(port_cfg_t * cfg)=0;
     virtual void update_global_config_fdir(port_cfg_t * cfg)=0;
-
-    virtual bool is_hardware_filter_is_supported(){
-        return(false);
-    }
     virtual int configure_rx_filter_rules(CPhyEthIF * _if)=0;
     virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3, uint8_t l4
                                           , uint8_t ipv6_next_h, uint16_t id) {return 0;}
-    virtual bool is_hardware_support_drop_queue(){
-        return(false);
+    bool is_hardware_support_drop_queue() {
+        return ((m_cap & TREX_DRV_CAP_DROP_Q) != 0);
     }
-
+    bool hardware_support_mac_change() {
+        return ((m_cap & TREX_DRV_CAP_MAC_ADDR_CHG) != 0);
+    }
+    bool drop_packets_incase_of_linkdown() {
+        return ((m_cap & TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN) != 0);
+    }
+    virtual bool supports_port_reorder() {
+        // Since only Mellanox does not support, logic here is reveresed compared to other flags.
+        // Put this only if not supported.
+        return ((m_cap & TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE) == 0);
+    }
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
@@ -183,22 +190,17 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
-    /* Does this NIC type support automatic packet dropping in case of a link down?
-       in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
-       this interface is used as a workaround to let TRex work without link in stateless mode, driver that
-       does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
-    virtual bool drop_packets_incase_of_linkdown() {
-        return (false);
-    }
-
     /* Mellanox ConnectX-4 can drop only 35MPPS per Rx queue. to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable  RSS
        return  zero for disable patch and rx queues number for enable  
     */
 
     virtual uint16_t enable_rss_drop_workaround(void) {
-        return (0);
+        return 0;
     }
 
+protected:
+    // flags describing interface capabilities
+    uint32_t m_cap;
 };
 
 
@@ -206,6 +208,7 @@ class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
 public:
     CTRexExtendedDriverBase1G(){
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -222,20 +225,11 @@ public:
         return ( RX_CHECK_MIX_SAMPLE_RATE_1G);
     }
     virtual void update_configuration(port_cfg_t * cfg);
-
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
-
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
     virtual void clear_rx_filter_rules(CPhyEthIF * _if);
-    virtual bool is_hardware_support_drop_queue(){
-        return(true);
-    }
-
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
@@ -255,28 +249,13 @@ public:
     TRexPortAttr * create_port_attr(uint8_t port_id) {
         return new DpdkTRexPortAttr(port_id, true, true);
     }
-
-    virtual bool has_crc_added() {
-        return true;
-    }
-
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
 
     virtual int get_min_sample_rate(void){
         return ( RX_CHECK_MIX_SAMPLE_RATE_1G);
     }
     virtual void update_configuration(port_cfg_t * cfg);
-
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
-
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-
-    virtual bool is_hardware_support_drop_queue(){
-        return(false);
-    }
-
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if);
@@ -294,6 +273,7 @@ public:
     CTRexExtendedDriverVirtio() {
         /* we are working in mode that we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ 0;
     }
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverVirtio() );
@@ -306,6 +286,7 @@ public:
     CTRexExtendedDriverVmxnet3(){
         /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG*/0;
     }
 
     static CTRexExtendedDriverBase * create() {
@@ -320,15 +301,11 @@ public:
     CTRexExtendedDriverI40evf(){
         /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 0, 4);
     }
-
-    virtual bool has_crc_added() {
-        return true;
-    }
-    
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverI40evf() );
@@ -341,6 +318,7 @@ public:
     CTRexExtendedDriverIxgbevf(){
         /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 4, 4);
@@ -355,6 +333,7 @@ class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtBase {
     CTRexExtendedDriverBaseE1000() {
         // E1000 driver is only relevant in VM in our case
         CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
 public:
     static CTRexExtendedDriverBase * create() {
@@ -369,6 +348,7 @@ public:
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -385,16 +365,9 @@ public:
         return (RX_CHECK_MIX_SAMPLE_RATE);
     }
     virtual void update_configuration(port_cfg_t * cfg);
-
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
-    virtual bool is_hardware_support_drop_queue(){
-        return(true);
-    }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
@@ -415,6 +388,7 @@ public:
         // If we want to support more counters in case of card having less interfaces, we
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -435,13 +409,6 @@ public:
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id);
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
-
-    virtual bool is_hardware_support_drop_queue(){
-        return(true);
-    }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
@@ -463,10 +430,6 @@ private:
     virtual int add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
 
-    virtual bool drop_packets_incase_of_linkdown() {
-        return (true);
-    }
-
 private:
     uint8_t m_if_per_card;
 };
@@ -474,6 +437,7 @@ private:
 class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -483,22 +447,10 @@ public:
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBaseVIC() );
     }
-
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
-
-
-    virtual bool is_hardware_support_drop_queue(){
-        return(true);
-    }
-
     void clear_extended_stats(CPhyEthIF * _if);
-
     void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
-
 
     virtual int get_min_sample_rate(void){
         return (RX_CHECK_MIX_SAMPLE_RATE);
@@ -532,6 +484,8 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG
+            | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -552,13 +506,6 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
 
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    virtual bool is_hardware_filter_is_supported(){
-        return (true);
-    }
-
-    virtual bool is_hardware_support_drop_queue(){
-        return(true);
-    }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
@@ -576,10 +523,6 @@ public:
 
     virtual uint16_t enable_rss_drop_workaround(void) {
         return (5);
-    }
-
-    virtual bool supports_port_reorder() {
-        return false;
     }
 
 private:
@@ -1600,19 +1543,11 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
   pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
 
 */
-
 void CPhyEthIF::configure_rx_duplicate_rules(){
-
     if ( get_is_rx_filter_enable() ){
-
-        if ( get_ex_drv()->is_hardware_filter_is_supported()==false ){
-            printf(" ERROR this feature is not supported with current hardware \n");
-            exit(1);
-        }
         get_ex_drv()->configure_rx_filter_rules(this);
     }
 }
-
 
 void CPhyEthIF::stop_rx_drop_queue() {
     // In debug mode, we want to see all packets. Don't want to disable any queue.
@@ -1721,7 +1656,7 @@ void CPhyEthIF::disable_flow_control(){
 }
 
 /*
-Get user frienly devices description from saved env. var
+Get user friendly devices description from saved env. var
 Changes certain attributes based on description
 */
 void DpdkTRexPortAttr::update_description(){
@@ -1884,7 +1819,7 @@ int DpdkTRexPortAttr::add_mac(char * mac){
         mac_addr.addr_bytes[i] =mac[i];
     }
 
-    if ( ! get_vm_one_queue_enable() ) {
+    if ( get_ex_drv()->hardware_support_mac_change() ) {
         if ( rte_eth_dev_mac_addr_add(m_port_id, &mac_addr,0) != 0) {
             printf("Failed setting MAC for port %d \n", m_port_id);
             exit(-1);
@@ -3835,7 +3770,7 @@ int  CGlobalTRex::ixgbe_start(void){
             // 1 TX queue in VM case
             _if->tx_queue_setup(0, RTE_TEST_TX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_tx_conf);
         } else {
-            // 2 rx queues.
+            // 2 rx queues in normal case. More if rss enabled.
             // TX queues: 1 for each core handling the port pair + 1 for latency pkts + 1 for use by RX core
             
             uint16_t rx_queues;
@@ -3857,7 +3792,8 @@ int  CGlobalTRex::ixgbe_start(void){
                         }
                         /* drop queue */
                         _if->rx_queue_setup(j,
-                                        RTE_TEST_RX_DESC_DEFAULT_MLX,
+                                            //                                        RTE_TEST_RX_DESC_DEFAULT_MLX,
+                                            RTE_TEST_RX_DESC_DEFAULT,
                                         socket_id,
                                         &m_port_cfg.m_rx_conf,
                                         CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
@@ -4138,8 +4074,10 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         printf("max_tx_queues  : %d \n",dev_info.max_tx_queues);
         printf("max_mac_addrs  : %d \n",dev_info.max_mac_addrs);
 
-        printf("rx_offload_capa : %x \n",dev_info.rx_offload_capa);
-        printf("tx_offload_capa : %x \n",dev_info.tx_offload_capa);
+        printf("rx_offload_capa : 0x%x \n",dev_info.rx_offload_capa);
+        printf("tx_offload_capa : 0x%x \n",dev_info.tx_offload_capa);
+        printf("rss reta_size   : %d \n",dev_info.reta_size);
+        printf("flow_type_rss   : 0x%lx \n",dev_info.flow_type_rss_offloads);
     }
 
     int i;
@@ -5219,7 +5157,6 @@ static CGlobalTRex g_trex;
 void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
                                              uint16_t skip_queue){
 
-                                                                                                                            
      struct rte_eth_dev_info dev_info;                                                                                 
                                                                                                                        
      rte_eth_dev_info_get(m_port_id,&dev_info); 
@@ -5230,7 +5167,7 @@ void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
 
      struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];  
 
-     rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);                                              
+     rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);
 
      int i,j;
      
@@ -5247,22 +5184,20 @@ void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
                  skip+=1;
              }
              reta_conf[j].reta[i]=q;
-           //  printf(" %d %d %d \n",j,i,q);
          }
      }
-     rte_eth_dev_rss_reta_update(m_port_id,&reta_conf[0],dev_info.reta_size);                                             
+     assert (rte_eth_dev_rss_reta_update(m_port_id,&reta_conf[0],dev_info.reta_size) == 0);
 
-     rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);                                              
+     assert (rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size) == 0);
 
-     #if 0
+#if 0
      /* verification */
      for (j=0; j<reta_conf_size; j++) {
          for (i=0; i<RTE_RETA_GROUP_SIZE; i++) {
              printf(" R  %d %d %d \n",j,i,reta_conf[j].reta[i]);
          }
      }
-     #endif
-
+#endif
 }
 
 
@@ -7480,7 +7415,6 @@ TrexDpdkPlatformApi::get_interface_info(uint8_t interface_id, intf_info_st &info
     struct ether_addr rte_mac_addr;
 
     info.driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
-    info.has_crc     = CTRexExtendedDriverDb::Ins()->get_drv()->has_crc_added();
 
     /* mac INFO */
 
