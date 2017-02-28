@@ -199,7 +199,7 @@ void CNatRxManager::handle_packet_ipv4(CNatOption *option, IPHeader *ipv4, bool 
                     uint64_t map_key = (dst_ip << 16) + dst_port;
                     double time_stamp = now_sec();
                     m_ft.insert(map_key, tcp_ack, time_stamp);
-                    m_ft.clear_old(time_stamp - 1);
+                    m_ft.clear_old(time_stamp - 10);
                 }
             } else {
                 uint16_t ip_id = ipv4->getId();
