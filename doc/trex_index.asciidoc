@@ -7,14 +7,14 @@ TRex Documentation
 
 include::trex_ga.asciidoc[]
 
-image:images/clb.png[title="Loopback example"]  *Learning Session*, Wednesday, Feb 22 Cisco Live Berlin link:http://www.ciscolive.com/emea/learn/sessions/content-catalog/?search=1120&showEnrolled=false&search.sessiontype=devnetzone&search.day=20170222[REGISTER NOW]
-
 
 == Presentations
 
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
+| image:images/clb.png[width=150,title=""]  | 
+Learning Session, 45min  link:https://www.youtube.com/watch?v=n0iovQO4d_w[DevNet youTube] 
 | Stateful     | 
 link:trex_preso.html[Stateful] 
 | Stateful DPDK    | 

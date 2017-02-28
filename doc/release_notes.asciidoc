@@ -27,10 +27,17 @@ endif::backend-docbook[]
 
 * mlx5 dpdk driver works only with OFED 4.0 (OFED 3.4 will not be supported)
 ** ConnectX-5 should work now 
-
+* VirtualBox with E1000 (Our Tutorial OVA) get latency packets correctly
+* fix NAT randomization mode
+* Ability to build without mlx5-dpdk driver using ./configure `--no-mlx`
+* RX thread CPU% is not 100% all the time from this version 
+* Better handling of latency packets (case of fast start/stop)
 
 === fix issues: ===
 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-364[trex-364]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-361[trex-361]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-361[trex-361]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-362[trex-362]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-360[trex-360]
