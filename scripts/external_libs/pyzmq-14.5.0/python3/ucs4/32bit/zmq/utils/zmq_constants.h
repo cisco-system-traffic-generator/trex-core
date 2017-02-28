@@ -1,0 +1,622 @@
+#ifndef _PYZMQ_CONSTANT_DEFS
+#define _PYZMQ_CONSTANT_DEFS
+
+#define _PYZMQ_UNDEFINED (-9999)
+#ifndef ZMQ_VERSION
+    #define ZMQ_VERSION (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_VERSION_MAJOR
+    #define ZMQ_VERSION_MAJOR (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_VERSION_MINOR
+    #define ZMQ_VERSION_MINOR (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_VERSION_PATCH
+    #define ZMQ_VERSION_PATCH (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_NOBLOCK
+    #define ZMQ_NOBLOCK (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_DONTWAIT
+    #define ZMQ_DONTWAIT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_POLLIN
+    #define ZMQ_POLLIN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_POLLOUT
+    #define ZMQ_POLLOUT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_POLLERR
+    #define ZMQ_POLLERR (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SNDMORE
+    #define ZMQ_SNDMORE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_STREAMER
+    #define ZMQ_STREAMER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_FORWARDER
+    #define ZMQ_FORWARDER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_QUEUE
+    #define ZMQ_QUEUE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IO_THREADS_DFLT
+    #define ZMQ_IO_THREADS_DFLT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MAX_SOCKETS_DFLT
+    #define ZMQ_MAX_SOCKETS_DFLT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_POLLITEMS_DFLT
+    #define ZMQ_POLLITEMS_DFLT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_THREAD_PRIORITY_DFLT
+    #define ZMQ_THREAD_PRIORITY_DFLT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_THREAD_SCHED_POLICY_DFLT
+    #define ZMQ_THREAD_SCHED_POLICY_DFLT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PAIR
+    #define ZMQ_PAIR (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PUB
+    #define ZMQ_PUB (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SUB
+    #define ZMQ_SUB (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_REQ
+    #define ZMQ_REQ (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_REP
+    #define ZMQ_REP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_DEALER
+    #define ZMQ_DEALER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ROUTER
+    #define ZMQ_ROUTER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XREQ
+    #define ZMQ_XREQ (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XREP
+    #define ZMQ_XREP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PULL
+    #define ZMQ_PULL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PUSH
+    #define ZMQ_PUSH (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XPUB
+    #define ZMQ_XPUB (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XSUB
+    #define ZMQ_XSUB (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_UPSTREAM
+    #define ZMQ_UPSTREAM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_DOWNSTREAM
+    #define ZMQ_DOWNSTREAM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_STREAM
+    #define ZMQ_STREAM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_CONNECTED
+    #define ZMQ_EVENT_CONNECTED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_CONNECT_DELAYED
+    #define ZMQ_EVENT_CONNECT_DELAYED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_CONNECT_RETRIED
+    #define ZMQ_EVENT_CONNECT_RETRIED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_LISTENING
+    #define ZMQ_EVENT_LISTENING (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_BIND_FAILED
+    #define ZMQ_EVENT_BIND_FAILED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_ACCEPTED
+    #define ZMQ_EVENT_ACCEPTED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_ACCEPT_FAILED
+    #define ZMQ_EVENT_ACCEPT_FAILED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_CLOSED
+    #define ZMQ_EVENT_CLOSED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_CLOSE_FAILED
+    #define ZMQ_EVENT_CLOSE_FAILED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_DISCONNECTED
+    #define ZMQ_EVENT_DISCONNECTED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_ALL
+    #define ZMQ_EVENT_ALL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENT_MONITOR_STOPPED
+    #define ZMQ_EVENT_MONITOR_STOPPED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_NULL
+    #define ZMQ_NULL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PLAIN
+    #define ZMQ_PLAIN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CURVE
+    #define ZMQ_CURVE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_GSSAPI
+    #define ZMQ_GSSAPI (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EAGAIN
+    #define EAGAIN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EINVAL
+    #define EINVAL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EFAULT
+    #define EFAULT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOMEM
+    #define ENOMEM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENODEV
+    #define ENODEV (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EMSGSIZE
+    #define EMSGSIZE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EAFNOSUPPORT
+    #define EAFNOSUPPORT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENETUNREACH
+    #define ENETUNREACH (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ECONNABORTED
+    #define ECONNABORTED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ECONNRESET
+    #define ECONNRESET (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOTCONN
+    #define ENOTCONN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ETIMEDOUT
+    #define ETIMEDOUT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EHOSTUNREACH
+    #define EHOSTUNREACH (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENETRESET
+    #define ENETRESET (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_HAUSNUMERO
+    #define ZMQ_HAUSNUMERO (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOTSUP
+    #define ENOTSUP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EPROTONOSUPPORT
+    #define EPROTONOSUPPORT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOBUFS
+    #define ENOBUFS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENETDOWN
+    #define ENETDOWN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EADDRINUSE
+    #define EADDRINUSE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EADDRNOTAVAIL
+    #define EADDRNOTAVAIL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ECONNREFUSED
+    #define ECONNREFUSED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EINPROGRESS
+    #define EINPROGRESS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOTSOCK
+    #define ENOTSOCK (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EFSM
+    #define EFSM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ENOCOMPATPROTO
+    #define ENOCOMPATPROTO (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ETERM
+    #define ETERM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef EMTHREAD
+    #define EMTHREAD (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IO_THREADS
+    #define ZMQ_IO_THREADS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MAX_SOCKETS
+    #define ZMQ_MAX_SOCKETS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SOCKET_LIMIT
+    #define ZMQ_SOCKET_LIMIT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_THREAD_PRIORITY
+    #define ZMQ_THREAD_PRIORITY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_THREAD_SCHED_POLICY
+    #define ZMQ_THREAD_SCHED_POLICY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IDENTITY
+    #define ZMQ_IDENTITY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SUBSCRIBE
+    #define ZMQ_SUBSCRIBE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_UNSUBSCRIBE
+    #define ZMQ_UNSUBSCRIBE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_LAST_ENDPOINT
+    #define ZMQ_LAST_ENDPOINT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TCP_ACCEPT_FILTER
+    #define ZMQ_TCP_ACCEPT_FILTER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PLAIN_USERNAME
+    #define ZMQ_PLAIN_USERNAME (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PLAIN_PASSWORD
+    #define ZMQ_PLAIN_PASSWORD (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CURVE_PUBLICKEY
+    #define ZMQ_CURVE_PUBLICKEY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CURVE_SECRETKEY
+    #define ZMQ_CURVE_SECRETKEY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CURVE_SERVERKEY
+    #define ZMQ_CURVE_SERVERKEY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ZAP_DOMAIN
+    #define ZMQ_ZAP_DOMAIN (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CONNECT_RID
+    #define ZMQ_CONNECT_RID (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_GSSAPI_PRINCIPAL
+    #define ZMQ_GSSAPI_PRINCIPAL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_GSSAPI_SERVICE_PRINCIPAL
+    #define ZMQ_GSSAPI_SERVICE_PRINCIPAL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SOCKS_PROXY
+    #define ZMQ_SOCKS_PROXY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_FD
+    #define ZMQ_FD (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IDENTITY_FD
+    #define ZMQ_IDENTITY_FD (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RECONNECT_IVL_MAX
+    #define ZMQ_RECONNECT_IVL_MAX (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SNDTIMEO
+    #define ZMQ_SNDTIMEO (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RCVTIMEO
+    #define ZMQ_RCVTIMEO (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SNDHWM
+    #define ZMQ_SNDHWM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RCVHWM
+    #define ZMQ_RCVHWM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MULTICAST_HOPS
+    #define ZMQ_MULTICAST_HOPS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IPV4ONLY
+    #define ZMQ_IPV4ONLY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ROUTER_BEHAVIOR
+    #define ZMQ_ROUTER_BEHAVIOR (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TCP_KEEPALIVE
+    #define ZMQ_TCP_KEEPALIVE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TCP_KEEPALIVE_CNT
+    #define ZMQ_TCP_KEEPALIVE_CNT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TCP_KEEPALIVE_IDLE
+    #define ZMQ_TCP_KEEPALIVE_IDLE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TCP_KEEPALIVE_INTVL
+    #define ZMQ_TCP_KEEPALIVE_INTVL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_DELAY_ATTACH_ON_CONNECT
+    #define ZMQ_DELAY_ATTACH_ON_CONNECT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XPUB_VERBOSE
+    #define ZMQ_XPUB_VERBOSE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_EVENTS
+    #define ZMQ_EVENTS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TYPE
+    #define ZMQ_TYPE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_LINGER
+    #define ZMQ_LINGER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RECONNECT_IVL
+    #define ZMQ_RECONNECT_IVL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_BACKLOG
+    #define ZMQ_BACKLOG (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ROUTER_MANDATORY
+    #define ZMQ_ROUTER_MANDATORY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_FAIL_UNROUTABLE
+    #define ZMQ_FAIL_UNROUTABLE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ROUTER_RAW
+    #define ZMQ_ROUTER_RAW (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IMMEDIATE
+    #define ZMQ_IMMEDIATE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IPV6
+    #define ZMQ_IPV6 (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MECHANISM
+    #define ZMQ_MECHANISM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PLAIN_SERVER
+    #define ZMQ_PLAIN_SERVER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CURVE_SERVER
+    #define ZMQ_CURVE_SERVER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_PROBE_ROUTER
+    #define ZMQ_PROBE_ROUTER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_REQ_RELAXED
+    #define ZMQ_REQ_RELAXED (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_REQ_CORRELATE
+    #define ZMQ_REQ_CORRELATE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_CONFLATE
+    #define ZMQ_CONFLATE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_ROUTER_HANDOVER
+    #define ZMQ_ROUTER_HANDOVER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_TOS
+    #define ZMQ_TOS (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IPC_FILTER_PID
+    #define ZMQ_IPC_FILTER_PID (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IPC_FILTER_UID
+    #define ZMQ_IPC_FILTER_UID (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_IPC_FILTER_GID
+    #define ZMQ_IPC_FILTER_GID (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_GSSAPI_SERVER
+    #define ZMQ_GSSAPI_SERVER (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_GSSAPI_PLAINTEXT
+    #define ZMQ_GSSAPI_PLAINTEXT (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_HANDSHAKE_IVL
+    #define ZMQ_HANDSHAKE_IVL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_XPUB_NODROP
+    #define ZMQ_XPUB_NODROP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_AFFINITY
+    #define ZMQ_AFFINITY (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MAXMSGSIZE
+    #define ZMQ_MAXMSGSIZE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_HWM
+    #define ZMQ_HWM (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SWAP
+    #define ZMQ_SWAP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MCAST_LOOP
+    #define ZMQ_MCAST_LOOP (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RECOVERY_IVL_MSEC
+    #define ZMQ_RECOVERY_IVL_MSEC (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RATE
+    #define ZMQ_RATE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RECOVERY_IVL
+    #define ZMQ_RECOVERY_IVL (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SNDBUF
+    #define ZMQ_SNDBUF (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RCVBUF
+    #define ZMQ_RCVBUF (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_RCVMORE
+    #define ZMQ_RCVMORE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_MORE
+    #define ZMQ_MORE (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SRCFD
+    #define ZMQ_SRCFD (_PYZMQ_UNDEFINED)
+#endif
+
+#ifndef ZMQ_SHARED
+    #define ZMQ_SHARED (_PYZMQ_UNDEFINED)
+#endif
+
+
+#endif // ifndef _PYZMQ_CONSTANT_DEFS
