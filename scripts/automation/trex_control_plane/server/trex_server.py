@@ -25,7 +25,7 @@ import CCustomLogger
 from trex_launch_thread import AsynchronousTRexSession
 from zmq_monitor_thread import ZmqMonitorSession
 from argparse import ArgumentParser, RawTextHelpFormatter
-from json import JSONEncoder
+import json
 import re
 import shlex
 import tempfile
@@ -140,6 +140,7 @@ class CTRexServer(object):
         self.server.register_function(self.get_file)
         self.server.register_function(self.get_files_list)
         self.server.register_function(self.get_files_path)
+        self.server.register_function(self.get_latest_dump)
         self.server.register_function(self.get_running_info)
         self.server.register_function(self.get_running_status)
         self.server.register_function(self.get_trex_cmds)
@@ -432,6 +433,9 @@ class CTRexServer(object):
         logger.info("Processing get_running_info() command.")
         return self.trex.get_running_info()
 
+    def get_latest_dump(self):
+        logger.info("Processing get_latest_dump() command.")
+        return self.trex.get_latest_dump()
 
     def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
@@ -554,11 +558,11 @@ class CTRex(object):
         self.errcode        = None
         self.session        = None
         self.zmq_monitor    = None
-        self.zmq_dump       = None
+        self.__zmq_dump     = {}
+        self.zmq_dump_lock  = threading.Lock()
         self.zmq_error      = None
         self.seq            = None
         self.expect_trex    = threading.Event()
-        self.encoder        = JSONEncoder()
 
     def get_status(self):
         return self.status
@@ -578,9 +582,21 @@ class CTRex(object):
     def get_seq (self):
         return self.seq
 
+    def get_latest_dump(self):
+        with self.zmq_dump_lock:
+            return json.dumps(self.__zmq_dump)
+
+    def update_zmq_dump_key(self, key, val):
+        with self.zmq_dump_lock:
+            self.__zmq_dump[key] = val
+
+    def clear_zmq_dump(self):
+        with self.zmq_dump_lock:
+            self.__zmq_dump = {}
+
     def get_running_info (self):
         if self.status == TRexStatus.Running:
-            return self.encoder.encode(self.zmq_dump)
+            return self.get_latest_dump()
         else:
             logger.info("TRex isn't running. Running information isn't available.")
             if self.status == TRexStatus.Idle:

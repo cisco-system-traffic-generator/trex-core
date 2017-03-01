@@ -27,7 +27,7 @@ class AsynchronousTRexSession(threading.Thread):
         self.session                                = None
         self.trexObj                                = trexObj
         self.time_stamps                            = {'start' : None, 'run_time' : None}
-        self.trexObj.zmq_dump                       = {}
+        self.trexObj.clear_zmq_dump()
 
     def run (self):
         try:

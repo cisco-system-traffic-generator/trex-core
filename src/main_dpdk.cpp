@@ -5033,6 +5033,7 @@ int CGlobalTRex::stop_master(){
 
     dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     dump_post_test_stats(stdout);
+    publish_async_data(false);
 
     return (0);
 }

@@ -11,7 +11,7 @@ import copy
 import binascii
 from distutils.util import strtobool
 from collections import deque, OrderedDict
-from json import JSONDecoder
+import json
 import traceback
 import signal
 
@@ -92,7 +92,6 @@ class CTRexClient(object):
         self.__default_user         = get_current_user()
         self.verbose                = verbose
         self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
-        self.decoder                = JSONDecoder()
         self.history                = jsonrpclib.history.History()
         self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
         self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history)
@@ -523,7 +522,7 @@ class CTRexClient(object):
             return self.result_obj.get_latest_dump()
         else:
             try: 
-                latest_dump = self.decoder.decode( self.server.get_running_info() ) # latest dump is not a dict, but json string. decode it.
+                latest_dump = json.loads( self.server.get_running_info() ) # latest dump is not a dict, but json string. decode it.
                 self.result_obj.update_result_data(latest_dump)
                 return latest_dump
             except TypeError as inst:
@@ -606,6 +605,15 @@ class CTRexClient(object):
                 time.sleep(time_between_samples)
         except TRexWarning:
             pass
+
+        # try to get final server dump
+        try:
+            latest_server_dump = json.loads(self.server.get_latest_dump())
+            if latest_server_dump != self.result_obj.get_latest_dump():
+                self.result_obj.update_result_data(latest_server_dump)
+        except ProtocolError:
+            pass
+
         results = self.get_result_obj()
         return results
             
