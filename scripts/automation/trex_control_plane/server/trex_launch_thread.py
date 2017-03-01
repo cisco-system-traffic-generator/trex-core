@@ -77,7 +77,7 @@ class AsynchronousTRexSession(threading.Thread):
             logger.debug("Finished handling a single run of TRex.")
             self.trexObj.zmq_dump   = None
 
-    def join (self, timeout = None):
+    def join (self, timeout = 5):
         self.stoprequest.set()
         super(AsynchronousTRexSession, self).join(timeout)
 

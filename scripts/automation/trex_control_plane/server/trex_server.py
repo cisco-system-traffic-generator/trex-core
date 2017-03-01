@@ -256,7 +256,8 @@ class CTRexServer(object):
 
     def assert_zmq_ok(self):
         if self.trex.zmq_error:
-            raise Exception('ZMQ thread got error: %s' % self.trex.zmq_error)
+            self.trex.zmq_error, err = None, self.trex.zmq_error
+            raise Exception('ZMQ thread got error: %s' % err)
         if not self.zmq_monitor.is_alive():
             if self.trex.get_status() != TRexStatus.Idle:
                 self.force_trex_kill()
@@ -326,6 +327,7 @@ class CTRexServer(object):
                 return False
 
     def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
+        self.trex.zmq_error = None
         self.assert_zmq_ok()
         with self.start_lock:
             logger.info("Processing start_trex() command.")
@@ -418,7 +420,6 @@ class CTRexServer(object):
     def wait_until_kickoff_finish (self, timeout = 40):
         # block until TRex exits Starting state
         logger.info("Processing wait_until_kickoff_finish() command.")
-        trex_state = None
         start_time = time.time()
         while (time.time() - start_time) < timeout :
             self.assert_zmq_ok()

@@ -48,12 +48,12 @@ class ZmqMonitorSession(threading.Thread):
                         pass
                     else:
                         logger.error("ZMQ monitor thrown an exception. Received exception: {ex}".format(ex=e))
-                        raise
+                        self.trexObj.zmq_error = e
         except Exception as e:
             logger.error('ZMQ monitor error: %s' % e)
             self.trexObj.zmq_error = e
 
-    def join(self, timeout=None):
+    def join(self, timeout=5):
         self.stoprequest.set()
         logger.debug("Handling termination of ZMQ monitor thread") 
         self.socket.close()

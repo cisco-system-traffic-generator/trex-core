@@ -33,11 +33,13 @@ cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD
 
 
+function restore_tty {
+    stty $saveterm
+}
+
 if [ -t 0 ] && [ -t 1 ]; then
-    export is_tty=true
     saveterm="$(stty -g)"
-else
-    export is_tty=false
+    trap restore_tty EXIT
 fi
 
 # if we have a new core run optimized trex 
@@ -56,12 +58,5 @@ else
         RESULT=$?
 fi
 
-if $is_tty; then
-    stty $saveterm
-fi
-
-if [ $RESULT -ne 0 ]; then
-  exit $RESULT
-fi
-
+exit $RESULT
 
