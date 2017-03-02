@@ -525,8 +525,9 @@ Other network devices
                 self.check_ofed_version()
 
             for key in if_list:
-                pci_id=self.m_devices[key]['Slot_str']
-                self.tune_mlx5_device (pci_id)
+                if 'Virtual' not in self.m_devices[key]['Device_str']:
+                    pci_id = self.m_devices[key]['Slot_str']
+                    self.tune_mlx5_device(pci_id)
                 if 'Interface' in self.m_devices[key]:
                     dev_id=self.m_devices[key]['Interface']
                     self.disable_flow_control_mlx5_device (dev_id)
