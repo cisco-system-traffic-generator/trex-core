@@ -105,6 +105,7 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-mlx', dest='no_mlx', default=False, action='store_true', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
 
 
 def check_ibverbs_deps(bld):
@@ -988,8 +989,9 @@ def install_single_system (bld, exec_p, build_obj):
 
 
 def pre_build(bld):
-    print("update version files")
-    create_version_files ()
+    if not bld.options.no_ver:
+        print("update version files")
+        create_version_files()
 
 
 def write_file (file_name,s):
