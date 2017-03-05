@@ -25,7 +25,7 @@
       "parameters": ["name", "ip_min", "ip_max", "port_min", "port_max", "limit_flows", "flags"]
     },
     {
-      "id": "STLVmFlowVarRepetableRandom",
+      "id": "STLVmFlowVarRepeatableRandom",
       "parameters": ["name", "size", "limit", "seed", "min_value", "max_value"]
     },
     {
