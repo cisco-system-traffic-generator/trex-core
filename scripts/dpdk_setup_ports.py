@@ -24,8 +24,7 @@ import platform
 # 32  : no errors - mlx share object should be loaded 
 MLX_EXIT_CODE = 32
 
-out = subprocess.check_output(['lsmod'])
-DPDK_DRIVER = 'vfio-pci' if out.find('vfio_pci') != -1 else 'igb_uio'
+class VFIOBindErr(Exception): pass
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -248,6 +247,52 @@ class ConfigCreator(object):
             print('Saved to %s.' % filename)
         return config_str
 
+# only load igb_uio if it's available
+def load_igb_uio():
+    if 'igb_uio' in dpdk_nic_bind.get_loaded_modules():
+        return True
+    km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
+    if os.path.exists(km):
+        return os.system('insmod %s' % km) == 0
+
+# try to compile igb_uio if it's missing
+def compile_and_load_igb_uio():
+    loaded_mods = dpdk_nic_bind.get_loaded_modules()
+    if 'igb_uio' in loaded_mods:
+        return
+    if 'uio' not in loaded_mods:
+        res = os.system('modprobe uio')
+        if res:
+            print('Failed inserting uio module, please check if it is installed')
+            sys.exit(-1)
+    km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
+    if not os.path.exists(km):
+        print("ERROR: We don't have precompiled igb_uio.ko module for your kernel version")
+        print('Will try compiling automatically.')
+        try:
+            subprocess.check_output('make', cwd = './ko/src', stderr = subprocess.STDOUT)
+            subprocess.check_output(['make', 'install'], cwd = './ko/src', stderr = subprocess.STDOUT)
+            print('\nSuccess.')
+        except Exception as e:
+            print('\nAutomatic compilation failed: (%s)' % e)
+            print('You can try compiling yourself, using the following commands:')
+            print('  $cd ko/src')
+            print('  $make')
+            print('  $make install')
+            print('  $cd -')
+            print('Then, try to run TRex again.')
+            print('Note: you might need additional Linux packages for that:')
+            print('  * yum based (Fedora, CentOS, RedHat):')
+            print('        sudo yum install kernel-devel-`uname -r`')
+            print('        sudo yum group install "Development tools"')
+            print('  * apt based (Ubuntu):')
+            print('        sudo apt install linux-headers-`uname -r`')
+            print('        sudo apt install build-essential')
+            sys.exit(-1)
+    res = os.system('insmod %s' % km)
+    if res:
+        print('Failed inserting igb_uio module')
+        sys.exit(-1)
 
 class map_driver(object):
     args=None;
@@ -442,17 +487,33 @@ Other network devices
             raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
 
-    def do_bind_one (self,key,mellanox):
-        if mellanox:
-            drv="mlx5_core"
-        else:
-            drv=DPDK_DRIVER
-
-        cmd='%s dpdk_nic_bind.py --bind=%s %s ' % (sys.executable, drv,key)
+    def do_bind_all(self, drv, pci, force = False):
+        assert type(pci) is list
+        cmd = '{ptn} dpdk_nic_bind.py --bind={drv} {pci} {frc}'.format(
+            ptn = sys.executable,
+            drv = drv,
+            pci = ' '.join(pci),
+            frc = '--force' if force else '')
         print(cmd)
-        res=os.system(cmd);
-        if res!=0:
-            raise DpdkSetup('')
+        return os.system(cmd)
+
+    # pros: no need to compile .ko per Kernel version
+    # cons: need special config/hw (not always works)
+    def try_bind_to_vfio_pci(self, to_bind_list):
+        krnl_params_file = '/proc/cmdline'
+        if not os.path.exists(krnl_params_file):
+            raise VFIOBindErr('Could not find file with Kernel boot parameters: %s' % krnl_params_file)
+        with open(krnl_params_file) as f:
+            krnl_params = f.read()
+        if 'iommu=' in krnl_params:
+            if 'vfio_pci' not in dpdk_nic_bind.get_loaded_modules():
+                ret = os.system('modprobe vfio_pci')
+                if ret:
+                    raise VFIOBindErr('Could not load vfio_pci')
+            ret = self.do_bind_all('vfio-pci', to_bind_list)
+            if ret:
+                raise VFIOBindErr('Binding to vfio_pci failed')
+        raise VFIOBindErr('vfio-pci is not an option here')
 
 
     def pci_name_to_full_name (self,pci_name):
@@ -507,18 +568,15 @@ Other network devices
                 err=" %s does not have Vendor_str " %key;
                 raise DpdkSetup(err)
 
-            if self.m_devices[key]['Vendor_str'].find("Mellanox")>-1 :
-                Mellanox_cnt=Mellanox_cnt+1
+            if 'Mellanox' in self.m_devices[key]['Vendor_str']:
+                Mellanox_cnt += 1
 
 
         if not map_driver.parent_args.dump_interfaces:
-            if  ((Mellanox_cnt>0) and (Mellanox_cnt!= len(if_list))):
+            if (Mellanox_cnt > 0) and (Mellanox_cnt != len(if_list)):
                err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
                raise DpdkSetup(err)
-
-
-        if not map_driver.parent_args.dump_interfaces:
-            if  Mellanox_cnt>0 :
+            if Mellanox_cnt > 0:
                 self.set_only_mellanox_nics()
 
         if self.get_only_mellanox_nics():
@@ -537,23 +595,10 @@ Other network devices
 
 
         if only_check_all_mlx:
-            if Mellanox_cnt >0:
+            if Mellanox_cnt > 0:
                 exit(MLX_EXIT_CODE);
             else:
                 exit(0);
-
-        for key in if_list:
-            if key not in self.m_devices:
-                err=" %s does not exist " %key;
-                raise DpdkSetup(err)
-
-            if 'Driver_str' in self.m_devices[key]:
-                if self.m_devices[key]['Driver_str'] not in (dpdk_nic_bind.dpdk_drivers+dpdk_nic_bind.dpdk_and_kernel) :
-                    self.do_bind_one (key,(Mellanox_cnt>0))
-                    pass;
-            else:
-                self.do_bind_one (key,(Mellanox_cnt>0))
-                pass;
 
         if if_list and map_driver.args.parent and self.m_cfg_dict[0].get('enable_zmq_pub', True):
             publisher_port = self.m_cfg_dict[0].get('zmq_pub_port', 4500)
@@ -574,37 +619,78 @@ Other network devices
                 print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(-1)
 
-        if Mellanox_cnt:
-            return MLX_EXIT_CODE
-        else:
-            return 0
 
+        to_bind_list = []
+        for key in if_list:
+            if key not in self.m_devices:
+                err=" %s does not exist " %key;
+                raise DpdkSetup(err)
+
+            if self.m_devices[key].get('Driver_str') not in (dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel):
+                to_bind_list.append(key)
+
+        if to_bind_list:
+            if Mellanox_cnt > 0:
+                ret = self.do_bind_all('mlx5_core', to_bind_list)
+                if ret:
+                    raise DpdkSetup('Unable to bind interfaces to driver mlx5_core.')
+                return MLX_EXIT_CODE
+            else:
+                # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci
+                if load_igb_uio():
+                    print('Trying to bind to igb_uio ...')
+                    ret = self.do_bind_all('igb_uio', to_bind_list)
+                    if ret:
+                        raise DpdkSetup('Unable to bind interfaces to driver igb_uio.') # module present, loaded, but unable to bind
+                    return
+
+                try:
+                    print('Trying to bind to vfio-pci ...')
+                    self.try_bind_to_vfio_pci(to_bind_list)
+                    return
+                except VFIOBindErr as e:
+                    pass
+                    #print(e)
+
+                print('Trying to compile and bind to igb_uio ...')
+                compile_and_load_igb_uio()
+                ret = self.do_bind_all('igb_uio', to_bind_list)
+                if ret:
+                    raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
 
 
     def do_return_to_linux(self):
         if not self.m_devices:
             self.run_dpdk_lspci()
         dpdk_interfaces = []
+        check_drivers = set()
         for device in self.m_devices.values():
             if device.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
                 dpdk_interfaces.append(device['Slot'])
+                check_drivers.add(device['Driver_str'])
         if not dpdk_interfaces:
             print('No DPDK bound interfaces.')
             return
-        if dpdk_nic_bind.get_igb_uio_usage():
+        any_driver_used = False
+        for driver in check_drivers:
+            if dpdk_nic_bind.is_module_used(driver):
+                any_driver_used = True
+        if any_driver_used:
             pid = dpdk_nic_bind.get_pid_using_pci(dpdk_interfaces)
             if pid:
                 cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
                 print('DPDK interfaces are in use. Unbinding them might cause following process to hang:\npid: %s, cmd: %s' % (pid, cmdline))
                 if not dpdk_nic_bind.confirm('Confirm (y/N):'):
-                    return
+                    sys.exit(-1)
+
+        # DPDK => Linux
         drivers_table = {
             'net_ixgbe': 'ixgbe',
-            'net_ixgbe_vf': 'ixgbe_vf',
-            'net_e1000_igb': 'e1000_igb',
+            'net_ixgbe_vf': 'ixgbevf',
+            'net_e1000_igb': 'igb',
             'net_i40e': 'i40e',
-            'net_i40e_vf': 'i40e_vf',
-            'net_e1000_em': 'e1000_em',
+            'net_i40e_vf': 'i40evf',
+            'net_e1000_em': 'e1000',
             'net_vmxnet3': 'vmxnet3',
             'net_virtio': 'virtio-pci',
             'net_enic': 'enic',
@@ -617,10 +703,13 @@ Other network devices
                 raise DpdkSetup('Internal error: PCI %s is not found among devices' % pci)
             dev = self.m_devices[pci]
             if info['TRex_Driver'] not in drivers_table:
-                print("Got unknown driver '%s', description: %s" % (info['TRex_Driver'], dev['Device_str']))
+                raise DpdkSetup("Got unknown driver '%s', description: %s" % (info['TRex_Driver'], dev['Device_str']))
+            linux_driver = drivers_table[info['TRex_Driver']]
+            if linux_driver not in dpdk_nic_bind.get_loaded_modules():
+                print("No Linux driver installed, or wrong module name: %s" % linux_driver)
             else:
                 print('Returning to Linux %s' % pci)
-                dpdk_nic_bind.bind_one(pci, drivers_table[info['TRex_Driver']], False)
+                dpdk_nic_bind.bind_one(pci, linux_driver, False)
 
     def _get_cpu_topology(self):
         cpu_topology_file = '/proc/cpuinfo'
@@ -915,11 +1004,8 @@ To return to Linux the DPDK bound interfaces (for ifconfig etc.)
 To create TRex config file using interactive mode
   sudo ./dpdk_set_ports.py -i
 
-To create a default config file (example1)
+To create a default config file (example)
   sudo ./dpdk_setup_ports.py -c 02:00.0 02:00.1 -o /etc/trex_cfg.yaml
-
-To create a default config file (example2)
-  sudo ./dpdk_setup_ports.py -c eth1 eth2 --dest-macs 11:11:11:11:11:11 22:22:22:22:22:22 --dump
 
 To show interfaces status
   sudo ./dpdk_set_ports.py -s

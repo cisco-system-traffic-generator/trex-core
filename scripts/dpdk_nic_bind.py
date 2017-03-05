@@ -75,6 +75,7 @@ status_flag = False
 table_flag = False
 force_flag = False
 args = []
+loaded_modules = []
 
 try:
     raw_input
@@ -152,6 +153,9 @@ def check_output(args, stderr=None, **kwargs):
     return subprocess.Popen(args, stdout=subprocess.PIPE,
                             stderr=stderr, **kwargs).communicate()[0]
 
+kernel_ver = check_output(['uname', '-r'], universal_newlines = True).strip()
+
+
 def find_module(mod):
     '''find the .ko file for kernel module named mod.
     Searches the $RTE_SDK/$RTE_TARGET directory, the kernel
@@ -167,8 +171,8 @@ def find_module(mod):
     # check using depmod
     try:
         depmod_out = check_output(["modinfo", "-n", mod], \
-                                  stderr=subprocess.STDOUT, universal_newlines = True).lower()
-        if "error" not in depmod_out:
+                                  stderr=subprocess.STDOUT, universal_newlines = True)
+        if "error" not in depmod_out.lower():
             path = depmod_out.strip()
             if exists(path):
                 return path
@@ -176,27 +180,30 @@ def find_module(mod):
         pass
 
     # check for a copy based off current path
-    tools_dir = dirname(abspath(sys.argv[0]))
-    if (tools_dir.endswith("tools")):
-        base_dir = dirname(tools_dir)
-        find_out = check_output(["find", base_dir, "-name", mod + ".ko"], universal_newlines = True)
-        if len(find_out) > 0: #something matched
-            path = find_out.splitlines()[0]
-            if exists(path):
-                return path
+    drivers_dir = '/lib/modules/%s/kernel/drivers' % kernel_ver
+    find_out = check_output(["find", drivers_dir, "-name", mod + ".ko\*"], universal_newlines = True)
+    if find_out: #something matched
+        path = find_out.splitlines()[0]
+        if exists(path):
+            return path
+
+def get_loaded_modules():
+    if not loaded_modules:
+        with open("/proc/modules") as fd:
+            loaded_mods = fd.readlines()
+        for line in loaded_mods:
+            loaded_modules.append(line.split()[0])
+    return loaded_modules
 
 def check_modules():
     '''Checks that igb_uio is loaded'''
     global dpdk_drivers
 
-    with open("/proc/modules") as fd:
-        loaded_mods = fd.readlines()
-
     # list of supported modules
     mods =  [{"Name" : driver, "Found" : False} for driver in dpdk_drivers]
 
     # first check if module is loaded
-    for line in loaded_mods:
+    for line in get_loaded_modules():
         for mod in mods:
             if line.startswith(mod["Name"]):
                 mod["Found"] = True
@@ -354,6 +361,16 @@ def get_tcp_port_usage(port):
         return None
     return res[0][7]
 
+def is_module_used(module):
+    refcnt_file = '/sys/module/%s/refcnt' % module
+    if not os.path.exists(refcnt_file):
+        return False
+    with open(refcnt_file) as f:
+        ref_cnt = int(f.read().strip())
+    if ref_cnt:
+        return True
+    return False
+
 def get_pid_using_pci(pci_list):
     if not isinstance(pci_list, list):
         pci_list = [pci_list]
@@ -406,21 +423,28 @@ def unbind_one(dev_id, force):
             (dev[b"Slot"], dev[b"Device_str"], dev[b"Interface"]))
         return
 
-    if not force and dev.get('Driver_str') in dpdk_drivers and get_igb_uio_usage():
+    # Mellanox NICs do not need unbind
+    if not force and dev['Driver_str'] in dpdk_and_kernel:
+        print('Mellanox NICs do not need unbinding.')
+        if not confirm('Confirm unbind (y/N)'):
+            print('Not unbinding.')
+            sys.exit(-1)
+
+    if not force and dev['Driver_str'] in dpdk_drivers and is_module_used(dev['Driver_str']):
         pid = get_pid_using_pci(dev_id)
         if pid:
             cmdline = read_pid_cmdline(pid)
             print('Interface %s is in use by process:\n%s' % (dev_id, cmdline))
             if not confirm('Unbinding might hang the process. Confirm unbind (y/N)'):
                 print('Not unbinding.')
-                return
+                sys.exit(-1)
 
     # prevent us disconnecting ourselves
     if dev["Active"] and not force:
         print('netstat indicates that interface %s is active.' % dev_id)
         if not confirm('Confirm unbind (y/N)'):
             print('Not unbinding.')
-            return
+            sys.exit(-1)
 
     # write to /sys to unbind
     filename = "/sys/bus/pci/drivers/%s/unbind" % dev["Driver_str"]
@@ -443,23 +467,23 @@ def bind_one(dev_id, driver, force):
         print("netstat indicates that interface %s is active" % dev_id)
         if not confirm("Confirm bind (y/N)"):
             print('Not binding.')
-            return
+            sys.exit(-1)
 
     # unbind any existing drivers we don't want
     if has_driver(dev_id):
         if dev["Driver_str"] == driver:
             print("%s already bound to driver %s, skipping\n" % (dev_id, driver))
-            return
+            return True
         else:
             saved_driver = dev["Driver_str"]
-            if not force and get_igb_uio_usage():
+            if not force and is_module_used(saved_driver):
                 pid = get_pid_using_pci(dev_id)
                 if pid:
                     cmdline = read_pid_cmdline(pid)
                     print('Interface %s is in use by process:\n%s' % (dev_id, cmdline))
                     if not confirm('Binding to other driver might hang the process. Confirm unbind (y/N)'):
                         print('Not binding.')
-                        return
+                        sys.exit(-1)
 
             unbind_one(dev_id, force)
             dev["Driver_str"] = "" # clear driver string
@@ -492,13 +516,14 @@ def bind_one(dev_id, driver, force):
     try:
         f.write(dev_id)
         f.close()
+        return True
     except:
         # for some reason, closing dev_id after adding a new PCI ID to new_id
         # results in IOError. however, if the device was successfully bound,
         # we don't care for any errors and can safely ignore IOError
         tmp = get_pci_device_details(dev_id)
         if "Driver_str" in tmp and tmp["Driver_str"] == driver:
-            return
+            return True
         print("Error: bind failed for %s - Cannot bind to driver %s" % (dev_id, driver))
         if saved_driver is not None: # restore any previous driver
             bind_one(dev_id, saved_driver, force)
@@ -518,7 +543,9 @@ def bind_all(dev_list, driver, force=False):
     dev_list = list(map(dev_id_from_dev_name, dev_list))
 
     for d in dev_list:
-        bind_one(d, driver, force)
+        res = bind_one(d, driver, force)
+        if not res:
+            sys.exit(-1)
 
     # when binding devices to a generic driver (i.e. one that doesn't have a
     # PCI ID table), some devices that are not bound to any other driver could
