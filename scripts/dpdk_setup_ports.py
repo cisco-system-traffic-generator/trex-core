@@ -479,10 +479,10 @@ Other network devices
         """ return the number of mellanox drivers"""
 
         self.run_dpdk_lspci ()
+        self.load_config_file()
         if (map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
                             map_driver.parent_args.cfg)):
-            self.load_config_file()
             if_list=self.m_cfg_dict[0]['interfaces']
         else:
             if_list = map_driver.parent_args.dump_interfaces
@@ -553,17 +553,15 @@ Other network devices
                 self.do_bind_one (key,(Mellanox_cnt>0))
                 pass;
 
-        if (Mellanox_cnt==0):
-            # We are not in Mellanox case, we can do this check only in case of Intel (another process is running) 
-            if if_list and map_driver.args.parent and (dpdk_nic_bind.get_igb_uio_usage()):
-                pid = dpdk_nic_bind.get_pid_using_pci(if_list)
-                if pid:
-                    cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                    print('Some or all of given interfaces are in use by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-                    if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                        sys.exit(-1)
-                else:
-                       print('WARNING: Some other program is using DPDK driver.\nIf it is TRex and you did not configure it for dual run, current command will fail.')
+        if if_list and map_driver.args.parent and self.m_cfg_dict[0].get('enable_zmq_pub', True):
+            publisher_port = self.m_cfg_dict[0].get('zmq_pub_port', 4500)
+            pid = dpdk_nic_bind.get_tcp_port_usage(publisher_port)
+            if pid:
+                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
+                    sys.exit(-1)
+
         if map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
             try:
                 master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
@@ -1056,6 +1054,8 @@ def main ():
     except Exception:
         traceback.print_exc()
         exit(-1)
+    except KeyboardInterrupt:
+        sys.exit(-1)
 
 
 

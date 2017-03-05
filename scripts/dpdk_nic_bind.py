@@ -39,6 +39,13 @@ text_tables_path = os.path.join('external_libs', 'texttable-0.8.4')
 sys.path.append(text_tables_path)
 import texttable
 sys.path.remove(text_tables_path)
+
+netstat_path = 'external_libs'
+sys.path.append(netstat_path)
+import netstat
+sys.path.remove(netstat_path)
+
+
 import re
 import termios
 
@@ -199,7 +206,7 @@ def check_modules():
     if True not in [mod["Found"] for mod in mods] and b_flag is not None:
         if b_flag in dpdk_drivers:
             print("Error - no supported modules(DPDK driver) are loaded")
-            sys.exit(1)
+            sys.exit(-1)
         else:
             print("Warning - no supported modules(DPDK driver) are loaded")
 
@@ -267,10 +274,9 @@ def get_nic_details():
 
     # check active interfaces with established connections
     established_ip = set()
-    for line in check_output(['netstat', '-tn'], universal_newlines = True).splitlines(): # tcp        0      0 10.56.216.133:22        10.56.46.20:45079       ESTABLISHED
-        line_arr = line.split()
-        if len(line_arr) == 6 and line_arr[0] == 'tcp' and line_arr[5] == 'ESTABLISHED':
-            established_ip.add(line_arr[3].rsplit(':', 1)[0])
+    for line_arr in netstat.netstat(with_pid = False): # [tcp_id, user, local ip, local port, remote ip, remote port, 'LISTEN', ...]
+        if line_arr[6] == 'ESTABLISHED':
+            established_ip.add(line_arr[2])
 
     active_if = []
     for line in check_output(["ip", "-o", "addr"], universal_newlines = True).splitlines(): # 6: eth4    inet 10.56.216.133/24 brd 10.56.216.255 scope global eth4\       valid_lft forever preferred_lft forever
@@ -337,18 +343,13 @@ def dev_id_from_dev_name(dev_name):
     # if nothing else matches - error
     print("Unknown device: %s. " \
         "Please specify device in \"bus:slot.func\" format" % dev_name)
-    sys.exit(1)
+    sys.exit(-1)
 
-def get_igb_uio_usage():
-    for driver in dpdk_drivers:
-        refcnt_file = '/sys/module/%s/refcnt' % driver
-        if not os.path.exists(refcnt_file):
-            continue
-        with open(refcnt_file) as f:
-            ref_cnt = int(f.read().strip())
-            if ref_cnt:
-                return True
-    return False
+def get_tcp_port_usage(port):
+    res = netstat.netstat(with_pid = True, search_local_port = port)
+    if not res:
+        return None
+    return res[0][7]
 
 def get_pid_using_pci(pci_list):
     if not isinstance(pci_list, list):
@@ -380,7 +381,7 @@ def confirm(msg, default = False):
         return strtobool(raw_input(msg))
     except KeyboardInterrupt:
         print('')
-        sys.exit(1)
+        sys.exit(-1)
     except Exception:
         return default
 
@@ -392,7 +393,7 @@ def read_line(msg = '', default = ''):
         return raw_input(msg).strip()
     except KeyboardInterrupt:
         print('')
-        sys.exit(1)
+        sys.exit(-1)
 
 def unbind_one(dev_id, force):
     '''Unbind the device identified by "dev_id" from its current driver'''
@@ -424,7 +425,7 @@ def unbind_one(dev_id, force):
         f = open(filename, "a")
     except:
         print("Error: unbind failed for %s - Cannot open %s" % (dev_id, filename))
-        sys.exit(1)
+        sys.exit(-1)
     f.write(dev_id)
     f.close()
 
@@ -602,7 +603,7 @@ def get_info_from_trex(pci_addr_list):
             print("Could not run TRex to get info about interfaces, check if it's already running.")
         else:
             print('Error upon running TRex to get interfaces info:\n%s' % stdout)
-        sys.exit(1)
+        sys.exit(-1)
     pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S*)'
     pci_mac_re = re.compile(pci_mac_str)
     for line in stdout.splitlines():
@@ -611,7 +612,7 @@ def get_info_from_trex(pci_addr_list):
             pci = match.group(1)
             if pci not in pci_addr_list: # sanity check, should not happen
                 print('Internal error while getting info of DPDK bound interfaces, unknown PCI: %s' % pci)
-                sys.exit(1)
+                sys.exit(-1)
             pci_info_dict[pci] = {}
             pci_info_dict[pci]['MAC'] = match.group(2)
             pci_info_dict[pci]['TRex_Driver'] = match.group(3)
@@ -668,7 +669,7 @@ def parse_args():
     except getopt.GetoptError as error:
         print(str(error))
         print("Run '%s --usage' for further information" % sys.argv[0])
-        sys.exit(1)
+        sys.exit(-1)
 
     for opt, arg in opts:
         if opt == "--help" or opt == "--usage":
@@ -683,7 +684,7 @@ def parse_args():
         if opt == "-b" or opt == "-u" or opt == "--bind" or opt == "--unbind":
             if b_flag is not None:
                 print("Error - Only one bind or unbind may be specified\n")
-                sys.exit(1)
+                sys.exit(-1)
             if opt == "-u" or opt == "--unbind":
                 b_flag = "none"
             else:
@@ -700,12 +701,12 @@ def do_arg_actions():
     if b_flag is None and not status_flag and not table_flag:
         print("Error: No action specified for devices. Please give a -b or -u option")
         print("Run '%s --usage' for further information" % sys.argv[0])
-        sys.exit(1)
+        sys.exit(-1)
 
     if b_flag is not None and len(args) == 0:
         print("Error: No devices specified.")
         print("Run '%s --usage' for further information" % sys.argv[0])
-        sys.exit(1)
+        sys.exit(-1)
 
     if b_flag == "none" or b_flag == "None":
         unbind_all(args, force_flag)
@@ -730,5 +731,5 @@ def main():
 if __name__ == "__main__":
     if os.getuid() != 0:
         print('Please run this program as root/with sudo')
-        exit(1)
+        exit(-1)
     main()
