@@ -743,13 +743,16 @@ class STLVmFlowVar(CTRexVmDescBase):
     def get_var_name(self):
         return [self.name]
 
-class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
+class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
     def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
 
+        1. The maximum number of distinct values will  'limit'. There could be a case of repetition
+        2. The values will be repeated  after 'limit' number of values.
+        
         :parameters:
              name : string 
                 Name of the stream variable 
@@ -775,15 +778,15 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
             # Example1
 
             # input , 1 byte or random with limit of 5 
-            STLVmFlowVarRepetableRandom("var1",size=1,limit=5)
+            STLVmFlowVarRepeatableRandom("var1",size=1,limit=5)
 
             # output 255,1,7,129,8, ==> repeat 255,1,7,129,8
 
-            STLVmFlowVarRepetableRandom("var1",size=4,limit=100,min_value=0x12345678, max_value=0x32345678)
+            STLVmFlowVarRepeatableRandom("var1",size=4,limit=100,min_value=0x12345678, max_value=0x32345678)
 
 
         """
-        super(STLVmFlowVarRepetableRandom, self).__init__()
+        super(STLVmFlowVarRepeatableRandom, self).__init__()
         self.name = name;
         validate_type('name', name, str)
         self.size =size
@@ -810,6 +813,18 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
 
     def get_var_name(self):
         return [self.name]
+
+class STLVmFlowVarRepetableRandom(STLVmFlowVarRepeatableRandom):
+
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
+        super(STLVmFlowVarRepetableRandom, self).__init__(name,  size, limit, seed, min_value, max_value)
+
+    def get_obj (self):
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
+
+    def get_var_name(self):
+        return [self.name]
+
 
 class STLVmFixChecksumHw(CTRexVmDescBase):
     def __init__(self, l3_offset,l4_offset,l4_type):

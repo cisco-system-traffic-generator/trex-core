@@ -163,10 +163,10 @@ STLVmTupleGen
     :members: 
     :member-order: bysource
 
-STLVmFlowVarRepetableRandom
+STLVmFlowVarRepeatableRandom
 ----------------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVarRepetableRandom
+.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVarRepeatableRandom
     :members: 
     :member-order: bysource
 
@@ -236,7 +236,7 @@ Field Engine snippet
                              
         vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                             max_value="10.0.0.255", size=4, step=1,op="inc"),
-                             STLVmFlowVarRepetableRandom ( "ip_dst",  
+                             STLVmFlowVarRepeatableRandom ( "ip_dst",  
                                                            min_value="48.0.0.1",
                                                            max_value="48.0.0.255", 
                                                            size=4, 
