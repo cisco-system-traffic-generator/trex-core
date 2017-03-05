@@ -29,8 +29,10 @@ def _load():
         content.pop(0)
     return content
 
-def _hex2dec(s):
-    return str(int(s,16))
+def _hex2dec(s, string = True):
+    if string:
+        return str(int(s,16))
+    return int(s,16)
 
 def _ip(s):
     ip = [(_hex2dec(s[6:8])),(_hex2dec(s[4:6])),(_hex2dec(s[2:4])),(_hex2dec(s[0:2]))]
@@ -41,9 +43,9 @@ def _remove_empty(array):
 
 def _convert_ip_port(array):
     host,port = array.split(':')
-    return _ip(host),_hex2dec(port)
+    return _ip(host),_hex2dec(port, string = False)
 
-def netstat(with_pid = True):
+def netstat(with_pid = True, search_local_port = None):
     '''
     Function to return a list with status of tcp connections at linux systems
     To get pid of all network process running on system, you must run this script
@@ -56,6 +58,8 @@ def netstat(with_pid = True):
     for line in content:
         line_array = _remove_empty(line.split(' '))     # Split lines and remove empty spaces.
         l_host,l_port = _convert_ip_port(line_array[1]) # Convert ipaddress and port from hex to decimal.
+        if search_local_port and search_local_port != l_port:
+            continue
         r_host,r_port = _convert_ip_port(line_array[2]) 
         tcp_id = line_array[0]
         state = STATE.get(line_array[3])
