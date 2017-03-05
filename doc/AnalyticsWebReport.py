@@ -2,7 +2,7 @@ import os
 import sys
 import ELKConnect as ec
 import AnalyticsConnect as ac
-import TRexDataAnalysisV2 as tr
+import TRexDataAnalysis as tr
 import time
 import datetime
 
