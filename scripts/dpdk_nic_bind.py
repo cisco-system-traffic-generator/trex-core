@@ -35,12 +35,15 @@
 import sys, os, getopt, subprocess, shlex
 from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
-text_tables_path = os.path.join('external_libs', 'texttable-0.8.4')
+
+curdir = os.path.abspath(os.path.dirname(__file__))
+
+text_tables_path = os.path.join(curdir, 'external_libs', 'texttable-0.8.4')
 sys.path.append(text_tables_path)
 import texttable
 sys.path.remove(text_tables_path)
 
-netstat_path = 'external_libs'
+netstat_path = os.path.join(curdir, 'external_libs')
 sys.path.append(netstat_path)
 import netstat
 sys.path.remove(netstat_path)
