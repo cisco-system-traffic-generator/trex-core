@@ -35,14 +35,10 @@ This Module is structured to work with a raw data at the following JSON format:
 
 
 class TestQuery(object):
-    query_dateformat = "%Y%m%d"  # date format in the query
-    QUERY_DATE = 2
-    QUERY_HOUR = 3
-    QUERY_MINUTE = 4
-    QUERY_MPPS_RESULT = 5
-    QUERY_TEST_MIN = 6
-    QUERY_TEST_MAX = 7
-    QUERY_BUILD_ID = 8
+    QUERY_TIMEFORMAT = "%Y-%m-%d %H:%M:%S"  # date format in the query
+    QUERY_TIMESTAMP = 1
+    QUERY_MPPS_RESULT = 2
+    QUERY_BUILD_ID = 3
 
 
 class Test:
@@ -59,23 +55,27 @@ class Test:
         test_results = []
         test_dates = []
         test_build_ids = []
-        test_mins = set()
-        test_maxs = set()
         for query in raw_test_data:
-            date_formatted = time.strftime("%d-%m-%Y",
-                                           time.strptime(query[int(TestQuery.QUERY_DATE)], TestQuery.query_dateformat))
-            time_of_res = date_formatted + '-' + query[int(TestQuery.QUERY_HOUR)] + ':' + query[
-                int(TestQuery.QUERY_MINUTE)]
-            test_dates.append(time_of_res)
+            # date_formatted = time.strftime("%d-%m-%Y",
+            #                                time.strptime(query[int(TestQuery.QUERY_DATE)], TestQuery.query_dateformat))
+            # time_of_res = date_formatted + '-' + query[int(TestQuery.QUERY_HOUR)] + ':' + query[
+            #     int(TestQuery.QUERY_MINUTE)]
+            time_of_query = time.strptime(query[TestQuery.QUERY_TIMESTAMP], TestQuery.QUERY_TIMEFORMAT)
+            time_formatted = time.strftime("%d-%m-%Y-%H:%M", time_of_query)
+            test_dates.append(time_formatted)
             test_results.append(float(query[int(TestQuery.QUERY_MPPS_RESULT)]))
             test_build_ids.append(query[int(TestQuery.QUERY_BUILD_ID)])
-            test_mins.add(float(query[int(TestQuery.QUERY_TEST_MIN)]))
-            test_maxs.add(float(query[int(TestQuery.QUERY_TEST_MAX)]))
         test_results_df = pd.DataFrame({self.name: test_results, self.name + ' Date': test_dates,
                                         "Setup": ([self.setup_name] * len(test_results)), "Build Id": test_build_ids},
                                        dtype='str')
+        stats_avg = float(test_results_df[self.name].mean())
+        stats_min = float(test_results_df[self.name].min())
+        stats_max = float(test_results_df[self.name].max())
         stats = tuple(
-            [float(test_results_df[self.name].mean()), min(test_mins), max(test_maxs)])  # stats = (avg_mpps,min,max)
+            [stats_avg, stats_min, stats_max,
+             float(test_results_df[self.name].std()),
+             float(((stats_max - stats_min) / stats_avg) * 100),
+             len(test_results)])  # stats = (avg_mpps,min,max,std,error, no of test_results) error = ((max-min)/avg)*100
         self.latest_result = float(test_results_df[self.name].iloc[-1])
         self.latest_result_date = str(test_results_df[test_results_df.columns[3]].iloc[-1])
         self.results_df = test_results_df
@@ -83,9 +83,8 @@ class Test:
 
 
 class Setup:
-    def __init__(self, name, start_date, end_date, raw_setup_data):
+    def __init__(self, name, end_date, raw_setup_data):
         self.name = name
-        self.start_date = start_date  # string of date
         self.end_date = end_date  # string of date
         self.tests = []  # list of test objects
         self.all_tests_data_table = pd.DataFrame()  # dataframe
@@ -120,7 +119,7 @@ class Setup:
             test_names.append(test.name)
             all_test_stats.append(test.stats)
         self.setup_trend_stats = pd.DataFrame(all_test_stats, index=test_names,
-                                              columns=['Avg MPPS/Core (Norm)', 'Golden Min', 'Golden Max'])
+                                              columns=['Avg MPPS/Core (Norm)', 'Min', 'Max', 'Std','Error (%)', 'Total Results'])
         self.setup_trend_stats.index.name = 'Test Name'
 
     def analyze_all_tests_trend(self):
@@ -135,6 +134,7 @@ class Setup:
         for test in self.tests:
             test_data = test.results_df[test.results_df.columns[2]].tolist()
             test_time_stamps = test.results_df[test.results_df.columns[3]].tolist()
+            start_date = test_time_stamps[0]
             test_time_stamps.append(self.end_date + '-23:59')
             test_data.append(test_data[-1])
             float_test_time_stamps = []
@@ -143,7 +143,7 @@ class Setup:
                     float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format1)))
                 except:
                     float_test_time_stamps.append(matdates.date2num(datetime.strptime(ts, time_format2)))
-            plt.plot_date(x=float_test_time_stamps, y=test_data, label=test.name, fmt='-', xdate=True)
+            plt.plot_date(x=float_test_time_stamps, y=test_data, label=test.name, fmt='.-', xdate=True)
             plt.legend(fontsize='small', loc='best')
         plt.ylabel('MPPS/Core (Norm)')
         plt.title('Setup: ' + self.name)
@@ -153,7 +153,7 @@ class Setup:
             bottom='off',
             top='off',
             labelbottom='off')
-        plt.xlabel('Time Period: ' + self.start_date + ' - ' + self.end_date)
+        plt.xlabel('Time Period: ' + start_date[:-6] + ' - ' + self.end_date)
         if save_path:
             plt.savefig(os.path.join(save_path, self.name + file_name))
             if not self.setup_trend_stats.empty:
@@ -210,12 +210,12 @@ def latest_runs_comparison_bar_chart(setup_name1, setup_name2, setup1_latest_res
         # WARNING: if the file _all_stats.csv already exists, this script deletes it, to prevent overflowing of data
 
 
-def create_all_data(ga_data, start_date, end_date, save_path='', detailed_test_stats=''):
+def create_all_data(ga_data, end_date, save_path='', detailed_test_stats=''):
     all_setups = {}
     all_setups_data = []
     setup_names = ga_data.keys()
     for setup_name in setup_names:
-        s = Setup(setup_name, start_date, end_date, ga_data[setup_name])
+        s = Setup(setup_name, end_date, ga_data[setup_name])
         s.analyze_all_setup_data()
         s.plot_all(save_path)
         all_setups_data.append(s.all_tests_data_table)
