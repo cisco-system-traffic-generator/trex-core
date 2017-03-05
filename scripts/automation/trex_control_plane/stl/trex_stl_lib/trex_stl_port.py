@@ -1013,8 +1013,9 @@ class Port(object):
         if sync:
             self.sync_streams()
         
-        data = {}
-        for id, obj in self.streams.items():
+        data = OrderedDict()
+        for id in sorted(map(int, self.streams.keys())):
+            obj = self.streams[str(id)]
 
             # lazy build scapy repr.
             if not 'pkt_type' in obj:
@@ -1028,7 +1029,7 @@ class Port(object):
                                      ('next_stream',  obj['next_id'] if not '-1' else 'None')
                                     ])
     
-        return {"streams" : OrderedDict(sorted(data.items())) }
+        return {"streams" : data}
     
 
     ######## attributes are a complex type (dict) that might be manipulated through the async thread #############
