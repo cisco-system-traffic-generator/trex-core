@@ -550,7 +550,7 @@ class TrexTUI():
     STATE_RECONNECT  = 2
     is_graph = False
 
-    MIN_ROWS = 50
+    MIN_ROWS = 45
     MIN_COLS = 111
 
 
