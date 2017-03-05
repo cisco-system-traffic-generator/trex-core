@@ -2783,6 +2783,27 @@ There is a task to automate the production of thess reports
 * Before running TRex make sure the commands    `ibv_devinfo` and  `ibdev2netdev` present the NICS
 * `ifconfig` should work too, you need to be able to ping from those ports
 * run TRex server with '-v 7' for example `$sudo ./t-rex-64 -i -v 7`
+* In case the link_layer is not set to *Ethernet* you should run this command
+
+[source,bash]
+----
+$sudo mlxconfig -d /dev/mst/mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+$sudo mlxconfig -d /dev/mst/mt4115_pciconf1 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+----
+
+see link:https://community.mellanox.com/docs/DOC-2294[ConnectX-4 getting Started]
+
+* It is possible to change the link speed  (e.g. 50Gb/40Gb/25Gb) see link:https://community.mellanox.com/docs/DOC-2334[change speed]
+
+for example to change to 50Gb speed
+
+[source,bash]
+----
+$sudo ethtool -s enp135s0f1 speed 50000 autoneg off
+----
+
+
+ 
 
 
 ==== Limitations/Issues

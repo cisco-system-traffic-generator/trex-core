@@ -23,6 +23,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.20 ==
+
+* hotfix release add mlx-dpdk share objects to the package 
+
 == Release 2.19 ==
 
 * mlx5 dpdk driver works only with OFED 4.0 (OFED 3.4 will not be supported)
