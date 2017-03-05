@@ -45,7 +45,10 @@ done
 
 PATH=$PATH:/sbin:/usr/sbin
 
-if ! lsmod | grep -q igb_uio  ;  then
+VFIO_PCI_KO=`find /lib/modules/$(uname -r) -type f -name vfio-pci.ko`
+if [ $VFIO_PCI_KO ] && grep "iommu=pt" /proc/cmdline | grep -q "intel_iommu=on" ; then
+    modprobe vfio-pci
+elif ! lsmod | grep -q igb_uio ; then
     echo "Loading kernel drivers for the first time"
     modprobe uio
     if [ $? -ne 0 ]; then

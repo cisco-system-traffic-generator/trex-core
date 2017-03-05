@@ -24,6 +24,8 @@ import platform
 # 32  : no errors - mlx share object should be loaded 
 MLX_EXIT_CODE = 32
 
+out = subprocess.check_output(['lsmod'])
+DPDK_DRIVER = 'vfio-pci' if out.find('vfio_pci') != -1 else 'igb_uio'
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -444,7 +446,7 @@ Other network devices
         if mellanox:
             drv="mlx5_core"
         else:
-            drv="igb_uio"
+            drv=DPDK_DRIVER
 
         cmd='%s dpdk_nic_bind.py --bind=%s %s ' % (sys.executable, drv,key)
         print(cmd)
