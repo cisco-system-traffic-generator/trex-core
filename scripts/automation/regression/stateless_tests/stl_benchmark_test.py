@@ -38,7 +38,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
             self.stl_trex.clear_stats()
             sleep(1)
             self.stl_trex.add_streams(profile)
-            mult = '1%' if self.is_virt_nics else '10%'
+            mult = '1%' if (self.is_virt_nics or self.is_vf_nics) else '10%'
             self.stl_trex.start(mult = mult)
             start_time = time()
 

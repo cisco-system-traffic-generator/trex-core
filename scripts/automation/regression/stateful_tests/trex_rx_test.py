@@ -12,7 +12,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
     """This class defines the rx testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
-        self.unsupported_modes = ['virt_nics'] # TODO: fix
+        self.unsupported_modes = ['virt_nics', 'vf_nics'] # TODO: fix (-k argument does not work)
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)

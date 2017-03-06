@@ -70,6 +70,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.unsupported_modes   = []
         self.is_loopback           = True if 'loopback' in self.modes else False
         self.is_virt_nics          = True if 'virt_nics' in self.modes else False
+        self.is_vf_nics            = True if 'vf_nics' in self.modes else False
         self.is_VM                 = True if 'VM' in self.modes else False
 
         if not CTRexScenario.is_init:

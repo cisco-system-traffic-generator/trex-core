@@ -29,7 +29,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.pps = 50000
         
         # strict mode is only for 'wire only' connection
-        self.strict = True if self.is_loopback and not self.is_virt_nics else False
+        self.strict = True if (self.is_loopback and not self.is_virt_nics) else False
 
         assert 'bi' in CTRexScenario.stl_ports_map
 
@@ -269,14 +269,17 @@ class STLClient_Test(CStlGeneral_Test):
                 # but virtual NICs does not support promiscuous mode
                 self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
 
-                if p1.has_custom_mac_addr():
-                    if not self.is_virt_nics:
-                        self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
-                    else:
+                if p1.has_custom_mac_addr() or p2.has_custom_mac_addr():
+                    if self.is_virt_nics:
                         print("\n*** profile needs promiscuous mode but running on virtual NICs - skipping... ***\n")
                         continue
+                    elif self.is_vf_nics:
+                        print("\n*** profile needs promiscuous mode but running on VF - skipping... ***\n")
+                        continue
+                    else:
+                        self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
 
-                if p1.has_flow_stats():
+                if p1.has_flow_stats() or p2.has_flow_stats():
                     print("\n*** profile needs RX caps - skipping... ***\n")
                     continue
 
@@ -286,14 +289,14 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.clear_stats()
 
                 self.c.start(ports = [self.tx_port, self.rx_port], mult = default_mult)
-                time.sleep(100 / 1000.0)
+                time.sleep(0.1)
 
                 if p1.is_pauseable() and p2.is_pauseable():
                     self.c.pause(ports = [self.tx_port, self.rx_port])
-                    time.sleep(100 / 1000.0)
+                    time.sleep(0.1)
 
                     self.c.resume(ports = [self.tx_port, self.rx_port])
-                    time.sleep(100 / 1000.0)
+                    time.sleep(0.1)
 
                 self.c.stop(ports = [self.tx_port, self.rx_port])
 
