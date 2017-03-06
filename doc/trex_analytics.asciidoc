@@ -38,6 +38,17 @@ How to run these tests? +
 ----
        trex-core/scripts> ./run_regression --stl -t <name of test> --cfg setups/<name of setup>
 ----
+The Error (%) metric: +
+ +
+You will see a column titled 'Error (%)' next to other metrics (avg,std etc) +
+Error(%) is calculated for each batch of test results +
+ +
+Taking the Max value (max) and the Min value (min), calculating the difference max-min +
+We take the difference and then normalize it to the Average value to get (max-min)/Avg +
+Then, we present it as percentage +
+ +
+Error (%) = ((max-min)/Avg)*100 +
+ +
 
 == Setup: XL710 (4x40GbE)  trex-08
 
