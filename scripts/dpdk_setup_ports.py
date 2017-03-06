@@ -630,7 +630,7 @@ Other network devices
                 to_bind_list.append(key)
 
         if to_bind_list:
-            if Mellanox_cnt > 0:
+            if Mellanox_cnt:
                 ret = self.do_bind_all('mlx5_core', to_bind_list)
                 if ret:
                     raise DpdkSetup('Unable to bind interfaces to driver mlx5_core.')
@@ -657,7 +657,8 @@ Other network devices
                 ret = self.do_bind_all('igb_uio', to_bind_list)
                 if ret:
                     raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
-
+        elif Mellanox_cnt:
+            return MLX_EXIT_CODE
 
     def do_return_to_linux(self):
         if not self.m_devices:
