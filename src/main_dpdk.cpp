@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2015-2016 Cisco Systems, Inc.
+  Copyright (c) 2015-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -91,12 +91,11 @@ extern "C" {
 #define BP_MAX_TX_QUEUE 16
 #define BP_MASTER_AND_LATENCY 2
 
-#define RTE_TEST_RX_DESC_DEFAULT 64
-#define RTE_TEST_RX_LATENCY_DESC_DEFAULT (1*1024)
-#define RTE_TEST_RX_DESC_DEFAULT_MLX 8
-
-#define RTE_TEST_RX_DESC_VM_DEFAULT 512
-#define RTE_TEST_TX_DESC_VM_DEFAULT 512
+#define RX_DESC_NUM_DROP_Q 64
+#define RX_DESC_NUM_DATA_Q 1024
+#define RX_DESC_NUM_DROP_Q_MLX 8
+#define RX_DESC_NUM_DATA_Q_VM 512
+#define TX_DESC_NUM 512
 
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
@@ -104,15 +103,8 @@ extern "C" int rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uin
 void set_driver();
 void reorder_dpdk_ports();
 
-#define RTE_TEST_TX_DESC_DEFAULT 512
-#define RTE_TEST_RX_DESC_DROP    0
-
 static int max_stat_hw_id_seen = 0;
 static int max_stat_hw_id_seen_payload = 0;
-
-static inline int get_vm_one_queue_enable(){
-    return (CGlobalInfo::m_options.preview.get_vm_one_queue_enable() ?1:0);
-}
 
 static inline int get_is_rx_thread_enabled() {
     return ((CGlobalInfo::m_options.is_rx_enabled() || CGlobalInfo::m_options.is_stateless()) ?1:0);
@@ -132,9 +124,6 @@ static char global_mlx5_so_id_str[50];
 static char global_image_postfix[10];
 #define TREX_NAME "_t-rex-64"
 
-
-
-
 class CTRexExtendedDriverBase {
 protected:
     enum {
@@ -149,6 +138,8 @@ protected:
         TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
         /* Mellanox driver does not work well with the DPDK port reorder we do */
         TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE = 0x8,
+        // Does driver support flow control change
+        TREX_DRV_FLOW_CTRL_CHG = 0x10,
     } trex_drv_cap;
 
 public:
@@ -167,10 +158,13 @@ public:
     bool drop_packets_incase_of_linkdown() {
         return ((m_cap & TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN) != 0);
     }
-    virtual bool supports_port_reorder() {
+    bool supports_port_reorder() {
         // Since only Mellanox does not support, logic here is reveresed compared to other flags.
         // Put this only if not supported.
         return ((m_cap & TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE) == 0);
+    }
+    bool flow_ctrl_chg_supp() {
+        return ((m_cap & TREX_DRV_FLOW_CTRL_CHG) != 0);
     }
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
@@ -190,12 +184,12 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
-    /* Mellanox ConnectX-4 can drop only 35MPPS per Rx queue. to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable  RSS
-       return  zero for disable patch and rx queues number for enable  
-    */
-
-    virtual uint16_t enable_rss_drop_workaround(void) {
-        return 0;
+    virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
+        p.rx_data_q_num = 1;
+        p.rx_drop_q_num = 1;
+        p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
+        p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
+        p.tx_desc_num = TX_DESC_NUM;
     }
 
 protected:
@@ -208,7 +202,7 @@ class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
 public:
     CTRexExtendedDriverBase1G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -254,6 +248,14 @@ public:
     virtual int get_min_sample_rate(void){
         return ( RX_CHECK_MIX_SAMPLE_RATE_1G);
     }
+    virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
+        p.rx_data_q_num = 1;
+        p.rx_drop_q_num = 0;
+        p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q_VM;
+        p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
+        p.tx_desc_num = TX_DESC_NUM;
+    }
+
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
@@ -271,8 +273,7 @@ public:
 class CTRexExtendedDriverVirtio : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverVirtio() {
-        /* we are working in mode that we have 1 queue for rx and one queue for tx*/
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ 0;
     }
     static CTRexExtendedDriverBase * create(){
@@ -284,8 +285,7 @@ public:
 class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverVmxnet3(){
-        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG*/0;
     }
 
@@ -299,9 +299,8 @@ public:
 class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverI40evf(){
-        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
-        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ TREX_DRV_FLOW_CTRL_CHG;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 0, 4);
@@ -316,9 +315,8 @@ class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
 
 public:
     CTRexExtendedDriverIxgbevf(){
-        /* we are working in mode in which we have 1 queue for rx and one queue for tx*/
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
-        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ TREX_DRV_FLOW_CTRL_CHG;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 4, 4);
@@ -332,7 +330,7 @@ public:
 class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtBase {
     CTRexExtendedDriverBaseE1000() {
         // E1000 driver is only relevant in VM in our case
-        CGlobalInfo::m_options.preview.set_vm_one_queue_enable(true);
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
 public:
@@ -348,7 +346,7 @@ public:
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -388,7 +386,8 @@ public:
         // If we want to support more counters in case of card having less interfaces, we
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN
+            | TREX_DRV_FLOW_CTRL_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -437,7 +436,7 @@ private:
 class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
-        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -485,7 +484,8 @@ class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG
-            | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE;
+            | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE | TREX_DRV_FLOW_CTRL_CHG;
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -503,8 +503,18 @@ public:
     virtual int get_min_sample_rate(void){
         return (RX_CHECK_MIX_SAMPLE_RATE);
     }
+    virtual void get_dpdk_drv_params(CTrexDpdkParams p) {
+        p.rx_data_q_num = 1;
+        /* Mellanox ConnectX-4 can drop only 35MPPS per Rx queue.
+         * to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable RSS
+         * return zero for disable patch and rx queues number for enable.
+        */
+        p.rx_drop_q_num = 4;
+        p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
+        p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
+        p.tx_desc_num = TX_DESC_NUM;
+    }
     virtual void update_configuration(port_cfg_t * cfg);
-
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
@@ -520,10 +530,6 @@ public:
     virtual bool flow_control_disable_supported(){return false;}
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
-
-    virtual uint16_t enable_rss_drop_workaround(void) {
-        return (5);
-    }
 
 private:
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint16_t ip_id, uint8_t l4_proto
@@ -706,7 +712,7 @@ enum { OPT_HELP,
        OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
-       OPT_MLX5_SO 
+       OPT_MLX5_SO
 };
 
 /* these are the argument types:
@@ -1089,7 +1095,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
 
             case OPT_VIRT_ONE_TX_RX_QUEUE:
-                po->preview.set_vm_one_queue_enable(true);
+                CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
                 break;
 
             case OPT_PREFIX:
@@ -1145,7 +1151,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()
-        || (CGlobalInfo::m_options.m_arp_ref_per != 0) || get_vm_one_queue_enable()) {
+        || (CGlobalInfo::m_options.m_arp_ref_per != 0)
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
         po->set_rx_enabled();
     }
 
@@ -1295,48 +1303,12 @@ public:
         m_port_conf.rxmode.hw_strip_crc=1;
     }
 
-
-
     inline void update_var(void){
         get_ex_drv()->update_configuration(this);
     }
 
     inline void update_global_config_fdir(void){
         get_ex_drv()->update_global_config_fdir(this);
-    }
-
-    /* enable FDIR */
-    inline void update_global_config_fdir_10g(void){
-        m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT_MAC_VLAN;
-        m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
-        m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS;
-        /* Offset of flexbytes field in RX packets (in 16-bit word units). */
-        /* Note: divide by 2 to convert byte offset to word offset */
-        if (get_is_stateless()) {
-            m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
-            /* Increment offset 4 bytes for the case where we add VLAN */
-            if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) {
-                m_port_conf.fdir_conf.flexbytes_offset += (4/2);
-            }
-        } else {
-            if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ) {
-                m_port_conf.fdir_conf.flexbytes_offset = (14+6)/2;
-            } else {
-                m_port_conf.fdir_conf.flexbytes_offset = (14+8)/2;
-            }
-
-            /* Increment offset 4 bytes for the case where we add VLAN */
-            if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE ) {
-                m_port_conf.fdir_conf.flexbytes_offset += (4/2);
-            }
-        }
-        m_port_conf.fdir_conf.drop_queue=1;
-    }
-
-    inline void update_global_config_fdir_40g(void){
-        m_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;
-        m_port_conf.fdir_conf.pballoc=RTE_FDIR_PBALLOC_64K;
-        m_port_conf.fdir_conf.status=RTE_FDIR_NO_REPORT_STATUS;
     }
 
     struct rte_eth_conf     m_port_conf;
@@ -1531,17 +1503,10 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
     }
 }
 
-
 /*
-
-  rx-queue 0 - default- all traffic not goint to queue 1
-  will be drop as queue is disable
-
-
-  rx-queue 1 - Latency measurement packets will go here
-
-  pci_reg_write(IXGBE_L34T_IMIR(0),(1<<21));
-
+  rx-queue 0 is the default queue. All traffic not going to queue 1
+  will be dropped as queue 0 is disabled
+  rx-queue 1 - Latency measurement packets and other features that need software processing will go here.
 */
 void CPhyEthIF::configure_rx_duplicate_rules(){
     if ( get_is_rx_filter_enable() ){
@@ -1551,7 +1516,8 @@ void CPhyEthIF::configure_rx_duplicate_rules(){
 
 void CPhyEthIF::stop_rx_drop_queue() {
     // In debug mode, we want to see all packets. Don't want to disable any queue.
-    if ( get_vm_one_queue_enable() || (CGlobalInfo::m_options.m_debug_pkt_proto != 0)) {
+    if ( (CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_NORMAL)
+         || (CGlobalInfo::m_options.m_debug_pkt_proto != 0)) {
         return;
     }
     if ( CGlobalInfo::m_options.is_rx_enabled() ) {
@@ -1560,7 +1526,9 @@ void CPhyEthIF::stop_rx_drop_queue() {
             exit(1);
         }
     }
-    get_ex_drv()->stop_queue(this, MAIN_DPDK_DATA_Q);
+    // OK to only stop MAIN_DPDK_DROP_Q here. The only driver in which there are
+    // more than 1 drop q is Mellanox. stop_queue does not work in this case anyway.
+    get_ex_drv()->stop_queue(this, MAIN_DPDK_DROP_Q);
 }
 
 
@@ -2116,26 +2084,26 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-    
+
     /**
      * fast path version
      */
     virtual int send_node(CGenNode *node);
-    
+
     /**
      * slow path version
      */
     virtual int send_node_service_mode(CGenNode *node);
-    
+
 protected:
     template <bool SERVICE_MODE> inline int send_node_common(CGenNode *no);
-    
+
     inline rte_mbuf_t * generate_node_pkt(CGenNodeStateless *node_sl)   __attribute__ ((always_inline));
     inline int send_node_packet(CGenNodeStateless      *node_sl,
                                 rte_mbuf_t             *m,
                                 CCorePerPort           *lp_port,
                                 CVirtualIFPerSideStats *lp_stats)   __attribute__ ((always_inline));
-    
+
     rte_mbuf_t * generate_slow_path_node_pkt(CGenNodeStateless *node_sl);
 };
 
@@ -2277,7 +2245,7 @@ int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     uint16_t len = lp_port->m_len;
     lp_port->m_table[len]=m;
     len++;
-    
+
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
         send_burst(lp_port, MAX_PKT_BURST,lp_stats);
@@ -2382,10 +2350,10 @@ CCoreEthIFStateless::generate_node_pkt(CGenNodeStateless *node_sl) {
     if (unlikely(node_sl->get_is_slow_path())) {
         return generate_slow_path_node_pkt(node_sl);
     }
-    
+
     /* check that we have mbuf  */
     rte_mbuf_t *m;
-    
+
     if ( likely(node_sl->is_cache_mbuf_array()) ) {
         m = node_sl->cache_mbuf_array_get_cur();
         rte_pktmbuf_refcnt_update(m,1);
@@ -2409,7 +2377,7 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
                                       rte_mbuf_t             *m,
                                       CCorePerPort           *lp_port,
                                       CVirtualIFPerSideStats *lp_stats) {
-    
+
     if (unlikely(node_sl->is_stat_needed())) {
         if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
             // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
@@ -2431,26 +2399,26 @@ int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
 }
 
 /**
- * this is the common function and it is templated 
- * for two compiler evaluation for performance 
- * 
+ * this is the common function and it is templated
+ * for two compiler evaluation for performance
+ *
  */
 template <bool SERVICE_MODE>
 int CCoreEthIFStateless::send_node_common(CGenNode *node) {
     CGenNodeStateless * node_sl = (CGenNodeStateless *) node;
-    
+
     pkt_dir_t dir                     = (pkt_dir_t)node_sl->get_mbuf_cache_dir();
     CCorePerPort *lp_port             = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
-    
+
     /* generate packet (can never fail) */
     rte_mbuf_t *m = generate_node_pkt(node_sl);
-    
+
     /* template boolean - this will be removed at compile time */
     if (SERVICE_MODE) {
         TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_port_id());
     }
-    
+
     /* send */
     return send_node_packet(node_sl, m, lp_port, lp_stats);
 }
@@ -2651,10 +2619,10 @@ public:
         m_tx_queue_id=tx_queue;
         m_rx_queue_id=rx_queue;
     }
-    
+
     virtual int tx(rte_mbuf_t *m) {
         rte_mbuf_t *tx_pkts[2];
-        
+
         tx_pkts[0] = m;
         uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
         if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
@@ -2681,13 +2649,13 @@ public:
 
         return (0);
     }
-    
-    
+
+
     /* nothing special with HW implementation */
     virtual int tx_latency(rte_mbuf_t *m) {
         return tx(m);
     }
-    
+
     virtual rte_mbuf_t * rx(){
         rte_mbuf_t * rx_pkts[1];
         uint16_t cnt=m_port->rx_burst(m_rx_queue_id,rx_pkts,1);
@@ -2698,7 +2666,7 @@ public:
         }
     }
 
-    
+
     virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
                               uint16_t nb_pkts){
         uint16_t cnt=m_port->rx_burst(m_rx_queue_id,rx_pkts,nb_pkts);
@@ -2719,18 +2687,18 @@ public:
                 CNodeRing *ring,
                 CLatencyManager *mgr,
                 CPhyEthIF  *p) {
-        
+
         m_dir        = (port_index % 2);
         m_ring_to_dp = ring;
         m_mgr        = mgr;
         m_port       = p;
     }
 
-  
+
     virtual int tx(rte_mbuf_t *m) {
         return tx_common(m, false);
     }
-    
+
     virtual int tx_latency(rte_mbuf_t *m) {
         return tx_common(m, true);
     }
@@ -2752,7 +2720,7 @@ public:
 
 private:
       virtual int tx_common(rte_mbuf_t *m, bool fix_timestamp) {
-        
+
 
         uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
         if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
@@ -2769,7 +2737,7 @@ private:
         if (!node) {
             return (-1);
         }
-        
+
         node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
         node->m_dir      = m_dir;
         node->m_pkt      = m;
@@ -2780,14 +2748,14 @@ private:
         } else {
             node->m_update_ts = 0;
         }
-            
+
         if ( m_ring_to_dp->Enqueue((CGenNode*)node) != 0 ){
             return (-1);
         }
-        
+
         return (0);
     }
-      
+
     CPhyEthIF  * m_port;
     uint8_t                          m_dir;
     CNodeRing *                      m_ring_to_dp;   /* ring dp -> latency thread */
@@ -3183,7 +3151,6 @@ public:
         SHUTDOWN_RPC_REQ
     } shutdown_rc_e;
 
-
     CGlobalTRex (){
         m_max_ports=4;
         m_max_cores=1;
@@ -3204,7 +3171,7 @@ public:
     int  queues_prob_init();
     int  ixgbe_start();
     int  ixgbe_rx_queue_flush();
-    void ixgbe_configure_mg();
+    void rx_stf_conf();
     void rx_sl_configure();
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
@@ -3303,7 +3270,7 @@ public:
     void dump_links_status(FILE *fd);
 
     bool lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id);
-    
+
 public:
     port_cfg_t  m_port_cfg;
     uint32_t    m_max_ports;    /* active number of ports supported options are  2,4,8,10,12  */
@@ -3343,7 +3310,6 @@ private:
     std::mutex          m_cp_lock;
 
     TrexMonitor         m_monitor;
-
     shutdown_rc_e       m_mark_for_shutdown;
 
 public:
@@ -3353,7 +3319,9 @@ public:
 
 // Before starting, send gratuitous ARP on our addresses, and try to resolve dst MAC addresses.
 void CGlobalTRex::pre_test() {
-    CPretest pretest(m_max_ports);
+    CTrexDpdkParams dpdk_p;
+    get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+    CPretest pretest(m_max_ports, dpdk_p.rx_data_q_num + dpdk_p.rx_drop_q_num);
     bool resolve_needed = false;
     uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
     bool need_grat_arp[TREX_MAX_PORTS];
@@ -3407,9 +3375,9 @@ void CGlobalTRex::pre_test() {
             } else {
                 resolve_needed = false;
             }
-            
+
             need_grat_arp[port_id] = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip() != 0;
-            
+
             pretest.add_ip(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
                            , CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan()
                            , CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src);
@@ -3521,13 +3489,13 @@ void CGlobalTRex::pre_test() {
 
            }
         }
-    
+
     /* for stateless only - set port mode */
     if (get_is_stateless()) {
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
             uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
             uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-            const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest; 
+            const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
 
             /* L3 mode */
             if (src_ipv4 && dg) {
@@ -3544,7 +3512,7 @@ void CGlobalTRex::pre_test() {
         }
     }
 
- 
+
 }
 
 /**
@@ -3669,7 +3637,7 @@ int  CGlobalTRex::ixgbe_rx_queue_flush(){
 
 
 // init stateful rx core
-void CGlobalTRex::ixgbe_configure_mg(void) {
+void CGlobalTRex::rx_stf_conf(void) {
     int i;
     CLatencyManagerCfg mg_cfg;
     mg_cfg.m_max_ports = m_max_ports;
@@ -3688,7 +3656,7 @@ void CGlobalTRex::ixgbe_configure_mg(void) {
         }
     }
 
-    if ( get_vm_one_queue_enable() ) {
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* vm mode, indirect queues  */
         for (i=0; i<m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
@@ -3724,8 +3692,8 @@ void CGlobalTRex::rx_sl_configure(void) {
 
     rx_sl_cfg.m_max_ports = m_max_ports;
     rx_sl_cfg.m_tx_cores  = get_cores_tx();
-        
-    if ( get_vm_one_queue_enable() ) {
+
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* vm mode, indirect queues  */
         for (i=0; i < m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
@@ -3748,92 +3716,18 @@ void CGlobalTRex::rx_sl_configure(void) {
 
 int  CGlobalTRex::ixgbe_start(void){
     int i;
-    
     for (i=0; i<m_max_ports; i++) {
         socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
         assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
         CPhyEthIF * _if=&m_ports[i];
         _if->Create((uint8_t)i);
-        uint16_t rx_rss = get_ex_drv()->enable_rss_drop_workaround();
-
-        if ( get_vm_one_queue_enable() ) {
-            m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = 2000;
-            /* In VM case, there is one tx q and one rx q */
-            _if->configure(1, 1, &m_port_cfg.m_port_conf);
-            // Only 1 rx queue, so use it for everything
-            m_rx_core_tx_q_id = 0;
-            _if->set_rx_queue(0);
-            // We usually have less memory in VM, so don't use the 9k pool. This means that large packets will
-            // be received in chain of few mbufs
-            _if->rx_queue_setup(0, RTE_TEST_RX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-            // 1 TX queue in VM case
-            _if->tx_queue_setup(0, RTE_TEST_TX_DESC_VM_DEFAULT, socket_id, &m_port_cfg.m_tx_conf);
-        } else {
-            // 2 rx queues in normal case. More if rss enabled.
-            // TX queues: 1 for each core handling the port pair + 1 for latency pkts + 1 for use by RX core
-            
-            uint16_t rx_queues;
-
-            if (rx_rss==0) {
-                rx_queues=2;
-            }else{
-                rx_queues=rx_rss;
-            }
-
-            _if->configure(rx_queues, m_cores_to_dual_ports + 2, &m_port_cfg.m_port_conf);
-            m_rx_core_tx_q_id = m_cores_to_dual_ports;
-
-            if ( rx_rss ) {
-                int j=0;
-                for (j=0;j<rx_rss; j++) {
-                        if (j==MAIN_DPDK_RX_Q){
-                            continue;
-                        }
-                        /* drop queue */
-                        _if->rx_queue_setup(j,
-                                            //                                        RTE_TEST_RX_DESC_DEFAULT_MLX,
-                                            RTE_TEST_RX_DESC_DEFAULT,
-                                        socket_id,
-                                        &m_port_cfg.m_rx_conf,
-                                        CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-
-
-                }
-            }else{
-                 // setup RX drop queue
-                _if->rx_queue_setup(MAIN_DPDK_DATA_Q,
-                                    RTE_TEST_RX_DESC_DEFAULT,
-                                    socket_id,
-                                    &m_port_cfg.m_rx_conf,
-                                    CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-                // setup RX filter queue
-                _if->set_rx_queue(MAIN_DPDK_RX_Q);
-            }
-
-            _if->rx_queue_setup(MAIN_DPDK_RX_Q,
-                                RTE_TEST_RX_LATENCY_DESC_DEFAULT,
-                                socket_id,
-                                &m_port_cfg.m_rx_conf,
-                                CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
-
-            for (int qid = 0; qid < m_max_queues_per_port; qid++) {
-                _if->tx_queue_setup((uint16_t)qid,
-                                    RTE_TEST_TX_DESC_DEFAULT ,
-                                    socket_id,
-                                    &m_port_cfg.m_tx_conf);
-            }
-        }
-
-        if ( rx_rss ){
-            _if->configure_rss_redirect_table(rx_rss,MAIN_DPDK_RX_Q);
-        }
-
+        _if->conf_queues();
         _if->stats_clear();
         _if->start();
         _if->configure_rx_duplicate_rules();
 
-        if ( ! get_vm_one_queue_enable()  && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
+        if ( get_ex_drv()->flow_ctrl_chg_supp()
+             && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
              && _if->get_port_attr()->is_fc_change_supported()) {
             _if->disable_flow_control();
         }
@@ -3866,8 +3760,8 @@ int  CGlobalTRex::ixgbe_start(void){
     ixgbe_rx_queue_flush();
 
     if (! get_is_stateless()) {
-        ixgbe_configure_mg();
-    } 
+        rx_stf_conf();
+    }
 
 
     /* core 0 - control
@@ -3880,7 +3774,7 @@ int  CGlobalTRex::ixgbe_start(void){
     int port_offset=0;
     uint8_t lat_q_id;
 
-    if ( get_vm_one_queue_enable() ) {
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         lat_q_id = 0;
     } else {
         lat_q_id = get_cores_tx() / get_base_num_cores() + 1;
@@ -3981,16 +3875,12 @@ bool CGlobalTRex::Create(){
     }
 
     /* allocate the memory */
+    CTrexDpdkParams dpdk_p;
+    get_ex_drv()->get_dpdk_drv_params(dpdk_p);
 
-    uint32_t rx_mbuf = 0 ;
-
-    if ( get_vm_one_queue_enable() ) {
-        rx_mbuf = (m_max_ports * RTE_TEST_RX_DESC_VM_DEFAULT);
-    }else{
-        rx_mbuf = (m_max_ports * (RTE_TEST_RX_LATENCY_DESC_DEFAULT+RTE_TEST_RX_DESC_DEFAULT));
-    }
-
-    CGlobalInfo::init_pools(rx_mbuf);
+    CGlobalInfo::init_pools(m_max_ports *
+                            (dpdk_p.rx_data_q_num * dpdk_p.rx_desc_num_data_q +
+                             dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q));
     ixgbe_start();
     dump_config(stdout);
 
@@ -4010,7 +3900,7 @@ bool CGlobalTRex::Create(){
         cfg.m_publisher          = &m_zmq_publisher;
 
         m_trex_stateless = new TrexStateless(cfg);
-        
+
         rx_sl_configure();
     }
 
@@ -4107,10 +3997,10 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         m_port_cfg.update_global_config_fdir();
     }
 
-    if ( get_vm_one_queue_enable() ) {
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* verify that we have only one thread/core per dual- interface */
         if ( CGlobalInfo::m_options.preview.getCores()>1 ) {
-            printf(" ERROR the number of cores should be 1 when the driver support only one tx queue and one rx queue \n");
+            printf("Error: the number of cores should be 1 when the driver support only one tx queue and one rx queue. Please use -c 1 \n");
             exit(1);
         }
     }
@@ -4178,7 +4068,7 @@ bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -4907,9 +4797,9 @@ int CGlobalTRex::run_in_master() {
 int CGlobalTRex::run_in_rx_core(void){
 
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
-    
+
     rte_thread_setname(pthread_self(), "TRex RX");
-    
+
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {
         struct sched_param param;
@@ -4919,7 +4809,7 @@ int CGlobalTRex::run_in_rx_core(void){
             exit(EXIT_FAILURE);
         }
     }
-    
+
     if (get_is_stateless()) {
         m_sl_rx_running = true;
         m_rx_sl.start();
@@ -4937,10 +4827,10 @@ int CGlobalTRex::run_in_rx_core(void){
 int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     std::stringstream ss;
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
-    
+
     ss << "Trex DP core " << int(virt_core_id);
     rte_thread_setname(pthread_self(), ss.str().c_str());
-    
+
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {
         struct sched_param param;
@@ -4951,7 +4841,7 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
         }
     }
 
-    
+
     if ( lp->getSingleCore() &&
          (virt_core_id==2 ) &&
          (lp-> getCores() ==1) ){
@@ -5154,27 +5044,90 @@ int CGlobalTRex::start_master_statefull() {
 ////////////////////////////////////////////
 static CGlobalTRex g_trex;
 
+void CPhyEthIF::conf_queues() {
+    CTrexDpdkParams dpdk_p;
+    get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+    uint16_t num_tx_q = (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) ?
+        1 : g_trex.m_max_queues_per_port;
+    socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)m_port_id);
+    assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+
+    configure(dpdk_p.rx_drop_q_num + dpdk_p.rx_data_q_num, num_tx_q, &g_trex.m_port_cfg.m_port_conf);
+    for (uint16_t qid = 0; qid < num_tx_q; qid++) {
+        tx_queue_setup(qid, dpdk_p.tx_desc_num , socket_id, &g_trex.m_port_cfg.m_tx_conf);
+    }
+
+    switch (dpdk_p.rx_drop_q_num) {
+    case 0:
+        if (dpdk_p.rx_data_q_num == 1) {
+            // 1 rx rcv q. no drop q. VM mode.
+            // Only 1 rx queue, so use it for everything
+            g_trex.m_rx_core_tx_q_id = 0;
+            rx_queue_setup(0, dpdk_p.rx_desc_num_data_q, socket_id, &g_trex.m_port_cfg.m_rx_conf,
+                           CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+            set_rx_queue(0);
+        } else {
+            // no drop q. Many rcv queues. RSS mode.
+            // rss on all rcv queues. Do not skip any q.
+            configure_rss_redirect_table(dpdk_p.rx_data_q_num, 0xff);
+            g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+            for (int queue = 0; queue < dpdk_p.rx_data_q_num; queue++) {
+                rx_queue_setup(queue, dpdk_p.rx_desc_num_data_q, socket_id,
+                               &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+            }
+        }
+        break;
+    case 1:
+        // 1 drop q. 1 or more rx queues. Normal mode.
+        // rx core will use largest tx q
+        g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+        // configure drop q
+        rx_queue_setup(MAIN_DPDK_DROP_Q, dpdk_p.rx_desc_num_drop_q, socket_id, &g_trex.m_port_cfg.m_rx_conf,
+                            CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+        set_rx_queue(MAIN_DPDK_RX_Q);
+        rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
+                       &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+        break;
+    default:
+        // Many drop queues. Mellanox mode.
+        g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+        // configure drop queues (all queues but MAIN_DPDK_RX_Q)
+        for (int j = 0; j < dpdk_p.rx_data_q_num + 1; j++) {
+            if (j == MAIN_DPDK_RX_Q) {
+                continue;
+            }
+            rx_queue_setup(j, dpdk_p.rx_desc_num_drop_q, socket_id, &g_trex.m_port_cfg.m_rx_conf,
+                           CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+        }
+        rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
+                       &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+        // rss on all drop queues. Skip MAIN_DPDK_RX_Q
+        configure_rss_redirect_table(dpdk_p.rx_drop_q_num + 1, MAIN_DPDK_RX_Q);
+        break;
+    }
+}
 
 void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
                                              uint16_t skip_queue){
 
-     struct rte_eth_dev_info dev_info;                                                                                 
-                                                                                                                       
-     rte_eth_dev_info_get(m_port_id,&dev_info); 
+     struct rte_eth_dev_info dev_info;
+
+     rte_eth_dev_info_get(m_port_id,&dev_info);
+
      assert(dev_info.reta_size>0);
 
-     int reta_conf_size = 
-          std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE); 
+     int reta_conf_size =
+          std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE);
 
-     struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];  
+     struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];
 
      rte_eth_dev_rss_reta_query(m_port_id,&reta_conf[0],dev_info.reta_size);
 
      int i,j;
-     
+
      for (j=0; j<reta_conf_size; j++) {
          uint16_t skip=0;
-         reta_conf[j].mask = ~0ULL; 
+         reta_conf[j].mask = ~0ULL;
          for (i=0; i<RTE_RETA_GROUP_SIZE; i++) {
              uint16_t q;
              while (true) {
@@ -5199,19 +5152,28 @@ void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues,
          }
      }
 #endif
+
+     struct rte_eth_rss_conf rss_conf;
+     rss_conf.rss_key = NULL;
+     rss_conf.rss_hf = ETH_RSS_IP;
+     rte_eth_dev_rss_hash_update(m_port_id, &rss_conf);
+
+
+     rte_eth_dev_rss_hash_conf_get(m_port_id, &rss_conf);
+
 }
 
 
 void CPhyEthIF::update_counters() {
     get_ex_drv()->get_extended_stats(this, &m_stats);
     CRXCoreIgnoreStat ign_stats;
-    
+
     if (get_is_stateless()) {
         g_trex.m_rx_sl.get_ignore_stats(m_port_id, ign_stats, true);
     } else {
         g_trex.m_mg.get_ignore_stats(m_port_id, ign_stats, true);
     }
-    
+
     m_stats.obytes -= ign_stats.get_tx_bytes();
     m_stats.opackets -= ign_stats.get_tx_pkts();
     m_ignore_stats.opackets += ign_stats.get_tx_pkts();
@@ -5459,7 +5421,7 @@ int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
             CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.is_set = 1;
-            
+
             CGlobalInfo::m_options.m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             CGlobalInfo::m_options.m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
@@ -5807,7 +5769,10 @@ int main_test(int argc , char * argv[]){
 
     // For unit testing of HW rules and queues configuration. Just send some packets and exit.
     if (CGlobalInfo::m_options.m_debug_pkt_proto != 0) {
-        CTrexDebug debug = CTrexDebug(g_trex.m_ports, g_trex.m_max_ports);
+        CTrexDpdkParams dpdk_p;
+        get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+        CTrexDebug debug = CTrexDebug(g_trex.m_ports, g_trex.m_max_ports
+                                      , dpdk_p.rx_data_q_num + dpdk_p.rx_drop_q_num);
         int ret;
 
         if (CGlobalInfo::m_options.m_debug_pkt_proto == D_PKT_TYPE_HW_TOGGLE_TEST) {
@@ -6039,7 +6004,6 @@ int CTRexExtendedDriverBase1G::wait_for_stable_link(){
 }
 
 void CTRexExtendedDriverBase1G::update_configuration(port_cfg_t * cfg){
-
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
@@ -6323,8 +6287,31 @@ void CTRexExtendedDriverBase10G::clear_extended_stats(CPhyEthIF * _if){
     _if->pci_reg_read(IXGBE_RXNFGPC);
 }
 
-void CTRexExtendedDriverBase10G::update_global_config_fdir(port_cfg_t * cfg){
-    cfg->update_global_config_fdir_10g();
+void CTRexExtendedDriverBase10G::update_global_config_fdir(port_cfg_t * cfg) {
+    cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT_MAC_VLAN;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
+    /* Offset of flexbytes field in RX packets (in 16-bit word units). */
+    /* Note: divide by 2 to convert byte offset to word offset */
+    if (get_is_stateless()) {
+        cfg->m_port_conf.fdir_conf.flexbytes_offset = (14+4)/2;
+        /* Increment offset 4 bytes for the case where we add VLAN */
+        if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) {
+            cfg->m_port_conf.fdir_conf.flexbytes_offset += (4/2);
+        }
+    } else {
+        if (  CGlobalInfo::m_options.preview.get_ipv6_mode_enable() ) {
+            cfg->m_port_conf.fdir_conf.flexbytes_offset = (14+6)/2;
+        } else {
+            cfg->m_port_conf.fdir_conf.flexbytes_offset = (14+8)/2;
+        }
+
+        /* Increment offset 4 bytes for the case where we add VLAN */
+        if (  CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE ) {
+            cfg->m_port_conf.fdir_conf.flexbytes_offset += (4/2);
+        }
+    }
+    cfg->m_port_conf.fdir_conf.drop_queue = 1;
 }
 
 void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
@@ -6541,7 +6528,9 @@ void CTRexExtendedDriverBase40G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    cfg->update_global_config_fdir_40g();
+    cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
 }
 
 // What is the type of the rule the respective hw_id counter counts.
@@ -6559,7 +6548,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
                                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx) {
     // We want to allow the use of X710 in "VM mode", for performance testing.
     // In this mode, we don't want any hardware rules. Everything done by software.
-    if ( get_vm_one_queue_enable())
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
          return;
 
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
@@ -6614,7 +6603,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
 
     ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
 #if 0
-    //????????? fix
+    //todo: fix
     if ( ret != 0 ) {
         rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_ctrl: err=%d, port=%u\n",
                  ret, port_id);
@@ -6675,7 +6664,7 @@ int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum 
         }
     }
 
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DATA_Q, rule_id);
+    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DROP_Q, rule_id);
     return 0;
 }
 
@@ -6771,12 +6760,12 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
             uint32_t hw_id = start - min + i;
 
             add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
-                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DATA_Q
+                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q
                            , FDIR_TEMP_HW_ID);
             delay(100);
             rte_eth_fdir_stats_reset(port_id, &counter, hw_id, 1);
             add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
-                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DATA_Q, hw_id);
+                           , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q, hw_id);
             delay(100);
             rte_eth_fdir_stats_reset(port_id, &temp_count, FDIR_TEMP_HW_ID, 1);
             pkts[i] = counter + temp_count - prev_pkts[i];
@@ -6889,7 +6878,9 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    cfg->update_global_config_fdir_40g();
+    cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
     /* update mask */
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.proto=0xff;
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos=0x01;
@@ -6898,8 +6889,8 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
 
     /* enable RSS */
     cfg->m_port_conf.rxmode.mq_mode =ETH_MQ_RX_RSS;
-    cfg->m_port_conf.rx_adv_conf.rss_conf.rss_hf = ETH_RSS_IP;
-
+    // This field does not do anything in case of mlx driver. Put it anyway in case it will be supported sometime.
+    cfg->m_port_conf.rx_adv_conf.rss_conf.rss_hf = ETH_RSS_IP | ETH_RSS_UDP | ETH_RSS_TCP;
 }
 
 /*
@@ -7142,8 +7133,8 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     // Because of some issue with VIC firmware, IPv6 UDP and ICMP go by default to q 1, so we
     // need these rules to make them go to q 0.
     // rule appply to all packets with 0 on tos lsb.
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 6,  0, MAIN_DPDK_DATA_Q);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0, MAIN_DPDK_DATA_Q);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 6,  0, MAIN_DPDK_DROP_Q);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0, MAIN_DPDK_DROP_Q);
 
     return 0;
 }
@@ -7228,12 +7219,13 @@ CFlowStatParser *CTRexExtendedDriverBaseVIC::get_flow_stat_parser() {
 
 
 /////////////////////////////////////////////////////////////////////////////////////
-void CTRexExtendedDriverVirtBase::update_configuration(port_cfg_t * cfg){
+void CTRexExtendedDriverVirtBase::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
     // must have this, otherwise the driver fail at init
     cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMS;
+    cfg->m_port_conf.rxmode.max_rx_pkt_len = 2000;
 }
 
 int CTRexExtendedDriverVirtBase::configure_rx_filter_rules(CPhyEthIF * _if){
@@ -7266,6 +7258,7 @@ void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFS
 }
 
 void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
     // We configure hardware not to strip CRC. Then DPDK driver removes the CRC.
     // If configuring "hardware" to remove CRC, due to bug in ESXI e1000 emulation, we got packets with CRC.
     cfg->m_port_conf.rxmode.hw_strip_crc = 0;
@@ -7274,6 +7267,7 @@ void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
 
 /////////////////////////////////////////////////////////// VMxnet3
 void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
@@ -7283,6 +7277,7 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
 
 ///////////////////////////////////////////////////////// VF
 void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
@@ -7576,4 +7571,3 @@ DpdkTRexPortAttrMlnx5G::set_link_up(bool up) {
 void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
-

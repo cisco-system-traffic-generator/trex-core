@@ -580,22 +580,13 @@ public:
         }
     }
 
-   
-
-    bool get_vm_one_queue_enable(){
-        return (btGetMaskBit32(m_flags1,2,2) ? true:false);
-    }
-
+    // m_flags1 - bit 2 is free
     void set_no_keyboard(bool enable){
         btSetMaskBit32(m_flags1,5,5,enable?1:0);
     }
 
     bool get_no_keyboard(){
         return (btGetMaskBit32(m_flags1,5,5) ? true:false);
-    }
-
-    void set_vm_one_queue_enable(bool enable){
-        btSetMaskBit32(m_flags1,2,2,enable?1:0);
     }
 
     /* -e */
@@ -1250,6 +1241,14 @@ public:
 
 class CGlobalInfo {
 public:
+    typedef enum {
+        Q_MODE_NORMAL,
+        Q_MODE_ONE_QUEUE, // One RX queue and one TX queue
+        Q_MODE_RSS,
+        Q_MODE_MANY_DROP_Q // For Mellanox
+    } queues_mode;
+
+
     static void init_pools(uint32_t rx_buffers);
     /* for simulation */
     static void free_pools();
@@ -1336,15 +1335,20 @@ public:
 
     static void dump_pool_as_json(Json::Value &json);
     static std::string dump_pool_as_json_str(void);
-
-
+    static inline int get_queues_mode() {
+        return m_q_mode;        
+    }
+    static inline void set_queues_mode(queues_mode mode) {
+        m_q_mode = mode;
+    }
+    
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
-
     static uint32_t              m_nodes_pool_size;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;
+    static queues_mode           m_q_mode;
 };
 
 static inline int get_is_stateless(){
@@ -1358,7 +1362,9 @@ static inline int get_is_rx_check_mode(){
 static inline bool get_is_rx_filter_enable(){
     uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
     return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0
-               || get_is_stateless()) ?true:false );
+               || get_is_stateless()) &&  ((CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_RSS)
+                                           || (CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_ONE_QUEUE))
+             ?true:false );
 }
 static inline uint16_t get_rx_check_hops() {
     return (CGlobalInfo::m_options.m_rx_check_hops);

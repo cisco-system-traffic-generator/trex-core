@@ -23,6 +23,7 @@ class CTrexDebug {
     uint64_t m_test_drop;
     CPhyEthIF *m_ports;
     uint32_t m_max_ports;
+    uint32_t m_rx_q_num;
 
     int rcv_send(int port,int queue_id);
     int rcv_send_all(int queue_id);
@@ -36,7 +37,7 @@ class CTrexDebug {
     int verify_hw_rules(bool recv_all);
 
  public:
-    CTrexDebug(CPhyEthIF *m_ports_arg, int max_ports);
+    CTrexDebug(CPhyEthIF *m_ports_arg, int max_ports, uint32_t rx_q_num);
     int test_send(uint pkt_type);
 };
 

@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -63,10 +63,11 @@ const uint8_t udp_pkt[] = {
     0xe7
 };
 
-CTrexDebug::CTrexDebug(CPhyEthIF m_ports_arg[12], int max_ports) {
+CTrexDebug::CTrexDebug(CPhyEthIF m_ports_arg[12], int max_ports, uint32_t rx_q_num) {
     m_test = NULL;
     m_ports = m_ports_arg;
     m_max_ports = max_ports;
+    m_rx_q_num = rx_q_num;
 }
 
 int CTrexDebug::rcv_send(int port, int queue_id) {
@@ -340,7 +341,7 @@ struct pkt_params test_pkts[] = {
 
 // unit test for verifying hw queues rule configuration. Can be run by:
 // for stateful: --send-debug-pkt 100 -f cap2/dns.yaml -l 1
-// for stateless: --setnd-debug-pkt 100 -i
+// for stateless: --send-debug-pkt 100 -i
 int CTrexDebug::verify_hw_rules(bool recv_all) {
     rte_mbuf_t *m = NULL;
     CPhyEthIF * lp;
@@ -361,7 +362,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
         } else {
             switch (expected_q) {
             case ZERO:
-                exp_q = MAIN_DPDK_DATA_Q;
+                exp_q = MAIN_DPDK_DROP_Q;
                 break;
             case ONE:
                 exp_q = MAIN_DPDK_RX_Q;
@@ -371,19 +372,19 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                     exp_q = MAIN_DPDK_RX_Q;
                     pkt_flags |= DPF_TOS_1;
                 } else {
-                    exp_q = MAIN_DPDK_DATA_Q;
+                    exp_q = MAIN_DPDK_DROP_Q;
                 }
                 break;
             case STF:
                 if ( CGlobalInfo::m_options.is_stateless() ) {
-                    exp_q = MAIN_DPDK_DATA_Q;
+                    exp_q = MAIN_DPDK_DROP_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;
                     pkt_flags |= DPF_TOS_1;
                 }
                 break;
             default:
-                exp_q = MAIN_DPDK_DATA_Q;
+                exp_q = MAIN_DPDK_DROP_Q;
                 break;
             }
         }
@@ -394,17 +395,11 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
 
         delay(100);
 
-        int pkt_per_q[2];
+        int pkt_per_q[16];
         memset(pkt_per_q, 0, sizeof(pkt_per_q));
         // We don't know which interfaces connected where, so sum all queue 1 and all queue 0
-        for (int port = 0; port < m_max_ports; port++) {
-            int max_q;
-            if (CGlobalInfo::m_options.preview.get_vm_one_queue_enable()) {
-                max_q = 0;
-            } else {
-                max_q = 1;
-            }
-            for(int queue_id = 0; queue_id <= max_q; queue_id++) {
+        for (int port = 0; port < m_max_ports; port++) {           
+            for(int queue_id = 0; queue_id <= m_rx_q_num; queue_id++) {
                 lp = &m_ports[port];
                 uint16_t cnt = lp->rx_burst(queue_id, rx_pkts, 32);
                 pkt_per_q[queue_id] += cnt;
@@ -440,7 +435,7 @@ int CTrexDebug::test_send(uint pkt_type) {
         return verify_hw_rules(true);
     }
 
-    if (! (pkt_type >= 1 && pkt_type <= 4) && !(pkt_type >= 61 && pkt_type <= 63)) {
+    if (! (pkt_type >= 1 && pkt_type <= 5) && !(pkt_type >= 61 && pkt_type <= 63)) {
         printf("Unsupported packet type %d\n", pkt_type);
         printf("Supported packet types are: %d(ICMP), %d(UDP), %d(TCP) %d(9k UDP)\n", 1, 2, 3, 4);
         printf("                            IPv6: %d(ICMP), %d(UDP), %d(TCP)\n", 61, 62, 63);
@@ -461,7 +456,7 @@ int CTrexDebug::test_send(uint pkt_type) {
         } else {
             ip_ver = 4;
         }
-        if (pkt_type > D_PKT_TYPE_ARP) {
+        if (pkt_type > D_PKT_TYPE_RSS_TEST) {
             printf("Packet type not supported\n");
             exit(1);
         }
@@ -472,6 +467,7 @@ int CTrexDebug::test_send(uint pkt_type) {
             l4_proto = IPPROTO_ICMP;
             break;
         case D_PKT_TYPE_UDP:
+        case D_PKT_TYPE_RSS_TEST:
             l4_proto = IPPROTO_UDP;
             break;
         case D_PKT_TYPE_TCP:
@@ -497,13 +493,30 @@ int CTrexDebug::test_send(uint pkt_type) {
     printf("Sending packet:\n");
     utl_DumpBuffer(stdout, rte_pktmbuf_mtod(d, char *), 64, 0);
 
-    test_send_pkts(d, 0, 2, 0);
-    test_send_pkts(d, 0, 1, 1);
+    if (pkt_type == D_PKT_TYPE_RSS_TEST) {
+        rte_mbuf_t *mb[50];
+        char *p_d = rte_pktmbuf_mtod(d, char *);
+        IPHeader *ip;
+        for (uint32_t src = 0; src < 50; src++) {
+            mb[src] = CGlobalInfo::pktmbuf_alloc_by_port(0, d->pkt_len);
+            char *p = rte_pktmbuf_append(mb[src], d->pkt_len);
+            assert(p);
+            memcpy(p, p_d, d->pkt_len);
+            ip = (IPHeader *) (p + 14);
+            ip->updateIpDst(src + 1);
+            ip->updateIpSrc(src + 5);
+            test_send_pkts(mb[src], 0, 1, 0);
+        }
+    } else {
+        test_send_pkts(d, 0, 2, 0);
+        test_send_pkts(d, 0, 1, 1);
+    }
 
+    rte_pktmbuf_free(d);
     delay(1000);
 
     int j=0;
-    for (j = 0; j < 2; j++) {
+    for (j = 0; j < m_rx_q_num; j++) {
         printf(" =========\n");
         printf(" rx queue %d \n", j);
         printf(" =========\n");
