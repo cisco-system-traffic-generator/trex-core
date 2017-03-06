@@ -1067,7 +1067,7 @@ class STLClient(object):
             port_id_list = [port_id_list]
 
         # should be a list
-        if not isinstance(port_id_list, list):
+        if not isinstance(port_id_list, list) and not isinstance(port_id_list, tuple):
             raise STLTypeError('port_id_list', type(port_id_list), list)
 
         if not port_id_list and not allow_empty:
@@ -4422,7 +4422,6 @@ class STLClient(object):
                                          "pkt",
                                          self.pkt_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE,
                                          parsing_opts.COUNT,
                                          parsing_opts.DRY_RUN,
                                          parsing_opts.SCAPY_PKT_CMD)
@@ -4445,12 +4444,19 @@ class STLClient(object):
             return
             
             
+        # verify ports are stopped or force stop them
+        active_ports = [port_id for port_id in opts.ports if self.ports[port_id].is_active()]
+        if active_ports:
+            self.logger.log(format_text("Port(s) {0} are active - please stop them before pushing packets".format(active_ports), 'bold'))
+            return
+            
+            
         self.logger.pre_cmd("Pushing {0} packet(s) (size: {1}) on port(s) {2}:".format(opts.count if opts.count else 'infinite',
                                                                                        len(opts.scapy_pkt), opts.ports))
         
         try:
             with self.logger.supress():
-                self.push_packets(pkts = bytes(opts.scapy_pkt), ports = opts.ports, force = opts.force, count = opts.count)
+                self.push_packets(pkts = bytes(opts.scapy_pkt), ports = opts.ports, force = True, count = opts.count)
         except STLError as e:
             self.logger.post_cmd(False)
             raise

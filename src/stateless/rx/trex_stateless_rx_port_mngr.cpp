@@ -433,6 +433,7 @@ RXServer::handle_icmp(RXPktParser &parser) {
     response_parser.m_icmp->updateCheckSum(response_parser.m_ipv4->getTotalLength() - response_parser.m_ipv4->getHeaderLength());
     
     /* send */
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(response, m_port_id);
     m_io->tx(response);
 }
 
@@ -487,6 +488,7 @@ RXServer::handle_arp(RXPktParser &parser) {
     response_parser.m_arp->m_arp_tip = parser.m_arp->m_arp_sip;
     
     /* send */
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(response, m_port_id);
     m_io->tx(response);
     
 }
@@ -550,6 +552,7 @@ RXGratARP::send_next_grat_arp() {
     
     CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, m_port_id);
     
+    TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
     if (m_io->tx(m) == 0) {
         m_ign_stats->m_tx_arp    += 1;
         m_ign_stats->m_tot_bytes += 64;
