@@ -92,8 +92,8 @@ def adapt_json_protocol_fields(protocols_array):
 def get_templates():
     return pass_result(service.get_templates(v_handler))
 
-
-
-def get_template(t):
-    return pass_result(service.get_template(v_handler, t))
+def get_template_by_id(templateId):
+    params = {"id": templateId}
+    template_b64 = service.get_template(v_handler, params)
+    return pass_result(base64.b64decode(template_b64))
 
