@@ -505,15 +505,15 @@ Other network devices
             raise VFIOBindErr('Could not find file with Kernel boot parameters: %s' % krnl_params_file)
         with open(krnl_params_file) as f:
             krnl_params = f.read()
-        if 'iommu=' in krnl_params:
-            if 'vfio_pci' not in dpdk_nic_bind.get_loaded_modules():
-                ret = os.system('modprobe vfio_pci')
-                if ret:
-                    raise VFIOBindErr('Could not load vfio_pci')
-            ret = self.do_bind_all('vfio-pci', to_bind_list)
+        if 'iommu=' not in krnl_params:
+            raise VFIOBindErr('vfio-pci is not an option here')
+        if 'vfio_pci' not in dpdk_nic_bind.get_loaded_modules():
+            ret = os.system('modprobe vfio_pci')
             if ret:
-                raise VFIOBindErr('Binding to vfio_pci failed')
-        raise VFIOBindErr('vfio-pci is not an option here')
+                raise VFIOBindErr('Could not load vfio_pci')
+        ret = self.do_bind_all('vfio-pci', to_bind_list)
+        if ret:
+            raise VFIOBindErr('Binding to vfio_pci failed')
 
 
     def pci_name_to_full_name (self,pci_name):
