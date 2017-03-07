@@ -54,7 +54,7 @@ uint32_t           CGlobalInfo::m_nodes_pool_size = 10*1024;
 CParserOption      CGlobalInfo::m_options;
 CGlobalMemory      CGlobalInfo::m_memory_cfg;
 CPlatformSocketInfo CGlobalInfo::m_socket;
-CGlobalInfo::queues_mode CGlobalInfo::m_q_mode = CGlobalInfo::Q_MODE_NORMAL;
+
 
 
 
@@ -761,6 +761,7 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," vlan mode       : %d\n",  get_vlan_mode());
     fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
+    fprintf(fd," vm mode         : %d\n", (int)get_vm_one_queue_enable()?1:0 );
 }
 
 void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {

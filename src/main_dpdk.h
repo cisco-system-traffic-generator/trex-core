@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2015-2017 Cisco Systems, Inc.
+  Copyright (c) 2015-2016 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -22,17 +22,8 @@
 #include "bp_sim.h"
 
 enum {
-    MAIN_DPDK_DROP_Q = 0,
+    MAIN_DPDK_DATA_Q = 0,
     MAIN_DPDK_RX_Q = 1,
-};
-
-class CTrexDpdkParams {
- public:
-    uint16_t rx_data_q_num;
-    uint16_t rx_drop_q_num;
-    uint16_t rx_desc_num_data_q;
-    uint16_t rx_desc_num_drop_q;
-    uint16_t tx_desc_num;
 };
 
 // These are statistics for packets we send, and do not expect to get back (Like ARP)
@@ -92,7 +83,7 @@ class CPhyEthIF  {
     void set_rx_queue(uint8_t rx_queue){
         m_rx_queue=rx_queue;
     }
-    void conf_queues();
+
     void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
                    const struct rte_eth_conf *eth_conf);

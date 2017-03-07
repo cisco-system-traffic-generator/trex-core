@@ -340,9 +340,9 @@ bool CPretest::resolve_all() {
                 // If we are on loopback, We might get requests on port even after it is in RESOLVE_DONE state
                 all_resolved = false;
             }
-            for (uint16_t queue = 0; queue < m_num_q; queue++) {
-                handle_rx(port, queue);
-            }
+            handle_rx(port, MAIN_DPDK_DATA_Q);
+            if (! CGlobalInfo::m_options.preview.get_vm_one_queue_enable())
+                handle_rx(port, MAIN_DPDK_RX_Q);
         }
         if (all_resolved) {
             break;

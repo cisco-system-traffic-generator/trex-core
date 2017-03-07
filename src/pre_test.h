@@ -83,12 +83,11 @@ class CPretestOnePortInfo {
 
 class CPretest {
  public:
-    CPretest(uint16_t max_ports, uint16_t queues_per_port) {
+    CPretest(uint16_t max_ports) {
         m_max_ports = max_ports;
         for (int i =0; i < max_ports; i++) {
             m_port_info[i].set_port_id(i);
         }
-        m_num_q = queues_per_port;
     }
     void add_ip(uint16_t port, uint32_t ip, uint16_t vlan, MacAddress src_mac);
     void add_ip(uint16_t port, uint32_t ip, MacAddress src_mac);
@@ -116,7 +115,6 @@ class CPretest {
  private:
     CPretestOnePortInfo m_port_info[TREX_MAX_PORTS];
     uint16_t m_max_ports;
-    uint16_t m_num_q;
 };
 
 #endif
