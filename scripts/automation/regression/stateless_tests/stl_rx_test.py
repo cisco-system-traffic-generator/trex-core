@@ -460,7 +460,7 @@ class STLRX_Test(CStlGeneral_Test):
     def check_stats(self, a, b, err):
         if a != b:
             tmp = 'ERROR field : {0}, read : {1} != expected : {2} '.format(err,a,b)
-            print tmp
+            print(tmp)
             self.errs.append(tmp)
 
 
