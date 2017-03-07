@@ -644,8 +644,8 @@ class Scapy_service(Scapy_service_api):
             for field_desc in pkt.fields_desc:
                 field_id = field_desc.name
                 ignored = field_id not in layer_full.fields
-                offset = field_desc.offset
-                protocol_offset = pkt.offset
+                offset = field_desc._offset
+                protocol_offset = pkt._offset
                 field_sz = field_desc.get_size_bytes()
                 # some values are unavailable in pkt(original model)
                 # at the same time,
@@ -708,7 +708,7 @@ class Scapy_service(Scapy_service_api):
                 fields.append(field_data)
             layer_data = {
                     "id": layer_id,
-                    "offset": pkt.offset,
+                    "offset": pkt._offset,
                     "fields": fields,
                     "real_id": real_layer_id,
                     "valid_structure": valid_struct,
