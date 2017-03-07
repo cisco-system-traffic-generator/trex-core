@@ -985,7 +985,7 @@ class Scapy_service(Scapy_service_api):
         for root, subdirs, files in os.walk("templates"):
             for file in files:
                 if not file.endswith('.trp'):
-                    next
+                    continue
                 try:
                     f = os.path.join(root, file)
                     c = None
