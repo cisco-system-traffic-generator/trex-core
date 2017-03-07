@@ -19,9 +19,35 @@ TEST_PKT_DEF = [
         layer_def("TCP", sport="443")
         ]
 
-def test_build_pkt():
-    pkt = build_pkt_get_scapy(TEST_PKT_DEF)
+def test_build_pkt_details():
+    pkt_data = build_pkt(TEST_PKT_DEF)
+    pkt = build_pkt_to_scapy(pkt_data)
     assert(pkt[TCP].sport == 443)
+    ether = pkt_data['data'][0]
+    ip = pkt_data['data'][1]
+    tcp = pkt_data['data'][2]
+    assert(len(pkt_data["binary"]) == 72) #b64 encoded data
+
+    # absolute frame offset
+    assert(ether['offset'] == 0)
+    assert(ip['offset'] == 14)
+    assert(tcp['offset'] == 34)
+
+    # relative field offsets
+    tcp_sport = tcp["fields"][0]
+    assert(tcp_sport["id"] == "sport")
+    assert(tcp_sport["offset"] == 0)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_dport = tcp["fields"][1]
+    assert(tcp_dport["id"] == "dport")
+    assert(tcp_dport["offset"] == 2)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_chksum = tcp["fields"][8]
+    assert(tcp_chksum["id"] == "chksum")
+    assert(tcp_chksum["offset"] == 16)
+    assert(tcp_chksum["length"] == 2)
 
 def test_build_invalid_structure_pkt():
     ether_fields = {"dst": TEST_MAC_1, "type": "LOOP"}
@@ -124,6 +150,9 @@ def test_get_definitions_all():
     for instruction in fe_instructions:
         print(instruction['help'])
         assert("help" in instruction)
+    assert(len(defs['feInstructionParameters']) > 0)
+    assert(len(defs['feParameters']) > 0)
+    assert(len(defs['feTemplates']) > 0)
 
 def test_get_definitions_ether():
     res = get_definitions(["Ether"])
@@ -291,41 +320,36 @@ def test_generate_vm_instructions():
     assert(ttl_instruction['max_value'] == 64)
 
 
-def test_get_templates():
-    tt = get_templates()
-    assert(tt[0]['id'])
-    assert(tt[7]["meta"]['name'])
-    try:
-        assert(tt[9]['id'])
-    except:
-        pass
+def test_list_templates_hierarchy():
+    ids = []
+    for template_info in get_templates():
+        assert(template_info["meta"]["name"])
+        assert("description" in template_info["meta"])
+        ids.append(template_info['id'])
+    assert('IPv4/TCP' in ids)
+    assert('IPv4/UDP' in ids)
+    assert('TCP-SYN' in ids)
+    assert('ICMP echo request' in ids)
 
+def test_get_template_root():
+    obj = json.loads(get_template_by_id('TCP-SYN'))
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IP')
+    assert(obj['packet'][2]['id'] == 'TCP')
 
-def test_get_template():
-    tt = get_templates()
-    t = tt[0]
-    res = get_template(t)
-    res2 = base64.b64decode(res)
-    obj = json.loads(res2)
+def test_get_template_IP_ICMP():
+    obj = json.loads(get_template_by_id('IPv4/ICMP'))
     assert(obj['packet'][0]['id'] == 'Ether')
     assert(obj['packet'][1]['id'] == 'IP')
     assert(obj['packet'][2]['id'] == 'ICMP')
 
-
-def test_get_template2():
-    tt = get_templates()
-    t = tt[7]
-    res = get_template(t)
-    res2 = base64.b64decode(res)
-    obj = json.loads(res2)
+def test_get_template_IPv6_UDP():
+    obj = json.loads(get_template_by_id('IPv6/UDP'))
     assert(obj['packet'][0]['id'] == 'Ether')
     assert(obj['packet'][1]['id'] == 'IPv6')
     assert(obj['packet'][2]['id'] == 'UDP')
 
+def test_templates_no_relative_path():
+    res = get_template_by_id("../templates/IPv6/UDP")
+    assert(res == "")
 
-def test_get_template3():
-    tt = get_templates()
-    t = tt[7]
-    t["id"] = "../../" + t["id"]
-    res = get_template(t)
-    assert(res == '')

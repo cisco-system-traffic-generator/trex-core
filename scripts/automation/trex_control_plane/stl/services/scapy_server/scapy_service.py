@@ -644,8 +644,8 @@ class Scapy_service(Scapy_service_api):
             for field_desc in pkt.fields_desc:
                 field_id = field_desc.name
                 ignored = field_id not in layer_full.fields
-                offset = field_desc.offset
-                protocol_offset = pkt.offset
+                offset = field_desc._offset
+                protocol_offset = pkt._offset
                 field_sz = field_desc.get_size_bytes()
                 # some values are unavailable in pkt(original model)
                 # at the same time,
@@ -708,7 +708,7 @@ class Scapy_service(Scapy_service_api):
                 fields.append(field_data)
             layer_data = {
                     "id": layer_id,
-                    "offset": pkt.offset,
+                    "offset": pkt._offset,
                     "fields": fields,
                     "real_id": real_layer_id,
                     "valid_structure": valid_struct,
@@ -981,41 +981,30 @@ class Scapy_service(Scapy_service_api):
 
 
     def _get_templates(self):
-        # Make sure you understand the three return values of os.walk:
-        #
-        # for root, subdirs, files in os.walk(rootdir):
-        #     has the following meaning:
-        #
-        # root: Current path which is "walked through"
-        # subdirs: Files in root of type directory
-        # files: Files in root (not in subdirs) of type other than directory
-        # And please use os.path.join instead of concatenating with a slash!
-        # Your problem is filePath = rootdir + '/' + file - you must concatenate the currently "walked" folder instead of the topmost folder.
-        # So that must be filePath = os.path.join(root, file). BTW "file" is a builtin, so you don't normally use it as variable name.
-
         templates = []
         for root, subdirs, files in os.walk("templates"):
             for file in files:
-                if file.endswith('.trp'):
-                    try:
-                        f = os.path.join(root, file)
-                        o = open(f)
-                        c = json.loads(o.read())
-                        o.close()
-                        id = f.replace("templates" + os.path.sep, "", 1)
-                        id = id.split(os.path.sep)
-                        id[-1] = id[-1].replace(".trp", "", 1)
-                        id = "/".join(id)
-                        t = {
-                                "id": id,
-                                 "meta": {
-                                     "name": c["metadata"]["caption"],
-                                     "description": ""
-                                 }
-                            }
-                        templates.append(t)
-                    except:
-                        pass
+                if not file.endswith('.trp'):
+                    next
+                try:
+                    f = os.path.join(root, file)
+                    c = None
+                    with open(f, 'r') as templatefile:
+                        c = json.loads(templatefile.read())
+                    id = f.replace("templates" + os.path.sep, "", 1)
+                    id = id.split(os.path.sep)
+                    id[-1] = id[-1].replace(".trp", "", 1)
+                    id = "/".join(id)
+                    t = {
+                            "id": id,
+                             "meta": {
+                                 "name": c["metadata"]["caption"],
+                                 "description": ""
+                             }
+                        }
+                    templates.append(t)
+                except:
+                    pass
         return templates
 
     def _get_template(self,template):
