@@ -172,11 +172,11 @@ class STLClient_Test(CStlGeneral_Test):
 
                 # cont. with duration should be quite percise - 5% error is relaxed enough
 
-                assert get_error_in_percentage(stats[self.tx_port]['opackets'], golden) < 0.05
-                assert get_error_in_percentage(stats[self.rx_port]['ipackets'], golden) < 0.05
+                assert get_error_in_percentage(golden, stats[self.tx_port]['opackets']) < 0.05
+                assert get_error_in_percentage(golden, stats[self.rx_port]['ipackets']) < 0.05
 
-                assert get_error_in_percentage(stats[self.rx_port]['opackets'], golden) < 0.05
-                assert get_error_in_percentage(stats[self.tx_port]['ipackets'], golden) < 0.05
+                assert get_error_in_percentage(golden, stats[self.rx_port]['opackets']) < 0.05
+                assert get_error_in_percentage(golden, stats[self.tx_port]['ipackets']) < 0.05
 
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
@@ -244,23 +244,17 @@ class STLClient_Test(CStlGeneral_Test):
         skip_tests     = self.get_benchmark_param('skip',default=[])
 
         try:
-            print("\n");
-
-
             for profile in self.profiles:
+                print('\nProfile: %s' % profile[len(CTRexScenario.scripts_path):]);
 
-                skip=False
-                if skip_tests:
-                    for  skip_test in skip_tests:
-                        if skip_test in profile:
-                           skip=True;
-                           break;
+                skip = False
+                for skip_test in skip_tests:
+                    if skip_test in profile:
+                        skip = True
+                        break
                 if skip:
-                    print("skipping testing profile due to config file {0}...\n".format(profile))
-                    continue;
-
-                
-                print("now testing profile {0}...\n".format(profile))
+                    print('  * Skip due to config file...')
+                    continue
 
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
                 p2 = STLProfile.load(profile, port_id = self.rx_port)
@@ -271,16 +265,16 @@ class STLClient_Test(CStlGeneral_Test):
 
                 if p1.has_custom_mac_addr() or p2.has_custom_mac_addr():
                     if self.is_virt_nics:
-                        print("\n*** profile needs promiscuous mode but running on virtual NICs - skipping... ***\n")
+                        print("  * Skip due to Virtual NICs and promiscuous mode requirement...")
                         continue
                     elif self.is_vf_nics:
-                        print("\n*** profile needs promiscuous mode but running on VF - skipping... ***\n")
+                        print("  * Skip due to VF NICs and promiscuous mode requirement...")
                         continue
                     else:
                         self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
 
                 if p1.has_flow_stats() or p2.has_flow_stats():
-                    print("\n*** profile needs RX caps - skipping... ***\n")
+                    print("  * Skip due to RX caps requirement")
                     continue
 
                 self.c.add_streams(p1, ports = self.tx_port)

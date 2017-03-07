@@ -483,12 +483,11 @@ class CTRexTestConfiguringPlugin(Plugin):
                 fatal('Could not restart TRex daemon server')
             print('Restarted.')
 
+        if not self.no_daemon:
             if self.kill_running:
                 client.kill_all_trexes()
-            else:
-                if client.get_trex_cmds():
-                    fatal('TRex is already running')
-        if not self.no_daemon:
+            elif client.get_trex_cmds():
+                fatal('TRex is already running. Use --kill-running flag to kill it.')
             try:
                 client.check_server_connectivity()
             except Exception as e:

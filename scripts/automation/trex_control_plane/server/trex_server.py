@@ -42,7 +42,6 @@ logger = logging.getLogger('TRexServer')
 
 class CTRexServer(object):
     """This class defines the server side of the RESTfull interaction with TRex"""
-    DEFAULT_TREX_PATH = '/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/v1.55/' #'/auto/proj-pcube-b/apps/PL-b/tools/nightly/trex_latest'
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
 

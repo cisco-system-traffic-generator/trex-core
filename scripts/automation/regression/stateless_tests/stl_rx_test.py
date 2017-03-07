@@ -540,7 +540,7 @@ class STLRX_Test(CStlGeneral_Test):
     def _run_fcs_stream (self,is_vm):
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
         try:
-            ports = CTRexScenario.stl_ports_map['map'].keys()
+            ports = list(CTRexScenario.stl_ports_map['map'].keys())
             for lat in [True, False]:
                 print("\nSending from ports: {0}, has latency: {1} ".format(ports, lat))
                 self.send_1_burst(ports, lat, 100)
