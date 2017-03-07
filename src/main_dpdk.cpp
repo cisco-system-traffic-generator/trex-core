@@ -303,7 +303,7 @@ public:
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ TREX_DRV_FLOW_CTRL_CHG;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-        get_extended_stats_fixed(_if, stats, 0, 4);
+        get_extended_stats_fixed(_if, stats, 4, 4);
     }
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {

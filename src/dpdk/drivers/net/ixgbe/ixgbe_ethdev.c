@@ -3251,6 +3251,8 @@ ixgbevf_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	for (i = 0; i < IXGBEVF_NB_XSTATS; i++) {
 		xstats[i].value = *(uint64_t *)(((char *)hw_stats) +
 			rte_ixgbevf_stats_strings[i].offset);
+        /* TRex patch */
+        xstats[i].id = i;
 	}
 
 	return IXGBEVF_NB_XSTATS;
