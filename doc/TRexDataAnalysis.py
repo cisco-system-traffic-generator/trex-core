@@ -119,7 +119,8 @@ class Setup:
             test_names.append(test.name)
             all_test_stats.append(test.stats)
         self.setup_trend_stats = pd.DataFrame(all_test_stats, index=test_names,
-                                              columns=['Avg MPPS/Core (Norm)', 'Min', 'Max', 'Std','Error (%)', 'Total Results'])
+                                              columns=['Avg MPPS/Core (Norm)', 'Min', 'Max', 'Std', 'Error (%)',
+                                                       'Total Results'])
         self.setup_trend_stats.index.name = 'Test Name'
 
     def analyze_all_tests_trend(self):
