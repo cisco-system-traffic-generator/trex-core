@@ -19,9 +19,35 @@ TEST_PKT_DEF = [
         layer_def("TCP", sport="443")
         ]
 
-def test_build_pkt():
-    pkt = build_pkt_get_scapy(TEST_PKT_DEF)
+def test_build_pkt_details():
+    pkt_data = build_pkt(TEST_PKT_DEF)
+    pkt = build_pkt_to_scapy(pkt_data)
     assert(pkt[TCP].sport == 443)
+    ether = pkt_data['data'][0]
+    ip = pkt_data['data'][1]
+    tcp = pkt_data['data'][2]
+    assert(len(pkt_data["binary"]) == 72) #b64 encoded data
+
+    # absolute frame offset
+    assert(ether['offset'] == 0)
+    assert(ip['offset'] == 14)
+    assert(tcp['offset'] == 34)
+
+    # relative field offsets
+    tcp_sport = tcp["fields"][0]
+    assert(tcp_sport["id"] == "sport")
+    assert(tcp_sport["offset"] == 0)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_dport = tcp["fields"][1]
+    assert(tcp_dport["id"] == "dport")
+    assert(tcp_dport["offset"] == 2)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_chksum = tcp["fields"][8]
+    assert(tcp_chksum["id"] == "chksum")
+    assert(tcp_chksum["offset"] == 16)
+    assert(tcp_chksum["length"] == 2)
 
 def test_build_invalid_structure_pkt():
     ether_fields = {"dst": TEST_MAC_1, "type": "LOOP"}
