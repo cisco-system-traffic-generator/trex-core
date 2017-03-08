@@ -312,6 +312,13 @@ class TRexConsole(TRexGeneralCmd):
     def help_push (self):
         self.do_push("-h")
 
+    def do_debug (self, line):
+        '''Launches IPython for interactively debugging'''
+        self.stateless_client.debug_line(line)
+        
+    def help_debug (self):
+        self.do_debug('-h')
+        
     @verify_connected
     def do_portattr (self, line):
         '''Change/show port(s) attributes\n'''

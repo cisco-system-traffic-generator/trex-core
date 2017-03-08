@@ -28,6 +28,7 @@ import random
 import json
 import traceback
 import tempfile
+import readline
 import os.path
 
 ############################     logger     #############################
@@ -2678,6 +2679,9 @@ class STLClient(object):
             raise STLError('Please specify either ipg or minimal ipg, not both.')
 
 
+        # this action requires starting traffic
+        self.__pre_start_check(ports, force)
+        
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
@@ -2778,8 +2782,7 @@ class STLClient(object):
             which will be deleted when the function exists
             
             :parameters:
-                pkts : list or 
-                    PCAP filename (accessible locally)
+                pkts : Scapy pkt or a list of scapy pkts
 
                 ports : list
                     Ports on which to execute the command
@@ -2802,39 +2805,62 @@ class STLClient(object):
             :raises:
                 + :exc:`STLError`
         """
+        
+        # validate ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        validate_type('count',  count, int)
+        validate_type('duration', duration, (float, int))
+        validate_type('vm', vm, (list, type(None)))
+        
+        # pkts should be scapy, bytes, str or a list of them
+        pkts = listify(pkts)
+        for pkt in pkts:
+            if not isinstance(pkt, (Ether, bytes)):
+                raise STLTypeError('pkts', type(pkt), (Ether, bytes))
+        
+        # IPG
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
         if ipg_usec < 0:
             raise STLError("'ipg_usec' should not be negative")
-            
-        # create a temporary file while will be deleted when leaving scope
-        with tempfile.NamedTemporaryFile(delete = True) as f:
         
-            # write packets to file
-            writer = RawPcapWriter(f.name, linktype = 1)
-            writer._write_header(None)
+        # this action requires starting traffic
+        self.__pre_start_check(ports, force)
         
-            # write to the file
-            for i, pkt in enumerate(listify(pkts)):
-                ts = (ipg_usec * i) / 1.0e6
-                ts_sec, ts_usec = sec_split_usec(ts)
-                writer._write_packet(bytes(pkt), sec = ts_sec, usec = ts_usec)
-            
-            # close the writer      
-            writer.close()
-            
-            # now inject the file
-            self.push_pcap(f.name,
-                           ports = ports,
-                           ipg_usec = ipg_usec,
-                           speedup = 1,
-                           count = count,
-                           duration = duration,
-                           force = force,
-                           vm = vm,
-                           packet_hook = None,
-                           is_dual = False,
-                           min_ipg_usec = None)
+        # init the stream list
+        streams = []
         
+        for i, pkt in enumerate(pkts, start = 1):
+            
+            # handle last packet
+            
+            if i == len(pkts):
+                next = 1
+                action_count = count
+            else:
+                next = i + 1
+                action_count = 0
+
+            # is the packet Scapy or a simple buffer ?
+            packet = STLPktBuilder(pkt = pkt, vm = vm) if isinstance(pkt, Ether) else STLPktBuilder(pkt_buffer = pkt, vm = vm)
+            
+            # add the stream
+            streams.append(STLStream(name = i,
+                                     packet = packet,
+                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                     self_start = True if (i == 1) else False,
+                                     isg = ipg_usec,  # usec
+                                     action_count = action_count,
+                                     next = next))
+        
+        
+        # remove all streams, attach the created list and start
+        self.remove_all_streams(ports = ports)
+        id_list = self.add_streams(streams, ports)
+            
+        self.start(ports = ports, duration = duration, force = force)
+
     
 
     @__api_check(True)
@@ -4456,11 +4482,82 @@ class STLClient(object):
         
         try:
             with self.logger.supress():
-                self.push_packets(pkts = bytes(opts.scapy_pkt), ports = opts.ports, force = True, count = opts.count)
+                self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = True, count = opts.count)
+                
         except STLError as e:
             self.logger.post_cmd(False)
             raise
         else:
             self.logger.post_cmd(RC_OK())
         
-    
+    # save current history to a temp file
+    def __push_history (self):
+        tmp_file = tempfile.mktemp()
+        readline.write_history_file(tmp_file)
+        readline.clear_history()
+        return tmp_file
+        
+    # restore history from a temp file        
+    def __pop_history (self, filename):
+        readline.clear_history()
+        readline.read_history_file(filename)
+        
+ 
+        
+    @__console
+    def debug_line (self, line):
+        '''
+            Internal debugger for development.
+            Requires IPython and readline modules installed
+        '''
+     
+        parser = parsing_opts.gen_parser(self,
+                                         "debug",
+                                         self.debug_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        
+        try:
+            import IPython
+        except ImportError:
+            self.logger.log(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
+            return
+            
+        try:
+            import readline
+        except ImportError:
+            self.logger.log(format_text("\n*** 'readline' is required for interactive debugging ***\n", 'bold'))
+            return
+            
+        self.logger.log(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
+        
+        
+        client = self
+        auto_completer = readline.get_completer()
+        
+        h_file = self.__push_history()
+        
+        try:
+            from IPython.terminal.ipapp import load_default_config
+            cfg = load_default_config()
+            cfg['TerminalInteractiveShell']['confirm_exit']    = False
+            
+            x = IPython.terminal.embed.InteractiveShellEmbed(cfg, display_banner = False)
+            x.mainloop()
+            
+        finally:
+            readline.set_completer(auto_completer)
+            self.__pop_history(h_file)
+            try:
+                os.unlink(h_file)
+            except OSError:
+                pass
+        
+        self.logger.log(format_text("\n*** Leaving IPython ***\n"))
+        
+        return
+
+     
