@@ -108,11 +108,14 @@ TIP: Remote connection to the machine from anywhere in the hosting machine can b
 
 === Running TRex traffic generator
 
-  1. Change dir to latest version supplied using: `cd /home/trex/v1.62/`.
 
-  2. Run your desired TRex command. 
+  1. *upgrade* to the latest trex package see link:trex_manual.html#_obtaining_the_trex_package[how to upgrade]
 
-IMPORTANT: When launching a TRex command, pay attention to make sure that you are using `sudo` prefix at the beggining of the command line. +
+  2. Change dir to latest version updated for example `cd /home/trex/v2.20/`. (don't use the old version in the OVA)
+  
+  3. Run your desired TRex command. 
+
+IMPORTANT: When launching a TRex command, pay attention to make sure that you are using `sudo` prefix at the beggining of the command line. + and that you updated to latest v1.62 is very old version
 
 For example, let's run TRex with DNS traffic. The command is:
 
