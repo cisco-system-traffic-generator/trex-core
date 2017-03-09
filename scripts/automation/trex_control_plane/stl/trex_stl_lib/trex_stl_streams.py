@@ -1015,7 +1015,7 @@ class STLProfile(object):
                   packet_hook : Callable or function
                         will be applied to every packet
 
-                  is_split : str
+                  split_mode : str
                         should this PCAP be split to two profiles based on IPs / MACs
                         used for dual mode
                         can be 'MAC' or 'IP'

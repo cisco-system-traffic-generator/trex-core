@@ -21,7 +21,7 @@ class STLClient_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
-        if self.is_virt_nics:
+        if self.is_virt_nics or CTRexScenario.setup_name == 'trex21':
             self.percentage = 5
             self.pps = 500
         else:
@@ -29,7 +29,10 @@ class STLClient_Test(CStlGeneral_Test):
             self.pps = 50000
         
         # strict mode is only for 'wire only' connection
-        self.strict = True if (self.is_loopback and not self.is_virt_nics) else False
+        if self.is_loopback and not (self.is_virt_nics or CTRexScenario.setup_name == 'trex21'):
+            self.strict = True
+        else:
+            self.strict = False
 
         assert 'bi' in CTRexScenario.stl_ports_map
 
