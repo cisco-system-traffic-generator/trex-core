@@ -415,10 +415,21 @@ public:
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
     virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+        uint32_t ret = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+        // HW counters on x710 does not support coutning bytes.
+        if ( CGlobalInfo::m_options.preview.get_disable_hw_flow_stat() ) {
+            ret |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
+        }
+        return ret;
     }
     virtual int wait_for_stable_link();
-    virtual bool hw_rx_stat_supported(){return true;}
+    virtual bool hw_rx_stat_supported(){
+        if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()) {
+            return false;
+        } else {
+            return true;
+        }
+    }
     virtual int verify_fw_ver(int i);
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
@@ -696,6 +707,7 @@ enum { OPT_HELP,
        OPT_LEARN_VERIFY,
        OPT_L_PKT_MODE,
        OPT_NO_FLOW_CONTROL,
+       OPT_NO_HW_FLOW_STAT,
        OPT_VLAN,
        OPT_RX_CHECK_HOPS,
        OPT_CLIENT_CFG_FILE,
@@ -757,6 +769,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_LEARN_VERIFY,           "--learn-verify",    SO_NONE    },
         { OPT_L_PKT_MODE,             "--l-pkt-mode",      SO_REQ_SEP },
         { OPT_NO_FLOW_CONTROL,        "--no-flow-control-change", SO_NONE },
+        { OPT_NO_HW_FLOW_STAT,        "--no-hw-flow-stat", SO_NONE },
         { OPT_VLAN,                   "--vlan",            SO_NONE    },
         { OPT_CLIENT_CFG_FILE,        "--client_cfg",      SO_REQ_SEP },
         { OPT_CLIENT_CFG_FILE,        "--client-cfg",      SO_REQ_SEP },
@@ -787,6 +800,9 @@ static int usage(){
     printf("\n");
 
     printf(" Available options are:\n");
+    printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
+    printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
+    printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
     printf(" --allow-coredump           : Allow creation of core dump \n");
     printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means 'never send' \n");
     printf(" -c <num>>                  : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
@@ -825,6 +841,8 @@ static int usage(){
     printf(" --mbuf-factor              : Factor for packet memory \n");
     printf(" --nc                       : If set, will not wait for all flows to be closed, before terminating - see manual for more information \n");
     printf(" --no-flow-control-change   : By default TRex disables flow-control. If this option is given, it does not touch it \n");
+    printf(" --no-hw-flow-stat          : Relevant only for Intel x710 stateless mode. Do not use HW counters for flow stats\n");
+    printf("                            : Enabling this will support lower traffic rate, but will also report RX byte count statistics. See manual for more details\n");
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
@@ -844,10 +862,6 @@ static int usage(){
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" --vm-sim                   : Simulate vm with driver of one input queue and one output queue \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
-
-    printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
-    printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
-    printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
 
     printf("\n");
     printf(" Examples: ");
@@ -994,6 +1008,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->m_l_pkt_mode=(uint8_t)tmp_data;
                 break;
 
+            case OPT_NO_HW_FLOW_STAT:
+                po->preview.set_disable_hw_flow_stat(true);
+                break;
             case OPT_NO_FLOW_CONTROL:
                 po->preview.set_disable_flow_control_setting(true);
                 break;
@@ -6645,7 +6662,16 @@ int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum 
         }
     }
 
-    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, MAIN_DPDK_DROP_Q, rule_id);
+    // If we count flow stat in hardware, we want all packets to be dropped.
+    // If we count in software, we want to receive them.
+    uint16_t queue;
+    if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()) {
+        queue = MAIN_DPDK_RX_Q;
+    } else {
+        queue = MAIN_DPDK_DROP_Q;
+    }
+
+    add_del_rules(op, port_id, rte_type, 0, IP_ID_RESERVE_BASE + id, next_proto, queue, rule_id);
     return 0;
 }
 

@@ -419,6 +419,14 @@ public:
         return (btGetMaskBit32(m_flags,2,2) ? true:false);
     }
 
+    void set_disable_hw_flow_stat(bool enable) {
+        btSetMaskBit32(m_flags, 3, 3, enable ? 1 : 0);
+    }
+
+    bool get_disable_hw_flow_stat() {
+        return (btGetMaskBit32(m_flags, 3, 3) ? true:false);
+    }
+
     void set_disable_flow_control_setting(bool enable){
         btSetMaskBit32(m_flags,4,4,enable?1:0);
     }
@@ -426,7 +434,6 @@ public:
     bool get_is_disable_flow_control_setting(){
         return (btGetMaskBit32(m_flags,4,4) ? true:false);
     }
-
 
           /* learn & verify mode  */
     void set_learn_and_verify_mode_enable(bool enable){
