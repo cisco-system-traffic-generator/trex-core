@@ -26,6 +26,12 @@ MLX_EXIT_CODE = 32
 
 class VFIOBindErr(Exception): pass
 
+PATH_ARR = os.getenv('PATH', '').split(':')
+for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
+    if path not in PATH_ARR:
+        PATH_ARR.append(path)
+os.environ['PATH'] = ':'.join(PATH_ARR)
+
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
@@ -249,8 +255,13 @@ class ConfigCreator(object):
 
 # only load igb_uio if it's available
 def load_igb_uio():
-    if 'igb_uio' in dpdk_nic_bind.get_loaded_modules():
+    loaded_mods = dpdk_nic_bind.get_loaded_modules()
+    if 'igb_uio' in loaded_mods:
         return True
+    if 'uio' not in loaded_mods:
+        ret = os.system('modprobe uio')
+        if ret:
+            return False
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if os.path.exists(km):
         return os.system('insmod %s' % km) == 0
@@ -261,8 +272,8 @@ def compile_and_load_igb_uio():
     if 'igb_uio' in loaded_mods:
         return
     if 'uio' not in loaded_mods:
-        res = os.system('modprobe uio')
-        if res:
+        ret = os.system('modprobe uio')
+        if ret:
             print('Failed inserting uio module, please check if it is installed')
             sys.exit(-1)
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
@@ -289,8 +300,8 @@ def compile_and_load_igb_uio():
             print('        sudo apt install linux-headers-`uname -r`')
             print('        sudo apt install build-essential')
             sys.exit(-1)
-    res = os.system('insmod %s' % km)
-    if res:
+    ret = os.system('insmod %s' % km)
+    if ret:
         print('Failed inserting igb_uio module')
         sys.exit(-1)
 
