@@ -100,6 +100,7 @@ class STLRX_Test(CStlGeneral_Test):
         self.cap = cap
 
         drv_name = port_info['driver']
+        self.drv_name = drv_name
         if drv_name == 'net_ixgbe':
             self.ipv6_support = False
         else:
@@ -613,3 +614,29 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
+
+    # counters get stuck in i40e when they are getting to limit.
+    # this test checks our workaround to this issue
+    def test_x710_counters_wraparound(self):
+        if self.drv_name != 'net_i40e':
+            self.skip('Test is only for i40e.')
+
+        percent = min(20, self.speed * 0.8) # 8G at X710 and 20G at XL710
+        total_pkts = 300000000              # send 300 million packets to ensure getting to threshold of reset several times
+
+        s1 = STLStream(name = 'wrapping_stream',
+                       packet = self.pkt,
+                       flow_stats = STLFlowStats(pg_id = 5),
+                       mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                               percentage = percent))
+
+        # add both streams to ports
+        self.c.add_streams([s1], ports = [self.tx_port])
+
+        print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
+
+        exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
+
+        self.__rx_iteration( [exp] )
+

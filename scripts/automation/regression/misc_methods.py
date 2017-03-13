@@ -129,15 +129,13 @@ def load_complete_config_file (filepath):
     try:
         with open(filepath, 'r') as f:
             config = yaml.safe_load(f)
-            
+
             # Handle TRex configuration
             trex_config['trex_name']         = config["trex"]["hostname"]
-            trex_config['trex_password']     = config["trex"].get("password")
-            #trex_config['trex_is_dual']      = config["trex"]["is_dual"]
             trex_config['trex_cores']        = int(config["trex"]["cores"])
-            #trex_config['trex_latency']      = int(config["trex"]["latency"])
-#           trex_config['trex_version_path'] = config["trex"]["version_path"]
             trex_config['modes']          = config['trex'].get('modes', [])
+            for key, val in config['trex'].items():
+                trex_config[key] = val
 
             if 'loopback' not in trex_config['modes']:
                 trex_config['router_interface']  = config["router"]["ip_address"]
@@ -225,10 +223,10 @@ def load_benchmark_config_file (filepath):
     """
 
     # create response dictionary
-    benchmark_config = {}     
+    benchmark_config = {}
 
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             benchmark_config = yaml.safe_load(f)
 
     except Exception as inst:

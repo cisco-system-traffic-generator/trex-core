@@ -394,11 +394,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.server_logs   = self.server_logs
         CTRexScenario.debug_image   = options.debug_image
         CTRexScenario.json_verbose  = self.json_verbose
+        additional_args             = self.configuration.trex.get('trex_add_args', '')
         if not self.no_daemon:
             CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
                                                   verbose     = self.json_verbose,
                                                   debug_image = options.debug_image,
-                                                  trex_args   = options.trex_args)
+                                                  trex_args   = options.trex_args + ' ' + additional_args)
 
         if self.pkg or self.restart_daemon:
             if not CTRexScenario.trex.check_master_connectivity():

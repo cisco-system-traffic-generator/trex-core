@@ -36,3 +36,4 @@ trex:
   hostname       : csi-trex-09
   cores          : 2
   modes          : ['loopback']
+  trex_add_args  : '--x710-reset-threshold 10000000'

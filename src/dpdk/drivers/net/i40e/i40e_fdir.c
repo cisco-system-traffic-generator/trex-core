@@ -1145,11 +1145,18 @@ i40e_add_del_fdir_filter(struct rte_eth_dev *dev,
 	memset(&check_filter, 0, sizeof(check_filter));
 	i40e_fdir_filter_convert(filter, &check_filter);
 	node = i40e_sw_fdir_filter_lookup(fdir_info, &check_filter.fdir.input);
+
+#ifndef TREX_PATCH
+/*
+We use same rule at different filters, for example to overcome "stuck counters" issue:
+https://trex-tgn.cisco.com/youtrack/issue/trex-199
+ */
 	if (add && node) {
 		PMD_DRV_LOG(ERR,
 			    "Conflict with existing flow director rules!");
 		return -EINVAL;
 	}
+#endif
 
 	if (!add && !node) {
 		PMD_DRV_LOG(ERR,

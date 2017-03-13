@@ -775,6 +775,9 @@ public:
         out_file = "";
         prefix = "";
         set_tw_bucket_time_in_usec(20.0);
+        // we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
+        // and we will start losing packets).
+        x710_fdir_reset_threshold = 0xffffffff - 1000000000/8/64*40;
     }
 
     CParserOption(){
@@ -819,6 +822,7 @@ public:
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
+    uint32_t        x710_fdir_reset_threshold;
 
 public:
     uint8_t *       get_src_mac_addr(int if_index){
@@ -856,6 +860,12 @@ public:
     }
     void set_rx_enabled() {
         m_rx_thread_enabled = true;
+    }
+    uint32_t get_x710_fdir_reset_threshold() {
+        return (x710_fdir_reset_threshold);
+    }
+    void set_x710_fdir_reset_threshold(uint32_t val) {
+        x710_fdir_reset_threshold = val;
     }
 
     inline double get_tw_bucket_time_in_sec(void){

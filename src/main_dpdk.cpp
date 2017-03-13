@@ -708,6 +708,7 @@ enum { OPT_HELP,
        OPT_L_PKT_MODE,
        OPT_NO_FLOW_CONTROL,
        OPT_NO_HW_FLOW_STAT,
+       OPT_X710_RESET_THRESHOLD,
        OPT_VLAN,
        OPT_RX_CHECK_HOPS,
        OPT_CLIENT_CFG_FILE,
@@ -770,6 +771,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_L_PKT_MODE,             "--l-pkt-mode",      SO_REQ_SEP },
         { OPT_NO_FLOW_CONTROL,        "--no-flow-control-change", SO_NONE },
         { OPT_NO_HW_FLOW_STAT,        "--no-hw-flow-stat", SO_NONE },
+        { OPT_X710_RESET_THRESHOLD,   "--x710-reset-threshold", SO_REQ_SEP },
         { OPT_VLAN,                   "--vlan",            SO_NONE    },
         { OPT_CLIENT_CFG_FILE,        "--client_cfg",      SO_REQ_SEP },
         { OPT_CLIENT_CFG_FILE,        "--client-cfg",      SO_REQ_SEP },
@@ -831,7 +833,7 @@ static int usage(){
     printf("      1    In case of TCP flow, use TCP ACK in first SYN to pass NAT translation information. Initial SYN packet must be first packet in the TCP flow \n");
     printf("           In case of UDP stream, NAT translation information will pass in IP ID field of first packet in flow. This means that this field is changed by TRex\n");
     printf("      2    Add special IP option to pass NAT translation information to first packet of each flow. Will not work on certain firewalls if they drop packets with IP options \n");
-    printf("      3    Like 1, but without support for sequence number randomization in server->clien direction. Performance (flow/second) better than 1 \n");
+    printf("      3    Like 1, but without support for sequence number randomization in server->client direction. Performance (flow/second) better than 1 \n");
     printf(" --learn-verify             : Test the NAT translation mechanism. Should be used when there is no NAT in the setup \n");
     printf(" --limit-ports              : Limit number of ports used. Must be even number (TRex always uses port pairs) \n");
     printf(" --lm                       : Hex mask of cores that should send traffic \n");
@@ -1013,6 +1015,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_NO_FLOW_CONTROL:
                 po->preview.set_disable_flow_control_setting(true);
+                break;
+            case OPT_X710_RESET_THRESHOLD:
+                po->set_x710_fdir_reset_threshold(atoi(args.OptionArg()));
                 break;
             case OPT_VLAN:
                 opt_vlan_was_set = true;
@@ -6740,9 +6745,6 @@ void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats
 
 // instead of adding this to rte_ethdev.h
 extern "C" int rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len);
-// we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
-// and we will start losing packets).
-const uint32_t X710_FDIR_RESET_THRESHOLD = 0xffffffff - 1000000000/8/64*40;
 
 // get rx stats on _if, between min and max
 // prev_pkts should be the previous values read from the hardware.
@@ -6759,21 +6761,19 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
 
     rte_eth_fdir_stats_get(port_id, hw_stats, start, len);
     for (int i = loop_start; i <  loop_start + len; i++) {
-        if (unlikely(hw_stats[i - min] > X710_FDIR_RESET_THRESHOLD)) {
-            // When x710 fdir counters reach max of 32 bits (4G), the get stuck. To handle this, we temporarily
+        if (unlikely(hw_stats[i - min] > CGlobalInfo::m_options.get_x710_fdir_reset_threshold())) {
+            // When x710 fdir counters reach max of 32 bits (4G), they get stuck. To handle this, we temporarily
             // move to temp counter, reset the counter in danger, and go back to using it.
             // see trex-199 for more details
-            uint32_t counter, temp_count;
+            uint32_t counter, temp_count=0;
             uint32_t hw_id = start - min + i;
 
             add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
                            , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q
                            , FDIR_TEMP_HW_ID);
-            delay(100);
             rte_eth_fdir_stats_reset(port_id, &counter, hw_id, 1);
             add_del_rules( RTE_ETH_FILTER_ADD, port_id, fdir_hw_id_rule_params[hw_id].rule_type, 0
                            , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q, hw_id);
-            delay(100);
             rte_eth_fdir_stats_reset(port_id, &temp_count, FDIR_TEMP_HW_ID, 1);
             pkts[i] = counter + temp_count - prev_pkts[i];
             prev_pkts[i] = 0;
