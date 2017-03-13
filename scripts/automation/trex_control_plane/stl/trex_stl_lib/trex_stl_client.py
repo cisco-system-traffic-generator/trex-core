@@ -3647,14 +3647,16 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "connect",
                                          self.connect_line.__doc__,
-                                         parsing_opts.FORCE)
+                                         parsing_opts.FORCE,
+                                         parsing_opts.READONLY)
 
         opts = parser.parse_args(line.split())
         if not opts:
             return opts
 
         self.connect()
-        self.acquire(force = opts.force)
+        if not opts.readonly:
+            self.acquire(force = opts.force)
 
         return RC_OK()
 

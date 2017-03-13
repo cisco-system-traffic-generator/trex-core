@@ -30,6 +30,7 @@ STREAM_FROM_PATH_OR_FILE
 DURATION
 TIMEOUT
 FORCE
+READONLY
 DRY_RUN
 XTERM
 TOTAL
@@ -564,6 +565,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                         {"action": "store_true",
                                          'default': False,
                                          'help': "Set if you want to stop active ports before appyling command."}),
+
+              READONLY: ArgumentPack(['-r'],
+                                        {'action': 'store_true',
+                                         'dest': 'readonly',
+                                         'help': 'Do not acquire ports, connect as read-only.'}),
 
               REMOTE_FILE: ArgumentPack(['-r', '--remote'],
                                         {"action": "store_true",
