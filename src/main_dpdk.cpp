@@ -268,6 +268,7 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
     }
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
+    CFlowStatParser *get_flow_stat_parser();
 };
 
 class CTRexExtendedDriverVirtio : public CTRexExtendedDriverVirtBase {
@@ -417,14 +418,18 @@ public:
     virtual int get_rx_stat_capabilities() {
         uint32_t ret = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
         // HW counters on x710 does not support coutning bytes.
-        if ( CGlobalInfo::m_options.preview.get_disable_hw_flow_stat() ) {
+        if ( CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
+             || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+             || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
             ret |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
         }
         return ret;
     }
     virtual int wait_for_stable_link();
     virtual bool hw_rx_stat_supported(){
-        if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()) {
+        if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
+            || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+            || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
             return false;
         } else {
             return true;
@@ -776,7 +781,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_CLIENT_CFG_FILE,        "--client_cfg",      SO_REQ_SEP },
         { OPT_CLIENT_CFG_FILE,        "--client-cfg",      SO_REQ_SEP },
         { OPT_NO_KEYBOARD_INPUT,      "--no-key",          SO_NONE    },
-        { OPT_VIRT_ONE_TX_RX_QUEUE,   "--vm-sim",          SO_NONE    },
+        { OPT_VIRT_ONE_TX_RX_QUEUE,   "--software",        SO_NONE    },
         { OPT_PREFIX,                 "--prefix",          SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT,         "--send-debug-pkt",  SO_REQ_SEP },
         { OPT_MBUF_FACTOR,            "--mbuf-factor",     SO_REQ_SEP },
@@ -859,10 +864,10 @@ static int usage(){
     printf(" -s                         : Single core. Run only one data path core. For debug \n");
     printf(" --send-debug-pkt <proto>   : Do not run traffic generator. Just send debug packet and dump receive queues \n");
     printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
+    printf(" --software                 : Do not configure any hardare rules. In this mode we used 1 core, and one RX queue and one TX queue per port\n");
     printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
-    printf(" --vm-sim                   : Simulate vm with driver of one input queue and one output queue \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
 
     printf("\n");
@@ -870,7 +875,7 @@ static int usage(){
     printf(" basic trex run for 20 sec and multiplier of 10 \n");
     printf("  t-rex-64 -f cap2/dns.yaml -m 10 -d 20 \n");
     printf("\n\n");
-    printf(" Copyright (c) 2015-2016 Cisco Systems, Inc.    \n");
+    printf(" Copyright (c) 2015-2017 Cisco Systems, Inc.    \n");
     printf("                                                                  \n");
     printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
     printf(" you may not use this file except in compliance with the License. \n");
@@ -1118,6 +1123,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_VIRT_ONE_TX_RX_QUEUE:
                 CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+                po->preview.setCores(1); // Only one TX core supported in software mode currently
                 break;
 
             case OPT_PREFIX:
@@ -1534,6 +1540,24 @@ void CPhyEthIF::configure_rx_duplicate_rules(){
     if ( get_is_rx_filter_enable() ){
         get_ex_drv()->configure_rx_filter_rules(this);
     }
+}
+
+int CPhyEthIF::set_port_rcv_all(bool is_rcv) {
+    // In these modes we are always receiving all packets anyway.
+    switch (CGlobalInfo::get_queues_mode()) {
+    case CGlobalInfo::Q_MODE_ONE_QUEUE:
+        // In this mode we are always receiving all packets anyway.
+        break;
+    case CGlobalInfo::Q_MODE_RSS:
+        //todo: need to send announcment to all tx cores
+        //todo: need new function set_all_ports rcv all, to be able to send less tx messages
+        break;
+    default:
+        get_ex_drv()->set_rcv_all(this, is_rcv);
+        break;
+    }
+
+    return 0;
 }
 
 void CPhyEthIF::stop_rx_drop_queue() {
@@ -3414,9 +3438,8 @@ void CGlobalTRex::pre_test() {
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
         CPhyEthIF *pif = &m_ports[port_id];
         // Configure port to send all packets to software
-        CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, true);
+        pif->set_port_rcv_all(true);
     }
-
 
     pretest.send_grat_arp_all();
     bool ret;
@@ -3505,12 +3528,10 @@ void CGlobalTRex::pre_test() {
             CPhyEthIF *pif = &m_ports[port_id];
             CPreTestStats pre_stats = pretest.get_stats(port_id);
             pif->set_ignore_stats_base(pre_stats);
-
             // Configure port back to normal mode. Only relevant packets handled by software.
-            CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, false);
-
-           }
+            pif->set_port_rcv_all(false);
         }
+    }
 
     /* for stateless only - set port mode */
     if (get_is_stateless()) {
@@ -5785,7 +5806,7 @@ int main_test(int argc , char * argv[]){
             for (int i = 0; i < 100; i++) {
                 for (int port_id = 0; port_id < g_trex.m_max_ports; port_id++) {
                     CPhyEthIF *pif = &g_trex.m_ports[port_id];
-                    CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, true);
+                    pif->set_port_rcv_all(true);
                 }
                 ret = debug.test_send(D_PKT_TYPE_HW_VERIFY_RCV_ALL);
                 if (ret != 0) {
@@ -5811,7 +5832,7 @@ int main_test(int argc , char * argv[]){
             if (CGlobalInfo::m_options.m_debug_pkt_proto == D_PKT_TYPE_HW_VERIFY_RCV_ALL) {
                 for (int port_id = 0; port_id < g_trex.m_max_ports; port_id++) {
                     CPhyEthIF *pif = &g_trex.m_ports[port_id];
-                    CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(pif, true);
+                    pif->set_port_rcv_all(true);
                 }
             }
             ret = debug.test_send(CGlobalInfo::m_options.m_debug_pkt_proto);
@@ -5902,7 +5923,6 @@ void set_driver() {
     }
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
-
 }
 
 /*
@@ -6549,11 +6569,6 @@ static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
 void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type, uint8_t ttl
                                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx) {
-    // We want to allow the use of X710 in "VM mode", for performance testing.
-    // In this mode, we don't want any hardware rules. Everything done by software.
-    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
-         return;
-
     int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_FDIR);
     static int filter_soft_id = 0;
 
@@ -6605,6 +6620,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, uint8_t po
     }
 
     ret = rte_eth_dev_filter_ctrl(port_id, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
+
 #if 0
     //todo: fix
     if ( ret != 0 ) {
@@ -7173,6 +7189,11 @@ void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
 
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        return 0;
+    }
+
     struct rte_eth_fdir_info fdir_info;
 
     if ( rte_eth_dev_filter_ctrl(port_id,RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_INFO,(void *)&fdir_info) == 0 ){
@@ -7181,13 +7202,15 @@ int CTRexExtendedDriverBaseVIC::verify_fw_ver(int port_id) {
             if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
                 printf("VIC port %d: FW support advanced filtering \n", port_id);
             }
-            return (0);
+            return 0;
         }
     }
 
-    printf("Error: VIC firmware should upgrade to support advanced filtering \n");
+    printf("Warning: In order to fully utilize the VIC NIC, firmware should be upgraded to support advanced filtering \n");
     printf("  Please refer to %s for upgrade instructions\n",
            "https://trex-tgn.cisco.com/trex/doc/trex_manual.html");
+    printf("If this is an unsupported card, or you do not want to upgrade, you can use --software command line arg\n");
+    printf("This will work without hardware support (meaning reduced performance)\n");
     exit(1);
 }
 
@@ -7250,6 +7273,12 @@ int CTRexExtendedDriverVirtBase::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
 int CTRexExtendedDriverVirtBase::wait_for_stable_link(){
     wait_x_sec(CGlobalInfo::m_options.m_wait_before_traffic);
     return (0);
+}
+
+CFlowStatParser *CTRexExtendedDriverVirtBase::get_flow_stat_parser() {
+    CFlowStatParser *parser = new CFlowStatParserSW();
+    assert (parser);
+    return parser;
 }
 
 void CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
@@ -7478,12 +7507,22 @@ int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
 
 int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                                , uint8_t ipv6_next_h, uint16_t id) const {
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        return 0;
+    }
+
     return CTRexExtendedDriverDb::Ins()->get_drv()
         ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_ADD, l3_type, l4_proto, ipv6_next_h, id);
 }
 
 int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                                , uint8_t ipv6_next_h, uint16_t id) const {
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        return 0;
+    }
+
     return CTRexExtendedDriverDb::Ins()->get_drv()
         ->add_del_rx_flow_stat_rule(port_id, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
 }
@@ -7540,7 +7579,7 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 
     CPhyEthIF *_if = &g_trex.m_ports[m_port_id];
     bool recv_all = (rx_filter_mode == RX_FILTER_MODE_ALL);
-    int rc = CTRexExtendedDriverDb::Ins()->get_drv()->set_rcv_all(_if, recv_all);
+    int rc = _if->set_port_rcv_all(recv_all);
     if (rc != 0) {
         return (rc);
     }

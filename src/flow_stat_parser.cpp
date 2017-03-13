@@ -371,6 +371,129 @@ int CFlowStatParserTest::test() {
     return 0;
 }
 
+int CFlowStatParserSW::parse(uint8_t *p, uint16_t len) {
+    EthernetHeader *ether = (EthernetHeader *)p;
+    int min_len = ETH_HDR_LEN;
+    reset();
+
+    if (len < min_len)
+        return -1;
+
+    m_start = p;
+    m_len = len;
+    switch( ether->getNextProtocol() ) {
+    case EthernetHeader::Protocol::IP :
+        min_len += IPV4_HDR_LEN;
+        if (len < min_len)
+            return -1;
+        m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN);
+        m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+        m_l4_proto = m_ipv4->getProtocol();
+        m_stat_supported = true;
+        break;
+    case EthernetHeader::Protocol::IPv6 :
+        min_len += IPV6_HDR_LEN;
+        if (len < min_len)
+            return -1;
+        m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN);
+        m_stat_supported = true;
+        break;
+    case EthernetHeader::Protocol::VLAN :
+        m_vlan_offset = 4;
+        min_len += 4;
+        if (len < min_len)
+            return -1;
+
+        switch ( ether->getVlanProtocol() ){
+        case EthernetHeader::Protocol::IP:
+            min_len += IPV4_HDR_LEN;
+            if (len < min_len)
+                    return -1;
+            m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN + 4);
+            m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+            m_l4_proto = m_ipv4->getProtocol();
+            m_stat_supported = true;
+            break;
+        case EthernetHeader::Protocol::IPv6 :
+            min_len += IPV6_HDR_LEN;
+            if (len < min_len)
+                return -1;
+            m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN + 4);
+            m_stat_supported = true;
+            break;
+        case EthernetHeader::Protocol::VLAN :
+            m_vlan_offset = 8;
+            min_len += 8;
+            if (len < min_len)
+                return -1;
+
+            switch ( ether->getQinQProtocol() ){
+            case EthernetHeader::Protocol::IP:
+                min_len += IPV4_HDR_LEN;
+                if (len < min_len)
+                    return -1;
+                m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN + 8);
+                m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+                m_l4_proto = m_ipv4->getProtocol();
+                m_stat_supported = true;
+                break;
+            case EthernetHeader::Protocol::IPv6 :
+                min_len += IPV6_HDR_LEN;
+                if (len < min_len)
+                    return -1;
+                m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN + 8);
+                m_stat_supported = true;
+                break;
+            default:
+                m_stat_supported = false;
+                return -1;
+            }
+            break;
+
+        default:
+            m_stat_supported = false;
+            return -1;
+        }
+        break;
+
+    case EthernetHeader::Protocol::QINQ :
+        m_vlan_offset = 8;
+        min_len += 8;
+        if (len < min_len)
+            return -1;
+
+        switch ( ether->getQinQProtocol() ) {
+        case EthernetHeader::Protocol::IP:
+            min_len += IPV4_HDR_LEN;
+            if (len < min_len)
+                    return -1;
+            m_ipv4 = (IPHeader *)(p + ETH_HDR_LEN + 8);
+            m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
+            m_l4_proto = m_ipv4->getProtocol();
+            m_stat_supported = true;
+            break;
+        case EthernetHeader::Protocol::IPv6 :
+            min_len += IPV6_HDR_LEN;
+            if (len < min_len)
+                return -1;
+            m_ipv6 = (IPv6Header *)(p + ETH_HDR_LEN + 8);
+            m_stat_supported = true;
+            break;
+        default:
+            m_stat_supported = false;
+            return -1;
+        }
+        break;
+
+    default:
+        m_stat_supported = false;
+        return -1;
+        break;
+    }
+
+    return 0;
+}
+
 // In 82599 10G card we do not support VLANs
 int C82599Parser::parse(uint8_t *p, uint16_t len) {
     EthernetHeader *ether = (EthernetHeader *)p;

@@ -454,7 +454,8 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_num_started_streams = 0;
     m_ring_to_rx = NULL;
     m_cap = 0;
-    m_parser = NULL;
+    m_parser_ipid = NULL;
+    m_parser_pl = NULL;
     m_rx_core = NULL;
     m_hw_id_map.create(MAX_FLOW_STATS);
     m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
@@ -465,7 +466,8 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
 }
 
 CFlowStatRuleMgr::~CFlowStatRuleMgr() {
-    delete m_parser;
+    delete m_parser_ipid;
+    delete m_parser_pl;
 #ifdef TREX_SIM
     // In simulator, nobody handles the messages to RX, so need to free them to have clean valgrind run.
     if (m_ring_to_rx) {
@@ -493,9 +495,19 @@ void CFlowStatRuleMgr::create() {
     m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     assert(m_ring_to_rx);
     m_rx_core = get_rx_sl_core_obj();
-    m_parser = m_api->get_flow_stat_parser();
-    assert(m_parser);
     m_cap = cap;
+
+    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
+        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
+        set_mode(FLOW_STAT_MODE_PASS_ALL);
+        m_parser_ipid = new CFlowStatParserSW;
+        m_parser_pl = new CPassAllParser;
+    } else {
+        m_parser_ipid = m_api->get_flow_stat_parser();
+        m_parser_pl = m_api->get_flow_stat_parser();
+    }
+    assert(m_parser_ipid);
+    assert(m_parser_pl);
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
@@ -578,22 +590,17 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         throw TrexFStatEx("Interface does not support given rule type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
 
-    // compile_stream throws exception if something goes wrong
-    compile_stream(stream, m_parser);
-
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
         uint16_t l3_proto;
+        // compile_stream throws exception if something goes wrong
+        compile_stream(stream, m_parser_ipid);
 
-        if (m_mode == FLOW_STAT_MODE_PASS_ALL) {
-            throw TrexFStatEx("Can not add flow stat stream in 'receive all' mode", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_MODE);
-        }
-
-        if (m_parser->get_l3_proto(l3_proto) < 0) {
+        if (m_parser_ipid->get_l3_proto(l3_proto) < 0) {
             throw TrexFStatEx("Failed determining l3 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L3);
         }
         uint8_t l4_proto;
-        if (m_parser->get_l4_proto(l4_proto) < 0) {
+        if (m_parser_ipid->get_l4_proto(l4_proto) < 0) {
             throw TrexFStatEx("Failed determining l4 proto for packet", TrexException::T_FLOW_STAT_FAILED_FIND_L4);
         }
 
@@ -606,7 +613,10 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
         uint16_t payload_len;
-        if (m_parser->get_payload_len(stream->m_pkt.binary, stream->m_pkt.len, payload_len) < 0) {
+        // compile_stream throws exception if something goes wrong
+        compile_stream(stream, m_parser_pl);
+
+        if (m_parser_pl->get_payload_len(stream->m_pkt.binary, stream->m_pkt.len, payload_len) < 0) {
             throw TrexFStatEx("Failed getting payload len", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
         }
         if (payload_len < sizeof(struct flow_stat_payload_header)) {
@@ -690,19 +700,19 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     // first handle streams that do not need rx stat
     if (! stream->m_rx_check.m_enabled) {
         try {
-            compile_stream(stream, m_parser);
+            compile_stream(stream, m_parser_ipid);
         } catch (TrexFStatEx) {
             // If no statistics needed, and we can't parse the stream, that's OK.
             return 0;
         }
 
         uint32_t ip_id;
-        if (m_parser->get_ip_id(ip_id) < 0) {
+        if (m_parser_ipid->get_ip_id(ip_id) < 0) {
             return 0; // if we could not find the ip id, no need to fix
         }
         // verify no reserved IP_ID used, and change if needed
         if (ip_id >= IP_ID_RESERVE_BASE) {
-            if (m_parser->set_ip_id(ip_id & 0xefff) < 0) {
+            if (m_parser_ipid->set_ip_id(ip_id & 0xefff) < 0) {
                 throw TrexFStatEx("Stream IP ID in reserved range. Failed changing it"
                                   , TrexException::T_FLOW_STAT_FAILED_CHANGE_IP_ID);
             }
@@ -727,17 +737,18 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if ((m_cap & rule_type) == 0) {
         throw TrexFStatEx("Interface does not support given rule type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
-
-    // compile_stream throws exception if something goes wrong
-    if ((ret = compile_stream(stream, m_parser)) < 0)
-        return ret;
-
     uint16_t hw_id;
 
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
+        // compile_stream throws exception if something goes wrong
+        if ((ret = compile_stream(stream, m_parser_ipid)) < 0)
+            return ret;
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
+        // compile_stream throws exception if something goes wrong
+        if ((ret = compile_stream(stream, m_parser_pl)) < 0)
+            return ret;
         break;
     default:
         throw TrexFStatEx("Wrong rule_type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
@@ -789,10 +800,10 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     // saving given hw_id on stream for use by tx statistics count
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
-        m_parser->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
+        m_parser_ipid->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
         stream->m_rx_check.m_hw_id = hw_id;
     } else {
-        m_parser->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
+        m_parser_pl->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
         // for payload rules, we use the range right after ip id rules
         stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;
     }
@@ -803,9 +814,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 #endif
 
     if (m_num_started_streams == 0) {
-        
+
         send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
-        
+
         //also good time to zero global counters
         memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
         memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
@@ -824,7 +835,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             }
         }
         #endif
-        
+
     } else {
         // make sure rx core is working. If not, we got really confused somehow.
         if (m_rx_core)
@@ -951,18 +962,23 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
 
     switch (mode) {
     case FLOW_STAT_MODE_PASS_ALL:
-        delete m_parser;
-        m_parser = new CPassAllParser;
+        delete m_parser_ipid;
+        delete m_parser_pl;
+        m_parser_ipid = new CFlowStatParserSW;
+        m_parser_pl = new CPassAllParser;
         break;
     case FLOW_STAT_MODE_NORMAL:
-        delete m_parser;
-        m_parser = m_api->get_flow_stat_parser();
-        assert(m_parser);
+        delete m_parser_ipid;
+        delete m_parser_pl;
+        m_parser_ipid = m_api->get_flow_stat_parser();
+        m_parser_pl = m_api->get_flow_stat_parser();
         break;
     default:
         return -1;
 
     }
+    assert(m_parser_ipid);
+    assert(m_parser_pl);
 
     m_mode = mode;
 
@@ -972,20 +988,20 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
 extern bool rx_should_stop;
 void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     TrexStatelessCpToRxMsgBase *msg;
-    
+
     if (is_start) {
         static MsgReply<bool> reply;
         reply.reset();
-        
+
         msg = new TrexStatelessRxEnableLatency(reply);
         m_ring_to_rx->Enqueue((CGenNode *)msg);
-        
+
         /* hold until message was ack'ed - otherwise we might lose packets */
         if (m_rx_core) {
             reply.wait_for_reply();
             assert(m_rx_core->is_working());
         }
-        
+
     } else {
         msg = new TrexStatelessRxDisableLatency();
         m_ring_to_rx->Enqueue((CGenNode *)msg);

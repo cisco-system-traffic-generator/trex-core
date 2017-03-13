@@ -28,7 +28,8 @@
 #include "common/Network/Packet/TcpHeader.h"
 #include "mbuf.h"
 
-// Basic flow stat parser. Relevant for xl710/x710/x350 cards
+// Basic flow stat parser. Imitating HW behavior. It can parse only packets matched by HW fdir rules we define.
+// Relevant for xl710/x710, i350, Cisco VIC, Mellanox cards
 class CFlowStatParser {
     friend class CFlowStatParserTest;
  public:
@@ -95,6 +96,14 @@ class CFlowStatParser {
     bool m_stat_supported;
     uint8_t m_l4_proto;
     uint8_t m_vlan_offset;
+};
+
+// parser used in --software mode and virtual cards. No hardware limitation. We can support any packert type here.
+class CFlowStatParserSW : public CFlowStatParser {
+ public:
+    CFlowStatParserSW() {}
+    ~CFlowStatParserSW() {}
+    int parse(uint8_t *pkt, uint16_t len);
 };
 
 // relevant for 82599 card

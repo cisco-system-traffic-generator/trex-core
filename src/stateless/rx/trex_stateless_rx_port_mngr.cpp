@@ -44,18 +44,26 @@ void
 RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
     m_rfc2544   = rfc2544;
     m_err_cntrs = err_cntrs;
+    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
+        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
+        m_rcv_all    = true;
+    } else {
+        m_rcv_all    = false;
+    }
 }
 
 void 
 RXLatency::handle_pkt(const rte_mbuf_t *m) {
-    CFlowStatParser parser;
+    CFlowStatParserSW parser;
+    int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
 
-    if (m_rcv_all || parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len) == 0) {
+    if (m_rcv_all ||  (ret == 0)) {
         uint32_t ip_id;
-        if (m_rcv_all || (parser.get_ip_id(ip_id) == 0)) {
+        int ret2 = parser.get_ip_id(ip_id);
+        if (m_rcv_all || ( ret2 == 0)) {
             if (m_rcv_all || is_flow_stat_id(ip_id)) {
                 uint16_t hw_id;
-                if (m_rcv_all || is_flow_stat_payload_id(ip_id)) {
+                if (is_flow_stat_payload_id(ip_id) || ((! is_flow_stat_id(ip_id)) && m_rcv_all)) {
                     bool good_packet = true;
                     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                     struct flow_stat_payload_header *fsp_head = (struct flow_stat_payload_header *)

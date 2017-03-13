@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2015-2016 Cisco Systems, Inc.
+Copyright (c) 2015-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,15 +36,16 @@ public:
     {
         enum    Type
         {
-            IP              =   0x0800,
-            VLAN            =   0x8100,
-            ARP             =   0x0806,
-            IPv6             =   0x86DD,
-            MPLS_Unicast    =   0x8847,
-            MPLS_Multicast  =   0x8848,
-            PPP             =   0x880b,
-            PPPoED          =   0x8863,
-            PPPoES          =   0x8864
+            IP              = 0x0800,
+            VLAN            = 0x8100,
+            ARP             = 0x0806,
+            IPv6            = 0x86DD,
+            MPLS_Unicast    = 0x8847,
+            MPLS_Multicast  = 0x8848,
+            PPP             = 0x880b,
+            PPPoED          = 0x8863,
+            PPPoES          = 0x8864,
+            QINQ            = 0x88A8
         };
     };
 
@@ -81,7 +82,8 @@ public:
     // Retrieve VLAN fields for tag and protocol information
     inline  uint16_t getVlanTag ();
     inline  uint16_t getVlanProtocol ();
-
+    inline  uint16_t getQinQTag ();
+    inline  uint16_t getQinQProtocol ();
     void    dump                (FILE*  fd);
 
 
@@ -92,7 +94,8 @@ private:
     uint16_t              myProtocol;
     uint16_t              myVlanTag;
     uint16_t              myVlanProtocol;
-
+    uint16_t            myQinQTag;
+    uint16_t            myQinQProtocol;
 };
 
 #include "EthernetHeader.inl"

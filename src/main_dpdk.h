@@ -112,6 +112,7 @@ class CPhyEthIF  {
                         const struct rte_eth_txconf *tx_conf);
     void stop_rx_drop_queue();
     void configure_rx_duplicate_rules();
+    int set_port_rcv_all(bool is_rcv);
     void start();
     void stop();
     void disable_flow_control();
