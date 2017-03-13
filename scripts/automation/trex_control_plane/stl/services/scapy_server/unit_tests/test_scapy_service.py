@@ -19,13 +19,38 @@ TEST_PKT_DEF = [
         layer_def("TCP", sport="443")
         ]
 
+TEST_DNS_PKT = Ether(src='00:16:ce:6e:8b:24', dst='00:05:5d:21:99:4c', type=2048)/IP(frag=0L, src='192.168.0.114', proto=17, tos=0, dst='205.152.37.23', chksum=26561, len=59, options=[], version=4L, flags=0L, ihl=5L, ttl=128, id=7975)/UDP(dport=53, sport=1060, len=39, chksum=877)/DNS(aa=0L, qr=0L, an=None, ad=0L, nscount=0, qdcount=1, ns=None, tc=0L, rd=1L, arcount=0, ar=None, opcode=0L, ra=0L, cd=0L, z=0L, rcode=0L, id=6159, ancount=0, qd=DNSQR(qclass=1, qtype=1, qname='wireshark.org.'))
+
+TEST_DNS_PKT_B64 = (
+    "1MOyoQIABAAAAAAAAAAAAP//AAABAAAAdzmERaAVAwBJAAAASQAAAAAFXSGZTAAWzm6LJAgARQAA"
+    "Ox8nAACAEWfBwKgAcs2YJRcEJAA1ACcDbRgPAQAAAQAAAAAAAAl3aXJlc2hhcmsDb3JnAAABAAF3"
+    "OYRFvHkEAFkAAABZAAAAABbOboskAAVdIZlMCABFAABLdn1AADIRHlvNmCUXwKgAcgA1BCQANzwg"
+    "GA+BgAABAAEAAAAACXdpcmVzaGFyawNvcmcAAAEAAcAMAAEAAQAAOEAABIB5Mno="
+)
+
+def test_0_dns_pcap_read_base64():
+    # should be executed first
+    # this test could fail depending on the test execution order
+    # due to uninitialized/preserved _offset field, which is stored
+    # in Packet.fields_desc singletone
+    array_pkt = service.read_pcap(v_handler, TEST_DNS_PKT_B64)
+    pkt = build_pkt_to_scapy(array_pkt[0])
+    assert(pkt[DNS].id == 6159)
+    service._pkt_to_field_tree(pkt)
+
+def test_dns_pcap_read_and_write_multi():
+    pkt_b64 = bytes_to_b64(bytes(TEST_DNS_PKT))
+    pkts_to_write = [pkt_b64, pkt_b64]
+    pcap_b64 = service.write_pcap(v_handler, pkts_to_write)
+    array_pkt = service.read_pcap(v_handler, pcap_b64)
+    pkt = build_pkt_to_scapy(array_pkt[0])
+    assert(pkt[DNS].id == 6159)
+
 def test_build_pkt_details():
     pkt_data = build_pkt(TEST_PKT_DEF)
     pkt = build_pkt_to_scapy(pkt_data)
     assert(pkt[TCP].sport == 443)
-    ether = pkt_data['data'][0]
-    ip = pkt_data['data'][1]
-    tcp = pkt_data['data'][2]
+    [ether, ip, tcp] = pkt_data['data']
     assert(len(pkt_data["binary"]) == 72) #b64 encoded data
 
     # absolute frame offset
@@ -48,6 +73,27 @@ def test_build_pkt_details():
     assert(tcp_chksum["id"] == "chksum")
     assert(tcp_chksum["offset"] == 16)
     assert(tcp_chksum["length"] == 2)
+
+def test_reconstruct_dns_packet():
+    modif = [
+            {"id": "Ether"},
+            {"id": "IP"},
+            {"id": "UDP"},
+            {"id": "DNS", "fields": [{"id": "id", "value": 777}]},
+    ]
+    pkt_data = reconstruct_pkt(base64.b64encode(bytes(TEST_DNS_PKT)), modif)
+    pkt = build_pkt_to_scapy(pkt_data)
+    assert(pkt[DNS].id == 777)
+
+    [ether, ip, udp, dns] = pkt_data['data'][:4]
+
+    assert(ether['offset'] == 0)
+    assert(ip['offset'] == 14)
+    assert(dns['offset'] == 42)
+
+    dns_id = dns['fields'][0]
+    assert(dns_id["value"] == 777)
+    assert("offset" in dns_id)
 
 def test_build_invalid_structure_pkt():
     ether_fields = {"dst": TEST_MAC_1, "type": "LOOP"}
