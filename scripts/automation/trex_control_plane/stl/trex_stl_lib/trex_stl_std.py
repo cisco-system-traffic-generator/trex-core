@@ -86,7 +86,7 @@ def stl_send_3_pkts(client, ports = None):
     stream = STLStream(packet = base_pkt,
                        mode = STLTXSingleBurst(pps = 100000, total_pkts = 3))
 
-    client.remove_all_streams(ports)
+    client.reset(ports)
     client.add_streams(stream, ports)
     client.start(ports, mult = "5%")
     client.wait_on_traffic(ports)
