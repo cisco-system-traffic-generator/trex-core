@@ -34,8 +34,7 @@ class Field:
         self.default = self.any2i(None,default)
         self.sz = struct.calcsize(self.fmt)
         self.owners = []
-        self.offset =0;
-        self._offset =0
+        self._offset = 0
 
 
     def get_size_bytes (self):
