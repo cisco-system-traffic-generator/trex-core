@@ -30,14 +30,13 @@ per stream flow statistics and latency features. See detail link:trex_manual.htm
 * Support for QinQ packets in stateless per port statistics (if using new `--software` command line arg).
 * Support for all types of VIC cards (including ones will old firmware), using `--software`. Since we do not
   have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
-* GUI packet builder fix for variable length fields (e.g. DNS)
+* GUI  : packet builder scapy server fix for cases of packets with variable length fields (e.g. DNS)
 * ConnectX-4/5 support VF mode 
-* Performance trend report information is taken from ElasticSearch instead of Google analytics
-* STLVmFlowVarRepeatableRandom instruction - fix typo, add another instruction with the right name
+* Stateless STLVmFlowVarRepeatableRandom instruction - fix typo, add another instruction with the right name
 * Support vfio-pci in case it exists in the kernel (instead of igb_uio) to support Docker container without the need to compile the kernel module
-* TRex internal generated packets  (e.g. ARP/Ping) are captured now 
-* Support older Linux distribution for Client code (ZMQ share object can be loaded on older machine)
-
+* Capture TRex internal generated packets  (e.g. ARP/Ping) 
+* Support older Linux distribution for Python Client code (ZMQ share object can be loaded on older machine)
+* Performance trend report information is taken from ElasticSearch instead of Google analytics
 
 === Fixed issues: ===
 
