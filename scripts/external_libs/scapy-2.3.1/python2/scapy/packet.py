@@ -320,8 +320,8 @@ class Packet(BasePacket):
 
 
     def self_build(self, field_pos_list=None):
-        if self.raw_packet_cache is not None:
-            return self.raw_packet_cache
+        #if self.raw_packet_cache is not None:
+        #    return self.raw_packet_cache
         p=""
         for f in self.fields_desc:
             if type(p) is tuple :

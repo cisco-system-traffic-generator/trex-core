@@ -338,8 +338,8 @@ class Packet(BasePacket, metaclass = Packet_metaclass):
             print ("field %-40s %02d %02d" % (f.name, f._offset,f.get_size_bytes () ) );
 
     def self_build(self, field_pos_list=None):
-        if self.raw_packet_cache is not None:
-            return self.raw_packet_cache
+        #if self.raw_packet_cache is not None:
+        #    return self.raw_packet_cache
         p=b""
         for f in self.fields_desc:
             #print(f.name)

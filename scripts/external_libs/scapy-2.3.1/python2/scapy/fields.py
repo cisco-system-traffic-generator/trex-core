@@ -34,13 +34,16 @@ class Field:
         self.default = self.any2i(None,default)
         self.sz = struct.calcsize(self.fmt)
         self.owners = []
-        self.offset =0;
+        self._offset =0;
 
     def get_size_bytes (self):
         if  hasattr(self, 'size'): 
             return 0; # bitfield
         else:
             return self.sz
+
+    def get_size_bits(self):
+        return getattr(self, 'size', self.sz * 8)
 
     def register_owner(self, cls):
         self.owners.append(cls)
