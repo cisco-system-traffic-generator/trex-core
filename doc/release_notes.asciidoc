@@ -25,11 +25,12 @@ endif::backend-docbook[]
 
 == Release 2.21 ==
 
-* New command line arguments. ``--no-hw-flow-stat'', and ``--software'', for changing behavior of stateless
+* New command line arguments. `--no-hw-flow-stat`, and `--software`, for changing behavior of stateless
 per stream flow statistics and latency features. See detail link:trex_manual.html#_command_line_options[here].
-* Support for QinQ packets in stateless per port statistics (if using new ``--software'' command line arg).
-* Support for all types of VIC cards (including ones will old firmware), using ``--software''. Since we do not
+* Support for QinQ packets in stateless per port statistics (if using new `--software` command line arg).
+* Support for all types of VIC cards (including ones will old firmware), using `--software`. Since we do not
   have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
+* GUI packet builder fix for variable length fields (e.g. DNS)
 
 === Fixed issues: ===
 
@@ -38,6 +39,10 @@ per stream flow statistics and latency features. See detail link:trex_manual.htm
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-375[trex-375]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-377[trex-377]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-378[trex-378]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-369[trex-369]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-368[trex-368]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-366[trex-366]
+
 
 == Release 2.20 ==
 
