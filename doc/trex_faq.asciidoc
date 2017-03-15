@@ -557,7 +557,7 @@ always show N/A
 This is because on these card types, we use hardware counters (as opposed to counting in software in other card types).
 While this allows for counting of full 40G line rate streams, this does not allow for counting bytes (only packet
 count available), because the hardware on these NICs lacks this support.
-
+Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
 
 
 

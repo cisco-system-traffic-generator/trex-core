@@ -2826,21 +2826,25 @@ trex>
 * Implementation:
 ** User chooses 32-bit packet group ID (pg_id) for each stream that need statistic reporting. Same pg_id can be used for more than one stream. In this case, statistics for all streams with the same pg_id will be combined.
 ** The IPv4 identification  (or IPv6 flow label in case of IPv6 packet) field of the stream is changed to a value within the reserved range 0xff00 to 0xffff (0xff00 to 0xfffff in case of IPv6). Note that if a stream for which no statistics are needed has an IPv4 Id (or IPv6 flow label) in the reserved range, it is changed (the left bit becomes 0).
-** Software implementation: Hardware rules are used to direct packets from relevant streams to rx thread, where they are counted. 
+** Software implementation: Hardware rules are used to direct packets from relevant streams to rx threads, where they are counted. 
 ** Hardware implementation: Hardware rules are inserted to count packets from relevant streams.
 * Summed up statistics (per stream, per port) is sent using a link:http://zguide.zeromq.org/[ZMQ] async channel to clients.
 
 *Limitations*::
 
-* The feature supports following packet types:
-** IPv4 over Ethernet
-** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
-** IPv6 over Ethernet (except 82599 which does not support this type of packet)
-** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
+* The feature supports only following packet types.
+** IPv4 over Ethernet.
+** IPv4 with one VLAN tag (except 82599 which does not support this type of packet).
+** IPv6 over Ethernet (except 82599 which does not support this type of packet).
+** IPv6 with one VLAN tag (except 82599 which does not support this type of packet).
+** Since version 2.21, also QinQ (two vlan tags) is supported if using ``--software'' command line argument. Details link:trex_manual.html#_command_line_options[here].
 
 * Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
 * On x710/xl710 cards, all rx bytes counters (rx-bps, rx-bps-L1, ...) are not supported. This is because we use hardware
-counters which support only packets count on these cards.
+counters which support only packets count on these cards. +
+Starting from version 2.21, you can specify ``--no-hw-flow-stat'' command line argument in order to make x710 behave like other
+cards, and count statistics in software. This will enable RX byte count support, but will limit the total rate of streams
+we can count.
 
 Two examples follow, one using the console and the other using the Python API.
 
@@ -2913,6 +2917,8 @@ Streams Statistics
 <1> Tx bandwidth of the streams matches the configured values.
 <2> Rx bandwidth (999.29 pps) matches the Tx bandwidth (999.29 pps), indicating that there were no drops.
 <3> RX BPS is not supported on this platform (no hardware support for BPS), so TRex displays N/A.
+You can add ``--no-hw-flow-stat'' command line argument, in order to count everything in software, but max rate
+of streams that can be tracked will be lower.
 
 
 *Flow Stats Using The Python API*::
@@ -2998,7 +3004,9 @@ in the "Per stream statistics" section is also available.
 
 *Limitations*::
 
-* The feature supports following packet types:
+* The feature supports only following packet types (Unless using ``--software'' command line arg.
+See details link:trex_manual.html#_command_line_options[here]. Using this, *all* packet types are supported):
+
 ** IPv4 over Ethernet
 ** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
 ** IPv6 over Ethernet (except 82599 which does not support this type of packet)
@@ -3013,8 +3021,12 @@ in the "Per stream statistics" section is also available.
 
 [IMPORTANT]
 =====================================
-Latency streams are not supported in full line rate like normal streams. Both from, transmit and receive point of view. This is a design consideration to keep the latency measurement accurate and preserve CPU resource. One of the reason for doing so that in most cases it is enough to have a latency stream not in full rate. For example, if the required latency resolution is 10usec there is no need to send a latency stream in speed higher than 100KPPS- usually queues are built over time, so it is not possible that one packet will have a latency and another packet in the same path will not have the same latency. The none latency stream could be in full line rate (e.g. 100MPPS) to load the DUT while the low speed latency stream will measure this path latency. 
-Don't expect the total latency streams rate to be higher than 1-5MPPS 
+Latency streams are not supported in full line rate like normal streams. Both from transmit and receive point of view.
+This is a design consideration to keep the latency measurement accurate while preserving CPU resources.
+One of the reasons for doing so is that in most cases it is enough to have a latency stream in low rate. For example, if the required latency resolution is 10usec,
+there is no need to send latency stream in a speed higher than 100KPPS. Usually queues are built over time, so it is not possible that one packet will have
+latency and another packet in the same path will not have the same latency. The none latency streams could be in full line rate, to load the DUT, while the low speed latency streams will measure the latency of this path.
+Don't make the total rate of latency streams higher than 5MPPS.
 =====================================
 
 Two examples follow. One using the console and the other using the Python API.

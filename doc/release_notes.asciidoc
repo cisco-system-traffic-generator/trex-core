@@ -23,6 +23,22 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.21 ==
+
+* New command line arguments. ``--no-hw-flow-stat'', and ``--software'', for changing behavior of stateless
+per stream flow statistics and latency features. See detail link:trex_manual.html#_command_line_options[here].
+* Support for QinQ packets in stateless per port statistics (if using new ``--software'' command line arg).
+* Support for all types of VIC cards (including ones will old firmware), using ``--software''. Since we do not
+  have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-370[trex-370]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-373[trex-373]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-375[trex-375]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-377[trex-377]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-378[trex-378]
+
 == Release 2.20 ==
 
 * hotfix release add mlx-dpdk share objects to the package 
@@ -37,7 +53,7 @@ endif::backend-docbook[]
 * RX thread CPU% is not 100% all the time from this version 
 * Better handling of latency packets (case of fast start/stop)
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-364[trex-364]
@@ -64,7 +80,7 @@ WARNING: you must upgrade to OFED 4.0 even with ConnectX-4 cards
 * Stateless packet capture - ability to capture tx side  
 * mlx5 dpdk driver is share object. Reduce image OFED libs dependency
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-344[trex-344]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-269[trex-269]
@@ -74,7 +90,7 @@ WARNING: you must upgrade to OFED 4.0 even with ConnectX-4 cards
 
 * hotfix release 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
 
@@ -104,7 +120,7 @@ The Tutorial shows a little bit of our new packet capture ability
 which was released on v2.16
 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-258[trex-258]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-337[trex-337]
@@ -114,7 +130,7 @@ which was released on v2.16
 * XL710/X710 VF (SR-IOV) mode works better 
 * 599 VF mode is *not* supported 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-333[trex-333]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-331[trex-331]
@@ -130,7 +146,7 @@ which was released on v2.16
 * Fix Cluster mode breakage (v2.12-v2.13)
 * Stateless GUI v3.0 works with this version
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-319[trex-319]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-322[trex-322]
@@ -150,7 +166,7 @@ which was released on v2.16
 * RPC API version is 3.0 - New stateless GUI is required
 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-317[trex-317]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-282[trex-282]
@@ -187,7 +203,7 @@ Not setting the port information :
 ===========================
 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-257[trex-257]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[trex-265]
@@ -202,7 +218,7 @@ Not setting the port information :
 * Early support for Mellanox ConnectX-4 cards (100/50/25GbE) - based on contributions from Mellanox DPDK team see here for more info link:trex_manual.html#_mellanox_connectx_4_support[Mellanox ConnectX-4 Support]
 * Add support for Cisco VIC 1300 series adapter (40GbE)-  based on Cisco VIC DPDK team see link:trex_manual.html#_cisco_vic_support[Cisco VIC Support]
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-268[trex-268]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-267[trex-267]
@@ -226,7 +242,7 @@ See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and 
 ** Getting xstats names (can be polled once and then combined with updated values): link:trex_rpc_server_spec.html#_get_xstat_names[get_port_xstats_names]
 ** Getting xstats values: link:trex_rpc_server_spec.html#_get_xstat_values[get_port_xstats_values]
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-253[trex-253]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-212[trex-212]
@@ -241,7 +257,7 @@ See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and 
 * Support dual mode for push pcap/remote Python API. see here link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_remote[push_remote] and link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_pcap[push_pcap] Using this feature pcap can be splited to client/server ports
 * Add infra for L2 emulation support 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-243[trex-243] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-247[trex-247] 
@@ -267,7 +283,7 @@ $sudo ./dpdk_setup_ports.py -c 03:00.0 03:00.1 -o /etc/trex_cfg.yaml # create op
 * Add a way to stop/close NICS at TRex termination (link would be down) `-close-at-end`
 * IPv6 XL710 ICMP packets are supported now
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-240[trex-240] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-242[trex-242]
@@ -290,7 +306,7 @@ $sudo ./dpdk_setup_ports.py -c 03:00.0 03:00.1 -o /etc/trex_cfg.yaml # create op
 For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 =====================================
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-223[trex-223] 
@@ -309,7 +325,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 * TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
 * Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-229[trex-229] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-227[trex-227] 
@@ -318,7 +334,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 == Release 2.05  ==
 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-221] 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-220[trex-220] 
@@ -334,7 +350,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 * Ability to export core file 
 * Optimized the case of Latency stream, Field Engine and 9K template packets 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * XL710/X710 present high latency with 9K packets  link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
 * The latency seq number gets out of sync link:http://trex-tgn.cisco.com/youtrack/issue/trex-215[trex-215]
@@ -347,7 +363,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 * More accurate stateless latency/more TUI support
 * Speedup DPDK XL710 fdir driver
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Disconnect issue link:http://trex-tgn.cisco.com/youtrack/issue/trex-210[trex-210]
 
@@ -357,7 +373,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 * The python latency statistic is compatible to JSON for easy manipulation 
 * Add latency minimum value Python API taken from histogram 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Fix corruption of mbuf in case of with high rate latency stream. 
 
@@ -373,7 +389,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 * Update Stateless presentation link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Statelss presenation]
 * Stateful Python server API - Add support for iterator of remote file for Stateful GUI
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Performance issue, link:http://trex-tgn.cisco.com/youtrack/issue/trex-207[trex-207]
 * Sporadic timeout on wait_on_traffic() API see link:http://trex-tgn.cisco.com/youtrack/issue/trex-209[trex-209] 
@@ -391,7 +407,7 @@ For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
 
 image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600, link="images/trex_stl_gui.png"]
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * X710/XL710 per stream hardware stats 
 ** link:http://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
@@ -407,7 +423,7 @@ image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600
 * The Client package includes Console/examples 
 * Client API verification mechanism. The client should match the server version range 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]
 * Python2/Python3 client API hardening 
@@ -435,7 +451,7 @@ image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600
 ** Update per stream statistic documentation see link:draft_trex_stateless.html#_tutorial_per_stream_statistics[per stream statistic] 
 ** Update HLTAPI arguments link:draft_trex_stateless.html#_hlt_supported_arguments_a_id_altapi_support_a[HLTAPI] 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Per stream statistic - Fix High speed of start/stop of  giving zero in statistics
 * Fix E1000 DPDK driver prints with ESXi
@@ -489,7 +505,7 @@ class STLS1(object):
 * HLT fixes and support split_by variable 
 * First phase of per stream rx/tx statistic - XL710/X710 hardware support
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Fix some typo in Python API stl/example folder 
 * Fix Field Engine IPv4 checksum issue with big packet size  
@@ -621,7 +637,7 @@ TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps
 
 * Basic Python HLTAPI support 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * Dependent streams (e.g. `stl/burst_1000_pkt.yaml`) can be loaded 
 
@@ -657,7 +673,7 @@ TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps
 ** Console/Python API can be call from Cisco CEL now (ZMQ Python library is compiled to an old glibc)
 ** Add simulator for stateless 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * The infamous DPDK error is not seen in case of a wrong core argument see here link:http://trex-tgn.cisco.com/youtrack/issue/trex-147[trex-147] 
 
@@ -682,7 +698,7 @@ TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps
 ** R/W support. only one client has R/W capability 
 * XL710/X710 support ICMP filter 
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/trex-110[trex-110]
 
@@ -693,7 +709,7 @@ TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps
 ** change the JSON-RPC result format 
 * Support for specifying different modes for the packets used for latency measurement. Details link:trex_manual.html#_measure_jitter_latency[here].
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * link:http://trex-tgn.cisco.com/youtrack/issue/trex-149[trex-149]
 
@@ -717,7 +733,7 @@ TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps
 * some clean up in tuple generator 
 * trex stateles console works with trex-mock
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 Python API fixup see here  
 
@@ -734,7 +750,7 @@ Check for 64bit Kernel
 
 == Release 1.76  ==
 
-=== fix issues: ===
+=== Fixed issues: ===
 
 * minor pcap loader issues  
 * plugin cleanup 

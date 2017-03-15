@@ -1631,6 +1631,11 @@ This is an advance configuration, don't use it if you don't know what you are do
 
 anchor:cml-line[]
 
+*--active-flows*::
+    An experimental switch to scale up or down the number of active flows.
+    It is not accurate due to the quantization of flow scheduler and in some cases does not work.
+    Example: --active-flows 500000 wil set the ballpark of the active flows to be ~0.5M.
+
 *--allow-coredump*::
 Allow creation of core dump.
 
@@ -1708,7 +1713,12 @@ This can be used to verify port connectivity. You can send packets from one port
     By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong. 
 
 *--no-flow-control-change*::
-  Prevents TRex from changing flow control. By default (without this option), TRex disables flow control at startup for all cards, except for the Intel XL710 40G card.
+    Since version 2.21. +
+    Prevents TRex from changing flow control. By default (without this option), TRex disables flow control at startup for all cards, except for the Intel XL710 40G card.
+
+*--no-hw-flow-stat*::
+    Relevant only for Intel x710 stateless mode. Do not use HW counters for flow stats. +
+    Enabling this will support lower traffic rate, but will also report RX byte count statistics.
 
 *--no-key*:: Daemon mode, don't get input from keyboard.
 
@@ -1731,6 +1741,14 @@ based routes to pass all traffic from one DUT port to the other. +
         Enable Rx check module. Using this, each thread randomly samples 1/sample_rate of the flows and checks packet order, latency, and additional statistics for the sampled flows.
         Note: This feature works on the RX thread.
 
+*--software*::
+    Since version 2.21. +
+    Do not configure any hardware rules. In this mode, all RX packets will be processed by software. No HW assist for dropping (while counting) packets will be used.
+    This mode is good for enabling features like link:trex_stateless.html#_tutorial_per_stream_statistics[per stream statistics], and
+    link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[latency], support packet types, not supported by HW flow director rules (For example QinQ).
+    Drawback of this is that because software has to handle all received packets, total rate of RX streams is significantly lower.
+    Currently, this mode is also limited to using only one TX core (and one RX core as usual).
+
 *-v <verbosity level>*::
    Show debug info. Value of 1 shows debug info on startup. Value of 3, shows debug info during run at some cases. Might slow down operation.
 
@@ -1739,11 +1757,6 @@ based routes to pass all traffic from one DUT port to the other. +
 
 *-w <num seconds>*::
    Wait additional time between NICs initialization and sending traffic. Can be useful if DUT needs extra setup time. Default is 1 second.
-
-*--active-flows*::            
-    An experimental switch to scale up or down the number of active flows.
-    It is not accurate due to the quantization of flow scheduler and in some case does not work. 
-    Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M 
 
 
 ifndef::backend-docbook[]
@@ -2950,11 +2963,16 @@ Checking for library ibverbs             : yes
 
 anchor:ciscovic_support[]
 
-* Supported from TRex version v2.12
-* Only 1300 series Cisco adapter supported
-* Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
-* Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
-* The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
+* Supported from TRex version v2.12.
+* Since version 2.21, all VIC card types supported by DPDK are supported by TRex, using ``--software'' command line argument.
+Notice that if using ``--software'', no HW assist is used, causing supported packet rate to be much lower.
+Since we do not have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
+
+* If not using ``--software'', following limitations apply:
+** Only 1300 series Cisco adapter supported.
+** Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
+** Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
+** The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
         RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
         RTE_ETH_FLOW_NONFRAG_IPV4_SCTP
         RTE_ETH_FLOW_NONFRAG_IPV6_UDP
