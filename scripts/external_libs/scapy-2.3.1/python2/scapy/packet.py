@@ -320,8 +320,6 @@ class Packet(BasePacket):
 
 
     def self_build(self, field_pos_list=None):
-        #if self.raw_packet_cache is not None:
-        #    return self.raw_packet_cache
         p=""
         for f in self.fields_desc:
             if type(p) is tuple :
@@ -339,7 +337,8 @@ class Packet(BasePacket):
                 f._offset= val
             else:
                 p = f.addfield(self, p, val)
-                
+        if self.raw_packet_cache is not None:
+            assert p == self.raw_packet_cache, 'Could not build the packet.'
         return p
 
     def do_build_payload(self):
