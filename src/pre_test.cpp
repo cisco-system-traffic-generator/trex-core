@@ -211,6 +211,9 @@ void CPretestOnePortInfo::send_arp_req_all() {
         if (verbose >= 3) {
             fprintf(stdout, "TX ARP request on port %d - " , m_port_id);
             (*it)->dump(stdout, "");
+            if (verbose >= 7) {
+                utl_DumpBuffer(stdout, p, rte_pktmbuf_pkt_len(m[0]), 0);
+            }
         }
 
         num_sent = rte_eth_tx_burst(m_port_id, 0, m, 1);
@@ -387,7 +390,7 @@ bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_
         if (m_ether->getVlanProtocol() != EthernetHeader::Protocol::ARP) {
             return false;
         } else {
-            vlan_tag = m_ether->getVlanTag();
+            vlan_tag = m_ether->getVlanTag() & 0xfff;
             arp = (ArpHdr *)(p + 18);
         }
     }
@@ -428,6 +431,8 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                 , ip_to_str(ntohl(arp->m_arp_sip)).c_str()
                                 , ip_to_str(ntohl(arp->m_arp_tip)).c_str()
                                 , vlan_tag);
+                        if (verbose >= 7)
+                            utl_DumpBuffer(stdout, p, rte_pktmbuf_pkt_len(m), 0);
                     }
                     // is this request for our IP?
                     COneIPv4Info *src_addr;

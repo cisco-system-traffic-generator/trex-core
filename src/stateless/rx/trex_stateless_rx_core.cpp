@@ -175,7 +175,7 @@ void CRxCoreStateless::hot_state_loop() {
  * 
  */
 void CRxCoreStateless::cold_state_loop() {
-    const uint32_t COLD_LIMIT_ITER = 1000;
+    const uint32_t COLD_LIMIT_ITER = 10000000;
     const uint32_t COLD_SLEEP_MS  = 10;
 
     int counter = 0;

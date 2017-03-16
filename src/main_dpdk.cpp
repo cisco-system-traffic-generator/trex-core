@@ -185,9 +185,16 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
+    virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
+        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
+    }
     virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
         p.rx_data_q_num = 1;
-        p.rx_drop_q_num = 1;
+        if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
+            p.rx_drop_q_num = 0;
+        } else {
+            p.rx_drop_q_num = 1;
+        }
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         p.tx_desc_num = TX_DESC_NUM;
@@ -256,7 +263,10 @@ public:
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         p.tx_desc_num = TX_DESC_NUM;
     }
-
+    virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
+        // In VMs there is usually less memory available
+        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
+    }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
@@ -867,7 +877,7 @@ static int usage(){
     printf(" -s                         : Single core. Run only one data path core. For debug \n");
     printf(" --send-debug-pkt <proto>   : Do not run traffic generator. Just send debug packet and dump receive queues \n");
     printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
-    printf(" --software                 : Do not configure any hardare rules. In this mode we used 1 core, and one RX queue and one TX queue per port\n");
+    printf(" --software                 : Do not configure any hardware rules. In this mode we use 1 core, and one RX queue and one TX queue per port\n");
     printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
@@ -5114,7 +5124,7 @@ void CPhyEthIF::conf_queues() {
             // Only 1 rx queue, so use it for everything
             g_trex.m_rx_core_tx_q_id = 0;
             rx_queue_setup(0, dpdk_p.rx_desc_num_data_q, socket_id, &g_trex.m_port_cfg.m_rx_conf,
-                           CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+                           get_ex_drv()->get_rx_mem_pool(socket_id));
             set_rx_queue(0);
         } else {
             // no drop q. Many rcv queues. RSS mode.

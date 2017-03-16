@@ -257,6 +257,8 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     }
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan)) {
         mac_info.m_vlan = 0;
+    } else {
+        mac_info.m_vlan &= 0x0fff; // we only care about the vlan ID
     }
 }
 

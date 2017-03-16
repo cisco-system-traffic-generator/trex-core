@@ -1388,7 +1388,7 @@ static inline bool get_is_rx_filter_enable(){
     uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
     return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0
                || get_is_stateless()) &&  ((CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_RSS)
-                                           || (CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_ONE_QUEUE))
+                                           && (CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_ONE_QUEUE))
              ?true:false );
 }
 static inline uint16_t get_rx_check_hops() {
