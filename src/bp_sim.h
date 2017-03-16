@@ -654,6 +654,14 @@ public:
         return (btGetMaskBit32(m_flags1, 11, 11) ? true : false);
     }
 
+    void set_mlx4_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 12, 12, (enable ? 1 : 0) );
+    }
+
+    bool get_mlx4_so_mode() {
+        return (btGetMaskBit32(m_flags1, 12, 12) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 

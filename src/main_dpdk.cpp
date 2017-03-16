@@ -121,6 +121,7 @@ static char global_prefix_str[100];
 static char global_loglevel_str[20];
 static char global_master_id_str[10];
 static char global_mlx5_so_id_str[50];
+static char global_mlx4_so_id_str[50];
 static char global_image_postfix[10];
 #define TREX_NAME "_t-rex-64"
 
@@ -730,6 +731,7 @@ enum { OPT_HELP,
        OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
+       OPT_MLX4_SO,
        OPT_MLX5_SO
 };
 
@@ -790,6 +792,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
+        { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
@@ -985,6 +988,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_MLX5_SO:
                 po->preview.set_mlx5_so_mode(true);
+                break;
+
+            case OPT_MLX4_SO:
+                po->preview.set_mlx4_so_mode(true);
                 break;
 
             case OPT_LEARN :
@@ -5564,6 +5571,12 @@ int  update_dpdk_args(void){
         global_dpdk_args[global_dpdk_args_num++]=(char *)"-d";
         snprintf(global_mlx5_so_id_str, sizeof(global_mlx5_so_id_str), "libmlx5-64%s.so",global_image_postfix );
         global_dpdk_args[global_dpdk_args_num++]=(char *)global_mlx5_so_id_str;
+    }
+
+    if ( CGlobalInfo::m_options.preview.get_mlx4_so_mode() ){
+        global_dpdk_args[global_dpdk_args_num++]=(char *)"-d";
+        snprintf(global_mlx4_so_id_str, sizeof(global_mlx4_so_id_str), "libmlx4-64%s.so",global_image_postfix );
+        global_dpdk_args[global_dpdk_args_num++]=(char *)global_mlx4_so_id_str;
     }
 
     global_dpdk_args[global_dpdk_args_num++]=(char *)"-c";

@@ -533,12 +533,21 @@ mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/mlx5/mlx5_vlan.c',
             ]);
 
+mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
+                src_list=[
+                 'drivers/net/mlx4/mlx4.c',
+            ]);
+
 bp_dpdk =SrcGroups([
                 dpdk_src
                 ]);
 
 mlx5_dpdk =SrcGroups([
                 mlx5_dpdk_src
+                ]);
+
+mlx4_dpdk =SrcGroups([
+                mlx4_dpdk_src
                 ]);
 
 
@@ -821,8 +830,14 @@ class build_option:
     def get_mlx5_target (self):
         return self.update_executable_name("mlx5");
 
+    def get_mlx4_target (self):
+        return self.update_executable_name("mlx4");
+
     def get_mlx5so_target (self):
         return self.update_executable_name("libmlx5")+'.so';
+
+    def get_mlx4so_target (self):
+        return self.update_executable_name("libmlx4")+'.so';
 
     def get_common_flags (self):
         if self.isPIE():
@@ -917,7 +932,18 @@ def build_prog (bld, build_obj):
     
           source   = mlx5_dpdk.file_list(top),
           target   = build_obj.get_mlx5_target() 
+        )
+
+        bld.shlib(
+        features='c',
+        includes = dpdk_includes_path+dpdk_includes_verb_path,
+        cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+        use =['ibverbs'],
+        source   = mlx4_dpdk.file_list(top),
+        target   = build_obj.get_mlx4_target() 
        )
+
+        
 
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
@@ -985,6 +1011,11 @@ def install_single_system (bld, exec_p, build_obj):
     src_mlx_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
     dest_mlx_file = exec_p + build_obj.get_mlx5so_target()
     do_create_link(src_mlx_file,dest_mlx_file,exec_p);
+
+    src_mlx4_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
+    dest_mlx4_file = exec_p + build_obj.get_mlx4so_target()
+    do_create_link(src_mlx4_file,dest_mlx4_file,exec_p);
+
 
 
 
@@ -1080,6 +1111,15 @@ def _copy_single_system2 (bld, exec_p, build_obj):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
+def _copy_single_system3 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
+    print(src_file)
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_mlx4so_target()
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
 
 def copy_single_system (bld, exec_p, build_obj):
     _copy_single_system (bld, exec_p, build_obj)
@@ -1089,6 +1129,9 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 def copy_single_system2 (bld, exec_p, build_obj):
     _copy_single_system2 (bld, exec_p, build_obj)
+
+def copy_single_system3 (bld, exec_p, build_obj):
+    _copy_single_system3 (bld, exec_p, build_obj)
 
 
 files_list=[
@@ -1206,6 +1249,7 @@ def release(bld, custom_dir = None):
         copy_single_system(bld,exec_p,obj)
         copy_single_system1(bld,exec_p,obj)
         copy_single_system2(bld,exec_p,obj)
+        copy_single_system3(bld,exec_p,obj)
 
     for obj in files_list:
         src_file =  '../scripts/'+obj
