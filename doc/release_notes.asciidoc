@@ -23,6 +23,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.22 ==
+
+* hotfix for software mode 
+
 == Release 2.21 ==
 
 * New command line arguments. `--no-hw-flow-stat`, and `--software`, for changing behavior of stateless
