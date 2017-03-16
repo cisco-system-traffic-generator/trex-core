@@ -14,7 +14,6 @@ def check_offsets(build, stdout, scapy_str = None, pcap = None):
             del sys.modules[key]
     globals().clear()
 
-    import os
     import outer_packages
     from scapy.all import Ether, IP, UDP
 
@@ -59,7 +58,7 @@ def check_offsets(build, stdout, scapy_str = None, pcap = None):
 
 def isolate_env(f, *a, **k):
     with tempfile.TemporaryFile(mode = 'w+') as tmpfile:
-        k.update({'stdout': tmpfile})
+        k['stdout'] = tmpfile
         p = Process(target = f, args = a, kwargs = k)
         p.start()
         p.join()
