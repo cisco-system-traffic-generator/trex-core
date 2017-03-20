@@ -19,6 +19,7 @@ linux/.waf*
 linux/build*
 linux/version*
 scripts/_t-rex-*
+scripts/*.so
 scripts/bp-sim-*
 scripts/doc/*
 scripts/mock-*
