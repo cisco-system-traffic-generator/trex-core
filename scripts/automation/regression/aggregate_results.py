@@ -261,7 +261,7 @@ if __name__ == '__main__':
 
     scenario                = os.environ.get('SCENARIO')
     build_url               = os.environ.get('BUILD_URL')
-    build_id                = os.environ.get('BUILD_ID')
+    build_id                = os.environ.get('BUILD_NUM')
     trex_repo               = os.environ.get('TREX_CORE_REPO')
     last_commit_info_file   = os.environ.get('LAST_COMMIT_INFO')
     last_commit_branch_file = os.environ.get('LAST_COMMIT_BRANCH')
@@ -272,7 +272,7 @@ if __name__ == '__main__':
     if not build_url:
         print('Warning: no environment variable BUILD_URL')
     if not build_id:
-        print('Warning: no environment variable BUILD_ID')
+        print('Warning: no environment variable BUILD_NUM')
     if not python_ver:
         print('Warning: no environment variable PYTHON_VER')
 

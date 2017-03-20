@@ -458,7 +458,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         elk_info['info'] =info;
 
         elk_info['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")  # need to update it
-        elk_info['build_id'] = os.environ.get('BUILD_ID')
+        elk_info['build_id'] = os.environ.get('BUILD_NUM')
         elk_info['scenario'] = os.environ.get('SCENARIO')
 
         CTRexScenario.elk_info = elk_info
