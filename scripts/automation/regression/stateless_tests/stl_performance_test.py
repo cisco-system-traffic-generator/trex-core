@@ -62,7 +62,7 @@ class PerformanceReport(object):
                           SetupName = self.machine_name,
                           TestType = 'performance',
                           Mppspc = self.avg_mpps_per_core,
-                          ActionNumber = os.getenv("BUILD_ID","n/a"),
+                          ActionNumber = os.getenv("BUILD_NUM","n/a"),
                           GoldenMin = golden_mpps['min'],
                           GoldenMax = golden_mpps['max'])
 
