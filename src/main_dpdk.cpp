@@ -139,8 +139,6 @@ protected:
         TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
         /* Mellanox driver does not work well with the DPDK port reorder we do */
         TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE = 0x8,
-        // Does driver support flow control change
-        TREX_DRV_FLOW_CTRL_CHG = 0x10,
     } trex_drv_cap;
 
 public:
@@ -163,9 +161,6 @@ public:
         // Since only Mellanox does not support, logic here is reveresed compared to other flags.
         // Put this only if not supported.
         return ((m_cap & TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE) == 0);
-    }
-    bool flow_ctrl_chg_supp() {
-        return ((m_cap & TREX_DRV_FLOW_CTRL_CHG) != 0);
     }
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
@@ -210,7 +205,7 @@ class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
 public:
     CTRexExtendedDriverBase1G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -312,7 +307,7 @@ class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverI40evf(){
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
-        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 4, 4);
@@ -328,7 +323,7 @@ class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
 public:
     CTRexExtendedDriverIxgbevf(){
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
-        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
     virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         get_extended_stats_fixed(_if, stats, 4, 4);
@@ -358,7 +353,7 @@ public:
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -398,8 +393,7 @@ public:
         // If we want to support more counters in case of card having less interfaces, we
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN
-            | TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -463,7 +457,7 @@ private:
 class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
-        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(uint8_t port_id) {
@@ -510,8 +504,7 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG
-            | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE | TREX_DRV_FLOW_CTRL_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE;
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
     }
 
@@ -3786,8 +3779,7 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->start();
         _if->configure_rx_duplicate_rules();
 
-        if ( get_ex_drv()->flow_ctrl_chg_supp()
-             && ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
+        if ( ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
              && _if->get_port_attr()->is_fc_change_supported()) {
             _if->disable_flow_control();
         }
