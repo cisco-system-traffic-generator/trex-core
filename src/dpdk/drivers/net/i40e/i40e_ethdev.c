@@ -1399,6 +1399,14 @@ eth_i40e_dev_uninit(struct rte_eth_dev *dev)
 	dev->rx_pkt_burst = NULL;
 	dev->tx_pkt_burst = NULL;
 
+#ifdef TREX_PATCH
+    // return removed in DPDK 17.02 disable of lldp
+	/* Disable LLDP */
+	ret = i40e_aq_stop_lldp(hw, true, NULL);
+	if (ret != I40E_SUCCESS) /* Its failure can be ignored */
+		PMD_INIT_LOG(INFO, "Failed to stop lldp");
+#endif
+
 	/* Clear PXE mode */
 	i40e_clear_pxe_mode(hw);
 
@@ -9948,6 +9956,14 @@ i40e_dcb_init_configure(struct rte_eth_dev *dev, bool sw_dcb)
 	 * LLDP MIB change event.
 	 */
 	if (sw_dcb == TRUE) {
+
+#ifdef TREX_PATCH
+        // return removed in DPDK 17.02 disable of lldp
+		ret = i40e_aq_stop_lldp(hw, TRUE, NULL);
+		if (ret != I40E_SUCCESS)
+			PMD_INIT_LOG(DEBUG, "Failed to stop lldp");
+#endif
+
 		ret = i40e_init_dcb(hw);
 		/* If lldp agent is stopped, the return value from
 		 * i40e_init_dcb we expect is failure with I40E_AQ_RC_EPERM
