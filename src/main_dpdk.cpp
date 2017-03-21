@@ -5997,7 +5997,7 @@ void CTRexExtendedDriverBase::wait_after_link_up() {
 }
 
 CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParser();
+    CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
 }
@@ -6551,8 +6551,10 @@ int CTRexExtendedDriverBase10G::wait_for_stable_link(){
 }
 
 CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
-    CFlowStatParser *parser = new C82599Parser((CGlobalInfo::m_options.preview.get_vlan_mode()
-                                                != CPreviewMode::VLAN_MODE_NONE) ? true:false);
+    CFlowStatParser *parser = new CFlowStatParser((CGlobalInfo::m_options.preview.get_vlan_mode()
+                                                   != CPreviewMode::VLAN_MODE_NONE)
+                                                  ? CFlowStatParser::FLOW_STAT_PARSER_MODE_82599_vlan
+                                                  : CFlowStatParser::FLOW_STAT_PARSER_MODE_82599);
     assert (parser);
     return parser;
 }
@@ -6874,7 +6876,7 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(int port_id) {
 }
 
 CFlowStatParser *CTRexExtendedDriverBase40G::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParser();
+    CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
 }
@@ -7070,7 +7072,7 @@ int CTRexExtendedDriverBaseMlnx5G::wait_for_stable_link(){
 }
 
 CFlowStatParser *CTRexExtendedDriverBaseMlnx5G::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParser();
+    CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
 }
@@ -7257,7 +7259,7 @@ int CTRexExtendedDriverBaseVIC::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
 }
 
 CFlowStatParser *CTRexExtendedDriverBaseVIC::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParser();
+    CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
 }
@@ -7291,7 +7293,7 @@ int CTRexExtendedDriverVirtBase::wait_for_stable_link(){
 }
 
 CFlowStatParser *CTRexExtendedDriverVirtBase::get_flow_stat_parser() {
-    CFlowStatParser *parser = new CFlowStatParserSW();
+    CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     assert (parser);
     return parser;
 }

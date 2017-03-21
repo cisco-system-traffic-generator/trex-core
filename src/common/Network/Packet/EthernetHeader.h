@@ -82,10 +82,7 @@ public:
     // Retrieve VLAN fields for tag and protocol information
     inline  uint16_t getVlanTag ();
     inline  uint16_t getVlanProtocol ();
-    inline  uint16_t getQinQTag ();
-    inline  uint16_t getQinQProtocol ();
     void    dump                (FILE*  fd);
-
 
 public:
     MacAddress          myDestination;
@@ -94,8 +91,6 @@ private:
     uint16_t              myProtocol;
     uint16_t              myVlanTag;
     uint16_t              myVlanProtocol;
-    uint16_t            myQinQTag;
-    uint16_t            myQinQProtocol;
 };
 
 #include "EthernetHeader.inl"

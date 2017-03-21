@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -263,7 +263,8 @@ public:
     int get_active_pgids(flow_stat_active_t &result) const {return 0;}
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
-    CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
+    CFlowStatParser *get_flow_stat_parser() const {
+        return new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);}
     TRexPortAttr *getPortAttrObj(uint8_t port_id) const {return m_port_attr;}
 
     void mark_for_shutdown() const {}

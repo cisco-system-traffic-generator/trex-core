@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -45,8 +45,12 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     // ASA 1
     //        uint8_t dst_mac[6] = {0xd4, 0x8c, 0xb5, 0xc9, 0x54, 0x2b};
     //      uint8_t src_mac[6] = {0xa0, 0x36, 0x9f, 0x38, 0xa4, 0x0};
-    if (flags & DPF_VLAN) {
-        l2_proto = 0x0081;
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
+        if (flags & DPF_QINQ) {
+            l2_proto = htons(EthernetHeader::Protocol::QINQ);
+        } else {
+            l2_proto = htons(EthernetHeader::Protocol::VLAN);
+        }
     } else {
         l2_proto = htons(l3_type);
     }
@@ -106,7 +110,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
 
     pkt_size = 14;
 
-    if (flags & DPF_VLAN) {
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
         pkt_size += 4;
         if (flags & DPF_QINQ) {
             pkt_size += 4;
@@ -159,8 +163,10 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     memcpy(p, src_mac, sizeof(src_mac)); p += sizeof(src_mac);
     memcpy(p, &l2_proto, sizeof(l2_proto)); p += sizeof(l2_proto);
 
-    if (flags & DPF_VLAN) {
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
         if (flags & DPF_QINQ) {
+            uint16_t vlan_type = htons(EthernetHeader::Protocol::VLAN);
+            memcpy(&vlan_header2[2], &vlan_type, sizeof(vlan_type));
             memcpy(p, &vlan_header2, sizeof(vlan_header2)); p += sizeof(vlan_header2);
         }
 

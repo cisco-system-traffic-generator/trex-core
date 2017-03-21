@@ -37,13 +37,3 @@ inline uint16_t EthernetHeader::getVlanTag()
 {
     return( PKT_HTONS(myVlanTag));
 }
-
-inline uint16_t EthernetHeader::getQinQProtocol()
-{
-    return( PKT_HTONS(myQinQProtocol));
-}
-
-inline uint16_t EthernetHeader::getQinQTag()
-{
-    return( PKT_HTONS(myQinQTag));
-}

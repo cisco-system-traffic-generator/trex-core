@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2015-2016 Cisco Systems, Inc.
+  Copyright (c) 2015-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -500,7 +500,7 @@ void CFlowStatRuleMgr::create() {
     if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
         || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
         set_mode(FLOW_STAT_MODE_PASS_ALL);
-        m_parser_ipid = new CFlowStatParserSW;
+        m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
         m_parser_pl = new CPassAllParser;
     } else {
         m_parser_ipid = m_api->get_flow_stat_parser();
@@ -523,25 +523,14 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
     std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << " en:";
     std::cout << stream->m_rx_check.m_enabled << std::endl;
 #endif
+    CFlowStatParser_err_t ret = parser->parse(stream->m_pkt.binary, stream->m_pkt.len);
 
-    if (parser->parse(stream->m_pkt.binary, stream->m_pkt.len) != 0) {
+    if (ret != FSTAT_PARSER_E_OK) {
         // if we could not parse the packet, but no stat count needed, it is probably OK.
         if (stream->m_rx_check.m_enabled) {
-            throw TrexFStatEx("Failed parsing given packet for flow stat. Please consult the manual for supported packet types for flow stat."
-                              , TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+            throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
         } else {
             return 0;
-        }
-    }
-
-    if (!parser->is_stat_supported()) {
-        if (! stream->m_rx_check.m_enabled) {
-            // flow stat not needed. Do nothing.
-            return 0;
-        } else {
-            // flow stat needed, but packet format is not supported
-            throw TrexFStatEx("Unsupported packet format for flow stat on given interface type"
-                              , TrexException::T_FLOW_STAT_UNSUPP_PKT_FORMAT);
         }
     }
 
@@ -964,7 +953,7 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
     case FLOW_STAT_MODE_PASS_ALL:
         delete m_parser_ipid;
         delete m_parser_pl;
-        m_parser_ipid = new CFlowStatParserSW;
+        m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
         m_parser_pl = new CPassAllParser;
         break;
     case FLOW_STAT_MODE_NORMAL:

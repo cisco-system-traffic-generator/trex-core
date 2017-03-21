@@ -54,7 +54,7 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
 
 void 
 RXLatency::handle_pkt(const rte_mbuf_t *m) {
-    CFlowStatParserSW parser;
+    CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
 
     if (m_rcv_all ||  (ret == 0)) {
