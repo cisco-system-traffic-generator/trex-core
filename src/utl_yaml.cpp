@@ -43,7 +43,7 @@ bool utl_yaml_read_ip_addr(const YAML::Node& node,
             res=true;
         }else{
             printf(" Error: non valid ip %s \n",(char *)tmp.c_str());
-            exit(-1);
+            exit(1);
         }
     }
     return (res);
@@ -58,6 +58,21 @@ bool utl_yaml_read_uint32(const YAML::Node& node,
         res=true;
     }
     return (res);
+}
+
+bool utl_yaml_read_uint16(const YAML::Node& node,
+                          const std::string &name,
+                          uint16_t & val, uint16_t min, uint16_t max) {
+    bool res = utl_yaml_read_uint16(node, name, val);
+
+    if ((val < min) || (val > max)) {
+        fprintf(stderr
+                , "Parsing error: value of field '%s' must be between %d and %d\n"
+                , name.c_str(), min, max);
+        exit(1);
+    }
+
+    return res;
 }
 
 bool utl_yaml_read_uint16(const YAML::Node& node,

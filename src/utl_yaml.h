@@ -6,7 +6,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,17 +28,21 @@ limitations under the License.
 
 
 /* static methods - please prefer the wrapper over those */
-bool utl_yaml_read_ip_addr(const YAML::Node& node, 
+bool utl_yaml_read_ip_addr(const YAML::Node& node,
                            const std::string &name,
                            uint32_t & val);
 
-bool utl_yaml_read_uint32(const YAML::Node& node, 
+bool utl_yaml_read_uint32(const YAML::Node& node,
                           const std::string &name,
                           uint32_t & val);
 
-bool utl_yaml_read_uint16(const YAML::Node& node, 
+bool utl_yaml_read_uint16(const YAML::Node& node,
                           const std::string &name,
                           uint16_t & val);
+
+bool utl_yaml_read_uint16(const YAML::Node& node,
+                          const std::string &name,
+                          uint16_t & val, uint16_t min, uint16_t max);
 
 bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac);
 
@@ -51,7 +55,7 @@ public:
 
     /**
      * loads the file (while parsing it)
-     * 
+     *
      */
     void load(YAML::Node &root);
 
@@ -76,7 +80,7 @@ public:
     void parse_err(const std::string &err, const YAML::Node &node) const;
     void parse_err(const std::string &err) const;
 
-    
+
 private:
     std::string m_filename;
 };
