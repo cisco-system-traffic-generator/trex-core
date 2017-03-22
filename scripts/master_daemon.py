@@ -56,6 +56,7 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
             unpacked_dirs.append(tmp_file)
     if len(unpacked_dirs) != 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
+    os.chmod(unpacked_dirs[0], 0o777) # allow core dumps to be written
     cur_dir = args.trex_dir
     if os.path.islink(cur_dir) or os.path.isfile(cur_dir):
         os.unlink(cur_dir)
