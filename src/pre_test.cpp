@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <common/Network/Packet/EthernetHeader.h>
 #include <common/Network/Packet/Arp.h>
+#include "common/Network/Packet/VLANHeader.h"
 #include "common/basic_utils.h"
 #include "bp_sim.h"
 #include "main_dpdk.h"
@@ -378,24 +379,40 @@ void CPretest::send_grat_arp_all() {
 bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_t &vlan_tag) {
     EthernetHeader *m_ether = (EthernetHeader *)p;
     vlan_tag = 0;
+    uint16_t min_size = sizeof(EthernetHeader);
+    VLANHeader *vlan;
 
-    if ((pkt_size < sizeof(EthernetHeader)) ||
-        ((m_ether->getNextProtocol() != EthernetHeader::Protocol::ARP)
-         && (m_ether->getNextProtocol() != EthernetHeader::Protocol::VLAN)))
+    if (pkt_size < min_size)
         return false;
 
-    if (m_ether->getNextProtocol() == EthernetHeader::Protocol::ARP) {
+    switch(m_ether->getNextProtocol()) {
+    case EthernetHeader::Protocol::ARP:
         arp = (ArpHdr *)(p + 14);
-    } else {
-        if (m_ether->getVlanProtocol() != EthernetHeader::Protocol::ARP) {
+        min_size += sizeof(ArpHdr);
+        break;
+    case EthernetHeader::Protocol::VLAN:
+        vlan = (VLANHeader *)(p + 14);
+
+        min_size += sizeof(VLANHeader);
+        if (pkt_size < min_size)
+            return false;
+
+        if (vlan->getNextProtocolHostOrder() != EthernetHeader::Protocol::ARP) {
             return false;
         } else {
-            vlan_tag = m_ether->getVlanTag() & 0xfff;
-            arp = (ArpHdr *)(p + 18);
+            vlan_tag = vlan->getVlanTag();
+            arp = (ArpHdr *)(p + 14 + sizeof(VLANHeader));
         }
+        min_size += sizeof(ArpHdr);
+        break;
+    default:
+        return false;
     }
 
-    return true;
+    if (pkt_size < min_size)
+        return false;
+    else
+        return true;
 }
 
 int CPretest::handle_rx(int port_id, int queue_id) {
