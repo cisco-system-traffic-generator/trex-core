@@ -18,7 +18,7 @@ def main(verbose=False, source='elk', detailed_test_stats='yes'):
         response = ac.get_report(analytics, start_date, current_date)
         all_data_dict, setups = ac.export_to_tuples(response)
     if source == 'elk':
-        elk_manager = ec.ELKManager(hostname='sceasr-b20', index='trex_perf-000004', port=9200)
+        elk_manager = ec.ELKManager(hostname='sceasr-b20', index='trex_perf-*', port=9200)
         all_data_dict = elk_manager.fetch_and_parse()
     dest_path = os.path.join(os.getcwd(), 'build', 'images')
     if verbose:

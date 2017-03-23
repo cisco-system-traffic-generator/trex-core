@@ -18,7 +18,7 @@ import elasticsearch.helpers
 
 
 class ELKManager:
-    def __init__(self, hostname, index='trex_perf-000004', port=9200):
+    def __init__(self, hostname, index='trex_perf-*', port=9200):
         self.hostname = hostname
         self.index = index
         self.port = port
@@ -29,14 +29,14 @@ class ELKManager:
 
     @staticmethod
     def time_res_calculation():
-        milli_since_epoch = int(time.time() * 1000)
+        seconds_since_epoch = int(time.time())
         time_2w_ago = datetime.date.timetuple(datetime.datetime.utcnow() - datetime.timedelta(weeks=2))
-        two_w_ago_epoch_milli = int(time.mktime(time_2w_ago) * 1000)
-        return milli_since_epoch, two_w_ago_epoch_milli
+        two_w_ago_epoch_second = int(time.mktime(time_2w_ago))
+        return seconds_since_epoch, two_w_ago_epoch_second
 
     def fetch_all_data(self):
         res = {}
-        milli_since_epoch, two_weeks_ago_epoch_milli = self.time_res_calculation()
+        seconds_since_epoch, two_w_ago_epoch_second = self.time_res_calculation()
         for setup_name in self.setup_names:
             query = {
                 "_source": ["info.setup.name", "test.name", "test.mpps_pc", "timestamp", "build_id"],
@@ -44,15 +44,15 @@ class ELKManager:
                 "query": {
                     "bool": {
                         "filter": [
-                            {"range": {
-                                "timestamp": {"gte": two_weeks_ago_epoch_milli, "lte": milli_since_epoch,
-                                              "format": "epoch_millis"}}},
                             {"term": {"info.setup.name": setup_name}},
-                            {"term": {"test.type": "stateless"}}
+                            {"term": {"test.type": "stateless"}},
+                            {"range": {"timestamp": {"gte": two_w_ago_epoch_second, "lte": seconds_since_epoch,
+                                                     "format": "epoch_second"}}}
                         ]
                     }
                 }
             }
+
             res[setup_name] = list(elasticsearch.helpers.scan(self.es, index=self.index, query=query, size=10000))
         self.all_data_raw = res
 

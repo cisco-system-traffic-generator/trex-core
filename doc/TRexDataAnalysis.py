@@ -225,8 +225,9 @@ def create_all_data(ga_data, end_date, save_path='', detailed_test_stats=''):
     if detailed_test_stats:
         if os.path.exists(os.path.join(save_path, '_detailed_table.csv')):
             os.remove(os.path.join(save_path, '_detailed_table.csv'))
-        all_setups_data_dframe = pd.DataFrame().append(all_setups_data)
-        all_setups_data_dframe.to_csv(os.path.join(save_path, '_detailed_table.csv'))
+        if all_setups_data:
+            all_setups_data_dframe = pd.DataFrame().append(all_setups_data)
+            all_setups_data_dframe.to_csv(os.path.join(save_path, '_detailed_table.csv'))
 
     trex07setup = all_setups['trex07']
     trex08setup = all_setups['trex08']
