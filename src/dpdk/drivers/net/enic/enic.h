@@ -60,6 +60,7 @@
 #define ENIC_RQ_MAX		16
 #define ENIC_CQ_MAX		(ENIC_WQ_MAX + (ENIC_RQ_MAX / 2))
 #define ENIC_INTR_MAX		(ENIC_CQ_MAX + 2)
+#define ENIC_MAX_MAC_ADDR	64
 
 #define VLAN_ETH_HLEN           18
 
@@ -92,11 +93,17 @@ struct enic_fdir {
 	struct rte_eth_fdir_stats stats;
 	struct rte_hash *hash;
 	struct enic_fdir_node *nodes[ENICPMD_FDIR_MAX];
+	u32 modes;
+	u32 types_mask;
+	void (*copy_fltr_fn)(struct filter_v2 *filt,
+			     struct rte_eth_fdir_input *input,
+			     struct rte_eth_fdir_masks *masks);
 };
 
 struct enic_soft_stats {
 	rte_atomic64_t rx_nombuf;
 	rte_atomic64_t rx_packet_errors;
+	rte_atomic64_t tx_oversized;
 };
 
 struct enic_memzone_entry {
@@ -128,6 +135,7 @@ struct enic {
 	int link_status;
 	u8 hw_ip_checksum;
 	u16 max_mtu;
+	u16 adv_filters;
 
 	unsigned int flags;
 	unsigned int priv_flags;
@@ -160,17 +168,32 @@ struct enic {
 	/* linked list storing memory allocations */
 	LIST_HEAD(enic_memzone_list, enic_memzone_entry) memzone_list;
 	rte_spinlock_t memzone_list_lock;
+	rte_spinlock_t mtu_lock;
 
 };
 
-static inline unsigned int enic_sop_rq(unsigned int rq)
+/* Get the CQ index from a Start of Packet(SOP) RQ index */
+static inline unsigned int enic_sop_rq_idx_to_cq_idx(unsigned int sop_idx)
 {
-	return rq * 2;
+	return sop_idx / 2;
 }
 
-static inline unsigned int enic_data_rq(unsigned int rq)
+/* Get the RTE RQ index from a Start of Packet(SOP) RQ index */
+static inline unsigned int enic_sop_rq_idx_to_rte_idx(unsigned int sop_idx)
 {
-	return rq * 2 + 1;
+	return sop_idx / 2;
+}
+
+/* Get the Start of Packet(SOP) RQ index from a RTE RQ index */
+static inline unsigned int enic_rte_rq_idx_to_sop_idx(unsigned int rte_idx)
+{
+	return rte_idx * 2;
+}
+
+/* Get the Data RQ index from a RTE RQ index */
+static inline unsigned int enic_rte_rq_idx_to_data_idx(unsigned int rte_idx)
+{
+	return rte_idx * 2 + 1;
 }
 
 static inline unsigned int enic_vnic_rq_count(struct enic *enic)
@@ -244,7 +267,7 @@ extern int enic_stop_rq(struct enic *enic, uint16_t queue_idx);
 extern void enic_free_rq(void *rxq);
 extern int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 	unsigned int socket_id, struct rte_mempool *mp,
-	uint16_t nb_desc);
+	uint16_t nb_desc, uint16_t free_thresh);
 extern int enic_set_rss_nic_cfg(struct enic *enic);
 extern int enic_set_vnic_res(struct enic *enic);
 extern void enic_set_hdr_split_size(struct enic *enic, u16 split_hdr_size);
@@ -256,8 +279,8 @@ extern void enic_dev_stats_get(struct enic *enic,
 	struct rte_eth_stats *r_stats);
 extern void enic_dev_stats_clear(struct enic *enic);
 extern void enic_add_packet_filter(struct enic *enic);
-extern void enic_set_mac_address(struct enic *enic, uint8_t *mac_addr);
-extern void enic_del_mac_address(struct enic *enic);
+void enic_set_mac_address(struct enic *enic, uint8_t *mac_addr);
+void enic_del_mac_address(struct enic *enic, int mac_index);
 extern unsigned int enic_cleanup_wq(struct enic *enic, struct vnic_wq *wq);
 extern void enic_send_pkt(struct enic *enic, struct vnic_wq *wq,
 			  struct rte_mbuf *tx_pkt, unsigned short len,
@@ -270,7 +293,17 @@ extern int enic_clsf_init(struct enic *enic);
 extern void enic_clsf_destroy(struct enic *enic);
 uint16_t enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 			uint16_t nb_pkts);
+uint16_t enic_dummy_recv_pkts(__rte_unused void *rx_queue,
+			      __rte_unused struct rte_mbuf **rx_pkts,
+			      __rte_unused uint16_t nb_pkts);
 uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			       uint16_t nb_pkts);
 int enic_set_mtu(struct enic *enic, uint16_t new_mtu);
+int enic_link_update(struct enic *enic);
+void enic_fdir_info(struct enic *enic);
+void enic_fdir_info_get(struct enic *enic, struct rte_eth_fdir_info *stats);
+void copy_fltr_v1(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
+		  __rte_unused struct rte_eth_fdir_masks *masks);
+void copy_fltr_v2(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
+		  struct rte_eth_fdir_masks *masks);
 #endif /* _ENIC_H_ */

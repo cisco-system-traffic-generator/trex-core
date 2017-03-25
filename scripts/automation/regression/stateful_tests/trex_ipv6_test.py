@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from .tests_exceptions import *
 import time
 from nose.tools import assert_equal
@@ -19,7 +19,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
         if self.is_virt_nics:
             self.skip('--ipv6 flag does not work correctly in with virtual NICs') # TODO: fix
         # test initializtion
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
 
             self.router.config_pbr(mode = "config")
@@ -57,10 +57,10 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
         if self.is_loopback:
             self.skip('The test checks ipv6 drops by device and we are in loopback setup')
         # test initializtion
-        self.router.configure_basic_interfaces()
-
-        # NOT CONFIGURING IPv6 INTENTIONALLY TO GET DROPS!
-        self.router.config_pbr(mode = "config")
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            # NOT CONFIGURING IPv6 INTENTIONALLY TO GET DROPS!
+            self.router.config_pbr(mode = "config")
         
         # same params as test_ipv6_simple
         mult = self.get_benchmark_param('multiplier', test_name = 'test_ipv6_simple')

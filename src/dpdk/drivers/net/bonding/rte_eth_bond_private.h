@@ -36,6 +36,7 @@
 
 #include <rte_ethdev.h>
 #include <rte_spinlock.h>
+#include <rte_bitmap.h>
 
 #include "rte_eth_bond.h"
 #include "rte_eth_bond_8023ad_private.h"
@@ -62,7 +63,7 @@
 
 extern const char *pmd_bond_init_valid_arguments[];
 
-extern const char pmd_bond_driver_name[];
+extern struct rte_vdev_driver pmd_bond_drv;
 
 /** Port Queue Mapping Structure */
 struct bond_rx_queue {
@@ -172,6 +173,9 @@ struct bond_dev_private {
 
 	uint32_t candidate_max_rx_pktlen;
 	uint32_t max_rx_pktlen;
+
+	void *vlan_filter_bmpmem;		/* enabled vlan filter bitmap */
+	struct rte_bitmap *vlan_filter_bmp;
 };
 
 extern const struct eth_dev_ops default_dev_ops;

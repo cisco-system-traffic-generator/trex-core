@@ -191,6 +191,7 @@ TrexStatelessDpPushPCAP::handle(TrexStatelessDpCore *dp_core) {
                        m_event_id,
                        m_pcap_filename,
                        m_ipg_usec,
+                       m_min_ipg_sec,
                        m_speedup,
                        m_count,
                        m_duration,
@@ -204,6 +205,7 @@ TrexStatelessDpPushPCAP::clone() {
                                                                       m_event_id,
                                                                       m_pcap_filename,
                                                                       m_ipg_usec,
+                                                                      m_min_ipg_sec,
                                                                       m_speedup,
                                                                       m_count,
                                                                       m_duration,
@@ -231,6 +233,24 @@ TrexStatelessDpBarrier::clone() {
     return new_msg;
 }
 
+/*************************
+  service mode message
+ ************************/
+
+bool
+TrexStatelessDpServiceMode::handle(TrexStatelessDpCore *dp_core) {
+    dp_core->set_service_mode(m_port_id, m_enabled);
+    return true;
+}
+
+TrexStatelessCpToDpMsgBase *
+TrexStatelessDpServiceMode::clone() {
+
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpServiceMode(m_port_id, m_enabled);
+
+    return new_msg;
+}
+
 /************************* messages from DP to CP **********************/
 bool
 TrexDpPortEventMsg::handle() {
@@ -241,17 +261,178 @@ TrexDpPortEventMsg::handle() {
 }
 
 /************************* messages from CP to RX **********************/
-bool TrexStatelessRxStartMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->work();
+bool TrexStatelessRxEnableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->enable_latency();
+    m_reply.set_reply(true);
+    
     return true;
 }
 
-bool TrexStatelessRxStopMsg::handle (CRxCoreStateless *rx_core) {
-    rx_core->idle();
+bool TrexStatelessRxDisableLatency::handle (CRxCoreStateless *rx_core) {
+    rx_core->disable_latency();
     return true;
 }
 
 bool TrexStatelessRxQuit::handle (CRxCoreStateless *rx_core) {
     rx_core->quit();
+    return true;
+}
+
+
+bool
+TrexStatelessRxCaptureStart::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStart start_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(start_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureStop::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStop stop_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().stop(m_capture_id, stop_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(stop_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureFetch::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCFetch fetch_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().fetch(m_capture_id, m_pkt_limit, fetch_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(fetch_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureStatus::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCStatus status_rc;
+    
+    status_rc.set_rc(TrexStatelessCaptureMngr::getInstance().to_json()); 
+    
+    /* mark as done */
+    m_reply.set_reply(status_rc);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxCaptureRemove::handle(CRxCoreStateless *rx_core) {
+    
+    TrexCaptureRCRemove remove_rc;
+    
+    TrexStatelessCaptureMngr::getInstance().remove(m_capture_id, remove_rc);
+    
+    /* mark as done */
+    m_reply.set_reply(remove_rc);
+    
+    return true;
+}
+
+
+bool
+TrexStatelessRxStartQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->start_queue(m_port_id, m_size);
+    
+    /* mark as done */
+    m_reply.set_reply(true);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxStopQueue::handle(CRxCoreStateless *rx_core) {
+    rx_core->stop_queue(m_port_id);
+
+    return true;
+}
+
+
+
+bool
+TrexStatelessRxQueueGetPkts::handle(CRxCoreStateless *rx_core) {
+    const TrexPktBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
+    
+    /* set the reply */
+    m_reply.set_reply(pkt_buffer);
+
+    return true;
+}
+
+
+bool
+TrexStatelessRxFeaturesToJson::handle(CRxCoreStateless *rx_core) {
+    Json::Value output = rx_core->get_rx_port_mngr(m_port_id).to_json();
+    
+    /* set the reply */
+    m_reply.set_reply(output);
+
+    return true;
+}
+
+bool
+TrexStatelessRxSetL2Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l2_mode();
+    
+    return true;
+}
+
+bool
+TrexStatelessRxSetL3Mode::handle(CRxCoreStateless *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_l3_mode(m_src_addr, m_is_grat_arp_needed);
+    
+    return true;
+}
+
+bool
+TrexStatelessRxQuery::handle(CRxCoreStateless *rx_core) {
+
+    query_rc_e rc = RC_OK;
+    
+    switch (m_query_type) {
+   
+    case SERVICE_MODE_ON:
+        /* for service mode on - always allow this */
+        rc = RC_OK;
+        break;
+        
+    case SERVICE_MODE_OFF:
+        /* cannot leave service mode when RX queue is active */
+        if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::QUEUE)) {
+            rc = RC_FAIL_RX_QUEUE_ACTIVE;
+            break;
+        }
+        
+        /* cannot leave service mode if PCAP capturing is active */
+        if (TrexStatelessCaptureMngr::getInstance().is_active(m_port_id)) {
+            rc = RC_FAIL_CAPTURE_ACTIVE;
+            break;
+        }
+        
+        break;
+    
+    default:
+        assert(0);
+        break;
+        
+    }
+    
+    m_reply.set_reply(rc);
+    
     return true;
 }

@@ -1,0 +1,102 @@
+TRex VM benchmark howto
+=======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+
+include::trex_ga.asciidoc[]
+
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+endif::backend-docbook[]
+
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+
+== Purpose of this document
+
+The purpose of this document is to describe the performance of TRex on virtual machines with virtual NICs, and on VF interfaces
+Test setup and methodology are described, so users can repeat the test.
+
+== Test setup
+
+All tests were done by connecting two ports in loopback. +
+For the purpose of the test, TRex server is run with ``-c 1'' command line option. This
+makes TRex use one core for TX (in addition to 1 core for RX, and one core for control).
+
+=== Setup details
+
+[cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| OS:     | Fedora 18 for all tests, except the X710 which was done on Centos 6. x710/82599 tests where done on bare metal. For other NICs ESXI was used. 
+| Switch: | Cisco Nexus 3172 Chassis, System version: 6.0(2)U5(2).
+| TRex:   | v2.16 with patches for using dpdk 1702 (will get into v2.17)
+|=================
+
+=== Topology
+
+Two ports connected in loopback.
+
+=== test commands
+Run TRex stateless using: ``./t-rex-64 -i -c 1''
+
+In stateless console (``trex-console'') we do the following tests: +
+var1: start -f stl/bench.py -t size=64,vm=var1 -m <rate> --port 0 --force +
+cached: start -f stl/bench.py -t size=64,vm=cached -m <rate> --port 0 --force +
+latency: start -f stl/udp_1pkt_src_ip_split_latency.py -m <rate> --port 0 --force +
+
+=== Results
+
+==== Throughput tests
+
+.64 bytes with 1 variable field engine
+[cols="2,2^,2^,2^,2", options="header"]
+|=================
+| NIC/driver  | Max PPS at NDR <1>   | TX core CPU <2> | RX core CPU <3> | Max possible TX <4> 
+| i40evf      | 10M                  | 85%             | 75%             | 11.76
+| ixgbevf     | 9M                   | 98%             | 63%             | 9.18
+| vmxnet3     | 0.9M                 | 17%             | 1.63%           | 5.29        
+| virtio      | 0.28M                | 5.3%            | 0.3%            | 5.28
+| e1000       | 0.7M                 | 19.4%           | 1.45%           | 3.6         
+|=================
+
+<1> Maximum packets per second rate we can send until we see packet drops.
+<2> TX CPU utilization at this point.
+<3> RX CPU utilization at this point.
+<4> Theoretical maximum packets per second with TX core at 100% (extrapolation from 1) 
+
+.64 bytes with mbuf cache feature
+[cols="2,2^,2^,2^,2", options="header"]
+|=================
+| NIC/driver  | Max PPS at NDR       | TX core CPU     | RX core CPU     | Max possible TX 
+| i40evf      | 10M                  | 40%             | 77%             | 25        
+| ixgbevf     | 9M                   | 48%             | 59%             | 18.75
+| vmxnet3     | 0.9M                 | 8%              | 1.7%            | 11.25         
+| virtio      | 0.31M                | 3.9%            | 0.35%           | 7.9
+| e1000       | 0.7M                 | 9.4%            | 1.45%           | 7.44         
+|=================
+
+
+==== Latency test
+
+.Latency test results
+[cols="2,2^,2^,2^,2", options="header"]
+|=================
+| NIC/driver  | Rate (pps) | Average latency (usec) | TX core         | RX core CPU
+| i40evf      | 7M         | 8                      | 28.6%           | 79%
+| ixgbevf     | 8.9M       | 16                     | 49%             | 81.5%
+| vmxnet3     | 0.9M       | 80-120 with spikes     | 8%              | 2.15%
+| virtio      | 0.26M      | 37-40 with spikes      | 4%              | 0.36%
+| e1000       | 0.4M       | 100                    | 7.7%            | 0.85%
+|=================

@@ -34,6 +34,8 @@
 #ifndef _RTE_INTERRUPTS_H_
 #define _RTE_INTERRUPTS_H_
 
+#include <rte_common.h>
+
 /**
  * @file
  *
@@ -68,7 +70,7 @@ typedef void (*rte_intr_callback_fn)(struct rte_intr_handle *intr_handle,
  *  - On success, zero.
  *  - On failure, a negative value.
  */
-int rte_intr_callback_register(struct rte_intr_handle *intr_handle,
+int rte_intr_callback_register(const struct rte_intr_handle *intr_handle,
 				rte_intr_callback_fn cb, void *cb_arg);
 
 /**
@@ -86,7 +88,7 @@ int rte_intr_callback_register(struct rte_intr_handle *intr_handle,
  *  - On success, return the number of callback entities removed.
  *  - On failure, a negative value.
  */
-int rte_intr_callback_unregister(struct rte_intr_handle *intr_handle,
+int rte_intr_callback_unregister(const struct rte_intr_handle *intr_handle,
 				rte_intr_callback_fn cb, void *cb_arg);
 
 /**
@@ -99,7 +101,7 @@ int rte_intr_callback_unregister(struct rte_intr_handle *intr_handle,
  *  - On success, zero.
  *  - On failure, a negative value.
  */
-int rte_intr_enable(struct rte_intr_handle *intr_handle);
+int rte_intr_enable(const struct rte_intr_handle *intr_handle);
 
 /**
  * It disables the interrupt for the specified handle.
@@ -111,7 +113,7 @@ int rte_intr_enable(struct rte_intr_handle *intr_handle);
  *  - On success, zero.
  *  - On failure, a negative value.
  */
-int rte_intr_disable(struct rte_intr_handle *intr_handle);
+int rte_intr_disable(const struct rte_intr_handle *intr_handle);
 
 #ifdef __cplusplus
 }

@@ -1121,7 +1121,7 @@ icmp6typescls = {    1: "ICMPv6DestUnreach",
                    140: "ICMPv6NIReply",
                    141: "ICMPv6ND_INDSol",
                    142: "ICMPv6ND_INDAdv",
-                  #143: Do Me - RFC 3810
+                   143: "ICMPv6MLReportV2",
                    144: "ICMPv6HAADRequest", 
                    145: "ICMPv6HAADReply",
                    146: "ICMPv6MPSol",
@@ -1151,6 +1151,7 @@ icmp6typesminhdrlen = {    1: 8,
                          #140
                          141: 8,
                          142: 8,
+                         143: 16,
                          144: 8,
                          145: 8,
                          146: 8,
@@ -1194,6 +1195,14 @@ icmp6types = { 1 : "Destination unreachable",
              200 : "Private Experimentation",
              201 : "Private Experimentation" }
 
+mldv2_group_types = {
+    1: 'Mode is include (1)',
+    2: 'Mode is exclude (2)',
+    3: 'Change to include mode (3)',
+    4: 'Change to exclude mode (4)',
+    5: 'Alloc new sources (5)',
+    6: 'Block old sources (6)',
+    }
 
 class _ICMPv6(Packet):
     name = "ICMPv6 dummy class"
@@ -1351,6 +1360,35 @@ class ICMPv6MLDone(_ICMPv6ML): # RFC 2710
     name = "MLD - Multicast Listener Done"
     type = 132
     overload_fields = {IPv6: { "dst": "ff02::2", "hlim": 1, "nh": 58}}
+
+
+class ICMPv6MLReportV2(_ICMPv6): # RFC 3810
+    name = 'MLDv2 - Multicast Listener Report'
+    fields_desc = [ ByteEnumField('type', 143, icmp6types),
+                    ByteField('code', 0),
+                    XShortField('cksum', None),
+                    ShortField('reserved', 0),
+                    ShortField('records_count', 1) ] # for now it's fixed 1 record
+    overload_fields = {IPv6: { 'dst': 'ff02::16', 'hlim': 1, 'nh': 58 }}
+
+    def default_payload_class(self, p):
+        return MLDv2Addr
+
+
+# assumes empty aux
+class MLDv2Addr(Packet):
+    name = 'MLDv2 - Address group'
+    fields_desc = [ 
+            ByteEnumField('type', 3, mldv2_group_types),
+            ByteField('aux_len', 0),
+            ShortField('len', 0),
+            IP6Field('multicast_addr', '::'),
+            IP6ListField('addrlist', [], count_from = lambda pkt:pkt.len)
+            ]
+
+    def default_payload_class(self, p):
+        return MLDv2Addr
+
 
 
 ########## ICMPv6 MRD - Multicast Router Discovery (RFC 4286) ###############

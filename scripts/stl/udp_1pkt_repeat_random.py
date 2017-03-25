@@ -22,7 +22,7 @@ class STLS1(object):
                              
         vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                             max_value="10.0.0.255", size=4, step=1,op="inc"),
-                             STLVmFlowVarRepetableRandom ( "ip_dst",  
+                             STLVmFlowVarRepeatableRandom ( "ip_dst",  
                                                            min_value="48.0.0.1",
                                                            max_value="48.0.0.255", 
                                                            size=4, 

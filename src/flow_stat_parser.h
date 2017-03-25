@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -28,14 +28,42 @@
 #include "common/Network/Packet/TcpHeader.h"
 #include "mbuf.h"
 
-// Basic flow stat parser. Relevant for xl710/x710/x350 cards
+typedef enum CFlowStatParser_err {
+    FSTAT_PARSER_E_OK = 0,
+    FSTAT_PARSER_E_TOO_SHORT,
+    FSTAT_PARSER_E_SHORT_IP_HDR,
+    FSTAT_PARSER_E_VLAN_NOT_SUP,
+    FSTAT_PARSER_E_QINQ_NOT_SUP,
+    FSTAT_PARSER_E_MPLS_NOT_SUP,
+    FSTAT_PARSER_E_UNKNOWN_HDR,
+    FSTAT_PARSER_E_VLAN_NEEDED,
+
+} CFlowStatParser_err_t;
+
+// Basic flow stat parser. Imitating HW behavior. It can parse only packets matched by HW fdir rules we define.
+// Relevant for xl710/x710, i350, Cisco VIC, Mellanox cards
+
 class CFlowStatParser {
     friend class CFlowStatParserTest;
+
+    enum CFlowStatParser_flags {
+        FSTAT_PARSER_VLAN_SUPP = 0x1,
+        FSTAT_PARSER_VLAN_NEEDED = 0x2,
+        FSTAT_PARSER_QINQ_SUPP = 0x4,
+        FSTAT_PARSER_MPLS_SUPP = 0x8,
+    };
  public:
+    enum CFlowStatParser_mode {
+        FLOW_STAT_PARSER_MODE_HW, // all NICs except Intel 82599
+        FLOW_STAT_PARSER_MODE_SW, // --software mode and virtual NICs
+        FLOW_STAT_PARSER_MODE_82599,
+        FLOW_STAT_PARSER_MODE_82599_vlan,
+    };
+    CFlowStatParser(CFlowStatParser_mode mode);
     virtual ~CFlowStatParser() {}
     virtual void reset();
-    virtual int parse(uint8_t *pkt, uint16_t len);
-    virtual bool is_stat_supported() {return m_stat_supported == true;}
+    std::string get_error_str(CFlowStatParser_err_t err);
+    virtual CFlowStatParser_err_t parse(uint8_t *pkt, uint16_t len);
     virtual int get_ip_id(uint32_t &ip_id);
     virtual int set_ip_id(uint32_t ip_id);
     virtual int get_l3_proto(uint16_t &proto);
@@ -52,24 +80,34 @@ class CFlowStatParser {
     uint8_t * get_l4() {return m_l4;}
 
     inline bool IsNatInfoPkt(bool &first) {
-        if (!m_ipv4 || (m_l4_proto != IPPROTO_TCP)) {
+        if (! m_ipv4 ) {
             return false;
         }
-        if ((m_l4 + TCP_HEADER_LEN) > (uint8_t *)m_ipv4 + get_pkt_size()) {
-            return false;
-        }
-        // If we are here, relevant fields from tcp header are inside the packet boundaries
-        // We want to handle SYN and SYN+ACK packets
-        TCPHeader *tcp = (TCPHeader *)m_l4;
-        if (! tcp->getSynFlag())
-            return false;
 
-        if (! tcp->getAckFlag()) {
-            first = true;
+        if (m_l4_proto == IPPROTO_TCP) {
+            if ((m_l4 + TCP_HEADER_LEN) > (uint8_t *)m_ipv4 + get_pkt_size()) {
+                return false;
+            }
+            // If we are here, relevant fields from tcp header are inside the packet boundaries
+            // We want to handle SYN and SYN+ACK packets
+            TCPHeader *tcp = (TCPHeader *)m_l4;
+            if (! tcp->getSynFlag())
+                return false;
+
+            if (! tcp->getAckFlag()) {
+                first = true;
+            } else {
+                first = false;
+            }
+            return true;
         } else {
-            first = false;
+            if ((m_ipv4->getId() & 0x8000) != 0) {
+                first = true;
+                return true;
+            } else {
+                return false;
+            }
         }
-        return true;
     }
 
  private:
@@ -82,26 +120,15 @@ class CFlowStatParser {
     IPHeader *m_ipv4;
     IPv6Header *m_ipv6;
     uint8_t *m_l4;
-    bool m_stat_supported;
     uint8_t m_l4_proto;
     uint8_t m_vlan_offset;
-};
-
-// relevant for 82599 card
-class C82599Parser : public CFlowStatParser {
- public:
-    C82599Parser(bool vlan_supported) {m_vlan_supported = vlan_supported;}
-    ~C82599Parser() {}
-    int parse(uint8_t *pkt, uint16_t len);
-
- private:
-    bool m_vlan_supported;
+    uint16_t m_flags;
 };
 
 class CPassAllParser : public CFlowStatParser {
  public:
-    virtual int parse(uint8_t *pkt, uint16_t len);
-    virtual bool is_stat_supported() {return true;}
+ CPassAllParser() : CFlowStatParser (CFlowStatParser::FLOW_STAT_PARSER_MODE_SW) {}
+    virtual CFlowStatParser_err_t parse(uint8_t *pkt, uint16_t len);
     virtual int get_ip_id(uint32_t &ip_id) { ip_id = 0; return 0;}
     virtual int set_ip_id(uint32_t ip_id){return 0;}
     virtual int get_l3_proto(uint16_t &proto){proto = 0; return 0;}
@@ -122,24 +149,34 @@ class CSimplePacketParser {
     // first - set to true if this is the first packet of the flow. false otherwise.
     //         relevant only if return value is true
     inline bool IsNatInfoPkt(bool &first) {
-        if (!m_ipv4 || (m_protocol != IPPROTO_TCP)) {
+        if (! m_ipv4 ) {
             return false;
         }
-        if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
-            return false;
-        }
-        // If we are here, relevant fields from tcp header are guaranteed to be in first mbuf
-        // We want to handle SYN and SYN+ACK packets
-        TCPHeader *tcp = (TCPHeader *)m_l4;
-        if (! tcp->getSynFlag())
-            return false;
 
-        if (! tcp->getAckFlag()) {
-            first = true;
+        if (m_ipv4->getProtocol() == IPPROTO_TCP) {
+            if (! m_l4 || (m_l4 - rte_pktmbuf_mtod(m_m, uint8_t*) + TCP_HEADER_LEN) > m_m->data_len) {
+                return false;
+            }
+            // If we are here, relevant fields from tcp header are inside the packet boundaries
+            // We want to handle SYN and SYN+ACK packets
+            TCPHeader *tcp = (TCPHeader *)m_l4;
+            if (! tcp->getSynFlag())
+                return false;
+
+            if (! tcp->getAckFlag()) {
+                first = true;
+            } else {
+                first = false;
+            }
+            return true;
         } else {
-            first = false;
+            if ((m_ipv4->getId() & 0x8000) != 0) {
+                first = true;
+                return true;
+            } else {
+                return false;
+            }
         }
-        return true;
     }
 
  public:
@@ -153,6 +190,13 @@ class CSimplePacketParser {
 };
 
 class CFlowStatParserTest {
+    typedef struct {
+        CFlowStatParser_err_t m_hw;
+        CFlowStatParser_err_t m_sw;
+        CFlowStatParser_err_t m_82599;
+        CFlowStatParser_err_t m_82599_vlan;
+    } CFlowStatParserTest_exp_err_t;
+
     enum {
         P_OK = 0x1,
         P_BAD = 0x2,
@@ -160,16 +204,20 @@ class CFlowStatParserTest {
         P82599_BAD = 0x8,
         P82599_VLAN_OK = 0x10,
         P82599_VLAN_BAD = 0x20,
+        P_SW_OK = 0x40,
+        P_SW_BAD = 0x80,
     };
 
  public:
     int test();
 
  private:
-    int test_one_pkt(const char *name, uint16_t ether_type, uint8_t l4_proto, bool is_vlan, uint16_t verify_flags);
-    int verify_pkt(uint8_t *p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id, uint8_t l4_proto, uint16_t flags);
+    int test_one_pkt(const char *name, uint16_t ether_type, uint8_t l4_proto, int vlan_num
+                     , CFlowStatParserTest_exp_err_t exp_err);
+    int verify_pkt(uint8_t *p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id, uint8_t l4_proto
+                   , CFlowStatParserTest_exp_err_t exp_err);
     int verify_pkt_one_parser(uint8_t * p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id, uint8_t l4_proto
-                              , CFlowStatParser &parser, bool sup_pkt);
+                              , CFlowStatParser &parser, CFlowStatParser_err_t exp_ret);
 };
 
 #endif

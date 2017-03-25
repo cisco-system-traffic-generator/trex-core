@@ -37,7 +37,7 @@
 #include "mlx5_autoconf.h"
 
 /* Reported driver name. */
-#define MLX5_DRIVER_NAME "librte_pmd_mlx5"
+#define MLX5_DRIVER_NAME "net_mlx5"
 
 /* Maximum number of simultaneous MAC addresses. */
 #define MLX5_MAX_MAC_ADDRESSES 128
@@ -53,9 +53,6 @@
  * the previous request. Must be a power of two for performance reasons.
  */
 #define MLX5_TX_COMP_THRESH 32
-
-/* RSS Indirection table size. */
-#define RSS_INDIRECTION_TABLE_SIZE 256
 
 /*
  * Maximum number of cached Memory Pools (MPs) per TX queue. Each RTE MP
@@ -78,5 +75,8 @@
 
 /* Alarm timeout. */
 #define MLX5_ALARM_TIMEOUT_US 100000
+
+/* Maximum number of extended statistics counters. */
+#define MLX5_MAX_XSTATS 32
 
 #endif /* RTE_PMD_MLX5_DEFS_H_ */

@@ -1,0 +1,58 @@
+TRex Analytics How-To Guide
+===========================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+include::trex_ga.asciidoc[]
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+endif::backend-docbook[]
+= Requirements
+Google Analytics Integration: Google API Python client library: link:https://developers.google.com/analytics/devguides/reporting/core/v4/quickstart/installed-py[here] +
+Data Analysis: using NumPy, MatPlotLib and Pandas from Anaconda 4.2.0 link:https://www.continuum.io/downloads[here]
+
+= Setup fetch-analysis-publishing routine
+== Build an Analytic Environment
+1. Create a Google Analytics account and property using this link:https://support.google.com/analytics/answer/1008015?hl=en[link]
+2. Using the Google Analytics tracking guide, send test results to your property. link:https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide[here]
+3. Set up your account to properly fetch the data from Google Analytics, using this guide: link:https://developers.google.com/analytics/devguides/reporting/core/v4/quickstart/installed-py[here]
+
+== Fetch and organize
+1. Fetch the data into dictionary of this structure: +
+[source,python]
+----
+{ 'setup1': {'test_name1': [(test_res1),(test_res2),...],
+			 'test_name2': [(test_res1),(test_res2),...]
+			},
+  'setup2': {'test_name1': [(test_res1),(test_res2),...],
+			 'test_name2': [(test_res1),(test_res2),...]
+			},
+	.
+	.
+	.
+	.
+}
+----
+test_res should maintain this structure:
+[source,python]
+----
+(test_name,state,test_type,MPPS,goldenMin,goldenMax)
+
+Example:
+('VM - 64 bytes, multi CPU, cache size 1024','stl','performance','19.711146','19.0','22.0')
+----
+== Analize and generate plots and data tables
+Use the script TRexDataAnalysis.py to create the plots and data tables for your test results: +
+1. run create_all_data with the entire data dictionary that was fetched, to create plots and tables for each setup provided in the dictionary. +
+provide a "save_path" to save the graphs and plots to your desired location +
+
+
+== Build the Document
+
+
+

@@ -34,6 +34,8 @@
 #ifndef _VMXNET3_ETHDEV_H_
 #define _VMXNET3_ETHDEV_H_
 
+#include <rte_io.h>
+
 #define VMXNET3_MAX_MAC_ADDRS 1
 
 /* UPT feature to negotiate */
@@ -62,8 +64,7 @@
 	ETH_RSS_NONFRAG_IPV6_TCP)
 
 /* RSS configuration structure - shared with device through GPA */
-typedef
-struct VMXNET3_RSSConf {
+typedef struct VMXNET3_RSSConf {
 	uint16_t   hashType;
 	uint16_t   hashFunc;
 	uint16_t   hashKeySize;
@@ -76,15 +77,13 @@ struct VMXNET3_RSSConf {
 	uint8_t    indTable[VMXNET3_RSS_MAX_IND_TABLE_SIZE];
 } VMXNET3_RSSConf;
 
-typedef
-struct vmxnet3_mf_table {
+typedef struct vmxnet3_mf_table {
 	void          *mfTableBase; /* Multicast addresses list */
 	uint64_t      mfTablePA;    /* Physical address of the list */
 	uint16_t      num_addrs;    /* number of multicast addrs */
 } vmxnet3_mf_table_t;
 
 struct vmxnet3_hw {
-
 	uint8_t *hw_addr0;	/* BAR0: PT-Passthrough Regs    */
 	uint8_t *hw_addr1;	/* BAR1: VD-Virtual Device Regs */
 	/* BAR2: MSI-X Regs */
@@ -111,10 +110,10 @@ struct vmxnet3_hw {
 	uint64_t              queueDescPA;
 	uint16_t              queue_desc_len;
 
-	VMXNET3_RSSConf		 *rss_conf;
-	uint64_t			 rss_confPA;
-	vmxnet3_mf_table_t   *mf_table;
-	uint32_t	      shadow_vfta[VMXNET3_VFT_SIZE];
+	VMXNET3_RSSConf       *rss_conf;
+	uint64_t              rss_confPA;
+	vmxnet3_mf_table_t    *mf_table;
+	uint32_t              shadow_vfta[VMXNET3_VFT_SIZE];
 #define VMXNET3_VFT_TABLE_SIZE     (VMXNET3_VFT_SIZE * sizeof(uint32_t))
 };
 
@@ -123,16 +122,15 @@ struct vmxnet3_hw {
 
 /* Config space read/writes */
 
-#define VMXNET3_PCI_REG(reg) (*((volatile uint32_t *)(reg)))
+#define VMXNET3_PCI_REG(reg) rte_read32(reg)
 
-static inline uint32_t vmxnet3_read_addr(volatile void *addr)
+static inline uint32_t
+vmxnet3_read_addr(volatile void *addr)
 {
 	return VMXNET3_PCI_REG(addr);
 }
 
-#define VMXNET3_PCI_REG_WRITE(reg, value) do { \
-	VMXNET3_PCI_REG((reg)) = (value); \
-} while(0)
+#define VMXNET3_PCI_REG_WRITE(reg, value) rte_write32((value), (reg))
 
 #define VMXNET3_PCI_BAR0_REG_ADDR(hw, reg) \
 	((volatile uint32_t *)((char *)(hw)->hw_addr0 + (reg)))
@@ -158,20 +156,22 @@ void vmxnet3_dev_rx_queue_release(void *rxq);
 void vmxnet3_dev_tx_queue_release(void *txq);
 
 int  vmxnet3_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t rx_queue_id,
-		uint16_t nb_rx_desc, unsigned int socket_id,
-		const struct rte_eth_rxconf *rx_conf,
-		struct rte_mempool *mb_pool);
+				uint16_t nb_rx_desc, unsigned int socket_id,
+				const struct rte_eth_rxconf *rx_conf,
+				struct rte_mempool *mb_pool);
 int  vmxnet3_dev_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
-		uint16_t nb_tx_desc, unsigned int socket_id,
-		const struct rte_eth_txconf *tx_conf);
+				uint16_t nb_tx_desc, unsigned int socket_id,
+				const struct rte_eth_txconf *tx_conf);
 
 int vmxnet3_dev_rxtx_init(struct rte_eth_dev *dev);
 
 int vmxnet3_rss_configure(struct rte_eth_dev *dev);
 
 uint16_t vmxnet3_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
-		uint16_t nb_pkts);
+			   uint16_t nb_pkts);
 uint16_t vmxnet3_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
-		uint16_t nb_pkts);
+			   uint16_t nb_pkts);
+uint16_t vmxnet3_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+			uint16_t nb_pkts);
 
 #endif /* _VMXNET3_ETHDEV_H_ */

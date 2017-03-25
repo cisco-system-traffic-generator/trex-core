@@ -33,7 +33,8 @@ limitations under the License.
 
 // 2msec timeout                                            
 #define MAX_TIME_MSG_IN_QUEUE_SEC  ( 0.002 )
-#define NAT_FLOW_ID_MASK 0x00ffffff
+#define NAT_FLOW_ID_MASK_TCP_ACK 0x00ffffff
+#define NAT_FLOW_ID_MASK_IP_ID   0x000001ff
 
 class  CNatOption {
 public:
@@ -78,8 +79,9 @@ public:
         return (u.m_data[2]);
     }
 
+    // Used when doing NAT using IP option
     void set_fid(uint32_t fid) {
-        u.m_data_uint32[1] = fid & NAT_FLOW_ID_MASK;
+        u.m_data_uint32[1] = fid & NAT_FLOW_ID_MASK_TCP_ACK;
     }
 
     uint32_t get_fid() {
@@ -152,6 +154,7 @@ struct CGenNodeNatInfo : public CGenNodeMsgBase {
     uint32_t      m_pad3;
  #endif
     CNatFlowInfo  m_data[MAX_NAT_FLOW_INFO];
+    uint64_t      m_pad4[8];
 
 public:
       CNatFlowInfo * get_next_msg() {
@@ -171,12 +174,14 @@ public:
 struct CGenNodeLatencyPktInfo : public CGenNodeMsgBase {
     uint8_t       m_dir;
     uint16_t      m_latency_offset;
- #if __x86_64__
-    uint32_t      m_pad3;
-#endif
-    struct rte_mbuf *   m_pkt;
+    
+    uint8_t       m_update_ts;
+    uint8_t       m_pad3[3];
+    
+    struct rte_mbuf *m_pkt;
 
     uint32_t      m_pad4[MAX_PKT_MSG_INFO];
+    uint64_t      m_pad5[8];
 };
 
 
@@ -222,9 +227,14 @@ public:
     void Dump(FILE *fd);
     void DumpShort(FILE *fd);
     static inline uint32_t calc_tcp_ack_val(uint32_t fid, uint8_t thread_id) {
-	return ((fid &  NAT_FLOW_ID_MASK) << 8) | thread_id;
+        return ((fid &  NAT_FLOW_ID_MASK_TCP_ACK) << 8) | thread_id;
+    }
+    static inline uint16_t calc_ip_id_val(uint32_t fid, uint8_t thread_id) {
+        // MSB bit == 1 signals this is latency packet
+        return ((fid &  NAT_FLOW_ID_MASK_IP_ID) << 6) | (thread_id & 0x3f) | 0x8000;
     }
     void get_info_from_tcp_ack(uint32_t tcp_ack, uint32_t &fid, uint8_t &thread_id);
+    void get_info_from_ip_id(uint16_t ip_id, uint32_t &fid, uint8_t &thread_id);
 private:
     CNatPerThreadInfo * get_thread_info(uint8_t thread_id);
     void flush_node(CNatPerThreadInfo * thread_info);

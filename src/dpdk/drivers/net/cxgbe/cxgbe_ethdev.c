@@ -68,7 +68,7 @@
  * Macros needed to support the PCI Device ID Table ...
  */
 #define CH_PCI_DEVICE_ID_TABLE_DEFINE_BEGIN \
-	static struct rte_pci_id cxgb4_pci_tbl[] = {
+	static const struct rte_pci_id cxgb4_pci_tbl[] = {
 #define CH_PCI_DEVICE_ID_FUNCTION 0x4
 
 #define PCI_VENDOR_ID_CHELSIO 0x1425
@@ -146,6 +146,8 @@ static void cxgbe_dev_info_get(struct rte_eth_dev *eth_dev,
 		.nb_min = CXGBE_MIN_RING_DESC_SIZE,
 		.nb_align = 1,
 	};
+
+	device_info->pci_dev = RTE_DEV_TO_PCI(eth_dev->device);
 
 	device_info->min_rx_bufsize = CXGBE_MIN_RX_BUFSIZE;
 	device_info->max_rx_pktlen = CXGBE_MAX_RX_PKTLEN;
@@ -1005,7 +1007,7 @@ static int eth_cxgbe_dev_init(struct rte_eth_dev *eth_dev)
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
 
-	pci_dev = eth_dev->pci_dev;
+	pci_dev = RTE_DEV_TO_PCI(eth_dev->device);
 
 	snprintf(name, sizeof(name), "cxgbeadapter%d", eth_dev->data->port_id);
 	adapter = rte_zmalloc(name, sizeof(*adapter), 0);
@@ -1039,33 +1041,15 @@ out_free_adapter:
 
 static struct eth_driver rte_cxgbe_pmd = {
 	.pci_drv = {
-		.name = "rte_cxgbe_pmd",
 		.id_table = cxgb4_pci_tbl,
 		.drv_flags = RTE_PCI_DRV_NEED_MAPPING | RTE_PCI_DRV_INTR_LSC,
+		.probe = rte_eth_dev_pci_probe,
+		.remove = rte_eth_dev_pci_remove,
 	},
 	.eth_dev_init = eth_cxgbe_dev_init,
 	.dev_private_size = sizeof(struct port_info),
 };
 
-/*
- * Driver initialization routine.
- * Invoked once at EAL init time.
- * Register itself as the [Poll Mode] Driver of PCI CXGBE devices.
- */
-static int rte_cxgbe_pmd_init(const char *name __rte_unused,
-			      const char *params __rte_unused)
-{
-	CXGBE_FUNC_TRACE();
-
-	rte_eth_driver_register(&rte_cxgbe_pmd);
-	return 0;
-}
-
-static struct rte_driver rte_cxgbe_driver = {
-	.type = PMD_PDEV,
-	.init = rte_cxgbe_pmd_init,
-};
-
-PMD_REGISTER_DRIVER(rte_cxgbe_driver, cxgb4);
-DRIVER_REGISTER_PCI_TABLE(cxgb4, cxgb4_pci_tbl);
-
+RTE_PMD_REGISTER_PCI(net_cxgbe, rte_cxgbe_pmd.pci_drv);
+RTE_PMD_REGISTER_PCI_TABLE(net_cxgbe, cxgb4_pci_tbl);
+RTE_PMD_REGISTER_KMOD_DEP(net_cxgbe, "* igb_uio | uio_pci_generic | vfio");

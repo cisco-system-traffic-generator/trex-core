@@ -12,18 +12,24 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .utils import parsing_opts, text_tables, common
-from .utils.common import list_intersect, list_difference, is_sub_list, PassiveTimer
+from .utils.common import *
+from .utils.text_tables import TRexTextTable
 from .utils.text_opts import *
 from functools import wraps
+from texttable import ansi_len
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from yaml import YAMLError
+from contextlib import contextmanager
 import time
 import datetime
 import re
 import random
 import json
 import traceback
+import tempfile
+import readline
+import os.path
 
 ############################     logger     #############################
 ############################                #############################
@@ -32,9 +38,10 @@ import traceback
 # logger API for the client
 class LoggerApi(object):
     # verbose levels
-    VERBOSE_QUIET   = 0
-    VERBOSE_REGULAR = 1
-    VERBOSE_HIGH    = 2
+    VERBOSE_QUIET         = 0
+    VERBOSE_REGULAR_SYNC  = 1
+    VERBOSE_REGULAR       = 2
+    VERBOSE_HIGH          = 3
 
     def __init__(self):
         self.level = LoggerApi.VERBOSE_REGULAR
@@ -62,7 +69,7 @@ class LoggerApi(object):
 
 
     # simple log message with verbose
-    def log (self, msg, level = VERBOSE_REGULAR, newline = True):
+    def log (self, msg, level = VERBOSE_REGULAR_SYNC, newline = True):
         if not self.check_verbose(level):
             return
 
@@ -90,19 +97,21 @@ class LoggerApi(object):
 
 
     # supress object getter
-    def supress (self):
+    def supress (self, level = VERBOSE_QUIET):
         class Supress(object):
-            def __init__ (self, logger):
+            def __init__ (self, logger, level):
                 self.logger = logger
+                self.level = level
 
             def __enter__ (self):
                 self.saved_level = self.logger.get_verbose()
-                self.logger.set_verbose(LoggerApi.VERBOSE_QUIET)
+                if self.level < self.saved_level:
+                    self.logger.set_verbose(self.level)
 
             def __exit__ (self, type, value, traceback):
                 self.logger.set_verbose(self.saved_level)
 
-        return Supress(self)
+        return Supress(self, level)
 
 
 
@@ -175,8 +184,8 @@ class EventsHandler(object):
     def on_async_dead (self):
         if self.client.connected:
             msg = 'Lost connection to server'
-            self.__add_event_log('local', 'info', msg, True)
             self.client.connected = False
+            self.__add_event_log('local', 'info', msg, True)
 
 
     def on_async_alive (self):
@@ -322,25 +331,30 @@ class EventsHandler(object):
 
         # port attr changed
         elif (event_type == 8):
-            port_id = int(data['port_id'])
-            if data['attr'] == self.client.ports[port_id].attr:
-                return # false alarm
-            old_info = self.client.ports[port_id].get_info()
-            self.__async_event_port_attr_changed(port_id, data['attr'])
-            new_info = self.client.ports[port_id].get_info()
-            ev = "port {0} attributes changed".format(port_id)
-            for key, old_val in old_info.items():
-                new_val = new_info[key]
-                if old_val != new_val:
-                    ev += '\n  {key}: {old} -> {new}'.format(
-                            key = key, 
-                            old = old_val.lower() if type(old_val) is str else old_val,
-                            new = new_val.lower() if type(new_val) is str else new_val)
-            show_event = True
 
+            port_id = int(data['port_id'])
+            
+            diff = self.__async_event_port_attr_changed(port_id, data['attr'])
+            if not diff:
+                return
+
+            
+            ev = "port {0} attributes changed".format(port_id)
+            for key, (old_val, new_val) in diff.items():
+                ev += '\n  {key}: {old} -> {new}'.format(
+                        key = key, 
+                        old = old_val.lower() if type(old_val) is str else old_val,
+                        new = new_val.lower() if type(new_val) is str else new_val)
+                
+            show_event = True
+            
+         
+    
         # server stopped
         elif (event_type == 100):
             ev = "Server has stopped"
+            # to avoid any new messages on async
+            self.client.async_client.set_as_zombie()
             self.__async_event_server_stopped()
             show_event = True
 
@@ -392,7 +406,7 @@ class EventsHandler(object):
 
     def __async_event_port_attr_changed (self, port_id, attr):
         if port_id in self.client.ports:
-            self.client.ports[port_id].async_event_port_attr_changed(attr)
+            return self.client.ports[port_id].async_event_port_attr_changed(attr)
 
     # add event to log
     def __add_event_log (self, origin, ev_type, msg, show = False):
@@ -439,16 +453,16 @@ class CCommLink(object):
         if not self.virtual:
             return self.rpc_link.disconnect()
 
-    def transmit(self, method_name, params = None, api_class = 'core'):
+    def transmit(self, method_name, params = None, api_class = 'core', retry = 0):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params, api_class)
             print(msg)
             return
         else:
-            return self.rpc_link.invoke_rpc_method(method_name, params, api_class)
+            return self.rpc_link.invoke_rpc_method(method_name, params, api_class, retry = retry)
 
-    def transmit_batch(self, batch_list):
+    def transmit_batch(self, batch_list, retry = 0):
         if self.virtual:
             self._prompt_virtual_tx_msg()
             print([msg
@@ -459,7 +473,7 @@ class CCommLink(object):
             for command in batch_list:
                 batch.add(command.method, command.params, command.api_class)
             # invoke the batch
-            return batch.invoke()
+            return batch.invoke(retry = retry)
 
     def _prompt_virtual_tx_msg(self):
         print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
@@ -536,7 +550,7 @@ class STLClient(object):
         self.connected = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 2, 'minor': 3 } ]
+        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 1 } ]
         self.api_h = {'core': None}
 
         # logger
@@ -590,12 +604,10 @@ class STLClient(object):
                                                                  self.util_stats,
                                                                  self.xstats,
                                                                  self.async_client.monitor)
-
-
-
-
+        
     ############# private functions - used by the class itself ###########
 
+    
     # some preprocessing for port argument
     def __ports (self, port_id_list):
 
@@ -650,7 +662,7 @@ class STLClient(object):
 
         return rc
 
-
+ 
     def __add_streams(self, stream_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
@@ -767,7 +779,7 @@ class STLClient(object):
         return rc
 
 
-    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual):
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -783,7 +795,8 @@ class STLClient(object):
                                                    count,
                                                    duration,
                                                    is_dual,
-                                                   slave_handler))
+                                                   slave_handler,
+                                                   min_ipg_usec))
 
         return rc
 
@@ -799,17 +812,74 @@ class STLClient(object):
         return rc
 
 
+    def __resolve (self, port_id_list = None, retries = 0):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].arp_resolve(retries))
+
+        return rc
+
+
+    def __scan6(self, port_id_list = None, timeout = 5):
+        port_id_list = self.__ports(port_id_list)
+
+        resp = {}
+
+        for port_id in port_id_list:
+            resp[port_id] = self.ports[port_id].scan6(timeout)
+
+        return resp
+
+
     def __set_port_attr (self, port_id_list = None, attr_dict = None):
 
         port_id_list = self.__ports(port_id_list)
         rc = RC()
 
+        for port_id, port_attr_dict in zip(port_id_list, attr_dict):
+            rc.add(self.ports[port_id].set_attr(**port_attr_dict))
+
+        return rc
+        
+    def __set_rx_queue (self, port_id_list, size):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].set_attr(attr_dict))
+            rc.add(self.ports[port_id].set_rx_queue(size))
 
         return rc
 
+    def __remove_rx_queue (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
 
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].remove_rx_queue())
+
+        return rc
+
+    def __get_rx_queue_pkts (self, port_id_list):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].get_rx_queue_pkts())
+
+        return rc
+
+    def __set_service_mode (self, port_id_list, enabled):
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_service_mode(enabled))
+
+        return rc
+        
 
     # connect to server
     def __connect(self):
@@ -829,7 +899,7 @@ class STLClient(object):
         if not rc:
             return rc
 
-
+        
         # API sync
         rc = self._transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
         if not rc:
@@ -864,6 +934,7 @@ class STLClient(object):
         self.supported_cmds = sorted(rc.data())
 
         # create ports
+        self.ports.clear()
         for port_id in range(self.system_info["port_count"]):
             info = self.system_info['ports'][port_id]
 
@@ -991,16 +1062,16 @@ class STLClient(object):
 
     ############ functions used by other classes but not users ##############
 
-    def _validate_port_list (self, port_id_list):
+    def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
         if isinstance(port_id_list, int):
             port_id_list = [port_id_list]
 
         # should be a list
-        if not isinstance(port_id_list, list):
+        if not isinstance(port_id_list, list) and not isinstance(port_id_list, tuple):
             raise STLTypeError('port_id_list', type(port_id_list), list)
 
-        if not port_id_list:
+        if not port_id_list and not allow_empty:
             raise STLError('No ports provided')
 
         valid_ports = self.get_all_ports()
@@ -1008,7 +1079,7 @@ class STLClient(object):
             if not port_id in valid_ports:
                 raise STLError("Port ID '{0}' is not a valid port ID - valid values: {1}".format(port_id, valid_ports))
 
-        return port_id_list
+        return list_remove_dup(port_id_list)
 
 
     # transmit request on the RPC link
@@ -1313,6 +1384,23 @@ class STLClient(object):
                     if port_obj.is_active()]
 
 
+    def get_resolvable_ports (self):
+         return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.is_l3_mode()]
+    
+    def get_resolved_ports (self):
+        return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_acquired() and port_obj.is_resolved()]
+
+         
+    def get_service_enabled_ports(self):
+        return [port_id
+                for port_id, port_obj in self.ports.items()
+                if port_obj.is_service_mode_on()]
+
+        
     # get paused ports
     def get_paused_ports (self, owned = True):
         if owned:
@@ -1338,6 +1426,7 @@ class STLClient(object):
 
 
     # get stats
+    @__api_check(True)
     def get_stats (self, ports = None, sync_now = True):
         """
         Return dictionary containing statistics information gathered from the server.
@@ -1585,7 +1674,7 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        return [self.ports[port_id].get_info() for port_id in ports]
+        return [self.ports[port_id].get_formatted_info() for port_id in ports]
 
 
     ############################   Commands   #############################
@@ -1614,7 +1703,6 @@ class STLClient(object):
 
         self.logger.set_verbose(modes[level])
 
-
     @__api_check(False)
     def connect (self):
         """
@@ -1628,7 +1716,6 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-
         rc = self.__connect()
         if not rc:
             raise STLError(rc)
@@ -1700,6 +1787,9 @@ class STLClient(object):
             self.__release(ports)
             raise STLError(rc)
 
+        for port_id in ports:
+            if not self.ports[port_id].is_resolved():
+                self.logger.log(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
 
     @__api_check(True)
     def release (self, ports = None):
@@ -1725,29 +1815,174 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+            
+
     @__api_check(True)
-    def ping(self):
+    def ping_rpc_server(self):
         """
-            Pings the server
+            Pings the RPC server
 
             :parameters:
-                None
-
+                 None
 
             :raises:
                 + :exc:`STLError`
 
         """
-
+        
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
-        
+            
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
+        
 
+    @__api_check(True)
+    def set_l2_mode (self, port, dst_mac):
+        """
+            Sets the port mode to L2
+
+            :parameters:
+                 port      - the port to set the source address
+                 dst_mac   - destination MAC
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+            
+        if not is_valid_mac(dst_mac):
+            raise STLError("dest_mac is not a valid MAC address: '{0}'".format(dst_mac))
+            
+        self.logger.pre_cmd("Setting port {0} in L2 mode: ".format(port))
+        rc = self.ports[port].set_l2_mode(dst_mac)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
+            
+    @__api_check(True)
+    def set_l3_mode (self, port, src_ipv4, dst_ipv4):
+        """
+            Sets the port mode to L3
+
+            :parameters:
+                 port      - the port to set the source address
+                 src_ipv4  - IPv4 source address for the port
+                 dst_ipv4  - IPv4 destination address
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("port {0} is not a valid port id".format(port))
+            
+        if not is_valid_ipv4(src_ipv4):
+            raise STLError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
+            
+        if not is_valid_ipv4(dst_ipv4):
+            raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+            
+        self.logger.pre_cmd("Setting port {0} in L3 mode: ".format(port))
+        rc = self.ports[port].set_l3_mode(src_ipv4, dst_ipv4)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+    
+        # try to resolve
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.pre_cmd("ARP resolving address '{0}': ".format(dst_ipv4))
+            rc = self.ports[port].arp_resolve(0)
+            self.logger.post_cmd(rc)
+            if not rc:
+                raise STLError(rc)
+            
+
+    @__api_check(True)
+    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1):
+        """
+            Pings an IP address through a port
+
+            :parameters:
+                 src_port     - on which port_id to send the ICMP PING request
+                 dst_ip       - which IP to ping
+                 pkt_size     - packet size to use
+                 count        - how many times to ping
+                 interval_sec - how much time to wait between pings
+
+            :returns:
+                List of replies per 'count'
+
+                Each element is dictionary with following items:
+
+                Always available keys:
+
+                * formatted_string - string, human readable output, for example: 'Request timed out.'
+                * status - string, one of options: 'success', 'unreachable', 'timeout'
+
+                Available only if status is 'success':
+
+                * src_ip - string, IP replying to request
+                * rtt - float, latency of the ping (round trip time)
+                * ttl - int, time to live in IPv4 or hop limit in IPv6
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+        # validate src port
+        validate_type('src_port', src_port, int)
+        if src_port not in self.get_all_ports():
+            raise STLError("src port is not a valid port id")
+        
+        if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
+            raise STLError("dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
+            
+        if (pkt_size < 64) or (pkt_size > 9216):
+            raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
+            
+        validate_type('count', count, int)
+        validate_type('interval_sec', interval_sec, (int, float))
+        
+        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
+                                                                                       src_port,
+                                                                                       pkt_size))
+        
+        responses_arr = []
+        # no async messages
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            self.logger.log('')
+            dst_mac = None
+            if ':' in dst_ip: # ipv6
+                rc = self.ports[src_port].scan6(dst_ip = dst_ip)
+                if not rc:
+                    raise STLError(rc)
+                replies = rc.data()
+                if len(replies) == 1:
+                    dst_mac = replies[0]['mac']
+            for i in range(count):
+                rc = self.ports[src_port].ping(ping_ip = dst_ip, pkt_size = pkt_size, dst_mac = dst_mac)
+                if not rc:
+                    raise STLError(rc)
+                    
+                responses_arr.append(rc.data())
+                self.logger.log(rc.data()['formatted_string'])
+                
+                if i != (count - 1):
+                    time.sleep(interval_sec)
+
+        return responses_arr
+        
+        
+        
     @__api_check(True)
     def server_shutdown (self, force = False):
         """
@@ -1795,6 +2030,8 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+        return rc.data()
+
     @__api_check(True)
     def get_util_stats(self):
         """
@@ -1814,7 +2051,6 @@ class STLClient(object):
 
     @__api_check(True)
     def get_xstats(self, port_id):
-        print(port_id)
         """
             Get extended stats of port: all the counters as dict.
 
@@ -1833,7 +2069,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def reset(self, ports = None):
+    def reset(self, ports = None, restart = False):
         """
             Force acquire ports, stop the traffic, remove all streams and clear stats
 
@@ -1841,7 +2077,9 @@ class STLClient(object):
                 ports : list
                    Ports on which to execute the command
 
-
+                restart: bool
+                   Restart the NICs (link down / up)
+                   
             :raises:
                 + :exc:`STLError`
 
@@ -1851,12 +2089,34 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
 
-        # force take the port and ignore any streams on it
-        self.acquire(ports, force = True, sync_streams = False)
-        self.stop(ports, rx_delay_ms = 0)
-        self.remove_all_streams(ports)
-        self.clear_stats(ports)
+        
+        if restart:
+            self.logger.pre_cmd("Hard resetting ports {0}:".format(ports))
+        else:
+            self.logger.pre_cmd("Resetting ports {0}:".format(ports))
+        
+        
+        try:
+            with self.logger.supress():
+            # force take the port and ignore any streams on it
+                self.acquire(ports, force = True, sync_streams = False)
+                self.stop(ports, rx_delay_ms = 0)
+                self.remove_all_streams(ports)
+                self.clear_stats(ports)
+                self.set_port_attr(ports,
+                                   promiscuous = False,
+                                   link_up = True if restart else None)
+                self.remove_rx_queue(ports)
+                self.set_service_mode(ports, False)
+                
+                
+        except STLError as e:
+            self.logger.post_cmd(False)
+            raise e
+                
 
+        self.logger.post_cmd(RC_OK())
+        
 
     @__api_check(True)
     def remove_all_streams (self, ports = None):
@@ -1995,7 +2255,28 @@ class STLClient(object):
             raise STLError(rc)
 
 
-   
+    # common checks for start API
+    def __pre_start_check (self, ports, force):
+        
+        # verify link status
+        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
+        if ports_link_down and not force:
+            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
+        
+        # verify ports are stopped or force stop them
+        active_ports = [port_id for port_id in ports if self.ports[port_id].is_active()]
+        if active_ports and not force:
+            raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
+            
+        # warn if ports are not resolved
+        unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
+        if unresolved_ports and not force:
+            raise STLError("Port(s) {0} have unresolved destination addresses - please resolve them or specify 'force'".format(unresolved_ports))
+     
+        if self.get_service_enabled_ports() and not force:
+            raise STLError("Port(s) {0} are under service mode - please disable service mode or specify 'force'".format(self.get_service_enabled_ports()))
+            
+        
     @__api_check(True)
     def start (self,
                ports = None,
@@ -2050,11 +2331,10 @@ class STLClient(object):
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (int, list))
 
-        # verify link status
-        ports_link_down = [port_id for port_id in ports if self.ports[port_id].attr.get('link',{}).get('up') == False]
-        if not force and ports_link_down:
-            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
-
+      
+        # some sanity checks before attempting start
+        self.__pre_start_check(ports, force)
+        
         #########################
         # decode core mask argument
         decoded_mask = self.__decode_core_mask(ports, core_mask)
@@ -2068,17 +2348,12 @@ class STLClient(object):
             raise STLArgumentError('mult', mult)
 
 
-        # verify ports are stopped or force stop them
+        # stop active ports if needed
         active_ports = list(set(self.get_active_ports()).intersection(ports))
-        if active_ports:
-            if not force:
-                raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
-            else:
-                rc = self.stop(active_ports)
-                if not rc:
-                    raise STLError(rc)
+        if active_ports and force:
+            self.stop(active_ports)
 
-
+        
         # start traffic
         self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
         rc = self.__start(mult_obj, duration, ports, force, decoded_mask)
@@ -2089,7 +2364,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def stop (self, ports = None, rx_delay_ms = 10):
+    def stop (self, ports = None, rx_delay_ms = None):
         """
             Stop port(s)
 
@@ -2115,13 +2390,19 @@ class STLClient(object):
                 return
 
         ports = self._validate_port_list(ports)
-
+        
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
+
+        if rx_delay_ms is None:
+            if self.ports[ports[0]].is_virtual(): # assume all ports have same type
+                rx_delay_ms = 100
+            else:
+                rx_delay_ms = 10
 
         # remove any RX filters
         rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
@@ -2245,7 +2526,8 @@ class STLClient(object):
                      speedup = 1.0,
                      count = 1,
                      duration = -1,
-                     is_dual = False):
+                     is_dual = False,
+                     min_ipg_usec = None):
         """
             Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
@@ -2258,7 +2540,8 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 ipg_usec : float
-                    Inter-packet gap in microseconds
+                    Inter-packet gap in microseconds.
+                    Exclusive with min_ipg_usec
 
                 speedup : float
                     A factor to adjust IPG. effectively IPG = IPG / speedup
@@ -2275,6 +2558,10 @@ class STLClient(object):
                     also requires that all the ports will be in master mode
                     with their adjacent ports as slaves
 
+                min_ipg_usec : float
+                    Minimum inter-packet gap in microseconds to guard from too small ipg.
+                    Exclusive with ipg_usec
+
             :raises:
                 + :exc:`STLError`
 
@@ -2288,6 +2575,7 @@ class STLClient(object):
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
         validate_type('is_dual', is_dual, bool)
+        validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
 
         # for dual mode check that all are masters
         if is_dual:
@@ -2306,7 +2594,7 @@ class STLClient(object):
 
 
         self.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
-        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual)
+        rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -2324,7 +2612,8 @@ class STLClient(object):
                    force = False,
                    vm = None,
                    packet_hook = None,
-                   is_dual = False):
+                   is_dual = False,
+                   min_ipg_usec = None):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -2340,7 +2629,8 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 ipg_usec : float
-                    Inter-packet gap in microseconds
+                    Inter-packet gap in microseconds.
+                    Exclusive with min_ipg_usec
 
                 speedup : float
                     A factor to adjust IPG. effectively IPG = IPG / speedup
@@ -2366,6 +2656,10 @@ class STLClient(object):
                     also requires that all the ports will be in master mode
                     with their adjacent ports as slaves
 
+                min_ipg_usec : float
+                    Minimum inter-packet gap in microseconds to guard from too small ipg.
+                    Exclusive with ipg_usec
+
             :raises:
                 + :exc:`STLError`
 
@@ -2380,8 +2674,14 @@ class STLClient(object):
         validate_type('duration', duration, (float, int))
         validate_type('vm', vm, (list, type(None)))
         validate_type('is_dual', is_dual, bool)
+        validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
+        if all([ipg_usec, min_ipg_usec]):
+            raise STLError('Please specify either ipg or minimal ipg, not both.')
 
 
+        # this action requires starting traffic
+        self.__pre_start_check(ports, force)
+        
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
@@ -2392,7 +2692,7 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 if slave in ports:
-                    raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
+                    raise STLError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
                 if not slave in self.get_acquired_ports():
                     raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
@@ -2408,7 +2708,8 @@ class STLClient(object):
                                                speedup,
                                                count,
                                                vm = vm,
-                                               packet_hook = packet_hook)
+                                               packet_hook = packet_hook,
+                                               min_ipg_usec = min_ipg_usec)
                 self.logger.post_cmd(RC_OK)
             except STLError as e:
                 self.logger.post_cmd(RC_ERR(e))
@@ -2417,8 +2718,8 @@ class STLClient(object):
 
             self.remove_all_streams(ports = ports)
             id_list = self.add_streams(profile.get_streams(), ports)
-
-            return self.start(ports = ports, duration = duration)
+            
+            return self.start(ports = ports, duration = duration, force = force)
 
         else:
 
@@ -2433,7 +2734,8 @@ class STLClient(object):
                                                             count,
                                                             vm = vm,
                                                             packet_hook = packet_hook,
-                                                            split_mode = split_mode)
+                                                            split_mode = split_mode,
+                                                            min_ipg_usec = min_ipg_usec)
 
                 self.logger.post_cmd(RC_OK())
 
@@ -2441,7 +2743,7 @@ class STLClient(object):
                 self.logger.post_cmd(RC_ERR(e))
                 raise
 
-            all_ports = ports + [p ^ 0x1 for p in ports]
+            all_ports = ports + [p ^ 0x1 for p in ports if profile_b]
 
             self.remove_all_streams(ports = all_ports)
 
@@ -2450,13 +2752,116 @@ class STLClient(object):
                 slave = port ^ 0x1
 
                 self.add_streams(profile_a.get_streams(), master)
-                self.add_streams(profile_b.get_streams(), slave)
+                if profile_b:
+                    self.add_streams(profile_b.get_streams(), slave)
 
-            return self.start(ports = all_ports, duration = duration)
+            return self.start(ports = all_ports, duration = duration, force = force)
 
 
 
 
+    @__api_check(True)
+    def push_packets (self,
+                      pkts,
+                      ports = None,
+                      ipg_usec = 100,
+                      count = 1,
+                      duration = -1,
+                      force = False,
+                      vm = None):
+        
+        """
+            Pushes a list of packets to the server
+            a 'packet' can be anything with a bytes representation
+            such as Scapy object, a simple string, a byte array and etc.
+            
+            Total size, as for PCAP pushing is limited to 1MB
+            unless 'force' is specified
+            
+            the list of packets will be saved to a temporary file
+            which will be deleted when the function exists
+            
+            :parameters:
+                pkts : Scapy pkt or a list of scapy pkts
+
+                ports : list
+                    Ports on which to execute the command
+
+                ipg_usec : float
+                    Inter-packet gap in microseconds.
+
+                count: int
+                    How many times to transmit the list
+
+                duration: float
+                    Limit runtime by duration in seconds
+
+                force: bool
+                    Ignore size limit - push any size to the server
+
+                vm: list of VM instructions
+                    VM instructions to apply for every packet
+
+            :raises:
+                + :exc:`STLError`
+        """
+        
+        # validate ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        validate_type('count',  count, int)
+        validate_type('duration', duration, (float, int))
+        validate_type('vm', vm, (list, type(None)))
+        
+        # pkts should be scapy, bytes, str or a list of them
+        pkts = listify(pkts)
+        for pkt in pkts:
+            if not isinstance(pkt, (Ether, bytes)):
+                raise STLTypeError('pkts', type(pkt), (Ether, bytes))
+        
+        # IPG
+        validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
+        if ipg_usec < 0:
+            raise STLError("'ipg_usec' should not be negative")
+        
+        # this action requires starting traffic
+        self.__pre_start_check(ports, force)
+        
+        # init the stream list
+        streams = []
+        
+        for i, pkt in enumerate(pkts, start = 1):
+            
+            # handle last packet
+            
+            if i == len(pkts):
+                next = 1
+                action_count = count
+            else:
+                next = i + 1
+                action_count = 0
+
+            # is the packet Scapy or a simple buffer ?
+            packet = STLPktBuilder(pkt = pkt, vm = vm) if isinstance(pkt, Ether) else STLPktBuilder(pkt_buffer = pkt, vm = vm)
+            
+            # add the stream
+            streams.append(STLStream(name = i,
+                                     packet = packet,
+                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                     self_start = True if (i == 1) else False,
+                                     isg = ipg_usec,  # usec
+                                     action_count = action_count,
+                                     next = next))
+        
+        
+        # remove all streams, attach the created list and start
+        self.remove_all_streams(ports = ports)
+        id_list = self.add_streams(streams, ports)
+            
+        self.start(ports = ports, duration = duration, force = force)
+
+    
 
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = -1, total = False):
@@ -2575,7 +2980,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = 10):
+    def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = None):
         """
             .. _wait_on_traffic:
 
@@ -2612,12 +3017,18 @@ class STLClient(object):
         while set(self.get_active_ports()).intersection(ports):
 
             # make sure ASYNC thread is still alive - otherwise we will be stuck forever
-            if not self.async_client.is_thread_alive():
+            if not self.async_client.is_active():
                 raise STLError("subscriber thread is dead")
 
             time.sleep(0.01)
             if timer.has_expired():
                 raise STLTimeoutError(timeout)
+
+        if rx_delay_ms is None:
+            if self.ports[ports[0]].is_virtual(): # assume all ports have same type
+                rx_delay_ms = 100
+            else:
+                rx_delay_ms = 10
 
         # remove any RX filters
         rc = self._remove_rx_filters(ports, rx_delay_ms = rx_delay_ms)
@@ -2626,16 +3037,24 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def set_port_attr (self, ports = None, promiscuous = None, link_up = None, led_on = None, flow_ctrl = None):
+    def set_port_attr (self, 
+                       ports = None,
+                       promiscuous = None,
+                       link_up = None,
+                       led_on = None,
+                       flow_ctrl = None,
+                       resolve = True,
+                       multicast = None):
         """
             Set port attributes
 
             :parameters:
-                promiscuous - True or False
-                link_up     - True or False
-                led_on      - True or False
-                flow_ctrl   - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-
+                promiscuous      - True or False
+                link_up          - True or False
+                led_on           - True or False
+                flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
+                resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
+                multicast        - enable receiving multicast, True or False
             :raises:
                 + :exe:'STLError'
 
@@ -2649,29 +3068,496 @@ class STLClient(object):
         validate_type('link_up', link_up, (bool, type(None)))
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
+        validate_type('multicast', multicast, (bool, type(None)))
+    
+        # common attributes for all ports
+        cmn_attr_dict = {}
 
-        # build attributes
-        attr_dict = {}
-        if promiscuous is not None:
-            attr_dict['promiscuous'] = {'enabled': promiscuous}
-        if link_up is not None:
-            attr_dict['link_status'] = {'up': link_up}
-        if led_on is not None:
-            attr_dict['led_status'] = {'on': led_on}
-        if flow_ctrl is not None:
-            attr_dict['flow_ctrl_mode'] = {'mode': flow_ctrl}
+        cmn_attr_dict['promiscuous']     = promiscuous
+        cmn_attr_dict['link_status']     = link_up
+        cmn_attr_dict['led_status']      = led_on
+        cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
+        cmn_attr_dict['multicast']       = multicast
         
-        # no attributes to set
-        if not attr_dict:
-            return
-
+        # each port starts with a set of the common attributes
+        attr_dict = [dict(cmn_attr_dict) for _ in ports]
+    
         self.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
         rc = self.__set_port_attr(ports, attr_dict)
+        self.logger.post_cmd(rc)
+            
+        if not rc:
+            raise STLError(rc)
+
+      
+            
+    @__api_check(True)
+    def get_port_attr (self, port):
+        """
+            get the port attributes currently set
+            
+            :parameters:
+                ports          - for which ports to configure service mode on/off
+           
+                     
+            :raises:
+                + :exe:'STLError'
+                
+        """
+        validate_type('port', port, int)
+        if port not in self.get_all_ports():
+            raise STLError("'{0}' is not a valid port id".format(port))
+            
+        return self.ports[port].get_formatted_info()
+            
+    
+        
+    @__api_check(True)
+    def set_service_mode (self, ports = None, enabled = True):
+        """
+            Set service mode for port(s)
+            In service mode ports will respond to ARP, PING and etc.
+
+            :parameters:
+                ports          - for which ports to configure service mode on/off
+                enabled        - True for activating service mode, False for disabling
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default take all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        if enabled:
+            self.logger.pre_cmd('Enabling service mode on port(s) {0}:'.format(ports))
+        else:
+            self.logger.pre_cmd('Disabling service mode on port(s) {0}:'.format(ports))
+            
+        rc = self.__set_service_mode(ports, enabled)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
+    @contextmanager
+    def service_mode (self, ports):
+        self.set_service_mode(ports = ports)
+        try:
+            yield
+        finally:
+            self.set_service_mode(ports = ports, enabled = False)
+        
+        
+    @__api_check(True)
+    def resolve (self, ports = None, retries = 0, verbose = True):
+        """
+            Resolves ports (ARP resolution)
+
+            :parameters:
+                ports          - which ports to resolve
+                retries        - how many times to retry on each port (intervals of 100 milliseconds)
+                verbose        - log for each request the response
+            :raises:
+                + :exe:'STLError'
+
+        """
+        # by default - resolve all the ports that are configured with IPv4 dest
+        ports = ports if ports is not None else self.get_resolvable_ports()
+        ports = self._validate_port_list(ports)
+            
+        self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
+        
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            rc = self.__resolve(ports, retries)
+            
+        self.logger.post_cmd(rc)
+
+        if verbose:
+            for x in filter(bool, listify(rc.data())):
+                self.logger.log(format_text("{0}".format(x), 'bold'))
+                
+        if not rc:
+            raise STLError(rc)
+
+    # alias
+    arp = resolve
+
+
+    @__api_check(True)
+    def scan6(self, ports = None, timeout = 5, verbose = False):
+        """
+            Search for IPv6 devices on ports
+
+            :parameters:
+                ports          - for which ports to apply a unique sniffer (each port gets a unique file)
+                timeout        - how much time to wait for responses
+                verbose        - log for each request the response
+            :return:
+                list of dictionaries per neighbor:
+
+                    * type   - type of device: 'Router' or 'Host'
+                    * mac    - MAC address of device
+                    * ipv6   - IPv6 address of device
+            :raises:
+                + :exe:'STLError'
+
+        """
+
+        if ports is None:
+            ports = self.get_acquired_ports()
+        else:
+            ports = self._validate_port_list(ports)
+            not_acquired = list_difference(ports, self.get_acquired_ports())
+            if not_acquired:
+                raise STLError('Following ports are not acquired: %s' % ', '.join(map(str, not_acquired)))
+
+        not_in_service = list_difference(ports, self.get_service_enabled_ports())
+        if not_in_service:
+            raise STLError('Following ports are not in service mode: %s' % ', '.join(map(str, not_in_service)))
+
+        self.logger.pre_cmd('Scanning network for IPv6 nodes on port(s) {0}:'.format(ports))
+
+        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
+            rc_per_port = self.__scan6(ports, timeout)
+
+        self.logger.post_cmd(rc_per_port)
+
+        err = RC()
+        replies_per_port = {}
+        for port, rc in rc_per_port.items():
+            if not rc:
+                err.add(rc)
+            else:
+                replies_per_port[port] = rc.data()
+
+        if err.rc_list:
+            raise STLError(err)
+
+        if verbose:
+            for port, replies in replies_per_port.items():
+                if replies:
+                    max_ip_len = 0
+                    for resp in replies:
+                        max_ip_len = max(max_ip_len, len(resp['ipv6']))
+                    scan_table = TRexTextTable()
+                    scan_table.set_cols_align(['c', 'c', 'l'])
+                    scan_table.header(['Device', 'MAC', 'IPv6 address'])
+                    scan_table.set_cols_width([9, 19, max_ip_len + 2])
+
+                    resp = 'Port %s - IPv6 search result:' % port
+                    self.logger.log(format_text(resp, 'bold'))
+                    node_types = defaultdict(list)
+                    for reply in replies:
+                        node_types[reply['type']].append(reply)
+                    for key in sorted(node_types.keys()):
+                        for reply in node_types[key]:
+                            scan_table.add_row([key, reply['mac'], reply['ipv6']])
+                    self.logger.log(scan_table.draw())
+                    self.logger.log('')
+                else:
+                    self.logger.log(format_text('Port %s: no replies! Try to ping with explicit address.' % port, 'bold'))
+
+        return replies_per_port
+
+
+    @__api_check(True)
+    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed'):
+        """
+            Starts a low rate packet capturing on the server
+
+            :parameters:
+                tx_ports: list
+                    on which ports to capture TX
+                    
+                rx_ports: list
+                    on which ports to capture RX
+                    
+                limit: int
+                    limit how many packets will be written memory requierment is O(9K * limit)
+                    
+                mode: str
+                    'fixed'  - when full, newer packets will be dropped
+                    'cyclic' - when full, older packets will be dropped
+                                  
+            :returns:
+                returns a dictionary:
+                {'id: <new_id>, 'ts': <starting timestamp>}
+                
+                where 'id' is the new capture ID for future commands
+                and 'ts' is that server monotonic timestamp when
+                the capture was created
+                
+            :raises:
+                + :exe:'STLError'
+
+        """
+
+        # default values for TX / RX ports
+        tx_ports = tx_ports if tx_ports is not None else []
+        rx_ports = rx_ports if rx_ports is not None else []
+        
+        # check arguments
+        tx_ports = self._validate_port_list(tx_ports, allow_empty = True)
+        rx_ports = self._validate_port_list(rx_ports, allow_empty = True)
+        merge_ports = set(tx_ports + rx_ports)
+        
+        # make sure at least one port to capture
+        if not merge_ports:
+            raise STLError("start_capture - must get at least one port to capture")
+            
+        validate_type('limit', limit, (int))
+        if limit <= 0:
+            raise STLError("'limit' must be a positive value")
+
+        if mode not in ('fixed', 'cyclic'):
+            raise STLError("'mode' must be either 'fixed' or 'cyclic'")
+        
+        # verify service mode
+        non_service_ports =  list_difference(merge_ports, self.get_service_enabled_ports())
+        if non_service_ports:
+            raise STLError("Port(s) {0} are not under service mode. packet capturing requires all ports to be in service mode".format(non_service_ports))
+        
+            
+        # actual job
+        self.logger.pre_cmd("Starting packet capturing up to {0} packets".format(limit))
+        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'mode': mode, 'tx': tx_ports, 'rx': rx_ports})
         self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
 
+        return {'id': rc.data()['capture_id'], 'ts': rc.data()['start_ts']}
+
+
+        
+    @__api_check(True)
+    def stop_capture (self, capture_id, output = None):
+        """
+            Stops an active capture and optionally save it to a PCAP file
+
+            :parameters:
+                capture_id: int
+                    an active capture ID to stop
+                    
+                output: None / str / list
+                    if output is None - all the packets will be discarded
+                    if output is a 'str' - it will be interpeted as output filename
+                    if it is a list, the API will populate the list with packet objects
+
+                    in case 'output' is a list, each element in the list is an object
+                    containing:
+                    'binary' - binary bytes of the packet
+                    'origin' - RX or TX origin
+                    'ts'     - timestamp relative to the start of the capture
+                    'index'  - order index in the capture
+                    'port'   - on which port did the packet arrive or was transmitted from
+                    
+            :raises:
+                + :exe:'STLError'
+
+        """
+        
+        # stopping a capture requires:
+        # 1. stopping
+        # 2. fetching
+        # 3. saving to file
+        
+        
+        validate_type('capture_id', capture_id, (int))
+        validate_type('output', output, (type(None), str, list))
+        
+        # stop
+        
+        self.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'stop', 'capture_id': capture_id})
+        self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
+        
+        # pkt count
+        pkt_count = rc.data()['pkt_count']
+        
+        # fetch packets
+        if output is not None:
+            self.__fetch_capture_packets(capture_id, output, pkt_count)
+        
+        # remove
+        self.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
+        rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
+        self.logger.post_cmd(rc)
+        if not rc:
+            raise STLError(rc)
+        
+
+            
+    # fetch packets from the server and save them to a file
+    def __fetch_capture_packets (self, capture_id, output, pkt_count):
+        write_to_file = isinstance(output, basestring)
+        
+        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
+        
+        # create a PCAP file
+        if write_to_file:
+            writer = RawPcapWriter(output, linktype = 1)
+            writer._write_header(None)
+        else:
+            # clear the list
+            del output[:]
+
+        pending = pkt_count
+        rc = RC_OK()
+        
+        # fetch with iteratios - each iteration up to 50 packets
+        while pending > 0:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            if not rc:
+                self.logger.post_cmd(rc)
+                raise STLError(rc)
+
+            # make sure we are getting some progress
+            assert(rc.data()['pending'] < pending)
+            
+            pkts      = rc.data()['pkts']
+            pending   = rc.data()['pending']
+            start_ts  = rc.data()['start_ts']
+            
+            # write packets
+            for pkt in pkts:
+                ts = pkt['ts'] - start_ts
+                
+                pkt['binary'] = base64.b64decode(pkt['binary'])
+                
+                if write_to_file:
+                    ts_sec, ts_usec = sec_split_usec(ts)
+                    writer._write_packet(pkt['binary'], sec = ts_sec, usec = ts_usec)
+                else:
+                    output.append(pkt)
+
+
+
+
+        self.logger.post_cmd(rc)
+
+            
+            
+    @__api_check(True)
+    def get_capture_status (self):
+        """
+            Returns a dictionary where each key is an capture ID
+            Each value is an object describing the capture
+
+        """
+        rc = self._transmit("capture", params = {'command': 'status'})
+        if not rc:
+            raise STLError(rc)
+
+        # reformat as dictionary
+        output = {}
+        for c in rc.data():
+            output[c['id']] = c
+            
+        return output
+
+        
+    @__api_check(True)
+    def remove_all_captures (self):
+        """
+            Removes any existing captures
+        """
+        captures = self.get_capture_status()
+        
+        self.logger.pre_cmd("Removing all packet captures from server")
+        
+        for capture_id in captures.keys():
+            # remove
+            rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
+            if not rc:
+                raise STLError(rc)
+
+        self.logger.post_cmd(RC_OK())
+                
+
+        
+    @__api_check(True)
+    def set_rx_queue (self, ports = None, size = 1000):
+        """
+            Sets RX queue for port(s)
+            The queue is cyclic and will hold last 'size' packets
+
+            :parameters:
+                ports          - for which ports to apply a queue
+                size           - size of the queue
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        # check arguments
+        validate_type('size', size, (int))
+        if size <= 0:
+            raise STLError("'size' must be a positive value")
+
+        self.logger.pre_cmd("Setting RX queue on port(s) {0}:".format(ports))
+        rc = self.__set_rx_queue(ports, size)
+        self.logger.post_cmd(rc)
+
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def remove_rx_queue (self, ports = None):
+        """
+            Removes RX queue from port(s)
+
+            :parameters:
+                ports          - for which ports to remove the RX queue
+            :raises:
+                + :exe:'STLError'
+
+        """
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+
+        self.logger.pre_cmd("Removing RX queue on port(s) {0}:".format(ports))
+        rc = self.__remove_rx_queue(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+
+    @__api_check(True)
+    def get_rx_queue_pkts (self, ports = None):
+        """
+            Returns any packets queued on the RX side by the server
+            return value is a dictonary per port
+            
+            :parameters:
+                ports          - for which ports to fetch
+        """
+        
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self._validate_port_list(ports)
+        
+        rc = self.__get_rx_queue_pkts(ports)
+        if not rc:
+            raise STLError(rc)
+            
+        # decode the data back to the user
+        result = {}
+        for port, r in zip(ports, rc.data()):
+            result[port] = r
+        
+        return result
+            
+        
     def clear_events (self):
         """
             Clear all events
@@ -2701,7 +3587,7 @@ class STLClient(object):
             try:
                 rc = f(*args)
             except STLError as e:
-                client.logger.log("Log:\n" + format_text(e.brief() + "\n", 'bold'))
+                client.logger.log("\nAction has failed with the following error:\n\n" + format_text(e.brief() + "\n", 'bold'))
                 return RC_ERR(e.brief())
 
             # if got true - print time
@@ -2713,12 +3599,33 @@ class STLClient(object):
 
         return wrap
 
+
     @__console
     def ping_line (self, line):
-        '''pings the server'''
-        self.ping()
-        return RC_OK()
+        '''pings the server / specific IP'''
+        
+        # no parameters - so ping server
+        if not line:
+            self.ping_rpc_server()
+            return True
+            
+        parser = parsing_opts.gen_parser(self,
+                                         "ping",
+                                         self.ping_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.PING_IP,
+                                         parsing_opts.PKT_SIZE,
+                                         parsing_opts.PING_COUNT)
 
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        # IP ping
+        # source ports maps to ports as a single port
+        self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count)
+
+        
     @__console
     def shutdown_line (self, line):
         '''shutdown the server'''
@@ -2740,15 +3647,16 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "connect",
                                          self.connect_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE)
+                                         parsing_opts.FORCE,
+                                         parsing_opts.READONLY)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
+        opts = parser.parse_args(line.split())
         if not opts:
             return opts
 
         self.connect()
-        self.acquire(ports = opts.ports, force = opts.force)
+        if not opts.readonly:
+            self.acquire(force = opts.force)
 
         return RC_OK()
 
@@ -2846,13 +3754,14 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "reset",
                                          self.reset_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.PORT_RESTART)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
             return opts
 
-        self.reset(ports = opts.ports)
+        self.reset(ports = opts.ports, restart = opts.restart)
 
         return RC_OK()
 
@@ -2888,14 +3797,19 @@ class STLClient(object):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(opts.ports, core_mask)
 
+        # for better use experience - check this first
+        try:
+            self.__pre_start_check(opts.ports, opts.force)
+        except STLError as e:
+            msg = e.brief()
+            self.logger.log(format_text(msg, 'bold'))
+            return RC_ERR(msg)
+            
+                
+        # stop ports if needed
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
-        if active_ports:
-            if not opts.force:
-                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
-                self.logger.log(format_text(msg, 'bold'))
-                return RC_ERR(msg)
-            else:
-                self.stop(active_ports)
+        if active_ports and opts.force:
+            self.stop(active_ports)
 
 
         # process tunables
@@ -2920,9 +3834,8 @@ class STLClient(object):
                 self.add_streams(profile.get_streams(), ports = port)
 
         except STLError as e:
-            error = 'Unknown error.'
-            for line in e.brief().split('\n'):
-                if line:
+            for line in e.brief().splitlines():
+                if ansi_len(line.strip()):
                     error = line
             msg = format_text("\nError loading profile '{0}'".format(opts.file[0]), 'bold')
             self.logger.log(msg + '\n')
@@ -3171,21 +4084,29 @@ class STLClient(object):
     @__console
     def push_line (self, line):
         '''Push a pcap file '''
+        args = [self,
+                "push",
+                self.push_line.__doc__,
+                parsing_opts.REMOTE_FILE,
+                parsing_opts.PORT_LIST_WITH_ALL,
+                parsing_opts.COUNT,
+                parsing_opts.DURATION,
+                parsing_opts.IPG,
+                parsing_opts.MIN_IPG,
+                parsing_opts.SPEEDUP,
+                parsing_opts.FORCE,
+                parsing_opts.DUAL]
 
-        parser = parsing_opts.gen_parser(self,
-                                         "push",
-                                         self.push_line.__doc__,
-                                         parsing_opts.FILE_PATH,
-                                         parsing_opts.REMOTE_FILE,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.COUNT,
-                                         parsing_opts.DURATION,
-                                         parsing_opts.IPG,
-                                         parsing_opts.SPEEDUP,
-                                         parsing_opts.FORCE,
-                                         parsing_opts.DUAL)
-
+        parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH_NO_CHECK]))
         opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if not opts:
+            return opts
+
+        if not opts.remote:
+            parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH]))
+            opts = parser.parse_args(line.split(), verify_acquired = True)
+
         if not opts:
             return opts
 
@@ -3202,22 +4123,24 @@ class STLClient(object):
 
         if opts.remote:
             self.push_remote(opts.file[0],
-                             ports     = opts.ports,
-                             ipg_usec  = opts.ipg_usec,
-                             speedup   = opts.speedup,
-                             count     = opts.count,
-                             duration  = opts.duration,
-                             is_dual   = opts.dual)
+                             ports          = opts.ports,
+                             ipg_usec       = opts.ipg_usec,
+                             min_ipg_usec   = opts.min_ipg_usec,
+                             speedup        = opts.speedup,
+                             count          = opts.count,
+                             duration       = opts.duration,
+                             is_dual        = opts.dual)
 
         else:
             self.push_pcap(opts.file[0],
-                           ports     = opts.ports,
-                           ipg_usec  = opts.ipg_usec,
-                           speedup   = opts.speedup,
-                           count     = opts.count,
-                           duration  = opts.duration,
-                           force     = opts.force,
-                           is_dual   = opts.dual)
+                           ports          = opts.ports,
+                           ipg_usec       = opts.ipg_usec,
+                           min_ipg_usec   = opts.min_ipg_usec,
+                           speedup        = opts.speedup,
+                           count          = opts.count,
+                           duration       = opts.duration,
+                           force          = opts.force,
+                           is_dual        = opts.dual)
 
         
 
@@ -3230,7 +4153,7 @@ class STLClient(object):
         '''Sets port attributes '''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port_attr",
+                                         "portattr",
                                          self.set_port_attr_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.PROMISCUOUS,
@@ -3238,41 +4161,158 @@ class STLClient(object):
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
                                          parsing_opts.SUPPORTED,
+                                         parsing_opts.MULTICAST,
                                          )
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
         if not opts:
             return opts
 
-        opts.prom      = parsing_opts.ON_OFF_DICT.get(opts.prom)
-        opts.link      = parsing_opts.UP_DOWN_DICT.get(opts.link)
-        opts.led       = parsing_opts.ON_OFF_DICT.get(opts.led)
-        opts.flow_ctrl = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
+        opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
+        opts.mult            = parsing_opts.ON_OFF_DICT.get(opts.mult)
+        opts.link            = parsing_opts.UP_DOWN_DICT.get(opts.link)
+        opts.led             = parsing_opts.ON_OFF_DICT.get(opts.led)
+        opts.flow_ctrl       = parsing_opts.FLOW_CTRL_DICT.get(opts.flow_ctrl)
 
         # if no attributes - fall back to printing the status
-        if not filter(lambda x:x is not None, [opts.prom, opts.link, opts.led, opts.flow_ctrl, opts.supp]):
-            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in opts.ports)))
+        if not list(filter(lambda opt:opt[0] not in ('all_ports', 'ports') and opt[1] is not None, opts._get_kwargs())):
+            ports = opts.ports if opts.ports else self.get_all_ports()
+            self.show_stats_line("--ps --port {0}".format(' '.join(str(port) for port in ports)))
             return
 
         if opts.supp:
-            info = self.ports[0].get_info() # assume for now all ports are same
+            info = self.ports[0].get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   yes')
+            print('  Multicast:     yes')
             print('  Link status:   %s' % info['link_change_supported'])
             print('  LED status:    %s' % info['led_change_supported'])
             print('  Flow control:  %s' % info['fc_supported'])
             print('')
         else:
-            return self.set_port_attr(opts.ports, opts.prom, opts.link, opts.led, opts.flow_ctrl)
+            if not opts.ports:
+                raise STLError('No acquired ports!')
+            self.set_port_attr(opts.ports,
+                               opts.prom,
+                               opts.link,
+                               opts.led,
+                               opts.flow_ctrl,
+                               multicast = opts.mult)
 
 
+    @__console
+    def set_rx_sniffer_line (self, line):
+        '''Sets a port sniffer on RX channel in form of a PCAP file'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "set_rx_sniffer",
+                                         self.set_rx_sniffer_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.OUTPUT_FILENAME,
+                                         parsing_opts.LIMIT)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        self.set_rx_sniffer(opts.ports, opts.output_filename, opts.limit)
+
+        return RC_OK()
+        
+
+    @__console
+    def resolve_line (self, line):
+        '''Performs a port ARP resolution'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "resolve",
+                                         self.resolve_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.RETRIES)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        
+        self.resolve(ports = opts.ports, retries = opts.retries)
+
+        return RC_OK()
+        
+    
+    @__console
+    def scan6_line(self, line):
+        '''Search for IPv6 neighbors'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "scan6",
+                                         self.scan6_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.TIMEOUT)
+
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+        if not opts:
+            return opts
+
+        rc_per_port = self.scan6(ports = opts.ports, timeout = opts.timeout, verbose = True)
+        #for port, rc in rc_per_port.items():
+        #    if rc and len(rc.data()) == 1 and not self.ports[port].is_resolved():
+        #        self.ports[port].set_l2_mode(rc.data()[0][1])
+        return RC_OK()
+
+
+    @__console
+    def set_l2_mode_line (self, line):
+        '''Configures a port in L2 mode'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.set_l2_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.DST_MAC,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+
+        # source ports maps to ports as a single port
+        self.set_l2_mode(opts.ports[0], dst_mac = opts.dst_mac)
+
+        return RC_OK()
+        
+        
+    @__console
+    def set_l3_mode_line (self, line):
+        '''Configures a port in L3 mode'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.set_l3_mode_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.SRC_IPV4,
+                                         parsing_opts.DST_IPV4,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+
+        # source ports maps to ports as a single port
+        self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4)
+
+        return RC_OK()
+        
+        
     @__console
     def show_profile_line (self, line):
         '''Shows profile information'''
 
         parser = parsing_opts.gen_parser(self,
-                                         "port",
+                                         "profile",
                                          self.show_profile_line.__doc__,
                                          parsing_opts.FILE_PATH)
 
@@ -3364,7 +4404,162 @@ class STLClient(object):
             return "{0}(read-only)>".format(prefix)
 
         elif self.is_all_ports_acquired():
-            return "{0}>".format(prefix)
+            
+            p = prefix
+            
+            if self.get_service_enabled_ports():
+                if self.get_service_enabled_ports() == self.get_acquired_ports():
+                    p += '(service)'
+                else:
+                    p += '(service: {0})'.format(', '.join(map(str, self.get_service_enabled_ports())))
+                
+            return "{0}>".format(p)
 
         else:
-            return "{0} {1}>".format(prefix, self.get_acquired_ports())
+            return "{0} (ports: {1})>".format(prefix, ', '.join(map(str, self.get_acquired_ports())))
+            
+            
+
+    @__console
+    def service_line (self, line):
+        '''Configures port for service mode.
+           In service mode ports will reply to ARP, PING
+           and etc.
+        '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "service",
+                                         self.service_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.SERVICE_OFF)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
+        
+
+    @__console
+    def pkt_line (self, line):
+        '''
+            Sends a Scapy format packet
+        '''
+        
+        parser = parsing_opts.gen_parser(self,
+                                         "pkt",
+                                         self.pkt_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.COUNT,
+                                         parsing_opts.DRY_RUN,
+                                         parsing_opts.SCAPY_PKT_CMD)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        # show layers option
+        if opts.layers:
+            self.logger.log(format_text('\nRegistered Layers:\n', 'underline'))
+            self.logger.log(parsing_opts.ScapyDecoder.formatted_layers())
+            return
+
+        # dry run option
+        if opts.dry:
+            self.logger.log(format_text('\nPacket (Size: {0}):\n'.format(format_num(len(opts.scapy_pkt), suffix = 'B')), 'bold', 'underline'))
+            opts.scapy_pkt.show2()
+            self.logger.log(format_text('\n*** DRY RUN - no traffic was injected ***\n', 'bold'))
+            return
+            
+            
+        # verify ports are stopped or force stop them
+        active_ports = [port_id for port_id in opts.ports if self.ports[port_id].is_active()]
+        if active_ports:
+            self.logger.log(format_text("Port(s) {0} are active - please stop them before pushing packets".format(active_ports), 'bold'))
+            return
+            
+            
+        self.logger.pre_cmd("Pushing {0} packet(s) (size: {1}) on port(s) {2}:".format(opts.count if opts.count else 'infinite',
+                                                                                       len(opts.scapy_pkt), opts.ports))
+        
+        try:
+            with self.logger.supress():
+                self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = True, count = opts.count)
+                
+        except STLError as e:
+            self.logger.post_cmd(False)
+            raise
+        else:
+            self.logger.post_cmd(RC_OK())
+        
+    # save current history to a temp file
+    def __push_history (self):
+        tmp_file = tempfile.mktemp()
+        readline.write_history_file(tmp_file)
+        readline.clear_history()
+        return tmp_file
+        
+    # restore history from a temp file        
+    def __pop_history (self, filename):
+        readline.clear_history()
+        readline.read_history_file(filename)
+        
+ 
+        
+    @__console
+    def debug_line (self, line):
+        '''
+            Internal debugger for development.
+            Requires IPython and readline modules installed
+        '''
+     
+        parser = parsing_opts.gen_parser(self,
+                                         "debug",
+                                         self.debug_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+            
+        
+        try:
+            import IPython
+        except ImportError:
+            self.logger.log(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
+            return
+            
+        try:
+            import readline
+        except ImportError:
+            self.logger.log(format_text("\n*** 'readline' is required for interactive debugging ***\n", 'bold'))
+            return
+            
+        self.logger.log(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
+        
+        
+        client = self
+        auto_completer = readline.get_completer()
+        
+        h_file = self.__push_history()
+        
+        try:
+            from IPython.terminal.ipapp import load_default_config
+            cfg = load_default_config()
+            cfg['TerminalInteractiveShell']['confirm_exit']    = False
+            
+            x = IPython.terminal.embed.InteractiveShellEmbed(cfg, display_banner = False)
+            x.mainloop()
+            
+        finally:
+            readline.set_completer(auto_completer)
+            self.__pop_history(h_file)
+            try:
+                os.unlink(h_file)
+            except OSError:
+                pass
+        
+        self.logger.log(format_text("\n*** Leaving IPython ***\n"))
+        
+        return
+
+     

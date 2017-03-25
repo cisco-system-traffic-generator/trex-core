@@ -1,7 +1,7 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright(c) 2010-2015 Intel Corporation. All rights reserved.
+ *   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.
  *   All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
@@ -48,20 +48,14 @@
 
 #define I40E_DPDK_OFFSET  0x100
 
-enum i40e_pf_vfr_state {
-	I40E_PF_VFR_INPROGRESS = 0,
-	I40E_PF_VFR_COMPLETED = 1,
-};
-
 /* DPDK pf driver specific command to VF */
 enum i40e_virtchnl_ops_dpdk {
 	/*
 	 * Keep some gap between Linux PF commands and
 	 * DPDK PF extended commands.
 	 */
-	I40E_VIRTCHNL_OP_GET_LINK_STAT = I40E_VIRTCHNL_OP_VERSION +
+	I40E_VIRTCHNL_OP_CFG_VLAN_OFFLOAD = I40E_VIRTCHNL_OP_VERSION +
 						I40E_DPDK_OFFSET,
-	I40E_VIRTCHNL_OP_CFG_VLAN_OFFLOAD,
 	I40E_VIRTCHNL_OP_CFG_VLAN_PVID,
 	I40E_VIRTCHNL_OP_CONFIG_VSI_QUEUES_EXT,
 };
@@ -124,5 +118,7 @@ void i40e_pf_host_handle_vf_msg(struct rte_eth_dev *dev,
 				uint8_t *msg, uint16_t msglen);
 int i40e_pf_host_init(struct rte_eth_dev *dev);
 int i40e_pf_host_uninit(struct rte_eth_dev *dev);
+void i40e_notify_vf_link_status(struct rte_eth_dev *dev,
+				struct i40e_pf_vf *vf);
 
 #endif /* _I40E_PF_H_ */

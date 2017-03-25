@@ -41,6 +41,9 @@ limitations under the License.
 
 #include <random>
 
+typedef uint16_t  pool_index_t;
+#define CS_MAX_POOLS UINT16_MAX
+
 class CTupleBase {
 public:
 
@@ -85,15 +88,15 @@ public:
        void setClientPort(uint16_t port) {
            m_client_port = port;
        }
-       void setClientCfg(ClientCfg *cfg) {
+       void setClientCfg(ClientCfgBase *cfg) {
            m_client_cfg = cfg;
        }
-       ClientCfg *getClientCfg() {
+       ClientCfgBase *getClientCfg() {
            return m_client_cfg;
        }
 
 
-       void setClientTuple(uint32_t ip, ClientCfg *cfg, uint16_t port) {
+       void setClientTuple(uint32_t ip, ClientCfgBase *cfg, uint16_t port) {
            setClient(ip);
            setClientPort(port);
            setClientCfg(cfg);
@@ -125,7 +128,7 @@ private:
        uint32_t m_server_ip;
        uint32_t m_server_idx;
 
-       ClientCfg *m_client_cfg;
+       ClientCfgBase *m_client_cfg;
 
        uint16_t m_client_port;
        uint16_t m_server_port;
@@ -337,7 +340,7 @@ template <typename T>
 class CConfiguredClientInfo : public T {
 
 public:
-    CConfiguredClientInfo(uint32_t ip, const ClientCfg &cfg) : m_cfg(cfg) {
+    CConfiguredClientInfo(uint32_t ip, const ClientCfgBase &cfg) : m_cfg(cfg) {
         T::set_ip(ip);
     }
 
@@ -348,7 +351,7 @@ public:
     }
 
 private:
-    ClientCfg m_cfg;
+    ClientCfgBase m_cfg;
 };
 
 
@@ -513,8 +516,7 @@ public:
     void Create(IP_DIST_t       dist_value,
                 uint32_t        min_ip,
                 uint32_t        max_ip,
-                double          l_flow,
-                double          t_cps,
+                double          active_flows,
                 ClientCfgDB     &client_info,
                 uint16_t        tcp_aging,
                 uint16_t        udp_aging); 
@@ -547,8 +549,7 @@ class CServerPoolBase {
     virtual void Create(IP_DIST_t  dist_value,
                uint32_t min_ip,
                uint32_t max_ip,
-               double l_flow,
-               double t_cps) = 0; 
+               double active_flows) = 0; 
  
 };
 
@@ -557,8 +558,8 @@ public:
     void Create(IP_DIST_t  dist_value,
                uint32_t min_ip,
                uint32_t max_ip,
-               double l_flow,
-               double t_cps) {
+                double active_flows
+               ) {
         m_max_server_ip = max_ip;
         m_min_server_ip = min_ip;
         m_cur_server_ip = min_ip;
@@ -598,8 +599,7 @@ public:
     void Create(IP_DIST_t  dist_value,
                 uint32_t min_ip,
                 uint32_t max_ip,
-                double l_flow,
-                double t_cps); 
+                double active_flows); 
  
     void Delete() {
         if (gen!=NULL) {
@@ -652,17 +652,17 @@ public:
     }
 
     
-    void FreePort(uint8_t pool_idx, uint32_t id, uint16_t port) {
+    void FreePort(pool_index_t pool_idx, uint32_t id, uint16_t port) {
         get_client_pool(pool_idx)->FreePort(id, port);
     }
         
-    bool IsFreePortRequired(uint8_t pool_idx){
+    bool IsFreePortRequired(pool_index_t pool_idx){
         return(get_client_pool(pool_idx)->IsFreePortRequired());
     }
-    uint16_t get_tcp_aging(uint8_t pool_idx) {
+    uint16_t get_tcp_aging(pool_index_t pool_idx) {
         return (get_client_pool(pool_idx)->get_tcp_aging());
     }
-    uint16_t get_udp_aging(uint8_t pool_idx) {
+    uint16_t get_udp_aging(pool_index_t pool_idx) {
         return (get_client_pool(pool_idx)->get_udp_aging());
     }
 
@@ -690,8 +690,7 @@ public:
     bool add_client_pool(IP_DIST_t     client_dist,
                          uint32_t      min_client,
                          uint32_t      max_client,
-                         double        l_flow,
-                         double        t_cps,
+                         double        active_flows,
                          ClientCfgDB   &client_info,
                          uint16_t      tcp_aging,
                          uint16_t      udp_aging);
@@ -699,20 +698,19 @@ public:
     bool add_server_pool(IP_DIST_t  server_dist,
                          uint32_t   min_server,
                          uint32_t   max_server,
-                         double     l_flow,
-                         double     t_cps,
+                         double     active_flows,
                          bool       is_bundling);
 
-    CClientPool* get_client_pool(uint8_t idx) {
+    CClientPool* get_client_pool(pool_index_t idx) {
         return m_client_pool[idx];
     }
-    uint8_t get_client_pool_num() {
+    pool_index_t get_client_pool_num() {
         return m_client_pool.size();
     }
-    uint8_t get_server_pool_num() {
+    pool_index_t get_server_pool_num() {
         return m_server_pool.size();
     }
-    CServerPoolBase* get_server_pool(uint8_t idx) {
+    CServerPoolBase* get_server_pool(pool_index_t idx) {
         return m_server_pool[idx];
     }
 private:
@@ -767,7 +765,9 @@ public:
 
 public:
 
-    bool Create( CTupleGeneratorSmart * gen,uint8_t c_pool,uint8_t s_pool){
+    bool Create( CTupleGeneratorSmart * gen,
+                 pool_index_t c_pool,
+                 pool_index_t s_pool){
         m_gen=gen;
         m_is_single_server=false;
         m_server_ip=0;
@@ -852,6 +852,9 @@ struct CTupleGenPoolYaml {
     uint32_t get_ip_start() {
         return m_ip_start;
     }
+    uint32_t get_ip_end() {
+        return m_ip_end;
+    }
     bool is_valid(uint32_t num_threads,bool is_plugins);
     void Dump(FILE *fd);
 };
@@ -863,11 +866,11 @@ struct CTupleGenYamlInfo {
         
 public:
     bool is_valid(uint32_t num_threads,bool is_plugins);
-    uint8_t get_server_pool_id(std::string name){
+    pool_index_t get_server_pool_id(std::string name){
          if (name=="default") {
              return 0;
          }
-        for (uint8_t i=0;i<m_server_pool.size();i++) {
+        for (pool_index_t i=0;i<m_server_pool.size();i++) {
             if (m_server_pool[i].m_name==name) 
                 return i;
         }
@@ -876,11 +879,11 @@ public:
         return 0;
     }
 
-    uint8_t get_client_pool_id(std::string name){
+    pool_index_t get_client_pool_id(std::string name){
          if (name=="default") {
              return 0;
          }
-        for (uint8_t i=0;i<m_client_pool.size();i++) {
+        for (pool_index_t i=0;i<m_client_pool.size();i++) {
             if (m_client_pool[i].m_name==name) 
                 return i;
         }
@@ -888,6 +891,9 @@ public:
         exit(-1);
         return 0;
     }
+
+    bool find_port(uint32_t ip_start, uint32_t ip_end, uint8_t &port);
+    void dump(FILE *fd);
 };
 
 

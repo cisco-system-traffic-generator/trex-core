@@ -1,0 +1,3319 @@
+TRex 
+====
+:author: hhaim 
+:email: <hhaim@cisco.com> 
+:revnumber: 2.1
+:revdate: 2017-02-21-a
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+
+== Introduction
+
+=== A word on traffic generators
+
+Traditionally, routers have been tested using commercial traffic generators, while performance typically has been measured using packets per second (PPS) metrics. As router functionality and services have become more complex, stateful traffic generators have become necessary to provide more realistic traffic scenarios.
+
+Advantages of realistic traffic generators:
+
+* Accurate performance metrics.
+* Discovering bottlenecks in realistic traffic scenarios.
+
+==== Current Challenges:
+
+* *Cost*: Commercial stateful traffic generators are very expensive.
+* *Scale*: Bandwidth does not scale up well with feature complexity.
+* *Standardization*: Lack of standardization of traffic patterns and methodologies.
+* *Flexibility*: Commercial tools are not sufficiently agile when flexibility and customization are needed.
+
+==== Implications 
+
+* High capital expenditure (capex) spent by different teams.
+* Testing in low scale and extrapolation became a common practice. This is non-ideal and fails to indicate bottlenecks that appear in real-world scenarios.
+* Teams use different benchmark methodologies, so results are not standardized.
+* Delays in development and testing due to dependence on testing tool features.
+* Resource and effort investment in developing different ad hoc tools and test methodologies.
+
+=== Overview of TRex
+
+TRex addresses the problems associated with commercial stateful traffic generators, through an innovative and extendable software implementation, and by leveraging standard and open software and x86/UCS hardware.
+
+* Generates and analyzes L4-7 traffic. In one package, provides capabilities of commercial L7 tools.
+* Stateful traffic generator based on pre-processing and smart replay of real traffic templates.
+* Generates and *amplifies* both client- and server-side traffic.
+* Customized functionality can be added.
+* Scales to 200Gb/sec for one UCS (using Intel 40Gb/sec NICs).
+* Low cost.
+* Self-contained package that can be easily installed and deployed.
+* Virtual interface support enables TRex to be used in a fully virtual environment without physical NICs. Example use cases:
+** Amazon AWS
+** Cisco LaaS
+// Which LaaS is this? Location as a service? Linux?
+** TRex on your laptop
+
+
+
+.TRex Hardware 
+[options="header",cols="1^,1^"]
+|=================
+|Cisco UCS Platform | Intel NIC 
+| image:images/ucs200_2.png[title="platform"] | image:images/Intel520.png[title="NIC"]  
+|=================
+
+=== Purpose of this guide
+
+This guide explains the use of TRex internals and the use of TRex together with Cisco ASR1000 Series routers. The examples illustrate novel traffic generation techniques made possible by TRex. 
+
+== Download and installation
+
+=== Hardware recommendations
+
+TRex operates in a Linux application environment, interacting with Linux kernel modules. 
+TRex curretly works on x86 architecture and can operate well on Cisco UCS hardware. The following platforms have been tested and are recommended for operating TRex. 
+
+[NOTE]
+=====================================
+ A high-end UCS platform is not required for operating TRex in its current version, but may be required for future versions.
+=====================================
+
+[NOTE]
+=====================================
+ Not all supported DPDK interfaces are supported by TRex.
+=====================================
+ 
+
+.Preferred UCS hardware
+[options="header",cols="1,3"]
+|=================
+| UCS Type | Comments 
+| UCS C220 Mx  | *Preferred Low-End*. Supports up to 40Gb/sec with 540-D2. With newer Intel NIC (recommended), supports 80Gb/sec with 1RU. See table below describing components.
+| UCS C200| Early UCS model.
+| UCS C210 Mx | Supports up to 40Gb/sec PCIe3.0.
+| UCS C240 Mx | *Preferred, High-End* Supports up to 200Gb/sec. 6x XL710 NICS (PCIex8) or 2xFM10K (PCIex16). See table below describing components.
+| UCS C260M2 | Supports up to 30Gb/sec (limited by V2 PCIe).
+|=================
+
+.Low-end UCS C220 Mx - Internal components
+[options="header",cols="1,2",width="60%"]
+|=================
+| Components |  Details 
+| CPU  | 2x E5-2620 @ 2.0 GHz. 
+| CPU Configuration | 2-Socket CPU configurations (also works with 1 CPU).
+| Memory | 2x4 banks f.or each CPU. Total of 32GB in 8 banks.	 
+| RAID | No RAID.
+|=================
+
+.High-end C240 Mx - Internal components 
+[options="header",cols="1,2",width="60%"]
+|=================
+| Components |  Details 
+| CPU  | 2x E5-2667 @ 3.20 GHz.
+| PCIe | 1x Riser PCI expansion card option A PID UCSC-PCI-1A-240M4 enables 2 PCIex16.
+| CPU Configuration | 2-Socket CPU configurations (also works with 1 CPU).
+| Memory | 2x4 banks for each CPU. Total of 32GB in 8 banks. 
+| RAID | No RAID.
+| Riser 1/2 | Both left and right should support x16 PCIe. Right (Riser1) should be from option A x16 and Left (Riser2) should be x16. Need to order both.
+|=================
+ 
+.Supported NICs
+[options="header",cols="1,1,4",width="90%"]
+|=================
+| Chipset              | Bandwidth  (Gb/sec)  |  Example
+| Intel I350           | 1   | Intel 4x1GE 350-T4 NIC
+| Intel 82599          | 10  |   Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
+| Intel 82599 VF       | x  | 
+| Intel X710           | 10  | Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
+| Intel XL710          | 40  | Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
+| Intel XL710/X710 VF  | x  | 
+| Intel 82599 VF       | x  | 
+| Intel FM10420        | 25/100 | QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*) 
+| Mellanox ConnectX-4  | 25/40/50/56/100 | QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
+| Mellanox ConnectX-5  | 25/40/50/56/100 | Supported 
+| Cisco 1300 series    | 40              | QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
+| VMXNET / +
+VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
+| E1000    | paravirtualized  | VMware/KVM/VirtualBox 
+| Virtio | paravirtualized  | KVM
+|=================
+
+// in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
+
+.SFP+ support 
+[options="header",cols="2,1,1,1",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+]  | Intel Ethernet Converged X710-DAX |  Silicom link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[PE310G4i71L] (Open optic) | 82599EB 10-Gigabit
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-SR] | Not supported  | [green]*Supported* | [green]*Supported*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-LR] | Not supported     | [green]*Supported* | [green]*Supported*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-H10GB-CU1M]| [green]*Supported* | [green]*Supported* | [green]*Supported*
+| link:http://www.cisco.com/c/en/us/products/collateral/interfaces-modules/transceiver-modules/data_sheet_c78-455693.html[Cisco SFP-10G-AOC1M] | [green]*Supported* | [green]*Supported* | [green]*Supported*
+|=================
+
+[NOTE]
+=====================================
+ Intel X710 NIC (example: FH X710DA4FHBLK) operates *only* with Intel SFP+. For open optic, use the Silicom PE310G4i71L NIC, available here:
+ http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49
+=====================================
+// it appears that link:<link> doesn't work in a note, so i changed the wording
+
+// clarify above table and note
+
+.XL710 NIC base QSFP+ support 
+[options="header",cols="1,1,1",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             | Intel Ethernet Converged XL710-QDAX                                          | Silicom link:http://www.silicom-usa.com/Dual_Port_Fiber_40_Gigabit_Ethernet_PCI_Express_Server_Adapter_PE340G2Qi71_83[PE340G2Qi71] Open optic 
+| QSFP+ SR4 optics                                           | [green]*Supported*: APPROVED OPTICS. *Not supported*: Cisco QSFP-40G-SR4-S   | [green]*Supported*: Cisco QSFP-40G-SR4-S  
+| QSFP+ LR-4 Optics                                          | [green]*Supported*: APPROVED OPTICS. *Not supported*: Cisco QSFP-40G-LR4-S   | [green]*Supported*: Cisco QSFP-40G-LR4-S 
+| QSFP Active Optical Cables (AoC)                           | [green]*Supported*: Cisco QSFP-H40G-AOC                                      | [green]*Supported*: Cisco QSFP-H40G-AOC  
+| QSFP+ Intel Ethernet Modular Supported                     | N/A                                                                          | N/A
+| QSFP+ DA twin-ax cables                                    | N/A                                                                          | N/A  
+| Active QSFP+ Copper Cables                                 | [green]*Supported*: Cisco QSFP-4SFP10G-CU                                    | [green]*Supported*: Cisco QSFP-4SFP10G-CU
+|=================
+
+[NOTE]
+=====================================
+ For Intel XL710 NICs, Cisco SR4/LR QSFP+ does not operate. Use Silicom with Open Optic.
+=====================================
+
+
+.ConnectX-4 NIC base QSFP28 support (100gb)
+[options="header",cols="1,2",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP28]             | ConnectX-4
+| QSFP28 SR4 optics                                           | N/A
+| QSFP28 LR-4 Optics                                          | N/A 
+| QSFP28 (AoC)                                                | [green]*Supported*: Cisco QSFP-100G-AOCxM    
+| QSFP28 DA twin-ax cables                                    | [green]*Supported*: Cisco QSFP-100G-CUxM
+|=================
+
+.Cisco VIC NIC base QSFP+ support 
+[options="header",cols="1,2",width="90%"]
+|=================
+| link:https://en.wikipedia.org/wiki/QSFP[QSFP+]             | Intel Ethernet Converged XL710-QDAX 
+| QSFP+ SR4 optics                                           | N/A
+| QSFP+ LR-4 Optics                                          | N/A
+| QSFP Active Optical Cables (AoC)                           | [green]*Supported*: Cisco QSFP-H40G-AOC
+| QSFP+ Intel Ethernet Modular Optics                        | N/A            
+| QSFP+ DA twin-ax cables                                    | N/A  
+| Active QSFP+ Copper Cables                                 | N/A
+|=================
+
+
+// clarify above table and note. let's discuss.
+.FM10K QSFP28 support 
+[options="header",cols="1,1",width="70%"]
+|=================
+| QSFP28             | Example 
+| todo  |  todo
+|=================
+
+// do we want to show "todo"? maybe "pending"
+
+
+[IMPORTANT]
+=====================================
+* Intel SFP+ 10Gb/sec is the only one supported by default on the standard Linux driver. TRex also supports Cisco 10Gb/sec SFP+. 
+// above, replace "only one" with "only mode"?
+* For operating high speed throughput (example: several Intel XL710 40Gb/sec), use different link:https://en.wikipedia.org/wiki/Non-uniform_memory_access[NUMA] nodes for different NICs. +
+    To verify NUMA and NIC topology: `lstopo (yum install hwloc)` +
+    To display CPU info, including NUMA node: `lscpu` +
+    NUMA usage: xref:numa-example[example]
+* For the Intel XL710 NIC, verify that the NVM is v5.04. xref:xl710-firmware[Info].
+**  `> sudo ./t-rex-64 -f cap2/dns.yaml -d 0 *-v 6* --nc | grep NVM` +
+    `PMD:  FW 5.0 API 1.5 NVM 05.00.04  eetrack 800013fc` 
+=====================================
+
+// above, maybe rename the bullet points "NIC usage notes"? should we create a subsection for NICs? Maybe it would be under "2.1 Hardware recommendations" as a subsection.
+
+
+.Sample order for recommended low-end Cisco UCSC-C220-M3S with 4x10Gb ports
+[options="header",cols="1,1",width="70%"]
+|=================
+| Component | Quantity 
+| UCSC-C220-M3S    |  1
+| UCS-CPU-E5-2650  |  2
+| UCS-MR-1X041RY-A |  8
+| A03-D500GC3      |  1
+| N2XX-AIPCI01     |  2
+| UCSC-PSU-650W    |  1
+| SFS-250V-10A-IS  |  1
+| UCSC-CMA1        |  1
+| UCSC-HS-C220M3   |  2
+| N20-BBLKD        |  7
+| UCSC-PSU-BLKP    |  1
+| UCSC-RAIL1       |  1
+|=================
+
+// should table above say "low-end Cisco UCS C220 M3S" instead of "low-end USCS-C220-M3S"?
+
+NOTE: Purchase the 10Gb/sec SFP+ separately. Cisco would be fine with TRex (but not for plain Linux driver).
+// does note above mean "TRex operates with 10Gb/sec SFP+ components, but plain Linux does not provide drivers."? if so, how does purchasing separately solve this? where do they get drivers?
+
+=== Installing OS 
+
+==== Supported versions
+
+Supported Linux versions:
+
+* Fedora 20-23, 64-bit kernel (not 32-bit)
+* Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
+* Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
+// clarify "not fully supported"
+* CentOs/RedHat 7.2 LTS, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
+
+NOTE: Additional OS versions may be supported by compiling the necessary drivers.
+
+To check whether a kernel is 64-bit, verify that the ouput of the following command is `x86_64`.
+
+[source,bash]
+----
+$uname -m
+x86_64 
+----
+
+
+==== Download Linux
+
+ISO images for supported Linux releases can be downloaded from:
+
+.Supported Linux ISO image links
+[options="header",cols="1^,2^",width="50%"]
+|======================================
+| Distribution                                                                                                                                | SHA256 Checksum
+| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]           | 
+ link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM] 
+| link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-DVD-x86_64-21.iso[Fedora 21]                |
+ link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-21-x86_64-CHECKSUM[Fedora 21 CHECKSUM] 
+| link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.1]                                         |
+ http://old-releases.ubuntu.com/releases/14.04.1/SHA256SUMS[Ubuntu 14.04* CHECKSUMs] 
+| link:http://releases.ubuntu.com/16.04.1/ubuntu-16.04.1-server-amd64.iso[Ubuntu 16.04.1]                                                     |
+ http://releases.ubuntu.com/16.04.1/SHA256SUMS[Ubuntu 16.04* CHECKSUMs]
+|======================================
+
+
+For Fedora downloads...
+
+* Select a mirror close to your location: +
+https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora +
+Choose: "Fedora Linux http" -> releases -> <version number> -> Server -> x86_64 -> iso -> Fedora-Server-DVD-x86_64-<version number>.iso
+
+* Verify that the link:https://en.wikipedia.org/wiki/SHA-2[SHA-256] checksum value of the downloaded file matches the linked checksum values with the `sha256sum` command. Example:
+
+[source,bash]
+----
+$sha256sum Fedora-18-x86_64-DVD.iso
+91c5f0aca391acf76a047e284144f90d66d3d5f5dcd26b01f368a43236832c03 
+----
+
+
+==== Install Linux 
+
+Ask your lab admin to install the Linux using CIMC, assign an IP, and set the DNS. Request the sudo or super user password to enable you to ping and SSH.
+
+xref:fedora21_example[Example of installing Fedora 21 Server]
+
+[NOTE]
+=====================================
+ * Requirement for using TRex: sudo or root password for the machine.
+ * Upgrading the linux Kernel using `yum upgrade` requires building the TRex drivers. 
+ * In Ubuntu 16, auto-updater is enabled by default. It is recommended to turn it off. Updating kernel requires re-compiling the DPDK .ko file. +
+To disable auto-updater: +
+ > sudo apt-get remove unattended-upgrades
+=====================================
+
+==== Verify Intel NIC installation
+
+Use `lspci` to verify the NIC installation. 
+
+Example: 4x 10Gb/sec TRex configuration (see output below):
+
+* I350 management port
+
+* 4x Intel Ethernet Converged Network Adapter model x520-D2 (82599 chipset)
+
+[source,bash]
+----
+$[root@trex]lspci | grep Ethernet
+01:00.0 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<1>
+01:00.1 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<2>
+03:00.0 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01) #<3>
+03:00.1 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+82:00.0 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+82:00.1 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+----
+<1> Management port 
+<2> CIMC port
+<3> 10Gb/sec traffic ports (Intel 82599EB) 
+
+=== Obtaining the TRex package
+
+Use `ssh` to connect to the TRex machine and execute the commands described below.
+
+NOTE: Prerequisite: *$WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (Cisco internal)
+
+// Clarify the note above and probably should not have the Cisco internal part
+
+Latest release:
+
+// want to call that "Latest stable release" ?
+
+[source,bash]
+----
+$mkdir trex
+$cd trex
+$wget --no-cache $WEB_URL/release/latest 
+$tar -xzvf latest 
+----
+
+
+Bleeding edge version:
+[source,bash]
+----
+$wget --no-cache $WEB_URL/release/be_latest 
+----
+
+To obtain a specific version:
+[source,bash]
+----
+$wget --no-cache $WEB_URL/release/vX.XX.tar.gz #<1>
+----
+
+<1> X.XX = Version number
+
+== First time Running
+
+=== Configuring for loopback
+
+Before connecting TRex to your DUT, it is strongly advised to verify that TRex and the NICs work correctly in loopback. +
+
+[NOTE]
+=====================================================================
+1. For best performance, loopback the interfaces on the same NUMA (controlled by the same physical processor). If you are unable to check this, proceed without this step.
+
+2. If you are using a 10Gbs NIC based on an Intel 520-D2 NIC, and you loopback ports on the same NIC using SFP+, the device might not sync, causing a failure to link up. +
+Many types of SFP+ (Intel/Cisco/SR/LR) have been verified to work. +
+If you encounter link issues, try to loopback interfaces from different NICs, or use link:http://www.fiberopticshare.com/tag/cisco-10g-twinax[Cisco twinax copper cable].
+=====================================================================
+
+.Loopback example
+image:images/loopback_example.png[title="Loopback example"] 
+
+==== Identify the ports 
+
+Use the following command to identify ports.
+
+[source,bash]
+----
+ $>sudo ./dpdk_setup_ports.py -s
+
+ Network devices using DPDK-compatible driver
+ ============================================
+
+ Network devices using kernel driver
+ ===================================
+ 0000:03:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb #<1>
+ 0000:03:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+ 0000:13:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+ 0000:13:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+ 0000:02:00.0 '82545EM Gigabit Ethernet Controller (Copper)' if=eth2 drv=e1000 unused=igb_uio *Active* #<2>
+
+ Other network devices
+ =====================
+ <none>
+----
+
+<1> If you have not run any DPDK applications, the command output shows a list of interfaces bound to the kernel or not bound at all.
+<2> The interface marked 'active' is the one used by your ssh connection. *Never* put this interface into TRex config file.
+
+// possible to clarify "*Never* put this interface into TRex config file." , such as what putting this into the config file entails and what the consequences are.
+
+Choose the ports to use and follow the instructions in the next section to create a configuration file.
+
+==== Creating minimum configuration file
+
+Default configuration file name: `/etc/trex_cfg.yaml`.
+
+For a full list of YAML configuration file options, see xref:trex_config_yaml_config_file[YAML Configuration File].
+
+For many purposes, it is convenient to begin with a copy of the basic configuration file template, available in the cfg folder:
+
+[source,bash]
+----
+$cp  cfg/simple_cfg.yaml /etc/trex_cfg.yaml
+----
+
+Next, edit the configuration file, adding the interface and IP address details.
+
+Example:
+
+[source,bash]
+----
+<none>
+- port_limit      : 2
+  version         : 2
+#List of interfaces. Change according to your setup. Use ./dpdk_setup_ports.py -s to see available options.
+interfaces    : ["03:00.0", "03:00.1"]  #<1>
+port_info       :  # Port IPs. Change according to your needs. In case of loopback, you can leave as is.
+          - ip         : 1.1.1.1
+            default_gw : 2.2.2.2
+          - ip         : 2.2.2.2
+            default_gw : 1.1.1.1
+----
+<1> Edit this line to match the interfaces you are using.
+All NICs must have the same type - do not mix different NIC types in one config file. For more info, see link:http://trex-tgn.cisco.com/youtrack/issue/trex-201[trex-201].
+
+
+=== Script for creating config file
+
+A script is available to automate the process of tailoring the basic configuration file to your needs. The script gets you started, and then you can then edit the resulting configuration file directly for advanced options. For details, see xref:trex_config_yaml_config_file[YAML Configuration File].
+
+There are two ways to run the script:
+
+* Interactive mode: Script pormpts you for parameters.
+* Command line mode: Provide all parameters using command line options.
+
+==== Interactive mode
+
+The script provides a list of available interfaces with interface-related information. Follow the instructions to create a basic config file.
+
+[source,bash]
+----
+sudo ./dpdk_setup_ports.py -i
+----
+
+==== Command line mode
+
+Run the following command to display a list of all interfaces and interface-related information:
+
+[source,bash]
+----
+sudo ./dpdk_setup_ports.py -t
+----
+
+* In case of *Loopback* and/or only *L1-L2 Switches* on the way, IPs and destination MACs are not required. The script assumes the following interface connections: 0&#8596;1, 2&#8596;3 etc. +
+
+// clarify "on the way" above
+
+Run the following:
+
+[source,bash]
+----
+sudo ./dpdk_setup_ports.py -c <TRex interface 0> <TRex interface 1> ...
+----
+
+* In case of a *Router* (or other next hop device, such as *L3 Switch*), specify the TRex IPs and default gateways, or MACs of the router, as described below.
+
+.Command line options for the configuration file creation script (dpdk_setup_ports.py -c)
+[options="header",cols="2,5,3",width="100%"]
+|=================
+| Argument | Description | Example
+| -c  | Create a configuration file by specified interfaces (PCI address or Linux names: eth1 etc.) | -c 03:00.1 eth1 eth4 84:00.0
+| --dump | Dump created configuration to screen. |
+| -o | Output the configuration to a file. | -o /etc/trex_cfg.yaml
+| --dest-macs | Destination MACs to be used per each interface. Use this option for MAC-based configuration instead of IP-based. Do not use this option together with --ip and --def_gw | --dest-macs 11:11:11:11:11:11 22:22:22:22:22:22
+| --ip | List of IPs to use for each interface. If --ip and --dest-macs are not specified, the script assumes loopback connections (0&#8596;1, 2&#8596;3 etc.). | --ip 1.2.3.4 5.6.7.8
+|--def-gw | List of default gateways to use for each interface. When using the --ip option, also use the --def_gw option. | --def-gw 3.4.5.6 7.8.9.10
+| --ci | Cores include: White list of cores to use. Include enough cores for each NUMA. | --ci 0 2 4 5 6
+| --ce | Cores exclude: Black list of cores to exclude. When excluding cores, ensure that enough remain for each NUMA. | --ci 10 11 12
+| --no-ht | No HyperThreading: Use only one thread of each core specified in the configuration file. |
+| --prefix | (Advanced option) Prefix to be used in TRex configuration in case of parallel instances. | --prefix first_instance
+| --zmq-pub-port | (Advanced option) ZMQ Publisher port to be used in TRex configuration in case of parallel instances. | --zmq-pub-port 4000
+| --zmq-rpc-port | (Advanced option) ZMQ RPC port to be used in the TRex configuration in case of parallel instances. | --zmq-rpc-port
+| --ignore-numa | (Advanced option) Ignore NUMAs for configuration creation. This option may reduce performance. Use only if necessary - for example, in case of a pair of interfaces at different NUMAs. |
+|=================
+
+=== TRex on ESXi
+
+General recommendation: For best performance, run TRex on "bare metal" hardware, without any type of VM. Bandwidth on a VM may be limited, and IPv6 may not be fully supported.
+
+In special cases, it may be reasonable or advantageous to run TRex on VM:
+
+* If you already have VM installed, and do not require high performance.
+* Virtual NICs can be used to bridge between TRex and NICs not supported by TRex.
+
+==== Configuring ESXi for running TRex
+
+1. Click the host machine, then select Configuration -> Networking.
+
+a. One of the NICs must be connected to the main vSwitch network for an "outside" connection for the TRex client and ssh: +
+image:images/vSwitch_main.png[title="vSwitch_main"]
+
+b. Other NICs that are used for TRex traffic must be in a separate vSwitch: +
+// In the line above, i changed "distinguish" to "a separate". please verify.
+image:images/vSwitch_loopback.png[title="vSwitch_loopback"]
+
+2. Right-click the guest machine -> Edit settings -> Ensure the NICs are set to their networks: +
+image:images/vSwitch_networks.png[title="vSwitch_networks"]
+
+[NOTE]
+=====================================================================
+Before version 2.10, the following command did not function correctly:
+[subs="quotes"]
+....
+sudo ./t-rex-64 -f cap2/dns.yaml *--lm 1 --lo* -l 1000 -d 100
+....
+The vSwitch did not route packets correctly. This issue was resolved in version 2.10 when TRex started to support ARP.
+=====================================================================
+// in the note above, verify "did not route packets correctly" and clarify.
+
+==== Configuring Pass-through
+
+Pass-through enables direct use of host machine NICs from within the VM. Pass-through access is generally limited only by the NIC/hardware itself, but there may be occasional spikes in latency (~10ms). Passthrough settings cannot be saved to OVA.
+
+1. Click the host machine. Enter Configuration -> Advanced settings -> Edit. 
+
+2. Mark the desired NICs. +
+image:images/passthrough_marking.png[title="passthrough_marking"]
+
+3. Reboot the ESXi to apply.
+
+4. Right-click the guest machine. Edit settings -> Add -> *PCI device* -> Select the NICs individually. +
+image:images/passthrough_adding.png[title="passthrough_adding"]
+
+=== Configuring for running with router (or other L3 device) as DUT
+
+You can follow link:trex_config_guide.html[this presentation] for an example of how to configure the router as a DUT.
+
+=== Running TRex, understanding output
+
+After configuration is complete, use the following command to start basic TRex run for 10 seconds
+(it will use the default config file name /etc/trex_cfg.yaml):
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10  -l 1000
+----
+
+==== TRex output
+
+After running TRex successfully, the output will be similar to the following:
+
+[source,python]
+----
+$ sudo ./t-rex-64 -f cap2/dns.yaml -d 10 -l 1000
+Starting  TRex 2.09 please wait  ...
+zmq publisher at: tcp://*:4500 
+ number of ports found : 4
+  port : 0 
+  ------------
+  link         :  link : Link Up - speed 10000 Mbps - full-duplex      <1>
+  promiscuous  : 0 
+  port : 1 
+  ------------
+  link         :  link : Link Up - speed 10000 Mbps - full-duplex
+  promiscuous  : 0 
+  port : 2 
+  ------------
+  link         :  link : Link Up - speed 10000 Mbps - full-duplex
+  promiscuous  : 0 
+  port : 3 
+  ------------
+  link         :  link : Link Up - speed 10000 Mbps - full-duplex
+  promiscuous  : 0 
+
+
+ -Per port stats table 
+      ports |               0 |               1 |               2 |               3 
+ -------------------------------------------------------------------------------------
+   opackets |            1003 |            1003 |            1002 |            1002 
+     obytes |           66213 |           66229 |           66132 |           66132 
+   ipackets |            1003 |            1003 |            1002 |            1002 
+     ibytes |           66225 |           66209 |           66132 |           66132 
+    ierrors |               0 |               0 |               0 |               0 
+    oerrors |               0 |               0 |               0 |               0 
+      Tx Bw |     217.09 Kbps |     217.14 Kbps |     216.83 Kbps |     216.83 Kbps 
+
+ -Global stats enabled 
+ Cpu Utilization : 0.0  % <2>  29.7 Gb/core <3>
+ Platform_factor : 1.0    
+ Total-Tx        :     867.89 Kbps                                             <4>
+ Total-Rx        :     867.86 Kbps                                             <5>
+ Total-PPS       :       1.64 Kpps  
+ Total-CPS       :       0.50  cps  
+
+ Expected-PPS    :       2.00  pps   <6>
+ Expected-CPS    :       1.00  cps   <7>
+ Expected-BPS    :       1.36 Kbps   <8>
+
+ Active-flows    :        0 <9> Clients :      510   Socket-util  : 0.0000 %
+ Open-flows      :        1 <10> Servers :      254   Socket   :        1  Socket/Clients :  0.0
+ drop-rate       :       0.00  bps   <11>
+ current time    : 5.3 sec  
+ test duration   : 94.7 sec  
+
+ -Latency stats enabled 
+ Cpu Utilization : 0.2 %  <12>
+ if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             
+ --------------------------------------------------------------------------------------------------
+ 0 |     1002,    1002,         0,   0,         51  ,      69,       0      |   0  69  67    <13>
+ 1 |     1002,    1002,         0,   0,         53  ,     196,       0      |   0  196  53
+ 2 |     1002,    1002,         0,   0,         54  ,      71,       0      |   0  71  69 
+ 3 |     1002,    1002,         0,   0,         53  ,     193,       0      |   0  193  52 
+----
+<1> Link must be up for TRex to work.
+<2> Average CPU utilization of transmitters threads. For best results it should be lower than 80%.
+<3> Gb/sec generated per core of DP. Higher is better.
+<4> Total Tx must be the same as Rx at the end of the run.
+<5> Total Rx must be the same as Tx at the end of the run.
+<6> Expected number of packets per second (calculated without latency packets).
+<7> Expected number of connections per second (calculated without latency packets).
+<8> Expected number of bits per second (calculated without latency packets).
+<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router because the router ages flows slower.
+<10> Total number of TRex flows opened since startup (including active ones, and ones already closed).
+<11> Drop rate.
+<12> Rx and latency thread CPU utilization.
+<13> Tx_ok on port 0 should equal Rx_ok on port 1, and vice versa.
+
+// the formatting of the latency stats table in the output above is difficult to read
+
+==== Additional information about statistics in output
+
+*socket*::  Same as the active flows.  
+
+*Socket/Clients*:: Average of active flows per client, calculated as active_flows/#clients.
+
+*Socket-util*:: Estimate of number of L4 ports (sockets) used per client IP. This is approximately (100*active_flows/#clients)/64K, calculated as (average active flows per client*100/64K). Utilization of more than 50% means that TRex is generating too many flows per single client, and that more clients must be added in the generator configuration.
+// clarify above, especially the formula
+
+*Max window*:: Maximum latency within a time window of 500 msec. There are few values shown per port.
+ The earliest value is on the left, and latest value (last 500msec) on the right. This can help in identifying spikes of high latency clearing after some time. Maximum latency is the total maximum over the entire test duration. To best understand this, run TRex with the latency option (-l) and watch the results with this section in mind.
+
+// clarify the values. in the table, it looks like there are 3 values: left, middle, right
+
+*Platform_factor*:: In some cases, users duplicate traffic using a splitter/switch. In this scenario, it is useful for all numbers displayed by TRex to be multiplied by this factor, so that TRex counters will match the DUT counters.
+
+// in the above "multiplied by this factor" - which factor? 2?
+
+WARNING: If you do not see Rx packets, review the MAC address configuration.
+
+include::trex_book_basic.asciidoc[]
+
+// not sure what the include thing above is for
+
+== Advanced features
+
+=== VLAN (dot1q) support
+
+To add a VLAN tag to all traffic generated by TRex, add a ``vlan'' keyword in each port section in the platform config file, as described in the xref:trex_config_yaml_config_file[YAML Configuration File] section. +
+
+You can specify a different VLAN tag for each port, or use VLAN only on some ports. +
+
+One useful application of this can be in a lab setup where you have one TRex and many DUTs, and you want to test a different DUT on each run, without changing cable connections. You can put each DUT on a VLAN of its own, and use different TRex platform configuration files with different VLANs on each run.
+
+
+=== Utilizing maximum port bandwidth in case of asymmetric traffic profile 
+
+anchor:trex_load_bal[]
+
+[NOTE]
+If you want simple VLAN support, this is probably *not* the feature to use. This feature is used for load balancing. To configure VLAN support, see the ``vlan'' field in the xref:trex_config_yaml_config_file[YAML Configuration File] section.
+
+
+The VLAN Trunk TRex feature attempts to solve the router port bandwidth limitation when the traffic profile is asymmetric (example: Asymmetric SFR profile).
+
+This feature converts asymmetric traffic to symmetric, from the port perspective, using router sub-interfaces. This requires TRex to send the traffic on two VLANs, as described below.
+
+// the paragraph above mentions the "VLAN Trunk TRex feature" but I don't see any description or use of the term, "VLAN Trunk".
+
+.YAML format - This goes in the traffic YAML file.
+[source,python]
+----
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
+----
+
+
+.Example
+[source,python]
+----
+- duration : 0.1
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }   <1>
+----
+<1> Enable load balance feature: vlan0==100 , vlan1==200 +
+For a full file example, see the TRex source in: scripts/cap2/ipv4_load_balance.yaml
+
+// THIS LINE IS HERE ONLY TO HELP RENDITION OF THE LINE BELOW. due to a rendition bug, the next line otherwise does not appear, probably because it follows the footnote text above.
+
+*Problem definition:*::
+
+Scenario: TRex with two ports and an SFR traffic profile.
+
+.Without VLAN/sub interfaces, all client emulated traffic is sent on port 0, and all server emulated traffic (example: HTTP response) on port 1.
+[source,python]
+----
+TRex port 0 ( client) <-> [  DUT ] <-> TRex port 1 ( server)
+----
+Without VLAN support, the traffic is asymmetric. 10% of the traffic is sent from port 0 (client side), 90% from port 1 (server). Port 1 is the bottlneck (10Gb/s limit).
+
+.With VLAN/sub interfaces 
+[source,python]
+----
+TRex port 0 ( client VLAN0) <->  | DUT  | <-> TRex port 1 ( server-VLAN0)
+TRex port 0 ( server VLAN1) <->  | DUT  | <-> TRex port 1 ( client-VLAN1)
+----
+
+In this case, traffic on vlan0 is sent as before, while for traffic on vlan1, the order is reversed (client traffic sent on port1 and server traffic on port0).
+TRex divides the flows evenly between the vlans. This results in an equal amount of traffic on each port.
+
+*Router configuation:*::
+[source,python]
+----
+        !
+        interface TenGigabitEthernet1/0/0      <1>
+         mac-address 0000.0001.0000   
+         mtu 4000
+         no ip address
+         load-interval 30
+        !
+        i
+        interface TenGigabitEthernet1/0/0.100
+         encapsulation dot1Q 100               <2> 
+         ip address 11.77.11.1 255.255.255.0
+         ip nbar protocol-discovery
+         ip policy route-map vlan_100_p1_to_p2 <3> 
+        !
+        interface TenGigabitEthernet1/0/0.200
+         encapsulation dot1Q 200               <4>
+         ip address 11.88.11.1 255.255.255.0
+         ip nbar protocol-discovery
+         ip policy route-map vlan_200_p1_to_p2 <5> 
+        !
+        interface TenGigabitEthernet1/1/0
+         mac-address 0000.0001.0000
+         mtu 4000
+         no ip address
+         load-interval 30
+        !
+        interface TenGigabitEthernet1/1/0.100
+         encapsulation dot1Q 100
+         ip address 22.77.11.1 255.255.255.0
+         ip nbar protocol-discovery
+         ip policy route-map vlan_100_p2_to_p1
+        !
+        interface TenGigabitEthernet1/1/0.200
+         encapsulation dot1Q 200
+         ip address 22.88.11.1 255.255.255.0
+         ip nbar protocol-discovery
+         ip policy route-map vlan_200_p2_to_p1
+        !
+        
+        arp 11.77.11.12 0000.0001.0000 ARPA      <6>
+        arp 22.77.11.12 0000.0001.0000 ARPA
+        
+        route-map vlan_100_p1_to_p2 permit 10    <7>
+         set ip next-hop 22.77.11.12
+        !
+        route-map vlan_100_p2_to_p1 permit 10
+         set ip next-hop 11.77.11.12
+        !
+        
+        route-map vlan_200_p1_to_p2 permit 10
+         set ip next-hop 22.88.11.12
+        !
+        route-map vlan_200_p2_to_p1 permit 10
+         set ip next-hop 11.88.11.12
+        !
+----
+<1> Main interface must not have IP address.
+<2> Enable VLAN1
+<3> PBR configuration
+<4> Enable VLAN2  
+<5> PBR configuration
+<6> TRex destination port MAC address
+<7> PBR configuration rules
+
+=== Static source MAC address setting  
+
+With this feature, TRex replaces the source MAC address with the client IP address.
+
+ Note: This feature was requested by the Cisco ISG group. 
+
+
+*YAML:*::
+[source,python]
+----
+ mac_override_by_ip : true
+----
+
+.Example
+[source,python]
+----
+- duration : 0.1
+ ..
+  mac_override_by_ip : true <1>
+----
+<1> In this case, the client side MAC address looks like this:
+SRC_MAC = IPV4(IP) + 00:00  
+
+=== IPv6 support 
+
+Support for IPv6 includes:
+
+1. Support for pcap files containing IPv6 packets.
+2. Ability to generate IPv6 traffic from pcap files containing IPv4 packets. +
+The `--ipv6` command line option enables this feature.
+The keywords `src_ipv6` and `dst_ipv6` specify the most significant 96 bits of the IPv6 address. Example:
+
+[source,python]
+----
+      src_ipv6 : [0xFE80,0x0232,0x1002,0x0051,0x0000,0x0000]
+      dst_ipv6 : [0x2001,0x0DB8,0x0003,0x0004,0x0000,0x0000]
+----
+
+The IPv6 address is formed by placing what would typically be the IPv4
+address into the least significant 32 bits and copying the value provided
+in the src_ipv6/dst_ipv6 keywords into the most signficant 96 bits.
+If src_ipv6 and dst_ipv6 are not specified, the default
+is to form IPv4-compatible addresses (most signifcant 96 bits are zero).
+
+There is IPv6 support for all plugins.
+  
+*Example:*::
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2l/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --ipv6
+----
+
+*Limitations:*::
+
+* TRex cannot generate both IPv4 and IPv6 traffic.
+* The `--ipv6` switch must be specified even when using a pcap file containing only IPv6 packets.
+
+
+*Router configuration:*::
+
+[source,python]
+----
+interface TenGigabitEthernet1/0/0
+ mac-address 0000.0001.0000
+ mtu 4000
+ ip address 11.11.11.11 255.255.255.0
+ ip policy route-map p1_to_p2
+ load-interval 30
+ ipv6 enable   ==> IPv6
+ ipv6 address 2001:DB8:1111:2222::1/64                  <1>
+ ipv6 policy route-map ipv6_p1_to_p2                    <2>
+!
+
+
+ipv6 unicast-routing                                    <3>
+
+ipv6 neighbor 3001::2 TenGigabitEthernet0/1/0 0000.0002.0002   <4>
+ipv6 neighbor 2001::2 TenGigabitEthernet0/0/0 0000.0003.0002
+
+route-map ipv6_p1_to_p2 permit 10                              <5>
+ set ipv6 next-hop 2001::2
+!
+route-map ipv6_p2_to_p1 permit 10
+ set ipv6 next-hop 3001::2
+!
+
+
+asr1k(config)#ipv6 route 4000::/64 2001::2                 
+asr1k(config)#ipv6 route 5000::/64 3001::2 
+----
+<1> Enable IPv6 
+<2> Add pbr 
+<3> Enable IPv6 routing 
+<4> MAC address setting. Should be TRex MAC.
+<5> PBR configuraion
+
+
+=== Client clustering configuration
+
+TRex supports testing complex topologies with more than one DUT, using a feature called "client clustering". This feature allows specifying the distribution of clients that TRex emulates.
+
+Consider the following topology:
+
+.Topology example 
+image:images/topology.png[title="Client Clustering",width=850]
+
+There are two clusters of DUTs. Using the configuration file, you can partition TRex emulated clients into groups, and define how they will be spread between the DUT clusters.
+
+Group configuration includes:
+
+* IP start range.
+* IP end range.
+* Initiator side configuration: Parameters affecting packets sent from client side.
+* Responder side configuration: Parameters affecting packets sent from server side.
+
+[NOTE]
+It is important to understand that this is *complimentary* to the client generator
+configured per profile. It only defines how the clients will be spread between clusters.
+
+In the following example, a profile defines a client generator.
+
+[source,bash]
+----
+$cat cap2/dns.yaml 
+- duration : 10.0
+  generator :  
+          distribution : "seq"           
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"   
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.0.255"   
+          dual_port_mask : "1.0.0.0" 
+  cap_info : 
+     - name: cap2/dns.pcap
+       cps : 1.0          
+       ipg : 10000        
+       rtt : 10000        
+       w   : 1            
+----
+
+Goal:
+
+* Create two clusters with 4 and 3 devices, respectively. 
+* Send *80%* of the traffic to the upper cluster and *20%* to the lower cluster. Specify the DUT to which the packet will be sent by MAC address or IP. (The following example uses the MAC address. The instructions after the example indicate how to change to IP-based.)
+
+Create the following cluster configuration file:
+
+[source,bash]
+----
+#
+# Client configuration example file
+# The file must contain the following fields
+#
+# 'vlan'   - if the entire configuration uses VLAN,
+#            each client group must include vlan
+#            configuration
+#
+# 'groups' - each client group must contain range of IPs
+#            and initiator and responder section
+#            'count' represents the number of different DUTs
+#            in the group.
+#
+
+# 'true' means each group must contain VLAN configuration. 'false' means no VLAN config allowed.
+vlan: true
+
+groups:
+
+-    ip_start  : 16.0.0.1
+     ip_end    : 16.0.0.204
+     initiator :
+                 vlan    : 100
+                 dst_mac : "00:00:00:01:00:00"
+     responder :
+                 vlan    : 200
+                 dst_mac : "00:00:00:02:00:00"
+
+     count     : 4
+
+-    ip_start  : 16.0.0.205
+     ip_end    : 16.0.0.255
+     initiator :
+                 vlan    : 101
+                 dst_mac : "00:00:01:00:00:00"
+
+     responder:
+                 vlan    : 201
+                 dst_mac : "00:00:02:00:00:00"
+
+     count     : 3
+
+----
+
+The above configuration divides the generator range of 255 clients to two clusters. The range
+of IPs in all groups in the client configuration file must cover the entire range of client IPs
+from the traffic profile file.
+
+MAC addresses will be allocated incrementally, with a wrap around after ``count'' addresses. 
+
+Example:
+
+*Initiator side (packets with source in 16.x.x.x net):*
+
+* 16.0.0.1 -> 48.x.x.x - dst_mac: 00:00:00:01:00:00  vlan: 100 
+* 16.0.0.2 -> 48.x.x.x - dst_mac: 00:00:00:01:00:01  vlan: 100 
+* 16.0.0.3 -> 48.x.x.x - dst_mac: 00:00:00:01:00:02  vlan: 100 
+* 16.0.0.4 -> 48.x.x.x - dst_mac: 00:00:00:01:00:03  vlan: 100 
+* 16.0.0.5 -> 48.x.x.x - dst_mac: 00:00:00:01:00:00  vlan: 100 
+* 16.0.0.6 -> 48.x.x.x - dst_mac: 00:00:00:01:00:01  vlan: 100 
+
+*Responder side (packets with source in 48.x.x.x net):* 
+
+* 48.x.x.x -> 16.0.0.1  - dst_mac(from responder) : "00:00:00:02:00:00" , vlan:200
+* 48.x.x.x -> 16.0.0.2  - dst_mac(from responder) : "00:00:00:02:00:01" , vlan:200
+
+and so on. +
+
+The MAC addresses of DUTs must be changed to be sequential. Another option is to replace:
+`dst_mac : <ip-address>` +
+with: +
+`next_hop : <ip-address>`
+
+// clarify "another option" above.
+
+For example, the first group in the configuration file would be:
+
+[source,bash]
+----
+-    ip_start  : 16.0.0.1
+     ip_end    : 16.0.0.204
+     initiator :
+                 vlan     : 100
+                 next_hop : 1.1.1.1
+                 src_ip   : 1.1.1.100
+     responder :
+                 vlan     : 200
+                 next_hop : 2.2.2.1
+                 src_ip   : 2.2.2.100
+
+     count     : 4
+----
+
+In this case, TRex attempts to resolve the following addresses using ARP:
+
+1.1.1.1, 1.1.1.2, 1.1.1.3, 1.1.1.4 (and the range 2.2.2.1-2.2.2.4)
+
+If not all IPs are resolved, TRex exits with an error message. 
+
+`src_ip` is used to send link:https://en.wikipedia.org/wiki/Address_Resolution_Protocol[gratuitous ARP], and for filling relevant fields in ARP request. If no `src_ip` is given, TRex looks for the source IP in the relevant port section in the platform configuration file (/etc/trex_cfg.yaml). If none is found, TRex exits with an error message. 
+
+If a client config file is given, TRex ignores the `dest_mac` and `default_gw` parameters from the platform configuration file.
+
+Now, streams will look like: +
+
+// clarify the line above
+
+*Initiator side (packets with source in 16.x.x.x net):*
+
+* 16.0.0.1 -> 48.x.x.x - dst_mac: MAC of 1.1.1.1  vlan: 100
+* 16.0.0.2 -> 48.x.x.x - dst_mac: MAC of 1.1.1.2  vlan: 100
+* 16.0.0.3 -> 48.x.x.x - dst_mac: MAC of 1.1.1.3  vlan: 100
+* 16.0.0.4 -> 48.x.x.x - dst_mac: MAC of 1.1.1.4  vlan: 100
+* 16.0.0.5 -> 48.x.x.x - dst_mac: MAC of 1.1.1.1  vlan: 100
+* 16.0.0.6 -> 48.x.x.x - dst_mac: MAC of 1.1.1.2  vlan: 100
+
+*Responder side (packets with source in 48.x.x.x net):*
+
+* 48.x.x.x -> 16.0.0.1  - dst_mac: MAC of 2.2.2.1 , vlan:200
+* 48.x.x.x -> 16.0.0.2  - dst_mac: MAC of 2.2.2.2 , vlan:200
+
+
+[NOTE]
+=====================================================================
+It is important to understand that the IP to MAC coupling (with either MAC-based or IP-based configuration) is done at the beginning and never changes. For example, in a MAC-based configuration:
+
+* Packets with source IP 16.0.0.2 will always have VLAN 100 and dst MAC 00:00:00:01:00:01. 
+* Packets with destination IP 16.0.0.2 will always have VLAN 200 and dst MAC 00:00:00:02:00:01.
+
+Consequently, you can predict exactly which packet (and how many packets) will go to each DUT.
+=====================================================================
+
+// the logic of the note above is not completely clear to me
+
+*Usage:*
+
+[source,bash]
+----
+sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml
+----
+
+=== NAT support 
+
+TRex can learn dynamic NAT/PAT translation. To enable this feature, use the +
+`--learn-mode <mode>` +
+switch at the command line. To learn the NAT translation, TRex must embed information describing which flow a packet belongs to, in the first packet of each flow. TRex can do this using one of several methods, depending on the chosen <mode>.
+
+// is this logic correct in the paragraph above: "TRex must embed information describing which flow a packet belongs to, in the first packet of each flow"
+
+*Mode 1:*::
+
+`--learn-mode 1` +
+*TCP flow*: Flow information is embedded in the ACK of the first TCP SYN. +
+*UDP flow*: Flow information is embedded in the IP identification field of the first packet in the flow. +
+This mode was developed for testing NAT with firewalls (which usually do not work with mode 2). In this mode, TRex also learns and compensates for TCP sequence number randomization that might be done by the DUT. TRex can learn and compensate for seq num randomization in both directions of the connection.
+
+*Mode 2:*::
+
+`--learn-mode 2` +
+Flow information is added in a special IPv4 option header (8 bytes long 0x10 id). This option header is added only to the first packet in the flow. This mode does not work with DUTs that drop packets with IP options (for example, Cisco ASA firewall).
+
+*Mode 3:*::
+
+`--learn-mode 3` +
+Similar to mode 1, but TRex does not learn the seq num randomization in the server->client direction.
+This mode can provide better connections-per-second performance than mode 1. But for all existing firewalls, the mode 1 cps rate is adequate.
+
+==== Examples
+
+*simple HTTP traffic*
+
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn-mode 1
+----
+
+*SFR traffic without bundling/ALG support*
+
+[source,bash]
+----
+$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn-mode 2
+----
+
+*NAT terminal counters:*::
+
+[source,python]
+----
+-Global stats enabled 
+ Cpu Utilization : 0.6  %  33.4 Gb/core 
+ Platform_factor : 1.0
+ Total-Tx        :       3.77 Gbps   NAT time out    :      917 <1> (0 in wait for syn+ack) <5>
+ Total-Rx        :       3.77 Gbps   NAT aged flow id:        0 <2>
+ Total-PPS       :     505.72 Kpps   Total NAT active:      163 <3> (12 waiting for syn) <6>
+ Total-CPS       :      13.43 Kcps   Total NAT opened:    82677 <4>
+----
+<1> Number of connections for which TRex had to send the next packet in the flow, but did not learn the NAT translation yet. Should be 0. Usually, a value different than 0 is seen if the DUT drops the flow (probably because it cannot handle the number of connections).
+<2> Number of flows for which the flow had already aged out by the time TRex received the translation info. A value other than 0 is rare. Can occur only when there is very high latency in the DUT input/output queue.
+<3> Number of flows for which TRex sent the first packet before learning the NAT translation. The value depends on the connection per second rate and round trip time.
+<4> Total number of translations over the lifetime of the TRex instance. May be different from the total number of flows if template is uni-directional (and consequently does not need translation).
+<5> Out of the timed-out flows, the number that were timed out while waiting to learn the TCP seq num randomization of the server->client from the SYN+ACK packet. Seen only in --learn-mode 1.
+<6> Out of the active NAT sessions, the number that are waiting to learn the client->server translation from the SYN packet. (Others are waiting for SYN+ACK from server.) Seen only in --learn-mode 1.
+
+
+// THIS COMMENT LINE IS HERE TO HELP CORRECT RENDITION OF THE LINE BELOW. Without this, rendition omits the following several lines.
+
+*Configuration for Cisco ASR1000 Series:*::
+
+This feature was tested with the following configuration and the +
+sfr_delay_10_1g_no_bundling.yaml +
+traffic profile. The client address range is 16.0.0.1 to 16.0.0.255 
+
+[source,python]
+----
+interface TenGigabitEthernet1/0/0            <1>
+ mac-address 0000.0001.0000
+ mtu 4000
+ ip address 11.11.11.11 255.255.255.0
+ ip policy route-map p1_to_p2
+ ip nat inside                               <2>
+ load-interval 30
+!
+
+interface TenGigabitEthernet1/1/0
+ mac-address 0000.0001.0000
+ mtu 4000
+ ip address 11.11.11.11 255.255.255.0
+ ip policy route-map p1_to_p2
+ ip nat outside                              <3>
+ load-interval 30
+
+ip  nat pool my 200.0.0.0 200.0.0.255 netmask 255.255.255.0  <4>
+
+ip nat inside source list 7 pool my overload 
+access-list 7 permit 16.0.0.0 0.0.0.255                      <5>
+
+ip nat inside source list 8 pool my overload                 <6>
+access-list 8 permit 17.0.0.0 0.0.0.255                      
+----
+<1> Must be connected to TRex Client port (router inside port)
+<2> NAT inside 
+<3> NAT outside
+<4> Pool of outside address with overload
+<5> Match TRex YAML client range
+<6> In case of dual port TRex
+
+// verify 1 and 5 above; rephrased. should #4 say "addresses" ?
+
+// THIS COMMENT LINE IS HERE TO HELP CORRECT RENDITION OF THE LINE BELOW. Without this, rendition omits the following several lines.
+
+
+*Limitations:*::
+
+. The IPv6-IPv6 NAT feature does not exist on routers, so this feature can work only with IPv4.
+. Does not support NAT64. 
+. Bundling/plugin is not fully supported. Consequently, sfr_delay_10.yaml does not work. Use sfr_delay_10_no_bundling.yaml instead.
+
+[NOTE]
+=====================================================================
+* `--learn-verify` is a TRex debug mechanism for testing the TRex learn mechanism.
+* Need to run it when DUT is configured without NAT. It will verify that the inside_ip==outside_ip and inside_port==outside_port.
+=====================================================================
+
+=== Flow order/latency verification 
+
+In normal mode (without the feature enabled), received traffic is not checked by software. Hardware (Intel NIC) testing for dropped packets occurs at the end of the test. The only exception is the Latency/Jitter packets. This is one reason that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy).
+
+To enable this feature, add 
+`--rx-check <sample>` 
+to the command line options, where <sample> is the sample rate. The number of flows that will be sent to the software for verification is (1/(sample_rate). For 40Gb/sec traffic you can use a sample rate of 1/128. Watch for Rx CPU% utilization.
+
+[NOTE]
+============
+This feature changes the TTL of the sampled flows to 255 and expects to receive packets with TTL 254 or 255 (one routing hop). If you have more than one hop in your setup, use `--hops` to change it to a higher value. More than one hop is possible if there are number of routers betwean TRex client side and TRex server side.
+============
+
+This feature ensures that:
+
+* Packets get out of DUT in order (from each flow perspective).
+* There are no packet drops (no need to wait for the end of the test). Without this flag, you must wait for the end of the test in order to identify packet drops, because there is always a difference between TX and Rx, due to RTT.
+
+
+.Full example 
+[source,bash]
+----
+$sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --rx-check 128
+----
+
+[source,python]
+----
+Cpu Utilization : 0.1 %                                                                       <1>
+ if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             
+ --------------------------------------------------------------------------------
+ 0 |     1002,    1002,      2501,   0,         61  ,      70,       3      |  60
+ 1 |     1002,    1002,      2012,   0,         56  ,      63,       2      |  50
+ 2 |     1002,    1002,      2322,   0,         66  ,      74,       5      |  68
+ 3 |     1002,    1002,      1727,   0,         58  ,      68,       2      |  52
+
+ Rx Check stats enabled                                                                       <2>
+ -------------------------------------------------------------------------------------------
+ rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309       <3>
+ 
+ active flows: <6>      10, fif: <5>     308,  drop:        0, errors:        0                <4>
+ -------------------------------------------------------------------------------------------
+----
+<1> CPU% of the Rx thread. If it is too high, *increase* the sample rate.
+<2> Rx Check section. For more detailed info, press 'r' during the test or at the end of the test.
+<3> Average latency, max latency, jitter on the template flows in microseconds. This is usually *higher* than the latency check packet because the feature works more on this packet.
+<4> Drop counters and errors counter should be zero. If not, press 'r' to see the full report or view the report at the end of the test.
+<5> fif - First in flow. Number of new flows handled by the Rx thread.
+<6> active flows - number of active flows handled by rx thread 
+
+.Press R to Display Full Report
+[source,python]
+----
+ m_total_rx                              : 2 
+ m_lookup                                : 2 
+ m_found                                 : 1 
+ m_fif                                   : 1 
+ m_add                                   : 1 
+ m_remove                                : 1 
+ m_active                                : 0 
+                                                        <1>
+ 0  0  0  0  1041  0  0  0  0  0  0  0  0  min_delta  : 10 usec 
+ cnt        : 2 
+ high_cnt   : 2 
+ max_d_time : 1041 usec
+ sliding_average    : 1 usec                            <2>
+ precent    : 100.0 %
+ histogram 
+ -----------
+ h[1000]  :  2 
+ tempate_id_ 0 , errors:       0,  jitter: 61           <3>
+ tempate_id_ 1 , errors:       0,  jitter: 0 
+ tempate_id_ 2 , errors:       0,  jitter: 0 
+ tempate_id_ 3 , errors:       0,  jitter: 0 
+ tempate_id_ 4 , errors:       0,  jitter: 0 
+ tempate_id_ 5 , errors:       0,  jitter: 0 
+ tempate_id_ 6 , errors:       0,  jitter: 0 
+ tempate_id_ 7 , errors:       0,  jitter: 0 
+ tempate_id_ 8 , errors:       0,  jitter: 0 
+ tempate_id_ 9 , errors:       0,  jitter: 0 
+ tempate_id_10 , errors:       0,  jitter: 0 
+ tempate_id_11 , errors:       0,  jitter: 0 
+ tempate_id_12 , errors:       0,  jitter: 0 
+ tempate_id_13 , errors:       0,  jitter: 0 
+ tempate_id_14 , errors:       0,  jitter: 0 
+ tempate_id_15 , errors:       0,  jitter: 0 
+ ager :
+ m_st_alloc                                 : 1 
+ m_st_free                                  : 0 
+ m_st_start                                 : 2 
+ m_st_stop                                  : 1 
+ m_st_handle                                : 0 
+----
+<1> Errors, if any, shown here
+<2> Low pass filter on the active average of latency events 
+<3> Error per template info
+
+// IGNORE: this line added to help rendition. Without this line, the "Notes and Limitations" section below does not appear.
+
+*Notes and Limitations:*::
+
+** To receive the packets TRex does the following:
+*** Changes the TTL to 0xff and expects 0xFF (loopback) or oxFE (route). (Use `--hop` to configure this value.)
+*** Adds 24 bytes of metadata as ipv4/ipv6 option header.
+// clarify "ipv4/ipv6 option header" above
+
+== Reference
+
+=== Traffic YAML (parameter of -f option)
+
+==== Global Traffic YAML section 
+
+[source,python]
+----
+- duration : 10.0                          <1>
+  generator :                              <2>
+          distribution : "seq"           
+          clients_start : "16.0.0.1"     
+          clients_end   : "16.0.0.255"   
+          servers_start : "48.0.0.1"     
+          servers_end   : "48.0.0.255"   
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 1
+          udp_aging      : 1
+  cap_ipg    : true                            <3>
+  cap_ipg_min    : 30                          <4>
+  cap_override_ipg    : 200                    <5>
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 } <6>
+  mac_override_by_ip : true  <7>
+----
+<1> Test duration (seconds). Can be overridden using the `-d` option.
+<2> See full explanation on generator section link:trex_manual.html#_clients_servers_ip_allocation_scheme[here].
+<3> true (default) indicates that the IPG is taken from the cap file (also taking into account cap_ipg_min and cap_override_ipg if they exist). false indicates that IPG is taken from per template section.
+<4> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg} )
+<5> Value to override (microseconds), as described in note above.
+<6> Enable load balance feature. See xref:trex_load_bal[trex load balance section] for info.
+<7> Enable MAC address replacement by client IP.
+
+==== Timer Wheel section configuration  
+
+(from v2.13)
+see xref:timer_w[Timer Wheel section] 
+
+==== Per template section 
+// clarify "per template"  
+
+[source,python]
+----
+     - name: cap2/dns.pcap <1>
+       cps : 10.0          <2>
+       ipg : 10000         <3>
+       rtt : 10000         <4>
+       w   : 1             <5>
+       server_addr : "48.0.0.7"    <6>
+       one_app_server : true       <7>
+       
+----
+<1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
+<2> Connection per second. This is the value that will be used if specifying -m 1 from command line (giving -m x will multiply this 
+<3> If the global section of the YAML file includes `cap_ipg    : false`, this line sets the inter-packet gap in microseconds. 
+<4> Should be set to the same value as ipg (microseconds). 
+<5> Default value: w=1. This indicates to the IP generator how to generate the flows. If w=2, two flows from the same template will be generated in a burst (more for HTTP that has burst of flows).
+<6> If `one_app_server` is set to true, then all templates will use the same server.
+<7> If the same server address is required, set this value to true.
+
+
+
+=== YAML Configuration File (parameter of --cfg option)
+
+anchor:trex_config[]
+anchor:trex_config_yaml_config_file[]
+
+The configuration file, in YAML format, configures TRex behavior, including:
+ 
+- IP address or MAC address for each port (source and destination).
+- Masked interfaces, to ensure that TRex does not try to use the management ports as traffic ports.
+- Changing the zmq/telnet TCP port.
+
+You specify which config file to use by adding --cfg <file name> to the command line arguments. +
+If no --cfg given, the default `/etc/trex_cfg.yaml` is used. +
+Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
+
+==== Basic Configuration
+
+[source,python]
+----
+     - port_limit    : 2    #mandatory <1>
+       version       : 2    #mandatory <2>
+       interfaces    : ["03:00.0", "03:00.1"]   #mandatory <3>
+       #enable_zmq_pub  : true #optional <4>
+       #zmq_pub_port    : 4500 #optional <5>
+       #prefix          : setup1 #optional <6>
+       #limit_memory    : 1024 #optional <7>
+       c               : 4 #optional <8>
+       port_bandwidth_gb : 10 #optional <9>
+       port_info       :  # set eh mac addr  mandatory
+            - default_gw : 1.1.1.1   # port 0 <10>
+              dest_mac   : '00:00:00:01:00:00' # Either default_gw or dest_mac is mandatory <10>
+              src_mac    : '00:00:00:02:00:00' # optional <11>
+              ip         : 2.2.2.2 # optional <12>
+              vlan       : 15 # optional <13>
+            - dest_mac   : '00:00:00:03:00:00'  # port 1
+              src_mac    : '00:00:00:04:00:00'
+            - dest_mac   : '00:00:00:05:00:00'  # port 2
+              src_mac    : '00:00:00:06:00:00'
+            - dest_mac   :   [0x0,0x0,0x0,0x7,0x0,0x01]  # port 3 <14>
+              src_mac    :   [0x0,0x0,0x0,0x8,0x0,0x02] # <14>
+----
+<1>  Number of ports. Should be equal to the number of interfaces listed in 3. - mandatory
+<2>  Must be set to 2. - mandatory
+<3>  List of interfaces to use. Run `sudo ./dpdk_setup_ports.py --show` to see the list you can choose from. - mandatory
+<4>  Enable the ZMQ publisher for stats data, default is true. 
+<5>  ZMQ port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
+<6>  If running two TRex instances on the same machine, each should be given distinct name. Otherwise, can remove this line. ( Passed to DPDK as --file-prefix arg)
+<7>  Limit the amount of packet memory used. (Passed to dpdk as -m arg)
+<8> Number of threads (cores) TRex will use per interface pair ( Can be overridden by -c command line option )
+<9> The bandwidth of each interface in Gbs. In this example we have 10Gbs interfaces. For VM, put 1. Used to tune the amount of memory allocated by TRex.
+<10> TRex need to know the destination MAC address to use on each port. You can specify this in one of two ways: +
+Specify dest_mac directly. +
+Specify default_gw (since version 2.10). In this case (only if no dest_mac given), TRex will issue ARP request to this IP, and will use
+the result as dest MAC. If no dest_mac given, and no ARP response received, TRex will exit.
+
+<11> Source MAC to use when sending packets from this interface. If not given (since version 2.10), MAC address of the port will be used.
+<12> If given (since version 2.10), TRex will issue gratitues ARP for the ip + src MAC pair on appropriate port. In stateful mode,
+gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
+<13> If given (since version 2.18), all traffic on the port will be sent with this VLAN tag.
+<14> Old MAC address format. New format is supported since version v2.09.
+
+[NOTE]
+=========================================================================================
+If you use version earlier than 2.10, or choose to omit the ``ip''
+and have mac based configuration, be aware that TRex will not send any
+gratitues ARP and will not answer ARP requests. In this case, you must configure static
+ARP entries pointing to TRex port on your DUT. For an example config, you can look
+xref:trex_config[here].
+=========================================================================================
+
+To find out which interfaces (NIC ports) can be used, perform the following:
+
+[source,bash]
+----
+ $>sudo ./dpdk_setup_ports.py --show
+
+ Network devices using DPDK-compatible driver
+ ============================================
+
+ Network devices using kernel driver
+ ===================================
+ 0000:02:00.0 '82545EM Gigabit Ethernet Controller' if=eth2 drv=e1000 unused=igb_uio *Active* #<1>
+ 0000:03:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb #<2>
+ 0000:03:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+ 0000:13:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+ 0000:13:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' drv= unused=ixgb
+
+ Other network devices
+ =====================
+ <none>
+----
+<1> We see that 02:00.0 is active (our management port).
+<2> All other NIC ports (03:00.0, 03:00.1, 13:00.0, 13:00.1) can be used.
+
+minimum configuration file is:
+
+[source,bash]
+----
+<none>
+- port_limit    : 4         
+  version       : 2
+  interfaces    : ["03:00.0","03:00.1","13:00.1","13:00.0"]
+----
+
+==== Memory section configuration  
+
+The memory section is optional. It is used when there is a need to tune the amount of memory used by TRex packet manager.
+Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can
+eliminate this section.
+
+[source,python]
+----
+        - port_limit      : 2                                                                           
+          version       : 2                                                                             
+          interfaces    : ["03:00.0","03:00.1"]                                                         
+          memory    :                                           <1>
+             mbuf_64     : 16380                                <2>
+             mbuf_128    : 8190
+             mbuf_256    : 8190
+             mbuf_512    : 8190
+             mbuf_1024   : 8190
+             mbuf_2048   : 4096
+             traffic_mbuf_64     : 16380                        <3>
+             traffic_mbuf_128    : 8190
+             traffic_mbuf_256    : 8190
+             traffic_mbuf_512    : 8190
+             traffic_mbuf_1024   : 8190
+             traffic_mbuf_2048   : 4096
+             dp_flows    : 1048576                              <4>
+             global_flows : 10240                               <5>
+----
+<1> Memory section header
+<2> Numbers of memory buffers allocated for packets in transit, per port pair. Numbers are specified per packet size.
+<3> Numbers of memory buffers allocated for holding the part of the packet which is remained unchanged per template.
+You should increase numbers here, only if you have very large amount of templates.
+<4> Number of TRex flow objects allocated (To get best performance they are allocated upfront, and not dynamically).
+If you expect more concurrent flows than the default (1048576), enlarge this.
+<5> Number objects TRex allocates for holding NAT ``in transit'' connections. In stateful mode, TRex learn NAT
+translation by looking at the address changes done by the DUT to the first packet of each flow. So, these are the
+number of flows for which TRex sent the first flow packet, but did not learn the translation yet. Again, default
+here (10240) should be good. Increase only if you use NAT and see issues.
+
+
+==== Platform section configuration  
+
+The platform section is optional. It is used to tune the performance and allocate the cores to the right NUMA  
+a configuration file now has the folowing struct to support multi instance 
+
+[source,python]
+----
+- version       : 2
+  interfaces    : ["03:00.0","03:00.1"]
+  port_limit    : 2 
+....
+  platform :                                                    <1>
+        master_thread_id  : 0                                   <2>
+        latency_thread_id : 5                                   <3>
+        dual_if   :                                             <4>
+             - socket   : 0                                     <5>
+               threads  : [1,2,3,4]                             <6>
+----
+<1> Platform section header.
+<2> Hardware thread_id for control thread.
+<3> Hardware thread_id for RX thread.
+<4> ``dual_if'' section defines info for interface pairs (according to the order in ``interfaces'' list).
+each section, starting with ``- socket'' defines info for different interface pair.
+<5> The NUMA node from which memory will be allocated for use by the interface pair.
+<6> Hardware threads to be used for sending packets for the interface pair. Threads are pinned to cores, so specifying threads
+actually determines the hardware cores.
+
+*Real example:* anchor:numa-example[]
+
+We connected 2 Intel XL710 NICs close to each other on the motherboard. They shared the same NUMA:
+
+image:images/same_numa.png[title="2_NICSs_same_NUMA"]
+
+CPU utilization was very high ~100%, with c=2 and c=4 the results were same.
+
+Then, we moved the cards to different NUMAs:
+
+image:images/different_numa.png[title="2_NICSs_different_NUMAs"]
+
+*+*
+We added configuration to the /etc/trex_cfg.yaml:
+
+[source,python]
+  platform :
+        master_thread_id  : 0
+        latency_thread_id : 8
+        dual_if   :
+             - socket   : 0
+               threads  : [1, 2, 3, 4, 5, 6, 7]
+             - socket   : 1
+               threads  : [9, 10, 11, 12, 13, 14, 15]
+
+This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
+
+
+==== Timer Wheeel  section configuration  
+
+anchor:timer_w[]
+
+The memory section is optional. It is used when there is a need to tune the amount of memory used by TRex packet manager.
+Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can
+eliminate this section.
+
+==== Timer Wheel section configuration  
+The flow scheduler uses timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values.
+This is an advance configuration, don't use it if you don't know what you are doing. it can be configure in trex_cfg file and trex traffic profile.
+
+[source,python]
+----
+  tw :                             
+     buckets : 1024                <1>
+     levels  : 3                   <2>
+     bucket_time_usec : 20.0       <3>
+----
+<1> the number of buckets in each level, higher number will improve performance, but will reduce the maximum levels.
+<2> how many levels.  
+<3> bucket time in usec. higher number will create more bursts  
+
+
+=== Command line options 
+
+anchor:cml-line[]
+
+*--active-flows*::
+    An experimental switch to scale up or down the number of active flows.
+    It is not accurate due to the quantization of flow scheduler and in some cases does not work.
+    Example: --active-flows 500000 wil set the ballpark of the active flows to be ~0.5M.
+
+*--allow-coredump*::
+Allow creation of core dump.
+
+*--arp-refresh-period <num>*::
+Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means ``never send``.
+
+*-c <num>*::
+Number of hardware threads to use per interface pair. Use at least 4 for TRex 40Gbs. +
+TRex uses 2 threads for inner needs. Rest of the threads can be used. Maximum number here, can be number of free threads
+divided by number of interface pairs. +
+For virtual NICs on VM, we always use one thread per interface pair.
+
+*--cfg <file name>*::
+TRex configuration file to use. See relevant manual section for all config file options.
+
+*--checksum-offload*::
+Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this.
+
+*--client_cfg <file>*::
+YAML file describing clients configuration. Look link:trex_manual.html#_client_clustering_configuration[here] for details.
+
+*-d <num>*::
+Duration of the test in seconds.
+
+*-e*::
+  Same as `-p`, but change the src/dst IP according to the port. Using this, you will get all the packets of the
+  same flow from the same port, and with the same src/dst IP. +
+  It will not work good with NBAR as it expects all clients ip to be sent from same direction.
+
+*-f <yaml file>*::
+Specify traffic YAML configuration file to use. Mandatory option for stateful mode.
+
+*--hops <num>*::
+   Provide number of hops in the setup (default is one hop). Relevant only if the Rx check is enabled.
+   Look link:trex_manual.html#_flow_order_latency_verification[here] for details.
+
+*--iom <mode>*::
+        I/O mode. Possible values: 0 (silent), 1 (normal), 2 (short).
+
+*--ipv6*::
+       Convert templates to IPv6 mode.
+
+*-k <num>*::
+   Run ``warm up'' traffic for num seconds before starting the test. This is needed if TRex is connected to switch running
+   spanning tree. You want the switch to see traffic from all relevant source MAC addresses before starting to send real
+   data. Traffic sent is the same used for the latency test (-l option) +
+   Current limitation (holds for TRex version 1.82): does not work properly on VM.
+
+*-l <rate>*::
+    In parallel to the test, run latency check, sending packets at rate/sec from each interface.
+
+*--learn-mode <mode>*::
+    Learn the dynamic NAT translation. Look link:trex_manual.html#_nat_support[here] for details.
+
+*--learn-verify*::
+   Used for testing the NAT learning mechanism. Do the learning as if DUT is doing NAT, but verify that packets
+   are not actually changed.
+
+*--limit-ports <port num>*::
+   Limit the number of ports used. Overrides the ``port_limit'' from config file.
+
+*--lm <hex bit mask>*::
+Mask specifying which ports will send traffic. For example, 0x1 - Only port 0 will send. 0x4 - only port 2 will send.
+This can be used to verify port connectivity. You can send packets from one port, and look at counters on the DUT.
+
+*--lo*::
+   Latency only - Send only latency packets. Do not send packets from the templates/pcap files.
+
+*-m <num>*::
+   Rate multiplier. TRex will multiply the CPS rate of each template by num.
+
+*--nc*::
+    If set, will terminate exacly at the end of the specified duration.
+    This provides faster, more accurate TRex termination.
+    By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong. 
+
+*--no-flow-control-change*::
+    Since version 2.21. +
+    Prevents TRex from changing flow control. By default (without this option), TRex disables flow control at startup for all cards, except for the Intel XL710 40G card.
+
+*--no-hw-flow-stat*::
+    Relevant only for Intel x710 stateless mode. Do not use HW counters for flow stats. +
+    Enabling this will support lower traffic rate, but will also report RX byte count statistics.
+
+*--no-key*:: Daemon mode, don't get input from keyboard.
+
+*--no-watchdog*:: Disable watchdog.
+    
+*-p*::
+Send all packets of the same flow from the same direction. For each flow, TRex will randomly choose between client port and
+server port, and send all the packets from this port. src/dst IPs keep their values as if packets are sent from two ports.
+Meaning, we get on the same port packets from client to server, and from server to client. +
+If you are using this with a router, you can not relay on routing rules to pass traffic to TRex, you must configure policy
+based routes to pass all traffic from one DUT port to the other. +
+
+*-pm <num>*::
+   Platform factor. If the setup includes splitter, you can multiply all statistic number displayed by TRex by this factor, so that they will match the DUT counters.
+  
+*-pubd*::
+  Disable ZMQ monitor's publishers.
+
+*--rx-check <sample rate>*::
+        Enable Rx check module. Using this, each thread randomly samples 1/sample_rate of the flows and checks packet order, latency, and additional statistics for the sampled flows.
+        Note: This feature works on the RX thread.
+
+*--software*::
+    Since version 2.21. +
+    Do not configure any hardware rules. In this mode, all RX packets will be processed by software. No HW assist for dropping (while counting) packets will be used.
+    This mode is good for enabling features like link:trex_stateless.html#_tutorial_per_stream_statistics[per stream statistics], and
+    link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[latency], support packet types, not supported by HW flow director rules (For example QinQ).
+    Drawback of this is that because software has to handle all received packets, total rate of RX streams is significantly lower.
+    Currently, this mode is also limited to using only one TX core (and one RX core as usual).
+
+*-v <verbosity level>*::
+   Show debug info. Value of 1 shows debug info on startup. Value of 3, shows debug info during run at some cases. Might slow down operation.
+
+*--vlan*:: Relevant only for stateless mode with Intel 82599 10G NIC.
+   When configuring flow stat and latency per stream rules, assume all streams uses VLAN.
+
+*-w <num seconds>*::
+   Wait additional time between NICs initialization and sending traffic. Can be useful if DUT needs extra setup time. Default is 1 second.
+
+
+ifndef::backend-docbook[]
+
+
+endif::backend-docbook[]
+
+== Appendix
+
+=== Simulator 
+ 
+The TRex simulator is a linux application (no DPDK needed) that can run on any Linux (it can also run on TRex machine itself).
+you can create output pcap file from input of traffic YAML.
+
+====  Simulator 
+
+
+[source,bash]
+----
+
+$./bp-sim-64-debug -f avl/sfr_delay_10_1g.yaml -v 1
+
+ -- loading cap file avl/delay_10_http_get_0.pcap 
+ -- loading cap file avl/delay_10_http_post_0.pcap 
+ -- loading cap file avl/delay_10_https_0.pcap 
+ -- loading cap file avl/delay_10_http_browsing_0.pcap 
+ -- loading cap file avl/delay_10_exchange_0.pcap 
+ -- loading cap file avl/delay_10_mail_pop_0.pcap 
+ -- loading cap file avl/delay_10_mail_pop_1.pcap 
+ -- loading cap file avl/delay_10_mail_pop_2.pcap 
+ -- loading cap file avl/delay_10_oracle_0.pcap 
+ -- loading cap file avl/delay_10_rtp_160k_full.pcap 
+ -- loading cap file avl/delay_10_rtp_250k_full.pcap 
+ -- loading cap file avl/delay_10_smtp_0.pcap 
+ -- loading cap file avl/delay_10_smtp_1.pcap 
+ -- loading cap file avl/delay_10_smtp_2.pcap 
+ -- loading cap file avl/delay_10_video_call_0.pcap 
+ -- loading cap file avl/delay_10_sip_video_call_full.pcap 
+ -- loading cap file avl/delay_10_citrix_0.pcap 
+ -- loading cap file avl/delay_10_dns_0.pcap 
+ id,name                                    , tps, cps,f-pkts,f-bytes, duration,   Mb/sec,   MB/sec,   c-flows,  PPS,total-Mbytes-duration,errors,flows    #<2>
+ 00, avl/delay_10_http_get_0.pcap             ,404.52,404.52,    44 ,   37830 ,   0.17 , 122.42 ,   15.30 ,         67 , 17799 ,       2 , 0 , 1 
+ 01, avl/delay_10_http_post_0.pcap            ,404.52,404.52,    54 ,   48468 ,   0.21 , 156.85 ,   19.61 ,         85 , 21844 ,       2 , 0 , 1 
+ 02, avl/delay_10_https_0.pcap                ,130.87,130.87,    96 ,   91619 ,   0.22 ,  95.92 ,   11.99 ,         29 , 12564 ,       1 , 0 , 1 
+ 03, avl/delay_10_http_browsing_0.pcap        ,709.89,709.89,    37 ,   34425 ,   0.13 , 195.50 ,   24.44 ,         94 , 26266 ,       2 , 0 , 1 
+ 04, avl/delay_10_exchange_0.pcap             ,253.81,253.81,    43 ,    9848 ,   1.57 ,  20.00 ,    2.50 ,        400 , 10914 ,       0 , 0 , 1 
+ 05, avl/delay_10_mail_pop_0.pcap             ,4.76,4.76,    20 ,    5603 ,   0.17 ,   0.21 ,    0.03 ,          1 ,    95 ,       0 , 0 , 1 
+ 06, avl/delay_10_mail_pop_1.pcap             ,4.76,4.76,   114 ,  101517 ,   0.25 ,   3.86 ,    0.48 ,          1 ,   543 ,       0 , 0 , 1 
+ 07, avl/delay_10_mail_pop_2.pcap             ,4.76,4.76,    30 ,   15630 ,   0.19 ,   0.60 ,    0.07 ,          1 ,   143 ,       0 , 0 , 1 
+ 08, avl/delay_10_oracle_0.pcap               ,79.32,79.32,   302 ,   56131 ,   6.86 ,  35.62 ,    4.45 ,        544 , 23954 ,       0 , 0 , 1 
+ 09, avl/delay_10_rtp_160k_full.pcap          ,2.78,8.33,  1354 , 1232757 ,  61.24 ,  27.38 ,    3.42 ,        170 ,  3759 ,       0 , 0 , 3 
+ 10, avl/delay_10_rtp_250k_full.pcap          ,1.98,5.95,  2069 , 1922000 ,  61.38 ,  30.48 ,    3.81 ,        122 ,  4101 ,       0 , 0 , 3 
+ 11, avl/delay_10_smtp_0.pcap                 ,7.34,7.34,    22 ,    5618 ,   0.19 ,   0.33 ,    0.04 ,          1 ,   161 ,       0 , 0 , 1 
+ 12, avl/delay_10_smtp_1.pcap                 ,7.34,7.34,    35 ,   18344 ,   0.21 ,   1.08 ,    0.13 ,          2 ,   257 ,       0 , 0 , 1 
+ 13, avl/delay_10_smtp_2.pcap                 ,7.34,7.34,   110 ,   96544 ,   0.27 ,   5.67 ,    0.71 ,          2 ,   807 ,       0 , 0 , 1 
+ 14, avl/delay_10_video_call_0.pcap           ,11.90,11.90,  2325 , 2532577 ,  36.56 , 241.05 ,   30.13 ,        435 , 27662 ,       3 , 0 , 1 
+ 15, avl/delay_10_sip_video_call_full.pcap    ,29.35,58.69,  1651 ,  120315 ,  24.56 ,  28.25 ,    3.53 ,        721 , 48452 ,       0 , 0 , 2 
+ 16, avl/delay_10_citrix_0.pcap               ,43.62,43.62,   272 ,   84553 ,   6.23 ,  29.51 ,    3.69 ,        272 , 11866 ,       0 , 0 , 1 
+ 17, avl/delay_10_dns_0.pcap                  ,1975.02,1975.02,     2 ,     162 ,   0.01 ,   2.56 ,    0.32 ,         22 ,  3950 ,       0 , 0 , 1 
+
+ 00, sum                                      ,4083.86,93928.84,  8580 , 6413941 ,   0.00 , 997.28 ,  124.66 ,       2966 , 215136 ,      12 , 0 , 23 
+ Memory usage 
+ size_64        : 1687 
+ size_128       : 222 
+ size_256       : 798 
+ size_512       : 1028 
+ size_1024      : 86 
+ size_2048      : 4086 
+ Total    :       8.89 Mbytes  159% util #<1>
+
+----
+<1> the memory usage of the templates 
+<2> CSV for all the templates 
+
+
+=== firmware update to XL710/X710 
+anchor:xl710-firmware[]
+ 
+To upgrade the firmware  follow  this
+
+==== Download the driver 
+
+*Download driver i40e from link:https://downloadcenter.intel.com/download/24411/Network-Adapter-Driver-for-PCI-E-40-Gigabit-Network-Connections-under-Linux-[here]
+*Build the kernel module
+
+[source,bash]
+----
+$tar -xvzf i40e-1.3.47
+$cd i40e-1.3.47/src
+$make 
+$sudo insmod  i40e.ko
+----
+
+
+====  Bind the NIC to Linux
+
+In this stage we bind the NIC to Linux (take it from DPDK)
+
+[source,bash]
+----
+$sudo ./dpdk_nic_bind.py --status # show the ports 
+
+Network devices using DPDK-compatible driver
+============================================
+0000:02:00.0 'Device 1583' drv=igb_uio unused=      #<1>
+0000:02:00.1 'Device 1583' drv=igb_uio unused=      #<2>
+0000:87:00.0 'Device 1583' drv=igb_uio unused=
+0000:87:00.1 'Device 1583' drv=igb_uio unused=
+
+$sudo dpdk_nic_bind.py -u 02:00.0  02:00.1          #<3> 
+
+$sudo dpdk_nic_bind.py -b i40e 02:00.0 02:00.1      #<4>
+
+$ethtool -i p1p2                                    #<5>  
+
+driver: i40e
+version: 1.3.47
+firmware-version: 4.24 0x800013fc 0.0.0             #<6>
+bus-info: 0000:02:00.1
+supports-statistics: yes
+supports-test: yes
+supports-eeprom-access: yes
+supports-register-dump: yes
+supports-priv-flags: yes
+
+   
+$ethtool -S p1p2 
+$lspci -s 02:00.0 -vvv                              #<7>
+
+
+----
+<1> XL710 ports that need to unbind from DPDK
+<2> XL710 ports that need to unbind from DPDK
+<3> Unbind from DPDK using this command
+<4> Bind to linux to i40e driver 
+<5> Show firmware version throw linux driver 
+<6> Firmare version
+<7> More info 
+
+
+====  Upgrade 
+
+Download NVMUpdatePackage.zip from Intel site link:http://downloadcenter.intel.com/download/24769/NVM-Update-Utility-for-Intel-Ethernet-Converged-Network-Adapter-XL710-X710-Series[here]  
+It includes the utility `nvmupdate64e`
+
+Run this:
+
+[source,bash]
+----
+$sudo ./nvmupdate64e  
+----
+
+You might need a power cycle and to run this command a few times to get the latest firmware  
+
+====  QSFP+ support for XL710
+
+see link:https://www.google.co.il/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwjJhPSH3b3LAhUp7nIKHSkACUYQFggaMAA&url=http%3A%2F%2Fwww.intel.co.id%2Fcontent%2Fdam%2Fwww%2Fpublic%2Fus%2Fen%2Fdocuments%2Frelease-notes%2Fxl710-ethernet-controller-feature-matrix.pdf&usg=AFQjCNFhwozfz-XuKGMOy9_MJDbetw15Og&sig2=ce7YU9F9Et6xf6KvqSFBxg&bvm=bv.116636494,d.bGs[QSFP+ support] for QSFP+ support and Firmware requirement for XL710
+
+
+=== TRex with ASA 5585
+
+When running TRex aginst ASA 5585, you have to notice following things:
+
+* ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 (or 3) in case of NAT. In this mode, bidirectional UDP flows are not supported.
+--learn-mode 1 support TCP sequence number randomization in both sides of the connection (client to server and server client). For this to work, TRex must learn
+the translation of packets from both sides, so this mode reduce the amount of connections per second TRex can generate (The number is still high enough to test
+any existing firewall). If you need higher cps rate, you can use --learn-mode 3. This mode handles sequence number randomization on client->server side only.
+* Latency should be tested using ICMP with `--l-pkt-mode 2`
+
+====  ASA 5585 sample configuration
+
+[source,bash]
+----
+ciscoasa# show running-config 
+: Saved
+
+: 
+: Serial Number: JAD194801KX
+: Hardware:   ASA5585-SSP-10, 6144 MB RAM, CPU Xeon 5500 series 2000 MHz, 1 CPU (4 cores)
+:
+ASA Version 9.5(2) 
+!
+hostname ciscoasa
+enable password 8Ry2YjIyt7RRXU24 encrypted
+passwd 2KFQnbNIdI.2KYOU encrypted
+names
+!
+interface Management0/0
+ management-only
+ nameif management
+ security-level 100
+ ip address 10.56.216.106 255.255.255.0 
+!             
+interface TenGigabitEthernet0/8
+ nameif inside
+ security-level 100
+ ip address 15.0.0.1 255.255.255.0 
+!             
+interface TenGigabitEthernet0/9
+ nameif outside
+ security-level 0
+ ip address 40.0.0.1 255.255.255.0 
+!             
+boot system disk0:/asa952-smp-k8.bin
+ftp mode passive
+pager lines 24
+logging asdm informational
+mtu management 1500
+mtu inside 9000
+mtu outside 9000
+no failover   
+no monitor-interface service-module 
+icmp unreachable rate-limit 1 burst-size 1
+no asdm history enable
+arp outside 40.0.0.2 90e2.baae.87d1 
+arp inside 15.0.0.2 90e2.baae.87d0 
+arp timeout 14400
+no arp permit-nonconnected
+route management 0.0.0.0 0.0.0.0 10.56.216.1 1
+route inside 16.0.0.0 255.0.0.0 15.0.0.2 1
+route outside 48.0.0.0 255.0.0.0 40.0.0.2 1
+timeout xlate 3:00:00
+timeout pat-xlate 0:00:30
+timeout conn 1:00:00 half-closed 0:10:00 udp 0:02:00 sctp 0:02:00 icmp 0:00:02
+timeout sunrpc 0:10:00 h323 0:05:00 h225 1:00:00 mgcp 0:05:00 mgcp-pat 0:05:00
+timeout sip 0:30:00 sip_media 0:02:00 sip-invite 0:03:00 sip-disconnect 0:02:00
+timeout sip-provisional-media 0:02:00 uauth 0:05:00 absolute
+timeout tcp-proxy-reassembly 0:01:00
+timeout floating-conn 0:00:00
+user-identity default-domain LOCAL
+http server enable
+http 192.168.1.0 255.255.255.0 management
+no snmp-server location
+no snmp-server contact
+crypto ipsec security-association pmtu-aging infinite
+crypto ca trustpool policy
+telnet 0.0.0.0 0.0.0.0 management
+telnet timeout 5
+ssh stricthostkeycheck
+ssh timeout 5 
+ssh key-exchange group dh-group1-sha1
+console timeout 0
+!             
+tls-proxy maximum-session 1000
+!             
+threat-detection basic-threat
+threat-detection statistics access-list
+no threat-detection statistics tcp-intercept
+dynamic-access-policy-record DfltAccessPolicy
+!             
+class-map icmp-class
+ match default-inspection-traffic
+class-map inspection_default
+ match default-inspection-traffic
+!             
+!             
+policy-map type inspect dns preset_dns_map
+ parameters   
+  message-length maximum client auto
+  message-length maximum 512
+policy-map icmp_policy
+ class icmp-class
+  inspect icmp 
+policy-map global_policy
+ class inspection_default
+  inspect dns preset_dns_map 
+  inspect ftp 
+  inspect h323 h225 
+  inspect h323 ras 
+  inspect rsh 
+  inspect rtsp 
+  inspect esmtp 
+  inspect sqlnet 
+  inspect skinny  
+  inspect sunrpc 
+  inspect xdmcp 
+  inspect sip  
+  inspect netbios 
+  inspect tftp 
+  inspect ip-options 
+!             
+service-policy global_policy global
+service-policy icmp_policy interface outside
+prompt hostname context 
+!             
+jumbo-frame reservation
+!             
+no call-home reporting anonymous
+: end         
+ciscoasa# 
+----
+
+====  TRex commands example 
+
+Using these commands the configuration is:
+
+1. NAT learn mode (TCP-ACK)
+2. Delay of 1 second at start up (-k 1). It was added because ASA drops the first packets.
+3. Latency is configured to ICMP reply mode (--l-pkt-mode 2).
+
+
+*Simple HTTP:*::
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
+----
+
+This is more realistic traffic for enterprise (we removed from SFR file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
+
+*Enterprise profile:*::
+[source,bash]
+----
+$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 4 --learn-mode 1 -k 1
+----
+
+The TRex output
+
+[source,bash]
+----
+-Per port stats table 
+      ports |               0 |               1 
+ -----------------------------------------------------------------------------------------
+   opackets |       106347896 |       118369678 
+     obytes |     33508291818 |    118433748567 
+   ipackets |       118378757 |       106338782 
+     ibytes |    118434305375 |     33507698915 
+    ierrors |               0 |               0 
+    oerrors |               0 |               0 
+      Tx Bw |     656.26 Mbps |       2.27 Gbps 
+
+-Global stats enabled 
+ Cpu Utilization : 18.4  %  31.7 Gb/core 
+ Platform_factor : 1.0  
+ Total-Tx        :       2.92 Gbps   NAT time out    :        0 #<1> (0 in wait for syn+ack) #<1>
+ Total-Rx        :       2.92 Gbps   NAT aged flow id:        0 #<1>
+ Total-PPS       :     542.29 Kpps   Total NAT active:      163  (12 waiting for syn)
+ Total-CPS       :       8.30 Kcps   Nat_learn_errors:        0
+
+ Expected-PPS    :     539.85 Kpps
+ Expected-CPS    :       8.29 Kcps  
+ Expected-BPS    :       2.90 Gbps  
+
+ Active-flows    :     7860  Clients :      255   Socket-util : 0.0489 %    
+ Open-flows      :  3481234  Servers :     5375   Socket :     7860 Socket/Clients :  30.8 
+ drop-rate       :       0.00  bps   #<1>
+ current time    : 425.1 sec  
+ test duration   : 574.9 sec  
+
+-Latency stats enabled 
+ Cpu Utilization : 0.3 %  
+ if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             
+ ---------------------------------------------------------------------------------------------------------------- 
+ 0 |   420510,  420495,         0,   1,         58  ,    1555,      14      |  240  257  258  258  219  930  732  896  830  472  190  207  729 
+ 1 |   420496,  420509,         0,   1,         51  ,    1551,      13      |  234  253  257  258  214  926  727  893  826  468  187  204  724
+----
+<1>  These counters should be zero 
+
+anchor:fedora21_example[]
+
+=== Fedora 21 Server installation
+
+Download the .iso file from link above, boot with it using Hypervisor or CIMC console. +
+Troubleshooting -> install in basic graphics mode
+
+* In packages selection, choose:
+
+** C Development Tools and Libraries
+
+** Development Tools
+
+** System Tools
+
+* Set Ethernet configuration if needed
+
+* Use default hard-drive partitions, reclaim space if needed
+
+* After installation, edit file /etc/selinux/config +
+set: +
+SELINUX=disabled
+
+* Run: +
+systemctl disable firewalld 
+
+* Edit file /etc/yum.repos.d/fedora-updates.repo +
+set everywhere: +
+enabled=0
+
+* Reboot
+
+=== Configure Linux host as network emulator
+
+There are lots of Linux tutorials on the web, so this will not be full tutorial, only highlighting some key points. Commands
+were checked on Ubuntu system.
+
+For this example:
+
+1. TRex Client side network is 16.0.0.x 
+2. TRex Server side network is 48.0.0.x 
+3. Linux Client side network eth0 is configured with IPv4 as 172.168.0.1 
+4. Linux Server side network eth1 is configured with IPv4 as 10.0.0.1 
+
+[source,bash]
+----
+
+  TRex-0 (16.0.0.1->48.0.0.1 )   <-->
+
+                ( 172.168.0.1/255.255.0.0)-eth0 [linux] -( 10.0.0.1/255.255.0.0)-eth1 
+
+                <--> TRex-1 (16.0.0.1<-48.0.0.1)
+  
+----
+
+
+==== Enable forwarding
+One time (will be discarded after reboot): +
+
+[source,bash]
+----
+echo 1 > /proc/sys/net/ipv4/ip_forward
+----
+To make this permanent, add the following line to the file /etc/sysctl.conf: +
+----
+net.ipv4.ip_forward=1
+----
+
+==== Add static routes
+Example if for the default TRex networks, 48.0.0.0 and 16.0.0.0.
+
+Routing all traffic from 48.0.0.0 to the gateway 10.0.0.100
+[source,bash]
+----
+route add -net 48.0.0.0 netmask 255.255.0.0 gw 10.0.0.100
+----
+
+Routing all traffic from 16.0.0.0 to the gateway 172.168.0.100
+[source,bash]
+----
+route add -net 16.0.0.0 netmask 255.255.0.0 gw 172.168.0.100
+----
+If you use stateless mode, and decide to add route only in one direction, remember to disable reverse path check. +
+For example, to disable on all interfaces:
+[source,bash]
+----
+for i in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+  echo 0 > $i 
+done
+----
+
+Alternatively, you can edit /etc/network/interfaces, and add something like this for both ports connected to TRex.
+This will take effect, only after restarting networking (rebooting the machine in an alternative also).
+----
+auto eth1
+iface eth1 inet static
+address 16.0.0.100
+netmask 255.0.0.0
+network 16.0.0.0
+broadcast 16.255.255.255
+... same for 48.0.0.0
+----
+
+==== Add static ARP entries
+[source,bash]
+----
+sudo arp -s 10.0.0.100 <Second TRex port MAC>
+sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
+----
+
+=== Configure Linux to use VF on Intel X710 and 82599 NICs
+
+TRex supports paravirtualized interfaces such as VMXNET3/virtio/E1000 however when connected to a vSwitch, the vSwitch limits the performance. VPP or OVS-DPDK can improve the performance but require more software resources to handle the rate.
+SR-IOV can accelerate the performance and reduce CPU resource usage as well as latency by utilizing NIC hardware switch capability (the switching  is done by hardware).
+TRex version 2.15 now includes SR-IOV support for XL710 and X710.
+The following diagram compares between vSwitch and SR-IOV.
+
+image:images/sr_iov_vswitch.png[title="vSwitch_main",width=850]
+
+One use case which shows the performance gain that can be acheived by using SR-IOV is when a user wants to create a pool of TRex VMs that tests a pool of virtual DUTs (e.g. ASAv,CSR etc.)
+When using newly supported SR-IOV, compute, storage and networking resources can be controlled dynamically (e.g by using OpenStack)
+ 
+image:images/sr_iov_trex.png[title="vSwitch_main",width=850]
+
+The above diagram is an example of one server with two NICS. TRex VMs can be allocated on one NIC while the DUTs can be allocated on another.
+
+
+Following are some links we used and lessons we learned while putting up an environment for testing TRex with VF interfaces (using SR-IOV).
+This is by no means a full toturial of VF usage, and different Linux distributions might need slightly different handling.
+
+==== Links and resources
+link:http://www.intel.com/content/dam/www/public/us/en/documents/technology-briefs/xl710-sr-iov-config-guide-gbe-linux-brief.pdf[This]
+is a good tutorial by Intel of SR-IOV and how to configure. +
+
+link:http://dpdk.org/doc/guides/nics/intel_vf.html[This] is a tutorial from DPDK documentation. +
+
+==== Linux configuration
+First, need to verify BIOS support for the feature. Can consult link:http://kpanic.de/node/8[this link] for directions. +
+Second, need to make sure you have the correct kernel options. +
+We added the following options to the kernel boot command on Grub: ``iommu=pt intel_iommu=on pci_pt_e820_access=on''. This
+was needed on Fedora and Ubuntu. When using Centos, adding these options was not needed. +
+To load the kernel module with the correct VF parameters after reboot add following line ``options i40e max_vfs=1,1'' to some file in ``/etc/modprobe.d/'' +
+On Centos, we needed to also add the following file (example for x710 ): +
+
+[source,bash]
+----
+cat /etc/sysconfig/modules/i40e.modules
+#!/bin/sh
+rmmod i40e >/dev/null 2>&1
+exec /sbin/modprobe i40e >/dev/null 2>&1
+----
+
+==== x710 specific instructions
+For x710 (i40e driver), we needed to download latest kernel driver. On all distributions we were using, existing driver was not new enough. +
+To make the system use your new compiled driver with the correct parameters: +
+Copy the .ko file to /lib/modules/Your kernel version as seen by uname -r/kernel/drivers/net/ethernet/intel/i40e/i40e.ko +
+
+==== 82599 specific instructions
+In order to make VF interfaces work correctly, we had to increase mtu on related PF interfaces. +
+For example, if you run with max_vfs=1,1 (one VF per PF), you will have something like this:
+
+[source,bash]
+----
+sudo ./dpdk_nic_bind.py -s
+Network devices using DPDK-compatible driver
+============================================
+0000:03:10.0 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+0000:03:10.1 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+
+Network devices using kernel driver
+===================================
+0000:01:00.0 'I350 Gigabit Network Connection' if=eth0 drv=igb unused=igb_uio *Active*
+0000:03:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth2 drv=ixgbe unused=igb_uio
+0000:03:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth3 drv=ixgbe unused=igb_uio
+----
+
+In order to work with 0000:03:10.0 and 0000:03:10.1, you will have to run the following +
+[source,bash]
+----
+sudo ifconfig eth3 up mtu 9000
+sudo ifconfig eth2 up mtu 9000
+----
+
+
+TRex stateful performance::
+
+Using the following command, running on x710 card with VF driver, we can see that TRex can reach 30GBps, using only one core. We can also see that the average latency is around 20 usec, which is pretty much the same value we get on loopback ports with x710 physical function without VF.
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+[source,python]
+----
+
+$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+  -Per port stats table
+      ports |               0 |               1
+  -----------------------------------------------------------------------------------------
+   opackets |       106573954 |       107433792
+     obytes |     99570878833 |    100374254956
+   ipackets |       107413075 |       106594490
+     ibytes | 100354899813    |     99590070585
+    ierrors |            1038 |            1027
+    oerrors |               0 |               0
+      Tx Bw |      15.33 Gbps |      15.45 Gbps
+ 
+-Global stats enabled
+Cpu Utilization : 91.5  %  67.3 Gb/core
+Platform_factor : 1.0
+Total-Tx :      30.79 Gbps
+Total-Rx :      30.79 Gbps
+Total-PPS :       4.12 Mpps
+Total-CPS :     111.32 Kcps
+ 
+Expected-PPS :       4.11 Mpps
+Expected-CPS :     111.04 Kcps
+Expected-BPS :      30.71 Gbps
+ 
+Active-flows :    14651  Clients : 255   Socket-util : 0.0912 %
+Open-flows :  5795073  Servers : 65535   Socket :    14652 Socket/Clients :  57.5
+drop-rate :       0.00 bps
+current time : 53.9 sec
+test duration : 3546.1 sec
+ 
+ -Latency stats enabled
+Cpu Utilization : 23.4 %
+if| tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter         
+   | ,        ,          , ,   average   , max  ,    (usec)
+  -------------------------------------------------------------------------------
+0 | 5233,    5233,         0, 0,         19  , 580,       5      | 37  37  37 4
+1 | 5233,    5233,         0, 0,         22  , 577,       5      | 38  40  39 3
+----
+
+TRex stateless performance::
+
+[source,python]
+----
+
+$sudo ./t-rex-64 -i -c 1
+
+trex>portattr
+Port Status
+ 
+     port |          0           |          1
+  -------------------------------------------------------------
+  driver          | net_i40e_vf      |     net_i40e_vf
+  description     | XL710/X710 Virtual  |  XL710/X710 Virtual
+ 
+With the console command:
+start -f stl/imix.py -m 8mpps --force --port 0
+We can see, that we can reach 8M packet per second, which in this case is around 24.28 Gbit/second.
+ 
+Global Statistics
+ 
+connection   : localhost, Port 4501                  total_tx_L2  : 24.28 Gb/sec
+version      : v2.15 total_tx_L1  : 25.55 Gb/sec
+cpu_util.    : 80.6% @ 1 cores (1 per port)          total_rx     : 24.28 Gb/sec
+rx_cpu_util. : 66.8%                                 total_pps    : 7.99 Mpkt/sec
+async_util.  : 0.18% / 1.84 KB/sec                   drop_rate    : 0.00 b/sec
+queue_full   : 3,467 pkts
+ 
+Port Statistics
+ 
+   port    |         0         |         1         | total
+  ----------------------------------------------------------------------
+  owner      |           ibarnea |           ibarnea |
+  link       |                UP |                UP |
+  state      | TRANSMITTING      |              IDLE |
+  speed      |           40 Gb/s |           40 Gb/s |
+  CPU util.  | 80.6%             |              0.0% |
+  --         |                   |                   |
+  Tx bps L2  | 24.28 Gbps        |          0.00 bps |        24.28 Gbps
+  Tx bps L1  | 25.55 Gbps        |             0 bps |        25.55 Gbps
+  Tx pps     | 7.99 Mpps         |          0.00 pps |         7.99 Mpps
+  Line Util. |           63.89 % |            0.00 % |
+  ---        |                   |                   |
+  Rx bps     | 0.00 bps          |        24.28 Gbps |        24.28 Gbps
+  Rx pps     | 0.00 pps          |         7.99 Mpps |         7.99 Mpps
+  ----       |                   |                   |
+  opackets   | 658532501         |                 0 |         658532501
+  ipackets   |                 0 |         658612569 |         658612569
+  obytes     | 250039721918      |                 0 |      250039721918
+  ibytes     |                 0 |      250070124150 |      250070124150
+  tx-bytes   | 250.04 GB         |               0 B |         250.04 GB
+  rx-bytes   |               0 B |         250.07 GB |         250.07 GB
+  tx-pkts    | 658.53 Mpkts      |            0 pkts |      658.53 Mpkts
+  rx-pkts    | 0 pkts            |      658.61 Mpkts |      658.61 Mpkts
+  -----      |                   |                   |
+  oerrors    |                 0 |                 0 |                 0
+  ierrors    |                 0 |            15,539 |            15,539
+----
+
+
+==== Performance
+See the performance tests we did link:trex_vm_bench.html[here]
+
+=== Mellanox ConnectX-4/5 support 
+
+anchor:connectx_support[]
+
+Mellanox ConnectX-4/5 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds. 
+Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[here].
+Intel NICs do not require additional kernel drivers (except for igb_uio which is already supported in most distributions). ConnectX-4 works on top of Infiniband API (verbs) and requires special kernel modules/user space libs. 
+This means that it is required to install OFED package to be able to work with this NIC.
+Installing the full OFED package is the simplest way to make it work (trying to install part of the package can work too but didn't work for us).
+The advantage of this model is that you can control it using standard Linux tools (ethtool and ifconfig will work).
+The disadvantage is the OFED dependency.
+
+==== Installation  
+
+==== Install Linux 
+
+We tested the following distro with TRex and OFED. Others might work too.
+
+* CentOS 7.2 
+
+Following distro was tested and did *not* work for us.
+
+* Fedora 21 (3.17.4-301.fc21.x86_64)  
+* Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64)  -- crash when RSS was enabled link:https://trex-tgn.cisco.com/youtrack/issue/trex-294[MLX RSS issue]
+
+==== Install OFED 
+
+Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
+
+* Download 4.0 OFED tar for your distro  
+
+[IMPORTANT]
+=====================================
+The version must be *MLNX_OFED_LINUX-4.0* or higher (4.0.x)
+=====================================
+
+[IMPORTANT]
+=====================================
+Make sure you have an internet connection without firewalls for HTTPS/HTTP - required by yum/apt-get
+=====================================
+
+.Verify md5
+[source,bash]
+----
+$md5sum md5sum MLNX_OFED_LINUX-4.0.0.0.0-rhel7.2-x86_64.tgz
+58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-4.0-xx.0.0.0-rhel7.2-x86_64.tgz
+----
+
+.Open the tar
+[source,bash]
+----
+$tar -xvzf MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64.tgz
+$cd MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64
+----
+
+.Run Install script
+[source,bash]
+----
+$sudo ./mlnxofedinstall  
+
+
+Log: /tmp/ofed.build.log
+Logs dir: /tmp/MLNX_OFED_LINUX.10406.logs
+
+Below is the list of MLNX_OFED_LINUX packages that you have chosen
+(some may have been added by the installer due to package dependencies):
+
+ofed-scripts
+mlnx-ofed-kernel-utils
+mlnx-ofed-kernel-dkms
+iser-dkms
+srp-dkms
+mlnx-sdp-dkms
+mlnx-rds-dkms
+mlnx-nfsrdma-dkms
+libibverbs1
+ibverbs-utils
+libibverbs-dev
+libibverbs1-dbg
+libmlx4-1
+libmlx4-dev
+libmlx4-1-dbg
+libmlx5-1
+libmlx5-dev
+libmlx5-1-dbg
+libibumad
+libibumad-static
+libibumad-devel
+ibacm
+ibacm-dev
+librdmacm1
+librdmacm-utils
+librdmacm-dev
+mstflint
+ibdump
+libibmad
+libibmad-static
+libibmad-devel
+libopensm
+opensm
+opensm-doc
+libopensm-devel
+infiniband-diags
+infiniband-diags-compat
+mft
+kernel-mft-dkms
+libibcm1
+libibcm-dev
+perftest
+ibutils2
+libibdm1
+ibutils
+cc-mgr
+ar-mgr
+dump-pr
+ibsim
+ibsim-doc
+knem-dkms
+mxm
+fca
+sharp
+hcoll
+openmpi
+mpitests
+knem
+rds-tools
+libdapl2
+dapl2-utils
+libdapl-dev
+srptools
+mlnx-ethtool
+libsdp1
+libsdp-dev
+sdpnetstat
+
+This program will install the MLNX_OFED_LINUX package on your machine.
+Note that all other Mellanox, OEM, OFED, or Distribution IB packages will be removed.
+Do you want to continue?[y/N]:y
+
+Checking SW Requirements...
+
+One or more required packages for installing MLNX_OFED_LINUX are missing.
+Attempting to install the following missing packages:
+autotools-dev tcl debhelper dkms tk8.4 libgfortran3 graphviz chrpath automake dpatch flex bison autoconf quilt m4 tcl8.4 libltdl-dev pkg-config pytho
+bxml2 tk swig gfortran libnl1
+
+..
+
+Removing old packages...
+Installing new packages
+Installing ofed-scripts-3.4...
+Installing mlnx-ofed-kernel-utils-3.4...
+Installing mlnx-ofed-kernel-dkms-3.4...
+
+Removing old packages...
+Installing new packages
+Installing ofed-scripts-3.4...
+Installing mlnx-ofed-kernel-utils-3.4...
+Installing mlnx-ofed-kernel-dkms-3.4...
+Installing iser-dkms-1.8.1...
+Installing srp-dkms-1.6.1...
+Installing mlnx-sdp-dkms-3.4...
+Installing mlnx-rds-dkms-3.4...
+Installing mlnx-nfsrdma-dkms-3.4...
+Installing libibverbs1-1.2.1mlnx1...
+Installing ibverbs-utils-1.2.1mlnx1...
+Installing libibverbs-dev-1.2.1mlnx1...
+Installing libibverbs1-dbg-1.2.1mlnx1...
+Installing libmlx4-1-1.2.1mlnx1...
+Installing libmlx4-dev-1.2.1mlnx1...
+Installing libmlx4-1-dbg-1.2.1mlnx1...
+Installing libmlx5-1-1.2.1mlnx1...
+Installing libmlx5-dev-1.2.1mlnx1...
+Installing libmlx5-1-dbg-1.2.1mlnx1...
+Installing libibumad-1.3.10.2.MLNX20150406.966500d...
+Installing libibumad-static-1.3.10.2.MLNX20150406.966500d...
+Installing libibumad-devel-1.3.10.2.MLNX20150406.966500d...
+Installing ibacm-1.2.1mlnx1...
+Installing ibacm-dev-1.2.1mlnx1...
+Installing librdmacm1-1.1.0mlnx...
+Installing librdmacm-utils-1.1.0mlnx...
+Installing librdmacm-dev-1.1.0mlnx...
+Installing mstflint-4.5.0...
+Installing ibdump-4.0.0...
+Installing libibmad-1.3.12.MLNX20160814.4f078cc...
+Installing libibmad-static-1.3.12.MLNX20160814.4f078cc...
+Installing libibmad-devel-1.3.12.MLNX20160814.4f078cc...
+Installing libopensm-4.8.0.MLNX20160906.32a95b6...
+Installing opensm-4.8.0.MLNX20160906.32a95b6...
+Installing opensm-doc-4.8.0.MLNX20160906.32a95b6...
+Installing libopensm-devel-4.8.0.MLNX20160906.32a95b6...
+Installing infiniband-diags-1.6.6.MLNX20160814.999c7b2...
+Installing infiniband-diags-compat-1.6.6.MLNX20160814.999c7b2...
+Installing mft-4.5.0...
+Installing kernel-mft-dkms-4.5.0...
+Installing libibcm1-1.0.5mlnx2...
+Installing libibcm-dev-1.0.5mlnx2...
+Installing perftest-3.0...
+Installing ibutils2-2.1.1...
+Installing libibdm1-1.5.7.1...
+Installing ibutils-1.5.7.1...
+Installing cc-mgr-1.0...
+Installing ar-mgr-1.0...
+Installing dump-pr-1.0...
+Installing ibsim-0.6...
+Installing ibsim-doc-0.6...
+Installing knem-dkms-1.1.2.90mlnx1...
+Installing mxm-3.5.220c57f...
+Installing fca-2.5.2431...
+Installing sharp-1.1.1.MLNX20160915.8763a35...
+Installing hcoll-3.6.1228...
+Installing openmpi-1.10.5a1...
+Installing mpitests-3.2.18...
+Installing knem-1.1.2.90mlnx1...
+Installing rds-tools-2.0.7...
+Installing libdapl2-2.1.9mlnx...
+Installing dapl2-utils-2.1.9mlnx...
+Installing libdapl-dev-2.1.9mlnx...
+Installing srptools-1.0.3...
+Installing mlnx-ethtool-4.2...
+Installing libsdp1-1.1.108...
+Installing libsdp-dev-1.1.108...
+Installing sdpnetstat-1.60...
+Selecting previously unselected package mlnx-fw-updater.
+(Reading database ... 70592 files and directories currently installed.)
+Preparing to unpack .../mlnx-fw-updater_3.4-1.0.0.0_amd64.deb ...
+Unpacking mlnx-fw-updater (3.4-1.0.0.0) ...
+Setting up mlnx-fw-updater (3.4-1.0.0.0) ...
+
+Added RUN_FW_UPDATER_ONBOOT=no to /etc/infiniband/openib.conf
+
+Attempting to perform Firmware update...
+Querying Mellanox devices firmware ...
+
+Device #1:
+
+  Device Type:      ConnectX4
+  Part Number:      MCX416A-CCA_Ax
+  Description:      ConnectX-4 EN network interface card; 100GbE dual-port QSFP28; PCIe3.0 x16; ROHS R6
+  PSID:             MT_2150110033
+  PCI Device Name:  03:00.0
+  Base GUID:        248a07030014fc60
+  Base MAC:         0000248a0714fc60
+  Versions:         Current        Available     
+     FW             12.16.1006     12.17.1010    
+     PXE            3.4.0812       3.4.0903      
+
+  Status:           Update required
+
+
+Found 1 device(s) requiring firmware update...
+
+Device #1: Updating FW ... Done
+
+Restart needed for updates to take effect.
+Log File: /tmp/MLNX_OFED_LINUX.16084.logs/fw_update.log
+Please reboot your system for the changes to take effect.
+Device (03:00.0):
+        03:00.0 Ethernet controller: Mellanox Technologies MT27620 Family
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Device (03:00.1):
+        03:00.1 Ethernet controller: Mellanox Technologies MT27620 Family
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Installation passed successfully
+To load the new driver, run:
+/etc/init.d/openibd restart
+-----
+
+
+.Reboot 
+[source,bash]
+----
+$sudo  reboot 
+----
+
+
+.After reboot 
+[source,bash]
+----
+$ibv_devinfo 
+hca_id: mlx5_1
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.17.1010             << 12.17.00
+        node_guid:                      248a:0703:0014:fc61
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+hca_id: mlx5_0
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.17.1010
+        node_guid:                      248a:0703:0014:fc60
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+----
+
+.ibdev2netdev
+[source,bash]
+-----
+$ibdev2netdev
+mlx5_0 port 1 ==> eth6 (Down)
+mlx5_1 port 1 ==> eth7 (Down)
+-----
+
+.find the ports 
+[source,bash]
+-----
+
+        $sudo ./dpdk_setup_ports.py -t
+  +----+------+---------++---------------------------------------------
+  | ID | NUMA |   PCI   ||                      Name     |  Driver   | 
+  +====+======+=========++===============================+===========+=
+  | 0  | 0    | 06:00.0 || VIC Ethernet NIC              | enic      | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 1  | 0    | 07:00.0 || VIC Ethernet NIC              | enic      | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 2  | 0    | 0a:00.0 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 3  | 0    | 0a:00.1 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 4  | 0    | 0d:00.0 || Device 15d0                   |           | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 5  | 0    | 10:00.0 || I350 Gigabit Network Connectio| igb       | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 6  | 0    | 10:00.1 || I350 Gigabit Network Connectio| igb       | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 7  | 1    | 85:00.0 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 8  | 1    | 85:00.1 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     | 
+  +----+------+---------++-------------------------------+-----------+-
+  | 9  | 1    | 87:00.0 || MT27700 Family [ConnectX-4]   | mlx5_core |  #<1>
+  +----+------+---------++-------------------------------+-----------+-
+  | 10 | 1    | 87:00.1 || MT27700 Family [ConnectX-4]   | mlx5_core |  #<2>
+  +----+------+---------++---------------------------------------------
+-----
+<1>  ConnectX-4 port 0
+<2>  ConnectX-4 port 1
+
+
+.Config file example
+[source,bash]
+-----
+### Config file generated by dpdk_setup_ports.py ###
+
+ - port_limit: 2
+   version: 2
+   interfaces: ['87:00.0', '87:00.1']
+   port_info:
+      - ip: 1.1.1.1
+        default_gw: 2.2.2.2
+      - ip: 2.2.2.2
+        default_gw: 1.1.1.1
+
+   platform:
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 1
+          threads: [8,9,10,11,12,13,14,15,24,25,26,27,28,29,30,31]
+-----
+
+
+
+
+==== TRex specific implementation details 
+
+TRex uses flow director filter to steer specific packets to specific queues. 
+To support that, we change IPv4.TOS/Ipv6.TC  LSB to *1* for packets we want to handle by software (Other packets will be dropped). So latency packets will have this bit turned on (This is true for all NIC types, not only for ConnectX-4).
+This means taht if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
+
+==== Which NIC to buy?
+
+NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
+
+==== Limitation/Issues  
+
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-273[Fedora 21 & OFED 3.4.1]
+
+
+==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
+
+For TRex version v2.11, these are the comparison results between XL710 and ConnectX-4 for various scenarios.
+
+.Stateless MPPS/Core [Preliminary]
+image:images/xl710_vs_mlx5_64b.png[title="Stateless 64B"] 
+
+.Stateless Gb/Core [Preliminary]
+image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"] 
+
+*Comments*::
+ 
+1. MLX5 can reach ~50MPPS while XL710 is limited to 35MPPS. (With potential future fix it will be ~65MPPS)
+2. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
+3. In the average stateful scenario, ConnectX-4 is the same as XL710.
+4. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
+
+
+[NOTE]
+=====================================
+There is a task to automate the production of thess reports
+=====================================
+
+==== Troubleshooting
+
+* Before running TRex make sure the commands    `ibv_devinfo` and  `ibdev2netdev` present the NICS
+* `ifconfig` should work too, you need to be able to ping from those ports
+* run TRex server with '-v 7' for example `$sudo ./t-rex-64 -i -v 7`
+* In case the link_layer is not set to *Ethernet* you should run this command
+
+[source,bash]
+----
+$sudo mlxconfig -d /dev/mst/mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+$sudo mlxconfig -d /dev/mst/mt4115_pciconf1 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+----
+
+see link:https://community.mellanox.com/docs/DOC-2294[ConnectX-4 getting Started]
+
+* It is possible to change the link speed  (e.g. 50Gb/40Gb/25Gb) see link:https://community.mellanox.com/docs/DOC-2334[change speed]
+
+for example to change to 50Gb speed
+
+[source,bash]
+----
+$sudo ethtool -s enp135s0f1 speed 50000 autoneg off
+----
+
+
+ 
+
+
+==== Limitations/Issues
+
+* The order of the mlx5 PCI addrees in /etc/trex_cfg.yaml should be in the same order reported by `./dpdk_setup_ports.py` tool see link:https://groups.google.com/forum/#!searchin/trex-tgn/unable$20to$20run$20rx-check$20with$204$20port%7Csort:relevance/trex-tgn/DsORbw3AbaU/IT-KLcZbDgAJ[issue_thread] and link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295] else there would be reported this error.
+
+.Will work
+[source,bash]
+----
+ - version         : 2
+   interfaces      : ["03:00.0","03:00.1"]
+   port_limit      : 2 
+----
+
+.Will not work
+[source,bash]
+----
+ - version         : 2
+   interfaces      : ["03:00.1","03:00.0"]
+   port_limit      : 2 
+----
+
+.The error 
+[source,bash]
+----
+ PMD: net_mlx5: 0x7ff2dcfcb2c0: flow director mode 0 not supported
+ EAL: Error - exiting with code: 1
+   Cause: rte_eth_dev_filter_ctrl: err=-22, port=2
+----
+
+==== Build with native OFED 
+
+In some case there is a need to build the dpdk-mlx5 with different OFED (not just 4.0 maybe newer) 
+to do so run this on native machine 
+
+[source,bash]
+---- 
+[csi-trex-07]> ./b configure
+Setting top to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core 
+Setting out to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core/linux_dpdk/build_dpdk 
+Checking for program 'g++, c++'          : /bin/g++ 
+Checking for program 'ar'                : /bin/ar 
+Checking for program 'gcc, cc'           : /bin/gcc 
+Checking for program 'ar'                : /bin/ar 
+Checking for program 'ldd'               : /bin/ldd 
+Checking for library z                   : yes 
+Checking for OFED                        : Found needed version 4.0   #<1> 
+Checking for library ibverbs             : yes 
+'configure' finished successfully (1.826s)
+---- 
+<1> make sure it was identify 
+
+
+.Code change need for new OFED 
+[source,python]
+---- 
+        index fba7540..a55fe6b 100755
+        --- a/linux_dpdk/ws_main.py
+        +++ b/linux_dpdk/ws_main.py
+        @@ -143,8 +143,11 @@ def missing_pkg_msg(fedora, ubuntu):
+         def check_ofed(ctx):
+             ctx.start_msg('Checking for OFED')
+             ofed_info='/usr/bin/ofed_info'
+        -    ofed_ver= '-3.4-'
+        -    ofed_ver_show= 'v3.4'
+        +
+        +    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+        +
+        +    ofed_ver= 40                                     <1>
+        +    ofed_ver_show= '4.0'
+        
+        
+        --- a/scripts/dpdk_setup_ports.py
+        +++ b/scripts/dpdk_setup_ports.py
+        @@ -366,8 +366,8 @@ Other network devices
+         
+                 ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+         
+        -        ofed_ver= 34
+        -        ofed_ver_show= '3.4-1'
+        +        ofed_ver= 40                                 <2>
+        +        ofed_ver_show= '4.0'
+---- 
+<1> change to new version 
+<2> change to new version 
+ 
+
+
+=== Cisco VIC support 
+
+anchor:ciscovic_support[]
+
+* Supported from TRex version v2.12.
+* Since version 2.21, all VIC card types supported by DPDK are supported by TRex, using ``--software'' command line argument.
+Notice that if using ``--software'', no HW assist is used, causing supported packet rate to be much lower.
+Since we do not have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
+
+* If not using ``--software'', following limitations apply:
+** Only 1300 series Cisco adapter supported.
+** Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
+** Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
+** The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
+        RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
+        RTE_ETH_FLOW_NONFRAG_IPV4_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_UDP
+        RTE_ETH_FLOW_NONFRAG_IPV6_TCP
+        RTE_ETH_FLOW_NONFRAG_IPV6_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_OTHER
+
+==== vNIC Configuration Parameters
+
+*Number of Queues*::
+  The maximum number of receive queues (RQs), work queues (WQs) and completion queues (CQs) are configurable on a per vNIC basis through the Cisco UCS Manager (CIMC or UCSM).
+  These values should be configured as follows:
+  * The number of WQs should be greater or equal to the number of threads (-c value) plus 1
+  * The number of RQs should be greater than 5
+  * The number of CQs should set to WQs + RQs 
+  * Unless there is a lack of resources due to creating many vNICs, it is recommended that the WQ and RQ sizes be set to the *maximum*. 
+
+*Advanced filters*::
+  advanced filter should be enabled 
+
+*MTU*::
+  set the MTU to maximum 9000-9190 (Depends on the FW version)
+  
+more information could be found here link:http://www.dpdk.org/doc/guides/nics/enic.html?highlight=enic[enic DPDK]
+ 
+image:images/UCS-B-adapter_policy_1.jpg[title="vic configuration",align="center",width=800]
+image:images/UCS-B-adapter_policy_2.jpg[title="vic configuration",align="center",width=800]
+
+In case it is not configured correctly, this error will be seen
+
+.VIC error in case of wrong RQ/WQ 
+[source,bash]
+----
+Starting  TRex v2.15 please wait  ...
+no client generator pool configured, using default pool
+no server generator pool configured, using default pool
+zmq publisher at: tcp://*:4500
+Number of ports found: 2
+set driver name rte_enic_pmd
+EAL: Error - exiting with code: 1
+  Cause: Cannot configure device: err=-22, port=0     #<1>
+----
+<1>There is not enough queues 
+
+
+running it with verbose mode with CLI  `-v 7`  
+
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2/dns.yaml -c 1 -m 1 -d 10  -l 1000 -v 7
+----
+
+will give move info 
+
+[source,bash]
+----
+EAL:   probe driver: 1137:43 rte_enic_pmd
+PMD: rte_enic_pmd: Advanced Filters available
+PMD: rte_enic_pmd: vNIC MAC addr 00:25:b5:99:00:4c wq/rq 256/512 mtu 1500, max mtu:9190
+PMD: rte_enic_pmd: vNIC csum tx/rx yes/yes rss yes intr mode any type min 
+PMD: rte_enic_pmd: vNIC resources avail: wq 2 rq 2 cq 4 intr 6                  #<1>
+EAL: PCI device 0000:0f:00.0 on NUMA socket 0
+EAL:   probe driver: 1137:43 rte_enic_pmd
+PMD: rte_enic_pmd: Advanced Filters available
+PMD: rte_enic_pmd: vNIC MAC addr 00:25:b5:99:00:5c wq/rq 256/512 mtu 1500, max 
+----
+<1> rq is 2 which mean 1 input queue which is less than minimum required by trex (rq should be at least 5)
+
+
+==== Limitations/Issues
+
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
+* VLAN 0 Priority Tagging
+If a vNIC is configured in TRUNK mode by the UCS manager, the adapter will priority tag egress packets according to 802.1Q if they were not already VLAN tagged by software. If the adapter is connected to a properly configured switch, there will be no unexpected behavior.
+In test setups where an Ethernet port of a Cisco adapter in TRUNK mode is connected point-to-point to another adapter port or connected though a router instead of a switch, all ingress packets will be VLAN tagged. TRex can work with that see more link:http://www.cisco.com/c/en/us/support/docs/servers-unified-computing/ucs-c-series-rack-servers/117637-technote-UCS-00.html[upstream VIC]
+Upstream the VIC always tags packets with an 802.1p header.In downstream it is possible to remove the tag (not supported by TRex yet)
+
+
+=== More active flows   
+
+From version v2.13 there is a new Stateful scheduler that works better in the case of high concurrent/active flows.
+In case of EMIX 70% better performance was observed.
+In this tutorial there are 14 DP cores & up to 8M flows.  
+There is a  special config file to enlarge the number of flows. This tutorial  present the difference in performance between the old scheduler and the new. 
+
+==== Setup details
+
+[cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2 x Intel Corporation Ethernet Controller XL710 for 40GbE QSFP+ (rev 01)
+| QSFP:   | Cisco QSFP-H40G-AOC1M
+| OS:     | Fedora 18
+| Switch: | Cisco Nexus 3172 Chassis, System version: 6.0(2)U5(2).
+| TRex:   | v2.13/v2.12 using 7 cores per dual interface.
+|=================
+
+==== Traffic profile 
+
+.cap2/cur_flow_single.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+  cap_info : 
+     - name: cap2/udp_10_pkts.pcap  <1>
+       cps : 100
+       ipg : 200
+       rtt : 200
+       w   : 1
+----
+<1> One directional UDP flow with 10 packets of 64B
+
+
+==== Config file command 
+
+./cfg/trex_08_5mflows.yaml
+[source,python]
+----
+- port_limit: 4
+  version: 2
+  interfaces: ['05:00.0', '05:00.1', '84:00.0', '84:00.1']
+  port_info:
+      - ip: 1.1.1.1
+        default_gw: 2.2.2.2
+      - ip: 3.3.3.3
+        default_gw: 4.4.4.4
+
+      - ip: 4.4.4.4
+        default_gw: 3.3.3.3
+      - ip: 2.2.2.2
+        default_gw: 1.1.1.1
+
+  platform:
+      master_thread_id: 0
+      latency_thread_id: 15
+      dual_if:
+        - socket: 0
+          threads: [1,2,3,4,5,6,7]
+
+        - socket: 1
+          threads: [8,9,10,11,12,13,14]
+  memory    :                                          
+        dp_flows    : 1048576                    <1>
+----
+<1> add memory section with more flows 
+
+==== Traffic command 
+
+.command 
+[source,bash]
+----
+$sudo ./t-rex-64 -f cap2/cur_flow_single.yaml -m 30000 -c 7 -d 40 -l 1000 --active-flows 5000000 -p --cfg cfg/trex_08_5mflows.yaml
+----
+
+The number of active flows can be change using `--active-flows` CLI. in this example it is set to 5M flows
+
+
+==== Script to get performance per active number of flows 
+
+[source,python]
+----
+
+def minimal_stateful_test(server,csv_file,a_active_flows):
+
+    trex_client = CTRexClient(server)                                   <1>
+
+    trex_client.start_trex(                                             <2>
+            c = 7,
+            m = 30000,
+            f = 'cap2/cur_flow_single.yaml',
+            d = 30,
+            l = 1000,
+            p=True,
+            cfg = "cfg/trex_08_5mflows.yaml",
+            active_flows=a_active_flows,
+            nc=True
+            )
+
+    result = trex_client.sample_to_run_finish()                         <3>
+
+    active_flows=result.get_value_list('trex-global.data.m_active_flows')
+    cpu_utl=result.get_value_list('trex-global.data.m_cpu_util')
+    pps=result.get_value_list('trex-global.data.m_tx_pps')
+    queue_full=result.get_value_list('trex-global.data.m_total_queue_full')
+    if queue_full[-1]>10000:
+        print("WARNING QUEU WAS FULL");
+    tuple=(active_flows[-5],cpu_utl[-5],pps[-5],queue_full[-1])         <4>
+    file_writer = csv.writer(test_file)
+    file_writer.writerow(tuple);
+    
+
+
+if __name__ == '__main__':
+    test_file = open('tw_2_layers.csv', 'wb');
+    parser = argparse.ArgumentParser(description="Example for TRex Stateful, assuming server daemon is running.")
+
+    parser.add_argument('-s', '--server',
+                        dest='server',
+                        help='Remote trex address',
+                        default='127.0.0.1',
+                        type = str)
+    args = parser.parse_args()
+
+    max_flows=8000000;
+    min_flows=100;
+    active_flow=min_flows;
+    num_point=10
+    factor=math.exp(math.log(max_flows/min_flows,math.e)/num_point);
+    for i in range(num_point+1):
+        print("=====================",i,math.floor(active_flow))
+        minimal_stateful_test(args.server,test_file,math.floor(active_flow))      
+        active_flow=active_flow*factor
+
+    test_file.close();
+----
+<1> connect 
+<2> Start with different active_flows
+<3> wait for the results 
+<4> get the results and save to csv file
+
+This script iterate between 100 to 8M active flows and save the results to csv file.
+
+==== The results v2.12 vs v2.14
+
+.MPPS/core 
+image:images/tw1_0.png[title="results",align="center"]
+
+.MPPS/core 
+image:images/tw0_0_chart.png[title="results",align="center",width=800]
+
+* TW0 - v2.14 default configuration 
+* PQ  - v2.12 default configuration 
+
+* To run the same script on v2.12 (that does not support `active_flows` directive) a patch was introduced.
+
+*Observation*::
+  * TW works better (up to 250%) in case of 25-100K flows 
+  * TW scale better with active-flows
+
+==== Tunning 
+
+let's add another modes called *TW1*, in this mode the scheduler is tune to have more buckets (more memory)
+
+.TW1 cap2/cur_flow_single_tw_8.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+  tw :                            
+     buckets : 16384                    <1>
+     levels  : 2                        <2>
+     bucket_time_usec : 20.0
+  cap_info : 
+     - name: cap2/udp_10_pkts.pcap
+       cps : 100
+       ipg : 200
+       rtt : 200
+       w   : 1
+----
+<1> more buckets  
+<2> less levels 
+
+
+in *TW2* mode we have the same template, duplicated one with short IPG and another one with high IPG 
+10% of the new flows will be with long IPG
+
+.TW2 cap2/cur_flow.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 0
+          udp_aging      : 0
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  #cap_ipg    : true
+  cap_info : 
+     - name: cap2/udp_10_pkts.pcap
+       cps : 10
+       ipg : 100000
+       rtt : 100000
+       w   : 1
+     - name: cap2/udp_10_pkts.pcap   
+       cps : 90
+       ipg : 2
+       rtt : 2
+       w   : 1
+----
+
+==== Full results 
+
+
+* PQ - v2.12 default configuration 
+* TW0 - v2.14 default configuration 
+* TW1 - v2.14 more buckets 16K
+* TW2 - v2.14 two templates 
+
+.MPPS/core Comparison
+image:images/tw1.png[title="results",align="center",width=800]
+
+.MPPS/core
+image:images/tw1_tbl.png[title="results",align="center"]
+
+.Factor relative to v2.12 results 
+image:images/tw2.png[title="results",align="center",width=800]
+
+.Extrapolation Total GbE per UCS with average packet size of 600B 
+image:images/tw3.png[title="results",align="center",width=800]
+
+Observation:
+
+* TW2 (two flows) almost does not have a performance impact
+* TW1 (more buckets) improve the performance up to a point
+* TW is general is better than PQ
+
+
+

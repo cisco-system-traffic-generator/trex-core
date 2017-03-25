@@ -27,6 +27,8 @@ limitations under the License.
 #include <stdio.h>
 #include <vector>
 #include <string>
+#include "tw_cfg.h"
+#include "trex_defs.h"
 
 
 #define CONST_NB_MBUF_2_10G  (16380/2)
@@ -206,6 +208,7 @@ public:
         m_prefix="";
         m_limit_memory=""  ;
         m_thread_per_dual_if=1;
+        m_tw.reset();
 
     }
 
@@ -240,6 +243,7 @@ public:
     std::vector <CMacYamlInfo> m_mac_info;
     CPlatformMemoryYamlInfo     m_memory;
     CPlatformCoresYamlInfo      m_platform;
+    CTimerWheelYamlInfo         m_tw;
 
 public:
     std::string get_use_if_comma_seperated();

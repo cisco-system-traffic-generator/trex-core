@@ -16,10 +16,10 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         if CTRexScenario.stl_init_error:
             self.skip(CTRexScenario.stl_init_error)
 
-    def connect(self, timeout = 100):
+    def connect(self, tries = 10):
         # need delay and check only because TRex process might be still starting
         sys.stdout.write('Connecting')
-        for i in range(timeout):
+        for i in range(tries):
             try:
                 sys.stdout.write('.')
                 sys.stdout.flush()
@@ -27,20 +27,25 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 print('')
                 return True
             except:
-                time.sleep(0.1)
+                time.sleep(0.5)
         print('')
         return False
 
-    def map_ports(self, timeout = 100):
+    def map_ports(self, tries = 10):
         sys.stdout.write('Mapping ports')
-        for i in range(timeout):
+        for i in range(tries):
             sys.stdout.write('.')
             sys.stdout.flush()
-            CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-            if self.verify_bidirectional(CTRexScenario.stl_ports_map):
-                print('')
-                return True
-            time.sleep(0.1)
+            try:
+                CTRexScenario.stl_trex.remove_all_captures()
+                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
+                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                    print('')
+                    return True
+            except Exception as e:
+                print('\nException during mapping: %s' % e)
+                return False
+            time.sleep(0.5)
         print('')
         return False
 
@@ -68,14 +73,15 @@ class STLBasic_Test(CStlGeneral_Test):
         if not self.is_loopback:
             try:
                 sys.stdout.flush()
-                sys.stdout.write('Configuring DUT... ')
-                start_time = time.time()
-                if CTRexScenario.router_cfg['forceCleanConfig']:
-                    CTRexScenario.router.load_clean_config()
-                CTRexScenario.router.configure_basic_interfaces()
-                CTRexScenario.router.config_pbr(mode = "config")
-                CTRexScenario.router.config_ipv6_pbr(mode = "config")
-                sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+                if not CTRexScenario.router_cfg['no_dut_config']:
+                    sys.stdout.write('Configuring DUT... ')
+                    start_time = time.time()
+                    if CTRexScenario.router_cfg['forceCleanConfig']:
+                        CTRexScenario.router.load_clean_config()
+                    CTRexScenario.router.configure_basic_interfaces()
+                    CTRexScenario.router.config_pbr(mode = "config")
+                    CTRexScenario.router.config_ipv6_pbr(mode = "config")
+                    sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
             except Exception as e:
                 print('')
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
@@ -111,3 +117,13 @@ class STLBasic_Test(CStlGeneral_Test):
             self.fail(CTRexScenario.stl_init_error)
             return
         print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
+
+        #update elk const object 
+        if self.elk:
+            stl_info = self.stl_trex.get_server_system_info()
+            setup = CTRexScenario.elk_info['info']['setup']
+            setup['drv-name']  = stl_info['ports'][0]['driver']
+            setup['nic-ports'] = stl_info['port_count']
+            setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
+
+

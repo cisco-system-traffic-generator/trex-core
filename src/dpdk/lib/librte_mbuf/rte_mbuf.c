@@ -53,12 +53,12 @@
 #include <rte_lcore.h>
 #include <rte_atomic.h>
 #include <rte_branch_prediction.h>
-#include <rte_ring.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 #include <rte_hexdump.h>
 #include <rte_errno.h>
+#include <rte_memcpy.h>
 
 /*
  * ctrlmbuf constructor, given as a callback function to
@@ -174,10 +174,12 @@ rte_pktmbuf_pool_create(const char *name, unsigned n,
 	if (mp == NULL)
 		return NULL;
 
-	rte_errno = rte_mempool_set_ops_byname(mp,
-			RTE_MBUF_DEFAULT_MEMPOOL_OPS, NULL);
-	if (rte_errno != 0) {
+	ret = rte_mempool_set_ops_byname(mp,
+		RTE_MBUF_DEFAULT_MEMPOOL_OPS, NULL);
+	if (ret != 0) {
 		RTE_LOG(ERR, MBUF, "error setting mempool handler\n");
+		rte_mempool_free(mp);
+		rte_errno = -ret;
 		return NULL;
 	}
 	rte_pktmbuf_pool_init(mp, &mbp_priv);
@@ -262,6 +264,40 @@ rte_pktmbuf_dump(FILE *f, const struct rte_mbuf *m, unsigned dump_len)
 	}
 }
 
+/* read len data bytes in a mbuf at specified offset (internal) */
+const void *__rte_pktmbuf_read(const struct rte_mbuf *m, uint32_t off,
+	uint32_t len, void *buf)
+{
+	const struct rte_mbuf *seg = m;
+	uint32_t buf_off = 0, copy_len;
+
+	if (off + len > rte_pktmbuf_pkt_len(m))
+		return NULL;
+
+	while (off >= rte_pktmbuf_data_len(seg)) {
+		off -= rte_pktmbuf_data_len(seg);
+		seg = seg->next;
+	}
+
+	if (off + len <= rte_pktmbuf_data_len(seg))
+		return rte_pktmbuf_mtod_offset(seg, char *, off);
+
+	/* rare case: header is split among several segments */
+	while (len > 0) {
+		copy_len = rte_pktmbuf_data_len(seg) - off;
+		if (copy_len > len)
+			copy_len = len;
+		rte_memcpy((char *)buf + buf_off,
+			rte_pktmbuf_mtod_offset(seg, char *, off), copy_len);
+		off = 0;
+		buf_off += copy_len;
+		len -= copy_len;
+		seg = seg->next;
+	}
+
+	return buf;
+}
+
 /*
  * Get the name of a RX offload flag. Must be kept synchronized with flag
  * definitions in rte_mbuf.h.
@@ -273,14 +309,76 @@ const char *rte_get_rx_ol_flag_name(uint64_t mask)
 	case PKT_RX_RSS_HASH: return "PKT_RX_RSS_HASH";
 	case PKT_RX_FDIR: return "PKT_RX_FDIR";
 	case PKT_RX_L4_CKSUM_BAD: return "PKT_RX_L4_CKSUM_BAD";
+	case PKT_RX_L4_CKSUM_GOOD: return "PKT_RX_L4_CKSUM_GOOD";
+	case PKT_RX_L4_CKSUM_NONE: return "PKT_RX_L4_CKSUM_NONE";
 	case PKT_RX_IP_CKSUM_BAD: return "PKT_RX_IP_CKSUM_BAD";
+	case PKT_RX_IP_CKSUM_GOOD: return "PKT_RX_IP_CKSUM_GOOD";
+	case PKT_RX_IP_CKSUM_NONE: return "PKT_RX_IP_CKSUM_NONE";
 	case PKT_RX_EIP_CKSUM_BAD: return "PKT_RX_EIP_CKSUM_BAD";
 	case PKT_RX_VLAN_STRIPPED: return "PKT_RX_VLAN_STRIPPED";
 	case PKT_RX_IEEE1588_PTP: return "PKT_RX_IEEE1588_PTP";
 	case PKT_RX_IEEE1588_TMST: return "PKT_RX_IEEE1588_TMST";
 	case PKT_RX_QINQ_STRIPPED: return "PKT_RX_QINQ_STRIPPED";
+	case PKT_RX_LRO: return "PKT_RX_LRO";
 	default: return NULL;
 	}
+}
+
+struct flag_mask {
+	uint64_t flag;
+	uint64_t mask;
+	const char *default_name;
+};
+
+/* write the list of rx ol flags in buffer buf */
+int
+rte_get_rx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
+{
+	const struct flag_mask rx_flags[] = {
+		{ PKT_RX_VLAN_PKT, PKT_RX_VLAN_PKT, NULL },
+		{ PKT_RX_RSS_HASH, PKT_RX_RSS_HASH, NULL },
+		{ PKT_RX_FDIR, PKT_RX_FDIR, NULL },
+		{ PKT_RX_L4_CKSUM_BAD, PKT_RX_L4_CKSUM_MASK, NULL },
+		{ PKT_RX_L4_CKSUM_GOOD, PKT_RX_L4_CKSUM_MASK, NULL },
+		{ PKT_RX_L4_CKSUM_NONE, PKT_RX_L4_CKSUM_MASK, NULL },
+		{ PKT_RX_L4_CKSUM_UNKNOWN, PKT_RX_L4_CKSUM_MASK,
+		  "PKT_RX_L4_CKSUM_UNKNOWN" },
+		{ PKT_RX_IP_CKSUM_BAD, PKT_RX_IP_CKSUM_MASK, NULL },
+		{ PKT_RX_IP_CKSUM_GOOD, PKT_RX_IP_CKSUM_MASK, NULL },
+		{ PKT_RX_IP_CKSUM_NONE, PKT_RX_IP_CKSUM_MASK, NULL },
+		{ PKT_RX_IP_CKSUM_UNKNOWN, PKT_RX_IP_CKSUM_MASK,
+		  "PKT_RX_IP_CKSUM_UNKNOWN" },
+		{ PKT_RX_EIP_CKSUM_BAD, PKT_RX_EIP_CKSUM_BAD, NULL },
+		{ PKT_RX_VLAN_STRIPPED, PKT_RX_VLAN_STRIPPED, NULL },
+		{ PKT_RX_IEEE1588_PTP, PKT_RX_IEEE1588_PTP, NULL },
+		{ PKT_RX_IEEE1588_TMST, PKT_RX_IEEE1588_TMST, NULL },
+		{ PKT_RX_QINQ_STRIPPED, PKT_RX_QINQ_STRIPPED, NULL },
+		{ PKT_RX_LRO, PKT_RX_LRO, NULL },
+	};
+	const char *name;
+	unsigned int i;
+	int ret;
+
+	if (buflen == 0)
+		return -1;
+
+	buf[0] = '\0';
+	for (i = 0; i < RTE_DIM(rx_flags); i++) {
+		if ((mask & rx_flags[i].mask) != rx_flags[i].flag)
+			continue;
+		name = rte_get_rx_ol_flag_name(rx_flags[i].flag);
+		if (name == NULL)
+			name = rx_flags[i].default_name;
+		ret = snprintf(buf, buflen, "%s ", name);
+		if (ret < 0)
+			return -1;
+		if ((size_t)ret >= buflen)
+			return -1;
+		buf += ret;
+		buflen -= ret;
+	}
+
+	return 0;
 }
 
 /*
@@ -302,6 +400,65 @@ const char *rte_get_tx_ol_flag_name(uint64_t mask)
 	case PKT_TX_OUTER_IP_CKSUM: return "PKT_TX_OUTER_IP_CKSUM";
 	case PKT_TX_OUTER_IPV4: return "PKT_TX_OUTER_IPV4";
 	case PKT_TX_OUTER_IPV6: return "PKT_TX_OUTER_IPV6";
+	case PKT_TX_TUNNEL_VXLAN: return "PKT_TX_TUNNEL_VXLAN";
+	case PKT_TX_TUNNEL_GRE: return "PKT_TX_TUNNEL_GRE";
+	case PKT_TX_TUNNEL_IPIP: return "PKT_TX_TUNNEL_IPIP";
+	case PKT_TX_TUNNEL_GENEVE: return "PKT_TX_TUNNEL_GENEVE";
+	case PKT_TX_MACSEC: return "PKT_TX_MACSEC";
 	default: return NULL;
 	}
+}
+
+/* write the list of tx ol flags in buffer buf */
+int
+rte_get_tx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
+{
+	const struct flag_mask tx_flags[] = {
+		{ PKT_TX_VLAN_PKT, PKT_TX_VLAN_PKT, NULL },
+		{ PKT_TX_IP_CKSUM, PKT_TX_IP_CKSUM, NULL },
+		{ PKT_TX_TCP_CKSUM, PKT_TX_L4_MASK, NULL },
+		{ PKT_TX_SCTP_CKSUM, PKT_TX_L4_MASK, NULL },
+		{ PKT_TX_UDP_CKSUM, PKT_TX_L4_MASK, NULL },
+		{ PKT_TX_L4_NO_CKSUM, PKT_TX_L4_MASK, "PKT_TX_L4_NO_CKSUM" },
+		{ PKT_TX_IEEE1588_TMST, PKT_TX_IEEE1588_TMST, NULL },
+		{ PKT_TX_TCP_SEG, PKT_TX_TCP_SEG, NULL },
+		{ PKT_TX_IPV4, PKT_TX_IPV4, NULL },
+		{ PKT_TX_IPV6, PKT_TX_IPV6, NULL },
+		{ PKT_TX_OUTER_IP_CKSUM, PKT_TX_OUTER_IP_CKSUM, NULL },
+		{ PKT_TX_OUTER_IPV4, PKT_TX_OUTER_IPV4, NULL },
+		{ PKT_TX_OUTER_IPV6, PKT_TX_OUTER_IPV6, NULL },
+		{ PKT_TX_TUNNEL_VXLAN, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_GRE, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_IPIP, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_GENEVE, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_MACSEC, PKT_TX_MACSEC, NULL },
+	};
+	const char *name;
+	unsigned int i;
+	int ret;
+
+	if (buflen == 0)
+		return -1;
+
+	buf[0] = '\0';
+	for (i = 0; i < RTE_DIM(tx_flags); i++) {
+		if ((mask & tx_flags[i].mask) != tx_flags[i].flag)
+			continue;
+		name = rte_get_tx_ol_flag_name(tx_flags[i].flag);
+		if (name == NULL)
+			name = tx_flags[i].default_name;
+		ret = snprintf(buf, buflen, "%s ", name);
+		if (ret < 0)
+			return -1;
+		if ((size_t)ret >= buflen)
+			return -1;
+		buf += ret;
+		buflen -= ret;
+	}
+
+	return 0;
 }

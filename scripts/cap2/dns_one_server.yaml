@@ -13,7 +13,6 @@
   #cap_ipg    : true
   #cap_ipg_min    : 30
   #cap_override_ipg    : 200
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
   cap_info : 
      - name: cap2/dns.pcap
        cps : 1.0

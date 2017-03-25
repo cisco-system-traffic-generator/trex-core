@@ -53,6 +53,9 @@ def get_version_handler():
 def build_pkt(model_def):
     return pass_result(service.build_pkt(v_handler, model_def))
 
+def build_pkt_ex(model_def, instructions_def):
+    return pass_result(service.build_pkt_ex(v_handler, model_def, instructions_def))
+
 def build_pkt_get_scapy(model_def):
     return build_pkt_to_scapy(build_pkt(model_def))
 
@@ -85,3 +88,12 @@ def adapt_json_protocol_fields(protocols_array):
         # change structure for easier
         if protocol.get("fields"):
             protocol["fields"] = fields_to_map(protocol["fields"])
+
+def get_templates():
+    return pass_result(service.get_templates(v_handler))
+
+def get_template_by_id(templateId):
+    params = {"id": templateId}
+    template_b64 = service.get_template(v_handler, params)
+    return pass_result(base64.b64decode(template_b64))
+

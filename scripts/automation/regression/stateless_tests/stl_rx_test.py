@@ -10,13 +10,13 @@ class STLRX_Test(CStlGeneral_Test):
 
     def setUp(self):
         per_driver_params = {
-                'rte_vmxnet3_pmd': {
+                'net_vmxnet3': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_ixgbe_pmd': {
+                'net_ixgbe': {
                         'rate_percent': 30,
                         'total_pkts': 1000,
                         'rate_latency': 1,
@@ -24,7 +24,14 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_average': 300,
                         'latency_9k_max_latency': 400,
                         },
-                'rte_i40e_pmd': {
+                'net_ixgbe_vf': {
+                        'rate_percent': 30,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+
+                'net_i40e': {
                         'rate_percent': 80,
                         'total_pkts': 1000,
                         'rate_latency': 1,
@@ -32,25 +39,49 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_average': 100,
                         'latency_9k_max_latency': 250,
                         },
-                'rte_igb_pmd': {
+                'net_i40e_vf': {
+                        'rate_percent': 80,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+                'net_e1000_igb': {
                         'rate_percent': 80,
                         'total_pkts': 500,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_em_pmd': {
+                'net_e1000_em': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         },
-                'rte_virtio_pmd': {
+                'net_virtio': {
                         'rate_percent': 1,
                         'total_pkts': 50,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
                         'allow_packets_drop_num': 1, # allow 1 pkt drop
                         },
+
+                 'net_mlx5': {
+                        'rate_percent': 80,
+                        'total_pkts': 1000,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False if self.is_vf_nics else True,
+                        'latency_9k_max_average': 100,
+                        'latency_9k_max_latency': 450,    #see latency issue trex-261 
+                        },
+
+                 'net_enic': {
+                        'rate_percent': 1,
+                        'total_pkts': 50,
+                        'rate_latency': 1,
+                        'latency_9k_enable': False,
+                        },
+
+                  
                 }
 
         CStlGeneral_Test.setUp(self)
@@ -63,14 +94,14 @@ class STLRX_Test(CStlGeneral_Test):
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
         self.speed = port_info['speed']
 
-
         cap = port_info['rx']['caps']
         if "flow_stats" not in cap or "latency" not in cap:
             self.skip('port {0} does not support RX'.format(self.rx_port))
         self.cap = cap
 
         drv_name = port_info['driver']
-        if drv_name == 'rte_ixgbe_pmd':
+        self.drv_name = drv_name
+        if drv_name == 'net_ixgbe':
             self.ipv6_support = False
         else:
             self.ipv6_support = True
@@ -108,6 +139,7 @@ class STLRX_Test(CStlGeneral_Test):
                                           , vm = vm)
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000)
                                        ,vm = vm)
+        self.errs = []
 
 
     @classmethod
@@ -400,11 +432,13 @@ class STLRX_Test(CStlGeneral_Test):
 
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
-            if self.speed == 40 :
+
+            if ((self.speed == 40) or (self.speed == 100)):
                 # the NIC does not support all full rate in case both port works let's filter odd ports
                 s_port=list(filter(lambda x: x % 2==0, s_port))
                 if len(s_port)==0:
                     s_port=[0];
+
 
             error=1;
             for j in range(0,5):
@@ -424,103 +458,117 @@ class STLRX_Test(CStlGeneral_Test):
                 print("===>Iteration {0} PASS {1}".format(i,j));
 
 
-    def  check_stats (self,stats,a,b,err):
+    def check_stats(self, a, b, err):
         if a != b:
             tmp = 'ERROR field : {0}, read : {1} != expected : {2} '.format(err,a,b)
-            pprint.pprint(stats)
-            assert False,tmp
+            print(tmp)
+            self.errs.append(tmp)
 
 
-
-    def send_1_burst(self,from_port,is_latency,pkts):
-
-        pid = from_port
+    def send_1_burst(self, client_ports, is_latency, pkts):
+        self.errs = []
         base_pkt =  Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
-
         pad = (60 - len(base_pkt)) * 'x'
-
         stream_pkt = STLPktBuilder(pkt = base_pkt/pad)
-
-        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
-
-        dpid = CTRexScenario.stl_ports_map['map'][pid]
-
-        s_ports =[pid]
 
         try:
             # reset all ports
-            self.c.reset(ports = all_ports)
+            self.c.reset()
 
 
-            for pid in s_ports:
+            for c_port in client_ports:
                 if is_latency:
                     s1  = STLStream(name = 'rx',
                                packet = stream_pkt,
-                               flow_stats = STLFlowLatencyStats(pg_id = 5 + pid),
-                               mode = STLTXSingleBurst(total_pkts = pkts,pps = 1000))
+                               flow_stats = STLFlowLatencyStats(pg_id = 5 + c_port),
+                               mode = STLTXSingleBurst(total_pkts = pkts, pps = 1000))
                 else:
                     s1  = STLStream(name = 'rx',
                                packet = stream_pkt,
-                               mode = STLTXSingleBurst(total_pkts = pkts,pps = 1000))
+                               mode = STLTXSingleBurst(total_pkts = pkts, pps = 1000))
 
 
                 # add both streams to ports
-                self.c.add_streams(s1, ports = [pid])
+                self.c.add_streams(s1, ports = [c_port])
 
             self.c.clear_stats()
 
-            self.c.start(ports = s_ports)
-            self.c.wait_on_traffic(ports = s_ports)
-
+            self.c.start(ports = client_ports)
+            self.c.wait_on_traffic(ports = client_ports)
             stats = self.c.get_stats()
 
-            ips = stats[dpid]
-            ops = stats[pid]
+            bytes = pkts * 64
+            total_pkts = pkts * len(client_ports)
+            total_bytes = total_pkts * 64
+
             tps = stats['total']
-            tbytes = pkts*64
+            self.check_stats(tps['ibytes'], total_bytes, "tps[ibytes]")
+            self.check_stats(tps['obytes'], total_bytes, "tps[obytes]")
+            self.check_stats(tps['ipackets'], total_pkts, "tps[ipackets]")
+            self.check_stats(tps['opackets'], total_pkts, "tps[opackets]")
 
-            self.check_stats (stats,ops["obytes"], tbytes,"ops[obytes]")
-            self.check_stats (stats,ops["opackets"], pkts,"ops[opackets]")
+            for c_port in client_ports:
+                s_port = CTRexScenario.stl_ports_map['map'][c_port]
 
-            self.check_stats (stats,ips["ibytes"], tbytes,"ips[ibytes]")
-            self.check_stats (stats,ips["ipackets"], pkts,"ips[ipackets]")
+                ips = stats[s_port]
+                ops = stats[c_port]
 
-            self.check_stats (stats,tps['ibytes'], tbytes,"tps[ibytes]")
-            self.check_stats (stats,tps['obytes'], tbytes,"tps[obytes]")
-            self.check_stats (stats,tps['ipackets'], pkts,"tps[ipackets]")
-            self.check_stats (stats,tps['opackets'], pkts,"tps[opackets]")
+                self.check_stats(ops["obytes"], bytes, "stats[%s][obytes]" % c_port)
+                self.check_stats(ops["opackets"], pkts, "stats[%s][opackets]" % c_port)
+                
+                self.check_stats(ips["ibytes"], bytes, "stats[%s][ibytes]" % s_port)
+                self.check_stats(ips["ipackets"], pkts, "stats[%s][ipackets]" % s_port)
 
-            if is_latency:
-                ls=stats['flow_stats'][5+ pid]
-                self.check_stats (stats,ls['rx_pkts']['total'], pkts,"ls['rx_pkts']['total']")
-                self.check_stats (stats,ls['rx_pkts'][dpid], pkts,"ls['rx_pkts'][dpid]")
+                if is_latency:
+                    ls = stats['flow_stats'][5 + c_port]
+                    self.check_stats(ls['rx_pkts']['total'], pkts, "ls['rx_pkts']['total']")
+                    self.check_stats(ls['rx_pkts'][s_port], pkts, "ls['rx_pkts'][%s]" % s_port)
+                
+                    self.check_stats(ls['tx_pkts']['total'], pkts, "ls['tx_pkts']['total']")
+                    self.check_stats(ls['tx_pkts'][c_port], pkts, "ls['tx_pkts'][%s]" % c_port)
+                
+                    self.check_stats(ls['tx_bytes']['total'], bytes, "ls['tx_bytes']['total']")
+                    self.check_stats(ls['tx_bytes'][c_port], bytes, "ls['tx_bytes'][%s]" % c_port)
 
-                self.check_stats (stats,ls['tx_pkts']['total'], pkts,"ls['tx_pkts']['total']")
-                self.check_stats (stats,ls['tx_pkts'][pid], pkts,"ls['tx_pkts'][pid]")
-
-                self.check_stats (stats,ls['tx_bytes']['total'], tbytes,"ls['tx_bytes']['total']")
-                self.check_stats (stats,ls['tx_bytes'][pid], tbytes,"ls['tx_bytes'][pid]")
-
-
-            return 0
+            if self.errs:
+                pprint.pprint(stats)
+                msg = 'Stats do not match the expected:\n' + '\n'.join(self.errs)
+                raise Exception(msg)
 
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
-
-    def test_fcs_stream(self):
+    def _run_fcs_stream (self,is_vm):
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
+        try:
+            ports = list(CTRexScenario.stl_ports_map['map'].keys())
+            for lat in [True, False]:
+                print("\nSending from ports: {0}, has latency: {1} ".format(ports, lat))
+                self.send_1_burst(ports, lat, 100)
+                print('Success.')
+            return True
+        except Exception as e:
+            if is_vm :
+                return False
+            else:
+                raise
 
-        if self.is_virt_nics:
-            self.skip('Skip this for virtual NICs')
 
-        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
-        for port in all_ports:
-            for l in [True,False]:
-                print(" test port {0} latency : {1} ".format(port,l))
-                self.send_1_burst(port,l,100)
+# this test sends 1 64 byte packet with latency and check that all counters are reported as 64 bytes
+    def test_fcs_stream(self):
 
+        # in case of VM and vSwitch there are drop of packets in some cases, let retry number of times 
+        # in this case we just want to check functionality that packet of 64 is reported as 64 in all levels 
+        is_vm = self.is_virt_nics or self.is_vf_nics
+
+        tries = 1
+        if is_vm:
+            tries = 4
+        for i in range(tries):
+            if self._run_fcs_stream(is_vm):
+                return
+            print("==> Try number #%d failed ..." % i)
+        self.fail('\n'.join(self.errs))
 
     # this test adds more and more latency streams and re-test with incremental
     def test_incremental_latency_streams (self):
@@ -566,3 +614,29 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
+
+    # counters get stuck in i40e when they are getting to limit.
+    # this test checks our workaround to this issue
+    def test_x710_counters_wraparound(self):
+        if self.drv_name != 'net_i40e':
+            self.skip('Test is only for i40e.')
+
+        percent = min(20, self.speed * 0.8) # 8G at X710 and 20G at XL710
+        total_pkts = 300000000              # send 300 million packets to ensure getting to threshold of reset several times
+
+        s1 = STLStream(name = 'wrapping_stream',
+                       packet = self.pkt,
+                       flow_stats = STLFlowStats(pg_id = 5),
+                       mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                               percentage = percent))
+
+        # add both streams to ports
+        self.c.add_streams([s1], ports = [self.tx_port])
+
+        print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
+
+        exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
+
+        self.__rx_iteration( [exp] )
+

@@ -255,7 +255,7 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     if (! utl_yaml_read_ip_addr(node, "mask", mac_info.m_mask)) {
         mac_info.m_mask = 0;
     }
-    if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan)) {
+    if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
         mac_info.m_vlan = 0;
     }
 }
@@ -344,6 +344,12 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
 
     /* must have interfaces */
     const YAML::Node& interfaces = node["interfaces"];
+    if ( interfaces.size() > TREX_MAX_PORTS ) {
+        printf("ERROR: Maximal number of interfaces is: %d, you have specified: %d.\n",
+                    TREX_MAX_PORTS, (int) interfaces.size());
+        exit(-1);
+    }
+
     for(unsigned i=0;i<interfaces.size();i++) {
         std::string  fi;
         const YAML::Node & node = interfaces;
@@ -403,6 +409,11 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["platform"] >> plat_info.m_platform;
         plat_info.m_platform.m_is_exists=true;
     }
+
+    if ( node.FindValue("tw") ){
+        node["tw"] >> plat_info.m_tw;
+    }
+
 
     if ( node.FindValue("port_info")  ) {
         const YAML::Node& mac_info = node["port_info"];
@@ -510,4 +521,5 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }
     m_memory.Dump(fd);
     m_platform.Dump(fd);
+    m_tw.Dump(fd);
 }

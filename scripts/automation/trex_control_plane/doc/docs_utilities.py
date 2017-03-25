@@ -11,13 +11,13 @@ def handle_data_items(field_yaml_dict):
 
 
 def json_dict_to_txt_table(dict_yaml_file):
-	
+
 	# table = Texttable(max_width=120)
 	with open(dict_yaml_file, 'r') as f:
-		yaml_stream = yaml.load(f)
+		yaml_stream = yaml.safe_load(f)
 
 	for main_field, sub_key in yaml_stream.items():
-		print main_field + ' field' '\n' + '~'*len(main_field+' field') + '\n'
+		print(main_field + ' field' '\n' + '~'*len(main_field+' field') + '\n')
 
 		field_data_rows = handle_data_items(sub_key)
 		table = Texttable(max_width=120)
@@ -28,10 +28,10 @@ def json_dict_to_txt_table(dict_yaml_file):
 		table.add_rows(field_data_rows, header=False)
 
 
-		print table.draw() + "\n"
+		print(table.draw() + "\n")
 
-	
-	
+
+
 
 
 json_dict_to_txt_table("json_dictionary.yaml")

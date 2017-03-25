@@ -4,7 +4,7 @@
 */
 
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include <common/Network/Packet/Arp.h>
 #include "rx_check_header.h"
 #include "pkt_gen.h"
-
+#include "bp_sim.h"
 // For use in tests
 char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t ttl, uint32_t ip_id, uint16_t flags
                                    , uint16_t max_payload, int &pkt_size) {
@@ -45,14 +45,18 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     // ASA 1
     //        uint8_t dst_mac[6] = {0xd4, 0x8c, 0xb5, 0xc9, 0x54, 0x2b};
     //      uint8_t src_mac[6] = {0xa0, 0x36, 0x9f, 0x38, 0xa4, 0x0};
-    if (flags & DPF_VLAN) {
-        l2_proto = 0x0081;
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
+        if (flags & DPF_QINQ) {
+            l2_proto = htons(EthernetHeader::Protocol::QINQ);
+        } else {
+            l2_proto = htons(EthernetHeader::Protocol::VLAN);
+        }
     } else {
         l2_proto = htons(l3_type);
     }
 
     uint8_t ip_header[] = {
-        0x45,0x02,0x00,0x30,
+        0x45,0x03,0x00,0x30,
         0x00,0x00,0x40,0x00,
         0xff,0x01,0xbd,0x04,
         0x10,0x0,0x0,0x1, //SIP
@@ -60,7 +64,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         //                      0x82, 0x0b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // IP option. change 45 to 48 (header len) if using it.
     };
     uint8_t ipv6_header[] = {
-        0x60,0x00,0xff,0x30, // traffic class + flow label
+        0x60,0x10,0xff,0x30, // traffic class + flow label
         0x00,0x00,0x40,0x00, // payload len + next header + hop limit
         0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x10,0x0,0x0,0x1, //SIP
         0x30,0x0,0x0,0x1,0x10,0x0,0x0,0x1,0x30,0x0,0x0,0x1,0x10,0x0,0x0,0x1, //DIP
@@ -106,7 +110,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
 
     pkt_size = 14;
 
-    if (flags & DPF_VLAN) {
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
         pkt_size += 4;
         if (flags & DPF_QINQ) {
             pkt_size += 4;
@@ -122,6 +126,9 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         if (flags & DPF_RXCHECK) {
             pkt_size += sizeof(struct CRx_check_header);
         }
+        break;
+    case EthernetHeader::Protocol::ARP:
+        pkt_size += sizeof(ArpHdr);
         break;
     }
 
@@ -156,8 +163,10 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     memcpy(p, src_mac, sizeof(src_mac)); p += sizeof(src_mac);
     memcpy(p, &l2_proto, sizeof(l2_proto)); p += sizeof(l2_proto);
 
-    if (flags & DPF_VLAN) {
+    if (flags & (DPF_VLAN | DPF_QINQ)) {
         if (flags & DPF_QINQ) {
+            uint16_t vlan_type = htons(EthernetHeader::Protocol::VLAN);
+            memcpy(&vlan_header2[2], &vlan_type, sizeof(vlan_type));
             memcpy(p, &vlan_header2, sizeof(vlan_header2)); p += sizeof(vlan_header2);
         }
 
@@ -192,8 +201,12 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         ipv6->setPayloadLen(pkt_size - 14 - sizeof(ipv6_header));
         ipv6->setFlowLabel(ip_id);
         break;
+    case EthernetHeader::Protocol::ARP:
+        uint16_t vlan = (flags & DPF_VLAN) ? 200 : 0;
+        create_arp_req((uint8_t *)p_start, 0x01020304, 0x05060708, src_mac, vlan, 0);
+        return p_start;
+        break;
     }
-
 
     struct TCPHeader *tcp = (TCPHeader *)p;
     struct ICMPHeader *icmp= (ICMPHeader *)p;
@@ -222,10 +235,22 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     switch(l3_type) {
     case EthernetHeader::Protocol::IP:
         ip->setTimeToLive(ttl);
+        if (flags & DPF_TOS_1) {
+            ip->setTOS(TOS_TTL_RESERVE_DUPLICATE);
+        }else{
+            ip->setTOS(0x2);
+        }
+
         ip->updateCheckSum();
         break;
     case EthernetHeader::Protocol::IPv6:
         ipv6->setHopLimit(ttl);
+        if (flags & DPF_TOS_1) {
+            ipv6->setTrafficClass(TOS_TTL_RESERVE_DUPLICATE);
+        }else{
+            ipv6->setTrafficClass(0x2);
+        }
+
         break;
     }
 

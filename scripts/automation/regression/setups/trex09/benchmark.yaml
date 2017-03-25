@@ -17,8 +17,8 @@ test_routing_imix:
 
 
 test_routing_imix_64:
-    multiplier          : 5000
-    cores               : 2
+    multiplier          : 4000
+    cores               : 3
     bw_per_core         : 10.672
 
 
@@ -187,16 +187,16 @@ test_performance_vm_single_cpu:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 16.2
-                                   max: 17.3
+                                   min: 11.7
+                                   max: 15.6
 
 
 test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 29.5
-                                   max: 31.2
+                                   min: 25.5
+                                   max: 28.1
 
 
 
@@ -204,16 +204,16 @@ test_performance_syn_attack_single_cpu:
      cfg:
         mult                    : "90%"
         mpps_per_core_golden    :
-                                  min: 13.8
-                                  max: 14.5
+                                  min: 11.3
+                                  max: 13.1
 
 test_performance_vm_multi_cpus:
     cfg:
         core_count             : 2
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 15.2
-                                  max: 16.3
+                                  min: 13.0
+                                  max: 14.7
 
 
 test_performance_vm_multi_cpus_cached:
@@ -221,14 +221,14 @@ test_performance_vm_multi_cpus_cached:
         core_count             : 2
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 28.8
-                                  max: 29.5
+                                  min: 26.5
+                                  max: 28.3
 
 test_performance_syn_attack_multi_cpus:
     cfg:
         core_count             : 2
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 13.0
-                                  max: 13.8
+                                  min: 11.2
+                                  max: 12.4
 

@@ -1,0 +1,966 @@
+The TRex Scapy RPC Server
+=========================
+:Author: Itamar Raviv
+:email: trex-dev@cisco.com
+:revnumber: 1.00
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Change log
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Version |  name   |  meaning
+| 1.00    |  Itamar Raviv (itraviv)   | first version
+| 2.00    |  Anton Kiselev (kisel)    | Add description for updated compatibilities of packet creation and modification
+| 3.00    |  Vyacheslav Ogai (hedjuo) | Add description for supporting Filed Engine and predefined packet templates
+|=================
+
+
+== Audience of this document 
+
+TRex GUI guys
+
+== Scapy RPC Server - Overview
+Scapy Server is implemented following the link:http://www.jsonrpc.org/specification[JSON-RPC 2.0 specification], +
+Therefore, requests and replies follow the JSON-RPC 2.0 spec. +
+The server operates on a Request-Response basis *over ZMQ*, and does not support batched commands handling. +
+
+Read more about ZMQ link:http://zguide.zeromq.org/page:all[here]
+
+image::images/scapy_json_rpc_server.png[title="Scapy JSON RPC Server",align="left",width=800, link="images/scapy_json_rpc_server.png"]
+
+=== Error Codes
+
+Error codes are given according to this table: [also follows the JSON-RPC spec, with added error codes]
+
+[options="header",cols="^1,^h,3a"]
+|=================
+| Error Code   |  Message                    |  Meaning
+| -32700       | Parse Error                 | Invalid JSON was received by the server. An error occurred on the server while parsing the JSON input.
+| -32600       | Invalid Request             | The JSON sent is not a valid Request object.
+| -32601       | Method not found            | The method does not exist / is not available
+| -32603       | Invalid params              |  Invalid method parameter(s)
+| -32097       | Syntax Error                |  Syntax Error in input
+| -32098       |  Scapy Server: message | Scapy Server had an error while executing your command, described in the message given
+| -32096       | Scapy Server: Unknown Error | Scapy Server encountered an error that cannot be described
+
+
+|=================
+
+
+
+== Data Bases and Data Structures used in Scapy Server
+=== build_pkt, build_pkt_ex, reconstruct_pkt packet model [[build_pkt_input]]
+
+Following JSON represents a Scapy structure, which can be used to build packet from scratch(build_pkt) or to modify particular fields in the prococol(reconstruct_pkt). Most fields can be omitted, in this case default or calculated values will be used.
+For reconstruct_pkt default values will be taken from the original packet.
+
+Exaples of JSON payloads and their scapy expression alternatives
+
+[source,python]
+----
+Ether(src="de:ad:be:ef:de:ad")/Dot1Q()/Dot1Q(vtype=1)/IP(src="127.0.0.1", chksum="0x312")/TCP(sport=443)
+----
+
+[source,python]
+----
+[
+        { "id": "Ether", "fields": [{"id": "src", "value": "de:ad:be:ef:de:ad"}] },
+        { "id": "Dot1Q"},
+        { "id": "Dot1Q", "fields": [{"id": "vtype", "value": "1"}] },
+        { "id": "IP", "fields": [{"id": "src", "value": "127.0.0.1"}, {"id": "chksum", "value": "0x312"}] },
+        { "id": "TCP", "fields": [{"id": "sport", "value": "443"}] }
+]
+----
+
+Field Engine VM instruction model +
+For more reference see link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/field_engine.html[Field Engine modules spec]
+
+[source,python]
+----
+{
+    "field_engine":{
+        "instructions":[
+            {
+                "id":"STLVmFlowVar",
+                "parameters": {
+                    "name": "Ether_dst",
+                    "init_value": "00:00:00:01:00:00", #can be a string or an integer
+                    "max_value": "0",                  #can be a string or an integer
+                    "min_value": "0",                  #can be a string or an integer
+                    "step": "1",
+                    "size": "4",
+                    "op": "inc"
+                }
+            },
+            ...
+        ],
+        "global_parameters":{
+            "cache_size":"1000"
+        }
+    }
+}
+----
+
+=== Scapy server value types
+Most values can be passed as strings(including decimal numbers, hex numbers, enums, values),
+but for binary payload, value object should be used
+
+[source,python]
+----
+- int/long/str - they can de specified directly as a value of a field
+- {"vtype": "BYTES", "base64": "my_payload_base64"} - binary payload passed as base64
+- {"vtype": "EXPRESSION", "expr": "TCPOptions()"} - python expression(normally, should be avoided)
+- {"vtype": "UNDEFINED"} - unset field value, and let it be assigned automatically
+- {"vtype": "RANDOM"} - assign a random value to a field
+----
+
+Example of object value usage(to specify binary payload)
+----
+Ether()/IP()/TCP()/Raw(load=my_payload)
+----
+
+[source,python]
+----
+[
+        { "id": "Ether"},
+        { "id": "IP"},
+        { "id": "TCP"},
+        { "id": "Raw", "fields": [
+            {
+              "id": "load",
+              "value": {"vtype": "BYTES", "base64": "my_payload_base64"}
+            }
+        ]}
+]
+----
+
+=== Scapy packet result payload [[build_pkt_output]]
+build_pkt, build_pkt_ex and reconstruct pkt take packet model and produce result JSON,
+with the binary payload and field values and offsets defined
+
+[source,python]
+----
+{
+    "binary": "AAAAAQAAAAAAAgAACABFAAAoAAEAAEAGOs4QAAABMAAAAQAUAFAAAAAAAAAAAFACIABPfQAA", // base64 encoded binary payload
+    "data": [
+        {
+            "id": "Ether",      # scapy class
+            "name": "Ethernet", # human-readable protocol name
+            "offset": 0,        # global offset for all fields
+            "fields": [
+                {
+                    "id": "dst", # scapy field id
+                    "hvalue": "00:00:00:01:00:00", # human readable value
+                    "length": 6, # 6 bytes
+                    "offset": 0, # 0 bytes offset from
+                    "value": "00:00:00:01:00:00" # internal value, which for this type is the same as hvalue
+                },
+                {
+                    "id": "src",
+                    ... # same as for dst
+                },
+                {
+                    "hvalue": "IPv4", # human-readable value
+                    "id": "type",
+                    "length": 2,
+                    "offset": 12, #
+                    "value": 2048 # integer value for IPv4(0x800)
+                }
+            ]
+        },
+        {
+            "id": "IP",
+            "name": "IP",
+            "offset": 14,
+            "fields": [
+                {
+                    "hvalue": "4",
+                    "id": "version",
+                    "length": 0, # the length is 0, which means it is a bitfield. mask should be used to show location
+                    "offset": 0, # offset from the IP.offset. it needs to be added to all fields of IP
+                    "value": 4
+                },
+                {
+                    "hvalue": "5",
+                    "id": "ihl",
+                    "length": 0, # again length is 0. that's other part of the first byte of IP
+                    "offset": 0,
+                    "value": 5
+                },
+                {
+                    "hvalue": "0x0",
+                    "id": "tos",
+                    "length": 1,
+                    "offset": 1,
+                    "value": 0
+                },
+                {
+                    "hvalue": "40",
+                    "id": "len",
+                    "length": 2,
+                    "offset": 2,
+                    "value": 40
+                },
+                {
+                    "hvalue": "1",
+                    "id": "id",
+                    "length": 2,
+                    "offset": 4,
+                    "value": 1
+                },
+                {
+                    "hvalue": "", # no flags are specified here. but this field can contain "US" for URG+SYN flags
+                    "id": "flags",
+                    "length": 0,
+                    "offset": 6,
+                    "value": 0
+                },
+                {
+                    "hvalue": "0",
+                    "id": "frag",
+                    "length": 0,
+                    "offset": 6,
+                    "value": 0
+                },
+                {
+                    "hvalue": "64",
+                    "id": "ttl",
+                    "length": 1,
+                    "offset": 8,
+                    "value": 64
+                },
+                {
+                    "hvalue": "tcp", # this field is enum. enum dictionary can be obtained as a medatata for IP fields.
+                    "id": "proto",
+                    "length": 1,
+                    "offset": 9,
+                    "value": 6
+                },
+                {
+                    "hvalue": "0x3ace",
+                    "id": "chksum",
+                    "length": 2,
+                    "offset": 10,
+                    "value": 15054
+                },
+                {
+                    "hvalue": "[]",
+                    "id": "options",
+                    "length": 2,
+                    "offset": 20,
+                    "value": { # options can not be representted as a human string, so they are passed as an expression
+                        "expr": "[]",
+                        "vtype": "EXPRESSION"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "TCP",
+            "name": "TCP",
+            "offset": 34
+            "fields": [
+                {
+                    "hvalue": "20",
+                    "id": "sport",
+                    "length": 2,
+                    "offset": 0,
+                    "value": 20
+                },
+                # .. some more TCP fields here
+                {
+                    "hvalue": "{}",
+                    "id": "options",
+                    "ignored": true,
+                    "length": 2,
+                    "offset": 20,
+                    "value": { # TCPOptions are represented as a python expression with tuple and binary buffers
+                        "expr": "[('MSS', 1460), ('NOP', None), ('NOP', None), ('SAckOK', b'')]",
+                        "vtype": "EXPRESSION"
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+----
+
+=== Scapy packet result payload in extended mode [[build_pkt_ex_output]]
+[source,python]
+----
+{
+    "binary": #same as in build_pkt
+    "data": #same as in build_pkt
+    "field_engine": {
+        "error": "",
+        "instructions": {
+            "cache": 1000,
+            "instructions": [
+                ...
+                #FlowVar definition instruction
+                {
+                    "name": "Ether_dst",
+                    "max_value": 0,
+                    "min_value": 0,
+                    "init_value": 65536,
+                    "step": 1,
+                    "size": 4,
+                    "type": "flow_var",
+                    "op": "inc"
+                },
+                #FlowVar write instruction
+                {
+                    "name": "Ether_dst", 
+                    "is_big_endian": true,
+                    "pkt_offset": 6,
+                    "type": "write_flow_var", 
+                    "add_value": 0
+                }
+                ...
+            ]
+        }
+    }
+}
+----
+
+=== Scapy server field definitions [[get_definitions_model]]
+Scapy server can return metadata object, describing protocols and fields.
+Most values, including field types are optional in the definition.
+If field type is missing, it can be treated as a STRING.
+
+[source,python]
+----
+"protocols": [
+{
+    "id": "Ether", # scapy class
+        "name": "Ethernet", # name of the protocol
+        "fields": [
+        {
+            "id": "dst",
+            "name": "Destination", # GUI will display Destination instead of dst
+            "type": "STRING",
+            "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        },
+        {
+            "id": "src",
+            "name": "Source",
+            "type": "STRING",
+            "regex": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        },
+        {
+            "values_dict": {
+                "ATMMPOA": 34892,
+                "RAW_FR": 25945,
+                "DNA_DL": 24577,
+                "ATMFATE": 34948,
+                "ATALK": 32923,
+                "BPQ": 2303,
+                "X25": 2053,
+                "PPP_DISC": 34915,
+                "DEC": 24576,
+                "n_802_1Q": 33024,
+                "PPP_SES": 34916,
+                "TEB": 25944,
+                "SCA": 24583,
+                "PPP": 34827,
+                "FR_ARP": 2056,
+                "CUST": 24582,
+                "ARP": 2054,
+                "DNA_RC": 24578,
+                "NetBEUI": 33169,
+                "AARP": 33011,
+                "DIAG": 24581,
+                "IPv4": 2048,
+                "DNA_RT": 24579,
+                "IPv6": 34525,
+                "LAT": 24580,
+                "IPX": 33079,
+                "LOOP": 36864
+            },
+            "id": "type",
+            "name": "Type"
+                "type": "ENUM"
+        }
+    ]
+},
+{
+    "id": "TCP",
+    "name": "TCP",
+    "fields": [
+    {
+        "id": "sport",
+        "name": "Source port",
+        "type": "NUMBER",
+        "min": 0, # optional min value
+        "max": 65535 # optional max value
+
+    },
+    {
+        "id": "dport",
+        "name": "Destination port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+    },
+    {
+        "id": "seq",
+        "name": "Sequence number",
+        "type": "NUMBER"
+    },
+    {
+        "id": "ack",
+        "name": "Acknowledgment number",
+        "type": "NUMBER"
+    },
+    {
+        "id": "dataofs",
+        "name": "Data offset",
+        "type": "NUMBER"
+    },
+    {
+        "id": "reserved",
+        "name": "Reserved",
+        "type": "NUMBER"
+    },
+    {
+        "id": "flags",
+        "name": "Flags",
+        "auto": false,
+        "type": "BITMASK",
+        "bits": [ # fields definition for the UI
+        {"name": "URG", "mask": 32, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 32}]},
+        {"name": "ACK", "mask": 16, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 16}]},
+        {"name": "PSH", "mask": 8, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 8}]},
+        {"name": "RST", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+        {"name": "SYN", "mask": 2, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 2}]},
+        {"name": "FIN", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+    },
+    {
+        "id": "window",
+        "name": "Window size",
+        "type": "NUMBER"
+    },
+    {
+        "id": "chksum",
+        "name": "Checksum",
+        "auto": true,
+        "type": "NUMBER"
+    },
+    {
+        "id": "urgptr",
+        "name": "Urgent pointer",
+        "type": "NUMBER"
+    },
+    {
+        "id": "options",
+        "name": "Options",
+        "type": "EXPRESSION"
+    }
+    ]
+},
+{
+    "id": "IP",
+    "name": "Internet Protocol Version 4",
+    "fields": [
+    {
+        "id": "version", # only renaming
+        "name": "Version"
+    },
+    {
+        "id": "ihl",
+        "name": "IHL",
+        "type": "NUMBER",
+        "auto": true # calculate IHL automatically
+    },
+    {
+        "id": "tos",
+        "name": "TOS",
+        "type": "NUMBER"
+    },
+    {
+        "id": "len",
+        "name": "Total Length",
+        "type": "NUMBER",
+        "auto": true
+    },
+    {
+        "id": "id",
+        "name": "Identification",
+        "type": "NUMBER"
+    },
+    {
+        "id": "flags",
+        "name": "Flags",
+        "type": "BITMASK",
+        "min": 0,
+        "max": 8,
+        "bits": [ # bitmask definition for IP.flags
+        {"name": "Reserved", "mask": 4, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 4}]},
+        {"name": "Fragment", "mask": 2, "values":[{"name":"May fragment (0)", "value": 0}, {"name":"Don't fragment (1)", "value": 2}]},
+        {"name": "More Fragments(MF)", "mask": 1, "values":[{"name":"Not Set", "value": 0}, {"name":"Set", "value": 1}]}
+        ]
+    },
+    {
+        "id": "frag",
+        "name": "Fragment offset",
+        "type": "NUMBER"
+    },
+    {
+        "id": "ttl",
+        "name": "TTL",
+        "type": "NUMBER",
+        "min": 1,
+        "max": 255
+
+    },
+    {
+        "id": "proto",
+        "name": "Protocol"
+    },
+    {
+        "id": "chksum",
+        "name": "Checksum",
+        "type": "STRING",
+        "auto": true
+    },
+    {
+        "id": "src",
+        "name": "Source address",
+        "type": "STRING",
+        "regexp": "regexp-to-check-this-field"
+    },
+    {
+        "id": "dst",
+        "name": "Destination address",
+        "regexp": "regexp-to-check-this-field"
+    },
+    {
+        "id": "options",
+        "name": "Options",
+        "type": "EXPRESSION"
+    }
+    ]
+},
+{
+    "id": "Dot1Q",
+    "name": "802.1Q",
+    "fields": [
+    {
+        "id": "prio",
+        "name": "prio"
+            "type": "NUMBER",
+    },
+    {
+        "id": "id",
+        "type": "NUMBER",
+        "name": "id"
+    },
+    {
+        "id": "vlan",
+        "type": "NUMBER",
+        "name": "vlan"
+    },
+    {
+        "values_dict": {
+            "ATMMPOA": 34892,
+            "RAW_FR": 25945,
+            "DNA_DL": 24577,
+            "ATMFATE": 34948,
+            "ATALK": 32923,
+            "BPQ": 2303,
+            "X25": 2053,
+            "PPP_DISC": 34915,
+            "DEC": 24576,
+            "n_802_1Q": 33024,
+            "PPP_SES": 34916,
+            "TEB": 25944,
+            "SCA": 24583,
+            "PPP": 34827,
+            "FR_ARP": 2056,
+            "CUST": 24582,
+            "ARP": 2054,
+            "DNA_RC": 24578,
+            "NetBEUI": 33169,
+            "AARP": 33011,
+            "DIAG": 24581,
+            "IPv4": 2048,
+            "DNA_RT": 24579,
+            "IPv6": 34525,
+            "LAT": 24580,
+            "IPX": 33079,
+            "LOOP": 36864
+        },
+        "id": "type",
+        "name": "type",
+        "type": "ENUM"
+    }
+    ]
+},
+{
+    "id": "Raw",
+    "name": "Raw",
+    "fields": [
+    {
+        "id": "load",
+        "name": "Payload",
+        "type": "BYTES"
+    }
+    ]
+}
+]
+
+]
+----
+
+
+
+== RPC Commands
+The following RPC commands are supported. Please refer to databases section for elaboration for each database.
+
+=== Supported Methods
+* *Name* - supported_methods
+* *Description* - returns the list of all supported methods by Scapy Server and their parameters
+* *Parameters* - the parameter ('all') will return *ALL* supported methods. +
+ other string delivered as parameter will return True/False if the string matches a supported method name
+* *Result* - according to input: 'all' string will return list of supported methods, otherwise will return True/False as mentioned. +
+ The returned dictionary describes for each method it's number of parameters followed by a list of their names.
+
+*Example:*
+
+[source,python]
+----
+'Request':
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "supported_methods",
+        "params": ["all"]
+}
+
+'Result':
+{'id': '1',
+ 'jsonrpc': '2.0',
+ 'result': { .
+             .
+             .
+             .
+             'build_pkt': [1, [u'pkt_descriptor']],
+             'check_update': [2, [u'db_md5', u'field_md5']],
+             'get_all': [0, []],
+             'get_tree': [0, []],
+             'get_version': [0, []],
+             'supported_methods': [1, [u'method_name']]
+           }
+}
+----
+
+
+
+=== GetAll
+* *Name* - 'get_all'
+* *Description* - Returns the supported protocols library (DB) and Field-to-RegEx mapping library, and their MD5 
+* *Paramters* - None
+* *Result* ['object'] - JSON format of dictionary. see table below
+
+.Object type 'return values for get_all' 
+[options="header",cols="1,1,3,3"]
+|=================
+| Key             | Key Type      | Value                           | Value Type 
+| db              | string        | supported protocols dictionary  | protocol dictionary
+| fields          | string        | Field-to-RegEx dictionary       | Field-to-RegEx dictionary
+| db_md5          | string        |  MD5 of DB                      | encoded in base64
+| fields_md5      | string        |  MD5 of fields                  | encoded in base64
+|=================
+
+*Example:*
+
+[source,python]
+----
+'Request':
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "get_all",
+    "params": []
+}
+
+'Response':
+{
+   "jsonrpc" : "2.0",
+   "id" : 1,
+   "result" : {'db': {'ARP': [('hwtype', 'XShortField', '(1)'),
+                              ('ptype', 'XShortEnumField', '(2048)'),
+                              ('hwlen', 'ByteField', '(6)'),
+                              ('plen', 'ByteField', '(4)'),
+                              ('op', 'ShortEnumField', '(1)'),
+                              ('hwsrc', 'ARPSourceMACField', '(None)'),
+                              ('psrc', 'SourceIPField', '(None)'),
+                              ('hwdst', 'MACField', "('00:00:00:00:00:00')"),
+                              ('pdst', 'IPField', "('0.0.0.0')")],
+                              .
+                              .
+                              .
+               'db_md5': 'Z+gRt88y7SC0bDu496/DQg==\n',
+               'fields': {'ARPSourceMACField': 'empty',
+                          'BCDFloatField': 'empty',
+                          'BitEnumField': 'empty',
+                          .
+                          .
+                          .
+
+}
+
+----
+
+=== Check if Database is updated
+* *Name* - 'check_update'
+* *Description* - checks if both protocol database and fields database are up to date according to md5 comparison
+* *Parameters* - md5 of database, md5 of fields
+* *Result* - upon failure: error code -32098 (see link:trex_scapy_rpc_server.html#_error_codes[RPC server error codes]) +
+             followed by a message: "Fields DB is not up to date" or "Protocol DB is not up to date" +
+             upon success: return 'true' as result (see below) +
+ +
+*Example:*
+
+[source,python]
+----
+'Request':
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "check_update",
+        "params": ["md5_of_protocol_db", "md5_of_fields"]   
+}
+
+'Response': #on failure
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "error": {
+                  "code": -32098,
+                  "message:": "Scapy Server: Fields DB is not up to date"
+                 }
+}
+
+'Response': #on success
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "result": true
+}
+----
+
+
+=== Get Version
+* *Name* - 'get_version'
+* *Description* - Queries the server for version information
+* *Paramters* - None
+* *Result* ['object'] - See table below
+
+.Object type 'return values for get_version' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type     | Description 
+| version       | string   | Scapy Server version
+| built_by      | string   | who built this version
+|=================
+
+
+*Example:*
+[source,python]
+----
+
+'Request':
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "get_version", 
+        "params": []
+}
+
+
+
+'Response':
+
+{
+        "jsonrpc": "2.0",
+        "id": "1",
+        "result": {
+                "version": "v1.0",
+                "built_by": "itraviv"
+        }
+}
+
+----
+
+=== Build Packet
+* *Name* - 'build_pkt'
+* *Description* - Builds a new packet from the definition and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
+* *Paramters* - JSON xref:build_pkt_input[packet definition model].
+
+=== Build Packet and VM instructions
+* *Name* - 'build_pkt_ex'
+* *Description* - Builds a new packet with VM instructions from the definition and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_ex_output[Scapy packet result with VM instructions payload].
+* *Paramters* - JSON xref:build_pkt_input[Packet definition model].
+
+=== Create packet from binary data and modify fields
+* *Name* - 'reconstruct_pkt'
+* *Description* - Builds a new packet from the binary data and returns binary data and json structure +
+* *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
+* *Paramters* - base64-encoded packet bytes, optional JSON xref:build_pkt_input[packet definition model] with fields to override.
+
+=== Get protocol definitions
+* *Name* - 'get_definitions'
+* *Description* - Returns definitions for protocols and fields +
+* *Return Value* - array of protocol definitions in a "result.protocols" json. xref:get_definitions_model[Output model]
+* *Paramters* - array of protocol class names to define or null to fetch metadata for all protocols. ex. ["Ether", "TCP"]
+
+=== Get protocol tree hierarchy example
+* *Name* - 'get_tree'
+* *Description* - returns a *suggested* dictionary of protocols ordered in a hierarchy tree. +
+User can still create non valid hierarchies. (such as Ether()/DNS()/IP())
+* *Parameters* - none
+* *Result* [dictionary] - Example for packet layers that can be used to build a packet. Ordered in an hierarchy tree.
+
+*Example:*
+
+[source,python]
+----
+
+'Request':
+
+{       
+        "id": "1",
+        "jsonrpc": "2.0",
+        "method": "get_tree",
+        "params": []
+}
+
+
+'Response':
+
+{'id': '1',
+ 'jsonrpc': '2.0',
+ 'result': {'ALL': {
+                        'Ether': {'ARP': {},
+                                  'IP': {   'TCP': {'RAW': 'payload'},
+                                            'UDP': {'RAW': 'payload'}
+                                        }
+                                 }
+                    }
+           }
+}
+----
+
+=== Get a list of predefined packet templates
+* *Name* - 'get_templates'
+* *Description* - returns a list of predefined templates.
+* *Parameters* - none
+* *Result* [array] - A list of predefined templates.
+
+*Example:*
+
+[source,python]
+----
+[
+    {
+        "id": "TCP-SYN",
+        "meta": {
+            "name": "TCP-SYN",
+            "description": ""
+        },
+    }
+]
+----
+=== Get predefined packet template
+* *Name* - 'get_template'
+* *Description* - returns a JSON template encoded in Base64.
+* *Parameters* - none
+* *Result* [string] - String contains Base64 encoded JSON.
+
+
+== Usage of Scapy RPC Server
+Notice the existence of the following files: 
+
+* scapy_service.py 
+* scapy_zmq_server.py 
+* scapy_zmq_client.py 
+
+=== Scapy_zmq_server.py
+In this section we will see how to bring up the Scapy ZMQ server.
+There are 2 ways to run this server:
+
+* Through command line
+* Through Python interpreter
+
+==== Running Scapy ZMQ Server from command line
+Run the file scapy_zmq_server.py with the argument -s to declare the port that the server will listen to. +
+Running the file without the "-s" argument will use *port 4507 by default*. +
+ +
+Notice:
+
+* The Server's IP will be the IP address of the local host.
+* The Server will accept requests from *any* IP address on that port.
+
+[source,bash]
+----
+user$ python scapy_zmq_server.py -s 5555
+
+***Scapy Server Started***
+Listening on port: 5555
+Server IP address: 10.0.0.1
+
+----
+
+==== Running Scapy ZMQ Server from the Python interpreter
+* Run the Python Interpreter (Scapy Server currently supports Python2)
+* Import the scapy_zmq_server.py file
+* Create a Scapy_server Object with argument as port number. default argument is port 4507
+* Invoke method activate(). (This method is blocking because the server is listening on the port).
+
+[source,bash]
+----
+user$ python
+>>> from scapy_zmq_server import *
+>>> s = Scapy_server() // starts with port 4507
+>>> s = Scapy_server(5555) //starts with port 5555
+>>> s.activate()
+***Scapy Server Started***
+Listening on port: 5555
+Server IP address: 10.0.0.1
+
+----
+
+==== Shutting down Scapy ZMQ Server
+There are 2 ways to shut down the server:
+
+* The server can be shut down using the keyboard interrupt Ctrl+C
+* The server can be shut down remotely with the method "shut_down" with no arguments
+
+[source,bash]
+----
+//Sending Request: {"params": [], "jsonrpc": "2.0", "method": "shut_down", "id": "1"}
+//Will result in this print by the server:
+Server: Shut down by remote user
+----
+
+
+
+
+
+

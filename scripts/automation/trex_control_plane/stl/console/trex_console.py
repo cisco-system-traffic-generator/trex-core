@@ -29,6 +29,8 @@ import string
 import os
 import sys
 import tty, termios
+from threading import Lock
+import threading
 
 try:
     import stl_path
@@ -37,8 +39,9 @@ except:
 from trex_stl_lib.api import *
 
 from trex_stl_lib.utils.text_opts import *
-from trex_stl_lib.utils.common import user_input, get_current_user
+from trex_stl_lib.utils.common import user_input, get_current_user, set_window_always_on_top
 from trex_stl_lib.utils import parsing_opts
+from .trex_capture import CaptureManager
 
 try:
     import trex_tui
@@ -69,31 +72,6 @@ class ConsoleLogger(LoggerApi):
         if ( (self.level >= LoggerApi.VERBOSE_REGULAR) and self.prompt_redraw ):
             self.prompt_redraw()
             self.flush()
-
-
-def set_window_always_on_top (title):
-    # we need the GDK module, if not available - ignroe this command
-    try:
-        if sys.version_info < (3,0):
-            from gtk import gdk
-        else:
-            #from gi.repository import Gdk as gdk
-            return
-
-    except ImportError:
-        return
-
-    # search the window and set it as above
-    root = gdk.get_default_root_window()
-
-    for id in root.property_get('_NET_CLIENT_LIST')[2]:
-        w = gdk.window_foreign_new(id)
-        if w:
-            name = w.property_get('WM_NAME')[2]
-            if name == title:
-                w.set_keep_above(True)
-                gdk.window_process_all_updates()
-                break
 
 
 class TRexGeneralCmd(cmd.Cmd):
@@ -172,6 +150,10 @@ class TRexConsole(TRexGeneralCmd):
 
     def __init__(self, stateless_client, verbose = False):
 
+        # cmd lock is used to make sure background job
+        # of the console is not done while the user excutes commands
+        self.cmd_lock = Lock()
+        
         self.stateless_client = stateless_client
 
         TRexGeneralCmd.__init__(self)
@@ -184,8 +166,11 @@ class TRexConsole(TRexGeneralCmd):
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
+        self.cap_mngr = CaptureManager(stateless_client, self.cmd_lock)
+
         self.postcmd(False, "")
 
+        
 
     ################### internal section ########################
 
@@ -202,7 +187,7 @@ class TRexConsole(TRexGeneralCmd):
             func_name = f.__name__
             if func_name.startswith("do_"):
                 func_name = func_name[3:]
-
+                
             if not inst.stateless_client.is_connected():
                 print(format_text("\n'{0}' cannot be executed on offline mode\n".format(func_name), 'bold'))
                 return
@@ -231,6 +216,7 @@ class TRexConsole(TRexGeneralCmd):
 
         lines = line.split(';')
         try:
+            self.cmd_lock.acquire()
             for line in lines:
                 stop = self.onecmd(line)
                 stop = self.postcmd(stop, line)
@@ -238,9 +224,14 @@ class TRexConsole(TRexGeneralCmd):
                     return "quit"
     
             return ""
+            
         except STLError as e:
             print(e)
             return ''
+
+        finally:
+            self.cmd_lock.release()
+
 
 
     def postcmd(self, stop, line):
@@ -313,6 +304,7 @@ class TRexConsole(TRexGeneralCmd):
     def do_shell (self, line):
         self.do_history(line)
 
+    @verify_connected
     def do_push (self, line):
         '''Push a local PCAP file\n'''
         self.stateless_client.push_line(line)
@@ -320,6 +312,14 @@ class TRexConsole(TRexGeneralCmd):
     def help_push (self):
         self.do_push("-h")
 
+    def do_debug (self, line):
+        '''Launches IPython for interactively debugging'''
+        self.stateless_client.debug_line(line)
+        
+    def help_debug (self):
+        self.do_debug('-h')
+        
+    @verify_connected
     def do_portattr (self, line):
         '''Change/show port(s) attributes\n'''
         self.stateless_client.set_port_attr_line(line)
@@ -328,6 +328,47 @@ class TRexConsole(TRexGeneralCmd):
         self.do_portattr("-h")
 
     @verify_connected
+    def do_l2 (self, line):
+        '''Configures a port in L2 mode'''
+        self.stateless_client.set_l2_mode_line(line)
+        
+    def help_l2 (self):
+        self.do_l2("-h")
+    
+    @verify_connected
+    def do_l3 (self, line):
+        '''Configures a port in L3 mode'''
+        self.stateless_client.set_l3_mode_line(line)
+
+    def help_l3 (self):
+        self.do_l3("-h")
+
+        
+    @verify_connected
+    def do_capture (self, line):
+        '''Manage PCAP captures'''
+        self.cap_mngr.parse_line(line)
+
+    def help_capture (self):
+        self.do_capture("-h")
+
+    @verify_connected
+    def do_resolve (self, line):
+        '''Resolve ARP for ports'''
+        self.stateless_client.resolve_line(line)
+
+    @verify_connected
+    def do_scan6(self, line):
+        '''Search for IPv6 neighbors'''
+        self.stateless_client.scan6_line(line)
+
+    def help_resolve (self):
+        self.do_resolve("-h")
+
+    do_arp = do_resolve
+    help_arp = help_resolve
+    
+    @verify_connected
     def do_map (self, line):
         '''Maps ports topology\n'''
         ports = self.stateless_client.get_acquired_ports()
@@ -335,8 +376,13 @@ class TRexConsole(TRexGeneralCmd):
             print("No ports acquired\n")
             return
 
-        with self.stateless_client.logger.supress():
-            table = stl_map_ports(self.stateless_client, ports = ports)
+        
+        try:    
+            with self.stateless_client.logger.supress():
+                table = stl_map_ports(self.stateless_client, ports = ports)
+        except STLError as e:
+            print(format_text(e.brief() + "\n", 'bold'))
+            return
 
         
         print(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))
@@ -400,7 +446,9 @@ class TRexConsole(TRexGeneralCmd):
 
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
-
+        
+        # stop any monitors before disconnecting
+        self.cap_mngr.stop()
         self.stateless_client.disconnect_line(line)
 
 
@@ -416,6 +464,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Release ports\n'''
         self.stateless_client.release_line(line)
 
+    @verify_connected
     def do_reacquire (self, line):
         '''reacquire all the ports under your logged user name'''
         self.stateless_client.reacquire_line(line)
@@ -469,7 +518,7 @@ class TRexConsole(TRexGeneralCmd):
     ############# update
     @verify_connected
     def do_update(self, line):
-        '''update speed of port(s)currently transmitting traffic\n'''
+        '''update speed of port(s) currently transmitting traffic\n'''
 
         self.stateless_client.update_line(line)
 
@@ -530,6 +579,21 @@ class TRexConsole(TRexGeneralCmd):
         '''Clear cached local statistics\n'''
         self.stateless_client.clear_stats_line(line)
 
+    @verify_connected
+    def do_service (self, line):
+        '''Sets port(s) service mode state'''
+        self.stateless_client.service_line(line)
+        
+    def help_service (self, line):
+        self.do_service("-h")
+
+    @verify_connected
+    def do_pkt (self, line):
+        '''Sends a scapy notation packet'''
+        self.stateless_client.pkt_line(line)
+
+    def help_pkt (self, line):
+        self.do_pkt("-h")
 
     def help_clear(self):
         self.do_clear("-h")
@@ -637,19 +701,25 @@ class TRexConsole(TRexGeneralCmd):
              l=help.splitlines()
              print("{:<30} {:<30}".format(cmd + " - ",l[0] ))
 
+             
     # a custorm cmdloop wrapper
     def start(self):
-        while True:
-            try:
-                self.cmdloop()
-                break
-            except KeyboardInterrupt as e:
-                if not readline.get_line_buffer():
-                    raise KeyboardInterrupt
-                else:
-                    print("")
-                    self.intro = None
-                    continue
+        try:
+            while True:
+                try:
+                    self.cmdloop()
+                    break
+                except KeyboardInterrupt as e:
+                    if not readline.get_line_buffer():
+                        raise KeyboardInterrupt
+                    else:
+                        print("")
+                        self.intro = None
+                        continue
+    
+        finally:
+            # capture manager is not presistent - kill it before going out
+            self.cap_mngr.stop()
 
         if self.terminal:
             self.terminal.kill()
@@ -787,10 +857,10 @@ def show_intro (logger, c):
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
-        if 'supp_speeds' in port:
+        if 'supp_speeds' in port and port['supp_speeds']:
             speed = max(port['supp_speeds']) // 1000
         else:
-            speed = port['speed']
+            speed = c.ports[port['index']].get_speed_gbps()
         key = (speed, port.get('description', port['driver']))
         if key not in port_types:
             port_types[key] = 0
@@ -855,17 +925,16 @@ def main():
     if options.readonly:
         logger.log(format_text("\nRead only mode - only few commands will be available", 'bold'))
 
-    show_intro(logger, stateless_client)
-    
-
-    # a script mode
-    if options.batch:
-        cont = run_script_file(options.batch[0], stateless_client)
-        if not cont:
-            return
-        
     # console
     try:
+        show_intro(logger, stateless_client)
+
+        # a script mode
+        if options.batch:
+            cont = run_script_file(options.batch[0], stateless_client)
+            if not cont:
+                return
+
         console = TRexConsole(stateless_client, options.verbose)
         logger.prompt_redraw = console.prompt_redraw
 
@@ -883,7 +952,7 @@ def main():
         with stateless_client.logger.supress():
             stateless_client.disconnect(stop_traffic = False)
 
+
 if __name__ == '__main__':
-    
     main()
 

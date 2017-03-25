@@ -28,6 +28,7 @@ from nose.plugins.skip import SkipTest
 import trex
 from trex import CTRexScenario
 import misc_methods
+import pprint
 import sys
 import os
 # from CPlatformUnderTest import *
@@ -38,6 +39,7 @@ from .tests_exceptions import *
 from platform_cmd_link import *
 import unittest
 from glob import glob
+from datetime import datetime, timedelta
 
 def setUpModule(module):
     pass
@@ -60,6 +62,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
         self.GAManager             = CTRexScenario.GAManager
+        self.elk                   = CTRexScenario.elk
         self.no_daemon             = CTRexScenario.no_daemon
         self.skipping              = False
         self.fail_reasons          = []
@@ -67,11 +70,34 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.unsupported_modes   = []
         self.is_loopback           = True if 'loopback' in self.modes else False
         self.is_virt_nics          = True if 'virt_nics' in self.modes else False
+        self.is_vf_nics            = True if 'vf_nics' in self.modes else False
         self.is_VM                 = True if 'VM' in self.modes else False
 
         if not CTRexScenario.is_init:
             if self.trex and not self.no_daemon: # stateful
                 CTRexScenario.trex_version = self.trex.get_trex_version()
+            #update elk const object 
+            if self.elk:
+                timediff  = timedelta(hours=2) # workaround to get IL timezone
+                date_str  = CTRexScenario.trex_version['Date'].strip()
+                timestamp = datetime.strptime(date_str, '%b %d %Y , %H:%M:%S') - timediff
+
+                img               = CTRexScenario.elk_info['info']['image']
+                img['sha']        = CTRexScenario.trex_version['Git SHA']
+                img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                img['version']    = CTRexScenario.trex_version['Version']
+
+                setup = CTRexScenario.elk_info['info']['setup']
+                if self.is_loopback :
+                    setup['dut'] = 'loopback' 
+                else:
+                    setup['dut'] = 'router' 
+
+                if self.is_VM:
+                    setup['baremetal'] = False
+                    setup['hypervisor'] = 'ESXi'       #TBD
+                else:
+                    setup['baremetal'] = True
             if not self.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
@@ -81,8 +107,12 @@ class CTRexGeneral_Test(unittest.TestCase):
                 CTRexScenario.router.load_platform_data_from_file(device_cfg)
                 CTRexScenario.router.launch_connection(device_cfg)
                 if CTRexScenario.router_cfg['forceImageReload']:
-                    running_image = CTRexScenario.router.get_running_image_details()['image']
+                    image_d = CTRexScenario.router.get_running_image_details();
+                    running_image = image_d['image']
                     print('Current router image: %s' % running_image)
+                    if self.elk:
+                        setup['dut'] = image_d.get('model','router');
+                        print('Current router model : %s' % setup['dut'])
                     needed_image = device_cfg.get_image_name()
                     if not CTRexScenario.router.is_image_matches(needed_image):
                         print('Setting router image: %s' % needed_image)
@@ -107,7 +137,9 @@ class CTRexGeneral_Test(unittest.TestCase):
 #           raise RuntimeError('CTRexScenario class is not initialized!')
         self.router = CTRexScenario.router
 
-
+    def get_elk_obj (self):
+        obj=trex.copy_elk_info ()
+        return (obj);
 
 #   def assert_dict_eq (self, dict, key, val, error=''):
 #           v1 = int(dict[key]))
@@ -142,9 +174,11 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85):
         cpu_util          = trex_res.get_avg_steady_state_value('trex-global.data.m_cpu_util_raw')
         trex_tx_bps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_bps')
+        trex_tx_pps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_pps')
         expected_norm_cpu = self.get_benchmark_param('bw_per_core')
         cores             = self.get_benchmark_param('cores')
         ports_count       = trex_res.get_ports_count()
+        total_dp_cores    = cores * (ports_count/2);
         if not (cpu_util and ports_count and cores):
             print("Can't calculate CPU benchmark, need to divide by zero: cpu util: %s, ports: %s, cores: %s" % (cpu_util, ports_count, cores))
             test_norm_cpu = -1
@@ -172,16 +206,42 @@ class CTRexGeneral_Test(unittest.TestCase):
         #if calc_error_precent > err and cpu_util > 10:
         #    self.fail('Excepted bw_per_core ratio: %s, got: %g' % (expected_norm_cpu, round(test_norm_cpu)))
 
+        trex_tx_gbps       = trex_tx_bps/1e9
+        trex_tx_mpps       = trex_tx_pps/1e6
+
+        trex_tx_gbps_pc  = trex_tx_gbps*100.0/(cpu_util*total_dp_cores);
+        trex_tx_mpps_pc  = trex_tx_mpps*100.0/(cpu_util*total_dp_cores)
+
+        trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
+        trex_drops      = trex_res.get_total_drops()
+        trex_drop_precent = trex_drops *100.0/trex_tx_pckt;
+
         # report benchmarks
-        if self.GAManager:
-            try:
-                pass
-                #setup_test = '%s.%s' % (CTRexScenario.setup_name, self.get_name())
-                #self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core', value = int(test_norm_cpu))
-                #self.GAManager.gaAddAction(Event = 'stateful_test', action = setup_test, label = 'bw_per_core_exp', value = int(expected_norm_cpu))
-                #self.GAManager.emptyAndReportQ()
-            except Exception as e:
-                print('Sending GA failed: %s' % e)
+        if self.elk:
+            elk_obj = self.get_elk_obj()
+            print("Reporting to elk")
+            elk_obj['test']={ "name" : self.get_name(),
+                        "type"  : "stateful",
+                        "cores" : total_dp_cores,
+                        "cpu%"  : cpu_util,
+                        "mpps" :  (trex_tx_mpps),
+                        "streams_count" :1,
+                        "mpps_pc" :  (trex_tx_mpps_pc),
+                        "gbps_pc" :  (trex_tx_gbps_pc),
+                        "gbps" :  (trex_tx_gbps),
+                        "kcps"  : (trex_res.get_last_value("trex-global.data.m_tx_cps")/1000.0),
+                        "avg-pktsize" : round((1000.0*trex_tx_gbps/(8.0*trex_tx_mpps))),
+                        "latecny" : { "min" : min(trex_res.get_min_latency().values()),
+                                      "max" : max(trex_res.get_max_latency().values()),
+                                      "avr" : max(trex_res.get_avg_latency().values()),
+                                      "jitter" : max(trex_res.get_jitter_latency().values()),
+                                      "max-win" : max(trex_res.get_avg_window_latency ().values()),
+                                      "drop-rate" :trex_drop_precent
+                                     }
+                };
+            pprint.pprint(elk_obj['test']);
+            self.elk.perf.push_data(elk_obj)
+
 
     def check_results_gt (self, res, name, val):
         if res is None:
@@ -198,11 +258,14 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_for_trex_crash(self):
         pass
 
-    def get_benchmark_param (self, param, sub_param = None, test_name = None):
+    def get_benchmark_param (self, param, sub_param = None, test_name = None,default=None):
         if not test_name:
             test_name = self.get_name()
         if test_name not in self.benchmark:
-            self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            if default ==None:
+               self.skip('No data in benchmark.yaml for test: %s, param: %s. Skipping.' % (test_name, param))
+            else:
+                return default
         if sub_param:
             return self.benchmark[test_name][param].get(sub_param)
         else:
@@ -211,13 +274,24 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_general_scenario_results (self, trex_res, check_latency = True):
         
         try:
+            # check history size is enough
+            if len(trex_res._history) < 5:
+                self.fail('TRex results list is too short. Increase the test duration or check unexpected stopping.')
+
             # check if test is valid
             if not trex_res.is_done_warmup():
                 self.fail('TRex did not reach warm-up situtaion. Results are not valid.')
 
-            # check history size is enough
-            if len(trex_res._history) < 5:
-                self.fail('TRex results list is too short. Increase the test duration or check unexpected stopping.')
+            # check that BW is not much more than expected
+            trex_exp_bps = trex_res.get_expected_tx_rate().get('m_tx_expected_bps') / 1e6
+            trex_cur_bps = max(trex_res.get_value_list('trex-global.data.m_tx_bps')) / 1e6
+
+            assert trex_exp_bps > 0, 'Expected BPS is zero: %s' % trex_exp_bps
+
+            if trex_exp_bps * 1.05 + 10 < trex_cur_bps:
+                msg = 'Got BW (%gMbps) that is %g%% more than expected (%gMbps)!' % (round(trex_cur_bps, 2), round(100.0 * trex_cur_bps / trex_exp_bps - 100, 2), round(trex_exp_bps, 2))
+                print('WARNING: %s' % msg)
+                #self.fail(msg)
 
             # check TRex number of drops
             trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")
@@ -248,20 +322,29 @@ class CTRexGeneral_Test(unittest.TestCase):
                 # check that max latency does not exceed 1 msec
                 if self.configuration.trex['trex_name'] == '10.56.217.210': # temporary workaround for latency issue in kiwi02, remove it ASAP. http://trex-tgn.cisco.com/youtrack/issue/trex-194
                     allowed_latency = 8000
-                elif self.is_VM:
+                elif self.is_VM or self.is_virt_nics:
                     allowed_latency = 9999999
                 else: # no excuses, check 1ms
                     allowed_latency = 1000
                 if max(trex_res.get_max_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Maximal latency exceeds %s (usec)' % allowed_latency)
-    
+
                 # check that avg latency does not exceed 1 msec
-                if self.is_VM:
+                if self.is_VM or self.is_virt_nics:
                     allowed_latency = 9999999
                 else: # no excuses, check 1ms
                     allowed_latency = 1000
                 if max(trex_res.get_avg_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Average latency exceeds %s (usec)' % allowed_latency)
+
+                ports_names = trex_res.get_last_value('trex-latecny-v2.data', 'port\-\d+')
+                if not ports_names:
+                    raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
+                for port_name in ports_names:
+                    path = 'trex-latecny-v2.data.%s.hist.cnt' % port_name
+                    lat_count = trex_res.get_last_value(path)
+                    if lat_count == 0:
+                        self.fail('LatencyError: Number of latency packets received on %s is 0' % port_name)
 
             if not self.is_loopback:
                 # check router number of drops --> deliberately masked- need to be figured out!!!!!
@@ -321,7 +404,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print('')
-            if not self.stl_trex: # stateful
+            if not self.stl_trex and CTRexScenario.router_cfg['forceCleanConfig']:
                 self.router.load_clean_config()
             self.router.clear_counters()
             self.router.clear_packet_drop_stats()
@@ -356,7 +439,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     print("Can't get TRex log:", e)
             if len(self.fail_reasons):
                 sys.stdout.flush()
-                raise Exception('The test is failed, reasons:\n%s' % '\n'.join(self.fail_reasons))
+                raise Exception('Test failed. Reasons:\n%s' % '\n'.join(self.fail_reasons))
         sys.stdout.flush()
 
     def check_for_trex_crash(self):

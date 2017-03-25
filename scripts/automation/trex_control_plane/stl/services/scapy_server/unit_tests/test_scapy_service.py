@@ -6,6 +6,7 @@ import re
 from basetest import *
 
 RE_MAC = "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"
+ether_chksum_sz = 4 # this chksum will be added automatically(outside of scapy/packet editor)
 
 TEST_MAC_1 = "10:10:10:10:10:10"
 # Test scapy structure
@@ -18,9 +19,81 @@ TEST_PKT_DEF = [
         layer_def("TCP", sport="443")
         ]
 
-def test_build_pkt():
-    pkt = build_pkt_get_scapy(TEST_PKT_DEF)
+TEST_DNS_PKT = Ether(src='00:16:ce:6e:8b:24', dst='00:05:5d:21:99:4c', type=2048)/IP(frag=0L, src='192.168.0.114', proto=17, tos=0, dst='205.152.37.23', chksum=26561, len=59, options=[], version=4L, flags=0L, ihl=5L, ttl=128, id=7975)/UDP(dport=53, sport=1060, len=39, chksum=877)/DNS(aa=0L, qr=0L, an=None, ad=0L, nscount=0, qdcount=1, ns=None, tc=0L, rd=1L, arcount=0, ar=None, opcode=0L, ra=0L, cd=0L, z=0L, rcode=0L, id=6159, ancount=0, qd=DNSQR(qclass=1, qtype=1, qname='wireshark.org.'))
+
+TEST_DNS_PKT_B64 = (
+    "1MOyoQIABAAAAAAAAAAAAP//AAABAAAAdzmERaAVAwBJAAAASQAAAAAFXSGZTAAWzm6LJAgARQAA"
+    "Ox8nAACAEWfBwKgAcs2YJRcEJAA1ACcDbRgPAQAAAQAAAAAAAAl3aXJlc2hhcmsDb3JnAAABAAF3"
+    "OYRFvHkEAFkAAABZAAAAABbOboskAAVdIZlMCABFAABLdn1AADIRHlvNmCUXwKgAcgA1BCQANzwg"
+    "GA+BgAABAAEAAAAACXdpcmVzaGFyawNvcmcAAAEAAcAMAAEAAQAAOEAABIB5Mno="
+)
+
+def test_0_dns_pcap_read_base64():
+    # should be executed first
+    # this test could fail depending on the test execution order
+    # due to uninitialized/preserved _offset field, which is stored
+    # in Packet.fields_desc singletone
+    array_pkt = service.read_pcap(v_handler, TEST_DNS_PKT_B64)
+    pkt = build_pkt_to_scapy(array_pkt[0])
+    assert(pkt[DNS].id == 6159)
+    service._pkt_to_field_tree(pkt)
+
+def test_dns_pcap_read_and_write_multi():
+    pkt_b64 = bytes_to_b64(bytes(TEST_DNS_PKT))
+    pkts_to_write = [pkt_b64, pkt_b64]
+    pcap_b64 = service.write_pcap(v_handler, pkts_to_write)
+    array_pkt = service.read_pcap(v_handler, pcap_b64)
+    pkt = build_pkt_to_scapy(array_pkt[0])
+    assert(pkt[DNS].id == 6159)
+
+def test_build_pkt_details():
+    pkt_data = build_pkt(TEST_PKT_DEF)
+    pkt = build_pkt_to_scapy(pkt_data)
     assert(pkt[TCP].sport == 443)
+    [ether, ip, tcp] = pkt_data['data']
+    assert(len(pkt_data["binary"]) == 72) #b64 encoded data
+
+    # absolute frame offset
+    assert(ether['offset'] == 0)
+    assert(ip['offset'] == 14)
+    assert(tcp['offset'] == 34)
+
+    # relative field offsets
+    tcp_sport = tcp["fields"][0]
+    assert(tcp_sport["id"] == "sport")
+    assert(tcp_sport["offset"] == 0)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_dport = tcp["fields"][1]
+    assert(tcp_dport["id"] == "dport")
+    assert(tcp_dport["offset"] == 2)
+    assert(tcp_sport["length"] == 2)
+
+    tcp_chksum = tcp["fields"][8]
+    assert(tcp_chksum["id"] == "chksum")
+    assert(tcp_chksum["offset"] == 16)
+    assert(tcp_chksum["length"] == 2)
+
+def test_reconstruct_dns_packet():
+    modif = [
+            {"id": "Ether"},
+            {"id": "IP"},
+            {"id": "UDP"},
+            {"id": "DNS", "fields": [{"id": "id", "value": 777}]},
+    ]
+    pkt_data = reconstruct_pkt(base64.b64encode(bytes(TEST_DNS_PKT)), modif)
+    pkt = build_pkt_to_scapy(pkt_data)
+    assert(pkt[DNS].id == 777)
+
+    [ether, ip, udp, dns] = pkt_data['data'][:4]
+
+    assert(ether['offset'] == 0)
+    assert(ip['offset'] == 14)
+    assert(dns['offset'] == 42)
+
+    dns_id = dns['fields'][0]
+    assert(dns_id["value"] == 777)
+    assert("offset" in dns_id)
 
 def test_build_invalid_structure_pkt():
     ether_fields = {"dst": TEST_MAC_1, "type": "LOOP"}
@@ -78,7 +151,7 @@ def test_build_Raw():
         ])
     assert(str(pkt[Raw].load == "hi"))
 
-def test_build_fixed_pkt_size_bytes_gen():
+def test_build_fixed_pkt_size_template_gen_64():
     pkt = build_pkt_get_scapy([
         layer_def("Ether"),
         layer_def("IP"),
@@ -91,9 +164,9 @@ def test_build_fixed_pkt_size_bytes_gen():
         })
         ])
     print(len(pkt))
-    assert(len(pkt) == 64)
+    assert(len(pkt) == 64 - ether_chksum_sz)
 
-def test_build_fixed_pkt_size_bytes_gen():
+def test_build_fixed_pkt_size_bytes_gen_256():
     pkt = build_pkt_get_scapy([
         layer_def("Ether"),
         layer_def("IP"),
@@ -105,22 +178,33 @@ def test_build_fixed_pkt_size_bytes_gen():
         })
         ])
     print(len(pkt))
-    assert(len(pkt) == 256)
+    assert(len(pkt) == 256 - ether_chksum_sz)
 
 def test_get_all():
     service.get_all(v_handler)
 
 def test_get_definitions_all():
     get_definitions(None)
-    def_classnames = [pdef['id'] for pdef in get_definitions(None)['protocols']]
+    defs = get_definitions(None)
+    def_classnames = [pdef['id'] for pdef in defs['protocols']]
     assert("IP" in def_classnames)
     assert("Dot1Q" in def_classnames)
     assert("TCP" in def_classnames)
 
+    # All instructions should have a help description.
+    fe_instructions = defs['feInstructions']
+    for instruction in fe_instructions:
+        print(instruction['help'])
+        assert("help" in instruction)
+    assert(len(defs['feInstructionParameters']) > 0)
+    assert(len(defs['feParameters']) > 0)
+    assert(len(defs['feTemplates']) > 0)
+
 def test_get_definitions_ether():
     res = get_definitions(["Ether"])
-    assert(len(res) == 1)
-    assert(res['protocols'][0]['id'] == "Ether")
+    protocols = res['protocols']
+    assert(len(protocols) == 1)
+    assert(protocols[0]['id'] == "Ether")
 
 def test_get_payload_classes():
     eth_payloads = get_payload_classes([{"id":"Ether"}])
@@ -248,4 +332,70 @@ def test_ip_definitions():
 
     assert(fields[9]['id'] == 'chksum')
     assert(fields[9]['auto'] == True)
+
+def test_generate_vm_instructions():
+    ip_pkt_model = [
+        layer_def("Ether"),
+        layer_def("IP", src="16.0.0.1", dst="48.0.0.1")
+    ]
+    ip_instructions_model = {"field_engine": {"instructions": [{"id": "STLVmFlowVar",
+                                                                "parameters": {"op": "inc", "min_value": "192.168.0.10",
+                                                                               "size": "1", "name": "ip_src",
+                                                                               "step": "1",
+                                                                               "max_value": "192.168.0.100"}},
+                                                               {"id": "STLVmWrFlowVar",
+                                                                "parameters": {"pkt_offset": "IP.src", "is_big": "true",
+                                                                               "add_val": "0", "offset_fixup": "0",
+                                                                               "fv_name": "ip_src"}},
+                                                               {"id": "STLVmFlowVar",
+                                                                "parameters": {"op": "dec", "min_value": "32",
+                                                                               "size": "1", "name": "ip_ttl",
+                                                                               "step": "4", "max_value": "64"}},
+                                                               {"id": "STLVmWrFlowVar",
+                                                                "parameters": {"pkt_offset": "IP.ttl", "is_big": "true",
+                                                                               "add_val": "0", "offset_fixup": "0",
+                                                                               "fv_name": "ip_ttl"}}],
+                                              "global_parameters": {}}}
+    res = build_pkt_ex(ip_pkt_model, ip_instructions_model)
+    src_instruction = res['field_engine']['instructions']['instructions'][0]
+    assert(src_instruction['min_value'] == 3232235530)
+    assert(src_instruction['max_value'] == 3232235620)
+
+    ttl_instruction = res['field_engine']['instructions']['instructions'][2]
+    assert(ttl_instruction['min_value'] == 32)
+    assert(ttl_instruction['max_value'] == 64)
+
+
+def test_list_templates_hierarchy():
+    ids = []
+    for template_info in get_templates():
+        assert(template_info["meta"]["name"])
+        assert("description" in template_info["meta"])
+        ids.append(template_info['id'])
+    assert('IPv4/TCP' in ids)
+    assert('IPv4/UDP' in ids)
+    assert('TCP-SYN' in ids)
+    assert('ICMP echo request' in ids)
+
+def test_get_template_root():
+    obj = json.loads(get_template_by_id('TCP-SYN'))
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IP')
+    assert(obj['packet'][2]['id'] == 'TCP')
+
+def test_get_template_IP_ICMP():
+    obj = json.loads(get_template_by_id('IPv4/ICMP'))
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IP')
+    assert(obj['packet'][2]['id'] == 'ICMP')
+
+def test_get_template_IPv6_UDP():
+    obj = json.loads(get_template_by_id('IPv6/UDP'))
+    assert(obj['packet'][0]['id'] == 'Ether')
+    assert(obj['packet'][1]['id'] == 'IPv6')
+    assert(obj['packet'][2]['id'] == 'UDP')
+
+def test_templates_no_relative_path():
+    res = get_template_by_id("../templates/IPv6/UDP")
+    assert(res == "")
 

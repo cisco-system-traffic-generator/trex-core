@@ -27,6 +27,9 @@ class TextCodesStripper:
     def strip (s):
         return re.sub(TextCodesStripper.pattern, '', s)
 
+def clear_formatting(s):
+    return TextCodesStripper.strip(s)
+
 def format_num (size, suffix = "", compact = True, opts = None):
     if opts is None:
         opts = ()
@@ -128,11 +131,13 @@ def yellow(text):
 def underline(text):
     return text_attribute(text, 'underline')
 
-
+# apply attribute on each non-empty line
 def text_attribute(text, attribute):
-    return "{start}{txt}{stop}".format(start=TEXT_CODES[attribute]['start'],
-                                       txt=text,
-                                       stop=TEXT_CODES[attribute]['end'])
+    return '\n'.join(['{start}{txt}{end}'.format(
+            start = TEXT_CODES[attribute]['start'],
+            txt = line,
+            end = TEXT_CODES[attribute]['end'])
+                      if line else '' for line in ('%s' % text).split('\n')])
 
 
 FUNC_DICT = {'blue': blue,

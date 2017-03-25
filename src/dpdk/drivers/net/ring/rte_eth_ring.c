@@ -38,7 +38,7 @@
 #include <rte_memcpy.h>
 #include <rte_memzone.h>
 #include <rte_string_fns.h>
-#include <rte_dev.h>
+#include <rte_vdev.h>
 #include <rte_kvargs.h>
 #include <rte_errno.h>
 
@@ -75,7 +75,6 @@ struct pmd_internals {
 };
 
 
-static const char *drivername = "Rings PMD";
 static struct rte_eth_link pmd_link = {
 		.link_speed = ETH_SPEED_NUM_10G,
 		.link_duplex = ETH_LINK_FULL_DUPLEX,
@@ -173,13 +172,11 @@ eth_dev_info(struct rte_eth_dev *dev,
 		struct rte_eth_dev_info *dev_info)
 {
 	struct pmd_internals *internals = dev->data->dev_private;
-	dev_info->driver_name = drivername;
 	dev_info->max_mac_addrs = 1;
 	dev_info->max_rx_pktlen = (uint32_t)-1;
 	dev_info->max_rx_queues = (uint16_t)internals->max_rx_queues;
 	dev_info->max_tx_queues = (uint16_t)internals->max_tx_queues;
 	dev_info->min_rx_bufsize = 0;
-	dev_info->pci_dev = NULL;
 }
 
 static void
@@ -259,6 +256,8 @@ static const struct eth_dev_ops ops = {
 	.mac_addr_add = eth_mac_addr_add,
 };
 
+static struct rte_vdev_driver pmd_ring_drv;
+
 static int
 do_eth_dev_ring_create(const char *name,
 		struct rte_ring * const rx_queues[], const unsigned nb_rx_queues,
@@ -303,7 +302,7 @@ do_eth_dev_ring_create(const char *name,
 	}
 
 	/* reserve an ethdev entry */
-	eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	eth_dev = rte_eth_dev_allocate(name);
 	if (eth_dev == NULL) {
 		rte_errno = ENOSPC;
 		goto error;
@@ -343,10 +342,8 @@ do_eth_dev_ring_create(const char *name,
 	eth_dev->dev_ops = &ops;
 	data->dev_flags = RTE_ETH_DEV_DETACHABLE;
 	data->kdrv = RTE_KDRV_NONE;
-	data->drv_name = drivername;
+	data->drv_name = pmd_ring_drv.driver.name;
 	data->numa_node = numa_node;
-
-	TAILQ_INIT(&(eth_dev->link_intr_cbs));
 
 	/* finally assign rx and tx ops */
 	eth_dev->rx_pkt_burst = eth_ring_rx;
@@ -505,7 +502,7 @@ out:
 }
 
 static int
-rte_pmd_ring_devinit(const char *name, const char *params)
+rte_pmd_ring_probe(const char *name, const char *params)
 {
 	struct rte_kvargs *kvlist = NULL;
 	int ret = 0;
@@ -557,7 +554,7 @@ rte_pmd_ring_devinit(const char *name, const char *params)
 				goto out_free;
 
 			for (info->count = 0; info->count < info->total; info->count++) {
-				ret = eth_dev_ring_create(name,
+				ret = eth_dev_ring_create(info->list[info->count].name,
 							  info->list[info->count].node,
 							  info->list[info->count].action);
 				if ((ret == -1) &&
@@ -580,7 +577,7 @@ out_free:
 }
 
 static int
-rte_pmd_ring_devuninit(const char *name)
+rte_pmd_ring_remove(const char *name)
 {
 	struct rte_eth_dev *eth_dev = NULL;
 	struct pmd_internals *internals = NULL;
@@ -599,23 +596,21 @@ rte_pmd_ring_devuninit(const char *name)
 
 	eth_dev_stop(eth_dev);
 
-	if (eth_dev->data) {
-		internals = eth_dev->data->dev_private;
-		if (internals->action == DEV_CREATE) {
-			/*
-			 * it is only necessary to delete the rings in rx_queues because
-			 * they are the same used in tx_queues
-			 */
-			for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
-				r = eth_dev->data->rx_queues[i];
-				rte_ring_free(r->rng);
-			}
+	internals = eth_dev->data->dev_private;
+	if (internals->action == DEV_CREATE) {
+		/*
+		 * it is only necessary to delete the rings in rx_queues because
+		 * they are the same used in tx_queues
+		 */
+		for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
+			r = eth_dev->data->rx_queues[i];
+			rte_ring_free(r->rng);
 		}
-
-		rte_free(eth_dev->data->rx_queues);
-		rte_free(eth_dev->data->tx_queues);
-		rte_free(eth_dev->data->dev_private);
 	}
+
+	rte_free(eth_dev->data->rx_queues);
+	rte_free(eth_dev->data->tx_queues);
+	rte_free(eth_dev->data->dev_private);
 
 	rte_free(eth_dev->data);
 
@@ -623,12 +618,12 @@ rte_pmd_ring_devuninit(const char *name)
 	return 0;
 }
 
-static struct rte_driver pmd_ring_drv = {
-	.type = PMD_VDEV,
-	.init = rte_pmd_ring_devinit,
-	.uninit = rte_pmd_ring_devuninit,
+static struct rte_vdev_driver pmd_ring_drv = {
+	.probe = rte_pmd_ring_probe,
+	.remove = rte_pmd_ring_remove,
 };
 
-PMD_REGISTER_DRIVER(pmd_ring_drv, eth_ring);
-DRIVER_REGISTER_PARAM_STRING(eth_ring,
-	"nodeaction=[attach|detach]");
+RTE_PMD_REGISTER_VDEV(net_ring, pmd_ring_drv);
+RTE_PMD_REGISTER_ALIAS(net_ring, eth_ring);
+RTE_PMD_REGISTER_PARAM_STRING(net_ring,
+	ETH_RING_NUMA_NODE_ACTION_ARG "=name:node:action(ATTACH|CREATE)");

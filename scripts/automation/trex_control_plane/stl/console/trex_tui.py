@@ -550,7 +550,7 @@ class TrexTUI():
     STATE_RECONNECT  = 2
     is_graph = False
 
-    MIN_ROWS = 50
+    MIN_ROWS = 45
     MIN_COLS = 111
 
 
@@ -645,14 +645,14 @@ class TrexTUI():
        # regular state
         if self.state == self.STATE_ACTIVE:
             # if no connectivity - move to lost connecitivty
-            if not self.stateless_client.async_client.is_alive():
+            if not self.stateless_client.async_client.is_active():
                 self.stateless_client._invalidate_stats(self.pm.ports)
                 self.state = self.STATE_LOST_CONT
 
 
         # lost connectivity
         elif self.state == self.STATE_LOST_CONT:
-            # got it back
+            # if the async is alive (might be zomibe, but alive) try to reconnect
             if self.stateless_client.async_client.is_alive():
                 # move to state reconnect
                 self.state = self.STATE_RECONNECT
@@ -848,7 +848,7 @@ class AsyncKeys:
         rc = self.STATUS_NONE
 
         # fetch the stdin buffer
-        seq = os.read(sys.stdin.fileno(), 1024).decode()
+        seq = os.read(sys.stdin.fileno(), 1024).decode('ascii', errors = 'ignore')
         if not seq:
             return self.STATUS_NONE
 
@@ -1153,7 +1153,7 @@ class AsyncKeysEngineConsole:
                 # errors
                 else:
                     err_msgs = ascii_split(str(func_rc))
-                    self.last_status = format_text(err_msgs[0], 'red')
+                    self.last_status = format_text(clear_formatting(err_msgs[0]), 'red')
                     if len(err_msgs) > 1:
                         self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)
                     color = 'red'

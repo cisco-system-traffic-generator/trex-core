@@ -4,6 +4,7 @@ import functional_general_test
 from trex import CTRexScenario
 import os, sys
 from subprocess import Popen, STDOUT
+from stl_basic_tests import compare_caps
 import shlex
 import time
 import errno
@@ -44,3 +45,15 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
         print('Output:\n%s' % out)
         if ret:
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
+
+    def test_bp_sim_client_cfg(self):
+        print('')
+        cmd = './bp-sim-64 --pcap -f cap2/dns.yaml --client_cfg automation/regression/cfg/client_cfg_vlan_mac.yaml -o generated/bp_sim_dns_vlans_gen.pcap'
+        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), cwd = CTRexScenario.scripts_path)
+        print('Output:\n%s' % out)
+        if ret:
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
+
+        compare_caps(output = os.path.join(CTRexScenario.scripts_path, 'generated/bp_sim_dns_vlans_gen.pcap'),
+                     golden = 'functional_tests/golden/bp_sim_dns_vlans.pcap')
+

@@ -8,10 +8,8 @@ import sys, os
 from collections import OrderedDict
 import copy
 import datetime, time
-try:
-    import cPickle as pickle
-except:
-    import pickle
+import traceback
+import yaml
 import subprocess, shlex
 from ansi2html import Ansi2HTMLConverter
 
@@ -24,6 +22,15 @@ def ansi2html(text):
 FUNCTIONAL_CATEGORY = 'Functional' # how to display those categories
 ERROR_CATEGORY = 'Error'
 
+
+def try_write(file, text):
+    try:
+        file.write(text)
+    except:
+        try:
+            file.write(text.encode('utf-8'))
+        except:
+            file.write(text.decode('utf-8'))
 
 def pad_tag(text, tag):
     return '<%s>%s</%s>' % (tag, text, tag)
@@ -254,8 +261,10 @@ if __name__ == '__main__':
 
     scenario                = os.environ.get('SCENARIO')
     build_url               = os.environ.get('BUILD_URL')
-    build_id                = os.environ.get('BUILD_ID')
+    build_id                = os.environ.get('BUILD_NUM')
     trex_repo               = os.environ.get('TREX_CORE_REPO')
+    last_commit_info_file   = os.environ.get('LAST_COMMIT_INFO')
+    last_commit_branch_file = os.environ.get('LAST_COMMIT_BRANCH')
     python_ver              = os.environ.get('PYTHON_VER')
     if not scenario:
         print('Warning: no environment variable SCENARIO, using default')
@@ -263,7 +272,7 @@ if __name__ == '__main__':
     if not build_url:
         print('Warning: no environment variable BUILD_URL')
     if not build_id:
-        print('Warning: no environment variable BUILD_ID')
+        print('Warning: no environment variable BUILD_NUM')
     if not python_ver:
         print('Warning: no environment variable PYTHON_VER')
 
@@ -281,21 +290,32 @@ if __name__ == '__main__':
                 trex_info_dict[key_value[0].strip()] = key_value[1].strip()
             break
 
+    branch_name = ''
+    if last_commit_branch_file and os.path.exists(last_commit_branch_file):
+        with open(last_commit_branch_file) as f:
+            branch_name = f.read().strip()
+
     trex_last_commit_info = ''
     trex_last_commit_hash = trex_info_dict.get('Git SHA')
-    if trex_last_commit_hash and trex_repo:
+    if last_commit_info_file and os.path.exists(last_commit_info_file):
+        with open(last_commit_info_file) as f:
+            trex_last_commit_info = f.read().strip().replace('\n', '<br>\n')
+    elif trex_last_commit_hash and trex_repo:
         try:
-            print('Getting TRex commit with hash %s' % trex_last_commit_hash)
-            command = 'git --git-dir %s show %s --quiet' % (trex_repo, trex_last_commit_hash)
+            command = 'git show %s -s' % trex_last_commit_hash
             print('Executing: %s' % command)
-            proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            (trex_last_commit_info, stderr) = proc.communicate()
-            print('Stdout:\n\t' + trex_last_commit_info.replace('\n', '\n\t'))
-            print('Stderr:', stderr)
-            print('Return code:', proc.returncode)
-            trex_last_commit_info = trex_last_commit_info.replace('\n', '<br>')
+            proc = subprocess.Popen(shlex.split(command), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, cwd = trex_repo)
+            (stdout, stderr) = proc.communicate()
+            stdout = stdout.decode('utf-8', errors = 'replace')
+            print('Stdout:\n\t' + stdout.replace('\n', '\n\t'))
+            if stderr or proc.returncode:
+                print('Return code: %s' % proc.returncode)
+            trex_last_commit_info = stdout.replace('\n', '<br>\n')
         except Exception as e:
+            traceback.print_exc()
             print('Error getting last commit: %s' % e)
+    else:
+        print('Could not find info about commit!')
 
 ##### get xmls: report_<setup name>.xml
 
@@ -520,7 +540,7 @@ if __name__ == '__main__':
 # save html
     with open(args.output_htmlfile, 'w') as f:
         print('Writing output file: %s' % args.output_htmlfile)
-        f.write(html_output)
+        try_write(f, html_output)
     html_output = None
 
 # mail report (only error tests, expanded)
@@ -596,7 +616,7 @@ if __name__ == '__main__':
         else:
             mail_output += add_category_of_tests(ERROR_CATEGORY, error_tests, expanded=True)
     else:
-        mail_output += '<table><tr style="font-size:120;color:green;font-family:arial"><td>☺</td><td style="font-size:20">All passed.</td></tr></table>\n'
+        mail_output += u'<table><tr style="font-size:120;color:green;font-family:arial"><td>☺</td><td style="font-size:20">All passed.</td></tr></table>\n'
     mail_output += '\n</body>\n</html>'
 
 ##### save outputs
@@ -605,17 +625,17 @@ if __name__ == '__main__':
 # mail content
     with open(args.output_mailfile, 'w') as f:
         print('Writing output file: %s' % args.output_mailfile)
-        f.write(mail_output)
+        try_write(f, mail_output)
 
 # build status
     category_dict_status = {}
     if os.path.exists(args.build_status_file):
         print('Reading: %s' % args.build_status_file)
-        with open(args.build_status_file, 'rb') as f:
+        with open(args.build_status_file, 'r') as f:
             try:
-                category_dict_status = pickle.load(f)
+                category_dict_status = yaml.safe_load(f.read())
             except Exception as e:
-                print('Error during pickle load: %s' % e)
+                print('Error during YAML load: %s' % e)
         if type(category_dict_status) is not dict:
             print('%s is corrupt, truncating' % args.build_status_file)
             category_dict_status = {}
@@ -635,25 +655,28 @@ if __name__ == '__main__':
             current_status = 'Fixed'
     category_dict_status[scenario] = current_status
 
-    with open(args.build_status_file, 'wb') as f:
+    with open(args.build_status_file, 'w') as f:
         print('Writing output file: %s' % args.build_status_file)
-        pickle.dump(category_dict_status, f)
+        yaml.dump(category_dict_status, f)
 
 # last successful commit
-    if (current_status in ('Successful', 'Fixed')) and trex_last_commit_hash and jobs_list > 0 and scenario == 'nightly':
+    if (current_status in ('Successful', 'Fixed')) and trex_last_commit_hash and len(jobs_list) > 0 and scenario == 'nightly':
         with open(args.last_passed_commit, 'w') as f:
             print('Writing output file: %s' % args.last_passed_commit)
-            f.write(trex_last_commit_hash)
+            try_write(f, trex_last_commit_hash)
 
 # mail title
     mailtitle_output = scenario.capitalize()
+    if branch_name:
+        mailtitle_output += ' (%s)' % branch_name
     if build_id:
         mailtitle_output += ' - Build #%s' % build_id
     mailtitle_output += ' - %s!' % current_status
 
     with open(args.output_titlefile, 'w') as f:
         print('Writing output file: %s' % args.output_titlefile)
-        f.write(mailtitle_output)
+        try_write(f, mailtitle_output)
 
 # exit
+    print('Status: %s' % current_status)
     sys.exit(exit_status)

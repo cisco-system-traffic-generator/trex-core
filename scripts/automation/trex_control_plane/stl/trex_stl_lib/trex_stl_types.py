@@ -50,11 +50,25 @@ class RC():
         return (e if len(e) != 1 else e[0])
 
     def __str__ (self):
-        s = ""
-        for x in self.rc_list:
-            if x.data:
-                s += format_text("\n{0}".format(x.data), 'bold')
-        return s
+        if self.good():
+            s = ""
+            for x in self.rc_list:
+                if x.data:
+                    s += format_text("\n{0}".format(x.data), 'bold')
+            return s
+        else:
+            show_count = 10
+            err_list = []
+            err_count = 0
+            for x in filter(len, listify(self.err())):
+                err_count += 1
+                if len(err_list) < show_count:
+                    err_list.append(format_text(x, 'bold'))
+            s = ''
+            if err_count > show_count:
+                s += format_text('Occurred %s errors, showing first %s:\n' % (err_count, show_count), 'bold')
+            s += '\n'.join(err_list)
+            return s
 
     def __iter__(self):
         return self.rc_list.__iter__()
@@ -96,7 +110,7 @@ class RC():
 def RC_OK(data = ""):
     return RC(True, data)
 
-def RC_ERR (err):
+def RC_ERR (err = ""):
     return RC(False, err)
 
 def RC_WARN (warn):
@@ -134,6 +148,12 @@ def validate_type(arg_name, arg, valid_types):
         raise STLTypeError(arg_name, type(arg), valid_types)
     else:
         raise STLError('validate_type: valid_types should be type or list or tuple of types')
+
+
+def validate_choice (arg_name, arg, choices):
+    if arg is not None and not arg in choices:
+        raise STLError("validate_choice: argument '{0}' can only be one of '{1}'".format(arg_name, choices))
+
 
 # throws STLError if not exactly one argument is present
 def verify_exclusive_arg (args_list):

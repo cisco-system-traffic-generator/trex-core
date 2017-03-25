@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from CPlatform import CStaticRouteConfig, CNatConfig
 from .tests_exceptions import *
 #import sys
@@ -12,7 +12,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
     """This class defines the rx testcase of the TRex traffic generator"""
     def __init__(self, *args, **kwargs):
         CTRexGeneral_Test.__init__(self, *args, **kwargs)
-        self.unsupported_modes = ['virt_nics'] # TODO: fix
+        self.unsupported_modes = ['virt_nics', 'vf_nics'] # TODO: fix (-k argument does not work)
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
@@ -87,7 +87,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             self.fail('Errors in rx_check: %s' % e)
 
     def test_rx_check_sfr(self):
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
 
@@ -121,7 +121,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
 
     def test_rx_check_http(self):
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             # TODO: skip as test_rx_check_http_negative will cover it
             #self.skip('This test is covered by test_rx_check_http_negative')
             self.router.configure_basic_interfaces()
@@ -155,7 +155,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
 
     def test_rx_check_sfr_ipv6(self):
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
             self.router.config_ipv6_pbr(mode = "config")
@@ -190,7 +190,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
 
     def test_rx_check_http_ipv6(self):
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
             self.router.config_ipv6_pbr(mode = "config")
@@ -226,8 +226,9 @@ class CTRexRx_Test(CTRexGeneral_Test):
         if self.is_loopback:
             self.skip('This test uses NAT, not relevant for loopback')
 
-        self.router.configure_basic_interfaces()
-        self.router.config_pbr(mode = "config")
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
 
         core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')

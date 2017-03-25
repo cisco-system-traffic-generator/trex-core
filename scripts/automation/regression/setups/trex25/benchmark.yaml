@@ -71,13 +71,15 @@ test_nat_simple_mode1: &test_nat_simple
 test_nat_simple_mode2: *test_nat_simple
 
 test_nat_simple_mode3: *test_nat_simple
+test_nat_simple_mode1_udp: *test_nat_simple
+test_nat_simple_mode3_udp: *test_nat_simple
 
 test_nat_learning:
     <<                  : *test_nat_simple
     nat_opened          : 40000
 
 
-test_nbar_simple:
+test_nbar_simple: &nbar_simple
     multiplier          : 6
     cores               : 1
     bw_per_core         : 16.645
@@ -98,6 +100,16 @@ test_nbar_simple:
         rtsp            : 0.04
         unknown         : 28.52
 
+test_client_cfg_nbar: &client_cfg_nbar
+    <<                : *nbar_simple
+
+test_client_cfg_vlan:
+    cores               : 1
+    multiplier          : 10
+
+test_platform_cfg_vlan:
+    cores               : 1
+    multiplier          : 10
 
 test_rx_check_http: &rx_http
     multiplier          : 8800
@@ -116,7 +128,7 @@ test_rx_check_http_negative:
 
 
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 6.8
+    multiplier          : 3.2
     cores               : 1
     rx_sample_rate      : 16
     bw_per_core         : 16.063

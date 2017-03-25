@@ -204,8 +204,20 @@ _ixgbe_rx_queue_release_mbufs_vec(struct ixgbe_rx_queue *rxq)
 		return;
 
 	/* free all mbufs that are valid in the ring */
-	for (i = rxq->rx_tail; i != rxq->rxrearm_start; i = (i + 1) & mask)
-		rte_pktmbuf_free_seg(rxq->sw_ring[i].mbuf);
+	if (rxq->rxrearm_nb == 0) {
+		for (i = 0; i < rxq->nb_rx_desc; i++) {
+			if (rxq->sw_ring[i].mbuf != NULL)
+				rte_pktmbuf_free_seg(rxq->sw_ring[i].mbuf);
+		}
+	} else {
+		for (i = rxq->rx_tail;
+		     i != rxq->rxrearm_start;
+		     i = (i + 1) & mask) {
+			if (rxq->sw_ring[i].mbuf != NULL)
+				rte_pktmbuf_free_seg(rxq->sw_ring[i].mbuf);
+		}
+	}
+
 	rxq->rxrearm_nb = rxq->nb_rx_desc;
 
 	/* set all entries to NULL */
@@ -309,12 +321,8 @@ ixgbe_rx_vec_dev_conf_condition_check_default(struct rte_eth_dev *dev)
 	if (fconf->mode != RTE_FDIR_MODE_NONE)
 		return -1;
 
-	/*
-	 * - no csum error report support
-	 * - no header split support
-	 */
-	if (rxmode->hw_ip_checksum == 1 ||
-	    rxmode->header_split == 1)
+	/* no header split support */
+	if (rxmode->header_split == 1)
 		return -1;
 
 	return 0;

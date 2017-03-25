@@ -24,12 +24,17 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include "internal_api/trex_platform_api.h"
 #include "trex_dp_port_events.h"
+#include "trex_stateless_rx_defs.h"
 #include "trex_stream.h"
+#include "trex_exception.h"
+#include "trex_stateless_capture.h"
 
 class TrexStatelessCpToDpMsgBase;
 class TrexStatelessCpToRxMsgBase;
 class TrexStreamsGraphObj;
 class TrexPortMultiplier;
+class TrexPktBuffer;
+
 
 /**
  * TRex port owner can perform
@@ -110,7 +115,6 @@ private:
     static const std::string g_unowned_handler;
 };
 
-
 class AsyncStopEvent;
 
 /**
@@ -147,7 +151,15 @@ public:
         RC_ERR_FAILED_TO_COMPILE_STREAMS
     };
 
-
+    /**
+     * port capture mode
+     */
+    enum capture_mode_e {
+        PORT_CAPTURE_NONE = 0,
+        PORT_CAPTURE_RX,
+        PORT_CAPTURE_ALL
+    };
+    
     TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api);
 
     ~TrexStatelessPort();
@@ -218,11 +230,26 @@ public:
      */
     void push_remote(const std::string &pcap_filename,
                      double            ipg_usec,
+                     double            min_ipg_sec,
                      double            speedup,
                      uint32_t          count,
                      double            duration,
                      bool              is_dual);
 
+    
+    /**
+     * sets service mode
+     * 
+     * @author imarom (1/22/2017)
+     * 
+     * @param enabled 
+     */
+    void set_service_mode(bool enabled);
+    
+    bool is_service_mode_on() const {
+        return m_is_service_mode_on;
+    }
+     
     /**
      * get the port state
      *
@@ -255,11 +282,8 @@ public:
      * @author imarom (16-Sep-15)
      *
      * @param driver
-     * @param speed
      */
-    void get_properties(std::string &driver, uint32_t &speed);
-
-
+    void get_properties(std::string &driver);
 
     /**
      * encode stats as JSON
@@ -334,18 +358,6 @@ public:
         return m_rx_count_num;
     }
 
-    /**
-     * return true if port adds CRC to a packet (not occurs for
-     * VNICs)
-     *
-     * @author imarom (24-Feb-16)
-     *
-     * @return bool
-     */
-    bool has_crc_added() const {
-        return m_api_info.has_crc;
-    }
-
     TrexPortOwner & get_owner() {
         return m_owner;
     }
@@ -362,16 +374,64 @@ public:
                                  double &bps_L2,
                                  double &percentage);
 
-
-    void get_macaddr(std::string &hw_macaddr,
-                     std::string &src_macaddr,
-                     std::string &dst_macaddr);
-
     void get_pci_info(std::string &pci_addr, int &numa_node);
 
+    void get_hw_mac(std::string &hw_mac);
 
+    /**
+     * start RX queueing of packets
+     * 
+     * @author imarom (11/7/2016)
+     * 
+     * @param limit 
+     */
+    void start_rx_queue(uint64_t limit);
+
+    /**
+     * stop RX queueing
+     * 
+     * @author imarom (11/7/2016)
+     */
+    void stop_rx_queue();
+
+    /**
+     * fetch the RX queue packets from the queue
+     * 
+     */
+    const TrexPktBuffer *get_rx_queue_pkts();
+
+    /**
+     * configures port for L2 mode
+     * 
+     */
+    void set_l2_mode(const uint8_t *dest_mac);
+    
+    /**
+     * configures port in L3 mode
+     * 
+     */
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4);
+    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac);
+    
+    /**
+     * generate a JSON describing the status 
+     * of the RX features 
+     * 
+     */
+    Json::Value rx_features_to_json();
+    
+    /**
+     * return the port attribute object
+     * 
+     */
+    TRexPortAttr *getPortAttrObj() {
+        return m_platform_api->getPortAttrObj(m_port_id);
+    }
+    
 private:
-
+    void set_service_mode_on();
+    void set_service_mode_off();
+    
     bool is_core_active(int core_id);
 
     const std::vector<uint8_t> get_core_id_list () {
@@ -401,7 +461,7 @@ private:
      *
      */
     void send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
-
+    
     /**
      * when a port stops, perform various actions
      *
@@ -456,6 +516,11 @@ private:
     TrexPortOwner       m_owner;
 
     int m_pending_async_stop_event;
+    
+    bool  m_is_service_mode_on;
+    
+    static const uint32_t MAX_STREAMS = 20000;
+
 };
 
 
@@ -502,9 +567,9 @@ public:
     static const std::initializer_list<std::string> g_types;
     static const std::initializer_list<std::string> g_ops;
 
-    mul_type_e   m_type;
-    mul_op_e     m_op;
-    double       m_value;
+    mul_type_e             m_type;
+    mul_op_e               m_op;
+    double                 m_value;
 };
 
 #endif /* __TREX_STATELESS_PORT_H__ */

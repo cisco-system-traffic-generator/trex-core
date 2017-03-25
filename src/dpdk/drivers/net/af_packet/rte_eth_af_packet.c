@@ -40,7 +40,7 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
-#include <rte_dev.h>
+#include <rte_vdev.h>
 
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
@@ -83,6 +83,7 @@ struct pkt_rx_queue {
 
 struct pkt_tx_queue {
 	int sockfd;
+	unsigned int frame_data_size;
 
 	struct iovec *rd;
 	uint8_t *map;
@@ -98,6 +99,7 @@ struct pmd_internals {
 	unsigned nb_queues;
 
 	int if_index;
+	char *if_name;
 	struct ether_addr eth_addr;
 
 	struct tpacket_req req;
@@ -114,8 +116,6 @@ static const char *valid_arguments[] = {
 	ETH_AF_PACKET_FRAMECOUNT_ARG,
 	NULL
 };
-
-static const char *drivername = "AF_PACKET PMD";
 
 static struct rte_eth_link pmd_link = {
 	.link_speed = ETH_SPEED_NUM_10G,
@@ -160,6 +160,12 @@ eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		rte_pktmbuf_pkt_len(mbuf) = rte_pktmbuf_data_len(mbuf) = ppd->tp_snaplen;
 		pbuf = (uint8_t *) ppd + ppd->tp_mac;
 		memcpy(rte_pktmbuf_mtod(mbuf, void *), pbuf, rte_pktmbuf_data_len(mbuf));
+
+		/* check for vlan info */
+		if (ppd->tp_status & TP_STATUS_VLAN_VALID) {
+			mbuf->vlan_tci = ppd->tp_vlan_tci;
+			mbuf->ol_flags |= (PKT_RX_VLAN_PKT | PKT_RX_VLAN_STRIPPED);
+		}
 
 		/* release incoming frame and advance ring buffer */
 		ppd->tp_status = TP_STATUS_KERNEL;
@@ -206,13 +212,28 @@ eth_af_packet_tx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 	framenum = pkt_q->framenum;
 	ppd = (struct tpacket2_hdr *) pkt_q->rd[framenum].iov_base;
 	for (i = 0; i < nb_pkts; i++) {
+		mbuf = *bufs++;
+
+		/* drop oversized packets */
+		if (rte_pktmbuf_data_len(mbuf) > pkt_q->frame_data_size) {
+			rte_pktmbuf_free(mbuf);
+			continue;
+		}
+
+		/* insert vlan info if necessary */
+		if (mbuf->ol_flags & PKT_TX_VLAN_PKT) {
+			if (rte_vlan_insert(&mbuf)) {
+				rte_pktmbuf_free(mbuf);
+				continue;
+			}
+		}
+
 		/* point at the next incoming frame */
 		if ((ppd->tp_status != TP_STATUS_AVAILABLE) &&
 		    (poll(&pfd, 1, -1) < 0))
-				continue;
+			break;
 
 		/* copy the tx frame data */
-		mbuf = bufs[num_tx];
 		pbuf = (uint8_t *) ppd + TPACKET2_HDRLEN -
 			sizeof(struct sockaddr_ll);
 		memcpy(pbuf, rte_pktmbuf_mtod(mbuf, void*), rte_pktmbuf_data_len(mbuf));
@@ -231,13 +252,13 @@ eth_af_packet_tx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 
 	/* kick-off transmits */
 	if (sendto(pkt_q->sockfd, NULL, 0, MSG_DONTWAIT, NULL, 0) == -1)
-		return 0; /* error sending -- no packets transmitted */
+		num_tx = 0; /* error sending -- no packets transmitted */
 
 	pkt_q->framenum = framenum;
 	pkt_q->tx_pkts += num_tx;
-	pkt_q->err_pkts += nb_pkts - num_tx;
+	pkt_q->err_pkts += i - num_tx;
 	pkt_q->tx_bytes += num_tx_bytes;
-	return num_tx;
+	return i;
 }
 
 static int
@@ -261,9 +282,16 @@ eth_dev_stop(struct rte_eth_dev *dev)
 		sockfd = internals->rx_queue[i].sockfd;
 		if (sockfd != -1)
 			close(sockfd);
-		sockfd = internals->tx_queue[i].sockfd;
-		if (sockfd != -1)
-			close(sockfd);
+
+		/* Prevent use after free in case tx fd == rx fd */
+		if (sockfd != internals->tx_queue[i].sockfd) {
+			sockfd = internals->tx_queue[i].sockfd;
+			if (sockfd != -1)
+				close(sockfd);
+		}
+
+		internals->rx_queue[i].sockfd = -1;
+		internals->tx_queue[i].sockfd = -1;
 	}
 
 	dev->data->dev_link.link_status = ETH_LINK_DOWN;
@@ -280,14 +308,12 @@ eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 {
 	struct pmd_internals *internals = dev->data->dev_private;
 
-	dev_info->driver_name = drivername;
 	dev_info->if_index = internals->if_index;
 	dev_info->max_mac_addrs = 1;
 	dev_info->max_rx_pktlen = (uint32_t)ETH_FRAME_LEN;
 	dev_info->max_rx_queues = (uint16_t)internals->nb_queues;
 	dev_info->max_tx_queues = (uint16_t)internals->nb_queues;
 	dev_info->min_rx_bufsize = 0;
-	dev_info->pci_dev = NULL;
 }
 
 static void
@@ -370,18 +396,20 @@ eth_rx_queue_setup(struct rte_eth_dev *dev,
 {
 	struct pmd_internals *internals = dev->data->dev_private;
 	struct pkt_rx_queue *pkt_q = &internals->rx_queue[rx_queue_id];
-	uint16_t buf_size;
+	unsigned int buf_size, data_size;
 
 	pkt_q->mb_pool = mb_pool;
 
 	/* Now get the space available for data in the mbuf */
-	buf_size = (uint16_t)(rte_pktmbuf_data_room_size(pkt_q->mb_pool) -
-		RTE_PKTMBUF_HEADROOM);
+	buf_size = rte_pktmbuf_data_room_size(pkt_q->mb_pool) -
+		RTE_PKTMBUF_HEADROOM;
+	data_size = internals->req.tp_frame_size;
+	data_size -= TPACKET2_HDRLEN - sizeof(struct sockaddr_ll);
 
-	if (ETH_FRAME_LEN > buf_size) {
+	if (data_size > buf_size) {
 		RTE_LOG(ERR, PMD,
 			"%s: %d bytes will not fit in mbuf (%d bytes)\n",
-			dev->data->name, ETH_FRAME_LEN, buf_size);
+			dev->data->name, data_size, buf_size);
 		return -ENOMEM;
 	}
 
@@ -405,12 +433,80 @@ eth_tx_queue_setup(struct rte_eth_dev *dev,
 	return 0;
 }
 
+static int
+eth_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
+{
+	struct pmd_internals *internals = dev->data->dev_private;
+	struct ifreq ifr = { .ifr_mtu = mtu };
+	int ret;
+	int s;
+	unsigned int data_size = internals->req.tp_frame_size -
+				 TPACKET2_HDRLEN -
+				 sizeof(struct sockaddr_ll);
+
+	if (mtu > data_size)
+		return -EINVAL;
+
+	s = socket(PF_INET, SOCK_DGRAM, 0);
+	if (s < 0)
+		return -EINVAL;
+
+	strncpy(ifr.ifr_name, internals->if_name, IFNAMSIZ);
+	ret = ioctl(s, SIOCSIFMTU, &ifr);
+	close(s);
+
+	if (ret < 0)
+		return -EINVAL;
+
+	return 0;
+}
+
+static void
+eth_dev_change_flags(char *if_name, uint32_t flags, uint32_t mask)
+{
+	struct ifreq ifr;
+	int s;
+
+	s = socket(PF_INET, SOCK_DGRAM, 0);
+	if (s < 0)
+		return;
+
+	strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
+	if (ioctl(s, SIOCGIFFLAGS, &ifr) < 0)
+		goto out;
+	ifr.ifr_flags &= mask;
+	ifr.ifr_flags |= flags;
+	if (ioctl(s, SIOCSIFFLAGS, &ifr) < 0)
+		goto out;
+out:
+	close(s);
+}
+
+static void
+eth_dev_promiscuous_enable(struct rte_eth_dev *dev)
+{
+	struct pmd_internals *internals = dev->data->dev_private;
+
+	eth_dev_change_flags(internals->if_name, IFF_PROMISC, ~0);
+}
+
+static void
+eth_dev_promiscuous_disable(struct rte_eth_dev *dev)
+{
+	struct pmd_internals *internals = dev->data->dev_private;
+
+	eth_dev_change_flags(internals->if_name, 0, ~IFF_PROMISC);
+}
+
 static const struct eth_dev_ops ops = {
 	.dev_start = eth_dev_start,
 	.dev_stop = eth_dev_stop,
 	.dev_close = eth_dev_close,
 	.dev_configure = eth_dev_configure,
 	.dev_infos_get = eth_dev_info,
+	.mtu_set = eth_dev_mtu_set,
+	.promiscuous_enable = eth_dev_promiscuous_enable,
+	.promiscuous_disable = eth_dev_promiscuous_disable,
 	.rx_queue_setup = eth_rx_queue_setup,
 	.tx_queue_setup = eth_tx_queue_setup,
 	.rx_queue_release = eth_queue_release,
@@ -439,6 +535,8 @@ open_packet_iface(const char *key __rte_unused,
 
 	return 0;
 }
+
+static struct rte_vdev_driver pmd_af_packet_drv;
 
 static int
 rte_pmd_init_internals(const char *name,
@@ -524,6 +622,7 @@ rte_pmd_init_internals(const char *name,
 		        name);
 		goto error_early;
 	}
+	(*internals)->if_name = strdup(pair->value);
 	(*internals)->if_index = ifr.ifr_ifindex;
 
 	if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) == -1) {
@@ -633,6 +732,9 @@ rte_pmd_init_internals(const char *name,
 
 		tx_queue = &((*internals)->tx_queue[q]);
 		tx_queue->framecount = req->tp_frame_nr;
+		tx_queue->frame_data_size = req->tp_frame_size;
+		tx_queue->frame_data_size -= TPACKET2_HDRLEN -
+			sizeof(struct sockaddr_ll);
 
 		tx_queue->map = rx_queue->map + req->tp_block_size * req->tp_block_nr;
 
@@ -666,7 +768,7 @@ rte_pmd_init_internals(const char *name,
 	}
 
 	/* reserve an ethdev entry */
-	*eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	*eth_dev = rte_eth_dev_allocate(name);
 	if (*eth_dev == NULL)
 		goto error;
 
@@ -693,7 +795,7 @@ rte_pmd_init_internals(const char *name,
 	(*eth_dev)->dev_ops = &ops;
 	(*eth_dev)->driver = NULL;
 	(*eth_dev)->data->dev_flags = RTE_ETH_DEV_DETACHABLE;
-	(*eth_dev)->data->drv_name = drivername;
+	(*eth_dev)->data->drv_name = pmd_af_packet_drv.driver.name;
 	(*eth_dev)->data->kdrv = RTE_KDRV_NONE;
 	(*eth_dev)->data->numa_node = numa_node;
 
@@ -712,6 +814,7 @@ error:
 			((*internals)->rx_queue[q].sockfd != qsockfd))
 			close((*internals)->rx_queue[q].sockfd);
 	}
+	free((*internals)->if_name);
 	rte_free(*internals);
 error_early:
 	rte_free(data);
@@ -820,7 +923,7 @@ rte_eth_from_packet(const char *name,
 }
 
 static int
-rte_pmd_af_packet_devinit(const char *name, const char *params)
+rte_pmd_af_packet_probe(const char *name, const char *params)
 {
 	unsigned numa_node;
 	int ret = 0;
@@ -858,7 +961,7 @@ exit:
 }
 
 static int
-rte_pmd_af_packet_devuninit(const char *name)
+rte_pmd_af_packet_remove(const char *name)
 {
 	struct rte_eth_dev *eth_dev = NULL;
 	struct pmd_internals *internals;
@@ -880,6 +983,7 @@ rte_pmd_af_packet_devuninit(const char *name)
 		rte_free(internals->rx_queue[q].rd);
 		rte_free(internals->tx_queue[q].rd);
 	}
+	free(internals->if_name);
 
 	rte_free(eth_dev->data->dev_private);
 	rte_free(eth_dev->data);
@@ -889,14 +993,14 @@ rte_pmd_af_packet_devuninit(const char *name)
 	return 0;
 }
 
-static struct rte_driver pmd_af_packet_drv = {
-	.type = PMD_VDEV,
-	.init = rte_pmd_af_packet_devinit,
-	.uninit = rte_pmd_af_packet_devuninit,
+static struct rte_vdev_driver pmd_af_packet_drv = {
+	.probe = rte_pmd_af_packet_probe,
+	.remove = rte_pmd_af_packet_remove,
 };
 
-PMD_REGISTER_DRIVER(pmd_af_packet_drv, eth_af_packet);
-DRIVER_REGISTER_PARAM_STRING(eth_af_packet,
+RTE_PMD_REGISTER_VDEV(net_af_packet, pmd_af_packet_drv);
+RTE_PMD_REGISTER_ALIAS(net_af_packet, eth_af_packet);
+RTE_PMD_REGISTER_PARAM_STRING(net_af_packet,
 	"iface=<string> "
 	"qpairs=<int> "
 	"blocksz=<int> "

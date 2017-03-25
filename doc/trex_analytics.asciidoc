@@ -1,0 +1,229 @@
+TRex Performance Trend
+======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+
+include::trex_ga.asciidoc[]
+
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+endif::backend-docbook[]
+
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+
+= TRex performance trend 
+
+This document tracks the performance of TRex Stateless use-cases of various hardware and NICS.
+The intention is to track the TRex software performance and not the NIC driver performance, however from this document you can learn the difference between different driver implementation (cycles/packets)
+Performance is measured in a metric called MPPS/Core (Norm), which stands for Mega-Packet per second (Norm). 
+ +
+How the calculation is made? +
+ +
+We measure the MPPS of the DUT in its best working point. +
+The measurement is then scaled to fit 100% CPU utilization, and finally divided by the number of cores the device has,
+to get a normalized MPPS/Core which is denoted as MPPS/Core (Norm) +
+ +
+How to run these tests? +
+[source,python]
+----
+       trex-core/scripts> ./run_regression --stl -t <name of test> --cfg setups/<name of setup>
+----
+The Error (%) metric: +
+ +
+You will see a column titled 'Error (%)' next to other metrics (avg,std etc) +
+Error(%) is calculated for each batch of test results +
+ +
+Taking the Max value (max) and the Min value (min), calculating the difference max-min +
+We take the difference and then normalize it to the Average value to get (max-min)/Avg +
+Then, we present it as percentage +
+ +
+Error (%) = ((max-min)/Avg)*100 +
+ +
+
+== Setup: XL710 (4x40GbE)  trex-08
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 2 NICS x ( 2x 40GbE ) Intel XL710, Total ports 4
+| NUMA    | NIC0-NUMA 0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Fedora 18 - baremetal
+|=================
+
+image:images/trex08_latest_test_runs.png[title="trex08 test runs",align="left",width={p_width}, link="images/trex08_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex08_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex08_trend_graph.png[title="trex08_trend_graph",align="left",width={p_width}, link="images/trex08_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex08_trend_stats.csv[]
+|===
+
+== Setup:  X710 (8x10GbE) trex-09 
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 2 NICS x ( 2x 40GbE ) Intel X710, Total 8 ports 
+| NUMA    | NIC0-NUMA0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Fedora 18 - baremetal
+|=================
+
+
+image:images/trex09_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/trex09_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex09_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex09_trend_graph.png[title="trex09_trend_graph",align="left",width={p_width}, link="images/trex09_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex09_trend_stats.csv[]
+|===
+
+
+
+== Setup:  82599EB (4x10GbE) kiwi02
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 220M3
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz (low end)
+| NICs:   | 2(NICS)x (2x10GbE) (4 ports) Intel 82599EB Total 4 ports
+| NUMA    | NIC0-NUMA0 , NIC1-NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 1x PCIe16 + 1xPCIe8
+| OS:     | Fedora 18 - baremetal
+|=================
+
+
+image:images/kiwi02_latest_test_runs.png[title="trex09 test runs",align="left",width={p_width}, link="images/kiwi02_latest_test_runs.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/kiwi02_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Trend: Performance Over Time
+
+image:images/kiwi02_trend_graph.png[title="kiwi02_trend_graph",align="left",width={p_width}, link="images/kiwi02_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/kiwi02_trend_stats.csv[]
+|===
+
+
+
+== Setup:   Cisco 1300 VIC (2x40GbE) trex-11
+
+[IMPORTANT]
+=====================================
+* this setup is not baremetal, performance are low due to that
+=====================================
+
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 1 NIC x ( 2x 40GbE ) Cisco 1300 VIC
+| NUMA    | Unknown due to ESXi
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Ubuntu 14 - ESXi only 4 cores are utilized 
+|=================
+
+image:images/trex11_latest_test_runs.png[title="trex11 test runs",align="left",width={p_width}, link="images/trex11_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex11_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex11_trend_graph.png[title="trex11_trend_graph",align="left",width={p_width}, link="images/trex11_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex11_trend_stats.csv[]
+|===
+
+
+== Setup:  Mellanox ConnectX-4 (2x100GbE) trex-07
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 1 NIC x 100G (2 ports) Mellanox ConnectX-4 NUMA#1
+| NUMA    | One NIC on NUMA1
+| Memory  | 2x16GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | CentOS 7.2 - baremetal
+|=================
+
+image:images/trex07_latest_test_runs.png[title="trex07 test runs",align="left",width={p_width}, link="images/trex07_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex07_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex07_trend_graph.png[title="trex07_trend_graph",align="left",width={p_width}, link="images/trex07_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex07_trend_stats.csv[]
+|===
+
+== Comparison between Mellanox ConnectX-4 (2x100GbE) (trex-07) and XL710 (4x40GbE)  (trex-08)
+image:images/_comparison.png[title="comparison",align="left",width={p_width}, link="images/_comparison.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/_comparison_stats_table.csv[]
+|===
+
+
+== Raw information 
+
+raw information can be found here link:images/_detailed_table.csv[raw_info.csv]
+
+

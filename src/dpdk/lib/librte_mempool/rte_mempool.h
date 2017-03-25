@@ -75,6 +75,7 @@
 #include <rte_branch_prediction.h>
 #include <rte_ring.h>
 #include <rte_memcpy.h>
+#include <rte_common.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -216,6 +217,7 @@ struct rte_mempool {
 	 * RTE_MEMPOOL_NAMESIZE next time the ABI changes
 	 */
 	char name[RTE_MEMZONE_NAMESIZE]; /**< Name of mempool. */
+	RTE_STD_C11
 	union {
 		void *pool_data;         /**< Ring or pool to store objects. */
 		uint64_t pool_id;        /**< External mempool identifier. */
@@ -355,7 +357,7 @@ void rte_mempool_check_cookies(const struct rte_mempool *mp,
  * Prototype for implementation specific data provisioning function.
  *
  * The function should provide the implementation specific memory for
- * for use by the other mempool ops functions in a given mempool ops struct.
+ * use by the other mempool ops functions in a given mempool ops struct.
  * E.g. the default ops provides an instance of the rte_ring for this purpose.
  * it will most likely point to a different type of data structure, and
  * will be transparent to the application programmer.
@@ -549,7 +551,7 @@ int rte_mempool_register_ops(const struct rte_mempool_ops *ops);
 /**
  * Macro to statically register the ops of a mempool handler.
  * Note that the rte_mempool_register_ops fails silently here when
- * more then RTE_MEMPOOL_MAX_OPS_IDX is registered.
+ * more than RTE_MEMPOOL_MAX_OPS_IDX is registered.
  */
 #define MEMPOOL_REGISTER_OPS(ops)					\
 	void mp_hdlr_init_##ops(void);					\
@@ -587,10 +589,8 @@ typedef void (rte_mempool_ctor_t)(struct rte_mempool *, void *);
 /**
  * Create a new mempool named *name* in memory.
  *
- * This function uses ``memzone_reserve()`` to allocate memory. The
+ * This function uses ``rte_memzone_reserve()`` to allocate memory. The
  * pool contains n elements of elt_size. Its size is set to n.
- * All elements of the mempool are allocated together with the mempool header,
- * in one physically continuous chunk of memory.
  *
  * @param name
  *   The name of the mempool.
@@ -610,9 +610,7 @@ typedef void (rte_mempool_ctor_t)(struct rte_mempool *, void *);
  *   never be used. The access to the per-lcore table is of course
  *   faster than the multi-producer/consumer pool. The cache can be
  *   disabled if the cache_size argument is set to 0; it can be useful to
- *   avoid losing objects in cache. Note that even if not used, the
- *   memory space for cache is always reserved in a mempool structure,
- *   except if CONFIG_RTE_MEMPOOL_CACHE_MAX_SIZE is set to 0.
+ *   avoid losing objects in cache.
  * @param private_data_size
  *   The size of the private data appended after the mempool
  *   structure. This is useful for storing some private data after the
@@ -746,7 +744,7 @@ rte_mempool_xmem_create(const char *name, unsigned n, unsigned elt_size,
  *
  * The mempool is allocated and initialized, but it is not populated: no
  * memory is allocated for the mempool elements. The user has to call
- * rte_mempool_populate_*() or to add memory chunks to the pool. Once
+ * rte_mempool_populate_*() to add memory chunks to the pool. Once
  * populated, the user may also want to initialize each object with
  * rte_mempool_obj_iter().
  *
@@ -797,6 +795,10 @@ rte_mempool_free(struct rte_mempool *mp);
  *
  * Add a virtually and physically contiguous memory chunk in the pool
  * where objects can be instanciated.
+ *
+ * If the given physical address is unknown (paddr = RTE_BAD_PHYS_ADDR),
+ * the chunk doesn't need to be physically contiguous (only virtually),
+ * and allocated objects may span two pages.
  *
  * @param mp
  *   A pointer to the mempool structure.
@@ -946,7 +948,7 @@ uint32_t rte_mempool_mem_iter(struct rte_mempool *mp,
 	rte_mempool_mem_cb_t *mem_cb, void *mem_cb_arg);
 
 /**
- * Dump the status of the mempool to the console.
+ * Dump the status of the mempool to a file.
  *
  * @param f
  *   A pointer to a file for output
@@ -1036,19 +1038,15 @@ rte_mempool_default_cache(struct rte_mempool *mp, unsigned lcore_id)
  */
 static inline void __attribute__((always_inline))
 __mempool_generic_put(struct rte_mempool *mp, void * const *obj_table,
-		      unsigned n, struct rte_mempool_cache *cache, int flags)
+		      unsigned n, struct rte_mempool_cache *cache)
 {
 	void **cache_objs;
 
 	/* increment stat now, adding in mempool always success */
 	__MEMPOOL_STAT_ADD(mp, put, n);
 
-	/* No cache provided or single producer */
-	if (unlikely(cache == NULL || flags & MEMPOOL_F_SP_PUT))
-		goto ring_enqueue;
-
-	/* Go straight to ring if put would overflow mem allocated for cache */
-	if (unlikely(n > RTE_MEMPOOL_CACHE_MAX_SIZE))
+	/* No cache provided or if put would overflow mem allocated for cache */
+	if (unlikely(cache == NULL || n > RTE_MEMPOOL_CACHE_MAX_SIZE))
 		goto ring_enqueue;
 
 	cache_objs = &cache->objs[cache->len];
@@ -1102,10 +1100,11 @@ ring_enqueue:
  */
 static inline void __attribute__((always_inline))
 rte_mempool_generic_put(struct rte_mempool *mp, void * const *obj_table,
-			unsigned n, struct rte_mempool_cache *cache, int flags)
+			unsigned n, struct rte_mempool_cache *cache,
+			__rte_unused int flags)
 {
 	__mempool_check_cookies(mp, obj_table, n, 0);
-	__mempool_generic_put(mp, obj_table, n, cache, flags);
+	__mempool_generic_put(mp, obj_table, n, cache);
 }
 
 /**
@@ -1242,15 +1241,14 @@ rte_mempool_put(struct rte_mempool *mp, void *obj)
  */
 static inline int __attribute__((always_inline))
 __mempool_generic_get(struct rte_mempool *mp, void **obj_table,
-		      unsigned n, struct rte_mempool_cache *cache, int flags)
+		      unsigned n, struct rte_mempool_cache *cache)
 {
 	int ret;
 	uint32_t index, len;
 	void **cache_objs;
 
-	/* No cache provided or single consumer */
-	if (unlikely(cache == NULL || flags & MEMPOOL_F_SC_GET ||
-		     n >= cache->size))
+	/* No cache provided or cannot be satisfied from cache */
+	if (unlikely(cache == NULL || n >= cache->size))
 		goto ring_dequeue;
 
 	cache_objs = cache->objs;
@@ -1324,10 +1322,10 @@ ring_dequeue:
  */
 static inline int __attribute__((always_inline))
 rte_mempool_generic_get(struct rte_mempool *mp, void **obj_table, unsigned n,
-			struct rte_mempool_cache *cache, int flags)
+			struct rte_mempool_cache *cache, __rte_unused int flags)
 {
 	int ret;
-	ret = __mempool_generic_get(mp, obj_table, n, cache, flags);
+	ret = __mempool_generic_get(mp, obj_table, n, cache);
 	if (ret == 0)
 		__mempool_check_cookies(mp, obj_table, n, 1);
 	return ret;

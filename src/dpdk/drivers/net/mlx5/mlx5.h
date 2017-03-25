@@ -43,24 +43,25 @@
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/verbs.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_spinlock.h>
 #include <rte_interrupts.h>
 #include <rte_errno.h>
+#include <rte_flow.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5_utils.h"
@@ -82,6 +83,46 @@ enum {
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4VF = 0x1014,
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4LX = 0x1015,
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF = 0x1016,
+	PCI_DEVICE_ID_MELLANOX_CONNECTX5 = 0x1017,
+	PCI_DEVICE_ID_MELLANOX_CONNECTX5VF = 0x1018,
+	PCI_DEVICE_ID_MELLANOX_CONNECTX5EX = 0x1019,
+	PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF = 0x101a,
+};
+
+struct mlx5_stats_priv {
+
+    struct rte_eth_stats m_shadow;
+    uint32_t      n_stats; /* number of counters */
+
+    void    *  et_stats  ;/* point to ethtool counter struct ethtool_stats*/
+
+    /* index into ethtool */
+    uint16_t inx_rx_vport_unicast_bytes;
+    uint16_t inx_rx_vport_multicast_bytes;
+    uint16_t inx_rx_vport_broadcast_bytes;
+    uint16_t inx_rx_vport_unicast_packets;
+    uint16_t inx_rx_vport_multicast_packets;
+    uint16_t inx_rx_vport_broadcast_packets;
+    uint16_t inx_tx_vport_unicast_bytes;
+    uint16_t inx_tx_vport_multicast_bytes;
+    uint16_t inx_tx_vport_broadcast_bytes;
+    uint16_t inx_tx_vport_unicast_packets;
+    uint16_t inx_tx_vport_multicast_packets;
+    uint16_t inx_tx_vport_broadcast_packets;
+    uint16_t inx_rx_wqe_err;
+    uint16_t inx_rx_crc_errors_phy;
+    uint16_t inx_rx_in_range_len_errors_phy;
+    uint16_t inx_rx_symbol_err_phy;
+    uint16_t inx_tx_errors_phy;
+};
+
+
+struct mlx5_xstats_ctrl {
+	/* Number of device stats. */
+	uint16_t stats_n;
+	/* Index in the device counters table. */
+	uint16_t dev_table_idx[MLX5_MAX_XSTATS];
+	uint64_t base[MLX5_MAX_XSTATS];
 };
 
 struct priv {
@@ -134,7 +175,12 @@ struct priv {
 	unsigned int (*reta_idx)[]; /* RETA index table. */
 	unsigned int reta_idx_n; /* RETA index size. */
 	struct fdir_filter_list *fdir_filter_list; /* Flow director rules. */
+	struct fdir_queue *fdir_drop_queue; /* Flow director drop queue. */
+	LIST_HEAD(mlx5_flows, rte_flow) flows; /* RTE Flow rules. */
+	uint32_t link_speed_capa; /* Link speed capabilities. */
+	struct mlx5_xstats_ctrl xstats_ctrl; /* Extended stats control. */
 	rte_spinlock_t lock; /* Lock for control functions. */
+    struct mlx5_stats_priv m_stats;
 };
 
 /* Local storage for secondary process data. */
@@ -241,8 +287,16 @@ void mlx5_allmulticast_disable(struct rte_eth_dev *);
 
 /* mlx5_stats.c */
 
+void priv_xstats_init(struct priv *);
 void mlx5_stats_get(struct rte_eth_dev *, struct rte_eth_stats *);
 void mlx5_stats_reset(struct rte_eth_dev *);
+void mlx5_stats_free(struct rte_eth_dev *dev);
+
+int mlx5_xstats_get(struct rte_eth_dev *,
+		    struct rte_eth_xstat *, unsigned int);
+void mlx5_xstats_reset(struct rte_eth_dev *);
+int mlx5_xstats_get_names(struct rte_eth_dev *,
+			  struct rte_eth_xstat_name *, unsigned int);
 
 /* mlx5_vlan.c */
 
@@ -257,11 +311,29 @@ void mlx5_dev_stop(struct rte_eth_dev *);
 
 /* mlx5_fdir.c */
 
+void priv_fdir_queue_destroy(struct priv *, struct fdir_queue *);
 int fdir_init_filters_list(struct priv *);
 void priv_fdir_delete_filters_list(struct priv *);
 void priv_fdir_disable(struct priv *);
 void priv_fdir_enable(struct priv *);
 int mlx5_dev_filter_ctrl(struct rte_eth_dev *, enum rte_filter_type,
 			 enum rte_filter_op, void *);
+
+/* mlx5_flow.c */
+
+int mlx5_flow_validate(struct rte_eth_dev *, const struct rte_flow_attr *,
+		       const struct rte_flow_item [],
+		       const struct rte_flow_action [],
+		       struct rte_flow_error *);
+struct rte_flow *mlx5_flow_create(struct rte_eth_dev *,
+				  const struct rte_flow_attr *,
+				  const struct rte_flow_item [],
+				  const struct rte_flow_action [],
+				  struct rte_flow_error *);
+int mlx5_flow_destroy(struct rte_eth_dev *, struct rte_flow *,
+		      struct rte_flow_error *);
+int mlx5_flow_flush(struct rte_eth_dev *, struct rte_flow_error *);
+int priv_flow_start(struct priv *);
+void priv_flow_stop(struct priv *);
 
 #endif /* RTE_PMD_MLX5_H_ */

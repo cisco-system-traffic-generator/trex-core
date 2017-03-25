@@ -1,5 +1,6 @@
 from .trex_stl_streams import *
 from .trex_stl_packet_builder_scapy import *
+from .utils.common import *
 
 # map ports
 # will destroy all streams/data on the ports
@@ -8,43 +9,57 @@ def stl_map_ports (client, ports = None):
     if ports is None:
         ports = client.get_all_ports()
 
+    client.acquire(ports, force = True, sync_streams = False)
+
+    unresolved_ports = list_difference(ports, client.get_resolved_ports())
+    if unresolved_ports:
+        raise STLError("Port(s) {0} have unresolved destination addresses".format(unresolved_ports))
+
     stl_send_3_pkts(client, ports)
 
-    tx_pkts = {}
-    pkts = 1
-    base_pkt = STLPktBuilder(pkt = Ether()/IP())
+    PKTS_SENT = 5
+    pgid_per_port = {}
+    active_pgids = client.get_active_pgids()['ids']
+    base_pkt = Ether()/IP()/UDP()/('x' * 18)
+    test_pgid = 10000000
 
+    # add latency packet per checked port
     for port in ports:
-        tx_pkts[pkts] = port
-        stream = STLStream(packet = base_pkt,
-                           mode = STLTXSingleBurst(pps = 100000, total_pkts = pkts * 3))
+        for i in range(3):
+            while test_pgid in active_pgids:
+                test_pgid += 1
+            stream = STLStream(packet = STLPktBuilder(pkt = base_pkt),
+                               flow_stats = STLFlowLatencyStats(pg_id = test_pgid),
+                               mode = STLTXSingleBurst(pps = 1e4, total_pkts = PKTS_SENT))
+            try:
+                client.add_streams(stream, [port])
+            except STLError:
+                continue
+            pgid_per_port[port] = test_pgid
+            test_pgid += 1
+            break
 
-        client.add_streams(stream, [port])
-        
-        pkts *= 2
+    if len(pgid_per_port) != len(ports):
+        raise STLError('Could not add flow stats streams per port.')
 
     # inject
-    client.clear_stats()
-    client.start(ports, mult = "50%")
+    client.clear_stats(ports, clear_global = False, clear_flow_stats = True, clear_latency_stats = False, clear_xstats = False)
+    client.start(ports, mult = "5%")
     client.wait_on_traffic(ports)
-    
-    stats = client.get_stats()
+
+    stats = client.get_stats()['flow_stats']
 
     # cleanup
-    client.reset(ports = ports)
+    client.reset(ports)
 
     table = {'map': {}, 'bi' : [], 'unknown': []}
 
     # actual mapping
-    for port in ports:
-
-        ipackets = int(round(stats[port]["ipackets"] / 3.0)) # majority out of 3 to clean random noises
-        table['map'][port] = None
-
-        for pkts in tx_pkts.keys():
-            if ( (pkts & ipackets) == pkts ):
-                tx_port = tx_pkts[pkts]
-                table['map'][port] = tx_port
+    for tx_port in ports:
+        table['map'][tx_port] = None
+        for rx_port in ports:
+            if stats[pgid_per_port[tx_port]]['rx_pkts'][rx_port] * 2 > PKTS_SENT:
+                table['map'][tx_port] = rx_port
 
     unmapped = list(ports)
     while len(unmapped) > 0:
@@ -73,6 +88,7 @@ def stl_send_3_pkts(client, ports = None):
 
     client.reset(ports)
     client.add_streams(stream, ports)
-    client.start(ports, mult = "50%")
+    client.start(ports, mult = "5%")
     client.wait_on_traffic(ports)
-    client.reset(ports)
+    client.remove_all_streams(ports)
+

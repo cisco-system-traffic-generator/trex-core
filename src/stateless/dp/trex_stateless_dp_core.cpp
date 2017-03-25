@@ -27,7 +27,59 @@ limitations under the License.
 #include "trex_streams_compiler.h"
 #include "mbuf.h"
 
+/**
+ * a wrapper for service mode 
+ * it will move the fast send_node virtual call 
+ * to send_node_service_mode which does capturing 
+ * 
+ */
+class ServiceModeWrapper : public CVirtualIF {
+public:
 
+    ServiceModeWrapper() {
+        m_wrapped = nullptr;
+    }
+    
+    void set_wrapped_object(CVirtualIF *wrapped) {
+        m_wrapped = wrapped;
+    }
+    
+    CVirtualIF *get_wrapped_object() const {
+        return m_wrapped;
+    }
+    
+    virtual int close_file(void) {
+        return m_wrapped->close_file();
+    }
+    
+    virtual int flush_tx_queue(void) {
+        return m_wrapped->flush_tx_queue();
+    }
+    
+    virtual int open_file(std::string file_name) {
+        return m_wrapped->open_file(file_name);
+    }
+    
+    /* move to service mode */
+    virtual int send_node(CGenNode *node) {
+        return m_wrapped->send_node_service_mode(node);
+    }
+    
+    virtual int update_mac_addr_from_global_cfg(pkt_dir_t dir, uint8_t *p) {
+        return m_wrapped->update_mac_addr_from_global_cfg(dir, p);
+    }
+    
+    virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
+        return m_wrapped->port_id_to_dir(port_id);
+    }
+    
+    virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {
+        m_wrapped->send_one_pkt(dir, m);
+    }
+    
+private:
+    CVirtualIF *m_wrapped;
+};
 
 
 void CGenNodeStateless::cache_mbuf_array_init(){
@@ -478,6 +530,7 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                        const std::string &pcap_filename,
                                        double ipg_usec,
+                                       double min_ipg_sec,
                                        double speedup,
                                        uint32_t count,
                                        bool is_dual) {
@@ -508,6 +561,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                 slave_mac_addr,
                                 pcap_filename,
                                 ipg_usec,
+                                min_ipg_sec,
                                 speedup,
                                 count,
                                 is_dual);
@@ -589,6 +643,18 @@ void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
     m_active_pcap_node = NULL;
 }
 
+
+TrexStatelessDpCore::TrexStatelessDpCore() {
+    m_thread_id       = 0;
+    m_core            = NULL;
+    m_duration        = -1;
+    m_is_service_mode = NULL;
+    m_wrapper         = new ServiceModeWrapper();
+}
+
+TrexStatelessDpCore::~TrexStatelessDpCore() {
+    delete m_wrapper;
+}
 
 
 void
@@ -679,8 +745,8 @@ TrexStatelessDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
         m_core->tickle();
-        m_core->m_node_gen.m_v_if->handle_rx_queue();
-        bool had_msg = periodic_check_for_cp_messages();
+        
+        bool had_msg = m_core->check_msgs();
         if (had_msg) {
             counter = 0;
             continue;
@@ -715,6 +781,7 @@ void TrexStatelessDpCore::quit_main_loop(){
  */
 void
 TrexStatelessDpCore::start_scheduler() {
+    
     /* creates a maintenace job using the scheduler */
     CGenNode * node_sync = m_core->create_node() ;
     node_sync->m_type = CGenNode::FLOW_SYNC;
@@ -1169,6 +1236,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                int event_id,
                                const std::string &pcap_filename,
                                double ipg_usec,
+                               double m_min_ipg_sec,
                                double speedup,
                                uint32_t count,
                                double duration,
@@ -1179,7 +1247,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
     lp_port->set_event_id(event_id);
 
     /* delegate the command to the port */
-    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, speedup, count, is_dual);
+    bool rc = lp_port->push_pcap(port_id, pcap_filename, ipg_usec, m_min_ipg_sec, speedup, count, is_dual);
     if (!rc) {
         /* report back that we stopped */
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
@@ -1252,6 +1320,32 @@ TrexStatelessDpCore::barrier(uint8_t port_id, int event_id) {
     ring->Enqueue((CGenNode *)event_msg);
 }
 
+void
+TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
+    /* ignore the same message */
+    if (enabled == m_is_service_mode) {
+        return;
+    }
+    
+    if (enabled) {
+        /* sanity */
+        assert(m_core->m_node_gen.m_v_if != m_wrapper);
+        
+        /* set the wrapper object and make the VIF point to it */
+        m_wrapper->set_wrapped_object(m_core->m_node_gen.m_v_if);
+        m_core->m_node_gen.m_v_if = m_wrapper;
+        m_is_service_mode = true;
+        
+    } else {
+        /* sanity */
+        assert(m_core->m_node_gen.m_v_if == m_wrapper);
+        
+        /* restore the wrapped object and make the VIF point to it */
+        m_core->m_node_gen.m_v_if = m_wrapper->get_wrapped_object();
+        m_is_service_mode = false;
+    }
+}
+
 
 /**
  * PCAP node
@@ -1263,6 +1357,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
                           const uint8_t *slave_mac_addr,
                           const std::string &pcap_filename,
                           double ipg_usec,
+                          double min_ipg_sec,
                           double speedup,
                           uint32_t count,
                           bool is_dual) {
@@ -1275,13 +1370,17 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_count      = count;
     m_is_dual    = is_dual;
     m_dir        = dir;
+    m_min_ipg_sec    = min_ipg_sec;
+
+    /* increase timeout of WD due to io */
+    TrexWatchDog::IOFunction::io_begin();
 
     /* mark this node as slow path */
     set_slow_path(true);
 
     if (ipg_usec != -1) {
         /* fixed IPG */
-        m_ipg_sec = usec_to_sec(ipg_usec / speedup);
+        m_ipg_sec = std::max(min_ipg_sec, usec_to_sec(ipg_usec / speedup));
         m_speedup = 0;
     } else {
         /* packet IPG */
@@ -1304,9 +1403,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
 
     m_raw_packet = new CCapPktRaw();
     if ( m_reader->ReadPacket(m_raw_packet) == false ){
-        /* handle error */
-        delete m_reader;
-        return (false);
+        return false;
     }
 
     /* set the dir */
@@ -1340,6 +1437,9 @@ void CGenNodePCAP::destroy() {
         delete m_reader;
         m_reader = NULL;
     }
+
+    /* end of io, return normal timeout of WD */
+    TrexWatchDog::IOFunction::io_end();
 
     m_state = PCAP_INVALID;
 }

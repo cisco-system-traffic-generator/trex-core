@@ -138,6 +138,11 @@
 #define E1000_MISC_VEC_ID               RTE_INTR_VEC_ZERO_OFFSET
 #define E1000_RX_VEC_START              RTE_INTR_VEC_RXTX_OFFSET
 
+#define IGB_TX_MAX_SEG     UINT8_MAX
+#define IGB_TX_MAX_MTU_SEG UINT8_MAX
+#define EM_TX_MAX_SEG      UINT8_MAX
+#define EM_TX_MAX_MTU_SEG  UINT8_MAX
+
 /* structure for interrupt relative data */
 struct e1000_interrupt {
 	uint32_t flags;
@@ -286,6 +291,8 @@ struct e1000_adapter {
 #define E1000_DEV_PRIVATE_TO_FILTER_INFO(adapter) \
 	(&((struct e1000_adapter *)adapter)->filter)
 
+#define E1000_DEV_TO_PCI(eth_dev) \
+	RTE_DEV_TO_PCI((eth_dev)->device)
 /*
  * RX/TX IGB function prototypes
  */
@@ -313,6 +320,9 @@ int eth_igb_rx_init(struct rte_eth_dev *dev);
 void eth_igb_tx_init(struct rte_eth_dev *dev);
 
 uint16_t eth_igb_xmit_pkts(void *txq, struct rte_mbuf **tx_pkts,
+		uint16_t nb_pkts);
+
+uint16_t eth_igb_prep_pkts(void *txq, struct rte_mbuf **tx_pkts,
 		uint16_t nb_pkts);
 
 uint16_t eth_igb_recv_pkts(void *rxq, struct rte_mbuf **rx_pkts,
@@ -374,6 +384,9 @@ int eth_em_rx_init(struct rte_eth_dev *dev);
 void eth_em_tx_init(struct rte_eth_dev *dev);
 
 uint16_t eth_em_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+		uint16_t nb_pkts);
+
+uint16_t eth_em_prep_pkts(void *txq, struct rte_mbuf **tx_pkts,
 		uint16_t nb_pkts);
 
 uint16_t eth_em_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,

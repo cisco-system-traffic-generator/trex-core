@@ -37,14 +37,13 @@
 #include <rte_malloc.h>
 #include <rte_ethdev.h>
 #include <rte_tcp.h>
+#include <rte_vdev.h>
 
 #include "rte_eth_bond.h"
 #include "rte_eth_bond_private.h"
 #include "rte_eth_bond_8023ad_private.h"
 
 #define DEFAULT_POLLING_INTERVAL_10_MS (10)
-
-const char pmd_bond_driver_name[] = "rte_bond_pmd";
 
 int
 check_for_bonded_ethdev(const struct rte_eth_dev *eth_dev)
@@ -54,7 +53,7 @@ check_for_bonded_ethdev(const struct rte_eth_dev *eth_dev)
 		return -1;
 
 	/* return 0 if driver name matches */
-	return eth_dev->data->drv_name != pmd_bond_driver_name;
+	return eth_dev->data->drv_name != pmd_bond_drv.driver.name;
 }
 
 int
@@ -166,6 +165,7 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 {
 	struct bond_dev_private *internals = NULL;
 	struct rte_eth_dev *eth_dev = NULL;
+	uint32_t vlan_filter_bmp_size;
 
 	/* now do all data allocation - for eth_dev structure, dummy pci driver
 	 * and internal (private) data
@@ -189,7 +189,7 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 	}
 
 	/* reserve an ethdev entry */
-	eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	eth_dev = rte_eth_dev_allocate(name);
 	if (eth_dev == NULL) {
 		RTE_BOND_LOG(ERR, "Unable to allocate rte_eth_dev");
 		goto err;
@@ -199,10 +199,6 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 	eth_dev->data->nb_rx_queues = (uint16_t)1;
 	eth_dev->data->nb_tx_queues = (uint16_t)1;
 
-	TAILQ_INIT(&(eth_dev->link_intr_cbs));
-
-	eth_dev->data->dev_link.link_status = ETH_LINK_DOWN;
-
 	eth_dev->data->mac_addrs = rte_zmalloc_socket(name, ETHER_ADDR_LEN, 0,
 			socket_id);
 	if (eth_dev->data->mac_addrs == NULL) {
@@ -210,17 +206,12 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 		goto err;
 	}
 
-	eth_dev->data->dev_started = 0;
-	eth_dev->data->promiscuous = 0;
-	eth_dev->data->scattered_rx = 0;
-	eth_dev->data->all_multicast = 0;
-
 	eth_dev->dev_ops = &default_dev_ops;
 	eth_dev->data->dev_flags = RTE_ETH_DEV_INTR_LSC |
 		RTE_ETH_DEV_DETACHABLE;
 	eth_dev->driver = NULL;
 	eth_dev->data->kdrv = RTE_KDRV_NONE;
-	eth_dev->data->drv_name = pmd_bond_driver_name;
+	eth_dev->data->drv_name = pmd_bond_drv.driver.name;
 	eth_dev->data->numa_node =  socket_id;
 
 	rte_spinlock_init(&internals->lock);
@@ -257,6 +248,27 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 	if (bond_ethdev_mode_set(eth_dev, mode)) {
 		RTE_BOND_LOG(ERR, "Failed to set bonded device %d mode too %d",
 				 eth_dev->data->port_id, mode);
+		goto err;
+	}
+
+	vlan_filter_bmp_size =
+		rte_bitmap_get_memory_footprint(ETHER_MAX_VLAN_ID + 1);
+	internals->vlan_filter_bmpmem = rte_malloc(name, vlan_filter_bmp_size,
+						   RTE_CACHE_LINE_SIZE);
+	if (internals->vlan_filter_bmpmem == NULL) {
+		RTE_BOND_LOG(ERR,
+			     "Failed to allocate vlan bitmap for bonded device %u\n",
+			     eth_dev->data->port_id);
+		goto err;
+	}
+
+	internals->vlan_filter_bmp = rte_bitmap_init(ETHER_MAX_VLAN_ID + 1,
+			internals->vlan_filter_bmpmem, vlan_filter_bmp_size);
+	if (internals->vlan_filter_bmp == NULL) {
+		RTE_BOND_LOG(ERR,
+			     "Failed to init vlan bitmap for bonded device %u\n",
+			     eth_dev->data->port_id);
+		rte_free(internals->vlan_filter_bmpmem);
 		goto err;
 	}
 
@@ -299,12 +311,55 @@ rte_eth_bond_free(const char *name)
 	eth_dev->rx_pkt_burst = NULL;
 	eth_dev->tx_pkt_burst = NULL;
 
+	internals = eth_dev->data->dev_private;
+	rte_bitmap_free(internals->vlan_filter_bmp);
+	rte_free(internals->vlan_filter_bmpmem);
 	rte_free(eth_dev->data->dev_private);
 	rte_free(eth_dev->data->mac_addrs);
 
 	rte_eth_dev_release_port(eth_dev);
 
 	return 0;
+}
+
+static int
+slave_vlan_filter_set(uint8_t bonded_port_id, uint8_t slave_port_id)
+{
+	struct rte_eth_dev *bonded_eth_dev;
+	struct bond_dev_private *internals;
+	int found;
+	int res = 0;
+	uint64_t slab = 0;
+	uint32_t pos = 0;
+	uint16_t first;
+
+	bonded_eth_dev = &rte_eth_devices[bonded_port_id];
+	if (bonded_eth_dev->data->dev_conf.rxmode.hw_vlan_filter == 0)
+		return 0;
+
+	internals = bonded_eth_dev->data->dev_private;
+	found = rte_bitmap_scan(internals->vlan_filter_bmp, &pos, &slab);
+	first = pos;
+
+	if (!found)
+		return 0;
+
+	do {
+		uint32_t i;
+		uint64_t mask;
+
+		for (i = 0, mask = 1;
+		     i < RTE_BITMAP_SLAB_BIT_SIZE;
+		     i ++, mask <<= 1) {
+			if (unlikely(slab & mask))
+				res = rte_eth_dev_vlan_filter(slave_port_id,
+							      (uint16_t)pos, 1);
+		}
+		found = rte_bitmap_scan(internals->vlan_filter_bmp,
+					&pos, &slab);
+	} while (found && first != pos && res == 0);
+
+	return res;
 }
 
 static int
@@ -373,21 +428,6 @@ __eth_bond_slave_add_lock_free(uint8_t bonded_port_id, uint8_t slave_port_id)
 		internals->candidate_max_rx_pktlen = dev_info.max_rx_pktlen;
 
 	} else {
-		/* Check slave link properties are supported if props are set,
-		 * all slaves must be the same */
-		if (internals->link_props_set) {
-			if (link_properties_valid(&(bonded_eth_dev->data->dev_link),
-									  &(slave_eth_dev->data->dev_link))) {
-				slave_eth_dev->data->dev_flags &= (~RTE_ETH_DEV_BONDED_SLAVE);
-				RTE_BOND_LOG(ERR,
-						"Slave port %d link speed/duplex not supported",
-						slave_port_id);
-				return -1;
-			}
-		} else {
-			link_properties_set(bonded_eth_dev,
-					&(slave_eth_dev->data->dev_link));
-		}
 		internals->rx_offload_capa &= dev_info.rx_offload_capa;
 		internals->tx_offload_capa &= dev_info.tx_offload_capa;
 		internals->flow_type_rss_offloads &= dev_info.flow_type_rss_offloads;
@@ -442,6 +482,9 @@ __eth_bond_slave_add_lock_free(uint8_t bonded_port_id, uint8_t slave_port_id)
 				activate_slave(bonded_eth_dev, slave_port_id);
 		}
 	}
+
+	slave_vlan_filter_set(bonded_port_id, slave_port_id);
+
 	return 0;
 
 }

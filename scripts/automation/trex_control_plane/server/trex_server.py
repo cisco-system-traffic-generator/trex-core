@@ -7,6 +7,7 @@ import sys
 import time
 import outer_packages
 import zmq
+import yaml
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import jsonrpclib
 from jsonrpclib import Fault
@@ -24,7 +25,7 @@ import CCustomLogger
 from trex_launch_thread import AsynchronousTRexSession
 from zmq_monitor_thread import ZmqMonitorSession
 from argparse import ArgumentParser, RawTextHelpFormatter
-from json import JSONEncoder
+import json
 import re
 import shlex
 import tempfile
@@ -41,7 +42,6 @@ logger = logging.getLogger('TRexServer')
 
 class CTRexServer(object):
     """This class defines the server side of the RESTfull interaction with TRex"""
-    DEFAULT_TREX_PATH = '/auto/proj-pcube-b/apps/PL-b/tools/bp_sim2/v1.55/' #'/auto/proj-pcube-b/apps/PL-b/tools/nightly/trex_latest'
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
 
@@ -139,6 +139,7 @@ class CTRexServer(object):
         self.server.register_function(self.get_file)
         self.server.register_function(self.get_files_list)
         self.server.register_function(self.get_files_path)
+        self.server.register_function(self.get_latest_dump)
         self.server.register_function(self.get_running_info)
         self.server.register_function(self.get_running_status)
         self.server.register_function(self.get_trex_cmds)
@@ -254,7 +255,8 @@ class CTRexServer(object):
 
     def assert_zmq_ok(self):
         if self.trex.zmq_error:
-            raise Exception('ZMQ thread got error: %s' % self.trex.zmq_error)
+            self.trex.zmq_error, err = None, self.trex.zmq_error
+            raise Exception('ZMQ thread got error: %s' % err)
         if not self.zmq_monitor.is_alive():
             if self.trex.get_status() != TRexStatus.Idle:
                 self.force_trex_kill()
@@ -324,6 +326,7 @@ class CTRexServer(object):
                 return False
 
     def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
+        self.trex.zmq_error = None
         self.assert_zmq_ok()
         with self.start_lock:
             logger.info("Processing start_trex() command.")
@@ -333,9 +336,10 @@ class CTRexServer(object):
                     logger.info("TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))
                     return Fault(-33, "TRex is reserved to another user ({res_user}). Only that user is allowed to initiate new runs.".format(res_user = self.__reservation['user']))  # raise at client TRexRequestDenied
             elif self.trex.get_status() != TRexStatus.Idle:
-                logger.info("TRex is already taken, cannot create another run until done.")
-                return Fault(-13, '')  # raise at client TRexInUseError
-            
+                err = 'TRex is already taken, cannot create another run until done.'
+                logger.info(err)
+                return Fault(-13, err) # raise at client TRexInUseError
+
             try:
                 server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
                 self.zmq_monitor.first_dump = True
@@ -415,7 +419,6 @@ class CTRexServer(object):
     def wait_until_kickoff_finish (self, timeout = 40):
         # block until TRex exits Starting state
         logger.info("Processing wait_until_kickoff_finish() command.")
-        trex_state = None
         start_time = time.time()
         while (time.time() - start_time) < timeout :
             self.assert_zmq_ok()
@@ -430,6 +433,9 @@ class CTRexServer(object):
         logger.info("Processing get_running_info() command.")
         return self.trex.get_running_info()
 
+    def get_latest_dump(self):
+        logger.info("Processing get_latest_dump() command.")
+        return self.trex.get_latest_dump()
 
     def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
@@ -471,6 +477,8 @@ class CTRexServer(object):
         if trex_args:
             trex_cmd_options += ' %s' % trex_args
 
+        self._check_zmq_port(trex_cmd_options)
+
         if not stateless:
             if 'f' not in kwargs:
                 raise Exception('Argument -f should be specified in stateful command')
@@ -487,6 +495,28 @@ class CTRexServer(object):
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 
         return (cmd, export_path, kwargs.get('d', 0))
+
+
+    def _check_zmq_port(self, trex_cmd_options):
+        zmq_cfg_port = 4500 # default
+        parser = ArgumentParser()
+        parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
+        args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
+        if not os.path.exists(args.cfg):
+            raise Exception('Platform config file "%s" does not exist!' % args.cfg)
+        with open(args.cfg) as f:
+            trex_cfg = yaml.safe_load(f.read())
+        if type(trex_cfg) is not list:
+            raise Exception('Platform config file "%s" content should be array.' % args.cfg)
+        if not len(trex_cfg):
+            raise Exception('Platform config file "%s" content should be array with one element.' % args.cfg)
+        trex_cfg = trex_cfg[0]
+        if 'enable_zmq_pub' in trex_cfg and trex_cfg['enable_zmq_pub'] == False:
+            raise Exception('TRex daemon expects ZMQ publisher to be enabled. Please change "enable_zmq_pub" to true.')
+        if 'zmq_pub_port' in trex_cfg:
+            zmq_cfg_port = trex_cfg['zmq_pub_port']
+        if zmq_cfg_port != self.trex_zmq_port:
+            raise Exception('ZMQ port does not match: platform config file is configured to: %s, daemon server to: %s' % (zmq_cfg_port, self.trex_zmq_port))
 
 
     def __check_trex_path_validity(self):
@@ -528,11 +558,11 @@ class CTRex(object):
         self.errcode        = None
         self.session        = None
         self.zmq_monitor    = None
-        self.zmq_dump       = None
+        self.__zmq_dump     = {}
+        self.zmq_dump_lock  = threading.Lock()
         self.zmq_error      = None
         self.seq            = None
         self.expect_trex    = threading.Event()
-        self.encoder        = JSONEncoder()
 
     def get_status(self):
         return self.status
@@ -552,9 +582,21 @@ class CTRex(object):
     def get_seq (self):
         return self.seq
 
+    def get_latest_dump(self):
+        with self.zmq_dump_lock:
+            return json.dumps(self.__zmq_dump)
+
+    def update_zmq_dump_key(self, key, val):
+        with self.zmq_dump_lock:
+            self.__zmq_dump[key] = val
+
+    def clear_zmq_dump(self):
+        with self.zmq_dump_lock:
+            self.__zmq_dump = {}
+
     def get_running_info (self):
         if self.status == TRexStatus.Running:
-            return self.encoder.encode(self.zmq_dump)
+            return self.get_latest_dump()
         else:
             logger.info("TRex isn't running. Running information isn't available.")
             if self.status == TRexStatus.Idle:

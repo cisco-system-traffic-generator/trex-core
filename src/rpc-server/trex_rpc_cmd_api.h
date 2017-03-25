@@ -114,6 +114,7 @@ protected:
         FIELD_TYPE_UINT64,
         FIELD_TYPE_INT,
         FIELD_TYPE_DOUBLE,
+        FIELD_TYPE_UDOUBLE,
         FIELD_TYPE_BOOL,
         FIELD_TYPE_STR,
         FIELD_TYPE_OBJ,
@@ -181,6 +182,11 @@ protected:
 
     template<typename T> double parse_double(const Json::Value &parent, const T &param, Json::Value &result) {
         check_field_type(parent, param, FIELD_TYPE_DOUBLE, result);
+        return parent[param].asDouble();
+    }
+
+    template<typename T> double parse_udouble(const Json::Value &parent, const T &param, Json::Value &result) {
+        check_field_type(parent, param, FIELD_TYPE_UDOUBLE, result);
         return parent[param].asDouble();
     }
 
@@ -254,6 +260,20 @@ protected:
             return def;
         }
         return parse_double(parent, param, result);
+    }
+
+    template<typename T> double parse_udouble(const Json::Value &parent, const T &param, Json::Value &result, double def) {
+        /* if not exists - default */
+        if (parent[param] == Json::Value::null) {
+            if (def < 0) {
+                std::stringstream ss;
+                ss << "default value of '" << param << "' is negative (please report)";
+                generate_parse_err(result, ss.str());
+            } else {
+                return def;
+            }
+        }
+        return parse_udouble(parent, param, result);
     }
 
     template<typename T> bool parse_bool(const Json::Value &parent, const T &param, Json::Value &result, bool def) {

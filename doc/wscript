@@ -1,0 +1,71 @@
+#! /usr/bin/env python
+# encoding: utf-8
+# hhaim, 2014 (IL) base on WAF book
+
+"""
+call 'waf --targets=waf.pdf' or use 'waf list' to see the targets available
+"""
+
+VERSION='0.0.1'
+APPNAME='wafdocs'
+
+import ws_main
+
+
+top = '.'
+out = 'build'
+
+
+def options(opt):
+    ws_main.options(opt)
+
+
+def configure(conf):
+    ws_main.configure(conf)
+
+
+def create_toc (bld):
+    ws_main.create_toc(bld)
+
+def build(bld):
+    ws_main.build(bld)
+
+
+def build_info(bld):
+    ws_main.build_info(bld)
+
+def pkg(bld):
+    ws_main.pkg(bld)
+
+def release(bld):
+    ws_main.release(bld)
+
+def publish(bld):
+    ws_main.publish(bld)
+
+def publish_test(bld):
+    ws_main.publish_test(bld)
+
+def publish_ext(bld):
+    ws_main.publish_ext(bld)
+
+def publish_web(bld):
+    ws_main.publish_web(bld)
+
+def publish_perf(bld):
+    ws_main.publish_perf(bld)
+
+def sync(bld):
+    ws_main.sync(bld)
+
+def test(bld):
+    ws_main.test(bld)
+
+def show(bld):
+    ws_main.show(bld)
+
+def publish_both(bld):
+    ws_main.publish_both(bld)
+
+
+

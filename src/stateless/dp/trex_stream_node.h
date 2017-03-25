@@ -42,6 +42,10 @@ public:
 
     uint8_t             m_pad_end[104];
 
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
+
+
 public:
     void free_command();
 
@@ -134,6 +138,9 @@ private:
 
     /* pad to match the size of CGenNode */
     uint8_t             m_pad_end[20];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
 
 
 public:
@@ -468,6 +475,7 @@ public:
                 const uint8_t *slave_mac_addr,
                 const std::string &pcap_filename,
                 double ipg_usec,
+                double min_ipg_sec,
                 double speedup,
                 uint32_t count,
                 bool is_dual);
@@ -536,7 +544,7 @@ public:
         if (m_ipg_sec != -1) {
             return m_ipg_sec;
         } else {
-            return ((m_raw_packet->get_time() - m_last_pkt_time) / m_speedup);
+            return (std::max(m_min_ipg_sec, (m_raw_packet->get_time() - m_last_pkt_time) / m_speedup));
         }
     }
 
@@ -632,6 +640,7 @@ private:
     double              m_last_pkt_time;
     double              m_speedup;
     double              m_ipg_sec;
+    double              m_min_ipg_sec;
     uint32_t            m_count;
 
     double              m_next_time_offset; /* in sec */
@@ -644,7 +653,10 @@ private:
     bool                m_is_dual;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[19];
+    uint8_t             m_pad_end[11];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
 
 } __rte_cache_aligned;
 

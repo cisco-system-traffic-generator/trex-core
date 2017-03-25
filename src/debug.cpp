@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016-2016 Cisco Systems, Inc.
+  Copyright (c) 2016-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -63,10 +63,11 @@ const uint8_t udp_pkt[] = {
     0xe7
 };
 
-CTrexDebug::CTrexDebug(CPhyEthIF m_ports_arg[12], int max_ports) {
+CTrexDebug::CTrexDebug(CPhyEthIF m_ports_arg[12], int max_ports, uint32_t rx_q_num) {
     m_test = NULL;
     m_ports = m_ports_arg;
     m_max_ports = max_ports;
+    m_rx_q_num = rx_q_num;
 }
 
 int CTrexDebug::rcv_send(int port, int queue_id) {
@@ -106,7 +107,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
      0x07, 0x08, 0x50, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x08, 0x0a, 0x01, 0x02, 0x03, 0x04,
      //     bad - 0x03, 0x04, 0x06, 0x02, 0x20, 0x00, 0xBB, 0x79, 0x00, 0x00};
     0x03, 0x04, 0x50, 0x02, 0x20, 0x00, 0xBB, 0x79, 0x00, 0x00};
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(0, sizeof(test_pkt));
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_by_port(0, sizeof(test_pkt));
     char *p = rte_pktmbuf_append(m, sizeof(test_pkt));
     assert(p);
 
@@ -141,7 +142,12 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
     }
 
     pkt = CTestPktGen::create_test_pkt(l3_type, l4_proto, ttl, ip_id, flags, 1000, pkt_size);
-    m = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
+
+    /* DEBUG print the packet
+    utl_k12_pkt_format(stdout,pkt,  pkt_size) ;
+    */
+
+    m = CGlobalInfo::pktmbuf_alloc_by_port(0, pkt_size);
     if ( unlikely(m == 0) )  {
         printf("ERROR no packets \n");
         return (NULL);
@@ -156,7 +162,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
 #endif
 
 rte_mbuf_t *CTrexDebug::create_pkt(uint8_t *pkt, int pkt_size) {
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(0, pkt_size);
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_by_port(0, pkt_size);
     if ( unlikely(m == 0) ) {
         printf("ERROR no packets \n");
         return 0;
@@ -170,7 +176,7 @@ rte_mbuf_t *CTrexDebug::create_pkt(uint8_t *pkt, int pkt_size) {
 }
 
 rte_mbuf_t *CTrexDebug::create_pkt_indirect(rte_mbuf_t *m, uint32_t new_pkt_size){
-    rte_mbuf_t *d = CGlobalInfo::pktmbuf_alloc(0, 60);
+    rte_mbuf_t *d = CGlobalInfo::pktmbuf_alloc_by_port(0, 60);
     assert(d);
 
     rte_pktmbuf_attach(d, m);
@@ -285,63 +291,62 @@ struct pkt_params {
 };
 
 struct pkt_params test_pkts[] = {
-    {"ARP", 1, IPPROTO_UDP, 255, 5, 0, ZERO},
-    {"VLAN ARP", 1, IPPROTO_UDP, 255, 5, DPF_VLAN, ZERO},
+    {"ARP req", 1, IPPROTO_UDP, 255, 5, 0, ZERO},
+    {"VLAN ARP req", 1, IPPROTO_UDP, 255, 5, DPF_VLAN, ZERO},
     {"ipv4 TCP ttl 255", 4, IPPROTO_TCP, 255, 5, 0, STF},
-    {"ipv4 TCP ttl 254", 4, IPPROTO_TCP, 254, 5, 0, STF},
-    {"ipv4 TCP ttl 253", 4, IPPROTO_TCP, 253, 5, 0, ZERO},
+    {"ipv4 TCP ttl 246", 4, IPPROTO_TCP, 246, 5, 0, STF},
+    {"ipv4 TCP ttl 245", 4, IPPROTO_TCP, 245, 5, 0, ZERO},
     {"ipv4 UDP ttl 255", 4, IPPROTO_UDP, 255, 5, 0, STF},
-    {"ipv4 UDP ttl 254", 4, IPPROTO_UDP, 254, 5, 0, STF},
-    {"ipv4 UDP ttl 253", 4, IPPROTO_UDP, 253, 5, 0, ZERO},
+    {"ipv4 UDP ttl 246", 4, IPPROTO_UDP, 246, 5, 0, STF},
+    {"ipv4 UDP ttl 245", 4, IPPROTO_UDP, 245, 5, 0, ZERO},
     {"ipv4 ICMP ttl 255", 4, IPPROTO_ICMP, 255, 5, 0, STF},
-    {"ipv4 ICMP ttl 254", 4, IPPROTO_ICMP, 254, 5, 0, STF},
-    {"ipv4 ICMP ttl 253", 4, IPPROTO_ICMP, 253, 5, 0, ZERO},
-    {"ipv4 TCP latency flow stat", 4, IPPROTO_TCP, 253, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
-    {"ipv4 UDP latency flow stat", 4, IPPROTO_UDP, 253, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
+    {"ipv4 ICMP ttl 246", 4, IPPROTO_ICMP, 246, 5, 0, STF},
+    {"ipv4 ICMP ttl 245", 4, IPPROTO_ICMP, 245, 5, 0, ZERO},
+    {"ipv4 TCP latency flow stat", 4, IPPROTO_TCP, 240, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
+    {"ipv4 UDP latency flow stat", 4, IPPROTO_UDP, 240, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
     {"vlan ipv4 TCP ttl 255", 4, IPPROTO_TCP, 255, 5, DPF_VLAN, STF},
-    {"vlan ipv4 TCP ttl 254", 4, IPPROTO_TCP, 254, 5, DPF_VLAN, STF},
-    {"vlan ipv4 TCP ttl 253", 4, IPPROTO_TCP, 253, 5, DPF_VLAN, ZERO},
+    {"vlan ipv4 TCP ttl 246", 4, IPPROTO_TCP, 246, 5, DPF_VLAN, STF},
+    {"vlan ipv4 TCP ttl 245", 4, IPPROTO_TCP, 245, 5, DPF_VLAN, ZERO},
     {"vlan ipv4 UDP ttl 255", 4, IPPROTO_UDP, 255, 5, DPF_VLAN, STF},
-    {"vlan ipv4 UDP ttl 254", 4, IPPROTO_UDP, 254, 5, DPF_VLAN, STF},
-    {"vlan ipv4 UDP ttl 253", 4, IPPROTO_UDP, 253, 5, DPF_VLAN, ZERO},
+    {"vlan ipv4 UDP ttl 246", 4, IPPROTO_UDP, 246, 5, DPF_VLAN, STF},
+    {"vlan ipv4 UDP ttl 245", 4, IPPROTO_UDP, 245, 5, DPF_VLAN, ZERO},
     {"vlan ipv4 ICMP ttl 255", 4, IPPROTO_ICMP, 255, 5, DPF_VLAN, STF},
-    {"vlan ipv4 ICMP ttl 254", 4, IPPROTO_ICMP, 254, 5, DPF_VLAN, STF},
-    {"vlan ipv4 ICMP ttl 253", 4, IPPROTO_ICMP, 253, 5, DPF_VLAN, ZERO},
-    {"vlan ipv4 TCP latency flow stat", 4, IPPROTO_TCP, 253, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
-    {"vlan ipv4 UDP latency flow stat", 4, IPPROTO_UDP, 253, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
+    {"vlan ipv4 ICMP ttl 246", 4, IPPROTO_ICMP, 246, 5, DPF_VLAN, STF},
+    {"vlan ipv4 ICMP ttl 245", 4, IPPROTO_ICMP, 245, 5, DPF_VLAN, ZERO},
+    {"vlan ipv4 TCP latency flow stat", 4, IPPROTO_TCP, 240, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
+    {"vlan ipv4 UDP latency flow stat", 4, IPPROTO_UDP, 240, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
     {"ipv6 TCP ttl 255", 6, IPPROTO_TCP, 255, 5, DPF_RXCHECK, STF},
-    {"ipv6 TCP ttl 254", 6, IPPROTO_TCP, 254, 5, DPF_RXCHECK, STF},
-    {"ipv6 TCP ttl 253", 6, IPPROTO_TCP, 253, 5, DPF_RXCHECK, ZERO},
+    {"ipv6 TCP ttl 246", 6, IPPROTO_TCP, 246, 5, DPF_RXCHECK, STF},
+    {"ipv6 TCP ttl 245", 6, IPPROTO_TCP, 245, 5, DPF_RXCHECK, ZERO},
     {"ipv6 UDP ttl 255", 6, IPPROTO_UDP, 255, 5, DPF_RXCHECK, STF},
-    {"ipv6 UDP ttl 254", 6, IPPROTO_UDP, 254, 5, DPF_RXCHECK, STF},
-    {"ipv6 UDP ttl 253", 6, IPPROTO_UDP, 253, 5, DPF_RXCHECK, ZERO},
+    {"ipv6 UDP ttl 246", 6, IPPROTO_UDP, 246, 5, DPF_RXCHECK, STF},
+    {"ipv6 UDP ttl 245", 6, IPPROTO_UDP, 245, 5, DPF_RXCHECK, ZERO},
     {"ipv6 ICMP ttl 255", 6, IPPROTO_ICMP, 255, 5, DPF_RXCHECK, STF},
-    {"ipv6 ICMP ttl 254", 6, IPPROTO_ICMP, 254, 5, DPF_RXCHECK, STF},
-    {"ipv6 ICMP ttl 253", 6, IPPROTO_ICMP, 253, 5, DPF_RXCHECK, ZERO},
-    {"ipv6 TCP latency flow stat", 6, IPPROTO_TCP, 253, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
-    {"ipv6 UDP latency flow stat", 6, IPPROTO_UDP, 253, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
+    {"ipv6 ICMP ttl 246", 6, IPPROTO_ICMP, 246, 5, DPF_RXCHECK, STF},
+    {"ipv6 ICMP ttl 245", 6, IPPROTO_ICMP, 245, 5, DPF_RXCHECK, ZERO},
+    {"ipv6 TCP latency flow stat", 6, IPPROTO_TCP, 240, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
+    {"ipv6 UDP latency flow stat", 6, IPPROTO_UDP, 240, FLOW_STAT_PAYLOAD_IP_ID, 0, STL},
     {"vlan ipv6 TCP ttl 255", 6, IPPROTO_TCP, 255, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 TCP ttl 254", 6, IPPROTO_TCP, 254, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 TCP ttl 253", 6, IPPROTO_TCP, 253, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
+    {"vlan ipv6 TCP ttl 246", 6, IPPROTO_TCP, 246, 5, DPF_VLAN | DPF_RXCHECK, STF},
+    {"vlan ipv6 TCP ttl 245", 6, IPPROTO_TCP, 245, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
     {"vlan ipv6 UDP ttl 255", 6, IPPROTO_UDP, 255, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 UDP ttl 254", 6, IPPROTO_UDP, 254, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 UDP ttl 253", 6, IPPROTO_UDP, 253, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
+    {"vlan ipv6 UDP ttl 246", 6, IPPROTO_UDP, 246, 5, DPF_VLAN | DPF_RXCHECK, STF},
+    {"vlan ipv6 UDP ttl 245", 6, IPPROTO_UDP, 245, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
     {"vlan ipv6 ICMP ttl 255", 6, IPPROTO_ICMP, 255, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 ICMP ttl 254", 6, IPPROTO_ICMP, 254, 5, DPF_VLAN | DPF_RXCHECK, STF},
-    {"vlan ipv6 ICMP ttl 253", 6, IPPROTO_ICMP, 253, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
-    {"vlan ipv6 TCP latency flow stat", 6, IPPROTO_TCP, 253, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
-    {"vlan ipv6 UDP latency flow stat", 6, IPPROTO_UDP, 253, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
-
+    {"vlan ipv6 ICMP ttl 246", 6, IPPROTO_ICMP, 246, 5, DPF_VLAN | DPF_RXCHECK, STF},
+    {"vlan ipv6 ICMP ttl 245", 6, IPPROTO_ICMP, 245, 5, DPF_VLAN | DPF_RXCHECK, ZERO},
+    {"vlan ipv6 TCP latency flow stat", 6, IPPROTO_TCP, 240, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
+    {"vlan ipv6 UDP latency flow stat", 6, IPPROTO_UDP, 240, FLOW_STAT_PAYLOAD_IP_ID, DPF_VLAN, STL},
 };
 
 // unit test for verifying hw queues rule configuration. Can be run by:
 // for stateful: --send-debug-pkt 100 -f cap2/dns.yaml -l 1
-// for stateless: --setnd-debug-pkt 100 -i
+// for stateless: --send-debug-pkt 100 -i
 int CTrexDebug::verify_hw_rules(bool recv_all) {
     rte_mbuf_t *m = NULL;
     CPhyEthIF * lp;
     rte_mbuf_t * rx_pkts[32];
-    int sent_num = 20;
+    int sent_num = 8;   /* reduce the size, there are driver that can handle only burst of 8 in QUEUE 0 */
     int ret = 0;
 
     for (int pkt_num = 0; pkt_num < sizeof(test_pkts) / sizeof (test_pkts[0]); pkt_num++) {
@@ -357,7 +362,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
         } else {
             switch (expected_q) {
             case ZERO:
-                exp_q = MAIN_DPDK_DATA_Q;
+                exp_q = MAIN_DPDK_DROP_Q;
                 break;
             case ONE:
                 exp_q = MAIN_DPDK_RX_Q;
@@ -365,19 +370,21 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
             case STL:
                 if ( CGlobalInfo::m_options.is_stateless() ) {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 } else {
-                    exp_q = MAIN_DPDK_DATA_Q;
+                    exp_q = MAIN_DPDK_DROP_Q;
                 }
                 break;
             case STF:
                 if ( CGlobalInfo::m_options.is_stateless() ) {
-                    exp_q = MAIN_DPDK_DATA_Q;
+                    exp_q = MAIN_DPDK_DROP_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;
+                    pkt_flags |= DPF_TOS_1;
                 }
                 break;
             default:
-                exp_q = MAIN_DPDK_DATA_Q;
+                exp_q = MAIN_DPDK_DROP_Q;
                 break;
             }
         }
@@ -388,11 +395,11 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
 
         delay(100);
 
-        int pkt_per_q[2];
+        int pkt_per_q[16];
         memset(pkt_per_q, 0, sizeof(pkt_per_q));
         // We don't know which interfaces connected where, so sum all queue 1 and all queue 0
-        for (int port = 0; port < m_max_ports; port++) {
-            for(int queue_id = 0; queue_id <= 1; queue_id++) {
+        for (int port = 0; port < m_max_ports; port++) {           
+            for(int queue_id = 0; queue_id <= m_rx_q_num; queue_id++) {
                 lp = &m_ports[port];
                 uint16_t cnt = lp->rx_burst(queue_id, rx_pkts, 32);
                 pkt_per_q[queue_id] += cnt;
@@ -428,7 +435,7 @@ int CTrexDebug::test_send(uint pkt_type) {
         return verify_hw_rules(true);
     }
 
-    if (! (pkt_type >= 1 && pkt_type <= 4) && !(pkt_type >= 61 && pkt_type <= 63)) {
+    if (! (pkt_type >= 1 && pkt_type <= 5) && !(pkt_type >= 61 && pkt_type <= 63)) {
         printf("Unsupported packet type %d\n", pkt_type);
         printf("Supported packet types are: %d(ICMP), %d(UDP), %d(TCP) %d(9k UDP)\n", 1, 2, 3, 4);
         printf("                            IPv6: %d(ICMP), %d(UDP), %d(TCP)\n", 61, 62, 63);
@@ -449,7 +456,7 @@ int CTrexDebug::test_send(uint pkt_type) {
         } else {
             ip_ver = 4;
         }
-        if (pkt_type > D_PKT_TYPE_ARP) {
+        if (pkt_type > D_PKT_TYPE_RSS_TEST) {
             printf("Packet type not supported\n");
             exit(1);
         }
@@ -460,6 +467,7 @@ int CTrexDebug::test_send(uint pkt_type) {
             l4_proto = IPPROTO_ICMP;
             break;
         case D_PKT_TYPE_UDP:
+        case D_PKT_TYPE_RSS_TEST:
             l4_proto = IPPROTO_UDP;
             break;
         case D_PKT_TYPE_TCP:
@@ -485,13 +493,30 @@ int CTrexDebug::test_send(uint pkt_type) {
     printf("Sending packet:\n");
     utl_DumpBuffer(stdout, rte_pktmbuf_mtod(d, char *), 64, 0);
 
-    test_send_pkts(d, 0, 2, 0);
-    test_send_pkts(d, 0, 1, 1);
+    if (pkt_type == D_PKT_TYPE_RSS_TEST) {
+        rte_mbuf_t *mb[50];
+        char *p_d = rte_pktmbuf_mtod(d, char *);
+        IPHeader *ip;
+        for (uint32_t src = 0; src < 50; src++) {
+            mb[src] = CGlobalInfo::pktmbuf_alloc_by_port(0, d->pkt_len);
+            char *p = rte_pktmbuf_append(mb[src], d->pkt_len);
+            assert(p);
+            memcpy(p, p_d, d->pkt_len);
+            ip = (IPHeader *) (p + 14);
+            ip->updateIpDst(src + 1);
+            ip->updateIpSrc(src + 5);
+            test_send_pkts(mb[src], 0, 1, 0);
+        }
+    } else {
+        test_send_pkts(d, 0, 2, 0);
+        test_send_pkts(d, 0, 1, 1);
+    }
 
+    rte_pktmbuf_free(d);
     delay(1000);
 
     int j=0;
-    for (j = 0; j < 2; j++) {
+    for (j = 0; j < m_rx_q_num; j++) {
         printf(" =========\n");
         printf(" rx queue %d \n", j);
         printf(" =========\n");

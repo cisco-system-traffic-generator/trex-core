@@ -34,15 +34,20 @@
 #ifndef RTE_PMD_MLX5_PRM_H_
 #define RTE_PMD_MLX5_PRM_H_
 
+#include <assert.h>
+
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <infiniband/mlx5_hw.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
+
+#include <rte_vect.h>
+#include "mlx5_autoconf.h"
 
 /* Get CQE owner bit. */
 #define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
@@ -59,17 +64,71 @@
 /* Invalidate a CQE. */
 #define MLX5_CQE_INVALIDATE (MLX5_CQE_INVALID << 4)
 
-/* CQE value to inform that VLAN is stripped. */
-#define MLX5_CQE_VLAN_STRIPPED 0x1
-
 /* Maximum number of packets a multi-packet WQE can handle. */
 #define MLX5_MPW_DSEG_MAX 5
 
-/* Room for inline data in regular work queue element. */
-#define MLX5_WQE64_INL_DATA 12
+/* WQE DWORD size */
+#define MLX5_WQE_DWORD_SIZE 16
+
+/* WQE size */
+#define MLX5_WQE_SIZE (4 * MLX5_WQE_DWORD_SIZE)
+
+/* Compute the number of DS. */
+#define MLX5_WQE_DS(n) \
+	(((n) + MLX5_WQE_DWORD_SIZE - 1) / MLX5_WQE_DWORD_SIZE)
 
 /* Room for inline data in multi-packet WQE. */
 #define MLX5_MWQE64_INL_DATA 28
+
+#define HAVE_VERBS_MLX5_OPCODE_TSO
+#ifndef HAVE_VERBS_MLX5_OPCODE_TSO
+#define MLX5_OPCODE_TSO MLX5_OPCODE_LSO_MPW /* Compat with OFED 3.3. */
+#endif
+
+/* CQE value to inform that VLAN is stripped. */
+#define MLX5_CQE_VLAN_STRIPPED (1u << 0)
+
+/* IPv4 options. */
+#define MLX5_CQE_RX_IP_EXT_OPTS_PACKET (1u << 1)
+
+/* IPv6 packet. */
+#define MLX5_CQE_RX_IPV6_PACKET (1u << 2)
+
+/* IPv4 packet. */
+#define MLX5_CQE_RX_IPV4_PACKET (1u << 3)
+
+/* TCP packet. */
+#define MLX5_CQE_RX_TCP_PACKET (1u << 4)
+
+/* UDP packet. */
+#define MLX5_CQE_RX_UDP_PACKET (1u << 5)
+
+/* IP is fragmented. */
+#define MLX5_CQE_RX_IP_FRAG_PACKET (1u << 7)
+
+/* L2 header is valid. */
+#define MLX5_CQE_RX_L2_HDR_VALID (1u << 8)
+
+/* L3 header is valid. */
+#define MLX5_CQE_RX_L3_HDR_VALID (1u << 9)
+
+/* L4 header is valid. */
+#define MLX5_CQE_RX_L4_HDR_VALID (1u << 10)
+
+/* Outer packet, 0 IPv4, 1 IPv6. */
+#define MLX5_CQE_RX_OUTER_PACKET (1u << 1)
+
+/* Tunnel packet bit in the CQE. */
+#define MLX5_CQE_RX_TUNNEL_PACKET (1u << 0)
+
+/* INVALID is used by packets matching no flow rules. */
+#define MLX5_FLOW_MARK_INVALID 0
+
+/* Maximum allowed value to mark a packet. */
+#define MLX5_FLOW_MARK_MAX 0xfffff0
+
+/* Default mark value used when none is provided. */
+#define MLX5_FLOW_MARK_DEFAULT 0xffffff
 
 /* Subset of struct mlx5_wqe_eth_seg. */
 struct mlx5_wqe_eth_seg_small {
@@ -79,58 +138,38 @@ struct mlx5_wqe_eth_seg_small {
 	uint16_t mss;
 	uint32_t rsvd2;
 	uint16_t inline_hdr_sz;
+	uint8_t inline_hdr[2];
+} __rte_aligned(MLX5_WQE_DWORD_SIZE);
+
+struct mlx5_wqe_inl_small {
+	uint32_t byte_cnt;
+	uint8_t raw;
+} __rte_aligned(MLX5_WQE_DWORD_SIZE);
+
+struct mlx5_wqe_ctrl {
+	uint32_t ctrl0;
+	uint32_t ctrl1;
+	uint32_t ctrl2;
+	uint32_t ctrl3;
+} __rte_aligned(MLX5_WQE_DWORD_SIZE);
+
+/* Small common part of the WQE. */
+struct mlx5_wqe {
+	uint32_t ctrl[4];
+	struct mlx5_wqe_eth_seg_small eseg;
 };
 
-/* Regular WQE. */
-struct mlx5_wqe_regular {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg eseg;
-	struct mlx5_wqe_data_seg dseg;
-} __rte_aligned(64);
-
-/* Inline WQE. */
-struct mlx5_wqe_inl {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg eseg;
-	uint32_t byte_cnt;
-	uint8_t data[MLX5_WQE64_INL_DATA];
-} __rte_aligned(64);
-
-/* Multi-packet WQE. */
-struct mlx5_wqe_mpw {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg_small eseg;
-	struct mlx5_wqe_data_seg dseg[2];
-} __rte_aligned(64);
-
-/* Multi-packet WQE with inline. */
-struct mlx5_wqe_mpw_inl {
-	union {
-		struct mlx5_wqe_ctrl_seg ctrl;
-		uint32_t data[4];
-	} ctrl;
-	struct mlx5_wqe_eth_seg_small eseg;
-	uint32_t byte_cnt;
-	uint8_t data[MLX5_MWQE64_INL_DATA];
-} __rte_aligned(64);
-
-/* Union of all WQE types. */
-union mlx5_wqe {
-	struct mlx5_wqe_regular wqe;
-	struct mlx5_wqe_inl inl;
-	struct mlx5_wqe_mpw mpw;
-	struct mlx5_wqe_mpw_inl mpw_inl;
-	uint8_t data[64];
+/* Vectorize WQE header. */
+struct mlx5_wqe_v {
+	rte_v128u32_t ctrl;
+	rte_v128u32_t eseg;
 };
+
+/* WQE. */
+struct mlx5_wqe64 {
+	struct mlx5_wqe hdr;
+	uint8_t raw[32];
+} __rte_aligned(MLX5_WQE_SIZE);
 
 /* MPW session status. */
 enum mlx5_mpw_state {
@@ -145,7 +184,7 @@ struct mlx5_mpw {
 	unsigned int pkts_n;
 	unsigned int len;
 	unsigned int total_len;
-	volatile union mlx5_wqe *wqe;
+	volatile struct mlx5_wqe *wqe;
 	union {
 		volatile struct mlx5_wqe_data_seg *dseg[MLX5_MPW_DSEG_MAX];
 		volatile uint8_t *raw;
@@ -157,7 +196,77 @@ struct mlx5_cqe {
 #if (RTE_CACHE_LINE_SIZE == 128)
 	uint8_t padding[64];
 #endif
-	struct mlx5_cqe64 cqe64;
+	uint8_t pkt_info;
+	uint8_t rsvd0[11];
+	uint32_t rx_hash_res;
+	uint8_t rx_hash_type;
+	uint8_t rsvd1[11];
+	uint16_t hdr_type_etc;
+	uint16_t vlan_info;
+	uint8_t rsvd2[12];
+	uint32_t byte_cnt;
+	uint64_t timestamp;
+	uint32_t sop_drop_qpn;
+	uint16_t wqe_counter;
+	uint8_t rsvd4;
+	uint8_t op_own;
 };
+
+/**
+ * Convert a user mark to flow mark.
+ *
+ * @param val
+ *   Mark value to convert.
+ *
+ * @return
+ *   Converted mark value.
+ */
+static inline uint32_t
+mlx5_flow_mark_set(uint32_t val)
+{
+	uint32_t ret;
+
+	/*
+	 * Add one to the user value to differentiate un-marked flows from
+	 * marked flows.
+	 */
+	++val;
+#if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
+	/*
+	 * Mark is 24 bits (minus reserved values) but is stored on a 32 bit
+	 * word, byte-swapped by the kernel on little-endian systems. In this
+	 * case, left-shifting the resulting big-endian value ensures the
+	 * least significant 24 bits are retained when converting it back.
+	 */
+	ret = rte_cpu_to_be_32(val) >> 8;
+#else
+	ret = val;
+#endif
+	assert(ret <= MLX5_FLOW_MARK_MAX);
+	return ret;
+}
+
+/**
+ * Convert a mark to user mark.
+ *
+ * @param val
+ *   Mark value to convert.
+ *
+ * @return
+ *   Converted mark value.
+ */
+static inline uint32_t
+mlx5_flow_mark_get(uint32_t val)
+{
+	/*
+	 * Subtract one from the retrieved value. It was added by
+	 * mlx5_flow_mark_set() to distinguish unmarked flows.
+	 */
+#if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
+	return (val >> 8) - 1;
+#else
+	return val - 1;
+#endif
+}
 
 #endif /* RTE_PMD_MLX5_PRM_H_ */

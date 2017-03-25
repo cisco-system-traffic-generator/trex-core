@@ -106,7 +106,7 @@ extern "C" {
 
 enum rte_ring_queue_behavior {
 	RTE_RING_QUEUE_FIXED = 0, /* Enq/Deq a fixed number of items from a ring */
-	RTE_RING_QUEUE_VARIABLE   /* Enq/Deq as many items a possible from ring */
+	RTE_RING_QUEUE_VARIABLE   /* Enq/Deq as many items as possible from ring */
 };
 
 #ifdef RTE_LIBRTE_RING_DEBUG
@@ -187,7 +187,7 @@ struct rte_ring {
 	struct rte_ring_debug_stats stats[RTE_MAX_LCORE];
 #endif
 
-	void * ring[0] __rte_cache_aligned; /**< Memory space of ring starts here.
+	void *ring[] __rte_cache_aligned;   /**< Memory space of ring starts here.
 	                                     * not volatile so need to be careful
 	                                     * about compiler re-ordering */
 };
@@ -341,7 +341,7 @@ void rte_ring_free(struct rte_ring *r);
 int rte_ring_set_water_mark(struct rte_ring *r, unsigned count);
 
 /**
- * Dump the status of the ring to the console.
+ * Dump the status of the ring to a file.
  *
  * @param f
  *   A pointer to a file for output

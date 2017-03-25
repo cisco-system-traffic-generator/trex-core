@@ -4,12 +4,18 @@ from collections import namedtuple, OrderedDict
 from .trex_stl_packet_builder_scapy import STLPktBuilder
 from .trex_stl_streams import STLStream
 from .trex_stl_types import *
+
+from .rx_services.trex_stl_rx_service_arp import RXServiceARP
+from .rx_services.trex_stl_rx_service_icmp import RXServiceICMP
+from .rx_services.trex_stl_rx_service_ipv6 import *
+
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
 import base64
 import copy
 from datetime import datetime, timedelta
+import threading
 
 StreamOnPort = namedtuple('StreamOnPort', ['compiled_stream', 'metadata'])
 
@@ -50,7 +56,10 @@ class Port(object):
 
     def __init__ (self, port_id, user, comm_link, session_id, info):
         self.port_id = port_id
-        self.state = self.STATE_IDLE
+        
+        self.state        = self.STATE_IDLE
+        self.service_mode = False
+        
         self.handler = None
         self.comm_link = comm_link
         self.transmit = comm_link.transmit
@@ -62,7 +71,7 @@ class Port(object):
         self.streams = {}
         self.profile = None
         self.session_id = session_id
-        self.attr = {}
+        self.status = {}
 
         self.port_stats = trex_stl_stats.CPortStats(self)
 
@@ -72,31 +81,31 @@ class Port(object):
 
         self.owner = ''
         self.last_factor_type = None
-
+        
+        self.__attr = {}
+        self.attr_lock = threading.Lock()
+        
     # decorator to verify port is up
     def up(func):
-        def func_wrapper(*args):
+        def func_wrapper(*args, **kwargs):
             port = args[0]
 
             if not port.is_up():
                 return port.err("{0} - port is down".format(func.__name__))
 
-            return func(*args)
+            return func(*args, **kwargs)
 
         return func_wrapper
 
     # owned
     def owned(func):
-        def func_wrapper(*args):
+        def func_wrapper(*args, **kwargs):
             port = args[0]
-
-            if not port.is_up():
-                return port.err("{0} - port is down".format(func.__name__))
 
             if not port.is_acquired():
                 return port.err("{0} - port is not owned".format(func.__name__))
 
-            return func(*args)
+            return func(*args, **kwargs)
 
         return func_wrapper
 
@@ -106,14 +115,11 @@ class Port(object):
         def func_wrapper(*args, **kwargs):
             port = args[0]
 
-            if not port.is_up():
-                return port.err("{0} - port is down".format(func.__name__))
-
             if not port.is_acquired():
                 return port.err("{0} - port is not owned".format(func.__name__))
 
             if not port.is_writeable():
-                return port.err("{0} - port is not in a writeable state".format(func.__name__))
+                return port.err("{0} - port is active, please stop the port before executing command".format(func.__name__))
 
             return func(*args, **kwargs)
 
@@ -122,22 +128,22 @@ class Port(object):
 
 
     def err(self, msg):
-        return RC_ERR("port {0} : {1}\n".format(self.port_id, msg))
+        return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
 
     def ok(self, data = ""):
         return RC_OK(data)
 
     def get_speed_bps (self):
-        return (self.info['speed'] * 1000 * 1000 * 1000)
+        return (self.get_speed_gbps() * 1000 * 1000 * 1000)
 
-    def get_formatted_speed (self):
-        return "{0} Gbps".format(self.info['speed'])
+    def get_speed_gbps (self):
+        return self.__attr['speed']
 
     def is_acquired(self):
         return (self.handler != None)
 
     def is_up (self):
-        return (self.state != self.STATE_DOWN)
+        return self.__attr['link']['up']
 
     def is_active(self):
         return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE) or (self.state == self.STATE_PCAP_TX)
@@ -165,7 +171,6 @@ class Port(object):
 
 
     # take the port
-    @up
     def acquire(self, force = False, sync_streams = True):
         params = {"port_id":     self.port_id,
                   "user":        self.user,
@@ -185,8 +190,10 @@ class Port(object):
 
       
     # sync all the streams with the server
-    @up
     def sync_streams (self):
+
+        self.streams = {}
+        
         params = {"port_id": self.port_id}
 
         rc = self.transmit("get_all_streams", params)
@@ -201,7 +208,6 @@ class Port(object):
         return self.ok()
 
     # release the port
-    @up
     def release(self):
         params = {"port_id": self.port_id,
                   "handler": self.handler}
@@ -219,7 +225,6 @@ class Port(object):
 
  
 
-    @up
     def sync(self):
 
         params = {"port_id": self.port_id}
@@ -247,14 +252,16 @@ class Port(object):
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
         self.owner = rc.data()['owner']
-
+        
         self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
-        # attributes
-        self.attr = rc.data()['attr']
-        if 'speed' in rc.data():
-            self.info['speed'] = rc.data()['speed'] // 1000
-
+        self.status = rc.data()
+        
+        # replace the attributes in a thread safe manner
+        self.set_ts_attr(rc.data()['attr'])
+        
+        self.service_mode = rc.data()['service']
+        
         return self.ok()
 
 
@@ -264,7 +271,7 @@ class Port(object):
     def add_streams (self, streams_list):
 
         # listify
-        streams_list = streams_list if isinstance(streams_list, list) else [streams_list]
+        streams_list = listify(streams_list)
         
         lookup = {}
 
@@ -338,7 +345,7 @@ class Port(object):
     def remove_streams (self, stream_id_list):
 
         # single element to list
-        stream_id_list = stream_id_list if isinstance(stream_id_list, list) else [stream_id_list]
+        stream_id_list = listify(stream_id_list)
 
         # verify existance
         if not all([stream_id in self.streams for stream_id in stream_id_list]):
@@ -424,8 +431,8 @@ class Port(object):
 
         # save this for TUI
         self.last_factor_type = mul['type']
-
-        return self.ok()
+        
+        return rc
 
 
     # stop traffic
@@ -445,8 +452,9 @@ class Port(object):
             return self.err(rc.err())
 
         self.state = self.STATE_STREAMS
+        
         self.last_factor_type = None
-
+        
         # timestamp for last tx
         self.tx_stopped_ts = datetime.now()
         
@@ -487,6 +495,90 @@ class Port(object):
 
         return self.ok()
 
+    
+     
+    @writeable
+    def set_l2_mode (self, dst_mac):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring L2 mode. Please enable service mode')
+        
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "dst_mac":        dst_mac}
+
+        rc = self.transmit("set_l2", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+        
+        
+    @writeable
+    def set_l3_mode (self, src_addr, dst_addr, resolved_mac = None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring L3 mode. Please enable service mode')
+        
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "src_addr":       src_addr,
+                  "dst_addr":       dst_addr}
+
+        if resolved_mac:
+            params["resolved_mac"] = resolved_mac
+            
+        rc = self.transmit("set_l3", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+
+
+    @owned
+    def set_rx_queue (self, size):
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "queue",
+                  "enabled":        True,
+                  "size":          size}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    @owned
+    def remove_rx_queue (self):
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "type":           "queue",
+                  "enabled":        False}
+
+        rc = self.transmit("set_rx_feature", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    @owned
+    def get_rx_queue_pkts (self):
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id}
+
+        rc = self.transmit("get_rx_queue_pkts", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        pkts = rc.data()['pkts']
+        
+        # decode the packets from base64 to binary
+        for i in range(len(pkts)):
+            pkts[i]['binary'] = base64.b64decode(pkts[i]['binary'])
+            
+        return RC_OK(pkts)
+        
+        
     @owned
     def pause (self):
 
@@ -568,23 +660,61 @@ class Port(object):
 
 
     @owned
-    def set_attr (self, attr_dict):
+    def set_attr (self, **kwargs):
+        
+        json_attr = {}
+        
+        if kwargs.get('promiscuous') is not None:
+            json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
+
+        if kwargs.get('multicast') is not None:
+            json_attr['multicast'] = {'enabled': kwargs.get('multicast')}
+
+        if kwargs.get('link_status') is not None:
+            json_attr['link_status'] = {'up': kwargs.get('link_status')}
+        
+        if kwargs.get('led_status') is not None:
+            json_attr['led_status'] = {'on': kwargs.get('led_status')}
+        
+        if kwargs.get('flow_ctrl_mode') is not None:
+            json_attr['flow_ctrl_mode'] = {'mode': kwargs.get('flow_ctrl_mode')}
+
+        if kwargs.get('rx_filter_mode') is not None:
+            json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
+
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
-                  "attr": attr_dict}
+                  "attr": json_attr}
 
         rc = self.transmit("set_port_attr", params)
         if rc.bad():
             return self.err(rc.err())
 
+        # update the dictionary from the server explicitly
+        return self.sync()
 
-        #self.attr.update(attr_dict)
+    
+    @owned
+    def set_service_mode (self, enabled):
+        params = {"handler": self.handler,
+                  "port_id": self.port_id,
+                  "enabled": enabled}
 
+        rc = self.transmit("service", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        self.service_mode = enabled
         return self.ok()
+        
 
+    def is_service_mode_on (self):
+        return self.service_mode
+        
+                
     @writeable
-    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler):
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler, min_ipg_usec):
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -594,9 +724,10 @@ class Port(object):
                   "count": count,
                   "duration": duration,
                   "is_dual": is_dual,
-                  "slave_handler": slave_handler}
+                  "slave_handler": slave_handler,
+                  "min_ipg_usec": min_ipg_usec if min_ipg_usec else 0}
 
-        rc = self.transmit("push_remote", params)
+        rc = self.transmit("push_remote", params, retry = 4)
         if rc.bad():
             return self.err(rc.err())
 
@@ -607,7 +738,18 @@ class Port(object):
     def get_profile (self):
         return self.profile
 
-    
+    # invalidates the current ARP
+    def invalidate_arp (self):
+        if not self.is_l3_mode():
+            return self.err('port is not configured with L3')
+        
+        layer_cfg = self.get_layer_cfg()
+        
+        # reconfigure server with unresolved IPv4 information
+        return self.set_l3_mode(layer_cfg['ipv4']['src'], layer_cfg['ipv4']['dst'])
+        
+        
+        
     def print_profile (self, mult, duration):
         if not self.get_profile():
             return
@@ -648,26 +790,39 @@ class Port(object):
                                                                              format_time(exp_time_factor_sec)))
         print("\n")
 
-    # generate port info
-    def get_info (self):
+    # generate formatted (console friendly) port info
+    def get_formatted_info (self, sync = True):
+
+        # sync the status
+        if sync:
+            self.sync()
+
+        # get a copy of the current attribute set (safe against manipulation)
+        attr = self.get_ts_attr()
+
         info = dict(self.info)
 
         info['status'] = self.get_port_state_name()
 
-        if 'link' in self.attr:
-            info['link'] = 'UP' if self.attr['link']['up'] else 'DOWN'
+        if 'link' in attr:
+            info['link'] = 'UP' if attr['link']['up'] else 'DOWN'
         else:
             info['link'] = 'N/A'
 
-        if 'fc' in self.attr:
-            info['fc'] = FLOW_CTRL_DICT_REVERSED.get(self.attr['fc']['mode'], 'N/A')
+        if 'fc' in attr:
+            info['fc'] = FLOW_CTRL_DICT_REVERSED.get(attr['fc']['mode'], 'N/A')
         else:
             info['fc'] = 'N/A'
 
-        if 'promiscuous' in self.attr:
-            info['prom'] = "on" if self.attr['promiscuous']['enabled'] else "off"
+        if 'promiscuous' in attr:
+            info['prom'] = "on" if attr['promiscuous']['enabled'] else "off"
         else:
             info['prom'] = "N/A"
+
+        if 'multicast' in attr:
+            info['mult'] = "on" if attr['multicast']['enabled'] else "off"
+        else:
+            info['mult'] = "N/A"
 
         if 'description' not in info:
             info['description'] = "N/A"
@@ -692,34 +847,151 @@ class Port(object):
         else:
             info['is_virtual'] = 'N/A'
 
+        # speed
+        info['speed'] = self.get_speed_gbps()
+        
+        # RX filter mode
+        info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
+
+        # holds the information about all the layers configured for the port
+        layer_cfg = attr['layer_cfg']
+        
+        info['src_mac'] = attr['layer_cfg']['ether']['src']
+        
+        # pretty show per mode
+        
+        if layer_cfg['ipv4']['state'] == 'none':
+            info['layer_mode'] = 'Ethernet'
+            info['src_ipv4']   = '-'
+            info['dest']       = layer_cfg['ether']['dst'] if layer_cfg['ether']['state'] == 'configured' else 'unconfigured'
+            info['arp']        = '-'
+            
+        elif layer_cfg['ipv4']['state'] == 'unresolved':
+            info['layer_mode'] = 'IPv4'
+            info['src_ipv4']   = layer_cfg['ipv4']['src']
+            info['dest']       = layer_cfg['ipv4']['dst']
+            info['arp']        = 'unresolved'
+            
+        elif layer_cfg['ipv4']['state'] == 'resolved':
+            info['layer_mode'] = 'IPv4'
+            info['src_ipv4']   = layer_cfg['ipv4']['src']
+            info['dest']       = layer_cfg['ipv4']['dst']
+            info['arp']        = layer_cfg['ether']['dst']
+            
+
+            
+        # RX info
+        rx_info = self.status['rx_info']
+
+        # RX queue
+        queue = rx_info['queue']
+        info['rx_queue'] = '[{0} / {1}]'.format(queue['count'], queue['size']) if queue['is_active'] else 'off'
+        
+        # Grat ARP
+        grat_arp = rx_info['grat_arp']
+        if grat_arp['is_active']:
+            info['grat_arp'] = "every {0} seconds".format(grat_arp['interval_sec'])
+        else:
+            info['grat_arp'] = "off"
+
+
         return info
 
 
     def get_port_state_name(self):
         return self.STATES_MAP.get(self.state, "Unknown")
 
+    def get_layer_cfg (self):
+        return self.__attr['layer_cfg']
+        
+
+    def is_virtual(self):
+        return self.info.get('is_virtual')
+
+    def is_l3_mode (self):
+        return self.get_layer_cfg()['ipv4']['state'] != 'none'
+        
+    def is_resolved (self):
+        # for L3
+        if self.is_l3_mode():
+            return self.get_layer_cfg()['ipv4']['state'] != 'unresolved'
+        # for L2
+        else:
+            return self.get_layer_cfg()['ether']['state'] != 'unconfigured'
+            
+    
+    @writeable
+    def arp_resolve(self, retries):
+        
+        # execute the ARP service
+        rc = RXServiceARP(self, retries = retries).execute()
+        if not rc:
+            return rc
+            
+        # fetch the data returned
+        arp_rc = rc.data()
+        
+        # first invalidate current ARP if exists
+        rc = self.invalidate_arp()
+        if not rc:
+            return rc
+
+        # update the port with L3 full configuration
+        rc = self.set_l3_mode(self.get_layer_cfg()['ipv4']['src'], self.get_layer_cfg()['ipv4']['dst'], arp_rc['hwsrc'])
+        if not rc:
+            return rc
+            
+        return self.ok('Port {0} - Recieved ARP reply from: {1}, hw: {2}'.format(self.port_id, arp_rc['psrc'], arp_rc['hwsrc']))
+            
+        
+
+    @writeable
+    def scan6(self, timeout = None, dst_ip = 'ff02::1'):
+        if timeout is None:
+            timeout = 5
+        return RXServiceIPv6Scan(self, timeout = timeout, dst_ip = dst_ip).execute()
+
+
+    @writeable
+    def ping(self, ping_ip, pkt_size, dst_mac = None):
+        if '.' in ping_ip:
+            return RXServiceICMP(self, ping_ip, pkt_size).execute()
+        else:
+            return RXServiceICMPv6(self, pkt_size, dst_mac, dst_ip = ping_ip).execute()
+
+        
     ################# stats handler ######################
     def generate_port_stats(self):
         return self.port_stats.generate_stats()
 
     def generate_port_status(self):
 
-        info = self.get_info()
+        info = self.get_formatted_info()
 
-        return {"driver":        info['driver'],
-                "description": info.get('description', 'N/A')[:18],
-                "HW src mac":  info['hw_macaddr'],
-                "SW src mac":  info['src_macaddr'],
-                "SW dst mac":  info['dst_macaddr'],
-                "PCI Address": info['pci_addr'],
-                "NUMA Node":   info['numa'],
+        return {"driver":           info['driver'],
+                "description":      info.get('description', 'N/A')[:18],
+                "src MAC":          info['src_mac'],
+                "src IPv4":         info['src_ipv4'],
+                "Destination":      format_text("{0}".format(info['dest']), 'bold', 'red' if info['dest'] == 'unconfigured' else None),
+                "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red' if info['arp'] == 'unresolved' else None),
+                "PCI Address":      info['pci_addr'],
+                "NUMA Node":        info['numa'],
                 "--": "",
                 "---": "",
-                "link speed": "{speed} Gb/s".format(speed=info['speed']),
+                "----": "",
+                "-----": "",
+                "link speed": "%g Gb/s" % info['speed'],
                 "port status": info['status'],
                 "link status": info['link'],
                 "promiscuous" : info['prom'],
+                "multicast" : info['mult'],
                 "flow ctrl" : info['fc'],
+
+                "layer mode": format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta'),
+                "RX Filter Mode": info['rx_filter_mode'],
+                "RX Queueing": info['rx_queue'],
+                "Grat ARP": info['grat_arp'],
+
                 }
 
     def clear_stats(self):
@@ -734,12 +1006,16 @@ class Port(object):
         return self.port_stats.invalidate()
 
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self):
+    def generate_loaded_streams_sum(self, sync = True):
         if self.state == self.STATE_DOWN:
             return {}
 
-        data = {}
-        for id, obj in self.streams.items():
+        if sync:
+            self.sync_streams()
+        
+        data = OrderedDict()
+        for id in sorted(map(int, self.streams.keys())):
+            obj = self.streams[str(id)]
 
             # lazy build scapy repr.
             if not 'pkt_type' in obj:
@@ -753,20 +1029,57 @@ class Port(object):
                                      ('next_stream',  obj['next_id'] if not '-1' else 'None')
                                     ])
     
-        return {"streams" : OrderedDict(sorted(data.items())) }
+        return {"streams" : data}
     
 
-
+    ######## attributes are a complex type (dict) that might be manipulated through the async thread #############
+    
+    # get in a thread safe manner a duplication of attributes
+    def get_ts_attr (self):
+        with self.attr_lock:
+            return dict(self.__attr)
+        
+    # set in a thread safe manner a new dict of attributes
+    def set_ts_attr (self, new_attr):
+        with self.attr_lock:
+            self.__attr = new_attr
+    
+        
   ################# events handler ######################
     def async_event_port_job_done (self):
         # until thread is locked - order is important
         self.tx_stopped_ts = datetime.now()
         self.state = self.STATE_STREAMS
+        
         self.last_factor_type = None
 
-    def async_event_port_attr_changed (self, attr):
-        self.info['speed'] = attr['speed'] // 1000
-        self.attr = attr
+    def async_event_port_attr_changed (self, new_attr):
+        
+        # get a thread safe duplicate
+        cur_attr = self.get_ts_attr()
+        
+        # check if anything changed
+        if new_attr == cur_attr:
+            return None
+            
+        # generate before
+        before = self.get_formatted_info(sync = False)
+        
+        # update
+        self.set_ts_attr(new_attr)
+        
+        # generate after
+        after = self.get_formatted_info(sync = False)
+        
+        # return diff
+        diff = {}
+        for key, new_value in after.items():
+            old_value = before.get(key, 'N/A')
+            if new_value != old_value:
+                diff[key] = (old_value, new_value)
+                
+        return diff
+        
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):
@@ -791,4 +1104,5 @@ class Port(object):
 
     def async_event_released (self):
         self.owner = ''
+
 

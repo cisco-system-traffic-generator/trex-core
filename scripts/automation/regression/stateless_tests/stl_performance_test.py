@@ -1,6 +1,7 @@
 import os
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
+import pprint
 
 def avg (values):
     return (sum(values) / float(len(values)))
@@ -61,11 +62,47 @@ class PerformanceReport(object):
                           SetupName = self.machine_name,
                           TestType = 'performance',
                           Mppspc = self.avg_mpps_per_core,
-                          ActionNumber = '<fill_me>',
+                          ActionNumber = os.getenv("BUILD_NUM","n/a"),
                           GoldenMin = golden_mpps['min'],
                           GoldenMax = golden_mpps['max'])
 
         ga.emptyAndReportQ()
+
+    def norm_senario (self):
+        s=self.scenario
+        s='+'.join(s.split(' '));
+        s='+'.join(s.split('-'));
+        s='+'.join(s.split(','));
+        l=s.split('+')
+        lr=[]
+        for obj in l:
+            if len(obj):
+                lr.append(obj);
+        s='-'.join(lr);
+        return(s);
+
+    def report_to_elk(self, elk,elk_obj, golden_mpps):
+        print("\n* Reporting to elk *\n")
+        elk_obj['test']={ "name" : self.norm_senario(),
+                    "type"  : "stateless",
+                    "cores" : self.core_count,
+                    "cpu%"  : self.avg_cpu,
+                    "mpps" :  self.avg_mpps,
+                    "streams_count" : 1,
+                    "mpps_pc" :  self.avg_mpps_per_core,
+                    "gbps_pc" :  self.avg_gbps_per_core,
+                    "gbps" :  self.avg_gbps,
+                    "avg-pktsize" : ((1000.0*self.avg_gbps/(8.0*self.avg_mpps))),
+                    "latecny" : { "min" : -1.0,
+                                  "max" : -1.0,
+                                  "avr" : -1.0
+                                 }
+            };
+
+        #pprint.pprint(elk_obj);
+        # push to elk 
+        elk.perf.push_data(elk_obj)
+
 
 
 class STLPerformance_Test(CStlGeneral_Test):
@@ -238,24 +275,25 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 ############################################# test's infra functions ###########################################
 
-    def execute_single_scenario (self, scenario_cfg, iterations = 4):
+    def execute_single_scenario (self, scenario_cfg):
         golden = scenario_cfg['mpps_per_core_golden']
-        
 
-        for i in range(iterations, -1, -1):
-            report = self.execute_single_scenario_iteration(scenario_cfg)
-            rc = report.check_golden(golden)
+        report = self.execute_single_scenario_iteration(scenario_cfg)
 
-            if (rc == PerformanceReport.GOLDEN_NORMAL) or (rc == PerformanceReport.GOLDEN_BETTER):
-                if self.GAManager:
-                    report.report_to_analytics(self.GAManager, golden)
+        if self.GAManager:
+            report.report_to_analytics(self.GAManager, golden)
 
-                return
+        #report to elk
+        if self.elk:
+            elk_obj = self.get_elk_obj()
+            report.report_to_elk(self.elk,elk_obj, golden)
 
-            if rc == PerformanceReport.GOLDEN_BETTER:
-                return
+        rc = report.check_golden(golden)
 
-            print("\n*** Measured Mpps per core '{0}' is lower than expected golden '{1} - re-running scenario...{2} attempts left".format(report.avg_mpps_per_core, scenario_cfg['mpps_per_core_golden'], i))
+        if rc == PerformanceReport.GOLDEN_NORMAL or rc == PerformanceReport.GOLDEN_BETTER:
+            return
+
+        print("\n*** Measured Mpps per core '{0}' is lower than expected golden '{1}'".format(report.avg_mpps_per_core, scenario_cfg['mpps_per_core_golden']))
 
         assert 0, "performance failure"
 
@@ -296,6 +334,11 @@ class STLPerformance_Test(CStlGeneral_Test):
             # sample bps/pps
             for _ in range(0, 20):
                 stats = self.c.get_stats(ports = 0)
+                max_queue_full = 100000 if self.is_VM else 10000 
+                if stats['global'][ 'queue_full'] > max_queue_full:
+                    assert 0, "Queue is full need to tune the multiplier"
+
+                    # CPU results are not valid cannot use them 
                 samples['bps'].append(stats[0]['tx_bps'])
                 samples['pps'].append(stats[0]['tx_pps'])
                 time.sleep(1)
@@ -322,7 +365,7 @@ class STLPerformance_Test(CStlGeneral_Test):
 
 
         
-        avg_values = {k:avg(v) for k, v in samples.iteritems()}
+        avg_values = {k:avg(v) for k, v in samples.items()}
         avg_cpu  = avg_values['cpu'] * scenario_cfg['core_count']
         avg_gbps = avg_values['bps'] / 1e9
         avg_mpps = avg_values['pps'] / 1e6

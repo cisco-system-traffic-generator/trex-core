@@ -37,26 +37,30 @@
 #include <string.h>
 #include <errno.h>
 
+#define TREX_PATCH
+         
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
-#include <infiniband/verbs.h>
+#include <infiniband/verbs_exp.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_ether.h>
 #include <rte_malloc.h>
 #include <rte_ethdev.h>
 #include <rte_common.h>
+#include <rte_flow.h>
+#include <rte_flow_driver.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5.h"
@@ -67,6 +71,9 @@ struct fdir_flow_desc {
 	uint16_t src_port;
 	uint32_t src_ip[4];
 	uint32_t dst_ip[4];
+    uint8_t  tos;
+    uint8_t  ip_id;
+    uint8_t  proto;
 	uint8_t	mac[6];
 	uint16_t vlan_tag;
 	enum hash_rxq_type type;
@@ -75,6 +82,7 @@ struct fdir_flow_desc {
 struct mlx5_fdir_filter {
 	LIST_ENTRY(mlx5_fdir_filter) next;
 	uint16_t queue; /* Queue assigned to if FDIR match. */
+	enum rte_eth_fdir_behavior behavior;
 	struct fdir_flow_desc desc;
 	struct ibv_exp_flow *flow;
 };
@@ -101,6 +109,7 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 	/* Set VLAN ID. */
 	desc->vlan_tag = fdir_filter->input.flow_ext.vlan_tci;
 
+#ifndef TREX_PATCH
 	/* Set MAC address. */
 	if (mode == RTE_FDIR_MODE_PERFECT_MAC_VLAN) {
 		rte_memcpy(desc->mac,
@@ -110,6 +119,14 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 		desc->type = HASH_RXQ_ETH;
 		return;
 	}
+#else
+    if (fdir_filter->input.flow.ip4_flow.ip_id == 2) {
+        desc->type = HASH_RXQ_ETH;
+        desc->ip_id = fdir_filter->input.flow.ip4_flow.ip_id;
+        return;
+    }
+#endif
+
 
 	/* Set mode */
 	switch (fdir_filter->input.flow_type) {
@@ -144,6 +161,9 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 	case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
 		desc->src_ip[0] = fdir_filter->input.flow.ip4_flow.src_ip;
 		desc->dst_ip[0] = fdir_filter->input.flow.ip4_flow.dst_ip;
+        desc->tos       = fdir_filter->input.flow.ip4_flow.ttl; /* TTL is mapped to TOS TREX_PATCH */
+        desc->ip_id     = fdir_filter->input.flow.ip4_flow.ip_id;
+        desc->proto     = fdir_filter->input.flow.ip4_flow.proto;
 		break;
 	case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
 	case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
@@ -157,6 +177,9 @@ fdir_filter_to_flow_desc(const struct rte_eth_fdir_filter *fdir_filter,
 		rte_memcpy(desc->dst_ip,
 			   fdir_filter->input.flow.ipv6_flow.dst_ip,
 			   sizeof(desc->dst_ip));
+        desc->tos       = (uint8_t)fdir_filter->input.flow.ipv6_flow.hop_limits;  /* TTL is mapped to TOS - TREX_PATCH */
+        desc->ip_id     = (uint8_t)fdir_filter->input.flow.ipv6_flow.flow_label;
+        desc->proto     = fdir_filter->input.flow.ipv6_flow.proto;
 		break;
 	default:
 		break;
@@ -197,6 +220,11 @@ priv_fdir_overlap(const struct priv *priv,
 	    ((desc1->dst_port & mask->dst_port_mask) !=
 	     (desc2->dst_port & mask->dst_port_mask)))
 		return 0;
+    if  ( (desc1->tos    != desc2->tos)  ||
+          (desc1->ip_id  != desc2->ip_id) ||
+          (desc1->proto  != desc2->proto) ) 
+        return 0;
+
 	switch (desc1->type) {
 	case HASH_RXQ_IPV4:
 	case HASH_RXQ_UDPV4:
@@ -251,8 +279,8 @@ priv_fdir_flow_add(struct priv *priv,
 	struct ibv_exp_flow_attr *attr = &data->attr;
 	uintptr_t spec_offset = (uintptr_t)&data->spec;
 	struct ibv_exp_flow_spec_eth *spec_eth;
-	struct ibv_exp_flow_spec_ipv4 *spec_ipv4;
-	struct ibv_exp_flow_spec_ipv6 *spec_ipv6;
+	struct ibv_exp_flow_spec_ipv4_ext *spec_ipv4;
+	struct ibv_exp_flow_spec_ipv6_ext *spec_ipv6;
 	struct ibv_exp_flow_spec_tcp_udp *spec_tcp_udp;
 	struct mlx5_fdir_filter *iter_fdir_filter;
 	unsigned int i;
@@ -264,8 +292,10 @@ priv_fdir_flow_add(struct priv *priv,
 		    (iter_fdir_filter->flow != NULL) &&
 		    (priv_fdir_overlap(priv,
 				       &mlx5_fdir_filter->desc,
-				       &iter_fdir_filter->desc)))
-			return EEXIST;
+				       &iter_fdir_filter->desc))){
+            ERROR("overlap rules, please check your rules");
+            return EEXIST;
+        }
 
 	/*
 	 * No padding must be inserted by the compiler between attr and spec.
@@ -288,6 +318,8 @@ priv_fdir_flow_add(struct priv *priv,
 	/* Update priority */
 	attr->priority = 2;
 
+#ifndef TREX_PATCH
+
 	if (fdir_mode == RTE_FDIR_MODE_PERFECT_MAC_VLAN) {
 		/* MAC Address */
 		for (i = 0; i != RTE_DIM(spec_eth->mask.dst_mac); ++i) {
@@ -297,6 +329,15 @@ priv_fdir_flow_add(struct priv *priv,
 		}
 		goto create_flow;
 	}
+#else
+    // empty mask means "match everything". This rule will match all packets, no matter what is the ether type
+    if (desc->ip_id == 2) {
+        spec_eth->val.ether_type = 0x0000;
+        spec_eth->mask.ether_type = 0x0000;
+        goto create_flow;
+    }
+#endif    
+
 
 	switch (desc->type) {
 	case HASH_RXQ_IPV4:
@@ -305,10 +346,10 @@ priv_fdir_flow_add(struct priv *priv,
 		spec_offset += spec_eth->size;
 
 		/* Set IP spec */
-		spec_ipv4 = (struct ibv_exp_flow_spec_ipv4 *)spec_offset;
+		spec_ipv4 = (struct ibv_exp_flow_spec_ipv4_ext *)spec_offset;
 
 		/* The second specification must be IP. */
-		assert(spec_ipv4->type == IBV_EXP_FLOW_SPEC_IPV4);
+		assert(spec_ipv4->type == IBV_EXP_FLOW_SPEC_IPV4_EXT);
 		assert(spec_ipv4->size == sizeof(*spec_ipv4));
 
 		spec_ipv4->val.src_ip =
@@ -321,6 +362,21 @@ priv_fdir_flow_add(struct priv *priv,
 		/* Update priority */
 		attr->priority = 1;
 
+        spec_ipv4->val.proto  = desc->proto & mask->ipv4_mask.proto;
+        spec_ipv4->mask.proto = mask->ipv4_mask.proto;
+
+#ifdef TREX_PATCH
+        /* TOS */
+        if (desc->ip_id == 1) {
+            spec_ipv4->mask.tos = 0x1;
+            spec_ipv4->val.tos = 0x1;
+        } else {
+            spec_ipv4->mask.tos = 0x0;
+            spec_ipv4->val.tos = 0x0;
+        }
+#endif
+
+
 		if (desc->type == HASH_RXQ_IPV4)
 			goto create_flow;
 
@@ -332,10 +388,10 @@ priv_fdir_flow_add(struct priv *priv,
 		spec_offset += spec_eth->size;
 
 		/* Set IP spec */
-		spec_ipv6 = (struct ibv_exp_flow_spec_ipv6 *)spec_offset;
+		spec_ipv6 = (struct ibv_exp_flow_spec_ipv6_ext *)spec_offset;
 
 		/* The second specification must be IP. */
-		assert(spec_ipv6->type == IBV_EXP_FLOW_SPEC_IPV6);
+		assert(spec_ipv6->type == IBV_EXP_FLOW_SPEC_IPV6_EXT);
 		assert(spec_ipv6->size == sizeof(*spec_ipv6));
 
 		for (i = 0; i != RTE_DIM(desc->src_ip); ++i) {
@@ -350,6 +406,20 @@ priv_fdir_flow_add(struct priv *priv,
 		rte_memcpy(spec_ipv6->mask.dst_ip,
 			   mask->ipv6_mask.dst_ip,
 			   sizeof(spec_ipv6->mask.dst_ip));
+
+        spec_ipv6->val.next_hdr  = desc->proto & mask->ipv6_mask.proto;
+        spec_ipv6->mask.next_hdr = mask->ipv6_mask.proto;
+
+#ifdef TREX_PATCH
+        /* TOS */
+        if (desc->ip_id == 1) {
+            spec_ipv6->mask.traffic_class = 0x1;
+            spec_ipv6->val.traffic_class = 0x1;
+        } else {
+            spec_ipv6->mask.traffic_class = 0;
+            spec_ipv6->val.traffic_class = 0;
+        }
+#endif
 
 		/* Update priority */
 		attr->priority = 1;
@@ -400,6 +470,145 @@ create_flow:
 }
 
 /**
+ * Destroy a flow director queue.
+ *
+ * @param fdir_queue
+ *   Flow director queue to be destroyed.
+ */
+void
+priv_fdir_queue_destroy(struct priv *priv, struct fdir_queue *fdir_queue)
+{
+	struct mlx5_fdir_filter *fdir_filter;
+
+	/* Disable filter flows still applying to this queue. */
+	LIST_FOREACH(fdir_filter, priv->fdir_filter_list, next) {
+		unsigned int idx = fdir_filter->queue;
+		struct rxq_ctrl *rxq_ctrl =
+			container_of((*priv->rxqs)[idx], struct rxq_ctrl, rxq);
+
+		assert(idx < priv->rxqs_n);
+		if (fdir_queue == rxq_ctrl->fdir_queue &&
+		    fdir_filter->flow != NULL) {
+			claim_zero(ibv_exp_destroy_flow(fdir_filter->flow));
+			fdir_filter->flow = NULL;
+		}
+	}
+	assert(fdir_queue->qp);
+	claim_zero(ibv_destroy_qp(fdir_queue->qp));
+	assert(fdir_queue->ind_table);
+	claim_zero(ibv_exp_destroy_rwq_ind_table(fdir_queue->ind_table));
+	if (fdir_queue->wq)
+		claim_zero(ibv_exp_destroy_wq(fdir_queue->wq));
+	if (fdir_queue->cq)
+		claim_zero(ibv_destroy_cq(fdir_queue->cq));
+#ifndef NDEBUG
+	memset(fdir_queue, 0x2a, sizeof(*fdir_queue));
+#endif
+	rte_free(fdir_queue);
+}
+
+/**
+ * Create a flow director queue.
+ *
+ * @param priv
+ *   Private structure.
+ * @param wq
+ *   Work queue to route matched packets to, NULL if one needs to
+ *   be created.
+ *
+ * @return
+ *   Related flow director queue on success, NULL otherwise.
+ */
+static struct fdir_queue *
+priv_fdir_queue_create(struct priv *priv, struct ibv_exp_wq *wq,
+		       unsigned int socket)
+{
+	struct fdir_queue *fdir_queue;
+
+	fdir_queue = rte_calloc_socket(__func__, 1, sizeof(*fdir_queue),
+				       0, socket);
+	if (!fdir_queue) {
+		ERROR("cannot allocate flow director queue");
+		return NULL;
+	}
+	assert(priv->pd);
+	assert(priv->ctx);
+	if (!wq) {
+		fdir_queue->cq = ibv_exp_create_cq(
+			priv->ctx, 1, NULL, NULL, 0,
+			&(struct ibv_exp_cq_init_attr){
+				.comp_mask = 0,
+			});
+		if (!fdir_queue->cq) {
+			ERROR("cannot create flow director CQ");
+			goto error;
+		}
+		fdir_queue->wq = ibv_exp_create_wq(
+			priv->ctx,
+			&(struct ibv_exp_wq_init_attr){
+				.wq_type = IBV_EXP_WQT_RQ,
+				.max_recv_wr = 1,
+				.max_recv_sge = 1,
+				.pd = priv->pd,
+				.cq = fdir_queue->cq,
+			});
+		if (!fdir_queue->wq) {
+			ERROR("cannot create flow director WQ");
+			goto error;
+		}
+		wq = fdir_queue->wq;
+	}
+	fdir_queue->ind_table = ibv_exp_create_rwq_ind_table(
+		priv->ctx,
+		&(struct ibv_exp_rwq_ind_table_init_attr){
+			.pd = priv->pd,
+			.log_ind_tbl_size = 0,
+			.ind_tbl = &wq,
+			.comp_mask = 0,
+		});
+	if (!fdir_queue->ind_table) {
+		ERROR("cannot create flow director indirection table");
+		goto error;
+	}
+	fdir_queue->qp = ibv_exp_create_qp(
+		priv->ctx,
+		&(struct ibv_exp_qp_init_attr){
+			.qp_type = IBV_QPT_RAW_PACKET,
+			.comp_mask =
+				IBV_EXP_QP_INIT_ATTR_PD |
+				IBV_EXP_QP_INIT_ATTR_PORT |
+				IBV_EXP_QP_INIT_ATTR_RX_HASH,
+			.pd = priv->pd,
+			.rx_hash_conf = &(struct ibv_exp_rx_hash_conf){
+				.rx_hash_function =
+					IBV_EXP_RX_HASH_FUNC_TOEPLITZ,
+				.rx_hash_key_len = rss_hash_default_key_len,
+				.rx_hash_key = rss_hash_default_key,
+				.rx_hash_fields_mask = 0,
+				.rwq_ind_tbl = fdir_queue->ind_table,
+			},
+			.port_num = priv->port,
+		});
+	if (!fdir_queue->qp) {
+		ERROR("cannot create flow director hash RX QP");
+		goto error;
+	}
+	return fdir_queue;
+error:
+	assert(fdir_queue);
+	assert(!fdir_queue->qp);
+	if (fdir_queue->ind_table)
+		claim_zero(ibv_exp_destroy_rwq_ind_table
+			   (fdir_queue->ind_table));
+	if (fdir_queue->wq)
+		claim_zero(ibv_exp_destroy_wq(fdir_queue->wq));
+	if (fdir_queue->cq)
+		claim_zero(ibv_destroy_cq(fdir_queue->cq));
+	rte_free(fdir_queue);
+	return NULL;
+}
+
+/**
  * Get flow director queue for a specific RX queue, create it in case
  * it does not exist.
  *
@@ -416,74 +625,42 @@ priv_get_fdir_queue(struct priv *priv, uint16_t idx)
 {
 	struct rxq_ctrl *rxq_ctrl =
 		container_of((*priv->rxqs)[idx], struct rxq_ctrl, rxq);
-	struct fdir_queue *fdir_queue = &rxq_ctrl->fdir_queue;
-	struct ibv_exp_rwq_ind_table *ind_table = NULL;
-	struct ibv_qp *qp = NULL;
-	struct ibv_exp_rwq_ind_table_init_attr ind_init_attr;
-	struct ibv_exp_rx_hash_conf hash_conf;
-	struct ibv_exp_qp_init_attr qp_init_attr;
-	int err = 0;
+	struct fdir_queue *fdir_queue = rxq_ctrl->fdir_queue;
 
-	/* Return immediately if it has already been created. */
-	if (fdir_queue->qp != NULL)
-		return fdir_queue;
-
-	ind_init_attr = (struct ibv_exp_rwq_ind_table_init_attr){
-		.pd = priv->pd,
-		.log_ind_tbl_size = 0,
-		.ind_tbl = &rxq_ctrl->wq,
-		.comp_mask = 0,
-	};
-
-	errno = 0;
-	ind_table = ibv_exp_create_rwq_ind_table(priv->ctx,
-						 &ind_init_attr);
-	if (ind_table == NULL) {
-		/* Not clear whether errno is set. */
-		err = (errno ? errno : EINVAL);
-		ERROR("RX indirection table creation failed with error %d: %s",
-		      err, strerror(err));
-		goto error;
+	assert(rxq_ctrl->wq);
+	if (fdir_queue == NULL) {
+		fdir_queue = priv_fdir_queue_create(priv, rxq_ctrl->wq,
+						    rxq_ctrl->socket);
+		rxq_ctrl->fdir_queue = fdir_queue;
 	}
-
-	/* Create fdir_queue qp. */
-	hash_conf = (struct ibv_exp_rx_hash_conf){
-		.rx_hash_function = IBV_EXP_RX_HASH_FUNC_TOEPLITZ,
-		.rx_hash_key_len = rss_hash_default_key_len,
-		.rx_hash_key = rss_hash_default_key,
-		.rx_hash_fields_mask = 0,
-		.rwq_ind_tbl = ind_table,
-	};
-	qp_init_attr = (struct ibv_exp_qp_init_attr){
-		.max_inl_recv = 0, /* Currently not supported. */
-		.qp_type = IBV_QPT_RAW_PACKET,
-		.comp_mask = (IBV_EXP_QP_INIT_ATTR_PD |
-			      IBV_EXP_QP_INIT_ATTR_RX_HASH),
-		.pd = priv->pd,
-		.rx_hash_conf = &hash_conf,
-		.port_num = priv->port,
-	};
-
-	qp = ibv_exp_create_qp(priv->ctx, &qp_init_attr);
-	if (qp == NULL) {
-		err = (errno ? errno : EINVAL);
-		ERROR("hash RX QP creation failure: %s", strerror(err));
-		goto error;
-	}
-
-	fdir_queue->ind_table = ind_table;
-	fdir_queue->qp = qp;
-
 	return fdir_queue;
+}
 
-error:
-	if (qp != NULL)
-		claim_zero(ibv_destroy_qp(qp));
+/**
+ * Get or flow director drop queue. Create it if it does not exist.
+ *
+ * @param priv
+ *   Private structure.
+ *
+ * @return
+ *   Flow director drop queue on success, NULL otherwise.
+ */
+static struct fdir_queue *
+priv_get_fdir_drop_queue(struct priv *priv)
+{
+	struct fdir_queue *fdir_queue = priv->fdir_drop_queue;
 
-	if (ind_table != NULL)
-		claim_zero(ibv_exp_destroy_rwq_ind_table(ind_table));
+	if (fdir_queue == NULL) {
+		unsigned int socket = SOCKET_ID_ANY;
 
-	return NULL;
+		/* Select a known NUMA socket if possible. */
+		if (priv->rxqs_n && (*priv->rxqs)[0])
+			socket = container_of((*priv->rxqs)[0],
+					      struct rxq_ctrl, rxq)->socket;
+		fdir_queue = priv_fdir_queue_create(priv, NULL, socket);
+		priv->fdir_drop_queue = fdir_queue;
+	}
+	return fdir_queue;
 }
 
 /**
@@ -508,7 +685,11 @@ priv_fdir_filter_enable(struct priv *priv,
 		return 0;
 
 	/* Get fdir_queue for specific queue. */
-	fdir_queue = priv_get_fdir_queue(priv, mlx5_fdir_filter->queue);
+	if (mlx5_fdir_filter->behavior == RTE_ETH_FDIR_REJECT)
+		fdir_queue = priv_get_fdir_drop_queue(priv);
+	else
+		fdir_queue = priv_get_fdir_queue(priv,
+						 mlx5_fdir_filter->queue);
 
 	if (fdir_queue == NULL) {
 		ERROR("failed to create flow director rxq for queue %d",
@@ -601,7 +782,6 @@ priv_fdir_disable(struct priv *priv)
 {
 	unsigned int i;
 	struct mlx5_fdir_filter *mlx5_fdir_filter;
-	struct fdir_queue *fdir_queue;
 
 	/* Run on every flow director filter and destroy flow handle. */
 	LIST_FOREACH(mlx5_fdir_filter, priv->fdir_filter_list, next) {
@@ -618,23 +798,19 @@ priv_fdir_disable(struct priv *priv)
 		}
 	}
 
-	/* Run on every RX queue to destroy related flow director QP and
-	 * indirection table. */
+	/* Destroy flow director context in each RX queue. */
 	for (i = 0; (i != priv->rxqs_n); i++) {
 		struct rxq_ctrl *rxq_ctrl =
 			container_of((*priv->rxqs)[i], struct rxq_ctrl, rxq);
 
-		fdir_queue = &rxq_ctrl->fdir_queue;
-		if (fdir_queue->qp != NULL) {
-			claim_zero(ibv_destroy_qp(fdir_queue->qp));
-			fdir_queue->qp = NULL;
-		}
-
-		if (fdir_queue->ind_table != NULL) {
-			claim_zero(ibv_exp_destroy_rwq_ind_table
-				   (fdir_queue->ind_table));
-			fdir_queue->ind_table = NULL;
-		}
+		if (!rxq_ctrl->fdir_queue)
+			continue;
+		priv_fdir_queue_destroy(priv, rxq_ctrl->fdir_queue);
+		rxq_ctrl->fdir_queue = NULL;
+	}
+	if (priv->fdir_drop_queue) {
+		priv_fdir_queue_destroy(priv, priv->fdir_drop_queue);
+		priv->fdir_drop_queue = NULL;
 	}
 }
 
@@ -722,8 +898,10 @@ priv_fdir_filter_add(struct priv *priv,
 	/* Duplicate filters are currently unsupported. */
 	mlx5_fdir_filter = priv_find_filter_in_list(priv, fdir_filter);
 	if (mlx5_fdir_filter != NULL) {
+#ifndef TREX_PATCH
 		ERROR("filter already exists");
-		return EINVAL;
+#endif
+		return EEXIST;
 	}
 
 	/* Create new flow director filter. */
@@ -736,8 +914,9 @@ priv_fdir_filter_add(struct priv *priv,
 		return err;
 	}
 
-	/* Set queue. */
+	/* Set action parameters. */
 	mlx5_fdir_filter->queue = fdir_filter->action.rx_queue;
+	mlx5_fdir_filter->behavior = fdir_filter->action.behavior;
 
 	/* Convert to mlx5 filter descriptor. */
 	fdir_filter_to_flow_desc(fdir_filter,
@@ -847,9 +1026,11 @@ priv_fdir_filter_delete(struct priv *priv,
 		return 0;
 	}
 
+#ifndef TREX_PATCH
 	ERROR("%p: flow director delete failed, cannot find filter",
 	      (void *)priv);
-	return EINVAL;
+#endif
+	 return ENOENT;
 }
 
 /**
@@ -934,6 +1115,14 @@ priv_fdir_ctrl_func(struct priv *priv, enum rte_filter_op filter_op, void *arg)
 	return ret;
 }
 
+static const struct rte_flow_ops mlx5_flow_ops = {
+	.validate = mlx5_flow_validate,
+	.create = mlx5_flow_create,
+	.destroy = mlx5_flow_destroy,
+	.flush = mlx5_flow_flush,
+	.query = NULL,
+};
+
 /**
  * Manage filter operations.
  *
@@ -955,10 +1144,15 @@ mlx5_dev_filter_ctrl(struct rte_eth_dev *dev,
 		     enum rte_filter_op filter_op,
 		     void *arg)
 {
-	int ret = -EINVAL;
+	int ret = EINVAL;
 	struct priv *priv = dev->data->dev_private;
 
 	switch (filter_type) {
+	case RTE_ETH_FILTER_GENERIC:
+		if (filter_op != RTE_ETH_FILTER_GET)
+			return -EINVAL;
+		*(const void **)arg = &mlx5_flow_ops;
+		return 0;
 	case RTE_ETH_FILTER_FDIR:
 		priv_lock(priv);
 		ret = priv_fdir_ctrl_func(priv, filter_op, arg);
@@ -970,5 +1164,5 @@ mlx5_dev_filter_ctrl(struct rte_eth_dev *dev,
 		break;
 	}
 
-	return ret;
+	return -ret;
 }

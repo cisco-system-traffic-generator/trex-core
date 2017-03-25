@@ -90,15 +90,30 @@ class InteractivePlatform(cmd.Cmd):
         self.platform.configure_basic_interfaces()
         print(termstyle.green("Basic interfaces configuration applied successfully."))
 
+    def do_basic_if_config_vlan(self, line):
+        """Apply basic interfaces configuartion with vlan to all platform interfaces"""
+        self.platform.configure_basic_interfaces(vlan = True)
+        print(termstyle.green("Basic VLAN interfaces configuration applied successfully."))
+
     def do_pbr(self, line):
         """Apply IPv4 PBR configuration on all interfaces"""
         self.platform.config_pbr()
         print(termstyle.green("IPv4 PBR configuration applied successfully."))
 
+    def do_pbr_vlan(self, line):
+        """Apply IPv4 PBR configuration on all VLAN interfaces"""
+        self.platform.config_pbr(vlan = True)
+        print(termstyle.green("IPv4 VLAN PBR configuration applied successfully."))
+
     def do_no_pbr(self, line):
         """Removes IPv4 PBR configuration from all interfaces"""
         self.platform.config_no_pbr()
         print(termstyle.green("IPv4 PBR configuration removed successfully."))
+
+    def do_no_pbr_vlan(self, line):
+        """Removes IPv4 PBR configuration from all VLAN interfaces"""
+        self.platform.config_no_pbr(vlan = True)
+        print(termstyle.green("IPv4 PBR VLAN configuration removed successfully."))
 
     def do_nbar(self, line):
         """Apply NBAR PD configuration on all interfaces"""
@@ -180,10 +195,20 @@ class InteractivePlatform(cmd.Cmd):
         self.platform.config_ipv6_pbr()
         print(termstyle.green("IPv6 PBR configuration applied successfully."))
 
+    def do_ipv6_pbr_vlan(self, line):
+        """Apply IPv6 PBR configuration on all vlan interfaces"""
+        self.platform.config_ipv6_pbr(vlan = True)
+        print(termstyle.green("IPv6 VLAN PBR configuration applied successfully."))
+
     def do_no_ipv6_pbr(self, line):
         """Removes IPv6 PBR configuration from all interfaces"""
         self.platform.config_no_ipv6_pbr()
         print(termstyle.green("IPv6 PBR configuration removed successfully."))
+
+    def do_no_ipv6_pbr_vlan(self, line):
+        """Removes IPv6 PBR configuration from all VLAN interfaces"""
+        self.platform.config_no_ipv6_pbr(vlan = True)
+        print(termstyle.green("IPv6 VLAN PBR configuration removed successfully."))
 
     def do_zbf(self, line):
         """Apply Zone-Based policy Firewall configuration on all interfaces"""
@@ -317,6 +342,14 @@ class InteractivePlatform(cmd.Cmd):
         self.do_basic_if_config('')
         self.do_pbr('')
         self.do_ipv6_pbr('')
+
+    def do_all_vlan(self, arg):
+        """Configures bundle of commands to set PBR routing using on vlan interfaces"""
+        self.do_load_clean('')
+        self.do_set_tftp_server('')
+        self.do_basic_if_config_vlan('')
+        self.do_pbr_vlan('')
+        self.do_ipv6_pbr_vlan('')
 
 
 

@@ -53,6 +53,7 @@ protected:
 
     void               *m_context;
     void               *m_socket;
+    static const uint32_t MAX_RPC_MSG_LEN = 999999;
 };
 
 /**

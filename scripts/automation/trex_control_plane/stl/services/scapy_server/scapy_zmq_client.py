@@ -1,9 +1,15 @@
 
 import sys
 import os
-python2_zmq_path = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir,
-                                                os.pardir,'external_libs','pyzmq-14.5.0','python2','fedora18','64bit'))
-sys.path.append(python2_zmq_path)
+
+python_ver = 'python%s' % sys.version_info.major
+ucs_ver = 'ucs2' if sys.maxunicode == 65535 else 'ucs4'
+
+zmq_path = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir,
+        os.pardir,'external_libs','pyzmq-14.5.0', python_ver, ucs_ver,'64bit'))
+
+if zmq_path not in sys.path:
+    sys.path.append(zmq_path)
 
 import zmq
 import json

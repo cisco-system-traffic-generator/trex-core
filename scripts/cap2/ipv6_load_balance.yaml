@@ -1,0 +1,22 @@
+- duration : 10
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.1.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.0.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 1
+          udp_aging      : 1
+  src_ipv6 : [0x2001,0x0232,0x1002,0x0051,0x0000,0x0000]
+  dst_ipv6 : [0x3001,0x0DB8,0x0003,0x0004,0x0000,0x0000]
+  vlan       : { enable : 1  ,  vlan0 : 100 , vlan1 : 200 }
+  cap_info : 
+     - name: cap2/ipv6.pcap
+       cps   : 10.0
+       ipg   : 10000
+       rtt   : 10000
+       w     : 4
+       limit : 20

@@ -38,7 +38,7 @@ using namespace std;
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
-       OPT_DRY_RUN};
+       OPT_DRY_RUN, OPT_DURATION};
 
 
 
@@ -69,8 +69,10 @@ static CSimpleOpt::SOption parser_options[] =
     { OP_STATS,               "-s",           SO_NONE    },
     { OPT_CFG,                "-f",           SO_REQ_SEP },
     { OPT_CLIENT_CFG_FILE,    "--client_cfg", SO_REQ_SEP },
+    { OPT_CLIENT_CFG_FILE,    "--client-cfg", SO_REQ_SEP },
     { OPT_FILE_OUT ,          "-o",           SO_REQ_SEP },
     { OPT_NODE_DUMP ,         "-v",           SO_REQ_SEP },
+    { OPT_DURATION,           "-d",           SO_REQ_SEP },
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
@@ -95,7 +97,8 @@ static int usage(){
     printf(" Usage: bp_sim [OPTION] -f cfg.yaml -o outfile.erf   \n");
     printf(" \n");
     printf(" \n");
-    printf(" options \n");
+    printf(" options:\n");
+    printf(" -d  [s]   duration time of simulated traffic in seconds\n");
     printf(" -v  [1-3]   verbose mode  \n");
     printf("      1    show only stats  \n");
     printf("      2    run preview do not write to file  \n");
@@ -194,12 +197,16 @@ static int parse_options(int argc,
                 params["limit"] = atoi(args.OptionArg());
                 break;
 
+            case OPT_DURATION:
+                sscanf(args.OptionArg(),"%f", &po->m_duration);
+                break;
+
             case OPT_DRY_RUN:
                 params["dry"] = 1;
                 break;
 
             default:
-                usage();
+                printf("Error: option %s is defined, but not handled.\n\n", args.OptionText());
                 return -1;
                 break;
             } // End of switch
@@ -289,12 +296,14 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
+            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
             return sf.run();
         }
 
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
+            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;

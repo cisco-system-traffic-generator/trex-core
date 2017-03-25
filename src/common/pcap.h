@@ -1,5 +1,5 @@
-#ifndef __LIBPCAP_H__
-#define __LIBPCAP_H__ 
+#ifndef __TREX_LIBPCAP_H__
+#define __TREX_LIBPCAP_H__ 
 
 /*
 Copyright (c) 2015-2015 Cisco Systems, Inc.
@@ -143,6 +143,13 @@ public:
 	*/
 	void Close();
 
+    /**
+     * flush all packets to disk
+     * 
+     * @author imarom (11/24/2016)
+     */
+    void flush_to_disk();
+    
 private:
 
 	bool init();
@@ -151,4 +158,5 @@ private:
     bool m_is_open;
     uint32_t m_pkt_count;
 };
+
 #endif

@@ -137,6 +137,10 @@ class CTRexAsyncStatsManager():
 
 
 class CTRexAsyncClient():
+    THREAD_STATE_ACTIVE = 1
+    THREAD_STATE_ZOMBIE = 2
+    THREAD_STATE_DEAD   = 3
+    
     def __init__ (self, server, port, stateless_client):
 
         self.port = port
@@ -159,7 +163,10 @@ class CTRexAsyncClient():
         self.connected = False
 
         self.zipped = ZippedMsg()
-
+        
+        self.t_state = self.THREAD_STATE_DEAD
+        
+        
     # connects the async channel
     def connect (self):
 
@@ -173,8 +180,8 @@ class CTRexAsyncClient():
         self.socket = self.context.socket(zmq.SUB)
 
 
-        # before running the thread - mark as active
-        self.active = True
+        # before running the thread - mark as active    
+        self.t_state = self.THREAD_STATE_ACTIVE
         self.t = threading.Thread(target = self._run)
 
         # kill this thread on exit and don't add it to the join list
@@ -198,26 +205,26 @@ class CTRexAsyncClient():
         return RC_OK()
 
     
-
-
     # disconnect
     def disconnect (self):
         if not self.connected:
             return
 
         # mark for join
-        self.active = False
-
-        # signal that the context was destroyed (exit the thread loop)
+        self.t_state = self.THREAD_STATE_DEAD
         self.context.term()
-
-        # join
         self.t.join()
+
 
         # done
         self.connected = False
 
 
+    # set the thread as a zombie (in case of server death)
+    def set_as_zombie (self):
+        self.last_data_recv_ts = None
+        self.t_state = self.THREAD_STATE_ZOMBIE
+        
     # thread function
     def _run (self):
 
@@ -231,12 +238,19 @@ class CTRexAsyncClient():
         self.monitor.reset()
 
 
-        while self.active:
+        while self.t_state != self.THREAD_STATE_DEAD:
             try:
 
                 with self.monitor:
                     line = self.socket.recv()
                 
+                # last data recv.
+                self.last_data_recv_ts = time.time()
+                
+                # if thread was marked as zomibe - it does nothing besides fetching messages
+                if self.t_state == self.THREAD_STATE_ZOMBIE:
+                    continue
+                    
                 self.monitor.on_recv_msg(line)
 
                 # try to decomrpess
@@ -246,7 +260,6 @@ class CTRexAsyncClient():
 
                 line = line.decode()
 
-                self.last_data_recv_ts = time.time()
 
                 # signal once
                 if not got_data:
@@ -259,13 +272,14 @@ class CTRexAsyncClient():
                 # signal once
                 if got_data:
                     self.event_handler.on_async_dead()
+                    self.set_as_zombie()
                     got_data = False
 
                 continue
 
             except zmq.ContextTerminated:
                 # outside thread signaled us to exit
-                assert(not self.active)
+                assert(self.t_state != self.THREAD_STATE_ACTIVE)
                 break
 
             msg = json.loads(line)
@@ -283,16 +297,29 @@ class CTRexAsyncClient():
         # closing of socket must be from the same thread
         self.socket.close(linger = 0)
 
-    def is_thread_alive (self):
-        return self.t.is_alive()
-
-    # did we get info for the last 3 seconds ?
+        
+    # return True if the subscriber got data in the last 3 seconds
+    # even if zombie - will return true if got data
     def is_alive (self):
+
+        # maybe the thread has exited with exception
+        if not self.t.is_alive():
+            return False
+
+        # simply no data
         if self.last_data_recv_ts == None:
             return False
 
+        # timeout of data
         return ( (time.time() - self.last_data_recv_ts) < 3 )
 
+
+    # more granular than active - it means that thread state is active we get info
+    # zomibes will return false
+    def is_active (self):
+        return self.is_alive() and self.t_state == self.THREAD_STATE_ACTIVE
+        
+        
     def get_stats (self):
         return self.stats
 

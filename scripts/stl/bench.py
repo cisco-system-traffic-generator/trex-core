@@ -6,17 +6,21 @@ class STLBench(object):
     ip_range['dst'] = {'start': '48.0.0.0', 'end': '48.0.255.255'}
     ports = {'min': 1234, 'max': 65500}
     pkt_size = {'min': 64, 'max': 9216}
+    imix_table = [ {'size': 60,   'pps': 28,  'isg':0 },
+                   {'size': 590,  'pps': 20,  'isg':0.1 },
+                   {'size': 1514, 'pps': 4,   'isg':0.2 } ]
 
-    def create_stream (self, size, vm):
+    def create_stream (self, size, vm, src, dst, pps = 1, isg = 0):
         # Create base packet and pad it to size
-        base_pkt = Ether()/IP()/UDP()
+        base_pkt = Ether()/IP(src = src, dst = dst)/UDP()
         pad = max(0, size - len(base_pkt) - 4) * 'x'
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
 
         return STLStream(packet = pkt,
-                         mode = STLTXCont())
+                         mode = STLTXCont(pps = pps),
+                         isg = isg)
 
 
     def get_streams (self, size=64, vm=None, direction=0, **kwargs):
@@ -55,6 +59,8 @@ class STLBench(object):
                 STLVmFixIpv4(offset = 'IP')
             ]
         elif vm == 'size':
+            if size == 'imix':
+                raise STLError("Can't use VM of type 'size' with IMIX.")
             size = self.pkt_size['max']
             l3_len_fix = -len(Ether())
             l4_len_fix = l3_len_fix - len(IP())
@@ -74,8 +80,9 @@ class STLBench(object):
             vm_var = STLScVmRaw(vm_raw, cache_size = 255);
         else:
             raise Exception("VM '%s' not available" % vm)
-
-        return [self.create_stream(size, vm_var)]
+        if size == 'imix':
+            return [self.create_stream(p['size'], vm_var, src = src['start'], dst = dst['start'], pps = p['pps'], isg = p['isg']) for p in self.imix_table]
+        return [self.create_stream(size, vm_var, src = src['start'], dst = dst['start'])]
 
 
 

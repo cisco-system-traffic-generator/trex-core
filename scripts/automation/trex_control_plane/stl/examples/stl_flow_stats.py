@@ -68,6 +68,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     tx_pkts  = flow_stats['tx_pkts'].get(tx_port, 0)
     tx_bytes = flow_stats['tx_bytes'].get(tx_port, 0)
     rx_pkts  = flow_stats['rx_pkts'].get(rx_port, 0)
+    rx_bytes = flow_stats['rx_bytes'].get(rx_port, 0)
 
     if c.get_warnings():
             print("\n\n*** test had warnings ****\n\n")
@@ -96,6 +97,15 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     else:
         print("RX pkts match   - {0}".format(rx_pkts))
 
+    # On x710, by default rx_bytes will be 0. See manual for details.
+    # If you use x710, and need byte count, run the TRex server with --no-hw-flow-stat
+    if rx_bytes != 0:
+        if rx_bytes != total_pkts * pkt_len:
+            print("RX bytes mismatch - got: {0}, expected: {1}".format(rx_bytes, (total_pkts * pkt_len)))
+            pprint.pprint(flow_stats)
+            ret = False
+        else:
+            print("RX bytes match  - {0}".format(rx_bytes))
 
     for field in ['rx_err', 'tx_err']:
         for port in global_flow_stats['global'][field].keys():

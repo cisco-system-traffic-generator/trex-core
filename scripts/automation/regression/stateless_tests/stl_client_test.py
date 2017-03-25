@@ -21,7 +21,7 @@ class STLClient_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
-        if self.is_virt_nics:
+        if self.is_virt_nics or CTRexScenario.setup_name == 'trex21':
             self.percentage = 5
             self.pps = 500
         else:
@@ -29,7 +29,10 @@ class STLClient_Test(CStlGeneral_Test):
             self.pps = 50000
         
         # strict mode is only for 'wire only' connection
-        self.strict = True if self.is_loopback and not self.is_virt_nics else False
+        if self.is_loopback and not (self.is_virt_nics or CTRexScenario.setup_name == 'trex21'):
+            self.strict = True
+        else:
+            self.strict = False
 
         assert 'bi' in CTRexScenario.stl_ports_map
 
@@ -172,11 +175,11 @@ class STLClient_Test(CStlGeneral_Test):
 
                 # cont. with duration should be quite percise - 5% error is relaxed enough
 
-                assert get_error_in_percentage(stats[self.tx_port]['opackets'], golden) < 0.05
-                assert get_error_in_percentage(stats[self.rx_port]['ipackets'], golden) < 0.05
+                assert get_error_in_percentage(golden, stats[self.tx_port]['opackets']) < 0.05
+                assert get_error_in_percentage(golden, stats[self.rx_port]['ipackets']) < 0.05
 
-                assert get_error_in_percentage(stats[self.rx_port]['opackets'], golden) < 0.05
-                assert get_error_in_percentage(stats[self.tx_port]['ipackets'], golden) < 0.05
+                assert get_error_in_percentage(golden, stats[self.rx_port]['opackets']) < 0.05
+                assert get_error_in_percentage(golden, stats[self.tx_port]['ipackets']) < 0.05
 
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
@@ -240,11 +243,21 @@ class STLClient_Test(CStlGeneral_Test):
             self.skip('skipping profile tests for virtual / non loopback')
             return
 
-        try:
-            
-            for profile in self.profiles:
+        default_mult  = self.get_benchmark_param('mult',default="30%")
+        skip_tests     = self.get_benchmark_param('skip',default=[])
 
-                print("now testing profile {0}...\n".format(profile))
+        try:
+            for profile in self.profiles:
+                print('\nProfile: %s' % profile[len(CTRexScenario.scripts_path):]);
+
+                skip = False
+                for skip_test in skip_tests:
+                    if skip_test in profile:
+                        skip = True
+                        break
+                if skip:
+                    print('  * Skip due to config file...')
+                    continue
 
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
                 p2 = STLProfile.load(profile, port_id = self.rx_port)
@@ -253,15 +266,18 @@ class STLClient_Test(CStlGeneral_Test):
                 # but virtual NICs does not support promiscuous mode
                 self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
 
-                if p1.has_custom_mac_addr():
-                    if not self.is_virt_nics:
-                        self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
-                    else:
-                        print("\n*** profile needs promiscuous mode but running on virtual NICs - skipping... ***\n")
+                if p1.has_custom_mac_addr() or p2.has_custom_mac_addr():
+                    if self.is_virt_nics:
+                        print("  * Skip due to Virtual NICs and promiscuous mode requirement...")
                         continue
+                    elif self.is_vf_nics:
+                        print("  * Skip due to VF NICs and promiscuous mode requirement...")
+                        continue
+                    else:
+                        self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = True)
 
-                if p1.has_flow_stats():
-                    print("\n*** profile needs RX caps - skipping... ***\n")
+                if p1.has_flow_stats() or p2.has_flow_stats():
+                    print("  * Skip due to RX caps requirement")
                     continue
 
                 self.c.add_streams(p1, ports = self.tx_port)
@@ -269,15 +285,15 @@ class STLClient_Test(CStlGeneral_Test):
 
                 self.c.clear_stats()
 
-                self.c.start(ports = [self.tx_port, self.rx_port], mult = "30%")
-                time.sleep(100 / 1000.0)
+                self.c.start(ports = [self.tx_port, self.rx_port], mult = default_mult)
+                time.sleep(0.1)
 
                 if p1.is_pauseable() and p2.is_pauseable():
                     self.c.pause(ports = [self.tx_port, self.rx_port])
-                    time.sleep(100 / 1000.0)
+                    time.sleep(0.1)
 
                     self.c.resume(ports = [self.tx_port, self.rx_port])
-                    time.sleep(100 / 1000.0)
+                    time.sleep(0.1)
 
                 self.c.stop(ports = [self.tx_port, self.rx_port])
 

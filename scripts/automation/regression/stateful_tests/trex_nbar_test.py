@@ -1,22 +1,11 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test
+from .trex_general_test import CTRexGeneral_Test, CTRexScenario
 from .tests_exceptions import *
 from interfaces_e import IFType
 from nose.tools import nottest
 from misc_methods import print_r
 
-class CTRexNbar_Test(CTRexGeneral_Test):
-    """This class defines the NBAR testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNbar_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # obviously no NBar in loopback
-
-    def setUp(self):
-        super(CTRexNbar_Test, self).setUp() # launch super test class setUp process
-#       self.router.kill_nbar_flows()
-        self.router.clear_cft_counters()
-        self.router.clear_nbar_stats()
-
+class CTRexNbarBase(CTRexGeneral_Test):
     def match_classification (self):
         nbar_benchmark = self.get_benchmark_param("nbar_classification")
         test_classification = self.router.get_nbar_stats()
@@ -52,14 +41,26 @@ class CTRexNbar_Test(CTRexGeneral_Test):
         if missmatchFlag:
             self.fail(missmatchMsg)
 
+class CTRexNbar_Test(CTRexNbarBase):
+    """This class defines the NBAR testcase of the TRex traffic generator"""
+    def __init__(self, *args, **kwargs):
+        super(CTRexNbar_Test, self).__init__(*args, **kwargs)
+        self.unsupported_modes = ['loopback'] # obviously no NBar in loopback
+
+    def setUp(self):
+        super(CTRexNbar_Test, self).setUp() # launch super test class setUp process
+#       self.router.kill_nbar_flows()
+        self.router.clear_cft_counters()
+        self.router.clear_nbar_stats()
 
     def test_nbar_simple(self):
         # test initializtion
         deviation_compare_value = 0.03   # default value of deviation - 3%
-        self.router.configure_basic_interfaces()
 
-        self.router.config_pbr(mode = "config")
-        self.router.config_nbar_pd()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+            self.router.config_nbar_pd()
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
@@ -89,9 +90,10 @@ class CTRexNbar_Test(CTRexGeneral_Test):
 
     # the name intentionally not matches nose default pattern, including the test should be specified explicitly
     def NBarLong(self):
-        self.router.configure_basic_interfaces()
-        self.router.config_pbr(mode = "config")
-        self.router.config_nbar_pd()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = "config")
+            self.router.config_nbar_pd()
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')

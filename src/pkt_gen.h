@@ -27,7 +27,8 @@ enum {
     D_PKT_TYPE_UDP = 2,
     D_PKT_TYPE_TCP = 3,
     D_PKT_TYPE_ARP = 4,
-    D_PKT_TYPE_9k_UDP = 5,
+    D_PKT_TYPE_RSS_TEST = 5,
+    D_PKT_TYPE_9k_UDP = 6,
     D_PKT_TYPE_IPV6 = 60,
     D_PKT_TYPE_HW_VERIFY = 100,
     D_PKT_TYPE_HW_VERIFY_RCV_ALL = 101,
@@ -37,7 +38,8 @@ enum {
 enum {
     DPF_VLAN = 0x1,
     DPF_QINQ = 0X2,
-    DPF_RXCHECK = 0x4
+    DPF_RXCHECK = 0x4,
+    DPF_TOS_1 = 0x8,
 };
 
 class CTestPktGen {

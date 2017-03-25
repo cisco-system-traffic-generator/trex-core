@@ -29,20 +29,20 @@ test_jumbo:
 
 test_routing_imix:
     multiplier          : 10
-    cores               : 1
+    cores               : 2
     bw_per_core         : 34.128
 
 
 test_routing_imix_64:
     multiplier          : 430
-    cores               : 1
+    cores               : 2
     bw_per_core         : 5.893
 
 
 test_static_routing_imix: &test_static_routing_imix
     stat_route_dict     : *stat_route_dict
     multiplier          : 8
-    cores               : 1
+    cores               : 2
     bw_per_core         : 34.339
 
 test_static_routing_imix_asymmetric: *test_static_routing_imix
@@ -75,20 +75,19 @@ test_nbar_simple:
     cores               : 2
     bw_per_core         : 17.174
     nbar_classification:
-        http            : 32.58
-        rtp-audio       : 21.21
-        oracle_sqlnet   : 11.41
-        exchange        : 11.22
-        rtp             : 11.2
-        citrix          : 5.65
-        rtsp            : 2.87
-        dns             : 1.96
+        rtp             : 32.57
+        http            : 30.25
+        oracle_sqlnet   : 11.23
+        exchange        : 10.80
+        citrix          : 5.62
+        rtsp            : 2.84
+        dns             : 1.95
         smtp            : 0.57
-        pop3            : 0.37
-        ssl             : 0.28
+        pop3            : 0.36
+        ssl             : 0.17
         sctp            : 0.13
         sip             : 0.09
-        unknown         : 0.45
+        unknown         : 3.41
 
 
 test_rx_check_http: &rx_http

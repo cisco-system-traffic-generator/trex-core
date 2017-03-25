@@ -78,7 +78,6 @@ void i40e_debug_aq(struct i40e_hw *hw, enum i40e_debug_mask mask,
 void i40e_idle_aq(struct i40e_hw *hw);
 bool i40e_check_asq_alive(struct i40e_hw *hw);
 enum i40e_status_code i40e_aq_queue_shutdown(struct i40e_hw *hw, bool unloading);
-#ifdef X722_SUPPORT
 
 enum i40e_status_code i40e_aq_get_rss_lut(struct i40e_hw *hw, u16 seid,
 					  bool pf_lut, u8 *lut, u16 lut_size);
@@ -90,11 +89,8 @@ enum i40e_status_code i40e_aq_get_rss_key(struct i40e_hw *hw,
 enum i40e_status_code i40e_aq_set_rss_key(struct i40e_hw *hw,
 				     u16 seid,
 				     struct i40e_aqc_get_set_rss_key_data *key);
-#endif
-#ifndef I40E_NDIS_SUPPORT
 const char *i40e_aq_str(struct i40e_hw *hw, enum i40e_admin_queue_err aq_err);
 const char *i40e_stat_str(struct i40e_hw *hw, enum i40e_status_code stat_err);
-#endif /* I40E_NDIS_SUPPORT */
 
 #ifdef PF_DRIVER
 
@@ -123,6 +119,8 @@ enum i40e_status_code i40e_aq_debug_read_register(struct i40e_hw *hw,
 enum i40e_status_code i40e_aq_set_phy_debug(struct i40e_hw *hw, u8 cmd_flags,
 				struct i40e_asq_cmd_details *cmd_details);
 enum i40e_status_code i40e_aq_set_default_vsi(struct i40e_hw *hw, u16 vsi_id,
+				struct i40e_asq_cmd_details *cmd_details);
+enum i40e_status_code i40e_aq_clear_default_vsi(struct i40e_hw *hw, u16 vsi_id,
 				struct i40e_asq_cmd_details *cmd_details);
 enum i40e_status_code i40e_aq_get_phy_capabilities(struct i40e_hw *hw,
 			bool qualified_modules, bool report_init,
@@ -170,10 +168,16 @@ enum i40e_status_code i40e_aq_set_vsi_unicast_promiscuous(struct i40e_hw *hw,
 		bool rx_only_promisc);
 enum i40e_status_code i40e_aq_set_vsi_multicast_promiscuous(struct i40e_hw *hw,
 		u16 vsi_id, bool set, struct i40e_asq_cmd_details *cmd_details);
+enum i40e_status_code i40e_aq_set_vsi_full_promiscuous(struct i40e_hw *hw,
+				u16 seid, bool set,
+				struct i40e_asq_cmd_details *cmd_details);
 enum i40e_status_code i40e_aq_set_vsi_mc_promisc_on_vlan(struct i40e_hw *hw,
 				u16 seid, bool enable, u16 vid,
 				struct i40e_asq_cmd_details *cmd_details);
 enum i40e_status_code i40e_aq_set_vsi_uc_promisc_on_vlan(struct i40e_hw *hw,
+				u16 seid, bool enable, u16 vid,
+				struct i40e_asq_cmd_details *cmd_details);
+enum i40e_status_code i40e_aq_set_vsi_bc_promisc_on_vlan(struct i40e_hw *hw,
 				u16 seid, bool enable, u16 vid,
 				struct i40e_asq_cmd_details *cmd_details);
 enum i40e_status_code i40e_aq_set_vsi_vlan_promisc(struct i40e_hw *hw,
@@ -438,6 +442,7 @@ enum i40e_status_code i40e_get_port_mac_addr(struct i40e_hw *hw, u8 *mac_addr);
 enum i40e_status_code i40e_read_pba_string(struct i40e_hw *hw, u8 *pba_num,
 					    u32 pba_num_size);
 void i40e_pre_tx_queue_cfg(struct i40e_hw *hw, u32 queue, bool enable);
+enum i40e_status_code i40e_get_san_mac_addr(struct i40e_hw *hw, u8 *mac_addr);
 enum i40e_aq_link_speed i40e_get_link_speed(struct i40e_hw *hw);
 /* prototype for functions used for NVM access */
 enum i40e_status_code i40e_init_nvm(struct i40e_hw *hw);
@@ -518,7 +523,6 @@ enum i40e_status_code i40e_aq_rx_ctl_write_register(struct i40e_hw *hw,
 				u32 reg_addr, u32 reg_val,
 				struct i40e_asq_cmd_details *cmd_details);
 void i40e_write_rx_ctl(struct i40e_hw *hw, u32 reg_addr, u32 reg_val);
-#ifdef X722_SUPPORT
 enum i40e_status_code i40e_aq_set_arp_proxy_config(struct i40e_hw *hw,
 			struct i40e_aqc_arp_proxy_data *proxy_config,
 			struct i40e_asq_cmd_details *cmd_details);
@@ -534,11 +538,20 @@ enum i40e_status_code i40e_aq_set_clear_wol_filter(struct i40e_hw *hw,
 enum i40e_status_code i40e_aq_get_wake_event_reason(struct i40e_hw *hw,
 			u16 *wake_reason,
 			struct i40e_asq_cmd_details *cmd_details);
-#endif
-enum i40e_status_code i40e_read_phy_register(struct i40e_hw *hw, u8 page,
-					     u16 reg, u8 phy_addr, u16 *value);
-enum i40e_status_code i40e_write_phy_register(struct i40e_hw *hw, u8 page,
-					      u16 reg, u8 phy_addr, u16 value);
+enum i40e_status_code i40e_aq_clear_all_wol_filters(struct i40e_hw *hw,
+			struct i40e_asq_cmd_details *cmd_details);
+enum i40e_status_code i40e_read_phy_register_clause22(struct i40e_hw *hw,
+					u16 reg, u8 phy_addr, u16 *value);
+enum i40e_status_code i40e_write_phy_register_clause22(struct i40e_hw *hw,
+					u16 reg, u8 phy_addr, u16 value);
+enum i40e_status_code i40e_read_phy_register_clause45(struct i40e_hw *hw,
+				u8 page, u16 reg, u8 phy_addr, u16 *value);
+enum i40e_status_code i40e_write_phy_register_clause45(struct i40e_hw *hw,
+				u8 page, u16 reg, u8 phy_addr, u16 value);
+enum i40e_status_code i40e_read_phy_register(struct i40e_hw *hw,
+				u8 page, u16 reg, u8 phy_addr, u16 *value);
+enum i40e_status_code i40e_write_phy_register(struct i40e_hw *hw,
+				u8 page, u16 reg, u8 phy_addr, u16 value);
 u8 i40e_get_phy_address(struct i40e_hw *hw, u8 dev_num);
 enum i40e_status_code i40e_blink_phy_link_led(struct i40e_hw *hw,
 					      u32 time, u32 interval);

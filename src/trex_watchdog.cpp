@@ -126,12 +126,16 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
  *************************************/
 
 void TrexMonitor::create(const std::string &name, double timeout_sec) {
-    m_active       = true;   
-    m_tid          = pthread_self();
-    m_name         = name;
-    m_timeout_sec  = timeout_sec;
-    m_tickled      = true;
-    m_ts           = 0;
+    m_tid              = pthread_self();
+    m_name             = name;
+    m_timeout_sec      = timeout_sec;
+    m_base_timeout_sec = timeout_sec;
+    m_tickled          = true;
+    m_ts               = 0;
+    m_io_ref_cnt       = 0;
+    
+    /* the rare case of m_active_time_sec set out of order with tickled */
+    asm volatile("mfence" ::: "memory");
 }
 
 /**************************************
@@ -144,6 +148,23 @@ void TrexWatchDog::init(bool enable){
         register_signal();
     } 
 }
+
+/**
+ * get pointer to monitor of current thread
+ * (NULL if no monitor)
+ * 
+ */
+TrexMonitor * TrexWatchDog::get_current_monitor() {
+
+    for (int i = 0; i < m_mon_count; i++) {
+        if ( m_monitors[i]->get_tid() == pthread_self() ) {
+            return m_monitors[i];
+        }
+    }
+
+    return NULL;
+}
+
 
 /**
  * register a monitor 
@@ -159,12 +180,11 @@ void TrexWatchDog::register_monitor(TrexMonitor *monitor) {
     std::unique_lock<std::mutex> lock(m_lock);
 
     /* sanity - not a must but why not... */
-    for (int i = 0; i < m_mon_count; i++) {
-        if ( (monitor == m_monitors[i]) || (m_monitors[i]->get_tid() == pthread_self()) ) {
-            std::stringstream ss;
-            ss << "WATCHDOG: double register detected\n\n" << Backtrace();
-            throw TrexException(ss.str());
-        }
+    TrexMonitor * cur_monitor = get_current_monitor();
+    if ( cur_monitor != NULL || cur_monitor == monitor ) {
+        std::stringstream ss;
+        ss << "WATCHDOG: double register detected\n\n" << Backtrace();
+        throw TrexException(ss.str());
     }
 
     /* check capacity */
@@ -218,6 +238,8 @@ void TrexWatchDog::stop() {
  */
 void TrexWatchDog::_main() {
 
+    pthread_setname_np(pthread_self(), "Trex Watchdog");
+
     assert(m_enable == true);
 
     /* start main loop */
@@ -233,29 +255,26 @@ void TrexWatchDog::_main() {
         for (int i = 0; i < count; i++) {
             TrexMonitor *monitor = m_monitors[i];
 
-            /* skip non active monitors */
-            if (!monitor->is_active()) {
+            /* skip non expired monitors */
+            if (!monitor->is_expired(now)) {
                 continue;
             }
-
-            /* if its own - turn it off and write down the time */
+            
+            /* it has expired but it was tickled */
             if (monitor->is_tickled()) {
                 monitor->reset(now);
                 continue;
             }
 
-            /* if the monitor has expired - crash */
-            if (monitor->is_expired(now)) {
-                global_monitor = monitor;
+            /* crash */
+            global_monitor = monitor;
 
-                pthread_kill(monitor->get_tid(), SIGALRM);
+            pthread_kill(monitor->get_tid(), SIGALRM);
 
-                /* nothing to do more... the other thread will terminate, but if not - we terminate */
-                sleep(5);
-                fprintf(stderr, "\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor->get_name().c_str());
-                abort();
-            }
-
+            /* nothing to do more... the other thread will terminate, but if not - we terminate */
+            sleep(5);
+            fprintf(stderr, "\n\n*** WATCHDOG violation detected on task '%s' which have failed to response to the signal ***\n\n", monitor->get_name().c_str());
+            abort();
         }
 
         /* the internal clock - 250 ms */

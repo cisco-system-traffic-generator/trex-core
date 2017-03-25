@@ -33,14 +33,14 @@
 
 /* DPDK headers don't like -pedantic. */
 #ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-pedantic"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_interrupts.h>
 #include <rte_alarm.h>
 #ifdef PEDANTIC
-#pragma GCC diagnostic error "-pedantic"
+#pragma GCC diagnostic error "-Wpedantic"
 #endif
 
 #include "mlx5.h"
@@ -90,6 +90,8 @@ mlx5_dev_start(struct rte_eth_dev *dev)
 	if (dev->data->dev_conf.fdir_conf.mode != RTE_FDIR_MODE_NONE)
 		priv_fdir_enable(priv);
 	priv_dev_interrupt_handler_install(priv, dev);
+	err = priv_flow_start(priv);
+	priv_xstats_init(priv);
 	priv_unlock(priv);
 	return -err;
 }
@@ -120,6 +122,7 @@ mlx5_dev_stop(struct rte_eth_dev *dev)
 	priv_mac_addrs_disable(priv);
 	priv_destroy_hash_rxqs(priv);
 	priv_fdir_disable(priv);
+	priv_flow_stop(priv);
 	priv_dev_interrupt_handler_uninstall(priv, dev);
 	priv->started = 0;
 	priv_unlock(priv);

@@ -57,7 +57,41 @@ def mac_str_to_num (mac_buffer):
     return _buffer_to_num(mac_buffer)
 
 
-def is_valid_ipv4(ip_addr):
+# RFC 3513
+def generate_ipv6(mac_str, prefix = 'fe80'):
+    mac_arr = mac_str.split(':')
+    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
+    mac_arr[0] = '%x' % (int(mac_arr[0], 16) ^ 2) # invert second bit
+    return '%s::%s%s:%sff:fe%s:%s%s' % tuple([prefix] + mac_arr[:3] + mac_arr[3:])
+
+# RFC 4291
+def generate_ipv6_solicited_node(mac_str):
+    mac_arr = mac_str.split(':')
+    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
+    return 'ff02::1:ff%s:%s%s' % tuple(mac_arr[3:])
+
+
+# return full ipv6 ff02::1 -> ff02:0:0:0:0:0:0:1
+def expand_ipv6(addr):
+    addr_arr = addr.split(':')
+    if addr.startswith(':'):
+        addr_arr[0] = '0'
+    if addr.endswith(':'):
+        addr_arr[-1] = '0'
+    for i, e in enumerate(addr_arr):
+        if not e:
+            return ':'.join(addr_arr[:i] + ['0'] * (9 - len(addr_arr)) + addr_arr[i + 1:])
+    return ':'.join(addr_arr)
+
+
+# return multicast mac based on ipv6 ff02::1 -> 33:33:00:00:00:01
+def multicast_mac_from_ipv6(addr):
+    addr = expand_ipv6(addr)
+    addr_arr = addr.split(':')
+    return '33:33:%02x:%02x:%02x:%02x' % (divmod(int(addr_arr[-2], 16), 256) + divmod(int(addr_arr[-1], 16), 256))
+
+
+def is_valid_ipv4_ret(ip_addr):
     """
     Return buffer in network order
     """
@@ -75,7 +109,7 @@ def is_valid_ipv4(ip_addr):
         raise CTRexPacketBuildException(-10,"Not valid ipv4 format");
 
 
-def is_valid_ipv6(ipv6_addr):
+def is_valid_ipv6_ret(ipv6_addr):
     """
     Return buffer in network order
     """
@@ -136,8 +170,8 @@ class CTRexScIpv4SimpleRange(CTRexScFieldRangeBase):
         super(CTRexScIpv4SimpleRange, self).__init__(field_name,field_type)
         self.min_ip = min_ip
         self.max_ip = max_ip
-        mmin=ipv4_str_to_num (is_valid_ipv4(min_ip))
-        mmax=ipv4_str_to_num (is_valid_ipv4(max_ip))
+        mmin=ipv4_str_to_num (is_valid_ipv4_ret(min_ip))
+        mmax=ipv4_str_to_num (is_valid_ipv4_ret(max_ip))
         if  mmin > mmax :
             raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
@@ -152,8 +186,8 @@ class CTRexScIpv4TupleGen(CTRexScriptsBase):
         super(CTRexScIpv4TupleGen, self).__init__()
         self.min_ip = min_ipv4
         self.max_ip = max_ipv4
-        mmin=ipv4_str_to_num (is_valid_ipv4(min_ipv4))
-        mmax=ipv4_str_to_num (is_valid_ipv4(max_ipv4))
+        mmin=ipv4_str_to_num (is_valid_ipv4_ret(min_ipv4))
+        mmax=ipv4_str_to_num (is_valid_ipv4_ret(max_ipv4))
         if  mmin > mmax :
             raise CTRexPacketBuildException(-11, 'CTRexScIpv4SimpleRange m_min ip is bigger than max');
 
@@ -451,7 +485,7 @@ class CTRexScapyPktUtl(object):
         for pkt in self.pkt_iter ():
             if pkt.name == name:
                 if cnt==0:
-                    return (pkt, pkt.offset)
+                    return (pkt, pkt._offset)
                 else:
                     cnt=cnt -1
 
@@ -466,7 +500,7 @@ class CTRexScapyPktUtl(object):
         for pkt in self.pkt_iter ():
             if pkt.name == name:
                 if cnt==0:
-                    return pkt.offset
+                    return pkt._offset
                 else:
                     cnt=cnt -1
 
@@ -479,14 +513,13 @@ class CTRexScapyPktUtl(object):
         t=self._layer_offset(layer,layer_cnt);
         l_offset=t[1];
         layer_pkt=t[0]
-
         #layer_pkt.dump_fields_offsets ()
 
         for f in layer_pkt.fields_desc:
             if f.name == field_name:
-                return (l_offset+f.offset,f.get_size_bytes ());
+                return (l_offset+f._offset,f.get_size_bytes ());
 
-        raise CTRexPacketBuildException(-11, "No layer %s-%d." % (name, save_cnt, field_name));
+        raise CTRexPacketBuildException(-11, "No layer %s-%d." % (field_name, layer_cnt))
 
     def get_layer_offet_by_str(self, layer_des):
         """
@@ -619,7 +652,7 @@ def convert_val (val):
     if is_integer(val):
         return val
     if type(val) == str:
-        return ipv4_str_to_num (is_valid_ipv4(val))
+        return ipv4_str_to_num (is_valid_ipv4_ret(val))
     raise CTRexPacketBuildException(-11,("init val invalid %s ") % val  );
 
 def check_for_int (val):
@@ -710,13 +743,16 @@ class STLVmFlowVar(CTRexVmDescBase):
     def get_var_name(self):
         return [self.name]
 
-class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
+class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
     def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
 
+        1. The maximum number of distinct values will  'limit'. There could be a case of repetition
+        2. The values will be repeated  after 'limit' number of values.
+        
         :parameters:
              name : string 
                 Name of the stream variable 
@@ -742,15 +778,15 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
             # Example1
 
             # input , 1 byte or random with limit of 5 
-            STLVmFlowVarRepetableRandom("var1",size=1,limit=5)
+            STLVmFlowVarRepeatableRandom("var1",size=1,limit=5)
 
             # output 255,1,7,129,8, ==> repeat 255,1,7,129,8
 
-            STLVmFlowVarRepetableRandom("var1",size=4,limit=100,min_value=0x12345678, max_value=0x32345678)
+            STLVmFlowVarRepeatableRandom("var1",size=4,limit=100,min_value=0x12345678, max_value=0x32345678)
 
 
         """
-        super(STLVmFlowVarRepetableRandom, self).__init__()
+        super(STLVmFlowVarRepeatableRandom, self).__init__()
         self.name = name;
         validate_type('name', name, str)
         self.size =size
@@ -777,6 +813,18 @@ class STLVmFlowVarRepetableRandom(CTRexVmDescBase):
 
     def get_var_name(self):
         return [self.name]
+
+class STLVmFlowVarRepetableRandom(STLVmFlowVarRepeatableRandom):
+
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
+        super(STLVmFlowVarRepetableRandom, self).__init__(name,  size, limit, seed, min_value, max_value)
+
+    def get_obj (self):
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
+
+    def get_var_name(self):
+        return [self.name]
+
 
 class STLVmFixChecksumHw(CTRexVmDescBase):
     def __init__(self, l3_offset,l4_offset,l4_type):
@@ -827,6 +875,7 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         self.l3_offset = l3_offset; # could be a name of offset
         self.l4_offset = l4_offset; # could be a name of offset
         self.l4_type = l4_type
+        self.l2_len = 0
 
 
     def get_obj (self):
@@ -838,8 +887,8 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         if type(self.l4_offset)==str:
             self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
 
-        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset' 
-        self.l3_len = self.l4_offset - self.l2_len; 
+        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset'
+        self.l3_len = self.l4_offset - self.l2_len;
 
 
 class STLVmFixIpv4(CTRexVmDescBase):
@@ -1084,58 +1133,58 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
 
 
 class STLVmTrimPktSize(CTRexVmDescBase):
-    """
-    Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.  
-
-
-    :parameters:
-        fv_name : string 
-            Stream variable name. The value of this variable is the new total packet size.  
-
-
-    For Example::
-
-        def create_stream (self):
-            # pkt 
-            p_l2  = Ether();
-            p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
-            p_l4  = UDP(dport=12,sport=1025)
-            pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
-            base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
-    
-            l3_len_fix =-(len(p_l2));
-            l4_len_fix =-(len(p_l2/p_l3));
-    
-    
-            # vm
-            vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64, 
-                                            max_value=len(base_pkt), 
-                                            size=2, op="inc"),
-
-                               STLVmTrimPktSize("fv_rand"),                         # change total packet size <<<
-
-                               STLVmWrFlowVar(fv_name="fv_rand", 
-                                              pkt_offset= "IP.len", 
-                                              add_val=l3_len_fix), # fix ip len 
-
-                               STLVmFixIpv4(offset = "IP"),                       # fix checksum
-
-                               STLVmWrFlowVar(fv_name="fv_rand", 
-                                              pkt_offset= "UDP.len", 
-                                              add_val=l4_len_fix) # fix udp len  
-                              ]
-                           )
-    
-            pkt = STLPktBuilder(pkt = base_pkt,
-                                vm = vm)
-    
-            return STLStream(packet = pkt,
-                             mode = STLTXCont())
-
-
-    """
-
     def __init__(self,fv_name):
+        """
+            Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
+
+
+            :parameters:
+                fv_name : string
+                    Stream variable name. The value of this variable is the new total packet size.
+
+
+            For Example::
+
+                def create_stream (self):
+                    # pkt
+                    p_l2  = Ether();
+                    p_l3  = IP(src="16.0.0.1",dst="48.0.0.1")
+                    p_l4  = UDP(dport=12,sport=1025)
+                    pyld_size = max(0, self.max_pkt_size_l3 - len(p_l3/p_l4));
+                    base_pkt = p_l2/p_l3/p_l4/('\x55'*(pyld_size))
+
+                    l3_len_fix =-(len(p_l2));
+                    l4_len_fix =-(len(p_l2/p_l3));
+
+
+                    # vm
+                    vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=64,
+                                                    max_value=len(base_pkt),
+                                                    size=2, op="inc"),
+
+                                       STLVmTrimPktSize("fv_rand"),                         # change total packet size <<<
+
+                                       STLVmWrFlowVar(fv_name="fv_rand",
+                                                      pkt_offset= "IP.len",
+                                                      add_val=l3_len_fix), # fix ip len
+
+                                       STLVmFixIpv4(offset = "IP"),                       # fix checksum
+
+                                       STLVmWrFlowVar(fv_name="fv_rand",
+                                                      pkt_offset= "UDP.len",
+                                                      add_val=l4_len_fix) # fix udp len
+                                      ]
+                                   )
+
+                    pkt = STLPktBuilder(pkt = base_pkt,
+                                        vm = vm)
+
+                    return STLStream(packet = pkt,
+                                     mode = STLTXCont())
+
+
+        """
+
         super(STLVmTrimPktSize, self).__init__()
         self.name = fv_name
         validate_type('fv_name', fv_name, str)

@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import os
 import sys
-import getpass
 import shutil
 import multiprocessing
 import logging
@@ -33,26 +32,31 @@ def get_trex_path():
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
+    file_name = 'trex_package.tar.gz'
     # getting new package
     if package_path.startswith('http'):
-        file_name = package_path.split('/')[-1]
         ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
     else:
-        file_name = os.path.basename(package_path)
         ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
     if ret_code:
         raise Exception('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
     # clean old unpacked dirs
-    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
-    for unpacked_dir in unpacked_dirs:
-        shutil.rmtree(unpacked_dir)
+    tmp_files = glob(os.path.join(tmp_dir, '*'))
+    for tmp_file in tmp_files:
+        if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
+            shutil.rmtree(tmp_file)
     # unpacking
-    ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 60, cwd = tmp_dir)
+    ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 120, cwd = tmp_dir)
     if ret_code:
         raise Exception('Could not untar the package. %s' % [ret_code, stdout, stderr])
-    unpacked_dirs = glob(os.path.join(tmp_dir, 'v[0-9].[0-9][0-9]'))
-    if not len(unpacked_dirs) or len(unpacked_dirs) > 1:
+    tmp_files = glob(os.path.join(tmp_dir, '*'))
+    unpacked_dirs = []
+    for tmp_file in tmp_files:
+        if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
+            unpacked_dirs.append(tmp_file)
+    if len(unpacked_dirs) != 1:
         raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
+    os.chmod(unpacked_dirs[0], 0o777) # allow core dumps to be written
     cur_dir = args.trex_dir
     if os.path.islink(cur_dir) or os.path.isfile(cur_dir):
         os.unlink(cur_dir)
@@ -160,8 +164,13 @@ def _check_path_under_current_or_temp(path):
 
 ### Main ###
 
-if getpass.getuser() != 'root':
+if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
+
+pid = os.getpid()
+ret, out, err = run_command('taskset -pc 0 %s' % pid)
+if ret:
+    fail('Could not set self affinity to core zero. Result: %s' % [ret, out, err])
 
 daemon_actions = OrderedDict([('start', 'start the daemon'),
                               ('stop', 'exit the daemon process'),
@@ -204,7 +213,7 @@ args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
-stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, 'sudo -u nobody %s rpc_proxy_server.py' % sys.executable, stl_rpc_proxy_dir)
+stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
 trex_daemon_server = SingletonDaemon('TRex daemon server', 'trex_daemon_server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
 master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 

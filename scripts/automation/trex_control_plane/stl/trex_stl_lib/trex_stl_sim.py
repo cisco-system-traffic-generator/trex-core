@@ -539,7 +539,7 @@ def test_multi_core (r, options):
 
     for core_count in range(1, 9):
         r.run(input_list = options.input_file,
-              outfile = '{0}.cap'.format(core_count),
+              outfile = 'generated/{0}.cap'.format(core_count),
               dp_core_count = core_count,
               is_debug = (not options.release),
               pkt_limit = options.limit,
@@ -553,7 +553,7 @@ def test_multi_core (r, options):
 
     for core_count in range(1, 9):
         print(format_text("comparing {0} cores to 1 core:\n".format(core_count), 'underline'))
-        rc = compare_caps_strict('1.cap', '{0}.cap'.format(core_count))
+        rc = compare_caps_strict('generated/1.cap', 'generated/{0}.cap'.format(core_count))
         if rc:
             print("[Passed]\n")
 

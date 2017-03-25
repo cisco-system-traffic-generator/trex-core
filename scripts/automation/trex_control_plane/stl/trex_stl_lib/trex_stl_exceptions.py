@@ -13,18 +13,22 @@ except NameError:
 class STLError(Exception):
     def __init__ (self, msg):
         self.msg = str(msg)
-        self.tb = traceback.extract_stack()
+        self.stack = traceback.extract_stack()
 
     def __str__ (self):
+        self.tb = traceback.extract_tb(sys.exc_info()[2])
+        if not self.tb:
+            return self.msg
 
-        fname  = os.path.split(self.tb[-2][0])[1]
-        lineno = self.tb[-2][1]
-        func   = self.tb[-2][2]
-        src    = self.tb[-2][3]
+        s = format_text("\n******\n", 'bold')
+        s += format_text("\nException stack (most recent call last):\n\n", 'underline')
 
-        s = "\n******\n"
-        s += "Error at {0}:{1} - '{2}'\n\n".format(format_text(fname, 'bold'), format_text(lineno, 'bold'), format_text(src.strip(), 'bold'))
-        s += "specific error:\n\n{0}\n".format(format_text(self.msg, 'bold'))
+        for i, line in enumerate(self.tb):
+            fname, lineno, func, src = os.path.split(line[0])[1], line[1], line[2], line[3]
+            s += "#{:<2}    {:<50} - '{}'\n".format(len(self.tb) - i - 1, format_text(fname, 'bold') + ':' + format_text(lineno, 'bold'), format_text(src.strip(), 'bold'))
+
+        s += format_text('\nSummary error message:\n\n', 'underline')
+        s += format_text(self.msg + '\n', 'bold')
 
         return s
 

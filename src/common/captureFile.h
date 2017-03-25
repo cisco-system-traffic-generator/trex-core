@@ -25,6 +25,7 @@ limitations under the License.
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <cmath>
 
 #ifdef WIN32
 #pragma warning(disable:4786)
@@ -87,7 +88,7 @@ public:
     }
 
     double diff(const CPktNsecTimeStamp & obj){
-        return (abs(getNsec() - obj.getNsec() ) );
+        return (std::abs(getNsec() - obj.getNsec() ) );
     }
 
     void Dump(FILE *fd);
@@ -227,9 +228,10 @@ class CFileWriterBase {
 
 public:
 
-	virtual ~CFileWriterBase(){};
-	virtual bool Create(char * name) = 0;
+    virtual ~CFileWriterBase(){};
+    virtual bool Create(char * name) = 0;
     virtual bool write_packet(CCapPktRaw * lpPacket)=0;
+    virtual void flush_to_disk() = 0;
 
 };
 

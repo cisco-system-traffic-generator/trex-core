@@ -11,7 +11,7 @@ import copy
 import binascii
 from distutils.util import strtobool
 from collections import deque, OrderedDict
-from json import JSONDecoder
+import json
 import traceback
 import signal
 
@@ -92,7 +92,6 @@ class CTRexClient(object):
         self.__default_user         = get_current_user()
         self.verbose                = verbose
         self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
-        self.decoder                = JSONDecoder()
         self.history                = jsonrpclib.history.History()
         self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
         self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history)
@@ -150,14 +149,11 @@ class CTRexClient(object):
         user = user or self.__default_user
         try:
             d = int(d)
-            if d < 30 and not trex_development:  # test duration should be at least 30 seconds, unless trex_development flag is specified.
-                raise ValueError
         except ValueError:
-            raise ValueError('d parameter must be integer, specifying how long TRex run, and must be larger than 30 secs.')
+            raise ValueError('d parameter must be integer, specifying how long TRex run.')
 
         trex_cmd_options.update( {'f' : f, 'd' : d} )
-        if not trex_cmd_options.get('l'):
-            self.result_obj.latency_checked = False
+        self.result_obj.latency_checked = 'l' in trex_cmd_options
         if 'k' in trex_cmd_options:
             timeout += int(trex_cmd_options['k']) # during 'k' seconds TRex stays in 'Starting' state
 
@@ -526,7 +522,7 @@ class CTRexClient(object):
             return self.result_obj.get_latest_dump()
         else:
             try: 
-                latest_dump = self.decoder.decode( self.server.get_running_info() ) # latest dump is not a dict, but json string. decode it.
+                latest_dump = json.loads( self.server.get_running_info() ) # latest dump is not a dict, but json string. decode it.
                 self.result_obj.update_result_data(latest_dump)
                 return latest_dump
             except TypeError as inst:
@@ -609,6 +605,15 @@ class CTRexClient(object):
                 time.sleep(time_between_samples)
         except TRexWarning:
             pass
+
+        # try to get final server dump
+        try:
+            latest_server_dump = json.loads(self.server.get_latest_dump())
+            if latest_server_dump != self.result_obj.get_latest_dump():
+                self.result_obj.update_result_data(latest_server_dump)
+        except ProtocolError:
+            pass
+
         results = self.get_result_obj()
         return results
             
@@ -892,6 +897,31 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    def get_trex_config(self):
+        """
+        Get Trex config file (/etc/trex_cfg.yaml).
+
+        :return:
+            String representation of TRex config file
+
+        :raises:
+            + :exc:`trex_exceptions.TRexRequestDenied`, in case file could not be read.
+            + ProtocolError, in case of error in JSON-RPC protocol.
+
+        """
+        try:
+            res = binascii.a2b_base64(self.server.get_trex_config())
+            if type(res) is bytes:
+                return res.decode()
+            return res
+        except AppError as err:
+            self._handle_AppError_exception(err.args[0])
+        except ProtocolError:
+            raise
+        finally:
+            self.prompt_verbose_data()
+
+
     def push_files (self, filepaths):
         """
         Pushes a file (or a list of files) to store locally on server. 
@@ -1113,12 +1143,20 @@ class CTRexResult(object):
         self.clear_results()
         self.latency_checked = True
         self.filtered_latency_amount = filtered_latency_amount
+        self.set_warmup_default()
+
+    def set_warmup_default (self):
+        self.set_warmup(0.96)
+
+    def set_warmup (self,new_warmup_max):
+        self.warmup_max = new_warmup_max
 
     def __repr__(self):
         return ("Is valid history?       {arg}\n".format( arg = self.is_valid_hist() ) +
                 "Done warmup?            {arg}\n".format( arg = self.is_done_warmup() ) +
                 "Expected tx rate:       {arg}\n".format( arg = self.get_expected_tx_rate() ) +
                 "Current tx rate:        {arg}\n".format( arg = self.get_current_tx_rate() ) +
+                "Minimum latency:        {arg}\n".format( arg = self.get_min_latency() ) +
                 "Maximum latency:        {arg}\n".format( arg = self.get_max_latency() ) +
                 "Average latency:        {arg}\n".format( arg = self.get_avg_latency() ) +
                 "Average window latency: {arg}\n".format( arg = self.get_avg_window_latency() ) +
@@ -1164,6 +1202,36 @@ class CTRexResult(object):
 
         """
         return self._max_latency
+
+    def get_min_latency (self):
+        """
+        Fetches the minimum latency measured on each of the interfaces
+
+        :parameters:        
+            None
+
+        :return: 
+            dictionary containing the maximum latency, where the key is the measurement interface (`c` indicates client), and the value is the measurement value.
+
+        """
+        return self._min_latency
+
+        
+
+    def get_jitter_latency (self):
+        """
+        Fetches the jitter latency measured on each of the interfaces from the start of TRex run
+
+        :parameters:        
+            None
+
+        :return: 
+            dictionary containing the average latency, where the key is the measurement interface (`c` indicates client), and the value is the measurement value.
+
+            The `all` key represents the average of all interfaces' average
+
+        """
+        return self._jitter_latency
 
     def get_avg_latency (self):
         """
@@ -1373,7 +1441,7 @@ class CTRexResult(object):
 
         """
         # add latest dump to history
-        if latest_dump != {}:
+        if latest_dump:
             self._history.append(latest_dump)
             if not self.valid:
                 self.valid = True 
@@ -1385,8 +1453,8 @@ class CTRexResult(object):
 
             self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
-                # check for up to 2% change between expected and actual
-                if (self._current_tx_rate['m_tx_bps'] > 0.98 * self._expected_tx_rate['m_tx_expected_bps']):
+                # check for up to 4% change between expected and actual
+                if (self._current_tx_rate['m_tx_bps'] > self.warmup_max * self._expected_tx_rate['m_tx_expected_bps']):
                     self._done_warmup = True
                     latest_dump['warmup_barrier'] = True
 
@@ -1400,8 +1468,11 @@ class CTRexResult(object):
 
                 latency_per_port         = self.get_last_value("trex-latency-v2.data", "port-")
                 self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
+                self._min_latency        = self.__get_filtered_min_latency(latency_per_port) 
                 avg_latency              = self.get_last_value("trex-latency.data", "avg-")
                 self._avg_latency        = CTRexResult.__avg_all_and_rename_keys(avg_latency)
+                jitter_latency           = self.get_last_value("trex-latency.data", "jitter-")
+                self._jitter_latency        = CTRexResult.__avg_all_and_rename_keys(jitter_latency)
                 avg_win_latency_list     = self.get_value_list("trex-latency.data", "avg-")
                 self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
@@ -1427,7 +1498,9 @@ class CTRexResult(object):
         self._expected_tx_rate   = None
         self._current_tx_rate    = None
         self._max_latency        = None
+        self._min_latency        = None
         self._avg_latency        = None
+        self._jitter_latency     = None
         self._avg_window_latency = None
         self._total_drops        = None
         self._drop_rate          = None
@@ -1488,6 +1561,21 @@ class CTRexResult(object):
                 tmp_key = "port"+reg_res.group(1)
                 res[tmp_key] = val  # don't touch original fields values
         return res
+
+    @staticmethod
+    def __get_filtered_min_latency(src_dict):
+        result = {}
+        if src_dict:
+            for port, data in src_dict.items():
+                if not port.startswith('port-'):
+                    continue
+                res = data['hist']['min_usec']
+                min_port = 'min-%s' % port[5:]
+                result[min_port] = int(res)
+
+        return(result);
+
+
 
     @staticmethod
     def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):

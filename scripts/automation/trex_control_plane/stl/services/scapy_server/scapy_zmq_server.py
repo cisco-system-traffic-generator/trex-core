@@ -103,7 +103,10 @@ class Scapy_server():
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
         self.socket.bind("tcp://*:"+str(port))
-        self.IP_address = socket.gethostbyname(socket.gethostname())
+        try:
+            self.IP_address = socket.gethostbyname(socket.gethostname())
+        except:
+            self.IP_address = '0.0.0.0'
         self.logger = logging.getLogger('scapy_logger')
         self.logger.setLevel(logging.INFO)
         console_h = logging.StreamHandler(sys.__stdout__)

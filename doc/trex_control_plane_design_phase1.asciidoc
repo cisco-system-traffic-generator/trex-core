@@ -1,0 +1,519 @@
+TRex Control Plane Design - Phase 1
+====================================
+:author: Dan Klein 
+:email: <danklei@cisco.com> 
+:revnumber: 1.0
+:quotes.++:
+:numbered:
+
+
+include::trex_ga.asciidoc[]
+
+
+== Introduction
+
+=== TRex traffic generator
+
+TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
+This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+
+=== TRex Control Plane
+
+TRex control (phase 1) is the base API, based on which any future API will be developed. +
+This document will describe the current control plane for TRex, and its scalable features as a directive for future developement.
+
+==== TRex Control Plane - Architecture and Deployment notes
+
+TRex control plane is based on a JSON RPC transactions between clients and server. +
+Each TRex machine will have a server running on it, closely interacting with TRex (clients do not approach TRex directly). +
+The server version (which runs as either a daemon or a CLI application) is deployed with TRex latest version, written in Python 2.7.
+As future feature, and as multiple T-Rexes might run on the same machine, single server shall serve all T-Rexes running a machine.
+
+The control plane implementation is using the currently dumped data messaging from TRex's core via ZMQ publisher, running from core #1.
+The server used as a Subscriptor for this data, manipulating the packets, and re-encodes it into JSON-RPC format for clients use. +
+Since the entire process is taken place internally on the machine itself (using TCP connection with `localhost`), very little overhead is generated from outer network perspective.
+
+<<<
+
+The following image describes the general architecture of the control plane and how it interacts with the data plane of TRex.
+
+ifdef::backend-docbook[]
+image::images/trex_control_plane_modules.png[title="Control Plane modules",align="center",width=450, link="images/trex_control_plane_modules.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_control_plane_modules.png[title="Control Plane modules",align="center",width=900, link="images/trex_control_plane_modules.png"]
+endif::backend-xhtml11[] 
+
+The Python test script block represents any automation code or external module that wishes to control TRex by interacting with its server.
+
+Such script can use other JSON-RPC based implementations of this CTRexClient module, as long as it corresponds with the known server methods and JSON-RPC protocol.
+
+At next phases, an under developement integrated module will serve the clients, hence eliminating even the internal TCP messaging on the machine footnote:[updating server side planned to have almost no affect on the client side].
+
+== Using the API
+
+[NOTE]
+Basic familiarity with TRex is recommended before using this tool. +
+Further information can be learned from TRex manual: http://csi-wiki-01:8080/display/bpsim/Documentation[(TRex manual)]
+
+
+=== The Server module
+
+The server module is responsible for handling all possible requests related to TRex (i.e. this is the only mechanism that interacts with remote clients). +
+The server is built as a multithreaded application, and **must be launched on a TRex commands using `sudo` permissions**.
+
+The server application can run in one of two states:
+
+  1. **Live monitor**: this will run the server with live logging on the screen. To launch the server in this mode run `server/trex_server.py` file directly.
+
+  2. **Daemon application**: this will run the server as a background daemon process, and all logging will be saved into file, located at `/var/log/trex/` path. +
+     This is the common scenario, during which nothing is prompted into the screen, unless in case of error in server launching.
+
+==== Launching the server
+
+The server would run only on valid TRex machines or VM, due to delicate customization in used sub-modules, designed to eliminate the situation in which control and data plane packets are mixed.
+
+The server code is deployed by default with TRex (starting version 1.63 ) and can be launched from its path using the following command: +
+`./trex_daemon_server [RUN_COMMAND] [options]`
+
+[NOTE]
+The [RUN_COMMAND] is used only when server launched as a daemon application.
+
+Running this command with `--help` option will prompt the help menu, explaning all the available options.
+
+===== Daemon commands
+
+The following daemon commands are supported:
+
+  1. **`start`**: This option starts the daemon application of TRex server, using the following command options (detailed exmplanation on this next time).
+
+  2. **`stop`**: Stop the daemon application.
+
+  3. **`restart`**: Stop the current daemon proccess, then relaunch it with the provided parameters (the parameters must be re-entered).
+
+  3. **`show`**: Prompt whether the daemon is running or not.
+
+WARNING: restarting the daemon application will **truncate** the logfile.
+
+===== Server options commands
+
+The following describes the options for server launching, and applies to both daemon and live launching. +
+Let's have a look on the help menu:
+
+----
+[root@trex-dan Server]# ./trex_daemon_server --help
+[root@trex-dan Server]# usage: trex_deamon_server {start|stop|restart} [options]
+
+        NOTE: start/stop/restart options only available when running in daemon mode
+
+Run server application for TRex traffic generator
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PORT, --daemon-port PORT
+                        Select port on which the daemon runs. Default port is
+                        8090.
+  -z PORT, --zmq-port PORT
+                        Select port on which the ZMQ module listens to TRex.
+                        Default port is 4500.          #<2>
+  -t PATH, --trex-path PATH
+                        Specify the compiled TRex directory from which TRex
+                        would run. Default path is: /  #<1> 
+
+[root@trex-dan Server]#
+----
+
+<1> Default path might change when launching the server in daemon or live mode. 
+
+<2> ZMQ port must match the defined port of the platform, generally found at `/etc/trex_cfg.yaml`. 
+
+The available options are:
+
+  1. **`-p, --daemon-port`**: set the port on which the server is listening to clients requests. +
+  Default listening server port is **`8090`**.
+
+  2. **`-z, --zmq-port`**: set the port on which the server is listening to zmq publication from TRex. +
+  Default listening server port is **`4500`**.
+
+  3. **`-t, --trex-path`**: set the path from which TRex is runned. This is especially helpful when more than one version of TRex is used or switched between. Although this field has default value, it is highly recommended to set it manually with each server launch.
+
+[NOTE]
+When server is launched is first makes sure the trex-path is valid: the path 'exists' and granted with 'execution permissions.' If any of the conditions is not valid, the server will not launch.
+
+
+=== The Client module
+
+The client is a Python based application that created `TRexClient` instances. +
+Using class methods, the client interacts with TRex server, and enable it to perform the following commands:
+
+  1. Start TRex run (custom parameters supported).
+
+  2. Stop TRex run.
+
+  3. Check what is the TRex status (possible states: `Idle, Starting, Running`).
+
+  4. Poll (by customize sampling) the server and get live results from TRex **while still running**.
+
+  5. Get custom TRex stats based on a window of saved history of latest 'N' polling results.
+
+The clients is also based on Python 2.7, however unlike the server, it can run on any machine who wishes to. +
+In fact, the client side is simply a python library that interact with the server using JSON-RPC (v2), hence if needed, anyone can write a library on any other language that will interact with the server ins the very same way.
+
+
+==== `CTRexClient` module initialization
+
+As explained, `CTRexClient` is the main module to use when writing an TRex test-plan. +
+This module holds the entire interaction with TRex server, and result containing via `result_obj`, which is an instance of `CTRexResult` class. +
+The `CTRexClient` instance is initialized in the following way:
+
+  1. **TRex hostname**: represents the hostname on which the server is listening. Either hostname or IPv4 address will be a valid input.
+
+  2. **Server port**: the port on which the server listens to incoming client requests. This parameter value must be identical to `port` option configured in the server.
+
+  3. **History size**: The number of saved TRex samples. Based on this "window", some extra statistics and data are calculated. Default history size is 100 samples.
+
+  4. **verbose **: This boolean option will prompt extended output, if available, of each of the activated methods. For any method that interacts with TRex server, this will prompt the JSON-RPC request and response. + 
+  This option is especially useful for developers who wishes to imitate the functionality of this client using other programming languages.
+
+**That's it!** +
+Once these parameter has been passed, you're ready to interact with TRex.
+
+[NOTE] 
+The most common initialization will simply use the hostname, such that common initilization lookes like: + 
+`trex = CTRexClient('trex_host_name')`
+
+==== `CTRexClient` module usage
+
+This section covers with great detail the usage of the client module. Each of the methods describes are class methods of `CTRexClient`.
+
+  - **`start_trex (f, d, block_to_success, timeout, trex_cmd_options)`** +
+    Issue a request to start TRex with certain configuration. The server will only handle the request if the TRex is in `Idle` status. +
+    Once the status has been confirmed, TRex server will issue for this single client a token, so that only that client may abort running TRex session. +
+    `f` and `d` parameters are mandatory, as they are crucial parameter in setting TRex behaviour. Also, `d` parameter must be at least 30 seconds or larger.
+    By default (and by design) this method **blocks** until TRex status changes to either 'Running' or back to 'Idle'.
+
+  - **`stop_trex()`** +
+    If (and only if) a certain client issued a run requested (and it accepted), this client may use this command to abort current run. + 
+    This option is very useful especially when the real-time data from the TRex are utilized.
+
+  - **`wait_until_kickoff_finish(timeout = 40)`** +
+    This method blocks until TRex status changes to 'Running'. In case of error an exception will be thrown. +
+    The 'timeout' parameter sets the maximum waiting time. +
+    This method is especially useful when `block_to_success` was set to false in order to utilize the time to configure other things, such as DUT. 
+
+  - **`is_running(dump_out = False)`** +
+    Checks if there's currently TRex session up (with any client). +
+    If TRex is running, this method returns `True` and the result object id updated accordingly. +
+    If not running, return `False`. +
+    If a dictionary pointer is given in `dump_out` argument, the pointer object is cleared and the latest dump stored in it.
+
+  - **`get_running_status()`** +
+    Fetches the current TRex status. +
+    Three possible states
+
+      * `Idle` - No TRex session is currently running.
+
+      * `Starting` - A TRex session just started (turns into Running after stability condition is reached)
+
+      * `Running` - TRex session is currently active.
+
+  The following diagram describes the state machine of TRex:
+
+ifdef::backend-docbook[]
+image::images/trex_control_plane_state_machine.png[title="TRex running state machine",align="center",width=280, link="images/trex_control_plane_state_machine.png"]
+endif::backend-docbook[]
+
+ifdef::backend-xhtml11[]
+image::images/trex_control_plane_state_machine.png[title="TRex running state machine",align="center",width=400, link="images/trex_control_plane_state_machine.png"]
+endif::backend-xhtml11[] 
+
+  - **`get_running_info()`** +
+    This method performs single poll of TRex running data and process it into the result object (named `result_obj`). +
+    The method returns the most updated data dump from TRex in the form of Python dictionary. +
+    +
+    Behind the scenes, running that method will trigger inner-client process over the saved window, and produce window-relevant information, as well as get the most important data more accessible. +
+    Once the data has been fetched (at sample rate the satisfies the user), a custom data manipulation can be done in various forms and techniques footnote:[See `CTRexResult` module usage for more details]. +
+    **Note: ** the sampling rate is bounded from buttom to 2 samples/sec.
+
+  - **`sample_until_condition(condition_func, time_between_samples = 5)`** +
+    This method automatically sets ongoing sampling of TRex data, with sampling rate described by `time_between_samples`. On each fetched dump, the `condition_func` is applied on the result objects, and if returns `True`, the sampling will stop. +
+    On success (condition has been met), this method returns the latest result object that satisfied the given condition. +
+    ON fail, this method will raise `UserWarning` exception.
+
+  - **`sample_to_run_finish(time_between_samples = 5)`** +
+    This method automatically sets ongoing sampling of TRex data with sampling rate described by `time_between_samples` until TRex run finished.
+
+  - **`get_result_obj()`** +
+    Returns a pointer to the result object of the client instance. + 
+    Hence, this method returns the result object on which all the data processing takes place. 
+
+TIP: The window stats (calculated when `get_running_info()` triggered) are very helpful in eliminate 'spikes' behavior in numerical values which might float from other data. 
+
+==== `CTRexResult` module usage
+
+This section covers how to use `CTRexResult` module to access into TRex data and post processing results, taking place at the client side whenever a data is polled from the server. +
+The most important data structure in this module is the `history` object, which contains the sampled information (plus the post processing step) of each sample.
+
+Most of the class methods are getters that enables an easy access to the most commonly used when working with TRex. These getters are called with self-explained names, such as `get_max_latency`. +
+However, on top to these methods, the class offers data accessibility using the rest of the class methods. +
+These methods are:
+
+  - **`is_done_warmup()`** +
+    This will return `True` only if TRex has reached its expected transmission bandwidth footnote:[A 3% deviation is allowed.]. +
+    This parameter is important since in most cases, the most relevent test cases are interesting when TRex produces its expected TX, based on which the platform is tested and benchmerked.
+
+  - **`get_latest_dump()`** +
+    Fetches the latest polled dump saved in history.
+
+  - **`get_last_value (tree_path_to_key, regex = None)`** +
+    Fetch, out of the latest data dump a value. 
+
+  - **`get_value_list (tree_path_to_key, regex = None)`** +
+    Fetch, out of all data dumps stored in history a value. 
+    
+  - **History data access API** +
+    Since (as mentioned earlier) the data dump is a JSON-RPC string, which is decoded into Python dictionaries and lists, nested within each other. +
+    This "Mini API" is used by both `get_last_value` and `get_value_list` methods, and receives in both cases two arguments: `tree_path_to_key, regex` footnote:[By default, `regex` argument is set to None]. +
+    The user may choose whatever value he wishes to extract, using the `tree_path_to_key` argument. 
+
+      * In order to get deeper and deeper on the hierarchy, use the key of the dictionary, separated by dot (‘'.'’) for each level. +
+        In order to fetch more than one key in a certain dictionary (no matter how deep it is nested), use the `regex` argument to state which keys are to be included.
+        Example: In order to fetch only the `expected_tx` key values of the latest dump, we'll call: *`get_last_value("trex-global.data", "m_tx_expected_\w+")`* +
+        This will produce the following dictionary result: +
+        *`{'m_tx_expected_pps': 21513.6, 'm_tx_expected_bps': 100416760.0, 'm_tx_expected_cps': 412.3}`* +
+        We can see that the result is every key-value pair, found at the relevant tree-path and matches the provided regex.
+
+      * In order to access an array element, specifying the `key_to_array[i]`, where `i` is the desired array index. +
+        Example: In order to access the third element of the data array of: +
+        `{“template_info” :  {"name":"template_info","type":0,"data":["avl/delay_10_http_get_0.pcap","avl/delay_10_http_post_0.pcap",` *`"avl/delay_10_https_0.pcap"`* `,"avl/delay_10_http_browsing_0.pcap",  "avl/delay_10_exchange_0.pcap","avl/delay_10_mail_pop_0.pcap","avl/delay_10_mail_pop_1.pcap","avl/delay_10_mail_pop_2.pcap","avl/delay_10_oracle_0.pcap"]}`  +
+        we'll use the following command: `get_last_value("template_info.data[2]”)`. +
+        This will produce the following result: +
+        *`avl/delay_10_https_0.pcap`* +
+
+        
+== Usage Examples
+
+=== Example #1: Checking TRex status and Launching TRex
+
+The following program checks TRex status, and later on launches it, querying its status along different time slots.
+
+[source, python]
+----
+import time
+
+trex = CTRexClient('trex-name')  
+print "Before Running, TRex status is: ", trex.is_running()           # <1>
+print "Before Running, TRex status is: ", trex.get_running_status()   # <2>
+
+ret = trex.start_trex( c = 2,                        # <3>  
+        m = 0.1,
+        d = 40,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+print "After Starting, TRex status is: ", trex.is_running(), trex.get_running_status()
+
+time.sleep(10)  # <4>
+
+print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <5>
+----
+
+<1> `is_running()` returns a boolean and checks if TRex is running or not.
+
+<2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
+
+<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'd' are mandatory).
+
+<4> Going to sleep for few seconds, allowing TRex to start.
+
+<5> Checking out with TRex status again, printing both a boolean return value and a full status.
+
+This code will prompt the following output, assuming a server was launched on the TRex machine.
+
+----
+Connecting to TRex @ http://trex-dan:8090/ ...
+Before Running, TRex status is:  False
+Before Running, TRex status is:  {u'state': <TRexStatus.Idle: 1>, u'verbose': u'TRex is Idle'}
+                                                      <1>                             <1>
+
+After Starting, TRex status is:  False {u'state': <TRexStatus.Starting: 2>, u'verbose': u'TRex is starting'}
+                                                      <1>                             <1>
+Is TRex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'TRex is Running'}
+                                                      <1>                             <1>
+----
+
+<1> When looking at TRex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
+
+
+=== Example #2: Checking TRex status and Launching TRex with 'BAD PARAMETERS'
+
+The following program checks TRex status, and later on launches it with wrong input ('mdf' is not legal option), hence TRex run will not start and a message will be available.
+
+[source, python]
+----
+import time
+
+trex = CTRexClient('trex-name')  
+print "Before Running, TRex status is: ", trex.is_running()           # <1>
+print "Before Running, TRex status is: ", trex.get_running_status()   # <2>
+
+ret = trex.start_trex( c = 2,                        # <3>  
+#<4>     mdf = 0.1,
+        d = 40,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+print "After Starting, TRex status is: ", trex.is_running(), trex.get_running_status()
+
+time.sleep(10)  # <5>
+
+print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <6>
+----
+
+<1> `is_running()` returns a boolean and checks if TRex is running or not.
+
+<2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
+
+<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+
+<4> Wrong parameter ('mdf') injected.
+
+<5> Going to sleep for few seconds, allowing TRex to start.
+
+<6> Checking out with TRex status again, printing both a boolean return value and a full status.
+
+This code will prompt the following output, assuming a server was launched on the TRex machine.
+----
+Connecting to TRex @ http://trex-dan:8090/ ...
+Before Running, TRex status is:  False
+Before Running, TRex status is:  {u'state': <TRexStatus.Idle: 1>, u'verbose': u'TRex is Idle'}
+                                                      <1>                             <1>
+
+After Starting, TRex status is:  False {u'state': <TRexStatus.Starting: 2>, u'verbose': u'TRex is starting'}
+                                                      <1>                             <1>
+Is TRex running?  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'TRex run failed due to wrong input parameters, or due to reachability issues.'}
+                                                      <2>                             <2>
+----
+
+<1> When looking at TRex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
+ 
+<2> After TRex lanuching failed, a message indicating the failure reason. However, TRex is back Idle, ready to handle another launching request.
+
+
+=== Example #3: Launching TRex, let it run until custom condition is satisfied
+
+The following program will launch TRex, and poll its result data until custom condition function returns `True`. + In this case, the condition function is simply named `condition`. + 
+Once the condition is met, TRex run will be terminated.
+
+[source, python]
+----
+print "Before Running, TRex status is: ", trex.get_running_status()
+
+    print "Starting TRex..."
+    ret = trex.start_trex( c = 2, 
+        mdf = 0.1,
+        d = 1000,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+    def condition (result_obj): #<1>
+        return result_obj.get_current_tx_rate()['m_tx_pps'] > 200000
+
+    res = trex.sample_until_condition(condition) #<2>
+
+    print res #<3>
+    val_list = res.get_value_list("trex-global.data", "m_tx_expected_\w+") #<4>
+----
+
+<1> The `condition` function defines when to stop TRex. In this case, when TRex's current tx (in pps) exceeds 200000.
+ 
+<2> The condition is passed to `sample_until_condition` method, which will block until either the condition is met or an 'Exception' is raised.
+
+<3> Once satisfied, `res` variable holds the first result object on which the condition satisfied. At this point, TRex status is 'Idle' and another run can be requested from the server.
+
+<4> Further custom processing can be made on the result object, regardless of other TRex runs.
+
+<<<
+
+=== Example #4: Launching TRex, monitor live data and stopping on demand
+
+The following program will launch TRex, and while it runs poll the server (every 5 seconds) for running inforamtion, such as latency, drops, and other extractable parameters. +
+Then, after some criteria was met, TRex execution is terminated, enabeling others to use the resource instead of waiting for the entire execution to finish.
+    
+[source, python]
+----
+print "Before Running, TRex status is: ", trex.get_running_status()
+
+    print "Starting TRex..."
+    ret = trex.start_trex( c = 2, 
+        mdf = 0.1,
+        d = 100,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+    last_res = dict()
+    while trex.is_running(dump_out = last_res): #<1>
+        print '\n\n*****************************************'
+        print "RECEIVED DUMP:"
+        print last_res, "\n\n\n"
+
+        print "CURRENT RESULT OBJECT"
+        obj = trex.get_result_obj()
+   #<2> # Custom data processing is done here, for example:                
+        print obj.get_value_list("trex-global.data.m_tx_bps")      
+        time.sleep(5) #<3>
+
+    print "Terminating TRex..."
+    ret = trex.stop_trex()  #<4>                             
+----
+
+<1> Iterate as long as TRex is running. + 
+    In this case the latest dump is also saved into `last_res` variable, so easier access for that data is available, although not needed most of the time.
+
+<2> Data processing. This is fully customizable for the relevant test initiated.
+
+<3> The sampling rate is flexibale and can be configured depending on the desired output.
+
+<4> TRex termination.
+
+<<<
+
+=== Example #5: Launching TRex, let it run until finished
+
+The following program will launch TRex, and poll it automatically until run finishes. The polling rate is customisable (in this case, every 10 seconds) using `time_between_samples` argument.
+
+[source, python]
+----
+print "Before Running, TRex status is: ", trex.get_running_status()
+
+    print "Starting TRex..."
+   ret = trex.start_trex( c = 2,  #<1>
+        mdf = 0.1,
+        d = 1000,
+        f = 'avl/sfr_delay_10_1g.yaml',
+        nc = True,
+        p = True,
+        l = 1000)
+
+    res = trex.sample_to_run_finish(time_between_samples = 10) #<2>
+
+    print res #<3>
+    val_list = res.get_value_list("trex-global.data", "m_tx_expected_\w+") #<4>
+----
+
+<1> TRex run initialization.
+ 
+<2> Define the sample rate and block until TRex run ends. Once this method returns (assuming no error), TRex result object will contain the samples collected allong TRex run, limited to the history size footnoteref:[For example, For example for history sized 100 only the latest 100 samples will be available despite sampling more than that during TRex run.].
+
+<3> Once finished, `res` variable holds the latest result object.
+
+<4> Further custom processing can be made on the result object, regardless of other TRex runs.

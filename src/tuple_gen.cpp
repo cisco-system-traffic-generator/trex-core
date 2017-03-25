@@ -6,7 +6,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,23 +21,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
-#include "tuple_gen.h"
 #include <string.h>
 #include "utl_yaml.h"
 #include "bp_sim.h"
+#include "tuple_gen.h"
+
+static bool _enough_ips(uint32_t total_ip,
+                       double active_flows){
+    /* Socket utilization is lower than 20% */
+    if ( (active_flows/((double)total_ip*(double)MAX_PORT))>0.10 ) {
+        return(false);
+    }
+    return (true);
+}
 
 void CServerPool::Create(IP_DIST_t  dist_value,
             uint32_t min_ip,
             uint32_t max_ip,
-            double l_flow,
-            double t_cps) {
+            double active_flows
+            ) {
     gen = new CIpPool();
     gen->set_dist(dist_value);
     uint32_t total_ip = max_ip - min_ip +1;
     gen->m_ip_info.resize(total_ip);
 
-    if (total_ip > ((l_flow*t_cps/MAX_PORT))) {
+    if ( _enough_ips(total_ip,active_flows) ) {
         for(int idx=0;idx<total_ip;idx++){
             gen->m_ip_info[idx] = new CServerInfoL();
             gen->m_ip_info[idx]->set_ip(min_ip+idx);
@@ -56,8 +64,7 @@ void CServerPool::Create(IP_DIST_t  dist_value,
 void CClientPool::Create(IP_DIST_t       dist_value,
                          uint32_t        min_ip,
                          uint32_t        max_ip,
-                         double          l_flow,
-                         double          t_cps,
+                         double          active_flows,
                          ClientCfgDB     &client_info,
                          uint16_t        tcp_aging,
                          uint16_t        udp_aging) {
@@ -67,7 +74,7 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     set_dist(dist_value);
 
     uint32_t total_ip  = max_ip - min_ip +1;
-    bool is_long_range = total_ip > (l_flow * t_cps / MAX_PORT);
+    bool is_long_range = _enough_ips(total_ip,active_flows);
 
     m_ip_info.resize(total_ip);
 
@@ -134,7 +141,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
             throw std::runtime_error(ss.str());
         }
 
-        ClientCfg info;
+        ClientCfgBase info;
         group->assign(info);
 
         if (is_long_range) {
@@ -149,8 +156,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                                           uint32_t        min_client,
                                           uint32_t        max_client,
-                                          double          l_flow,
-                                          double          t_cps,
+                                          double          active_flows,
                                           ClientCfgDB     &client_info,
                                           uint16_t        tcp_aging,
                                           uint16_t        udp_aging) {
@@ -159,8 +165,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
     pool->Create(client_dist,
                  min_client,
                  max_client,
-                 l_flow,
-                 t_cps,
+                 active_flows,
                  client_info,
                  tcp_aging,
                  udp_aging);
@@ -172,8 +177,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
 bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
                                           uint32_t min_server,
                                           uint32_t max_server,
-                                          double l_flow,
-                                          double t_cps,
+                                          double   active_flows,
                                           bool is_bundling){
     assert(max_server>=min_server);
     CServerPoolBase* pool;
@@ -182,8 +186,8 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
     else
         pool = new CServerPoolSimple();
     // we currently only supports mac mapping file for client
-    pool->Create(server_dist, min_server, max_server,
-                 l_flow, t_cps);
+    pool->Create(server_dist, min_server, max_server,active_flows);
+
     m_server_pool.push_back(pool);
     return(true);
 }
@@ -216,13 +220,84 @@ void CTupleGeneratorSmart::Delete(){
     m_server_pool.clear();
 }
 
+void CTupleGenYamlInfo::dump(FILE *fd) {
+    fprintf(fd, "Client pools:\n");
+    for (int i=0; i < m_client_pool.size(); i++) {
+        m_client_pool[i].Dump(fd);
+    }
+    fprintf(fd, "Server pools:\n");
+    for (int i=0; i < m_server_pool.size(); i++) {
+        m_server_pool[i].Dump(fd);
+    }
+}
+
+// Find out matching port for given ip range.
+// If found, port is returned in port, otherwise port is set to UINT8_MAX
+// Return false in case of error. True otherwise. Port not found is not considered error.
+bool CTupleGenYamlInfo::find_port(uint32_t ip_start, uint32_t ip_end, uint8_t &port) {
+    uint8_t num_ports = CGlobalInfo::m_options.get_expected_ports();
+
+    for (int i=0; i < m_client_pool.size(); i++) {
+            CTupleGenPoolYaml &pool = m_client_pool[i];
+            uint32_t pool_start = pool.get_ip_start();
+            uint32_t pool_end = pool.get_ip_end();
+            uint32_t pool_offset = pool.getDualMask();
+            for (uint8_t port_id = 0; port_id < num_ports; port_id += 2) {
+                uint32_t pool_port_start = pool_start + pool_offset * port_id / 2;
+                uint32_t pool_port_end = pool_end + pool_offset * port_id / 2;
+                if ((ip_start >= pool_port_start) &&  (ip_start <= pool_port_end)) {
+                    if ((ip_end >= pool_port_start) &&  (ip_end <= pool_port_end)) {
+                        port = port_id;
+                        return true;
+                    } else {
+                        // ip_start in range, ip_end not
+                        fprintf(stderr, "Error for range %s - %s. Start is inside range %s - %s, but end is outside\n"
+                                , ip_to_str(ip_start).c_str(), ip_to_str(ip_end).c_str()
+                                , ip_to_str(pool_port_start).c_str(), ip_to_str(pool_port_end).c_str());
+                                port = UINT8_MAX;
+                                return false;
+                    }
+                }
+            }
+        }
+
+        for (int i=0; i < m_server_pool.size(); i++) {
+            CTupleGenPoolYaml &pool = m_server_pool[i];
+            uint32_t pool_start = pool.get_ip_start();
+            uint32_t pool_end = pool.get_ip_end();
+            uint32_t pool_offset = pool.getDualMask();
+            for (uint8_t port_id = 1; port_id < num_ports; port_id += 2) {
+                uint32_t pool_port_start = pool_start + pool_offset * (port_id - 1) / 2;
+                uint32_t pool_port_end = pool_end + pool_offset * (port_id - 1)/ 2;
+                if ((ip_start >= pool_port_start) &&  (ip_start <= pool_port_end)) {
+                    if ((ip_end >= pool_port_start) &&  (ip_end <= pool_port_end)) {
+                        port = port_id;
+                        return true;
+                    } else {
+                        fprintf(stderr, "Error for range %s - %s. Start is inside range %s - %s, but end is outside\n"
+                                , ip_to_str(ip_start).c_str(), ip_to_str(ip_end).c_str()
+                                , ip_to_str(pool_port_start).c_str(), ip_to_str(pool_port_end).c_str());
+                        // ip_start in range, ip_end not
+                        port = UINT8_MAX;
+                        return false;
+                    }
+                }
+            }
+        }
+
+        port = UINT8_MAX;
+        return true;
+}
+
 void CTupleGenPoolYaml::Dump(FILE *fd){
-    fprintf(fd,"  dist            : %d \n",m_dist);
-    fprintf(fd,"  IPs         : %08x -%08x \n",m_ip_start,m_ip_end);
-    fprintf(fd,"  clients per gb  : %d  \n",m_number_of_clients_per_gb);
-    fprintf(fd,"  min clients     : %d  \n",m_min_clients);
-    fprintf(fd,"  tcp aging       : %d sec \n",m_tcp_aging_sec);
-    fprintf(fd,"  udp aging       : %d sec \n",m_udp_aging_sec);
+    fprintf(fd," Pool %s:\n", (m_name.size() == 0) ? "default":m_name.c_str());
+    fprintf(fd,"  dist           : %d \n",m_dist);
+    fprintf(fd,"  IPs            : %s - %s \n",ip_to_str(m_ip_start).c_str(), ip_to_str(m_ip_end).c_str());
+    fprintf(fd,"  dual_port_mask : %s \n",ip_to_str(m_dual_interface_mask).c_str());
+    fprintf(fd,"  clients per gb : %d  \n",m_number_of_clients_per_gb);
+    fprintf(fd,"  min clients    : %d  \n",m_min_clients);
+    fprintf(fd,"  tcp aging      : %d sec \n",m_tcp_aging_sec);
+    fprintf(fd,"  udp aging      : %d sec \n",m_udp_aging_sec);
 }
 
 bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
@@ -244,13 +319,13 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
     return (true);
 }
 
-
-
-
-
 #define UTL_YAML_READ(type, field, target) if (node.FindValue(#field)) { \
     utl_yaml_read_ ## type (node, #field , target); \
     } else { printf("generator definition mising " #field "\n"); } 
+
+#define UTL_YAML_READ_NO_MSG(type, field, target) if (node.FindValue(#field)) { \
+    utl_yaml_read_ ## type (node, #field , target); \
+    } 
 
 IP_DIST_t convert_distribution (const YAML::Node& node) {
     std::string tmp;
@@ -265,11 +340,11 @@ IP_DIST_t convert_distribution (const YAML::Node& node) {
 }
 
 void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
-    UTL_YAML_READ(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
-    UTL_YAML_READ(uint32, min_clients, fi.m_min_clients);
-    UTL_YAML_READ(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
-    UTL_YAML_READ(uint16, tcp_aging, fi.m_tcp_aging_sec);
-    UTL_YAML_READ(uint16, udp_aging, fi.m_udp_aging_sec);
+    UTL_YAML_READ_NO_MSG(uint32, clients_per_gb, fi.m_number_of_clients_per_gb);
+    UTL_YAML_READ_NO_MSG(uint32, min_clients, fi.m_min_clients);
+    UTL_YAML_READ_NO_MSG(ip_addr, dual_port_mask, fi.m_dual_interface_mask);
+    UTL_YAML_READ_NO_MSG(uint16, tcp_aging, fi.m_tcp_aging_sec);
+    UTL_YAML_READ_NO_MSG(uint16, udp_aging, fi.m_udp_aging_sec);
 }
 
 void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
@@ -345,6 +420,11 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         printf("no client generator pool configured, using default pool\n");
     } 
 
+    if (fi.m_client_pool.size() >= CS_MAX_POOLS) {
+        printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_client_pool.size(),(ulong)CS_MAX_POOLS);
+        exit(1);
+    }
+
     if (node.FindValue("generator_servers")) {
         const YAML::Node& s_pool_info = node["generator_servers"];
         for (uint16_t idx=0;idx<s_pool_info.size();idx++) {
@@ -358,6 +438,12 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     } else {
         printf("no server generator pool configured, using default pool\n");
     } 
+
+    if (fi.m_server_pool.size() >= CS_MAX_POOLS) {
+        printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_server_pool.size(),(ulong)CS_MAX_POOLS);
+        exit(1);
+    }
+
 }
 
 bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){

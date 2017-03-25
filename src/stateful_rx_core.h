@@ -24,39 +24,13 @@ limitations under the License.
 
 #include "bp_sim.h"
 #include "flow_stat.h"
+#include "utl_ip.h"
 
 #define L_PKT_SUBMODE_NO_REPLY 1
 #define L_PKT_SUBMODE_REPLY 2
 #define L_PKT_SUBMODE_0_SEQ 3
 
 class TrexWatchDog;
-
-class CRXCoreIgnoreStat {
-    friend class CCPortLatency;
-    friend class CLatencyManager;
- public:
-    inline CRXCoreIgnoreStat operator- (const CRXCoreIgnoreStat &t_in) {
-        CRXCoreIgnoreStat t_out;
-        t_out.m_tx_arp = this->m_tx_arp - t_in.m_tx_arp;
-        t_out.m_tx_ipv6_n_solic = this->m_tx_ipv6_n_solic - t_in.m_tx_ipv6_n_solic;
-        t_out.m_tot_bytes = this->m_tot_bytes - t_in.m_tot_bytes;
-        return t_out;
-    }
-    uint64_t get_tx_bytes() {return m_tot_bytes;}
-    uint64_t get_tx_pkts() {return m_tx_arp + m_tx_ipv6_n_solic;}
-    uint64_t get_tx_arp() {return m_tx_arp;}
-    uint64_t get_tx_n_solic() {return m_tx_ipv6_n_solic;}
-    void clear() {
-        m_tx_arp = 0;
-        m_tx_ipv6_n_solic = 0;
-        m_tot_bytes = 0;
-    }
-
- private:
-    uint64_t m_tx_arp;
-    uint64_t m_tx_ipv6_n_solic;
-    uint64_t m_tot_bytes;
-};
 
 class CLatencyPktInfo {
 public:
@@ -225,13 +199,23 @@ public:
 
 
 class CPortLatencyHWBase {
- public:
-    virtual int tx(rte_mbuf_t * m)=0;
-    virtual rte_mbuf_t * rx()=0;
-    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts,
-                               uint16_t nb_pkts){
-        return(0);
-    }
+public:
+    
+    /**
+     * sends a packet
+     * 
+     */
+    virtual int tx(rte_mbuf_t *m) = 0;
+    
+    /**
+     * sends a latency packet 
+     * if needed, timestamp will be updated 
+     * 
+     */
+    virtual int tx_latency(rte_mbuf_t *m) = 0;
+    
+    virtual rte_mbuf_t * rx() = 0;
+    virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) = 0;
 };
 
 
@@ -346,18 +330,16 @@ public:
         return ( &m_nat_check_manager );
     }
     CLatencyPktMode *c_l_pkt_mode;
+    void add_grat_arp_src(COneIPv4Info &ip);
 
 private:
     void  tickle();
     void  send_pkt_all_ports();
-    void  send_grat_arp_all_ports();
+    double grat_arp_timeout();
+    void  send_one_grat_arp();
     void  try_rx();
-    void  try_rx_queues();
-    void  run_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void  wait_for_rx_dump();
     void  handle_rx_pkt(CLatencyManagerPerPort * lp, rte_mbuf_t * m);
-    /* messages handlers */
-    void handle_latency_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg);
 
  private:
      pqueue_t                m_p_queue; /* priorty queue */
@@ -374,7 +356,7 @@ private:
      CCpuUtlDp               m_cpu_dp_u;
      CCpuUtlCp               m_cpu_cp_u;
      TrexMonitor             m_monitor;
-
+     CManyIPInfo             m_arp_info; // for grat ARP
      volatile bool           m_do_stop __rte_cache_aligned ;
 };
 

@@ -37,6 +37,7 @@
 
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
+#include <rte_vdev.h>
 
 #include "virtio_ethdev.h"
 #include "virtio_logs.h"
@@ -81,8 +82,17 @@ virtio_user_write_dev_config(struct virtio_hw *hw, size_t offset,
 		for (i = 0; i < ETHER_ADDR_LEN; ++i)
 			dev->mac_addr[i] = ((const uint8_t *)src)[i];
 	else
-		PMD_DRV_LOG(ERR, "not supported offset=%zu, len=%d\n",
+		PMD_DRV_LOG(ERR, "not supported offset=%zu, len=%d",
 			    offset, length);
+}
+
+static void
+virtio_user_reset(struct virtio_hw *hw)
+{
+	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
+
+	if (dev->status & VIRTIO_CONFIG_STATUS_DRIVER_OK)
+		virtio_user_stop_device(dev);
 }
 
 static void
@@ -92,15 +102,9 @@ virtio_user_set_status(struct virtio_hw *hw, uint8_t status)
 
 	if (status & VIRTIO_CONFIG_STATUS_DRIVER_OK)
 		virtio_user_start_device(dev);
+	else if (status == VIRTIO_CONFIG_STATUS_RESET)
+		virtio_user_reset(hw);
 	dev->status = status;
-}
-
-static void
-virtio_user_reset(struct virtio_hw *hw)
-{
-	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
-
-	virtio_user_stop_device(dev);
 }
 
 static uint8_t
@@ -116,7 +120,8 @@ virtio_user_get_features(struct virtio_hw *hw)
 {
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
-	return dev->features;
+	/* unmask feature bits defined in vhost user protocol */
+	return dev->device_features & VIRTIO_PMD_SUPPORTED_GUEST_FEATURES;
 }
 
 static void
@@ -124,7 +129,7 @@ virtio_user_set_features(struct virtio_hw *hw, uint64_t features)
 {
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
-	dev->features = features;
+	dev->features = features & dev->device_features;
 }
 
 static uint8_t
@@ -207,11 +212,11 @@ virtio_user_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 	}
 
 	if (write(dev->kickfds[vq->vq_queue_index], &buf, sizeof(buf)) < 0)
-		PMD_DRV_LOG(ERR, "failed to kick backend: %s\n",
+		PMD_DRV_LOG(ERR, "failed to kick backend: %s",
 			    strerror(errno));
 }
 
-static const struct virtio_pci_ops virtio_user_ops = {
+const struct virtio_pci_ops virtio_user_ops = {
 	.read_dev_cfg	= virtio_user_read_dev_config,
 	.write_dev_cfg	= virtio_user_write_dev_config,
 	.reset		= virtio_user_reset,
@@ -269,6 +274,8 @@ get_integer_arg(const char *key __rte_unused,
 	return 0;
 }
 
+static struct rte_vdev_driver virtio_user_driver;
+
 static struct rte_eth_dev *
 virtio_user_eth_dev_alloc(const char *name)
 {
@@ -277,7 +284,7 @@ virtio_user_eth_dev_alloc(const char *name)
 	struct virtio_hw *hw;
 	struct virtio_user_dev *dev;
 
-	eth_dev = rte_eth_dev_allocate(name, RTE_ETH_DEV_VIRTUAL);
+	eth_dev = rte_eth_dev_allocate(name);
 	if (!eth_dev) {
 		PMD_INIT_LOG(ERR, "cannot alloc rte_eth_dev");
 		return NULL;
@@ -300,17 +307,30 @@ virtio_user_eth_dev_alloc(const char *name)
 		return NULL;
 	}
 
-	hw->vtpci_ops = &virtio_user_ops;
+	hw->port_id = data->port_id;
+	virtio_hw_internal[hw->port_id].vtpci_ops = &virtio_user_ops;
 	hw->use_msix = 0;
 	hw->modern   = 0;
+	hw->use_simple_rxtx = 0;
 	hw->virtio_user_dev = dev;
 	data->dev_private = hw;
+	data->drv_name = virtio_user_driver.driver.name;
 	data->numa_node = SOCKET_ID_ANY;
 	data->kdrv = RTE_KDRV_NONE;
 	data->dev_flags = RTE_ETH_DEV_DETACHABLE;
-	eth_dev->pci_dev = NULL;
 	eth_dev->driver = NULL;
 	return eth_dev;
+}
+
+static void
+virtio_user_eth_dev_free(struct rte_eth_dev *eth_dev)
+{
+	struct rte_eth_dev_data *data = eth_dev->data;
+	struct virtio_hw *hw = data->dev_private;
+
+	rte_free(hw->virtio_user_dev);
+	rte_free(hw);
+	rte_eth_dev_release_port(eth_dev);
 }
 
 /* Dev initialization routine. Invoked once for each virtio vdev at
@@ -318,7 +338,7 @@ virtio_user_eth_dev_alloc(const char *name)
  * Returns 0 on success.
  */
 static int
-virtio_user_pmd_devinit(const char *name, const char *params)
+virtio_user_pmd_probe(const char *name, const char *params)
 {
 	struct rte_kvargs *kvlist = NULL;
 	struct rte_eth_dev *eth_dev;
@@ -343,23 +363,21 @@ virtio_user_pmd_devinit(const char *name, const char *params)
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_PATH) == 1) {
-		ret = rte_kvargs_process(kvlist, VIRTIO_USER_ARG_PATH,
-					 &get_string_arg, &path);
-		if (ret < 0) {
+		if (rte_kvargs_process(kvlist, VIRTIO_USER_ARG_PATH,
+				       &get_string_arg, &path) < 0) {
 			PMD_INIT_LOG(ERR, "error to parse %s",
 				     VIRTIO_USER_ARG_PATH);
 			goto end;
 		}
 	} else {
-		PMD_INIT_LOG(ERR, "arg %s is mandatory for virtio_user\n",
+		PMD_INIT_LOG(ERR, "arg %s is mandatory for virtio_user",
 			  VIRTIO_USER_ARG_QUEUE_SIZE);
 		goto end;
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_MAC) == 1) {
-		ret = rte_kvargs_process(kvlist, VIRTIO_USER_ARG_MAC,
-					 &get_string_arg, &mac_addr);
-		if (ret < 0) {
+		if (rte_kvargs_process(kvlist, VIRTIO_USER_ARG_MAC,
+				       &get_string_arg, &mac_addr) < 0) {
 			PMD_INIT_LOG(ERR, "error to parse %s",
 				     VIRTIO_USER_ARG_MAC);
 			goto end;
@@ -367,9 +385,8 @@ virtio_user_pmd_devinit(const char *name, const char *params)
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_QUEUE_SIZE) == 1) {
-		ret = rte_kvargs_process(kvlist, VIRTIO_USER_ARG_QUEUE_SIZE,
-					 &get_integer_arg, &queue_size);
-		if (ret < 0) {
+		if (rte_kvargs_process(kvlist, VIRTIO_USER_ARG_QUEUE_SIZE,
+				       &get_integer_arg, &queue_size) < 0) {
 			PMD_INIT_LOG(ERR, "error to parse %s",
 				     VIRTIO_USER_ARG_QUEUE_SIZE);
 			goto end;
@@ -377,9 +394,8 @@ virtio_user_pmd_devinit(const char *name, const char *params)
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_QUEUES_NUM) == 1) {
-		ret = rte_kvargs_process(kvlist, VIRTIO_USER_ARG_QUEUES_NUM,
-					 &get_integer_arg, &queues);
-		if (ret < 0) {
+		if (rte_kvargs_process(kvlist, VIRTIO_USER_ARG_QUEUES_NUM,
+				       &get_integer_arg, &queues) < 0) {
 			PMD_INIT_LOG(ERR, "error to parse %s",
 				     VIRTIO_USER_ARG_QUEUES_NUM);
 			goto end;
@@ -387,9 +403,8 @@ virtio_user_pmd_devinit(const char *name, const char *params)
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_CQ_NUM) == 1) {
-		ret = rte_kvargs_process(kvlist, VIRTIO_USER_ARG_CQ_NUM,
-					 &get_integer_arg, &cq);
-		if (ret < 0) {
+		if (rte_kvargs_process(kvlist, VIRTIO_USER_ARG_CQ_NUM,
+				       &get_integer_arg, &cq) < 0) {
 			PMD_INIT_LOG(ERR, "error to parse %s",
 				     VIRTIO_USER_ARG_CQ_NUM);
 			goto end;
@@ -411,12 +426,16 @@ virtio_user_pmd_devinit(const char *name, const char *params)
 
 	hw = eth_dev->data->dev_private;
 	if (virtio_user_dev_init(hw->virtio_user_dev, path, queues, cq,
-				 queue_size, mac_addr) < 0)
+				 queue_size, mac_addr) < 0) {
+		PMD_INIT_LOG(ERR, "virtio_user_dev_init fails");
+		virtio_user_eth_dev_free(eth_dev);
 		goto end;
+	}
 
 	/* previously called by rte_eal_pci_probe() for physical dev */
 	if (eth_virtio_dev_init(eth_dev) < 0) {
 		PMD_INIT_LOG(ERR, "eth_virtio_dev_init fails");
+		virtio_user_eth_dev_free(eth_dev);
 		goto end;
 	}
 	ret = 0;
@@ -433,7 +452,7 @@ end:
 
 /** Called by rte_eth_dev_detach() */
 static int
-virtio_user_pmd_devuninit(const char *name)
+virtio_user_pmd_remove(const char *name)
 {
 	struct rte_eth_dev *eth_dev;
 	struct virtio_hw *hw;
@@ -442,7 +461,7 @@ virtio_user_pmd_devuninit(const char *name)
 	if (!name)
 		return -EINVAL;
 
-	PMD_DRV_LOG(INFO, "Un-Initializing %s\n", name);
+	PMD_DRV_LOG(INFO, "Un-Initializing %s", name);
 	eth_dev = rte_eth_dev_allocated(name);
 	if (!eth_dev)
 		return -ENODEV;
@@ -461,14 +480,14 @@ virtio_user_pmd_devuninit(const char *name)
 	return 0;
 }
 
-static struct rte_driver virtio_user_driver = {
-	.type   = PMD_VDEV,
-	.init   = virtio_user_pmd_devinit,
-	.uninit = virtio_user_pmd_devuninit,
+static struct rte_vdev_driver virtio_user_driver = {
+	.probe = virtio_user_pmd_probe,
+	.remove = virtio_user_pmd_remove,
 };
 
-PMD_REGISTER_DRIVER(virtio_user_driver, virtio_user);
-DRIVER_REGISTER_PARAM_STRING(virtio_user,
+RTE_PMD_REGISTER_VDEV(net_virtio_user, virtio_user_driver);
+RTE_PMD_REGISTER_ALIAS(net_virtio_user, virtio_user);
+RTE_PMD_REGISTER_PARAM_STRING(net_virtio_user,
 	"path=<path> "
 	"mac=<mac addr> "
 	"cq=<int> "

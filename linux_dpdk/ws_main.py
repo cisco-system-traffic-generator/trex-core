@@ -12,6 +12,13 @@ import copy;
 import re
 import uuid
 import subprocess
+import platform
+from waflib import Logs
+from waflib.Configure import conf
+from waflib import Build
+
+# use hostname as part of cache filename
+Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
 # these variables are mandatory ('/' are converted automatically)
 top = '../'
@@ -30,6 +37,16 @@ USERS_ALLOWED_TO_RELEASE = ['hhaim']
 #######################################
 # utility for group source code 
 ###################################
+
+orig_system = os.system
+
+def verify_system(cmd):
+    ret = orig_system(cmd)
+    if ret:
+        raise Exception('Return code %s on command: system("%s")' % (ret, cmd))
+
+os.system = verify_system
+
 
 class SrcGroup:
     ' group of source by directory '
@@ -87,10 +104,97 @@ def options(opt):
     opt.add_option('--pkg-dir', '--pkg_dir', dest='pkg_dir', default=False, action='store', help="Destination folder for 'pkg' option.")
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
+    opt.add_option('--no-mlx', dest='no_mlx', default=False, action='store_true', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
+
+
+def check_ibverbs_deps(bld):
+    if 'LDD' not in bld.env or not len(bld.env['LDD']):
+        bld.fatal('Please run configure. Missing key LDD.')
+    cmd = '%s %s/external_libs/ibverbs/libibverbs.so' % (bld.env['LDD'][0], top)
+    ret, out = getstatusoutput(cmd)
+    if ret or not out:
+        bld.fatal("Command of checking libraries '%s' failed.\nReturn status: %s\nOutput: %s" % (cmd, ret, out))
+    if '=> not found' in out:
+        Logs.pprint('YELLOW', 'Could not find dependency libraries of libibverbs.so:')
+        for line in out.splitlines():
+            if '=> not found' in line:
+                Logs.pprint('YELLOW', line)
+        dumy_libs_path = os.path.abspath(top + 'scripts/dumy_libs')
+        Logs.pprint('YELLOW', 'Adding rpath of %s' % dumy_libs_path)
+        rpath_linkage.append(dumy_libs_path)
+
+
+def missing_pkg_msg(fedora, ubuntu):
+    msg = 'not found\n'
+    fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
+    ubuntu_install = 'Ubuntu install:\nsudo apt install %s\n' % ubuntu
+    try:
+        if platform.linux_distribution()[0].capitalize() == 'Ubuntu':
+            msg += ubuntu_install
+        elif platform.linux_distribution()[0].capitalize() == 'Fedora':
+            msg += fedora_install
+        else:
+            raise
+    except:
+        msg += 'Could not determine Linux distribution.\n%s\n%s' % (ubuntu_install, fedora_install)
+    return msg
+
+
+@conf
+def check_ofed(ctx):
+    ctx.start_msg('Checking for OFED')
+    ofed_info='/usr/bin/ofed_info'
+
+    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+
+    ofed_ver= 40
+    ofed_ver_show= '4.0'
+
+    if not os.path.isfile(ofed_info):
+        ctx.end_msg('not found', 'YELLOW')
+        return False
+
+    ret, out = getstatusoutput(ofed_info)
+    if ret:
+        ctx.end_msg("Can't run %s to verify version:\n%s" % (ofed_info, out), 'YELLOW')
+        return False
+
+    lines = out.splitlines()
+    if len(lines) < 2:
+        ctx.end_msg('Expected several output lines from %s, got:\n%s' % (ofed_info, out), 'YELLOW')
+        return False
+
+    m= ofed_ver_re.match(str(lines[0]))
+    if m:
+        ver=int(m.group(1))*10+int(m.group(2))
+        if ver < ofed_ver:
+          ctx.end_msg("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show),'YELLOW')
+          return False
+    else:
+        ctx.end_msg("not found valid  OFED version '%s' " % (lines[0]),'YELLOW')
+        return False
+
+    ctx.end_msg('Found needed version %s' % ofed_ver_show)
+    return True
+
 
 def configure(conf):
     conf.load('g++')
     conf.load('gcc')
+    conf.find_program('ldd')
+    conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
+    no_mlx = conf.options.no_mlx
+
+    conf.env.NO_MLX = no_mlx
+    if not no_mlx:
+        ofed_ok = conf.check_ofed(mandatory = False)
+        if ofed_ok:
+            conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
+        else:
+            Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' + 
+                                  'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
+
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
@@ -117,6 +221,7 @@ main_src = SrcGroup(dir='src',
              'flow_stat_parser.cpp',
              'inet_pton.cpp',
              'pkt_gen.cpp',
+             'tw_cfg.cpp',
              'platform_cfg.cpp',
              'pre_test.cpp',
              'tuple_gen.cpp',
@@ -127,15 +232,19 @@ main_src = SrcGroup(dir='src',
              'time_histogram.cpp',
              'os_time.cpp',
              'utl_cpuu.cpp',
+             'utl_ip.cpp',
              'utl_json.cpp',
              'utl_yaml.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
              'msg_manager.cpp',
+             'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
-             'pal/common/common_mbuf.cpp'
+             'pal/common/common_mbuf.cpp',
+             'h_timer.cpp'
+
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -202,7 +311,10 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp'
+                                    'rx/trex_stateless_rx_core.cpp',
+                                    'rx/trex_stateless_rx_port_mngr.cpp',
+                                    'rx/trex_stateless_capture.cpp',
+                                    'common/trex_stateless_pkt.cpp',
                                     ])
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -305,6 +417,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/base/ixgbe_dcb.c',
                  'drivers/net/ixgbe/base/ixgbe_dcb_82598.c',
                  'drivers/net/ixgbe/base/ixgbe_dcb_82599.c',
+                 'drivers/net/ixgbe/base/ixgbe_hv_vf.c',
                  'drivers/net/ixgbe/base/ixgbe_mbx.c',
                  'drivers/net/ixgbe/base/ixgbe_phy.c',
                  'drivers/net/ixgbe/base/ixgbe_vf.c',
@@ -312,9 +425,11 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/base/ixgbe_x550.c',
                  'drivers/net/ixgbe/ixgbe_ethdev.c',
                  'drivers/net/ixgbe/ixgbe_fdir.c',
+                 'drivers/net/ixgbe/ixgbe_flow.c',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
+
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -322,10 +437,11 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/base/i40e_hmc.c',
                  'drivers/net/i40e/base/i40e_lan_hmc.c',
                  'drivers/net/i40e/base/i40e_nvm.c',
-#                 'drivers/net/i40e/i40e_ethdev_vf.c',
+                 'drivers/net/i40e/i40e_ethdev_vf.c',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
-                 'drivers/net/i40e/i40e_rxtx_vec.c',
+                 'drivers/net/i40e/i40e_flow.c',
+                 'drivers/net/i40e/i40e_rxtx_vec_sse.c',
                  'drivers/net/i40e/i40e_fdir.c',
                  'drivers/net/i40e/i40e_ethdev.c',
                  'drivers/net/null/rte_eth_null.c',
@@ -335,11 +451,18 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_rxtx.c',
                  'drivers/net/virtio/virtio_rxtx_simple.c',
                  'drivers/net/virtio/virtqueue.c',
-                 '/drivers/net/vmxnet3/vmxnet3_ethdev.c',
-                 '/drivers/net/vmxnet3/vmxnet3_rxtx.c',
+                 'drivers/net/virtio/virtio_rxtx_simple_sse.c',
+                 'drivers/net/virtio/virtio_user_ethdev.c',
+                 'drivers/net/virtio/virtio_user/vhost_kernel.c',
+                 'drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
+                 'drivers/net/virtio/virtio_user/vhost_user.c',
+                 'drivers/net/virtio/virtio_user/virtio_user_dev.c',
+                 'drivers/net/vmxnet3/vmxnet3_ethdev.c',
+                 'drivers/net/vmxnet3/vmxnet3_rxtx.c',
                  'lib/librte_cfgfile/rte_cfgfile.c',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
+                 'lib/librte_eal/common/eal_common_bus.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
@@ -357,6 +480,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
+                 'lib/librte_eal/common/eal_common_vdev.c',
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
                  'lib/librte_eal/common/rte_keepalive.c',
@@ -366,7 +490,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_debug.c',
                  'lib/librte_eal/linuxapp/eal/eal_hugepage_info.c',
                  'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
-                 'lib/librte_eal/linuxapp/eal/eal_ivshmem.c',
                  'lib/librte_eal/linuxapp/eal/eal_lcore.c',
                  'lib/librte_eal/linuxapp/eal/eal_log.c',
                  'lib/librte_eal/linuxapp/eal/eal_memory.c',
@@ -378,19 +501,55 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio.c',
                  'lib/librte_ether/rte_ethdev.c',
+                 'lib/librte_ether/rte_flow.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
+                 'lib/librte_mbuf/rte_mbuf_ptype.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
                  'lib/librte_mempool/rte_mempool_ring.c',
+                 'lib/librte_net/rte_net.c',
                  'lib/librte_pipeline/rte_pipeline.c',
                  'lib/librte_ring/rte_ring.c',
+            ]);
+
+mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
+                src_list=[
+
+                 'drivers/net/mlx5/mlx5_mr.c',
+                 'drivers/net/mlx5/mlx5_ethdev.c',
+                 'drivers/net/mlx5/mlx5_mac.c',
+                 'drivers/net/mlx5/mlx5_rxmode.c',
+                 'drivers/net/mlx5/mlx5_rxtx.c',
+                 'drivers/net/mlx5/mlx5_stats.c',
+                 'drivers/net/mlx5/mlx5_txq.c',
+                 'drivers/net/mlx5/mlx5.c',
+                 'drivers/net/mlx5/mlx5_fdir.c',
+                 'drivers/net/mlx5/mlx5_flow.c',
+                 'drivers/net/mlx5/mlx5_rss.c',
+                 'drivers/net/mlx5/mlx5_rxq.c',
+                 'drivers/net/mlx5/mlx5_trigger.c',
+                 'drivers/net/mlx5/mlx5_vlan.c',
+            ]);
+
+mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
+                src_list=[
+                 'drivers/net/mlx4/mlx4.c',
             ]);
 
 bp_dpdk =SrcGroups([
                 dpdk_src
                 ]);
+
+mlx5_dpdk =SrcGroups([
+                mlx5_dpdk_src
+                ]);
+
+mlx4_dpdk =SrcGroups([
+                mlx4_dpdk_src
+                ]);
+
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -425,7 +584,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-include','../src/pal/linux_dpdk/dpdk0716/rte_config.h'
+                '-include','../src/pal/linux_dpdk/dpdk1702/rte_config.h'
                ]
 
 common_flags_new = common_flags + [
@@ -454,6 +613,7 @@ common_flags_old = common_flags + [
 
 
 includes_path =''' ../src/pal/linux_dpdk/
+                   ../src/pal/linux_dpdk/dpdk1702/
                    ../src/pal/common/
                    ../src/
                    
@@ -461,6 +621,7 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
                    ../src/stateless/rx/
+                   ../src/stateless/common/
                    ../src/stateless/messaging/
 
                    ../external_libs/yaml-cpp/include/
@@ -515,9 +676,12 @@ includes_path =''' ../src/pal/linux_dpdk/
 ../src/dpdk/lib/librte_ring/
               ''';
 
+
+dpdk_includes_verb_path =''
+
 dpdk_includes_path =''' ../src/ 
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk
+                        ../src/pal/linux_dpdk/dpdk1702/
 ../src/dpdk/drivers/
 ../src/dpdk/drivers/net/
 ../src/dpdk/drivers/net/af_packet/
@@ -542,6 +706,7 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/drivers/net/pcap/
 ../src/dpdk/drivers/net/ring/
 ../src/dpdk/drivers/net/virtio/
+../src/dpdk/drivers/net/virtio/virtio_user/
 ../src/dpdk/drivers/net/vmxnet3/
 ../src/dpdk/drivers/net/vmxnet3/base
 ../src/dpdk/drivers/net/xenvirt/
@@ -577,6 +742,8 @@ dpdk_includes_path =''' ../src/
 ''';
 
 
+
+
 DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
 
 client_external_libs = [
@@ -588,6 +755,7 @@ client_external_libs = [
         'texttable-0.8.4',
         ]
 
+rpath_linkage = []
 
 RELEASE_    = "release"
 DEBUG_      = "debug"
@@ -659,6 +827,18 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk");
 
+    def get_mlx5_target (self):
+        return self.update_executable_name("mlx5");
+
+    def get_mlx4_target (self):
+        return self.update_executable_name("mlx4");
+
+    def get_mlx5so_target (self):
+        return self.update_executable_name("libmlx5")+'.so';
+
+    def get_mlx4so_target (self):
+        return self.update_executable_name("libmlx4")+'.so';
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -693,6 +873,8 @@ class build_option:
 
     def get_c_flags (self):
         flags = self.get_common_flags()
+        if  self.isRelease () :
+            flags += ['-DNDEBUG'];
 
         # for C no special flags yet
         return (flags)
@@ -719,9 +901,6 @@ build_types = [
 
 def build_prog (bld, build_obj):
 
-    zmq_lib_path='external_libs/zmq/'
-    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
-
     #rte_libs =[
     #         'dpdk'];
 
@@ -733,9 +912,7 @@ def build_prog (bld, build_obj):
     # add electric fence only for debug image  
     debug_file_list='';
     if not build_obj.isRelease ():
-        #debug 
         debug_file_list +=ef_src.file_list(top)
-
 
     bld.objects(
       features='c ',
@@ -746,6 +923,28 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target() 
       );
 
+    if bld.env.NO_MLX == False:
+        bld.shlib(
+          features='c',
+          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+          use =['ibverbs'],
+    
+          source   = mlx5_dpdk.file_list(top),
+          target   = build_obj.get_mlx5_target() 
+        )
+
+        bld.shlib(
+        features='c',
+        includes = dpdk_includes_path+dpdk_includes_verb_path,
+        cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+        use =['ibverbs'],
+        source   = mlx4_dpdk.file_list(top),
+        target   = build_obj.get_mlx4_target() 
+       )
+
+        
+
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
@@ -753,6 +952,7 @@ def build_prog (bld, build_obj):
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(),'zmq'],
                 source = bp.file_list(top) + debug_file_list,
+                rpath = rpath_linkage,
                 target = build_obj.get_target())
 
 
@@ -768,29 +968,61 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
+    global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
+
+    zmq_lib_path='external_libs/zmq/'
+    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
+
+    if bld.env.NO_MLX == False:
+        if bld.env['LIB_IBVERBS']:
+            Logs.pprint('GREEN', 'Info: Using external libverbs.')
+            bld.read_shlib(name='ibverbs')
+        else:
+            Logs.pprint('GREEN', 'Info: Using internal libverbs.')
+            ibverbs_lib_path='external_libs/ibverbs/'
+            dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
+            bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+            check_ibverbs_deps(bld)
+
     for obj in build_types:
         build_type(bld,obj);
 
 
 def build_info(bld):
     pass;
-      
+
+def do_create_link (src,dst,exec_p):
+    if os.path.exists(src):
+        dest_file = exec_p +dst
+        if not os.path.lexists(dest_file):
+            print(dest_file)
+            relative_path = os.path.relpath(src, exec_p)
+            os.symlink(relative_path, dest_file);
+
 def install_single_system (bld, exec_p, build_obj):
     o='build_dpdk/linux_dpdk/';
+
     src_file =  os.path.realpath(o+build_obj.get_target())
-    if os.path.exists(src_file):
-        dest_file = exec_p +build_obj.get_target()
-        print(dest_file)
-        if not os.path.lexists(dest_file):
-            relative_path = os.path.relpath(src_file, exec_p)
-            os.symlink(relative_path, dest_file);
+    dest_file = exec_p +build_obj.get_target()
+    do_create_link(src_file,dest_file,exec_p);
+
+    src_mlx_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
+    dest_mlx_file = exec_p + build_obj.get_mlx5so_target()
+    do_create_link(src_mlx_file,dest_mlx_file,exec_p);
+
+    src_mlx4_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
+    dest_mlx4_file = exec_p + build_obj.get_mlx4so_target()
+    do_create_link(src_mlx4_file,dest_mlx4_file,exec_p);
+
+
 
 
 def pre_build(bld):
-    print("update version files")
-    create_version_files ()
+    if not bld.options.no_ver:
+        print("update version files")
+        create_version_files()
 
 
 def write_file (file_name,s):
@@ -870,6 +1102,24 @@ def _copy_single_system1 (bld, exec_p, build_obj):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
+def _copy_single_system2 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
+    print(src_file)
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_mlx5so_target()
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
+def _copy_single_system3 (bld, exec_p, build_obj):
+    o='../scripts/';
+    src_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
+    print(src_file)
+    if os.path.exists(src_file):
+        dest_file = exec_p +build_obj.get_mlx4so_target()
+        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("chmod +x %s " %(dest_file));
+
 
 def copy_single_system (bld, exec_p, build_obj):
     _copy_single_system (bld, exec_p, build_obj)
@@ -877,28 +1127,34 @@ def copy_single_system (bld, exec_p, build_obj):
 def copy_single_system1 (bld, exec_p, build_obj):
     _copy_single_system1 (bld, exec_p, build_obj)
 
+def copy_single_system2 (bld, exec_p, build_obj):
+    _copy_single_system2 (bld, exec_p, build_obj)
+
+def copy_single_system3 (bld, exec_p, build_obj):
+    _copy_single_system3 (bld, exec_p, build_obj)
+
 
 files_list=[
             'libzmq.so.3',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
-            't-rex-debug-gdb',
+            't-rex-64-debug-gdb',
             'stl-sim',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',
-            'release_notes.pdf',
             'dpdk_nic_bind.py',
             'dpdk_setup_ports.py',
             'doc_process.py',
             'trex_daemon_server',
+            'scapy_daemon_server',
             'master_daemon.py',
             'trex-console',
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','api','exp']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp']
 
 
 class Env(object):
@@ -990,8 +1246,10 @@ def release(bld, custom_dir = None):
     os.system(' mkdir -p '+exec_p);
 
     for obj in build_types:
-        copy_single_system (bld,exec_p,obj);
-        copy_single_system1 (bld,exec_p,obj)
+        copy_single_system(bld,exec_p,obj)
+        copy_single_system1(bld,exec_p,obj)
+        copy_single_system2(bld,exec_p,obj)
+        copy_single_system3(bld,exec_p,obj)
 
     for obj in files_list:
         src_file =  '../scripts/'+obj

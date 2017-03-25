@@ -1,17 +1,20 @@
 
 import os
 import sys
+
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
 sys.path.append(stl_pathname)
 
 from trex_stl_lib.api import *
+import trex_stl_lib.trex_stl_packet_builder_scapy
 import tempfile
 import hashlib
 import base64
 import numbers
 import random
-import inspect
+from inspect import getdoc
 import json
+import re
 from pprint import pprint
 
 # add some layers as an example
@@ -121,6 +124,45 @@ class Scapy_service_api():
         """
         pass
 
+    def build_pkt_ex(self, client_v_handler, pkt_model_descriptor, extra_options):
+        """ build_pkt_ex(self,client_v_handler,pkt_model_descriptor, extra_options) -> Dictionary (of Offsets,Show2 and Buffer)
+        Performs calculations on the given packet and returns results for that packet.
+
+        Parameters
+        ----------
+        pkt_descriptor - An array of dictionaries describing a network packet
+        extra_options - A dictionary of extra options required for building packet
+
+        Returns
+        -------
+        - The packets offsets: each field in every layer is mapped inside the Offsets Dictionary
+        - The Show2: A description of each field and its value in every layer of the packet
+        - The Buffer: The Hexdump of packet encoded in base64
+
+        Raises
+        ------
+        will raise an exception when the Scapy string format is illegal, contains syntax error, contains non-supported
+        protocl, etc.
+        """
+        pass
+
+    def load_instruction_parameter_values(self, client_v_handler, pkt_model_descriptor, vm_instructions_model, parameter_id):
+        """ load_instruction_parameter_values(self,client_v_handler,pkt_model_descriptor, vm_instructions_model, parameter_id) -> Dictionary (of possible parameter values)
+        Returns possible valies for given pararameter id depends on current pkt structure and vm_instructions
+        model.
+
+        Parameters
+        ----------
+        pkt_descriptor - An array of dictionaries describing a network packet
+        vm_instructions_model - A dictionary of extra options required for building packet
+        parameter_id - A string of parameter id
+
+        Returns
+        -------
+        Possible parameter values map.
+
+        """
+        pass
 
     def get_tree(self,client_v_handler):
         """ get_tree(self) -> Dictionary describing an example of hierarchy in layers
@@ -219,6 +261,34 @@ class Scapy_service_api():
         Returns
         -------
         array of supported protocol classes
+        """
+        pass
+
+    def get_templates(self,client_v_handler):
+        """ get_templates(self,client_v_handler)
+
+        Returns an array of templates, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        array of templates
+        """
+        pass
+
+    def get_template(self,client_v_handler,template):
+        """ get_template(self,client_v_handler,template)
+
+        Returns a template, which normally can be used for creating packet
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        base64 of template content
         """
         pass
 
@@ -372,7 +442,15 @@ class Scapy_service(Scapy_service_api):
         self.version_minor = '01'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
         self.protocol_definitions = {} # protocolId -> prococol definition overrides data
+        self.field_engine_supported_protocols = {}
+        self.instruction_parameter_meta_definitions = []
+        self.field_engine_parameter_meta_definitions = []
+        self.field_engine_templates_definitions = []
+        self.field_engine_instructions_meta = []
+        self.field_engine_instruction_expressions = []
         self._load_definitions_from_json()
+        self._load_field_engine_meta_from_json()
+        self._vm_instructions = dict([m for m in inspect.getmembers(trex_stl_lib.trex_stl_packet_builder_scapy, inspect.isclass) if m[1].__module__ == 'trex_stl_lib.trex_stl_packet_builder_scapy'])
 
     def _load_definitions_from_json(self):
         # load protocol definitions from a json file
@@ -381,6 +459,27 @@ class Scapy_service(Scapy_service_api):
             protocols = json.load(f)
             for protocol in protocols:
                 self.protocol_definitions[ protocol['id'] ] = protocol
+
+    def _load_field_engine_meta_from_json(self):
+        # load protocol definitions from a json file
+        self.instruction_parameter_meta_definitions = []
+        self.field_engine_supported_protocols = {}
+        self.field_engine_parameter_meta_definitions = []
+        self.field_engine_templates_definitions = []
+        with open('field_engine.json', 'r') as f:
+            metas = json.load(f)
+            self.instruction_parameter_meta_definitions = metas["instruction_params_meta"]
+            self.field_engine_instructions_meta = metas["instructions"]
+            self._append_intructions_help()
+            self.field_engine_supported_protocols = metas["supported_protocols"]
+            self.field_engine_parameter_meta_definitions = metas["global_params_meta"]
+            self.field_engine_templates_definitions = metas["templates"]
+
+
+    def _append_intructions_help(self):
+        for instruction_meta in self.field_engine_instructions_meta:
+            clazz = eval(instruction_meta['id'])
+            instruction_meta['help'] = base64.b64encode(getdoc(clazz.__init__).encode()).decode('ascii')
 
     def _all_protocol_structs(self):
         old_stdout = sys.stdout
@@ -468,7 +567,8 @@ class Scapy_service(Scapy_service_api):
                     gen.update(val)
                     total_sz = gen['total_size']
                     del gen['total_size']
-                    gen['size'] = total_sz - len(scapy_pkt)
+                    ether_chksum_size_bytes = 4 # will be added outside of Scapy. needs to be excluded here
+                    gen['size'] = total_sz - len(scapy_pkt) - ether_chksum_size_bytes
                     return generate_bytes(gen)
                 else:
                     return generate_bytes(val)
@@ -544,8 +644,11 @@ class Scapy_service(Scapy_service_api):
             for field_desc in pkt.fields_desc:
                 field_id = field_desc.name
                 ignored = field_id not in layer_full.fields
-                offset = field_desc.offset
-                protocol_offset = pkt.offset
+                # scapy offset/length calculation doesn't support dynamic size structures
+                # since PktClass.fields_desc is a singletone,
+                # _offset/size can be missing, uninitialized or contain values from the previous runs
+                offset = getattr(field_desc, '_offset', None)
+                protocol_offset = getattr(pkt, '_offset', None)
                 field_sz = field_desc.get_size_bytes()
                 # some values are unavailable in pkt(original model)
                 # at the same time,
@@ -608,7 +711,7 @@ class Scapy_service(Scapy_service_api):
                 fields.append(field_data)
             layer_data = {
                     "id": layer_id,
-                    "offset": pkt.offset,
+                    "offset": protocol_offset,
                     "fields": fields,
                     "real_id": real_layer_id,
                     "valid_structure": valid_struct,
@@ -707,6 +810,134 @@ class Scapy_service(Scapy_service_api):
         pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
         return self._pkt_data(pkt)
 
+
+    def build_pkt_ex(self, client_v_handler, pkt_model_descriptor, extra_options):
+        res = self.build_pkt(client_v_handler, pkt_model_descriptor)
+        pkt = self._packet_model_to_scapy_packet(pkt_model_descriptor)
+
+        field_engine = {}
+        field_engine['instructions'] = []
+        field_engine['error'] = None
+        try:
+            field_engine['instructions'] = self._generate_vm_instructions(pkt, extra_options['field_engine'])
+        except AssertionError as e:
+            field_engine['error'] = e.message
+        except CTRexPacketBuildException as e:
+            field_engine['error'] = e.message
+
+        field_engine['vm_instructions_expressions'] = self.field_engine_instruction_expressions
+        res['field_engine'] = field_engine
+        return res
+
+    def load_instruction_parameter_values(self, client_v_handler, pkt_model_descriptor, vm_instructions_model, parameter_id):
+
+        given_protocol_ids = [str(proto['id']) for proto in pkt_model_descriptor]
+
+        values = {}
+        if parameter_id == "name":
+            values = self._curent_pkt_protocol_fields(given_protocol_ids, "_")
+
+        if parameter_id == "fv_name":
+            values = self._existed_flow_var_names(vm_instructions_model['field_engine']['instructions'])
+
+        if parameter_id == "pkt_offset":
+            values = self._curent_pkt_protocol_fields(given_protocol_ids, ".")
+
+        if parameter_id == "offset":
+            for ip_idx in range(given_protocol_ids.count("IP")):
+                value = "IP:{0}".format(ip_idx)
+                values[value] = value
+
+        return {"map": values}
+
+    def _existed_flow_var_names(self, instructions):
+        return dict((instruction['parameters']['name'], instruction['parameters']['name']) for instruction in instructions if self._nameParamterExist(instruction))
+
+    def _nameParamterExist(self, instruction):
+        try:
+            instruction['parameters']['name']
+            return True
+        except KeyError:
+            return False
+
+    def _curent_pkt_protocol_fields(self, given_protocol_ids, delimiter):
+        given_protocol_classes = [c for c in Packet.__subclasses__() if c.__name__ in given_protocol_ids]
+        protocol_fields = {}
+        for protocol_class in given_protocol_classes:
+            protocol_name = protocol_class.__name__
+            protocol_count = given_protocol_ids.count(protocol_name)
+            for field_desc in protocol_class.fields_desc:
+                if delimiter == '.' and protocol_count > 1:
+                    for idx in range(protocol_count):
+                        formatted_name = "{0}:{1}{2}{3}".format(protocol_name, idx, delimiter, field_desc.name)
+                        protocol_fields[formatted_name] = formatted_name
+                else:
+                    formatted_name = "{0}{1}{2}".format(protocol_name, delimiter, field_desc.name)
+                protocol_fields[formatted_name] = formatted_name
+
+        return protocol_fields
+
+    def _generate_vm_instructions(self, pkt, field_engine_model_descriptor):
+        self.field_engine_instruction_expressions = []
+        instructions = []
+        instructions_def = field_engine_model_descriptor['instructions']
+        for instruction_def in instructions_def:
+            instruction_id = instruction_def['id']
+            instruction_class = self._vm_instructions[instruction_id]
+            parameters = {k: self._sanitize_value(k, v) for (k, v) in instruction_def['parameters'].items()}
+            instructions.append(instruction_class(**parameters))
+
+        fe_parameters = field_engine_model_descriptor['global_parameters']
+
+        cache_size = None
+        if "cache_size" in fe_parameters:
+            assert self._is_int(fe_parameters['cache_size']), 'Cache size must be a number'
+            cache_size = int(fe_parameters['cache_size'])
+
+
+        pkt_builder = STLPktBuilder(pkt=pkt, vm=STLScVmRaw(instructions, cache_size=cache_size))
+        pkt_builder.compile()
+        return pkt_builder.get_vm_data()
+
+    def _sanitize_value(self, param_id, val):
+        if param_id == "pkt_offset":
+            if self._is_int(val):
+                return int(val)
+            elif val == "Ether.src":
+                return 0
+            elif val == "Ether.dst":
+                return 6
+            elif val == "Ether.type":
+                return 12
+        else:
+            if val == "None" or val == "none":
+                return None
+            if val == "true":
+                return True
+            elif val == "false":
+                return False
+            elif re.match("[0-9a-f]{2}([-:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", str(val.lower())):
+                return int(str(val).replace(":", ""), 16)
+
+        if self._is_int(val):
+            return int(val)
+
+        str_val = str(val)
+        return int(str_val, 16) if str_val.startswith("0x") else str_val
+
+    def _get_instruction_parameter_meta(self, param_id):
+        for meta in self.instruction_parameter_meta_definitions:
+            if meta['id'] == param_id:
+                return meta
+        raise Scapy_Exception("Unable to get meta for {0}" % param_id)
+
+    def _is_int(self, val):
+        try:
+            int(val)
+            return True
+        except ValueError:
+            return False
+
     # @deprecated. to be removed
     def get_all(self,client_v_handler):
         if not (self._verify_version_handler(client_v_handler)):
@@ -733,7 +964,7 @@ class Scapy_service(Scapy_service_api):
         else:
             return pkt_class()
 
-        
+
     def _get_payload_classes(self, pkt_class):
         # tries to find, which subclasses allowed.
         # this can take long time, since it tries to build packets with all subclasses(O(N))
@@ -749,6 +980,50 @@ class Scapy_service(Scapy_service_api):
                     # no actions needed on fail, just sliently skip
                     pass
         return allowed_subclasses
+
+
+
+    def _get_templates(self):
+        templates = []
+        for root, subdirs, files in os.walk("templates"):
+            for file in files:
+                if not file.endswith('.trp'):
+                    continue
+                try:
+                    f = os.path.join(root, file)
+                    c = None
+                    with open(f, 'r') as templatefile:
+                        c = json.loads(templatefile.read())
+                    id = f.replace("templates" + os.path.sep, "", 1)
+                    id = id.split(os.path.sep)
+                    id[-1] = id[-1].replace(".trp", "", 1)
+                    id = "/".join(id)
+                    t = {
+                            "id": id,
+                             "meta": {
+                                 "name": c["metadata"]["caption"],
+                                 "description": ""
+                             }
+                        }
+                    templates.append(t)
+                except:
+                    pass
+        return templates
+
+    def _get_template(self,template):
+        id = template["id"]
+        f2 = "templates" + os.path.sep + os.path.sep.join(id.split("/")) + ".trp"
+        for c in r'[]\;,><&*:%=+@!#^()|?^':
+            id = id.replace(c,'')
+        id = id.replace("..", "")
+        id = id.split("/")
+        f = "templates" + os.path.sep + os.path.sep.join(id) + ".trp"
+        if f != f2:
+            return ""
+        with open(f, 'r') as content_file:
+            content = base64.b64encode(content_file.read())
+        return content
+
 
     def _get_fields_definition(self, pkt_class, fieldsDef):
         # fieldsDef - array of field definitions(or empty array)
@@ -795,7 +1070,11 @@ class Scapy_service(Scapy_service_api):
                     "name": protoDef.get('name') or pkt_class.name,
                     "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
-        res = {"protocols": protocols}
+        res = {"protocols": protocols,
+               "feInstructionParameters": self.instruction_parameter_meta_definitions,
+               "feInstructions": self.field_engine_instructions_meta,
+               "feParameters": self.field_engine_parameter_meta_definitions,
+               "feTemplates": self.field_engine_templates_definitions}
         return res
 
     def get_payload_classes(self,client_v_handler, pkt_model_descriptor):
@@ -805,6 +1084,12 @@ class Scapy_service(Scapy_service_api):
         if protocolDef and protocolDef.get('payload'):
             return protocolDef['payload']
         return [c.__name__ for c in self._get_payload_classes(pkt_class)]
+
+    def get_templates(self,client_v_handler):
+        return self._get_templates()
+
+    def get_template(self,client_v_handler,template):
+        return self._get_template(template)
 
 #input in string encoded base64
     def check_update_of_dbs(self,client_v_handler,db_md5,field_md5):
@@ -887,8 +1172,6 @@ class Scapy_service(Scapy_service_api):
             wrpcap(tmpPcap.name, packets)
             pcap_bin = tmpPcap.read()
         return bytes_to_b64(pcap_bin)
-
- 
 
 
 #---------------------------------------------------------------------------

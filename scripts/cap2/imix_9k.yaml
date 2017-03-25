@@ -13,11 +13,10 @@
           dual_port_mask : "1.0.0.0" 
           tcp_aging      : 0
           udp_aging      : 0
-  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
 #
-# the templates are duplicated in purpose , to utilized all DRAM BW and get better performance, we should do it automaticly 
-# but for now it like this , you should have at least 8 
-#  
+# The templates are duplicated on purpose in order to utilize all DRAM bandwidth and get better performance
+# Should do this automaticlly in the future somehow. You should have at least 8 templates
+#
   cap_info : 
      - name: stl/yaml/ipv4_udp_9k.pcap
        cps   : 1000.0

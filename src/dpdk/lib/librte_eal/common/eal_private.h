@@ -47,7 +47,9 @@
 int rte_eal_memzone_init(void);
 
 /**
- * Common log initialization function (private to eal).
+ * Common log initialization function (private to eal).  Determines
+ * where log data is written when no call to rte_openlog_stream is
+ * in effect.
  *
  * @param default_log
  *   The default log stream to be used.
@@ -55,7 +57,7 @@ int rte_eal_memzone_init(void);
  *   - 0 on success
  *   - Negative on error
  */
-int rte_eal_common_log_init(FILE *default_log);
+void eal_log_set_default(FILE *default_log);
 
 /**
  * Fill configuration with number of physical and logical processors
@@ -97,16 +99,6 @@ int rte_eal_memory_init(void);
 int rte_eal_timer_init(void);
 
 /**
- * Init early logs
- *
- * This function is private to EAL.
- *
- * @return
- *   0 on success, negative on error
- */
-int rte_eal_log_early_init(void);
-
-/**
  * Init the default log stream
  *
  * This function is private to EAL.
@@ -117,7 +109,7 @@ int rte_eal_log_early_init(void);
 int rte_eal_log_init(const char *id, int facility);
 
 /**
- * Init the default log stream
+ * Init the PCI infrastructure
  *
  * This function is private to EAL.
  *
@@ -126,30 +118,21 @@ int rte_eal_log_init(const char *id, int facility);
  */
 int rte_eal_pci_init(void);
 
-#ifdef RTE_LIBRTE_IVSHMEM
-/**
- * Init the memory from IVSHMEM devices
- *
- * This function is private to EAL.
- *
- * @return
- *  0 on success, negative on error
- */
-int rte_eal_ivshmem_init(void);
-
-/**
- * Init objects in IVSHMEM devices
- *
- * This function is private to EAL.
- *
- * @return
- *  0 on success, negative on error
- */
-int rte_eal_ivshmem_obj_init(void);
-#endif
-
 struct rte_pci_driver;
 struct rte_pci_device;
+
+/**
+ * Update a pci device object by asking the kernel for the latest information.
+ *
+ * This function is private to EAL.
+ *
+ * @param addr
+ *	The PCI Bus-Device-Function address to look for
+ * @return
+ *   - 0 on success.
+ *   - negative on error.
+ */
+int pci_update_device(const struct rte_pci_addr *addr);
 
 /**
  * Unbind kernel driver for this device
@@ -257,13 +240,6 @@ int rte_eal_intr_init(void);
  *  0 on success, negative on error
  */
 int rte_eal_alarm_init(void);
-
-/**
- * This function initialises any virtual devices
- *
- * This function is private to the EAL.
- */
-int rte_eal_dev_init(void);
 
 /**
  * Function is to check if the kernel module(like, vfio, vfio_iommu_type1,

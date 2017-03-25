@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
+#include "trex_stateless_rx_defs.h"
 #include "trex_port_attr.h"
 #include <json/json.h>
 
@@ -112,22 +113,15 @@ public:
         IF_STAT_RX_BYTES_COUNT = 8, // Card support counting rx bytes
     };
 
-    struct mac_cfg_st {
-        uint8_t hw_macaddr[6];
-        uint8_t src_macaddr[6];
-        uint8_t dst_macaddr[6];
-    };
-
     /**
      * interface static info
      *
      */
     struct intf_info_st {
         std::string     driver_name;
-        mac_cfg_st      mac_info;
+        uint8_t         hw_macaddr[6];
         std::string     pci_addr;
         int             numa_node;
-        bool            has_crc;
     };
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
@@ -231,10 +225,9 @@ public:
     virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
-        info.has_crc = true;
         info.numa_node = 0;
 
-        memset(&info.mac_info, 0, sizeof(info.mac_info));
+        memset(&info.hw_macaddr, 0, sizeof(info.hw_macaddr));
     }
 
     virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
@@ -270,7 +263,8 @@ public:
     int get_active_pgids(flow_stat_active_t &result) const {return 0;}
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
-    CFlowStatParser *get_flow_stat_parser() const {return new CFlowStatParser();}
+    CFlowStatParser *get_flow_stat_parser() const {
+        return new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);}
     TRexPortAttr *getPortAttrObj(uint8_t port_id) const {return m_port_attr;}
 
     void mark_for_shutdown() const {}

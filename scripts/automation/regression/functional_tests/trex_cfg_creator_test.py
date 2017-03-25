@@ -25,7 +25,7 @@ def compare_lines(golden, output):
         raise CompareLinesNumDiff('Number of lines on golden is: %s, in output: %s\nGolden:\n%s\nGenerated:\n%s\n' % (len(golden_lines), len(output_lines), golden, output))
     for line_num, (golden_line, output_line) in enumerate(zip(golden_lines, output_lines)):
         if golden_line != output_line:
-            raise CompareLinesDiff('Produced YAML differs from golden at line %s.Golden: %s <-> Output: %s' % (line_num + 1, golden_line, output_line))
+            raise CompareLinesDiff('Produced YAML differs from golden at line %s.\nGolden: %s <-> Output: %s' % (line_num + 1, golden_line, output_line))
 
 def create_config(cpu_topology, interfaces, *args, **kwargs):
     config = ConfigCreator(cpu_topology, interfaces, *args, **kwargs)
@@ -102,17 +102,17 @@ class TRexCfgCreator_Test:
   version: 2
   interfaces: ['0b:00.0', '03:00.0']
   port_info:
-      - dest_mac: [0x00, 0x0c, 0x29, 0x92, 0xf1, 0xca] # MAC OF LOOPBACK TO IT'S DUAL INTERFACE
-        src_mac:  [0x00, 0x0c, 0x29, 0x92, 0xf1, 0xd4]
-      - dest_mac: [0x00, 0x0c, 0x29, 0x92, 0xf1, 0xd4]
-        src_mac:  [0x00, 0x0c, 0x29, 0x92, 0xf1, 0xca]
+      - dest_mac: 00:0c:29:92:f1:ca # MAC OF LOOPBACK TO IT'S DUAL INTERFACE
+        src_mac:  00:0c:29:92:f1:d4
+      - dest_mac: 00:0c:29:92:f1:d4
+        src_mac:  00:0c:29:92:f1:ca
 
   platform:
       master_thread_id: 0
       latency_thread_id: 1
       dual_if:
         - socket: 0
-          threads: [2]
+          threads: [2,3,4]
 '''
         output = create_config(cpu_topology, interfaces)
         verify_master_core0(output)
@@ -291,33 +291,33 @@ class TRexCfgCreator_Test:
   interfaces: ['02:00.0', '02:00.1', '84:00.0', '84:00.1', '05:00.0', '05:00.1']
   port_bandwidth_gb: 40
   port_info:
-      - dest_mac: [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
-        src_mac:  [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-      - dest_mac: [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-        src_mac:  [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
+      - dest_mac: 02:00:02:00:00:00
+        src_mac:  01:00:01:00:00:00
+      - dest_mac: 01:00:01:00:00:00
+        src_mac:  02:00:02:00:00:00
 
-      - dest_mac: [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
-        src_mac:  [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-      - dest_mac: [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-        src_mac:  [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
+      - dest_mac: 04:00:04:00:00:00
+        src_mac:  03:00:03:00:00:00
+      - dest_mac: 03:00:03:00:00:00
+        src_mac:  04:00:04:00:00:00
 
-      - dest_mac: [0x06, 0x00, 0x06, 0x00, 0x00, 0x00]
-        src_mac:  [0x05, 0x00, 0x05, 0x00, 0x00, 0x00]
-      - dest_mac: [0x05, 0x00, 0x05, 0x00, 0x00, 0x00]
-        src_mac:  [0x06, 0x00, 0x06, 0x00, 0x00, 0x00]
+      - dest_mac: 06:00:06:00:00:00
+        src_mac:  05:00:05:00:00:00
+      - dest_mac: 05:00:05:00:00:00
+        src_mac:  06:00:06:00:00:00
 
   platform:
       master_thread_id: 0
-      latency_thread_id: 16
+      latency_thread_id: 12
       dual_if:
         - socket: 0
-          threads: [1,17,2,18,3,19,4]
+          threads: [1,2,3,16,17,18,19]
 
         - socket: 1
-          threads: [8,24,9,25,10,26,11]
+          threads: [8,9,10,11,24,25,26]
 
         - socket: 0
-          threads: [20,5,21,6,22,7,23]
+          threads: [4,5,6,7,20,21,22]
 '''
         output = create_config(cpu_topology, interfaces)
         verify_master_core0(output)
@@ -431,25 +431,25 @@ class TRexCfgCreator_Test:
   interfaces: ['02:00.0', '02:00.1', '84:00.0', '84:00.1']
   port_bandwidth_gb: 40
   port_info:
-      - dest_mac: [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
-        src_mac:  [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-      - dest_mac: [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-        src_mac:  [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
+      - dest_mac: 02:00:02:00:00:00
+        src_mac:  01:00:01:00:00:00
+      - dest_mac: 01:00:01:00:00:00
+        src_mac:  02:00:02:00:00:00
 
-      - dest_mac: [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
-        src_mac:  [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-      - dest_mac: [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-        src_mac:  [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
+      - dest_mac: 04:00:04:00:00:00
+        src_mac:  03:00:03:00:00:00
+      - dest_mac: 03:00:03:00:00:00
+        src_mac:  04:00:04:00:00:00
 
   platform:
       master_thread_id: 0
       latency_thread_id: 31
       dual_if:
         - socket: 0
-          threads: [1,17,2,18,3,19,4,20,5,21,6,22,7,23,16]
+          threads: [1,2,3,4,5,6,7,16,17,18,19,20,21,22,23]
 
         - socket: 1
-          threads: [8,24,9,25,10,26,11,27,12,28,13,29,14,30,15]
+          threads: [8,9,10,11,12,13,14,15,24,25,26,27,28,29,30]
 '''
         output = create_config(cpu_topology, interfaces)
         verify_master_core0(output)
@@ -563,25 +563,25 @@ class TRexCfgCreator_Test:
   interfaces: ['02:00.0', '02:00.1', '05:00.0', '05:00.1']
   port_bandwidth_gb: 40
   port_info:
-      - dest_mac: [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
-        src_mac:  [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-      - dest_mac: [0x01, 0x00, 0x01, 0x00, 0x00, 0x00]
-        src_mac:  [0x02, 0x00, 0x02, 0x00, 0x00, 0x00]
+      - dest_mac: 02:00:02:00:00:00
+        src_mac:  01:00:01:00:00:00
+      - dest_mac: 01:00:01:00:00:00
+        src_mac:  02:00:02:00:00:00
 
-      - dest_mac: [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
-        src_mac:  [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-      - dest_mac: [0x03, 0x00, 0x03, 0x00, 0x00, 0x00]
-        src_mac:  [0x04, 0x00, 0x04, 0x00, 0x00, 0x00]
+      - dest_mac: 04:00:04:00:00:00
+        src_mac:  03:00:03:00:00:00
+      - dest_mac: 03:00:03:00:00:00
+        src_mac:  04:00:04:00:00:00
 
   platform:
       master_thread_id: 0
-      latency_thread_id: 16
+      latency_thread_id: 8
       dual_if:
         - socket: 0
-          threads: [1,17,2,18,3,19,4]
+          threads: [1,2,3,16,17,18,19]
 
         - socket: 0
-          threads: [20,5,21,6,22,7,23]
+          threads: [4,5,6,7,20,21,22]
 '''
         output = create_config(cpu_topology, interfaces)
         verify_master_core0(output)
@@ -694,5 +694,6 @@ class TRexCfgCreator_Test:
 
     @classmethod
     def tearDownClass(cls):
-        sys.path.remove(CTRexScenario.scripts_path)
+        if CTRexScenario.scripts_path in sys.path:
+            sys.path.remove(CTRexScenario.scripts_path)
         del sys.modules['dpdk_setup_ports']

@@ -96,7 +96,9 @@ bp_sim_main = SrcGroup(dir='src',
 bp_sim_gtest = SrcGroup(dir='src',
         src_list=[
              'bp_gtest.cpp',
+             'gtest/bp_timer_gtest.cpp',
              'gtest/tuple_gen_test.cpp',
+             'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp'
              ])
@@ -110,6 +112,7 @@ main_src = SrcGroup(dir='src',
              'tuple_gen.cpp',
              'platform_cfg.cpp',
              'utl_yaml.cpp',
+             'tw_cfg.cpp',
              'rx_check_header.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
@@ -118,7 +121,9 @@ main_src = SrcGroup(dir='src',
              'time_histogram.cpp',
              'utl_json.cpp',
              'utl_cpuu.cpp',
+             'utl_ip.cpp',
              'msg_manager.cpp',
+             'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'stateful_rx_core.cpp',
              'flow_stat.cpp',
@@ -129,7 +134,8 @@ main_src = SrcGroup(dir='src',
              'pal/linux/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
-             'sim/trex_sim_stateful.cpp'
+             'sim/trex_sim_stateful.cpp',
+             'h_timer.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -167,6 +173,10 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'cp/trex_dp_port_events.cpp',
                                     'dp/trex_stateless_dp_core.cpp',
                                     'messaging/trex_stateless_messaging.cpp',
+                                    'rx/trex_stateless_rx_core.cpp',
+                                    'rx/trex_stateless_rx_port_mngr.cpp',
+                                    'rx/trex_stateless_capture.cpp',
+                                    'common/trex_stateless_pkt.cpp'
                                     ])
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
@@ -265,6 +275,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/stateless/cp/
                    ../src/stateless/dp/
                    ../src/stateless/rx/
+                   ../src/stateless/common/
                    ../src/stateless/messaging/
                    ../external_libs/json/
                    ../external_libs/zmq/include/

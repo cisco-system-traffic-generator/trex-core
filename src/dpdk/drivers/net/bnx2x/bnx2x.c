@@ -31,7 +31,7 @@
 #define BNX2X_PMD_VER_PREFIX "BNX2X PMD"
 #define BNX2X_PMD_VERSION_MAJOR 1
 #define BNX2X_PMD_VERSION_MINOR 0
-#define BNX2X_PMD_VERSION_REVISION 1
+#define BNX2X_PMD_VERSION_REVISION 5
 #define BNX2X_PMD_VERSION_PATCH 1
 
 static inline const char *
@@ -178,7 +178,7 @@ bnx2x_dma_alloc(struct bnx2x_softc *sc, size_t size, struct bnx2x_dma *dma,
 
 	/* Caller must take care that strlen(mz_name) < RTE_MEMZONE_NAMESIZE */
 	z = rte_memzone_reserve_aligned(mz_name, (uint64_t) (size),
-					rte_lcore_to_socket_id(rte_lcore_id()),
+					SOCKET_ID_ANY,
 					0, align);
 	if (z == NULL) {
 		PMD_DRV_LOG(ERR, "DMA alloc failed for %s", msg);
@@ -1397,10 +1397,10 @@ bnx2x_del_all_macs(struct bnx2x_softc *sc, struct ecore_vlan_mac_obj *mac_obj,
 	return rc;
 }
 
-int
+static int
 bnx2x_fill_accept_flags(struct bnx2x_softc *sc, uint32_t rx_mode,
-		      unsigned long *rx_accept_flags,
-		      unsigned long *tx_accept_flags)
+			unsigned long *rx_accept_flags,
+			unsigned long *tx_accept_flags)
 {
 	/* Clear the flags first */
 	*rx_accept_flags = 0;
@@ -1438,6 +1438,7 @@ bnx2x_fill_accept_flags(struct bnx2x_softc *sc, uint32_t rx_mode,
 
 		break;
 
+	case BNX2X_RX_MODE_ALLMULTI_PROMISC:
 	case BNX2X_RX_MODE_PROMISC:
 		/*
 		 * According to deffinition of SI mode, iface in promisc mode
@@ -2219,7 +2220,7 @@ int bnx2x_tx_encap(struct bnx2x_tx_queue *txq, struct rte_mbuf *m0)
 	}
 
 	PMD_TX_LOG(DEBUG,
-		   "start bd: nbytes %d flags %x vlan %x\n",
+		   "start bd: nbytes %d flags %x vlan %x",
 		   tx_start_bd->nbytes,
 		   tx_start_bd->bd_flags.as_bitfield,
 		   tx_start_bd->vlan_or_ethertype);
@@ -7016,34 +7017,6 @@ static int bnx2x_initial_phy_init(struct bnx2x_softc *sc, int load_mode)
 
 	bnx2x_set_requested_fc(sc);
 
-	if (CHIP_REV_IS_SLOW(sc)) {
-		uint32_t bond = CHIP_BOND_ID(sc);
-		uint32_t feat = 0;
-
-		if (CHIP_IS_E2(sc) && CHIP_IS_MODE_4_PORT(sc)) {
-			feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_BMAC;
-		} else if (bond & 0x4) {
-			if (CHIP_IS_E3(sc)) {
-				feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_XMAC;
-			} else {
-				feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_BMAC;
-			}
-		} else if (bond & 0x8) {
-			if (CHIP_IS_E3(sc)) {
-				feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_UMAC;
-			} else {
-				feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_EMAC;
-			}
-		}
-
-/* disable EMAC for E3 and above */
-		if (bond & 0x2) {
-			feat |= ELINK_FEATURE_CONFIG_EMUL_DISABLE_EMAC;
-		}
-
-		sc->link_params.feature_config_flags |= feat;
-	}
-
 	if (load_mode == LOAD_DIAG) {
 		lp->loopback_mode = ELINK_LOOPBACK_XGXS;
 /* Prefer doing PHY loopback at 10G speed, if possible */
@@ -9556,8 +9529,8 @@ static void bnx2x_init_rte(struct bnx2x_softc *sc)
 		sc->max_rx_queues = min(BNX2X_VF_MAX_QUEUES_PER_VF,
 					sc->igu_sb_cnt);
 	} else {
-		sc->max_tx_queues = 128;
-		sc->max_rx_queues = 128;
+		sc->max_rx_queues = BNX2X_MAX_RSS_COUNT(sc);
+		sc->max_tx_queues = sc->max_rx_queues;
 	}
 }
 

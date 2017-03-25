@@ -67,7 +67,7 @@
 #define RTE_IXGBE_MAX_RX_BURST          RTE_IXGBE_RXQ_REARM_THRESH
 #endif
 
-#define RX_RING_SZ ((IXGBE_MAX_RING_DESC + RTE_IXGBE_DESCS_PER_LOOP - 1) * \
+#define RX_RING_SZ ((IXGBE_MAX_RING_DESC + RTE_PMD_IXGBE_RX_MAX_BURST) * \
 		    sizeof(union ixgbe_adv_rx_desc))
 
 #ifdef RTE_PMD_PACKET_PREFETCH
@@ -79,6 +79,8 @@
 #define RTE_IXGBE_REGISTER_POLL_WAIT_10_MS  10
 #define RTE_IXGBE_WAIT_100_US               100
 #define RTE_IXGBE_VMTXSW_REGISTER_COUNT     2
+
+#define IXGBE_TX_MAX_SEG                    40
 
 #define IXGBE_PACKET_TYPE_MASK_82599        0X7F
 #define IXGBE_PACKET_TYPE_MASK_X550         0X10FF

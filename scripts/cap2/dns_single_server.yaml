@@ -14,7 +14,6 @@
   #cap_ipg_min    : 100
   #cap_override_ipg    : 200
   wlength    : 7
-  mac        : [0x00,0x00,0x00,0x01,0x00,0x00]
   cap_info : 
      - name: cap2/dns.pcap
        cps : 0.5

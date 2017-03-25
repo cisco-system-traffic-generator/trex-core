@@ -10,6 +10,7 @@ import struct
 from .trex_stl_types import *
 from .utils.common import random_id_gen
 from .utils.zipmsg import ZippedMsg
+from threading import Lock
 
 class bcolors:
     BLUE = '\033[94m'
@@ -32,13 +33,29 @@ class BatchMessage(object):
         id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_class, encode = False)
         self.batch_list.append(msg)
 
-    def invoke(self, block = False):
+    def invoke(self, block = False, chunk_size = 500000, retry = 0):
         if not self.rpc_client.connected:
             return RC_ERR("Not connected to server")
 
-        msg = json.dumps(self.batch_list)
-
-        return self.rpc_client.send_msg(msg)
+        if chunk_size:
+            response_batch = RC()
+            size = 0
+            new_batch = []
+            for msg in self.batch_list:
+                size += len(json.dumps(msg))
+                new_batch.append(msg)
+                if size > chunk_size:
+                    batch_json = json.dumps(new_batch)
+                    response_batch.add(self.rpc_client.send_msg(batch_json))
+                    size = 0
+                    new_batch = []
+            if new_batch:
+                batch_json = json.dumps(new_batch)
+                response_batch.add(self.rpc_client.send_msg(batch_json))
+            return response_batch
+        else:
+            batch_json = json.dumps(self.batch_list)
+            return self.rpc_client.send_msg(batch_json, retry = retry)
 
 
 # JSON RPC v2.0 client
@@ -56,6 +73,8 @@ class JsonRpcClient(object):
         self.id_gen = random_id_gen()
         self.zipper = ZippedMsg()
 
+        self.lock = Lock()
+        
     def get_connection_details (self):
         rc = {}
         rc['server'] = self.server
@@ -111,16 +130,22 @@ class JsonRpcClient(object):
             return id, msg
 
 
-    def invoke_rpc_method (self, method_name, params = None, api_class = 'core'):
+    def invoke_rpc_method (self, method_name, params = None, api_class = 'core', retry = 0):
         if not self.connected:
             return RC_ERR("Not connected to server")
 
         id, msg = self.create_jsonrpc_v2(method_name, params, api_class)
 
-        return self.send_msg(msg)
+        return self.send_msg(msg, retry = retry)
 
    
-    def send_msg (self, msg):
+    def send_msg (self, msg, retry = 0):
+        # REQ/RESP pattern in ZMQ requires no interrupts during the send
+        with self.lock:
+            return self.__send_msg(msg, retry)
+        
+        
+    def __send_msg (self, msg, retry = 0):
         # print before
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):
             self.verbose_msg("Sending Request To Server:\n\n" + self.pretty_json(msg) + "\n")
@@ -129,14 +154,14 @@ class JsonRpcClient(object):
         buffer = msg.encode()
 
         if self.zipper.check_threshold(buffer):
-            response = self.send_raw_msg(self.zipper.compress(buffer))
-            if response:
-                response = self.zipper.decompress(response)
+            response = self.send_raw_msg(self.zipper.compress(buffer), retry = retry)
         else:
-            response = self.send_raw_msg(buffer)
+            response = self.send_raw_msg(buffer, retry = retry)
 
         if not response:
             return response
+        elif self.zipper.is_compressed(response):
+            response = self.zipper.decompress(response)
 
         # return to string
         response = response.decode()
@@ -159,31 +184,39 @@ class JsonRpcClient(object):
 
 
     # low level send of string message
-    def send_raw_msg (self, msg):
+    def send_raw_msg (self, msg, retry = 0):
 
-        tries = 0
+        retry_left = retry
         while True:
             try:
                 self.socket.send(msg)
                 break
             except zmq.Again:
-                tries += 1
-                if tries > 5:
+                retry_left -= 1
+                if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
+            except KeyboardInterrupt as e:
+                # must restore the socket to a sane state
+                self.reconnect()
+                raise e
 
-        tries = 0
+        retry_left = retry
         while True:
             try:
                 response = self.socket.recv()
                 break
             except zmq.Again:
-                tries += 1
-                if tries > 5:
+                retry_left -= 1
+                if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
 
+            except KeyboardInterrupt as e:
+                # must restore the socket to a sane state
+                self.reconnect()
+                raise e
 
         return response
        
@@ -255,23 +288,12 @@ class JsonRpcClient(object):
 
         self.connected = True
 
-        rc = self.invoke_rpc_method('ping', api_class = None)
-        if not rc:
-            self.connected = False
-            return rc
-        
         return RC_OK()
 
 
     def reconnect(self):
         # connect using current values
         return self.connect()
-
-        if not self.connected:
-            return RC_ERR("Not connected to server")
-
-        # reconnect
-        return self.connect(self.server, self.port)
 
 
     def is_connected(self):

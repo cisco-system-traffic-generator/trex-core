@@ -10,7 +10,7 @@ class CTRexClientPKG_Test(CTRexGeneral_Test):
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
-        if not self.is_loopback:
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
         self.unzip_client_package()

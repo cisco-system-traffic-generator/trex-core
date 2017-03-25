@@ -1,4 +1,20 @@
 #! /bin/bash
 export LD_LIBRARY_PATH=`pwd`
-/usr/bin/gdb --args ./_t-rex-64-debug $@
+
+EXTRA_INPUT_ARGS=""
+
+./trex-cfg $INPUT_ARGS
+RESULT=$?
+
+if [ $RESULT -eq 255 ]; then
+  echo "ERROR encountered while configuring trex system"
+  exit $RESULT
+fi
+
+if [ $RESULT -eq 32 ]; then
+  EXTRA_INPUT_ARGS="--mlx5-so"
+fi
+
+
+/usr/bin/gdb --args ./_t-rex-64-debug $@ $EXTRA_INPUT_ARGS
 

@@ -1,10 +1,16 @@
 #! /bin/bash
+
+# exit code is Important should be
+# -1 : don't continue 
+# 0  : no errors - no need to load mlx share object
+# 32  : no errors - mlx share object should be loaded (returned by dpdk_setup_ports.py)
+
 SYS=`uname -r`
 if [ -f /etc/debian_version ]; then
     OS=debian  
 elif [ -f /etc/redhat-release ]; then
     OS=redhat
-    systemctl stop firewalld.service
+    systemctl stop firewalld.service &> /dev/null
 else
     OS=unknown
 fi    
@@ -12,7 +18,7 @@ fi
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} != 'x86_64' ]; then
   echo "ERROR, only 64bit operating systems are supported, please reinstall x86 64 bit OS"
-  exit 1
+  exit -1
 fi
 
 
@@ -37,45 +43,10 @@ for file in /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepag
     fi
 done
 
-PATH=$PATH:/sbin:/usr/sbin
-
-if ! lsmod | grep -q igb_uio  ;  then
-    echo "Loading kernel drivers for the first time"
-    modprobe uio
-    if [ $? -ne 0 ]; then
-        echo "Failed inserting uio module, please check if it is installed"
-        exit 1
-    fi
-    km=ko/$SYS/igb_uio.ko
-    if [ -e $km ] ; then 
-        insmod $km
-        if [ $? -ne 0 ]; then
-            echo "Failed inserting igb_uio module"
-            exit 1
-        fi
-    else
-        echo "ERROR: We don't have precompiled igb_uio.ko module for your kernel version"
-        echo "You can try compiling yourself, using the following commands:"
-        echo "\$cd ko/src  "
-        echo "\$make  "
-        echo "\$make install  "
-        echo "\$cd -  "
-        echo "Then try to run Trex again"
-        exit 1
-    fi
-fi
 
 # try to bind the ports from the configuration file (new DPDK)
 PARENT_ARGS="$0 $@"
 
-if /usr/bin/python -V &> /dev/null; then
-    ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
-elif /usr/bin/python3 -V &> /dev/null; then
-    /usr/bin/python3 dpdk_setup_ports.py --parent "$PARENT_ARGS"
-elif python -V &> /dev/null; then
-    python ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
-else
-    echo "Could not find python to run dpdk_setup_ports.py script"
-    exit 1
-fi
+source find_python.sh
+$PYTHON ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
 

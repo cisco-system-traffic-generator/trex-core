@@ -1,12 +1,10 @@
-#include "utl_yaml.h"
-#include <common/Network/Packet/CPktCmn.h>
 /*
  Hanoh Haim
  Cisco Systems, Inc.
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2016 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,13 +22,15 @@ limitations under the License.
 #include <istream>
 #include <fstream>
 #include "common/basic_utils.h"
+#include <common/Network/Packet/CPktCmn.h>
+#include "utl_yaml.h"
 
 #define INADDRSZ 4
 
 extern int my_inet_pton4(const char *src, unsigned char *dst);
 extern int my_inet_pton6(const char *src, unsigned char *dst);
 
-bool utl_yaml_read_ip_addr(const YAML::Node& node, 
+bool utl_yaml_read_ip_addr(const YAML::Node& node,
                            const std::string &name,
                            uint32_t & val){
     std::string tmp;
@@ -42,16 +42,14 @@ bool utl_yaml_read_ip_addr(const YAML::Node& node,
             val=PKT_NTOHL(ip);
             res=true;
         }else{
-            printf(" ERROR  not a valid ip %s \n",(char *)tmp.c_str());
-            exit(-1);
+            printf(" Error: non valid ip %s \n",(char *)tmp.c_str());
+            exit(1);
         }
     }
     return (res);
 }
 
-
-
-bool utl_yaml_read_uint32(const YAML::Node& node, 
+bool utl_yaml_read_uint32(const YAML::Node& node,
                           const std::string &name,
                           uint32_t & val){
     bool res=false;
@@ -62,7 +60,22 @@ bool utl_yaml_read_uint32(const YAML::Node& node,
     return (res);
 }
 
-bool utl_yaml_read_uint16(const YAML::Node& node, 
+bool utl_yaml_read_uint16(const YAML::Node& node,
+                          const std::string &name,
+                          uint16_t & val, uint16_t min, uint16_t max) {
+    bool res = utl_yaml_read_uint16(node, name, val);
+
+    if ((val < min) || (val > max)) {
+        fprintf(stderr
+                , "Parsing error: value of field '%s' must be between %d and %d\n"
+                , name.c_str(), min, max);
+        exit(1);
+    }
+
+    return res;
+}
+
+bool utl_yaml_read_uint16(const YAML::Node& node,
                           const std::string &name,
                           uint16_t & val){
     uint32_t val_tmp;
@@ -183,10 +196,10 @@ YAMLParserWrapper::parse_bool(const YAML::Node &node, const std::string &name) {
         return (val);
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting true/false for field '" + name + "'", node[name]);
+        parse_err("Expecting true/false for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);
@@ -203,10 +216,10 @@ YAMLParserWrapper::parse_list(const YAML::Node &node, const std::string &name) {
         return val;
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting sequence/list for field '" + name + "'", node[name]);
+        parse_err("Expecting sequence or list for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);
@@ -223,10 +236,10 @@ YAMLParserWrapper::parse_map(const YAML::Node &node, const std::string &name) {
         return val;
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting map for field '" + name + "'", node[name]);
+        parse_err("Expecting map for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);
@@ -241,16 +254,43 @@ YAMLParserWrapper::parse_ip(const YAML::Node &node, const std::string &name) {
         node[name] >> ip_str;
         int rc = my_inet_pton4((char *)ip_str.c_str(), (unsigned char *)&ip_num);
         if (!rc) {
-            parse_err("invalid IP address: " + ip_str, node[name]);
+            parse_err("Invalid IP address: " + ip_str, node[name]);
         }
 
         return PKT_NTOHL(ip_num);
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting valid IP address for field '" + name + "'", node[name]);
+        parse_err("Expecting valid IP address for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
+    }
+
+    assert(0);
+}
+
+void
+YAMLParserWrapper::parse_ipv6(const YAML::Node &node, const std::string &name, unsigned char *ip_num) {
+    try {
+        std::string ip_str;
+
+        node[name] >> ip_str;
+        int rc = my_inet_pton6((char *)ip_str.c_str(), ip_num);
+        if (!rc) {
+            parse_err("Invalid IPv6 address: " + ip_str, node[name]);
+        }
+
+        // we want host order
+        for (int i = 0; i < 8; i++) {
+            ((uint16_t *) ip_num)[i] = PKT_NTOHS(((uint16_t *) ip_num)[i]);
+        }
+        return;
+
+    } catch (const YAML::InvalidScalar &ex) {
+        parse_err("Expecting valid IPv6 address for field '" + name + "'", node[name]);
+
+    } catch (const YAML::KeyNotFound &ex) {
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);
@@ -276,21 +316,22 @@ YAMLParserWrapper::parse_mac_addr(const YAML::Node &node, const std::string &nam
         node[name] >> mac_str;
         bool rc = mac2uint64(mac_str, mac_num);
         if (!rc) {
-            parse_err("invalid MAC address: " + mac_str, node[name]);
+            parse_err("Invalid MAC address: " + mac_str, node[name]);
         }
         return mac_num;
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting true/false for field '" + name + "'", node[name]);
+        parse_err("Expecting true/false for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);
+    return(0);
 }
 
-uint64_t 
+uint64_t
 YAMLParserWrapper::parse_uint(const YAML::Node &node, const std::string &name, uint64_t low, uint64_t high, uint64_t def) {
     if (!node.FindValue(name)) {
         return def;
@@ -299,7 +340,7 @@ YAMLParserWrapper::parse_uint(const YAML::Node &node, const std::string &name, u
     return parse_uint(node, name, low, high);
 }
 
-uint64_t 
+uint64_t
 YAMLParserWrapper::parse_uint(const YAML::Node &node, const std::string &name, uint64_t low, uint64_t high) {
 
     try {
@@ -316,10 +357,10 @@ YAMLParserWrapper::parse_uint(const YAML::Node &node, const std::string &name, u
         return (val);
 
     } catch (const YAML::InvalidScalar &ex) {
-        parse_err("expecting true/false for field '" + name + "'", node[name]);
+        parse_err("Expecting true/false for field '" + name + "'", node[name]);
 
     } catch (const YAML::KeyNotFound &ex) {
-        parse_err("cannot locate mandatory field '" + name + "'", node);
+        parse_err("Can not locate mandatory field '" + name + "'", node);
     }
 
     assert(0);

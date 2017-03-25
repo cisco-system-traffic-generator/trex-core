@@ -37,6 +37,8 @@
 #include <rte_eth_ctrl.h>
 #include <rte_time.h>
 #include <rte_kvargs.h>
+#include <rte_hash.h>
+#include <rte_flow_driver.h>
 
 #define I40E_VLAN_TAG_SIZE        4
 
@@ -126,6 +128,7 @@ enum i40e_flxpld_layer_idx {
 #define I40E_FLAG_FDIR                  (1ULL << 6)
 #define I40E_FLAG_VXLAN                 (1ULL << 7)
 #define I40E_FLAG_RSS_AQ_CAPABLE        (1ULL << 8)
+#define I40E_FLAG_VF_MAC_BY_PF          (1ULL << 9)
 #define I40E_FLAG_ALL (I40E_FLAG_RSS | \
 		       I40E_FLAG_DCB | \
 		       I40E_FLAG_VMDQ | \
@@ -134,7 +137,8 @@ enum i40e_flxpld_layer_idx {
 		       I40E_FLAG_HEADER_SPLIT_ENABLED | \
 		       I40E_FLAG_FDIR | \
 		       I40E_FLAG_VXLAN | \
-		       I40E_FLAG_RSS_AQ_CAPABLE)
+		       I40E_FLAG_RSS_AQ_CAPABLE | \
+		       I40E_FLAG_VF_MAC_BY_PF)
 
 #define I40E_RSS_OFFLOAD_ALL ( \
 	ETH_RSS_FRAG_IPV4 | \
@@ -148,6 +152,16 @@ enum i40e_flxpld_layer_idx {
 	ETH_RSS_NONFRAG_IPV6_SCTP | \
 	ETH_RSS_NONFRAG_IPV6_OTHER | \
 	ETH_RSS_L2_PAYLOAD)
+
+/* All bits of RSS hash enable for X722*/
+#define I40E_RSS_HENA_ALL_X722 ( \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_UNICAST_IPV4_UDP) | \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV4_UDP) | \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_IPV4_TCP_SYN_NO_ACK) | \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_UNICAST_IPV6_UDP) | \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV6_UDP) | \
+	(1ULL << I40E_FILTER_PCTYPE_NONF_IPV6_TCP_SYN_NO_ACK) | \
+	I40E_RSS_HENA_ALL)
 
 /* All bits of RSS hash enable */
 #define I40E_RSS_HENA_ALL ( \
@@ -177,6 +191,65 @@ enum i40e_flxpld_layer_idx {
 /* Special FW support this floating VEB feature */
 #define FLOATING_VEB_SUPPORTED_FW_MAJ 5
 #define FLOATING_VEB_SUPPORTED_FW_MIN 0
+
+#define I40E_GL_SWT_L2TAGCTRL(_i)             (0x001C0A70 + ((_i) * 4))
+#define I40E_GL_SWT_L2TAGCTRL_ETHERTYPE_SHIFT 16
+#define I40E_GL_SWT_L2TAGCTRL_ETHERTYPE_MASK  \
+	I40E_MASK(0xFFFF, I40E_GL_SWT_L2TAGCTRL_ETHERTYPE_SHIFT)
+
+#define I40E_INSET_NONE            0x00000000000000000ULL
+
+/* bit0 ~ bit 7 */
+#define I40E_INSET_DMAC            0x0000000000000001ULL
+#define I40E_INSET_SMAC            0x0000000000000002ULL
+#define I40E_INSET_VLAN_OUTER      0x0000000000000004ULL
+#define I40E_INSET_VLAN_INNER      0x0000000000000008ULL
+#define I40E_INSET_VLAN_TUNNEL     0x0000000000000010ULL
+
+/* bit 8 ~ bit 15 */
+#define I40E_INSET_IPV4_SRC        0x0000000000000100ULL
+#define I40E_INSET_IPV4_DST        0x0000000000000200ULL
+#define I40E_INSET_IPV6_SRC        0x0000000000000400ULL
+#define I40E_INSET_IPV6_DST        0x0000000000000800ULL
+#define I40E_INSET_SRC_PORT        0x0000000000001000ULL
+#define I40E_INSET_DST_PORT        0x0000000000002000ULL
+#define I40E_INSET_SCTP_VT         0x0000000000004000ULL
+
+/* bit 16 ~ bit 31 */
+#define I40E_INSET_IPV4_TOS        0x0000000000010000ULL
+#define I40E_INSET_IPV4_PROTO      0x0000000000020000ULL
+#define I40E_INSET_IPV4_TTL        0x0000000000040000ULL
+#define I40E_INSET_IPV6_TC         0x0000000000080000ULL
+#define I40E_INSET_IPV6_FLOW       0x0000000000100000ULL
+#define I40E_INSET_IPV6_NEXT_HDR   0x0000000000200000ULL
+#define I40E_INSET_IPV6_HOP_LIMIT  0x0000000000400000ULL
+#define I40E_INSET_TCP_FLAGS       0x0000000000800000ULL
+
+/* bit 32 ~ bit 47, tunnel fields */
+#define I40E_INSET_TUNNEL_IPV4_DST       0x0000000100000000ULL
+#define I40E_INSET_TUNNEL_IPV6_DST       0x0000000200000000ULL
+#define I40E_INSET_TUNNEL_DMAC           0x0000000400000000ULL
+#define I40E_INSET_TUNNEL_SRC_PORT       0x0000000800000000ULL
+#define I40E_INSET_TUNNEL_DST_PORT       0x0000001000000000ULL
+#define I40E_INSET_TUNNEL_ID             0x0000002000000000ULL
+
+/* bit 48 ~ bit 55 */
+#define I40E_INSET_LAST_ETHER_TYPE 0x0001000000000000ULL
+
+/* bit 56 ~ bit 63, Flex Payload */
+#define I40E_INSET_FLEX_PAYLOAD_W1 0x0100000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W2 0x0200000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W3 0x0400000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W4 0x0800000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W5 0x1000000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W6 0x2000000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W7 0x4000000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD_W8 0x8000000000000000ULL
+#define I40E_INSET_FLEX_PAYLOAD \
+	(I40E_INSET_FLEX_PAYLOAD_W1 | I40E_INSET_FLEX_PAYLOAD_W2 | \
+	I40E_INSET_FLEX_PAYLOAD_W3 | I40E_INSET_FLEX_PAYLOAD_W4 | \
+	I40E_INSET_FLEX_PAYLOAD_W5 | I40E_INSET_FLEX_PAYLOAD_W6 | \
+	I40E_INSET_FLEX_PAYLOAD_W7 | I40E_INSET_FLEX_PAYLOAD_W8)
 
 struct i40e_adapter;
 
@@ -217,7 +290,7 @@ struct i40e_bw_info {
 	/* Relative credits within same TC with respect to other VSIs or Comps */
 	uint8_t  bw_ets_share_credits[I40E_MAX_TRAFFIC_CLASS];
 	/* Bandwidth limit per TC */
-	uint8_t  bw_ets_credits[I40E_MAX_TRAFFIC_CLASS];
+	uint16_t bw_ets_credits[I40E_MAX_TRAFFIC_CLASS];
 	/* Max bandwidth limit per TC */
 	uint8_t  bw_ets_max[I40E_MAX_TRAFFIC_CLASS];
 };
@@ -290,6 +363,7 @@ struct i40e_vsi {
 	uint16_t msix_intr; /* The MSIX interrupt binds to VSI */
 	uint16_t nb_msix;   /* The max number of msix vector */
 	uint8_t enabled_tc; /* The traffic class enabled */
+	uint8_t vlan_anti_spoof_on; /* The VLAN anti-spoofing enabled */
 	struct i40e_bw_info bw_info; /* VSI bandwidth information */
 };
 
@@ -366,6 +440,14 @@ struct i40e_fdir_flex_mask {
 };
 
 #define I40E_FILTER_PCTYPE_MAX 64
+#define I40E_MAX_FDIR_FILTER_NUM (1024 * 8)
+
+struct i40e_fdir_filter {
+	TAILQ_ENTRY(i40e_fdir_filter) rules;
+	struct rte_eth_fdir_filter fdir;
+};
+
+TAILQ_HEAD(i40e_fdir_filter_list, i40e_fdir_filter);
 /*
  *  A structure used to define fields of a FDIR related info.
  */
@@ -384,6 +466,66 @@ struct i40e_fdir_info {
 	 */
 	struct i40e_fdir_flex_pit flex_set[I40E_MAX_FLXPLD_LAYER * I40E_MAX_FLXPLD_FIED];
 	struct i40e_fdir_flex_mask flex_mask[I40E_FILTER_PCTYPE_MAX];
+
+	struct i40e_fdir_filter_list fdir_list;
+	struct i40e_fdir_filter **hash_map;
+	struct rte_hash *hash_table;
+};
+
+/* Ethertype filter number HW supports */
+#define I40E_MAX_ETHERTYPE_FILTER_NUM 768
+
+/* Ethertype filter struct */
+struct i40e_ethertype_filter_input {
+	struct ether_addr mac_addr;   /* Mac address to match */
+	uint16_t ether_type;          /* Ether type to match */
+};
+
+struct i40e_ethertype_filter {
+	TAILQ_ENTRY(i40e_ethertype_filter) rules;
+	struct i40e_ethertype_filter_input input;
+	uint16_t flags;              /* Flags from RTE_ETHTYPE_FLAGS_* */
+	uint16_t queue;              /* Queue assigned to when match */
+};
+
+TAILQ_HEAD(i40e_ethertype_filter_list, i40e_ethertype_filter);
+
+struct i40e_ethertype_rule {
+	struct i40e_ethertype_filter_list ethertype_list;
+	struct i40e_ethertype_filter  **hash_map;
+	struct rte_hash *hash_table;
+};
+
+/* Tunnel filter number HW supports */
+#define I40E_MAX_TUNNEL_FILTER_NUM 400
+
+enum i40e_tunnel_iptype {
+	I40E_TUNNEL_IPTYPE_IPV4,
+	I40E_TUNNEL_IPTYPE_IPV6,
+};
+
+/* Tunnel filter struct */
+struct i40e_tunnel_filter_input {
+	uint8_t outer_mac[6];    /* Outer mac address to match */
+	uint8_t inner_mac[6];    /* Inner mac address to match */
+	uint16_t inner_vlan;     /* Inner vlan address to match */
+	enum i40e_tunnel_iptype ip_type;
+	uint16_t flags;          /* Filter type flag */
+	uint32_t tenant_id;      /* Tenant id to match */
+};
+
+struct i40e_tunnel_filter {
+	TAILQ_ENTRY(i40e_tunnel_filter) rules;
+	struct i40e_tunnel_filter_input input;
+	uint16_t queue; /* Queue assigned to when match */
+};
+
+TAILQ_HEAD(i40e_tunnel_filter_list, i40e_tunnel_filter);
+
+struct i40e_tunnel_rule {
+	struct i40e_tunnel_filter_list tunnel_list;
+	struct i40e_tunnel_filter  **hash_map;
+	struct rte_hash *hash_table;
 };
 
 #define I40E_MIRROR_MAX_ENTRIES_PER_RULE   64
@@ -406,6 +548,17 @@ struct i40e_mirror_rule {
 };
 
 TAILQ_HEAD(i40e_mirror_rule_list, i40e_mirror_rule);
+
+/*
+ * Struct to store flow created.
+ */
+struct rte_flow {
+	TAILQ_ENTRY(rte_flow) node;
+	enum rte_filter_type filter_type;
+	void *rule;
+};
+
+TAILQ_HEAD(i40e_flow_list, rte_flow);
 
 /*
  * Structure to store private data specific for PF instance.
@@ -456,12 +609,15 @@ struct i40e_pf {
 	struct i40e_vmdq_info *vmdq;
 
 	struct i40e_fdir_info fdir; /* flow director info */
+	struct i40e_ethertype_rule ethertype; /* Ethertype filter rule */
+	struct i40e_tunnel_rule tunnel; /* Tunnel filter rule */
 	struct i40e_fc_conf fc_conf; /* Flow control conf */
 	struct i40e_mirror_rule_list mirror_list;
 	uint16_t nb_mirror_rule;   /* The number of mirror rules */
 	bool floating_veb; /* The flag to use the floating VEB */
 	/* The floating enable flag for the specific VF */
 	bool floating_veb_list[I40E_MAX_VF];
+	struct i40e_flow_list flow_list;
 };
 
 enum pending_msg {
@@ -517,7 +673,7 @@ struct i40e_vf {
 	enum i40e_aq_link_speed link_speed;
 	bool vf_reset;
 	volatile uint32_t pend_cmd; /* pending command not finished yet */
-	uint32_t cmd_retval; /* return value of the cmd response from PF */
+	int32_t cmd_retval; /* return value of the cmd response from PF */
 	u16 pend_msg; /* flags indicates events from pf not handled yet */
 	uint8_t *aq_resp; /* buffer to store the adminq response from PF */
 
@@ -554,6 +710,25 @@ struct i40e_adapter {
 	struct rte_timecounter tx_tstamp_tc;
 };
 
+extern const struct rte_flow_ops i40e_flow_ops;
+
+union i40e_filter_t {
+	struct rte_eth_ethertype_filter ethertype_filter;
+	struct rte_eth_fdir_filter fdir_filter;
+	struct rte_eth_tunnel_filter_conf tunnel_filter;
+};
+
+typedef int (*parse_filter_t)(struct rte_eth_dev *dev,
+			      const struct rte_flow_attr *attr,
+			      const struct rte_flow_item pattern[],
+			      const struct rte_flow_action actions[],
+			      struct rte_flow_error *error,
+			      union i40e_filter_t *filter);
+struct i40e_valid_pattern {
+	enum rte_flow_item_type *items;
+	parse_filter_t parse_filter;
+};
+
 int i40e_dev_switch_queues(struct i40e_pf *pf, bool on);
 int i40e_vsi_release(struct i40e_vsi *vsi);
 struct i40e_vsi *i40e_vsi_setup(struct i40e_pf *pf,
@@ -577,7 +752,7 @@ int i40e_vsi_vlan_pvid_set(struct i40e_vsi *vsi,
 			   struct i40e_vsi_vlan_pvid_info *info);
 int i40e_vsi_config_vlan_stripping(struct i40e_vsi *vsi, bool on);
 int i40e_vsi_config_vlan_filter(struct i40e_vsi *vsi, bool on);
-uint64_t i40e_config_hena(uint64_t flags);
+uint64_t i40e_config_hena(uint64_t flags, enum i40e_mac_type type);
 uint64_t i40e_parse_hena(uint64_t flags);
 enum i40e_status_code i40e_fdir_setup_tx_resources(struct i40e_pf *pf);
 enum i40e_status_code i40e_fdir_setup_rx_resources(struct i40e_pf *pf);
@@ -595,15 +770,44 @@ int i40e_fdir_ctrl_func(struct rte_eth_dev *dev,
 int i40e_select_filter_input_set(struct i40e_hw *hw,
 				 struct rte_eth_input_set_conf *conf,
 				 enum rte_filter_type filter);
+void i40e_fdir_filter_restore(struct i40e_pf *pf);
 int i40e_hash_filter_inset_select(struct i40e_hw *hw,
 			     struct rte_eth_input_set_conf *conf);
 int i40e_fdir_filter_inset_select(struct i40e_pf *pf,
 			     struct rte_eth_input_set_conf *conf);
-
+int i40e_pf_host_send_msg_to_vf(struct i40e_pf_vf *vf, uint32_t opcode,
+				uint32_t retval, uint8_t *msg,
+				uint16_t msglen);
 void i40e_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_rxq_info *qinfo);
 void i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_txq_info *qinfo);
+struct i40e_ethertype_filter *
+i40e_sw_ethertype_filter_lookup(struct i40e_ethertype_rule *ethertype_rule,
+			const struct i40e_ethertype_filter_input *input);
+int i40e_sw_ethertype_filter_del(struct i40e_pf *pf,
+				 struct i40e_ethertype_filter_input *input);
+int i40e_sw_fdir_filter_del(struct i40e_pf *pf,
+			    struct rte_eth_fdir_input *input);
+struct i40e_tunnel_filter *
+i40e_sw_tunnel_filter_lookup(struct i40e_tunnel_rule *tunnel_rule,
+			     const struct i40e_tunnel_filter_input *input);
+int i40e_sw_tunnel_filter_del(struct i40e_pf *pf,
+			      struct i40e_tunnel_filter_input *input);
+uint64_t i40e_get_default_input_set(uint16_t pctype);
+int i40e_ethertype_filter_set(struct i40e_pf *pf,
+			      struct rte_eth_ethertype_filter *filter,
+			      bool add);
+int i40e_add_del_fdir_filter(struct rte_eth_dev *dev,
+			     const struct rte_eth_fdir_filter *filter,
+			     bool add);
+int i40e_dev_tunnel_filter_set(struct i40e_pf *pf,
+			       struct rte_eth_tunnel_filter_conf *tunnel_filter,
+			       uint8_t add);
+int i40e_fdir_flush(struct rte_eth_dev *dev);
+
+#define I40E_DEV_TO_PCI(eth_dev) \
+	RTE_DEV_TO_PCI((eth_dev)->device)
 
 /* I40E_DEV_PRIVATE_TO */
 #define I40E_DEV_PRIVATE_TO_PF(adapter) \
@@ -699,6 +903,25 @@ i40e_calc_itr_interval(int16_t interval)
 	(flow_type) == RTE_ETH_FLOW_NONFRAG_IPV6_OTHER || \
 	(flow_type) == RTE_ETH_FLOW_L2_PAYLOAD)
 
+#define I40E_VALID_PCTYPE_X722(pctype) \
+	((pctype) == I40E_FILTER_PCTYPE_FRAG_IPV4 || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_TCP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_TCP_SYN_NO_ACK || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_UNICAST_IPV4_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV4_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_SCTP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_OTHER || \
+	(pctype) == I40E_FILTER_PCTYPE_FRAG_IPV6 || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_UNICAST_IPV6_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV6_UDP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_TCP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_TCP_SYN_NO_ACK || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_SCTP || \
+	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_OTHER || \
+	(pctype) == I40E_FILTER_PCTYPE_L2_PAYLOAD)
+
 #define I40E_VALID_PCTYPE(pctype) \
 	((pctype) == I40E_FILTER_PCTYPE_FRAG_IPV4 || \
 	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV4_TCP || \
@@ -711,5 +934,19 @@ i40e_calc_itr_interval(int16_t interval)
 	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_SCTP || \
 	(pctype) == I40E_FILTER_PCTYPE_NONF_IPV6_OTHER || \
 	(pctype) == I40E_FILTER_PCTYPE_L2_PAYLOAD)
+
+#define I40E_PHY_TYPE_SUPPORT_40G(phy_type) \
+	(((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_KR4) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_CR4_CU) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_AOC) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_CR4) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_SR4) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_40GBASE_LR4))
+
+#define I40E_PHY_TYPE_SUPPORT_25G(phy_type) \
+	(((phy_type) & I40E_CAP_PHY_TYPE_25GBASE_KR) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_25GBASE_CR) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_25GBASE_SR) || \
+	((phy_type) & I40E_CAP_PHY_TYPE_25GBASE_LR))
 
 #endif /* _I40E_ETHDEV_H_ */

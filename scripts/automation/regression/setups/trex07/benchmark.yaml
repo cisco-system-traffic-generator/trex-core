@@ -4,118 +4,73 @@
 
 #### common templates ###
 
-stat_route_dict: &stat_route_dict
-    clients_start           : 16.0.0.1
-    servers_start           : 48.0.0.1
-    dual_port_mask          : 1.0.0.0
-    client_destination_mask : 255.0.0.0
-    server_destination_mask : 255.0.0.0
+test_short_flow:
+    multiplier          : 25000
+    cores               : 7
+    bw_per_core         : 1000
 
-nat_dict: &nat_dict
-    clients_net_start        : 16.0.0.0
-    client_acl_wildcard_mask : 0.0.0.255
-    dual_port_mask           : 1.0.0.0
-    pool_start               : 200.0.0.0
-    pool_netmask             : 255.255.255.0
+test_short_flow_high_active:
+    multiplier          : 20000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
 
+test_short_flow_high_active2:
+    multiplier          : 10000
+    cores               : 7
+    bw_per_core         : 1000
+    active_flows        : 4000000
 
-### stateful ###
 
 test_jumbo:
-    multiplier          : 17
-    cores               : 1
-    bw_per_core         : 543.232
+    multiplier          : 120
+    cores               : 4
+    bw_per_core         : 962.464
 
 
 test_routing_imix:
-    multiplier          : 10
-    cores               : 1
-    bw_per_core         : 34.128
+    multiplier          : 60
+    cores               : 8
+    bw_per_core         : 48.130
 
 
 test_routing_imix_64:
-    multiplier          : 430
-    cores               : 1
-    bw_per_core         : 5.893
+    multiplier          : 2500
+    cores               : 8
+    bw_per_core         : 12.699
 
 
-test_static_routing_imix: &test_static_routing_imix
-    stat_route_dict     : *stat_route_dict
-    multiplier          : 8
-    cores               : 1
-    bw_per_core         : 34.339
-
-test_static_routing_imix_asymmetric: *test_static_routing_imix
+test_static_routing_imix_asymmetric:
+    multiplier          : 50
+    cores               : 8
+    bw_per_core         : 50.561
 
 
 test_ipv6_simple:
-    multiplier          : 9
-    cores               : 2
-    bw_per_core         : 19.064
-
-
-test_nat_simple_mode1: &test_nat_simple
-    stat_route_dict     : *stat_route_dict
-    nat_dict            : *nat_dict
-    multiplier          : 6000
-    cores               : 1
-    nat_opened          : 500000
-    allow_timeout_dev   : True
-    bw_per_core         : 44.445
-
-test_nat_simple_mode2: *test_nat_simple
-
-test_nat_simple_mode3: *test_nat_simple
-
-test_nat_learning: *test_nat_simple
-
-
-test_nbar_simple:
-    multiplier          : 7.5
-    cores               : 2
-    bw_per_core         : 17.174
-    nbar_classification:
-        rtp             : 32.57
-        http            : 30.25
-        oracle_sqlnet   : 11.23
-        exchange        : 10.80
-        citrix          : 5.62
-        rtsp            : 2.84
-        dns             : 1.95
-        smtp            : 0.57
-        pop3            : 0.36
-        ssl             : 0.17
-        sctp            : 0.13
-        sip             : 0.09
-        unknown         : 3.41
+    multiplier          : 50
+    cores               : 7
+    bw_per_core         : 19.5
 
 
 test_rx_check_http: &rx_http
-    multiplier          : 15000
-    cores               : 1
-    rx_sample_rate      : 16
-    bw_per_core         : 39.560
+    multiplier          : 99000
+    cores               : 7
+    rx_sample_rate      : 128
+    bw_per_core         : 49.464
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
     bw_per_core         : 49.237
 
-test_rx_check_http_negative_disabled:
-    <<                  : *rx_http
-    stat_route_dict     : *stat_route_dict
-    nat_dict            : *nat_dict
-
-
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 10
-    cores               : 3
-    rx_sample_rate      : 16
-    bw_per_core         : 16.082
+    multiplier          : 35
+    cores               : 7
+    rx_sample_rate      : 128
+    bw_per_core         : 20.871
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
     bw_per_core         : 19.198
-
 
 
 ### stateless ###
@@ -178,10 +133,10 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
-      - name            : stl/udp_for_benchmarks.py
-        kwargs          : {packet_len: 9000, stream_count: 100}
-        cpu_util        : 1
-        bw_per_core     : 1
+      #- name            : stl/udp_for_benchmarks.py
+      #  kwargs          : {packet_len: 9000, stream_count: 100}
+      #  cpu_util        : 1
+      #  bw_per_core     : 1
 
 # not enough memory + queue full if memory increase
 #      - name            : stl/udp_for_benchmarks.py
@@ -241,4 +196,57 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
+test_performance_vm_single_cpu:
+    cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    : 
+                                   min: 9.6
+                                   max: 13.3
 
+
+test_performance_vm_single_cpu_cached:
+    cfg:
+        mult                    : "10%"
+        mpps_per_core_golden    : 
+                                   min: 20.0
+                                   max: 25.0
+
+
+
+test_performance_syn_attack_single_cpu:
+     cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    :
+                                  min: 8.4
+                                  max: 14.0
+
+test_performance_vm_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "90%"
+        mpps_per_core_golden   :
+                                  min: 7.7
+                                  max: 10.8
+
+
+test_performance_vm_multi_cpus_cached:
+    cfg:
+        core_count             : 7
+        mult                   : "35%"
+        mpps_per_core_golden   :
+                                  min: 22.0
+                                  max: 24.3
+
+test_performance_syn_attack_multi_cpus:
+    cfg:
+        core_count             : 7
+        mult                   : "90%"
+        mpps_per_core_golden   :
+                                  min: 8.0
+                                  max: 11.0
+                                  
+
+test_all_profiles :
+        mult          : "5%"
+        skip          : ['udp_rand_len_9k.py', 'udp_inc_len_9k.py']
+        

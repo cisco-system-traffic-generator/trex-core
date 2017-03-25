@@ -77,7 +77,7 @@ class Packet(BasePacket):
             self.name = self.__class__.__name__
         self.aliastypes = [ self.__class__ ] + self.aliastypes
         self.default_fields = {}
-        self.offset=0;  # offset of the object
+        self._offset=0;  # offset of the object
         self.offset_fields = {} # ofsset of each field
         self.overloaded_fields = {}
         self.fields={}
@@ -159,7 +159,7 @@ class Packet(BasePacket):
         clone.default_fields = self.default_fields.copy()
         clone.overloaded_fields = self.overloaded_fields.copy()
         clone.overload_fields = self.overload_fields.copy()
-        clone.offset=self.offset
+        clone._offset=self._offset
         clone.underlayer = self.underlayer
         clone.explicit = self.explicit
         clone.raw_packet_cache = self.raw_packet_cache
@@ -170,7 +170,7 @@ class Packet(BasePacket):
 
     def dump_offsets (self):
         print "obj-id ",id(self),
-        print self.name ,self.offset 
+        print self.name ,self._offset 
         if self.payload:
             self.payload.dump_offsets()
 
@@ -316,19 +316,17 @@ class Packet(BasePacket):
 
     def dump_fields_offsets (self):
         for f in self.fields_desc:
-            print "field %-40s %02d %02d" % (f.name, f.offset,f.get_size_bytes ());
+            print "field %-40s %02d %02d" % (f.name, f._offset,f.get_size_bytes ());
 
 
     def self_build(self, field_pos_list=None):
-        if self.raw_packet_cache is not None:
-            return self.raw_packet_cache
         p=""
         for f in self.fields_desc:
             if type(p) is tuple :
-                f.offset=len(p[0])
+                f._offset=len(p[0])
             else:
                 assert(type(p)==str)
-                f.offset=len(p)
+                f._offset=len(p)
 
             val = self.getfieldval(f.name)
             if isinstance(val, RawVal):
@@ -336,10 +334,11 @@ class Packet(BasePacket):
                 p += sval
                 if field_pos_list is not None:
                     field_pos_list.append( (f.name, sval.encode("string_escape"), len(p), len(sval) ) )
-                f.offset= val
+                f._offset= val
             else:
                 p = f.addfield(self, p, val)
-                
+        if self.raw_packet_cache is not None:
+            assert p == self.raw_packet_cache, 'Could not build the packet.'
         return p
 
     def do_build_payload(self):
@@ -347,14 +346,14 @@ class Packet(BasePacket):
 
     def do_update_payload_offset(self,pkt):
         #print "obj-id ",id(self)
-        #print "current offset ",self.name," ",self.offset
+        #print "current offset ",self.name," ",self._offset
         #print "current header size  ",len(pkt)
-        self.payload.offset = self.offset + len(pkt)
+        self.payload._offset = self._offset + len(pkt)
 
     def dump_layers_offset (self):
         p=self;
         while True:
-            print p.name, "offset :",p.offset
+            print p.name, "offset :",p._offset
             p=p.payload
             if p ==None or isinstance(p,NoPayload):
                 break;
@@ -387,7 +386,7 @@ class Packet(BasePacket):
             assert(type(p) == type(o) )
 
             #copy
-            p.offset=o.offset
+            p._offset=o._offset
 
             #next 
             p=p.payload
@@ -705,7 +704,7 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
         pkt = self.__class__()
         pkt.explicit = 1
         pkt.fields = kargs
-        pkt.offset=self.offset
+        pkt._offset=self._offset
         pkt.time = self.time
         pkt.underlayer = self.underlayer
         pkt.overload_fields = self.overload_fields.copy()

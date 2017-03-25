@@ -153,6 +153,8 @@ TrexRpcCommand::type_to_str(field_type_e type) {
         return "int";
     case FIELD_TYPE_DOUBLE:
         return "double";
+    case FIELD_TYPE_UDOUBLE:
+        return "unsigned double";
     case FIELD_TYPE_OBJ:
         return "object";
     case FIELD_TYPE_STR:
@@ -176,7 +178,7 @@ TrexRpcCommand::json_type_to_name(const Json::Value &value) {
     case Json::uintValue:
         return "uint";
     case Json::realValue:
-        return "real";
+        return "double";
     case Json::stringValue:
         return "string";
     case Json::booleanValue:
@@ -223,31 +225,41 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
 
 void 
 TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result) {
-    std::stringstream ss;
+    std::string specific_err;
 
     /* first check if field exists */
     if (field == Json::Value::null) {
-        ss << "field '" << name << "' is missing";
-        generate_parse_err(result, ss.str());
+        specific_err = "field '" + name + "' is missing";
+        generate_parse_err(result, specific_err);
     }
 
     bool rc = true;
+    specific_err = "is '" + std::string(json_type_to_name(field)) + "', expecting '" + std::string(type_to_str(type)) + "'";
 
     switch (type) {
     case FIELD_TYPE_BYTE:
-        if ( (!field.isUInt()) || (field.asInt() > 0xFF)) {
+        if (!field.isUInt64()) {
+            rc = false;
+        } else if (field.asUInt64() > 0xFF) {
+            specific_err = "has size bigger than uint8.";
             rc = false;
         }
         break;
 
     case FIELD_TYPE_UINT16:
-        if ( (!field.isUInt()) || (field.asInt() > 0xFFFF)) {
+        if (!field.isUInt64()) {
+            rc = false;
+        } else if (field.asUInt64() > 0xFFFF) {
+            specific_err = "has size bigger than uint16.";
             rc = false;
         }
         break;
 
     case FIELD_TYPE_UINT32:
-        if ( (!field.isUInt()) || (field.asUInt() > 0xFFFFFFFF)) {
+        if (!field.isUInt64()) {
+            rc = false;
+        } else if (field.asUInt64() > 0xFFFFFFFF) {
+            specific_err = "has size bigger than uint32.";
             rc = false;
         }
         break;
@@ -276,6 +288,15 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
         }
         break;
 
+    case FIELD_TYPE_UDOUBLE:
+        if (!field.isDouble()) {
+            rc = false;
+        } else if (field.asDouble() < 0) {
+            specific_err =  "has negative value.";
+            rc = false;
+        }
+        break;
+
     case FIELD_TYPE_OBJ:
         if (!field.isObject()) {
             rc = false;
@@ -300,8 +321,7 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
 
     }
     if (!rc) {
-        ss << "error at offset: " << field.getOffsetStart() << " - '" << name << "' is '" << json_type_to_name(field) << "', expecting '" << type_to_str(type) << "'";
-        generate_parse_err(result, ss.str());
+        generate_parse_err(result, "error at offset: " + std::to_string(field.getOffsetStart()) + " - '" + name + "' " + specific_err);
     }
 
 }

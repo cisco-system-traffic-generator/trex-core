@@ -4,6 +4,24 @@
 
 #### common templates ###
 
+test_short_flow:
+    multiplier          : 20000
+    cores               : 4
+    bw_per_core         : 1000
+
+test_short_flow_high_active:
+    multiplier          : 20000
+    cores               : 4
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+test_short_flow_high_active2:
+    multiplier          : 15000
+    cores               : 4
+    bw_per_core         : 1000
+    active_flows        : 4000000
+
+
 stat_route_dict: &stat_route_dict
     clients_start           : 16.0.0.1
     servers_start           : 48.0.0.1
@@ -29,12 +47,12 @@ test_jumbo:
 
 test_routing_imix:
     multiplier          : 32
-    cores               : 2
+    cores               : 4
     bw_per_core         : 39.131
 
 
 test_routing_imix_64:
-    multiplier          : 2500
+    multiplier          : 2000
     cores               : 4
     bw_per_core         : 7.427
 
@@ -42,7 +60,7 @@ test_routing_imix_64:
 test_static_routing_imix:
     stat_route_dict     : *stat_route_dict
     multiplier          : 32
-    cores               : 2
+    cores               : 4
     bw_per_core         : 39.039
 
 
@@ -70,6 +88,9 @@ test_nat_simple_mode1: &test_nat_simple
 test_nat_simple_mode2: *test_nat_simple
 
 test_nat_simple_mode3: *test_nat_simple
+
+test_nat_simple_mode1_udp: *test_nat_simple
+test_nat_simple_mode3_udp: *test_nat_simple
 
 test_nat_learning:
     <<                  : *test_nat_simple
@@ -245,4 +266,54 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
+
+
+test_performance_vm_single_cpu:
+    cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    : 
+                                   min: 9.0
+                                   max: 13.1
+
+
+test_performance_vm_single_cpu_cached:
+    cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    : 
+                                   min: 16.0
+                                   max: 25.0
+
+
+
+test_performance_syn_attack_single_cpu:
+     cfg:
+        mult                    : "90%"
+        mpps_per_core_golden    :
+                                  min: 7.0
+                                  max: 11.5
+
+test_performance_vm_multi_cpus:
+    cfg:
+        core_count             : 4
+        mult                   : "90%"
+        mpps_per_core_golden   :
+                                  min: 7.0
+                                  max: 12.5
+
+
+test_performance_vm_multi_cpus_cached:
+    cfg:
+        core_count             : 4
+        mult                   : "90%"
+        mpps_per_core_golden   :
+                                  min: 16.0
+                                  max: 22.0
+
+test_performance_syn_attack_multi_cpus:
+    cfg:
+        core_count             : 4
+        mult                   : "90%"
+        mpps_per_core_golden   :
+                                  min: 7.0
+                                  max: 10.5
 

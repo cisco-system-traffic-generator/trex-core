@@ -35,7 +35,7 @@ test_routing_imix:
 
 test_routing_imix_64:
     multiplier          : 150
-    cores               : 4
+    cores               : 2
     bw_per_core         : .681
 
 
@@ -70,6 +70,8 @@ test_nat_simple_mode1: &test_nat_simple
 test_nat_simple_mode2: *test_nat_simple
 
 test_nat_simple_mode3: *test_nat_simple
+test_nat_simple_mode1_udp: *test_nat_simple
+test_nat_simple_mode3_udp: *test_nat_simple
 
 test_nat_learning:
     <<                  : *test_nat_simple

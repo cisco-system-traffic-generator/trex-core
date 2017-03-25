@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2015-2016 Cisco Systems, Inc.
+  Copyright (c) 2015-2017 Cisco Systems, Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -22,8 +22,17 @@
 #include "bp_sim.h"
 
 enum {
-    MAIN_DPDK_DATA_Q = 0,
+    MAIN_DPDK_DROP_Q = 0,
     MAIN_DPDK_RX_Q = 1,
+};
+
+class CTrexDpdkParams {
+ public:
+    uint16_t rx_data_q_num;
+    uint16_t rx_drop_q_num;
+    uint16_t rx_desc_num_data_q;
+    uint16_t rx_desc_num_drop_q;
+    uint16_t tx_desc_num;
 };
 
 // These are statistics for packets we send, and do not expect to get back (Like ARP)
@@ -83,7 +92,7 @@ class CPhyEthIF  {
     void set_rx_queue(uint8_t rx_queue){
         m_rx_queue=rx_queue;
     }
-
+    void conf_queues();
     void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
                    const struct rte_eth_conf *eth_conf);
@@ -103,12 +112,16 @@ class CPhyEthIF  {
                         const struct rte_eth_txconf *tx_conf);
     void stop_rx_drop_queue();
     void configure_rx_duplicate_rules();
+    int set_port_rcv_all(bool is_rcv);
     void start();
     void stop();
     void disable_flow_control();
     void dump_stats(FILE *fd);
     void set_ignore_stats_base(CPreTestStats &pre_stats);
     void update_counters();
+    void configure_rss_redirect_table(uint16_t numer_of_queues,
+                                     uint16_t skip_queue);
+
     void stats_clear();
     uint8_t             get_port_id(){
         return (m_port_id);

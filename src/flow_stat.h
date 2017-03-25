@@ -489,7 +489,8 @@ class CFlowStatRuleMgr {
     int m_max_hw_id_payload; // max hw id we ever used for payload rules
     int m_num_started_streams; // How many started (transmitting) streams we have
     CNodeRing *m_ring_to_rx; // handle for sending messages to Rx core
-    CFlowStatParser *m_parser;
+    CFlowStatParser *m_parser_ipid; // for IP_ID rules (flow stat)
+    CFlowStatParser *m_parser_pl;  // for payload rules (latency)
     enum flow_stat_mode_e m_mode;
     uint16_t m_cap; // capabilities of the NIC driver we are using
     uint32_t m_rx_cant_count_err[TREX_MAX_PORTS];

@@ -223,9 +223,16 @@ bool LibPCapWriter::Create(char * name)
         printf(" ERROR create file \n");
         return(false);
     }
+    
     /* prepare the write counter */
     m_pkt_count = 0;
     return init();
+}
+
+void LibPCapWriter::flush_to_disk() {
+    if (m_is_open) {
+        fflush(m_file_handler);
+    }
 }
 
 /**
