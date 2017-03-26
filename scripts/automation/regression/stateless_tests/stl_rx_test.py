@@ -25,7 +25,7 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_latency': 400,
                         },
                 'net_ixgbe_vf': {
-                        'rate_percent': 30,
+                        'rate_percent': 20,
                         'total_pkts': 1000,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
@@ -40,7 +40,7 @@ class STLRX_Test(CStlGeneral_Test):
                         'latency_9k_max_latency': 250,
                         },
                 'net_i40e_vf': {
-                        'rate_percent': 80,
+                        'rate_percent': 10,
                         'total_pkts': 1000,
                         'rate_latency': 1,
                         'latency_9k_enable': False,
@@ -66,7 +66,7 @@ class STLRX_Test(CStlGeneral_Test):
                         },
 
                  'net_mlx5': {
-                        'rate_percent': 80,
+                        'rate_percent': 80 if self.is_vf_nics else 5,
                         'total_pkts': 1000,
                         'rate_latency': 1,
                         'latency_9k_enable': False if self.is_vf_nics else True,
