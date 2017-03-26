@@ -1,0 +1,41 @@
+################################################################
+####         TRex nightly test configuration file          ####
+################################################################
+
+
+### TRex configuration:
+# hostname        - can be DNS name or IP for the TRex machine for ssh to the box
+# password        - root password for TRex machine
+# is_dual         - should the TRex inject with -p ?
+# version_path    - path to the TRex version and executable
+# cores           - how many cores should be used
+# latency         - rate of latency packets injected by the TRex
+# modes           - list of modes (tagging) of this setup (loopback etc.)
+# 	  * loopback  - Trex works via loopback. Router and TFTP configurations may be skipped.
+#     * VM        - Virtual OS (accept low CPU utilization in tests, latency can get spikes)
+#     * virt_nics - NICs are virtual (VMXNET3 etc.)
+
+### Router configuration:
+# hostname       - the router hostname as apears in ______# cli prefix
+# ip_address     - the router's ip that can be used to communicate with
+# image          - the desired imaged wished to be loaded as the router's running config
+# line_password  - router password when access via Telent
+# en_password    - router password when changing to "enable" mode
+# interfaces     - an array of client-server pairs, representing the interfaces configurations of the router
+# configurations - an array of configurations that could possibly loaded into the router during the test. 
+#                  The "clean" configuration is a mandatory configuration the router will load with to run the basic test bench
+
+### TFTP configuration:
+# hostname       - the tftp hostname
+# ip_address     - the tftp's ip address
+# images_path    - the tftp's relative path in which the router's images are located
+
+### Test_misc configuration:
+# expected_bw    - the "golden" bandwidth (in Gbps) results planned on receiving from the test
+
+trex:
+  hostname       : csi-trex-19
+  cores          : 13
+  modes          : ['loopback']
+
+
