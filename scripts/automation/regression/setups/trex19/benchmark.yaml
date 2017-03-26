@@ -200,16 +200,16 @@ test_performance_vm_single_cpu:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 9.6
-                                   max: 13.3
+                                   min: 9.0
+                                   max: 11.5
 
 
 test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "10%"
         mpps_per_core_golden    : 
-                                   min: 20.0
-                                   max: 25.0
+                                   min: 13.5
+                                   max: 17.0
 
 
 
@@ -217,33 +217,33 @@ test_performance_syn_attack_single_cpu:
      cfg:
         mult                    : "90%"
         mpps_per_core_golden    :
-                                  min: 8.4
-                                  max: 14.0
+                                  min: 8.0
+                                  max: 11.0
 
 test_performance_vm_multi_cpus:
     cfg:
-        core_count             : 7
+        core_count             : 13
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 7.7
-                                  max: 10.8
+                                  min: 7.5
+                                  max: 9.5
 
 
 test_performance_vm_multi_cpus_cached:
     cfg:
-        core_count             : 7
+        core_count             : 13
         mult                   : "35%"
         mpps_per_core_golden   :
-                                  min: 22.0
-                                  max: 24.3
+                                  min: 13.5
+                                  max: 17.0
 
 test_performance_syn_attack_multi_cpus:
     cfg:
-        core_count             : 7
+        core_count             : 13
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 8.0
-                                  max: 11.0
+                                  min: 6.0
+                                  max: 13.5
                                   
 
 test_all_profiles :
