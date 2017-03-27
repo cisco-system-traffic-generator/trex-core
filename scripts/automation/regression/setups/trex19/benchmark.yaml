@@ -6,55 +6,55 @@
 
 test_short_flow:
     multiplier          : 25000
-    cores               : 7
+    cores               : 13
     bw_per_core         : 1000
 
 test_short_flow_high_active:
     multiplier          : 20000
-    cores               : 7
+    cores               : 13
     bw_per_core         : 1000
     active_flows        : 4000000
 
 test_short_flow_high_active2:
     multiplier          : 10000
-    cores               : 7
+    cores               : 13
     bw_per_core         : 1000
     active_flows        : 4000000
 
 
 test_jumbo:
     multiplier          : 120
-    cores               : 4
+    cores               : 1
     bw_per_core         : 962.464
 
 
 test_routing_imix:
     multiplier          : 60
-    cores               : 8
+    cores               : 13
     bw_per_core         : 48.130
 
 
 test_routing_imix_64:
     multiplier          : 2500
-    cores               : 8
+    cores               : 13
     bw_per_core         : 12.699
 
 
 test_static_routing_imix_asymmetric:
     multiplier          : 50
-    cores               : 8
+    cores               : 13
     bw_per_core         : 50.561
 
 
 test_ipv6_simple:
     multiplier          : 50
-    cores               : 7
+    cores               : 13
     bw_per_core         : 19.5
 
 
 test_rx_check_http: &rx_http
     multiplier          : 99000
-    cores               : 7
+    cores               : 13
     rx_sample_rate      : 128
     bw_per_core         : 49.464
 
@@ -64,7 +64,7 @@ test_rx_check_http_ipv6:
 
 test_rx_check_sfr: &rx_sfr
     multiplier          : 35
-    cores               : 7
+    cores               : 13
     rx_sample_rate      : 128
     bw_per_core         : 20.871
 
