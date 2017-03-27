@@ -24,7 +24,7 @@ test_short_flow_high_active2:
 
 test_jumbo:
     multiplier          : 120
-    cores               : 1
+    cores               : 4
     bw_per_core         : 962.464
 
 
