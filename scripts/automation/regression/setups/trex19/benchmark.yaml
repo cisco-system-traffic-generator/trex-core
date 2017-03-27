@@ -225,7 +225,7 @@ test_performance_vm_multi_cpus:
         core_count             : 13
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 7.5
+                                  min: 6.0
                                   max: 9.5
 
 
