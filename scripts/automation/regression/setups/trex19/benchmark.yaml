@@ -247,6 +247,9 @@ test_performance_syn_attack_multi_cpus:
                                   
 
 test_all_profiles :
-        mult          : "5%"
-        skip          : ['udp_rand_len_9k.py', 'udp_inc_len_9k.py']
+        mult: "5%"
+        skip:
+          - udp_rand_len_9k.py
+          - udp_inc_len_9k.py
+          - udp_1pkt_range_clients_split_garp.py # https://trex-tgn.cisco.com/youtrack/issue/trex-391
         
