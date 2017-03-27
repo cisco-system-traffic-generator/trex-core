@@ -53,6 +53,13 @@ class STLService(object):
         '''
         raise NotImplementedError
 
+    
+    def results (self):
+        '''
+            Return the results of the service run
+        '''
+        raise NotImplementedError
+        
         
 ######### API          #########
     def pipe (self):

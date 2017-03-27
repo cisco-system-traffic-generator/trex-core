@@ -52,13 +52,14 @@ class STLServiceCtx(object):
 
 
     def run (self):
+        
         # launch all the services
         for service in self.services:
             service.run()
 
 
         # set promiscuous mode
-        self.client.set_port_attr(ports = 0, promiscuous = True)
+        self.client.set_port_attr(ports = self.port, promiscuous = True)
         # move to service mode
         self.client.set_service_mode(ports = self.port)
 
@@ -73,9 +74,8 @@ class STLServiceCtx(object):
 
         finally:
             self.client.stop_capture(self.capture_id)
-            self.client.set_service_mode(ports = self.port, enabled = False)
-            self.client.set_port_attr(ports = 0, promiscuous = False)
-
+            self.client.reset(ports = self.port)
+            
 
 ######### internal functions              #########
 
@@ -104,7 +104,6 @@ class STLServiceCtx(object):
         while True:
             # if no other process exists - exit
             if self.active_services == 0:
-                print('nothing to do')
                 return
 
             # if any packets are pending - send them
@@ -116,11 +115,11 @@ class STLServiceCtx(object):
             # poll for RX
             pkts = []
             self.client.fetch_capture_packets(self.capture_id, pkts)
+            
             scapy_pkts = [Ether(pkt['binary']) for pkt in pkts]
 
             # for each packet - try to forward to each service until we hit
             for scapy_pkt in scapy_pkts:
-                #scapy_pkt.show2()
                 for service in self.services:
                     if service.consume(scapy_pkt):
                         # found some service that accepts the packet
@@ -151,7 +150,7 @@ class PktRX(simpy.resources.store.StoreGet):
         '''
         if not self.triggered:
             self.cancel()
-            self.succeed(None)
+            self.succeed([])
 
 
 class Pkt(simpy.resources.store.Store):

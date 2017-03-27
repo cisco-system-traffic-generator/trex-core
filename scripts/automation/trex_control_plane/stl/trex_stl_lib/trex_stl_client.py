@@ -18,6 +18,7 @@ from .utils.text_opts import *
 from functools import wraps
 from texttable import ansi_len
 
+from .services.trex_stl_service_int import STLServiceCtx
 from collections import namedtuple, defaultdict
 from yaml import YAMLError
 from contextlib import contextmanager
@@ -30,6 +31,7 @@ import traceback
 import tempfile
 import readline
 import os.path
+
 
 ############################     logger     #############################
 ############################                #############################
@@ -3424,7 +3426,7 @@ class STLClient(object):
         
         # fetch packets
         if output is not None:
-            self.__fetch_capture_packets(capture_id, output, pkt_count)
+            self.fetch_capture_packets(capture_id, output, pkt_count)
         
         # remove
         self.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
@@ -3434,9 +3436,32 @@ class STLClient(object):
             raise STLError(rc)
         
 
-            
-    # fetch packets from the server and save them to a file
-    def __fetch_capture_packets (self, capture_id, output, pkt_count):
+    @__api_check(True)
+    def fetch_capture_packets (self, capture_id, output, pkt_count = 1000):
+        """
+            Fetch packets from existing active capture
+
+            :parameters:
+                capture_id: int
+                    an active capture ID
+
+                output: str / list
+                    if output is a 'str' - it will be interpeted as output filename
+                    if it is a list, the API will populate the list with packet objects
+
+                    in case 'output' is a list, each element in the list is an object
+                    containing:
+                    'binary' - binary bytes of the packet
+                    'origin' - RX or TX origin
+                    'ts'     - timestamp relative to the start of the capture
+                    'index'  - order index in the capture
+                    'port'   - on which port did the packet arrive or was transmitted from
+
+            :raises:
+                + :exe:'STLError'
+
+        """
+
         write_to_file = isinstance(output, basestring)
         
         self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
@@ -3454,13 +3479,13 @@ class STLClient(object):
         
         # fetch with iteratios - each iteration up to 50 packets
         while pending > 0:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': 50})
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(50, pending)})
             if not rc:
                 self.logger.post_cmd(rc)
                 raise STLError(rc)
 
             # make sure we are getting some progress
-            assert(rc.data()['pending'] < pending)
+            #assert(rc.data()['pending'] < pending)
             
             pkts      = rc.data()['pkts']
             pending   = rc.data()['pending']
@@ -3477,8 +3502,6 @@ class STLClient(object):
                     writer._write_packet(pkt['binary'], sec = ts_sec, usec = ts_usec)
                 else:
                     output.append(pkt)
-
-
 
 
         self.logger.post_cmd(rc)
@@ -3616,6 +3639,15 @@ class STLClient(object):
         self.event_handler.clear_events()
 
 
+    def create_service_ctx (self, port):
+        """
+            Generates a service context.
+            Services can be added to the context,
+            and then executed
+        """
+        
+        return STLServiceCtx(self, port)
+        
     ############################   Line       #############################
     ############################   Commands   #############################
     ############################              #############################
@@ -4569,7 +4601,11 @@ class STLClient(object):
             
         
         try:
-            import IPython
+            #import IPython
+            from IPython.terminal.ipapp import load_default_config
+            from IPython.terminal.embed import InteractiveShellEmbed
+            from IPython import embed
+            
         except ImportError:
             self.logger.log(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
             return
@@ -4586,21 +4622,21 @@ class STLClient(object):
         client = self
         auto_completer = readline.get_completer()
         
-        h_file = self.__push_history()
+        console_h = self.__push_history()
         
         try:
-            from IPython.terminal.ipapp import load_default_config
-            cfg = load_default_config()
-            cfg['TerminalInteractiveShell']['confirm_exit']    = False
             
-            x = IPython.terminal.embed.InteractiveShellEmbed(cfg, display_banner = False)
-            x.mainloop()
+            cfg = load_default_config()
+            cfg['TerminalInteractiveShell']['confirm_exit'] = False
+            
+            embed(config = cfg, display_banner = False)
+            #InteractiveShellEmbed.clear_instance()
             
         finally:
             readline.set_completer(auto_completer)
-            self.__pop_history(h_file)
+            self.__pop_history(console_h)
             try:
-                os.unlink(h_file)
+                os.unlink(console_h)
             except OSError:
                 pass
         
@@ -4608,4 +4644,3 @@ class STLClient(object):
         
         return
 
-     

@@ -31,9 +31,9 @@ class STLServiceDHCP(STLService):
         self.set_verbose(STLService.INFO)
         
         self.clients = {}
+        
         for mac in mac_range:
-            mac_bytes = self.__mac2bytes(mac)
-            client = DHCPClient(ctx, mac_bytes, self.log)
+            client = DHCPClient(ctx, mac, self.log)
             self.clients[client.get_xid()] = client
         
         
@@ -57,17 +57,14 @@ class STLServiceDHCP(STLService):
         for k ,v in self.clients.items():
             self.ctx._add_task(v.run())
         
-        
-######### internal #########
-    def __mac2bytes (self, mac):
-        if type(mac) != str or not re.match("[0-9a-f]{2}([:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()):
-            self.err('invalid MAC format: {}'.format(mac))
-          
-        return struct.pack('B' * 6, *[int(b, 16) for b in mac.split(':')])
-        
-        #if type(mac) in (list, tuple, bytes) and len(mac) == 6 and all([x <= 0xff for x in mac]):
-        #    return bytes(mac)
     
+    def results (self):
+        dhcp_results = {}
+        for client in self.clients.values():
+            dhcp_results[client.mac] = dict(client.results())
+            
+        return dhcp_results
+
         
 ################### internal ###################
 class DHCPClient(object):
@@ -77,14 +74,26 @@ class DHCPClient(object):
     NACK     = 6
     
     def __init__ (self, ctx, mac, log):
-        self.mac_bytes  = mac
+        self.mac        = mac
+        self.mac_bytes  = self.mac2bytes(mac)
         self.ctx        = ctx
         self.pipe       = ctx.pipe()
+        
+        self._results   = {'yaddr': None, 'server' : None, 'dg' : None, 'lease' : None, 'domain': None, 'subnet': None}
+        self.success    = False
         
         self.xid        = random.getrandbits(32)
         self.log        = log
         
         self.state = 'INIT'
+      
+        
+    def mac2bytes (self, mac):
+        if type(mac) != str or not re.match("[0-9a-f]{2}([:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()):
+            self.err('invalid MAC format: {}'.format(mac))
+          
+        return struct.pack('B' * 6, *[int(b, 16) for b in mac.split(':')])
+        
         
     def get_xid (self):
         return self.xid
@@ -92,34 +101,79 @@ class DHCPClient(object):
     def run (self):
         # main state machine loop
         self.state = 'INIT'
+        self.retries = 5
         
         while True:
             
+            # INIT state
             if self.state == 'INIT':
-                self.log('DHCP: xid {0} sent DISCOVERY packet'.format(self.xid))
+                self.log('DHCP: xid {:10} sent DISCOVERY packet'.format(self.xid))
                 
                 # send a discover message
                 self.pipe.tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","discover"),"end"]))
                 
                 # give a chance to all the servers to respond
-                #yield self.pipe.async_wait(0.5)
+                yield self.pipe.async_wait(0.5)
                 
                 # wait until packet arrives or timeout occurs
                 pkts = yield self.pipe.async_wait_for_pkt(3)
-                if not pkts:
-                    self.log('DHCP: xid {0} got timeout - retry'.format(self.xid))
-                    continue
-                     
-                # so we got packets
-                self.log('DHCP: xid {0} got OFFER of length {1}'.format(self.xid, len(pkts)))
-                self.state = 'SELECTING'
+                offers = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] == self.OFFER]
+                if not offers:
+                    if self.retries > 0:
+                        self.log('DHCP: xid {:10} got timeout - retries left: {}'.format(self.xid, self.retries))
+                        self.retries -= 1
+                        continue
+                    else:
+                        break
+                
+                    
+                offer = offers[0]
+                options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
+                self.log("DHCP: xid {:10} got OFFER from server '{}' of address '{}'".format(self.xid, options['server_id'], offer['BOOTP'].yiaddr))
+                
+                self._results['server'] = options['server_id']
+                self._results['subnet'] = options['subnet_mask']
+                self._results['domain'] = options['domain']
+                self._results['lease']  = options['lease_time']
+                self._results['yaddr']  = offer['BOOTP'].yiaddr
+                
+                self.state = 'REQUESTING'
                 continue
                 
-            elif self.state == 'SELECTING':
-                print('SELECTING')
-                return
+                
+            # REQUEST state
+            elif self.state == 'REQUESTING':
+                self.log('DHCP: xid {0} sent REQUEST packet'.format(self.xid))
+                
+                self.pipe.tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
+                                 /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self._results['yaddr']),"end"]))
+                
+                pkts = yield self.pipe.async_wait_for_pkt(3)
+                
+                acknacks = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] in (self.ACK, self.NACK)]
+                if not acknacks:
+                    self.log('DHCP: xid {0} got timeout - retry'.format(self.xid))
+                    continue
+                
+                assert(len(acknacks) == 1)
+                
+                acknack = acknacks[0]
+                options = {x[0]:x[1] for x in acknack['DHCP options'].options if isinstance(x, tuple)}
+                
+                if options['message-type'] == self.ACK:
+                    self.success = True
+                else:
+                    self.success = False
+                    
+                self.state = 'DONE'
+                
+                continue
+                
                 
             elif self.state == 'DONE':
                 break
             
+                
+    def results (self):
+        return self._results if self.success else {}

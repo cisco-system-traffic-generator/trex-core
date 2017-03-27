@@ -31,6 +31,28 @@ class DHCPClient(object):
     def is_active (self):
         return self.state != 'DONE'
         
+    def start (self):
+        # send a discover message
+        self.tx(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
+                      /BOOTP(chaddr=self.mac,xid=self.xid)/DHCP(options=[("message-type","discover"),"end"]))
+        
+        # now wait for offers
+        offers = yield self.xid
+        
+        # take the first one
+        offer = offers[0]
+        assert 'BOOTP' in offer
+        assert pkt['DHCP options'].options[0][1] == DHCPClient.OFFER
+        
+        # save the offered address
+        self.yiaddr = offer['BOOTP'].yiaddr
+        
+        # send a request packet
+        self.tx(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
+                /BOOTP(chaddr=self.mac,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self.yiaddr),"end"]))
+        
+        
+        
     def next (self):
         self.actions[self.state]()
         
