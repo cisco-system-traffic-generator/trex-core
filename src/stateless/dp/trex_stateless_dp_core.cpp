@@ -998,7 +998,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
     if (stream->m_rx_check.m_enabled) {
         node->set_stat_needed();
-        uint8_t hw_id = stream->m_rx_check.m_hw_id;
+        uint16_t hw_id = stream->m_rx_check.m_hw_id;
         assert (hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD);
         node->set_stat_hw_id(hw_id);
         // no support for cache with flow stat payload rules

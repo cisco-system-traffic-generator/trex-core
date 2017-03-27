@@ -174,7 +174,8 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     api->get_interface_info(port_id, m_api_info);
 
     /* get RX caps */
-    api->get_interface_stat_info(port_id, m_rx_count_num, m_rx_caps);
+    uint16_t ip_id_base;
+    api->get_interface_stat_info(port_id, m_rx_count_num, m_rx_caps, ip_id_base);
 
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);

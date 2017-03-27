@@ -100,10 +100,10 @@ private:
 
     double              m_next_time_offset; /* in sec */
     uint16_t            m_action_counter;
-    uint8_t             m_stat_hw_id; // hw id used to count rx and tx stats
-    uint8_t             m_null_stream;
+    uint16_t            m_stat_hw_id; // hw id used to count rx and tx stats
     uint16_t            m_cache_array_cnt;
-    uint16_t            m_pad12;
+    uint8_t             m_null_stream;
+    uint8_t             m_pad12;
 
     stream_state_t      m_state;
     uint8_t             m_port_id;
@@ -301,7 +301,7 @@ public:
         m_stat_hw_id = hw_id;
     }
 
-    socket_id_t get_stat_hw_id() {
+    uint16_t get_stat_hw_id() {
         return ( m_stat_hw_id );
     }
 

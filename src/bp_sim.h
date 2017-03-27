@@ -78,7 +78,7 @@ class CGenNodePCAP;
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
-#define TOS_TTL_RESERVE_DUPLICATE 0x1
+#define TOS_GO_TO_CPU 0x1
 /*
  * Length of string needed to hold the largest port (16-bit) address
  */
@@ -2832,18 +2832,18 @@ public:
     void  setTOSReserve(){
         BP_ASSERT(l3.m_ipv4);
         if (is_ipv6()) {
-            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass() | TOS_TTL_RESERVE_DUPLICATE );
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass() | TOS_GO_TO_CPU );
         }else{
-            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS()| TOS_TTL_RESERVE_DUPLICATE );
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS()| TOS_GO_TO_CPU );
         }
     }
 
     void  clearTOSReserve(){
         BP_ASSERT(l3.m_ipv4);
         if (is_ipv6()) {
-            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass()& (~TOS_TTL_RESERVE_DUPLICATE) );
+            l3.m_ipv6->setTrafficClass(l3.m_ipv6->getTrafficClass()& (~TOS_GO_TO_CPU) );
         }else{
-            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS() & (~TOS_TTL_RESERVE_DUPLICATE) );
+            l3.m_ipv4->setTOS(l3.m_ipv4->getTOS() & (~TOS_GO_TO_CPU) );
         }
     }
 

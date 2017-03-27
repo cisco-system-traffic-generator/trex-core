@@ -63,7 +63,7 @@ stream_del: HW_ID_INIT
 static const uint16_t HW_ID_INIT = UINT16_MAX;
 static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
 static const uint8_t PAYLOAD_RULE_PROTO = 255;
-const uint32_t FLOW_STAT_PAYLOAD_IP_ID = IP_ID_RESERVE_BASE + MAX_FLOW_STATS;
+const uint32_t FLOW_STAT_PAYLOAD_IP_ID = UINT16_MAX;
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -457,8 +457,6 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_parser_ipid = NULL;
     m_parser_pl = NULL;
     m_rx_core = NULL;
-    m_hw_id_map.create(MAX_FLOW_STATS);
-    m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
     memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
     memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
     m_num_ports = 0; // need to call create to init
@@ -481,21 +479,24 @@ CFlowStatRuleMgr::~CFlowStatRuleMgr() {
 }
 
 void CFlowStatRuleMgr::create() {
-    uint16_t num_counters, cap;
+    uint16_t num_counters, cap, ip_id_base;
     TrexStateless *tstateless = get_stateless_obj();
     assert(tstateless);
 
     m_api = tstateless->get_platform_api();
     assert(m_api);
-    m_api->get_interface_stat_info(0, num_counters, cap);
+    m_api->get_interface_stat_info(0, num_counters, cap, ip_id_base);
     m_api->get_port_num(m_num_ports); // This initialize m_num_ports
     for (uint8_t port = 0; port < m_num_ports; port++) {
         assert(m_api->reset_hw_flow_stats(port) == 0);
     }
+    m_hw_id_map.create(num_counters);
+    m_hw_id_map_payload.create(MAX_FLOW_STATS_PAYLOAD);
     m_ring_to_rx = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     assert(m_ring_to_rx);
     m_rx_core = get_rx_sl_core_obj();
     m_cap = cap;
+    m_ip_id_reserve_base = ip_id_base;
 
     if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
         || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
@@ -662,6 +663,11 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
         return 0;
     }
     m_user_id_map.del_stream(stream->m_rx_check.m_pg_id); // Throws exception in case of error
+    if (m_user_id_map.is_empty()) {
+        m_max_hw_id = 0;
+        m_max_hw_id_payload = 0;
+    }
+
     stream->m_rx_check.m_hw_id = HW_ID_INIT;
 
     return 0;
@@ -695,16 +701,13 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             return 0;
         }
 
-        uint32_t ip_id;
+        uint32_t ip_id; // 32 bit, since this also supports IPv6
         if (m_parser_ipid->get_ip_id(ip_id) < 0) {
             return 0; // if we could not find the ip id, no need to fix
         }
         // verify no reserved IP_ID used, and change if needed
-        if (ip_id >= IP_ID_RESERVE_BASE) {
-            if (m_parser_ipid->set_ip_id(ip_id & 0xefff) < 0) {
-                throw TrexFStatEx("Stream IP ID in reserved range. Failed changing it"
-                                  , TrexException::T_FLOW_STAT_FAILED_CHANGE_IP_ID);
-            }
+        if (ip_id >= m_ip_id_reserve_base) {
+            m_parser_ipid->set_ip_id(ip_id & 0x0000efff);
         }
         return 0;
     }
@@ -789,10 +792,12 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     // saving given hw_id on stream for use by tx statistics count
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
-        m_parser_ipid->set_ip_id(IP_ID_RESERVE_BASE + hw_id);
+        m_parser_ipid->set_ip_id(m_ip_id_reserve_base + hw_id);
+        m_parser_ipid->set_tos_to_cpu();
         stream->m_rx_check.m_hw_id = hw_id;
     } else {
         m_parser_pl->set_ip_id(FLOW_STAT_PAYLOAD_IP_ID);
+        m_parser_pl->set_tos_to_cpu();
         // for payload rules, we use the range right after ip id rules
         stream->m_rx_check.m_hw_id = hw_id + MAX_FLOW_STATS;
     }
@@ -1001,7 +1006,9 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
 // s_json - flow statistics json
 // l_json - latency data json
 // baseline - If true, send flow statistics fields even if they were not changed since last run
-bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, bool baseline) {
+// send_all - If true, send data for all pg_ids. This is used for getting statistics in automation API.
+//            If false, send small amount of pg ids. Used for async interface, for displaying in console
+bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all) {
     rx_per_flow_t rx_stats[MAX_FLOW_STATS];
     rx_per_flow_t rx_stats_payload[MAX_FLOW_STATS];
     tx_per_flow_t tx_stats[MAX_FLOW_STATS];
@@ -1036,13 +1043,39 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
     m_api->get_rfc2544_info(rfc2544_info, 0, m_max_hw_id_payload, false);
     m_api->get_rx_err_cntrs(&rx_err_cntrs);
 
+
+#if 0
+    // If we want to send all PG_IDs, in groups of 128, enable this, and remove the restrication
+    // of sending only 8 in loop of building json message below
+    static int min_to_send = 0;
+    static int max_to_send = m_max_hw_id;
+
+    min_to_send += 128;
+    if (min_to_send > m_max_hw_id) {
+        min_to_send = 0;
+    }
+    max_to_send = min_to_send + 128;
+    if (max_to_send > m_max_hw_id) {
+        max_to_send = m_max_hw_id;
+    }
+
+    // If asking for "baseline", send everything always.
+    if (baseline || send_all) {
+        min_to_send = 0;
+        max_to_send = m_max_hw_id;
+    }
+#endif
+
+    int min_to_send = 0;
+    int max_to_send = m_max_hw_id;
+
     // read hw counters, and update
     for (uint8_t port = 0; port < m_num_ports; port++) {
-        m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, 0, m_max_hw_id, false, TrexPlatformApi::IF_STAT_IPV4_ID);
-        for (int i = 0; i <= m_max_hw_id; i++) {
+        m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, min_to_send, max_to_send, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+        for (int i = 0; i <= max_to_send - min_to_send; i++) {
             if (rx_stats[i].get_pkts() != 0) {
                 rx_per_flow_t rx_pkts = rx_stats[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i + min_to_send));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_rx_cntr(port) != rx_pkts) {
                         p_user_id->set_rx_cntr(port, rx_pkts);
@@ -1056,7 +1089,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
             }
             if (tx_stats[i].get_pkts() != 0) {
                 tx_per_flow_t tx_pkts = tx_stats[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i + min_to_send));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_cntr(port) != tx_pkts) {
                         p_user_id->set_tx_cntr(port, tx_pkts);
@@ -1125,8 +1158,25 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
         l_data_section["global"]["old_flow"] = Json::Value::UInt64(tmp_cnt);
     }
 
+    // TUI only present 4 PG_IDs today, so we send everything only when explicit request comes
+    // (probably from automation API)
+    uint16_t max_pg_ids_to_send = 8;
+    static int times_send_all = 0;
+    if (send_all) {
+       times_send_all = 20;
+    }
+    if (baseline || (times_send_all > 0)) {
+        if (times_send_all > 0)
+            times_send_all--;
+        max_pg_ids_to_send = UINT16_MAX;
+    }
+
     flow_stat_user_id_map_it_t it;
     for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
+        if (max_pg_ids_to_send == 0) {
+            break;
+        }
+        max_pg_ids_to_send--;
         bool send_empty = true;
         CFlowStatUserIdInfo *user_id_info = it->second;
         uint32_t user_id = it->first;

@@ -24,6 +24,7 @@
 #include "common/Network/Packet/Arp.h"
 #include "pkt_gen.h"
 #include "trex_stateless_capture.h"
+#include "stateless/cp/trex_stateless.h"
 
 /**************************************
  * latency RX feature
@@ -36,6 +37,8 @@ RXLatency::RXLatency() {
 
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
         m_rx_pg_stat[i].clear();
+    }
+    for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rx_pg_stat_payload[i].clear();
     }
 }
@@ -50,6 +53,15 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
     } else {
         m_rcv_all    = false;
     }
+
+    uint16_t num_counters, cap, ip_id_base;
+    TrexStateless *tstateless = get_stateless_obj();
+    assert(tstateless);
+
+    const TrexPlatformApi *api = tstateless->get_platform_api();
+    assert(api);
+    api->get_interface_stat_info(0, num_counters, cap, ip_id_base);
+    m_ip_id_base = ip_id_base;
 }
 
 void 
@@ -58,7 +70,7 @@ RXLatency::handle_pkt(const rte_mbuf_t *m) {
     int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
 
     if (m_rcv_all ||  (ret == 0)) {
-        uint32_t ip_id;
+        uint32_t ip_id = 0;
         int ret2 = parser.get_ip_id(ip_id);
         if (m_rcv_all || ( ret2 == 0)) {
             if (m_rcv_all || is_flow_stat_id(ip_id)) {
@@ -157,7 +169,7 @@ RXLatency::handle_pkt(const rte_mbuf_t *m) {
                         curr_rfc2544->add_sample(ctime);
                     }
                 } else {
-                    hw_id = get_hw_id(ip_id);
+                    hw_id = get_hw_id((uint16_t)ip_id);
                     if (hw_id < MAX_FLOW_STATS) {
                         m_rx_pg_stat[hw_id].add_pkts(1);
                         m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC

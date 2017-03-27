@@ -72,7 +72,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     /* check packet size */
     if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
         std::stringstream ss;
-        ss << "bad packet size provided: should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
+        ss << "Bad packet size provided: " << pkt_binary.size() <<  ". Should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
         generate_execute_err(result, ss.str()); 
     }
 

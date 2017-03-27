@@ -2839,7 +2839,7 @@ trex>
 ** IPv6 with one VLAN tag (except 82599 which does not support this type of packet).
 ** Since version 2.21, also QinQ (two vlan tags) is supported if using ``--software'' command line argument. Details link:trex_manual.html#_command_line_options[here].
 
-* Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127
+* Maximum number of concurrent streams (with different pg_id) on which statistics may be collected: 127. Since version 2.23, if using --software command line flag, maximum supported streams is 1023.
 * On x710/xl710 cards, all rx bytes counters (rx-bps, rx-bps-L1, ...) are not supported. This is because we use hardware
 counters which support only packets count on these cards. +
 Starting from version 2.21, you can specify ``--no-hw-flow-stat'' command line argument in order to make x710 behave like other

@@ -399,7 +399,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
         memset(pkt_per_q, 0, sizeof(pkt_per_q));
         // We don't know which interfaces connected where, so sum all queue 1 and all queue 0
         for (int port = 0; port < m_max_ports; port++) {           
-            for(int queue_id = 0; queue_id <= m_rx_q_num; queue_id++) {
+            for(int queue_id = 0; queue_id < m_rx_q_num; queue_id++) {
                 lp = &m_ports[port];
                 uint16_t cnt = lp->rx_burst(queue_id, rx_pkts, 32);
                 pkt_per_q[queue_id] += cnt;

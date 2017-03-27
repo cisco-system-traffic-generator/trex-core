@@ -150,6 +150,7 @@ CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     return FSTAT_PARSER_E_OK;
 }
 
+// arg is uint32_t in below two functions because we want same function to work for IPv4 and IPv6
 int CFlowStatParser::get_ip_id(uint32_t &ip_id) {
     if (m_ipv4) {
         ip_id = m_ipv4->getId();
@@ -164,23 +165,33 @@ int CFlowStatParser::get_ip_id(uint32_t &ip_id) {
     return -1;
 }
 
-int CFlowStatParser::set_ip_id(uint32_t new_id) {
+void CFlowStatParser::set_ip_id(uint32_t new_id) {
     if (m_ipv4) {
+        uint16_t ipv4_ip_id = (uint16_t) new_id;
         // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
-        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getFirstWord()), PKT_NTOHS(m_ipv4->getFirstWord() |TOS_TTL_RESERVE_DUPLICATE));
-        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(new_id));
-        m_ipv4->setId(new_id);
-        m_ipv4->setTOS(m_ipv4->getTOS()|TOS_TTL_RESERVE_DUPLICATE);
-        return 0;
+        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getId()), PKT_NTOHS(ipv4_ip_id));
+        m_ipv4->setId(ipv4_ip_id);
     }
 
     if (m_ipv6) {
-        m_ipv6->setTrafficClass(m_ipv6->getTrafficClass()|TOS_TTL_RESERVE_DUPLICATE);
         m_ipv6->setFlowLabel(new_id);
-        return 0;
     }
-    return -1;
 }
+
+// In Mellanox and VIC cards, we use TOS to mark packets to go to CPU
+void CFlowStatParser::set_tos_to_cpu() {
+    if (m_ipv4) {
+        // Updating checksum, not recalculating, so if someone put bad checksum on purpose, it will stay bad
+        m_ipv4->updateCheckSum(PKT_NTOHS(m_ipv4->getFirstWord()), PKT_NTOHS(m_ipv4->getFirstWord()
+                                                                            | TOS_GO_TO_CPU));
+        m_ipv4->setTOS(m_ipv4->getTOS() | TOS_GO_TO_CPU);
+    }
+
+    if (m_ipv6) {
+        m_ipv6->setTrafficClass(m_ipv6->getTrafficClass() | TOS_GO_TO_CPU);
+    }
+}
+
 
 int CFlowStatParser::get_l3_proto(uint16_t &proto) {
     if (m_ipv4) {

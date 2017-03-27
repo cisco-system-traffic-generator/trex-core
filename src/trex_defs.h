@@ -23,8 +23,10 @@ limitations under the License.
 
 #define TREX_MAX_PORTS 16
 
-// maximum number of IP ID type flow stats we support
-#define MAX_FLOW_STATS 127
+// maximum number of IP ID type flow stats we support. Must be in the form 2^x - 1
+#define MAX_FLOW_STATS 1023
+#define MAX_FLOW_STATS_X710 127
+#define MAX_FLOW_STATS_XL710 255
 // maximum number of payload type flow stats we support
 #define MAX_FLOW_STATS_PAYLOAD 128
 

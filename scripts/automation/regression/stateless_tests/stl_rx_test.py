@@ -2,6 +2,7 @@
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
+import copy
 
 ERROR_LATENCY_TOO_HIGH = 1
 
@@ -10,79 +11,96 @@ class STLRX_Test(CStlGeneral_Test):
 
     def setUp(self):
         per_driver_params = {
-                'net_vmxnet3': {
-                        'rate_percent': 1,
-                        'total_pkts': 50,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
-                'net_ixgbe': {
-                        'rate_percent': 30,
-                        'total_pkts': 1000,
-                        'rate_latency': 1,
-                        'latency_9k_enable': True,
-                        'latency_9k_max_average': 300,
-                        'latency_9k_max_latency': 400,
-                        },
-                'net_ixgbe_vf': {
-                        'rate_percent': 20,
-                        'total_pkts': 1000,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
+            'net_vmxnet3': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
+            'net_ixgbe': {
+                'rate_percent': 30,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 300,
+                'latency_9k_max_latency': 400,
+                'no_vlan': True,
+                'no_ipv6': True,
+            },
+            'net_ixgbe_vf': {
+                'rate_percent': 30,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan': True,
+                'no_ipv6': True,
+                'no_vlan_even_in_software_mode': True,
+                'max_pkt_size': 2000, # temporary, until we fix this
+            },
 
-                'net_i40e': {
-                        'rate_percent': 80,
-                        'total_pkts': 1000,
-                        'rate_latency': 1,
-                        'latency_9k_enable': True,
-                        'latency_9k_max_average': 100,
-                        'latency_9k_max_latency': 250,
-                        },
-                'net_i40e_vf': {
-                        'rate_percent': 10,
-                        'total_pkts': 1000,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
-                'net_e1000_igb': {
-                        'rate_percent': 80,
-                        'total_pkts': 500,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
-                'net_e1000_em': {
-                        'rate_percent': 1,
-                        'total_pkts': 50,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
-                'net_virtio': {
-                        'rate_percent': 1,
-                        'total_pkts': 50,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        'allow_packets_drop_num': 1, # allow 1 pkt drop
-                        },
+            'net_i40e': {
+                'rate_percent': 80,
+                'rate_percent_soft': 10,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 100,
+                'latency_9k_max_latency': 250,
+            },
+            'net_i40e_vf': {
+                'rate_percent': 80,
+                'rate_percent_soft': 1,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+                'max_pkt_size': 2000, # temporary, until we fix this
+                'allow_packets_drop_num': 5, # todo: fix
+            },
+            'net_e1000_igb': {
+                'rate_percent': 80,
+                'total_pkts': 500,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
 
-                 'net_mlx5': {
-                        'rate_percent': 80 if self.is_vf_nics else 5,
-                        'total_pkts': 1000,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False if self.is_vf_nics else True,
-                        'latency_9k_max_average': 100,
-                        'latency_9k_max_latency': 450,    #see latency issue trex-261 
-                        },
+            },
+            'net_e1000_em': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
+            'net_virtio': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'allow_packets_drop_num': 1, # allow 1 pkt drop
+            },
 
-                 'net_enic': {
-                        'rate_percent': 1,
-                        'total_pkts': 50,
-                        'rate_latency': 1,
-                        'latency_9k_enable': False,
-                        },
+            'net_mlx5': {
+                'rate_percent': 80,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': False if self.is_vf_nics else True,
+                'latency_9k_max_average': 100,
+                'latency_9k_max_latency': 450,    #see latency issue trex-261
+                'no_vlan_even_in_software_mode': True, # todo: fix - We see 1 or 2 packet drops from time to time with vlan
+                'no_ipv6': True, #todo: fix - same issue with ipv6
+                'allow_packets_drop_num': 15, # todo - remove
+            },
 
-                  
-                }
+            'net_enic': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'rx_bytes_fix': True,
+                'no_vlan_even_in_software_mode': True,
+            },
+        }
 
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
@@ -99,23 +117,62 @@ class STLRX_Test(CStlGeneral_Test):
             self.skip('port {0} does not support RX'.format(self.rx_port))
         self.cap = cap
 
+        self.max_flow_stats = port_info['rx']['counters']
+        if self.max_flow_stats == 1023:
+            # hack - to identify if --software flag was used on server
+            software_mode = True
+        else:
+            software_mode = False
+
+        software_mode = False # fix: need good way to identify software_mode
+
         drv_name = port_info['driver']
         self.drv_name = drv_name
-        if drv_name == 'net_ixgbe':
+        if 'no_vlan' in per_driver_params[drv_name] and not software_mode:
+            self.vlan_support = False
+        else:
+            self.vlan_support = True
+
+        if 'no_ipv6' in per_driver_params[drv_name] and not software_mode:
             self.ipv6_support = False
         else:
             self.ipv6_support = True
+
+        if 'max_pkt_size' in per_driver_params[drv_name]:
+            self.max_pkt_size = per_driver_params[drv_name]['max_pkt_size']
+        else:
+            self.max_pkt_size = 9000
+
         self.rate_percent           = per_driver_params[drv_name]['rate_percent']
         self.total_pkts             = per_driver_params[drv_name]['total_pkts']
         self.rate_lat               = per_driver_params[drv_name].get('rate_latency', self.rate_percent)
+        self.rate_fstat             = per_driver_params[drv_name].get('rate_percent_soft', self.rate_percent)
         self.latency_9k_enable      = per_driver_params[drv_name]['latency_9k_enable']
         self.latency_9k_max_average = per_driver_params[drv_name].get('latency_9k_max_average')
         self.latency_9k_max_latency = per_driver_params[drv_name].get('latency_9k_max_latency')
         self.allow_drop             = per_driver_params[drv_name].get('allow_packets_drop_num', 0)
-
         self.lat_pps = 1000
         self.drops_expected = False
         self.c.reset(ports = [self.tx_port, self.rx_port])
+        if 'rx_bytes_fix' in per_driver_params[drv_name] and per_driver_params[drv_name]['rx_bytes_fix'] == True:
+            self.fix_rx_byte_count = True
+        else:
+            self.fix_rx_byte_count = False
+
+        if software_mode:
+            self.qinq_support = True
+        else:
+            self.qinq_support = False
+
+        # hack for enic
+        if 'no_vlan_even_in_software_mode' in per_driver_params[drv_name]:
+            self.vlan_support = False
+            self.qinq_support = False
+
+        #trex25 has router which does not pass vlan
+        if CTRexScenario.setup_name == 'trex25':
+            self.vlan_support = False
+            self.qinq_support = False
 
         vm = STLScVmRaw( [ STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                           max_value="10.0.0.255", size=4, step=1,op="inc"),
@@ -128,6 +185,8 @@ class STLRX_Test(CStlGeneral_Test):
                          );
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+        self.vlan_pkt = STLPktBuilder(pkt = Ether()/Dot1Q()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+        self.qinq_pkt = STLPktBuilder(pkt = Ether(type=0x88A8)/Dot1Q(vlan=19)/Dot1Q(vlan=11)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.ipv6pkt = STLPktBuilder(pkt = Ether()/IPv6(dst="2001:0:4137:9350:8000:f12a:b9c8:2815",src="2001:4860:0:2001::68")
                                      /UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
@@ -180,8 +239,13 @@ class STLRX_Test(CStlGeneral_Test):
         return 0
 
 
+    def __exit_with_error(self, stats, err, pkt_len=0, pkt_type=""):
+        if pkt_len != 0:
+            print("Failed with packet: type {0}, len {1}".format(pkt_type, pkt_len))
+        pprint.pprint(stats)
+        assert False, err
 
-    def __verify_flow (self, pg_id, total_pkts, pkt_len, stats):
+    def __verify_flow (self, pg_id, total_pkts, pkt_len, pkt_type, stats):
         flow_stats = stats['flow_stats'].get(pg_id)
         latency_stats = stats['latency'].get(pg_id)
 
@@ -189,6 +253,9 @@ class STLRX_Test(CStlGeneral_Test):
             assert False, "no flow stats available"
 
         tx_pkts  = flow_stats['tx_pkts'].get(self.tx_port, 0)
+        # for continues tests, we do not know how many packets were sent
+        if total_pkts == 0:
+            total_pkts = tx_pkts
         tx_bytes = flow_stats['tx_bytes'].get(self.tx_port, 0)
         rx_pkts  = flow_stats['rx_pkts'].get(self.rx_port, 0)
         if latency_stats is not None:
@@ -199,49 +266,62 @@ class STLRX_Test(CStlGeneral_Test):
             stl = latency_stats['err_cntrs']['seq_too_low']
             lat = latency_stats['latency']
             if ooo != 0 or dup != 0 or stl != 0:
-                pprint.pprint(latency_stats)
-                tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
-                assert False, tmp
+                self.__exit_with_error(latency_stats,
+                                  'Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
+                                  , pkt_len, pkt_type)
 
-            if (drops > self.allow_drop or sth != 0) and not self.drops_expected:
-                pprint.pprint(latency_stats)
-                tmp='Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
-                assert False, tmp
+            if (drops > self.allow_drop or sth > self.allow_drop) and not self.drops_expected:
+                self.__exit_with_error(latency_stats,
+                                  'Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
+                                  , pkt_len, pkt_type)
 
         if tx_pkts != total_pkts:
             pprint.pprint(flow_stats)
-            tmp = 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
-            assert False, tmp
+            self.__exit_with_error(flow_stats
+                              , 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
+                              , pkt_len, pkt_type)
 
         if tx_bytes != (total_pkts * pkt_len):
-            pprint.pprint(flow_stats)
-            tmp = 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
-            assert False, tmp
+            self.__exit_with_error(flow_stats
+                              , 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
+                              , pkt_len, pkt_type)
 
         if abs(total_pkts - rx_pkts) > self.allow_drop and not self.drops_expected:
-            pprint.pprint(flow_stats)
-            tmp = 'RX pkts mismatch - got: {0}, expected: {1}'.format(rx_pkts, total_pkts)
-            assert False, tmp
+            self.__exit_with_error(flow_stats
+                              , 'RX pkts mismatch - got: {0}, expected: {1}'.format(rx_pkts, total_pkts)
+                              , pkt_len, pkt_type)
+
+        rx_pkt_len = pkt_len
+        if self.fix_rx_byte_count:
+            # Patch. Vic card always add vlan, so we should expect 4 extra bytes in each packet
+            rx_pkt_len += 4
 
         if "rx_bytes" in self.cap:
             rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
-            if abs(rx_bytes / pkt_len  - total_pkts ) > self.allow_drop and not self.drops_expected:
-                pprint.pprint(flow_stats)
-                tmp = 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * pkt_len))
-                assert False, tmp
-
+            if abs(rx_bytes / rx_pkt_len  - total_pkts ) > self.allow_drop and not self.drops_expected:
+                self.__exit_with_error(flow_stats
+                                  , 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * rx_pkt_len))
+                                  , pkt_len, pkt_type)
 
     # RX itreation
-    def __rx_iteration (self, exp_list):
+    def __rx_iteration (self, exp_list, duration=0):
 
         self.c.clear_stats()
 
-        self.c.start(ports = [self.tx_port])
-        self.c.wait_on_traffic(ports = [self.tx_port])
+        if duration != 0:
+            self.c.start(ports = [self.tx_port], duration=duration)
+            self.c.wait_on_traffic(ports = [self.tx_port],timeout = duration+10,rx_delay_ms = 100)
+        else:
+            self.c.start(ports = [self.tx_port])
+            self.c.wait_on_traffic(ports = [self.tx_port])
         stats = self.c.get_stats()
 
         for exp in exp_list:
-            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], stats)
+            if 'pkt_type' in exp:
+                pkt_type = exp['pkt_type']
+            else:
+                pkt_type = "not specified"
+            self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], pkt_type, stats)
 
 
     # one stream on TX --> RX
@@ -271,42 +351,97 @@ class STLRX_Test(CStlGeneral_Test):
 
 
     def test_multiple_streams(self):
+        self._test_multiple_streams(False)
+
+    def test_multiple_streams_random(self):
+        if self.drv_name == 'net_mlx5' or self.drv_name == 'net_i40e_vf':
+            self.skip('Not running on Mellanox cards currently')
+        self._test_multiple_streams(True)
+
+    def _test_multiple_streams(self, is_random):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
 
-        num_latency_streams = 128
-        num_flow_stat_streams = 127
+        if is_random:
+            num_latency_streams = random.randint(1, 128);
+            num_flow_stat_streams = random.randint(1, self.max_flow_stats);
+            all_pkts = [self.pkt]
+            if self.ipv6_support:
+                all_pkts.append(self.ipv6pkt)
+            if self.vlan_support:
+                all_pkts.append(self.vlan_pkt)
+            if self.qinq_support:
+                all_pkts.append(self.qinq_pkt)
+        else:
+            num_latency_streams = 128
+            num_flow_stat_streams = self.max_flow_stats
         total_pkts = int(self.total_pkts / (num_latency_streams + num_flow_stat_streams))
         if total_pkts == 0:
             total_pkts = 1
-        percent = float(self.rate_lat) / (num_latency_streams + num_flow_stat_streams)
+        percent_lat = float(self.rate_lat) / num_latency_streams
+        percent_fstat = float(self.rate_fstat) / num_flow_stat_streams
+
+        print("num_latency_streams:{0}".format(num_latency_streams))
+        if is_random:
+            print("  total percent:{0} ({1} per stream)".format(percent_lat * num_latency_streams, percent_lat))
+
+        print("num_flow_stat_streams:{0}".format(num_flow_stat_streams))
+        if is_random:
+            print("  total percent:{0} ({1} per stream)".format(percent_fstat * num_flow_stat_streams, percent_fstat))
 
         try:
             streams = []
             exp = []
-            # 10 identical streams
             for pg_id in range(1, num_latency_streams):
 
-                streams.append(STLStream(name = 'rx {0}'.format(pg_id),
-                                         packet = self.pkt,
-                                         flow_stats = STLFlowLatencyStats(pg_id = pg_id),
-                                         mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent)))
+                if is_random:
+                    pkt = copy.deepcopy(all_pkts[random.randint(0, len(all_pkts) - 1)])
+                    pkt.set_packet(pkt.pkt / ('a' * random.randint(0, self.max_pkt_size - len(pkt.pkt))))
+                    send_mode = STLTXCont(percentage = percent_lat)
+                else:
+                    pkt = self.pkt
+                    send_mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent_lat)
 
-                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
+                streams.append(STLStream(name = 'rx {0}'.format(pg_id),
+                                         packet = pkt,
+                                         flow_stats = STLFlowLatencyStats(pg_id = pg_id),
+                                         mode = send_mode))
+
+                if is_random:
+                    exp.append({'pg_id': pg_id, 'total_pkts': 0, 'pkt_len': streams[-1].get_pkt_len()
+                                , 'pkt_type': pkt.pkt.sprintf("%Ether.type%")})
+                else:
+                    exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
 
             for pg_id in range(num_latency_streams + 1, num_latency_streams + num_flow_stat_streams):
 
-                streams.append(STLStream(name = 'rx {0}'.format(pg_id),
-                                         packet = self.pkt,
-                                         flow_stats = STLFlowStats(pg_id = pg_id),
-                                         mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent)))
+                if is_random:
+                    pkt = copy.deepcopy(all_pkts[random.randint(0, len(all_pkts) - 1)])
+                    pkt.set_packet(pkt.pkt / ('a' * random.randint(0, self.max_pkt_size - len(pkt.pkt))))
+                    send_mode = STLTXCont(percentage = percent_fstat)
+                else:
+                    pkt = self.pkt
+                    send_mode = STLTXSingleBurst(total_pkts = total_pkts+pg_id, percentage = percent_fstat)
 
-                exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
+                streams.append(STLStream(name = 'rx {0}'.format(pg_id),
+                                         packet = pkt,
+                                         flow_stats = STLFlowStats(pg_id = pg_id),
+                                         mode = send_mode))
+                if is_random:
+                    exp.append({'pg_id': pg_id, 'total_pkts': 0, 'pkt_len': streams[-1].get_pkt_len()
+                                , 'pkt_type': pkt.pkt.sprintf("%Ether.type%")})
+                else:
+                    exp.append({'pg_id': pg_id, 'total_pkts': total_pkts+pg_id, 'pkt_len': streams[-1].get_pkt_len()})
 
             # add both streams to ports
             self.c.add_streams(streams, ports = [self.tx_port])
 
-            self.__rx_iteration(exp)
+            if is_random:
+                duration = 60
+                print("Duration: {0}".format(duration))
+            else:
+                duration = 0
+            self.__rx_iteration(exp, duration = duration)
 
 
         except STLError as e:
@@ -321,7 +456,15 @@ class STLRX_Test(CStlGeneral_Test):
                 {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
                 {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
                 {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True}
+
+                # add here more stream types
             ]
+            if self.vlan_support:
+                streams_data.append({'name': 'Flow stat with vlan. No latency', 'pkt': self.vlan_pkt, 'lat': False})
+
+            if self.qinq_support:
+                streams_data.append({'name': 'Flow stat qinq. No latency', 'pkt': self.qinq_pkt, 'lat': False})
+
             if self.latency_9k_enable:
                 streams_data.append({'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True})
 
@@ -410,10 +553,7 @@ class STLRX_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-
-
-
-    # check low latency when you have stream of 9K stream
+    # Verify that there is low latency with random packet size,duration and ports
     def test_9k_stream(self):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
@@ -428,8 +568,6 @@ class STLRX_Test(CStlGeneral_Test):
             pgid=random.randint(1, 65000);
             pkt_size=random.randint(1000, 9000);
             all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
-
-
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
 
@@ -515,7 +653,7 @@ class STLRX_Test(CStlGeneral_Test):
 
                 self.check_stats(ops["obytes"], bytes, "stats[%s][obytes]" % c_port)
                 self.check_stats(ops["opackets"], pkts, "stats[%s][opackets]" % c_port)
-                
+
                 self.check_stats(ips["ibytes"], bytes, "stats[%s][ibytes]" % s_port)
                 self.check_stats(ips["ipackets"], pkts, "stats[%s][ipackets]" % s_port)
 
@@ -523,10 +661,10 @@ class STLRX_Test(CStlGeneral_Test):
                     ls = stats['flow_stats'][5 + c_port]
                     self.check_stats(ls['rx_pkts']['total'], pkts, "ls['rx_pkts']['total']")
                     self.check_stats(ls['rx_pkts'][s_port], pkts, "ls['rx_pkts'][%s]" % s_port)
-                
+
                     self.check_stats(ls['tx_pkts']['total'], pkts, "ls['tx_pkts']['total']")
                     self.check_stats(ls['tx_pkts'][c_port], pkts, "ls['tx_pkts'][%s]" % c_port)
-                
+
                     self.check_stats(ls['tx_bytes']['total'], bytes, "ls['tx_bytes']['total']")
                     self.check_stats(ls['tx_bytes'][c_port], bytes, "ls['tx_bytes'][%s]" % c_port)
 
@@ -556,9 +694,11 @@ class STLRX_Test(CStlGeneral_Test):
 
 # this test sends 1 64 byte packet with latency and check that all counters are reported as 64 bytes
     def test_fcs_stream(self):
-
-        # in case of VM and vSwitch there are drop of packets in some cases, let retry number of times 
-        # in this case we just want to check functionality that packet of 64 is reported as 64 in all levels 
+        if CTRexScenario.setup_name == 'trex19':
+            # todo: - fix
+            self.skip('Test does not run on trex19')
+        # In case of VM and vSwitch there is packet drop in some cases, so we retry few of times
+        # In this case we just want to check that packet of 64 bytes is reported correctly as 64 everywhere.
         is_vm = self.is_virt_nics or self.is_vf_nics
 
         tries = 1
@@ -639,4 +779,3 @@ class STLRX_Test(CStlGeneral_Test):
         exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
 
         self.__rx_iteration( [exp] )
-

@@ -51,7 +51,6 @@ class TrexException : public std::runtime_error
         T_FLOW_STAT_NO_STREAMS_EXIST,
         T_FLOW_STAT_ALREADY_STARTED,
         T_FLOW_STAT_ALREADY_EXIST,
-        T_FLOW_STAT_FAILED_CHANGE_IP_ID,
         T_FLOW_STAT_NO_FREE_HW_ID,
         T_FLOW_STAT_RX_CORE_START_FAIL,
         T_FLOW_STAT_BAD_HW_ID,

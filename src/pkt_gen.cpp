@@ -236,7 +236,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     case EthernetHeader::Protocol::IP:
         ip->setTimeToLive(ttl);
         if (flags & DPF_TOS_1) {
-            ip->setTOS(TOS_TTL_RESERVE_DUPLICATE);
+            ip->setTOS(TOS_GO_TO_CPU);
         }else{
             ip->setTOS(0x2);
         }
@@ -246,7 +246,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
     case EthernetHeader::Protocol::IPv6:
         ipv6->setHopLimit(ttl);
         if (flags & DPF_TOS_1) {
-            ipv6->setTrafficClass(TOS_TTL_RESERVE_DUPLICATE);
+            ipv6->setTrafficClass(TOS_GO_TO_CPU);
         }else{
             ipv6->setTrafficClass(0x2);
         }

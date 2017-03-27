@@ -173,8 +173,7 @@ public:
                              , int min, int max) {return -1;}
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {}
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) { return -1;}
-    virtual int get_stat_counters_num() {return 0;}
-    virtual int get_rx_stat_capabilities() {return 0;}
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) = 0;
     virtual int verify_fw_ver(int i) {return 0;}
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
@@ -230,10 +229,20 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
-    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
             | TrexPlatformApi::IF_STAT_PAYLOAD;
+
+        if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+            || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+            num_counters = MAX_FLOW_STATS;
+            base_ip_id = IP_ID_RESERVE_BASE;
+        } else {
+            num_counters = UINT8_MAX;
+            // Must be 0xff00, since we configure HW filter for the 0xff byte
+            // The filter must catch all flow stat packets, and latency packets (having 0xffff in IP ID)
+            base_ip_id = 0xff00;
+        }
     }
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
@@ -268,11 +277,13 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
-    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
             | TrexPlatformApi::IF_STAT_PAYLOAD;
+        num_counters = MAX_FLOW_STATS;
+        base_ip_id = IP_ID_RESERVE_BASE;
     }
+
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
     CFlowStatParser *get_flow_stat_parser();
 };
@@ -376,10 +387,16 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
-    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
             | TrexPlatformApi::IF_STAT_PAYLOAD;
+        if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)
+            || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)) {
+            num_counters = MAX_FLOW_STATS;
+        } else {
+            num_counters = 127;
+        }
+        base_ip_id = IP_ID_RESERVE_BASE;
     }
     virtual CFlowStatParser *get_flow_stat_parser();
     int add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype);
@@ -389,10 +406,11 @@ public:
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase40G(){
-        // Since we support only 128 counters per if, it is OK to configure here 4 statically.
+        // 4 will make us support 127 flow stat counters
         // If we want to support more counters in case of card having less interfaces, we
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
+
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
     }
 
@@ -419,16 +437,23 @@ public:
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        uint32_t ret = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
         // HW counters on x710 does not support coutning bytes.
         if ( CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
              || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
              || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
-            ret |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
+            flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
+            num_counters = MAX_FLOW_STATS;
+        } else {
+            if (m_if_per_card == 4) {
+                num_counters = MAX_FLOW_STATS_X710;
+            } else {
+                num_counters = MAX_FLOW_STATS_XL710;
+            }
         }
-        return ret;
+        base_ip_id = IP_ID_RESERVE_BASE;
+        m_max_flow_stats = num_counters;
     }
     virtual int wait_for_stable_link();
     virtual bool hw_rx_stat_supported(){
@@ -452,6 +477,7 @@ private:
 
 private:
     uint8_t m_if_per_card;
+    uint16_t m_max_flow_stats;
 };
 
 class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
@@ -484,9 +510,13 @@ public:
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+            | TrexPlatformApi::IF_STAT_PAYLOAD;
+        num_counters = MAX_FLOW_STATS;
+        base_ip_id = IP_ID_RESERVE_BASE;
     }
+
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
@@ -541,9 +571,11 @@ public:
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
-    virtual int get_rx_stat_capabilities() {
-        return TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+            | TrexPlatformApi::IF_STAT_PAYLOAD;
+        num_counters = 127; //With MAX_FLOW_STATS we saw packet failures in rx_test. Need to check.
+        base_ip_id = IP_ID_RESERVE_BASE;
     }
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
@@ -1502,12 +1534,6 @@ void CPhyEthIF::dump_stats_extended(FILE *fd){
         }
     }
 }
-
-int CPhyEthIF::get_rx_stat_capabilities() {
-    return get_ex_drv()->get_rx_stat_capabilities();
-}
-
-
 
 void CPhyEthIF::configure(uint16_t nb_rx_queue,
                           uint16_t nb_tx_queue,
@@ -4561,7 +4587,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     if (get_is_stateless()) {
         std::string stat_json;
         std::string latency_json;
-        if (m_trex_stateless->m_rx_flow_stat.dump_json(stat_json, latency_json, baseline)) {
+        if (m_trex_stateless->m_rx_flow_stat.dump_json(stat_json, latency_json, baseline, sync_now)) {
             m_zmq_publisher.publish_json(stat_json);
             m_zmq_publisher.publish_json(latency_json);
         }
@@ -6371,19 +6397,26 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * _if) {
     uint8_t port_id = _if->get_rte_port_id();
-    int  ip_id_lsb;
+    uint8_t  ip_id_lsb;
 
-    // 0..MAX_FLOW_STATS-1 is for rules using ip_id.
-    // MAX_FLOW_STATS rule is for the payload rules. Meaning counter value is in the payload
-    for (ip_id_lsb = 0; ip_id_lsb <= MAX_FLOW_STATS; ip_id_lsb++ ) {
+    // 0..128-1 is for rules using ip_id.
+    // 128 rule is for the payload rules. Meaning counter value is in the payload
+    for (ip_id_lsb = 0; ip_id_lsb <= 128; ip_id_lsb++ ) {
         struct rte_eth_fdir_filter fdir_filter;
         int res = 0;
 
         memset(&fdir_filter,0,sizeof(fdir_filter));
         fdir_filter.input.flow_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
         fdir_filter.soft_id = ip_id_lsb; // We can use the ip_id_lsb also as filter soft_id
-        fdir_filter.input.flow_ext.flexbytes[0] = 0xff;
-        fdir_filter.input.flow_ext.flexbytes[1] = ip_id_lsb;
+        if (ip_id_lsb == 128) {
+            // payload rule is for 0xffff
+            fdir_filter.input.flow_ext.flexbytes[0] = 0xff;
+            fdir_filter.input.flow_ext.flexbytes[1] = 0xff;
+        } else {
+            // less than 255 flow stats, so only byte 1 changes
+            fdir_filter.input.flow_ext.flexbytes[0] = 0xff & (IP_ID_RESERVE_BASE >> 8);
+            fdir_filter.input.flow_ext.flexbytes[1] = ip_id_lsb;
+        }
         fdir_filter.action.rx_queue = 1;
         fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
         fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
@@ -6664,10 +6697,10 @@ extern "C" int rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32
 
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
-// id - Counter id in HW. We assume it is in the range 0..MAX_FLOW_STATS
+// id - Counter id in HW. We assume it is in the range 0..m_max_flow_stats
 int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(uint8_t port_id, enum rte_filter_op op, uint16_t l3_proto
                                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
-    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + id;
+    uint32_t rule_id = (port_id % m_if_per_card) * m_max_flow_stats + id;
     uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
     uint8_t next_proto;
 
@@ -6765,7 +6798,7 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
 
 void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
     uint32_t port_id = _if->get_port_id();
-    uint32_t rule_id = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+    uint32_t rule_id = (port_id % m_if_per_card) * m_max_flow_stats + min;
 
     // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
     // we reset the HW value
@@ -6786,9 +6819,9 @@ extern "C" int rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t
 // bytes and prev_bytes are not used. X710 fdir filters do not support byte count.
 int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts
                                              ,uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
-    uint32_t hw_stats[MAX_FLOW_STATS];
+    uint32_t hw_stats[MAX_FLOW_STATS_XL710];
     uint32_t port_id = _if->get_port_id();
-    uint32_t start = (port_id % m_if_per_card) * MAX_FLOW_STATS + min;
+    uint32_t start = (port_id % m_if_per_card) * m_max_flow_stats + min;
     uint32_t len = max - min + 1;
     uint32_t loop_start = min;
 
@@ -7494,9 +7527,9 @@ TrexDpdkPlatformApi::publish_async_port_attr_changed(uint8_t port_id) const {
 }
 
 void
-TrexDpdkPlatformApi::get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities) const {
-    num_counters = CTRexExtendedDriverDb::Ins()->get_drv()->get_stat_counters_num();
-    capabilities = CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities();
+TrexDpdkPlatformApi::get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities
+                                             , uint16_t &ip_id_base) const {
+    CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities(capabilities, num_counters ,ip_id_base);
 }
 
 int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset

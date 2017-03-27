@@ -55,9 +55,12 @@ public:
     void reset_stats();
     
 private:
+    // below functions for both IP v4 and v6, so they need uint32_t id
     bool is_flow_stat_id(uint32_t id) {
-        if ((id & 0x000fff00) == IP_ID_RESERVE_BASE) return true;
-        return false;
+        if ((uint16_t) id >= m_ip_id_base)
+            return true;
+        else
+            return false;
     }
 
     bool is_flow_stat_payload_id(uint32_t id) {
@@ -66,7 +69,7 @@ private:
     }
 
     uint16_t get_hw_id(uint16_t id) {
-    return (0x00ff & id);
+        return (~m_ip_id_base & (uint16_t )id);
 }
 
 public:
@@ -77,6 +80,7 @@ public:
     bool                 m_rcv_all;
     CRFC2544Info         *m_rfc2544;
     CRxCoreErrCntrs      *m_err_cntrs;
+    uint16_t             m_ip_id_base;
 };
 
 

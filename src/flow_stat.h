@@ -32,9 +32,10 @@
 #include "internal_api/trex_platform_api.h"
 
 // range reserved for rx stat measurement is from IP_ID_RESERVE_BASE to 0xffff
-// Do not change this value. In i350 cards, we filter according to first byte of IP ID
-// In other places, we identify packets by if (ip_id > IP_ID_RESERVE_BASE)
-#define IP_ID_RESERVE_BASE 0xff00
+// This value is used by all NICs, except i350, where value of 0xff00 is used.
+// We identify if packet needs handling as flow stat, by: "if (ip_id > IP_ID_RESERVE_BASE)"
+#define IP_ID_RESERVE_BASE (0xffff -  MAX_FLOW_STATS)
+
 #define FLOW_STAT_PAYLOAD_MAGIC 0xAB
 #define FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ 0x01
 extern const uint32_t FLOW_STAT_PAYLOAD_IP_ID;
@@ -469,7 +470,7 @@ class CFlowStatRuleMgr {
     int stop_stream(TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
     int set_mode(enum flow_stat_mode_e mode);
-    bool dump_json(std::string & s_json, std::string & l_json, bool baseline);
+    bool dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all);
 
  private:
     void create();
@@ -493,6 +494,7 @@ class CFlowStatRuleMgr {
     CFlowStatParser *m_parser_pl;  // for payload rules (latency)
     enum flow_stat_mode_e m_mode;
     uint16_t m_cap; // capabilities of the NIC driver we are using
+    uint16_t m_ip_id_reserve_base; // lowest IP ID we use for our needs
     uint32_t m_rx_cant_count_err[TREX_MAX_PORTS];
     uint32_t m_tx_cant_count_err[TREX_MAX_PORTS];
 };
