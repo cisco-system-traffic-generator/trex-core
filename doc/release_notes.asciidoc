@@ -23,6 +23,17 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.23 ==
+
+* Support up to 1023 per stream statistics ids in software mode and with mlx5 driver 
+* Service mode works better with multi-user
+* i40e - disable LLDP 
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-381[trex-381]
+
+
 == Release 2.22 ==
 
 * hotfix for software mode 
