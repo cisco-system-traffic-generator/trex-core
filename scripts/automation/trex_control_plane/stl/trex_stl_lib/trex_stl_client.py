@@ -1394,12 +1394,17 @@ class STLClient(object):
                 for port_id, port_obj in self.ports.items()
                 if port_obj.is_acquired() and port_obj.is_resolved()]
 
-         
-    def get_service_enabled_ports(self):
-        return [port_id
-                for port_id, port_obj in self.ports.items()
-                if port_obj.is_service_mode_on()]
 
+    def get_service_enabled_ports(self, owned = True):
+        if owned:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_service_mode_on() and port_obj.is_acquired()]
+        else:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_service_mode_on()]
+      
         
     # get paused ports
     def get_paused_ports (self, owned = True):
