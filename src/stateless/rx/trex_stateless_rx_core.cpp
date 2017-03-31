@@ -138,7 +138,7 @@ void CRxCoreStateless::recalculate_next_state() {
     }
 
     /* only latency requires the 'hot' state */
-    m_state = (is_latency_active() ? STATE_HOT : STATE_COLD);
+    m_state = (is_latency_or_capture_active() ? STATE_HOT : STATE_COLD);
 }
 
 
@@ -155,6 +155,19 @@ bool CRxCoreStateless::is_latency_active() {
     return false;
 }
 
+/**
+ * return true if latency or capture is active
+ */
+bool CRxCoreStateless::is_latency_or_capture_active() {
+    for (int i = 0; i < m_max_ports; i++) {
+        if ( TrexStatelessCaptureMngr::getInstance().is_active(i)
+            || m_rx_port_mngr[i].is_feature_set(RXPortManager::LATENCY ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /**
  * when in hot state we busy poll as fast as possible 

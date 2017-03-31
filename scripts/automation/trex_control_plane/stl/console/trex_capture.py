@@ -40,7 +40,7 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
 
 
         self.logger.pre_cmd("Starting stdout capture monitor - verbose: '{0}'".format('low' if self.is_brief else 'high'))
-        self.logger.post_cmd(RC_OK)
+        self.logger.post_cmd(RC_OK())
         
         self.logger.log(format_text("\n*** use 'capture monitor stop' to abort capturing... ***\n", 'bold')) 
         
@@ -108,7 +108,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         try:
             self.logger.pre_cmd('Starting pipe capture monitor')
             os.mkfifo(self.fifo_name)
-            self.logger.post_cmd(RC_OK)
+            self.logger.post_cmd(RC_OK())
 
             # try to locate wireshark on the machine
             self.wireshark_exe = self.locate_wireshark()

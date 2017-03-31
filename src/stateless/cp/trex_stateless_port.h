@@ -190,7 +190,7 @@ public:
      * start traffic
      * throws TrexException in case of an error
      */
-    void start_traffic(const TrexPortMultiplier &mul, double duration, bool force = false, uint64_t core_mask = UINT64_MAX);
+    void start_traffic(const TrexPortMultiplier &mul, double duration, bool force = false, uint64_t core_mask = UINT64_MAX, double start_at_ts = 0);
 
     /**
      * stop traffic

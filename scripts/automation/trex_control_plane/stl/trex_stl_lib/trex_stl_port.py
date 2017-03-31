@@ -204,6 +204,7 @@ class Port(object):
             self.streams[k] = {'next_id': v['next_stream_id'],
                                'pkt'    : base64.b64decode(v['packet']['binary']),
                                'mode'   : v['mode']['type'],
+                               'dummy'  : bool(v['flags'] & 8),
                                'rate'   : STLStream.get_rate_from_field(v['mode']['rate'])}
         return self.ok()
 
@@ -407,17 +408,18 @@ class Port(object):
 
 
     @writeable
-    def start (self, mul, duration, force, mask):
+    def start (self, mul, duration, force, mask, start_at_ts = 0):
 
         if self.state == self.STATE_IDLE:
             return self.err("unable to start traffic - no streams attached to port")
 
-        params = {"handler":    self.handler,
-                  "port_id":    self.port_id,
-                  "mul":        mul,
-                  "duration":   duration,
-                  "force":      force,
-                  "core_mask":  mask if mask is not None else self.MASK_ALL}
+        params = {"handler":     self.handler,
+                  "port_id":     self.port_id,
+                  "mul":         mul,
+                  "duration":    duration,
+                  "force":       force,
+                  "core_mask":   mask if mask is not None else self.MASK_ALL,
+                  'start_at_ts': start_at_ts}
    
         # must set this before to avoid race with the async response
         last_state = self.state
@@ -1017,16 +1019,20 @@ class Port(object):
         for id in sorted(map(int, self.streams.keys())):
             obj = self.streams[str(id)]
 
-            # lazy build scapy repr.
-            if not 'pkt_type' in obj:
+            obj['pkt_len'] = len(obj['pkt']) + 4
+            if obj['dummy']:
+                obj['pkt_type'] = 'Dummy'
+                obj['pkt_len'] = '-'
+            if 'pkt_type' not in obj:
+                # lazy build scapy repr.
                 obj['pkt_type'] = STLPktBuilder.pkt_layers_desc_from_buffer(obj['pkt'])
             
             data[id] = OrderedDict([ ('id',  id),
                                      ('packet_type',  obj['pkt_type']),
-                                     ('L2 len',       len(obj['pkt']) + 4),
+                                     ('L2 len',       obj['pkt_len']),
                                      ('mode',         obj['mode']),
                                      ('rate',         obj['rate']),
-                                     ('next_stream',  obj['next_id'] if not '-1' else 'None')
+                                     ('next_stream',  obj['next_id'] if obj['next_id'] != '-1' else 'None')
                                     ])
     
         return {"streams" : data}

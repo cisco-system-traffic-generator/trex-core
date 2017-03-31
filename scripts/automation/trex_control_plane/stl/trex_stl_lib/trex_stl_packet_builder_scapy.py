@@ -1527,6 +1527,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         """
         f_path = self._get_pcap_file_path (pcap_file)
 
+
         p=RawPcapReader(f_path)
         was_set = False
 
@@ -1535,7 +1536,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
             self.pkt_raw = pkt[0]
             break
         if not was_set :
-            raise CTRexPacketBuildException(-14, "No buffer inside the pcap file {0}".format(f_path))
+            raise CTRexPacketBuildException(-14, "Empty pcap file {0}".format(f_path))
 
     def to_pkt_dump(self):
         p = self.pkt

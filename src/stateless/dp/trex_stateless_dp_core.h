@@ -165,7 +165,8 @@ public:
      */
     void start_traffic(TrexStreamsCompiledObj *obj, 
                        double duration,
-                       int event_id);
+                       int event_id,
+                       double start_at_ts);
 
 
     /* pause the streams, work only if all are continues  */
@@ -319,7 +320,8 @@ private:
 
     void add_stream(TrexStatelessDpPerPort * lp_port,
                     TrexStream * stream,
-                    TrexStreamsCompiledObj *comp);
+                    TrexStreamsCompiledObj *comp,
+                    double start_at_ts = 0);
 
 
     void replay_vm_into_cache(TrexStream * stream, 

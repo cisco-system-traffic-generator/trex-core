@@ -253,7 +253,7 @@ TrexStatelessPort::release(void) {
  * 
  */
 void
-TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force, uint64_t core_mask) {
+TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration, bool force, uint64_t core_mask, double start_at_ts) {
 
     /* command allowed only on state stream */
     verify_state(PORT_STATE_STREAMS, "start");
@@ -294,6 +294,13 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
         throw TrexException(fail_msg);
     }
 
+    // verify start_at_ts is sane (at least now_sec + 100msec so that DP will awake and run at given time)
+    // TODO: check if we can replace 0.1 with variable/define relative to LONG_DELAY_MS
+    if ( start_at_ts && ( start_at_ts < now_sec() + 0.1 ) ) {
+        feeder.set_status(false);
+        throw TrexException("start_at_ts, if defined, should be at least 100ms from now_sec()");
+    }
+
     feeder.set_status(true);
 
     /* generate a message to all the relevant DP cores to stop transmitting */
@@ -316,7 +323,8 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
             TrexStatelessCpToDpMsgBase *start_msg = new TrexStatelessDpStart(m_port_id,
                                                                              m_pending_async_stop_event,
                                                                              compiled_objs[index],
-                                                                             duration);
+                                                                             duration,
+                                                                             start_at_ts);
             send_message_to_dp(core_id, start_msg);
         } else {
 

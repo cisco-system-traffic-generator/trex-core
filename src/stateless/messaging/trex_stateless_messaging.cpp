@@ -31,11 +31,12 @@ limitations under the License.
 /*************************
   start traffic message
  ************************/
-TrexStatelessDpStart::TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration) {
+TrexStatelessDpStart::TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts) {
     m_port_id = port_id;
     m_event_id = event_id;
     m_obj = obj;
     m_duration = duration;
+    m_start_at_ts = start_at_ts;
 }
 
 
@@ -48,7 +49,7 @@ TrexStatelessDpStart::clone() {
 
     TrexStreamsCompiledObj *new_obj = m_obj->clone();
 
-    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(m_port_id, m_event_id, new_obj, m_duration);
+    TrexStatelessCpToDpMsgBase *new_msg = new TrexStatelessDpStart(m_port_id, m_event_id, new_obj, m_duration, m_start_at_ts);
 
     return new_msg;
 }
@@ -62,8 +63,8 @@ TrexStatelessDpStart::~TrexStatelessDpStart() {
 bool
 TrexStatelessDpStart::handle(TrexStatelessDpCore *dp_core) {
 
-    /* staet traffic */
-    dp_core->start_traffic(m_obj, m_duration,m_event_id);
+    /* start traffic */
+    dp_core->start_traffic(m_obj, m_duration,m_event_id,m_start_at_ts);
 
     return true;
 }

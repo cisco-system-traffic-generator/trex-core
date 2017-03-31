@@ -91,7 +91,7 @@ TrexRpcCmdAPISync::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdPing::_run(const Json::Value &params, Json::Value &result) {
 
-    result["result"] = Json::objectValue;
+    result["result"]["ts"] = now_sec();
     return (TREX_RPC_CMD_OK);
 }
 

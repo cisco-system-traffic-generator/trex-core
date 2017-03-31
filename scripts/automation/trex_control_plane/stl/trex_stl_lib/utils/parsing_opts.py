@@ -32,6 +32,7 @@ TIMEOUT
 FORCE
 READONLY
 DRY_RUN
+SYNCHRONIZED
 XTERM
 TOTAL
 FULL_OUTPUT
@@ -610,6 +611,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                      'dest': 'dry',
                                      'default': False,
                                      'help': "Dry run - no traffic will be injected"}),
+
+              SYNCHRONIZED: ArgumentPack(['--sync'],
+                                    {'action': 'store_true',
+                                     'dest': 'sync',
+                                     'default': False,
+                                     'help': 'Run the traffic with syncronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'}),
 
               XTERM: ArgumentPack(['-x', '--xterm'],
                                   {'action': 'store_true',

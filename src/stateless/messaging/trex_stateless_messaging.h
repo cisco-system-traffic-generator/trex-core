@@ -140,7 +140,7 @@ protected:
 class TrexStatelessDpStart : public TrexStatelessCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration);
+    TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts = 0);
 
     ~TrexStatelessDpStart();
 
@@ -154,6 +154,7 @@ private:
     int                     m_event_id;
     TrexStreamsCompiledObj *m_obj;
     double                  m_duration;
+    double                  m_start_at_ts;
 
 };
 

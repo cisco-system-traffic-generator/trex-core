@@ -960,7 +960,8 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
 void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
                                 TrexStream * stream,
-                                TrexStreamsCompiledObj *comp) {
+                                TrexStreamsCompiledObj *comp,
+                                double start_at_ts) {
 
     CGenNodeStateless *node = m_core->create_node_sl();
 
@@ -989,7 +990,11 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_state =CGenNodeStateless::ss_INACTIVE;
     }
 
-    node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
+    if ( unlikely(start_at_ts) ) {
+        node->m_time = start_at_ts + stream->get_start_delay_sec();
+    } else {
+        node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
+    }
 
     pkt_dir_t dir = m_core->m_node_gen.m_v_if->port_id_to_dir(stream->m_port_id);
     node->m_flags = 0;
@@ -1151,7 +1156,8 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
                                    double duration,
-                                   int event_id) {
+                                   int event_id,
+                                   double start_at_ts) {
 
 
     TrexStatelessDpPerPort * lp_port=get_port_db(obj->get_port_id());
@@ -1159,8 +1165,8 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     lp_port->set_event_id(event_id);
 
     /* update cur time */
-    if ( CGlobalInfo::is_realtime()  ){
-        m_core->m_cur_time_sec = now_sec() + SCHD_OFFSET_DTIME ;
+    if ( CGlobalInfo::is_realtime() ){
+        m_core->m_cur_time_sec = now_sec() + SCHD_OFFSET_DTIME;
     }
 
     /* no nodes in the list */
@@ -1169,7 +1175,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
         assert(obj->get_port_id() == single_stream.m_stream->m_port_id);
-        add_stream(lp_port,single_stream.m_stream,obj);
+        add_stream(lp_port,single_stream.m_stream,obj,start_at_ts);
     }
 
     uint32_t nodes = lp_port->m_active_nodes.size();

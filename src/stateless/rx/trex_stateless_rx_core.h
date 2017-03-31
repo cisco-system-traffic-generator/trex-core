@@ -175,6 +175,7 @@ class CRxCoreStateless {
     
     void recalculate_next_state();
     bool is_latency_active();
+    bool is_latency_or_capture_active();
 
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();

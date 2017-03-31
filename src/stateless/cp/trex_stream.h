@@ -460,6 +460,7 @@ public:
         dp->m_cache_size            =   m_cache_size;
         dp->m_action_count          =   m_action_count;
         dp->m_random_seed           =   m_random_seed;
+        dp->m_null_stream           =   m_null_stream;
 
         dp->m_rate                  =   m_rate;
 

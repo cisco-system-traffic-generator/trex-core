@@ -294,8 +294,9 @@ class STLStream(object):
                   stream_id = None,
                   action_count = 0,
                   random_seed =0,
-                  mac_src_override_by_pkt=None,
-                  mac_dst_override_mode=None    #see  STLStreamDstMAC_xx
+                  mac_src_override_by_pkt = None,
+                  mac_dst_override_mode = None,    #see  STLStreamDstMAC_xx
+                  dummy_stream = False
                   ):
         """ 
         Stream object 
@@ -338,7 +339,10 @@ class STLStream(object):
                         Template packet sets src MAC. 
 
                   mac_dst_override_mode=None : STLStreamDstMAC_xx
-                        Template packet sets dst MAC. 
+                        Template packet sets dst MAC.
+
+                  dummy_stream : bool
+                        For delay purposes, will not be sent.
         """
 
 
@@ -351,6 +355,7 @@ class STLStream(object):
         validate_type('isg', isg, (int, float))
         validate_type('stream_id', stream_id, (type(None), int))
         validate_type('random_seed',random_seed,int);
+        validate_type('dummy_stream', dummy_stream, bool);
 
         if (type(mode) == STLTXCont) and (next != None):
             raise STLError("Continuous stream cannot have a next stream ID")
@@ -390,7 +395,7 @@ class STLStream(object):
 
         self.is_default_mac = not (int_mac_src_override_by_pkt or int_mac_dst_override_mode)
 
-        self.fields['flags'] = (int_mac_src_override_by_pkt&1) +  ((int_mac_dst_override_mode&3)<<1)
+        self.fields['flags'] = (int_mac_src_override_by_pkt&1) +  ((int_mac_dst_override_mode&3)<<1) + (int(dummy_stream) << 3)
 
         self.fields['action_count'] = action_count
 
@@ -413,6 +418,8 @@ class STLStream(object):
 
         if not packet:
             packet = STLPktBuilder(pkt = Ether()/IP())
+            if dummy_stream:
+                self.packet_desc = 'Dummy'
 
         self.scapy_pkt_builder = packet
         # packet builder
@@ -472,12 +479,12 @@ class STLStream(object):
         return self.pkt
 
     def get_pkt_len (self, count_crc = True):
-       """ Get packet number of bytes  """
-       pkt_len = len(self.get_pkt())
-       if count_crc:
-           pkt_len += 4
+        """ Get packet number of bytes  """
+        pkt_len = len(self.get_pkt())
+        if count_crc:
+            pkt_len += 4
 
-       return pkt_len
+        return pkt_len
 
 
     def get_pkt_type (self):
@@ -1027,11 +1034,8 @@ class STLProfile(object):
 
         """
 
-        # check filename
-        if not os.path.isfile(pcap_file):
-            raise STLError("file '{0}' does not exists".format(pcap_file))
         if speedup <= 0:
-            raise STLError('Speedup should not be negative.')
+            raise STLError('Speedup should be positive.')
         if min_ipg_usec and min_ipg_usec < 0:
             raise STLError('min_ipg_usec should not be negative.')
 
@@ -1046,52 +1050,51 @@ class STLProfile(object):
 
        
         try:
-
             if split_mode is None:
-                pkts = PCAPReader(pcap_file).read_all()
+                pkts = PCAPReader(pcap_file).read_all(ipg_usec, min_ipg_usec, speedup)
                 if len(pkts) == 0:
                     raise STLError("'{0}' does not contain any packets".format(pcap_file))
                     
                 return STLProfile.__pkts_to_streams(pkts,
-                                                    ipg_usec,
-                                                    min_ipg_usec,
-                                                    speedup,
                                                     loop_count,
                                                     vm,
                                                     packet_hook)
             else:
-                pkts_a, pkts_b = PCAPReader(pcap_file).read_all(split_mode = split_mode)
-                if (len(pkts_a) + len(pkts_b)) == 0:
-                    raise STLError("'{0}' does not contain any packets".format(pcap_file))
-                    
-                # swap the packets if a is empty, or the ts of first packet in b is earlier
-                if not pkts_a:
+                pkts_a, pkts_b = PCAPReader(pcap_file).read_all(ipg_usec, min_ipg_usec, speedup, split_mode = split_mode)
+                if not (pkts_a or pkts_b):
+                    raise STLError("'%s' does not contain any packets." % pcap_file)
+                elif not (pkts_a and pkts_b):
+                    raise STLError("'%s' contains only one direction." % pcap_file)
+
+                # swap is ts of first packet in b is earlier
+                start_time_a = pkts_a[0][1]
+                start_time_b = pkts_b[0][1]
+                if start_time_b < start_time_a:
                     pkts_a, pkts_b = pkts_b, pkts_a
-                elif (ipg_usec is None) and pkts_b:
-                    meta = pkts_a[0][1]
-                    start_time_a = meta[0] * 1e6 + meta[1]
-                    meta = pkts_b[0][1]
-                    start_time_b = meta[0] * 1e6 + meta[1]
-                    if start_time_b < start_time_a:
-                        pkts_a, pkts_b = pkts_b, pkts_a
+
+                # get last ts
+                end_time_a = pkts_a[-1][1]
+                end_time_b = pkts_b[-1][1]
+                start_delay_usec = 1000
+                if ipg_usec:
+                    start_delay_usec = ipg_usec / speedup
+                if min_ipg_usec and min_ipg_usec > start_delay_usec:
+                    start_delay_usec = min_ipg_usec
+                end_time = max(end_time_a, end_time_b)
 
                 profile_a = STLProfile.__pkts_to_streams(pkts_a,
-                                                         ipg_usec,
-                                                         min_ipg_usec,
-                                                         speedup,
                                                          loop_count,
                                                          vm,
                                                          packet_hook,
-                                                         start_delay_usec = 10000)
+                                                         start_delay_usec,
+                                                         end_delay_usec = end_time - end_time_a)
 
                 profile_b = STLProfile.__pkts_to_streams(pkts_b,
-                                                         ipg_usec,
-                                                         min_ipg_usec,
-                                                         speedup,
                                                          loop_count,
                                                          vm,
                                                          packet_hook,
-                                                         start_delay_usec = 10000)
+                                                         start_delay_usec,
+                                                         end_delay_usec = end_time - end_time_b)
                     
                 return profile_a, profile_b
 
@@ -1101,43 +1104,51 @@ class STLProfile(object):
 
 
     @staticmethod
-    def __pkts_to_streams (pkts, ipg_usec, min_ipg_usec, speedup, loop_count, vm, packet_hook, start_delay_usec = 0):
-
+    def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0):
         streams = []
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
 
-        for i, (cap, meta) in enumerate(pkts, start = 1):
-            # IPG - if not provided, take from cap
-            if ipg_usec is None:
-                packet_time = meta[0] * 1e6 + meta[1]
-                if i == 1:
-                    prev_time = packet_time
-                isg = (packet_time - prev_time) / float(speedup)
-                if min_ipg_usec and isg < min_ipg_usec:
-                    isg = min_ipg_usec
-                prev_time = packet_time
-            else: # user specified ipg
-                if min_ipg_usec:
-                    isg = min_ipg_usec
-                else:
-                    isg = ipg_usec / float(speedup)
+        last_ts = 0
+        for i, (cap, ts) in enumerate(pkts, start = 1):
+            isg = ts - last_ts
+            last_ts = ts
 
             # handle last packet
             if i == len(pkts):
-                next = 1
-                action_count = loop_count
+                if end_delay_usec:
+                    next = 'delay_stream'
+                    action_count = 0
+                    streams.append(STLStream(name = 'delay_stream',
+                                             mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                             self_start = False,
+                                             isg = end_delay_usec,
+                                             action_count = loop_count,
+                                             dummy_stream = True,
+                                             next = 1))
+                else:
+                    next = 1
+                    action_count = loop_count
             else:
                 next = i + 1
                 action_count = 0
 
-            streams.append(STLStream(name = i,
-                                     packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
-                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
-                                     self_start = True if (i == 1) else False,
-                                     isg = isg,  # usec
-                                     action_count = action_count,
-                                     next = next))
+            if i == 1:
+                streams.append(STLStream(name = 1,
+                                         packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
+                                         mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                         self_start = True,
+                                         isg = isg + start_delay_usec,  # usec
+                                         action_count = action_count,
+                                         next = next))
+            else:
+                streams.append(STLStream(name = i,
+                                         packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
+                                         mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
+                                         self_start = False,
+                                         isg = isg,  # usec
+                                         action_count = action_count,
+                                         next = next))
 
 
         profile = STLProfile(streams)
@@ -1239,15 +1250,54 @@ def register():
 
 
 class PCAPReader(object):
-    def __init__ (self, pcap_file):
+    def __init__(self, pcap_file):
+        if not os.path.isfile(pcap_file):
+            raise STLError("File '{0}' does not exist.".format(pcap_file))
         self.pcap_file = pcap_file
 
-    def read_all (self, split_mode = None):
+    def read_all(self, ipg_usec, min_ipg_usec, speedup, split_mode = None):
+        # get the packets
         if split_mode is None:
-            return RawPcapReader(self.pcap_file).read_all()
+            pkts = RawPcapReader(self.pcap_file).read_all()
+        else:
+            pkts = rdpcap(self.pcap_file)
+
+        if not pkts:
+            raise STLError("'%s' does not contain any packets." % self.pcap_file)
+
+        self.pkts_arr = []
+        last_ts = 0
+        # fix times
+        for pkt in pkts:
+            if split_mode is None:
+                pkt_data, meta = pkt
+                ts_usec = meta[0] * 1e6 + meta[1]
+            else:
+                pkt_data = pkt
+                ts_usec = pkt.time * 1e6
+
+            if ipg_usec is None:
+                if 'prev_time' in locals():
+                    delta_usec = (ts_usec - prev_time) / float(speedup)
+                else:
+                    delta_usec = 0
+                if min_ipg_usec and delta_usec < min_ipg_usec:
+                    delta_usec = min_ipg_usec
+                prev_time = ts_usec
+                last_ts += delta_usec
+            else: # user specified ipg
+                if min_ipg_usec:
+                    last_ts += min_ipg_usec
+                elif ipg_usec:
+                    last_ts += ipg_usec / float(speedup)
+                else:
+                    raise STLError('Please specify either min_ipg_usec or ipg_usec, not both.')
+            self.pkts_arr.append([pkt_data, last_ts])
+
+        if split_mode is None:
+            return self.pkts_arr
 
         # we need to split
-        self.pcap = rdpcap(self.pcap_file)
         self.graph = Graph()
 
         self.pkt_groups = [ [], [] ]
@@ -1264,49 +1314,42 @@ class PCAPReader(object):
 
     # generate two groups based on MACs
     def generate_mac_groups (self):
-        for i, pkt in enumerate(self.pcap):
-            if not isinstance(pkt, (Ether, Dot3) ):
+        for i, (pkt, _) in enumerate(self.pkts_arr):
+            if not isinstance(pkt, (Ether, Dot3)):
                 raise STLError("Packet #{0} has an unknown L2 format: {1}".format(i, type(pkt)))
-            mac_src = pkt.fields['src']
-            mac_dst = pkt.fields['dst']
-            self.graph.add(mac_src, mac_dst)
+            self.graph.add(pkt.src, pkt.dst)
 
         # split the graph to two groups
         mac_groups = self.graph.split()
 
-        for pkt in self.pcap:
-            mac_src = pkt.fields['src']
-            group = 1 if mac_src in mac_groups[1] else 0
-
-            time, raw = pkt.time, bytes(pkt)
-            self.pkt_groups[group].append((raw, (time, 0)))
+        for pkt, ts in self.pkts_arr:
+            group = 1 if pkt.src in mac_groups[1] else 0
+            self.pkt_groups[group].append((bytes(pkt), ts))
 
 
     # generate two groups based on IPs
     def generate_ip_groups (self):
-        for pkt in self.pcap:
+        for i, (pkt, t) in enumerate(self.pkts_arr):
             if not isinstance(pkt, (Ether, Dot3) ):
                 raise STLError("Packet #{0} has an unknown L2 format: {1}".format(i, type(pkt)))
-            # skip non IP packets
-            if not isinstance(pkt.payload, IP):
+            ip = pkt.getlayer('IP')
+            if not ip:
+                ip = pkt.getlayer('IPv6')
+            if not ip:
                 continue
-            ip_src = pkt.payload.fields['src']
-            ip_dst = pkt.payload.fields['dst']
-            self.graph.add(ip_src, ip_dst)
+            self.graph.add(ip.src, ip.dst)
 
         # split the graph to two groups
         ip_groups = self.graph.split()
 
-        for pkt in self.pcap:
-            # default group - 0
+        for pkt, ts in self.pkts_arr:
+            ip = pkt.getlayer('IP')
+            if not ip:
+                ip = pkt.getlayer('IPv6')
             group = 0
-
-            # if the packet is IP and IP SRC is in group 1 - move to group 1
-            if isinstance(pkt.payload, IP) and pkt.payload.fields['src'] in ip_groups[1]:
+            if ip and ip.src in ip_groups[1]:
                 group = 1
-
-            time, raw = pkt.time, bytes(pkt)
-            self.pkt_groups[group].append((raw, (time, 0)))
+            self.pkt_groups[group].append((bytes(pkt), ts))
 
 
 

@@ -489,8 +489,9 @@ class STLClient(object):
     """TRex Stateless client object - gives operations per TRex/user"""
 
     # different modes for attaching traffic to ports
-    CORE_MASK_SPLIT = 1
-    CORE_MASK_PIN   = 2
+    CORE_MASK_SPLIT  = 1
+    CORE_MASK_PIN    = 2
+    CORE_MASK_SINGLE = 3
 
     def __init__(self,
                  username = common.get_current_user(),
@@ -550,7 +551,7 @@ class STLClient(object):
         self.connected = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 1 } ]
+        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 2 } ]
         self.api_h = {'core': None}
 
         # logger
@@ -720,18 +721,21 @@ class STLClient(object):
                  duration,
                  port_id_list,
                  force,
-                 core_mask):
+                 core_mask,
+                 start_at_ts = 0):
 
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
-
+        if start_at_ts is None:
+            start_at_ts = 0
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].start(multiplier,
                                              duration,
                                              force,
-                                             core_mask[port_id]))
+                                             core_mask[port_id],
+                                             start_at_ts))
 
         return rc
 
@@ -1030,11 +1034,12 @@ class STLClient(object):
 
 
     def __decode_core_mask (self, ports, core_mask):
+        available_modes = [self.CORE_MASK_PIN, self.CORE_MASK_SPLIT, self.CORE_MASK_SINGLE]
 
         # predefined modes
         if isinstance(core_mask, int):
-            if core_mask not in [self.CORE_MASK_PIN, self.CORE_MASK_SPLIT]:
-                raise STLError("'core_mask' can be either CORE_MASK_PIN, CORE_MASK_SPLIT or a list of masks")
+            if core_mask not in available_modes:
+                raise STLError("'core_mask' can be either %s or a list of masks" % ', '.join(available_modes))
 
             decoded_mask = {}
             for port in ports:
@@ -1042,6 +1047,8 @@ class STLClient(object):
                 # the second port from the group in the start list
                 if (core_mask == self.CORE_MASK_PIN) and ( (port ^ 0x1) in ports ):
                     decoded_mask[port] = 0x55555555 if( port % 2) == 0 else 0xAAAAAAAA
+                elif core_mask == self.CORE_MASK_SINGLE:
+                    decoded_mask[port] = 0x1
                 else:
                     decoded_mask[port] = None
 
@@ -1279,7 +1286,7 @@ class STLClient(object):
           None
 
         :return:
-            Connection dict 
+            List of commands supported by server RPC
 
         :raises:
           None
@@ -1330,7 +1337,7 @@ class STLClient(object):
           None
 
         :return:
-            Connection dict 
+            Number of ports
 
         :raises:
           None
@@ -1357,7 +1364,7 @@ class STLClient(object):
           None
 
         :return:
-            Connection dict 
+            List of all ports
 
         :raises:
           None
@@ -1830,11 +1837,14 @@ class STLClient(object):
             :parameters:
                  None
 
+            :return:
+                 Timestamp of server
+
             :raises:
                 + :exc:`STLError`
 
         """
-        
+
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
         rc = self._transmit("ping", api_class = None)
@@ -1843,6 +1853,8 @@ class STLClient(object):
 
         if not rc:
             raise STLError(rc)
+
+        return rc.data()
         
 
     @__api_check(True)
@@ -2289,7 +2301,8 @@ class STLClient(object):
                force = False,
                duration = -1,
                total = False,
-               core_mask = CORE_MASK_SPLIT):
+               core_mask = None,
+               synchronized = False):
         """
             Start traffic on port(s)
 
@@ -2315,12 +2328,18 @@ class STLClient(object):
                     True: Divide bandwidth among the ports
                     False: Duplicate
 
-                core_mask: CORE_MASK_SPLIT, CORE_MASK_PIN or a list of masks (one per port)
+                core_mask: CORE_MASK_SPLIT, CORE_MASK_PIN, CORE_MASK_SINGLE or a list of masks (one per port)
                     Determine the allocation of cores per port
                     In CORE_MASK_SPLIT all the traffic will be divided equally between all the cores
                     associated with each port
                     In CORE_MASK_PIN, for each dual ports (a group that shares the same cores)
                     the cores will be divided half pinned for each port
+
+                synchronized: bool
+                    In case of several ports, ensure their transmitting time is syncronized.
+                    Must use adjacent ports (belong to same set of cores).
+                    Will set default core_mask to 0x1.
+                    Recommended ipg 1ms and more.
 
             :raises:
                 + :exc:`STLError`
@@ -2334,7 +2353,7 @@ class STLClient(object):
         validate_type('force', force, bool)
         validate_type('duration', duration, (int, float))
         validate_type('total', total, bool)
-        validate_type('core_mask', core_mask, (int, list))
+        validate_type('core_mask', core_mask, (type(None), int, list))
 
       
         # some sanity checks before attempting start
@@ -2342,6 +2361,8 @@ class STLClient(object):
         
         #########################
         # decode core mask argument
+        if core_mask is None:
+            core_mask = self.CORE_MASK_SINGLE if synchronized else self.CORE_MASK_SPLIT
         decoded_mask = self.__decode_core_mask(ports, core_mask)
         #######################
 
@@ -2358,10 +2379,26 @@ class STLClient(object):
         if active_ports and force:
             self.stop(active_ports)
 
-        
+        if synchronized:
+            # start synchronized (per pair of ports) traffic
+            if len(ports) % 2:
+                raise STLError('Must use even number of ports in synchronized mode')
+            for port in ports:
+                if port ^ 1 not in ports:
+                    raise STLError('Must use adjacent ports in synchronized mode. Port "%s" has not pair.' % port)
+
+            start_time = time.time()
+            with self.logger.supress():
+                ping_data = self.ping_rpc_server()
+            start_at_ts = ping_data['ts'] + max((time.time() - start_time), 0.5) * len(ports)
+            synchronized_str = 'synchronized '
+        else:
+            start_at_ts = None
+            synchronized_str = ''
+
         # start traffic
-        self.logger.pre_cmd("Starting traffic on port(s) {0}:".format(ports))
-        rc = self.__start(mult_obj, duration, ports, force, decoded_mask)
+        self.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(synchronized_str, ports))
+        rc = self.__start(mult_obj, duration, ports, force, decoded_mask, start_at_ts)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -2715,7 +2752,7 @@ class STLClient(object):
                                                vm = vm,
                                                packet_hook = packet_hook,
                                                min_ipg_usec = min_ipg_usec)
-                self.logger.post_cmd(RC_OK)
+                self.logger.post_cmd(RC_OK())
             except STLError as e:
                 self.logger.post_cmd(RC_ERR(e))
                 raise
@@ -2730,6 +2767,8 @@ class STLClient(object):
 
             # create a dual profile
             split_mode = 'MAC'
+            if (ipg_usec and ipg_usec < 1000 * speedup) or (min_ipg_usec and min_ipg_usec < 1000):
+                self.event_handler.log_warning('In order to get synchronized traffic, ensure that effective ipg is at least 1000 usec ')
             
             try:
                 self.logger.pre_cmd("Analyzing '{0}' for dual ports based on {1}:".format(pcap_filename, split_mode))
@@ -2760,7 +2799,7 @@ class STLClient(object):
                 if profile_b:
                     self.add_streams(profile_b.get_streams(), slave)
 
-            return self.start(ports = all_ports, duration = duration, force = force)
+            return self.start(ports = all_ports, duration = duration, force = force, synchronized = True)
 
 
 
@@ -3401,7 +3440,7 @@ class STLClient(object):
         write_to_file = isinstance(output, basestring)
         
         self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
-        
+
         # create a PCAP file
         if write_to_file:
             writer = RawPcapWriter(output, linktype = 1)
@@ -3787,7 +3826,8 @@ class STLClient(object):
                                          parsing_opts.TUNABLES,
                                          parsing_opts.MULTIPLIER_STRICT,
                                          parsing_opts.DRY_RUN,
-                                         parsing_opts.CORE_MASK_GROUP)
+                                         parsing_opts.CORE_MASK_GROUP,
+                                         parsing_opts.SYNCHRONIZED)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         if not opts:
@@ -3857,7 +3897,8 @@ class STLClient(object):
                        opts.force,
                        opts.duration,
                        opts.total,
-                       core_mask)
+                       core_mask,
+                       opts.sync)
 
         return RC_OK()
 

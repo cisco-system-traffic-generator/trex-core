@@ -60,6 +60,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_flags           = parse_int(section, "flags", result);
     stream->m_action_count    = parse_uint16(section, "action_count", result);
     stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
+    stream->set_null_stream(stream->m_flags & 8);
 
     /* inter stream gap */
     stream->m_isg_usec  = parse_udouble(section, "isg", result);
@@ -645,6 +646,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     double    duration    = parse_double(params, "duration", result);
     bool      force       = parse_bool(params, "force", result);
     uint64_t  core_mask   = parse_uint64(params, "core_mask", result, TrexDPCoreMask::MASK_ALL);
+    double    start_at_ts = parse_double(params, "start_at_ts", result, 0);
 
     if (!TrexDPCoreMask::is_valid_mask(port->get_dp_core_count(), core_mask)) {
         generate_parse_err(result, "invalid core mask provided");
@@ -669,7 +671,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     TrexPortMultiplier mul(type, op, value);
 
     try {
-        port->start_traffic(mul, duration, force, core_mask);
+        port->start_traffic(mul, duration, force, core_mask, start_at_ts);
 
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
