@@ -19,6 +19,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     def connect(self, tries = 10):
         # need delay and check only because TRex process might be still starting
         sys.stdout.write('Connecting')
+        err = ''
         for i in range(tries):
             try:
                 sys.stdout.write('.')
@@ -26,9 +27,11 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 self.stl_trex.connect()
                 print('')
                 return True
-            except:
+            except Exception as e:
+                err = e
                 time.sleep(0.5)
         print('')
+        print('Error connecting: %s' % err)
         return False
 
     def map_ports(self, tries = 10):
@@ -70,6 +73,7 @@ class STLBasic_Test(CStlGeneral_Test):
     # will run it first explicitly, check connectivity and configure routing
     @nottest
     def test_connectivity(self):
+        CTRexScenario.stl_init_error = 'Unknown error'
         if not self.is_loopback:
             try:
                 sys.stdout.flush()
@@ -125,5 +129,7 @@ class STLBasic_Test(CStlGeneral_Test):
             setup['drv-name']  = stl_info['ports'][0]['driver']
             setup['nic-ports'] = stl_info['port_count']
             setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
+
+        CTRexScenario.stl_init_error = None
 
 
