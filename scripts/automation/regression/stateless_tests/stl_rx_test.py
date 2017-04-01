@@ -81,15 +81,12 @@ class STLRX_Test(CStlGeneral_Test):
             },
 
             'net_mlx5': {
-                'rate_percent': 80,
+                'rate_percent': 1,
                 'total_pkts': 1000,
                 'rate_latency': 1,
                 'latency_9k_enable': False if self.is_vf_nics else True,
                 'latency_9k_max_average': 100,
                 'latency_9k_max_latency': 450,    #see latency issue trex-261
-                'no_vlan_even_in_software_mode': True, # todo: fix - We see 1 or 2 packet drops from time to time with vlan
-                'no_ipv6': True, #todo: fix - same issue with ipv6
-                'allow_packets_drop_num': 15, # todo - remove
             },
 
             'net_enic': {
