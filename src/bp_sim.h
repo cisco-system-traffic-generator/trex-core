@@ -1206,6 +1206,11 @@ public:
         if ( likely(m>0) ) {
             return (m);
         }
+        // hack for failure when using lots of 4k mbufs. See TRex-393
+        // real solution should be to always use 2K mbufs, and concatenate if needed
+        if (mp == m_mbuf_pool_4096) {
+            return _rte_pktmbuf_alloc(m_mbuf_pool_9k);
+        }
         dump_in_case_of_error(stderr);
         assert(0);
     }
