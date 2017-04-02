@@ -48,30 +48,13 @@ class STLServiceCtx(object):
 
 ######### API functions              #########
 
-    def add (self, services):
-        '''
-            Add a service to the context
-        '''
-        if isinstance(services, STLService):
-            self._add(services)
-            
-        elif isinstance(services, (list, tuple)) and all([isinstance(s, STLService) for s in services]):
-            for service in services:
-                self._add(service)
-                
-        else:
-            raise STLError("'services' should be STLService subtype or list/tuple of it")
-            
+    def run (self, services):
+        self._reset()
         
-        
-    def __iadd__ (self, services):
         self.add(services)
-        return self
         
-        
-    def run (self):
         # create an enviorment
-        self.env = simpy.rt.RealtimeEnvironment(factor = 1)
+        self.env = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
         
         # create processes
         for service in self.services:
@@ -102,7 +85,22 @@ class STLServiceCtx(object):
             
 ######### internal functions              #########
     
-    def _add (self, service):
+    def add (self, services):
+        '''
+            Add a service to the context
+        '''
+        if isinstance(services, STLService):
+            self._add_single_service(services)
+            
+        elif isinstance(services, (list, tuple)) and all([isinstance(s, STLService) for s in services]):
+            for service in services:
+                self._add_single_service(service)
+                
+        else:
+            raise STLError("'services' should be STLService subtype or list/tuple of it")
+            
+    def _add_single_service (self, service):
+        
         filter_type = service.get_filter_type()
 
         # if the service does not have a filter installed - create it
@@ -135,10 +133,7 @@ class STLServiceCtx(object):
         
     def tick_process (self):
         while True:
-            # if no other process exists - exit
-            if self.active_services == 0:
-                return
-
+            
             # if any packets are pending - send them
             if self.tx_buffer:
                 # send all the packets
@@ -161,6 +156,10 @@ class STLServiceCtx(object):
                         self.services[service]['pipe'].rx_pkt(scapy_pkt)
                         break
 
+
+            # if no other process exists - exit
+            if self.active_services == 0:
+                return
 
             # backoff
             yield self.env.timeout(0.1)

@@ -62,15 +62,11 @@ class STLServiceDHCP(STLService):
         
         self.xid = random.getrandbits(32)
 
-        # set the run function to 'acquire'
-        self.run        = self._acquire
-        
         self.mac        = mac
         self.mac_bytes  = self.mac2bytes(mac)
         
-        self._results   = {'yiaddr': None, 'server' : None, 'dg' : None, 'lease' : None, 'domain': None, 'subnet': None}
-        self.success    = False
-        
+        self.record = None
+        self.state  = 'INIT'
         
         
     def get_filter_type (self):
@@ -80,7 +76,11 @@ class STLServiceDHCP(STLService):
     def get_xid (self):
         return self.xid
         
-    
+        
+    def get_mac (self):
+        return self.mac
+        
+        
     def mac2bytes (self, mac):
         if type(mac) != str or not re.match("[0-9a-f]{2}([:])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()):
             self.err('invalid MAC format: {}'.format(mac))
@@ -91,6 +91,7 @@ class STLServiceDHCP(STLService):
     #########################  protocol state machines  #########################
     
     def run (self, pipe):
+        
         # while running under 'INIT' - perform acquire
         if self.state == 'INIT':
             return self._acquire(pipe)
@@ -114,7 +115,6 @@ class STLServiceDHCP(STLService):
 
                 self.retries -= 1
                 if self.retries <= 0:
-                    self.state = 'FAIL'
                     break
                     
                 self.log('DHCP: {0} ---> DISCOVERY'.format(self.mac))
@@ -146,12 +146,8 @@ class STLServiceDHCP(STLService):
                 offer = offers[0]
                 options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
                 self.log("DHCP: {0} <--- OFFER from '{1}' with address '{2}' ".format(self.mac, options['server_id'], offer['BOOTP'].yiaddr))
-                
-                self._results['server'] = options['server_id']
-                self._results['subnet'] = options['subnet_mask']
-                self._results['domain'] = options['domain']
-                self._results['lease']  = options['lease_time']
-                self._results['yiaddr'] = offer['BOOTP'].yiaddr
+        
+                self.record = self.DHCPRecord(offer)
                 
                 self.state = 'REQUESTING'
                 continue
@@ -164,7 +160,7 @@ class STLServiceDHCP(STLService):
                 self.log('DHCP: {0} ---> REQUESTING'.format(self.mac))
                 
                 pipe.tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                            /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self._results['yiaddr']),"end"]))
+                            /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self.record.client_ip),"end"]))
                 
                 pkts = yield pipe.async_wait_for_pkt(3)
                 
@@ -180,10 +176,10 @@ class STLServiceDHCP(STLService):
                 options = {x[0]:x[1] for x in acknack['DHCP options'].options if isinstance(x, tuple)}
                 
                 if options['message-type'] == self.ACK:
-                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, self._results['server'], self._results['yiaddr']))
+                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, self.record.server_ip, self.record.client_ip))
                     self.state = 'BOUND'
                 else:
-                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, self._results['server']))
+                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, self.record.server_ip))
                     self.state = 'INIT'
                     
                 
@@ -199,6 +195,33 @@ class STLServiceDHCP(STLService):
         '''
             Release the DHCP lease
         '''
+        self.log('DHCP: {0} ---> RELEASING'.format(self.mac))
         
-    def results (self):
-        return self._results if self.success else {}
+        pipe.tx_pkt(Ether(dst=self.record.server_mac)/IP(src=self.record.client_ip,dst=self.record.server_ip)/UDP(sport=68,dport=67) \
+                    /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
+                    /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
+        
+        yield pipe.async_wait(0)
+        
+
+    def get_record (self):
+        '''
+            Returns a DHCP record
+        '''
+        return self.record
+
+
+    class DHCPRecord(object):
+        def __init__ (self, offer):
+            options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
+            
+            self.server_mac = offer.src
+            self.server_ip  = options['server_id']
+            self.subnet     = options['subnet_mask']
+            self.domain     = options['domain']
+            self.lease      = options['lease_time']
+            self.client_ip  = offer['BOOTP'].yiaddr
+            
+        def __str__ (self):
+            
+            return "ip: {0}, server_ip: {1}, subnet: {2}, domain: {3}, lease_time: {4}".format(self.client_ip, self.server_ip, self.subnet, self.domain, self.lease)
