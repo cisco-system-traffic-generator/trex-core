@@ -78,6 +78,7 @@ class Packet(BasePacket):
         self.aliastypes = [ self.__class__ ] + self.aliastypes
         self.default_fields = {}
         self._offset=0;  # offset of the object
+        self._length = 0
         self.offset_fields = {} # ofsset of each field
         self.overloaded_fields = {}
         self.fields={}
@@ -119,7 +120,8 @@ class Packet(BasePacket):
         
     def post_dissection(self, pkt):
         """DEV: is called after the dissection of the whole packet"""
-        pass
+        if self.payload:
+            self.payload._offset = self._offset + self._length
 
     def get_field(self, fld):
         """DEV: returns the field instance from the name of the field"""
@@ -320,6 +322,8 @@ class Packet(BasePacket):
 
 
     def self_build(self, field_pos_list=None):
+        if self.raw_packet_cache is not None:
+            return self.raw_packet_cache
         p=""
         for f in self.fields_desc:
             if type(p) is tuple :
@@ -337,8 +341,6 @@ class Packet(BasePacket):
                 f._offset= val
             else:
                 p = f.addfield(self, p, val)
-        if self.raw_packet_cache is not None:
-            assert p == self.raw_packet_cache, 'Could not build the packet.'
         return p
 
     def do_build_payload(self):
@@ -632,9 +634,14 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
         flist = self.fields_desc[:]
         flist.reverse()
         raw = s
+        offset = 0
         while s and flist:
             f = flist.pop()
+            f._offset = offset
             s,fval = f.getfield(self, s)
+            offset = len(raw) - (len(s[0]) if type(s) is tuple else len(s))
+            if getattr(f, 'passon', False): # fix for DNS
+                offset += s[1]
             self.fields[f.name] = fval
         assert(raw.endswith(s))
         if s:
@@ -663,12 +670,14 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
             self.add_payload(p)
 
     def dissect(self, s):
+        start_len = len(s)
         s = self.pre_dissect(s)
 
         s = self.do_dissect(s)
 
         s = self.post_dissect(s)
-            
+        self._length = start_len - len(s)
+
         payl,pad = self.extract_padding(s)
         self.do_dissect_payload(payl)
         if pad and conf.padding:
