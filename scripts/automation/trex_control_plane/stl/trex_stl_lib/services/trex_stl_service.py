@@ -10,69 +10,86 @@ Author:
 
 """
 
+#########################         
+#                       
+# STL service filter    
+#                       
+#                       
+#########################
+class STLServiceFilter(object):
+    '''
+        Abstract class for service filtering
+        each class of services should
+        implement a filter
+    '''
+    
+    def add (self, service):
+        '''
+            Adds a service to the filter
+        '''
+        raise NotImplementedError
+        
+        
+    def lookup (self, scapy_pkt):
+        '''
+            Given a 'scapy_pkt' return
+            a service that should get this packet
+            
+            if the packet does not belong to any
+            service under the filter return None
+        '''
+        raise NotImplementedError
 
 
-##################           
-#
-# STL service
-#
-#
-##################
-
+#########################         
+#                       
+# STL service           
+#                       
+#                       
+#########################
 class STLService(object):
     '''
         Abstract class for implementing a service
     '''
     
-    ERROR = 1
+    ERROR = 3
     WARN  = 2
-    INFO  = 3
+    INFO  = 1
 
-    def __init__ (self, ctx):
-        self.ctx = ctx
-        ctx._register_service(self)
+    def __init__ (self, verbose_level = ERROR):
+
+        # by default, set the service verbose level to error
+        self.verbose_level = verbose_level
         
-        
+
 ######### implement-needed functions #########
-    def consume (self, scapy_pkt):
-        ''' 
-            Handles a packet if it belongs to this module.
-             
-            returns True if packet was consumed and False
-            if not
-
-            scapy_pkt - A scapy formatted packet
+    def get_filter_type (self):
+        '''
+            Returns a filter class type
+            The filter will manage packet
+            forwarding for the services
+            in this group
         '''
         raise NotImplementedError
 
 
-    def run (self, ctx):
+    def run (self, pipe):
         '''
             Executes the service in a run until completion
             model
         '''
         raise NotImplementedError
 
-    
-    def results (self):
-        '''
-            Return the results of the service run
-        '''
-        raise NotImplementedError
+ 
         
         
 ######### API          #########
-    def pipe (self):
-        '''
-            Create a two side pipe
-        '''
-        return self.ctx.pipe()
-
+ 
     def err (self, msg):
         '''
             Genereate an error
         '''
-        self.ctx.err(msg)
+        raise STLError(msg)
 
 
     def set_verbose (self, level):
@@ -83,10 +100,11 @@ class STLService(object):
 
 
     def log (self, msg, level = INFO):
-        if not hasattr(self, 'is_verbose'):
-            self.is_verbose = self.ERROR
-
-        if self.verbose_level >= level:
+        '''
+            Log a message if the level
+            is high enough
+        '''
+        if level >= self.verbose_level:
             print(msg)
 
             

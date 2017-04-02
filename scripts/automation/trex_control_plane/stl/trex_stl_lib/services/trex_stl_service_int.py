@@ -17,7 +17,7 @@ import simpy
 from simpy.core import BoundClass
 from ..trex_stl_exceptions import STLError
 from scapy.layers.l2 import Ether
-
+from .trex_stl_service import STLService
 
 ##################           
 #
@@ -35,29 +35,51 @@ class STLServiceCtx(object):
     def __init__ (self, client, port):
         self.client     = client
         self.port       = port
-        self.env        = simpy.rt.RealtimeEnvironment(factor = 1)
-        self.services   = []
+        #self.env        = simpy.rt.RealtimeEnvironment(factor = 1)
+
+        self._reset()
+     
+    def _reset (self):
+        self.filters    = {}
+        self.services   = {}
         self.tx_buffer  = []
 
         self.active_services = 0
 
 ######### API functions              #########
 
-    def pipe (self):
-        return STLServicePipe(self.env, self.__tx_pkt)
-
-
-    def err (self, msg):
-        raise STLError(msg)
-
-
-    def run (self):
+    def add (self, services):
+        '''
+            Add a service to the context
+        '''
+        if isinstance(services, STLService):
+            self._add(services)
+            
+        elif isinstance(services, (list, tuple)) and all([isinstance(s, STLService) for s in services]):
+            for service in services:
+                self._add(service)
+                
+        else:
+            raise STLError("'services' should be STLService subtype or list/tuple of it")
+            
         
-        # launch all the services
+        
+    def __iadd__ (self, services):
+        self.add(services)
+        return self
+        
+        
+    def run (self):
+        # create an enviorment
+        self.env = simpy.rt.RealtimeEnvironment(factor = 1)
+        
+        # create processes
         for service in self.services:
-            service.run()
-
-
+            pipe = self._pipe()
+            self.services[service]['pipe'] = pipe
+            p = self.env.process(service.run(pipe))
+            self._on_process_create(p)
+        
         # set promiscuous mode
         self.client.set_port_attr(ports = self.port, promiscuous = True)
         # move to service mode
@@ -76,16 +98,23 @@ class STLServiceCtx(object):
             self.client.stop_capture(self.capture_id)
             self.client.reset(ports = self.port)
             
-
+            self._reset()
+            
 ######### internal functions              #########
+    
+    def _add (self, service):
+        filter_type = service.get_filter_type()
 
-    def _register_service (self, service):
-        self.services.append(service)
+        # if the service does not have a filter installed - create it
+        if not filter_type in self.filters:
+            self.filters[filter_type] = filter_type()
 
-    def _add_task (self, task):
-        p = self.env.process(task)
-        self._on_process_create(p)
+        # add to the filter
+        self.filters[filter_type].add(service)
 
+        # data per service
+        self.services[service] = {'pipe': None}
+        
 
     def _on_process_create (self, p):
         self.active_services += 1
@@ -100,6 +129,10 @@ class STLServiceCtx(object):
         self.tx_buffer.append(pkt)
 
 
+    def _pipe (self):
+        return STLServicePipe(self.env, self.__tx_pkt)
+
+        
     def tick_process (self):
         while True:
             # if no other process exists - exit
@@ -120,16 +153,19 @@ class STLServiceCtx(object):
 
             # for each packet - try to forward to each service until we hit
             for scapy_pkt in scapy_pkts:
-                for service in self.services:
-                    if service.consume(scapy_pkt):
-                        # found some service that accepts the packet
+                # go through all filters
+                for service_filter in self.filters.values():
+                    # look up for a service that should get this packet
+                    service = service_filter.lookup(scapy_pkt)
+                    if service:
+                        self.services[service]['pipe'].rx_pkt(scapy_pkt)
                         break
 
 
             # backoff
             yield self.env.timeout(0.1)
 
-#
+
 
 class PktRX(simpy.resources.store.StoreGet):
     '''
