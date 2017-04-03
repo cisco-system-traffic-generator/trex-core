@@ -2,7 +2,7 @@
 #define COMMON_MBUF_H
 
 /*
-Copyright (c) 2016-2016 Cisco Systems, Inc.
+Copyright (c) 2016-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <assert.h>
 
 static inline void add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
     m->ol_flags = PKT_TX_VLAN_PKT;
@@ -74,6 +75,30 @@ static inline rte_mbuf_t * utl_rte_pktmbuf_chain_with_indirect (rte_mbuf_t *base
     indirect->nb_segs = 2;
     last->nb_segs = 1;
     return base;
+}
+
+// return pointer to consequence buffer containing the last num_bytes from mbuf chain m
+// If bytes are already consequence in memory, will return pointer to them.
+//   otherwise, will copy last num_bytes into buf, and return pointer to buf
+inline uint8_t *utl_rte_pktmbuf_get_last_bytes(const rte_mbuf_t *m, uint16_t num_bytes, uint8_t *buf) {
+    const rte_mbuf_t *last = m;
+    const rte_mbuf_t *before_last = m;
+
+    assert(m->pkt_len >= num_bytes);
+
+    while (last->next != NULL) {
+        before_last = last;
+        last = last->next;
+    }
+
+    if (last->data_len >= num_bytes) {
+        return rte_pktmbuf_mtod(last, uint8_t*) + last->data_len - num_bytes;
+    } else {
+        bcopy(rte_pktmbuf_mtod(before_last, uint8_t*) + before_last->data_len - (num_bytes - last->data_len)
+              , buf, num_bytes - last->data_len);
+        bcopy(rte_pktmbuf_mtod(last, uint8_t*), buf + num_bytes - last->data_len, last->data_len);
+        return buf;
+    }
 }
 
 rte_mempool_t * utl_rte_mempool_create(const char  *name,

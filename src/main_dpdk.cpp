@@ -92,7 +92,7 @@ extern "C" {
 #define BP_MASTER_AND_LATENCY 2
 
 #define RX_DESC_NUM_DROP_Q 64
-#define RX_DESC_NUM_DATA_Q 1024
+#define RX_DESC_NUM_DATA_Q 4096
 #define RX_DESC_NUM_DROP_Q_MLX 8
 #define RX_DESC_NUM_DATA_Q_VM 512
 #define TX_DESC_NUM 512
@@ -180,7 +180,7 @@ public:
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
     virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
+        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
     }
     virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
         p.rx_data_q_num = 1;
@@ -266,10 +266,6 @@ public:
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q_VM;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         p.tx_desc_num = TX_DESC_NUM;
-    }
-    virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
-        // In VMs there is usually less memory available
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -1371,6 +1367,7 @@ public:
         m_port_conf.rxmode.jumbo_frame=1;
         m_port_conf.rxmode.max_rx_pkt_len =9*1024+22;
         m_port_conf.rxmode.hw_strip_crc=1;
+        m_port_conf.rxmode.enable_scatter = 1;
     }
 
     inline void update_var(void){
@@ -3958,7 +3955,8 @@ bool CGlobalTRex::Create(){
 
     CGlobalInfo::init_pools(m_max_ports *
                             (dpdk_p.rx_data_q_num * dpdk_p.rx_desc_num_data_q +
-                             dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q));
+                             dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q)
+                            , MBUF_2048);
     ixgbe_start();
     dump_config(stdout);
 
@@ -5151,7 +5149,7 @@ void CPhyEthIF::conf_queues() {
             g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
             for (int queue = 0; queue < dpdk_p.rx_data_q_num; queue++) {
                 rx_queue_setup(queue, dpdk_p.rx_desc_num_data_q, socket_id,
-                               &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+                               &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
             }
         }
         break;
@@ -5164,7 +5162,7 @@ void CPhyEthIF::conf_queues() {
                             CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
         set_rx_queue(MAIN_DPDK_RX_Q);
         rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
-                       &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+                       &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
         break;
     default:
         // Many drop queues. Mellanox mode.
@@ -5178,7 +5176,7 @@ void CPhyEthIF::conf_queues() {
                            CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
         }
         rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
-                       &g_trex.m_port_cfg.m_rx_conf, CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k);
+                       &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
         // rss on all drop queues. Skip MAIN_DPDK_RX_Q
         configure_rss_redirect_table(dpdk_p.rx_drop_q_num + 1, MAIN_DPDK_RX_Q);
         break;
@@ -7305,7 +7303,6 @@ void CTRexExtendedDriverVirtBase::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
     // must have this, otherwise the driver fail at init
     cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMS;
-    cfg->m_port_conf.rxmode.max_rx_pkt_len = 2000;
 }
 
 int CTRexExtendedDriverVirtBase::configure_rx_filter_rules(CPhyEthIF * _if){

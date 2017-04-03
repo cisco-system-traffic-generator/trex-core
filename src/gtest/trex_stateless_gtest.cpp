@@ -4551,3 +4551,57 @@ TEST_F(flow_stat, alloc_mbuf_const) {
 
      cg.alloc_flow_stat_mbuf_test_const();
 }
+
+class flow_stat_lat  : public testing::Test {
+    protected:
+     virtual void SetUp() {
+     }
+     virtual void TearDown() {
+     }
+   public:
+};
+
+// test different cases of the function utl_rte_pktmbuf_get_last_bytes
+TEST_F(flow_stat_lat, pkt_decode) {
+    uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+    struct flow_stat_payload_header fsp_head;
+    fsp_head.magic = 0xab;
+    fsp_head.flow_seq = 0xdc;
+    fsp_head.hw_id = 0x1234;
+    fsp_head.seq = 0x87654321;
+    fsp_head.time_stamp = 0x8765432187654321;
+
+    rte_mempool_t * mp1=utl_rte_mempool_create("big-const", 10, 2048, 32, 0, 0);
+
+    // case 1 - data split between two mbufs
+    rte_mbuf_t * m1 = rte_pktmbuf_alloc(mp1);
+    rte_mbuf_t * m2 = rte_pktmbuf_alloc(mp1);
+    char *p1 = rte_pktmbuf_append(m1, 10);
+    char *p2 = rte_pktmbuf_append(m2, sizeof (struct flow_stat_payload_header) - 10);
+    utl_rte_pktmbuf_add_after(m1, m2);
+
+    bcopy((uint8_t *)&fsp_head, p1, 10);
+    bcopy(((uint8_t *)&fsp_head) + 10, p2, sizeof (struct flow_stat_payload_header) - 10);
+
+    struct flow_stat_payload_header *fsp_head2 = (flow_stat_payload_header *)
+        utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct flow_stat_payload_header), tmp_buf);
+
+    assert(memcmp(&fsp_head, fsp_head2, sizeof(struct flow_stat_payload_header)) == 0);
+    rte_pktmbuf_free(m1);
+    rte_pktmbuf_free(m2);
+
+    // case 2 - data contained in last mbuf
+    fsp_head.magic = 0xcd;
+    m1 = rte_pktmbuf_alloc(mp1);
+    m2 = rte_pktmbuf_alloc(mp1);
+    p1 = rte_pktmbuf_append(m1, 100);
+    p2 = rte_pktmbuf_append(m2, 100);
+    utl_rte_pktmbuf_add_after(m1, m2);
+    bcopy((uint8_t *)&fsp_head, p2 + m2->data_len - sizeof(fsp_head), sizeof(fsp_head));
+    fsp_head2 = (flow_stat_payload_header *)
+        utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct flow_stat_payload_header), tmp_buf);
+
+    assert(memcmp(&fsp_head, fsp_head2, sizeof(struct flow_stat_payload_header)) == 0);
+
+    utl_rte_mempool_delete(mp1);
+}

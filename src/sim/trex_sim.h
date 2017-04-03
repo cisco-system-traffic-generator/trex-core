@@ -53,7 +53,7 @@ public:
 
         time_init();
         CGlobalInfo::m_socket.Create(0);
-        CGlobalInfo::init_pools(1000);
+        CGlobalInfo::init_pools(1000, MBUF_2048);
     }
 
     virtual ~SimInterface() {

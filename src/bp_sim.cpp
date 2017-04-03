@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2015-2015 Cisco Systems, Inc.
+Copyright (c) 2015-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -583,13 +583,19 @@ void CGlobalInfo::free_pools(){
   }
 }
 
-
-void CGlobalInfo::init_pools(uint32_t rx_buffers){
+/*
+ * Create mbuf pools. Number of mbufs allocated for each pool is taken from config file.
+ * The numbers of the pool used for RX packets is increased.
+ * rx_buffers - how many additional buffers to allocate for rx packets
+ * rx_pool - which pool is being used for rx packets
+ */
+void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
         /* this include the pkt from 64- */
     CGlobalMemory * lp=&CGlobalInfo::m_memory_cfg;
     CPlatformSocketInfo * lpSocket =&m_socket;
 
-   CRteMemPool * lpmem;
+    CRteMemPool * lpmem;
+    lp->m_mbuf[rx_pool] += rx_buffers;
 
     int i;
     for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
@@ -652,7 +658,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers){
             assert(lpmem->m_mbuf_pool_4096);
 
             lpmem->m_mbuf_pool_9k=utl_rte_mempool_create("_9k-pkt-const",
-                                                    lp->m_mbuf[MBUF_9k]+rx_buffers,
+                                                    lp->m_mbuf[MBUF_9k],
                                                     CONST_9k_MBUF_SIZE,
                                                     32,(i<<5)+ 5,i);
 

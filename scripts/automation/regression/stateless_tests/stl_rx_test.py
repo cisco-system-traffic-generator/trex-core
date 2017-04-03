@@ -87,6 +87,7 @@ class STLRX_Test(CStlGeneral_Test):
                 'latency_9k_enable': False if self.is_vf_nics else True,
                 'latency_9k_max_average': 100,
                 'latency_9k_max_latency': 450,    #see latency issue trex-261
+                'allow_packets_drop_num': 10, # todo: check this
             },
 
             'net_enic': {
@@ -193,7 +194,9 @@ class STLRX_Test(CStlGeneral_Test):
                                     , vm = vm)
         self.vm_large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000)
                                           , vm = vm)
-        self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000)
+        # Packet size is 8202, with 2k mbuf size in RX, this makes 4 2K mbufs, plus leftover of 10 bytes in 5th mbuf
+        # This test that latency code can handle the situation where latency data is not contiguous in memory
+        self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
                                        ,vm = vm)
         self.errs = []
 
@@ -351,8 +354,8 @@ class STLRX_Test(CStlGeneral_Test):
         self._test_multiple_streams(False)
 
     def test_multiple_streams_random(self):
-        if self.drv_name == 'net_mlx5' or self.drv_name == 'net_i40e_vf':
-            self.skip('Not running on Mellanox cards currently')
+        if self.drv_name == 'net_i40e_vf' or self.drv_name == 'net_mlx5':
+            self.skip('Not running on i40 vf or Mellanox currently')
         self._test_multiple_streams(True)
 
     def _test_multiple_streams(self, is_random):
@@ -452,18 +455,14 @@ class STLRX_Test(CStlGeneral_Test):
                 {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
                 {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
                 {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
-                {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True}
-
-                # add here more stream types
+                {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True},
+                {'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True}
             ]
             if self.vlan_support:
                 streams_data.append({'name': 'Flow stat with vlan. No latency', 'pkt': self.vlan_pkt, 'lat': False})
 
             if self.qinq_support:
                 streams_data.append({'name': 'Flow stat qinq. No latency', 'pkt': self.qinq_pkt, 'lat': False})
-
-            if self.latency_9k_enable:
-                streams_data.append({'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True})
 
             if self.ipv6_support:
                 streams_data.append({'name': 'IPv6 flow stat. No latency', 'pkt': self.ipv6pkt, 'lat': False})

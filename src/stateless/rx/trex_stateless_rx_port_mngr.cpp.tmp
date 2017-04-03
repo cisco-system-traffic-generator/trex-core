@@ -67,6 +67,18 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
 void 
 RXLatency::handle_pkt(const rte_mbuf_t *m) {
     uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+
+
+    //??? remove
+#if 1
+    const rte_mbuf_t *n = m;
+    int count = 1;
+    while (n != NULL) {
+        printf("%d: data len:%d, buf_len:%d, num seg:%d\n", count, n->data_len, n->buf_len, n->nb_segs);
+        n = n->next;
+        count++;
+    }
+#endif
     CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
 

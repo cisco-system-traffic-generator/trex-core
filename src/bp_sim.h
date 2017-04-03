@@ -1284,7 +1284,7 @@ public:
     } queues_mode;
 
 
-    static void init_pools(uint32_t rx_buffers);
+    static void init_pools(uint32_t rx_buffers, uint32_t rx_pool);
     /* for simulation */
     static void free_pools();
 

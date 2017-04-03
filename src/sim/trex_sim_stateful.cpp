@@ -215,7 +215,7 @@ int load_list_of_cap_files(CParserOption * op){
 int test_dns(){
 
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CParserOption po ;
 
@@ -349,7 +349,7 @@ void dump_tcp_seq_num_(CCapFileFlowInfo * obj){
 
 int manipolate_capfile() {
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CCapFileFlowInfo flow_info;
     flow_info.Create();
@@ -374,7 +374,7 @@ int manipolate_capfile() {
 
 int manipolate_capfile_sip() {
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CCapFileFlowInfo flow_info;
     flow_info.Create();
@@ -391,7 +391,7 @@ int manipolate_capfile_sip() {
 
 int manipolate_capfile_sip1() {
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CCapFileFlowInfo flow_info;
     flow_info.Create();
@@ -576,7 +576,7 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
 
 int merge_3_cap_files() {
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CMergeCapFile merger;
     merger.Create();
@@ -596,7 +596,7 @@ int merge_3_cap_files() {
 
 int merge_2_cap_files_sip() {
     time_init();
-    CGlobalInfo::init_pools(1000);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
 
     CMergeCapFile merger;
     merger.Create();
