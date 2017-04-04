@@ -338,15 +338,20 @@ public:
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
         return (CS_INVALID);
     }
-    void set_review_mode(CPreviewMode *preview_mode) {
+
+    virtual void set_review_mode(CPreviewMode *preview_mode) {
         m_preview_mode = preview_mode;
     }
 
-protected:
-    CPreviewMode            * m_preview_mode;
+    virtual CVirtualIFPerSideStats * get_stats() {
+        return m_stats;
+    }
 
-public:
+protected:
+    CPreviewMode             *m_preview_mode;
     CVirtualIFPerSideStats    m_stats[CS_NUM];
+
+    /* never add public fields to this class - it is being wrapped and delegated */
 };
 
 /* global info */

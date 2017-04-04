@@ -77,6 +77,14 @@ public:
         m_wrapped->send_one_pkt(dir, m);
     }
     
+    virtual void set_review_mode(CPreviewMode *preview_mode) {
+        m_wrapped->set_review_mode(preview_mode);
+    }
+
+    virtual CVirtualIFPerSideStats * get_stats() {
+        return m_wrapped->get_stats();
+    }
+
 private:
     CVirtualIF *m_wrapped;
 };

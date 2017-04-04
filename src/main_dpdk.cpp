@@ -4263,9 +4263,9 @@ tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index, boo
         port0 = lpt->getDualPortId() * 2;
         if ((port == port0) || (port == port0 + 1)) {
             m_stats.m_port[port].m_tx_per_flow[index] +=
-                lpt->m_node_gen.m_v_if->m_stats[port - port0].m_tx_per_flow[index];
+                lpt->m_node_gen.m_v_if->get_stats()[port - port0].m_tx_per_flow[index];
             if (is_lat)
-                lpt->m_node_gen.m_v_if->m_stats[port - port0].m_lat_data[index - MAX_FLOW_STATS].reset();
+                lpt->m_node_gen.m_v_if->get_stats()[port - port0].m_lat_data[index - MAX_FLOW_STATS].reset();
         }
     }
 
@@ -4367,16 +4367,16 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_open_flows +=   lpt->m_stats.m_total_open_flows ;
         total_active_flows += (lpt->m_stats.m_total_open_flows-lpt->m_stats.m_total_close_flows) ;
 
-        stats.m_total_alloc_error += lpt->m_node_gen.m_v_if->m_stats[0].m_tx_alloc_error+
-            lpt->m_node_gen.m_v_if->m_stats[1].m_tx_alloc_error;
-        stats.m_total_queue_full +=lpt->m_node_gen.m_v_if->m_stats[0].m_tx_queue_full+
-            lpt->m_node_gen.m_v_if->m_stats[1].m_tx_queue_full;
+        stats.m_total_alloc_error += lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_alloc_error+
+            lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_alloc_error;
+        stats.m_total_queue_full +=lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_queue_full+
+            lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_queue_full;
 
-        stats.m_total_queue_drop +=lpt->m_node_gen.m_v_if->m_stats[0].m_tx_drop+
-            lpt->m_node_gen.m_v_if->m_stats[1].m_tx_drop;
+        stats.m_total_queue_drop +=lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_drop+
+            lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_drop;
 
-        stats.m_template.Add(&lpt->m_node_gen.m_v_if->m_stats[0].m_template);
-        stats.m_template.Add(&lpt->m_node_gen.m_v_if->m_stats[1].m_template);
+        stats.m_template.Add(&lpt->m_node_gen.m_v_if->get_stats()[0].m_template);
+        stats.m_template.Add(&lpt->m_node_gen.m_v_if->get_stats()[1].m_template);
 
 
         total_clients   += lpt->m_smart_gen.getTotalClients();
@@ -4395,16 +4395,16 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         // IP ID rules
         for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
             stats.m_port[port0].m_tx_per_flow[flow] +=
-                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[flow];
+                lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_per_flow[flow];
             stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
-                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[flow];
+                lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_per_flow[flow];
         }
         // payload rules
         for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
             stats.m_port[port0].m_tx_per_flow[flow] +=
-                lpt->m_node_gen.m_v_if->m_stats[0].m_tx_per_flow[flow];
+                lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_per_flow[flow];
             stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
-                lpt->m_node_gen.m_v_if->m_stats[1].m_tx_per_flow[flow];
+                lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_per_flow[flow];
         }
 
     }
@@ -4976,8 +4976,8 @@ int CGlobalTRex::stop_master(){
 
         erf_vif->DumpCoreStats(stdout);
         erf_vif->DumpIfStats(stdout);
-        total_tx_rx_check+=erf_vif->m_stats[CLIENT_SIDE].m_tx_rx_check_pkt+
-            erf_vif->m_stats[SERVER_SIDE].m_tx_rx_check_pkt;
+        total_tx_rx_check+=erf_vif->get_stats()[CLIENT_SIDE].m_tx_rx_check_pkt+
+            erf_vif->get_stats()[SERVER_SIDE].m_tx_rx_check_pkt;
     }
 
     fprintf(stdout," ==================\n");
