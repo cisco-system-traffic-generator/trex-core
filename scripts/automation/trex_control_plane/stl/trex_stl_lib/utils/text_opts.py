@@ -138,7 +138,7 @@ def text_attribute(text, attribute):
             start = TEXT_CODES[attribute]['start'],
             txt = line,
             end = TEXT_CODES[attribute]['end'])
-                      if line else '' for line in ('%s' % text).split('\n')])
+                      if line else '' for line in str(text).split('\n')])
 
 
 FUNC_DICT = {'blue': blue,
@@ -160,11 +160,11 @@ def __format_text_tty(text, *args):
 
     return return_string
 
-    
+
 def __format_text_non_tty (text, *args):
-    return text
-   
-     
+    return str(text)
+
+
 # choose according to stdout type
 format_text = __format_text_tty if sys.stdout.isatty() else __format_text_non_tty
 
