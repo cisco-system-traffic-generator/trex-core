@@ -11,6 +11,8 @@ from .trex_stl_port import Port
 from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
+from .services.trex_stl_service_icmp import STLServiceICMP
+
 from .utils import parsing_opts, text_tables, common
 from .utils.common import *
 from .utils.text_tables import TRexTextTable
@@ -1967,7 +1969,14 @@ class STLClient(object):
             
         if (pkt_size < 64) or (pkt_size > 9216):
             raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
-            
+        
+        if src_port not in self.get_service_enabled_ports():
+            raise STLError('PING - requires port {0} under service mode'.format(src_port))
+        
+        if not self.ports[src_port].is_l3_mode():
+            raise STLError('PING - requires port {0} under L3 mode configuration'.format(src_port))
+                    
+        
         validate_type('count', count, int)
         validate_type('interval_sec', interval_sec, (int, float))
         
@@ -1975,20 +1984,48 @@ class STLClient(object):
                                                                                        src_port,
                                                                                        pkt_size))
         
+        if is_valid_ipv4(dst_ip):
+            self.__ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
+        else:
+            self.__ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
+        
+            
+         
+    # IPv4 ping           
+    def __ping_ipv4 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+        
+        src_ipv4 =  self.ports[src_port].get_layer_cfg()['ipv4']['src']
+        
+        ctx = self.create_service_ctx(port = src_port)
+        ping = STLServiceICMP(src_ip = src_ipv4, dst_ip = dst_ip, pkt_size = pkt_size)
+        
+        self.logger.log('')
+        for i in range(count):
+            ctx.run(ping)
+            self.logger.log(ping.get_record())
+            
+            if i != (count - 1):
+                time.sleep(interval_sec)
+            
+        
+    # IPv6 ping 
+    def __ping_ipv6 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+        
         responses_arr = []
         # no async messages
         with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
             self.logger.log('')
             dst_mac = None
-            if ':' in dst_ip: # ipv6
-                rc = self.ports[src_port].scan6(dst_ip = dst_ip)
-                if not rc:
-                    raise STLError(rc)
-                replies = rc.data()
-                if len(replies) == 1:
-                    dst_mac = replies[0]['mac']
+        
+            rc = self.ports[src_port].scan6(dst_ip = dst_ip)
+            if not rc:
+                raise STLError(rc)
+            replies = rc.data()
+            if len(replies) == 1:
+                dst_mac = replies[0]['mac']
+                
             for i in range(count):
-                rc = self.ports[src_port].ping(ping_ip = dst_ip, pkt_size = pkt_size, dst_mac = dst_mac)
+                rc = self.ports[src_port].ping_ipv6(ping_ip = dst_ip, pkt_size = pkt_size, dst_mac = dst_mac)
                 if not rc:
                     raise STLError(rc)
                     
@@ -2406,6 +2443,8 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+        return rc
+        
 
     @__api_check(True)
     def stop (self, ports = None, rx_delay_ms = None):
@@ -2905,7 +2944,7 @@ class STLClient(object):
         self.remove_all_streams(ports = ports)
         id_list = self.add_streams(streams, ports)
             
-        self.start(ports = ports, duration = duration, force = force)
+        return self.start(ports = ports, duration = duration, force = force)
 
     
 
@@ -3143,7 +3182,7 @@ class STLClient(object):
             get the port attributes currently set
             
             :parameters:
-                ports          - for which ports to configure service mode on/off
+                port - for which port to return port attributes
            
                      
             :raises:

@@ -955,11 +955,8 @@ class Port(object):
 
 
     @writeable
-    def ping(self, ping_ip, pkt_size, dst_mac = None):
-        if '.' in ping_ip:
-            return RXServiceICMP(self, ping_ip, pkt_size).execute()
-        else:
-            return RXServiceICMPv6(self, pkt_size, dst_mac, dst_ip = ping_ip).execute()
+    def ping_ipv6(self, ping_ip, pkt_size, dst_mac = None):
+        return RXServiceICMPv6(self, pkt_size, dst_mac, dst_ip = ping_ip).execute()
 
         
     ################# stats handler ######################

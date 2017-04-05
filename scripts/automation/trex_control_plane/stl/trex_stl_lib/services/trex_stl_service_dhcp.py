@@ -120,8 +120,8 @@ class STLServiceDHCP(STLService):
                 self.log('DHCP: {0} ---> DISCOVERY'.format(self.mac))
                 
                 # send a discover message
-                pipe.tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                            /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","discover"),"end"]))
+                pipe.async_tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
+                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","discover"),"end"]))
                 
                 self.state = 'SELECTING'
                 continue
@@ -135,6 +135,7 @@ class STLServiceDHCP(STLService):
                 
                 # wait until packet arrives or timeout occurs
                 pkts = yield pipe.async_wait_for_pkt(3)
+                pkts = [pkt['pkt'] for pkt in pkts]
                 
                 offers = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] == self.OFFER]
                 if not offers:
@@ -159,10 +160,11 @@ class STLServiceDHCP(STLService):
                 
                 self.log('DHCP: {0} ---> REQUESTING'.format(self.mac))
                 
-                pipe.tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                            /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self.record.client_ip),"end"]))
+                pipe.async_tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
+                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self.record.client_ip),"end"]))
                 
                 pkts = yield pipe.async_wait_for_pkt(3)
+                pkts = [pkt['pkt'] for pkt in pkts]
                 
                 acknacks = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] in (self.ACK, self.NACK)]
                 if not acknacks:
@@ -197,11 +199,10 @@ class STLServiceDHCP(STLService):
         '''
         self.log('DHCP: {0} ---> RELEASING'.format(self.mac))
         
-        pipe.tx_pkt(Ether(dst=self.record.server_mac)/IP(src=self.record.client_ip,dst=self.record.server_ip)/UDP(sport=68,dport=67) \
-                    /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
-                    /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
+        yield pipe.async_tx_pkt(Ether(dst=self.record.server_mac)/IP(src=self.record.client_ip,dst=self.record.server_ip)/UDP(sport=68,dport=67) \
+                                /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
+                                /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
         
-        yield pipe.async_wait(0)
         
 
     def get_record (self):

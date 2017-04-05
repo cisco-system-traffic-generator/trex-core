@@ -33,28 +33,50 @@ class STLServiceCtx(object):
         and their spawns in parallel
     '''
     def __init__ (self, client, port):
-        self.client     = client
-        self.port       = port
-        #self.env        = simpy.rt.RealtimeEnvironment(factor = 1)
+        self.client       = client
+        self.port         = port
 
-        self._reset()
+        
      
     def _reset (self):
         self.filters    = {}
         self.services   = {}
-        self.tx_buffer  = []
-
+        
         self.active_services = 0
 
 ######### API functions              #########
 
-    def run (self, services):
+    def __sanity (self):
+        if not self.client.ports[self.port].is_up():
+            raise STLError('service context - port {} is down'.format(self.port))
+
+        if not self.client.ports[self.port].is_acquired(): 
+            raise STLError('service context - port {} must be acquired'.format(self.port))
+        
+        if self.client.ports[self.port].is_active():
+            raise STLError('service context - port {} is active'.format(self.port))
+
+        if not self.client.ports[self.port].is_service_mode_on():
+            raise STLError('service context - port {} must be under service mode'.format(self.port))
+
+
+    def run (self, services):  
+        with self.client.logger.supress():
+            return self.__run(services)
+        
+        
+    def __run (self, services):
+        self.__sanity()
+            
+        # prepare
         self._reset()
         
+        # add all services
         self.add(services)
         
         # create an enviorment
-        self.env = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
+        self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
+        self.tx_buffer    = TXBuffer(self.env, self.client, self.port)
         
         # create processes
         for service in self.services:
@@ -63,11 +85,13 @@ class STLServiceCtx(object):
             p = self.env.process(service.run(pipe))
             self._on_process_create(p)
         
-        # set promiscuous mode
+        # save promisicous state and move to enabled
+        is_promiscuous = self.client.get_port_attr(port = self.port)['prom'] == "on"
         self.client.set_port_attr(ports = self.port, promiscuous = True)
-        # move to service mode
-        self.client.set_service_mode(ports = self.port)
 
+        # clear the port
+        self.client.remove_all_streams(ports = self.port)
+        
         try:
             self.capture_id = self.client.start_capture(rx_ports = self.port)['id']
 
@@ -78,10 +102,12 @@ class STLServiceCtx(object):
             self.env.run(until = tick_process)
 
         finally:
+            self.client.stop(ports = self.port)
             self.client.stop_capture(self.capture_id)
-            self.client.reset(ports = self.port)
-            
+            self.client.remove_all_streams(ports = self.port)
+            self.client.set_port_attr(ports = self.port, promiscuous = is_promiscuous)
             self._reset()
+            
             
 ######### internal functions              #########
     
@@ -128,32 +154,32 @@ class STLServiceCtx(object):
 
 
     def _pipe (self):
-        return STLServicePipe(self.env, self.__tx_pkt)
+        return STLServicePipe(self.env, self.tx_buffer)
 
         
     def tick_process (self):
         while True:
             
             # if any packets are pending - send them
-            if self.tx_buffer:
-                # send all the packets
-                self.client.push_packets(ports = self.port, pkts = self.tx_buffer, force = True)
-                self.tx_buffer = []
+            self.tx_buffer.send_all()
 
             # poll for RX
             pkts = []
             self.client.fetch_capture_packets(self.capture_id, pkts)
             
-            scapy_pkts = [Ether(pkt['binary']) for pkt in pkts]
 
             # for each packet - try to forward to each service until we hit
-            for scapy_pkt in scapy_pkts:
+            for pkt in pkts:
+
+                scapy_pkt = Ether(pkt['binary'])
+                rx_ts     = pkt['ts']
+                
                 # go through all filters
                 for service_filter in self.filters.values():
                     # look up for a service that should get this packet
                     service = service_filter.lookup(scapy_pkt)
                     if service:
-                        self.services[service]['pipe'].rx_pkt(scapy_pkt)
+                        self.services[service]['pipe'].rx_pkt(scapy_pkt, rx_ts)
                         break
 
 
@@ -164,7 +190,34 @@ class STLServiceCtx(object):
             # backoff
             yield self.env.timeout(0.1)
 
+            
+class TXBuffer(object):
+    def __init__ (self, env, client, port):
+        self.env    = env
+        self.client = client
+        self.port   = port
+        
+        self.pkts     = []
+        self.tx_event = self.env.event()
+        
+        
+    def push (self, pkt):
+        self.pkts.append(pkt)
+        return self.tx_event
+        
+        
+    def send_all (self):
+        if self.pkts:
+           rc = self.client.push_packets(ports = self.port, pkts = self.pkts, force = True)
+           tx_ts = rc.data()['ts']
 
+           self.pkts = []
+           
+           # mark as TX event happened
+           self.tx_event.succeed(value = {'ts': tx_ts})
+           # create a new event
+           self.tx_event = self.env.event()
+        
 
 class PktRX(simpy.resources.store.StoreGet):
     '''
@@ -214,10 +267,10 @@ class STLServicePipe(object):
         tasks
     '''
 
-    def __init__ (self, env, tx_cb):
-        self.env    = env
-        self.tx_cb  = tx_cb
-        self.pkt    = Pkt(self.env)
+    def __init__ (self, env, tx_buffer):
+        self.env         = env
+        self.tx_buffer   = tx_buffer
+        self.pkt         = Pkt(self.env)
 
     def async_wait (self, time_sec):
         '''
@@ -232,23 +285,38 @@ class STLServicePipe(object):
 
             if 'time_sec' is None will wait infinitly.
             if 'time_sec' is zero it will return immeaditly.
+
+            returns:
+                list of packets
+                ecah packet is a dict:
+                    'pkt' - scapy packet
+                    'ts'  - arrival TS (server time)
         '''
 
         return self.pkt.get(time_sec)
 
 
-    def tx_pkt (self, tx_pkt):
+    def async_tx_pkt (self, tx_pkt):
         '''
             Called by the sender side
             to transmit a packet
+            
+            'tx_pkt' - pkt as a binary to send
+            
+            call can choose to yield for TX actual
+            event or ignore
+
+            returns:
+                dict:
+                    'ts' - TX timestamp (server time)
         '''
-        self.tx_cb(tx_pkt)
+        return self.tx_buffer.push(tx_pkt)
 
 
-    def rx_pkt (self, pkt):
+    def rx_pkt (self, pkt, rx_ts):
         '''
             Called by the reciver side
             (the service)
         '''
-        self.pkt.put(pkt)
+        self.pkt.put({'pkt': pkt, 'ts': rx_ts})
 
