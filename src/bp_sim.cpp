@@ -101,12 +101,13 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     m_mbuf[MBUF_4096] += info.m_mbuf[TRAFFIC_MBUF_4096];
     m_mbuf[MBUF_9k]   += info.m_mbuf[MBUF_9k];
 
-    for (i=0; i<MBUF_1024; i++) {
-        float per_queue_factor= (float)m_mbuf[i]/((float)m_pool_cache_size*(float)m_num_cores);
-        if (per_queue_factor<2.0) {
-            printf("WARNING not enough mbuf memory for this configuration trying to auto update\n");
-            printf(" %d : %f \n",(int)i,per_queue_factor);
-            m_mbuf[i]=(uint32_t)(m_mbuf[i]*2.0/per_queue_factor);
+    // We want minimum amount of mbufs from each type, in order to support various extream TX scenarios.
+    // We can consider allowing the user to manually define less mbufs. If for example, a user knows he
+    // will not send packets larger than 2k, we can zero the 4k and 9k pools, saving lots of memory.
+    uint32_t min_pool_size = m_pool_cache_size * m_num_cores * 2;
+    for (i = MBUF_64; i <= MBUF_9k; i++) {
+        if (m_mbuf[i] < min_pool_size) {
+            m_mbuf[i] = min_pool_size;
         }
     }
 }
@@ -597,72 +598,36 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
     CRteMemPool * lpmem;
     lp->m_mbuf[rx_pool] += rx_buffers;
 
-    int i;
-    for (i=0; i<(int)MAX_SOCKETS_SUPPORTED; i++) {
-        if (lpSocket->is_sockets_enable((socket_id_t)i)) {
-            lpmem= &m_mem_pool[i];
-            lpmem->m_pool_id=i;
+    for (int sock = 0;  sock < MAX_SOCKETS_SUPPORTED; sock++) {
+        if (lpSocket->is_sockets_enable((socket_id_t)sock)) {
+            lpmem = &m_mem_pool[sock];
+            lpmem->m_pool_id = sock;
+            struct {
+                char pool_name[100];
+                rte_mempool_t **pool_p;
+                uint32_t pool_type;
+                uint32_t mbuf_size;
+            }  pools [] = {
+                { "small-pkt-const", &lpmem->m_small_mbuf_pool, MBUF_64, CONST_SMALL_MBUF_SIZE },
+                { "_128-pkt-const", &lpmem->m_mbuf_pool_128, MBUF_128, CONST_128_MBUF_SIZE },
+                { "_256-pkt-const", &lpmem->m_mbuf_pool_256, MBUF_256, CONST_256_MBUF_SIZE },
+                { "_512-pkt-const", &lpmem->m_mbuf_pool_512, MBUF_512, CONST_512_MBUF_SIZE },
+                { "_1024-pkt-const", &lpmem->m_mbuf_pool_1024, MBUF_1024, CONST_1024_MBUF_SIZE },
+                { "_2048-pkt-const", &lpmem->m_mbuf_pool_2048, MBUF_2048, CONST_2048_MBUF_SIZE },
+                { "_4096-pkt-const", &lpmem->m_mbuf_pool_4096, MBUF_4096, CONST_4096_MBUF_SIZE },
+                { "_9k-pkt-const", &lpmem->m_mbuf_pool_9k, MBUF_9k, CONST_9k_MBUF_SIZE },
+            };
 
-
-            /* this include the packet from 0-64 this is for small packets */
-            lpmem->m_small_mbuf_pool =utl_rte_mempool_create("small-pkt-const",
-                                                      lp->m_mbuf[MBUF_64],
-                                                       CONST_SMALL_MBUF_SIZE,
-                                                       32,(i<<5)+ 2,i);
-            assert(lpmem->m_small_mbuf_pool);
-
-
-
-
-            lpmem->m_mbuf_pool_128=utl_rte_mempool_create("_128-pkt-const",
-                                                       lp->m_mbuf[MBUF_128],
-                                                       CONST_128_MBUF_SIZE,
-                                                       32,(i<<5)+ 6,i);
-
-
-            assert(lpmem->m_mbuf_pool_128);
-
-
-            lpmem->m_mbuf_pool_256=utl_rte_mempool_create("_256-pkt-const",
-                                                   lp->m_mbuf[MBUF_256],
-                                                   CONST_256_MBUF_SIZE,
-                                                   32,(i<<5)+ 3,i);
-
-            assert(lpmem->m_mbuf_pool_256);
-
-            lpmem->m_mbuf_pool_512=utl_rte_mempool_create("_512_-pkt-const",
-                                                   lp->m_mbuf[MBUF_512],
-                                                   CONST_512_MBUF_SIZE,
-                                                   32,(i<<5)+ 4,i);
-            assert(lpmem->m_mbuf_pool_512);
-
-            lpmem->m_mbuf_pool_1024=utl_rte_mempool_create("_1024-pkt-const",
-                                                    lp->m_mbuf[MBUF_1024],
-                                                    CONST_1024_MBUF_SIZE,
-                                                    32,(i<<5)+ 5,i);
-
-            assert(lpmem->m_mbuf_pool_1024);
-
-            lpmem->m_mbuf_pool_2048=utl_rte_mempool_create("_2048-pkt-const",
-                                                    lp->m_mbuf[MBUF_2048],
-                                                    CONST_2048_MBUF_SIZE,
-                                                    32,(i<<5)+ 5,i);
-
-            assert(lpmem->m_mbuf_pool_2048);
-
-            lpmem->m_mbuf_pool_4096=utl_rte_mempool_create("_4096-pkt-const",
-                                                    lp->m_mbuf[MBUF_4096],
-                                                    CONST_4096_MBUF_SIZE,
-                                                    32,(i<<5)+ 5,i);
-
-            assert(lpmem->m_mbuf_pool_4096);
-
-            lpmem->m_mbuf_pool_9k=utl_rte_mempool_create("_9k-pkt-const",
-                                                    lp->m_mbuf[MBUF_9k],
-                                                    CONST_9k_MBUF_SIZE,
-                                                    32,(i<<5)+ 5,i);
-
-            assert(lpmem->m_mbuf_pool_9k);
+            for (int j = 0; j < sizeof(pools)/ sizeof(pools[0]); j++) {
+                *pools[j].pool_p = utl_rte_mempool_create(pools[j].pool_name,
+                                                         lp->m_mbuf[pools[j].pool_type]
+                                                         , pools[j].mbuf_size, 32, sock);
+                if (*pools[j].pool_p == NULL) {
+                    fprintf(stderr, "Error: Failed creaating %s mbuf pool with %d mbufs. Exiting\n"
+                            , pools[j].pool_name, lp->m_mbuf[pools[j].pool_type]);
+                    exit(1);
+                }
+            }
 
         }
     }
@@ -672,12 +637,8 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
                                                          lp->m_mbuf[MBUF_GLOBAL_FLOWS],
                                                          sizeof(CGenNode),
                                                          128,
-                                                         0 ,
                                                          SOCKET_ID_ANY);
-
     assert(m_mem_pool[0].m_mbuf_global_nodes);
-
-
 }
 
 
@@ -3523,7 +3484,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  CGlobalInfo::m_memory_cfg.get_each_core_dp_flows(),
                                                  sizeof(CGenNode),
                                                  128,
-                                                 0 ,
                                                  socket_id);
 
      RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV); 

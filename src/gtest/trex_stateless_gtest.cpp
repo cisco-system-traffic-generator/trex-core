@@ -4571,7 +4571,7 @@ TEST_F(flow_stat_lat, pkt_decode) {
     fsp_head.seq = 0x87654321;
     fsp_head.time_stamp = 0x8765432187654321;
 
-    rte_mempool_t * mp1=utl_rte_mempool_create("big-const", 10, 2048, 32, 0, 0);
+    rte_mempool_t * mp1=utl_rte_mempool_create("big-const", 10, 2048, 32, 0);
 
     // case 1 - data split between two mbufs
     rte_mbuf_t * m1 = rte_pktmbuf_alloc(mp1);
