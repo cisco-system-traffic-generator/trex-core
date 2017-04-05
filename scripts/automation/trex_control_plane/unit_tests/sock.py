@@ -11,6 +11,7 @@ import texttable
 class sock_driver(object):
     args = None;
     cap_server_port = None
+    proto = None
 
 def fail(msg):
     print('\nError: %s\n' % msg)
@@ -60,8 +61,14 @@ class CPcapFileReader:
                 fail('Packet #%s in pcap has both TCP and UDP!' % index)
             elif tcp:
                 l4 = tcp
+                if sock_driver.proto not in (None, 'TCP'):
+                    fail('You have mix of TCP and %s in the pcap!' % sock_driver.proto)
+                sock_driver.proto = 'TCP'
             elif udp:
                 l4 = udp
+                if sock_driver.proto not in (None, 'UDP'):
+                    fail('You have mix of UDP and %s in the pcap!' % sock_driver.proto)
+                sock_driver.proto = 'UDP'
             else:
                 scapy_pkt.show2()
                 fail('Packet #%s in pcap is not TCP or UDP.' % index)
@@ -123,14 +130,19 @@ class CPcapFileReader:
 class CClientServerCommon(object):
 
     def send_pkt(self, pkt):
-        self.connection.sendall(pkt)
+        if sock_driver.proto == 'TCP':
+            self.connection.sendall(pkt)
+        else:
+            self.connection.sendto(pkt, self.send_addr)
         print('>>> sent %d bytes' % (len(pkt)))
 
     def rcv_pkt(self, pkt):
         size = len(pkt)
         rcv = b''
         while len(rcv) < size:
-            chunk = self.connection.recv(min(size - len(rcv), 2048))
+            chunk, addr = self.connection.recvfrom(min(size - len(rcv), 2048))
+            if sock_driver.proto == 'UDP':
+                self.send_addr = addr
             if not chunk:
                 raise Exception('Socket connection broken')
             rcv += chunk
@@ -150,13 +162,13 @@ class CClientServerCommon(object):
             else:
                 self.send_pkt(pkt['pld'])
 
-        self.connection.close()
-        self.connection = None
-
 
 class CServer(CClientServerCommon) :
     def __init__ (self, pcapr, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if sock_driver.proto == 'TCP':
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        else:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         server_address = ('', port)
@@ -165,8 +177,12 @@ class CServer(CClientServerCommon) :
             sock.bind(server_address)
         except socket.error as e:
             fail(e)
-        sock.listen(1)
-        self.connection = None
+
+        if sock_driver.proto == 'TCP':
+            sock.listen(1)
+            self.connection = None
+        else:
+            self.connection = sock
 
         self.pcapr=pcapr; # save the info
 
@@ -174,10 +190,11 @@ class CServer(CClientServerCommon) :
             try:
                 # Wait for a connection
                 print('Waiting for new connection')
-                self.connection, client_address = sock.accept()
+                if sock_driver.proto == 'TCP':
+                    self.connection, client_address = sock.accept()
+                    print('Got connection from %s:%s' % client_address)
 
-                print('Got connection from %s:%s' % client_address)
-                self.process(False)
+                self.process(is_client = False)
 
             except KeyboardInterrupt:
                 print('    Ctrl+C')
@@ -185,36 +202,40 @@ class CServer(CClientServerCommon) :
             except Exception as e:
                 print(e)
             finally:
-                if self.connection :
+                if self.connection and sock_driver.proto == 'TCP':
                    self.connection.close()
                    self.connection = None
 
 
 class CClient(CClientServerCommon):
     def __init__ (self, pcapr, ip, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if sock_driver.proto == 'TCP':
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        else:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         server_address = (ip, port)
+        self.send_addr = server_address
         self.pcapr = pcapr # save the info
-        self.connection = None
 
         try:
-            print('Connecting to %s:%s' % server_address)
-            sock.connect(server_address)
+            if sock_driver.proto == 'TCP':
+                print('Connecting to %s:%s' % server_address)
+                sock.connect(server_address)
             self.connection = sock
 
-            self.process(True);
+            self.process(is_client = True);
         except KeyboardInterrupt:
             print('    Ctrl+C')
         finally:
-            if self.connection :
+            if self.connection:
                self.connection.close()
                self.connection = None
 
 
 def process_options ():
     parser = argparse.ArgumentParser(
-        description = 'Simulates TCP application in low rate by sending payloads of given pcap.',
-        usage="""    
+        description = 'Simulates TCP application in low rate by sending payloads of given pcap. Requires single flow in pcap. Usage with UDP is experimential and assumes no drops.',
+        usage="""
     Server side: (should be run first, need sudo permissions to use server side ports lower than 1024.)
         sock.py -s -f filename
     Client side:
