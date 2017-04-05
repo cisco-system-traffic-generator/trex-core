@@ -167,8 +167,8 @@ class STLRX_Test(CStlGeneral_Test):
             self.vlan_support = False
             self.qinq_support = False
 
-        #trex25 has router which does not pass vlan
-        if CTRexScenario.setup_name == 'trex25':
+        # currently we are not configuring router to vlans
+        if not self.is_loopback:
             self.vlan_support = False
             self.qinq_support = False
 
