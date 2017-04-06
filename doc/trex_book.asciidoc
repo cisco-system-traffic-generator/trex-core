@@ -119,6 +119,13 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 | RAID | No RAID.
 | Riser 1/2 | Both left and right should support x16 PCIe. Right (Riser1) should be from option A x16 and Left (Riser2) should be x16. Need to order both.
 |=================
+
+
+[IMPORTANT]
+=====================================
+In all bare metal cases, it's important to have 4 DRAM channels. less channels will impose a performance issue.
+to test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANNEL x 
+=====================================
  
 .Supported NICs
 [options="header",cols="1,1,4",width="90%"]
@@ -2869,6 +2876,24 @@ for example to change to 50Gb speed
 $sudo ethtool -s enp135s0f1 speed 50000 autoneg off
 ----
 
+* Check how many DRAM channels are installed. Less than 4 will impose latency and performance issue 
+
+[source,bash]
+----
+$sudo dmidecode -t memory | grep CHANNEL
+Bank Locator: NODE 0 CHANNEL 0 DIMM 0
+Bank Locator: NODE 0 CHANNEL 0 DIMM 1
+Bank Locator: NODE 0 CHANNEL 0 DIMM 2
+Bank Locator: NODE 0 CHANNEL 1 DIMM 0
+Bank Locator: NODE 0 CHANNEL 1 DIMM 1
+Bank Locator: NODE 0 CHANNEL 1 DIMM 2
+Bank Locator: NODE 0 CHANNEL 2 DIMM 0
+Bank Locator: NODE 0 CHANNEL 2 DIMM 1
+Bank Locator: NODE 0 CHANNEL 2 DIMM 2
+Bank Locator: NODE 0 CHANNEL 3 DIMM 0
+Bank Locator: NODE 0 CHANNEL 3 DIMM 1
+Bank Locator: NODE 0 CHANNEL 3 DIMM 2
+----
 
  
 
