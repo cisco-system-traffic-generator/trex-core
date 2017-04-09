@@ -58,7 +58,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     stream->m_enabled         = parse_bool(section, "enabled", result);
     stream->m_self_start      = parse_bool(section, "self_start", result);
     stream->m_flags           = parse_int(section, "flags", result);
-    stream->m_action_count    = parse_uint16(section, "action_count", result);
+    stream->m_action_count    = parse_uint32(section, "action_count", result);
     stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
     stream->set_null_stream(stream->m_flags & 8);
 

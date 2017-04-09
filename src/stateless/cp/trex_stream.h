@@ -535,7 +535,7 @@ public:
     uint16_t      m_flags;
 
     uint32_t      m_stream_id;              /* id from RPC can be anything */
-    uint16_t      m_action_count;       
+    uint32_t      m_action_count;
     uint16_t      m_cache_size;
     uint32_t      m_random_seed;
     
