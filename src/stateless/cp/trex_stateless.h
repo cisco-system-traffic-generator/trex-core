@@ -165,8 +165,6 @@ public:
         return m_api_classes[type].get_api_handler();
     }
 
-    CFlowStatRuleMgr                     m_rx_flow_stat;
-
 protected:
 
     /* no copy or assignment */

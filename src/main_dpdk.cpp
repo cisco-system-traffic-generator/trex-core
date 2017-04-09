@@ -103,9 +103,6 @@ extern "C" int rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uin
 void set_driver();
 void reorder_dpdk_ports();
 
-static int max_stat_hw_id_seen = 0;
-static int max_stat_hw_id_seen_payload = 0;
-
 static inline int get_is_rx_thread_enabled() {
     return ((CGlobalInfo::m_options.is_rx_enabled() || CGlobalInfo::m_options.is_stateless()) ?1:0);
 }
@@ -2385,9 +2382,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
     if (hw_id >= MAX_FLOW_STATS) {
         // payload rule hw_ids are in the range right above ip id rules
         uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
-        if (hw_id_payload > max_stat_hw_id_seen_payload) {
-            max_stat_hw_id_seen_payload = hw_id_payload;
-        }
 
         mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
         fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
@@ -2406,9 +2400,6 @@ int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * no
 #endif
     } else {
         // ip id rule
-        if (hw_id > max_stat_hw_id_seen) {
-            max_stat_hw_id_seen = hw_id;
-        }
         mi = m;
     }
     tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
@@ -4329,11 +4320,12 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_tx_pps +=_if->get_last_tx_pps_rate();
         total_rx_pps +=_if->get_last_rx_pps_rate();
         // IP ID rules
-        for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
+        for (int flow = 0; flow <= CFlowStatRuleMgr::instance()->get_max_hw_id(); flow++) {
             stats.m_port[i].m_tx_per_flow[flow].clear();
         }
         // payload rules
-        for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
+        for (int flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS
+                 + CFlowStatRuleMgr::instance()->get_max_hw_id_payload(); flow++) {
             stats.m_port[i].m_tx_per_flow[flow].clear();
         }
 
@@ -4391,14 +4383,15 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         total_nat_learn_error   +=lpt->m_stats.m_nat_flow_learn_error;
         uint8_t port0 = lpt->getDualPortId() *2;
         // IP ID rules
-        for (uint16_t flow = 0; flow <= max_stat_hw_id_seen; flow++) {
+        for (int flow = 0; flow <= CFlowStatRuleMgr::instance()->get_max_hw_id(); flow++) {
             stats.m_port[port0].m_tx_per_flow[flow] +=
                 lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_per_flow[flow];
             stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
                 lpt->m_node_gen.m_v_if->get_stats()[1].m_tx_per_flow[flow];
         }
         // payload rules
-        for (uint16_t flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS + max_stat_hw_id_seen_payload; flow++) {
+        for (int flow = MAX_FLOW_STATS; flow <= MAX_FLOW_STATS
+                 + CFlowStatRuleMgr::instance()->get_max_hw_id_payload(); flow++) {
             stats.m_port[port0].m_tx_per_flow[flow] +=
                 lpt->m_node_gen.m_v_if->get_stats()[0].m_tx_per_flow[flow];
             stats.m_port[port0 + 1].m_tx_per_flow[flow] +=
@@ -4585,7 +4578,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     if (get_is_stateless()) {
         std::string stat_json;
         std::string latency_json;
-        if (m_trex_stateless->m_rx_flow_stat.dump_json(stat_json, latency_json, baseline, sync_now)) {
+        if (CFlowStatRuleMgr::instance()->dump_json(stat_json, latency_json, baseline, sync_now)) {
             m_zmq_publisher.publish_json(stat_json);
             m_zmq_publisher.publish_json(latency_json);
         }
@@ -7579,7 +7572,7 @@ void TrexDpdkPlatformApi::flush_dp_messages() const {
 }
 
 int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
-    return g_trex.m_trex_stateless->m_rx_flow_stat.get_active_pgids(result);
+    return CFlowStatRuleMgr::instance()->get_active_pgids(result);
 }
 
 int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {

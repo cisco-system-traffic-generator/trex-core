@@ -458,7 +458,12 @@ class CFlowStatRuleMgr {
         FLOW_STAT_MODE_PASS_ALL,
     };
 
-    CFlowStatRuleMgr();
+    // make the clase singelton
+    static CFlowStatRuleMgr *instance() {
+        if (! m_pInstance)
+            m_pInstance = new CFlowStatRuleMgr;
+        return m_pInstance;
+	}
     ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     void copy_state(TrexStream * from, TrexStream * to);
@@ -470,9 +475,14 @@ class CFlowStatRuleMgr {
     int stop_stream(TrexStream * stream);
     int get_active_pgids(flow_stat_active_t &result);
     int set_mode(enum flow_stat_mode_e mode);
+    int get_max_hw_id() {return m_max_hw_id;}
+    int get_max_hw_id_payload() {return m_max_hw_id_payload;}
     bool dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all);
 
  private:
+    CFlowStatRuleMgr();
+    CFlowStatRuleMgr(CFlowStatRuleMgr const&) {};
+    //    CFlowStatRuleMgr& operator=(CFlowStatRuleMgr const&) {};
     void create();
     int compile_stream(const TrexStream * stream, CFlowStatParser *parser);
     int add_stream_internal(TrexStream * stream, bool do_action);
@@ -480,6 +490,7 @@ class CFlowStatRuleMgr {
     void send_start_stop_msg_to_rx(bool is_start);
 
  private:
+    static CFlowStatRuleMgr *m_pInstance;
     CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
     CFlowStatHwIdMap m_hw_id_map_payload; // map hw id numbers of payload rules to user ids
     CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
@@ -497,6 +508,13 @@ class CFlowStatRuleMgr {
     uint16_t m_ip_id_reserve_base; // lowest IP ID we use for our needs
     uint32_t m_rx_cant_count_err[TREX_MAX_PORTS];
     uint32_t m_tx_cant_count_err[TREX_MAX_PORTS];
+    // Following are only used in dump_json for temporary storage. Since They sum up to around 64K
+    // we don't want to allocate them on the stack in the function.
+    rx_per_flow_t m_rx_stats[MAX_FLOW_STATS];
+    rx_per_flow_t m_rx_stats_payload[MAX_FLOW_STATS];
+    tx_per_flow_t m_tx_stats[MAX_FLOW_STATS];
+    tx_per_flow_t m_tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
+    rfc2544_info_t m_rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
 };
 
 #endif
