@@ -467,6 +467,10 @@ void CGenNodeStateless::free_stl_vm_buf(){
 
 void CGenNodeStateless::free_stl_node(){
 
+    if ( is_mask_for_free() ) {
+        return;
+    }
+
     if ( is_cache_mbuf_array() ){
         /* do we have cache of mbuf pre allocated */
         cache_mbuf_array_free();

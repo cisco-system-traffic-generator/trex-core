@@ -170,10 +170,14 @@ public:
 
     }
     inline void mark_for_free(){
-        set_state(CGenNodeStateless::ss_FREE_RESUSE);
-        /* only to be safe */
-        m_ref_stream_info= NULL;
-        m_next_stream= NULL;
+        if (m_state != CGenNodeStateless::ss_FREE_RESUSE) {
+            /* must be first */
+            free_stl_node();
+            set_state(CGenNodeStateless::ss_FREE_RESUSE);
+            /* only to be safe */
+            m_ref_stream_info= NULL;
+            m_next_stream= NULL;
+        }
     }
 
     bool is_pause(){
