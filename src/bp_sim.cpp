@@ -6967,9 +6967,7 @@ void CGenNodeBase::free_base(){
     }
     if (m_type==STATELESS_PKT) {
          CGenNodeStateless* p=(CGenNodeStateless*)this;
-         if (!p->is_mask_for_free() ){
-             p->free_stl_node();
-         }
+         p->free_stl_node();
         return;
     }
 
