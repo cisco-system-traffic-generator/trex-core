@@ -38,96 +38,95 @@ using namespace std;
 trex_rpc_cmd_rc_e
 TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
-    uint8_t port_id = parse_port(params, result);
-
-    uint32_t stream_id  = parse_uint32(params, "stream_id", result);
-
-    const Json::Value &section = parse_object(params, "stream", result);
-
-    /* get the type of the stream */
-    const Json::Value &mode = parse_object(section, "mode", result);
-    string type = parse_string(mode, "type", result);
-
-    /* allocate a new stream based on the type */
-    std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, stream_id, result);
-
-    /* save this for future queries */
-    stream->store_stream_json(section);
-
-    /* some fields */
-    stream->m_enabled         = parse_bool(section, "enabled", result);
-    stream->m_self_start      = parse_bool(section, "self_start", result);
-    stream->m_flags           = parse_int(section, "flags", result);
-    stream->m_action_count    = parse_uint32(section, "action_count", result);
-    stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
-    stream->set_null_stream(stream->m_flags & 8);
-
-    /* inter stream gap */
-    stream->m_isg_usec  = parse_udouble(section, "isg", result);
-
-    stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
-
-    const Json::Value &pkt = parse_object(section, "packet", result);
-    std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
-
-    /* check packet size */
-    if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
-        std::stringstream ss;
-        ss << "Bad packet size provided: " << pkt_binary.size() <<  ". Should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
-        generate_execute_err(result, ss.str()); 
-    }
-
-    /* fetch the packet from the message */
-
-    stream->m_pkt.len    = std::max(pkt_binary.size(), 60UL);
-
-    /* allocate and init to zero ( with () ) */
-    stream->m_pkt.binary = new uint8_t[stream->m_pkt.len]();
-    if (!stream->m_pkt.binary) {
-        generate_internal_err(result, "unable to allocate memory");
-    }
-
-    const char *pkt_buffer = pkt_binary.c_str();
-
-    /* copy the packet - if less than 60 it will remain zeroes */
-    for (int i = 0; i < pkt_binary.size(); i++) {
-        stream->m_pkt.binary[i] = pkt_buffer[i];
-    }
-
-    /* meta data */
-    stream->m_pkt.meta = parse_string(pkt, "meta", result);
-
-    /* parse VM */
-    const Json::Value &vm =  parse_object(section ,"vm", result);
-    parse_vm(vm, stream, result);
-
-    /* parse RX info */
-    const Json::Value &rx = parse_object(section, "flow_stats", result);
-
-    stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
-
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
-
-    /* if it is enabled - we need more fields */
-    if (stream->m_rx_check.m_enabled) {
-
-        if (port->get_rx_caps() == 0) {
-            generate_parse_err(result, "RX stats is not supported on this interface");
-        }
-
-        stream->m_rx_check.m_pg_id      = parse_uint32(rx, "stream_id", result);
-        std::string type = parse_string(rx, "rule_type", result);
-        if (type == "latency") {
-            stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
-        } else {
-            stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
-        }
-    }
-
-    /* make sure this is a valid stream to add */
-    validate_stream(stream, result);
-
     try {
+        uint8_t port_id = parse_port(params, result);
+
+        uint32_t stream_id  = parse_uint32(params, "stream_id", result);
+
+        const Json::Value &section = parse_object(params, "stream", result);
+
+        /* get the type of the stream */
+        const Json::Value &mode = parse_object(section, "mode", result);
+        string type = parse_string(mode, "type", result);
+
+        /* allocate a new stream based on the type */
+        std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, stream_id, result);
+
+        /* save this for future queries */
+        stream->store_stream_json(section);
+
+        /* some fields */
+        stream->m_enabled         = parse_bool(section, "enabled", result);
+        stream->m_self_start      = parse_bool(section, "self_start", result);
+        stream->m_flags           = parse_int(section, "flags", result);
+        stream->m_action_count    = parse_uint32(section, "action_count", result);
+        stream->m_random_seed     = parse_uint32(section, "random_seed", result,0); /* default is zero */
+        stream->set_null_stream(stream->m_flags & 8);
+
+        /* inter stream gap */
+        stream->m_isg_usec  = parse_udouble(section, "isg", result);
+
+        stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
+
+        const Json::Value &pkt = parse_object(section, "packet", result);
+        std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
+
+        /* check packet size */
+        if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
+            std::stringstream ss;
+            ss << "Bad packet size provided: " << pkt_binary.size() <<  ". Should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
+            generate_execute_err(result, ss.str()); 
+        }
+
+        /* fetch the packet from the message */
+
+        stream->m_pkt.len    = std::max(pkt_binary.size(), 60UL);
+
+        /* allocate and init to zero ( with () ) */
+        stream->m_pkt.binary = new uint8_t[stream->m_pkt.len]();
+        if (!stream->m_pkt.binary) {
+            generate_internal_err(result, "unable to allocate memory");
+        }
+
+        const char *pkt_buffer = pkt_binary.c_str();
+
+        /* copy the packet - if less than 60 it will remain zeroes */
+        for (int i = 0; i < pkt_binary.size(); i++) {
+            stream->m_pkt.binary[i] = pkt_buffer[i];
+        }
+
+        /* meta data */
+        stream->m_pkt.meta = parse_string(pkt, "meta", result);
+
+        /* parse VM */
+        const Json::Value &vm =  parse_object(section ,"vm", result);
+        parse_vm(vm, stream, result);
+
+        /* parse RX info */
+        const Json::Value &rx = parse_object(section, "flow_stats", result);
+
+        stream->m_rx_check.m_enabled = parse_bool(rx, "enabled", result);
+
+        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
+
+        /* if it is enabled - we need more fields */
+        if (stream->m_rx_check.m_enabled) {
+
+            if (port->get_rx_caps() == 0) {
+                generate_parse_err(result, "RX stats is not supported on this interface");
+            }
+
+            stream->m_rx_check.m_pg_id      = parse_uint32(rx, "stream_id", result);
+            std::string type = parse_string(rx, "rule_type", result);
+            if (type == "latency") {
+                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+            } else {
+                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+            }
+        }
+
+        /* make sure this is a valid stream to add */
+        validate_stream(stream, result);
         port->add_stream(stream.get());
         stream.release();
     } catch (const TrexException &ex) {

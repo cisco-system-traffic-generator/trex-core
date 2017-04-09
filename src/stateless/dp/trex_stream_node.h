@@ -102,8 +102,8 @@ private:
     uint32_t            m_action_counter;
     uint16_t            m_stat_hw_id; // hw id used to count rx and tx stats
     uint16_t            m_cache_array_cnt;
-    uint8_t             m_null_stream;
 
+    uint8_t             m_null_stream;
     stream_state_t      m_state;
     uint8_t             m_stream_type; /* see TrexStream::STREAM_TYPE ,stream_type_t */
     uint8_t             m_pause;
