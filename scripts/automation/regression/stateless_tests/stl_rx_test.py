@@ -378,8 +378,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if self.drv_name == 'net_i40e_vf':
-            self.skip('Not running on i40 vf or Mellanox currently')
+        if self.drv_name == 'net_i40e_vf' or (self.drv_name == 'net_mlx5' and self.is_vf_nics):
+            self.skip('Not running on i40 vf or Mellanox VF currently')
         self._test_multiple_streams(True)
 
     def _test_multiple_streams(self, is_random):
