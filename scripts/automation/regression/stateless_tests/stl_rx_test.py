@@ -386,6 +386,9 @@ class STLRX_Test(CStlGeneral_Test):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
 
+        all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
+        self.c.reset(ports = all_ports)
+
         if is_random:
             num_latency_streams = random.randint(1, 128);
             num_flow_stat_streams = random.randint(1, self.max_flow_stats);
