@@ -36,6 +36,6 @@
 trex:
   hostname       : csi-trex-11
   cores          : 1
-  modes          : ['loopback']
+  modes          : ['loopback', 'VM']
 
 
