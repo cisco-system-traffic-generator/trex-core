@@ -159,7 +159,7 @@ public:
         m_percentage = 0;
 
         if ( value <= 0 ) {
-            throw TrexException("Rate value shound be positive.");
+            throw TrexException("Rate value should be positive.");
         }
 
         switch (type) {
