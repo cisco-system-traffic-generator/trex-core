@@ -37,8 +37,8 @@ if __name__ == '__main__':
                         help = 'Port of Master daemon.\nDefault is 8091.')
     args = parser.parse_args()
 
-    server = jsonrpclib.Server('http://%s:%s' % (args.server, args.port))
-    master = jsonrpclib.Server('http://%s:%s' % (args.server, args.master_port))
+    server = jsonrpclib.Server('http://%s:%s' % (args.server, args.port), timeout = 15)
+    master = jsonrpclib.Server('http://%s:%s' % (args.server, args.master_port), timeout = 15)
 
 # Connecting
 

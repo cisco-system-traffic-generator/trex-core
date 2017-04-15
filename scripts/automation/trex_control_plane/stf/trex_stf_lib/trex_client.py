@@ -40,7 +40,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = ''):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = '', timeout = 30):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -76,6 +76,10 @@ class CTRexClient(object):
              trex_args : string
                 additional arguments passed to TRex. For example, "-w 3 --no-watchdog"
 
+             timeout : int
+                timeout in seconds to wait for socket response
+                default value: **30**
+
         :raises:
             socket errors, in case server could not be reached.
 
@@ -94,9 +98,9 @@ class CTRexClient(object):
         self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
         self.history                = jsonrpclib.history.History()
         self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
-        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history)
+        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history, timeout = timeout)
         self.trex_server_path       = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history)
+        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history, timeout = timeout)
         self.debug_image            = debug_image
         self.trex_args              = trex_args
         self.sample_to_run_finish   = self.sample_until_finish # alias for legacy
@@ -1002,6 +1006,7 @@ class CTRexClient(object):
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
                 raise socket.error(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
+            raise
         finally:
             self.prompt_verbose_data()
 
@@ -1029,6 +1034,7 @@ class CTRexClient(object):
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
                 raise socket.error(errno.ECONNREFUSED, "Connection to Master daemon was refused. Please make sure the server is up.")
+            raise
         finally:
             self.prompt_verbose_data()
 
