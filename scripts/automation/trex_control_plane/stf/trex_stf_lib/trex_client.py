@@ -116,10 +116,21 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    # internal method which polls for TRex state until it's running or timeout happens
+    def _block_to_success(self, timeout, poll_interval = 1):
+        if not timeout:
+            raise Exception("'timeout' should be positive integer in case of 'block_to_success'")
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            if self.get_running_status()['state'] == TRexStatus.Running:
+                return
+            time.sleep(poll_interval)
+        raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
+
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
         """
         Request to start a TRex run on server in stateful mode.
-                
+
         :parameters:  
             f : str
                 a path (on server) for the injected traffic data (.yaml file)
@@ -164,7 +175,7 @@ class CTRexClient(object):
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, False, self.debug_image, self.trex_args)
+            retval = self.server.start_trex(trex_cmd_options, user, False, None, False, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -172,7 +183,10 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-        if retval!=0:   
+        if block_to_success:
+            self._block_to_success(timeout)
+
+        if retval!=0:
             self.seq = retval   # update seq num only on successful submission
             return True
         else:   # TRex is has been started by another user
@@ -182,7 +196,7 @@ class CTRexClient(object):
     def start_stateless(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
         """
         Request to start a TRex run on server in stateless mode.
-                
+
         :parameters:  
             block_to_success : bool
                 determine if this method blocks until TRex changes state from 'Starting' to either 'Idle' or 'Running'
@@ -206,11 +220,11 @@ class CTRexClient(object):
             + :exc:`trex_exceptions.TRexInUseError`, in case TRex is already taken.
             + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying start TRex.
             + ProtocolError, in case of error in JSON-RPC protocol.
-        
+
         """
         try:
             user = user or self.__default_user
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True, self.debug_image, self.trex_args)
+            retval = self.server.start_trex(trex_cmd_options, user, False, None, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -218,7 +232,10 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-        if retval!=0:   
+        if block_to_success:
+            self._block_to_success(timeout)
+
+        if retval!=0:
             self.seq = retval   # update seq num only on successful submission
             return True
         else:   # TRex is has been started by another user
