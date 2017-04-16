@@ -467,6 +467,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         client = CTRexScenario.trex
         if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
             fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
+
         ret, out, err = misc_methods.run_command('sha1sum -b %s' % self.pkg)
         if ret:
             fatal('Could not calculate sha1 of package. Got: %s' % [ret, out, err])
@@ -475,34 +476,28 @@ class CTRexTestConfiguringPlugin(Plugin):
             print('Server is up to date with package: %s' % self.pkg)
             CTRexScenario.pkg_updated = True
             return
+
         print('Updating TRex to: %s' % self.pkg)
-        try:
-            success = client.master_daemon.update_trex(self.pkg)
-            if not success:
-                fatal('Failed to update TRex.')
-            print('Updated.')
-            CTRexScenario.pkg_updated = True
-            return
-        except socket.timeout: # need to wait longer, let's poll
-            pass
-        sys.stdout.write('Timeout of connection, polling until our timeout of 5 minutes')
+        client.master_daemon.update_trex(self.pkg)
+        sys.stdout.write('Waiting for update to finish')
         sys.stdout.flush()
         start_time = time.time()
-        while time.time() < start_time + timeout:
+        while True:
+            if time.time() > start_time + timeout:
+                fatal(' timeout of %ss while updating TRex!' % timeout)
             sys.stdout.write('.')
             sys.stdout.flush()
-            try:
-                master_pkg_sha1 = client.master_daemon.get_package_sha1()
-                if master_pkg_sha1 == sha1:
-                    print(' Updated.')
-                    CTRexScenario.pkg_updated = True
-                    return
-                else:
-                    fatal('Failed to update TRex, stuck with different package.')
-            except socket.timeout: # master is busy updating
-                pass
             time.sleep(1)
-        fatal(' Failed to update TRex. Timeout of 5 minutes passed...')
+            if not client.master_daemon.is_updating():
+                print(' finished.')
+                break
+
+        master_pkg_sha1 = client.master_daemon.get_package_sha1()
+        if master_pkg_sha1 == sha1:
+            print('Hash matches needed package, success.')
+            CTRexScenario.pkg_updated = True
+        else:
+            fatal('Hash does not match needed package, failure.')
 
     def begin (self):
         client = CTRexScenario.trex
