@@ -32,10 +32,14 @@ def get_trex_path():
 def get_package_path():
     return updated_package_path
 
+def get_package_sha1():
+    return updated_package_sha1
+
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
     file_name = 'trex_package.tar.gz'
+
     # getting new package
     if package_path.startswith('http'):
         ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
@@ -43,11 +47,19 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
         ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
     if ret_code:
         raise Exception('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
+
+    # calculating hash
+    ret_code, stdout, stderr = run_command('sha1sum -b %s' % os.path.join(tmp_dir, file_name), timeout = 30)
+    if ret_code:
+        raise Exception('Could not calculate hash of package. Result: %s' % [ret_code, stdout, stderr])
+    updated_package_sha1_tmp = stdout.strip().split()[0]
+
     # clean old unpacked dirs
     tmp_files = glob(os.path.join(tmp_dir, '*'))
     for tmp_file in tmp_files:
         if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
             shutil.rmtree(tmp_file)
+
     # unpacking
     ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 120, cwd = tmp_dir)
     if ret_code:
@@ -74,8 +86,9 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
         # no errors, remove BU dir
         if os.path.exists(bu_dir):
             shutil.rmtree(bu_dir)
-        global updated_package_path
+        global updated_package_path, updated_package_sha1
         updated_package_path = package_path
+        updated_package_sha1 = updated_package_sha1_tmp
         return True
     except: # something went wrong, return backup dir
         if os.path.exists(cur_dir):
@@ -128,6 +141,7 @@ def start_master_daemon_func():
     funcs_by_name['check_connectivity'] = check_connectivity
     funcs_by_name['get_trex_path'] = get_trex_path
     funcs_by_name['get_package_path'] = get_package_path
+    funcs_by_name['get_package_sha1'] = get_package_sha1
     funcs_by_name['update_trex'] = update_trex
     # trex_daemon_server
     funcs_by_name['is_trex_daemon_running'] = trex_daemon_server.is_running
@@ -228,6 +242,7 @@ logging_file = '/var/log/trex/master_daemon.log'
 logging_file_bu = '/var/log/trex/master_daemon.log_bu'
 os.chdir('/')
 updated_package_path = None
+updated_package_sha1 = None
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
