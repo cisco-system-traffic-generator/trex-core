@@ -118,12 +118,18 @@ class CTRexClient(object):
 
     # internal method which polls for TRex state until it's running or timeout happens
     def _block_to_success(self, timeout, poll_interval = 1):
+        was_starting = False
         if not timeout:
             raise Exception("'timeout' should be positive integer in case of 'block_to_success'")
         start_time = time.time()
         while time.time() < start_time + timeout:
-            if self.get_running_status()['state'] == TRexStatus.Running:
+            status = self.get_running_status()
+            if status['state'] == TRexStatus.Starting:
+                was_starting = True
+            if status['state'] == TRexStatus.Running:
                 return
+            if was_starting and status['state'] == TRexStatus.Idle:
+                raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
         raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 

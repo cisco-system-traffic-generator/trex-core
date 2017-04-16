@@ -90,6 +90,7 @@ def __suite_repr__(self):
 
 nose.suite.ContextSuite.__repr__ = __suite_repr__
 nose.suite.ContextSuite.__str__  = __suite_repr__
+nose.case.Test.shortDescription  = lambda *a, **k: None
 
 # /nose overrides
 
@@ -484,7 +485,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         start_time = time.time()
         while True:
             if time.time() > start_time + timeout:
-                fatal(' timeout of %ss while updating TRex!' % timeout)
+                fatal(' timeout of %ss while updating TRex.' % timeout)
             sys.stdout.write('.')
             sys.stdout.flush()
             time.sleep(1)
@@ -496,8 +497,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         if master_pkg_sha1 == sha1:
             print('Hash matches needed package, success.')
             CTRexScenario.pkg_updated = True
+            return
         else:
-            fatal('Hash does not match needed package, failure.')
+            fatal('Hash does not match, stuck with old package.')
 
     def begin (self):
         client = CTRexScenario.trex
