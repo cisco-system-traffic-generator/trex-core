@@ -544,6 +544,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.functional or self.collect_only:
             return
         #CTRexScenario.is_init = False
+        if CTRexScenario.trex:
+            CTRexScenario.trex.master_daemon.save_coredump()
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:

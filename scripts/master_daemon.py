@@ -109,6 +109,11 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     updating_process.start()
 
 
+def save_coredump():
+    for core_file in glob(os.path.join(args.trex_dir, 'core*')):
+        shutil.copy(core_file, os.path.join(tmp_dir, 'coredump'))
+        break
+
 ### /Server functions ###
 
 def fail(msg):
@@ -155,6 +160,7 @@ def start_master_daemon_func():
     funcs_by_name['get_package_sha1'] = get_package_sha1
     funcs_by_name['is_updating'] = is_updating
     funcs_by_name['update_trex'] = update_trex
+    funcs_by_name['save_coredump'] = save_coredump
     # trex_daemon_server
     funcs_by_name['is_trex_daemon_running'] = trex_daemon_server.is_running
     funcs_by_name['restart_trex_daemon'] = trex_daemon_server.restart
