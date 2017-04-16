@@ -463,18 +463,47 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         CTRexScenario.elk_info = elk_info
 
+    def _update_trex(self, timeout = 600):
+        client = CTRexScenario.trex
+        if client.master_daemon.get_package_path() == self.pkg:
+            print('Server is up to date with package: %s' % self.pkg)
+            CTRexScenario.pkg_updated = True
+            return
+        if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
+            fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
+        print('Updating TRex to: %s' % self.pkg)
+        try:
+            success = client.master_daemon.update_trex(self.pkg)
+            if not success:
+                fatal('Failed to update TRex.')
+            print('Updated.')
+            CTRexScenario.pkg_updated = True
+            return
+        except socket.timeout: # need to wait longer, let's poll
+            pass
+        sys.stdout.write('Timeout of connection, polling until our timeout of 5 minutes')
+        sys.stdout.flush()
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            try:
+                master_pkg = client.master_daemon.get_package_path()
+                if master_pkg == self.pkg:
+                    print(' Updated.')
+                    CTRexScenario.pkg_updated = True
+                    return
+                else:
+                    fatal(' Failed to update TRex, stuck with package: %s' % master_pkg)
+            except socket.timeout: # master is busy updating
+                pass
+            time.sleep(1)
+        fatal(' Failed to update TRex. Timeout of 5 minutes passed...')
 
     def begin (self):
         client = CTRexScenario.trex
         if self.pkg and not CTRexScenario.pkg_updated:
-            if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
-                fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
-            print('Updating TRex to %s' % self.pkg)
-            if not client.master_daemon.update_trex(self.pkg):
-                fatal('Failed to update TRex.')
-            else:
-                print('Updated.')
-            CTRexScenario.pkg_updated = True
+            self._update_trex()
         if self.functional or self.collect_only:
             return
         if self.pkg or self.restart_daemon:

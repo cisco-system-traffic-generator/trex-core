@@ -29,6 +29,9 @@ def add(a, b): # for sanity checks
 def get_trex_path():
     return args.trex_dir
 
+def get_package_path():
+    return updated_package_path
+
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
@@ -71,6 +74,8 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
         # no errors, remove BU dir
         if os.path.exists(bu_dir):
             shutil.rmtree(bu_dir)
+        global updated_package_path
+        updated_package_path = package_path
         return True
     except: # something went wrong, return backup dir
         if os.path.exists(cur_dir):
@@ -122,6 +127,7 @@ def start_master_daemon_func():
     funcs_by_name['add'] = add
     funcs_by_name['check_connectivity'] = check_connectivity
     funcs_by_name['get_trex_path'] = get_trex_path
+    funcs_by_name['get_package_path'] = get_package_path
     funcs_by_name['update_trex'] = update_trex
     # trex_daemon_server
     funcs_by_name['is_trex_daemon_running'] = trex_daemon_server.is_running
@@ -221,6 +227,7 @@ tmp_dir = '/tmp/trex-tmp'
 logging_file = '/var/log/trex/master_daemon.log'
 logging_file_bu = '/var/log/trex/master_daemon.log_bu'
 os.chdir('/')
+updated_package_path = None
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
