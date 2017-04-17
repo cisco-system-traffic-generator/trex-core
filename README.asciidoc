@@ -93,7 +93,7 @@ image::https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title
 more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
 
 
-=== What it’s not
+=== What itâ€™s not
 
 * There is no routing emulation support, for example, BGP/ISIS/ARP 
 * There is no TCP stack.  
@@ -103,7 +103,7 @@ more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[
 
 ==== Stateful 
 
-* Beanchmark/Stress stateful features :
+* Benchmark/Stress stateful features :
 ** NAT
 ** DPI
 ** Load Balancer 
@@ -115,7 +115,7 @@ more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[
 
 ==== Stateless
 
-* Beanchmark/Stress vSwitch RFC2544 
+* Benchmark/Stress vSwitch RFC2544 
  
 === Presentation 
 
