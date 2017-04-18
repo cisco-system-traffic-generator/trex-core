@@ -32,11 +32,10 @@ class STLServiceFilter(object):
         
     def lookup (self, scapy_pkt):
         '''
-            Given a 'scapy_pkt' return
-            a service that should get this packet
+            Given a 'scapy_pkt' return a list
+            of services that should get this packet
             
-            if the packet does not belong to any
-            service under the filter return None
+            can be an empty list
         '''
         raise NotImplementedError
 

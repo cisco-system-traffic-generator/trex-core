@@ -35,18 +35,56 @@ class STLServiceCtx(object):
     def __init__ (self, client, port):
         self.client       = client
         self.port         = port
+        self.port_obj     = client.ports[port]
 
+######### API functions              #########
+
+    def run (self, services):  
+        '''
+            Runs 'services' under service context
+        '''
+        with self.client.logger.supress():
+            return self._run(services)
         
-     
+        
+    def get_port_id (self):
+        '''
+            Returns the port ID attached to
+            the context
+        '''
+        return self.port
+
+
+    def get_src_ipv4 (self):
+        '''
+            Returns the source IPv4 of 
+            the port under the context
+            or None if the port is configured as L2
+        '''
+        layer_cfg = self.port_obj.get_layer_cfg()
+        return layer_cfg['ipv4']['src'] if self.port_obj.is_l3_mode() else None
+
+
+
+    def get_src_mac (self):
+        '''
+            returns the SRC mac of the port
+            attached to the service
+        '''
+
+        layer_cfg = self.port_obj.get_layer_cfg()
+        return layer_cfg['ether']['src']
+
+######### internal functions              #########
+        
     def _reset (self):
         self.filters    = {}
         self.services   = {}
         
         self.active_services = 0
-
-######### API functions              #########
-
-    def __sanity (self):
+     
+             
+    def _sanity (self):
         if not self.client.ports[self.port].is_up():
             raise STLError('service context - port {} is down'.format(self.port))
 
@@ -60,19 +98,30 @@ class STLServiceCtx(object):
             raise STLError('service context - port {} must be under service mode'.format(self.port))
 
 
-    def run (self, services):  
-        with self.client.logger.supress():
-            return self.__run(services)
-        
-        
-    def __run (self, services):
-        self.__sanity()
+    def _add (self, services):
+        '''
+            Add a service to the context
+        '''
+        if isinstance(services, STLService):
+            self._add_single_service(services)
+
+        elif isinstance(services, (list, tuple)) and all([isinstance(s, STLService) for s in services]):
+            for service in services:
+                self._add_single_service(service)
+
+        else:
+            raise STLError("'services' should be STLService subtype or list/tuple of it")
+
+
+ 
+    def _run (self, services):
+        self._sanity()
             
         # prepare
         self._reset()
         
         # add all services
-        self.add(services)
+        self._add(services)
         
         # create an enviorment
         self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
@@ -96,7 +145,7 @@ class STLServiceCtx(object):
             self.capture_id = self.client.start_capture(rx_ports = self.port)['id']
 
             # add the maintenace process
-            tick_process = self.env.process(self.tick_process())
+            tick_process = self.env.process(self._tick_process())
 
             # start the RT simulation - exit when the tick process dies
             self.env.run(until = tick_process)
@@ -108,23 +157,7 @@ class STLServiceCtx(object):
             self.client.set_port_attr(ports = self.port, promiscuous = is_promiscuous)
             self._reset()
             
-            
-######### internal functions              #########
-    
-    def add (self, services):
-        '''
-            Add a service to the context
-        '''
-        if isinstance(services, STLService):
-            self._add_single_service(services)
-            
-        elif isinstance(services, (list, tuple)) and all([isinstance(s, STLService) for s in services]):
-            for service in services:
-                self._add_single_service(service)
-                
-        else:
-            raise STLError("'services' should be STLService subtype or list/tuple of it")
-            
+ 
     def _add_single_service (self, service):
         
         filter_type = service.get_filter_type()
@@ -149,15 +182,11 @@ class STLServiceCtx(object):
         self.active_services -= 1
 
 
-    def __tx_pkt (self, pkt):
-        self.tx_buffer.append(pkt)
-
-
     def _pipe (self):
         return STLServicePipe(self.env, self.tx_buffer)
 
         
-    def tick_process (self):
+    def _tick_process (self):
         while True:
             
             # if any packets are pending - send them
@@ -177,10 +206,8 @@ class STLServiceCtx(object):
                 # go through all filters
                 for service_filter in self.filters.values():
                     # look up for a service that should get this packet
-                    service = service_filter.lookup(scapy_pkt)
-                    if service:
-                        self.services[service]['pipe'].rx_pkt(scapy_pkt, rx_ts)
-                        break
+                    for service in service_filter.lookup(scapy_pkt):
+                        self.services[service]['pipe']._on_rx_pkt(scapy_pkt, rx_ts)
 
 
             # if no other process exists - exit
@@ -192,6 +219,10 @@ class STLServiceCtx(object):
 
             
 class TXBuffer(object):
+    '''
+        TX buffer
+        handles buffering and sending packets
+    '''
     def __init__ (self, env, client, port):
         self.env    = env
         self.client = client
@@ -261,10 +292,7 @@ class Pkt(simpy.resources.store.Store):
 class STLServicePipe(object):
     '''
         A pipe used to communicate between
-        each instance spawn by the service
-
-        Services usually spawn many pipes for many parallel
-        tasks
+        a service and the infrastructure
     '''
 
     def __init__ (self, env, tx_buffer):
@@ -272,6 +300,7 @@ class STLServicePipe(object):
         self.tx_buffer   = tx_buffer
         self.pkt         = Pkt(self.env)
 
+        
     def async_wait (self, time_sec):
         '''
             Async wait for 'time_sec' seconds
@@ -312,8 +341,10 @@ class STLServicePipe(object):
         '''
         return self.tx_buffer.push(tx_pkt)
 
+        
+################### internal functions ##########################
 
-    def rx_pkt (self, pkt, rx_ts):
+    def _on_rx_pkt (self, pkt, rx_ts):
         '''
             Called by the reciver side
             (the service)

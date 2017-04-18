@@ -1962,19 +1962,19 @@ class STLClient(object):
         # validate src port
         validate_type('src_port', src_port, int)
         if src_port not in self.get_all_ports():
-            raise STLError("src port is not a valid port id")
+            raise STLError("PING - src port is not a valid port id")
         
         if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
-            raise STLError("dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
+            raise STLError("PING - dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
             
         if (pkt_size < 64) or (pkt_size > 9216):
-            raise STLError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
+            raise STLError("PING - pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
         
         if src_port not in self.get_service_enabled_ports():
-            raise STLError('PING - requires port {0} under service mode'.format(src_port))
+            raise STLError('PING - port {0} must be under service mode'.format(src_port))
         
         if not self.ports[src_port].is_l3_mode():
-            raise STLError('PING - requires port {0} under L3 mode configuration'.format(src_port))
+            raise STLError('PING - port {0} does not have a valid IP address'.format(src_port))
                     
         
         validate_type('count', count, int)
@@ -1994,10 +1994,8 @@ class STLClient(object):
     # IPv4 ping           
     def __ping_ipv4 (self, src_port, dst_ip, pkt_size, count, interval_sec):
         
-        src_ipv4 =  self.ports[src_port].get_layer_cfg()['ipv4']['src']
-        
         ctx = self.create_service_ctx(port = src_port)
-        ping = STLServiceICMP(src_ip = src_ipv4, dst_ip = dst_ip, pkt_size = pkt_size)
+        ping = STLServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size)
         
         self.logger.log('')
         for i in range(count):

@@ -16,6 +16,7 @@ from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
 
+from collections import defaultdict
 import random
 import struct
 import re
@@ -25,22 +26,22 @@ class STLServiceFilterDHCP(STLServiceFilter):
         Service filter for DHCP services
     '''
     def __init__ (self):
-        self.services = {}
+        self.services = defaultdict(list)
         
         
     def add (self, service):
-        self.services[service.get_xid()] = service
+        self.services[service.get_xid()].append(service)
         
         
     def lookup (self, scapy_pkt):
         # if not BOOTP 
         if 'BOOTP' not in scapy_pkt:
-            return None
+            return []
             
         # it's a DHCP packet - check if its with an XID that we own
         xid = scapy_pkt['BOOTP'].xid
         
-        return self.services.get(xid, None)
+        return self.services.get(xid, [])
 
         
 ################### internal ###################
@@ -61,7 +62,7 @@ class STLServiceDHCP(STLService):
         super(STLServiceDHCP, self).__init__(verbose_level)
         
         self.xid = random.getrandbits(32)
-
+        
         self.mac        = mac
         self.mac_bytes  = self.mac2bytes(mac)
         
@@ -172,8 +173,7 @@ class STLServiceDHCP(STLService):
                     self.state = 'INIT'
                     continue
                 
-                assert(len(acknacks) == 1)
-                
+                # by default we choose the first one... usually there should be only one response
                 acknack = acknacks[0]
                 options = {x[0]:x[1] for x in acknack['DHCP options'].options if isinstance(x, tuple)}
                 
@@ -226,3 +226,4 @@ class STLServiceDHCP(STLService):
         def __str__ (self):
             
             return "ip: {0}, server_ip: {1}, subnet: {2}, domain: {3}, lease_time: {4}".format(self.client_ip, self.server_ip, self.subnet, self.domain, self.lease)
+
