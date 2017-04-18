@@ -250,7 +250,8 @@ free:
 
 static void
 mlx5_stats_read_hw(struct rte_eth_dev *dev,
-                struct rte_eth_stats *stats){
+                   struct rte_eth_stats *stats,
+                   int init){
     struct priv *priv = mlx5_get_priv(dev);
     struct mlx5_stats_priv * lps = &priv->m_stats;
     unsigned int i;
@@ -272,9 +273,45 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
                   et_stats->data[lps->inx_rx_vport_multicast_bytes] +
                   et_stats->data[lps->inx_rx_vport_broadcast_bytes];
 
-    tmp.ipackets += et_stats->data[lps->inx_rx_vport_unicast_packets] +
-                et_stats->data[lps->inx_rx_vport_multicast_packets] +
-                et_stats->data[lps->inx_rx_vport_broadcast_packets];
+    if (init) {
+        tmp.ipackets += et_stats->data[lps->inx_rx_vport_unicast_packets] +
+                    et_stats->data[lps->inx_rx_vport_multicast_packets] +
+                    et_stats->data[lps->inx_rx_vport_broadcast_packets];
+
+        tmp.opackets += (et_stats->data[lps->inx_tx_vport_unicast_packets] +
+                         et_stats->data[lps->inx_tx_vport_multicast_packets] +
+                         et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+
+        lps->m_t_opackets =0;
+        lps->m_t_ipackets =0;
+
+        lps->m_old_ipackets = (uint32_t)tmp.ipackets;
+        lps->m_old_opackets = (uint32_t)tmp.opackets;
+
+    }else{
+
+        /* diff of 32bit */
+        uint32_t ipackets = (uint32_t)(et_stats->data[lps->inx_rx_vport_unicast_packets] +
+                                       et_stats->data[lps->inx_rx_vport_multicast_packets] +
+                                       et_stats->data[lps->inx_rx_vport_broadcast_packets]);
+
+        lps->m_t_ipackets +=(ipackets - lps->m_old_ipackets);
+
+        tmp.ipackets = lps->m_t_ipackets;
+
+        lps->m_old_ipackets = ipackets;
+
+
+        /* diff of 32bit */
+        uint32_t opackets = (uint32_t)(et_stats->data[lps->inx_tx_vport_unicast_packets] +
+                                       et_stats->data[lps->inx_tx_vport_multicast_packets] +
+                                       et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+
+        lps->m_t_opackets +=(opackets - lps->m_old_opackets);
+        tmp.opackets = lps->m_t_opackets;
+        lps->m_old_opackets =opackets;
+
+    }
 
     tmp.ierrors += 	(et_stats->data[lps->inx_rx_wqe_err] +
                     et_stats->data[lps->inx_rx_crc_errors_phy] +
@@ -285,9 +322,6 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
                   et_stats->data[lps->inx_tx_vport_multicast_bytes] +
                   et_stats->data[lps->inx_tx_vport_broadcast_bytes];
 
-    tmp.opackets += (et_stats->data[lps->inx_tx_vport_unicast_packets] +
-                     et_stats->data[lps->inx_tx_vport_multicast_packets] +
-                     et_stats->data[lps->inx_tx_vport_broadcast_packets]);
 
     tmp.oerrors += et_stats->data[lps->inx_tx_errors_phy];
 
@@ -435,7 +469,9 @@ mlx5_stats_init(struct rte_eth_dev *dev)
         return;
     }
 
-    mlx5_stats_read_hw(dev,&tmp);
+    mlx5_stats_read_hw(dev,&tmp,1);
+
+
 
     /* copy yo shadow at first time */
     lps->m_shadow = tmp;
@@ -525,7 +561,7 @@ mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
     }
     struct rte_eth_stats tmp = {0};
 
-    mlx5_stats_read_hw(dev,&tmp);
+    mlx5_stats_read_hw(dev,&tmp,0);
 
     mlx5_stats_diff(stats,
                     &tmp,
@@ -554,7 +590,7 @@ mlx5_stats_reset(struct rte_eth_dev *dev)
     struct rte_eth_stats tmp = {0};
 
 
-    mlx5_stats_read_hw(dev,&tmp);
+    mlx5_stats_read_hw(dev,&tmp,0);
 
     /* copy to shadow */
     lps->m_shadow = tmp;
