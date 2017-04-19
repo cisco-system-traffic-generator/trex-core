@@ -506,8 +506,8 @@ void CPlatformSocketInfo::dump(FILE *fd){
 
 
 void CRteMemPool::dump_in_case_of_error(FILE *fd){
-    fprintf(fd," ERROR,there is no enough memory in socket  %d \n",m_pool_id);
-    fprintf(fd," Try to enlarge the memory values in the configuration file -/etc/trex_cfg.yaml ,see manual for more detail  \n");
+    fprintf(fd, " Error: There is not enough memory in socket %d \n", m_pool_id);
+    fprintf(fd, " Try to enlarge memory values in the configuration file '/etc/trex_cfg.yaml'. See manual for details \n");
     dump(fd);
 }
 
@@ -1087,7 +1087,7 @@ bool CPacketParser::ProcessPacket(CPacketIndication * pkt_indication,
 }
 
 void CPacketParser::Dump(FILE *fd){
-    fprintf(fd," parser statistic \n");
+    fprintf(fd," parser statistics \n");
     fprintf(fd," ===================== \n");
     m_counter.Dump(fd);
 }
@@ -1257,7 +1257,7 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
 
     if ( m_packet->pkt_len > MAX_PKT_SIZE ){
         m_cnt->m_tcp_udp_pkt_length_error++;
-        printf("ERROR packet is too big, not supported jumbo packets that larger than %d \n",MAX_PKT_SIZE);
+        printf("Error: packet too big. Max supported packet size is %d \n",MAX_PKT_SIZE);
         return;
     }
 
@@ -1461,7 +1461,7 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     // For now, we can not mix ipv4 and ipv4 packets
     // so we require --ipv6 option be set for ipv6 packets
     if ((m_is_ipv6) && (CGlobalInfo::is_ipv6_enable() == false)){
-        fprintf(stderr,"ERROR  --ipv6 must be set to process ipv6 packets\n");
+        fprintf(stderr,"Error: --ipv6 command line option must be set in order to process ipv6 packets\n");
         exit(-1);
     }
 
@@ -1469,7 +1469,7 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     if ((CGlobalInfo::is_ipv6_enable()) && (is_ipv6() == false )) {
         if (ConvertPacketToIpv6InPlace(pkt, offset) == false){
             /* Move to next packet as this was erroneous */
-            printf(" unable to convert packet to IPv6, skipping...\n");
+            printf(" Unable to convert packet to IPv6, skipping...\n");
             return;
         }
     }
