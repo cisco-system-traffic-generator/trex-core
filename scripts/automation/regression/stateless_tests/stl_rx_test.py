@@ -87,7 +87,6 @@ class STLRX_Test(CStlGeneral_Test):
                 'latency_9k_enable': False if self.is_vf_nics else True,
                 'latency_9k_max_average': 100,
                 'latency_9k_max_latency': 450,    #see latency issue trex-261
-                'allow_packets_drop_num': 10, # todo: check this
             },
 
             'net_enic': {
@@ -104,6 +103,19 @@ class STLRX_Test(CStlGeneral_Test):
         assert 'bi' in CTRexScenario.stl_ports_map
 
         self.c = CTRexScenario.stl_trex
+
+        self.num_cores = self.c.get_server_system_info().get('dp_core_count', 'Unknown')
+        mbufs = self.c.get_util_stats()['mbuf_stats']
+        self.k9_mbufs = 10000
+        self.k4_mbufs = 10000
+        for key in mbufs:
+            if mbufs[key]['9kb'][1] < self.k9_mbufs:
+                self.k9_mbufs = mbufs[key]['9kb'][1]
+            if mbufs[key]['4096b'][1] < self.k4_mbufs:
+                self.k4_mbufs = mbufs[key]['4096b'][1]
+
+        print("")
+        print ("num cores {0} num 9k mbufs {1} num 4k mbufs {2}".format(self.num_cores, self.k9_mbufs, self.k4_mbufs));
 
         self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
 
@@ -215,6 +227,25 @@ class STLRX_Test(CStlGeneral_Test):
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()
 
+    # Can use this to run a test multiple times
+    def run_until_failure(func):
+        @wraps(func)
+        def wrapped(self, *args, **kwargs):
+            max_tries = 2
+            num_tries = 1
+
+            while num_tries <= max_tries:
+                try:
+                    func(self, *args, **kwargs)
+                    print ("Try {0} - OK".format(num_tries))
+                    num_tries += 1
+                    continue
+                except STLError as e:
+                    print ("Try {0} failed".format(num_tries))
+                    assert False , '{0}'.format(e)
+
+        return wrapped
+
     def try_few_times_on_vm(func):
         @wraps(func)
         def wrapped(self, *args, **kwargs):
@@ -229,11 +260,12 @@ class STLRX_Test(CStlGeneral_Test):
                     func(self, *args, **kwargs)
                     break
                 except STLError as e:
-                    print ("Try {0} failed. Retrying".format(num_tries))
                     num_tries += 1
                     if num_tries > max_tries:
+                        print ("Try {0} failed. Giving up".format(num_tries))
                         assert False , '{0}'.format(e)
                     else:
+                        print ("Try {0} failed. Retrying".format(num_tries))
                         print("({0}".format(e))
 
         return wrapped
@@ -344,6 +376,15 @@ class STLRX_Test(CStlGeneral_Test):
         stats = self.c.get_stats()
         xstats = self.c.get_xstats(self.rx_port)
 
+        total_tx = 0
+        total_rx = 0
+        for exp in exp_list:
+            add_tx,add_rx = self.count_tx_pkts(exp['pg_id'], stats)
+            total_tx += add_tx
+            total_rx += add_rx
+
+        print("Total TX packets: {0}, total RX: {1} diff: {2}".format(total_tx, total_rx, total_tx-total_rx))
+
         for exp in exp_list:
             if 'pkt_type' in exp:
                 pkt_type = exp['pkt_type']
@@ -351,6 +392,14 @@ class STLRX_Test(CStlGeneral_Test):
                 pkt_type = "not specified"
             self.__verify_flow(exp['pg_id'], exp['total_pkts'], exp['pkt_len'], pkt_type, stats, xstats)
 
+    def count_tx_pkts(self, pg_id, stats):
+        flow_stats = stats['flow_stats'].get(pg_id)
+
+        if not flow_stats:
+            assert False, "no flow stats available"
+        tx_pkts  = flow_stats['tx_pkts'].get(self.tx_port, 0)
+        rx_pkts  = flow_stats['rx_pkts'].get(self.rx_port, 0)
+        return tx_pkts, rx_pkts
 
     # one stream on TX --> RX
     @try_few_times_on_vm
@@ -378,8 +427,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if self.drv_name == 'net_i40e_vf' or (self.drv_name == 'net_mlx5' and self.is_vf_nics):
-            self.skip('Not running on i40 vf or Mellanox VF currently')
+        if self.drv_name == 'net_i40e_vf' or self.drv_name == 'net_mlx5':
+            self.skip('Not running on i40 vf or Mellanox currently')
         self._test_multiple_streams(True)
 
     def _test_multiple_streams(self, is_random):
@@ -418,11 +467,25 @@ class STLRX_Test(CStlGeneral_Test):
 
         streams = []
         exp = []
+        num_9k = 0
+        num_4k = 0
         for pg_id in range(1, num_latency_streams):
 
             if is_random:
                 pkt = copy.deepcopy(all_pkts[random.randint(0, len(all_pkts) - 1)])
                 pkt.set_packet(pkt.pkt / ('a' * random.randint(0, self.max_pkt_size - len(pkt.pkt))))
+                # don't use more than half of the 9k mbufs. If we are out of 4k, we can use 9k, so limit 4k accordingly
+                if len(pkt.pkt) >= 4 * 1024:
+                    num_9k += self.num_cores
+                    if num_9k > self.k9_mbufs / 2:
+                        self.max_pkt_size = 4000
+
+                if len(pkt.pkt) >= 2 * 1024 and len(pkt.pkt) < 4 * 1024:
+                    num_4k += self.num_cores
+                    if num_4k + num_4k > self.k4_mbufs + self.k9_mbufs / 2:
+                        self.max_pkt_size = 2000
+
+
                 send_mode = STLTXCont(percentage = percent_lat)
             else:
                 pkt = self.pkt
@@ -444,6 +507,17 @@ class STLRX_Test(CStlGeneral_Test):
             if is_random:
                 pkt = copy.deepcopy(all_pkts[random.randint(0, len(all_pkts) - 1)])
                 pkt.set_packet(pkt.pkt / ('a' * random.randint(0, self.max_pkt_size - len(pkt.pkt))))
+                # don't use more than half of the 9k mbufs. If we are out of 4k, we can use 9k, so limit 4k accordingly
+                if len(pkt.pkt) >= 4 * 1024:
+                    num_9k += self.num_cores
+                    if num_9k > self.k9_mbufs / 2:
+                        self.max_pkt_size = 4000
+
+                if len(pkt.pkt) >= 2000 and len(pkt.pkt) < 4 * 1024:
+                    num_4k += self.num_cores
+                    if num_4k + num_9k > self.k4_mbufs + self.k9_mbufs / 2:
+                        self.max_pkt_size = 2000
+
                 send_mode = STLTXCont(percentage = percent_fstat)
             else:
                 pkt = self.pkt
