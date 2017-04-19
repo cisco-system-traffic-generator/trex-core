@@ -784,10 +784,11 @@ class AsyncKeys:
         new_settings[3] = new_settings[3] & ~(termios.ECHO | termios.ICANON) # lflags
         new_settings[6][termios.VMIN] = 0  # cc
         new_settings[6][termios.VTIME] = 0 # cc
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
 
         # huge buffer - no print without flush
         sys.stdout = open('/dev/stdout', 'w', TrexTUI.MIN_COLS * TrexTUI.MIN_COLS * 2)
+
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, new_settings)
         return self
 
     def __exit__ (self, type, value, traceback):
