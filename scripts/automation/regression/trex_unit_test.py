@@ -405,7 +405,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.pkg or self.restart_daemon:
             if not CTRexScenario.trex.check_master_connectivity():
                 fatal('Could not connect to master daemon')
-        if options.ga and CTRexScenario.setup_name:
+        if options.ga and CTRexScenario.setup_name and not (CTRexScenario.GAManager and CTRexScenario.elk):
             CTRexScenario.GAManager  = GAmanager_Regression(
                     GoogleID         = CTRexScenario.global_cfg['google']['id'],
                     AnalyticsUserID  = CTRexScenario.setup_name,
