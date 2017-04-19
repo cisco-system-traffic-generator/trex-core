@@ -3,6 +3,7 @@
 # for API usage the path name must be full
 from .trex_stl_exceptions import *
 from .trex_stl_streams import *
+from .trex_stl_psv import *
 
 from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 from . import trex_stl_stats
@@ -12,11 +13,13 @@ from .trex_stl_types import *
 from .trex_stl_async_client import CTRexAsyncClient
 
 from .services.trex_stl_service_icmp import STLServiceICMP
+from .services.trex_stl_service_arp import STLServiceARP
 
 from .utils import parsing_opts, text_tables, common
 from .utils.common import *
 from .utils.text_tables import TRexTextTable
 from .utils.text_opts import *
+
 from functools import wraps
 from texttable import ansi_len
 
@@ -610,6 +613,8 @@ class STLClient(object):
                                                                  self.xstats,
                                                                  self.async_client.monitor)
         
+        self.psv = PortStateValidator(self)
+        
     ############# private functions - used by the class itself ###########
 
     
@@ -816,17 +821,6 @@ class STLClient(object):
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].validate())
-
-        return rc
-
-
-    def __resolve (self, port_id_list = None, retries = 0):
-        port_id_list = self.__ports(port_id_list)
-
-        rc = RC()
-
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].arp_resolve(retries))
 
         return rc
 
@@ -1900,11 +1894,9 @@ class STLClient(object):
             :raises:
                 + :exc:`STLError`
         """
+    
+        self.psv.chk_port_state('Layer 3 Config', port, (PSV_ACQUIRED, PSV_SERVICE))
         
-        validate_type('port', port, int)
-        if port not in self.get_all_ports():
-            raise STLError("port {0} is not a valid port id".format(port))
-            
         if not is_valid_ipv4(src_ipv4):
             raise STLError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
             
@@ -1918,15 +1910,10 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
     
-        # try to resolve
-        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
-            self.logger.pre_cmd("ARP resolving address '{0}': ".format(dst_ipv4))
-            rc = self.ports[port].arp_resolve(0)
-            self.logger.post_cmd(rc)
-            if not rc:
-                raise STLError(rc)
-            
+        # resolve the port
+        self.resolve(ports = port)
 
+        
     @__api_check(True)
     def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1):
         """
@@ -1960,9 +1947,7 @@ class STLClient(object):
 
         """
         # validate src port
-        validate_type('src_port', src_port, int)
-        if src_port not in self.get_all_ports():
-            raise STLError("PING - src port is not a valid port id")
+        self.psv.chk_port_state('PING', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
         
         if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
             raise STLError("PING - dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
@@ -1970,29 +1955,23 @@ class STLClient(object):
         if (pkt_size < 64) or (pkt_size > 9216):
             raise STLError("PING - pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
         
-        if src_port not in self.get_service_enabled_ports():
-            raise STLError('PING - port {0} must be under service mode'.format(src_port))
-        
-        if not self.ports[src_port].is_l3_mode():
-            raise STLError('PING - port {0} does not have a valid IP address'.format(src_port))
-                    
-        
         validate_type('count', count, int)
         validate_type('interval_sec', interval_sec, (int, float))
+        
         
         self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
                                                                                        src_port,
                                                                                        pkt_size))
         
         if is_valid_ipv4(dst_ip):
-            self.__ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
+            self._ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
         else:
-            self.__ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
+            self._ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
         
             
          
     # IPv4 ping           
-    def __ping_ipv4 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+    def _ping_ipv4 (self, src_port, dst_ip, pkt_size, count, interval_sec):
         
         ctx = self.create_service_ctx(port = src_port)
         ping = STLServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size)
@@ -2007,7 +1986,7 @@ class STLClient(object):
             
         
     # IPv6 ping 
-    def __ping_ipv6 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+    def _ping_ipv6 (self, src_port, dst_ip, pkt_size, count, interval_sec):
         
         responses_arr = []
         # no async messages
@@ -3222,7 +3201,8 @@ class STLClient(object):
         
         if not rc:
             raise STLError(rc)
-            
+          
+              
     @contextmanager
     def service_mode (self, ports):
         self.set_service_mode(ports = ports)
@@ -3247,21 +3227,41 @@ class STLClient(object):
         """
         # by default - resolve all the ports that are configured with IPv4 dest
         ports = ports if ports is not None else self.get_resolvable_ports()
-        ports = self._validate_port_list(ports)
-            
+        ports = self.psv.chk_port_state('ARP', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
+        
         self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         
-        with self.logger.supress(level = LoggerApi.VERBOSE_REGULAR_SYNC):
-            rc = self.__resolve(ports, retries)
-            
-        self.logger.post_cmd(rc)
+        # generate the contexsts
+        arps = []
+        for port in ports:
 
-        if verbose:
-            for x in filter(bool, listify(rc.data())):
-                self.logger.log(format_text("{0}".format(x), 'bold'))
-                
-        if not rc:
-            raise STLError(rc)
+            self.ports[port].invalidate_arp()
+            
+            src_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['src']
+            dst_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['dst']
+            
+            ctx = self.create_service_ctx(port)
+            
+            # retries
+            for i in range(retries + 1):
+                arp = STLServiceARP(ctx, dst_ip = dst_ipv4, src_ip = src_ipv4)
+                ctx.run(arp)
+                if arp.get_record():
+                    self.ports[port].set_l3_mode(src_ipv4, dst_ipv4, arp.get_record().dst_mac)
+                    break
+            
+            arps.append(arp)
+            
+        
+        self.logger.post_cmd(all([arp.get_record() for arp in arps]))
+        
+        for port, arp in zip(ports, arps):
+            if arp.get_record():
+                self.logger.log(format_text("Port {0} - {1}".format(port, arp.get_record()), 'bold'))
+            else:
+                self.logger.log(format_text("Port {0} - *** {1}".format(port, arp.get_record()), 'bold'))
+        
+     
 
     # alias
     arp = resolve
@@ -4681,3 +4681,4 @@ class STLClient(object):
         
         return
 
+    
