@@ -40,6 +40,18 @@ class STLClient_Test(CStlGeneral_Test):
 
         self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
 
+
+        port_info = self.c.get_port_info(ports = self.rx_port)[0]
+      
+        drv_name = port_info['driver']
+      
+        self.drv_name = drv_name
+      
+        # due to defect trex-325 
+        if  self.drv_name == 'net_mlx5':
+            print("WARNING disable strict due to trex-325 on mlx5")
+            self.strict = False
+
         self.c.connect()
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
