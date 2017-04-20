@@ -75,7 +75,7 @@ class STLClient_Test(CStlGeneral_Test):
             assert expected == got
         else:
             if expected==0:
-                assert expected == got
+                return;
             else:
                assert get_error_in_percentage(expected, got) < 0.05
 
