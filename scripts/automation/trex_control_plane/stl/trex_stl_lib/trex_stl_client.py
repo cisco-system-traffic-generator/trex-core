@@ -1895,7 +1895,7 @@ class STLClient(object):
                 + :exc:`STLError`
         """
     
-        self.psv.chk_port_state('Layer 3 Config', port, (PSV_ACQUIRED, PSV_SERVICE))
+        self.psv.validate('Layer 3 Config', port, (PSV_ACQUIRED, PSV_SERVICE))
         
         if not is_valid_ipv4(src_ipv4):
             raise STLError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
@@ -1947,7 +1947,7 @@ class STLClient(object):
 
         """
         # validate src port
-        self.psv.chk_port_state('PING', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
+        self.psv.validate('PING', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
         
         if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
             raise STLError("PING - dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
@@ -2289,25 +2289,16 @@ class STLClient(object):
 
 
     # common checks for start API
-    def __pre_start_check (self, ports, force):
-        
-        # verify link status
-        ports_link_down = [port_id for port_id in ports if not self.ports[port_id].is_up()]
-        if ports_link_down and not force:
-            raise STLError("Port(s) %s - link DOWN - check the connection or specify 'force'" % ports_link_down)
-        
-        # verify ports are stopped or force stop them
-        active_ports = [port_id for port_id in ports if self.ports[port_id].is_active()]
-        if active_ports and not force:
-            raise STLError("Port(s) {0} are active - please stop them or specify 'force'".format(active_ports))
+    def __pre_start_check (self, cmd_name, ports, force):
+        if force:
+            return self.psv.validate(cmd_name, ports)
             
-        # warn if ports are not resolved
-        unresolved_ports = [port_id for port_id in ports if not self.ports[port_id].is_resolved()]
-        if unresolved_ports and not force:
-            raise STLError("Port(s) {0} have unresolved destination addresses - please resolve them or specify 'force'".format(unresolved_ports))
-     
-        if self.get_service_enabled_ports() and not force:
-            raise STLError("Port(s) {0} are under service mode - please disable service mode or specify 'force'".format(self.get_service_enabled_ports()))
+        states = {PSV_UP:           "check the connection or specify 'force'",
+                  PSV_IDLE:         "please stop them or specify 'force'",
+                  PSV_RESOLVED:     "please resolve them or specify 'force'",
+                  PSV_NON_SERVICE:  "please disable service mode or specify 'force'"}
+        
+        return self.psv.validate(cmd_name, ports, states)     
             
         
     @__api_check(True)
@@ -2363,7 +2354,7 @@ class STLClient(object):
         """
 
         ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
+        ports = self.__pre_start_check('START', ports, force)
 
         validate_type('mult', mult, basestring)
         validate_type('force', force, bool)
@@ -2371,9 +2362,6 @@ class STLClient(object):
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (type(None), int, list))
 
-      
-        # some sanity checks before attempting start
-        self.__pre_start_check(ports, force)
         
         #########################
         # decode core mask argument
@@ -2449,7 +2437,7 @@ class STLClient(object):
             if not ports:
                 return
 
-        ports = self._validate_port_list(ports)
+        ports = self.psv.validate('STOP', ports, PSV_ACQUIRED)
         
         self.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
         rc = self.__stop(ports)
@@ -2587,7 +2575,8 @@ class STLClient(object):
                      count = 1,
                      duration = -1,
                      is_dual = False,
-                     min_ipg_usec = None):
+                     min_ipg_usec = None,
+                     force  = False):
         """
             Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
@@ -2622,12 +2611,16 @@ class STLClient(object):
                     Minimum inter-packet gap in microseconds to guard from too small ipg.
                     Exclusive with ipg_usec
 
+                force : bool
+                    Ignore if port is active
+ 
+                
             :raises:
                 + :exc:`STLError`
 
         """
         ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
+        ports = self.__pre_start_check('PUSH', ports, force)
 
         validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
@@ -2637,6 +2630,12 @@ class STLClient(object):
         validate_type('is_dual', is_dual, bool)
         validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
 
+        # if force - stop any active ports
+        if force:
+            active_ports = list(set(self.get_active_ports()).intersection(ports))
+            if active_ports:
+                self.stop(active_ports)
+                
         # for dual mode check that all are masters
         if is_dual:
             if not pcap_filename.endswith('erf'):
@@ -2703,7 +2702,8 @@ class STLClient(object):
 
                 force: bool
                     Ignore file size limit - push any file size to the server
-
+                    also ignore if port is active
+                    
                 vm: list of VM instructions
                     VM instructions to apply for every packet
 
@@ -2725,8 +2725,8 @@ class STLClient(object):
 
         """
         ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
-
+        ports = self.__pre_start_check('PUSH', ports, force)
+        
         validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
         validate_type('speedup',  speedup, (float, int))
@@ -2738,10 +2738,13 @@ class STLClient(object):
         if all([ipg_usec, min_ipg_usec]):
             raise STLError('Please specify either ipg or minimal ipg, not both.')
 
+        # if force - stop any active ports
+        if force:
+            active_ports = list(set(self.get_active_ports()).intersection(ports))
+            if active_ports:
+                self.stop(active_ports)
 
-        # this action requires starting traffic
-        self.__pre_start_check(ports, force)
-        
+
         # no support for > 1MB PCAP - use push remote
         if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
             raise STLError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
@@ -2870,12 +2873,18 @@ class STLClient(object):
         
         # validate ports
         ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self._validate_port_list(ports)
+        ports = self.__pre_start_check('PUSH', ports, force)
         
         validate_type('count',  count, int)
         validate_type('duration', duration, (float, int))
         validate_type('vm', vm, (list, type(None)))
         
+        # if force - stop any active ports
+        if force:
+            active_ports = list(set(self.get_active_ports()).intersection(ports))
+            if active_ports:
+                self.stop(active_ports)
+                
         # pkts should be scapy, bytes, str or a list of them
         pkts = listify(pkts)
         for pkt in pkts:
@@ -2886,9 +2895,6 @@ class STLClient(object):
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
         if ipg_usec < 0:
             raise STLError("'ipg_usec' should not be negative")
-        
-        # this action requires starting traffic
-        self.__pre_start_check(ports, force)
         
         # init the stream list
         streams = []
@@ -3227,7 +3233,7 @@ class STLClient(object):
         """
         # by default - resolve all the ports that are configured with IPv4 dest
         ports = ports if ports is not None else self.get_resolvable_ports()
-        ports = self.psv.chk_port_state('ARP', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
+        ports = self.psv.validate('ARP', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
         
         self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         
@@ -3801,7 +3807,6 @@ class STLClient(object):
         return RC_OK()
 
 
-    #
     @__console
     def release_line (self, line):
         '''Release ports\n'''
@@ -3912,14 +3917,8 @@ class STLClient(object):
         self.__decode_core_mask(opts.ports, core_mask)
 
         # for better use experience - check this first
-        try:
-            self.__pre_start_check(opts.ports, opts.force)
-        except STLError as e:
-            msg = e.brief()
-            self.logger.log(format_text(msg, 'bold'))
-            return RC_ERR(msg)
-            
-                
+        self.__pre_start_check('START', opts.ports, opts.force)
+                 
         # stop ports if needed
         active_ports = list_intersect(self.get_active_ports(), opts.ports)
         if active_ports and opts.force:
@@ -4225,17 +4224,7 @@ class STLClient(object):
         if not opts:
             return opts
 
-        active_ports = list(set(self.get_active_ports()).intersection(opts.ports))
-
-        if active_ports:
-            if not opts.force:
-                msg = "Port(s) {0} are active - please stop them or add '--force'\n".format(active_ports)
-                self.logger.log(format_text(msg, 'bold'))
-                return RC_ERR(msg)
-            else:
-                self.stop(active_ports)
-
-
+            
         if opts.remote:
             self.push_remote(opts.file[0],
                              ports          = opts.ports,
@@ -4244,6 +4233,7 @@ class STLClient(object):
                              speedup        = opts.speedup,
                              count          = opts.count,
                              duration       = opts.duration,
+                             force          = opts.force,
                              is_dual        = opts.dual)
 
         else:
@@ -4567,7 +4557,8 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.COUNT,
                                          parsing_opts.DRY_RUN,
-                                         parsing_opts.SCAPY_PKT_CMD)
+                                         parsing_opts.SCAPY_PKT_CMD,
+                                         parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
         if not opts:
@@ -4585,21 +4576,13 @@ class STLClient(object):
             opts.scapy_pkt.show2()
             self.logger.log(format_text('\n*** DRY RUN - no traffic was injected ***\n', 'bold'))
             return
-            
-            
-        # verify ports are stopped or force stop them
-        active_ports = [port_id for port_id in opts.ports if self.ports[port_id].is_active()]
-        if active_ports:
-            self.logger.log(format_text("Port(s) {0} are active - please stop them before pushing packets".format(active_ports), 'bold'))
-            return
-            
+   
             
         self.logger.pre_cmd("Pushing {0} packet(s) (size: {1}) on port(s) {2}:".format(opts.count if opts.count else 'infinite',
                                                                                        len(opts.scapy_pkt), opts.ports))
-        
         try:
             with self.logger.supress():
-                self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = True, count = opts.count)
+                self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = opts.force, count = opts.count)
                 
         except STLError as e:
             self.logger.post_cmd(False)
@@ -4607,6 +4590,7 @@ class STLClient(object):
         else:
             self.logger.post_cmd(RC_OK())
         
+            
     # save current history to a temp file
     def __push_history (self):
         tmp_file = tempfile.mktemp()
