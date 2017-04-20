@@ -5,8 +5,6 @@ from .trex_stl_packet_builder_scapy import STLPktBuilder
 from .trex_stl_streams import STLStream
 from .trex_stl_types import *
 
-from .rx_services.trex_stl_rx_service_arp import RXServiceARP
-from .rx_services.trex_stl_rx_service_icmp import RXServiceICMP
 from .rx_services.trex_stl_rx_service_ipv6 import *
 
 from . import trex_stl_stats
@@ -921,31 +919,6 @@ class Port(object):
         else:
             return self.get_layer_cfg()['ether']['state'] != 'unconfigured'
             
-    
-    @writeable
-    def arp_resolve(self, retries):
-        
-        # execute the ARP service
-        rc = RXServiceARP(self, retries = retries).execute()
-        if not rc:
-            return rc
-            
-        # fetch the data returned
-        arp_rc = rc.data()
-        
-        # first invalidate current ARP if exists
-        rc = self.invalidate_arp()
-        if not rc:
-            return rc
-
-        # update the port with L3 full configuration
-        rc = self.set_l3_mode(self.get_layer_cfg()['ipv4']['src'], self.get_layer_cfg()['ipv4']['dst'], arp_rc['hwsrc'])
-        if not rc:
-            return rc
-            
-        return self.ok('Port {0} - Recieved ARP reply from: {1}, hw: {2}'.format(self.port_id, arp_rc['psrc'], arp_rc['hwsrc']))
-            
-        
 
     @writeable
     def scan6(self, timeout = None, dst_ip = 'ff02::1'):
