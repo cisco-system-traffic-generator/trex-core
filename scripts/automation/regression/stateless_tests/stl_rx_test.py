@@ -228,10 +228,11 @@ class STLRX_Test(CStlGeneral_Test):
             CTRexScenario.stl_trex.connect()
 
     # Can use this to run a test multiple times
-    def run_until_failure(func):
+    def run_many_times(func):
         @wraps(func)
         def wrapped(self, *args, **kwargs):
-            max_tries = 2
+            num_failed = 0
+            max_tries = 100
             num_tries = 1
 
             while num_tries <= max_tries:
@@ -241,8 +242,11 @@ class STLRX_Test(CStlGeneral_Test):
                     num_tries += 1
                     continue
                 except STLError as e:
-                    print ("Try {0} failed".format(num_tries))
-                    assert False , '{0}'.format(e)
+                    print ("Try {0} failed ********************".format(num_tries))
+                    num_tries += 1
+                    num_failed += 1
+                    #assert False , '{0}'.format(e)
+            print("Failed {0} times out of {1} tries".format(num_failed, num_tries-1))
 
         return wrapped
 
@@ -767,7 +771,7 @@ class STLRX_Test(CStlGeneral_Test):
         if self.errs:
             pprint.pprint(stats)
             msg = 'Stats do not match the expected:\n' + '\n'.join(self.errs)
-            raise Exception(msg)
+            raise STLError(msg)
 
 
     @try_few_times_on_vm
