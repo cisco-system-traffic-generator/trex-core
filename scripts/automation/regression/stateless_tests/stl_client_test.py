@@ -6,6 +6,8 @@ import glob
 
 
 def get_error_in_percentage (golden, value):
+    if (golden==0):
+        return(0.0);
     return abs(golden - value) / float(golden)
 
 def get_stl_profiles ():
