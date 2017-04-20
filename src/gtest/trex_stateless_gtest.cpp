@@ -3473,7 +3473,6 @@ public:
 };
 
 void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
-    CFlowStatRuleMgr rule_mgr;
     CBasicStl t1;
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
@@ -3518,7 +3517,7 @@ void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
          stream1->m_rx_check.m_enabled = true;
          stream1->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
          stream1->m_rx_check.m_pg_id = m_pg_id;
-         rule_mgr.init_stream(stream1); //different rule_mgr object, but we just want to init fields in stream
+         CFlowStatRuleMgr::instance()->init_stream(stream1);
      } else {
          stream1->m_rx_check.m_enabled = false;
      }
@@ -4451,7 +4450,6 @@ class flow_stat  : public testing::Test {
 static const uint8_t TEST_L4_PROTO = IPPROTO_TCP;
 
 TEST_F(flow_stat, add_del_stream) {
-    CFlowStatRuleMgr rule_mgr;
     uint8_t test_pkt[] = {
         // ether header
         0x74, 0xa2, 0xe6, 0xd5, 0x39, 0x25,
@@ -4484,30 +4482,30 @@ TEST_F(flow_stat, add_del_stream) {
     stream.m_pkt.binary = (uint8_t *)test_pkt;
     stream.m_pkt.len = sizeof(test_pkt);
 
-    rule_mgr.init_stream(&stream);
+    CFlowStatRuleMgr::instance()->init_stream(&stream);
 
     try {
-        rule_mgr.del_stream(&stream);
+        CFlowStatRuleMgr::instance()->del_stream(&stream);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
     }
 
     try {
-        rule_mgr.add_stream(&stream);
+        CFlowStatRuleMgr::instance()->add_stream(&stream);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
     }
 
     stream.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
     try {
-        rule_mgr.add_stream(&stream);
+        CFlowStatRuleMgr::instance()->add_stream(&stream);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
     }
 
     // change to UDP packet so it will be fine to work with
     test_pkt[27] = IPPROTO_UDP;
-    int ret = rule_mgr.add_stream(&stream);
+    int ret = CFlowStatRuleMgr::instance()->add_stream(&stream);
     assert (ret == 0);
 
     stream3.m_rx_check.m_enabled = true;
@@ -4516,12 +4514,12 @@ TEST_F(flow_stat, add_del_stream) {
     stream3.m_pkt.binary = (uint8_t *)test_pkt;
     stream3.m_pkt.len = sizeof(test_pkt);
     try {
-        ret = rule_mgr.add_stream(&stream3);
+        ret = CFlowStatRuleMgr::instance()->add_stream(&stream3);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DUP_PG_ID);
     }
 
-    ret = rule_mgr.del_stream(&stream);
+    ret = CFlowStatRuleMgr::instance()->del_stream(&stream);
     assert (ret == 0);
 
     stream2.m_rx_check.m_enabled = true;
@@ -4529,13 +4527,13 @@ TEST_F(flow_stat, add_del_stream) {
     stream2.m_rx_check.m_pg_id = 5; // same as first stream
     stream2.m_pkt.binary = (uint8_t *)test_pkt;
     stream2.m_pkt.len = sizeof(test_pkt);
-    ret = rule_mgr.add_stream(&stream2);
+    ret = CFlowStatRuleMgr::instance()->add_stream(&stream2);
     assert (ret == 0);
 
-    ret = rule_mgr.del_stream(&stream2);
+    ret = CFlowStatRuleMgr::instance()->del_stream(&stream2);
     assert (ret == 0);
     try {
-        rule_mgr.del_stream(&stream2);
+        CFlowStatRuleMgr::instance()->del_stream(&stream2);
     } catch (TrexFStatEx e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     }
@@ -4571,7 +4569,7 @@ TEST_F(flow_stat_lat, pkt_decode) {
     fsp_head.seq = 0x87654321;
     fsp_head.time_stamp = 0x8765432187654321;
 
-    rte_mempool_t * mp1=utl_rte_mempool_create("big-const", 10, 2048, 32, 0, 0);
+    rte_mempool_t * mp1=utl_rte_mempool_create("big-const", 10, 2048, 32, 0);
 
     // case 1 - data split between two mbufs
     rte_mbuf_t * m1 = rte_pktmbuf_alloc(mp1);

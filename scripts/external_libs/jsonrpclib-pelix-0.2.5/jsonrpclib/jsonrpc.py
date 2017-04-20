@@ -88,6 +88,11 @@ try:
     from xmlrpc.client import SafeTransport as XMLSafeTransport
     from xmlrpc.client import ServerProxy as XMLServerProxy
     from xmlrpc.client import _Method as XML_Method
+    from http.client import HTTPConnection
+    try:
+        from http.client import HTTPSConnection
+    except:
+        HTTPSConnection = None
 
 except ImportError:
     # Python 2
@@ -98,6 +103,11 @@ except ImportError:
     from xmlrpclib import SafeTransport as XMLSafeTransport
     from xmlrpclib import ServerProxy as XMLServerProxy
     from xmlrpclib import _Method as XML_Method
+    from httplib import HTTPConnection
+    try:
+        from httplib import HTTPSConnection
+    except:
+        HTTPSConnection = None
 
 # ------------------------------------------------------------------------------
 # JSON library import
@@ -268,7 +278,7 @@ class TransportMixIn(object):
     # Use the configuration to change the content-type
     readonly_headers = ('content-length', 'content-type')
 
-    def __init__(self, config=jsonrpclib.config.DEFAULT, context=None):
+    def __init__(self, config=jsonrpclib.config.DEFAULT, context=None, timeout = None):
         """
         Sets up the transport
 
@@ -285,6 +295,9 @@ class TransportMixIn(object):
 
         # Additional headers: list of dictionaries
         self.additional_headers = []
+
+        # Timeout for http connection
+        self._timeout_kw = {'timeout': timeout} if timeout else {}
 
     def push_headers(self, headers):
         """
@@ -367,14 +380,38 @@ class Transport(TransportMixIn, XMLTransport):
     """
     Mixed-in HTTP transport
     """
-    pass
+
+    # adds timeout usage from TransportMixIn
+    def make_connection(self, host):
+        if self._connection and host == self._connection[0]:
+            return self._connection[1]
+
+        chost, self._extra_headers, x509 = self.get_host_info(host)
+        self._connection = host, HTTPConnection(chost, **self._timeout_kw)
+        return self._connection[1]
 
 
 class SafeTransport(TransportMixIn, XMLSafeTransport):
     """
     Mixed-in HTTPS transport
     """
-    pass
+
+    # adds timeout usage from TransportMixIn
+    def make_connection(self, host):
+        if not HTTPSConnection:
+            raise Exception('Your Python does not have HTTPSConnection!')
+        if self._connection and host == self._connection[0]:
+            return self._connection[1]
+
+        chost, self._extra_headers, x509 = self.get_host_info(host)
+        kw = {}
+        kw.update(self._timeout_kw)
+        kw.update(x509)
+        if sys.version_info[0] < 3:
+            self._connection = host, HTTPSConnection(chost, None, **kw)
+        else:
+            self._connection = host, HTTPSConnection(chost, None, context=self.context, **kw)
+        return self._connection[1]
 
 # ------------------------------------------------------------------------------
 
@@ -386,7 +423,7 @@ class ServerProxy(XMLServerProxy):
     """
     def __init__(self, uri, transport=None, encoding=None,
                  verbose=0, version=None, headers=None, history=None,
-                 config=jsonrpclib.config.DEFAULT, context=None):
+                 config=jsonrpclib.config.DEFAULT, context=None, timeout = None):
         """
         Sets up the server proxy
 
@@ -417,9 +454,9 @@ class ServerProxy(XMLServerProxy):
 
         if transport is None:
             if schema == 'https':
-                transport = SafeTransport(config=config, context=context)
+                transport = SafeTransport(config=config, context=context, timeout = timeout)
             else:
-                transport = Transport(config=config)
+                transport = Transport(config=config, timeout = timeout)
         self.__transport = transport
 
         self.__encoding = encoding

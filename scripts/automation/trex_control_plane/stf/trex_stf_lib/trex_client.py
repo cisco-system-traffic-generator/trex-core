@@ -40,7 +40,7 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = ''):
+    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = '', timeout = 30):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -76,6 +76,10 @@ class CTRexClient(object):
              trex_args : string
                 additional arguments passed to TRex. For example, "-w 3 --no-watchdog"
 
+             timeout : int
+                timeout in seconds to wait for socket response
+                default value: **30**
+
         :raises:
             socket errors, in case server could not be reached.
 
@@ -94,9 +98,9 @@ class CTRexClient(object):
         self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
         self.history                = jsonrpclib.history.History()
         self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
-        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history)
+        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history, timeout = timeout)
         self.trex_server_path       = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history)
+        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history, timeout = timeout)
         self.debug_image            = debug_image
         self.trex_args              = trex_args
         self.sample_to_run_finish   = self.sample_until_finish # alias for legacy
@@ -112,10 +116,24 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
+    # internal method which polls for TRex state until it's running or timeout happens
+    def _block_to_success(self, timeout, poll_interval = 1):
+        if not timeout:
+            raise Exception("'timeout' should be positive integer in case of 'block_to_success'")
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            status = self.get_running_status()
+            if status['state'] == TRexStatus.Running:
+                return
+            if status['state'] == TRexStatus.Idle:
+                raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
+            time.sleep(poll_interval)
+        raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
+
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
         """
         Request to start a TRex run on server in stateful mode.
-                
+
         :parameters:  
             f : str
                 a path (on server) for the injected traffic data (.yaml file)
@@ -160,7 +178,7 @@ class CTRexClient(object):
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, False, self.debug_image, self.trex_args)
+            retval = self.server.start_trex(trex_cmd_options, user, False, None, False, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -168,7 +186,10 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-        if retval!=0:   
+        if block_to_success:
+            self._block_to_success(timeout)
+
+        if retval!=0:
             self.seq = retval   # update seq num only on successful submission
             return True
         else:   # TRex is has been started by another user
@@ -178,7 +199,7 @@ class CTRexClient(object):
     def start_stateless(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
         """
         Request to start a TRex run on server in stateless mode.
-                
+
         :parameters:  
             block_to_success : bool
                 determine if this method blocks until TRex changes state from 'Starting' to either 'Idle' or 'Running'
@@ -202,11 +223,11 @@ class CTRexClient(object):
             + :exc:`trex_exceptions.TRexInUseError`, in case TRex is already taken.
             + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex is reserved for another user than the one trying start TRex.
             + ProtocolError, in case of error in JSON-RPC protocol.
-        
+
         """
         try:
             user = user or self.__default_user
-            retval = self.server.start_trex(trex_cmd_options, user, block_to_success, timeout, True, self.debug_image, self.trex_args)
+            retval = self.server.start_trex(trex_cmd_options, user, False, None, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -214,7 +235,10 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-        if retval!=0:   
+        if block_to_success:
+            self._block_to_success(timeout)
+
+        if retval!=0:
             self.seq = retval   # update seq num only on successful submission
             return True
         else:   # TRex is has been started by another user
@@ -1002,6 +1026,7 @@ class CTRexClient(object):
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
                 raise socket.error(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
+            raise
         finally:
             self.prompt_verbose_data()
 
@@ -1029,6 +1054,7 @@ class CTRexClient(object):
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
                 raise socket.error(errno.ECONNREFUSED, "Connection to Master daemon was refused. Please make sure the server is up.")
+            raise
         finally:
             self.prompt_verbose_data()
 

@@ -64,6 +64,8 @@ static const uint16_t HW_ID_INIT = UINT16_MAX;
 static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
 static const uint8_t PAYLOAD_RULE_PROTO = 255;
 const uint32_t FLOW_STAT_PAYLOAD_IP_ID = UINT16_MAX;
+// make the class singelton
+CFlowStatRuleMgr* CFlowStatRuleMgr::m_pInstance = NULL;
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -1009,11 +1011,6 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
 // send_all - If true, send data for all pg_ids. This is used for getting statistics in automation API.
 //            If false, send small amount of pg ids. Used for async interface, for displaying in console
 bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all) {
-    rx_per_flow_t rx_stats[MAX_FLOW_STATS];
-    rx_per_flow_t rx_stats_payload[MAX_FLOW_STATS];
-    tx_per_flow_t tx_stats[MAX_FLOW_STATS];
-    tx_per_flow_t tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
-    rfc2544_info_t rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
     CRxCoreErrCntrs rx_err_cntrs;
     Json::FastWriter writer;
     Json::Value s_root;
@@ -1040,7 +1037,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
         return true;
     }
 
-    m_api->get_rfc2544_info(rfc2544_info, 0, m_max_hw_id_payload, false);
+    m_api->get_rfc2544_info(m_rfc2544_info, 0, m_max_hw_id_payload, false);
     m_api->get_rx_err_cntrs(&rx_err_cntrs);
 
 
@@ -1071,10 +1068,10 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
 
     // read hw counters, and update
     for (uint8_t port = 0; port < m_num_ports; port++) {
-        m_api->get_flow_stats(port, rx_stats, (void *)tx_stats, min_to_send, max_to_send, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+        m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, min_to_send, max_to_send, false, TrexPlatformApi::IF_STAT_IPV4_ID);
         for (int i = 0; i <= max_to_send - min_to_send; i++) {
-            if (rx_stats[i].get_pkts() != 0) {
-                rx_per_flow_t rx_pkts = rx_stats[i];
+            if (m_rx_stats[i].get_pkts() != 0) {
+                rx_per_flow_t rx_pkts = m_rx_stats[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i + min_to_send));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_rx_cntr(port) != rx_pkts) {
@@ -1087,8 +1084,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
-            if (tx_stats[i].get_pkts() != 0) {
-                tx_per_flow_t tx_pkts = tx_stats[i];
+            if (m_tx_stats[i].get_pkts() != 0) {
+                tx_per_flow_t tx_pkts = m_tx_stats[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i + min_to_send));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_cntr(port) != tx_pkts) {
@@ -1103,11 +1100,11 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
             }
         }
         // payload rules
-        m_api->get_flow_stats(port, rx_stats_payload, (void *)tx_stats_payload, 0, m_max_hw_id_payload
+        m_api->get_flow_stats(port, m_rx_stats_payload, (void *)m_tx_stats_payload, 0, m_max_hw_id_payload
                               , false, TrexPlatformApi::IF_STAT_PAYLOAD);
         for (int i = 0; i <= m_max_hw_id_payload; i++) {
-            if (rx_stats_payload[i].get_pkts() != 0) {
-                rx_per_flow_t rx_pkts = rx_stats_payload[i];
+            if (m_rx_stats_payload[i].get_pkts() != 0) {
+                rx_per_flow_t rx_pkts = m_rx_stats_payload[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_rx_cntr(port) != rx_pkts) {
@@ -1120,8 +1117,8 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
                               << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
-            if (tx_stats_payload[i].get_pkts() != 0) {
-                tx_per_flow_t tx_pkts = tx_stats_payload[i];
+            if (m_tx_stats_payload[i].get_pkts() != 0) {
+                tx_per_flow_t tx_pkts = m_tx_stats_payload[i];
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_cntr(port) != tx_pkts) {
@@ -1215,14 +1212,14 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
             if (user_id_info->is_hw_id()) {
                 // if mapped to hw_id, take info from what we just got from rx core
                 uint16_t hw_id = user_id_info->get_hw_id();
-                rfc2544_info[hw_id].get_latency_json(lat_hist);
-                user_id_info_p->set_seq_err_cnt(rfc2544_info[hw_id].get_seq_err_cnt());
-                user_id_info_p->set_ooo_cnt(rfc2544_info[hw_id].get_ooo_cnt());
-                user_id_info_p->set_dup_cnt(rfc2544_info[hw_id].get_dup_cnt());
-                user_id_info_p->set_seq_err_big_cnt(rfc2544_info[hw_id].get_seq_err_ev_big());
-                user_id_info_p->set_seq_err_low_cnt(rfc2544_info[hw_id].get_seq_err_ev_low());
+                m_rfc2544_info[hw_id].get_latency_json(lat_hist);
+                user_id_info_p->set_seq_err_cnt(m_rfc2544_info[hw_id].get_seq_err_cnt());
+                user_id_info_p->set_ooo_cnt(m_rfc2544_info[hw_id].get_ooo_cnt());
+                user_id_info_p->set_dup_cnt(m_rfc2544_info[hw_id].get_dup_cnt());
+                user_id_info_p->set_seq_err_big_cnt(m_rfc2544_info[hw_id].get_seq_err_ev_big());
+                user_id_info_p->set_seq_err_low_cnt(m_rfc2544_info[hw_id].get_seq_err_ev_low());
                 l_data_section[str_user_id]["latency"] = lat_hist;
-                l_data_section[str_user_id]["latency"]["jitter"] = rfc2544_info[hw_id].get_jitter_usec();
+                l_data_section[str_user_id]["latency"]["jitter"] = m_rfc2544_info[hw_id].get_jitter_usec();
             } else {
                 // Not mapped to hw_id. Get saved info.
                 user_id_info_p->get_latency_json(lat_hist);

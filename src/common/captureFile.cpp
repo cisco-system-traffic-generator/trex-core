@@ -258,9 +258,9 @@ CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops, std::os
     FILE * f = CAP_FOPEN_64(name, "rb");
     if (f == NULL) {
         if (errno == ENOENT) {
-            err << "CAP file '" << name << "' not found";
+            err << "CAP file '" << name << "' not found" << std::endl;
         } else {
-            err << "failed to open CAP file '" << name << "' with errno " << errno;
+            err << "Failed opening CAP file '" << name << "' with errno " << errno  << std::endl;
         }
         return NULL;
     }
@@ -276,7 +276,7 @@ CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops, std::os
 		delete next;
 	}
 
-    err << "unsupported CAP format (not PCAP or ERF): " << name << "\n";
+    err << "Unsupported CAP format (should be PCAP or ERF): " << name << std::endl;
 
 	return NULL;
 }

@@ -99,14 +99,12 @@ private:
     void *              m_cache_mbuf; /* could be an array or a one mbuf */
 
     double              m_next_time_offset; /* in sec */
-    uint16_t            m_action_counter;
+    uint32_t            m_action_counter;
     uint16_t            m_stat_hw_id; // hw id used to count rx and tx stats
     uint16_t            m_cache_array_cnt;
-    uint8_t             m_null_stream;
-    uint8_t             m_pad12;
 
+    uint8_t             m_null_stream;
     stream_state_t      m_state;
-    uint8_t             m_port_id;
     uint8_t             m_stream_type; /* see TrexStream::STREAM_TYPE ,stream_type_t */
     uint8_t             m_pause;
 
@@ -130,8 +128,8 @@ private:
     uint16_t             m_vm_program_size; /* up to 64K op codes */
     uint16_t             m_cache_size;   /*RO*/ /* the size of the mbuf array */
     uint8_t              m_batch_size;   /*RO*/ /* the batch size */
+    uint8_t              m_port_id;
 
-    uint8_t              m_pad4; 
     uint16_t             m_pad5; 
 
     /* End Fast Field VM Section */
@@ -170,10 +168,14 @@ public:
 
     }
     inline void mark_for_free(){
-        set_state(CGenNodeStateless::ss_FREE_RESUSE);
-        /* only to be safe */
-        m_ref_stream_info= NULL;
-        m_next_stream= NULL;
+        if (m_state != CGenNodeStateless::ss_FREE_RESUSE) {
+            /* must be first */
+            free_stl_node();
+            set_state(CGenNodeStateless::ss_FREE_RESUSE);
+            /* only to be safe */
+            m_ref_stream_info= NULL;
+            m_next_stream= NULL;
+        }
     }
 
     bool is_pause(){

@@ -117,7 +117,7 @@ public:
 
             m_out_streams.push_back(out_stream);
             
-            get_stateless_obj()->m_rx_flow_stat.start_stream(out_stream);
+            CFlowStatRuleMgr::instance()->start_stream(out_stream);
             
         }
     }
@@ -140,10 +140,10 @@ public:
 
             if (m_success) {
                 /* success path */
-                get_stateless_obj()->m_rx_flow_stat.copy_state(out_stream, in_stream);
+                CFlowStatRuleMgr::instance()->copy_state(out_stream, in_stream);
             } else {
                 /* fail path */
-                get_stateless_obj()->m_rx_flow_stat.stop_stream(out_stream);
+                CFlowStatRuleMgr::instance()->stop_stream(out_stream);
             }
             delete out_stream;
         }
@@ -399,7 +399,7 @@ TrexStatelessPort::remove_rx_filters(void) {
     verify_state(PORT_STATE_STREAMS, "remove_rx_filters");
 
     for (auto entry : m_stream_table) {
-        get_stateless_obj()->m_rx_flow_stat.stop_stream(entry.second);
+        CFlowStatRuleMgr::instance()->stop_stream(entry.second);
     }
 
 }
@@ -937,7 +937,7 @@ TrexStatelessPort::add_stream(TrexStream *stream) {
     if (m_stream_table.size() >= MAX_STREAMS) {
         throw TrexException("Reached limit of " + std::to_string(MAX_STREAMS) + " streams at the port.");
     }
-    get_stateless_obj()->m_rx_flow_stat.add_stream(stream);
+    CFlowStatRuleMgr::instance()->add_stream(stream);
 
     m_stream_table.add_stream(stream);
     delete_streams_graph();
@@ -950,7 +950,7 @@ TrexStatelessPort::remove_stream(TrexStream *stream) {
 
     verify_state(PORT_STATE_STREAMS, "remove_stream");
 
-    get_stateless_obj()->m_rx_flow_stat.del_stream(stream);
+    CFlowStatRuleMgr::instance()->del_stream(stream);
 
     m_stream_table.remove_stream(stream);
     delete_streams_graph();

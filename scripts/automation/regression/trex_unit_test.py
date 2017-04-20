@@ -90,6 +90,7 @@ def __suite_repr__(self):
 
 nose.suite.ContextSuite.__repr__ = __suite_repr__
 nose.suite.ContextSuite.__str__  = __suite_repr__
+nose.case.Test.shortDescription  = lambda *a, **k: None
 
 # /nose overrides
 
@@ -404,7 +405,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.pkg or self.restart_daemon:
             if not CTRexScenario.trex.check_master_connectivity():
                 fatal('Could not connect to master daemon')
-        if options.ga and CTRexScenario.setup_name:
+        if options.ga and CTRexScenario.setup_name and not (CTRexScenario.GAManager and CTRexScenario.elk):
             CTRexScenario.GAManager  = GAmanager_Regression(
                     GoogleID         = CTRexScenario.global_cfg['google']['id'],
                     AnalyticsUserID  = CTRexScenario.setup_name,
@@ -463,18 +464,47 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         CTRexScenario.elk_info = elk_info
 
+    def _update_trex(self, timeout = 600):
+        client = CTRexScenario.trex
+        if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
+            fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
+
+        ret, out, err = misc_methods.run_command('sha1sum -b %s' % self.pkg)
+        if ret:
+            fatal('Could not calculate sha1 of package. Got: %s' % [ret, out, err])
+        sha1 = out.strip().split()[0]
+        if client.master_daemon.get_package_sha1() == sha1:
+            print('Server is up to date with package: %s' % self.pkg)
+            CTRexScenario.pkg_updated = True
+            return
+
+        print('Updating TRex to: %s' % self.pkg)
+        client.master_daemon.update_trex(self.pkg)
+        sys.stdout.write('Waiting for update to finish')
+        sys.stdout.flush()
+        start_time = time.time()
+        while True:
+            if time.time() > start_time + timeout:
+                fatal(' timeout of %ss while updating TRex.' % timeout)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            time.sleep(1)
+            if not client.master_daemon.is_updating():
+                print(' finished.')
+                break
+
+        master_pkg_sha1 = client.master_daemon.get_package_sha1()
+        if master_pkg_sha1 == sha1:
+            print('Hash matches needed package, success.')
+            CTRexScenario.pkg_updated = True
+            return
+        else:
+            fatal('Hash does not match, stuck with old package.')
 
     def begin (self):
         client = CTRexScenario.trex
         if self.pkg and not CTRexScenario.pkg_updated:
-            if client.master_daemon.is_trex_daemon_running() and client.get_trex_cmds() and not self.kill_running:
-                fatal("Can't update TRex, it's running. Consider adding --kill-running flag.")
-            print('Updating TRex to %s' % self.pkg)
-            if not client.master_daemon.update_trex(self.pkg):
-                fatal('Failed to update TRex.')
-            else:
-                print('Updated.')
-            CTRexScenario.pkg_updated = True
+            self._update_trex()
         if self.functional or self.collect_only:
             return
         if self.pkg or self.restart_daemon:
@@ -514,6 +544,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if self.functional or self.collect_only:
             return
         #CTRexScenario.is_init = False
+        if CTRexScenario.trex:
+            CTRexScenario.trex.master_daemon.save_coredump()
         if self.stateful:
             CTRexScenario.trex = None
         if self.stateless:

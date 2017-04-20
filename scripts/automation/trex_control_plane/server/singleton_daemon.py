@@ -96,7 +96,7 @@ class SingletonDaemon(object):
 
     # try connection as RPC client, return True upon success, False if fail
     def check_connectivity(self, timeout = 15):
-        daemon = jsonrpclib.Server('http://127.0.0.1:%s/' % self.port)
+        daemon = jsonrpclib.Server('http://127.0.0.1:%s/' % self.port, timeout = timeout)
         poll_rate = 0.1
         for i in range(int(timeout/poll_rate)):
             try:

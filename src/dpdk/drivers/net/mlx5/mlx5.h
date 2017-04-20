@@ -92,6 +92,11 @@ enum {
 struct mlx5_stats_priv {
 
     struct rte_eth_stats m_shadow;
+    uint32_t             m_old_ipackets;
+    uint32_t             m_old_opackets;
+    uint64_t             m_t_ipackets;
+    uint64_t             m_t_opackets;
+
     uint32_t      n_stats; /* number of counters */
 
     void    *  et_stats  ;/* point to ethtool counter struct ethtool_stats*/

@@ -37,7 +37,6 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
                                                unsigned elt_size,
                                                unsigned cache_size,
-                                               uint32_t _id ,
                                                int socket_id){
     rte_mempool_t * p=new rte_mempool_t();
     assert(p);
@@ -52,7 +51,6 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                       unsigned n,
                                       unsigned elt_size,
                                       unsigned cache_size,
-                                      uint32_t _id,
                                       int socket_id
                                        ){
 

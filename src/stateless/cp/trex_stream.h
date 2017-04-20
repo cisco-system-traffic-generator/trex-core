@@ -37,6 +37,7 @@ limitations under the License.
 #include <common/captureFile.h>
 #include <common/bitMan.h> 
 #include "internal_api/trex_platform_api.h"
+#include "trex_exception.h"
 
 
 class TrexRpcCmdAddStream;
@@ -157,7 +158,9 @@ public:
         m_bps_L2     = 0;
         m_percentage = 0;
 
-        assert(value > 0);
+        if ( value <= 0 ) {
+            throw TrexException("Rate value should be positive.");
+        }
 
         switch (type) {
         case RATE_PPS:
@@ -174,7 +177,7 @@ public:
             break;
 
         default:
-            assert(0);
+            throw TrexException("Invalid rate type.");
         
         }
     }
@@ -237,8 +240,8 @@ private:
         } else if (m_percentage != 0) {
             calculate_from_percentage();
         } else {
-            assert(0);
-        }
+            throw TrexException("Rate value shound be positive.");
+       }
     }
 
 
@@ -535,7 +538,7 @@ public:
     uint16_t      m_flags;
 
     uint32_t      m_stream_id;              /* id from RPC can be anything */
-    uint16_t      m_action_count;       
+    uint32_t      m_action_count;
     uint16_t      m_cache_size;
     uint32_t      m_random_seed;
     

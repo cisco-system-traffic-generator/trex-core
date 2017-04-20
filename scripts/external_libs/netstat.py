@@ -63,7 +63,8 @@ def netstat(with_pid = True, search_local_port = None):
         r_host,r_port = _convert_ip_port(line_array[2]) 
         tcp_id = line_array[0]
         state = STATE.get(line_array[3])
-        uid = pwd.getpwuid(int(line_array[7]))[0]       # Get user from UID.
+        #uid = pwd.getpwuid(int(line_array[7]))[0]       # Get user from UID.
+        uid = 'Unknown'
         inode = line_array[9]                           # Need the inode to get process pid.
         if with_pid:
             pid = _get_pid_of_inode(inode)                  # Get pid prom inode.
