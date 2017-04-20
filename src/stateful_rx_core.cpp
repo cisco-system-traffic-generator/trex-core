@@ -92,6 +92,8 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
     m_pkt_indication.m_ether = (EthernetHeader *)m_packet->raw;
     m_pkt_indication.l3.m_ipv4=(IPHeader       *)(m_packet->raw+14);
     m_pkt_indication.m_is_ipv6 = false;
+    m_pkt_indication.m_is_ipv6_converted = false;
+
     m_pkt_indication.l4.m_icmp=(ICMPHeader *)m_packet->raw+14+20;
     m_pkt_indication.m_payload=(uint8_t *)m_packet->raw+14+20+16;
     m_pkt_indication.m_payload_len=0;
