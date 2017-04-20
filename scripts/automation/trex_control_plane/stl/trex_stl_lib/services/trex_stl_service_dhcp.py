@@ -106,7 +106,8 @@ class STLServiceDHCP(STLService):
         '''
         
         # main state machine loop
-        self.state = 'INIT'
+        self.state   = 'INIT'
+        self.record  = None
         self.retries = 5
         
         while True:
@@ -149,7 +150,7 @@ class STLServiceDHCP(STLService):
                 options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
                 self.log("DHCP: {0} <--- OFFER from '{1}' with address '{2}' ".format(self.mac, options['server_id'], offer['BOOTP'].yiaddr))
         
-                self.record = self.DHCPRecord(offer)
+                record = self.DHCPRecord(offer)
                 
                 self.state = 'REQUESTING'
                 continue
@@ -162,7 +163,7 @@ class STLServiceDHCP(STLService):
                 self.log('DHCP: {0} ---> REQUESTING'.format(self.mac))
                 
                 pipe.async_tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", self.record.client_ip),"end"]))
+                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", record.client_ip),"end"]))
                 
                 pkts = yield pipe.async_wait_for_pkt(3)
                 pkts = [pkt['pkt'] for pkt in pkts]
@@ -178,10 +179,10 @@ class STLServiceDHCP(STLService):
                 options = {x[0]:x[1] for x in acknack['DHCP options'].options if isinstance(x, tuple)}
                 
                 if options['message-type'] == self.ACK:
-                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, self.record.server_ip, self.record.client_ip))
+                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, record.server_ip, record.client_ip))
                     self.state = 'BOUND'
                 else:
-                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, self.record.server_ip))
+                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, record.server_ip))
                     self.state = 'INIT'
                     
                 
@@ -189,6 +190,7 @@ class STLServiceDHCP(STLService):
                 
                 
             elif self.state == 'BOUND':
+                self.record = record
                 break
             
             

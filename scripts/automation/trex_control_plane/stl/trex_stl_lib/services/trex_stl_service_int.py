@@ -204,10 +204,12 @@ class STLServiceCtx(object):
 
             # if no other process exists - exit
             if self.active_services == 0:
+                # make sure no packets are left behind
+                self.client.wait_on_traffic(ports = self.port)
                 return
-
-            # backoff
-            yield self.env.timeout(0.1)
+            else:
+                # backoff
+                yield self.env.timeout(0.1)
 
             
 class TXBuffer(object):
@@ -242,6 +244,10 @@ class TXBuffer(object):
            self.tx_event = self.env.event()
         
 
+    def pending (self):
+        return len(self.pkts)
+        
+        
 class PktRX(simpy.resources.store.StoreGet):
     '''
         An event waiting for RX packets
