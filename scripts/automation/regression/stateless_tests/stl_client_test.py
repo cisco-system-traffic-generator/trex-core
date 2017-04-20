@@ -74,7 +74,10 @@ class STLClient_Test(CStlGeneral_Test):
         if self.strict:
             assert expected == got
         else:
-            assert get_error_in_percentage(expected, got) < 0.05
+            if expected==0:
+                assert expected == got
+            else:
+               assert get_error_in_percentage(expected, got) < 0.05
 
 
     def test_basic_connect_disconnect (self):
