@@ -3243,7 +3243,7 @@ class STLClient(object):
         
         self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         
-        # generate the contexsts
+        # generate the context
         arps = []
         for port in ports:
 
@@ -3486,7 +3486,7 @@ class STLClient(object):
         
 
     @__api_check(True)
-    def fetch_capture_packets (self, capture_id, output, pkt_count = 1000):
+    def fetch_capture_packets (self, capture_id, output, count = 1000):
         """
             Fetch packets from existing active capture
 
@@ -3494,6 +3494,9 @@ class STLClient(object):
                 capture_id: int
                     an active capture ID
 
+                count: int
+                    maximum packets to fetch
+                    
                 output: str / list
                     if output is a 'str' - it will be interpeted as output filename
                     if it is a list, the API will populate the list with packet objects
@@ -3523,7 +3526,8 @@ class STLClient(object):
             # clear the list
             del output[:]
 
-        pending = pkt_count
+        # assumes the server has 'count' packets
+        pending = count
         rc = RC_OK()
         
         # fetch with iteratios - each iteration up to 50 packets
@@ -3533,9 +3537,6 @@ class STLClient(object):
                 self.logger.post_cmd(rc)
                 raise STLError(rc)
 
-            # make sure we are getting some progress
-            #assert(rc.data()['pending'] < pending)
-            
             pkts      = rc.data()['pkts']
             pending   = rc.data()['pending']
             start_ts  = rc.data()['start_ts']
@@ -4628,7 +4629,6 @@ class STLClient(object):
             
         
         try:
-            #import IPython
             from IPython.terminal.ipapp import load_default_config
             from IPython.terminal.embed import InteractiveShellEmbed
             from IPython import embed
@@ -4671,4 +4671,4 @@ class STLClient(object):
         
         return
 
-    
+
