@@ -79,7 +79,9 @@ class STLServiceICMP(STLService):
         '''
             Will execute ICMP echo request
         '''
-      
+        
+        self.record = None
+        
         self.log("ICMP: {:<15} ---> Pinging '{}'".format(self.src_ip, self.dst_ip))
         
         base_pkt = Ether()/IP(src = self.src_ip, dst = self.dst_ip)/ICMP(id = self.id, type = 8)

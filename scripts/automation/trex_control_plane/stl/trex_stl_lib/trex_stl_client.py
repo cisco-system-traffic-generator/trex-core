@@ -1964,9 +1964,9 @@ class STLClient(object):
                                                                                        pkt_size))
         
         if is_valid_ipv4(dst_ip):
-            self._ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
         else:
-            self._ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
         
             
          
@@ -1976,14 +1976,20 @@ class STLClient(object):
         ctx = self.create_service_ctx(port = src_port)
         ping = STLServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size)
         
+        records = []
+        
         self.logger.log('')
         for i in range(count):
             ctx.run(ping)
+            
+            records.append(ping.get_record())
             self.logger.log(ping.get_record())
             
             if i != (count - 1):
                 time.sleep(interval_sec)
             
+        return records
+        
         
     # IPv6 ping 
     def _ping_ipv6 (self, src_port, dst_ip, pkt_size, count, interval_sec):
@@ -3743,7 +3749,7 @@ class STLClient(object):
         # IP ping
         # source ports maps to ports as a single port
         self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count)
-
+        
         
     @__console
     def shutdown_line (self, line):
