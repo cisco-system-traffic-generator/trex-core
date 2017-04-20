@@ -16,6 +16,7 @@ Author:
 import simpy
 from simpy.core import BoundClass
 from ..trex_stl_exceptions import STLError
+from ..trex_stl_psv import *
 from scapy.layers.l2 import Ether
 from .trex_stl_service import STLService
 
@@ -84,20 +85,6 @@ class STLServiceCtx(object):
         self.active_services = 0
      
              
-    def _sanity (self):
-        if not self.client.ports[self.port].is_up():
-            raise STLError('service context - port {} is down'.format(self.port))
-
-        if not self.client.ports[self.port].is_acquired(): 
-            raise STLError('service context - port {} must be acquired'.format(self.port))
-        
-        if self.client.ports[self.port].is_active():
-            raise STLError('service context - port {} is active'.format(self.port))
-
-        if not self.client.ports[self.port].is_service_mode_on():
-            raise STLError('service context - port {} must be under service mode'.format(self.port))
-
-
     def _add (self, services):
         '''
             Add a service to the context
@@ -115,8 +102,13 @@ class STLServiceCtx(object):
 
  
     def _run (self, services):
-        self._sanity()
-            
+        
+        # check port state
+        self.client.psv.validate('SERVICE CTX', ports = self.port,
+                                 states = (PSV_UP,
+                                           PSV_ACQUIRED,
+                                           PSV_IDLE, PSV_SERVICE))
+                
         # prepare
         self._reset()
         

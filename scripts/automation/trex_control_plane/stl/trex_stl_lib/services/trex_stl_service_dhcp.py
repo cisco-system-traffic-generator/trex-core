@@ -203,6 +203,7 @@ class STLServiceDHCP(STLService):
                                 /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
                                 /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
         
+        self.record = None
         
 
     def get_record (self):
@@ -213,17 +214,20 @@ class STLServiceDHCP(STLService):
 
 
     class DHCPRecord(object):
+            
         def __init__ (self, offer):
             options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
             
             self.server_mac = offer.src
+            self.client_mac = offer.dst
+            
             self.server_ip  = options['server_id']
             self.subnet     = options['subnet_mask']
             self.domain     = options['domain']
             self.lease      = options['lease_time']
             self.client_ip  = offer['BOOTP'].yiaddr
             
-        def __str__ (self):
             
+        def __str__ (self):
             return "ip: {0}, server_ip: {1}, subnet: {2}, domain: {3}, lease_time: {4}".format(self.client_ip, self.server_ip, self.subnet, self.domain, self.lease)
 
