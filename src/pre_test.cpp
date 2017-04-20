@@ -217,7 +217,7 @@ void CPretestOnePortInfo::send_arp_req_all() {
             }
         }
 
-        num_sent = rte_eth_tx_burst(m_port_id, 0, m, 1);
+        num_sent = m_port->tx_burst(0, m, 1);
         if (num_sent < 1) {
             fprintf(stderr, "Failed sending ARP to port:%d\n", m_port_id);
             exit(1);
@@ -248,7 +248,7 @@ void CPretestOnePortInfo::send_grat_arp_all() {
             (*it)->dump(stdout, "");
         }
 
-        num_sent = rte_eth_tx_burst(m_port_id, 0, m, 1);
+        num_sent = m_port->tx_burst(0, m, 1);
         if (num_sent < 1) {
             fprintf(stderr, "Failed sending grat ARP on port:%d\n", m_port_id);
             exit(1);
@@ -423,7 +423,9 @@ int CPretest::handle_rx(int port_id, int queue_id) {
     int tries = 0;
 
     do {
-        cnt = rte_eth_rx_burst(port_id, queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
+        CPretestOnePortInfo *port = &m_port_info[port_id];
+
+        cnt = port->get_port()->rx_burst( queue_id, rx_pkts, sizeof(rx_pkts)/sizeof(rx_pkts[0]));
         tries++;
         bool free_pkt;
         for (i = 0; i < cnt; i++) {
@@ -433,7 +435,6 @@ int CPretest::handle_rx(int port_id, int queue_id) {
             uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
             ArpHdr *arp;
             uint16_t vlan_tag;
-            CPretestOnePortInfo *port = &m_port_info[port_id];
             if (is_arp(p, pkt_size, arp, vlan_tag)) {
                 port->m_stats.m_rx_arp++;
                 if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
@@ -482,7 +483,7 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                             EthernetHeader *m_ether = (EthernetHeader *)p;
                             memcpy((uint8_t *)&m_ether->myDestination, (uint8_t *)&m_ether->mySource, ETHER_ADDR_LEN);
                             memcpy((uint8_t *)&m_ether->mySource, src_mac, ETHER_ADDR_LEN);
-                            int num_sent = rte_eth_tx_burst(port_id, 0, &m, 1);
+                            int num_sent = port->get_port()->tx_burst(0, &m, 1);
                             if (num_sent < 1) {
                                 fprintf(stderr, "Failed sending ARP reply to port:%d\n", port_id);
                                 rte_pktmbuf_free(m);
@@ -494,7 +495,7 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                             , ip_to_str(ntohl(arp->m_arp_tip)).c_str());
 
                                 }
-                                m_port_info[port_id].m_stats.m_tx_arp++;
+                                port->m_stats.m_tx_arp++;
                             }
                         }
                     } else {

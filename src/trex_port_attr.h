@@ -267,7 +267,7 @@ public:
     
     uint8_t get_port_id() const {
         return m_port_id;
-    }
+    } 
     
     /**
      * event handler for link down event
@@ -275,8 +275,8 @@ public:
     void on_link_down();
     
 protected:
-    
-    uint8_t                   m_port_id;
+
+   uint8_t                    m_port_id;
     rte_eth_link              m_link;
     uint32_t                  m_src_ipv4;
     LayerConfig               m_layer_cfg;
@@ -302,9 +302,15 @@ protected:
 class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
-    DpdkTRexPortAttr(uint8_t port_id, bool is_virtual, bool fc_change_allowed) : TRexPortAttr(port_id) {
+    DpdkTRexPortAttr(uint8_t tvpid, 
+                     uint8_t repid,
+                     bool is_virtual, 
+                     bool fc_change_allowed) : TRexPortAttr(tvpid) {
 
-        m_port_id = port_id;
+        m_tvpid = tvpid;
+        m_repid = repid;
+        m_port_id = tvpid; /* child */
+
         m_rx_filter_mode = RX_FILTER_MODE_HW;
 
         flag_is_virtual = is_virtual;
@@ -347,6 +353,9 @@ public:
     virtual void dump_link(FILE *fd);
 
 private:
+    uint8_t         m_tvpid ;
+    uint8_t         m_repid ;
+
     rte_eth_fc_conf fc_conf_tmp;
     std::vector <struct rte_eth_xstat> xstats_values_tmp;
     std::vector <struct rte_eth_xstat_name> xstats_names_tmp;
@@ -359,7 +368,8 @@ In order to use custom methods of port attributes per driver, need to instantiat
 */
 class DpdkTRexPortAttrMlnx5G : public DpdkTRexPortAttr {
 public:
-    DpdkTRexPortAttrMlnx5G(uint8_t port_id, bool is_virtual, bool fc_change_allowed) : DpdkTRexPortAttr(port_id, is_virtual, fc_change_allowed) {}
+    DpdkTRexPortAttrMlnx5G(uint8_t tvpid, 
+                     uint8_t repid, bool is_virtual, bool fc_change_allowed) : DpdkTRexPortAttr(tvpid,repid, is_virtual, fc_change_allowed) {}
     virtual int set_link_up(bool up);
 };
 

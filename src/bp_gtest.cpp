@@ -36,6 +36,7 @@ limitations under the License.
 #include "nat_check_flow_table.h"
 #include "utl_ipg_bucket.h"
 #include "bp_gtest.h"
+#include "utl_port_map.h"
 
 int test_policer(){
     CPolicer policer;
@@ -2772,3 +2773,157 @@ TEST_F(ipg_calc, test3) {
         EXPECT_EQ(ticks,UINT32_MAX);
     }
 }
+
+
+
+
+TEST_F(ipg_calc, test4) {
+
+    CPciPortCfgDesc a;
+    printf(" 1 \n");
+    a.set_name("03:00.0");
+    std::string err;
+    a.parse(err);
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+
+    printf(" 2 \n");
+
+    a.set_name("03:00.0/1");
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+
+    printf(" 2.1 \n");
+
+    a.set_name("03:00.02");
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+
+    printf(" 3 \n");
+    a.set_name("03:00.0/");
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+
+
+    printf(" 4 \n");
+    a.set_name("/12");
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+
+    printf(" 5 \n");
+    a.set_name("03:00.0/a");
+    if (a.parse(err)!=0){
+        fprintf(stdout,"%s\n",err.c_str());
+    }
+    a.dump(stdout);
+}
+
+int expect_vec(dpdk_map_args_t &port_map,
+               int * array, 
+               int array_size){
+    int i;
+    EXPECT_EQ(port_map.size(),array_size);
+
+    for (i=0; i<array_size; i++ ) {
+        EXPECT_EQ(port_map[i],array[i]);
+    }
+    return(0);
+}
+
+TEST_F(ipg_calc, test5) {
+    CPciPorts ports;
+
+
+    const char *ivec_s[] = {"03:00.0/1", "03:00.0/0","02:00.0/0","02:00.0/1"};
+    dpdk_input_args_t  ivec(ivec_s,std::end(ivec_s));
+    const char *dpdk_s[] ={"02:00.0","02:00.0","03:00.0","03:00.0"};
+    int expect[]={3,2,0,1};
+    dpdk_input_args_t  dpdk_scan(dpdk_s,std::end(dpdk_s));
+    dpdk_map_args_t port_map;
+    std::string  err;
+
+    EXPECT_EQ(ports.set_cfg_input(ivec,err),0);
+    EXPECT_EQ(ports.get_map_args(dpdk_scan, port_map,err),0);
+
+    ports.dump(stdout);
+
+    expect_vec(port_map,expect,4);
+}
+
+
+TEST_F(ipg_calc, test6) {
+    CPciPorts ports;
+
+
+    const char *ivec_s[] = {"03:00.0", "03:00.1","02:00.0","02:00.1"};
+    dpdk_input_args_t  ivec(ivec_s,std::end(ivec_s));
+    const char *dpdk_s[] ={"02:00.0","02:00.1","03:00.0","03:00.1"};
+    int expect[]={2,3,0,1};
+    dpdk_input_args_t  dpdk_scan(dpdk_s,std::end(dpdk_s));
+    dpdk_map_args_t port_map;
+    std::string  err;
+
+    EXPECT_EQ(ports.set_cfg_input(ivec,err),0);
+    EXPECT_EQ(ports.get_map_args(dpdk_scan, port_map,err),0);
+
+    ports.dump(stdout);
+
+    expect_vec(port_map,expect,4);
+}
+
+TEST_F(ipg_calc, test7) {
+    CPciPorts ports;
+
+
+    const char *ivec_s[] = {"03:00.0", "03:00.1","02:00.0","02:00.1"};
+    dpdk_input_args_t  ivec(ivec_s,std::end(ivec_s));
+    const char *dpdk_s[] ={"02:00.0","02:00.1"};
+    //int expect[]={2,3,0,1};
+    dpdk_input_args_t  dpdk_scan(dpdk_s,std::end(dpdk_s));
+    dpdk_map_args_t port_map;
+    std::string  err;
+
+    EXPECT_EQ(ports.set_cfg_input(ivec,err),0);
+    EXPECT_EQ(ports.get_map_args(dpdk_scan, port_map,err),-1);
+
+
+    //ports.dump(stdout);
+
+    //expect_vec(port_map,expect,4);
+}
+
+#include <inttypes.h>
+TEST_F(ipg_calc, test8) {
+    CPciPorts ports;
+
+
+    const char *ivec_s[] = {"03:00.0/0", "03:00.0/1","02:00.0","02:00.1"};
+    dpdk_input_args_t  ivec(ivec_s,std::end(ivec_s));
+    const char *dpdk_s[] ={"02:00.0","02:00.1","03:00.0","03:00.1"};
+    //int expect[]={2,3,0,1};
+    dpdk_input_args_t  dpdk_scan(dpdk_s,std::end(dpdk_s));
+    dpdk_map_args_t port_map;
+    std::string  err;
+
+    EXPECT_EQ(ports.set_cfg_input(ivec,err),0);
+    EXPECT_EQ(ports.get_map_args(dpdk_scan, port_map,err),-1);
+    printf(" error %s \n",err.c_str());
+    //ports.dump(stdout);
+
+    //expect_vec(port_map,expect,4);
+
+}
+
+    
+
+

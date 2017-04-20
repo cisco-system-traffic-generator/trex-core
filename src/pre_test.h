@@ -27,6 +27,8 @@
 #include <common/Network/Packet/MacAddress.h>
 #include "bp_sim.h"
 #include "trex_defs.h"
+#include "dpdk_port_map.h"
+
 
 class CPreTestStats {
  public:
@@ -39,6 +41,9 @@ class CPreTestStats {
         m_tx_arp = 0;
     }
 };
+
+class CPhyEthIF;
+
 
 class CPretestOnePortInfo {
     friend class CPretest;
@@ -72,11 +77,20 @@ class CPretestOnePortInfo {
     COneIPv6Info *find_ipv6(uint16_t *ip, uint16_t vlan);
     bool get_mac(COneIPInfo *ip, uint16_t vlan, uint8_t *mac, uint8_t ip_ver);
 
+    CPhyEthIF *  get_port(){
+        return (m_port);
+    }
+
+    void         set_port(CPhyEthIF * p){
+        m_port = p;
+    }
+
  private:
     bool m_is_loopback;
     CPretestOnePortInfoStates m_state;
     CPreTestStats m_stats;
-    uint16_t m_port_id;
+    uint16_t        m_port_id;
+    CPhyEthIF *     m_port;
     std::vector<COneIPInfo *> m_src_info;
     std::vector<COneIPInfo *> m_dst_info;
 };
@@ -90,6 +104,11 @@ class CPretest {
         }
         m_num_q = queues_per_port;
     }
+
+    void set_port(uint8_t port_id,CPhyEthIF * p){
+        m_port_info[port_id].set_port(p);
+    }
+
     void add_ip(uint16_t port, uint32_t ip, uint16_t vlan, MacAddress src_mac);
     void add_ip(uint16_t port, uint32_t ip, MacAddress src_mac);
     void add_next_hop(uint16_t port, uint32_t ip, uint16_t vlan);

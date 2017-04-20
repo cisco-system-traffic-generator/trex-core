@@ -107,6 +107,7 @@ main_src = SrcGroup(dir='src',
         src_list=[
              'inet_pton.cpp',
              'bp_sim.cpp',
+             'utl_port_map.cpp',
              'os_time.cpp',
              'rx_check.cpp',
              'tuple_gen.cpp',

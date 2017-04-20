@@ -24,6 +24,9 @@
 #include "dpdk/drivers/net/i40e/i40e_ethdev.h"
 #include "dpdk_funcs.h"
 
+typedef uint8_t repid_t; /* DPDK port id  */
+
+
 void i40e_trex_dump_fdir_regs(struct i40e_hw *hw)
 {
     int reg_nums[] = {31, 33, 34, 35, 41, 43};
@@ -38,9 +41,9 @@ void i40e_trex_dump_fdir_regs(struct i40e_hw *hw)
     }
 }
     
-void i40e_trex_fdir_reg_init(int port_id, int mode)
+void i40e_trex_fdir_reg_init(repid_t repid, int mode)
 {
-    struct rte_eth_dev *dev = &rte_eth_devices[port_id];
+    struct rte_eth_dev *dev = &rte_eth_devices[repid];
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
     
 	I40E_WRITE_REG(hw, I40E_GLQF_ORT(12), 0x00000062);
@@ -130,41 +133,28 @@ i40e_trex_get_fw_ver(struct rte_eth_dev *dev, uint32_t *nvm_ver)
     return 0;
 }
 
-/* This function existed in older DPDK versions. We keep it */
-int
-rte_eth_dev_get_port_by_addr(const struct rte_pci_addr *addr, uint8_t *port_id)
-{
-	int i;
-	struct rte_pci_device *pci_dev = NULL;
 
-	if (addr == NULL) {
-		RTE_PMD_DEBUG_TRACE("Null pointer is specified\n");
-		return -EINVAL;
-	}
+int rte_eth_dev_pci_addr(repid_t repid,char *p,int size){
 
-	*port_id = RTE_MAX_ETHPORTS;
+    struct rte_devargs * lp=rte_eth_devices[repid].device->devargs;
 
-	for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
-		if (
-			!rte_eal_compare_pci_addr(&rte_eth_devices[i].device->devargs->pci.addr, addr)) {
-
-			*port_id = i;
-
-			return 0;
-		}
-	}
-	return -ENODEV;
+    if (lp){
+        rte_eal_pci_device_name(&lp->pci.addr,p, size);
+        return (0);
+    }
+    return(-1);
 }
+
 
 // return in stats, statistics starting from start, for len counters.
 int
-rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+rte_eth_fdir_stats_get(repid_t repid, uint32_t *stats, uint32_t start, uint32_t len)
 {
 	struct rte_eth_dev *dev;
 
-	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(repid, -EINVAL);
 
-	dev = &rte_eth_devices[port_id];
+	dev = &rte_eth_devices[repid];
 
     // Only xl710 support this
     i40e_trex_fdir_stats_get(dev, stats, start, len);
@@ -174,13 +164,13 @@ rte_eth_fdir_stats_get(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_
 
 // zero statistics counters, starting from start, for len counters.
 int
-rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint32_t len)
+rte_eth_fdir_stats_reset(repid_t repid, uint32_t *stats, uint32_t start, uint32_t len)
 {
 	struct rte_eth_dev *dev;
 
-	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(repid, -EINVAL);
 
-	dev = &rte_eth_devices[port_id];
+	dev = &rte_eth_devices[repid];
 
     // Only xl710 support this
     i40e_trex_fdir_stats_reset(dev, stats, start, len);
@@ -189,13 +179,13 @@ rte_eth_fdir_stats_reset(uint8_t port_id, uint32_t *stats, uint32_t start, uint3
 }
 
 int
-rte_eth_get_fw_ver(int port_id, uint32_t *version)
+rte_eth_get_fw_ver(repid_t repid, uint32_t *version)
 {
 	struct rte_eth_dev *dev;
 
-	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(repid, -EINVAL);
 
-	dev = &rte_eth_devices[port_id];
+	dev = &rte_eth_devices[repid];
 
     // Only xl710 support this
     return i40e_trex_get_fw_ver(dev, version);

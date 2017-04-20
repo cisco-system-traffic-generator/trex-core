@@ -171,11 +171,11 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id, const TrexPlatformApi *api
     m_is_service_mode_on  = false;
     
     /* get the platform specific data */
-    api->get_interface_info(port_id, m_api_info);
+    api->get_port_info(port_id, m_api_info);
 
     /* get RX caps */
     uint16_t ip_id_base;
-    api->get_interface_stat_info(port_id, m_rx_count_num, m_rx_caps, ip_id_base);
+    api->get_port_stat_info(port_id, m_rx_count_num, m_rx_caps, ip_id_base);
 
     /* get the DP cores belonging to this port */
     api->port_id_to_cores(m_port_id, core_pair_list);
@@ -637,7 +637,7 @@ void
 TrexStatelessPort::encode_stats(Json::Value &port) {
 
     TrexPlatformInterfaceStats stats;
-    m_platform_api->get_interface_stats(m_port_id, stats);
+    m_platform_api->get_port_stats(m_port_id, stats);
 
     port["tx_bps"]          = stats.m_stats.m_tx_bps;
     port["rx_bps"]          = stats.m_stats.m_rx_bps;

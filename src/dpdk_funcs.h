@@ -17,6 +17,10 @@
 #ifndef __DPDK_FUNCS__
 #define __DPDK_FUNCS__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum i40e_trex_init_mode_ {
     I40E_TREX_INIT_STL,
     I40E_TREX_INIT_STF,
@@ -24,6 +28,23 @@ enum i40e_trex_init_mode_ {
 };
 
 void i40e_trex_dump_fdir_regs(struct i40e_hw *hw);
-void i40e_trex_fdir_reg_init(int port_id, int mode);
+
+void i40e_trex_fdir_reg_init(uint8_t repid, int mode);
+
+int rte_eth_dev_pci_addr(uint8_t repid,char *p,int size);
+
+int rte_eth_fdir_stats_reset(uint8_t repid, uint32_t *stats, uint32_t start, uint32_t len);
+
+int rte_eth_fdir_stats_get(uint8_t repid, uint32_t *stats, uint32_t start, uint32_t len);
+
+int rte_eth_get_fw_ver(uint8_t repid, uint32_t *version);
+
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif

@@ -32,6 +32,9 @@ for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
         PATH_ARR.append(path)
 os.environ['PATH'] = ':'.join(PATH_ARR)
 
+def if_list_remove_sub_if(if_list):
+    return map(lambda x:x.split('/')[0],if_list)
+
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
@@ -488,7 +491,7 @@ Other network devices
         if 'interfaces' not in self.m_cfg_dict[0]:
             raise DpdkSetup("Configuration file %s is old, it should include interfaces field with even number of elements" % fcfg)
 
-        if_list=self.m_cfg_dict[0]['interfaces']
+        if_list= if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces']);
         l=len(if_list);
         if l > 16:
             raise DpdkSetup("Configuration file %s should include interfaces field with maximum 16 elements, got: %s." % (fcfg,l))
@@ -557,7 +560,7 @@ Other network devices
         if (map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
                             map_driver.parent_args.cfg)):
-            if_list=self.m_cfg_dict[0]['interfaces']
+            if_list=if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces'])
         else:
             if_list = map_driver.parent_args.dump_interfaces
             if not if_list:
@@ -1159,5 +1162,8 @@ def main ():
 
 
 
+
+
 if __name__ == '__main__':
     main()
+

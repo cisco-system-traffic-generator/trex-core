@@ -1455,7 +1455,7 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 ----
 <1>  Number of ports. Should be equal to the number of interfaces listed in 3. - mandatory
 <2>  Must be set to 2. - mandatory
-<3>  List of interfaces to use. Run `sudo ./dpdk_setup_ports.py --show` to see the list you can choose from. - mandatory
+<3>  List of interfaces to use. Run `sudo ./dpdk_setup_ports.py --show` to see the list you can choose from. - mandatory. there are cases that one PCI can have more than one port (MLX4 driver for example), for this you can use the format dd:dd.d/d for example 03:00.0/1, it means the second port of this device. The order of the list is important the first will the virtual port 0.
 <4>  Enable the ZMQ publisher for stats data, default is true. 
 <5>  ZMQ port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
 <6>  If running two TRex instances on the same machine, each should be given distinct name. Otherwise, can remove this line. ( Passed to DPDK as --file-prefix arg)

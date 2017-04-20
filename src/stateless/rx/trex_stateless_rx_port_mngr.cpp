@@ -60,7 +60,7 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
 
     const TrexPlatformApi *api = tstateless->get_platform_api();
     assert(api);
-    api->get_interface_stat_info(0, num_counters, cap, ip_id_base);
+    api->get_port_stat_info(0, num_counters, cap, ip_id_base);
     m_ip_id_base = ip_id_base;
 }
 

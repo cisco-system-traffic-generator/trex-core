@@ -487,7 +487,7 @@ void CFlowStatRuleMgr::create() {
 
     m_api = tstateless->get_platform_api();
     assert(m_api);
-    m_api->get_interface_stat_info(0, num_counters, cap, ip_id_base);
+    m_api->get_port_stat_info(0, num_counters, cap, ip_id_base);
     m_api->get_port_num(m_num_ports); // This initialize m_num_ports
     for (uint8_t port = 0; port < m_num_ports; port++) {
         assert(m_api->reset_hw_flow_stats(port) == 0);

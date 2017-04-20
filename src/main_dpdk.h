@@ -20,6 +20,7 @@
 #include <rte_ethdev.h>
 #include "pre_test.h"
 #include "bp_sim.h"
+#include "dpdk_port_map.h"
 
 enum {
     MAIN_DPDK_DROP_Q = 0,
@@ -84,10 +85,13 @@ class CPhyEthIFStats {
 class CPhyEthIF  {
  public:
     CPhyEthIF (){
-        m_port_id=0;
+        m_tvpid = DPDK_MAP_IVALID_REPID;
+        m_repid = DPDK_MAP_IVALID_REPID;
         m_rx_queue=0;
     }
-    bool Create(uint8_t portid);
+    bool Create(tvpid_t  tvpid,
+                repid_t  repid);
+
     void Delete();
 
     void set_rx_queue(uint8_t rx_queue){
@@ -124,9 +128,15 @@ class CPhyEthIF  {
                                      uint16_t skip_queue);
 
     void stats_clear();
-    uint8_t             get_port_id(){
-        return (m_port_id);
+
+    tvpid_t             get_tvpid(){
+        return (m_tvpid);
     }
+
+    repid_t             get_repid(){
+        return (m_repid);
+    }
+
     float get_last_tx_rate(){
         return (m_last_tx_rate);
     }
@@ -153,10 +163,10 @@ class CPhyEthIF  {
     int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                           , uint8_t ipv6_next_h, uint16_t id) const;
     inline uint16_t  tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
-        return rte_eth_tx_burst(m_port_id, queue_id, tx_pkts, nb_pkts);
+        return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
     }
     inline uint16_t  rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        return rte_eth_rx_burst(m_port_id, queue_id, rx_pkts, nb_pkts);
+        return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
     }
     inline uint32_t pci_reg_read(uint32_t reg_off) {
         void *reg_addr;
@@ -175,16 +185,15 @@ class CPhyEthIF  {
         *((volatile uint32_t *)reg_addr) = rte_cpu_to_le_32(reg_v);
     }
     void dump_stats_extended(FILE *fd);
-    uint8_t                  get_rte_port_id(void) {
-        return m_port_id;
-    }
+
     int get_rx_stat_capabilities();
 
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
     TRexPortAttr * get_port_attr() { return m_port_attr; }
 
  private:
-    uint8_t                  m_port_id;
+    tvpid_t                  m_tvpid;
+    repid_t                  m_repid;
     uint8_t                  m_rx_queue;
     uint64_t                 m_sw_try_tx_pkt;
     uint64_t                 m_sw_tx_drop_pkt;

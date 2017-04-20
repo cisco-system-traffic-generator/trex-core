@@ -126,14 +126,14 @@ public:
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
-    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const = 0;
+    virtual void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const = 0;
 
-    virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const = 0;
+    virtual void get_port_info(uint8_t port_id, intf_info_st &info) const = 0;
 
     virtual void publish_async_data_now(uint32_t key, bool baseline) const = 0;
     virtual void publish_async_port_attr_changed(uint8_t port_id) const = 0;
     virtual uint8_t get_dp_core_count() const = 0;
-    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities
+    virtual void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                          , uint16_t &ip_id_base) const =0;
     virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                                , TrexPlatformApi::driver_stat_cap_e type) const = 0;
@@ -168,14 +168,14 @@ class TrexDpdkPlatformApi : public TrexPlatformApi {
 public:
     void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
     void get_global_stats(TrexPlatformGlobalStats &stats) const;
-    void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const;
+    void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const;
 
-    void get_interface_info(uint8_t interface_id, intf_info_st &info) const;
+    void get_port_info(uint8_t port_id, intf_info_st &info) const;
 
     void publish_async_data_now(uint32_t key, bool baseline) const;
     void publish_async_port_attr_changed(uint8_t port_id) const;
     uint8_t get_dp_core_count() const;
-    void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities
+    void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                  , uint16_t &ip_id_base) const;
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const;
@@ -224,7 +224,7 @@ public:
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
 
-    virtual void get_interface_info(uint8_t interface_id, intf_info_st &info) const {
+    virtual void get_port_info(uint8_t port_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
         info.numa_node = 0;
@@ -232,9 +232,9 @@ public:
         memset(&info.hw_macaddr, 0, sizeof(info.hw_macaddr));
     }
 
-    virtual void get_interface_stats(uint8_t interface_id, TrexPlatformInterfaceStats &stats) const {
+    virtual void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const {
     }
-    virtual void get_interface_stat_info(uint8_t interface_id, uint16_t &num_counters, uint16_t &capabilities
+    virtual void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                          , uint16_t &ip_id_base) const {num_counters=128; capabilities=TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD; ip_id_base = 0xff00;}
 
     virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
