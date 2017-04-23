@@ -240,7 +240,7 @@ private:
     }
 
     void register_signal();
-    void _main();
+    void _main() noexcept;
 
     static const int           MAX_MONITORS = 100;
     TrexMonitor               *m_monitors[MAX_MONITORS];

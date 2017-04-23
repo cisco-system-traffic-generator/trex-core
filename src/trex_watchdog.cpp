@@ -236,7 +236,7 @@ void TrexWatchDog::stop() {
  * main loop
  * 
  */
-void TrexWatchDog::_main() {
+void TrexWatchDog::_main() noexcept {
 
     pthread_setname_np(pthread_self(), "Trex Watchdog");
 

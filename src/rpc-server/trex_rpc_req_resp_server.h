@@ -40,7 +40,7 @@ public:
 protected:
 
     void _prepare();
-    void _rpc_thread_cb();
+    void _rpc_thread_cb() noexcept;
     void _stop_rpc_thread();
 
     bool fetch_one_request(std::string &msg);

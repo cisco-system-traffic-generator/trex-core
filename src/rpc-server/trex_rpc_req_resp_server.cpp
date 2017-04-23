@@ -50,12 +50,19 @@ void TrexRpcServerReqRes::_prepare() {
  * main entry point for the server 
  * this function will be created on a different thread 
  * 
- * @author imarom (17-Aug-15)
+ * @author imarom (17-Aug-15) 
+ *  
+ * declare noexcept to generate a std::terminate 
+ * instead of an exception 
+ * (glibc will unwind the stack in case of 
+ * thread exception) 
+ *  
+ * see https://gcc.gnu.org/ml/gcc-help/2013-01/msg00055.html
  */
-void TrexRpcServerReqRes::_rpc_thread_cb() {
+void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
     std::stringstream ss;
     int zmq_rc;
-
+    
     pthread_setname_np(pthread_self(), "Trex ZMQ sync");
 
     m_monitor.create(m_name, 1);
