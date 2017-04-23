@@ -3486,7 +3486,7 @@ class STLClient(object):
         
 
     @__api_check(True)
-    def fetch_capture_packets (self, capture_id, output, count = 1000):
+    def fetch_capture_packets (self, capture_id, output, pkt_count = 1000):
         """
             Fetch packets from existing active capture
 
@@ -3494,7 +3494,7 @@ class STLClient(object):
                 capture_id: int
                     an active capture ID
 
-                count: int
+                pkt_count: int
                     maximum packets to fetch
                     
                 output: str / list
@@ -3527,7 +3527,7 @@ class STLClient(object):
             del output[:]
 
         # assumes the server has 'count' packets
-        pending = count
+        pending = pkt_count
         rc = RC_OK()
         
         # fetch with iteratios - each iteration up to 50 packets
