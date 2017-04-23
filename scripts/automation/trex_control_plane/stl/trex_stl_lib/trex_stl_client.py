@@ -1946,8 +1946,6 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-        # validate src port
-        self.psv.validate('PING', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
         
         if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
             raise STLError("PING - dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
@@ -1957,6 +1955,12 @@ class STLClient(object):
         
         validate_type('count', count, int)
         validate_type('interval_sec', interval_sec, (int, float))
+        
+        # validate src port
+        if is_valid_ipv4(dst_ip):
+            self.psv.validate('PING IPv4', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
+        else:
+            self.psv.validate('PING IPv6', src_port, (PSV_ACQUIRED, PSV_SERVICE))
         
         
         self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
