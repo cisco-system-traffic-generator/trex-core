@@ -6,6 +6,8 @@ import glob
 
 
 def get_error_in_percentage (golden, value):
+    if (golden==0):
+        return(0.0);
     return abs(golden - value) / float(golden)
 
 def get_stl_profiles ():
@@ -44,11 +46,11 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.reset(ports = [self.tx_port, self.rx_port])
 
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
-      
+
         drv_name = port_info['driver']
-      
+
         self.drv_name = drv_name
-      
+
         # due to defect trex-325 
         if  self.drv_name == 'net_mlx5':
             print("WARNING disable strict due to trex-325 on mlx5")
@@ -72,7 +74,10 @@ class STLClient_Test(CStlGeneral_Test):
         if self.strict:
             assert expected == got
         else:
-            assert get_error_in_percentage(expected, got) < 0.05
+            if expected==0:
+                return;
+            else:
+               assert get_error_in_percentage(expected, got) < 0.05
 
 
     def test_basic_connect_disconnect (self):
@@ -251,6 +256,10 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
+        #Work around for trex-405. Remove when it is resolved
+        if  self.drv_name == 'net_mlx5' and 'VM' in self.modes:
+            self.skip('Can not run on mlx VM currently - see trex-405 for details')
+
         if self.is_virt_nics or not self.is_loopback:
             self.skip('skipping profile tests for virtual / non loopback')
             return

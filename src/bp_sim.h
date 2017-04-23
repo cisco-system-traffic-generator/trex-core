@@ -2750,6 +2750,7 @@ public:
         IPv6Header     * m_ipv6;
     } l3;
     bool        m_is_ipv6;
+    bool        m_is_ipv6_converted;
     union {
         TCPHeader * m_tcp;
         UDPHeader * m_udp;
@@ -2778,6 +2779,8 @@ public:
     void Clone(CPacketIndication * obj,CCapPktRaw * pkt);
     void RefreshPointers(void);
     void UpdatePacketPadding();
+    void PostProcessIpv6Packet();
+
 
 public:
     bool is_ipv6(){
@@ -2902,6 +2905,8 @@ private:
                                     uint8_t protocol, int *offset);
     void ProcessIpPacket(CPacketParser *parser,int offset);
     void ProcessIpv6Packet(CPacketParser *parser,int offset);
+
+
     void _ProcessPacket(CPacketParser *parser,CCapPktRaw * pkt);
 
     void UpdateOffsets();

@@ -1070,17 +1070,21 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def restart_trex_daemon(self):
+    def restart_trex_daemon(self, tries = 1):
         '''
         Restart TRex server daemon. Useful after update.
         Will not fail if daemon is initially stopped.
         '''
-        try:
-            return self.master_daemon.restart_trex_daemon()
-        except AppError as err:
-            self._handle_AppError_exception(err.args[0])
-        finally:
-            self.prompt_verbose_data()
+        for _ in range(tries):
+            try:
+                return self.master_daemon.restart_trex_daemon()
+            except AppError as err:
+                self._handle_AppError_exception(err.args[0])
+            except Exception as e:
+                print('Exception during request: %s' % e)
+            finally:
+                self.prompt_verbose_data()
+        raise
 
     def start_trex_daemon(self):
         '''

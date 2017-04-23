@@ -108,6 +108,7 @@ scripts/exp/imix-0.erf
 scripts/exp/imix_v6-0.erf
 scripts/exp/limit_single_pkt-0.erf
 scripts/exp/pcap_mode1-0.erf
+scripts/exp/http_simple_ipv6-0.erf
 
 
 

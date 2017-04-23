@@ -430,6 +430,20 @@ TEST_F(basic, ipv6_convert) {
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 }
 
+TEST_F(basic, ipv6_convert_http) {
+
+     CTestBasic t1;
+     CParserOption * po =&CGlobalInfo::m_options;
+     po->preview.setVMode(3);
+     po->preview.set_ipv6_mode_enable(true);
+     po->preview.setFileWrite(true);
+     po->cfg_file ="cap2/http_simple_ipv6.yaml";
+     po->out_file ="exp/http_simple_ipv6";
+     bool res=t1.init();
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
 TEST_F(basic, ipv6) {
 
      CTestBasic t1;

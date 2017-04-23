@@ -928,6 +928,8 @@ void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     m_ether = (EthernetHeader *) (pobase + obj->getEtherOffset());
     l3.m_ipv4  = (IPHeader       *) (pobase + obj->getIpOffset());
     m_is_ipv6 = obj->m_is_ipv6;
+    m_is_ipv6_converted = obj->m_is_ipv6_converted;
+
     l4.m_tcp=  (TCPHeader *)(pobase + obj->getTcpOffset());
     if ( obj->getPayloadOffset() ){
         m_payload =(uint8_t *)(pobase + obj->getPayloadOffset());
@@ -1274,14 +1276,35 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
 
 
 
+
+void CPacketIndication::PostProcessIpv6Packet(){
+
+    /* if it was converted we have the information of init */
+    if (m_is_ipv6_converted) {
+        uint16_t idx;
+        uint16_t src_ipv6[6];
+        uint16_t dst_ipv6[6];
+
+        for (idx=0; idx<6; idx++){
+            src_ipv6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
+            dst_ipv6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
+        }
+        if ( m_desc.IsInitSide() ){
+            l3.m_ipv6->updateMSBIpv6Src(&src_ipv6[0]);
+            l3.m_ipv6->updateMSBIpv6Dst(&dst_ipv6[0]);
+        }else{
+            l3.m_ipv6->updateMSBIpv6Src(&dst_ipv6[0]);
+            l3.m_ipv6->updateMSBIpv6Dst(&src_ipv6[0]);
+        }
+    }
+}
+
+
 void CPacketIndication::ProcessIpv6Packet(CPacketParser *parser,
                                         int offset){
 
     char * packetBase = m_packet->raw;
     CCPacketParserCounters * m_cnt=&parser->m_counter;
-    uint16_t src_ipv6[6];
-    uint16_t dst_ipv6[6];
-    uint16_t idx;
     uint8_t protocol;
     BP_ASSERT(l3.m_ipv6);
 
@@ -1300,13 +1323,6 @@ void CPacketIndication::ProcessIpv6Packet(CPacketParser *parser,
         m_cnt->m_ipv6_length_error++;
         return;
     }
-
-    for (idx=0; idx<6; idx++){
-        src_ipv6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
-        dst_ipv6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
-    }
-    l3.m_ipv6->updateMSBIpv6Src(&src_ipv6[0]);
-    l3.m_ipv6->updateMSBIpv6Dst(&dst_ipv6[0]);
 
     offset += l3.m_ipv6->getHeaderLength();
     protocol = l3.m_ipv6->getNextHdr();
@@ -1370,7 +1386,7 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     // Set packet length
     pkt->pkt_len = ipv6_offset;
     m_is_ipv6 = true;
-
+    m_is_ipv6_converted =true;
     return (true);
 }
 
@@ -1397,6 +1413,8 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     BP_ASSERT(packetBase);
     m_ether = (EthernetHeader *)packetBase;
     m_is_ipv6 = false;
+    m_is_ipv6_converted =false;
+
 
     // IP
     switch( m_ether->getNextProtocol() ) {
@@ -2413,6 +2431,12 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     last_pkt->m_pkt_indication.m_desc.SetIsLastPkt(true);
 
     int i;
+
+    for (i=0; i<Size(); i++) {
+        CFlowPktInfo * lp= GetPacket((uint32_t)i);
+        lp->m_pkt_indication.PostProcessIpv6Packet();
+    }
+
 
     for (i=1; i<Size(); i++) {
         CFlowPktInfo * lp_prev= GetPacket((uint32_t)i-1);
