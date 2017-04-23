@@ -213,9 +213,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         if elk:
             taken = self._timeTaken()
             id = test.id()
-            err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+            tb = format_exception(err, self.encoding)
+            err_msg="TB : \n"+tb+"\n\n STDOUT:"+self._getCapturedStdout()+self._getCapturedStderr();
             name=id_split(id)[-1]
-
             elk_obj = trex.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
@@ -237,9 +237,8 @@ class CTRexTestConfiguringPlugin(Plugin):
             taken = self._timeTaken()
             tb = format_exception(err, self.encoding)
             id = test.id()
-            err_msg=self._getCapturedStdout()+self._getCapturedStderr();
+            err_msg="TB : \n"+tb+"\n\n STDOUT:"+ self._getCapturedStdout()+self._getCapturedStderr();
             name=id_split(id)[-1]
-
             elk_obj = trex.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
