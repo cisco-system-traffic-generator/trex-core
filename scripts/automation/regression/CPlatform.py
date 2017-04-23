@@ -379,7 +379,59 @@ class CPlatform(object):
     def config_no_nbar_pd (self):
         self.config_nbar_pd (mode = 'unconfig')
 
+        
+    def config_dhcp_server (self, network, subnet, pool_name = 'trex_dhcp', exl_addrs = None):
+        '''
+            configs a DHCP server
+            'network'   - which network will the server purposes e.g. '1.1.1.0'
+            'subnet'    - subnet for the network e.g. '255.255.255.0'
+            'pool_name' - pool name to be used with the router
+            'exl_addrs' - a list of addresses to exclude from the network
+        '''
+        
+        cache = CCommandCache()
 
+        config_server_cmds = ['ip dhcp pool {0}'.format(pool_name),
+                              'network {0} {1}'.format(network, subnet),
+                              'domain trex.com',
+                              'lease 7',
+                              ]
+        
+        if exl_addrs is not None:
+            config_server_cmds += ['exit',
+                                   'ip dhcp excluded-address {0}'.format(' '.join(exl_addrs))]
+            
+            
+        
+        cache.add('CONF', config_server_cmds)
+        self.cmd_link.run_single_command( cache )
+        
+     
+       
+    def config_no_dhcp_server (self):
+        '''
+            removes any DHCP configuration
+        '''
+        
+        cache = CCommandCache()
+        
+        unconfig_cmds = []
+        
+        # fetch all DHCP config
+        cache.add('EXEC', 'show run | i dhcp')
+        output = self.cmd_link.run_single_command( cache )
+         
+        cmds = re.findall('\nip dhcp .*', output)
+        
+        unconfig_cmds = ['no {0}'.format(cmd.strip('\n')) for cmd in cmds]
+        if unconfig_cmds:
+            cache = CCommandCache()
+            cache.add('CONF', unconfig_cmds)
+            output = self.cmd_link.run_single_command( cache )
+            
+
+
+        
     def config_nat_verify (self, mode = 'config'):
 
         # toggle all duplicate interfaces

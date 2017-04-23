@@ -125,6 +125,19 @@ class InteractivePlatform(cmd.Cmd):
         self.platform.config_no_nbar_pd()
         print(termstyle.green("NBAR configuration removed successfully."))
 
+    
+    def do_dhcp_server (self, line):
+        """Apply DHCP server configuration"""
+        self.platform.config_dhcp_server('1.1.1.0', '255.255.255.0')
+        print(termstyle.green("DHCP configuration applied successfully."))
+        
+        
+    def do_no_dhcp_server (self, line):
+        """Apply DHCP server configuration"""
+        self.platform.config_no_dhcp_server()
+        print(termstyle.green("DHCP configuration removed successfully."))
+    
+            
     def do_static_route(self, arg):
         """Apply IPv4 static routing configuration on all interfaces
         Specify no arguments will apply static routing with following config:
