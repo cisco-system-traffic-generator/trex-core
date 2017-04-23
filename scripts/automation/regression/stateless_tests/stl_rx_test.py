@@ -655,6 +655,7 @@ class STLRX_Test(CStlGeneral_Test):
 
 
     # Verify that there is low latency with random packet size,duration and ports
+    @try_few_times_on_vm
     def test_9k_stream(self):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
@@ -783,6 +784,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.send_1_burst(ports, lat, 100)
 
     # this test adds more and more latency streams and re-test with incremental
+    @try_few_times_on_vm
     def test_incremental_latency_streams (self):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
