@@ -51,7 +51,7 @@ class STLRX_Test(CStlGeneral_Test):
                 'latency_9k_max_latency': 250,
             },
             'net_i40e_vf': {
-                'rate_percent': 80,
+                'rate_percent': 10,
                 'rate_percent_soft': 1,
                 'total_pkts': 1000,
                 'rate_latency': 1,
