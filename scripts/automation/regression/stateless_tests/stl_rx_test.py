@@ -254,7 +254,7 @@ class STLRX_Test(CStlGeneral_Test):
         @wraps(func)
         def wrapped(self, *args, **kwargs):
             # we see random failures with mlx, so do retries on it as well
-            if self.is_VM or self.drv_name == 'net_mlx5':
+            if self.is_VM:
                 max_tries = 4
             else:
                 max_tries = 1
@@ -433,8 +433,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if self.drv_name == 'net_i40e_vf' or self.drv_name == 'net_mlx5':
-            self.skip('Not running on i40 vf or Mellanox currently')
+        if self.drv_name == 'net_i40e_vf':
+            self.skip('Not running on i40 vf currently')
         self._test_multiple_streams(True)
 
     def _test_multiple_streams(self, is_random):

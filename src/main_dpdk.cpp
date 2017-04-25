@@ -570,6 +570,10 @@ public:
         num_counters = 127; //With MAX_FLOW_STATS we saw packet failures in rx_test. Need to check.
         base_ip_id = IP_ID_RESERVE_BASE;
     }
+    virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
+        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
+    }
+
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
     virtual bool flow_control_disable_supported(){return false;}
