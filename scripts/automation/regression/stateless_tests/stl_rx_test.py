@@ -593,8 +593,13 @@ class STLRX_Test(CStlGeneral_Test):
             self.c.add_streams([stream], ports = [self.tx_port])
             print("Stream: {0}".format(stream.name))
             exp['pkt_len'] = stream.get_pkt_len()
-            for i in range(0, 10):
-                print("Iteration {0}".format(i))
+            if self.is_VM:
+                num_repeats = 1
+            else:
+                num_repeats = 10
+            for i in range(1, num_repeats + 1):
+                if num_repeats > 1:
+                    print("Iteration {0}".format(i))
                 try:
                     self.__rx_iteration( [exp] )
                 except STLError as e:
