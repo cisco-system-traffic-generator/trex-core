@@ -51,12 +51,6 @@ class STLClient_Test(CStlGeneral_Test):
 
         self.drv_name = drv_name
 
-        # due to defect trex-325 
-        if  self.drv_name == 'net_mlx5':
-            print("WARNING disable strict due to trex-325 on mlx5")
-            self.strict = False
-
-
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
         self.profiles = get_stl_profiles()
 
@@ -256,11 +250,6 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
-
-        #Work around for trex-405. Remove when it is resolved
-        if  self.drv_name == 'net_mlx5' and 'VM' in self.modes:
-            self.skip('Can not run on mlx VM currently - see trex-405 for details')
-
         if self.is_virt_nics or not self.is_loopback:
             self.skip('skipping profile tests for virtual / non loopback')
             return
