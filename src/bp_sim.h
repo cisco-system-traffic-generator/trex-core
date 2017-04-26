@@ -1216,7 +1216,7 @@ public:
         if (mp == m_mbuf_pool_4096) {
             return _rte_pktmbuf_alloc(m_mbuf_pool_9k);
         }
-        dump_in_case_of_error(stderr);
+        dump_in_case_of_error(stderr, mp);
         assert(0);
     }
 
@@ -1246,10 +1246,10 @@ public:
         return ( _rte_pktmbuf_alloc(m_small_mbuf_pool) );
     }
 
-
+    bool dump_one(FILE *fd, const char *name, rte_mempool_t *pool);
     void dump(FILE *fd);
 
-    void dump_in_case_of_error(FILE *fd);
+    void dump_in_case_of_error(FILE *fd, rte_mempool_t * mp);
 
     void dump_as_json(Json::Value &json);
 

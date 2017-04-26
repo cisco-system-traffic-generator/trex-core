@@ -101,6 +101,7 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     m_mbuf[MBUF_4096] += info.m_mbuf[TRAFFIC_MBUF_4096];
     m_mbuf[MBUF_9k]   += info.m_mbuf[MBUF_9k];
 
+#if 0
     // We want minimum amount of mbufs from each type, in order to support various extream TX scenarios.
     // We can consider allowing the user to manually define less mbufs. If for example, a user knows he
     // will not send packets larger than 2k, we can zero the 4k and 9k pools, saving lots of memory.
@@ -110,6 +111,8 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
             m_mbuf[i] = min_pool_size;
         }
     }
+    //?????? put back
+#endif
 }
 
 
@@ -505,9 +508,9 @@ void CPlatformSocketInfo::dump(FILE *fd){
 ////////////////////////////////////////
 
 
-void CRteMemPool::dump_in_case_of_error(FILE *fd){
-    fprintf(fd, " Error: There is not enough memory in socket %d \n", m_pool_id);
-    fprintf(fd, " Try to enlarge memory values in the configuration file '/etc/trex_cfg.yaml'. See manual for details \n");
+void CRteMemPool::dump_in_case_of_error(FILE *fd, rte_mempool_t *mp) {
+    fprintf(fd, " Error: Failed allocating mbuf for holding %d bytes from socket %d \n", mp->elt_size, m_pool_id);
+    fprintf(fd, " Try to enlarge the amount of mbufs in the configuration file '/etc/trex_cfg.yaml'\n");
     dump(fd);
 }
 
@@ -531,18 +534,36 @@ void CRteMemPool::dump_as_json(Json::Value &json){
 }
 
 
-void CRteMemPool::dump(FILE *fd){
-    #define DUMP_MBUF(a,b)  { float p=(100.0*(float)rte_mempool_count(b)/(float)b->size); fprintf(fd," %-30s  : %.2f %%   %s \n",a,p,(p<5.0?"<-":"OK") ); }
+bool CRteMemPool::dump_one(FILE *fd, const char *name, rte_mempool_t *pool) {
+    float p = 100.0 * (float) rte_mempool_count(pool) / (float)pool->size;
+    fprintf(fd, " %-30s  : %u out of %u (%.2f %%) free %s \n", name
+            , rte_mempool_count(pool), pool->size, p, (p < 5.0) ? "<-- need to enlarge" : "" );
 
-    DUMP_MBUF("mbuf_64",m_small_mbuf_pool);
-    DUMP_MBUF("mbuf_128",m_mbuf_pool_128);
-    DUMP_MBUF("mbuf_256",m_mbuf_pool_256);
-    DUMP_MBUF("mbuf_512",m_mbuf_pool_512);
-    DUMP_MBUF("mbuf_1024",m_mbuf_pool_1024);
-    DUMP_MBUF("mbuf_2048",m_mbuf_pool_2048);
-    DUMP_MBUF("mbuf_4096",m_mbuf_pool_4096);
-    DUMP_MBUF("mbuf_9k",m_mbuf_pool_9k);
+    if (p < 5.0)
+        return false;
+    else
+        return true;
+}
 
+void CRteMemPool::dump(FILE *fd) {
+    bool ok = true;
+    ok &= dump_one(fd, "mbuf_64", m_small_mbuf_pool);
+    ok &= dump_one(fd, "mbuf_128", m_mbuf_pool_128);
+    ok &= dump_one(fd, "mbuf_256", m_mbuf_pool_256);
+    ok &= dump_one(fd, "mbuf_512", m_mbuf_pool_512);
+    ok &= dump_one(fd, "mbuf_1024", m_mbuf_pool_1024);
+    ok &= dump_one(fd, "mbuf_2048", m_mbuf_pool_2048);
+    ok &= dump_one(fd, "mbuf_4096", m_mbuf_pool_4096);
+    ok &= dump_one(fd, "mbuf_9k", m_mbuf_pool_9k);
+
+    if (! ok) {
+        fprintf(fd, "In order to enlarge the amount of allocated mbufs, need to add section like this to config file:\n");
+        fprintf(fd, "memory:\n");
+        fprintf(fd, "    mbuf_xx: <num>\n");
+        fprintf(fd, "For example:\n");
+        fprintf(fd, "    mbuf_9k: 5000\n");
+        fprintf(fd, "See getting started manual for details\n");
+    }
 }
 
 ////////////////////////////////////////
