@@ -57,7 +57,6 @@ test_rx_check_http: &rx_http
     cores               : 7
     rx_sample_rate      : 128
     bw_per_core         : 49.464
-    error_tolerance     : 5
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
@@ -68,7 +67,6 @@ test_rx_check_sfr: &rx_sfr
     cores               : 7
     rx_sample_rate      : 128
     bw_per_core         : 20.871
-    error_tolerance     : 5
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
