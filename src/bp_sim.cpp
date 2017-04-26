@@ -101,7 +101,6 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
     m_mbuf[MBUF_4096] += info.m_mbuf[TRAFFIC_MBUF_4096];
     m_mbuf[MBUF_9k]   += info.m_mbuf[MBUF_9k];
 
-#if 0
     // We want minimum amount of mbufs from each type, in order to support various extream TX scenarios.
     // We can consider allowing the user to manually define less mbufs. If for example, a user knows he
     // will not send packets larger than 2k, we can zero the 4k and 9k pools, saving lots of memory.
@@ -111,8 +110,6 @@ void CGlobalMemory::set(const CPlatformMemoryYamlInfo &info,float mul){
             m_mbuf[i] = min_pool_size;
         }
     }
-    //?????? put back
-#endif
 }
 
 
