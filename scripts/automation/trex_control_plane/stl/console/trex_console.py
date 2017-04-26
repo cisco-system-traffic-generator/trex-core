@@ -583,8 +583,8 @@ class TRexConsole(TRexGeneralCmd):
     def do_service (self, line):
         '''Sets port(s) service mode state'''
         self.stateless_client.service_line(line)
-        
-    def help_service (self, line):
+
+    def help_service (self):
         self.do_service("-h")
 
     @verify_connected
@@ -592,7 +592,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Sends a scapy notation packet'''
         self.stateless_client.pkt_line(line)
 
-    def help_pkt (self, line):
+    def help_pkt (self):
         self.do_pkt("-h")
 
     def help_clear(self):
