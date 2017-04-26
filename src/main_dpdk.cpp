@@ -177,8 +177,20 @@ public:
     virtual TRexPortAttr * create_port_attr(uint8_t port_id) = 0;
 
     virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
+        CTrexDpdkParams dpdk_p;
+        get_dpdk_drv_params(dpdk_p);
+
+        switch(dpdk_p.rx_mbuf_type) {
+        case MBUF_9k:
+            return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
+        case MBUF_2048:
+            return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
+        default:
+            fprintf(stderr, "Internal error: Wrong rx_mem_pool");
+            assert(0);
+        }
     }
+
     virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
         p.rx_data_q_num = 1;
         if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
@@ -189,6 +201,7 @@ public:
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         p.tx_desc_num = TX_DESC_NUM;
+        p.rx_mbuf_type = MBUF_2048;
     }
 
 protected:
@@ -263,6 +276,7 @@ public:
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q_VM;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         p.tx_desc_num = TX_DESC_NUM;
+        p.rx_mbuf_type = MBUF_2048;
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -556,6 +570,7 @@ public:
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
         p.tx_desc_num = TX_DESC_NUM;
+        p.rx_mbuf_type = MBUF_9k;
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -569,9 +584,6 @@ public:
             | TrexPlatformApi::IF_STAT_PAYLOAD;
         num_counters = 127; //With MAX_FLOW_STATS we saw packet failures in rx_test. Need to check.
         base_ip_id = IP_ID_RESERVE_BASE;
-    }
-    virtual rte_mempool_t * get_rx_mem_pool(int socket_id) {
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
     }
 
     virtual int wait_for_stable_link();
@@ -3951,7 +3963,7 @@ bool CGlobalTRex::Create(){
     CGlobalInfo::init_pools(m_max_ports *
                             (dpdk_p.rx_data_q_num * dpdk_p.rx_desc_num_data_q +
                              dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q)
-                            , MBUF_2048);
+                            , dpdk_p.rx_mbuf_type);
     ixgbe_start();
     dump_config(stdout);
 
