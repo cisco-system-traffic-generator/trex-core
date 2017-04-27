@@ -532,6 +532,9 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
 
     /* check that file exists */
     std::stringstream ss;
+
+/* fast workaround for trex-403 until we will fix it correctly. this case can block for very long time crash the python with disconnect  */
+#if 0
     CCapReaderBase *reader = CCapReaderFactory::CreateReader((char *)pcap_filename.c_str(), 0, ss);
     if (!reader) {
         throw TrexException(ss.str());
@@ -541,6 +544,7 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
         throw TrexException("dual mode is only supported on ERF format");
     }
     delete reader;
+#endif
 
     /* only one core gets to play */
     int tx_core = m_cores_id_list[0];
