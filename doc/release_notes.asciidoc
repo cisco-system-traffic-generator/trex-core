@@ -46,6 +46,7 @@ endif::backend-docbook[]
 ----
 
 * L2 emulation plugin framework -- example for DHCP 
+* 2K mbuf in Rx side --> less memory is needed 
 
 
 === Fixed issues: ===
@@ -60,8 +61,6 @@ endif::backend-docbook[]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-371[trex-371]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-397[trex-397]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-393[trex-393]
-
-
 
 
 == Release 2.23 ==
