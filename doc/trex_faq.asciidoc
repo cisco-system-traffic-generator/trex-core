@@ -81,7 +81,8 @@ Yes. Since version 2.12, with link:trex_manual.html#_cisco_vic_support[these lim
 a new firmware version is needed.
 
 ==== Is 100Gbs NIC QSFP+ supported?
-Not yet. Support for FM10K and Mellanox Connectx5 is under development.
+Mellanox Connect4 is supported. Connect 3 and 5 still have issues (WIP to fix).
+Support for FM10K is under development.
 
 ==== Is there a GUI?
 TRex team is not developing it.
@@ -91,9 +92,9 @@ There is also work in progress for packet editor (not released yet) in link:http
 New stateless GUI features are developed in link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here]. v3.1.1 was released 
 
 ==== What is the maximum number of ports per TRex application?
-12 ports
+16 ports
 
-==== I can not see all 12 ports statistics on TRex server .
+==== I can not see all 16 ports statistics on TRex server .
 We present statistics only for first four ports because there is no console space. Global statistics (like total TX) is correct, taking into account all ports.
 You can use the GUI/console or Python API, to see statistics for all ports.
 
@@ -457,7 +458,7 @@ No. each stream has its own, seperate field engine program.
 
 It is a great idea to add it, we are looking for someone to contribute this support.
 
-==== Java API instead of Python API 
+==== Java/TCL API instead of Python API 
 
 Q:: I want to use the Python API via Java (with Jython), apparently, I can not import Scapy modules with Jython.
 The way I see it I have two options:
