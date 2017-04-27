@@ -102,7 +102,7 @@ class STLBasic_Test(CStlGeneral_Test):
                 self.trex.start_stateless(c = cores)
             self.stl_trex = STLClient(username = 'TRexRegression',
                                       server = self.configuration.trex['trex_name'],
-                                      verbose_level = CTRexScenario.json_verbose)
+                                      verbose_level = LoggerApi.VERBOSE_HIGH if CTRexScenario.json_verbose else LoggerApi.VERBOSE_QUIET)
             CTRexScenario.stl_trex = self.stl_trex
             sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
         except Exception as e:

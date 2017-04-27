@@ -645,15 +645,16 @@ class TrexTUI():
        # regular state
         if self.state == self.STATE_ACTIVE:
             # if no connectivity - move to lost connecitivty
-            if not self.stateless_client.async_client.is_active():
+            if not self.stateless_client.is_connected():
                 self.stateless_client._invalidate_stats(self.pm.ports)
                 self.state = self.STATE_LOST_CONT
 
 
         # lost connectivity
         elif self.state == self.STATE_LOST_CONT:
-            # if the async is alive (might be zomibe, but alive) try to reconnect
-            if self.stateless_client.async_client.is_alive():
+            # if the connection is alive (some data is arriving on the async channel)
+            # try to reconnect
+            if self.stateless_client.conn.is_alive():
                 # move to state reconnect
                 self.state = self.STATE_RECONNECT
 

@@ -3321,10 +3321,40 @@ private:
     int  send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
     void check_for_dp_message_from_core(int thread_id);
 
+
     bool is_marked_for_shutdown() const {
         return (m_mark_for_shutdown != SHUTDOWN_NONE);
     }
 
+    
+    std::string get_shutdown_cause() const {
+        switch (m_mark_for_shutdown) {
+
+        case SHUTDOWN_NONE:
+            return "";
+            
+        case SHUTDOWN_TEST_ENDED:
+            return "test has ended";
+
+        case SHUTDOWN_CTRL_C:
+            return "CTRL + C detected";
+
+        case SHUTDOWN_SIGINT:
+            return "received signal SIGINT";
+
+        case SHUTDOWN_SIGTERM:
+            return "received signal SIGTERM";
+
+        case SHUTDOWN_RPC_REQ:
+            return "server received RPC 'shutdown' request";
+
+        default:
+            assert(0);
+        }
+        
+    }
+    
+    
     /**
      * shutdown sequence
      *
@@ -3721,8 +3751,11 @@ void CGlobalTRex::try_stop_all_cores(){
         delay(100);
     }
     if ( all_core_finished ){
-        m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED);
+        Json::Value data;
+        data["cause"] = get_shutdown_cause();
+        m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
         printf(" All cores stopped !! \n");
+        
     }else{
         printf(" ERROR one of the DP core is stucked !\n");
     }
@@ -4806,34 +4839,15 @@ CGlobalTRex::handle_fast_path() {
  */
 void CGlobalTRex::shutdown() {
     std::stringstream ss;
+    
+    assert(is_marked_for_shutdown());
+    
     ss << " *** TRex is shutting down - cause: '";
 
-    switch (m_mark_for_shutdown) {
-
-    case SHUTDOWN_TEST_ENDED:
-        ss << "test has ended'";
-        break;
-
-    case SHUTDOWN_CTRL_C:
-        ss << "CTRL + C detected'";
-        break;
-
-    case SHUTDOWN_SIGINT:
-        ss << "received signal SIGINT'";
-        break;
-
-    case SHUTDOWN_SIGTERM:
-        ss << "received signal SIGTERM'";
-        break;
-
-    case SHUTDOWN_RPC_REQ:
-        ss << "server received RPC 'shutdown' request'";
-        break;
-
-    default:
-        assert(0);
-    }
-
+    ss << get_shutdown_cause();
+    
+    ss << "'";
+    
     /* report */
     std::cout << ss.str() << "\n";
 

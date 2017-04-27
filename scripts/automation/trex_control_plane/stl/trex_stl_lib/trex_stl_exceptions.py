@@ -36,12 +36,7 @@ class STLError(Exception):
         return self.msg
 
 
-# raised when the client state is invalid for operation
-class STLStateError(STLError):
-    def __init__ (self, op, state):
-        self.msg = "Operation '{0}' is not valid while '{1}'".format(op, state)
-        self.tb = traceback.extract_stack()
-
+        
 # port state error
 class STLPortStateError(STLError):
     def __init__ (self, port, op, state):

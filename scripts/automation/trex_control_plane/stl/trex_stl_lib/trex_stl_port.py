@@ -52,16 +52,16 @@ class Port(object):
                   STATE_PCAP_TX : "TRANSMITTING"}
 
 
-    def __init__ (self, port_id, user, comm_link, session_id, info):
+    def __init__ (self, port_id, user, rpc, session_id, info):
         self.port_id = port_id
         
         self.state        = self.STATE_IDLE
         self.service_mode = False
         
         self.handler = None
-        self.comm_link = comm_link
-        self.transmit = comm_link.transmit
-        self.transmit_batch = comm_link.transmit_batch
+        self.rpc = rpc
+        self.transmit = rpc.transmit
+        self.transmit_batch = rpc.transmit_batch
         self.user = user
 
         self.info = dict(info)

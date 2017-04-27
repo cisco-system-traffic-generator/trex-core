@@ -7,6 +7,9 @@ import datetime
 import zmq
 import re
 import random
+import os
+import signal
+import traceback
 
 from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 
@@ -182,7 +185,7 @@ class CTRexAsyncClient():
 
         # before running the thread - mark as active    
         self.t_state = self.THREAD_STATE_ACTIVE
-        self.t = threading.Thread(target = self._run)
+        self.t = threading.Thread(target = self._run_safe)
 
         # kill this thread on exit and don't add it to the join list
         self.t.setDaemon(True)
@@ -196,12 +199,7 @@ class CTRexAsyncClient():
             self.disconnect()
             return rc
 
-        # second barrier - sync all stats data as a baseline from the server
-        rc = self.barrier(baseline = True)
-        if not rc:
-            self.disconnect()
-            return rc
-
+  
         return RC_OK()
 
     
@@ -225,32 +223,51 @@ class CTRexAsyncClient():
         self.last_data_recv_ts = None
         self.t_state = self.THREAD_STATE_ZOMBIE
         
-    # thread function
-    def _run (self):
-
+        
+    # return the timeout in seconds for the ZMQ subscriber thread
+    def get_timeout_sec (self):
+        return 3
+        
+        
+    def _run_safe (self):
+        
         # socket must be created on the same thread 
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
-        self.socket.setsockopt(zmq.RCVTIMEO, 5000)
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_sec() * 1000)
         self.socket.connect(self.tr)
+        
+        try:
+            self._run()
+        except Exception as e:
+            self.event_handler.on_async_crash()
+
+            # kill all the threads in the group
+            os.killpg(os.getppid(), signal.SIGTERM)
+            
+        finally:
+            # closing of socket must be from the same thread
+            self.socket.close(linger = 0)
+        
+            
+    # thread function
+    def _run (self):
 
         got_data = False
 
         self.monitor.reset()
 
-
         while self.t_state != self.THREAD_STATE_DEAD:
             try:
-
                 with self.monitor:
                     line = self.socket.recv()
                 
                 # last data recv.
                 self.last_data_recv_ts = time.time()
                 
-                # if thread was marked as zomibe - it does nothing besides fetching messages
+                # if thread was marked as zombie - it does nothing besides fetching messages
                 if self.t_state == self.THREAD_STATE_ZOMBIE:
                     continue
-                    
+
                 self.monitor.on_recv_msg(line)
 
                 # try to decomrpess
@@ -259,8 +276,7 @@ class CTRexAsyncClient():
                     line = unzipped
 
                 line = line.decode()
-
-
+                
                 # signal once
                 if not got_data:
                     self.event_handler.on_async_alive()
@@ -271,8 +287,7 @@ class CTRexAsyncClient():
             except zmq.Again:
                 # signal once
                 if got_data:
-                    self.event_handler.on_async_dead()
-                    self.set_as_zombie()
+                    self.event_handler.on_async_timeout(self.get_timeout_sec())
                     got_data = False
 
                 continue
@@ -293,32 +308,9 @@ class CTRexAsyncClient():
 
             self.__dispatch(name, type, data, baseline)
 
-        
-        # closing of socket must be from the same thread
-        self.socket.close(linger = 0)
-
-        
-    # return True if the subscriber got data in the last 3 seconds
-    # even if zombie - will return true if got data
-    def is_alive (self):
-
-        # maybe the thread has exited with exception
-        if not self.t.is_alive():
-            return False
-
-        # simply no data
-        if self.last_data_recv_ts == None:
-            return False
-
-        # timeout of data
-        return ( (time.time() - self.last_data_recv_ts) < 3 )
 
 
-    # more granular than active - it means that thread state is active we get info
-    # zomibes will return false
-    def is_active (self):
-        return self.is_alive() and self.t_state == self.THREAD_STATE_ACTIVE
-        
+                                  
         
     def get_stats (self):
         return self.stats
@@ -359,7 +351,7 @@ class CTRexAsyncClient():
 
     # block on barrier for async channel
     def barrier(self, timeout = 5, baseline = False):
-        
+
         # set a random key
         key = random.getrandbits(32)
         self.async_barrier = {'key': key, 'ack': False}
@@ -370,7 +362,7 @@ class CTRexAsyncClient():
         while not self.async_barrier['ack']:
 
             # inject
-            rc = self.stateless_client._transmit("publish_now", params = {'key' : key, 'baseline': baseline})
+            rc = self.stateless_client._transmit("publish_now", params = {'key' : key, 'baseline': baseline}, api_class = None)
             if not rc:
                 return rc
 

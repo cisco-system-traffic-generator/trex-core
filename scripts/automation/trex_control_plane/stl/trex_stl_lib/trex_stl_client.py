@@ -5,12 +5,12 @@ from .trex_stl_exceptions import *
 from .trex_stl_streams import *
 from .trex_stl_psv import *
 
-from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+from .trex_stl_conn import Connection
+
 from . import trex_stl_stats
 
 from .trex_stl_port import Port
 from .trex_stl_types import *
-from .trex_stl_async_client import CTRexAsyncClient
 
 from .services.trex_stl_service_icmp import STLServiceICMP
 from .services.trex_stl_service_arp import STLServiceARP
@@ -87,10 +87,18 @@ class LoggerApi(object):
         self.log(msg, level, newline)
 
 
+    # urgent log - will log event under quiet
+    def urgent_log (self, msg, newline = True):
+        # no check - urgent
+        self.write(msg, newline)
+        self.flush()
+        
+        
     def pre_cmd (self, desc):
         self.log(format_text('\n{:<60}'.format(desc), 'bold'), newline = False)
         self.flush()
 
+        
     def post_cmd (self, rc):
         if rc:
             self.log(format_text("[SUCCESS]\n", 'green', 'bold'))
@@ -138,6 +146,7 @@ class DefaultLogger(LoggerApi):
         sys.stdout.flush()
 
 
+
 ############################     async event hander     #############################
 ############################                            #############################
 ############################                            #############################
@@ -161,8 +170,19 @@ class Event(object):
 
 # handles different async events given to the client
 class EventsHandler(object):
+    EVENT_PORT_STARTED   = 0
+    EVENT_PORT_STOPPED   = 1
+    EVENT_PORT_PAUSED    = 2
+    EVENT_PORT_RESUMED   = 3
+    EVENT_PORT_JOB_DONE  = 4
+    EVENT_PORT_ACQUIRED  = 5
+    EVENT_PORT_RELEASED  = 6
+    EVENT_PORT_ERROR     = 7
+    EVENT_PORT_ATTR_CHG  = 8
+    
+    EVENT_SERVER_STOPPED = 100
 
-
+    
     def __init__ (self, client):
         self.client = client
         self.logger = self.client.logger
@@ -182,19 +202,33 @@ class EventsHandler(object):
         self.events = []
 
 
-    def log_warning (self, msg, show = True):
-        self.__add_event_log('local', 'warning', msg, show)
+    def log_warning (self, msg):
+        self.__add_event_log('local', 'warning', msg)
 
 
     # events called internally
 
-    def on_async_dead (self):
-        if self.client.connected:
-            msg = 'Lost connection to server'
-            self.client.connected = False
-            self.__add_event_log('local', 'info', msg, True)
+    def on_async_timeout (self, timeout_sec):
+        if self.client.conn.is_connected():
+            msg = 'Connection lost - Subscriber timeout: no data from TRex server for more than {0} seconds'.format(timeout_sec)
+            
+            # we cannot simply disconnect the connection - we mark it for disconnection
+            # later on, the main thread will execute an ordered disconnection
+            self.client.conn.mark_for_disconnect(msg)
+            
+            self.log_warning(msg)
+            
 
-
+    def on_async_crash (self):
+        msg = 'subscriber thread has crashed:\n\n{0}'.format(traceback.format_exc())
+        
+        # if connected, mark as disconnected
+        if self.client.conn.is_connected():
+            self.client.conn.mark_for_disconnect(msg)
+            
+        self.log_warning(msg)
+        
+        
     def on_async_alive (self):
         pass
 
@@ -238,18 +272,20 @@ class EventsHandler(object):
 
 
     # dispatcher for server async events (port started, port stopped and etc.)
-    def on_async_event (self, event_type, data):
-        # DP stopped
+    def on_async_event (self, event_id, data):
+        
+        # default type info and do not show
+        ev_type = 'info'
         show_event = False
-
+        
         # port started
-        if (event_type == 0):
+        if (event_id == self.EVENT_PORT_STARTED):
             port_id = int(data['port_id'])
             ev = "Port {0} has started".format(port_id)
             self.__async_event_port_started(port_id)
 
         # port stopped
-        elif (event_type == 1):
+        elif (event_id == self.EVENT_PORT_STOPPED):
             port_id = int(data['port_id'])
             ev = "Port {0} has stopped".format(port_id)
 
@@ -258,32 +294,37 @@ class EventsHandler(object):
 
 
         # port paused
-        elif (event_type == 2):
+        elif (event_id == self.EVENT_PORT_PAUSED):
             port_id = int(data['port_id'])
             ev = "Port {0} has paused".format(port_id)
 
             # call the handler
             self.__async_event_port_paused(port_id)
 
+            
         # port resumed
-        elif (event_type == 3):
+        elif (event_id == self.EVENT_PORT_RESUMED):
             port_id = int(data['port_id'])
             ev = "Port {0} has resumed".format(port_id)
 
             # call the handler
             self.__async_event_port_resumed(port_id)
 
+            
         # port finished traffic
-        elif (event_type == 4):
+        elif (event_id == self.EVENT_PORT_JOB_DONE):
             port_id = int(data['port_id'])
             ev = "Port {0} job done".format(port_id)
 
             # call the handler
             self.__async_event_port_job_done(port_id)
+            
+            # mark the event for show
             show_event = True
 
+            
         # port was acquired - maybe stolen...
-        elif (event_type == 5):
+        elif (event_id == self.EVENT_PORT_ACQUIRED):
             session_id = data['session_id']
 
             port_id = int(data['port_id'])
@@ -292,7 +333,7 @@ class EventsHandler(object):
 
             # if we hold the port and it was not taken by this session - show it
             if port_id in self.client.get_acquired_ports() and session_id != self.client.session_id:
-                show_event = True
+                ev_type = 'warning'
 
             # format the thief/us...
             if session_id == self.client.session_id:
@@ -313,7 +354,7 @@ class EventsHandler(object):
 
 
         # port was released
-        elif (event_type == 6):
+        elif (event_id == self.EVENT_PORT_RELEASED):
             port_id     = int(data['port_id'])
             who         = data['who']
             session_id  = data['session_id']
@@ -331,13 +372,15 @@ class EventsHandler(object):
             if session_id != self.client.session_id:
                 self.__async_event_port_released(port_id)
 
-        elif (event_type == 7):
+                
+        elif (event_id == self.EVENT_PORT_ERROR):
             port_id = int(data['port_id'])
             ev = "port {0} job failed".format(port_id)
-            show_event = True
+            ev_type = 'warning'
+            
 
         # port attr changed
-        elif (event_type == 8):
+        elif (event_id == self.EVENT_PORT_ATTR_CHG):
 
             port_id = int(data['port_id'])
             
@@ -353,25 +396,24 @@ class EventsHandler(object):
                         old = old_val.lower() if type(old_val) is str else old_val,
                         new = new_val.lower() if type(new_val) is str else new_val)
                 
-            show_event = True
-            
+            ev_type = 'info'
+            show_event = False
+        
          
     
         # server stopped
-        elif (event_type == 100):
-            ev = "Server has stopped"
-            # to avoid any new messages on async
-            self.client.async_client.set_as_zombie()
-            self.__async_event_server_stopped()
-            show_event = True
+        elif (event_id == self.EVENT_SERVER_STOPPED):
+            ev = "Server has been shutdown - cause: '{0}'".format(data['cause'])
+            self.__async_event_server_stopped(ev)
+            ev_type = 'warning'
 
 
         else:
             # unknown event - ignore
             return
 
-
-        self.__add_event_log('server', 'info', ev, show_event)
+        # showed events (port job done, 
+        self.__add_event_log('server', ev_type, ev, show_event)
 
 
     # private functions
@@ -408,84 +450,26 @@ class EventsHandler(object):
         if port_id in self.client.ports:
             self.client.ports[port_id].async_event_released()
 
-    def __async_event_server_stopped (self):
-        self.client.connected = False
+    def __async_event_server_stopped (self, cause):
+        self.client.conn.mark_for_disconnect(cause)
 
     def __async_event_port_attr_changed (self, port_id, attr):
         if port_id in self.client.ports:
             return self.client.ports[port_id].async_event_port_attr_changed(attr)
 
     # add event to log
-    def __add_event_log (self, origin, ev_type, msg, show = False):
+    def __add_event_log (self, origin, ev_type, msg, show_event = False):
 
         event = Event(origin, ev_type, msg)
         self.events.append(event)
-        if show:
-            self.logger.async_log("\n\n{0}".format(str(event)))
+        
+        if ev_type == 'info' and show_event:
+            self.logger.log("\n\n{0}".format(str(event)))
+            
+        elif ev_type == 'warning':
+            self.logger.urgent_log("\n\n{0}".format(str(event)))
 
-
-  
-
-
-############################     RPC layer     #############################
-############################                   #############################
-############################                   #############################
-
-class CCommLink(object):
-    """Describes the connectivity of the stateless client method"""
-    def __init__(self, server="localhost", port=5050, virtual=False, client = None):
-        self.virtual = virtual
-        self.server = server
-        self.port = port
-        self.rpc_link = JsonRpcClient(self.server, self.port, client)
-
-    @property
-    def is_connected(self):
-        if not self.virtual:
-            return self.rpc_link.connected
-        else:
-            return True
-
-    def get_server (self):
-        return self.server
-
-    def get_port (self):
-        return self.port
-
-    def connect(self):
-        if not self.virtual:
-            return self.rpc_link.connect()
-
-    def disconnect(self):
-        if not self.virtual:
-            return self.rpc_link.disconnect()
-
-    def transmit(self, method_name, params = None, api_class = 'core', retry = 0):
-        if self.virtual:
-            self._prompt_virtual_tx_msg()
-            _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params, api_class)
-            print(msg)
-            return
-        else:
-            return self.rpc_link.invoke_rpc_method(method_name, params, api_class, retry = retry)
-
-    def transmit_batch(self, batch_list, retry = 0):
-        if self.virtual:
-            self._prompt_virtual_tx_msg()
-            print([msg
-                   for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params, command.api_class)
-                                  for command in batch_list]])
-        else:
-            batch = self.rpc_link.create_batch()
-            for command in batch_list:
-                batch.add(command.method, command.params, command.api_class)
-            # invoke the batch
-            return batch.invoke(retry = retry)
-
-    def _prompt_virtual_tx_msg(self):
-        print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
-                                                                         port=self.port))
-
+     
 
 
 ############################     client     #############################
@@ -500,6 +484,7 @@ class STLClient(object):
     CORE_MASK_PIN    = 2
     CORE_MASK_SINGLE = 3
 
+    
     def __init__(self,
                  username = common.get_current_user(),
                  server = "localhost",
@@ -555,8 +540,7 @@ class STLClient(object):
         self.server_version = {}
         self.system_info = {}
         self.session_id = random.getrandbits(32)
-        self.connected = False
-
+        
         # API classes
         self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 2 } ]
         self.api_h = {'core': None}
@@ -567,23 +551,10 @@ class STLClient(object):
         # initial verbose
         self.logger.set_verbose(verbose_level)
 
-        # low level RPC layer
-        self.comm_link = CCommLink(server,
-                                   sync_port,
-                                   virtual,
-                                   self)
-
         # async event handler manager
         self.event_handler = EventsHandler(self)
 
-        # async subscriber level
-        self.async_client = CTRexAsyncClient(server,
-                                             async_port,
-                                             self)
-
-        
-      
-
+     
         # stats
         self.connection_info = {"username":   username,
                                 "server":     server,
@@ -592,6 +563,12 @@ class STLClient(object):
                                 "virtual":    virtual}
 
         
+
+        # connection state object
+        self.conn = Connection(self.connection_info, self.logger, self)
+
+
+
         self.global_stats = trex_stl_stats.CGlobalStats(self.connection_info,
                                                         self.server_version,
                                                         self.ports,
@@ -611,7 +588,7 @@ class STLClient(object):
                                                                  self.latency_stats,
                                                                  self.util_stats,
                                                                  self.xstats,
-                                                                 self.async_client.monitor)
+                                                                 self.conn.async.monitor)
         
         self.psv = PortStateValidator(self)
         
@@ -886,22 +863,12 @@ class STLClient(object):
     # connect to server
     def __connect(self):
 
-        # first disconnect if already connected
-        if self.is_connected():
-            self.__disconnect()
-
-        # clear this flag
-        self.connected = False
-
-        # connect sync channel
-        self.logger.pre_cmd("Connecting to RPC server on {0}:{1}".format(self.connection_info['server'], self.connection_info['sync_port']))
-        rc = self.comm_link.connect()
-        self.logger.post_cmd(rc)
-
+        # connect to the server
+        rc = self.conn.connect()
         if not rc:
             return rc
-
         
+                
         # API sync
         rc = self._transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
         if not rc:
@@ -942,40 +909,35 @@ class STLClient(object):
 
             self.ports[port_id] = Port(port_id,
                                        self.username,
-                                       self.comm_link,
+                                       self.conn.rpc,
                                        self.session_id,
                                        info)
-
 
         # sync the ports
         rc = self.__sync_ports()
         if not rc:
             return rc
 
+    
         
-        # connect async channel
-        self.logger.pre_cmd("Connecting to publisher server on {0}:{1}".format(self.connection_info['server'], self.connection_info['async_port']))
-        rc = self.async_client.connect()
-        self.logger.post_cmd(rc)
-
+        # after we are done with configuring the client
+        # sync all the data from the server (baseline)
+        rc = self.conn.sync()
         if not rc:
             return rc
-
-        self.connected = True
-
+            
+            
         return RC_OK()
 
 
     # disconenct from server
     def __disconnect(self, release_ports = True):
         # release any previous acquired ports
-        if self.is_connected() and release_ports:
+        if self.conn.is_connected() and release_ports:
             self.__release(self.get_acquired_ports())
 
-        self.comm_link.disconnect()
-        self.async_client.disconnect()
-
-        self.connected = False
+        # disconnect the link to the server
+        self.conn.disconnect()
 
         return RC_OK()
 
@@ -984,7 +946,7 @@ class STLClient(object):
     def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats):
 
         # we must be sync with the server
-        self.async_client.barrier()
+        self.conn.barrier()
 
         for port_id in port_id_list:
             self.ports[port_id].clear_stats()
@@ -1089,11 +1051,11 @@ class STLClient(object):
 
     # transmit request on the RPC link
     def _transmit(self, method_name, params = None, api_class = 'core'):
-        return self.comm_link.transmit(method_name, params, api_class)
+        return self.conn.rpc.transmit(method_name, params, api_class)
 
     # transmit batch request on the RPC link
     def _transmit_batch(self, batch_list):
-        return self.comm_link.transmit_batch(batch_list)
+        return self.conn.rpc.transmit_batch(batch_list)
 
     # stats
     def _get_formatted_stats(self, port_id_list, stats_mask = trex_stl_stats.COMPACT):
@@ -1171,7 +1133,14 @@ class STLClient(object):
 
                 # check connection
                 if connected and not client.is_connected():
-                    raise STLStateError(func_name, 'disconnected')
+                    
+                    
+                    if client.conn.is_marked_for_disconnect():
+                        # connection state is marked for disconnect - something went wrong
+                        raise STLError("'{0}' - connection to the server had been lost: '{1}'".format(func_name, client.conn.get_disconnection_cause()))
+                    else:
+                        # simply was called while disconnected
+                        raise STLError("'{0}' - is not valid while disconnected".format(func_name))
 
                 try:
                     ret = f(*args, **kwargs)
@@ -1245,17 +1214,17 @@ class STLClient(object):
         """ 
 
         :parameters:
-          None
+            None
 
         :return:
-            is_connected
+            True if the connection is established to the server
+            o.w False
 
         :raises:
           None
 
         """
-
-        return self.connected and self.comm_link.is_connected
+        return self.conn.is_connected()
 
 
     # get connection info
@@ -1615,10 +1584,10 @@ class STLClient(object):
         if not type(sync_now) is bool:
             raise STLArgumentError('sync_now', sync_now)
 
-
+            
         # if the user requested a barrier - use it
         if sync_now:
-            rc = self.async_client.barrier()
+            rc = self.conn.barrier()
             if not rc:
                 raise STLError(rc)
 
@@ -1726,8 +1695,13 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
+        
+        # cleanup from previous connection
+        self.__disconnect()
+        
         rc = self.__connect()
         if not rc:
+            self.__disconnect()
             raise STLError(rc)
         
 
@@ -3094,9 +3068,9 @@ class STLClient(object):
         # wait while any of the required ports are active
         while set(self.get_active_ports()).intersection(ports):
 
-            # make sure ASYNC thread is still alive - otherwise we will be stuck forever
-            if not self.async_client.is_active():
-                raise STLError("subscriber thread is dead")
+            # make sure we are still connected - otherwise we will be stuck forever
+            if not self.is_connected():
+                raise STLError('wait_on_traffic: {0}'.format(self.conn.get_disconnection_cause()))
 
             time.sleep(0.01)
             if timer.has_expired():

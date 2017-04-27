@@ -59,12 +59,12 @@ TREX_RPC_CMD_DEFINE(TrexRpcCmdTestSub,    "test_sub", 2, false, APIClass::API_CL
  */
 TREX_RPC_CMD_DEFINE(TrexRpcCmdAPISync,    "api_sync",             1, false, APIClass::API_CLASS_TYPE_NO_API);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdPing,       "ping",                 0, false, APIClass::API_CLASS_TYPE_NO_API);
+TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,    "publish_now",          2, false, APIClass::API_CLASS_TYPE_NO_API);
 
 /**
  * general cmds
  */
 
-TREX_RPC_CMD_DEFINE(TrexRpcPublishNow,         "publish_now",          2, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetCmds,         "get_supported_cmds",   0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetVersion,      "get_version",          0, false, APIClass::API_CLASS_TYPE_CORE);
 TREX_RPC_CMD_DEFINE(TrexRpcCmdGetActivePGIds,  "get_active_pgids",     0, false, APIClass::API_CLASS_TYPE_CORE);
