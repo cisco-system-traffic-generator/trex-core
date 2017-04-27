@@ -23,6 +23,47 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.24 ==
+
+* Add support for Mellanox CX-3 VF 
+* Better way to map DPDK ports to TRex ports 
+
+
+[source,python]
+----
+
+* In order
+  interfaces    : ["03:00.0","03:00.1","82:00.0","82:00.1"]   
+
+* Out order 
+  interfaces    : ["03:00.1","03:00.0","82:00.1","82:00.0"]   
+
+* Out order 
+  interfaces    : ["03:00.1","82:00.0"]   
+
+*  CX3 example : each PCI has 2 ports /1 is sub interface 
+  interfaces    : ["03:00.0/1","03:00.0/0"]   
+----
+
+* L2 emulation plugin framework -- example for DHCP 
+
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-413[trex-413]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-408[trex-408]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-398[trex-398]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-372[trex-372]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-402[trex-402]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-400[trex-400]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-371[trex-371]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-397[trex-397]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-393[trex-393]
+
+
+
+
 == Release 2.23 ==
 
 * Support up to 1023 per stream statistics ids in software mode and with mlx5 driver 
