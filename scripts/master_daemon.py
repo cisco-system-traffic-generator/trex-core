@@ -110,9 +110,16 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
 
 
 def save_coredump():
+    latest_core_file = {
+        'time': 0,
+        'path': None}
     for core_file in glob(os.path.join(args.trex_dir, 'core*')):
-        shutil.copy(core_file, os.path.join(tmp_dir, 'coredump'))
-        break
+        mod_time = os.path.getmtime(core_file)
+        if latest_core_file['time'] < mod_time:
+            latest_core_file['time'] = mod_time
+            latest_core_file['path'] = core_file
+    if latest_core_file['path']:
+        shutil.copy(latest_core_file['path'], os.path.join(tmp_dir, 'coredump'))
 
 ### /Server functions ###
 
