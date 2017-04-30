@@ -179,6 +179,7 @@ class STLServiceCtx(object):
 
         
     def _tick_process (self):
+        
         while True:
             
             # if any packets are pending - send them
@@ -188,20 +189,19 @@ class STLServiceCtx(object):
             pkts = []
             self.client.fetch_capture_packets(self.capture_id, pkts)
             
-
             # for each packet - try to forward to each service until we hit
             for pkt in pkts:
-
                 scapy_pkt = Ether(pkt['binary'])
                 rx_ts     = pkt['ts']
                 
                 # go through all filters
                 for service_filter in self.filters.values():
-                    # look up for a service that should get this packet
+                    
+                    # look up for a service that should get this packet (usually 1)
                     for service in service_filter.lookup(scapy_pkt):
                         self.services[service]['pipe']._on_rx_pkt(scapy_pkt, rx_ts)
 
-
+            
             # if no other process exists - exit
             if self.active_services == 0:
                 # make sure no packets are left behind
@@ -209,7 +209,7 @@ class STLServiceCtx(object):
                 return
             else:
                 # backoff
-                yield self.env.timeout(0.1)
+                yield self.env.timeout(0.05)
 
             
 class TXBuffer(object):

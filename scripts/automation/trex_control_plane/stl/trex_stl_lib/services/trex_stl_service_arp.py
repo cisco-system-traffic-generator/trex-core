@@ -25,10 +25,10 @@ class STLServiceFilterARP(STLServiceFilter):
 
 
     def add (self, service):
-        # forward packets according to the DST IP being resolved
-        self.services[service.dst_ip].append(service)
+        # forward packets according to the SRC/DST IP
+        self.services[(service.src_ip, service.dst_ip)].append(service)
 
-
+        
     def lookup (self, scapy_pkt):
         # not ARP
         if 'ARP' not in scapy_pkt:
@@ -38,7 +38,7 @@ class STLServiceFilterARP(STLServiceFilter):
         if scapy_pkt['ARP'].op != 2:
             return []
         
-        return self.services.get( scapy_pkt['ARP'].psrc, [] )
+        return self.services.get( (scapy_pkt['ARP'].pdst, scapy_pkt['ARP'].psrc), [] )
 
 
 class STLServiceARP(STLService):
@@ -57,8 +57,8 @@ class STLServiceARP(STLService):
         self.timeout_sec = timeout_sec
         
         self.record = None
-
-
+        
+        
     def get_filter_type (self):
         return STLServiceFilterARP
 
