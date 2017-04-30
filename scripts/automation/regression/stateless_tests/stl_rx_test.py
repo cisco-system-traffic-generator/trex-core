@@ -102,20 +102,7 @@ class STLRX_Test(CStlGeneral_Test):
         CStlGeneral_Test.setUp(self)
         assert 'bi' in CTRexScenario.stl_ports_map
 
-        self.c = CTRexScenario.stl_trex
-
-        self.num_cores = self.c.get_server_system_info().get('dp_core_count', 'Unknown')
-        mbufs = self.c.get_util_stats()['mbuf_stats']
-        self.k9_mbufs = 10000
-        self.k4_mbufs = 10000
-        for key in mbufs:
-            if mbufs[key]['9kb'][1] < self.k9_mbufs:
-                self.k9_mbufs = mbufs[key]['9kb'][1]
-            if mbufs[key]['4096b'][1] < self.k4_mbufs:
-                self.k4_mbufs = mbufs[key]['4096b'][1]
-
-        print("")
-        print ("num cores {0} num 9k mbufs {1} num 4k mbufs {2}".format(self.num_cores, self.k9_mbufs, self.k4_mbufs));
+        self.c = CTRexScenario.stl_trex;
 
         self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
 
@@ -140,6 +127,26 @@ class STLRX_Test(CStlGeneral_Test):
 
         drv_name = port_info['driver']
         self.drv_name = drv_name
+
+        self.num_cores = self.c.get_server_system_info().get('dp_core_count', 'Unknown')
+        mbufs = self.c.get_util_stats()['mbuf_stats']
+        # currently in MLX drivers, we use 9k mbufs for RX, so we can't use all of them for TX.
+        if self.drv_name == 'net_mlx5':
+            self.k9_mbufs = 20
+            self.k4_mbufs = 20
+        else:
+            self.k9_mbufs = 10000
+            self.k4_mbufs = 10000
+
+        for key in mbufs:
+            if mbufs[key]['9kb'][1] < self.k9_mbufs:
+                self.k9_mbufs = mbufs[key]['9kb'][1]
+            if mbufs[key]['4096b'][1] < self.k4_mbufs:
+                self.k4_mbufs = mbufs[key]['4096b'][1]
+
+        print("")
+        print ("num cores {0} num 9k mbufs {1} num 4k mbufs {2}".format(self.num_cores, self.k9_mbufs, self.k4_mbufs))
+
         if 'no_vlan' in per_driver_params[drv_name] and not software_mode:
             self.vlan_support = False
         else:
