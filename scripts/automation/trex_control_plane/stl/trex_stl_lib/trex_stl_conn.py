@@ -4,6 +4,8 @@ from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
 from .trex_stl_async_client import CTRexAsyncClient
 
 import time
+import signal
+import os
 
 
 ############################     RPC layer     #############################
@@ -65,7 +67,7 @@ class CCommLink(object):
         print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
                                                                          port=self.port))
 
-        
+
 class Connection(object):
     '''
         Manages that connection to the server
@@ -82,8 +84,9 @@ class Connection(object):
 
     def __init__ (self, conn_info, logger, client):
 
-        self.conn_info  = conn_info
-        self.logger     = logger
+        self.conn_info             = conn_info
+        self.logger                = logger
+        self.sigint_on_conn_lost   = False
         
         # low level RPC layer
         self.rpc = CCommLink(self.conn_info['server'],
@@ -165,8 +168,29 @@ class Connection(object):
         # change state
         self.state = (self.MARK_FOR_DISCONNECT, cause)
 
+        # if the flag is on, a SIGINT will be sent to the main thread
+        # causing the ZMQ RPC to stop what it's doing and report an error
+        if self.sigint_on_conn_lost:
+            os.kill(os.getpid(), signal.SIGINT)
+         
+            
+    def sigint_on_conn_lost_enable (self):
+        '''
+            when enabled, if connection
+            is lost a SIGINT will be sent
+            to the main thread
+        '''
+        self.sigint_on_conn_lost = True
 
-
+        
+    def sigint_on_conn_lost_disable (self):
+        '''
+            disable SIGINT dispatching
+            on case of connection lost
+        '''
+        self.sigint_on_conn_lost = False
+        
+        
     def is_alive (self):
         '''
             return True if any data has arrived 

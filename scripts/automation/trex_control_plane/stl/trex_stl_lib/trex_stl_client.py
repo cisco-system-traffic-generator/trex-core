@@ -87,10 +87,10 @@ class LoggerApi(object):
         self.log(msg, level, newline)
 
 
-    # urgent log - will log event under quiet
-    def urgent_log (self, msg, newline = True):
-        # no check - urgent
-        self.write(msg, newline)
+    # urgent async log - will log event under quiet
+    def urgent_async_log (self, msg, newline = True):
+        # log even on quiet mode
+        self.async_log(msg, level = LoggerApi.VERBOSE_QUIET, newline = newline)
         self.flush()
         
         
@@ -211,22 +211,21 @@ class EventsHandler(object):
     def on_async_timeout (self, timeout_sec):
         if self.client.conn.is_connected():
             msg = 'Connection lost - Subscriber timeout: no data from TRex server for more than {0} seconds'.format(timeout_sec)
+            self.log_warning(msg)
             
             # we cannot simply disconnect the connection - we mark it for disconnection
             # later on, the main thread will execute an ordered disconnection
             self.client.conn.mark_for_disconnect(msg)
             
-            self.log_warning(msg)
             
 
     def on_async_crash (self):
         msg = 'subscriber thread has crashed:\n\n{0}'.format(traceback.format_exc())
+        self.log_warning(msg)
         
         # if connected, mark as disconnected
         if self.client.conn.is_connected():
             self.client.conn.mark_for_disconnect(msg)
-            
-        self.log_warning(msg)
         
         
     def on_async_alive (self):
@@ -464,10 +463,10 @@ class EventsHandler(object):
         self.events.append(event)
         
         if ev_type == 'info' and show_event:
-            self.logger.log("\n\n{0}".format(str(event)))
+            self.logger.async_log("\n\n{0}".format(str(event)))
             
         elif ev_type == 'warning':
-            self.logger.urgent_log("\n\n{0}".format(str(event)))
+            self.logger.urgent_async_log("\n\n{0}".format(str(event)))
 
      
 
@@ -1131,22 +1130,36 @@ class STLClient(object):
 
                 func_name = f.__name__
 
-                # check connection
-                if connected and not client.is_connected():
+                
+                try:
+                    # before we enter the API, set the async thread to signal in case of connection lost
+                    client.conn.sigint_on_conn_lost_enable()
                     
+                    # check connection
+                    if connected and not client.is_connected():
                     
+                        if client.conn.is_marked_for_disconnect():
+                            # connection state is marked for disconnect - something went wrong
+                            raise STLError("'{0}' - connection to the server had been lost: '{1}'".format(func_name, client.conn.get_disconnection_cause()))
+                        else:
+                            # simply was called while disconnected
+                            raise STLError("'{0}' - is not valid while disconnected".format(func_name))
+
+                    # call the API
+                    ret = f(*args, **kwargs)
+                    
+                except KeyboardInterrupt as e:
+                    # SIGINT can be either from ctrl + c or from the async thread to interrupt the main thread
                     if client.conn.is_marked_for_disconnect():
-                        # connection state is marked for disconnect - something went wrong
                         raise STLError("'{0}' - connection to the server had been lost: '{1}'".format(func_name, client.conn.get_disconnection_cause()))
                     else:
-                        # simply was called while disconnected
-                        raise STLError("'{0}' - is not valid while disconnected".format(func_name))
+                        raise STLError("'{0}' - interrupted by a keyboard signal (probably ctrl + c)".format(func_name))
 
-                try:
-                    ret = f(*args, **kwargs)
-                except KeyboardInterrupt as e:
-                    raise STLError("Interrupted by a keyboard signal (probably ctrl + c)")
-
+                finally:
+                    # when we exit API context - disable SIGINT from the async thread
+                    client.conn.sigint_on_conn_lost_disable()
+                    
+                    
                 return ret
             return wrap2
 
@@ -3067,10 +3080,6 @@ class STLClient(object):
 
         # wait while any of the required ports are active
         while set(self.get_active_ports()).intersection(ports):
-
-            # make sure we are still connected - otherwise we will be stuck forever
-            if not self.is_connected():
-                raise STLError('wait_on_traffic: {0}'.format(self.conn.get_disconnection_cause()))
 
             time.sleep(0.01)
             if timer.has_expired():
