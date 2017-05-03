@@ -18,6 +18,7 @@ ifdef::backend-docbook[]
 :p_width: 450
 :p_width_1: 200
 :p_width_1a: 100
+:p_width_1b: 50
 :p_width_1c: 150
 :p_width_lge: 500
 endif::backend-docbook[]
@@ -28,6 +29,7 @@ ifdef::backend-xhtml11[]
 :p_width_1: 400
 :p_width_1a: 650
 :p_width_1a: 400
+:p_width_1b: 200
 :p_width_lge: 900
 endif::backend-xhtml11[]
 
@@ -337,6 +339,11 @@ client.set_service_mode(port = 0, enabled = False)
 
 === Port Service Mode
 include::trex_port_service_mode.asciidoc[]
+
+=== Services
+include::trex_services.asciidoc[]
+
+
 
 
 === Neighboring Protocols

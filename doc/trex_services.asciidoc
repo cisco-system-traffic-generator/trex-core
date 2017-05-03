@@ -1,0 +1,195 @@
+[IMPORTANT]
+The following section relies on 'service mode' - please refer to 'service mode' section for more details
+
+==== Overview
+
+While under 'service mode', TRex provides the ability to run 'services'.
+
+A 'service' is an instance of a 'service type' that has a certain
+request / response state machine.
+
+
+image::images/trex_services_instances.png[title="Services Instances",align="left",width={p_width}, link="images/trex_services_instances.png"]
+
+
+For example, the *ARP* service type provides a way to create ARP request instances
+that can be then executed by TRex in a *parallel* way supporting up to ~1000 requests in parallel.
+
+The following diagram illustrates how 'services' fit in the general flow:
+
+image::images/trex_services_flow.png[title="Services Execution Flow",align="center",width={p_width_1b}, link="images/trex_services_flow.png"]
+
+
+[NOTE]
+A simple example
+
+
+The simplest example of a service execution:
+
+
+[source,Python]
+----
+# import the ARP service
+from trex_stl_lib.services.trex_stl_service_arp import STLServiceARP
+
+# create a service context on port 0
+ctx  = client.create_service_ctx(port = 0)
+
+# generate single ARP request from 1.1.1.5 to 1.1.1.1
+arp = STLServiceARP(ctx, src_ip = '1.1.1.5', dst_ip = '1.1.1.1')
+
+# move to service mode and execute service
+client.set_service_mode(ports = 0)
+try:
+    ctx.run(arp)
+finally:
+    client.set_service_mode(ports = 0, enabled = False)
+
+# show the ARP result
+print(arp.get_record())
+----
+
+[source,bash]
+----
+Recieved ARP reply from: 1.1.1.1, hw: b8:46:dd:63:21:e4"
+----
+
+
+There are two main usages for services:
+
+* *Customizing Tests*
+* *Control Plane Stress*
+
+==== Customizing Tests
+
+Services provides an easy way to customize tests:
+
+executing services can be used to dynamically acquire data prior to the test and then generate a test based on the results.
+
+
+[NOTE]
+An example of using DHCP service to cutomize a test
+
+
+Let's assume that our topology includes a DHCP server which will allow traffic from previously leased addreses only.
+Without services we will not be able to statically generate a test that will be accepted by the server.
+
+However,
+with services we can generate clients using the DHCP service type and used the leased addresses to generate traffic.
+
+image::images/trex_services_two_phase.png[title="Services Two Phase Based Test",align="center",width={p_width_1}, link="images/trex_services_two_phase.png"]
+
+Let's take a deep dive into how to use Python API to implement the above example:
+
+[source,Python]
+----
+
+# first we import the relevant service
+from trex_stl_lib.services.trex_stl_service_dhcp import STLServiceDHCP
+
+# next we generate a service context on the required port
+# all services will be executed on the same port - there is no cross-port service execution
+ctx  = client.create_service_ctx(port = 0)
+
+# generate 100 clients from random MACs (random MAC function omitted)
+# you can, of course, supply specific MAC addresses
+dhcps = [STLServiceDHCP(mac = random_mac()) for _ in range(100)]
+
+# now we execute the service context under service mode
+
+client.set_service_mode(ports = 0)
+try:
+    ctx.run(dhcps)
+finally:
+    client.set_service_mode(ports = 0, enabled = False)
+ 
+
+# inspect the DHCP execution result
+for dhcp in dhcps:
+    record = dhcp.get_record()
+    print('client: MAC {0} - DHCP: {1}'.format(dhcp.get_mac(),record))
+ 
+# let's filter all the DHCPs that successfuly moved to 'BOUND' state
+# refer to the DHCP code reference to see all the available states
+bounded_dhcps = [dhcp for dhcp in dhcps if dhcp.state == 'BOUND']
+
+# we can use the above results to generate traffic from the leased addresses
+
+streams = []
+for bound_dhcp in bounded_dhcps:
+    record = bound_dhcp.get_record()
+    
+    pkt = STLPktBuilder(pkt = Ether(src=record.client_mac)/
+                              IP(src=record.client_ip,dst=record.server_ip)/
+                              UDP)
+    streams.append(STLStream(packet = pkt, mode = STLTXSingleBurst(total_pkts = 1000)))
+    
+# add streams and generate traffic
+client.add_streams(ports = 0, streams = streams)
+client.start(ports = 0, mult = '100%')
+client.wait_on_traffic()
+----
+
+And here is how the output (partial) looks like:
+
+[source,bash]
+----
+client: MAC 3c:1d:08:91:7f:34 - DHCP: ip: 1.1.1.8,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC 21:3c:a3:3f:cb:a7 - DHCP: ip: 1.1.1.5,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC f9:ba:11:51:91:8b - DHCP: ip: 1.1.1.7,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC b8:46:dd:63:21:e4 - DHCP: ip: 1.1.1.11, server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC b8:38:f9:c7:1c:6e - DHCP: ip: 1.1.1.9,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC 44:27:f1:f3:9a:bd - DHCP: ip: 1.1.1.10, server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC cd:8d:c6:c9:5c:6a - DHCP: ip: 1.1.1.2,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC 51:ee:33:d9:d8:9f - DHCP: ip: 1.1.1.3,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC 75:f2:22:ce:86:47 - DHCP: ip: 1.1.1.4,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+client: MAC 19:bb:56:20:52:3b - DHCP: ip: 1.1.1.6,  server_ip: 1.1.1.1, subnet: 255.255.255.0
+
+----
+
+==== Control Plane Stress Tests
+
+Another practical use-case of services is to simply use the first phase as the main phase
+and focus on generating many control plane requests.
+
+For example,
+the same DHCP example can be used to stress out a DHCP server by generating many requests.
+
+Now,
+even though service mode is *slower* that regular mode, and service context execution is even
+slower as we wait for response from the server there are still two major benefits:
+
+* *Parallelism* - When generating many service instances, there will be minimum impact on
+ the total run time as we execute services in parallel
+ 
+* *Flexibility* - Putting aside performance, TRex services are written in Python and uses Scapy to
+generate traffic and thus are very easy to manipulate and custom fit
+
+==== Currently Provided Services
+
+Currently, the implemented services provided with TRex package are:
+
+* *ARP* - provides an ARP resolution for an IPv4 address
+* *ICMPv4* - provides Ping IPv4 for an IPv4 address
+* *DHCP* - provides a DHCP bound/release lease address
+
+We are planning to add more and hope for contribution in this area
+
+==== A Detailed DHCP Example
+Full DHCP example can be found under the following GitHub link:
+
+* link:{github_stl_examples_path}/stl_dhcp_example[stl_dhcp_example.py]
+
+
+==== Limitations
+
+There is no limitation on the *types* of services that are being executed.
+It is possible to run 'ARP' and 'DHCP' in *parallel* if it is needed.
+
+The only limitation is that 'services' run under context which is bounded to
+a single port.
+
+There is no way to forward response from another port to the context.
+
+Also, the number of service instances per execution is currently limited to *1000*.
+
