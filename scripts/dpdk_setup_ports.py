@@ -412,7 +412,7 @@ Other network devices
             self.set_mtu_mlx5(dev_id,mtu);
             if self.get_mtu_mlx5(dev_id) != mtu: 
                 print("Could not set MTU to %d" % mtu)
-                exit(-1);
+                sys.exit(-1);
 
 
     def disable_flow_control_mlx5_device (self,dev_id):
@@ -434,13 +434,13 @@ Other network devices
 
         if not os.path.isfile(ofed_info):
             print("OFED %s is not installed on this setup" % ofed_info)
-            exit(-1);
+            sys.exit(-1);
 
         try:
           out = subprocess.check_output([ofed_info])
         except Exception as e:
             print("OFED %s can't run " % (ofed_info))
-            exit(-1);
+            sys.exit(-1);
 
         lines=out.splitlines();
 
@@ -450,14 +450,14 @@ Other network devices
                 ver=int(m.group(1))*10+int(m.group(2))
                 if ver < ofed_ver:
                   print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
-                  exit(-1);
+                  sys.exit(-1);
             else:
                 print("not found valid  OFED version '%s' " % (lines[0]))
-                exit(-1);
+                sys.exit(-1);
 
 
     def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.2\n'
+        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.2/7.3\n'
         err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
         try:
             dist = platform.dist()
@@ -557,7 +557,8 @@ Other network devices
 
         self.run_dpdk_lspci ()
         self.load_config_file()
-        if (map_driver.parent_args.dump_interfaces is None or
+        if (map_driver.parent_args is None or
+                map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
                             map_driver.parent_args.cfg)):
             if_list=if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces'])
@@ -586,7 +587,7 @@ Other network devices
                 Mellanox_cnt += 1
 
 
-        if not map_driver.parent_args.dump_interfaces:
+        if not (map_driver.parent_args and map_driver.parent_args.dump_interfaces):
             if (Mellanox_cnt > 0) and (Mellanox_cnt != len(if_list)):
                err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all "; 
                raise DpdkSetup(err)
@@ -610,9 +611,9 @@ Other network devices
 
         if only_check_all_mlx:
             if Mellanox_cnt > 0:
-                exit(MLX_EXIT_CODE);
+                sys.exit(MLX_EXIT_CODE);
             else:
-                exit(0);
+                sys.exit(0);
 
         if if_list and map_driver.args.parent and self.m_cfg_dict[0].get('enable_zmq_pub', True):
             publisher_port = self.m_cfg_dict[0].get('zmq_pub_port', 4500)
@@ -623,7 +624,7 @@ Other network devices
                 if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
                     sys.exit(-1)
 
-        if map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
+        if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
             try:
                 master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
             except:
@@ -1149,15 +1150,18 @@ def main ():
         elif map_driver.args.linux:
             obj.do_return_to_linux();
         else:
-            exit(obj.do_run());
+            ret = obj.do_run()
+            print('The ports are bound/configured.')
+            sys.exit(ret)
         print('')
     except DpdkSetup as e:
         print(e)
-        exit(-1)
+        sys.exit(-1)
     except Exception:
         traceback.print_exc()
-        exit(-1)
+        sys.exit(-1)
     except KeyboardInterrupt:
+        print('Ctrl+C')
         sys.exit(-1)
 
 
