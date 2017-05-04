@@ -7,19 +7,13 @@ import json
 from pprint import pprint
 import argparse
 import sys
-import numpy as np
 
-"""
-IN:
-max_rate: the maximal rate measured for the dut (in mbps)
-rate_interval [high_bound,low_bound] : array of the rate at which the iterations will start from and end at (both in percentage)
-iteration_precision: the size, in percents, of the interval between iterations
-resolution: how far (in percentage) you allow the actual result to be from the desired result
-
-OUT:
-the rate in which the desired result was calculated (percentage)
-
-"""
+numpy_installed = True
+try:
+    import numpy as np
+except:
+    print("error finding NumPy lib (maybe it is not installed?) running with 1 ndr")
+    numpy_installed = False
 
 
 class Rate:
@@ -45,7 +39,10 @@ class NdrBench:
         self.no_q_ful_point_percent = 0  # percent of max rate
         self.pdr = pdr  # desired percent of drop-rate. pdr = 0 is NO drop-rate
         self.pdr_error = pdr_error
-        self.ndr_results = ndr_results
+        if not numpy_installed:
+            self.ndr_results = 1
+        else:
+            self.ndr_results = ndr_results
         self.max_iterations = max_iterations
         self.latency = latency
         self.stl_client = STLClient(server=server)
@@ -83,16 +80,16 @@ class NdrBench:
     def disconnect(self):
         self.stl_client.disconnect()
 
-    def perf_run(self, rate_mb):
+    def perf_run(self, rate_mb_percent):
         self.stl_client.clear_stats()
-        self.stl_client.start(ports=self.ports, mult=(str(rate_mb)), duration=self.iteration_duration,
+        self.stl_client.start(ports=self.ports, mult=(str(rate_mb_percent) + "%"), duration=self.iteration_duration,
                               total=True)
         time.sleep(self.iteration_duration / 2)
         stats = self.stl_client.get_stats()
         # pprint(stats)
         self.stl_client.stop(ports=self.ports)
         opackets = stats[self.ports[0]]['opackets']
-        ipackets = stats[1]['ipackets']
+        ipackets = stats[3]['ipackets']
         rate = stats['total']['tx_bps_L1']
         lost_p = opackets - ipackets
         lost_p_percentage = (float(lost_p) / float(opackets)) * 100.00
@@ -105,13 +102,16 @@ class NdrBench:
             latency_dict = stats['latency'][5]['latency']
             latency = {'average': latency_dict['average'], 'total_max': latency_dict['total_max'],
                        'jitter': latency_dict['jitter'], 'total_min': latency_dict['total_min']}
-        tx_util = stats[self.ports[0]]['tx_util']
+        # tx_util = stats[self.ports[0]]['tx_util']
+        # cpu_util = stats['global']['cpu_util']
         run_results = {'q_ful_percentage': q_ful_percentage, 'lost_p_percentage': lost_p_percentage, 'rate': rate,
-                       'tx_util': tx_util, 'latency': latency}
+                       'tx_util': stats['total']['tx_util'], 'latency': latency,
+                       'cpu_util': stats['global']['cpu_util'], 'tx_pps': stats['total']['tx_pps'],
+                       'bw_per_core': stats['global']['bw_per_core']}
         return run_results
 
     def __find_max_rate(self):
-        run_results = self.perf_run("100%")
+        run_results = self.perf_run("100")
         lost_p_percentage = run_results['lost_p_percentage']
         q_ful_percentage = run_results['q_ful_percentage']
         max_rate_mb = run_results['rate'] / 1000000.00
@@ -136,17 +136,17 @@ class NdrBench:
         """
         max_rate = Rate(self.max_rate)
         opt_rate_p = 0  # percent
-        q_ful_opt = 0
-        drop_rate_opt = 0
         iteration = 0
         while iteration <= self.max_iterations:
             running_rate_percent = float((high_bound + low_bound)) / 2.00
             running_rate = max_rate.convert_percent_to_rate(running_rate_percent)
-            run_results = self.perf_run((str(running_rate) + "mbps"))
+            if self.verbose:
+                print "running rate is %s" % str(running_rate)
+                print "running rate percent is: %0.4f " % running_rate_percent
+            run_results = self.perf_run(str(running_rate_percent))
             lost_p_percentage = run_results['lost_p_percentage']
             q_ful_percentage = run_results['q_ful_percentage']
             latency = run_results['latency']
-            tx_util = run_results['tx_util']
             if self.verbose:
                 print "\n*** iteration %d***\n" % iteration
                 print("running at %0.4f %% of line rate which is: %0.4f mbps\n" % (running_rate_percent, running_rate))
@@ -159,10 +159,11 @@ class NdrBench:
             if q_ful_percentage <= self.q_ful_resolution and lost_p_percentage <= self.pdr:
                 if running_rate_percent > opt_rate_p:
                     opt_rate_p = running_rate_percent
-                    q_ful_opt = q_ful_percentage
-                    drop_rate_opt = lost_p_percentage
-                    tx_util_opt = tx_util
-                    latency_opt = latency
+                    # q_ful_opt = q_ful_percentage
+                    # drop_rate_opt = lost_p_percentage
+                    # tx_util_opt = tx_util
+                    # latency_opt = latency
+                    run_results_opt = dict(run_results)
                     if rate_diffrential <= self.pdr_error:
                         break
                     low_bound = running_rate_percent
@@ -175,9 +176,13 @@ class NdrBench:
                     break
             high_bound = running_rate_percent
             iteration += 1
+        if iteration == self.max_iterations + 1:
+            run_results_opt = dict(run_results)
         rate = max_rate.convert_percent_to_rate(opt_rate_p)
-        run_results_opt = {'q_ful_percentage': q_ful_opt, 'lost_p_percentage': drop_rate_opt, 'rate_p': opt_rate_p,
-                           'tx_util': tx_util_opt, 'rate': rate, 'latency': latency_opt}
+        # run_results_opt = {'q_ful_percentage': q_ful_opt, 'lost_p_percentage': drop_rate_opt, 'rate_p': opt_rate_p,
+        #                    'tx_util': tx_util_opt, 'rate': rate, 'latency': latency_opt}
+        run_results_opt['rate_p'] = opt_rate_p
+        run_results_opt['rate'] = rate
         return run_results_opt
 
     def find_ndr(self):
@@ -192,8 +197,10 @@ class NdrBench:
             run_results = self.perf_run_interval(assumed_rate_percent, assumed_rate_percent - self.pdr_error)
         if q_ful_percent >= self.q_ful_resolution:
             run_results = self.perf_run_interval(100.00, 0.00)
-        if self.ndr_results > 1:
-            ndr_res = np.linspace(start=run_results['rate'] / self.ndr_results, stop=run_results['rate'],
-                                  num=self.ndr_results, endpoint=True)
-            run_results['ndr_points'] = ndr_res
+        else:
+            run_results = self.perf_run_interval(100.00, 99.00)
+            if self.ndr_results > 1:
+                ndr_res = np.linspace(start=run_results['rate'] / self.ndr_results, stop=run_results['rate'],
+                                      num=self.ndr_results, endpoint=True)
+                run_results['ndr_points'] = ndr_res
         return run_results

@@ -76,7 +76,8 @@ parser.add_argument('-t', '--iter-time',
 parser.add_argument('-n', '--ndr-results',
                     dest='ndr_results',
                     help='calculates the benchmark at each point scaled linearly under NDR [1-10]. '
-                         'The results for ndr_results=2 are NDR and NDR/2',
+                         'The results for ndr_results=2 are NDR and NDR/2.'
+                         'NumPy lib should be installed to support this',
                     default=1,
                     type=int)
 parser.add_argument('-na', '--setup-name',
