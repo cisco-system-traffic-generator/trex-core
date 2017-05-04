@@ -21,6 +21,7 @@ limitations under the License.
 
 #include "trex_watchdog.h"
 #include "trex_exception.h"
+#include "trex_stateless.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -120,6 +121,45 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
 
     throw std::runtime_error(ss.str());
 }
+
+
+/**
+ * hook assert failure function
+ */
+extern "C" {
+
+    /* thread local storage - to avoid multiple threads calling assert */
+    static __thread bool g_in_assert = false;
+    
+    extern void __assert_fail (const char *__assertion, const char *__file, unsigned int __line, const char *__function) throw () {
+        
+        /* double assert - make sure no re-entrant calls, simply call abort directly */
+        if (g_in_assert) {
+            abort();
+        }
+        
+        /* mark it */
+        g_in_assert = true;
+        
+        std::string cause = "assert: " + std::string(__file) + ":" + std::to_string(__line) + " " + std::string(__function) + " Assertion '" + std::string(__assertion) + "' failed.";
+        
+        std::stringstream ss;
+        ss << cause;
+        ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
+        
+        /* if under stateless mode - try to publish an event */
+        if ( (get_stateless_obj()) && (get_stateless_obj()->get_publisher()) ) {
+            Json::Value data;
+            data["cause"] = "assert: " + std::string(__file) + ":" + std::to_string(__line) +  " Assertion '" + std::string(__assertion) + "' failed.";
+            
+            get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
+        }
+        
+        throw std::runtime_error(ss.str());
+    }
+
+}
+
 
 /**************************************
  * Trex Monitor object
