@@ -2929,7 +2929,7 @@ $sudo lspci -vv -s 87:00.0                                                      
                         ClockPM- Surprise- LLActRep- BwNot-
                 LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
                         ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
-                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-  #<4>
                 DevCap2: Completion Timeout: Range ABCD, TimeoutDis+, LTR-, OBFF Not Supported
                 DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled
                 LnkCtl2: Target Link Speed: 8GT/s, EnterCompliance- SpeedDis-
@@ -2943,7 +2943,7 @@ $sudo lspci -vv -s 87:00.0                                                      
                         [PN] Part number: MCX416A-CCAT                                 #<3>
                         [EC] Engineering changes: A7
                         [SN] Serial number: MT1618X16948            
-                        [V0] Vendor specific: PCIeGen3 x16                             #<4>
+                        [V0] Vendor specific: PCIeGen3 x16                             
                         [RV] Reserved: checksum good, 0 byte(s) reserved
                 End
         Capabilities: [9c] MSI-X: Enable+ Count=64 Masked-
@@ -3055,10 +3055,9 @@ $sudo lspci -vv -s 0000:80:03.0                                                 
 <1>  look for the PCI id 
 <2>  run the lspci -vv to find out the Part number 
 <3>  Part number  should be MCX516A-CDAT(CX5)/MCX416A-CCAT (CX4) for 100Gb NICS
-<4>  PCI should be x16 in case it is not you should look for UCS PCIe configucation (raiser)
-<5>  Check parent PCI speed --> in this case it is 0000:80:03.0
+<4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configucation (raiser)
+<5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
-<7>  The speed should be x16
  
 
 
