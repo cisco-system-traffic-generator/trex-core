@@ -28,7 +28,6 @@ endif::backend-docbook[]
 * Add support for Mellanox CX-3 VF 
 * Better way to map DPDK ports to TRex ports 
 
-
 [source,python]
 ----
 
@@ -45,9 +44,10 @@ endif::backend-docbook[]
   interfaces    : ["03:00.0/1","03:00.0/0"]   
 ----
 
-* L2 emulation plugin framework -- example for DHCP 
+* L2 emulation plugins framework see here link:trex_stateless.html#trex_stateless.html#_services[services framework] example for DHCP/ARP/ICMP
 * 2K mbuf in Rx side --> less memory is needed 
-
+* Fix Docker uid issue
+* Better errors in case of slow RTC network
 
 === Fixed issues: ===
 
