@@ -2842,9 +2842,10 @@ image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
 *Comments*::
  
 1. MLX5 can reach ~50MPPS while XL710 is limited to 35MPPS. (With potential future fix it will be ~65MPPS)
-2. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
-3. In the average stateful scenario, ConnectX-4 is the same as XL710.
-4. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
+2. with IMIX you should reach ~90Gb/sec (not 100Gb/sec) with one port (Total bandwidth for both ports is 100Gb/Sec) 
+3. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
+4. In the average stateful scenario, ConnectX-4 is the same as XL710.
+5. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
 
 
 [NOTE]
@@ -2895,6 +2896,169 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 1
 Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 ----
 
+
+* I can reach maximum rate of 50Gb/sec
+
+
+[source,bash]
+----
+
+$sudo lspci | grep  Mellanox
+87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]  #<1>
+87:00.1 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+
+
+$sudo lspci -vv -s 87:00.0                                                         #<2>     
+87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Subsystem: Mellanox Technologies Device 0008
+        Physical Slot: 0-9
+        Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+        Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+        Latency: 0, Cache Line Size: 64 bytes
+        Interrupt: pin A routed to IRQ 43
+        Region 0: Memory at f8000000 (64-bit, prefetchable) [size=32M]
+        Expansion ROM at fbe00000 [disabled] [size=1M]
+        Capabilities: [60] Express (v2) Endpoint, MSI 00
+                DevCap: MaxPayload 512 bytes, PhantFunc 0, Latency L0s unlimited, L1 unlimited
+                        ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset+
+                DevCtl: Report errors: Correctable- Non-Fatal+ Fatal+ Unsupported-
+                        RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop+ FLReset-
+                        MaxPayload 256 bytes, MaxReadReq 1024 bytes
+                DevSta: CorrErr+ UncorrErr- FatalErr- UnsuppReq+ AuxPwr- TransPend-
+                LnkCap: Port #0, Speed 8GT/s, Width x16, ASPM not supported, Exit Latency L0s unlimited, L1 unlimited
+                        ClockPM- Surprise- LLActRep- BwNot-
+                LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
+                        ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
+                DevCap2: Completion Timeout: Range ABCD, TimeoutDis+, LTR-, OBFF Not Supported
+                DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled
+                LnkCtl2: Target Link Speed: 8GT/s, EnterCompliance- SpeedDis-
+                         Transmit Margin: Normal Operating Range, EnterModifiedCompliance- ComplianceSOS-
+                         Compliance De-emphasis: -6dB
+                LnkSta2: Current De-emphasis Level: -6dB, EqualizationComplete+, EqualizationPhase1+
+                         EqualizationPhase2+, EqualizationPhase3+, LinkEqualizationRequest-
+        Capabilities: [48] Vital Product Data
+                Product Name: CX416A - ConnectX-4 QSFP28
+                Read-only fields:
+                        [PN] Part number: MCX416A-CCAT                                 #<3>
+                        [EC] Engineering changes: A7
+                        [SN] Serial number: MT1618X16948            
+                        [V0] Vendor specific: PCIeGen3 x16                             #<4>
+                        [RV] Reserved: checksum good, 0 byte(s) reserved
+                End
+        Capabilities: [9c] MSI-X: Enable+ Count=64 Masked-
+                Vector table: BAR=0 offset=00002000
+                PBA: BAR=0 offset=00003000
+        Capabilities: [c0] Vendor Specific Information: Len=18 <?>
+        Capabilities: [40] Power Management version 3
+                Flags: PMEClk- DSI- D1- D2- AuxCurrent=375mA PME(D0-,D1-,D2-,D3hot-,D3cold+)
+                Status: D0 NoSoftRst+ PME-Enable- DSel=0 DScale=0 PME-
+        Capabilities: [100 v1] Advanced Error Reporting
+                UESta:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UEMsk:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UESvrt: DLP+ SDES- TLP- FCP+ CmpltTO- CmpltAbrt- UnxCmplt- RxOF+ MalfTLP+ ECRC- UnsupReq- ACSViol-
+                CESta:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr+
+                CEMsk:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr+
+                AERCap: First Error Pointer: 04, GenCap+ CGenEn- ChkCap+ ChkEn-
+        Capabilities: [150 v1] Alternative Routing-ID Interpretation (ARI)
+                ARICap: MFVC- ACS-, Next Function: 1
+                ARICtl: MFVC- ACS-, Function Group: 0
+        Capabilities: [180 v1] Single Root I/O Virtualization (SR-IOV)
+                IOVCap: Migration-, Interrupt Message Number: 000
+                IOVCtl: Enable- Migration- Interrupt- MSE- ARIHierarchy+
+                IOVSta: Migration-
+                Initial VFs: 8, Total VFs: 8, Number of VFs: 0, Function Dependency Link: 00
+                VF offset: 2, stride: 1, Device ID: 1014
+                Supported Page Size: 000007ff, System Page Size: 00000001
+                Region 0: Memory at 00000000fa800000 (64-bit, prefetchable)
+                VF Migration: offset: 00000000, BIR: 0
+        Capabilities: [1c0 v1] #19
+        Capabilities: [230 v1] Access Control Services
+                ACSCap: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+                ACSCtl: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+        Kernel driver in use: mlx5_core
+        
+
+$sudo lspci -vt | grep Mellanox                                                       #<5>  
++-[0000:80]-+-00.0-[81]--
+ |           +-01.0-[82]--
+ |           +-01.1-[83]--
+ |           +-02.0-[84]--
+ |           +-02.2-[85-86]--+-00.0  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+ |           |               \-00.1  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+ |           +-03.0-[87]--+-00.0  Mellanox Technologies MT27700 Family [ConnectX-4]
+ |           |            \-00.1  Mellanox Technologies MT27700 Family [ConnectX-4]
+
+
+
+$sudo lspci -vv -s 0000:80:03.0                                                     #<6>            
+80:03.0 PCI bridge: Intel Corporation Xeon E7 v3/Xeon E5 v3/Core i7 PCI Express Root Port 3 (rev 02) (prog-if 00 [Normal decode])
+        Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+        Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+        Latency: 0, Cache Line Size: 64 bytes
+        Bus: primary=80, secondary=87, subordinate=87, sec-latency=0
+        Memory behind bridge: fbd00000-fbefffff
+        Prefetchable memory behind bridge: 00000000f6000000-00000000faffffff
+        Secondary status: 66MHz- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort+ <SERR- <PERR-
+        BridgeCtl: Parity- SERR- NoISA- VGA- MAbort- >Reset- FastB2B-
+                PriDiscTmr- SecDiscTmr- DiscTmrStat- DiscTmrSERREn-
+        Capabilities: [40] Subsystem: Intel Corporation Device 0000
+        Capabilities: [60] MSI: Enable+ Count=1/2 Maskable+ 64bit-
+                Address: fee00138  Data: 0000
+                Masking: 00000002  Pending: 00000000
+        Capabilities: [90] Express (v2) Root Port (Slot-), MSI 00
+                DevCap: MaxPayload 256 bytes, PhantFunc 0
+                        ExtTag- RBE+
+                DevCtl: Report errors: Correctable+ Non-Fatal+ Fatal+ Unsupported+
+                        RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+                        MaxPayload 256 bytes, MaxReadReq 128 bytes
+                DevSta: CorrErr- UncorrErr- FatalErr- UnsuppReq- AuxPwr- TransPend-
+                LnkCap: Port #7, Speed 8GT/s, Width x16, ASPM L1, Exit Latency L0s <512ns, L1 <16us
+                        ClockPM- Surprise+ LLActRep+ BwNot+
+                LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
+                        ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive+ BWMgmt+ ABWMgmt-       #<7>
+                RootCtl: ErrCorrectable- ErrNon-Fatal- ErrFatal- PMEIntEna+ CRSVisible-
+                RootCap: CRSVisible-
+                RootSta: PME ReqID 0000, PMEStatus- PMEPending-
+                DevCap2: Completion Timeout: Range BCD, TimeoutDis+, LTR-, OBFF Not Supported ARIFwd+
+                DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled ARIFwd+
+                LnkCtl2: Target Link Speed: 8GT/s, EnterCompliance- SpeedDis-
+                         Transmit Margin: Normal Operating Range, EnterModifiedCompliance- ComplianceSOS-
+                         Compliance De-emphasis: -6dB
+                LnkSta2: Current De-emphasis Level: -6dB, EqualizationComplete+, EqualizationPhase1+
+                         EqualizationPhase2+, EqualizationPhase3+, LinkEqualizationRequest-
+        Capabilities: [e0] Power Management version 3
+                Flags: PMEClk- DSI- D1- D2- AuxCurrent=0mA PME(D0+,D1-,D2-,D3hot+,D3cold+)
+                Status: D0 NoSoftRst+ PME-Enable- DSel=0 DScale=0 PME-
+        Capabilities: [100 v1] Vendor Specific Information: ID=0002 Rev=0 Len=00c <?>
+        Capabilities: [110 v1] Access Control Services
+                ACSCap: SrcValid+ TransBlk+ ReqRedir+ CmpltRedir+ UpstreamFwd+ EgressCtrl- DirectTrans-
+                ACSCtl: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+        Capabilities: [148 v1] Advanced Error Reporting
+                UESta:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UEMsk:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UESvrt: DLP+ SDES+ TLP- FCP+ CmpltTO- CmpltAbrt- UnxCmplt- RxOF+ MalfTLP+ ECRC- UnsupReq- ACSViol-
+                CESta:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr-
+                CEMsk:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr-
+                AERCap: First Error Pointer: 00, GenCap- CGenEn- ChkCap- ChkEn-
+        Capabilities: [1d0 v1] Vendor Specific Information: ID=0003 Rev=1 Len=00a <?>
+        Capabilities: [250 v1] #19
+        Capabilities: [280 v1] Vendor Specific Information: ID=0005 Rev=3 Len=018 <?>
+        Capabilities: [300 v1] Vendor Specific Information: ID=0008 Rev=0 Len=038 <?>
+        Kernel driver in use: pcieport
+
+
+
+
+----
+<1>  look for the PCI id 
+<2>  run the lspci -vv to find out the Part number 
+<3>  Part number  should be MCX516A-CDAT(CX5)/MCX416A-CCAT (CX4) for 100Gb NICS
+<4>  PCI should be x16 in case it is not you should look for UCS PCIe configucation (raiser)
+<5>  Check parent PCI speed --> in this case it is 0000:80:03.0
+<6>  Look for the speed
+<7>  The speed should be x16
  
 
 
