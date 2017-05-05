@@ -1460,9 +1460,9 @@ class STLClient(object):
             obytes                           Number of output bytes  
             oerrors                          Number of output errors
             opackets                         Number of output packets
-            rx_bps                           Receive bytes per second rate (L2 layer)
+            rx_bps                           Receive bits per second rate (L2 layer)
             rx_pps                           Receive packet per second rate
-            tx_bps                           Transmit bytes per second rate (L2 layer)
+            tx_bps                           Transmit bits per second rate (L2 layer)
             tx_pps                           Transmit packet per second rate
             ===============================  ===============
 
@@ -1475,14 +1475,14 @@ class STLClient(object):
             =================   ===============
             key                 Meaning
             =================   ===============
-            rx_bps              Received bytes per second rate
-            rx_bps_l1           Received bytes per second rate, including layer one
+            rx_bps              Received bits per second rate
+            rx_bps_l1           Received bits per second rate, including layer one
             rx_bytes            Total number of received bytes
             rx_pkts             Total number of received packets
             rx_pps              Received packets per second
-            tx_bps              Transmit bytes per second rate
-            tx_bps_l1           Transmit bytes per second rate, including layer one
-            tx_bytes            Total number of sent bytes
+            tx_bps              Transmit bits per second rate
+            tx_bps_l1           Transmit bits per second rate, including layer one
+            tx_bytes            Total number of sent bits
             tx_pkts             Total number of sent packets
             tx_pps              Transmit packets per second rate
             =================   ===============
@@ -1505,14 +1505,14 @@ class STLClient(object):
             =================   ===============
             key                 Meaning
             =================   ===============
-            bw_per_core         Estimated byte rate Trex can support per core. This is calculated by extrapolation of current rate and load on transmitting cores.
+            bw_per_core         Estimated bit rate Trex can support per core. This is calculated by extrapolation of current rate and load on transmitting cores.
             cpu_util            Estimate of the average utilization percentage of the transimitting cores
             queue_full          Total number of packets transmitted while the NIC TX queue was full. The packets will be transmitted, eventually, but will create high CPU%due to polling the queue.  This usually indicates that the rate we trying to transmit is too high for this port. 
             rx_cpu_util         Estimate of the utilization percentage of the core handling RX traffic. Too high value of this CPU utilization could cause drop of latency streams. 
-            rx_drop_bps         Received bytes per second drop rate
-            rx_bps              Received bytes per second rate
+            rx_drop_bps         Received bits per second drop rate
+            rx_bps              Received bits per second rate
             rx_pps              Received packets per second rate
-            tx_bps              Transmit bytes per second rate
+            tx_bps              Transmit bits per second rate
             tx_pps              Transmit packets per second rate
             =================   ===============
 
