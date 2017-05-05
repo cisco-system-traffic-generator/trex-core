@@ -858,7 +858,7 @@ def STLHltStream(**user_kwargs):
         elif transmit_mode == 'single_burst':
             transmit_mode_obj = STLTXSingleBurst(total_pkts = pkts_per_burst, **rate_stateless)
         elif transmit_mode == 'multi_burst':
-            transmit_mode_obj = STLTXMultiBurst(total_pkts = pkts_per_burst, count = int(kwargs['burst_loop_count']),
+            transmit_mode_obj = STLTXMultiBurst(pkts_per_burst = pkts_per_burst, count = int(kwargs['burst_loop_count']),
                                                   ibg = kwargs['inter_burst_gap'], **rate_stateless)
         else:
             raise STLError('transmit_mode %s not supported/implemented')
