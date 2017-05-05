@@ -130,13 +130,19 @@ def fail(msg):
 def start_master_daemon():
     if master_daemon.is_running():
         raise Exception('Master daemon is already running')
-    proc = multiprocessing.Process(target = start_master_daemon_func)
-    proc.start()
-    for i in range(50):
-        if master_daemon.is_running():
-            return True
-        time.sleep(0.1)
-    fail(termstyle.red('Master daemon failed to run. Please look in log: %s' % logging_file))
+    # detach child with double fork trick
+    pid = os.fork()
+    if pid > 0:
+        for i in range(50):
+            if master_daemon.is_running():
+                return
+            sleep(0.1)
+        return
+    os.setsid()
+    pid = os.fork()
+    if pid > 0:
+        os._exit(0)
+    start_master_daemon_func()
 
 def set_logger():
     log_dir = os.path.dirname(logging_file)
@@ -316,8 +322,8 @@ passive = {'start': 'started', 'restart': 'restarted', 'stop': 'stopped', 'show'
 
 if (args.action in ('show', 'start', 'restart')) ^ (not daemon.is_running()):
     print(termstyle.green('%s is %s' % (daemon.name, passive[args.action])))
-    os._exit(0)
+    sys.exit(0)
 else:
     print(termstyle.red('%s is NOT %s' % (daemon.name, passive[args.action])))
-    os._exit(-1)
+    sys.exit(-1)
 

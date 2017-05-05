@@ -105,3 +105,4 @@ underscore = Style(4)
 inverted = Style(7)
 italic = Style(3)
 
+auto()
