@@ -2,7 +2,7 @@
 import os
 import sys
 import shutil
-import multiprocessing
+import threading
 import logging
 import time
 from collections import OrderedDict
@@ -30,13 +30,13 @@ def get_trex_path():
     return args.trex_dir
 
 def get_package_path():
-    return updated_package_info.get('path')
+    return CUpdate.info.get('path')
 
 def get_package_sha1():
-    return updated_package_info.get('sha1')
+    return CUpdate.info.get('sha1')
 
 def is_updating():
-    return updating_process and updating_process.is_alive()
+    return CUpdate.thread and CUpdate.thread.is_alive()
 
 def _update_trex_process(package_path):
     file_name = 'trex_package.tar.gz'
@@ -84,8 +84,7 @@ def _update_trex_process(package_path):
         # bu current dir
         shutil.move(cur_dir, bu_dir)
         shutil.move(unpacked_dirs[0], cur_dir)
-        updated_package_info['path'] = package_path
-        updated_package_info['sha1'] = package_sha1
+        CUpdate.info = {'path': package_path, 'sha1': package_sha1}
         logging.info('Done updating, success')
     except BaseException as e: # something went wrong, return backup dir
         logging.error('Error while updating: %s' % e)
@@ -101,12 +100,11 @@ def _update_trex_process(package_path):
 def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
     if not args.allow_update:
         raise Exception('Updating server not allowed')
-    global updating_process
-    if updating_process and updating_process.is_alive():
-        updating_process.terminate()
-    updating_process = multiprocessing.Process(target = _update_trex_process, args = [package_path])
-    updating_process.daemon = True
-    updating_process.start()
+    if CUpdate.thread and CUpdate.thread.is_alive():
+        CUpdate.thread.terminate()
+    CUpdate.thread = threading.Thread(target = _update_trex_process, args = [package_path])
+    CUpdate.thread.daemon = True
+    CUpdate.thread.start()
 
 
 def save_coredump():
@@ -143,6 +141,7 @@ def start_master_daemon():
     if pid > 0:
         os._exit(0)
     start_master_daemon_func()
+    os._exit(0)
 
 def set_logger():
     log_dir = os.path.dirname(logging_file)
@@ -200,11 +199,11 @@ def start_master_daemon_func():
     except Exception as e:
         logging.error('Closing due to error: %s' % e)
     finally:
-        if updating_process and updating_process.is_alive():
-            updating_process.terminate()
+        if CUpdate.thread and CUpdate.thread.is_alive():
+            CUpdate.thread.terminate()
 
 def stop_handler(signalnum, *args, **kwargs):
-    if updating_process and updating_process.pid == os.getpid():
+    if CUpdate.thread and CUpdate.thread.pid == os.getpid():
         logging.info('Updating aborted.')
     else:
         logging.info('Got signal %s, exiting.' % signalnum)
@@ -279,9 +278,9 @@ logging_file = '/var/log/trex/master_daemon.log'
 logging_file_bu = '/var/log/trex/master_daemon.log_bu'
 os.chdir('/')
 
-manager = multiprocessing.Manager()
-updated_package_info = manager.dict()
-updating_process = None
+class CUpdate:
+    info = {}
+    thread = None
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
