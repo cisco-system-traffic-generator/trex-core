@@ -118,7 +118,6 @@ def run_server(port = 8095):
                      ]
 
     try:
-        register_socket('trex_stl_rpc_proxy')
         server = SimpleJSONRPCServer(('0.0.0.0', port))
         server.register_function(add)
         server.register_function(check_connectivity)
@@ -142,17 +141,6 @@ def run_server(port = 8095):
         server.serve_forever()
     except KeyboardInterrupt:
         print('Done')
-
-# provides unique way to determine running process
-def register_socket(tag):
-    global foo_socket   # Without this our lock gets garbage collected
-    foo_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    try:
-        foo_socket.bind('\0%s' % tag)
-        print('Got the socket lock for tag %s.' % tag)
-    except socket.error:
-        print('Error: process with tag %s is already running.' % tag)
-        sys.exit(-1)
 
 ### Main ###
 

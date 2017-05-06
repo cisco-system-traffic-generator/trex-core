@@ -88,8 +88,8 @@ def run_command(command, timeout = 30, poll_rate = 0.1, cwd = None, demote = Fal
 
 def get_daemon_pid():
     pid = None
-    for conn in netstat.netstat():
-        if conn[2] == '0.0.0.0' and int(conn[3]) == args.port and conn[6] == 'LISTEN':
+    for conn in netstat.netstat(with_pid = True, search_local_port = args.port):
+        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
             pid = conn[7]
             if pid is None:
                 raise Exception('Found the connection, but could not determine pid: %s' % conn)
@@ -99,8 +99,8 @@ def get_daemon_pid():
 
 # faster variant of get_daemon_pid
 def is_running():
-    for conn in netstat.netstat(with_pid = False):
-        if conn[2] == '0.0.0.0' and int(conn[3]) == args.port and conn[6] == 'LISTEN':
+    for conn in netstat.netstat(with_pid = False, search_local_port = args.port):
+        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
             return True
     return False
 

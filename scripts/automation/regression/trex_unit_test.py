@@ -498,7 +498,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.pkg_updated = True
             return
         else:
-            fatal('Hash does not match, stuck with old package.')
+            fatal('Hash does not match (%s), stuck with old package.' % master_pkg_sha1)
 
     def begin (self):
         client = CTRexScenario.trex

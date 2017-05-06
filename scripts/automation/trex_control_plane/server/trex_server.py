@@ -31,9 +31,9 @@ import shlex
 import tempfile
 
 try:
-    from .singleton_daemon import register_socket, run_command
+    from .tcp_daemon import run_command
 except:
-    from singleton_daemon import register_socket, run_command
+    from tcp_daemon import run_command
 
 
 # setup the logger
@@ -107,7 +107,6 @@ class CTRexServer(object):
     def start(self):
         """This method fires up the daemon server based on initialized parameters of the class"""
         # initialize the server instance with given resources
-        register_socket('trex_daemon_server')
         try:
             print("Firing up TRex REST daemon @ port {trex_port} ...\n".format( trex_port = self.trex_daemon_port ))
             logger.info("Firing up TRex REST daemon @ port {trex_port} ...".format( trex_port = self.trex_daemon_port ))

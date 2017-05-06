@@ -14,7 +14,7 @@ from functools import partial
 sys.path.append(os.path.join('automation', 'trex_control_plane', 'server'))
 import CCustomLogger
 import outer_packages
-from singleton_daemon import SingletonDaemon, register_socket, run_command
+from tcp_daemon import TCPDaemon, run_command
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import termstyle
 
@@ -125,23 +125,6 @@ def fail(msg):
     print(msg)
     sys.exit(-1)
 
-def start_master_daemon():
-    if master_daemon.is_running():
-        raise Exception('Master daemon is already running')
-    # detach child with double fork trick
-    pid = os.fork()
-    if pid > 0:
-        for i in range(50):
-            if master_daemon.is_running():
-                return
-            sleep(0.1)
-        return
-    os.setsid()
-    pid = os.fork()
-    if pid > 0:
-        os._exit(0)
-    start_master_daemon_func()
-    os._exit(0)
 
 def set_logger():
     log_dir = os.path.dirname(logging_file)
@@ -162,7 +145,7 @@ def log_usage(name, func, *args, **kwargs):
     logging.info(log_string)
     return func(*args, **kwargs)
 
-def start_master_daemon_func():
+def start_master_daemon():
     funcs_by_name = {}
     # master_daemon functions
     funcs_by_name['add'] = add
@@ -185,7 +168,6 @@ def start_master_daemon_func():
     funcs_by_name['stop_stl_rpc_proxy'] = stl_rpc_proxy.stop
     try:
         set_logger()
-        register_socket(master_daemon.tag)
         server = SimpleJSONRPCServer(('0.0.0.0', master_daemon.port))
         logging.info('Started master daemon (port %s)' % master_daemon.port)
         for name, func in funcs_by_name.items():
@@ -269,9 +251,9 @@ args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
-stl_rpc_proxy      = SingletonDaemon('Stateless RPC proxy', 'trex_stl_rpc_proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
-trex_daemon_server = SingletonDaemon('TRex daemon server', 'trex_daemon_server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
-master_daemon      = SingletonDaemon('Master daemon', 'trex_master_daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
+stl_rpc_proxy      = TCPDaemon('Stateless RPC proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
+trex_daemon_server = TCPDaemon('TRex daemon server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
+master_daemon      = TCPDaemon('Master daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 
 tmp_dir = '/tmp/trex-tmp'
 logging_file = '/var/log/trex/master_daemon.log'

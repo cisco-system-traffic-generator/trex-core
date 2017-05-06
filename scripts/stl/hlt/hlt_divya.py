@@ -4,6 +4,7 @@ from trex_stl_lib.trex_stl_hltapi import STLHltStream
 class STLS1(object):
     '''
     Divya Saxena's profile
+    Multi-burst with high burst_loop_count
     '''
 
     def get_streams (self, direction = 0, **kwargs):
