@@ -31,8 +31,6 @@ except Exception as e: # is __main__
 # external libs
 import jsonrpclib
 from jsonrpclib import ProtocolError, AppError
-from enum import Enum
-
 
 
 class CTRexClient(object):

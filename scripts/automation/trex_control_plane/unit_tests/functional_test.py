@@ -6,7 +6,6 @@ import socket
 from nose.tools import assert_raises, assert_equal, assert_not_equal
 from common.trex_status_e import TRexStatus
 from common.trex_exceptions import *
-from enum import Enum
 import time
 
 

@@ -14,7 +14,6 @@ PATH_STL_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stl'))
 
 
 NIGHTLY_MODULES = [ {'name': 'ansi2html'},
-                    {'name': 'enum34-1.0.4'},
                     {'name': 'rednose-0.4.1'},
                     {'name': 'progressbar-2.2'},
                     {'name': 'termstyle'},
