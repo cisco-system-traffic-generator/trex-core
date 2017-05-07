@@ -8,7 +8,9 @@ CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 PACKAGE_PATH  = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, 'external_libs'))
 SCRIPTS_PATH = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
 
-CLIENT_MODULES = [ 'jsonrpclib-pelix-0.2.5',
+CLIENT_MODULES = [
+                  'simple_enum',
+                  'jsonrpclib-pelix-0.2.5',
 #                  'termstyle',
 #                  'yaml-3.11'
                   ]

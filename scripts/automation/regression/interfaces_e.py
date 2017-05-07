@@ -1,9 +1,8 @@
 #!/router/bin/python
 
 import outer_packages
+from simple_enum import SimpleEnum
+
 
 # define the states in which a TRex can hold during its lifetime
-class IFType:
-    Client = 0
-    Server = 1
-    All = 2
+IFType = SimpleEnum('IFType', 'Client Server All')

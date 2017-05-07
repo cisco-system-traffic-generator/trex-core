@@ -11,7 +11,9 @@ PATH_TO_PYTHON_LIB   = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.par
 ZMQ_PATH             = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', python_ver, ucs_ver, '64bit'))
 YAML_PATH            = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyyaml-3.11', python_ver))
 
-SERVER_MODULES = ['zmq',
+SERVER_MODULES = [
+                  'simple_enum',
+                  'zmq',
                   'jsonrpclib-pelix-0.2.5',
                   'python-daemon-2.0.5',
                   'lockfile-0.10.2',
