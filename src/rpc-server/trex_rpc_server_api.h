@@ -48,7 +48,7 @@ public:
         RPC_PROT_MOCK
     };
 
-    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::mutex *lock) {
+    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock) {
         m_protocol  = protocol;
         m_port      = port;
         m_lock      = lock;
@@ -67,7 +67,7 @@ private:
     uint16_t         m_port;
 
 public:
-    std::mutex       *m_lock;
+    std::recursive_mutex   *m_lock;
 };
 
 /**
@@ -138,8 +138,8 @@ protected:
     bool                                 m_is_verbose;
     std::thread                          *m_thread;
     std::string                          m_name;
-    std::mutex                           *m_lock;
-    std::mutex                           m_dummy_lock;
+    std::recursive_mutex                 *m_lock;
+    std::recursive_mutex                 m_dummy_lock;
     TrexMonitor                          m_monitor;
 };
 

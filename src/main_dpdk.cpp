@@ -3296,7 +3296,8 @@ public:
     void rx_sl_configure();
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
-
+    void publish_assert_cause(const std::string &cause);
+    
     /**
      * mark for shutdown
      * on the next check - the control plane will
@@ -3452,16 +3453,16 @@ public:
     CTRexExtendedDriverBase * m_drv;
 
 private:
-    CLatencyHWPort      m_latency_vports[TREX_MAX_PORTS];    /* read hardware driver */
-    CLatencyVmPort      m_latency_vm_vports[TREX_MAX_PORTS]; /* vm driver */
-    CLatencyPktInfo     m_latency_pkt;
-    TrexPublisher       m_zmq_publisher;
-    CGlobalStats        m_stats;
-    uint32_t            m_stats_cnt;
-    std::mutex          m_cp_lock;
+    CLatencyHWPort        m_latency_vports[TREX_MAX_PORTS];    /* read hardware driver */
+    CLatencyVmPort        m_latency_vm_vports[TREX_MAX_PORTS]; /* vm driver */
+    CLatencyPktInfo       m_latency_pkt;
+    TrexPublisher         m_zmq_publisher;
+    CGlobalStats          m_stats;
+    uint32_t              m_stats_cnt;
+    std::recursive_mutex  m_cp_lock;
 
-    TrexMonitor         m_monitor;
-    shutdown_rc_e       m_mark_for_shutdown;
+    TrexMonitor           m_monitor;
+    shutdown_rc_e         m_mark_for_shutdown;
 
 public:
     TrexStateless       *m_trex_stateless;
@@ -3667,6 +3668,33 @@ void CGlobalTRex::pre_test() {
 
 
 }
+
+
+/**
+ * handle an assert when in stateless mode 
+ * this routine will try to safely publish over ZMQ 
+ * the assert cause 
+ *  
+ * *BEWARE* - this function should be thread safe 
+ *            as any thread can call assert 
+ */
+void
+CGlobalTRex::publish_assert_cause(const std::string &cause) {
+
+    /* assert might be before the ZMQ publisher was connected */
+    if (!m_zmq_publisher.is_connected()) {
+        return;
+    }
+    
+    /* generate the data */
+    Json::Value data;
+    data["cause"] = cause;
+    
+    /* if this is the control plane thread - acquire the lock again (recursive), if it is dataplane - hold up */
+    std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);        
+    m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
+}
+
 
 /**
  * check for a single core
@@ -4890,7 +4918,7 @@ int CGlobalTRex::run_in_master() {
     }
 
     /* exception and scope safe */
-    std::unique_lock<std::mutex> cp_lock(m_cp_lock);
+    std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);
 
     uint32_t slow_path_counter = 0;
 
@@ -5430,6 +5458,15 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
 TrexStateless * get_stateless_obj() {
     return g_trex.m_trex_stateless;
 }
+
+/**
+ * when an assert occurs, we try to publish an event
+ * 
+ */
+void publish_assert_cause(const std::string &cause) {
+    g_trex.publish_assert_cause(cause);
+}
+
 
 CRxCoreStateless * get_rx_sl_core_obj() {
     return &g_trex.m_rx_sl;

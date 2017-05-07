@@ -66,12 +66,18 @@ TrexPublisher::Create(uint16_t port, bool disable){
     }
 
     std::cout << "zmq publisher at: " << ss.str() << "\n";
+    
+    m_is_connected = true;
+    
     return (true);
 }
 
 
 void 
 TrexPublisher::Delete(){
+
+    m_is_connected = false;
+    
     if (m_publisher) {
 
         /* before calling zmq_close set the linger property to zero

@@ -266,6 +266,10 @@ TrexStateless * get_stateless_obj() {
     return m_sim_statelss_obj;
 }
 
+void publish_assert_cause(const std::string &cause) {
+    
+}
+
 CRxCoreStateless * get_rx_sl_core_obj() {
     return NULL;
 }

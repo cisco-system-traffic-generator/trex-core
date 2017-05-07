@@ -147,13 +147,11 @@ extern "C" {
         ss << cause;
         ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
         
-        /* if under stateless mode - try to publish an event */
-        if ( (get_stateless_obj()) && (get_stateless_obj()->get_publisher()) ) {
-            Json::Value data;
-            data["cause"] = "assert: " + std::string(__file) + ":" + std::to_string(__line) +  " Assertion '" + std::string(__assertion) + "' failed.";
-            
-            get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
-        }
+        
+        /* a bit shorter version */
+        std::string publish_cause = "assert: " + std::string(__file) + ":" + std::to_string(__line) +  " Assertion '" + std::string(__assertion) + "' failed.";
+        publish_assert_cause(publish_cause);
+        
         
         throw std::runtime_error(ss.str());
     }

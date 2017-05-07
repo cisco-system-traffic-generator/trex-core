@@ -220,7 +220,7 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
         Json::Value single_response;
 
         /* the command itself should be protected */
-        std::unique_lock<std::mutex> lock(*m_lock);
+        std::unique_lock<std::recursive_mutex> lock(*m_lock);
         command->execute(single_response);
         lock.unlock();
 

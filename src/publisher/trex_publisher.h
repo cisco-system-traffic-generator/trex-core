@@ -30,8 +30,9 @@ class TrexPublisher {
 public:
 
     TrexPublisher() {
-        m_context = NULL;
-        m_publisher = NULL;
+        m_context      = NULL;
+        m_publisher    = NULL;
+        m_is_connected = false;
     }
 
     virtual ~TrexPublisher() {}
@@ -70,6 +71,14 @@ public:
      */
     virtual void publish_barrier(uint32_t key);
 
+    /**
+     * return true if the publisher socket is currently connected
+     * 
+     */
+    bool is_connected() const {
+        return (m_is_connected);
+    }
+    
 private:
     void show_zmq_last_error(const std::string &err);
     void publish_zipped_json(const std::string &s);
@@ -78,7 +87,8 @@ private:
 private:
     void * m_context;
     void * m_publisher;
-
+    bool   m_is_connected;
+    
     static const int MSG_COMPRESS_THRESHOLD = 256;
 };
 
