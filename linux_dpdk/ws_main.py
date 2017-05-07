@@ -749,7 +749,7 @@ dpdk_includes_path =''' ../src/
 DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
 
 client_external_libs = [
-        'enum34-1.0.4',
+        'simple_enum',
         'jsonrpclib-pelix-0.2.5',
         'pyyaml-3.11',
         'pyzmq-14.5.0',
