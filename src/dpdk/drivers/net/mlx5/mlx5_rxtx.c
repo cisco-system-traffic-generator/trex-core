@@ -369,6 +369,7 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	uint16_t max_wqe;
 	unsigned int comp;
 	volatile struct mlx5_wqe_v *wqe = NULL;
+    volatile struct mlx5_wqe_ctrl *prev_wqe = NULL;
 	unsigned int segs_n = 0;
 	struct rte_mbuf *buf = NULL;
 	uint8_t *raw;
@@ -389,6 +390,7 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		volatile rte_v128u32_t *dseg = NULL;
 		uint32_t length;
 		unsigned int ds = 0;
+        unsigned int sg = 0;
 		uintptr_t addr;
 		uint64_t naddr;
 		uint16_t pkt_inline_sz = MLX5_WQE_DWORD_SIZE + 2;
@@ -582,12 +584,14 @@ next_seg:
 		};
 		(*txq->elts)[elts_head] = buf;
 		elts_head = (elts_head + 1) & (elts_n - 1);
-		++j;
+		++sg;
 		--segs_n;
-		if (segs_n)
+		if (segs_n){
 			goto next_seg;
-		else
-			--pkts_n;
+		} else{
+            --pkts_n;
+             j += sg;
+        }
 next_pkt:
 		++i;
 		/* Initialize known and common part of the WQE structure. */
@@ -604,6 +608,7 @@ next_pkt:
 			(ehdr << 16) | htons(pkt_inline_sz),
 		};
 		txq->wqe_ci += (ds + 3) / 4;
+        prev_wqe = (volatile struct mlx5_wqe_ctrl *)wqe;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		/* Increment sent bytes counter. */
 		txq->stats.obytes += total_length;
@@ -612,16 +617,14 @@ next_pkt:
 	/* Take a shortcut if nothing must be sent. */
 	if (unlikely(i == 0))
 		return 0;
+     txq->elts_head = (txq->elts_head + i + j) & (elts_n - 1);
 	/* Check whether completion threshold has been reached. */
 	comp = txq->elts_comp + i + j;
 	if (comp >= MLX5_TX_COMP_THRESH) {
-		volatile struct mlx5_wqe_ctrl *w =
-			(volatile struct mlx5_wqe_ctrl *)wqe;
-
 		/* Request completion on last WQE. */
-		w->ctrl2 = htonl(8);
+        prev_wqe->ctrl2 = htonl(8);
 		/* Save elts_head in unused "immediate" field of WQE. */
-		w->ctrl3 = elts_head;
+        prev_wqe->ctrl3 = txq->elts_head;
 		txq->elts_comp = 0;
 	} else {
 		txq->elts_comp = comp;
@@ -631,8 +634,7 @@ next_pkt:
 	txq->stats.opackets += i;
 #endif
 	/* Ring QP doorbell. */
-	mlx5_tx_dbrec(txq, (volatile struct mlx5_wqe *)wqe);
-	txq->elts_head = elts_head;
+    mlx5_tx_dbrec(txq, (volatile struct mlx5_wqe *)prev_wqe);
 	return i;
 }
 
