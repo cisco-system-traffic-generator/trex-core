@@ -483,7 +483,7 @@ class CTRexScapyPktUtl(object):
         """
         save_cnt=cnt
         for pkt in self.pkt_iter ():
-            if pkt.name == name:
+            if name in (pkt.name, pkt.__class__.__name__):
                 if cnt==0:
                     return (pkt, pkt._offset)
                 else:
