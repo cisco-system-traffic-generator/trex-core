@@ -254,7 +254,16 @@ public:
         return *this;
     }
     
-  
+    /**
+     * a static constructor which makes the least valid 
+     * BW object 
+     */
+    static BW min_bw(uint32_t min_pps = 1, uint16_t min_pkt_size = 14) {
+        return BW(min_pps,
+                  min_pps * (min_pkt_size * 8),
+                  min_pps * (min_pkt_size + 20) * 8);
+    }
+    
     double m_pps;
     double m_bps_l1;
     double m_bps_l2;
@@ -413,6 +422,9 @@ private:
 
     /* main object to hold the graph - returned to the user */
     TrexStreamsGraphObj *m_graph_obj;
+    
+    /* less than this number - a burst will be disregarded */
+    static const uint32_t G_MIN_BURST_SIZE = 1000;
 };
 
 #endif /* __TREX_STREAMS_COMPILER_H__ */

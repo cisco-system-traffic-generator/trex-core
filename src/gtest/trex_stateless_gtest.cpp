@@ -4096,11 +4096,11 @@ TEST_F(basic_stl, graph_generator2) {
     stream->m_self_start = true;
 
 
-    stream->set_rate(TrexStreamRate::RATE_PPS,1000);
+    stream->set_rate(TrexStreamRate::RATE_PPS, 1000);
 
     /* a burst of 2000 packets with a delay of 1 second */
     stream->m_isg_usec = 0;
-    stream->set_multi_burst(1000, 500, 1000 * 1000);
+    stream->set_multi_burst(1500, 500, 1000 * 1000);
     stream->m_pkt.len = 64;
 
     stream->m_next_stream_id = -1;
@@ -4116,7 +4116,7 @@ TEST_F(basic_stl, graph_generator2) {
 
     stream->set_rate(TrexStreamRate::RATE_PPS,1000);
     stream->m_isg_usec = 1000 * 1000 + 1000;
-    stream->set_multi_burst(1000 - 2, 1000, 1000 * 1000 + 2000);
+    stream->set_multi_burst(1500 - 2, 1000, 1000 * 1000 + 2000);
     stream->m_pkt.len = 128;
 
     stream->m_next_stream_id = -1;
@@ -4124,9 +4124,9 @@ TEST_F(basic_stl, graph_generator2) {
     streams.push_back(stream);
 
     const TrexStreamsGraphObj *obj = graph.generate(streams);
-    EXPECT_EQ(obj->get_max_pps(), 1000.0);
+    EXPECT_EQ(obj->get_max_pps(), 2000.0);
 
-    EXPECT_EQ(obj->get_max_bps_l2(), (1000 * (128 + 4) * 8));
+    EXPECT_EQ(obj->get_max_bps_l2(), (1000 * (128 + 4) * 8) + (1000 * (64 + 4) * 8));
 
 
     for (auto stream : streams) {

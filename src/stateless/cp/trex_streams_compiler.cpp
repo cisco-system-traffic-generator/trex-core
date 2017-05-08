@@ -772,16 +772,26 @@ TrexStreamsGraph::add_rate_events_for_stream_single_burst(double &offset_usec, T
     TrexStreamsGraphObj::rate_event_st start_event;
     TrexStreamsGraphObj::rate_event_st stop_event;
 
-
     /* for debug purposes */
     start_event.stream_id  = stream->m_stream_id;
     stop_event.stream_id   = stream->m_stream_id;
 
-     /* start event */
+    if (stream->m_burst_total_pkts < G_MIN_BURST_SIZE) {
+        /* generate the minimum BW valid */
+        BW min_bw = BW::min_bw();
+        
+        start_event.diff_pps     = min_bw.m_pps;
+        start_event.diff_bps_l2  = min_bw.m_bps_l2;
+        start_event.diff_bps_l1  = min_bw.m_bps_l1;
+        
+    } else {
+        start_event.diff_pps     = stream->get_pps();
+        start_event.diff_bps_l2  = stream->get_bps_L2();
+        start_event.diff_bps_l1  = stream->get_bps_L1();
+    }
+    
     start_event.time = offset_usec + stream->m_isg_usec;
-    start_event.diff_pps    = stream->get_pps();
-    start_event.diff_bps_l2 = stream->get_bps_L2();
-    start_event.diff_bps_l1 = stream->get_bps_L1();
+    
     m_graph_obj->add_rate_event(start_event);
 
     /* stop event */
@@ -808,32 +818,38 @@ TrexStreamsGraph::add_rate_events_for_stream_multi_burst(double &offset_usec, Tr
     /* first the delay is the inter stream gap */
     double delay = stream->m_isg_usec;
 
-    /* for debug purposes */
-    
-    start_event.diff_pps     = stream->get_pps();
-    start_event.diff_bps_l2  = stream->get_bps_L2();
-    start_event.diff_bps_l1  = stream->get_bps_L1();
     start_event.stream_id    = stream->m_stream_id;
+    
+    if (stream->m_burst_total_pkts < G_MIN_BURST_SIZE) {
+        BW min_bw = BW::min_bw();
+        
+        start_event.diff_pps     = min_bw.m_pps;
+        start_event.diff_bps_l2  = min_bw.m_bps_l2;
+        start_event.diff_bps_l1  = min_bw.m_bps_l1;
+        
+    } else {
+        start_event.diff_pps     = stream->get_pps();
+        start_event.diff_bps_l2  = stream->get_bps_L2();
+        start_event.diff_bps_l1  = stream->get_bps_L1();
+    }
 
     stop_event.diff_pps      = -(start_event.diff_pps);
     stop_event.diff_bps_l2   = -(start_event.diff_bps_l2);
     stop_event.diff_bps_l1   = -(start_event.diff_bps_l1);
     stop_event.stream_id     = stream->m_stream_id;
 
-    /* for each burst create up/down events */
-    for (int i = 0; i < stream->m_num_bursts; i++) {
-
-        start_event.time = offset_usec + delay;
-        m_graph_obj->add_rate_event(start_event);
-
-        stop_event.time = start_event.time + stream->get_burst_length_usec();
-        m_graph_obj->add_rate_event(stop_event);
-
-        /* after the first burst, the delay is inter burst gap */
-        delay = stream->m_ibg_usec;
-
-        offset_usec = stop_event.time;
-    }
+    /* for multi burst - we approx. it as a single burst active for the entire duration */
+    double cycle_time_usec = (stream->get_burst_length_usec() + stream->m_ibg_usec);
+    double total_time_usec = cycle_time_usec * stream->m_num_bursts;
+    
+    start_event.time = offset_usec + delay;
+    stop_event.time  = start_event.time + total_time_usec;
+    
+    m_graph_obj->add_rate_event(start_event);
+    m_graph_obj->add_rate_event(stop_event);
+    
+    /* next stream starts from here */
+    offset_usec = stop_event.time;
 }
 
 /**
@@ -937,7 +953,7 @@ TrexStreamsGraphObj::find_max_rate() {
 
     BW max_bw;
     BW current_bw;
-
+    
     /* now we simply walk the list and hold the max */
     for (auto &ev : m_rate_events) {
 

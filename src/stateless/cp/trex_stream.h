@@ -479,7 +479,7 @@ public:
     }
 
     double get_burst_length_usec()  {
-        return ( (m_burst_total_pkts / get_pps()) * 1000 * 1000);
+        return ( ( (m_burst_total_pkts - 1) / get_pps()) * 1000 * 1000);
     }
 
     double get_ipg_sec() {
