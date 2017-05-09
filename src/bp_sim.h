@@ -3616,6 +3616,7 @@ public:
     kTCPLearnModeBadFlow,
     kPktNotSupp,
     kPktProcessFail,
+    kEmptyFile,
     kCapFileErr,
     kPlugInWithLearn,
     kIPOptionNotAllowed,

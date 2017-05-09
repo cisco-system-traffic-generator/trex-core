@@ -2444,6 +2444,11 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
         }
     }
 
+    if (Size() == 0) {
+        fprintf(stderr, "Error: Cap file '%s' is empty. Please remove it from the config file and try again.\n"
+                , cap_file.c_str());
+        return kEmptyFile;
+    }
     /* set the last */
     CFlowPktInfo * last_pkt =GetPacket((uint32_t)(Size()-1));
     last_pkt->m_pkt_indication.m_desc.SetIsLastPkt(true);
@@ -5092,9 +5097,8 @@ int CFlowGenList::load_from_yaml(std::string file_name,
     for (i=0; i<(int)m_yaml_info.m_vec.size(); i++) {
         CFlowGeneratorRec * lp=new CFlowGeneratorRec();
         if ( lp->Create(&m_yaml_info.m_vec[i],&m_yaml_info,i) == false){
-            fprintf(stdout,"\n ERROR reading YAML template files, please verify that they are valid \n\n");
+            fprintf(stderr, "Error processing file: '%s'. Please correct the errors and try again.\n", file_name.c_str());
             exit(-1);
-            return (-1);
         }
         m_cap_gen.push_back(lp);
 
