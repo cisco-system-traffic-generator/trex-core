@@ -189,6 +189,21 @@ class EventsHandler(object):
 
         self.events = []
 
+        # events are disabled by default until explicitly enabled
+        self.enabled = False
+        
+        
+    # will start handling events
+    def enable (self):
+        self.enabled = True
+        
+    def disable (self):
+        self.enabled = False
+        
+    def is_enabled (self):
+        return self.enabled
+        
+        
     # public functions
 
     def get_events (self, ev_type_filter = None):
@@ -232,15 +247,23 @@ class EventsHandler(object):
         pass
 
     
-
     def on_async_rx_stats_event (self, data, baseline):
+        if not self.is_enabled():
+            return
+            
         self.client.flow_stats.update(data, baseline)
 
     def on_async_latency_stats_event (self, data, baseline):
+        if not self.is_enabled():
+            return
+            
         self.client.latency_stats.update(data, baseline)
 
     # handles an async stats update from the subscriber
     def on_async_stats_update(self, dump_data, baseline):
+        if not self.is_enabled():
+            return
+            
         global_stats = {}
         port_stats = {}
 
@@ -272,7 +295,9 @@ class EventsHandler(object):
 
     # dispatcher for server async events (port started, port stopped and etc.)
     def on_async_event (self, event_id, data):
-        
+        if not self.is_enabled():
+            return
+            
         # default type info and do not show
         ev_type = 'info'
         show_event = False
@@ -591,6 +616,8 @@ class STLClient(object):
         
         self.psv = PortStateValidator(self)
         
+        
+        
     ############# private functions - used by the class itself ###########
 
     
@@ -862,6 +889,9 @@ class STLClient(object):
     # connect to server
     def __connect(self):
 
+        # before we connect to the server - reject any async updates until fully init
+        self.event_handler.disable()
+        
         # connect to the server
         rc = self.conn.connect()
         if not rc:
@@ -917,15 +947,16 @@ class STLClient(object):
         if not rc:
             return rc
 
-    
+        
+        # mark the event handler as ready to process async updates
+        self.event_handler.enable()
         
         # after we are done with configuring the client
         # sync all the data from the server (baseline)
         rc = self.conn.sync()
         if not rc:
             return rc
-            
-            
+        
         return RC_OK()
 
 
