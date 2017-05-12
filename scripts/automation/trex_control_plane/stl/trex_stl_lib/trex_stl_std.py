@@ -19,7 +19,10 @@ def stl_map_ports (client, ports = None):
 
     PKTS_SENT = 5
     pgid_per_port = {}
-    active_pgids = client.get_active_pgids()['ids']
+    active_pgids_tmp = client.get_active_pgids()
+    active_pgids = []
+    for key in active_pgids_tmp.keys():
+        active_pgids += active_pgids_tmp[key]
     base_pkt = Ether()/IP()/UDP()/('x' * 18)
     test_pgid = 10000000
 

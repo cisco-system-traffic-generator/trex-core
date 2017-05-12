@@ -150,7 +150,8 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, xstats_ref, async_monitor):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, xstats_ref, async_monitor
+    ):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
@@ -1545,6 +1546,38 @@ class CXStats(CTRexStats):
             else:
                 stats[key] = self.get([port_id, key])
         return stats
+
+class CPgIdStats(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.ref =  {'flow_stats': {}, 'latency': {}}
+        self.last = {'flow_stats': {}, 'latency': {}}
+
+    def clear_stats(self):
+        self.ref = copy.deepcopy(self.last)
+
+    def get_stats(self):
+        flow_stat_fields = ['rx_pkts', 'tx_pkts', 'rx_bytes', 'tx_bytes']
+        ret = copy.deepcopy(self.last)
+        if not 'flow_stats' in ret:
+            return ret
+        for pg_id in ret['flow_stats']:
+            for field in flow_stat_fields:
+                if pg_id in self.ref['flow_stats'] and field in self.ref['flow_stats'][pg_id]:
+                    for port in ret['flow_stats'][pg_id][field]:
+                        if port in self.ref['flow_stats'][pg_id][field]:
+                            ret['flow_stats'][pg_id][field][port] -= self.ref['flow_stats'][pg_id][field][port]
+
+        return ret
+
+    def save_stats(self, stats):
+        self.last = copy.deepcopy(stats)
+        for pg_id in self.ref['flow_stats']:
+            if pg_id not in stats['flow_stats']:
+                del self.ref['flow_stats'][pd_id]
+
 
 if __name__ == "__main__":
     pass

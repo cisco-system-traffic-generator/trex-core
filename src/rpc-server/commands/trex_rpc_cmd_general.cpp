@@ -170,19 +170,62 @@ TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
-    flow_stat_active_t active_flow_stat;
-    flow_stat_active_it_t it;
-    int i = 0;
+    flow_stat_active_t_new active_flow_stat;
+    flow_stat_active_it_t_new it;
+    int i = 0, j = 0;
 
     Json::Value &section = result["result"];
-    section["ids"] = Json::arrayValue;
+    section["ids"]["flow_stats"] = Json::arrayValue;
+    section["ids"]["latency"] = Json::arrayValue;
 
     if (get_stateless_obj()->get_platform_api()->get_active_pgids(active_flow_stat) < 0)
         return TREX_RPC_CMD_INTERNAL_ERR;
 
     for (it = active_flow_stat.begin(); it != active_flow_stat.end(); it++) {
-        section["ids"][i++] = *it;
+        if ((*it).m_type == PGID_FLOW_STAT) {
+            section["ids"]["flow_stats"][i++] = (*it).m_pg_id;
+        } else {
+            section["ids"]["latency"][j++] = (*it).m_pg_id;
+        }
     }
+
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
+    flow_stat_active_t active_flow_stat;
+    flow_stat_active_it_t it;
+    std::vector<uint32_t> pgids_arr;
+
+    const Json::Value &pgids = parse_array(params, "pgids", result);
+
+    /* iterate over all attributes in the dict */
+    for( Json::ValueIterator itr = pgids.begin() ; itr != pgids.end() ; itr++ ) {
+        try {
+            pgids_arr.push_back(itr->asUInt());
+        } catch (const std::exception &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    Json::Value &section = result["result"];
+
+    try {
+        if (get_stateless_obj()->get_platform_api()->get_pgid_stats(section, pgids_arr) != 0) {
+            return TREX_RPC_CMD_INTERNAL_ERR;
+        }
+    } catch (const std::exception &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+
+    //??? remove
+#ifdef debug
+    Json::FastWriter fastWriter;
+    std::string output = fastWriter.write(result);
+    std::cout << output << std::endl;
+#endif
 
     return (TREX_RPC_CMD_OK);
 }

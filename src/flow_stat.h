@@ -25,6 +25,7 @@
 #include <string>
 #include <map>
 #include <json/json.h>
+#include "os_time.h"
 #include "trex_defs.h"
 #include "trex_exception.h"
 #include "trex_stream.h"
@@ -202,10 +203,10 @@ class tx_per_flow_t_ {
     tx_per_flow_t_() {
         clear();
     }
-    inline uint64_t get_bytes() {
+    inline uint64_t get_bytes() const {
         return m_bytes;
     }
-    inline uint64_t get_pkts() {
+    inline uint64_t get_pkts() const {
         return m_pkts;
     }
     inline void set_bytes(uint64_t bytes) {
@@ -260,9 +261,34 @@ class tx_per_flow_t_ {
     uint64_t m_pkts;
 };
 
+class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
+ public:
+    tx_per_flow_with_rate_t_() {
+        clear();
+    }
+    void clear() {
+        tx_per_flow_t_::clear();
+        m_p_rate = 0;
+        m_b_rate = 0;
+        m_last_rate_calc_time = 0;
+    }
+    void set_p_rate(float rate) {m_p_rate = rate;}
+    float get_p_rate() {return m_p_rate;}
+    void set_b_rate(float rate) {m_b_rate = rate;}
+    float get_b_rate() {return m_b_rate;}
+    void set_last_rate_calc_time(hr_time_t time) {m_last_rate_calc_time = time;}
+    hr_time_t get_last_rate_calc_time() {return m_last_rate_calc_time;}
+ private:
+    float m_p_rate; // packet rate
+    float m_b_rate; // bits rate
+    hr_time_t m_last_rate_calc_time;
+};
+
 typedef class rfc2544_info_t_ rfc2544_info_t;
 typedef class tx_per_flow_t_ tx_per_flow_t;
 typedef class tx_per_flow_t_ rx_per_flow_t;
+typedef class tx_per_flow_with_rate_t_ tx_per_flow_with_rate_t;
+typedef class tx_per_flow_with_rate_t_ rx_per_flow_with_rate_t;
 
 class CPhyEthIF;
 class CFlowStatParser;
@@ -272,10 +298,18 @@ class CFlowStatUserIdInfo {
     CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
-    void set_rx_cntr(uint8_t port, rx_per_flow_t val) {m_rx_cntr[port] = val;}
+    void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
+        update_vals(val, m_rx_cntr[port], is_last, time, freq);
+    }
     rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port] + m_rx_cntr_base[port];}
-    void set_tx_cntr(uint8_t port, tx_per_flow_t val) {m_tx_cntr[port] = val;}
+    void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
+        update_vals(val, m_tx_cntr[port], is_last, time, freq);
+    }
     tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port] + m_tx_cntr_base[port];}
+    float get_rx_bps(uint8_t port) {return m_rx_cntr[port].get_b_rate();};
+    float get_rx_pps(uint8_t port) {return m_rx_cntr[port].get_p_rate();};
+    float get_tx_bps(uint8_t port) {return m_tx_cntr[port].get_b_rate();};
+    float get_tx_pps(uint8_t port) {return m_tx_cntr[port].get_p_rate();};
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
     uint16_t get_hw_id() {return m_hw_id;}
     virtual void reset_hw_id();
@@ -289,6 +323,7 @@ class CFlowStatUserIdInfo {
     void add_started_stream() {m_trans_ref_count++;}
     int stop_started_stream() {m_trans_ref_count--; return m_trans_ref_count;}
     bool is_started() {return (m_trans_ref_count != 0);}
+    //todo:remove all need_to_send related when getting rid of old interface
     bool need_to_send_rx(uint8_t port) {return m_rx_changed[port];}
     bool need_to_send_tx(uint8_t port) {return m_tx_changed[port];}
     void set_no_need_to_send_rx(uint8_t port) {m_rx_changed[port] = false;}
@@ -299,6 +334,10 @@ class CFlowStatUserIdInfo {
     void set_was_sent(bool val) {m_was_sent = val;}
     bool rfc2544_support() {return m_rfc2544_support;}
 
+ private:
+    void update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update, bool is_last
+                     , hr_time_t time, hr_time_t freq);
+
  protected:
     bool m_rfc2544_support;
     uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
@@ -306,10 +345,12 @@ class CFlowStatUserIdInfo {
  private:
     bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
     bool m_tx_changed[TREX_MAX_PORTS]; // Which TX counters changed since we last published
-    rx_per_flow_t m_rx_cntr[TREX_MAX_PORTS]; // How many packets received with this user id since stream start
+    // How many packets received with this user id since stream start
+    rx_per_flow_with_rate_t m_rx_cntr[TREX_MAX_PORTS];
     // How many packets received with this user id, since stream creation, before stream start.
     rx_per_flow_t m_rx_cntr_base[TREX_MAX_PORTS];
-    tx_per_flow_t m_tx_cntr[TREX_MAX_PORTS]; // How many packets transmitted with this user id since stream start
+     // How many packets transmitted with this user id since stream start
+    tx_per_flow_with_rate_t m_tx_cntr[TREX_MAX_PORTS];
     // How many packets transmitted with this user id, since stream creation, before stream start.
     tx_per_flow_t m_tx_cntr_base[TREX_MAX_PORTS];
     uint16_t m_l3_proto;      // L3 protocol (IPv4, IPv6), associated with this user id.
@@ -413,6 +454,7 @@ class CFlowStatUserIdMap {
     CFlowStatUserIdMap();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdMap& cf);
     bool is_empty() {return (m_map.empty() == true);};
+    uint32_t size() {return m_map.size();}
     uint16_t get_hw_id(uint32_t user_id);
     CFlowStatUserIdInfo * find_user_id(uint32_t user_id);
     CFlowStatUserIdInfo * add_user_id(uint32_t user_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
@@ -463,7 +505,7 @@ class CFlowStatRuleMgr {
         if (! m_pInstance)
             m_pInstance = new CFlowStatRuleMgr;
         return m_pInstance;
-	}
+    }
     ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     void copy_state(TrexStream * from, TrexStream * to);
@@ -473,11 +515,13 @@ class CFlowStatRuleMgr {
     int del_stream(TrexStream * stream);
     int start_stream(TrexStream * stream);
     int stop_stream(TrexStream * stream);
-    int get_active_pgids(flow_stat_active_t &result);
+    int get_active_pgids(flow_stat_active_t_new &result);
     int set_mode(enum flow_stat_mode_e mode);
     int get_max_hw_id() {return m_max_hw_id;}
     int get_max_hw_id_payload() {return m_max_hw_id_payload;}
+    void update_counters();
     bool dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all);
+    bool dump_json_new(std::string & s_json, std::string & l_json, std::vector<uint32> pgids);
 
  private:
     CFlowStatRuleMgr();

@@ -56,9 +56,23 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     c.clear_stats()
 
     c.start(ports = [tx_port])
-    c.wait_on_traffic(ports = [tx_port])
+    pgids = c.get_active_pgids()
+    print ("Currently used pgids: {0}".format(pgids))
 
-    stats = c.get_stats()
+    for i in range(1,8):
+        time.sleep(1)
+        stats = c.get_pgid_stats(pgids['latency'])
+        flow_stats = stats['flow_stats'].get(5)
+        rx_pps = flow_stats['rx_pps'][rx_port]
+        tx_pps = flow_stats['tx_pps'][tx_port]
+        rx_bps = flow_stats['rx_bps'][rx_port]
+        tx_bps = flow_stats['tx_bps'][tx_port]
+        rx_bps_l1 = flow_stats['rx_bps_l1'][rx_port]
+        tx_bps_l1 = flow_stats['tx_bps_l1'][tx_port]
+        print("rx_pps:{0} tx_pps:{1}, rx_bps:{2}/{3} tx_bps:{4}/{5}"
+              .format(rx_pps, tx_pps, rx_bps, rx_bps_l1, tx_bps, tx_bps_l1));
+    c.wait_on_traffic(ports = [tx_port])
+    stats = c.get_pgid_stats(pgids['latency'])
     flow_stats = stats['flow_stats'].get(5)
     global_lat_stats = stats['latency']
     lat_stats = global_lat_stats.get(5)
@@ -140,5 +154,5 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     return True
 
 # run the tests
-rx_example(tx_port = 0, rx_port = 1, burst_size = 1000, pps = 1000)
+rx_example(tx_port = 0, rx_port = 1, burst_size = 1000, pps = 100)
 

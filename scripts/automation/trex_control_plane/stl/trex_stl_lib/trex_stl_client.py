@@ -602,6 +602,8 @@ class STLClient(object):
 
         self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
 
+        self.pg_id_stats = trex_stl_stats.CPgIdStats()
+
         self.util_stats = trex_stl_stats.CUtilStats(self)
 
         self.xstats = trex_stl_stats.CXStats(self)
@@ -688,7 +690,6 @@ class STLClient(object):
         return rc
 
 
-
     def __remove_streams(self, stream_id_list, port_id_list = None):
 
         port_id_list = self.__ports(port_id_list)
@@ -709,6 +710,8 @@ class STLClient(object):
 
         for port_id in port_id_list:
             rc.add(self.ports[port_id].remove_all_streams())
+
+        self.pg_id_stats.reset()
 
         return rc
 
@@ -973,7 +976,7 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pg_id_stats):
 
         # we must be sync with the server
         self.conn.barrier()
@@ -992,6 +995,9 @@ class STLClient(object):
 
         if clear_xstats:
             self.xstats.clear_stats()
+
+        if clear_pg_id_stats:
+            self.pg_id_stats.clear_stats()
 
         self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -1462,17 +1468,21 @@ class STLClient(object):
           sync_now - Boolean - If true, create a call to the server to get latest stats, and wait for result to arrive. Otherwise, return last stats saved in client cache.
                             Downside of putting True is a slight delay (few 10th msecs) in getting the result. For practical uses, value should be True.
         :return:
-            Statistics dictionary of dictionaries with the following format:
+            Statistics dictionary of dictionaries with the below format.
 
-            ===============================  ===============
+            **Note** that for getting latency and flow_stats statistics there is now a newer and more efficient API
+            :ref:`get_pgid_stats<get_pgid_stats>`. In the future, flow stats and latency info might be removed
+            from the results of this function, so it is advisable to use the above mentioned API.
+
+            ================================  ===============
             key                               Meaning
-            ===============================  ===============
-            :ref:`numbers (0,1,..<total>`    Statistcs per port number
-            :ref:`total <total>`             Sum of port statistics
-            :ref:`flow_stats <flow_stats>`   Per flow statistics
-            :ref:`global <global>`           Global statistics
-            :ref:`latency <latency>`         Per flow statistics regarding flow latency
-            ===============================  ===============
+            ================================  ===============
+            :ref:`numbers (0,1,..<total>`     Statistcs per port number
+            :ref:`total <total>`              Sum of port statistics
+            :ref:`flow_stats <flow_stats_o>`  Per flow statistics
+            :ref:`global <global>`            Global statistics
+            :ref:`latency <latency_o>`        Per flow statistics regarding flow latency
+            ================================  ===============
 
             Below is description of each of the inner dictionaries.
 
@@ -1497,9 +1507,9 @@ class STLClient(object):
             tx_pps                           Transmit packet per second rate
             ===============================  ===============
 
-            .. _flow_stats:
+            .. _flow_stats_o:
 
-            **flow_stats** contains :ref:`global dictionary <flow_stats_global>`, and dictionaries per packet group id (pg id). See structures below.
+            **flow_stats** contains :ref:`global dictionary <flow_stats_global_o>`, and dictionaries per packet group id (pg id). See structures below.
 
             **per pg_id flow stat** dictionaries have following structure:
 
@@ -1518,7 +1528,7 @@ class STLClient(object):
             tx_pps              Transmit packets per second rate
             =================   ===============
 
-            .. _flow_stats_global:
+            .. _flow_stats_global_o:
 
             **global flow stats** dictionary has the following structure:
 
@@ -1547,22 +1557,22 @@ class STLClient(object):
             tx_pps              Transmit packets per second rate
             =================   ===============
 
-            .. _latency:
+            .. _latency_o:
 
-            **latency** contains :ref:`global dictionary <lat_stats_global>`, and dictionaries per packet group id (pg id). Each one with the following structure.
+            **latency** contains :ref:`global dictionary <lat_stats_global_o>`, and dictionaries per packet group id (pg id). Each one with the following structure.
 
             **per pg_id latency stat** dictionaries have following structure:
 
-            ===========================          ===============
-            key                                  Meaning
-            ===========================          ===============
-            :ref:`err_cntrs<err-cntrs>`          Counters describing errors that occured with this pg id
-            :ref:`latency<lat_inner>`            Information regarding packet latency
-            ===========================          ===============
+            =============================          ===============
+            key                                    Meaning
+            =============================          ===============
+            :ref:`err_cntrs<err-cntrs_o>`          Counters describing errors that occured with this pg id
+            :ref:`latency<lat_inner_o>`            Information regarding packet latency
+            =============================          ===============
 
             Following are the inner dictionaries of latency
 
-            .. _err-cntrs:
+            .. _err-cntrs_o:
 
             **err-cntrs**
 
@@ -1590,7 +1600,7 @@ class STLClient(object):
             (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
 
 
-            .. _lat_inner:
+            .. _lat_inner_o:
 
             **latency**
 
@@ -1605,7 +1615,7 @@ class STLClient(object):
             total_min           Minimum latency measured over the stream lifetime (in usec).
             =================   ===============
 
-            .. _lat_stats_global:
+            .. _lat_stats_global_o:
 
             **global latency stats** dictionary has the following structure:
 
@@ -2071,17 +2081,19 @@ class STLClient(object):
     @__api_check(True)
     def get_active_pgids(self):
         """
-            Get active group IDs
+            Get active packet group IDs
 
-            :parameters:
+            :Parameters:
                 None
 
+            :returns:
+                Dict with entries 'latency' and 'flow_stats'. Each entry contains list of used packet group IDs
+                of the given type.
 
-            :raises:
+            :Raises:
                 + :exc:`STLError`
 
         """
-
         self.logger.pre_cmd( "Getting active packet group ids")
 
         rc = self._transmit("get_active_pgids")
@@ -2091,7 +2103,232 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        return rc.data()
+        return rc.data()["ids"]
+
+    @__api_check(True)
+    def get_pgid_stats (self, pgid_list = []):
+        """
+            .. _get_pgid_stats:
+
+            Get flow statistics for give list of pgids
+
+        :parameters:
+            pgid_list: list
+                pgids to get statistics on. If empty list, get statistics for all pgids.
+                Allows to get statistics for 1024 flows in one call (will return error if asking for more).
+        :return:
+            Return dictionary containing packet group id statistics information gathered from the server.
+
+            ===============================  ===============
+            key                               Meaning
+            ===============================  ===============
+            :ref:`flow_stats <flow_stats>`   Per flow statistics
+            :ref:`latency <latency>`         Per flow statistics regarding flow latency
+            ===============================  ===============
+
+            Below is description of each of the inner dictionaries.
+
+            .. _flow_stats:
+
+            **flow_stats** contains :ref:`global dictionary <flow_stats_global>`, and dictionaries per packet group id (pg id). See structures below.
+
+            **per pg_id flow stat** dictionaries have following structure:
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            rx_bps              Received bits per second rate
+            rx_bps_l1           Received bits per second rate, including layer one
+            rx_bytes            Total number of received bytes
+            rx_pkts             Total number of received packets
+            rx_pps              Received packets per second
+            tx_bps              Transmit bits per second rate
+            tx_bps_l1           Transmit bits per second rate, including layer one
+            tx_bytes            Total number of sent bits
+            tx_pkts             Total number of sent packets
+            tx_pps              Transmit packets per second rate
+            =================   ===============
+
+            .. _flow_stats_global:
+
+            **global flow stats** dictionary has the following structure:
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            rx_err              Number of flow statistics packets received that we could not associate to any pg_id. This can happen if latency on the used setup is large. See :ref:`wait_on_traffic <wait_on_traffic>` rx_delay_ms parameter for details.
+            tx_err              Number of flow statistics packets transmitted that we could not associate to any pg_id. This is never expected. If you see this different than 0, please report.
+            =================   ===============
+
+            .. _latency:
+
+            **latency** contains :ref:`global dictionary <lat_stats_global>`, and dictionaries per packet group id (pg id). Each one with the following structure.
+
+            **per pg_id latency stat** dictionaries have following structure:
+
+            ===========================          ===============
+            key                                  Meaning
+            ===========================          ===============
+            :ref:`err_cntrs<err-cntrs>`          Counters describing errors that occured with this pg id
+            :ref:`latency<lat_inner>`            Information regarding packet latency
+            ===========================          ===============
+
+            Following are the inner dictionaries of latency
+
+            .. _err-cntrs:
+
+            **err-cntrs**
+
+            =================   ===============
+            key                 Meaning (see better explanation below the table)
+            =================   ===============
+            dropped             How many packets were dropped (estimation)
+            dup                 How many packets were duplicated.
+            out_of_order        How many packets we received out of order.
+            seq_too_high        How many events of packet with sequence number too high we saw.
+            seq_too_low         How many events of packet with sequence number too low we saw.
+            =================   ===============
+
+            For calculating packet error events, we add sequence number to each packet's payload. We decide what went wrong only according to sequence number
+            of last packet received and that of the previous packet. 'seq_too_low' and 'seq_too_high' count events we see. 'dup', 'out_of_order' and 'dropped'
+            are heuristics we apply to try and understand what happened. They will be accurate in common error scenarios.
+            We describe few scenarios below to help understand this.
+
+            Scenario 1: Received packet with seq num 10, and another one with seq num 10. We increment 'dup' and 'seq_too_low' by 1.
+
+            Scenario 2: Received pacekt with seq num 10 and then packet with seq num 15. We assume 4 packets were dropped, and increment 'dropped' by 4, and 'seq_too_high' by 1.
+            We expect next packet to arrive with sequence number 16.
+
+            Scenario 2 continue: Received packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1.
+            (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
+
+
+            .. _lat_inner:
+
+            **latency**
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            average             Average latency over the stream lifetime (usec).Low pass filter is applied to the last window average.It is computed each sampling period by following formula: <average> = <prev average>/2 + <last sampling period average>/2
+            histogram           Dictionary describing logarithmic distribution histogram of packet latencies. Keys in the dictionary represent range of latencies (in usec). Values are the total number of packets received in this latency range. For example, an entry {100:13} would mean that we saw 13 packets with latency in the range between 100 and 200 usec.
+            jitter              Jitter of latency samples, computed as described in :rfc:`3550#appendix-A.8`
+            last_max            Maximum latency measured between last two data reads from server (0.5 sec window).
+            total_max           Maximum latency measured over the stream lifetime (in usec).
+            total_min           Minimum latency measured over the stream lifetime (in usec).
+            =================   ===============
+
+            .. _lat_stats_global:
+
+            **global latency stats** dictionary has the following structure:
+
+            =================   ===============
+            key                 Meaning
+            =================   ===============
+            old_flow            Number of latency statistics packets received that we could not associate to any pg_id. This can happen if latency on the used setup is large. See :ref:`wait_on_traffic <wait_on_traffic>` rx_delay_ms parameter for details.
+            bad_hdr             Number of latency packets received with bad latency data. This can happen becuase of garbage packets in the network, or if the DUT causes packet corruption.
+            =================   ===============
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        # transform single stream
+        if not isinstance(pgid_list, list):
+            pgid_list = [pgid_list]
+
+        # remove streams
+        self.logger.pre_cmd( "Getting statistics for packet group ids {0}".format(pgid_list))
+        rc = self._transmit("get_pgid_stats", params = {'pgids': pgid_list})
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+        ans = rc.data()
+
+        ans_dict = {}
+        for key in ans.keys():
+            ans_dict[key] = json.loads(ans[key])
+
+        # translation from json values to python API names
+        j_to_p_lat = {'jit': 'jitter', 'average':'average', 'total_max': 'total_max', 'last_max':'last_max'}
+        j_to_p_err = {'drp':'dropped', 'ooo':'out_of_order', 'dup':'dup', 'sth':'seq_too_high', 'stl':'seq_too_low'}
+        j_to_p_global = {'old_flow':'old_flow', 'bad_hdr':'bad_hdr'}
+        j_to_p_f_stat = {'rp': 'rx_pkts', 'rb': 'rx_bytes', 'tp': 'tx_pkts', 'tb': 'tx_bytes'
+                         , 'rbs': 'rx_bps', 'rps': 'rx_pps', 'tbs': 'tx_bps', 'tps': 'tx_pps'}
+
+        # translate json 'latency' to python API 'latency'
+        new = {}
+        if 'latency' in ans_dict.keys() and ans_dict['latency'] is not None:
+            new['latency'] = {}
+            if 'g' in ans_dict['latency'].keys():
+                new['latency']['global'] = ans_dict['latency']['g']
+            else:
+                new['latency']['global'] = {}
+                for key in j_to_p_global.keys():
+                    new['latency']['global'][j_to_p_global[key]] = 0
+            for pg_id in ans_dict['latency']:
+                int_pg_id = int(pg_id)
+                new['latency'][int_pg_id] = {}
+                new['latency'][int_pg_id]['err_cntrs'] = {}
+                if 'er' in ans_dict['latency'][pg_id]:
+                    for key in j_to_p_err.keys():
+                        if ans_dict['latency'][pg_id]['er'][key]:
+                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = ans_dict['latency'][pg_id]['er'][key]
+                        else:
+                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
+                else:
+                    for key in j_to_p_err.keys():
+                        new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
+
+                new['latency'][int_pg_id]['latency'] = {}
+                for field in j_to_p_lat.keys():
+                    if field in ans_dict['latency'][pg_id]['lat']:
+                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = ans_dict['latency'][pg_id]['lat'][field]
+                    else:
+                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = StatNotAvailable(field)
+
+                if 'histogram' in ans_dict['latency'][pg_id]['lat']:
+                    #translate histogram numbers from string to integers
+                    new['latency'][int_pg_id]['latency']['histogram'] = {
+                                        int(elem): ans_dict['latency'][pg_id]['lat']['histogram'][elem]
+                                         for elem in ans_dict['latency'][pg_id]['lat']['histogram']
+                    }
+                    min_val = min(new['latency'][int_pg_id]['latency']['histogram'])
+                    if min_val == 0:
+                        min_val = 2
+                    new['latency'][int_pg_id]['latency']['total_min'] = min_val
+                else:
+                    new['latency'][int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
+                    new['latency'][int_pg_id]['latency']['histogram'] = {}
+
+        # translate json 'flow_stats' to python API 'flow_stats'
+        if 'flow_stats' in ans_dict.keys() and ans_dict['flow_stats'] is not None:
+            new['flow_stats'] = {}
+            for pg_id in ans_dict['flow_stats']:
+                int_pg_id = int(pg_id)
+                new['flow_stats'][int_pg_id] = {}
+                for field in ans_dict['flow_stats'][pg_id]:
+                    new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
+                    #translate ports to integers
+                    total = 0
+                    for port in ans_dict['flow_stats'][pg_id][field]:
+                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = ans_dict['flow_stats'][pg_id][field][port]
+                        total += new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)]
+                    new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = total
+                new['flow_stats'][int_pg_id]['rx_bps_l1'] = {}
+                new['flow_stats'][int_pg_id]['tx_bps_l1'] = {}
+                for field in new['flow_stats'][int_pg_id]['rx_pkts']:
+                    # L1 overhead is 20 bytes per packet
+                    new['flow_stats'][int_pg_id]['rx_bps_l1'][field] = float(new['flow_stats'][int_pg_id]['rx_bps'][field]) + float(new['flow_stats'][int_pg_id]['rx_pps'][int(port)]) * 20 * 8
+                    new['flow_stats'][int_pg_id]['tx_bps_l1'][field] = float(new['flow_stats'][int_pg_id]['tx_bps'][field]) + float(new['flow_stats'][int_pg_id]['tx_pps'][int(port)]) * 20 * 8
+
+
+        self.pg_id_stats.save_stats(new)
+
+        return self.pg_id_stats.get_stats()
 
     @__api_check(True)
     def get_util_stats(self):
@@ -3014,7 +3251,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True, clear_pg_id_stats = True):
         """
             Clear stats on port(s)
 
@@ -3046,7 +3283,7 @@ class STLClient(object):
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
 
-        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pg_id_stats)
         if not rc:
             raise STLError(rc)
 
@@ -3078,7 +3315,7 @@ class STLClient(object):
     @__api_check(True)
     def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = None):
         """
-            .. _wait_on_traffic:
+             .. _wait_on_traffic:
 
             Block until traffic on specified port(s) has ended
 

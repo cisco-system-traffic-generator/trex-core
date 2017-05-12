@@ -318,7 +318,10 @@ class STLRX_Test(CStlGeneral_Test):
 
     def __verify_flow (self, pg_id, total_pkts, pkt_len, pkt_type, stats, xstats):
         flow_stats = stats['flow_stats'].get(pg_id)
-        latency_stats = stats['latency'].get(pg_id)
+        if 'latency' in stats and stats['latency'] is not None:
+            latency_stats = stats['latency'].get(pg_id)
+        else:
+            latency_stats = None
 
         if not flow_stats:
             assert False, "no flow stats available"
@@ -385,7 +388,7 @@ class STLRX_Test(CStlGeneral_Test):
         else:
             self.c.start(ports = [self.tx_port])
             self.c.wait_on_traffic(ports = [self.tx_port])
-        stats = self.c.get_stats()
+        stats = self.get_stats()
         xstats = self.c.get_xstats(self.rx_port)
 
         total_tx = 0
@@ -648,7 +651,7 @@ class STLRX_Test(CStlGeneral_Test):
 
             self.c.start(ports = s_ports,duration = duration)
             self.c.wait_on_traffic(ports = s_ports,timeout = duration+10,rx_delay_ms = 100)
-            stats = self.c.get_stats()
+            stats = self.get_stats()
 
             for pid in s_ports:
                 latency_stats = stats['latency'].get(my_pg_id+pid)
@@ -746,6 +749,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         self.c.start(ports = client_ports)
         self.c.wait_on_traffic(ports = client_ports)
+        pgid_stats = self.get_stats()
         stats = self.c.get_stats()
 
         bytes = pkts * 64
@@ -771,7 +775,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.check_stats(ips["ipackets"], pkts, "stats[%s][ipackets]" % s_port)
 
             if is_latency:
-                ls = stats['flow_stats'][5 + c_port]
+                ls = pgid_stats['flow_stats'][5 + c_port]
                 self.check_stats(ls['rx_pkts']['total'], pkts, "ls['rx_pkts']['total']")
                 self.check_stats(ls['rx_pkts'][s_port], pkts, "ls['rx_pkts'][%s]" % s_port)
 
@@ -865,3 +869,28 @@ class STLRX_Test(CStlGeneral_Test):
         exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
 
         self.__rx_iteration( [exp] )
+
+    def get_stats(self):
+        new_stats = self.c.get_pgid_stats()
+        old_stats = self.c.get_stats()
+        if  'latency' in new_stats:
+            if old_stats['latency'] != new_stats['latency']:
+                print ("New and old stats differ in latency")
+                print(old_stats['latency'])
+                print(new_stats['latency'])
+                assert False , "New and old stats differ in latency"
+        if 'flow_stats' in new_stats:
+            for pg_id in old_stats['flow_stats']:
+                for field in ['rx_pkts', 'tx_pkts', 'tx_bytes']:
+                    if pg_id in old_stats['flow_stats'] and pg_id in new_stats['flow_stats']:
+                        if field in old_stats['flow_stats'][pg_id] and field in new_stats['flow_stats'][pg_id]:
+                            if old_stats['flow_stats'][pg_id][field] != new_stats['flow_stats'][pg_id][field]:
+                                print ("New and old stats differ in flow_stats")
+                                print("**********************")
+                                print(old_stats['flow_stats'][pg_id][field])
+                                print("**********************")
+                                print(new_stats['flow_stats'][pg_id][field])
+                                print("**********************")
+                                assert False , "New and old stats differ in flow stat"
+
+        return new_stats

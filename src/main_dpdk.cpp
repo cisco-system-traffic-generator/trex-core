@@ -4697,8 +4697,10 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
         std::string stat_json;
         std::string latency_json;
         if (CFlowStatRuleMgr::instance()->dump_json(stat_json, latency_json, baseline, sync_now)) {
-            m_zmq_publisher.publish_json(stat_json);
-            m_zmq_publisher.publish_json(latency_json);
+            //            if (baseline || sync_now) {                 //??????
+                m_zmq_publisher.publish_json(stat_json);
+                m_zmq_publisher.publish_json(latency_json);
+                //            }
         }
     }
 }
@@ -7746,7 +7748,7 @@ void TrexDpdkPlatformApi::flush_dp_messages() const {
     g_trex.check_for_dp_messages();
 }
 
-int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t &result) const {
+int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
     return CFlowStatRuleMgr::instance()->get_active_pgids(result);
 }
 
@@ -7774,6 +7776,18 @@ int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const
 
 int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
     CGlobalInfo::dump_pool_as_json(mbuf_pool);
+    return 0;
+}
+
+int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
+    std::string stat_json;
+    std::string lat_json;
+
+    //??? think if we want to leave this, or get one string from dump_json_new
+    CFlowStatRuleMgr::instance()->dump_json_new(stat_json, lat_json, pgids);
+    json["flow_stats"] = stat_json;
+    json["latency"] = lat_json;
+
     return 0;
 }
 

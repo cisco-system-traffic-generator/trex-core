@@ -146,9 +146,10 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual void flush_dp_messages() const = 0;
-    virtual int get_active_pgids(flow_stat_active_t &result) const = 0;
+    virtual int get_active_pgids(flow_stat_active_t_new &result) const = 0;
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
+    virtual int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
     virtual TRexPortAttr *getPortAttrObj(uint8_t port_id) const = 0;
     virtual void mark_for_shutdown() const = 0;
@@ -188,9 +189,10 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     void flush_dp_messages() const;
-    int get_active_pgids(flow_stat_active_t &result) const;
+    int get_active_pgids(flow_stat_active_t_new &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
+    int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
     TRexPortAttr *getPortAttrObj(uint8_t port_id) const;
@@ -263,7 +265,8 @@ public:
 
     void flush_dp_messages() const {
     }
-    int get_active_pgids(flow_stat_active_t &result) const {return 0;}
+    int get_active_pgids(flow_stat_active_t_new &result) const {return 0;}
+    int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {return 0;}
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {
