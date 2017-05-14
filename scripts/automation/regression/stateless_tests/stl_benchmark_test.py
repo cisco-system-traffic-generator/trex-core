@@ -74,7 +74,8 @@ class STLBenchmark_Test(CStlGeneral_Test):
                 raise Exception('Timeout on waiting for stabilization, last CPU util values: %s' % list(cpu_utils))
             if stats[0]['opackets'] < 300 or stats[1]['opackets'] < 300:
                 raise Exception('Too few opackets, port0: %s, port1: %s' % (stats[0]['opackets'], stats[1]['opackets']))
-            if stats['global']['queue_full'] > 100000:
+            is_VM = True if 'VM' in self.modes else False
+            if (is_VM == False)  and (stats['global']['queue_full'] > 100000):
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])
             if not cpu_utils[-1]:
                 raise Exception('CPU util is zero, last values: %s' % list(cpu_utils))
