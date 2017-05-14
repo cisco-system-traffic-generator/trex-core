@@ -2275,7 +2275,7 @@ class STLClient(object):
                 new['latency'][int_pg_id]['err_cntrs'] = {}
                 if 'er' in ans_dict['latency'][pg_id]:
                     for key in j_to_p_err.keys():
-                        if ans_dict['latency'][pg_id]['er'][key]:
+                        if key in ans_dict['latency'][pg_id]['er']:
                             new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = ans_dict['latency'][pg_id]['er'][key]
                         else:
                             new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
