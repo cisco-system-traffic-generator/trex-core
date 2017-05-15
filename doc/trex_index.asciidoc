@@ -8,6 +8,13 @@ TRex Documentation
 include::trex_ga.asciidoc[]
 
 
+image:images/clus1.png[width=150,title=""]  *Learning Sessions*, Cisco Live! 2017, Las Vegas 
+
+* Monday,    Jun 26  Learning Session                link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-1120[REGISTER NOW]
+* Tuesday,   Jun 27  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
+* Wednesday, Jun 28  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
+
+
 == Presentations
 
 [options="header",cols="<4,a"]
