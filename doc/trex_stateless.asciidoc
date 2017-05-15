@@ -81,9 +81,8 @@ image::images/stl_streams_example_02.png[title="Example of multiple streams",ali
 
 ==== High level functionality - Roadmap for future development
 
-* Add emulation support 
-** RIP/BGP/ISIS/SPF
-
+* Routing protocol support -- RIP/BGP/ISIS/SPF, The current plan is not to open this support   
+                                                                                             
 
 === IXIA IXExplorer vs TRex 
 
@@ -94,20 +93,22 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 |=================
 | Feature       |  IXExplorer  |TRex | Description 
 | Line rate       | Yes | 10-24MPPS/core, depends on the use case |
-| Multi stream    | 255 | [green]*Unlimited* |
+| Multi stream    | 255 | [green]Software limited to ~20K |
 | Packet build flexibility | Limited | [green]*Scapy - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols
 | Packet Field engine      | limited | [green]*Unlimited* |
 | Tx Mode | Continuous/Burst/Multi-burst | Continuous/Burst/Multi-burst|
-| ARP Emulation | Yes | Not yet - workaround |
+| ARP/IPv6 ND Emulation | Yes | Yes  |
+| DHCP Client Emulation | Yes | Yes  |
+| Extendable Emulation framework | No | Yes  |
 | Automation  | TCL/Python wrapper to TCL | [green]*native Python/Scapy*  |
 | Automation speed sec| 30 sec | [green]*1 msec* | Test of load/start/stop/get counters 
 | HLTAPI | Full support. 2000 pages of documentation |  Limited. 20 pages of documentation|
-| Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710.
+| Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710. Software mode can be extended to 32K rules 
 | Latency Jitter |  Yes,Resolution of nsec (hardware) | Yes,Resolution of usec (software)  |
 | Multi-user support | Yes | Yes |
-| GUI  | very good | WIP, packet build is scapy-based. Not the same as IXIA. Done by Exalt |
+| GUI  | very good | WIP, packet builder, Field Engine, Global port statistic, Latency, per stream statistic . Not the same as IXIA. link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
 | Cisco pyATS support | Yes | Yes - Python 2.7/Python 3.4 |    
-| Emulation | Yes | Not yet |
+| Routing Emulation | Yes | WIP, Integrate Cisco Proprietary tool  |
 | Port IDs  | Based on IXIA numebrs  | Depends on PCI enumeration  
 |=================
 

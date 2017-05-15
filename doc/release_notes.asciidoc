@@ -12,6 +12,10 @@ ifndef::backend-docbook[]
 
 include::trex_ga.asciidoc[]
 
+:github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+
+
 
 == TRex release notes ==
 endif::backend-docbook[]
@@ -29,9 +33,26 @@ endif::backend-docbook[]
 New API brings flow statistics and latency info for given list
 of packet group IDs by doing synchronous call to the server. This is opposed to the old API "get_stats" which brings
 information saved in the client, and updated every 0.5 second by asynchronous message from the server. This way,
-the client can consume only the information it really needs, when it needs it, so statistics for more flows can
+we can scale the number of pgids and the client can consume only the information it really needs, when it needs it, so statistics for more flows can
 be supported. **Notice** that in some future release, pgid info will not be supported using the old "get_stats" any more.
-Example for using the new API can be found in "automation/trex_control_plane/stl/examples/stl_flow_latency_stats.py".
+Example for using the new API can be found in link:{github_stl_examples_path}/stl_flow_latency_stats.py[stl_flow_latency_stats.py]
+
+WARNING: In some future release, per stream statistics will not be reported using the old `get_stats` API due to scale issue, please move to the new API 
+
+* Fix mlx5 driver crash/corruption  (bug exits from version v2.18)
+* Fix Python client race condition in case of fast connect/disconnect
+* Remove Enum from Python packages for Python 3.5 backward compatibility
+* Preliminary RFC 2544 example link:{github_stl_examples_path}/stl_ndr_bench_tool.py[stl_ndr_bench_tool.py]
+
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-420[trex-420]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-405[trex-405]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-415[trex-415]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-416[trex-416]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-413[trex-413]
+
 
 
 == Release 2.24 ==

@@ -3017,7 +3017,7 @@ $sudo lspci -vv -s 0000:80:03.0                                                 
                         ClockPM- Surprise+ LLActRep+ BwNot+
                 LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
                         ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
-                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive+ BWMgmt+ ABWMgmt-       #<7>
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive+ BWMgmt+ ABWMgmt-      
                 RootCtl: ErrCorrectable- ErrNon-Fatal- ErrFatal- PMEIntEna+ CRSVisible-
                 RootCap: CRSVisible-
                 RootSta: PME ReqID 0000, PMEStatus- PMEPending-
@@ -3058,6 +3058,7 @@ $sudo lspci -vv -s 0000:80:03.0                                                 
 <4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configucation (raiser)
 <5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
+
  
 
 
