@@ -50,7 +50,7 @@ def stl_map_ports (client, ports = None):
     client.start(ports, mult = "5%")
     client.wait_on_traffic(ports)
 
-    stats = client.get_stats()['flow_stats']
+    stats = client.get_pgid_stats(list(pgid_per_port.values()))['flow_stats']
 
     # cleanup
     client.reset(ports)
