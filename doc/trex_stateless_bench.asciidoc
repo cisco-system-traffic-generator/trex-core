@@ -43,7 +43,7 @@ TRex port 1 &#8596; Switch port Eth1/50 (vlan 1005) &#8596; Switch port Eth1/52 
 
 === Results
 
-.Cached VM
+.Traffic Profile = Field Engine Cached 255
 [cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
 |=================
 | Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
@@ -54,7 +54,7 @@ TRex port 1 &#8596; Switch port Eth1/50 (vlan 1005) &#8596; Switch port Eth1/52 
 | 64          | 52.8                 | 42.3            | 32.23           | 14.1         | 62.95      | 21.43                  | 31.89             | 31.5mpps
 |=================
 
-.VM with 1 variable
+.Traffic Profile = Field Engine with 1 variable
 [cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
 |=================
 | Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
