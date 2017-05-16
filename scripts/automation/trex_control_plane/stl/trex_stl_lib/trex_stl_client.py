@@ -2258,6 +2258,7 @@ class STLClient(object):
         j_to_p_global = {'old_flow':'old_flow', 'bad_hdr':'bad_hdr'}
         j_to_p_f_stat = {'rp': 'rx_pkts', 'rb': 'rx_bytes', 'tp': 'tx_pkts', 'tb': 'tx_bytes'
                          , 'rbs': 'rx_bps', 'rps': 'rx_pps', 'tbs': 'tx_bps', 'tps': 'tx_pps'}
+        j_to_p_g_f_err = {'rx_err': 'rx_err', 'tx_err': 'tx_err'}
 
         # translate json 'latency' to python API 'latency'
         new = {}
@@ -2270,7 +2271,11 @@ class STLClient(object):
                 for key in j_to_p_global.keys():
                     new['latency']['global'][j_to_p_global[key]] = 0
             for pg_id in ans_dict['latency']:
-                int_pg_id = int(pg_id)
+                # 'g' value is not a number
+                try:
+                    int_pg_id = int(pg_id)
+                except:
+                    continue
                 new['latency'][int_pg_id] = {}
                 new['latency'][int_pg_id]['err_cntrs'] = {}
                 if 'er' in ans_dict['latency'][pg_id]:
@@ -2307,8 +2312,21 @@ class STLClient(object):
         # translate json 'flow_stats' to python API 'flow_stats'
         if 'flow_stats' in ans_dict.keys() and ans_dict['flow_stats'] is not None:
             new['flow_stats'] = {}
+            new['flow_stats']['global'] = {}
+
+            if 'g' in ans_dict['flow_stats']:
+                for field in j_to_p_g_f_err.keys():
+                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
+            else:
+                for field in j_to_p_g_f_err.keys():
+                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = 0
+
             for pg_id in ans_dict['flow_stats']:
-                int_pg_id = int(pg_id)
+                # 'g' value is not a number
+                try:
+                    int_pg_id = int(pg_id)
+                except:
+                    continue
                 new['flow_stats'][int_pg_id] = {}
                 for field in ans_dict['flow_stats'][pg_id]:
                     new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
