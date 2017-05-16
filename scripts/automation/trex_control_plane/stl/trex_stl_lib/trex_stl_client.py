@@ -2316,7 +2316,10 @@ class STLClient(object):
 
             if 'g' in ans_dict['flow_stats']:
                 for field in j_to_p_g_f_err.keys():
-                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
+                    if field in ans_dict['flow_stats']['g']:
+                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
+                    else:
+                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = 0
             else:
                 for field in j_to_p_g_f_err.keys():
                     new['flow_stats']['global'][j_to_p_g_f_err[field]] = 0
