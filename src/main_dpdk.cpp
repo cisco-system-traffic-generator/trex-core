@@ -455,8 +455,7 @@ public:
     virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
         flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
         // HW counters on x710 does not support coutning bytes.
-        if ( CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
-             || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        if ( CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
              || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
             flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
             num_counters = MAX_FLOW_STATS;
