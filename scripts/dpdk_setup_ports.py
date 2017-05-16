@@ -39,6 +39,7 @@ class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
+    MAC_LCORE_NUM = 63 # current bitmask is 64 bit
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
@@ -73,6 +74,8 @@ class ConfigCreator(object):
                     if include_lcores and lcore not in include_lcores:
                         cores[core].remove(lcore)
                     if exclude_lcores and lcore in exclude_lcores:
+                        cores[core].remove(lcore)
+                    if lcore > self.MAC_LCORE_NUM:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
