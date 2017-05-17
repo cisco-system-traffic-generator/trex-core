@@ -27,6 +27,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.26 ==
+
+* get_pgid RPC command - change the JSON format. v2.25 client will not work with v2.26 server. Done for better JSON compatibility 
+
 == Release 2.25 ==
 
 * Added new stateless Python API, link:cp_stl_docs/api/client_code.html#get-pgid-stats["get_pgid_stats"].
