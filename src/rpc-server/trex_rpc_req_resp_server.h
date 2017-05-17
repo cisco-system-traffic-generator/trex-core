@@ -38,9 +38,10 @@ public:
     std::string test_inject_request(const std::string &req);
 
 protected:
-
+    void error(const std::string &msg, bool abnormal = false);
     void _prepare();
     void _rpc_thread_cb() noexcept;
+    void _rpc_thread_cb_int();
     void _stop_rpc_thread();
 
     bool fetch_one_request(std::string &msg);

@@ -46,20 +46,46 @@ void TrexRpcServerReqRes::_prepare() {
     m_context = zmq_ctx_new();
 }
 
+
+/**
+ * any error from the thread will be forward to here 
+ * it will print out a message and exit 
+ */
+void
+TrexRpcServerReqRes::error(const std::string &msg, bool abnormal) {
+   std::cout <<  "*** RPC thread has encountred error: '" << msg << "'";
+   std::cout << "\nExiting...\n\n";
+   
+   /* if the error is normal - simply exit, otherwise produce a core file */
+   if (abnormal) {
+       abort();
+   } else {
+       exit(-1);
+   }
+}
+
+
 /**
  * main entry point for the server 
  * this function will be created on a different thread 
+ *  
+ * no exception can be thrown from here 
  * 
- * @author imarom (17-Aug-15) 
- *  
- * declare noexcept to generate a std::terminate 
- * instead of an exception 
- * (glibc will unwind the stack in case of 
- * thread exception) 
- *  
  * see https://gcc.gnu.org/ml/gcc-help/2013-01/msg00055.html
  */
 void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
+    try {
+        _rpc_thread_cb_int();
+    } catch (const std::exception &ex) {
+        /* should not get here */
+        std::cout << "\n\n*** RPC thread has encountred an unexpected error: '" << ex.what() << "'\n\n";
+        assert(0);
+    }
+}
+
+
+
+void TrexRpcServerReqRes::_rpc_thread_cb_int() {
     std::stringstream ss;
     int zmq_rc;
     
@@ -82,7 +108,8 @@ void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
         ss << "tcp://*:";
         break;
     default:
-        throw TrexRpcException("unknown protocol for RPC");
+        /* for now we do not support any other protocol */
+        assert(0);
     }
 
     ss << m_cfg.get_port();
@@ -90,7 +117,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
     /* bind the scoket */
     zmq_rc = zmq_bind (m_socket, ss.str().c_str());
     if (zmq_rc != 0) {
-        throw TrexRpcException("Unable to start ZMQ server at: " + ss.str());
+        error("unable to bind ZMQ server at: " + ss.str());
     }
 
     /* server main loop */
@@ -144,7 +171,8 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
         if (errno == ETERM) {
             return false;
         } else {
-            throw TrexRpcException("Unhandled error of zmq_recv");
+            /* abnormal error - abort */
+            error("ZMQ unhandled error code: " + std::to_string(errno), true);
         }
     }
 
