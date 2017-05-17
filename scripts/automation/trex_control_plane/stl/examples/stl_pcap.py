@@ -16,7 +16,7 @@ def packet_hook_generator (remove_fcs, vlan_id):
         if remove_fcs and packet.lastlayer().name == 'Padding':
             packet.lastlayer().underlayer.remove_payload()
 
-        return str(packet)
+        return bytes(packet)
 
     return packet_hook
 
@@ -26,7 +26,7 @@ def inject_pcap (pcap_file, server, port, loop_count, ipg_usec, use_vm, remove_f
     # create client
     c = STLClient(server = server)
 
-    if remove_fcs or vlan_id:
+    if remove_fcs or (vlan_id != -1):
         packet_hook = packet_hook_generator(remove_fcs, vlan_id)
     else:
         packet_hook = None
