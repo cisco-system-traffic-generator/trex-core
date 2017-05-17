@@ -7779,14 +7779,7 @@ int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
 }
 
 int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
-    std::string stat_json;
-    std::string lat_json;
-
-    //??? think if we want to leave this, or get one string from dump_json_new
-    CFlowStatRuleMgr::instance()->dump_json_new(stat_json, lat_json, pgids);
-    json["flow_stats"] = stat_json;
-    json["latency"] = lat_json;
-
+    CFlowStatRuleMgr::instance()->dump_json_new(json, pgids);
     return 0;
 }
 

@@ -1351,7 +1351,7 @@ bool CFlowStatRuleMgr::dump_json(std::string & s_json, std::string & l_json, boo
 // return false if no counters changed since last run. true otherwise
 // s_json - flow statistics json
 // l_json - latency data json
-bool CFlowStatRuleMgr::dump_json_new(std::string & s_json, std::string & l_json, std::vector<uint32> pgids) {
+bool CFlowStatRuleMgr::dump_json_new(Json::Value &json, std::vector<uint32> pgids) {
     CRxCoreErrCntrs rx_err_cntrs;
     Json::FastWriter writer;
     Json::Value s_data_section;
@@ -1512,8 +1512,8 @@ bool CFlowStatRuleMgr::dump_json_new(std::string & s_json, std::string & l_json,
         }
     }
 
-    s_json = writer.write(s_data_section);
-    l_json = writer.write(l_data_section);
+    json["flow_stats"] = s_data_section;
+    json["latency"] = l_data_section;
 
     return true;
 }

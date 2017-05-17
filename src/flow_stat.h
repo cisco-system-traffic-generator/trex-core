@@ -521,7 +521,7 @@ class CFlowStatRuleMgr {
     int get_max_hw_id_payload() {return m_max_hw_id_payload;}
     void update_counters();
     bool dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all);
-    bool dump_json_new(std::string & s_json, std::string & l_json, std::vector<uint32> pgids);
+    bool dump_json_new(Json::Value &json, std::vector<uint32> pgids);
 
  private:
     CFlowStatRuleMgr();

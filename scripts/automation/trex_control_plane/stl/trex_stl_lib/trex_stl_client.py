@@ -2246,11 +2246,7 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
-        ans = rc.data()
-
-        ans_dict = {}
-        for key in ans.keys():
-            ans_dict[key] = json.loads(ans[key])
+        ans_dict = rc.data()
 
         # translation from json values to python API names
         j_to_p_lat = {'jit': 'jitter', 'average':'average', 'total_max': 'total_max', 'last_max':'last_max'}
