@@ -29,9 +29,10 @@ def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, 
 # then it load a predefind profile 'IMIX'
 # and attach it to both sides and inject
 # then searches for NDR according to specified values
-def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, setup_name, first_run_duration, verbose,
+def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, title, first_run_duration, verbose,
                        pdr_error, q_ful_resolution, latency, vm, pkt_size, fe_src_start_ip,
-                       fe_src_stop_ip, fe_dst_start_ip, fe_dst_stop_ip, drop_rate_interval, output, ports_list):
+                       fe_src_stop_ip, fe_dst_start_ip, fe_dst_stop_ip, drop_rate_interval, output, ports_list,
+                       latency_rate):
     passed = True
     if ports_list:
         if len(ports_list) % 2 != 0:
@@ -46,45 +47,41 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
 
     # map ports - identify the routes
     table = stl_map_ports(c)
-    # pprint(table)
+    pprint(table)
     if ports_list:
         dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
         ports = ports_list
     else:
-        dir_0 = [table['bi'][0][0]]
-        ports = list(table['bi'][0])
-
-    # profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'imix.py')  # load IMIX profile
-    # profile = STLProfile.load_py(profile_file)
-    # streams = profile.get_streams()
-    # print("Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1))
+        dir_0 = [table['bi'][i][0] for i in range(0, len(table['bi']))]
+        ports = []
+        for port in table['bi']:
+            ports.append(port[0])
+            ports.append(port[1])
 
     streams = build_streams_for_bench(size=pkt_size, vm=vm, src_start_ip=fe_src_start_ip, src_stop_ip=fe_src_stop_ip,
                                       dest_start_ip=fe_dst_start_ip, dest_stop_ip=fe_dst_stop_ip, direction=0)
-
     if latency:
         burst_size = 1000
-        pps = 1000
+        pps = latency_rate
         pkt = STLPktBuilder(pkt=Ether() / IP(src="16.0.0.1", dst="48.0.0.1") / UDP(dport=12,
                                                                                    sport=1025) / 'at_least_16_bytes_payload_needed')
         total_pkts = burst_size
         s1 = STLStream(name='rx',
                        packet=pkt,
-                       flow_stats=STLFlowLatencyStats(pg_id=5),
+                       flow_stats=STLFlowLatencyStats(pg_id=i),
                        mode=STLTXSingleBurst(total_pkts=total_pkts,
                                              pps=pps))
         streams.append(s1)
     # add both streams to ports
     c.add_streams(streams, ports=dir_0)
     # self.stl_client.add_streams(streams, ports=dir_1)
-
-
     config = ndr.NdrBenchConfig(ports=ports, pkt_size=pkt_size, vm=vm, iteration_duration=iteration_duration,
                                 q_ful_resolution=q_ful_resolution,
                                 first_run_duration=first_run_duration, pdr=pdr, pdr_error=pdr_error,
                                 ndr_results=ndr_results,
                                 latency=latency, core_mask=core_mask,
-                                verbose=verbose, drop_rate_interval=drop_rate_interval)
+                                verbose=verbose, drop_rate_interval=drop_rate_interval, title=title,
+                                latency_rate=latency_rate, cores=c.system_info['dp_core_count_per_port'])
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
@@ -137,10 +134,10 @@ parser.add_argument('-n', '--ndr-results',
                          'The results for ndr_results=2 are NDR and NDR/2.',
                     default=1,
                     type=int)
-parser.add_argument('-na', '--setup-name',
-                    dest='setup_name',
-                    help='Name of the setup the benchmark tests',
-                    default='trex',
+parser.add_argument('-ti', '--title',
+                    dest='title',
+                    help='Title for this benchmark test',
+                    default='Title',
                     type=str)
 parser.add_argument('-ft', '--first_run_duration_time',
                     dest='first_run_duration',
@@ -171,15 +168,20 @@ parser.add_argument('-q', '--q-full',
                          '0%% q-full resolution is not recommended due to precision issues. [percents 0-100]',
                     default=2.00,
                     type=float)
-parser.add_argument('-l', '--latency',
+parser.add_argument('-ld', '--latency-disable',
                     dest='latency',
                     help='Specify this option to disable latency calculations.',
                     default=True,
                     action='store_false')
+parser.add_argument('-lr', '--latency-rate',
+                    dest='latency_rate',
+                    help='Specify the desired latency rate.',
+                    default=1000,
+                    type=float)
 parser.add_argument('-fe',
                     dest='vm',
                     help='choose Field Engine Module: var1,var2,random,tuple,size,cached. default is none',
-                    default='none',
+                    default='cached',
                     type=str)
 parser.add_argument('-size',
                     dest='size',
@@ -220,8 +222,8 @@ parser.add_argument('--ports', dest='ports_list', help='specify an even list of 
 args = parser.parse_args()
 
 # run the tests
-ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duration, args.ndr_results, args.setup_name,
+ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duration, args.ndr_results, args.title,
                    args.first_run_duration, args.verbose,
                    args.pdr_error, args.q_ful_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
                    args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip, args.drop_rate_interval, args.output,
-                   args.ports_list)
+                   args.ports_list, args.latency_rate)

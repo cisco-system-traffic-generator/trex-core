@@ -110,7 +110,8 @@ class Rate:
 
 
 class NdrBenchConfig:
-    def __init__(self, ports, pkt_size, vm, iteration_duration=20.00, q_ful_resolution=2.00,
+    def __init__(self, ports, pkt_size, vm, title, cores, latency_rate=1000, iteration_duration=20.00,
+                 q_ful_resolution=2.00,
                  first_run_duration=20.00, pdr=0.1, pdr_error=1.0, ndr_results=1, max_iterations=10, latency=True,
                  core_mask=1, drop_rate_interval=10, verbose=False):
         self.iteration_duration = iteration_duration
@@ -127,6 +128,9 @@ class NdrBenchConfig:
         self.drop_rate_interval = drop_rate_interval
         self.pkt_size = pkt_size
         self.vm = vm
+        self.title = title
+        self.latency_rate = latency_rate
+        self.cores = cores
 
     def load_yaml(self, filename):
         pass
@@ -161,7 +165,20 @@ class NdrBenchResults:
         elif magnitude == 3:
             return (str(converted) + " G" + postfix)
 
+    def print_latency(self):
+        for g in self.stats['latency'].keys():
+            print g
+            print"Latency stats:"
+            print "    Latency Rate                  :%0.2f PPS" % g['latency_rate']
+            print "    Average                       :%0.2f" % g['latency']['average']
+            print "    Jitter                        :%0.2f" % g['latency']['jitter']
+            print "    Total Max                     :%0.2f" % g['latency']['total_max']
+            print "    Total Min                     :%0.2f" % g['latency']['total_min']
+            print "    Histogram                     :%s   " % g['latency']['histogram']
+
     def print_iteration_data(self, latency):
+        if 'title' in self.stats:
+            print"\nTitle                             :%s" % self.stats['title']
         if 'iteration' in self.stats:
             print"Iteration                         :%d" % self.stats['iteration']
         print"Elapsed Time                      :%0.2f seconds" % (float(time.time()) - self.init_time)
@@ -180,14 +197,11 @@ class NdrBenchResults:
         if 'rate_diffrential' in self.stats:
             print"Distance from current Optimum     :%0.2f %%" % self.stats['rate_diffrential']
         if latency:
-            print"Latency stats:"
-            print "    Average                       :%0.2f" % self.stats['latency']['average']
-            print "    Jitter                        :%0.2f" % self.stats['latency']['jitter']
-            print "    Total Max                     :%0.2f" % self.stats['latency']['total_max']
-            print "    Total Min                     :%0.2f" % self.stats['latency']['total_min']
+            self.print_latency()
 
     def print_final(self, latency):
-        print"\nTotal Iterations                  :%d" % self.stats['iteration']
+        print"\nTitle                             :%s" % self.stats['title']
+        print"Total Iterations                  :%d" % self.stats['iteration']
         print"Max Rate                          :%s       " % self.convert_rate(float(self.stats['max_rate_bps']))
         print"Optimal P-Drop Rate               :%s" % self.convert_rate(float(self.stats['rate_tx_bps']))
         print"P-Drop Rate (%% of max)            :%0.2f %%" % self.stats['rate_p']
@@ -202,13 +216,9 @@ class NdrBenchResults:
         print"Total RX L1                       :%s     " % self.convert_rate(float(self.stats['total_rx_L1']))
         print"Distance from current Optimum     :%0.2f %%" % self.stats['rate_diffrential']
         if latency:
-            print"Latency stats:"
-            print "    Average                       :%0.2f" % self.stats['latency']['average']
-            print "    Jitter                        :%0.2f" % self.stats['latency']['jitter']
-            print "    Total Max                     :%0.2f" % self.stats['latency']['total_max']
-            print "    Total Min                     :%0.2f" % self.stats['latency']['total_min']
-            for x in self.stats['ndr_points']:
-                print"NDR(s)                            :%s " % self.convert_rate(x)
+            self.print_latency()
+        for x in self.stats['ndr_points']:
+            print"NDR(s)                            :%s " % self.convert_rate(x)
         if self.config:
             print"Packet Size                       :%s " % self.config.pkt_size
             print"VM                                :%s " % self.config.vm
@@ -228,7 +238,7 @@ class NdrBenchResults:
 
     @staticmethod
     def print_state(state, high_bound, low_bound):
-        print"\n\nState                             :%s" % state
+        print"\n\nStatus                            :%s" % state
         if low_bound and high_bound:
             print("Interval                          :[%d,%d]" % (low_bound, high_bound))
 
@@ -238,6 +248,7 @@ class NdrBench:
         self.config = config
         self.results = NdrBenchResults(config)
         self.stl_client = stl_client
+        self.results.update({'title': self.config.title})
 
     def perf_run(self, rate_mb_percent, run_max=False):
         self.stl_client.clear_stats()
@@ -256,23 +267,26 @@ class NdrBench:
         stats = self.stl_client.get_stats()
         # pprint(stats)
         self.stl_client.stop(ports=self.config.ports)
-        opackets = stats[self.config.ports[0]]['opackets']
-        ipackets = stats[self.config.ports[1]]['ipackets']
+        opackets = stats['total']['opackets']
+        ipackets = stats['total']['ipackets']
         lost_p = opackets - ipackets
         lost_p_percentage = (float(lost_p) / float(opackets)) * 100.00
         if lost_p_percentage < 0:
             lost_p_percentage = 0
         q_ful_packets = stats['global']['queue_full']
         q_ful_percentage = float((q_ful_packets / float(opackets)) * 100.000)
-        latency = []
+        latency_groups = {}
         if self.config.latencyCalculation:
-            latency_dict = stats['latency'][5]['latency']
-            latency = {'average': latency_dict['average'], 'total_max': latency_dict['total_max'],
-                       'jitter': latency_dict['jitter'], 'total_min': latency_dict['total_min']}
+            latency_groups = {}
+            for i in range(0, len(self.config.ports) / 2):
+                latency_dict = stats['latency'][str(i)]['latency']
+                latency_dict.update({'latency_rate': self.config.latency_rate})
+                latency_groups[str(i)] = latency_dict
+
         run_results = {'queue_full_percentage': q_ful_percentage, 'drop_rate_percentage': lost_p_percentage,
                        'rate_tx_bps': stats['total']['tx_bps'],
                        'rate_rx_bps': stats['total']['rx_bps'],
-                       'tx_util': stats['total']['tx_util'], 'latency': latency,
+                       'tx_util': stats['total']['tx_util'], 'latency': latency_groups,
                        'cpu_util': stats['global']['cpu_util'], 'tx_pps': stats['total']['tx_pps'],
                        'bw_per_core': stats['global']['bw_per_core'], 'rx_pps': stats['total']['rx_pps'],
                        'rate_p': float(rate_mb_percent), 'total_tx_L1': stats['total']['tx_bps_L1'],
