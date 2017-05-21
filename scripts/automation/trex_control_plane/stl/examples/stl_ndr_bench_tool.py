@@ -32,7 +32,7 @@ def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, 
 def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, title, first_run_duration, verbose,
                        pdr_error, q_ful_resolution, latency, vm, pkt_size, fe_src_start_ip,
                        fe_src_stop_ip, fe_dst_start_ip, fe_dst_stop_ip, drop_rate_interval, output, ports_list,
-                       latency_rate):
+                       latency_rate, max_iterations):
     passed = True
     if ports_list:
         if len(ports_list) % 2 != 0:
@@ -47,7 +47,7 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
 
     # map ports - identify the routes
     table = stl_map_ports(c)
-    pprint(table)
+    # pprint(table)
     if ports_list:
         dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
         ports = ports_list
@@ -66,14 +66,21 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
         pkt = STLPktBuilder(pkt=Ether() / IP(src="16.0.0.1", dst="48.0.0.1") / UDP(dport=12,
                                                                                    sport=1025) / 'at_least_16_bytes_payload_needed')
         total_pkts = burst_size
-        s1 = STLStream(name='rx',
-                       packet=pkt,
-                       flow_stats=STLFlowLatencyStats(pg_id=i),
-                       mode=STLTXSingleBurst(total_pkts=total_pkts,
-                                             pps=pps))
-        streams.append(s1)
+        for i in dir_0:
+            all_streams = list(streams)
+            latency_stream = STLStream(name='rx' + str(i),
+                                       packet=pkt,
+                                       flow_stats=STLFlowLatencyStats(pg_id=i),
+                                       mode=STLTXSingleBurst(total_pkts=total_pkts,
+                                                             pps=pps))
+            # print type(latency_stream)
+            # print type(all_streams)
+            all_streams.append(latency_stream)
+            # print all_streams
+            c.add_streams(all_streams, ports=[i])
     # add both streams to ports
-    c.add_streams(streams, ports=dir_0)
+    else:
+        c.add_streams(streams, ports=dir_0)
     # self.stl_client.add_streams(streams, ports=dir_1)
     config = ndr.NdrBenchConfig(ports=ports, pkt_size=pkt_size, vm=vm, iteration_duration=iteration_duration,
                                 q_ful_resolution=q_ful_resolution,
@@ -81,7 +88,8 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
                                 ndr_results=ndr_results,
                                 latency=latency, core_mask=core_mask,
                                 verbose=verbose, drop_rate_interval=drop_rate_interval, title=title,
-                                latency_rate=latency_rate, cores=c.system_info['dp_core_count_per_port'])
+                                latency_rate=latency_rate, cores=c.system_info['dp_core_count_per_port'],
+                                max_iterations=max_iterations)
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
@@ -226,4 +234,4 @@ ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duratio
                    args.first_run_duration, args.verbose,
                    args.pdr_error, args.q_ful_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
                    args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip, args.drop_rate_interval, args.output,
-                   args.ports_list, args.latency_rate)
+                   args.ports_list, args.latency_rate, args.max_iterations)
