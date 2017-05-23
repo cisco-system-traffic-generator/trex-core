@@ -30,7 +30,7 @@ def rx_example (tx_port, rx_port, burst_size, bw):
         c.reset(ports = [tx_port, rx_port])
 
         # add stream to port
-        c.add_streams([s1], ports = [tx_port])
+        c.add_streams(s1, ports = [tx_port])
 
         print("\ngoing to inject {0} packets on port {1}\n".format(total_pkts, tx_port))
 
@@ -59,7 +59,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     c.start(ports = [tx_port])
     c.wait_on_traffic(ports = [tx_port])
 
-    global_flow_stats = c.get_stats()['flow_stats']
+    global_flow_stats = c.get_pgid_stats()['flow_stats']
     flow_stats = global_flow_stats.get(5)
     if not flow_stats:
         print("no flow stats available")
@@ -99,13 +99,15 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
 
     # On x710, by default rx_bytes will be 0. See manual for details.
     # If you use x710, and need byte count, run the TRex server with --no-hw-flow-stat
-    if rx_bytes != 0:
+    try:
         if rx_bytes != total_pkts * pkt_len:
             print("RX bytes mismatch - got: {0}, expected: {1}".format(rx_bytes, (total_pkts * pkt_len)))
             pprint.pprint(flow_stats)
             ret = False
         else:
             print("RX bytes match  - {0}".format(rx_bytes))
+    except:
+        print("Not comparing RX bytes. They are not supported on this platform")
 
     for field in ['rx_err', 'tx_err']:
         for port in global_flow_stats['global'][field].keys():

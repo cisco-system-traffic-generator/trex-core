@@ -3404,6 +3404,7 @@ private:
 
 public:
 
+    void sync_threads_stats();
     void publish_async_data(bool sync_now, bool baseline = false);
     void publish_async_barrier(uint32_t key);
     void publish_async_port_attr_changed(uint8_t port_id);
@@ -4668,14 +4669,17 @@ void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
 
 }
 
+void CGlobalTRex::sync_threads_stats() {
+    update_stats();
+    get_stats(m_stats);
+}
+
 void
 CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     std::string json;
 
-    /* refactor to update, dump, and etc. */
     if (sync_now) {
-        update_stats();
-        get_stats(m_stats);
+        sync_threads_stats();
     }
 
     m_stats.dump_json(json, baseline);
@@ -4705,14 +4709,8 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     m_zmq_publisher.publish_json(json);
 
     if (get_is_stateless()) {
-        std::string stat_json;
-        std::string latency_json;
-        if (CFlowStatRuleMgr::instance()->dump_json(stat_json, latency_json, baseline, sync_now)) {
-            //            if (baseline || sync_now) {                 //??????
-                m_zmq_publisher.publish_json(stat_json);
-                m_zmq_publisher.publish_json(latency_json);
-                //            }
-        }
+        // json from this class is sent only when requested. Still, we need to maintain the counters periodically.
+        CFlowStatRuleMgr::instance()->update_counters();
     }
 }
 
@@ -7793,7 +7791,8 @@ int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
 }
 
 int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
-    CFlowStatRuleMgr::instance()->dump_json_new(json, pgids);
+    g_trex.sync_threads_stats();
+    CFlowStatRuleMgr::instance()->dump_json(json, pgids);
     return 0;
 }
 

@@ -150,8 +150,8 @@ class CTRexInfoGenerator(object):
     STLClient and the ports.
     """
 
-    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, xstats_ref, async_monitor
-    ):
+    def __init__(self, global_stats_ref, ports_dict_ref, rx_stats_ref, latency_stats_ref, util_stats_ref, xstats_ref
+                 , async_monitor, pgid_ref, stl_client):
         self._global_stats = global_stats_ref
         self._ports_dict = ports_dict_ref
         self._rx_stats_ref = rx_stats_ref
@@ -159,6 +159,15 @@ class CTRexInfoGenerator(object):
         self._util_stats_ref = util_stats_ref
         self._xstats_ref = xstats_ref
         self._async_monitor = async_monitor
+        self.pgid_ref = pgid_ref
+        self._stl_client = stl_client
+        self.latency_window_size = 14
+        self.max_hist = {}
+        self.max_hist_index = 0
+
+    def clear_stats(self):
+        self.max_hist = {}
+        self.max_hist_index = 0
 
     def generate_single_statistic(self, port_id_list, statistic_type):
         if statistic_type == GLOBAL_STATS:
@@ -280,10 +289,14 @@ class CTRexInfoGenerator(object):
         return {"global_statistics": ExportableStats(None, stats_table)}
 
     def _generate_streams_stats (self):
-        flow_stats = self._rx_stats_ref
-        # for TUI - maximum 4 
-        pg_ids = list(filter(is_intable, flow_stats.latest_stats.keys()))[:4]
+        all_pg_ids = self._stl_client.get_active_pgids()
+        # Display data for at most 4 pgids. If there are latency PG IDs, use them first
+        pg_ids = all_pg_ids['latency'][:4]
+        pg_ids += all_pg_ids['flow_stats'][:4 - len(pg_ids)]
         stream_count = len(pg_ids)
+        data = self._stl_client.get_pgid_stats(pg_ids)
+        if 'flow_stats' in data:
+            flow_stats = data['flow_stats']
 
         sstats_data = OrderedDict([ ('Tx pps',  []),
                                         ('Tx bps L2',      []),
@@ -303,36 +316,31 @@ class CTRexInfoGenerator(object):
                                         ('rx_bytes',    [])
                                       ])
 
-
-
         # maximum 4
         for pg_id in pg_ids:
-
-            sstats_data['Tx pps'].append(flow_stats.get([pg_id, 'tx_pps_lpf', 'total'], format = True, suffix = "pps"))
-            sstats_data['Tx bps L2'].append(flow_stats.get([pg_id, 'tx_bps_lpf', 'total'], format = True, suffix = "bps"))
-
-            sstats_data['Tx bps L1'].append(flow_stats.get([pg_id, 'tx_bps_L1_lpf', 'total'], format = True, suffix = "bps"))
-
-            sstats_data['Rx pps'].append(flow_stats.get([pg_id, 'rx_pps_lpf', 'total'], format = True, suffix = "pps"))
-            sstats_data['Rx bps'].append(flow_stats.get([pg_id, 'rx_bps_lpf', 'total'], format = True, suffix = "bps"))
-            
-            sstats_data['opackets'].append(flow_stats.get_rel([pg_id, 'tx_pkts', 'total']))
-            sstats_data['ipackets'].append(flow_stats.get_rel([pg_id, 'rx_pkts', 'total']))
-            sstats_data['obytes'].append(flow_stats.get_rel([pg_id, 'tx_bytes', 'total']))
-            sstats_data['ibytes'].append(flow_stats.get_rel([pg_id, 'rx_bytes', 'total']))
-            sstats_data['tx_bytes'].append(flow_stats.get_rel([pg_id, 'tx_bytes', 'total'], format = True, suffix = "B"))
-            sstats_data['rx_bytes'].append(flow_stats.get_rel([pg_id, 'rx_bytes', 'total'], format = True, suffix = "B"))
-            sstats_data['tx_pkts'].append(flow_stats.get_rel([pg_id, 'tx_pkts', 'total'], format = True, suffix = "pkts"))
-            sstats_data['rx_pkts'].append(flow_stats.get_rel([pg_id, 'rx_pkts', 'total'], format = True, suffix = "pkts"))
-
+            sstats_data['Tx pps'].append(self.pgid_ref.get(['flow_stats', pg_id, 'tx_pps', 'total'], format = True, suffix = "pps"))
+            sstats_data['Tx bps L2'].append(self.pgid_ref.get(['flow_stats', pg_id, 'tx_bps', 'total'], format = True, suffix = "bps"))
+            sstats_data['Tx bps L1'].append(self.pgid_ref.get(['flow_stats', pg_id, 'tx_bps_l1', 'total'], format = True, suffix = "bps"))
+            sstats_data['Rx pps'].append(self.pgid_ref.get(['flow_stats', pg_id, 'rx_pps', 'total'], format = True, suffix = "pps"))
+            sstats_data['Rx bps'].append(self.pgid_ref.get(['flow_stats', pg_id, 'rx_bps', 'total'], format = True, suffix = "bps"))
+            sstats_data['opackets'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'tx_pkts', 'total']))
+            sstats_data['ipackets'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'rx_pkts', 'total']))
+            sstats_data['obytes'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'tx_bytes', 'total']))
+            sstats_data['ibytes'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'rx_bytes', 'total']))
+            sstats_data['tx_pkts'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'tx_pkts', 'total'], format = True, suffix = "pkts"))
+            sstats_data['rx_pkts'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'rx_pkts', 'total'], format = True, suffix = "pkts"))
+            sstats_data['tx_bytes'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'tx_bytes', 'total'], format = True, suffix = "B"))
+            sstats_data['rx_bytes'].append(self.pgid_ref.get_rel(['flow_stats', pg_id, 'rx_bytes', 'total'], format = True, suffix = "B"))
 
         stats_table = text_tables.TRexTextTable()
         stats_table.set_cols_align(["l"] + ["r"] * stream_count)
         stats_table.set_cols_width([10] + [17]   * stream_count)
         stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
 
+        disp_str = {'tx_pkts':"opackets ", 'rx_pkts':"ipackets ", 'rx_bytes':"ibytes ", 'tx_bytes':"obytes "}
+        sstats_new_data = OrderedDict([(disp_str[k], v) if k in disp_str else (k, v) for k, v in sstats_data.items()])
         stats_table.add_rows([[k] + v
-                              for k, v in sstats_data.items()],
+                              for k, v in sstats_new_data.items()],
                               header=False)
 
         header = ["PG ID"] + [key for key in pg_ids]
@@ -341,47 +349,67 @@ class CTRexInfoGenerator(object):
         return {"streams_statistics": ExportableStats(sstats_data, stats_table)}
 
     def _generate_latency_stats(self):
-        lat_stats = self._latency_stats_ref
-        latency_window_size = 14
+        all_pg_ids = self._stl_client.get_active_pgids()
+        # Display data for at most 5 pgids.
+        pg_ids = all_pg_ids['latency'][:5]
+        to_delete = []
+        for id in self.max_hist.keys():
+            if id not in pg_ids:
+                to_delete.append(id)
 
-        # for TUI - maximum 5 
-        pg_ids = list(filter(is_intable, lat_stats.latest_stats.keys()))[:5]
+        for id in to_delete:
+            del self.max_hist[id]
+
+        for id in pg_ids:
+            if id not in self.max_hist.keys():
+                self.max_hist[id] = [-1] * self.latency_window_size
+
         stream_count = len(pg_ids)
+        data = self._stl_client.get_pgid_stats(pg_ids)
+        if 'latency' in data:
+            lat_stats = data['latency']
+        if 'flow_stats' in data:
+            flow_stats = data['flow_stats']
+
         lstats_data = OrderedDict([('TX pkts',       []),
                                    ('RX pkts',       []),
                                    ('Max latency',   []),
                                    ('Avg latency',   []),
                                    ('-- Window --', [''] * stream_count),
-                                   ('Last (max)',     []),
-                                  ] + [('Last-%s' % i, []) for i in range(1, latency_window_size)] + [
+                                   ('Last max',     []),
+                                  ] + [('Last-%s' % i, []) for i in range(1, self.latency_window_size)] + [
                                    ('---', [''] * stream_count),
                                    ('Jitter',        []),
                                    ('----', [''] * stream_count),
                                    ('Errors',        []),
                                   ])
 
-        with lat_stats.lock:
-            history = [x for x in lat_stats.history]
-        flow_stats = self._rx_stats_ref.get_stats()
         for pg_id in pg_ids:
-            lstats_data['TX pkts'].append(flow_stats[pg_id]['tx_pkts']['total'] if pg_id in flow_stats else '')
-            lstats_data['RX pkts'].append(flow_stats[pg_id]['rx_pkts']['total'] if pg_id in flow_stats else '')
-            lstats_data['Avg latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'average'])))
-            lstats_data['Max latency'].append(try_int(lat_stats.get([pg_id, 'latency', 'total_max'])))
-            lstats_data['Last (max)'].append(try_int(lat_stats.get([pg_id, 'latency', 'last_max'])))
-            for i in range(1, latency_window_size):
-                val = history[-i - 1].get(pg_id, {}).get('latency', {}).get('last_max', '') if len(history) > i else ''
-                lstats_data['Last-%s' % i].append(try_int(val))
-            lstats_data['Jitter'].append(try_int(lat_stats.get([pg_id, 'latency', 'jitter'])))
+            last_max = self.pgid_ref.get(['latency', pg_id, 'latency', 'last_max'])
+            lstats_data['TX pkts'].append(self.pgid_ref.get_rel(['flow_stats', pg_id,'tx_pkts', 'total']))
+            lstats_data['RX pkts'].append(self.pgid_ref.get_rel(['flow_stats', pg_id,'rx_pkts', 'total']))
+            lstats_data['Avg latency'].append(try_int(self.pgid_ref.get(['latency', pg_id, 'latency', 'average'])))
+            lstats_data['Max latency'].append(try_int(self.pgid_ref.get(['latency', pg_id, 'latency', 'total_max'])))
+            lstats_data['Last max'].append(last_max)
+            self.max_hist[pg_id][self.max_hist_index] = last_max
+            for i in range(1, self.latency_window_size):
+                val = self.max_hist[pg_id][(self.max_hist_index - i) % self.latency_window_size]
+                if val != -1:
+                    lstats_data['Last-%s' % i].append(val)
+                else:
+                    lstats_data['Last-%s' % i].append(" ")
+            lstats_data['Jitter'].append(self.pgid_ref.get(['latency', pg_id, 'latency', 'jitter']))
             errors = 0
-            seq_too_low = lat_stats.get([pg_id, 'err_cntrs', 'seq_too_low'])
+            seq_too_low = self.pgid_ref.get_rel(['latency', pg_id, 'err_cntrs', 'seq_too_low'])
             if is_integer(seq_too_low):
                 errors += seq_too_low
-            seq_too_high = lat_stats.get([pg_id, 'err_cntrs', 'seq_too_high'])
+            seq_too_high = self.pgid_ref.get_rel(['latency', pg_id, 'err_cntrs', 'seq_too_high'])
             if is_integer(seq_too_high):
                 errors += seq_too_high
             lstats_data['Errors'].append(format_num(errors,
                                             opts = 'green' if errors == 0 else 'red'))
+        self.max_hist_index += 1
+        self.max_hist_index %= self.latency_window_size
 
 
         stats_table = text_tables.TRexTextTable()
@@ -398,12 +426,14 @@ class CTRexInfoGenerator(object):
         return {"latency_statistics": ExportableStats(lstats_data, stats_table)}
 
     def _generate_latency_histogram(self):
-        lat_stats = self._latency_stats_ref.latest_stats
+        all_pg_ids = self._stl_client.get_active_pgids()
+        # Display data for at most 5 pgids.
+        pg_ids = all_pg_ids['latency'][:5]
+        data = self._stl_client.get_pgid_stats(pg_ids)
+        if 'latency' in data:
+            lat_stats = data['latency']
+
         max_histogram_size = 17
-
-        # for TUI - maximum 5 
-        pg_ids = list(filter(is_intable, lat_stats.keys()))[:5]
-
         merged_histogram = {}
         for pg_id in pg_ids:
             merged_histogram.update(lat_stats[pg_id]['latency']['histogram'])
@@ -615,10 +645,10 @@ class CTRexInfoGenerator(object):
                                        ("ipackets", []),
                                        ("obytes", []),
                                        ("ibytes", []),
-                                       ("tx-bytes", []),
-                                       ("rx-bytes", []),
                                        ("tx-pkts", []),
                                        ("rx-pkts", []),
+                                       ("tx-bytes", []),
+                                       ("rx-bytes", []),
 
                                        ("-----", []),
                                        ("oerrors", []),
@@ -651,8 +681,11 @@ class CTRexInfoGenerator(object):
         stats_table.set_cols_width([10] + [17]   * total_cols)
         stats_table.set_cols_dtype(['t'] + ['t'] * total_cols)
 
+        disp_str = {'tx-pkts':"opackets ", 'rx-pkts':"ipackets ", 'rx-bytes':"ibytes ", 'tx-bytes':"obytes "}
+        disp_data = OrderedDict([(disp_str[k], v) if k in disp_str else (k, v) for k, v in per_field_stats.items()])
+
         stats_table.add_rows([[k] + v
-                              for k, v in per_field_stats.items()],
+                              for k, v in disp_data.items()],
                               header=False)
 
         stats_table.header(header)
@@ -1552,11 +1585,54 @@ class CPgIdStats(object):
         self.reset()
 
     def reset(self):
+        # sample when clear was last called. Values we return are last - ref
         self.ref =  {'flow_stats': {}, 'latency': {}}
+        # last sample values
         self.last = {'flow_stats': {}, 'latency': {}}
 
+    def _get (self, src, field, default = None):
+        if isinstance(field, list):
+            # deep
+            value = src
+            for level in field:
+                if not level in value:
+                    return default
+                value = value[level]
+        else:
+            # flat
+            if not field in src:
+                return default
+            value = src[field]
+
+        return value
+
+    def get(self, field, format=False, suffix="", opts = None):
+        value = self._get(self.last, field)
+        if type(value) is StatNotAvailable:
+            return 'N/A'
+        if value == None:
+            return 'N/A'
+
+        return value if not format else format_num(value, suffix = suffix, opts = opts)
+
+    def get_rel(self, field, format=False, suffix="", opts = None):
+        value = self._get(self.last, field)
+        if type(value) is StatNotAvailable:
+            return 'N/A'
+        if value == None:
+            return 'N/A'
+
+        base = self._get(self.ref, field, default=0)
+        return (value - base) if not format else format_num(value - base, suffix = suffix, opts = opts)
+
     def clear_stats(self):
-        self.ref = copy.deepcopy(self.last)
+        for key in self.last:
+            self.ref[key].update(self.last[key])
+
+        if 'latency' in self.ref:
+            for pg_id in self.ref['latency']:
+                if 'latency' in self.ref['latency'][pg_id]:
+                    self.ref['latency'][pg_id]['latency']['total_max'] = 0
 
     def get_stats(self):
         flow_stat_fields = ['rx_pkts', 'tx_pkts', 'rx_bytes', 'tx_bytes']
@@ -1568,15 +1644,73 @@ class CPgIdStats(object):
                 if pg_id in self.ref['flow_stats'] and field in self.ref['flow_stats'][pg_id]:
                     for port in ret['flow_stats'][pg_id][field]:
                         if port in self.ref['flow_stats'][pg_id][field]:
-                            ret['flow_stats'][pg_id][field][port] -= self.ref['flow_stats'][pg_id][field][port]
+                            # might be StatNotAvailable
+                            try:
+                                ret['flow_stats'][pg_id][field][port] -= self.ref['flow_stats'][pg_id][field][port]
+                            except:
+                                pass
 
+        if not 'latency' in ret:
+            return ret
+
+        for pg_id in ret['latency']:
+            if pg_id not in self.ref['latency']:
+                continue
+            if 'latency' in ret['latency'][pg_id]:
+                to_delete = []
+                for key in ret['latency'][pg_id]['latency']['histogram']:
+                    if pg_id in self.ref['latency'] and key in self.ref['latency'][pg_id]['latency']['histogram']:
+                        ret['latency'][pg_id]['latency']['histogram'][key] -= self.ref['latency'][pg_id]['latency']['histogram'][key]
+                        if ret['latency'][pg_id]['latency']['histogram'][key] == 0:
+                            to_delete.append(key)
+                # cleaning values in histogram which are 0 (after decreasing ref from last)
+                for del_key in to_delete:
+                    del ret['latency'][pg_id]['latency']['histogram'][del_key]
+                # special handling for 'total_max' field. We want to take it at first, from server reported 'total_max'
+                # After running clear_stats, we zero it, and start calculating ourselves by looking at 'last_max' in each sampling
+                if 'total_max' in self.ref['latency'][pg_id]['latency']:
+                    ret['latency'][pg_id]['latency']['total_max'] = self.ref['latency'][pg_id]['latency']['total_max']
+                if 'err_cntrs' in ret['latency'][pg_id] and 'err_cntrs' in self.ref['latency'][pg_id]:
+                    for key in ret['latency'][pg_id]['err_cntrs']:
+                         if key in self.ref['latency'][pg_id]['err_cntrs']:
+                            ret['latency'][pg_id]['err_cntrs'][key] -= self.ref['latency'][pg_id]['err_cntrs'][key]
         return ret
 
     def save_stats(self, stats):
+        # if pgid appears with different ver_id, delete it from the saved reference
+        to_delete = []
+        if 'ver_id' in self.ref:
+            for pg_id in self.ref['ver_id']:
+                if pg_id in stats['ver_id']:
+                    if self.ref['ver_id'][pg_id] != stats['ver_id'][pg_id]:
+                        to_delete.append(pg_id)
+        else:
+            self.ref['ver_id'] = {}
+
+        for del_id in to_delete:
+            try:
+                del self.ref['flow_stats'][int(del_id)]
+            except:
+                pass
+            try:
+                del self.ref['latency'][int(del_id)]
+            except:
+                pass
+
+        self.ref['ver_id'].update(stats['ver_id'])
+
         self.last = copy.deepcopy(stats)
-        for pg_id in self.ref['flow_stats']:
-            if pg_id not in stats['flow_stats']:
-                del self.ref['flow_stats'][pd_id]
+
+        # update total_max
+        if 'latency' in self.ref and 'latency' in self.last:
+            for pg_id in self.ref['latency']:
+                if 'latency' in self.ref['latency'][pg_id] and pg_id in self.last['latency']:
+                    if 'total_max' in self.ref['latency'][pg_id]['latency']:
+                        if self.last['latency'][pg_id]['latency']['last_max'] > self.ref['latency'][pg_id]['latency']['total_max']:
+                            self.ref['latency'][pg_id]['latency']['total_max'] = self.last['latency'][pg_id]['latency']['last_max']
+                    else:
+                        self.ref['latency'][pg_id]['latency']['total_max'] = self._get(stats, ['latency', pg_id, 'latency', 'total_max'], default=0)
+                    self.last['latency'][pg_id]['latency']['total_max'] = self.ref['latency'][pg_id]['latency']['total_max']
 
 
 if __name__ == "__main__":

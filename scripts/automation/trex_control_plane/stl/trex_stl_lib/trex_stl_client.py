@@ -598,7 +598,7 @@ class STLClient(object):
 
         self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
 
-        self.pg_id_stats = trex_stl_stats.CPgIdStats()
+        self.pgid_stats = trex_stl_stats.CPgIdStats()
 
         self.util_stats = trex_stl_stats.CUtilStats(self)
 
@@ -610,7 +610,9 @@ class STLClient(object):
                                                                  self.latency_stats,
                                                                  self.util_stats,
                                                                  self.xstats,
-                                                                 self.conn.async.monitor)
+                                                                 self.conn.async.monitor,
+                                                                 self.pgid_stats,
+                                                                 self)
         
         self.psv = PortStateValidator(self)
         
@@ -706,7 +708,7 @@ class STLClient(object):
         for port_id in port_id_list:
             rc.add(self.ports[port_id].remove_all_streams())
 
-        self.pg_id_stats.reset()
+        self.pgid_stats.reset()
 
         return rc
 
@@ -943,6 +945,9 @@ class STLClient(object):
         rc = self.conn.sync()
         if not rc:
             return rc
+
+        self.get_pgid_stats()
+        self.pgid_stats.clear_stats()
         
         return RC_OK()
 
@@ -960,7 +965,7 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pg_id_stats):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pgid_stats):
 
         # we must be sync with the server
         self.conn.barrier()
@@ -971,6 +976,7 @@ class STLClient(object):
         if clear_global:
             self.global_stats.clear_stats()
 
+            # ??? remove
         if clear_flow_stats:
             self.flow_stats.clear_stats()
 
@@ -980,8 +986,9 @@ class STLClient(object):
         if clear_xstats:
             self.xstats.clear_stats()
 
-        if clear_pg_id_stats:
-            self.pg_id_stats.clear_stats()
+        if clear_pgid_stats:
+            self.pgid_stats.clear_stats()
+            self.stats_generator.clear_stats()
 
         self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -990,6 +997,10 @@ class STLClient(object):
 
     # get stats
     def __get_stats (self, port_id_list):
+        pgid_stats = self.get_pgid_stats()
+        if not pgid_stats:
+            raise STLError(pgid_stats)
+
         stats = {}
 
         stats['global'] = self.global_stats.get_stats()
@@ -1007,8 +1018,14 @@ class STLClient(object):
 
         stats['total'] = total
 
-        stats['flow_stats'] = self.flow_stats.get_stats()
-        stats['latency'] = self.latency_stats.get_stats()
+        if 'flow_stats' in pgid_stats:
+            stats['flow_stats'] = pgid_stats['flow_stats']
+        else:
+            stats['flow_stats'] = {}
+        if 'latency' in pgid_stats:
+            stats['latency'] = pgid_stats['latency']
+        else:
+            stats['latency'] = {}
 
         return stats
 
@@ -1627,7 +1644,6 @@ class STLClient(object):
         if not type(sync_now) is bool:
             raise STLArgumentError('sync_now', sync_now)
 
-            
         # if the user requested a barrier - use it
         if sync_now:
             rc = self.conn.barrier()
@@ -2247,14 +2263,16 @@ class STLClient(object):
 
         # translate json 'latency' to python API 'latency'
         new = {}
+        if 'ver_id' in ans_dict and ans_dict['ver_id'] is not None:
+            new['ver_id'] = ans_dict['ver_id']
+        else:
+            new['ver_id'] = {}
+
         if 'latency' in ans_dict.keys() and ans_dict['latency'] is not None:
             new['latency'] = {}
-            if 'g' in ans_dict['latency'].keys():
-                new['latency']['global'] = ans_dict['latency']['g']
-            else:
-                new['latency']['global'] = {}
-                for key in j_to_p_global.keys():
-                    new['latency']['global'][j_to_p_global[key]] = 0
+            new['latency']['global'] = {}
+            for key in j_to_p_global.keys():
+                new['latency']['global'][j_to_p_global[key]] = 0
             for pg_id in ans_dict['latency']:
                 # 'g' value is not a number
                 try:
@@ -2299,42 +2317,58 @@ class STLClient(object):
             new['flow_stats'] = {}
             new['flow_stats']['global'] = {}
 
-            if 'g' in ans_dict['flow_stats']:
-                for field in j_to_p_g_f_err.keys():
-                    if field in ans_dict['flow_stats']['g']:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
-                    else:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = 0
-            else:
-                for field in j_to_p_g_f_err.keys():
-                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = 0
-
+            all_ports = []
             for pg_id in ans_dict['flow_stats']:
+                # do this only once
+                if all_ports == []:
+                    # if field does not exist, we don't know which ports we have. We assume 'tp' will always exist
+                    for port in ans_dict['flow_stats'][pg_id]['tp']:
+                        all_ports.append(int(port))
+
                 # 'g' value is not a number
                 try:
                     int_pg_id = int(pg_id)
                 except:
                     continue
                 new['flow_stats'][int_pg_id] = {}
-                for field in ans_dict['flow_stats'][pg_id]:
+                for field in j_to_p_f_stat.keys():
                     new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
                     #translate ports to integers
                     total = 0
-                    for port in ans_dict['flow_stats'][pg_id][field]:
-                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = ans_dict['flow_stats'][pg_id][field][port]
-                        total += new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)]
-                    new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = total
+                    if field in ans_dict['flow_stats'][pg_id]:
+                        for port in ans_dict['flow_stats'][pg_id][field]:
+                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = ans_dict['flow_stats'][pg_id][field][port]
+                            total += new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)]
+                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = total
+                    else:
+                        for port in all_ports:
+                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = StatNotAvailable(j_to_p_f_stat[field])
+                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = StatNotAvailable('total')
                 new['flow_stats'][int_pg_id]['rx_bps_l1'] = {}
                 new['flow_stats'][int_pg_id]['tx_bps_l1'] = {}
-                for field in new['flow_stats'][int_pg_id]['rx_pkts']:
+                for port in new['flow_stats'][int_pg_id]['rx_pkts']:
                     # L1 overhead is 20 bytes per packet
-                    new['flow_stats'][int_pg_id]['rx_bps_l1'][field] = float(new['flow_stats'][int_pg_id]['rx_bps'][field]) + float(new['flow_stats'][int_pg_id]['rx_pps'][int(port)]) * 20 * 8
-                    new['flow_stats'][int_pg_id]['tx_bps_l1'][field] = float(new['flow_stats'][int_pg_id]['tx_bps'][field]) + float(new['flow_stats'][int_pg_id]['tx_pps'][int(port)]) * 20 * 8
+                    new['flow_stats'][int_pg_id]['rx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['rx_bps'][port]) + float(new['flow_stats'][int_pg_id]['rx_pps'][port]) * 20 * 8
+                    new['flow_stats'][int_pg_id]['tx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['tx_bps'][port]) + float(new['flow_stats'][int_pg_id]['tx_pps'][port]) * 20 * 8
+
+            if 'g' in ans_dict['flow_stats']:
+                for field in j_to_p_g_f_err.keys():
+                    if field in ans_dict['flow_stats']['g']:
+                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
+                    else:
+                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
+                        for port in all_ports:
+                            new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
+            else:
+                for field in j_to_p_g_f_err.keys():
+                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
+                    for port in all_ports:
+                        new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
 
 
-        self.pg_id_stats.save_stats(new)
+        self.pgid_stats.save_stats(new)
 
-        return self.pg_id_stats.get_stats()
+        return self.pgid_stats.get_stats()
 
     @__api_check(True)
     def get_util_stats(self):
@@ -3257,7 +3291,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True, clear_pg_id_stats = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True, clear_pgid_stats = True):
         """
             Clear stats on port(s)
 
@@ -3289,7 +3323,7 @@ class STLClient(object):
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
 
-        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pg_id_stats)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pgid_stats)
         if not rc:
             raise STLError(rc)
 

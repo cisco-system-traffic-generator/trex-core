@@ -301,17 +301,19 @@ class CFlowStatUserIdInfo {
     void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
         update_vals(val, m_rx_cntr[port], is_last, time, freq);
     }
-    rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port] + m_rx_cntr_base[port];}
+    rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port];}
     void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
         update_vals(val, m_tx_cntr[port], is_last, time, freq);
     }
-    tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port] + m_tx_cntr_base[port];}
+    tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port];}
     float get_rx_bps(uint8_t port) {return m_rx_cntr[port].get_b_rate();};
     float get_rx_pps(uint8_t port) {return m_rx_cntr[port].get_p_rate();};
     float get_tx_bps(uint8_t port) {return m_tx_cntr[port].get_b_rate();};
     float get_tx_pps(uint8_t port) {return m_tx_cntr[port].get_p_rate();};
     void set_hw_id(uint16_t hw_id) {m_hw_id = hw_id;}
     uint16_t get_hw_id() {return m_hw_id;}
+    void set_ver_id(uint32_t id) {m_ver_id = id;}
+    uint32_t get_ver_id() {return m_ver_id;}
     virtual void reset_hw_id();
     bool is_hw_id() {return (m_hw_id != UINT16_MAX);}
     uint16_t get_l3_proto() {return m_l3_proto;}
@@ -323,13 +325,6 @@ class CFlowStatUserIdInfo {
     void add_started_stream() {m_trans_ref_count++;}
     int stop_started_stream() {m_trans_ref_count--; return m_trans_ref_count;}
     bool is_started() {return (m_trans_ref_count != 0);}
-    //todo:remove all need_to_send related when getting rid of old interface
-    bool need_to_send_rx(uint8_t port) {return m_rx_changed[port];}
-    bool need_to_send_tx(uint8_t port) {return m_tx_changed[port];}
-    void set_no_need_to_send_rx(uint8_t port) {m_rx_changed[port] = false;}
-    void set_no_need_to_send_tx(uint8_t port) {m_tx_changed[port] = false;}
-    void set_need_to_send_rx(uint8_t port) {m_rx_changed[port] = true;}
-    void set_need_to_send_tx(uint8_t port) {m_tx_changed[port] = true;}
     bool was_sent() {return m_was_sent == true;}
     void set_was_sent(bool val) {m_was_sent = val;}
     bool rfc2544_support() {return m_rfc2544_support;}
@@ -343,22 +338,18 @@ class CFlowStatUserIdInfo {
     uint16_t m_hw_id;     // Associated hw id. UINT16_MAX if no associated hw id.
 
  private:
-    bool m_rx_changed[TREX_MAX_PORTS]; // Which RX counters changed since we last published
-    bool m_tx_changed[TREX_MAX_PORTS]; // Which TX counters changed since we last published
     // How many packets received with this user id since stream start
     rx_per_flow_with_rate_t m_rx_cntr[TREX_MAX_PORTS];
-    // How many packets received with this user id, since stream creation, before stream start.
-    rx_per_flow_t m_rx_cntr_base[TREX_MAX_PORTS];
      // How many packets transmitted with this user id since stream start
     tx_per_flow_with_rate_t m_tx_cntr[TREX_MAX_PORTS];
-    // How many packets transmitted with this user id, since stream creation, before stream start.
-    tx_per_flow_t m_tx_cntr_base[TREX_MAX_PORTS];
     uint16_t m_l3_proto;      // L3 protocol (IPv4, IPv6), associated with this user id.
     uint8_t m_l4_proto;      // L4 protocol (UDP, TCP, other), associated with this user id.
     uint8_t m_ipv6_next_h;   // In case of IPv6, what is the type of the first extension header
     uint8_t m_ref_count;  // How many streams with this user id exists
     uint8_t m_trans_ref_count;  // How many streams with this user id currently transmit
     bool m_was_sent; // Did we send this info to clients once?
+    // id we assign to each flow, so we can tell in the client if it was deleted and added again with same hw_id
+    uint32_t m_ver_id;
 };
 
 typedef std::map<uint32_t, class CFlowStatUserIdInfo *> flow_stat_user_id_map_t;
@@ -373,11 +364,6 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
 
     void clear() {
         m_rfc2544_info.clear();
-        m_seq_err_base = 0;
-        m_out_of_order_base = 0;
-        m_dup_base = 0;
-        m_seq_err_ev_big_base = 0;
-        m_seq_err_ev_low_base = 0;
     }
     inline void get_latency_json(Json::Value & json) const {
         json = m_rfc2544_info.m_latency;
@@ -404,7 +390,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline uint64_t get_seq_err_cnt() const {
-        return m_rfc2544_info.m_seq_err + m_seq_err_base;
+        return m_rfc2544_info.m_seq_err;
     }
 
     inline void set_ooo_cnt(uint64_t cnt) {
@@ -412,7 +398,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline uint64_t get_ooo_cnt() const {
-        return m_rfc2544_info.m_out_of_order + m_out_of_order_base;
+        return m_rfc2544_info.m_out_of_order;
     }
 
     inline void set_dup_cnt(uint64_t cnt) {
@@ -420,7 +406,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline uint64_t get_dup_cnt() const {
-        return m_rfc2544_info.m_dup + m_dup_base;
+        return m_rfc2544_info.m_dup;
     }
 
     inline void set_seq_err_big_cnt(uint64_t cnt) {
@@ -428,7 +414,7 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline uint64_t get_seq_err_big_cnt() const {
-        return m_rfc2544_info.m_seq_err_ev_big + m_seq_err_ev_big_base;
+        return m_rfc2544_info.m_seq_err_ev_big;
     }
 
     inline void set_seq_err_low_cnt(uint64_t cnt) {
@@ -436,17 +422,12 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
     }
 
     inline uint64_t get_seq_err_low_cnt() const {
-        return m_rfc2544_info.m_seq_err_ev_low + m_seq_err_ev_low_base;
+        return m_rfc2544_info.m_seq_err_ev_low;
     }
 
     inline void reset_hw_id();
  private:
     rfc2544_info_t m_rfc2544_info;
-    uint64_t m_seq_err_base;
-    uint64_t m_out_of_order_base;
-    uint64_t m_dup_base;
-    uint64_t m_seq_err_ev_big_base;
-    uint64_t m_seq_err_ev_low_base;
 };
 
 class CFlowStatUserIdMap {
@@ -469,6 +450,7 @@ class CFlowStatUserIdMap {
     flow_stat_user_id_map_it_t end() {return m_map.end();}
  private:
     flow_stat_user_id_map_t m_map;
+    uint32_t m_ver_id_pool;
 };
 
 class CFlowStatHwIdMap {
@@ -520,8 +502,7 @@ class CFlowStatRuleMgr {
     int get_max_hw_id() {return m_max_hw_id;}
     int get_max_hw_id_payload() {return m_max_hw_id_payload;}
     void update_counters();
-    bool dump_json(std::string & s_json, std::string & l_json, bool baseline, bool send_all);
-    bool dump_json_new(Json::Value &json, std::vector<uint32> pgids);
+    bool dump_json(Json::Value &json, std::vector<uint32> pgids);
 
  private:
     CFlowStatRuleMgr();

@@ -222,7 +222,7 @@ class TrexTUIStreamsStats(TrexTUIPanel):
         return self.key_actions 
 
     def action_clear (self):
-         self.stateless_client.flow_stats.clear_stats()
+         self.stateless_client.pgid_stats.clear_stats()
 
          return ""
 
@@ -258,7 +258,8 @@ class TrexTUILatencyStats(TrexTUIPanel):
         return ""
 
     def action_clear (self):
-         self.stateless_client.latency_stats.clear_stats()
+         self.stateless_client.pgid_stats.clear_stats()
+         self.stateless_client.clear_stats()
          return ""
 
 
