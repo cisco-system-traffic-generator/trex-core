@@ -62,9 +62,9 @@ class BatchMessage(object):
 class JsonRpcClient(object):
 
     def __init__ (self, default_server, default_port, client):
-        self.client_api = client.api_h
-        self.logger = client.logger
-        self.connected = False
+        self.get_api_h   = client._get_api_h
+        self.logger      = client.logger
+        self.connected   = False
 
         # default values
         self.port   = default_port
@@ -121,7 +121,7 @@ class JsonRpcClient(object):
 
         # if this RPC has an API class - add it's handler
         if api_class:
-            msg["params"]["api_h"] = self.client_api[api_class]
+            msg["params"]["api_h"] = self.get_api_h()[api_class]
         
 
         if encode:

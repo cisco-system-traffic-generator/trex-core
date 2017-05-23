@@ -87,30 +87,32 @@ public:
 
     std::string & verify_api(int major, int minor) {
         std::stringstream ss;
-        ss << "API type '" << type_to_name(m_type) << "': ";
-
+        
         assert(m_type < API_CLASS_TYPE_MAX);
 
         bool fail = false;
 
         /* for now a simple major check */
         if (major < m_major) {
-            ss << "server has a newer major API version";
+            ss << "Version mismatch: a newer client version is required";
             fail = true;
         }
 
         if (major > m_major) {
-            ss << "server has an older major API version";
+            ss << "Version mismatch: your client version is too new to be supported by the server";
             fail = true;
         }
 
         if (minor > m_minor) {
-            ss << "client revision API is newer than server";
+            ss << "Version mismatch: your client version is too new to be supported by the server";
             fail = true;
         }
 
         if (fail) {
-            ss <<  " - server: '" << get_server_ver() << "', client: '" << ver(major, minor) << "'";
+            ss << "\n(";
+            ss <<  "API type '" << type_to_name(m_type) << "': "" - server: '" << get_server_ver() << "', client: '" << ver(major, minor) << "'";
+            ss << ")";
+            
             throw TrexAPIException(ss.str());
         }
 

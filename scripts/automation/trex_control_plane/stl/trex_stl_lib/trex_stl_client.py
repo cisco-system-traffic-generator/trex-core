@@ -564,11 +564,7 @@ class STLClient(object):
         self.server_version = {}
         self.system_info = {}
         self.session_id = random.getrandbits(32)
-        
-        # API classes
-        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 2 } ]
-        self.api_h = {'core': None}
-
+     
         # logger
         self.logger = DefaultLogger() if not logger else logger
 
@@ -617,7 +613,6 @@ class STLClient(object):
                                                                  self.conn.async.monitor)
         
         self.psv = PortStateValidator(self)
-        
         
         
     ############# private functions - used by the class itself ###########
@@ -899,23 +894,12 @@ class STLClient(object):
         rc = self.conn.connect()
         if not rc:
             return rc
-        
-                
-        # API sync
-        rc = self._transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
-        if not rc:
-            return rc
-
-        # decode
-        for api in rc.data()['api_vers']:
-            self.api_h[ api['type'] ] = api['api_h']
-
-
+ 
         # version
         rc = self._transmit("get_version")
         if not rc:
             return rc
-
+            
         self.server_version = rc.data()
         self.global_stats.server_version = rc.data()
         
@@ -1065,6 +1049,11 @@ class STLClient(object):
 
     ############ functions used by other classes but not users ##############
 
+    # fetch the API Handlers from the connection object
+    def _get_api_h (self):
+        return self.conn.get_api_h()
+
+        
     def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
         if isinstance(port_id_list, int):

@@ -87,7 +87,10 @@ class Connection(object):
         self.conn_info             = conn_info
         self.logger                = logger
         self.sigint_on_conn_lost   = False
-        
+
+        # API classes
+        self.api_vers = [ {'type': 'core', 'major': 3, 'minor': 2 } ]
+
         # low level RPC layer
         self.rpc = CCommLink(self.conn_info['server'],
                              self.conn_info['sync_port'],
@@ -103,8 +106,9 @@ class Connection(object):
         self.conn_info  = conn_info
 
         # init state
-        self.state = (self.DISCONNECTED, None)
-
+        self.state   = (self.DISCONNECTED, None)
+        self.api_h   = {'core': None}
+        
 
     def disconnect (self):
         '''
@@ -117,7 +121,8 @@ class Connection(object):
 
         finally:
             self.state = (self.DISCONNECTED, None)
-
+            self.api_h = {'core': None}
+            
 
     def connect (self):
         '''
@@ -135,6 +140,13 @@ class Connection(object):
 
         return rc
 
+        
+    def get_api_h (self):
+        '''
+            return the API handlers for each component
+        '''
+        return self.api_h
+        
         
     def barrier (self):
         '''
@@ -224,13 +236,19 @@ class Connection(object):
         if not rc:
             return rc
 
-        # test the RPC connection using a 'ping' command
-        rc = self.rpc.transmit('ping', api_class = None)
-        self.logger.post_cmd(rc)
 
+        # API sync
+        rc = self.rpc.transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
+        self.logger.post_cmd(rc)
+        
         if not rc:
             return rc
-
+        
+        
+        # get the API_H
+        for api in rc.data()['api_vers']:
+            self.api_h[ api['type'] ] = api['api_h']
+            
 
         # connect async channel
         self.logger.pre_cmd("Connecting to publisher server on {0}:{1}".format(self.conn_info['server'], self.conn_info['async_port']))
