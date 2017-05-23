@@ -116,7 +116,7 @@ As the output file shows...
 - TRex generates a new flow every 1 sec.
 - Client IP values are taken from client IP pool .
 - Servers IP values are taken from server IP pool .
-- IPG (iter packet gap) values are taken from the configuration file (10 msec).
+- IPG (inter packet gap) values are taken from the configuration file (10 msec).
 
 
 [NOTE] 
