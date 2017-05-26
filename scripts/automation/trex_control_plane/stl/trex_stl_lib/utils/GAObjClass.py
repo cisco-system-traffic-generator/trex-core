@@ -29,7 +29,8 @@ No single hit payload can be greater than 8K bytes.
 url_single = 'https://www.google-analytics.com/collect'  # sending single event
 url_batched = 'https://www.google-analytics.com/batch'  # sending batched events
 url_debug = 'https://www.google-analytics.com/debug/collect'  # verifying hit is valid
-url_conn = 'http://172.217.2.196'  # testing internet connection to this address (google-analytics server)
+#url_conn = 'http://172.217.2.196'  # testing internet connection to this address (google-analytics server)
+url_conn = 'http://google.com'
 
 
 # ..................................................................class GA_ObjClass................................................................
