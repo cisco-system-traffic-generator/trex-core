@@ -119,7 +119,8 @@ static void _callstack_signal_handler(int signr, siginfo_t *info, void *secret) 
     std::string backtrace = Backtrace();
     ss << "\n\n*** traceback follows ***\n\n" << backtrace << "\n";
 
-    throw std::runtime_error(ss.str());
+    /* best effort abort - might get stuck in rare cases but does not matter - the watchdog thread will abort eventually */
+    abort_gracefully(ss.str(), ss.str());
 }
 
 
@@ -150,10 +151,9 @@ extern "C" {
         
         /* a bit shorter version */
         std::string publish_cause = "assert: " + std::string(__file) + ":" + std::to_string(__line) +  " Assertion '" + std::string(__assertion) + "' failed.";
-        publish_assert_cause(publish_cause);
         
-        
-        throw std::runtime_error(ss.str());
+        /* abort with messages */
+        abort_gracefully(ss.str(), publish_cause);
     }
 
 }

@@ -196,7 +196,10 @@ protected:
  * @return TrexStateless& 
  */
 TrexStateless *     get_stateless_obj();
-void                publish_assert_cause(const std::string &cause);
+
+void                abort_gracefully(const std::string &on_stdout,
+                                     const std::string &on_publisher) __attribute__ ((__noreturn__));
+
 CRxCoreStateless *  get_rx_sl_core_obj();
 
 #endif /* __TREX_STATELESS_H__ */

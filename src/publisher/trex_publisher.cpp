@@ -74,16 +74,17 @@ TrexPublisher::Create(uint16_t port, bool disable){
 
 
 void 
-TrexPublisher::Delete(){
+TrexPublisher::Delete(int timeout_sec) {
 
     m_is_connected = false;
     
     if (m_publisher) {
 
-        /* before calling zmq_close set the linger property to zero
+        /* before calling zmq_close set the linger property to the specific timeout in seconds
+           by the default the value is zero (do not wait)
            (othersie zmq_ctx_destroy might hang forever)
          */
-        int val = 0;
+        int val = timeout_sec;
         zmq_setsockopt(m_publisher, ZMQ_LINGER, &val, sizeof(val));
 
         zmq_close (m_publisher);
@@ -152,7 +153,6 @@ TrexPublisher::publish_barrier(uint32_t key) {
     s = writer.write(value);
     publish_json(s);
 }
-
 
 /**
  * error handling

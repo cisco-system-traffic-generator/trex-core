@@ -38,7 +38,7 @@ public:
     virtual ~TrexPublisher() {}
 
     virtual bool Create(uint16_t port, bool disable);
-    virtual void Delete();
+    virtual void Delete(int timeout_sec = 0);
     virtual void publish_json(const std::string &s, uint32_t zip_threshold = MSG_COMPRESS_THRESHOLD);
 
     enum event_type_e {

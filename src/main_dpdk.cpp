@@ -3295,7 +3295,8 @@ public:
     void rx_sl_configure();
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
-    void publish_assert_cause(const std::string &cause);
+    void abort_gracefully(const std::string &on_stdout,
+                          const std::string &on_publisher) __attribute__ ((__noreturn__));
     
     /**
      * mark for shutdown
@@ -3670,28 +3671,39 @@ void CGlobalTRex::pre_test() {
 
 
 /**
- * handle an assert when in stateless mode 
- * this routine will try to safely publish over ZMQ 
- * the assert cause 
+ * handle an abort 
+ *  
+ * when in stateless mode this routine will try to safely 
+ * publish over ZMQ the assert cause 
  *  
  * *BEWARE* - this function should be thread safe 
  *            as any thread can call assert 
  */
 void
-CGlobalTRex::publish_assert_cause(const std::string &cause) {
+CGlobalTRex::abort_gracefully(const std::string &on_stdout,
+                              const std::string &on_publisher) {
 
+    /* first to stdout */
+    std::cout << on_stdout << "\n";
+    
     /* assert might be before the ZMQ publisher was connected */
-    if (!m_zmq_publisher.is_connected()) {
-        return;
+    if (m_zmq_publisher.is_connected()) {
+    
+        /* generate the data */
+        Json::Value data;
+        data["cause"] = on_publisher;
+    
+        /* if this is the control plane thread - acquire the lock again (recursive), if it is dataplane - hold up */
+        std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);        
+        m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
+    
+        /* close the publisher gracefully to ensure message was delivered */
+        m_zmq_publisher.Delete(2);
     }
     
-    /* generate the data */
-    Json::Value data;
-    data["cause"] = cause;
     
-    /* if this is the control plane thread - acquire the lock again (recursive), if it is dataplane - hold up */
-    std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);        
-    m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
+    /* so long... */
+    abort();
 }
 
 
@@ -5461,11 +5473,13 @@ TrexStateless * get_stateless_obj() {
 }
 
 /**
- * when an assert occurs, we try to publish an event
+ * handles an abort
  * 
  */
-void publish_assert_cause(const std::string &cause) {
-    g_trex.publish_assert_cause(cause);
+void abort_gracefully(const std::string &on_stdout,
+                      const std::string &on_publisher) {
+    
+    g_trex.abort_gracefully(on_stdout, on_publisher);
 }
 
 
