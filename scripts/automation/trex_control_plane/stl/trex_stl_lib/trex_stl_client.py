@@ -2243,15 +2243,34 @@ class STLClient(object):
         if not isinstance(pgid_list, list):
             pgid_list = [pgid_list]
 
-        # remove streams
-        self.logger.pre_cmd( "Getting statistics for packet group ids {0}".format(pgid_list))
-        rc = self._transmit("get_pgid_stats", params = {'pgids': pgid_list})
-        self.logger.post_cmd(rc)
+        if pgid_list == []:
+            active_pgids = self.get_active_pgids()
+            pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
 
-        if not rc:
-            raise STLError(rc)
+        # Should not exceed MAX_ALLOWED_PGID_LIST_LEN from flow_stat.cpp
+        max_pgid_in_query = 1024 + 128
+        pgid_list_len = len(pgid_list)
+        index = 0
+        ans_dict = {}
 
-        ans_dict = rc.data()
+        while index <= pgid_list_len:
+            curr_pgid_list = pgid_list[index : index + max_pgid_in_query]
+            index += max_pgid_in_query
+            self.logger.pre_cmd( "Getting statistics for packet group ids {0}".format(curr_pgid_list))
+            rc = self._transmit("get_pgid_stats", params = {'pgids': curr_pgid_list})
+            self.logger.post_cmd(rc)
+
+            if not rc:
+                raise STLError(rc)
+
+            for key in rc.data().keys():
+                if key in ans_dict:
+                    try:
+                        ans_dict[key].update(rc.data()[key])
+                    except:
+                        pass
+                else:
+                    ans_dict[key] = rc.data()[key]
 
         # translation from json values to python API names
         j_to_p_lat = {'jit': 'jitter', 'average':'average', 'total_max': 'total_max', 'last_max':'last_max'}
