@@ -96,6 +96,12 @@ void CTimeHistogram::update() {
     CTimeHistogramPerPeriodData &period_elem = m_period_data[m_period];
     uint8_t new_period;
 
+    // In case of two very fast reads, we do not want period with no
+    // elements to influence the count. Also, when stream is stopped,
+    // we want to preserve last values
+    if (period_elem.get_cnt() == 0)
+        return;
+
     if (m_period == 0) {
         new_period = 1;
     } else {
@@ -122,13 +128,11 @@ void CTimeHistogram::update() {
 void  CTimeHistogram::update_average(CTimeHistogramPerPeriodData &period_elem) {
     double c_average;
 
-    if (period_elem.get_cnt() != 0)
+    if (period_elem.get_cnt() != 0) {
         c_average = period_elem.get_sum() / period_elem.get_cnt();
-    else
-        c_average = 0;
-
-    // low pass filter
-    m_average = 0.5 * m_average + 0.5 * c_average;
+        // low pass filter
+        m_average = 0.5 * m_average + 0.5 * c_average;
+    }
 }
 
 dsec_t  CTimeHistogram::get_average_latency() {
