@@ -1752,7 +1752,9 @@ based routes to pass all traffic from one DUT port to the other. +
     Since version 2.21. +
     Do not configure any hardware rules. In this mode, all RX packets will be processed by software. No HW assist for dropping (while counting) packets will be used.
     This mode is good for enabling features like link:trex_stateless.html#_tutorial_per_stream_statistics[per stream statistics], and
-    link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[latency], support packet types, not supported by HW flow director rules (For example QinQ).
+    link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[latency], support packet types, not supported by HW flow director rules (For example QinQ). +
+    You can also use this mode for running TRex on interfaces which manifest themselves as ones supported by TRex, but in reality support less hardware capabilities.
+    For example, NICs supported by DPDK e1000_igb driver, but with different HW capabilities than i350. +
     Drawback of this is that because software has to handle all received packets, total rate of RX streams is significantly lower.
     Currently, this mode is also limited to using only one TX core (and one RX core as usual).
 

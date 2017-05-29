@@ -72,9 +72,11 @@ Limitations:
 2. Using vSwitch will limit the maximum PPS to around 1MPPS.
 3. Latency results will not be accurate.
           
-==== Why not all DPDK supported NICs supported by TRex?
+==== Which NICs are supported / Why not all DPDK supported NICs supported by TRex?
 1. We are using specific NIC features. Not all the NICs have the capabilities we need.
 2. We have regression tests in our lab for each recommended NIC. We do not claim to support NICs we do not have in our lab.
+You can find the list of supported NICs link:trex_manual.html#_hardware_recommendations[here]. Look for ``Supported NIcs'' table. +
+Notice that some unsupported NICs can also be used using --software command line argument. See more details link:trex_manual.html#_command_line_options[here].
 
 ==== Is Cisco VIC supported?
 Yes. Since version 2.12, with link:trex_manual.html#_cisco_vic_support[these limitations]. Especially note that
@@ -85,11 +87,8 @@ Mellanox Connect4 is supported. Connect 3 and 5 still have issues (WIP to fix).
 Support for FM10K is under development.
 
 ==== Is there a GUI?
-TRex team is not developing it.
-You can find GUI for statless mode developed by Exalt/XORED company in 
-link:https://github.com/exalt-tech/trex-stateless-gui#trex-stateless-gui-beta[this link]. +
-There is also work in progress for packet editor (not released yet) in link:https://github.com/cisco-system-traffic-generator/trex-packet-editor[here]. +
-New stateless GUI features are developed in link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here]. v3.1.1 was released 
+Yes. It is developed by a different team, and is also open source. +
+You can find GUI for stateless mode and packet editor link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here].
 
 ==== What is the maximum number of ports per TRex application?
 16 ports
