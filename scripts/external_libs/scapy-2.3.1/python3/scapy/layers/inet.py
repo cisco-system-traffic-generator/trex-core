@@ -277,7 +277,7 @@ class TCPOptionsField(StrField):
                     onum = TCPOptions[1][oname]
                     ofmt = TCPOptions[0][onum][1]
                     if onum == 5: #SAck
-                        ofmt += b"%iI" % len(oval)
+                        ofmt += "%iI" % len(oval)
                     if ofmt is not None and (type(oval) is not str or "s" in ofmt):
                         if type(oval) is not tuple:
                             oval = (oval,)
