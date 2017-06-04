@@ -137,6 +137,16 @@ class NdrBenchConfig:
     def load_yaml(self, filename):
         pass
 
+    def config_to_dict(self):
+        config_dict = {'iteration_duration': self.iteration_duration, 'q_ful_resolution': self.q_ful_resolution,
+                       'first_run_duration': self.first_run_duration, 'pdr': self.pdr, 'pdr_error': self.pdr_error,
+                       'ndr_results': self.ndr_results, 'max_iterations': self.max_iterations,
+                       'core_mask': self.core_mask,
+                       'latencyCalculation': self.latencyCalculation, 'ports': self.ports,
+                       'drop_rate_interval': self.drop_rate_interval, 'pkt_size': self.pkt_size, 'vm': self.vm,
+                       'cores': self.cores}
+        return config_dict
+
 
 class NdrBenchResults:
     def __init__(self, config=None, results={}):
@@ -180,7 +190,7 @@ class NdrBenchResults:
     def print_run_stats(self, latency):
         print("Elapsed Time                      :%0.2f seconds" % (float(time.time()) - self.init_time))
         print("Queue Full                        :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
-        print("BW Per Core                       :%s " % self.convert_rate(float(self.stats['bw_per_core'])))
+        print("BW Per Core                       :%0.2f Gbit/Sec @100%% per core" % float(self.stats['bw_per_core']))
         print("RX PPS                            :%s       " % self.convert_rate(float(self.stats['rx_pps']), True))
         print("TX PPS                            :%s       " % self.convert_rate(float(self.stats['tx_pps']), True))
         print("TX Utilization                    :%0.2f %%" % self.stats['tx_util'])
@@ -232,7 +242,8 @@ class NdrBenchResults:
         print("Assuming initial no-Drop-Rate     :%s" % self.convert_rate(self.stats['assumed_drop_rate']))
 
     def to_json(self):
-        return json.dumps(self.stats)
+        total_output = {'results': self.stats, 'config': self.config.config_to_dict()}
+        return json.dumps(total_output)
 
     @staticmethod
     def print_state(state, high_bound, low_bound):
@@ -383,7 +394,7 @@ class NdrBench:
             if self.config.verbose:
                 self.results.print_state("NDR may be found at max rate, running extra iteration for validation", None,
                                          None)
-            self.results.update(self.perf_run_interval(100.00, 100.00))
+            self.results.update(self.perf_run_interval(100.00, 99.00))
         ndr_res = [self.results.stats['rate_tx_bps']]
         if self.config.ndr_results > 1:
             ndr_range = range(1, self.config.ndr_results + 1, 1)
