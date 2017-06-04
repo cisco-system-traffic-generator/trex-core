@@ -1,7 +1,7 @@
 # from __future__ import division
 import stl_path
 from trex_stl_lib.api import *
-
+import yaml as yml
 from pprint import pprint
 import argparse
 import sys
@@ -32,7 +32,17 @@ def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, 
 def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, title, first_run_duration, verbose,
                        pdr_error, q_ful_resolution, latency, vm, pkt_size, fe_src_start_ip,
                        fe_src_stop_ip, fe_dst_start_ip, fe_dst_stop_ip, drop_rate_interval, output, ports_list,
-                       latency_rate, max_iterations):
+                       latency_rate, max_iterations, yaml):
+    config_dict = {}
+    configs = {'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
+                    'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
+                    'pdr_error': pdr_error, 'title': title,
+                    'q_ful_resolution': q_ful_resolution, 'latency': latency,
+                    'vm': vm, 'pkt_size': pkt_size,
+                    'ports': ports_list, 'latency_rate': latency_rate, 'max_iterations': max_iterations,
+                    'drop rate interval': drop_rate_interval, 'fe_src_start_ip': fe_src_start_ip,
+                    'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
+                    'fe_dst_stop_ip': fe_dst_stop_ip}
     passed = True
     if ports_list:
         if len(ports_list) % 2 != 0:
@@ -41,7 +51,7 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
     c = STLClient(server=server)
     # connect to server
     c.connect()
-
+    pprint(c.get_info())
     # take all the ports
     c.reset()
 
@@ -57,7 +67,7 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
         for port in table['bi']:
             ports.append(port[0])
             ports.append(port[1])
-
+    configs['ports'] = ports
     streams = build_streams_for_bench(size=pkt_size, vm=vm, src_start_ip=fe_src_start_ip, src_stop_ip=fe_src_stop_ip,
                                       dest_start_ip=fe_dst_start_ip, dest_stop_ip=fe_dst_stop_ip, direction=0)
     if latency:
@@ -81,15 +91,18 @@ def ndr_benchmark_test(server, core_mask, pdr, iteration_duration, ndr_results, 
     # add both streams to ports
     else:
         c.add_streams(streams, ports=dir_0)
-    # self.stl_client.add_streams(streams, ports=dir_1)
-    config = ndr.NdrBenchConfig(ports=ports, pkt_size=pkt_size, vm=vm, iteration_duration=iteration_duration,
-                                q_ful_resolution=q_ful_resolution,
-                                first_run_duration=first_run_duration, pdr=pdr, pdr_error=pdr_error,
-                                ndr_results=ndr_results,
-                                latency=latency, core_mask=core_mask,
-                                verbose=verbose, drop_rate_interval=drop_rate_interval, title=title,
-                                latency_rate=latency_rate, cores=c.system_info['dp_core_count_per_port'],
-                                max_iterations=max_iterations)
+    if yaml:
+        try:
+            f = open(yaml)
+            config_dict = yml.safe_load(f)
+            f.close()
+        except IOError as e:
+            print ("Error loading YAML file: %s \nExiting", e.message)
+            c.disconnect()
+            return -1
+
+    configs.update(config_dict)
+    config = ndr.NdrBenchConfig(**configs)
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
@@ -226,6 +239,8 @@ parser.add_argument('-o', '--output', dest='output',
                     type=str)
 parser.add_argument('--ports', dest='ports_list', help='specify an even list of ports for running traffic on',
                     type=int, nargs='*', default=None)
+parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\TO\YAML.yaml',
+                    type=str, default=None)
 
 args = parser.parse_args()
 
@@ -234,4 +249,4 @@ ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duratio
                    args.first_run_duration, args.verbose,
                    args.pdr_error, args.q_ful_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
                    args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip, args.drop_rate_interval, args.output,
-                   args.ports_list, args.latency_rate, args.max_iterations)
+                   args.ports_list, args.latency_rate, args.max_iterations, args.yaml)
