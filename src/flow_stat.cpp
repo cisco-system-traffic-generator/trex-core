@@ -75,6 +75,18 @@ inline std::string methodName(const std::string& prettyFunction)
     return prettyFunction.substr(begin,end) + "()";
 }
 
+void dbg_printf(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
+
+#define EXTRA_DEBUG 0
+#define DEBUG_PRINT(...) \
+    do { if (EXTRA_DEBUG) fprintf(stderr, __VA_ARGS__); } while (0);
+
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 #ifdef __DEBUG_FUNC_ENTRY__
 #define FUNC_ENTRY (std::cout << __METHOD_NAME__ << std::endl);
@@ -703,8 +715,8 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
 
     m_user_id_map.del_stream(stream->m_rx_check.m_pg_id); // Throws exception in case of error
     if (m_user_id_map.is_empty()) {
-        m_max_hw_id = 0;
-        m_max_hw_id_payload = 0;
+        m_max_hw_id = -1;
+        m_max_hw_id_payload = -1;
     }
 
     stream->m_rx_check.m_hw_id = HW_ID_INIT;
@@ -720,7 +732,7 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
 // Might change the IP ID of the stream packet
 int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << " hw id:" << stream->m_rx_check.m_hw_id << std::endl;
     stream_dump(stream);
 #endif
 
@@ -737,17 +749,20 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             compile_stream(stream, m_parser_ipid);
         } catch (TrexFStatEx) {
             // If no statistics needed, and we can't parse the stream, that's OK.
+            DEBUG_PRINT("  No rx check needed. Compilation failed - return 0\n");
             return 0;
         }
 
         uint32_t ip_id; // 32 bit, since this also supports IPv6
         if (m_parser_ipid->get_ip_id(ip_id) < 0) {
+            DEBUG_PRINT("  No rx check needed. Failed reading IP ID - return 0\n");
             return 0; // if we could not find the ip id, no need to fix
         }
         // verify no reserved IP_ID used, and change if needed
         if (ip_id >= m_ip_id_reserve_base) {
             m_parser_ipid->set_ip_id(ip_id & 0x0000efff);
         }
+        DEBUG_PRINT("  No rx check needed. - return 0\n");
         return 0;
     }
 
@@ -790,6 +805,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
         hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
+        DEBUG_PRINT("  Stream already started. pg_id:%d, hw_id:%d\n", stream->m_rx_check.m_pg_id, hw_id);
     } else {
         uint32_t user_id = stream->m_rx_check.m_pg_id;
         bool new_hw_id = false;
@@ -803,6 +819,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                 hw_id = m_hw_id_map_payload.find_free_hw_id();
             }
         }
+        DEBUG_PRINT("  pg_id:%d, hw_id:%d - %s\n", user_id, hw_id, new_hw_id ? "new": "old");
+
         if (hw_id == HW_ID_FREE) {
             throw TrexFStatEx("Failed allocating statistic counter. Probably all are used for this rule type."
                               , TrexException::T_FLOW_STAT_NO_FREE_HW_ID);
@@ -883,6 +901,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         if (m_rx_core)
             assert(m_rx_core->is_working());
     }
+    DEBUG_PRINT("  Increased num started streams to:%d\n", m_num_started_streams);
     m_num_started_streams++;
     return 0;
 }
@@ -938,8 +957,10 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     assert(p_user_id != NULL);
 
     m_num_started_streams--;
+    DEBUG_PRINT("  Decreased num started streams to:%d\n", m_num_started_streams);
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
+        DEBUG_PRINT("  Sending stop message to rx\n");
         send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
     }
 
@@ -1024,7 +1045,7 @@ void CFlowStatRuleMgr::update_counters() {
     hr_time_t now = os_get_hr_tick_64();
     hr_time_t freq = os_get_hr_freq();
 #ifdef __DEBUG_FUNC_ENTRY__
-    printf("CFlowStatRuleMgr::update_counters: time:%ld\n", now);
+    printf("CFlowStatRuleMgr::update_counters: time:%ld, max_hw_id(%d,%d)\n", now, m_max_hw_id, m_max_hw_id_payload);
 #endif
     for (uint8_t port = 0; port < m_num_ports; port++) {
         m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, 0, m_max_hw_id, false, TrexPlatformApi::IF_STAT_IPV4_ID);
@@ -1048,9 +1069,7 @@ void CFlowStatRuleMgr::update_counters() {
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_cntr(port) != tx_pkts) {
-#ifdef EXTRA_DEBUG
-                        printf("port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-#endif
+                        DEBUG_PRINT("port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
                         p_user_id->update_tx_vals(port, tx_pkts, false, now, freq);
                     }
                 } else {
@@ -1083,9 +1102,7 @@ void CFlowStatRuleMgr::update_counters() {
                 CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                 if (likely(p_user_id != NULL)) {
                     if (p_user_id->get_tx_cntr(port) != tx_pkts) {
-#ifdef EXTRA_DEBUG
-                        printf("payload - port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-#endif
+                        DEBUG_PRINT("payload - port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
                         p_user_id->update_tx_vals(port, tx_pkts, false, now, freq);
                     }
                 } else {
@@ -1102,10 +1119,7 @@ void CFlowStatRuleMgr::update_counters() {
 // s_json - flow statistics json
 // l_json - latency data json
 bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
-#ifdef __DEBUG_FUNC_ENTRY__
-    printf("CFlowStatRuleMgr::dump_json_new\n");
-#endif
-
+    FUNC_ENTRY;
     CRxCoreErrCntrs rx_err_cntrs;
     Json::FastWriter writer;
     Json::Value s_data_section;

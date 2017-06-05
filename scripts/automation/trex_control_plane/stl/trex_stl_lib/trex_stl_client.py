@@ -2338,17 +2338,18 @@ class STLClient(object):
 
             all_ports = []
             for pg_id in ans_dict['flow_stats']:
+                # 'g' value is not a number
+                try:
+                    int_pg_id = int(pg_id)
+                except:
+                    continue
+
                 # do this only once
                 if all_ports == []:
                     # if field does not exist, we don't know which ports we have. We assume 'tp' will always exist
                     for port in ans_dict['flow_stats'][pg_id]['tp']:
                         all_ports.append(int(port))
 
-                # 'g' value is not a number
-                try:
-                    int_pg_id = int(pg_id)
-                except:
-                    continue
                 new['flow_stats'][int_pg_id] = {}
                 for field in j_to_p_f_stat.keys():
                     new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
