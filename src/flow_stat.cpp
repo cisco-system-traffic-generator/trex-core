@@ -47,6 +47,7 @@ stream_del: HW_ID_INIT
 #include <iostream>
 #include <assert.h>
 #include <os_time.h>
+#include <stdarg.h>
 #include "internal_api/trex_platform_api.h"
 #include "trex_stateless.h"
 #include "trex_stateless_messaging.h"
