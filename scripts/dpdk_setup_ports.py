@@ -285,7 +285,7 @@ def compile_and_load_igb_uio():
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if not os.path.exists(km):
         print("ERROR: We don't have precompiled igb_uio.ko module for your kernel version")
-        print('Will try compiling automatically.')
+        print('Will try compiling automatically - make sure you have file-system read/write permission')
         try:
             subprocess.check_output('make', cwd = './ko/src', stderr = subprocess.STDOUT)
             subprocess.check_output(['make', 'install'], cwd = './ko/src', stderr = subprocess.STDOUT)
