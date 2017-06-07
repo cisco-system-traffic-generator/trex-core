@@ -291,7 +291,8 @@ def compile_and_load_igb_uio():
             subprocess.check_output(['make', 'install'], cwd = './ko/src', stderr = subprocess.STDOUT)
             print('\nSuccess.')
         except Exception as e:
-            print('\nAutomatic compilation failed: (%s)' % e)
+            print('\n ERROR:  Automatic compilation failed: (%s)' % e)
+            print('Make sure you have file-system read/write permission')
             print('You can try compiling yourself, using the following commands:')
             print('  $cd ko/src')
             print('  $make')
