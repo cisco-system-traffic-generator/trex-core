@@ -276,11 +276,18 @@ class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
     float get_p_rate() {return m_p_rate;}
     void set_b_rate(float rate) {m_b_rate = rate;}
     float get_b_rate() {return m_b_rate;}
+    inline uint64_t get_byte_base() const { return m_bytes_base;}
+    inline uint64_t get_pkt_base() const { return m_pkts_base;}
+    inline void set_byte_base(uint64_t bytes) { m_bytes_base = bytes;}
+    inline void set_pkt_base(uint64_t pkts) { m_pkts_base = pkts;}
     void set_last_rate_calc_time(hr_time_t time) {m_last_rate_calc_time = time;}
     hr_time_t get_last_rate_calc_time() {return m_last_rate_calc_time;}
  private:
     float m_p_rate; // packet rate
     float m_b_rate; // bits rate
+    //  pkts and bytes value when we last calculated rate
+    uint64_t m_pkts_base;
+    uint64_t m_bytes_base;
     hr_time_t m_last_rate_calc_time;
 };
 
@@ -298,12 +305,14 @@ class CFlowStatUserIdInfo {
     CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
-    void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
-        update_vals(val, m_rx_cntr[port], is_last, time, freq);
+    void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq
+                        , bool update_rate) {
+        update_vals(val, m_rx_cntr[port], is_last, time, freq, update_rate);
     }
     rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port];}
-    void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq) {
-        update_vals(val, m_tx_cntr[port], is_last, time, freq);
+    void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq
+                        , bool update_rate) {
+        update_vals(val, m_tx_cntr[port], is_last, time, freq, update_rate);
     }
     tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port];}
     float get_rx_bps(uint8_t port) {return m_rx_cntr[port].get_b_rate();};
@@ -331,7 +340,7 @@ class CFlowStatUserIdInfo {
 
  private:
     void update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update, bool is_last
-                     , hr_time_t time, hr_time_t freq);
+                     , hr_time_t time, hr_time_t freq, bool update_rate);
 
  protected:
     bool m_rfc2544_support;
@@ -501,7 +510,7 @@ class CFlowStatRuleMgr {
     int set_mode(enum flow_stat_mode_e mode);
     int get_max_hw_id() {return m_max_hw_id;}
     int get_max_hw_id_payload() {return m_max_hw_id_payload;}
-    void update_counters();
+    void periodic_update();
     bool dump_json(Json::Value &json, std::vector<uint32> pgids);
 
  private:
@@ -513,6 +522,9 @@ class CFlowStatRuleMgr {
     int add_stream_internal(TrexStream * stream, bool do_action);
     int add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     void send_start_stop_msg_to_rx(bool is_start);
+    void internal_periodic_update(uint16_t min_f, uint16_t max_f, uint16_t min_l, uint16_t max_l);
+    void update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
+                         , uint16_t min_l, uint16_t max_l);
 
  private:
     static CFlowStatRuleMgr *m_pInstance;

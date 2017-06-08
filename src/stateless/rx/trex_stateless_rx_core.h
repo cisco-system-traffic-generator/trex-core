@@ -125,7 +125,7 @@ class CRxCoreStateless {
     void reset_rx_stats(uint8_t port_id);
     int get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset
                      , TrexPlatformApi::driver_stat_cap_e type);
-    int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset);
+    int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch);
     int get_rx_err_cntrs(CRxCoreErrCntrs *rx_err);
 
 

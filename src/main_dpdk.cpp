@@ -4710,7 +4710,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
 
     if (get_is_stateless()) {
         // json from this class is sent only when requested. Still, we need to maintain the counters periodically.
-        CFlowStatRuleMgr::instance()->update_counters();
+        CFlowStatRuleMgr::instance()->periodic_update();
     }
 }
 
@@ -7717,8 +7717,9 @@ int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_
     }
 }
 
-int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {
-    return g_trex.m_rx_sl.get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset);
+int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset
+                                          , bool period_switch) const {
+    return g_trex.m_rx_sl.get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
 }
 
 int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {

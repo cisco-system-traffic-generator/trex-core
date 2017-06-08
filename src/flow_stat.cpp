@@ -155,28 +155,36 @@ void CFlowStatUserIdInfo::reset_hw_id() {
 }
 
 void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update
-                                      , bool is_last, hr_time_t curr_time, hr_time_t freq) {
+                                      , bool is_last, hr_time_t curr_time, hr_time_t freq, bool rate_update) {
     if (is_last) {
         to_update.set_p_rate(0);
         to_update.set_b_rate(0);
         to_update.set_last_rate_calc_time(0);
     } else {
         if (to_update.get_last_rate_calc_time() != 0) {
-            double time_diff = ((double)curr_time - (double)to_update.get_last_rate_calc_time()) / (double)freq;
-            uint64_t pkt_diff = val.get_pkts() - to_update.get_pkts();
-            uint64_t byte_diff = val.get_bytes() - to_update.get_bytes();
-            float curr_p_rate = pkt_diff / time_diff;
-            float curr_b_rate = byte_diff * 8 / time_diff;
+            if (rate_update) {
+                double time_diff = ((double)curr_time - (double)to_update.get_last_rate_calc_time()) / (double)freq;
+                uint64_t pkt_diff = val.get_pkts() - to_update.get_pkt_base();
+                uint64_t byte_diff = val.get_bytes() - to_update.get_byte_base();
+                float curr_p_rate = pkt_diff / time_diff;
+                float curr_b_rate = byte_diff * 8 / time_diff;
 
-            if (to_update.get_p_rate() != 0) {
-                to_update.set_p_rate(to_update.get_p_rate() * 0.5 + curr_p_rate * 0.5);
-                to_update.set_b_rate(to_update.get_b_rate() * 0.5 + curr_b_rate * 0.5);
-            } else {
-                to_update.set_p_rate(curr_p_rate);
-                to_update.set_b_rate(curr_b_rate);
+                if (to_update.get_p_rate() != 0) {
+                    to_update.set_p_rate(to_update.get_p_rate() * 0.5 + curr_p_rate * 0.5);
+                    to_update.set_b_rate(to_update.get_b_rate() * 0.5 + curr_b_rate * 0.5);
+                } else {
+                    to_update.set_p_rate(curr_p_rate);
+                    to_update.set_b_rate(curr_b_rate);
+                }
+                to_update.set_last_rate_calc_time(curr_time);
+                to_update.set_pkt_base(val.get_pkts());
+                to_update.set_byte_base(val.get_bytes());
             }
+        } else {
+            to_update.set_last_rate_calc_time(curr_time);
+            to_update.set_pkt_base(val.get_pkts());
+            to_update.set_byte_base(val.get_bytes());
         }
-        to_update.set_last_rate_calc_time(curr_time);
     }
 
     to_update.set_bytes(val.get_bytes());
@@ -851,7 +859,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                     m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
                 }
                 if (rule_type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                    m_api->get_rfc2544_info(&rfc2544_info, hw_id, hw_id, true);
+                    m_api->get_rfc2544_info(&rfc2544_info, hw_id, hw_id, true, true);
                 }
             }
         }
@@ -902,8 +910,8 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         if (m_rx_core)
             assert(m_rx_core->is_working());
     }
-    DEBUG_PRINT("  Increased num started streams to:%d\n", m_num_started_streams);
     m_num_started_streams++;
+    DEBUG_PRINT("  Increased num started streams to:%d\n", m_num_started_streams);
     return 0;
 }
 
@@ -952,8 +960,12 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
 
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
+        // Read counters one last time to make sure everything is in sync
+        internal_periodic_update(hw_id, hw_id, HW_ID_INIT, HW_ID_INIT);
     } else {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
+        // Read counters one last time to make sure everything is in sync
+        internal_periodic_update(HW_ID_INIT, HW_ID_INIT, hw_id, hw_id);
     }
     assert(p_user_id != NULL);
 
@@ -1041,75 +1053,93 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     }
 }
 
+void CFlowStatRuleMgr::periodic_update() {
+    uint16_t min_f = (m_max_hw_id >= 0) ? 0 : HW_ID_INIT;
+    uint16_t min_l = (m_max_hw_id_payload >= 0) ? 0 : HW_ID_INIT;
+
+    internal_periodic_update(min_f, m_max_hw_id, min_l, m_max_hw_id_payload);
+}
+
+void CFlowStatRuleMgr::internal_periodic_update(uint16_t min_f, uint16_t max_f
+                                       , uint16_t min_l, uint16_t max_l) {
+    if (! m_api ) {
+        create();
+    }
+
+    // toggle period in rfc2544 info
+    if (min_l != HW_ID_INIT) {
+        m_api->get_rfc2544_info(NULL, min_l, max_l, false, true);
+    }
+    update_counters(true, min_f, max_f, min_l, max_l);
+}
+
 // read hw counters, and update internal counters
-void CFlowStatRuleMgr::update_counters() {
+void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
+                                       , uint16_t min_l, uint16_t max_l) {
     hr_time_t now = os_get_hr_tick_64();
     hr_time_t freq = os_get_hr_freq();
 #ifdef __DEBUG_FUNC_ENTRY__
-    printf("CFlowStatRuleMgr::update_counters: time:%ld, max_hw_id(%d,%d)\n", now, m_max_hw_id, m_max_hw_id_payload);
+    printf("CFlowStatRuleMgr::update_counters: time:%ld, flow(%d-%d) payload(%d-%d)\n"
+           , now, min_f, max_f, min_l, max_l);
 #endif
     for (uint8_t port = 0; port < m_num_ports; port++) {
-        m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, 0, m_max_hw_id, false, TrexPlatformApi::IF_STAT_IPV4_ID);
-        for (int i = 0; i <= m_max_hw_id; i++) {
-            if (m_rx_stats[i].get_pkts() != 0) {
-                rx_per_flow_t rx_pkts = m_rx_stats[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
-                if (likely(p_user_id != NULL)) {
-                    if (p_user_id->get_rx_cntr(port) != rx_pkts) {
-                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq);
+        if (min_f != HW_ID_INIT) {
+            m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+            for (int i = min_f; i <= max_f; i++) {
+                if (m_rx_stats[i - min_f].get_pkts() != 0) {
+                    rx_per_flow_t rx_pkts = m_rx_stats[i - min_f];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
+                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq, update_rate);
+                    } else {
+                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
-                } else {
-                    m_rx_cant_count_err[port] += rx_pkts.get_pkts();
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
-                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
-            }
 
-            if (m_tx_stats[i].get_pkts() != 0) {
-                tx_per_flow_t tx_pkts = m_tx_stats[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
-                if (likely(p_user_id != NULL)) {
-                    if (p_user_id->get_tx_cntr(port) != tx_pkts) {
+                if (m_tx_stats[i - min_f].get_pkts() != 0) {
+                    tx_per_flow_t tx_pkts = m_tx_stats[i - min_f];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq);
+                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq, update_rate);
+                    } else {
+                        m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
-                } else {
-                    m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
-                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
         }
         // payload rules
-        m_api->get_flow_stats(port, m_rx_stats_payload, (void *)m_tx_stats_payload, 0, m_max_hw_id_payload
-                              , false, TrexPlatformApi::IF_STAT_PAYLOAD);
-        for (int i = 0; i <= m_max_hw_id_payload; i++) {
-            if (m_rx_stats_payload[i].get_pkts() != 0) {
-                rx_per_flow_t rx_pkts = m_rx_stats_payload[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
-                if (likely(p_user_id != NULL)) {
-                    if (p_user_id->get_rx_cntr(port) != rx_pkts) {
-                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq);
+        if (min_l != HW_ID_INIT) {
+            m_api->get_flow_stats(port, m_rx_stats_payload, (void *)m_tx_stats_payload, min_l, max_l
+                                  , false, TrexPlatformApi::IF_STAT_PAYLOAD);
+            for (int i = min_l; i <= max_l; i++) {
+                if (m_rx_stats_payload[i - min_l].get_pkts() != 0) {
+                    rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
+                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq, update_rate);
+                    } else {
+                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
-                } else {
-                    m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
-                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
-            }
 
-            if (m_tx_stats_payload[i].get_pkts() != 0) {
-                tx_per_flow_t tx_pkts = m_tx_stats_payload[i];
-                CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
-                if (likely(p_user_id != NULL)) {
-                    if (p_user_id->get_tx_cntr(port) != tx_pkts) {
+                if (m_tx_stats_payload[i - min_l].get_pkts() != 0) {
+                    tx_per_flow_t tx_pkts = m_tx_stats_payload[i - min_l];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("payload - port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq);
+                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq, update_rate);
+                    } else {
+                        m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
-                } else {
-                    m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
-                    std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
-                              << (uint16_t)port << ", because no mapping was found." << std::endl;
                 }
             }
         }
@@ -1132,7 +1162,9 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
         create();
     }
 
-    update_counters();
+    uint16_t min_f = (m_max_hw_id >= 0) ? 0 : HW_ID_INIT;
+    uint16_t min_l = (m_max_hw_id_payload >= 0) ? 0 : HW_ID_INIT;
+    update_counters(false, min_f, m_max_hw_id, min_l, m_max_hw_id_payload);
 
     if (pgids.size() != 0) {
         if (pgids.size() > MAX_ALLOWED_PGID_LIST_LEN) {
@@ -1153,7 +1185,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
     }
 
 
-    m_api->get_rfc2544_info(m_rfc2544_info, 0, m_max_hw_id_payload, false);
+    m_api->get_rfc2544_info(m_rfc2544_info, 0, m_max_hw_id_payload, false, false);
     m_api->get_rx_err_cntrs(&rx_err_cntrs);
 
     // build json report

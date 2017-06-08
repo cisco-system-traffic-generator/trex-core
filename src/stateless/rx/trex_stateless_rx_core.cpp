@@ -325,7 +325,13 @@ int CRxCoreStateless::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int
     
 }
 
-int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset) {
+/*
+ * Get RFC 2544 information from histogram.
+ * If just need to force average and jitter calculation, can send with rfc2544_info = NULL
+ *  and period_switch = True.
+ */
+int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset
+                                       , bool period_switch) {
     for (int hw_id = min; hw_id <= max; hw_id++) {
         CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
 
@@ -334,8 +340,12 @@ int CRxCoreStateless::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, in
             curr_rfc2544.stop();
         }
 
-        curr_rfc2544.sample_period_end();
-        curr_rfc2544.export_data(rfc2544_info[hw_id - min]);
+        if (period_switch) {
+            curr_rfc2544.sample_period_end();
+        }
+        if (rfc2544_info != NULL) {
+            curr_rfc2544.export_data(rfc2544_info[hw_id - min]);
+        }
 
         if (reset) {
             curr_rfc2544.reset();

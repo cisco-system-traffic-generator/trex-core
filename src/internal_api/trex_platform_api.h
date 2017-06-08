@@ -137,7 +137,7 @@ public:
                                          , uint16_t &ip_id_base) const =0;
     virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                                , TrexPlatformApi::driver_stat_cap_e type) const = 0;
-    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const = 0;
+    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const = 0;
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
     virtual void get_port_num(uint8_t &port_num) const = 0;
@@ -180,7 +180,7 @@ public:
                                  , uint16_t &ip_id_base) const;
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const;
-    int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const;
+    int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const;
     int get_rx_err_cntrs(void *rx_err_cntrs) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
     void get_port_num(uint8_t &port_num) const;
@@ -254,7 +254,7 @@ public:
 
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const {return 0;};
-    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset) const {return 0;};
+    virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const {return 0;};
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};

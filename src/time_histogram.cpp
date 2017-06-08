@@ -243,8 +243,13 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             }
             base = base * 10;
         }
+        CTimeHistogramPerPeriodData &period_elem = m_period_data[m_period];
         if (m_total_cnt != m_total_cnt_high) {
-            json["histogram"]["0"] = Json::Value::UInt64(m_total_cnt - m_total_cnt_high);
+            // since we are not running update on each get call now, we should also
+            // take into account the values in current period
+            uint64_t short_latency = m_total_cnt - m_total_cnt_high
+                + period_elem.get_cnt() - period_elem.get_high_cnt();
+            json["histogram"]["0"] = Json::Value::UInt64(short_latency);
         }
     }
 }
