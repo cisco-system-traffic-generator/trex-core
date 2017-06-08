@@ -315,6 +315,10 @@ public:
         return ((m_flags & SL_NODE_STATS_NEEDED) != 0);
     }
 
+    inline bool is_latency_stream() {
+        return m_ref_stream_info->is_latency_stream();
+    }
+
     inline void set_mbuf_cache_dir(pkt_dir_t  dir){
         if (dir) {
             m_flags |=NODE_FLAGS_DIR;

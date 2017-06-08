@@ -518,7 +518,9 @@ bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
         CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
 
-        node->update_rate(factor);
+        if (! node->is_latency_stream()) {
+            node->update_rate(factor);
+        }
     }
 
     return (true);
