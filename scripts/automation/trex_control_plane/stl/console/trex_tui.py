@@ -917,6 +917,8 @@ class AsyncKeysEngineConsole:
                    'disconnect'   : client.disconnect_line,
                    'acquire'      : client.acquire_line,
                    'release'      : client.release_line,
+                   'service'      : client.service_line,
+                   'arp'          : client.resolve_line,
                    'quit'         : self.action_quit,
                    'q'            : self.action_quit,
                    'exit'         : self.action_quit,

@@ -4860,6 +4860,8 @@ class STLClient(object):
             
         self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
         
+        return RC_OK()
+        
 
     @__console
     def pkt_line (self, line):
