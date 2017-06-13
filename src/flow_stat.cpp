@@ -693,6 +693,10 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
     }
 
     uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
+    // no mapping found. Stream already deleted
+    if (hw_id == HW_ID_FREE) {
+        return 0;
+    }
     CFlowStatUserIdInfo *p_user_id = NULL;
      if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
@@ -958,6 +962,11 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     CFlowStatUserIdInfo *p_user_id;
     uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
 
+    // no mapping found. Stream already deleted
+    if (hw_id == HW_ID_FREE) {
+        return 0;
+    }
+
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
         // Read counters one last time to make sure everything is in sync
@@ -966,6 +975,10 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
         // Read counters one last time to make sure everything is in sync
         internal_periodic_update(HW_ID_INIT, HW_ID_INIT, hw_id, hw_id);
+    }
+    if (p_user_id == NULL) {
+        printf ("hw_id:%d. No mapping found. Supposed to be attached to %d\n", hw_id, stream->m_rx_check.m_pg_id);
+
     }
     assert(p_user_id != NULL);
 
