@@ -2099,11 +2099,7 @@ class STLClient(object):
                 + :exc:`STLError`
 
         """
-        self.logger.pre_cmd( "Getting active packet group ids")
-
         rc = self._transmit("get_active_pgids")
-
-        self.logger.post_cmd(rc)
 
         if not rc:
             raise STLError(rc)
@@ -2256,9 +2252,7 @@ class STLClient(object):
         while index <= pgid_list_len:
             curr_pgid_list = pgid_list[index : index + max_pgid_in_query]
             index += max_pgid_in_query
-            self.logger.pre_cmd( "Getting statistics for packet group ids {0}".format(curr_pgid_list))
             rc = self._transmit("get_pgid_stats", params = {'pgids': curr_pgid_list})
-            self.logger.post_cmd(rc)
 
             if not rc:
                 raise STLError(rc)
