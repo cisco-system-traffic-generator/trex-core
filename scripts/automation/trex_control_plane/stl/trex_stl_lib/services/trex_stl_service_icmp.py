@@ -12,9 +12,10 @@ Author:
 
 """
 from .trex_stl_service import STLService, STLServiceFilter
+from ..trex_stl_types import listify
 from ..trex_stl_exceptions import STLError
 
-from scapy.layers.l2 import Ether
+from scapy.layers.l2 import Ether, Dot1Q, Dot1AD
 from scapy.layers.inet import IP, ICMP
 from collections import defaultdict
 
@@ -50,7 +51,7 @@ class STLServiceICMP(STLService):
         ICMP service - generate echo requests
     '''
     
-    def __init__ (self, ctx, dst_ip, src_ip = None, pkt_size = 64, timeout_sec = 3, verbose_level = STLService.ERROR):
+    def __init__ (self, ctx, dst_ip, src_ip = None, pkt_size = 64, timeout_sec = 3, verbose_level = STLService.ERROR, vlan = None):
         
         # init the base object
         super(STLServiceICMP, self).__init__(verbose_level)
@@ -62,6 +63,8 @@ class STLServiceICMP(STLService):
 
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
+        self.vlan        = [] if vlan is None else listify(vlan)
+        
         self.pkt_size    = pkt_size
         self.timeout_sec = timeout_sec
 
@@ -84,7 +87,18 @@ class STLServiceICMP(STLService):
         
         self.log("ICMP: {:<15} ---> Pinging '{}'".format(self.src_ip, self.dst_ip))
         
-        base_pkt = Ether()/IP(src = self.src_ip, dst = self.dst_ip)/ICMP(id = self.id, type = 8)
+        l2_pkt = Ether()
+        
+          # single VLAN
+        if len(self.vlan) == 1:
+            l2_pkt = l2_pkt/Dot1Q(vlan=self.vlan[0])
+            
+        # dobule VLAN
+        elif len(self.vlan) == 2:
+            l2_pkt = l2_pkt/Dot1AD(vlan=self.vlan[0])/Dot1Q(vlan=self.vlan[1])
+            
+        base_pkt = l2_pkt/IP(src = self.src_ip, dst = self.dst_ip)/ICMP(id = self.id, type = 8)
+        
         pad = max(0, self.pkt_size - len(base_pkt))
         pkt = base_pkt / ('x' * pad)
     

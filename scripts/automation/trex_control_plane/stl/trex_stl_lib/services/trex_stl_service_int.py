@@ -251,14 +251,20 @@ class TXBuffer(object):
 class PktRX(simpy.resources.store.StoreGet):
     '''
         An event waiting for RX packets
-    '''
-    def __init__ (self, store, timeout_sec = None):
-        super(PktRX, self).__init__(store)
 
+        'limit' - the limit for the get event
+                  None means unlimited
+    '''
+    def __init__ (self, store, timeout_sec = None, limit = None):
+        self.limit = limit
+        
         if timeout_sec is not None:
             self.timeout = store._env.timeout(timeout_sec)
             self.timeout.callbacks.append(self.on_get_timeout)
-
+            
+        super(PktRX, self).__init__(store)
+        
+        
     def on_get_timeout (self, event):
         '''
             Called when a timeout for RX packet has occured
@@ -269,6 +275,7 @@ class PktRX(simpy.resources.store.StoreGet):
             self.cancel()
             self.succeed([])
 
+        
 
 class Pkt(simpy.resources.store.Store):
 
@@ -276,8 +283,16 @@ class Pkt(simpy.resources.store.Store):
 
     def _do_get (self, event):
         if self.items:
-            event.succeed(self.items)
-            self.items = []
+            
+            # if no limit - fetch all
+            if event.limit is None:
+                event.succeed(self.items)
+                self.items = []
+                
+            else:
+            # if limit was set - slice the list
+                event.succeed(event.items[:event.limit])
+                self.items = event.items[event.limit:]
 
 
 ##################
@@ -306,21 +321,24 @@ class STLServicePipe(object):
         return self.env.timeout(time_sec)
 
 
-    def async_wait_for_pkt (self, time_sec = None):
+    def async_wait_for_pkt (self, time_sec = None, limit = None):
         '''
             Wait for packet arrival for 'time_sec'
 
             if 'time_sec' is None will wait infinitly.
             if 'time_sec' is zero it will return immeaditly.
 
+            if 'limit' is a number, it will return up to 'limit' packets
+            even if there are more
+            
             returns:
                 list of packets
-                ecah packet is a dict:
+                each packet is a dict:
                     'pkt' - scapy packet
                     'ts'  - arrival TS (server time)
+                    
         '''
-
-        return self.pkt.get(time_sec)
+        return self.pkt.get(time_sec, limit)
 
 
     def async_tx_pkt (self, tx_pkt):

@@ -30,16 +30,6 @@ class VLANConfig {
     
 public:
 
-    /**
-     * different VLAN modes
-     */
-    enum mode_e {
-        NONE,
-        SINGLE,
-        QINQ
-    };
-    
-
     VLANConfig() {
         clear_vlan();
     }
@@ -49,9 +39,8 @@ public:
      *  
      */
     void set_vlan(uint16_t vlan) {
-        m_inner_vlan  = vlan;
-        m_outer_vlan  = 0;
-        m_mode        = SINGLE;
+        m_tags.clear();
+        m_tags.push_back(vlan);
     }
     
 
@@ -59,9 +48,9 @@ public:
      * set QinQ VLAN tagging
      */
     void set_vlan(uint16_t inner_vlan, uint16_t outer_vlan) {
-        m_inner_vlan  = inner_vlan;
-        m_outer_vlan  = outer_vlan;
-        m_mode        = QINQ;
+        m_tags.clear();
+        m_tags.push_back(outer_vlan);
+        m_tags.push_back(inner_vlan);
     }
     
     
@@ -71,9 +60,7 @@ public:
      * @author imarom (6/11/2017)
      */
     void clear_vlan() {
-        m_inner_vlan  = 0;
-        m_outer_vlan  = 0;
-        m_mode        = NONE;
+        m_tags.clear();
     }
     
     
@@ -82,20 +69,17 @@ public:
      * matches 
      * 
      */
-    bool in_vlan(const std::vector<uint16_t> &vlan_ids) const {
-        switch (m_mode) {
-        case NONE:
-            return(vlan_ids.size() == 0);
-
-        case SINGLE:
-            return( (vlan_ids.size() == 1) && (vlan_ids[0] == m_inner_vlan) );
-
-        case QINQ:
-            return( (vlan_ids.size() == 2) && (vlan_ids[0] == m_outer_vlan) && (vlan_ids[1] == m_inner_vlan) );
-
-        default:
-            assert(0);
-        }
+    bool in_vlan(const std::vector<uint16_t> &tags) const {
+        return m_tags == tags;
+    }
+    
+    /**
+     * return the count of the VLAN tags 
+     * (0, 1 or 2) 
+     * 
+     */
+    uint8_t count() const {
+        return m_tags.size();
     }
     
     
@@ -105,32 +89,18 @@ public:
      */
     Json::Value to_json() const {
         Json::Value output;
-        switch (m_mode) {
-        case NONE:
-            output["mode"] = "none";
-            break;
-
-        case SINGLE:
-            output["mode"] = "single";
-            output["vlan"] = m_inner_vlan;
-            break;
-
-        case QINQ:
-            output["mode"]         = "qinq";
-            output["inner_vlan"]   = m_inner_vlan;
-            output["outer_vlan"]   = m_outer_vlan;
-            break;
-
+        
+        output["tags"] = Json::arrayValue;
+        for (uint16_t tag : m_tags) {
+            output["tags"].append(tag);
         }
-
+        
         return output;
     }
     
     
 public:
-    mode_e            m_mode;
-    uint16_t          m_inner_vlan;
-    uint16_t          m_outer_vlan;
+    std::vector<uint16_t> m_tags;
 };
 
 #endif /* __TREX_VLAN_H__ */

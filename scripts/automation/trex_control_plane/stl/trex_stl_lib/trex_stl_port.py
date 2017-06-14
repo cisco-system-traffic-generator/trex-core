@@ -539,18 +539,8 @@ class Port(object):
             return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
         
         params = {"handler" :       self.handler,
-                  "port_id" :       self.port_id}
-        
-        # single VLAN
-        if len(vlan) == 1:
-            params['mode'] = 'single'
-            params['vlan'] = vlan[0]
-            
-        # QinQ
-        else:
-            params['mode']     = 'qinq'
-            params['outer_vlan']  = vlan[0]
-            params['inner_vlan'] = vlan[1]
+                  "port_id" :       self.port_id,
+                  "vlan"    :       vlan}
             
         rc = self.transmit("set_vlan", params)
         if rc.bad():
@@ -561,18 +551,7 @@ class Port(object):
         
     @writeable
     def clear_vlan (self):
-        if not self.is_service_mode_on():
-            return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
-        
-        params = {"handler" :       self.handler,
-                  "port_id" :       self.port_id,
-                  "mode"    :       "none"}
-        
-        rc = self.transmit("set_vlan", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.sync()
+        return self.set_vlan(vlan = [])
         
         
 
@@ -895,15 +874,19 @@ class Port(object):
         
         # VLAN
         vlan = attr['vlan']
+        tags = vlan['tags']
         
-        if vlan['mode'] == 'none':
+        if len(tags) == 0:
+            # no VLAN
             info['vlan'] = '-'
             
-        elif vlan['mode'] == 'single':
-            info['vlan']  = vlan['vlan']
+        elif len(tags) == 1:
+            # single VLAN
+            info['vlan']  = tags[0]
             
-        elif vlan['mode'] == 'qinq':
-            info['vlan']  = '{0}/{1} (QinQ)'.format(vlan['outer_vlan'], vlan['inner_vlan'])
+        elif len(tags) == 2:
+            # QinQ
+            info['vlan']  = '{0}/{1} (QinQ)'.format(tags[0], tags[1])
             
         
         # RX filter mode
@@ -959,7 +942,9 @@ class Port(object):
 
     def get_layer_cfg (self):
         return self.__attr['layer_cfg']
-        
+     
+    def get_vlan_cfg (self):
+        return self.__attr['vlan']['tags']
 
     def is_virtual(self):
         return self.info.get('is_virtual')

@@ -449,7 +449,13 @@ void
 RXServer::handle_icmp(RXPktParser &parser) {
     
     /* maybe not for us... */
-    if (!m_src_addr->exists(parser.m_ipv4->getDestIp())) {
+    const COneIPv4Info *ipv4_info = (const COneIPv4Info *)m_src_addr->get_first();
+    if (!ipv4_info) {
+        return;
+    }
+    
+    uint32_t sip = ipv4_info->get_ip();
+    if (parser.m_ipv4->getDestIp() != sip) {
         return;
     }
     
@@ -603,20 +609,23 @@ RXGratARP::send_next_grat_arp() {
     uint32_t sip = ((COneIPv4Info *)ip_info)->get_ip();
     
     /* generate ARP request according to the VLAN configuration */
-    switch (m_vlan_cfg->m_mode) {
-    case VLANConfig::NONE:
+    switch (m_vlan_cfg->count()) {
+    case 0:
+        /* no VLAN */
         CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id);
         break;
         
-    case VLANConfig::SINGLE:
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_inner_vlan);
+    case 1:
+        /* single VLAN */
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_tags[0]);
         break;
         
-    case VLANConfig::QINQ:
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_inner_vlan, m_vlan_cfg->m_outer_vlan);
+    case 2:
+        /* QinQ */
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_tags[0], m_vlan_cfg->m_tags[1]);
         break;
     }
-    
+
     TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
     if (m_io->tx_raw(m) == 0) {
         m_ign_stats->m_tx_arp    += 1;

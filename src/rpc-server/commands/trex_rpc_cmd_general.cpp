@@ -851,24 +851,43 @@ TrexRpcCmdSetVLAN::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
     
-    const std::string mode = parse_choice(params, "mode", {"none", "single", "qinq"}, result);
+    const Json::Value &vlans = parse_array(params, "vlan", result);
     
+  
     VLANConfig vlan_cfg;
     
-    if (mode == "none") {
-        vlan_cfg.clear_vlan();
+    switch (vlans.size()) {
+    case 0:
+        {
+            vlan_cfg.clear_vlan();
+            break;
+        }
         
-    } else if (mode == "single") {
-        parse_set_single_vlan(params, port, vlan_cfg, result);
         
-    } else if (mode == "qinq") {
-        parse_set_qinq(params, port, vlan_cfg, result);
-
-    } else {
-        /* should not get here */
-        assert(0);
+    case 1:
+        {
+            uint16_t vlan = parse_uint16(vlans, 0, result);
+            validate_vlan(vlan, result);
+            vlan_cfg.set_vlan(vlan);
+            break;
+        }
+        
+    case 2:
+        {
+            uint16_t outer_vlan = parse_uint16(vlans, 0, result);
+            uint16_t inner_vlan = parse_uint16(vlans, 1, result);
+            validate_vlan(outer_vlan, result);
+            validate_vlan(inner_vlan, result);
+            
+            vlan_cfg.set_vlan(inner_vlan, outer_vlan);
+            break;
+        }
+        
+    default:
+        generate_parse_err(result, "only 0, 1 or 2 VLAN tagging are allowed");
+        
     }
-
+    
     
     try {
         port->set_vlan_cfg(vlan_cfg);
@@ -879,35 +898,6 @@ TrexRpcCmdSetVLAN::_run(const Json::Value &params, Json::Value &result) {
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
     
-}
-
-
-void
-TrexRpcCmdSetVLAN::parse_set_single_vlan(const Json::Value &params, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result) {
-    
-    /* parse VLAN tag */
-    const uint16_t vlan  = parse_uint16(params, "vlan", result);
-
-    /* validate */
-    validate_vlan(vlan, result);
-    
-    /* single VLAN configuration */
-    vlan_cfg.set_vlan(vlan);
-}
-
-
-void
-TrexRpcCmdSetVLAN::parse_set_qinq(const Json::Value &params, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result) {
-    
-    /* parse VLANs tag */
-    const uint16_t inner_vlan   = parse_uint16(params, "inner_vlan", result);
-    const uint16_t outer_vlan   = parse_uint16(params, "outer_vlan", result);
-
-    validate_vlan(inner_vlan, result);
-    validate_vlan(outer_vlan, result);
-    
-    /* QinQ configuration */
-    vlan_cfg.set_vlan(inner_vlan, outer_vlan);
 }
 
 

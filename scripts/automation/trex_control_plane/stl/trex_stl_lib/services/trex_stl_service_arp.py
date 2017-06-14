@@ -12,7 +12,9 @@ Author:
 
 """
 from .trex_stl_service import STLService, STLServiceFilter
-from scapy.layers.l2 import Ether, ARP
+from ..trex_stl_types import listify
+
+from scapy.layers.l2 import Ether, ARP, Dot1Q, Dot1AD
 
 from collections import defaultdict
 
@@ -46,7 +48,7 @@ class STLServiceARP(STLService):
         ARP service - generate ARP requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', timeout_sec = 3, verbose_level = STLService.ERROR):
+    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, timeout_sec = 3, verbose_level = STLService.ERROR):
         
         # init the base object
         super(STLServiceARP, self).__init__(verbose_level)
@@ -54,6 +56,7 @@ class STLServiceARP(STLService):
         self.src_mac     = ctx.get_src_mac()
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
+        self.vlan        = [] if vlan is None else listify(vlan)
         self.timeout_sec = timeout_sec
         
         self.record = None
@@ -70,7 +73,20 @@ class STLServiceARP(STLService):
         
         self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
 
-        pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc  = self.src_ip, pdst  = self.dst_ip, hwsrc = self.src_mac)
+        l2_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")
+        
+        # single VLAN
+        if len(self.vlan) == 1:
+            l2_pkt = l2_pkt/Dot1Q(vlan=self.vlan[0])
+            
+        # dobule VLAN
+        elif len(self.vlan) == 2:
+            l2_pkt = l2_pkt/Dot1AD(vlan=self.vlan[0])/Dot1Q(vlan=self.vlan[1])
+            
+            
+        # full packet
+        pkt = l2_pkt/ARP(psrc  = self.src_ip, pdst  = self.dst_ip, hwsrc = self.src_mac)
+        
         
         # send the ARP request
         pipe.async_tx_pkt(pkt)

@@ -129,11 +129,10 @@ void CManyIPInfo::clear() {
     m_iter_initiated = false;
 }
 
-const COneIPInfo *CManyIPInfo::get_first() {
+const COneIPInfo *CManyIPInfo::get_first() const {
     if (m_ipv4_resolve.size() == 0) {
         return NULL;
     } else {
-        m_ipv4_iter = m_ipv4_resolve.begin();
-        return &(m_ipv4_iter->second);
+        return &((m_ipv4_resolve.begin())->second);
     }
 }

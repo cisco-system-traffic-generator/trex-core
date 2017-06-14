@@ -240,7 +240,7 @@ class CManyIPInfo {
     
     void dump(FILE *fd);
     uint32_t size() { return m_ipv4_resolve.size() + m_ipv6_resolve.size();}
-    const COneIPInfo *get_first();
+    const COneIPInfo *get_first() const;
     const COneIPInfo *get_next();
     const COneIPInfo *get_next_loop() {
         const COneIPInfo *ip_info = get_next();

@@ -2099,18 +2099,20 @@ class STLClient(object):
                                                                                        src_port,
                                                                                        pkt_size))
         
+        vlan = self.ports[src_port].get_vlan_cfg()
+        
         if is_valid_ipv4(dst_ip):
-            return self._ping_ipv4(src_port, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
         else:
-            return self._ping_ipv6(src_port, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv6(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
         
             
          
     # IPv4 ping           
-    def _ping_ipv4 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+    def _ping_ipv4 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
         
         ctx = self.create_service_ctx(port = src_port)
-        ping = STLServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size)
+        ping = STLServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan)
         
         records = []
         
@@ -2128,7 +2130,7 @@ class STLClient(object):
         
         
     # IPv6 ping 
-    def _ping_ipv6 (self, src_port, dst_ip, pkt_size, count, interval_sec):
+    def _ping_ipv6 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
         
         responses_arr = []
         # no async messages
@@ -3659,12 +3661,13 @@ class STLClient(object):
             
             src_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['src']
             dst_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['dst']
+            vlan     = self.ports[port].get_vlan_cfg()
             
             ctx = self.create_service_ctx(port)
             
             # retries
             for i in range(retries + 1):
-                arp = STLServiceARP(ctx, dst_ip = dst_ipv4, src_ip = src_ipv4)
+                arp = STLServiceARP(ctx, dst_ip = dst_ipv4, src_ip = src_ipv4, vlan = vlan)
                 ctx.run(arp)
                 if arp.get_record():
                     self.ports[port].set_l3_mode(src_ipv4, dst_ipv4, arp.get_record().dst_mac)
