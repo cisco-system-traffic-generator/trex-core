@@ -28,6 +28,7 @@ limitations under the License.
 
 class TrexStream;
 class TrexStatelessPort;
+class VLANConfig;
 
 /* all the RPC commands decl. goes here */
 
@@ -168,6 +169,12 @@ TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdCapture,  "capture", 1, false, APIClass::
     void parse_cmd_status(const Json::Value &msg, Json::Value &result);
     void parse_cmd_fetch(const Json::Value &msg, Json::Value &result);
     void parse_cmd_remove(const Json::Value &params, Json::Value &result);
+);
+
+TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetVLAN, "set_vlan", 2, true, APIClass::API_CLASS_TYPE_CORE,
+    void parse_set_single_vlan(const Json::Value &msg, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result);
+    void parse_set_qinq(const Json::Value &msg, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result);
+    void validate_vlan(uint16_t vlan, Json::Value &result);
 );
 
 

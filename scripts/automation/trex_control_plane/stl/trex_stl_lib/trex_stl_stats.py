@@ -712,6 +712,8 @@ class CTRexInfoGenerator(object):
                                         ("Destination", []),
                                         ("ARP Resolution", []),
                                         ("----", []),
+                                        ("VLAN", []),
+                                        ("-----", []),
                                         ("PCI Address", []),
                                         ("NUMA Node", []),
                                         ("-----", []),

@@ -1116,6 +1116,25 @@ TrexStatelessPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint
 }
 
 
+/**
+ * configures VLAN tagging
+ * 
+ */
+void
+TrexStatelessPort::set_vlan_cfg(const VLANConfig &vlan_cfg) {
+    
+    /* not valid under traffic */
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_vlan_cfg");
+    
+    /* configure VLAN on port attribute object */
+    getPortAttrObj()->set_vlan_cfg(vlan_cfg);
+    
+    TrexStatelessRxSetVLAN *msg = new TrexStatelessRxSetVLAN(m_port_id, vlan_cfg);
+    send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
+}
+
+
+
 Json::Value
 TrexStatelessPort::rx_features_to_json() {
     static MsgReply<Json::Value> reply;

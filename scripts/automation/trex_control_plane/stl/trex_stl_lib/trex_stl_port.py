@@ -532,6 +532,49 @@ class Port(object):
 
         return self.sync()
 
+        
+    @writeable
+    def set_vlan (self, vlan):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
+        
+        params = {"handler" :       self.handler,
+                  "port_id" :       self.port_id}
+        
+        # single VLAN
+        if len(vlan) == 1:
+            params['mode'] = 'single'
+            params['vlan'] = vlan[0]
+            
+        # QinQ
+        else:
+            params['mode']     = 'qinq'
+            params['outer_vlan']  = vlan[0]
+            params['inner_vlan'] = vlan[1]
+            
+        rc = self.transmit("set_vlan", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+        
+        
+    @writeable
+    def clear_vlan (self):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
+        
+        params = {"handler" :       self.handler,
+                  "port_id" :       self.port_id,
+                  "mode"    :       "none"}
+        
+        rc = self.transmit("set_vlan", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+        
+        
 
     @owned
     def set_rx_queue (self, size):
@@ -850,6 +893,19 @@ class Port(object):
         # speed
         info['speed'] = self.get_speed_gbps()
         
+        # VLAN
+        vlan = attr['vlan']
+        
+        if vlan['mode'] == 'none':
+            info['vlan'] = '-'
+            
+        elif vlan['mode'] == 'single':
+            info['vlan']  = vlan['vlan']
+            
+        elif vlan['mode'] == 'qinq':
+            info['vlan']  = '{0}/{1} (QinQ)'.format(vlan['outer_vlan'], vlan['inner_vlan'])
+            
+        
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
@@ -946,12 +1002,14 @@ class Port(object):
                 "src IPv4":         info['src_ipv4'],
                 "Destination":      format_text("{0}".format(info['dest']), 'bold', 'red' if info['dest'] == 'unconfigured' else None),
                 "ARP Resolution":   format_text("{0}".format(info['arp']), 'bold', 'red' if info['arp'] == 'unresolved' else None),
+                "VLAN":             format_text("{0}".format(info['vlan']), *('bold', 'magenta') if info['vlan'] != '-' else ''),
                 "PCI Address":      info['pci_addr'],
                 "NUMA Node":        info['numa'],
                 "--": "",
                 "---": "",
                 "----": "",
                 "-----": "",
+                "------": "",
                 "link speed": "%g Gb/s" % info['speed'],
                 "port status": info['status'],
                 "link status": info['link'],

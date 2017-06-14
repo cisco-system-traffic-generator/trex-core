@@ -627,7 +627,7 @@ void CLatencyManager::send_one_grat_arp() {
     switch(ip_info->ip_ver()) {
     case COneIPInfo::IP4_VER:
         sip = ((COneIPv4Info *)ip_info)->get_ip();
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, port_id);
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, port_id, vlan);
         if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
             printf("Sending gratuitous ARP on port %d vlan:%d, sip:%s\n", port_id, vlan
                    , ip_to_str(sip).c_str());

@@ -19,12 +19,16 @@ limitations under the License.
 
 #include <string>
 #include <vector>
+#include <string.h>
+#include <json/json.h>
+
 #include "rte_ethdev_includes.h"
 #include "trex_defs.h"
 #include "common/basic_utils.h"
-#include <json/json.h>
+
 #include "trex_stateless_rx_defs.h"
-#include <string.h>
+#include "trex_vlan.h"
+
 
 /**
  * holds L2 MAC configuration
@@ -185,6 +189,7 @@ private:
 };
 
 
+
 class TRexPortAttr {
 public:
 
@@ -259,6 +264,21 @@ public:
         return m_layer_cfg;
     }
 
+
+    void set_vlan_cfg(const VLANConfig &vlan_cfg) {
+        m_vlan_cfg = vlan_cfg;
+    }
+    
+    
+    /**
+     * gets the port VLAN configuration
+     * 
+     */
+    const VLANConfig & get_vlan_cfg() const {
+        return m_vlan_cfg;
+    }
+    
+    
     /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;
 
@@ -276,11 +296,13 @@ public:
     
 protected:
 
-   uint8_t                    m_port_id;
+    uint8_t                   m_port_id;
     rte_eth_link              m_link;
     uint32_t                  m_src_ipv4;
+
     LayerConfig               m_layer_cfg;
-    
+    VLANConfig                m_vlan_cfg;
+        
     struct rte_eth_dev_info   dev_info;
     
     rx_filter_mode_e m_rx_filter_mode;
@@ -297,6 +319,7 @@ protected:
         int             numa_node;
     }intf_info_st;
 
+    
 };
 
 class DpdkTRexPortAttr : public TRexPortAttr {

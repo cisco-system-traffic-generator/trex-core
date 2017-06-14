@@ -345,6 +345,15 @@ class TRexConsole(TRexGeneralCmd):
 
         
     @verify_connected
+    def do_vlan (self, line):
+        '''Configures VLAN tagging'''
+        self.stateless_client.set_vlan_line(line)
+
+    def help_vlan (self):
+        self.do_vlan("-h")
+        
+        
+    @verify_connected
     def do_capture (self, line):
         '''Manage PCAP captures'''
         self.cap_mngr.parse_line(line)

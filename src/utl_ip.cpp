@@ -52,14 +52,14 @@ void COneIPv4Info::fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *si
     uint8_t src_mac[ETHER_ADDR_LEN];
     sip->get_mac(src_mac);
 
-    CTestPktGen::create_arp_req(p, ((COneIPv4Info *)sip)->get_ip(), m_ip, src_mac, m_vlan, port_id);
+    CTestPktGen::create_arp_req(p, ((COneIPv4Info *)sip)->get_ip(), m_ip, src_mac, port_id, m_vlan);
 }
 
 void COneIPv4Info::fill_grat_arp_buf(uint8_t *p) {
     uint8_t src_mac[ETHER_ADDR_LEN];
     get_mac(src_mac);
 
-    CTestPktGen::create_arp_req(p, m_ip, m_ip, src_mac, m_vlan, 0);
+    CTestPktGen::create_arp_req(p, m_ip, m_ip, src_mac, 0, m_vlan);
 }
 
 void COneIPv6Info::fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *sip) {

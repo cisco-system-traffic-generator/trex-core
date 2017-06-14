@@ -135,7 +135,7 @@ class RXServer {
 public:
     
     RXServer();
-    void create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr);
+    void create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr, const VLANConfig *vlan_cfg);
     void handle_pkt(const rte_mbuf_t *m);
     
 private:
@@ -144,7 +144,10 @@ private:
     rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
     
     CPortLatencyHWBase  *m_io;
+    
     uint8_t              m_port_id;
+    
+    const VLANConfig    *m_vlan_cfg;
     const CManyIPInfo   *m_src_addr;
 };
 
@@ -164,7 +167,8 @@ public:
     void create(uint8_t port_id,
                 CPortLatencyHWBase *io,
                 CManyIPInfo *src_addr,
-                CRXCoreIgnoreStat *ignore_stats);
+                CRXCoreIgnoreStat *ignore_stats,
+                const VLANConfig *vlan_cfg);
 
     
     /**
@@ -180,6 +184,7 @@ private:
     CPortLatencyHWBase   *m_io;
     CManyIPInfo          *m_src_addr;
     CRXCoreIgnoreStat    *m_ign_stats;
+    const VLANConfig     *m_vlan_cfg;
 };
 
 /************************ manager ***************************/
@@ -301,7 +306,13 @@ public:
      */
     void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
   
-      
+    /**
+     * configure VLAN
+     */
+    void set_vlan_cfg(const VLANConfig &vlan_cfg) {
+        m_vlan_cfg = vlan_cfg;
+    }
+    
     bool has_features_set() {
         return (m_features != NO_FEATURES);
     }
@@ -345,9 +356,12 @@ private:
     RXQueue                      m_queue;
     RXServer                     m_server;
     RXGratARP                    m_grat_arp;
+    
     CCpuUtlDp                   *m_cpu_dp_u;
     CPortLatencyHWBase          *m_io;
+    
     CManyIPInfo                  m_src_addr;
+    VLANConfig                   m_vlan_cfg;
     
     /* stats to ignore (ARP and etc.) */
     CRXCoreIgnoreStat            m_ign_stats;

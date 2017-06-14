@@ -841,6 +841,85 @@ TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+
+/**
+ * handles VLAN config message
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetVLAN::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    
+    const std::string mode = parse_choice(params, "mode", {"none", "single", "qinq"}, result);
+    
+    VLANConfig vlan_cfg;
+    
+    if (mode == "none") {
+        vlan_cfg.clear_vlan();
+        
+    } else if (mode == "single") {
+        parse_set_single_vlan(params, port, vlan_cfg, result);
+        
+    } else if (mode == "qinq") {
+        parse_set_qinq(params, port, vlan_cfg, result);
+
+    } else {
+        /* should not get here */
+        assert(0);
+    }
+
+    
+    try {
+        port->set_vlan_cfg(vlan_cfg);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+    
+}
+
+
+void
+TrexRpcCmdSetVLAN::parse_set_single_vlan(const Json::Value &params, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result) {
+    
+    /* parse VLAN tag */
+    const uint16_t vlan  = parse_uint16(params, "vlan", result);
+
+    /* validate */
+    validate_vlan(vlan, result);
+    
+    /* single VLAN configuration */
+    vlan_cfg.set_vlan(vlan);
+}
+
+
+void
+TrexRpcCmdSetVLAN::parse_set_qinq(const Json::Value &params, TrexStatelessPort *port, VLANConfig &vlan_cfg, Json::Value &result) {
+    
+    /* parse VLANs tag */
+    const uint16_t inner_vlan   = parse_uint16(params, "inner_vlan", result);
+    const uint16_t outer_vlan   = parse_uint16(params, "outer_vlan", result);
+
+    validate_vlan(inner_vlan, result);
+    validate_vlan(outer_vlan, result);
+    
+    /* QinQ configuration */
+    vlan_cfg.set_vlan(inner_vlan, outer_vlan);
+}
+
+
+void
+TrexRpcCmdSetVLAN::validate_vlan(uint16_t vlan, Json::Value &result) {
+    /* validate VLAN */
+    if ( (vlan == 0) || (vlan > 4095) ) {
+        generate_parse_err(result, "invalid VLAN tag: '" + std::to_string(vlan) + "'");
+    }
+}
+
+
 /**
  * configures a port in L3 mode
  * 

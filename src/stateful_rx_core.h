@@ -208,6 +208,13 @@ public:
     virtual int tx(rte_mbuf_t *m) = 0;
     
     /**
+     * send a packet as raw (no vlan tagging or any other 
+     * modification) 
+     * used mainly by stateless RX core
+     */
+    virtual int tx_raw(rte_mbuf_t *m) = 0;
+    
+    /**
      * sends a latency packet 
      * if needed, timestamp will be updated 
      * 
@@ -216,6 +223,14 @@ public:
     
     virtual rte_mbuf_t * rx() = 0;
     virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) = 0;
+    
+protected:
+    
+    /**
+     * apply HW VLAN
+     */
+    void apply_hw_vlan(rte_mbuf_t *m, uint8_t port_id);
+    
 };
 
 

@@ -2730,6 +2730,24 @@ CCoreEthIF::port_id_to_dir(uint8_t port_id) {
     return (CS_INVALID);
 }
 
+
+/**
+ * apply HW VLAN
+ */
+void
+CPortLatencyHWBase::apply_hw_vlan(rte_mbuf_t *m, uint8_t port_id) {
+
+    uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
+    if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
+        if ( vlan_mode == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
+            add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
+        } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
+            add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+        }
+    }
+}
+
+
 class CLatencyHWPort : public CPortLatencyHWBase {
 public:
     void Create(CPhyEthIF  * p,
@@ -2741,36 +2759,29 @@ public:
     }
 
     virtual int tx(rte_mbuf_t *m) {
-        rte_mbuf_t *tx_pkts[2];
+        
+        apply_hw_vlan(m, m_port->get_tvpid());
+        return tx_raw(m);
+    }
 
+    
+    virtual int tx_raw(rte_mbuf_t *m) {
+        
+        rte_mbuf_t *tx_pkts[2];
         tx_pkts[0] = m;
-        uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
-        if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
-            if ( vlan_mode == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
-                add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
-            } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
-                uint8_t port_id = m_port->get_tvpid();
-                add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
-            }
-        }
-        uint16_t res=m_port->tx_burst(m_tx_queue_id,tx_pkts,1);
+
+        uint16_t res=m_port->tx_burst(m_tx_queue_id, tx_pkts, 1);
         if ( res == 0 ) {
             rte_pktmbuf_free(m);
             //printf(" queue is full for latency packet !!\n");
             return (-1);
 
         }
-#if 0
-        fprintf(stdout," ==> %f.03 send packet ..\n",now_sec());
-        uint8_t *p1=rte_pktmbuf_mtod(m, uint8_t*);
-        uint16_t pkt_size1=rte_pktmbuf_pkt_len(m);
-        utl_DumpBuffer(stdout,p1,pkt_size1,0);
-#endif
-
-        return (0);
+        
+        return 0;
     }
-
-
+        
+    
     /* nothing special with HW implementation */
     virtual int tx_latency(rte_mbuf_t *m) {
         return tx(m);
@@ -2816,11 +2827,15 @@ public:
 
 
     virtual int tx(rte_mbuf_t *m) {
-        return tx_common(m, false);
+        return tx_common(m, false, true);
     }
 
+    virtual int tx_raw(rte_mbuf_t *m) {
+        return tx_common(m, false, false);
+    }
+    
     virtual int tx_latency(rte_mbuf_t *m) {
-        return tx_common(m, true);
+        return tx_common(m, true, true);
     }
 
     virtual rte_mbuf_t * rx() {
@@ -2839,19 +2854,12 @@ public:
     }
 
 private:
-      virtual int tx_common(rte_mbuf_t *m, bool fix_timestamp) {
+      virtual int tx_common(rte_mbuf_t *m, bool fix_timestamp, bool add_hw_vlan) {
 
-
-        uint8_t vlan_mode = CGlobalInfo::m_options.preview.get_vlan_mode();
-        if ( likely( vlan_mode != CPreviewMode::VLAN_MODE_NONE) ) {
-            if ( vlan_mode == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
-                add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
-            } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
-                uint8_t port_id = m_port->get_tvpid();
-                add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
-            }
+        if (add_hw_vlan) {
+            apply_hw_vlan(m, m_port->get_tvpid());
         }
-
+        
         /* allocate node */
         CGenNodeLatencyPktInfo *node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
         if (!node) {
@@ -3664,6 +3672,16 @@ void CGlobalTRex::pre_test() {
             } else if (CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.is_set) {
                 m_trex_stateless->get_port_by_id(port_id)->set_l2_mode(dst_mac);
             }
+            
+            /* configure single VLAN */
+            uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+            if (vlan != 0) {
+                
+                VLANConfig vlan_cfg;
+                vlan_cfg.set_vlan(vlan);
+                
+                m_trex_stateless->get_port_by_id(port_id)->set_vlan_cfg(vlan_cfg);
+            }
         }
     }
 
@@ -3898,6 +3916,7 @@ void CGlobalTRex::rx_sl_configure(void) {
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
             m_latency_vm_vports[i].Create(i, r, &m_mg, _if);
             rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
+            
         }
     } else {
         for (i = 0; i < m_max_ports; i++) {
@@ -6690,6 +6709,8 @@ int CTRexExtendedDriverBase10G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     res = add_del_eth_filter(_if, set_on, ETHER_TYPE_ARP);
     res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv4);
     res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv6);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_VLAN);
+    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_QINQ);
 
     return res;
 }

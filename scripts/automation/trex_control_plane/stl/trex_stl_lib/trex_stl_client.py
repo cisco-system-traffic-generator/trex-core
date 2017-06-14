@@ -849,6 +849,29 @@ class STLClient(object):
 
         return rc
         
+        
+    def __set_vlan (self, port_id_list, vlan):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].set_vlan(vlan))
+
+        return rc
+    
+        
+    def __clear_vlan (self, port_id_list):
+
+        port_id_list = self.__ports(port_id_list)
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].clear_vlan())
+
+        return rc
+
+        
     def __set_rx_queue (self, port_id_list, size):
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -1946,7 +1969,83 @@ class STLClient(object):
         # resolve the port
         self.resolve(ports = port)
 
+       
+    @__api_check(True)
+    def set_vlan (self, vlan, ports = None):
+        """
+            Sets the port VLAN.
+            VLAN tagging will be applied to control traffic
+            such as ARP resolution of the port
+            and periodic gratidious ARP
+
+            :parameters:
+                 vlan      - can be either int or a list of up to two ints
+                             each value representing a VLAN tag
+                             when two are supplied, provide QinQ tagging.
+                             The first TAG is outer and the second is inner
+                             
+                 ports     - the port(s) to set the source address
+            :raises:
+                + :exc:`STLError`
+        """
+    
+        # validate ports and state
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self.psv.validate('VLAN', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
         
+        # validate VLAN values
+        vlan = listify(vlan)
+        
+        if len(vlan) not in range(1, 3):
+            raise STLError("'vlan' should be a single or double tags")
+        
+        for tag in vlan:
+            if not type(tag) == int:
+                raise STLError("invalid VLAN tag: '{0}' (int value expected)".format(tag))
+                
+            if not (tag in range(1, 4096)) :
+                raise STLError("invalid VLAN tag: '{0}' (valid range: 1 - 4095)".format(tag))
+        
+        
+        if len(vlan) == 1:
+            self.logger.pre_cmd("Setting port(s) {0} with VLAN {1}: ".format(ports, vlan[0]))
+        else:
+            self.logger.pre_cmd("Setting port(s) {0} with QinQ {1}/{2}: ".format(ports, vlan[0], vlan[1]))
+        
+                
+        rc = self.__set_vlan(ports, vlan)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+            
+       
+            
+    @__api_check(True)
+    def clear_vlan (self, ports = None):
+        """
+            Clear any VLAN configuration on the port
+
+            :parameters:
+                 ports - on which ports to clear VLAN config
+                 
+            :raises:
+                + :exc:`STLError`
+        """
+    
+        # validate ports and state
+        ports = ports if ports is not None else self.get_acquired_ports()
+        ports = self.psv.validate('VLAN', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
+        
+        self.logger.pre_cmd("Clearing port(s) {0} VLAN configuration: ".format(ports))
+        
+        rc = self.__clear_vlan(ports)
+        self.logger.post_cmd(rc)
+        
+        if not rc:
+            raise STLError(rc)
+                 
+         
     @__api_check(True)
     def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1):
         """
@@ -3582,6 +3681,7 @@ class STLClient(object):
             else:
                 self.logger.log(format_text("Port {0} - *** {1}".format(port, arp.get_record()), 'bold'))
         
+        self.logger.log('')
      
 
     # alias
@@ -4724,6 +4824,29 @@ class STLClient(object):
 
         # source ports maps to ports as a single port
         self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4)
+
+        return RC_OK()
+        
+        
+    @__console
+    def set_vlan_line (self, line):
+        '''Configures VLAN tagging for a port. control generated traffic such as ARP will be tagged'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "vlan",
+                                         self.set_vlan_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.VLAN,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        if opts.clear_vlan:
+            self.clear_vlan(ports = opts.ports)
+        else:
+            self.set_vlan(opts.vlan, ports = opts.ports)
 
         return RC_OK()
         

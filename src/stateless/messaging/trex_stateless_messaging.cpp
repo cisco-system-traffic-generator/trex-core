@@ -437,3 +437,11 @@ TrexStatelessRxQuery::handle(CRxCoreStateless *rx_core) {
     
     return true;
 }
+
+bool
+TrexStatelessRxSetVLAN::handle(CRxCoreStateless *rx_core) {
+    RXPortManager &port_mngr = rx_core->get_rx_port_mngr(m_port_id);
+    port_mngr.set_vlan_cfg(m_vlan_cfg);
+    
+    return true;
+}

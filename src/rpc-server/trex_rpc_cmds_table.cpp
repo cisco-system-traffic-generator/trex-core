@@ -81,6 +81,9 @@ TrexRpcCommandsTable::TrexRpcCommandsTable() {
     register_command(new TrexRpcCmdSetL3());
     
     register_command(new TrexRpcCmdCapture());
+    
+    register_command(new TrexRpcCmdSetVLAN());
+    
 }
 
 

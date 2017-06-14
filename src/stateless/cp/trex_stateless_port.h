@@ -414,6 +414,11 @@ public:
     void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac);
     
     /**
+     * configure VLAN
+     */
+    void set_vlan_cfg(const VLANConfig &vlan_cfg);
+    
+    /**
      * generate a JSON describing the status 
      * of the RX features 
      * 

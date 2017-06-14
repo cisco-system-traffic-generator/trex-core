@@ -203,7 +203,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         break;
     case EthernetHeader::Protocol::ARP:
         uint16_t vlan = (flags & DPF_VLAN) ? 200 : 0;
-        create_arp_req((uint8_t *)p_start, 0x01020304, 0x05060708, src_mac, vlan, 0);
+        create_arp_req((uint8_t *)p_start, 0x01020304, 0x05060708, src_mac, 0, vlan);
         return p_start;
         break;
     }
@@ -264,12 +264,20 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
  *  sip - Our source IP
  *  tip - Target IP for which we need resolution (In case of gratuitous ARP, should be equal sip).
  *  src_mac - Our source MAC
- *  vlan - VLAN tag to send the packet on. If set to 0, no vlan will be sent.
  *  port - Port we intended to send packet on. This is needed since we put some "magic" number with the port, so
  *         we can identify if we are connected in loopback, which ports are connected.
+ *  
+ *  inner_vlan - VLAN tag to send the packet on. If set to 0, no vlan tag will be added.
+ *  outer_vlan - QinQ VLAN tag. If set to 0, no QinQ tag will be added
  */
-void CTestPktGen::create_arp_req(uint8_t *pkt, uint32_t sip, uint32_t tip, uint8_t *src_mac, uint16_t vlan
-                                 , uint16_t port) {
+void CTestPktGen::create_arp_req(uint8_t *pkt,
+                                 uint32_t sip,
+                                 uint32_t tip,
+                                 uint8_t *src_mac,
+                                 uint16_t port,
+                                 uint16_t inner_vlan,
+                                 uint16_t outer_vlan) {
+    
     uint16_t l2_proto = htons(EthernetHeader::Protocol::ARP);
 
     // dst MAC
@@ -279,13 +287,27 @@ void CTestPktGen::create_arp_req(uint8_t *pkt, uint32_t sip, uint32_t tip, uint8
     memcpy(pkt, src_mac, ETHER_ADDR_LEN);
     pkt += ETHER_ADDR_LEN;
 
-    if (vlan != 0) {
-        uint16_t htons_vlan = htons(vlan);
-        uint16_t vlan_proto = htons(0x8100);
-        memcpy(pkt, &vlan_proto, sizeof(vlan_proto));
+    /* QinQ */
+    if (outer_vlan != 0) {
+
+        *((uint16_t *)pkt) = htons(EthernetHeader::Protocol::QINQ);
         pkt += 2;
-        memcpy(pkt, &htons_vlan, sizeof(uint16_t));
+        
+        *((uint16_t *)pkt) = htons(outer_vlan);
         pkt += 2;
+      
+        
+    }
+
+    /* regular VLAN */
+    if (inner_vlan != 0) {
+        
+        *((uint16_t *)pkt) = htons(EthernetHeader::Protocol::VLAN);
+        pkt += 2;
+        
+        *((uint16_t *)pkt) = htons(inner_vlan);
+        pkt += 2;
+        
     }
 
     // l3 type

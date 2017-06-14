@@ -99,7 +99,9 @@ MONITOR_TYPE_VERBOSE
 MONITOR_TYPE_PIPE
 MONITOR_TYPE
 
-
+VLAN_TAGS
+CLEAR_VLAN
+VLAN
 
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
@@ -261,7 +263,28 @@ def hex_int (val):
         raise argparse.ArgumentTypeError("{0} is not a valid positive HEX formatted number".format(val))
     
     return int(val, 16)
+    
 
+def is_valid_vlan():
+    class VLANCheck(argparse.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            if len(values) > 2:
+                parser.error('only one or two VLAN tags are allowed')
+                
+            for v in values:
+                try:
+                    tag = int(v)
+                    if not tag in range(1, 4096):
+                        raise ValueError
+                        
+                except ValueError:
+                    parser.error("invalid VLAN tag: '{0}' (valid range: 1 - 4095)".format(v))
+                       
+            tags = [int(v) for v in values]
+            setattr(args, self.dest, tags)
+            
+    return VLANCheck
+      
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -747,6 +770,20 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'help': "Show all registered layers / inspect a specific layer"}),
               
               
+              VLAN_TAGS: ArgumentPack(['--vlan', '-v'],
+                                      {'dest':'vlan',
+                                       'action': is_valid_vlan(),
+                                       'nargs': '+',
+                                       'metavar': 'VLAN',
+                                       'help': 'single or double VLAN tags'}),
+               
+              CLEAR_VLAN: ArgumentPack(['-c'],
+                                      {'action': 'store_true',
+                                       'dest': 'clear_vlan',
+                                       'default': False,
+                                       'help': "clear any VLAN configuration"}),
+              
+
               SCAPY_PKT_CMD: ArgumentGroup(MUTEX, [SCAPY_PKT,
                                                    SHOW_LAYERS],
                                            {'required': True}),
@@ -757,6 +794,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 {'required': False}),
 
 
+              VLAN: ArgumentGroup(MUTEX, [VLAN_TAGS,
+                                          CLEAR_VLAN],
+                                  {'required': True}),
+
+              
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
                                                               FILE_FROM_DB],
                                                       {'required': True}),

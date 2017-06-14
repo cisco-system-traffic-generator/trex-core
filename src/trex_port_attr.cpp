@@ -129,6 +129,7 @@ LayerConfig::to_json() const {
     return output;
 }
 
+
 std::string
 TRexPortAttr::get_rx_filter_mode() const {
     switch (m_rx_filter_mode) {
@@ -141,10 +142,12 @@ TRexPortAttr::get_rx_filter_mode() const {
     }
 }
 
+
 void
 TRexPortAttr::on_link_down() {
     m_layer_cfg.on_link_down();
 }
+
 
 void
 TRexPortAttr::to_json(Json::Value &output) {
@@ -160,6 +163,8 @@ TRexPortAttr::to_json(Json::Value &output) {
     output["fc"]["mode"] = mode;
 
     output["layer_cfg"] = m_layer_cfg.to_json();
+    
+    output["vlan"] = m_vlan_cfg.to_json();
 }
 
 

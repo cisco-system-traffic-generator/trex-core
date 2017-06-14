@@ -22,6 +22,7 @@
 #include "trex_stateless_rx_port_mngr.h"
 #include "trex_stateless_rx_core.h"
 #include "common/Network/Packet/Arp.h"
+#include "common/Network/Packet/VLANHeader.h"
 #include "pkt_gen.h"
 #include "trex_stateless_capture.h"
 #include "stateless/cp/trex_stateless.h"
@@ -287,27 +288,14 @@ public:
         /* start point */
         m_current   = rte_pktmbuf_mtod(m, uint8_t *);;
         m_size_left = rte_pktmbuf_pkt_len(m);
-
+        
         m_ether    = NULL;
         m_arp      = NULL;
         m_ipv4     = NULL;
         m_icmp     = NULL;
-        m_vlan_tag = 0;
         
-        if (m_size_left < 14)
-            return;
-
-        /* ethernet */
-        m_ether = (EthernetHeader *)parse_bytes(14);
-        
-        uint16_t next_proto;
-        if (m_ether->getNextProtocol() == EthernetHeader::Protocol::VLAN) {
-            parse_bytes(4);
-            m_vlan_tag = m_ether->getVlanTag();
-            next_proto = m_ether->getVlanProtocol();
-        } else {
-            next_proto = m_ether->getNextProtocol();
-        }
+        /* parse L2 (stripping VLANs) */
+        uint16_t next_proto = parse_l2();
         
         /**
          * support only for ARP or IPv4 based protocols
@@ -327,14 +315,46 @@ public:
         
     }
     
-    const rte_mbuf_t *m_mbuf;
-    EthernetHeader   *m_ether;
-    ArpHdr           *m_arp;
-    IPHeader         *m_ipv4;
-    ICMPHeader       *m_icmp;
-    uint16_t          m_vlan_tag;
+    const rte_mbuf_t         *m_mbuf;
+    EthernetHeader           *m_ether;
+    ArpHdr                   *m_arp;
+    IPHeader                 *m_ipv4;
+    ICMPHeader               *m_icmp;
+    std::vector<uint16_t>     m_vlan_ids;
     
 protected:
+    
+    /**
+     * parse L2 header 
+     * returns the payload protocol (VLANs stripped)
+     */
+    uint16_t parse_l2() {
+        /* ethernet */
+        m_ether = (EthernetHeader *)parse_bytes(14);
+        
+        uint16_t next_proto = m_ether->getNextProtocol();
+     
+        while (true) {
+            switch (next_proto) {
+            case EthernetHeader::Protocol::QINQ:
+            case EthernetHeader::Protocol::VLAN:
+                {
+                    VLANHeader *vlan_hdr = (VLANHeader *)parse_bytes(4);
+                    m_vlan_ids.push_back(vlan_hdr->getVlanTag());
+    
+                    next_proto = vlan_hdr->getNextProtocolHostOrder();
+                    
+                }
+                break;
+                
+            default:
+                /* break */
+                return next_proto;
+            }                            
+        }
+        
+    }
+    
     
     const uint8_t *parse_bytes(uint32_t size) {
         if (m_size_left < size) {
@@ -382,14 +402,20 @@ protected:
 
 RXServer::RXServer() {
     m_io        = NULL;
+    m_vlan_cfg  = NULL;
     m_src_addr  = NULL;
     m_port_id   = 255;
 }
 
 void
-RXServer::create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr) {
+RXServer::create(uint8_t port_id,
+                 CPortLatencyHWBase *io,
+                 const CManyIPInfo *src_addr,
+                 const VLANConfig *vlan_cfg) {
+    
     m_port_id  = port_id;
     m_io       = io;
+    m_vlan_cfg = vlan_cfg;
     m_src_addr = src_addr;
 }
 
@@ -399,6 +425,11 @@ RXServer::handle_pkt(const rte_mbuf_t *m) {
     try {
         
         RXPktParser parser(m);
+        
+        /* verify that packet matches the port VLAN config */
+        if (!m_vlan_cfg->in_vlan(parser.m_vlan_ids)) {
+            return;
+        }
         
         if (parser.m_icmp) {
             handle_icmp(parser);
@@ -454,7 +485,7 @@ RXServer::handle_icmp(RXPktParser &parser) {
     
     /* send */
     TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(response, m_port_id);
-    m_io->tx(response);
+    m_io->tx_raw(response);
 }
 
 void
@@ -509,7 +540,7 @@ RXServer::handle_arp(RXPktParser &parser) {
     
     /* send */
     TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(response, m_port_id);
-    m_io->tx(response);
+    m_io->tx_raw(response);
     
 }
 
@@ -542,12 +573,14 @@ void
 RXGratARP::create(uint8_t port_id,
                   CPortLatencyHWBase *io,
                   CManyIPInfo *src_addr,
-                  CRXCoreIgnoreStat *ign_stats) {
+                  CRXCoreIgnoreStat *ign_stats,
+                  const VLANConfig *vlan_cfg) {
     
     m_port_id     = port_id;
     m_io          = io;
     m_src_addr    = src_addr;
     m_ign_stats   = ign_stats;
+    m_vlan_cfg    = vlan_cfg;
 }
 
 void
@@ -564,16 +597,28 @@ RXGratARP::send_next_grat_arp() {
     
     uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, ip_info->get_grat_arp_len());
     ip_info->get_mac(src_mac);
-    uint16_t vlan = ip_info->get_vlan();
     
     /* for now only IPv4 */
     assert(ip_info->ip_ver() == COneIPInfo::IP4_VER);
     uint32_t sip = ((COneIPv4Info *)ip_info)->get_ip();
     
-    CTestPktGen::create_arp_req(p, sip, sip, src_mac, vlan, m_port_id);
+    /* generate ARP request according to the VLAN configuration */
+    switch (m_vlan_cfg->m_mode) {
+    case VLANConfig::NONE:
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id);
+        break;
+        
+    case VLANConfig::SINGLE:
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_inner_vlan);
+        break;
+        
+    case VLANConfig::QINQ:
+        CTestPktGen::create_arp_req(p, sip, sip, src_mac, m_port_id, m_vlan_cfg->m_inner_vlan, m_vlan_cfg->m_outer_vlan);
+        break;
+    }
     
     TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
-    if (m_io->tx(m) == 0) {
+    if (m_io->tx_raw(m) == 0) {
         m_ign_stats->m_tx_arp    += 1;
         m_ign_stats->m_tot_bytes += 64;
     }
@@ -607,14 +652,15 @@ RXPortManager::create(const TRexPortAttr *port_attr,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
                       CCpuUtlDp *cpu_util) {
+    
     m_port_id = port_attr->get_port_id();
     m_io = io;
     m_cpu_dp_u = cpu_util;
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
-    m_server.create(m_port_id, io, &m_src_addr);
-    m_grat_arp.create(m_port_id, io, &m_src_addr, &m_ign_stats);
+    m_server.create(m_port_id, io, &m_src_addr, &m_vlan_cfg);
+    m_grat_arp.create(m_port_id, io, &m_src_addr, &m_ign_stats, &m_vlan_cfg);
     
     /* by default, server is always on */
     set_feature(SERVER);
@@ -693,7 +739,7 @@ RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) 
         
     /* copy L3 address */
     m_src_addr = ip_info;
-        
+    
     if (is_grat_arp_needed) {
         start_grat_arp();
     }

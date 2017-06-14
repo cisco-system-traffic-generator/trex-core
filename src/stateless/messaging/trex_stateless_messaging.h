@@ -29,6 +29,7 @@ limitations under the License.
 #include "os_time.h"
 #include "utl_ip.h"
 #include "trex_stateless_capture.h"
+#include "trex_vlan.h"
 
 class TrexStatelessDpCore;
 class CRxCoreStateless;
@@ -740,6 +741,24 @@ private:
     uint8_t                m_port_id;
     query_type_e           m_query_type;
     MsgReply<query_rc_e>  &m_reply;
+};
+
+
+/**
+ * VLAN config message to RX core
+ */
+class TrexStatelessRxSetVLAN : public TrexStatelessCpToRxMsgBase {
+public:
+
+    TrexStatelessRxSetVLAN(uint8_t port_id, const VLANConfig &vlan_cfg) : m_vlan_cfg(vlan_cfg) {
+        m_port_id    = port_id;
+    }
+    
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    VLANConfig        m_vlan_cfg;
 };
 
 #endif /* __TREX_STATELESS_MESSAGING_H__ */
