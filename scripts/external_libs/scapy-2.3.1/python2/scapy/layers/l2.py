@@ -97,6 +97,7 @@ class ARPSourceMACField(MACField):
 
 ### Layers
 
+ETHER_TYPES['802_AD'] = 0x88a8
 
 class Ether(Packet):
     name = "Ethernet"
@@ -351,11 +352,17 @@ class GRE(Packet):
         return p
 
 
+class Dot1AD(Dot1Q):
+    name = '802_1AD'
 
 
 bind_layers( Dot3,          LLC,           )
 bind_layers( Ether,         LLC,           type=122)
 bind_layers( Ether,         Dot1Q,         type=33024)
+bind_layers( Ether,         Dot1AD,        type=0x88a8)
+bind_layers( Dot1AD,        Dot1AD,        type=0x88a8)
+bind_layers( Dot1AD,        Dot1Q,         type=0x8100)
+bind_layers( Dot1Q,         Dot1AD,        type=0x88a8)
 bind_layers( Ether,         Ether,         type=1)
 bind_layers( Ether,         ARP,           type=2054)
 bind_layers( Ether,         EAPOL,         type=34958)
