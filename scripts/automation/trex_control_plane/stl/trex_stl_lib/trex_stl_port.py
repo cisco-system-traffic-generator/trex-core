@@ -540,7 +540,7 @@ class Port(object):
         
         params = {"handler" :       self.handler,
                   "port_id" :       self.port_id,
-                  "vlan"    :       vlan}
+                  "vlan"    :       vlan.get_tags()}
             
         rc = self.transmit("set_vlan", params)
         if rc.bad():
@@ -549,12 +549,6 @@ class Port(object):
         return self.sync()
         
         
-    @writeable
-    def clear_vlan (self):
-        return self.set_vlan(vlan = [])
-        
-        
-
     @owned
     def set_rx_queue (self, size):
 

@@ -12,11 +12,13 @@ Author:
 
 """
 from .trex_stl_service import STLService, STLServiceFilter
+from ..trex_stl_vlan import VLAN
 from ..trex_stl_types import listify
 
 from scapy.layers.l2 import Ether, ARP, Dot1Q, Dot1AD
 
 from collections import defaultdict
+
 
 class STLServiceFilterARP(STLServiceFilter):
     '''
@@ -25,10 +27,9 @@ class STLServiceFilterARP(STLServiceFilter):
     def __init__ (self):
         self.services = defaultdict(list)
 
-
     def add (self, service):
         # forward packets according to the SRC/DST IP
-        self.services[(service.src_ip, service.dst_ip)].append(service)
+        self.services[(service.src_ip, service.dst_ip, tuple(service.vlan))].append(service)
 
         
     def lookup (self, scapy_pkt):
@@ -40,8 +41,12 @@ class STLServiceFilterARP(STLServiceFilter):
         if scapy_pkt['ARP'].op != 2:
             return []
         
-        return self.services.get( (scapy_pkt['ARP'].pdst, scapy_pkt['ARP'].psrc), [] )
+        vlans = VLAN.extract(scapy_pkt)
+        
+        return self.services.get( (scapy_pkt['ARP'].pdst, scapy_pkt['ARP'].psrc, tuple(vlans)), [] ) 
 
+   
+        
 
 class STLServiceARP(STLService):
     '''
@@ -56,7 +61,7 @@ class STLServiceARP(STLService):
         self.src_mac     = ctx.get_src_mac()
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
-        self.vlan        = [] if vlan is None else listify(vlan)
+        self.vlan        = VLAN(vlan)
         self.timeout_sec = timeout_sec
         
         self.record = None
@@ -73,20 +78,11 @@ class STLServiceARP(STLService):
         
         self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
 
-        l2_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")
         
-        # single VLAN
-        if len(self.vlan) == 1:
-            l2_pkt = l2_pkt/Dot1Q(vlan=self.vlan[0])
-            
-        # dobule VLAN
-        elif len(self.vlan) == 2:
-            l2_pkt = l2_pkt/Dot1AD(vlan=self.vlan[0])/Dot1Q(vlan=self.vlan[1])
-            
-            
-        # full packet
-        pkt = l2_pkt/ARP(psrc  = self.src_ip, pdst  = self.dst_ip, hwsrc = self.src_mac)
+        pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
         
+        # add VLAN to the packet if needed
+        self.vlan.embed(pkt)
         
         # send the ARP request
         pipe.async_tx_pkt(pkt)

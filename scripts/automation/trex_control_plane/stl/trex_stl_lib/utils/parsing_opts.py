@@ -2,6 +2,7 @@ import argparse
 from collections import namedtuple, OrderedDict
 from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_remove_dup
 from .text_opts import format_text
+from ..trex_stl_vlan import VLAN
 from ..trex_stl_types import *
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
 
@@ -101,7 +102,7 @@ MONITOR_TYPE
 
 VLAN_TAGS
 CLEAR_VLAN
-VLAN
+VLAN_CFG
 
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
@@ -265,23 +266,18 @@ def hex_int (val):
     return int(val, 16)
     
 
-def is_valid_vlan():
+def action_check_vlan():
     class VLANCheck(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
-            if len(values) > 2:
-                parser.error('only one or two VLAN tags are allowed')
-                
-            for v in values:
-                try:
-                    tag = int(v)
-                    if not tag in range(1, 4096):
-                        raise ValueError
-                        
-                except ValueError:
-                    parser.error("invalid VLAN tag: '{0}' (valid range: 1 - 4095)".format(v))
-                       
-            tags = [int(v) for v in values]
-            setattr(args, self.dest, tags)
+            try:
+                vlan = VLAN(values)
+            except STLError as e:
+                parser.error(e.brief())
+            
+            setattr(args, self.dest, vlan.get_tags())
+            
+            return
+       
             
     return VLANCheck
       
@@ -772,8 +768,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               
               VLAN_TAGS: ArgumentPack(['--vlan', '-v'],
                                       {'dest':'vlan',
-                                       'action': is_valid_vlan(),
-                                       'nargs': '+',
+                                       'action': action_check_vlan(),
+                                       'type': int,
+                                       'nargs': '*',
                                        'metavar': 'VLAN',
                                        'help': 'single or double VLAN tags'}),
                
@@ -794,9 +791,9 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 {'required': False}),
 
 
-              VLAN: ArgumentGroup(MUTEX, [VLAN_TAGS,
-                                          CLEAR_VLAN],
-                                  {'required': True}),
+              VLAN_CFG: ArgumentGroup(MUTEX, [VLAN_TAGS,
+                                              CLEAR_VLAN],
+                                      {'required': True}),
 
               
               STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,

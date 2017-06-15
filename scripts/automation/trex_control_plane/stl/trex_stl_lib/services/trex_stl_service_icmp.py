@@ -14,6 +14,7 @@ Author:
 from .trex_stl_service import STLService, STLServiceFilter
 from ..trex_stl_types import listify
 from ..trex_stl_exceptions import STLError
+from ..trex_stl_vlan import VLAN
 
 from scapy.layers.l2 import Ether, Dot1Q, Dot1AD
 from scapy.layers.inet import IP, ICMP
@@ -31,7 +32,7 @@ class STLServiceFilterICMP(STLServiceFilter):
 
     def add (self, service):
         # an ICMP service can be identified by src IP, identifier and seq
-        self.services[(service.src_ip, service.id, service.seq)].append(service)
+        self.services[(service.src_ip, service.id, service.seq, tuple(service.vlan))].append(service)
         
         
     def lookup (self, scapy_pkt):
@@ -39,11 +40,13 @@ class STLServiceFilterICMP(STLServiceFilter):
         if 'ICMP' not in scapy_pkt:
             return []
 
+        vlan = VLAN.extract(scapy_pkt)
+        
         src_ip = scapy_pkt['IP'].dst
         id     = scapy_pkt['ICMP'].id
         seq    = scapy_pkt['ICMP'].seq
 
-        return self.services.get( (src_ip, id, seq), [] )
+        return self.services.get( (src_ip, id, seq, tuple(vlan)), [] )
 
 
 class STLServiceICMP(STLService):
@@ -63,7 +66,7 @@ class STLServiceICMP(STLService):
 
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
-        self.vlan        = [] if vlan is None else listify(vlan)
+        self.vlan        = VLAN(vlan)
         
         self.pkt_size    = pkt_size
         self.timeout_sec = timeout_sec
@@ -87,17 +90,8 @@ class STLServiceICMP(STLService):
         
         self.log("ICMP: {:<15} ---> Pinging '{}'".format(self.src_ip, self.dst_ip))
         
-        l2_pkt = Ether()
-        
-          # single VLAN
-        if len(self.vlan) == 1:
-            l2_pkt = l2_pkt/Dot1Q(vlan=self.vlan[0])
-            
-        # dobule VLAN
-        elif len(self.vlan) == 2:
-            l2_pkt = l2_pkt/Dot1AD(vlan=self.vlan[0])/Dot1Q(vlan=self.vlan[1])
-            
-        base_pkt = l2_pkt/IP(src = self.src_ip, dst = self.dst_ip)/ICMP(id = self.id, type = 8)
+        base_pkt = Ether()/IP(src = self.src_ip, dst = self.dst_ip)/ICMP(id = self.id, type = 8)
+        self.vlan.embed(base_pkt)
         
         pad = max(0, self.pkt_size - len(base_pkt))
         pkt = base_pkt / ('x' * pad)

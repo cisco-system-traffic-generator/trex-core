@@ -11,6 +11,7 @@ from . import trex_stl_stats
 
 from .trex_stl_port import Port
 from .trex_stl_types import *
+from .trex_stl_vlan import VLAN
 
 from .services.trex_stl_service_icmp import STLServiceICMP
 from .services.trex_stl_service_arp import STLServiceARP
@@ -860,18 +861,7 @@ class STLClient(object):
 
         return rc
     
-        
-    def __clear_vlan (self, port_id_list):
-
-        port_id_list = self.__ports(port_id_list)
-        rc = RC()
-
-        for port_id in port_id_list:
-            rc.add(self.ports[port_id].clear_vlan())
-
-        return rc
-
-        
+       
     def __set_rx_queue (self, port_id_list, size):
         port_id_list = self.__ports(port_id_list)
         rc = RC()
@@ -1971,7 +1961,7 @@ class STLClient(object):
 
        
     @__api_check(True)
-    def set_vlan (self, vlan, ports = None):
+    def set_vlan (self, ports = None, vlan = None):
         """
             Sets the port VLAN.
             VLAN tagging will be applied to control traffic
@@ -1979,12 +1969,14 @@ class STLClient(object):
             and periodic gratidious ARP
 
             :parameters:
-                 vlan      - can be either int or a list of up to two ints
+                 ports     - the port(s) to set the source address
+            
+                 vlan      - can be either None, int or a list of up to two ints
                              each value representing a VLAN tag
                              when two are supplied, provide QinQ tagging.
                              The first TAG is outer and the second is inner
                              
-                 ports     - the port(s) to set the source address
+                 
             :raises:
                 + :exc:`STLError`
         """
@@ -1993,24 +1985,12 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self.psv.validate('VLAN', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
         
-        # validate VLAN values
-        vlan = listify(vlan)
-        
-        if len(vlan) not in range(1, 3):
-            raise STLError("'vlan' should be a single or double tags")
-        
-        for tag in vlan:
-            if not type(tag) == int:
-                raise STLError("invalid VLAN tag: '{0}' (int value expected)".format(tag))
-                
-            if not (tag in range(1, 4096)) :
-                raise STLError("invalid VLAN tag: '{0}' (valid range: 1 - 4095)".format(tag))
-        
-        
-        if len(vlan) == 1:
-            self.logger.pre_cmd("Setting port(s) {0} with VLAN {1}: ".format(ports, vlan[0]))
+        vlan = VLAN(vlan)
+    
+        if vlan:
+            self.logger.pre_cmd("Setting port(s) {0} with {1}: ".format(ports, vlan.get_desc()))
         else:
-            self.logger.pre_cmd("Setting port(s) {0} with QinQ {1}/{2}: ".format(ports, vlan[0], vlan[1]))
+            self.logger.pre_cmd("Clearing port(s) {0} VLAN configuration: ".format(ports))
         
                 
         rc = self.__set_vlan(ports, vlan)
@@ -2034,20 +2014,11 @@ class STLClient(object):
         """
     
         # validate ports and state
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self.psv.validate('VLAN', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
+        self.set_vlan(ports = ports, vlan = [])
         
-        self.logger.pre_cmd("Clearing port(s) {0} VLAN configuration: ".format(ports))
-        
-        rc = self.__clear_vlan(ports)
-        self.logger.post_cmd(rc)
-        
-        if not rc:
-            raise STLError(rc)
-                 
          
     @__api_check(True)
-    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1):
+    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1, vlan = None):
         """
             Pings an IP address through a port
 
@@ -2057,6 +2028,7 @@ class STLClient(object):
                  pkt_size     - packet size to use
                  count        - how many times to ping
                  interval_sec - how much time to wait between pings
+                 vlan         - one or two VLAN tags o.w it will be taken from the src port configuration
 
             :returns:
                 List of replies per 'count'
@@ -2095,11 +2067,18 @@ class STLClient(object):
             self.psv.validate('PING IPv6', src_port, (PSV_ACQUIRED, PSV_SERVICE))
         
         
-        self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
-                                                                                       src_port,
-                                                                                       pkt_size))
+        vlan = VLAN(self.ports[src_port].get_vlan_cfg() if vlan is None else vlan)
         
-        vlan = self.ports[src_port].get_vlan_cfg()
+        if vlan:
+            self.logger.pre_cmd("Pinging {0} from port {1} over {2} with {3} bytes of data:".format(dst_ip,
+                                                                                                    src_port,
+                                                                                                    vlan.get_desc(),
+                                                                                                    pkt_size))
+        else:
+            self.logger.pre_cmd("Pinging {0} from port {1} with {2} bytes of data:".format(dst_ip,
+                                                                                           src_port,
+                                                                                           pkt_size))
+        
         
         if is_valid_ipv4(dst_ip):
             return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
@@ -3635,7 +3614,7 @@ class STLClient(object):
         
         
     @__api_check(True)
-    def resolve (self, ports = None, retries = 0, verbose = True):
+    def resolve (self, ports = None, retries = 0, verbose = True, vlan = None):
         """
             Resolves ports (ARP resolution)
 
@@ -3643,6 +3622,7 @@ class STLClient(object):
                 ports          - which ports to resolve
                 retries        - how many times to retry on each port (intervals of 100 milliseconds)
                 verbose        - log for each request the response
+                vlan           - one or two VLAN tags o.w it will be taken from the src port configuration
             :raises:
                 + :exe:'STLError'
 
@@ -3651,7 +3631,13 @@ class STLClient(object):
         ports = ports if ports is not None else self.get_resolvable_ports()
         ports = self.psv.validate('ARP', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
         
-        self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
+        # create a VLAN object - might throw exception on error
+        vlan = VLAN(vlan)
+        
+        if vlan:
+            self.logger.pre_cmd('Resolving destination over {0} on port(s) {1}:'.format(vlan.get_desc(), ports))
+        else:
+            self.logger.pre_cmd('Resolving destination on port(s) {0}:'.format(ports))
         
         # generate the context
         arps = []
@@ -3661,13 +3647,14 @@ class STLClient(object):
             
             src_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['src']
             dst_ipv4 = self.ports[port].get_layer_cfg()['ipv4']['dst']
-            vlan     = self.ports[port].get_vlan_cfg()
+            
+            port_vlan = self.ports[port].get_vlan_cfg() if vlan.is_default() else vlan
             
             ctx = self.create_service_ctx(port)
             
             # retries
             for i in range(retries + 1):
-                arp = STLServiceARP(ctx, dst_ip = dst_ipv4, src_ip = src_ipv4, vlan = vlan)
+                arp = STLServiceARP(ctx, dst_ip = dst_ipv4, src_ip = src_ipv4, vlan = port_vlan)
                 ctx.run(arp)
                 if arp.get_record():
                     self.ports[port].set_l3_mode(src_ipv4, dst_ipv4, arp.get_record().dst_mac)
@@ -4153,6 +4140,7 @@ class STLClient(object):
                                          parsing_opts.SINGLE_PORT,
                                          parsing_opts.PING_IP,
                                          parsing_opts.PKT_SIZE,
+                                         parsing_opts.VLAN_TAGS,
                                          parsing_opts.PING_COUNT)
 
         opts = parser.parse_args(line.split())
@@ -4161,7 +4149,7 @@ class STLClient(object):
             
         # IP ping
         # source ports maps to ports as a single port
-        self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count)
+        self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count, vlan = opts.vlan)
         
         
     @__console
@@ -4753,6 +4741,7 @@ class STLClient(object):
                                          "resolve",
                                          self.resolve_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.VLAN_TAGS,
                                          parsing_opts.RETRIES)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
@@ -4760,7 +4749,7 @@ class STLClient(object):
             return opts
 
         
-        self.resolve(ports = opts.ports, retries = opts.retries)
+        self.resolve(ports = opts.ports, retries = opts.retries, vlan = opts.vlan)
 
         return RC_OK()
         
@@ -4839,7 +4828,7 @@ class STLClient(object):
                                          "vlan",
                                          self.set_vlan_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.VLAN,
+                                         parsing_opts.VLAN_CFG,
                                          )
 
         opts = parser.parse_args(line.split())
@@ -4849,7 +4838,7 @@ class STLClient(object):
         if opts.clear_vlan:
             self.clear_vlan(ports = opts.ports)
         else:
-            self.set_vlan(opts.vlan, ports = opts.ports)
+            self.set_vlan(ports = opts.ports, vlan = opts.vlan)
 
         return RC_OK()
         
