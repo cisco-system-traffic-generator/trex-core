@@ -379,9 +379,11 @@ eth_em_dev_init(struct rte_eth_dev *eth_dev)
 		     eth_dev->data->port_id, pci_dev->id.vendor_id,
 		     pci_dev->id.device_id);
 
+/*
+TRex patch: disable interrupts, they are broken with VMWARE E1000
 	rte_intr_callback_register(intr_handle,
 				   eth_em_interrupt_handler, eth_dev);
-
+*/
 	return 0;
 }
 

@@ -732,13 +732,10 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 			if (bytes_read < 0) {
 				if (errno == EINTR || errno == EWOULDBLOCK)
 					continue;
-#if 0
-// TREX_PATCH - this causes endless messages on e1000 with dpdk1702
 				RTE_LOG(ERR, EAL, "Error reading from file "
 					"descriptor %d: %s\n",
 					events[n].data.fd,
 					strerror(errno));
-#endif	
 			} else if (bytes_read == 0)
 				RTE_LOG(ERR, EAL, "Read nothing from file "
 					"descriptor %d\n", events[n].data.fd);
