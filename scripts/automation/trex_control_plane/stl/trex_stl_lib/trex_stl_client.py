@@ -1919,6 +1919,7 @@ class STLClient(object):
             
         if not is_valid_mac(dst_mac):
             raise STLError("dest_mac is not a valid MAC address: '{0}'".format(dst_mac))
+        
             
         self.logger.pre_cmd("Setting port {0} in L2 mode: ".format(port))
         rc = self.ports[port].set_l2_mode(dst_mac)
@@ -1929,7 +1930,7 @@ class STLClient(object):
             
             
     @__api_check(True)
-    def set_l3_mode (self, port, src_ipv4, dst_ipv4):
+    def set_l3_mode (self, port, src_ipv4, dst_ipv4, vlan = None):
         """
             Sets the port mode to L3
 
@@ -1937,6 +1938,7 @@ class STLClient(object):
                  port      - the port to set the source address
                  src_ipv4  - IPv4 source address for the port
                  dst_ipv4  - IPv4 destination address
+                 vlan      - VLAN configuration - can be an int or a list up to two ints
             :raises:
                 + :exc:`STLError`
         """
@@ -1948,6 +1950,12 @@ class STLClient(object):
             
         if not is_valid_ipv4(dst_ipv4):
             raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+    
+        vlan = VLAN(vlan)
+        
+        # if VLAN is not default - configure VLAN
+        if not vlan.is_default():
+            self.set_vlan(ports = port, vlan = vlan)
             
         self.logger.pre_cmd("Setting port {0} in L3 mode: ".format(port))
         rc = self.ports[port].set_l3_mode(src_ipv4, dst_ipv4)
@@ -4783,8 +4791,7 @@ class STLClient(object):
                                          "port",
                                          self.set_l2_mode_line.__doc__,
                                          parsing_opts.SINGLE_PORT,
-                                         parsing_opts.DST_MAC,
-                                         )
+                                         parsing_opts.DST_MAC)
 
         opts = parser.parse_args(line.split())
         if not opts:
@@ -4807,6 +4814,7 @@ class STLClient(object):
                                          parsing_opts.SINGLE_PORT,
                                          parsing_opts.SRC_IPV4,
                                          parsing_opts.DST_IPV4,
+                                         parsing_opts.VLAN_TAGS,
                                          )
 
         opts = parser.parse_args(line.split())
@@ -4815,7 +4823,7 @@ class STLClient(object):
 
 
         # source ports maps to ports as a single port
-        self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4)
+        self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4, vlan = opts.vlan)
 
         return RC_OK()
         
