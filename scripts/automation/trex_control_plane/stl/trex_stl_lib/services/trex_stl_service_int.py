@@ -291,8 +291,8 @@ class Pkt(simpy.resources.store.Store):
                 
             else:
             # if limit was set - slice the list
-                event.succeed(event.items[:event.limit])
-                self.items = event.items[event.limit:]
+                event.succeed(self.items[:event.limit])
+                self.items = self.items[event.limit:]
 
 
 ##################

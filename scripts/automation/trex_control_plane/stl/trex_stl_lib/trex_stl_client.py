@@ -1951,10 +1951,8 @@ class STLClient(object):
         if not is_valid_ipv4(dst_ipv4):
             raise STLError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
     
-        vlan = VLAN(vlan)
-        
-        # if VLAN is not default - configure VLAN
-        if not vlan.is_default():
+        # if VLAN was given - set it
+        if vlan is not None:
             self.set_vlan(ports = port, vlan = vlan)
             
         self.logger.pre_cmd("Setting port {0} in L3 mode: ".format(port))
@@ -2074,7 +2072,7 @@ class STLClient(object):
         else:
             self.psv.validate('PING IPv6', src_port, (PSV_ACQUIRED, PSV_SERVICE))
         
-        
+        # if vlan was given use it, otherwise generate it from the port
         vlan = VLAN(self.ports[src_port].get_vlan_cfg() if vlan is None else vlan)
         
         if vlan:
