@@ -143,7 +143,7 @@ public:
                 CFlowStatRuleMgr::instance()->copy_state(out_stream, in_stream);
             } else {
                 /* fail path */
-                CFlowStatRuleMgr::instance()->stop_stream(out_stream);
+                CFlowStatRuleMgr::instance()->reset_stream(out_stream);
             }
             delete out_stream;
         }

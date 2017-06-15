@@ -36,11 +36,12 @@ returned to the free hw_id pool, and hardware rules are removed. Counters for th
 For each stream we keep state in the m_rx_check.m_hw_id field. Since we keep reference count for certain structs, we want to
 protect from illegal operations, like starting stream while it is already started, stopping when it is stopped...
 State machine is:
-stream_init: HW_ID_INIT
-stream_add: HW_ID_FREE
-stream_start: legal hw_id (range is 0..MAX_FLOW_STATS)
-stream_stop: Not changing anything.
-stream_del: HW_ID_INIT
+init_stream: HW_ID_INIT
+add_stream: HW_ID_FREE
+start_stream: legal hw_id (range is 0..MAX_FLOW_STATS)
+stop_stream: HW_ID_STOPPED
+del_stream: HW_ID_INIT
+reset_stream: HW_ID_FREE - putting it back as if it was just added
  */
 #include <sstream>
 #include <string>
@@ -61,6 +62,7 @@ stream_del: HW_ID_INIT
 
 static const uint16_t HW_ID_INIT = UINT16_MAX;
 static const uint16_t HW_ID_FREE = UINT16_MAX - 1;
+static const uint16_t HW_ID_STOPPED = UINT16_MAX - 2;
 static const uint8_t PAYLOAD_RULE_PROTO = 255;
 static const uint32_t MAX_ALLOWED_PGID_LIST_LEN = 1024+128;
 const uint32_t FLOW_STAT_PAYLOAD_IP_ID = UINT16_MAX;
@@ -104,7 +106,7 @@ void dbg_printf(const char *fmt, ...)
 CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
     memset(m_rx_cntr, 0, sizeof(m_rx_cntr));
     memset(m_tx_cntr, 0, sizeof(m_tx_cntr));
-    m_hw_id = UINT16_MAX;
+    m_hw_id = HW_ID_INIT;
     m_l3_proto = l3_proto;
     m_l4_proto = l4_proto;
     m_ipv6_next_h = ipv6_next_h;
@@ -147,7 +149,7 @@ void CFlowStatUserIdInfo::add_stream(uint8_t proto) {
 void CFlowStatUserIdInfo::reset_hw_id() {
     FUNC_ENTRY;
 
-    m_hw_id = UINT16_MAX;
+    m_hw_id = HW_ID_INIT;
     for (int i = 0; i < TREX_MAX_PORTS; i++) {
         memset(&m_rx_cntr[i], 0, sizeof(m_rx_cntr[0]));
         memset(&m_tx_cntr[i], 0, sizeof(m_tx_cntr[0]));
@@ -311,13 +313,14 @@ int CFlowStatUserIdMap::del_stream(uint32_t user_id) {
                           , TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     }
 
-    if (c_user_id->del_stream() == 0) {
+    int ret = c_user_id->del_stream();
+    if (ret == 0) {
         // ref count of this entry became 0. can release this entry.
         m_map.erase(user_id);
         delete c_user_id;
     }
 
-    return 0;
+    return ret;
 }
 
 int CFlowStatUserIdMap::start_stream(uint32_t user_id, uint16_t hw_id) {
@@ -402,7 +405,7 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
 
     c_user_id = find_user_id(user_id);
     if (! c_user_id) {
-        return UINT16_MAX;
+        return HW_ID_INIT;
     }
     uint16_t old_hw_id = c_user_id->get_hw_id();
     c_user_id->reset_hw_id();
@@ -414,6 +417,7 @@ uint16_t CFlowStatUserIdMap::unmap(uint32_t user_id) {
 CFlowStatHwIdMap::CFlowStatHwIdMap() {
     m_map = NULL; // must call create in order to work with the class
     m_num_free = 0; // to make coverity happy, init this here too.
+    m_size = 0;
 }
 
 CFlowStatHwIdMap::~CFlowStatHwIdMap() {
@@ -427,6 +431,7 @@ void CFlowStatHwIdMap::create(uint16_t size) {
     for (int i = 0; i < size; i++) {
         m_map[i] = HW_ID_FREE;
     }
+    m_size = size;
 }
 
 std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf) {
@@ -434,8 +439,8 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf) {
 
     os << "HW id map:\n";
     os << "  num free:" << cf.m_num_free << std::endl;
-    for (int i = 0; i < MAX_FLOW_STATS; i++) {
-        if (cf.m_map[i] != 0) {
+    for (int i = 0; i < cf.m_size; i++) {
+        if (cf.m_map[i] != HW_ID_FREE) {
             count++;
             os << "(" << i << ":" << cf.m_map[i] << ")";
             if (count == 10) {
@@ -449,7 +454,7 @@ std::ostream& operator<<(std::ostream& os, const CFlowStatHwIdMap& cf) {
 }
 
 uint16_t CFlowStatHwIdMap::find_free_hw_id() {
-    for (int i = 0; i < MAX_FLOW_STATS; i++) {
+    for (int i = 0; i < m_size; i++) {
         if (m_map[i] == HW_ID_FREE)
             return i;
     }
@@ -589,7 +594,7 @@ int CFlowStatRuleMgr::add_stream(TrexStream * stream) {
  */
 int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << " action:" << do_action << std::endl;
     stream_dump(stream);
 #endif
 
@@ -657,9 +662,24 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     return 0;
 }
 
+
+// Bring stream back to HW_ID_INIT state.
+int CFlowStatRuleMgr::reset_stream(TrexStream * stream) {
+    return del_stream_internal(stream, false);
+}
+
+// delete stream
 int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
+    return del_stream_internal(stream, true);
+}
+
+// if need_to_delete == true, delete the stream
+// if it equals false, do the same actions, but do not really delete the stream.
+// Just bring it back to HW_ID_INIT state.
+int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_delete) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id
+              << " hw_id:" << stream->m_rx_check.m_hw_id << " delete:"<< need_to_delete <<std::endl;
     stream_dump(stream);
 #endif
 
@@ -681,58 +701,80 @@ int CFlowStatRuleMgr::del_stream(TrexStream * stream) {
         break;
     }
 
-    // we got del_stream command for a stream which has valid hw_id.
-    // Probably someone forgot to call stop
-    if(stream->m_rx_check.m_hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
-        stop_stream(stream);
-    }
+    bool need_to_unmap = false;
 
     // calling del for same stream twice, or for a stream which was never "added"
     if(stream->m_rx_check.m_hw_id == HW_ID_INIT) {
         return 0;
     }
 
+    // we got del_stream command for a stream which has valid hw_id.
+    // Probably someone forgot to call stop
+    if(stream->m_rx_check.m_hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
+        // if last transmitting stream, need to free hw_id
+        internal_stop_stream(stream);
+        stream->m_rx_check.m_hw_id = HW_ID_STOPPED;
+    }
+
+    if  (stream->m_rx_check.m_hw_id == HW_ID_STOPPED) {
+        CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(stream->m_rx_check.m_pg_id);
+        if (p_user_id && (! p_user_id->is_started()) ) {
+            need_to_unmap = true;
+        }
+        stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    }
+
+    // stream->m_rx_check.m_hw_id is HW_ID_FREE
+
     uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
-    // no mapping found. Stream already deleted
-    if (hw_id == HW_ID_FREE) {
-        return 0;
-    }
-    CFlowStatUserIdInfo *p_user_id = NULL;
-     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
-        p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
-        if (p_user_id) {
-            m_hw_id_map.unmap(hw_id);
-        }
-     } else {
-        p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
-        if (p_user_id) {
-            m_hw_id_map_payload.unmap(hw_id);
-        }
-     }
-     if (p_user_id) {
-         for (uint8_t port = 0; port < m_num_ports; port++) {
-             if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
-                 m_api->del_rx_flow_stat_rule(port, p_user_id->get_l3_proto(), p_user_id->get_l4_proto()
-                                              , p_user_id->get_ipv6_next_h(), hw_id);
-             }
-         }
-         m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
+    // no mapping found. Stream already unmapped
+    if (hw_id == HW_ID_FREE || hw_id == HW_ID_INIT) {
+        need_to_unmap = false;
     }
 
-     rx_per_flow_t rx_cntr;
-     tx_per_flow_t tx_cntr;
-     // clean stat for hw_id
-     for (uint8_t port = 0; port < m_num_ports; port++) {
-         m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
-     }
+    // stopped last stream with this hw_id <-->pd_id association. Need to unmap
+    if (need_to_unmap) {
+        CFlowStatUserIdInfo *p_user_id = NULL;
+        if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+            p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
+            if (p_user_id) {
+                m_hw_id_map.unmap(hw_id);
+            }
+        } else {
+            p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
+            if (p_user_id) {
+                m_hw_id_map_payload.unmap(hw_id);
+            }
+        }
+        if (p_user_id) {
+            for (uint8_t port = 0; port < m_num_ports; port++) {
+                if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                    m_api->del_rx_flow_stat_rule(port, p_user_id->get_l3_proto(), p_user_id->get_l4_proto()
+                                                 , p_user_id->get_ipv6_next_h(), hw_id);
+                }
+            }
+            m_user_id_map.unmap(stream->m_rx_check.m_pg_id);
+        }
 
-    m_user_id_map.del_stream(stream->m_rx_check.m_pg_id); // Throws exception in case of error
+        rx_per_flow_t rx_cntr;
+        tx_per_flow_t tx_cntr;
+        // clean stat for hw_id
+        for (uint8_t port = 0; port < m_num_ports; port++) {
+            m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
+        }
+    }
+
+    if (need_to_delete) {
+        stream->m_rx_check.m_hw_id = HW_ID_INIT;
+        m_user_id_map.del_stream(stream->m_rx_check.m_pg_id); // Throws exception in case of error
+    } else {
+        stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    }
+
     if (m_user_id_map.is_empty()) {
         m_max_hw_id = -1;
         m_max_hw_id_payload = -1;
     }
-
-    stream->m_rx_check.m_hw_id = HW_ID_INIT;
 
     return 0;
 }
@@ -793,12 +835,13 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     }
 
     if (stream->m_rx_check.m_hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
-        throw TrexFStatEx("Starting a stream which was already started"
-                          , TrexException::T_FLOW_STAT_ALREADY_STARTED);
+        // stream already started
+        return 0;
     }
 
-    uint16_t hw_id;
+    /// Stream is either HW_ID_STOPPED or HW_ID_FREE
 
+    uint16_t hw_id;
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
         // compile_stream throws exception if something goes wrong
@@ -818,8 +861,9 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if (m_user_id_map.is_started(stream->m_rx_check.m_pg_id)) {
         m_user_id_map.start_stream(stream->m_rx_check.m_pg_id); // just increase ref count;
         hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id); // can't fail if we got here
-        DEBUG_PRINT("  Stream already started. pg_id:%d, hw_id:%d\n", stream->m_rx_check.m_pg_id, hw_id);
+        DEBUG_PRINT("  Restarting stream pg_id:%d, hw_id:%d\n", stream->m_rx_check.m_pg_id, hw_id);
     } else {
+
         uint32_t user_id = stream->m_rx_check.m_pg_id;
         bool new_hw_id = false;
         // if stream started and then stopped, it will have hw_id. If first time start, need to allocate.
@@ -832,6 +876,13 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                 hw_id = m_hw_id_map_payload.find_free_hw_id();
             }
         }
+
+        if (stream->m_rx_check.m_hw_id == HW_ID_STOPPED) {
+            m_user_id_map.start_stream(user_id);
+            hw_id = m_user_id_map.get_hw_id(user_id);
+            new_hw_id = false;
+        }
+
         DEBUG_PRINT("  pg_id:%d, hw_id:%d - %s\n", user_id, hw_id, new_hw_id ? "new": "old");
 
         if (hw_id == HW_ID_FREE) {
@@ -928,12 +979,21 @@ int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_
 }
 
 int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
+    internal_stop_stream(stream);
+    return 0;
+}
+
+int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 #ifdef __DEBUG_FUNC_ENTRY__
-    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id << std::endl;
+    std::cout << __METHOD_NAME__ << " user id:" << stream->m_rx_check.m_pg_id
+              << " hw id:" << stream->m_rx_check.m_hw_id << std::endl;
     stream_dump(stream);
 #endif
+
+    int ret = -1;
+
     if (! stream->m_rx_check.m_enabled) {
-        return 0;
+        return -1;
     }
 
     if (! m_api)
@@ -941,7 +1001,7 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
 
     if (stream->m_rx_check.m_hw_id >= MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
         // We allow stopping while already stopped. Will not hurt us.
-        return 0;
+        return -1;
     }
 
     TrexPlatformApi::driver_stat_cap_e rule_type = (TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type;
@@ -955,16 +1015,15 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
         break;
     }
 
-    stream->m_rx_check.m_hw_id = HW_ID_FREE;
+    stream->m_rx_check.m_hw_id = HW_ID_STOPPED;
 
     rx_per_flow_t rx_cntr;
     tx_per_flow_t tx_cntr;
     CFlowStatUserIdInfo *p_user_id;
     uint16_t hw_id = m_user_id_map.get_hw_id(stream->m_rx_check.m_pg_id);
 
-    // no mapping found. Stream already deleted
-    if (hw_id == HW_ID_FREE) {
-        return 0;
+    if (hw_id >= MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
+        return -1;
     }
 
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
@@ -979,6 +1038,8 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
     if (p_user_id == NULL) {
         printf ("hw_id:%d. No mapping found. Supposed to be attached to %d\n", hw_id, stream->m_rx_check.m_pg_id);
 
+    } else {
+        ret = m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id);
     }
     assert(p_user_id != NULL);
 
@@ -990,7 +1051,7 @@ int CFlowStatRuleMgr::stop_stream(TrexStream * stream) {
         send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
     }
 
-    return 0;
+    return ret;
 }
 
 // return list of active pgids with their type (latency of flow_stat)
@@ -1092,8 +1153,8 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
     hr_time_t now = os_get_hr_tick_64();
     hr_time_t freq = os_get_hr_freq();
 #ifdef __DEBUG_FUNC_ENTRY__
-    printf("CFlowStatRuleMgr::update_counters: time:%ld, flow(%d-%d) payload(%d-%d)\n"
-           , now, min_f, max_f, min_l, max_l);
+        printf("CFlowStatRuleMgr::update_counters: time:%ld, flow(%d-%d) payload(%d-%d)\n"
+               , now, min_f, max_f, min_l, max_l);
 #endif
     for (uint8_t port = 0; port < m_num_ports; port++) {
         if (min_f != HW_ID_INIT) {

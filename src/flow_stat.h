@@ -475,6 +475,7 @@ class CFlowStatHwIdMap {
  private:
     uint32_t *m_map; // translation from hw id to user id
     uint16_t m_num_free; // How many free entries in the m_rules array
+    uint16_t m_size; // size of table (different per NIC type)
 };
 
 class CFlowStatRuleMgr {
@@ -503,6 +504,7 @@ class CFlowStatRuleMgr {
     void init_stream(TrexStream * stream);
     int verify_stream(TrexStream * stream);
     int add_stream(TrexStream * stream);
+    int reset_stream(TrexStream * stream);
     int del_stream(TrexStream * stream);
     int start_stream(TrexStream * stream);
     int stop_stream(TrexStream * stream);
@@ -520,9 +522,11 @@ class CFlowStatRuleMgr {
     void create();
     int compile_stream(const TrexStream * stream, CFlowStatParser *parser);
     int add_stream_internal(TrexStream * stream, bool do_action);
+    int del_stream_internal(TrexStream * stream, bool need_to_delete);
     int add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     void send_start_stop_msg_to_rx(bool is_start);
     void internal_periodic_update(uint16_t min_f, uint16_t max_f, uint16_t min_l, uint16_t max_l);
+    int internal_stop_stream(TrexStream * stream);
     void update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
                          , uint16_t min_l, uint16_t max_l);
 

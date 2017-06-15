@@ -1016,13 +1016,14 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     node->m_original_packet_data_prefix = 0;
 
     if (stream->m_rx_check.m_enabled) {
-        node->set_stat_needed();
         uint16_t hw_id = stream->m_rx_check.m_hw_id;
-        assert (hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD);
-        node->set_stat_hw_id(hw_id);
-        // no support for cache with flow stat payload rules
-        if ((TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-            stream->m_cache_size = 0;
+        if (hw_id < MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD) {
+            node->set_stat_needed();
+            node->set_stat_hw_id(hw_id);
+            // no support for cache with flow stat payload rules
+            if ((TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+                stream->m_cache_size = 0;
+            }
         }
     }
 
