@@ -713,6 +713,10 @@ public:
         return (0);
     }
 
+    virtual int tx_raw(rte_mbuf_t *m) {
+        return tx(m);
+    }
+    
     virtual int tx_latency(rte_mbuf_t *m) {
         return tx(m);
     }
