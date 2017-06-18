@@ -31,7 +31,7 @@ endif::backend-docbook[]
 
 * Support 802.1Q and 802.1AD (QinQ) for Stateless services and port config   
   see link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.set_l3_mode[l3 configuration with vlan]
-  and  link:{github_stl_examples_path}/stl_multiple_aprs.py[stl_ndr_bench_tool.py example]
+  and  link:{github_stl_examples_path}/stl_multiple_arps.py[stl_ndr_bench_tool.py example]
 * Remove async RPC flow-stats support. Only new sync RPC API is supported from this version. The implication is that only new GUI version (>v3.2 will work)
 ** refactor Python client side and fix some multi-user crash/bugs  
 
