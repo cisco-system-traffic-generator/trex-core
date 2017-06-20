@@ -750,10 +750,23 @@ class Port(object):
         self.state = self.STATE_PCAP_TX
         return self.ok()
 
+        
+    def push_packets (self, pkts, force):
+        params = {'port_id': self.port_id,
+                  'pkts'   : pkts,
+                  'force'  : force}
+        
+        rc = self.transmit("push_pkts", params)
+        if rc.bad():
+            return self.err(rc.err())
+            
+        return rc
+        
 
     def get_profile (self):
         return self.profile
 
+        
     # invalidates the current ARP
     def invalidate_arp (self):
         if not self.is_l3_mode():

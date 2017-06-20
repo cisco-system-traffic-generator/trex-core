@@ -828,6 +828,16 @@ class STLClient(object):
 
         return rc
 
+    def __push_packets (self, port_id_list, pkts, force):
+        port_id_list = self.__ports(port_id_list)
+
+        rc = RC()
+
+        for port_id in port_id_list:
+            rc.add(self.ports[port_id].push_packets(pkts, force))
+
+        return rc
+        
 
     def __scan6(self, port_id_list = None, timeout = 5):
         port_id_list = self.__ports(port_id_list)
@@ -3229,112 +3239,64 @@ class STLClient(object):
 
 
 
-
     @__api_check(True)
-    def push_packets (self,
-                      pkts,
-                      ports = None,
-                      ipg_usec = 100,
-                      count = 1,
-                      duration = -1,
-                      force = False,
-                      vm = None):
-        
+    def push_packets (self, pkts, ports = None, force = False):
         """
             Pushes a list of packets to the server
             a 'packet' can be anything with a bytes representation
             such as Scapy object, a simple string, a byte array and etc.
-            
+
             Total size, as for PCAP pushing is limited to 1MB
             unless 'force' is specified
-            
-            the list of packets will be saved to a temporary file
-            which will be deleted when the function exists
-            
+
             :parameters:
-                pkts : Scapy pkt or a list of scapy pkts
-
-                ports : list
-                    Ports on which to execute the command
-
-                ipg_usec : float
-                    Inter-packet gap in microseconds.
-
-                count: int
-                    How many times to transmit the list
-
-                duration: float
-                    Limit runtime by duration in seconds
-
-                force: bool
-                    Ignore size limit - push any size to the server
-
-                vm: list of VM instructions
-                    VM instructions to apply for every packet
-
-            :raises:
-                + :exc:`STLError`
+                pkts    - Scapy pkt or a list of scapy pkts
+                ports   - On which ports to push the packets
+                force   - ignore size higer than 1 MB
         """
         
-        # validate ports
+        # by default, take acquire ports
         ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self.__pre_start_check('PUSH', ports, force)
         
-        validate_type('count',  count, int)
-        validate_type('duration', duration, (float, int))
-        validate_type('vm', vm, (list, type(None)))
-        
-        # if force - stop any active ports
-        if force:
-            active_ports = list(set(self.get_active_ports()).intersection(ports))
-            if active_ports:
-                self.stop(active_ports)
-                
         # pkts should be scapy, bytes, str or a list of them
         pkts = listify(pkts)
         for pkt in pkts:
             if not isinstance(pkt, (Ether, bytes)):
                 raise STLTypeError('pkts', type(pkt), (Ether, bytes))
         
-        # IPG
-        validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
-        if ipg_usec < 0:
-            raise STLError("'ipg_usec' should not be negative")
-        
-        # init the stream list
-        streams = []
-        
-        for i, pkt in enumerate(pkts, start = 1):
+        # for each, packet if scapy turn to bytes and then encode64 and transform to string
+        pkts_base64 = []
+        for pkt in pkts:
             
-            # handle last packet
-            
-            if i == len(pkts):
-                next = 1
-                action_count = count
+            if isinstance(pkt, Ether):
+                # scapy
+                binary = bytes(pkt)
+                use_port_dst_mac = 'dst' not in pkt.fields
+                use_port_src_mac = 'src' not in pkt.fields
+                
             else:
-                next = i + 1
-                action_count = 0
-
-            # is the packet Scapy or a simple buffer ?
-            packet = STLPktBuilder(pkt = pkt, vm = vm) if isinstance(pkt, Ether) else STLPktBuilder(pkt_buffer = pkt, vm = vm)
-            
-            # add the stream
-            streams.append(STLStream(name = i,
-                                     packet = packet,
-                                     mode = STLTXSingleBurst(total_pkts = 1, percentage = 100),
-                                     self_start = True if (i == 1) else False,
-                                     isg = ipg_usec,  # usec
-                                     action_count = action_count,
-                                     next = next))
+                # binary
+                binary = pkt
+                use_port_dst_mac = True
+                use_port_src_mac = True
+                
+                
+            pkts_base64.append( {'binary': base64.b64encode(binary).decode(),
+                                 'use_port_dst_mac': use_port_dst_mac,
+                                 'use_port_src_mac': use_port_src_mac} )
         
-        
-        # remove all streams, attach the created list and start
-        self.remove_all_streams(ports = ports)
-        id_list = self.add_streams(streams, ports)
             
-        return self.start(ports = ports, duration = duration, force = force)
+        self.logger.pre_cmd("Pushing {0} packets on port(s) {1}:".format(len(pkts), ports))
+        rc = self.__push_packets(ports, pkts_base64, force)
+        self.logger.post_cmd(rc)
 
-    
+        if not rc:
+            raise STLError(rc)
+
+        return rc
+
+
+  
 
     @__api_check(True)
     def validate (self, ports = None, mult = "1", duration = -1, total = False):
@@ -4994,7 +4956,6 @@ class STLClient(object):
                                          "pkt",
                                          self.pkt_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.COUNT,
                                          parsing_opts.DRY_RUN,
                                          parsing_opts.SCAPY_PKT_CMD,
                                          parsing_opts.FORCE)
@@ -5017,17 +4978,9 @@ class STLClient(object):
             return
    
             
-        self.logger.pre_cmd("Pushing {0} packet(s) (size: {1}) on port(s) {2}:".format(opts.count if opts.count else 'infinite',
-                                                                                       len(opts.scapy_pkt), opts.ports))
-        try:
-            with self.logger.supress():
-                self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = opts.force, count = opts.count)
-                
-        except STLError as e:
-            self.logger.post_cmd(False)
-            raise
-        else:
-            self.logger.post_cmd(RC_OK())
+        self.push_packets(pkts = opts.scapy_pkt, ports = opts.ports, force = opts.force)
+        
+        return True
         
             
     # save current history to a temp file

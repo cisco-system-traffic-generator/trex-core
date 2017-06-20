@@ -409,3 +409,4 @@ void
 CRxCoreStateless::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
     get_rx_port_mngr(port_id).get_ignore_stats(stat, get_diff);
 }
+

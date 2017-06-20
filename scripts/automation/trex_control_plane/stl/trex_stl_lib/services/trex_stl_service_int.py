@@ -107,7 +107,7 @@ class STLServiceCtx(object):
         self.client.psv.validate('SERVICE CTX', ports = self.port,
                                  states = (PSV_UP,
                                            PSV_ACQUIRED,
-                                           PSV_IDLE, PSV_SERVICE))
+                                           PSV_SERVICE))
                 
         # prepare
         self._reset()
@@ -131,9 +131,6 @@ class STLServiceCtx(object):
         if not is_promiscuous:
             self.client.set_port_attr(ports = self.port, promiscuous = True)
 
-        # clear the port
-        self.client.remove_all_streams(ports = self.port)
-        
         try:
             self.capture_id = self.client.start_capture(rx_ports = self.port)['id']
 
@@ -144,9 +141,7 @@ class STLServiceCtx(object):
             self.env.run(until = tick_process)
 
         finally:
-            self.client.stop(ports = self.port)
             self.client.stop_capture(self.capture_id)
-            self.client.remove_all_streams(ports = self.port)
             if not is_promiscuous:
                 self.client.set_port_attr(ports = self.port, promiscuous = False)
             self._reset()
@@ -206,8 +201,6 @@ class STLServiceCtx(object):
             
             # if no other process exists - exit
             if self.active_services == 0:
-                # make sure no packets are left behind
-                self.client.wait_on_traffic(ports = self.port)
                 return
             else:
                 # backoff

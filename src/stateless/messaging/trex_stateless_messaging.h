@@ -761,4 +761,28 @@ private:
     VLANConfig        m_vlan_cfg;
 };
 
+
+/**
+ * sends binary pkts through the RX core
+ */
+class TrexStatelessRxTXPkts : public TrexStatelessCpToRxMsgBase {
+public:
+    
+    TrexStatelessRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, MsgReply<uint32_t> &reply) : m_pkts(pkts), m_reply(reply) {
+        m_port_id = port_id;
+    }
+
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCoreStateless *rx_core);
+
+private:
+    std::vector<std::string>      m_pkts;
+    MsgReply<uint32_t>           &m_reply;
+    uint8_t                       m_port_id;
+};
+
+
 #endif /* __TREX_STATELESS_MESSAGING_H__ */

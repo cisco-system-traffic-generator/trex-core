@@ -1158,3 +1158,60 @@ TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &resu
     result["result"] = Json::objectValue;
 }
 
+
+/**
+ * sends packets through the RX core
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+ 
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    
+    const Json::Value &pkts_json = parse_array(params, "pkts", result);
+     
+    std::vector<std::string> pkts;
+    
+    for (int i = 0; i < pkts_json.size(); i++) {
+        const Json::Value &pkt = parse_object(pkts_json, i, result);
+
+        bool use_port_dst_mac = parse_bool(pkt, "use_port_dst_mac", result);
+        bool use_port_src_mac = parse_bool(pkt, "use_port_src_mac", result);
+        
+        std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
+        
+        /* check packet size */
+        if ( (pkt_binary.size() < TrexStream::MIN_PKT_SIZE_BYTES) || (pkt_binary.size() > TrexStream::MAX_PKT_SIZE_BYTES) ) {
+            std::stringstream ss;
+            ss << "Bad packet size provided: " << pkt_binary.size() <<  ". Should be between " << TrexStream::MIN_PKT_SIZE_BYTES << " and " << TrexStream::MAX_PKT_SIZE_BYTES;
+            generate_execute_err(result, ss.str()); 
+        }
+        
+        /* replace dst MAC if needed*/
+        if (use_port_dst_mac) {
+            const char *dst_mac = (const char *)port->getPortAttrObj()->get_layer_cfg().get_ether().get_dst();
+            pkt_binary.replace(0, 6, dst_mac, 6);
+        }
+        
+        /* replace src MAC if needed */
+        if (use_port_src_mac) {
+            const char *src_mac = (const char *)port->getPortAttrObj()->get_layer_cfg().get_ether().get_src();
+            pkt_binary.replace(6, 6, src_mac, 6);
+        }
+        
+        pkts.push_back(pkt_binary);
+    }
+    
+    /* send packets to the RX core for TX'ing */
+    static MsgReply<uint32_t> reply;
+    reply.reset();
+    
+    TrexStatelessRxTXPkts *tx_pkts_msg = new TrexStatelessRxTXPkts(port_id, pkts, reply);
+    get_stateless_obj()->send_msg_to_rx(tx_pkts_msg);
+    
+    result["result"]["sent"] = reply.wait_for_reply();
+    result["result"]["ts"]   = now_sec();
+    
+    return TREX_RPC_CMD_OK;
+}
+

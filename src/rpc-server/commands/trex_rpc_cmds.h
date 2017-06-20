@@ -176,5 +176,7 @@ TREX_RPC_CMD_DEFINE_EXTENDED(TrexRpcCmdSetVLAN, "set_vlan", 2, true, APIClass::A
 );
 
 
+TREX_RPC_CMD_DEFINE(TrexRpcCmdTXPkts, "push_pkts", 2, false, APIClass::API_CLASS_TYPE_CORE);
+
 #endif /* __TREX_RPC_CMD_H__ */
 

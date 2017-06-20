@@ -30,6 +30,58 @@
 class CPortLatencyHWBase;
 class CRFC2544Info;
 class CRxCoreErrCntrs;
+class RXPortManager;
+
+
+/**
+ * a general API class to provide common functions to 
+ * all RX features 
+ *  
+ * it simply exposes part of the RX port mngr instead of 
+ * a full back pointer 
+ *  
+ */
+class RXFeatureAPI {
+public:
+
+    RXFeatureAPI(RXPortManager *port_mngr) {
+        m_port_mngr = port_mngr;
+    }
+    
+    /**
+     * sends a packet through the TX queue
+     * 
+     */
+    bool tx_pkt(const std::string &pkt);
+    bool tx_pkt(rte_mbuf_t *m);
+    
+    /**
+     * returns the port id associated with the port manager
+     * 
+     */
+    uint8_t get_port_id();
+    
+    /**
+     * returns the port VLAN configuration
+     */
+    const VLANConfig *get_vlan_cfg();
+    
+    /**
+     * source addresses associated with the port
+     * 
+     */
+    CManyIPInfo *get_src_addr();
+    
+    /**
+     * returns the *first* IPv4 address associated with the port
+     */
+    uint32_t get_src_ipv4();
+    
+private:
+    
+    RXPortManager *m_port_mngr;
+};
+
 
 /**************************************
  * RX feature latency
@@ -135,7 +187,7 @@ class RXServer {
 public:
     
     RXServer();
-    void create(uint8_t port_id, CPortLatencyHWBase *io, const CManyIPInfo *src_addr, const VLANConfig *vlan_cfg);
+    void create(RXFeatureAPI *api);
     void handle_pkt(const rte_mbuf_t *m);
     
 private:
@@ -143,12 +195,7 @@ private:
     void handle_arp(RXPktParser &parser);
     rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
     
-    CPortLatencyHWBase  *m_io;
-    
-    uint8_t              m_port_id;
-    
-    const VLANConfig    *m_vlan_cfg;
-    const CManyIPInfo   *m_src_addr;
+    RXFeatureAPI *m_api;
 };
 
 /**************************************
@@ -158,17 +205,11 @@ private:
 class RXGratARP {
 public:
     RXGratARP() {
-        m_io        = NULL;
-        m_port_id   = UINT8_MAX;
-        m_src_addr  = NULL;
+        m_api = NULL;
         m_ign_stats = NULL;
     }
     
-    void create(uint8_t port_id,
-                CPortLatencyHWBase *io,
-                CManyIPInfo *src_addr,
-                CRXCoreIgnoreStat *ignore_stats,
-                const VLANConfig *vlan_cfg);
+    void create(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
 
     
     /**
@@ -180,11 +221,8 @@ public:
     Json::Value to_json() const;
     
 private:
-    uint8_t               m_port_id;
-    CPortLatencyHWBase   *m_io;
-    CManyIPInfo          *m_src_addr;
+    RXFeatureAPI         *m_api;
     CRXCoreIgnoreStat    *m_ign_stats;
-    const VLANConfig     *m_vlan_cfg;
 };
 
 /************************ manager ***************************/
@@ -195,6 +233,8 @@ private:
  * @author imarom (10/30/2016)
  */
 class RXPortManager {
+    friend class RXFeatureAPI;
+    
 public:
     enum feature_t {
         NO_FEATURES  = 0x0,
@@ -307,6 +347,15 @@ public:
     void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
   
     /**
+     * sends packets through the RX core TX queue
+     * returns how many packets were sent successfully
+     */
+    uint32_t tx_pkts(const std::vector<std::string> &pkts);
+    
+    bool tx_pkt(const std::string &pkt);
+    bool tx_pkt(rte_mbuf_t *m);
+    
+    /**
      * configure VLAN
      */
     void set_vlan_cfg(const VLANConfig &vlan_cfg) {
@@ -337,7 +386,9 @@ public:
     Json::Value to_json() const;
     
 private:
-    
+  
+  
+      
     void clear_all_features() {
         m_features = NO_FEATURES;
     }
@@ -366,6 +417,8 @@ private:
     /* stats to ignore (ARP and etc.) */
     CRXCoreIgnoreStat            m_ign_stats;
     CRXCoreIgnoreStat            m_ign_stats_prev;
+    
+    RXFeatureAPI                 m_feature_api;
 };
 
 
