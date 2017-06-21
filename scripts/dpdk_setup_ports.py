@@ -33,7 +33,7 @@ for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
 os.environ['PATH'] = ':'.join(PATH_ARR)
 
 def if_list_remove_sub_if(if_list):
-    return map(lambda x:x.split('/')[0],if_list)
+    return list(map(lambda x:x.split('/')[0],if_list))
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']

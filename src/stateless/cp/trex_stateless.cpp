@@ -56,7 +56,7 @@ TrexStateless::TrexStateless(const TrexStatelessCfg &cfg) {
 
     /* API core version */
     const int API_VER_MAJOR = 4;
-    const int API_VER_MINOR = 0;
+    const int API_VER_MINOR = 1;
     m_api_classes[APIClass::API_CLASS_TYPE_CORE].init(APIClass::API_CLASS_TYPE_CORE,
                                                       API_VER_MAJOR,
                                                       API_VER_MINOR);

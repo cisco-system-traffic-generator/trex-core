@@ -128,7 +128,8 @@ class STLServiceCtx(object):
         
         # save promisicous state and move to enabled
         is_promiscuous = self.client.get_port_attr(port = self.port)['prom'] == "on"
-        self.client.set_port_attr(ports = self.port, promiscuous = True)
+        if not is_promiscuous:
+            self.client.set_port_attr(ports = self.port, promiscuous = True)
 
         # clear the port
         self.client.remove_all_streams(ports = self.port)
@@ -146,7 +147,8 @@ class STLServiceCtx(object):
             self.client.stop(ports = self.port)
             self.client.stop_capture(self.capture_id)
             self.client.remove_all_streams(ports = self.port)
-            self.client.set_port_attr(ports = self.port, promiscuous = is_promiscuous)
+            if not is_promiscuous:
+                self.client.set_port_attr(ports = self.port, promiscuous = False)
             self._reset()
             
  
