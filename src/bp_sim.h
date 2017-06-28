@@ -3504,6 +3504,12 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
                 m->l2_len = 14;
                 m->l3_len = 20;
                 m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM;
+            } else {
+                if (m_pkt_indication.m_desc.IsIcmp()) {
+                    m->l2_len = 14;
+                    m->l3_len = 20;
+                    m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+                }
             }
         }
     }
