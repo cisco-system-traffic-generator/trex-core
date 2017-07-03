@@ -309,7 +309,7 @@ The TRex package includes all required packages. It is unnecessary to install an
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i
+[bash]>sudo ./t-rex-64 -i
 ----
 
 * Wait until the server is up and running. 
@@ -324,7 +324,7 @@ On the same machine, in a new terminal window (open a new window using `xterm`, 
 
 [source,bash]
 ----
-$trex-console                                                           #<1>
+[bash]>trex-console                                                           #<1>
 
 Connecting to RPC server on localhost:4501                   [SUCCESS]
 connecting to publisher server on localhost:4500             [SUCCESS]
@@ -525,7 +525,7 @@ Ensure that the TRex server is running. If not, run TRex in interactive mode.
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i
+[bash]>sudo ./t-rex-64 -i
 ----
 
 *Connect with Console*::
@@ -534,7 +534,7 @@ From a remote machine, use `trex-console` to connect. Include the `-s` flag, as 
 
 [source,bash]
 ----
-$trex-console -s csi-kiwi-02  #<1>
+[bash]>trex-console -s csi-kiwi-02  #<1>
 ----
 <1> TRex server is csi-kiwi-02.
 
@@ -543,13 +543,13 @@ The TRex client requires Python versions 2.7.x or 3.4.x. To change the Python ve
 .tcsh shell
 [source,bash]
 ----
-setenv PYTHON /bin/python     #tcsh
+[tcsh]>setenv PYTHON /bin/python     #tcsh
 ----
 
 .bash shell
 [source,bash]
 ----
-extern PYTHON=/bin/mypython    #bash
+[bash]>extern PYTHON=/bin/mypython    #bash
 ----
 
 [NOTE]
@@ -1000,7 +1000,7 @@ The following runs the traffic profile through the TRex simulator, limiting the 
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/udp_1pkt_simple.py -o b.pcap -l 10 
+[bash]>./stl-sim -f stl/udp_1pkt_simple.py -o b.pcap -l 10 
   executing command: 'bp-sim-64-debug --pcap --sl --cores 1 --limit 5000 -f /tmp/tmpq94Tfx -o b.pcap'
 
   General info:
@@ -1045,7 +1045,7 @@ Adding `--json` displays the details of the JSON command for adding a stream:
 
 [source,bash]
 ----
-$./stl-sim -f stl/udp_1pkt_simple.py --json
+[bash]>./stl-sim -f stl/udp_1pkt_simple.py --json
 [
     {
         "id": 1,
@@ -1131,7 +1131,7 @@ To display packet details, use the `--pkt` option (using Scapy).
 
 [source,bash]
 ----
-$./stl-sim -f stl/udp_1pkt_simple.py --pkt
+[bash]>./stl-sim -f stl/udp_1pkt_simple.py --pkt
  =======================
  Stream 0
  =======================
@@ -1186,7 +1186,7 @@ To convert to native:
 
 [source,bash]
 ----
-$./stl-sim -f stl/yaml/imix_1pkt.yaml --native
+[bash]>./stl-sim -f stl/yaml/imix_1pkt.yaml --native
 ----
 
 
@@ -1630,7 +1630,7 @@ You can run the traffic profile in the TRex simulator and view the details in th
 
 [source,bash]
 ----
-$./stl-sim -f stl/simple_3pkt.py -o b.pcap -l 200
+[bash]>./stl-sim -f stl/simple_3pkt.py -o b.pcap -l 200
 ----
 
 To run the traffic profile from console in TRex, use the following command.
@@ -1693,7 +1693,7 @@ To run the simulation, use this command.
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/stl/burst_3pkt_60pkt.py -o b.pcap 
+[bash]>./stl-sim -f stl/stl/burst_3pkt_60pkt.py -o b.pcap 
 ----
 
 The generated pcap file has 60 packets. The first 10 packets have src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3.
@@ -3262,26 +3262,26 @@ The following command, within a bash window, runs the traffic profile with the s
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py -o b.pcap -l 10 
+[bash]>./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py -o b.pcap -l 10 
 ----
 
 The following commands, within a bash window, convert to native JSON or YAML.
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --json
+[bash]>./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --json
 ----
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --yaml
+[bash]>./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --yaml
 ----
 
 Alternatively, use the following command to convert to a native Python profile.
 
 [source,bash]
 ----
-$ ./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --native 
+[bash]>./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py --native 
 ----
 
 .Auto-generated code
@@ -3550,7 +3550,7 @@ To run this example, enter:
 
 [source,bash]
 ----
-./stl-sim -f stl/pcap.py --yaml
+[bash]>./stl-sim -f stl/pcap.py --yaml
 ----
 
 The following output appears:
@@ -4218,7 +4218,7 @@ You can specify -h or --help after each command to get full description of its p
 
 [source,bash]
 ----
-$streams -h
+trex>streams -h
 ----
 
 ===== Port mask 
@@ -4229,7 +4229,7 @@ Port mask enables selecting range, or set of ports.
 
 [source,bash]
 ----
-$<command>   [-a] [--port 1 2 3]  [--port 0xff]  [--port clients/servers] 
+trex><command>   [-a] [--port 1 2 3]  [--port 0xff]  [--port clients/servers] 
 
   port mask : 
     [-a]           : all ports 
@@ -4245,7 +4245,7 @@ Duration is expressed in seconds, minutes, or hours.
 
 [source,bash]
 ----
-$<command> [-d 100] [-d 10m] [-d 1h] 
+trex><command> [-d 100] [-d 10m] [-d 1h] 
   
   duration:
    -d 100 : Seconds 
@@ -4262,7 +4262,7 @@ The traffic profile defines default bandwidth for each stream. Using the multipl
 
 [source,bash]
 ----
-$<command> [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
+trex><command> [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
   
   multiplier :
   
@@ -4306,7 +4306,7 @@ Resets the server and client to a known state. Not used in normal scenarios.
 
 [source,bash]
 ----
-$reset  
+trex>reset  
 ----
 
 ===== portattr
@@ -4317,7 +4317,7 @@ Configures port attributes.
 
 [source,python]
 ----
-$portattr --help
+trex>portattr --help
 usage: port_attr [-h] [--port PORTS [PORTS ...] | -a] [--prom {on,off}]
                  [--link {up,down}] [--led {on,off}] [--fc {none,tx,rx,full}]
                  [--supp]
@@ -4349,7 +4349,7 @@ Clears all port stats counters.
 
 [source,bash]
 ----
-$clear -a
+trex>clear -a
 ----
 
 
@@ -4362,8 +4362,8 @@ Also, can be used to retrieve extended stats from port (xstats)
 
 [source,bash]
 ----
-$stats --port 0 -p
-$stats -s
+trex>stats --port 0 -p
+trex>stats -s
 ----
 
 *Xstats error example*::
@@ -4401,7 +4401,7 @@ Shows info about configured streams on each port, from the client cache.
   
 [source,bash]
 ----
-$streams 
+trex>streams 
 
 Port 0:
 
@@ -4426,7 +4426,7 @@ Use this command to show only ports 1 and 2.
 
 [source,bash]
 ----
-$streams --port 1 2 
+trex>streams --port 1 2 
 
  ..
  ..
@@ -4438,7 +4438,7 @@ Use this command to show full information for stream 0 and port 0, output in JSO
 
 [source,bash]
 ----
-$streams --port 0 --streams 0
+trex>streams --port 0 --streams 0
 
 ----
         
@@ -4461,7 +4461,7 @@ Use this command to start a profile on all ports, with a maximum bandwidth of 10
 
 [source,bash]
 ----
-$start -a -f stl/imix.py  -m 10gb
+trex>start -a -f stl/imix.py  -m 10gb
 ----
 
 *Example*::
@@ -4470,7 +4470,7 @@ Use this command to start a profile on ports 1 and 2, and multiply the bandwidth
    
 [source,bash]
 ----
-$start -port 1 2 -f stl/imix.py  -m 100
+trex>start -port 1 2 -f stl/imix.py  -m 100
 ----
 
 
@@ -4488,7 +4488,7 @@ Use this command to stop the specified ports.
 
 [source,bash]
 ----
-$stop --port 0
+trex>stop --port 0
 
 ----
 
@@ -4502,8 +4502,7 @@ $stop --port 0
 
 [source,bash]
 ----
-$pause --port 0
-
+trex>pause --port 0
 ----
 
 
@@ -4519,8 +4518,7 @@ $pause --port 0
 
 [source,bash]
 ----
-$resume --port 0
-
+trex>resume --port 0
 ----
 
 
@@ -4538,7 +4536,7 @@ Multiplly traffic on all ports by a factor of 5.
 
 [source,bash]
 ----
->update -a -m 5
+trex>update -a -m 5
 ----
 
 
@@ -4557,7 +4555,7 @@ The textual user interface (TUI) displays constantly updated TRex statistics in 
         
 [source,bash]
 ----
-$tui
+trex>tui
 ----
 
 Enters a Stats mode and displays three types of TRex statistics:
@@ -4630,7 +4628,7 @@ Thus, you can use Stateless TRex *from any language* supporting JSON-RPC.
 +
 [source,bash]
 ----
-sudo ./t-rex-64 -i
+[bash]>sudo ./t-rex-64 -i
 ----
 
 ** Or run it via JSON-RPC command to trex_daemon_server:

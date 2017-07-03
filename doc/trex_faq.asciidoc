@@ -260,7 +260,7 @@ If you cannot make sure your cores are pinned to the TRex guest you can run TRex
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i --no-watchdog
+[bash]>sudo ./t-rex-64 -i --no-watchdog
 ----
 
 This will hide the problem that some threads do not get reasonable response time, but will allow to work anyway.
