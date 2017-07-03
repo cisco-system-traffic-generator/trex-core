@@ -3,9 +3,9 @@
 '''
 Usage:
 
-    nums = SimpleEnum('nums', ['zero', 'one', 'two'])
+    nums = SimpleEnum('nums', ['one', 'two', 'three'])
         or:
-    nums = SimpleEnum('nums', 'zero one two')
+    nums = SimpleEnum('nums', 'one two three')
 
     one = nums.one
 
@@ -56,28 +56,32 @@ class SimpleEnum(object):
         assert type(class_name) in string_types, 'class_name should be string'
         assert type(names_list) is list, 'names_list should be list or string with names separated by spaces'
         self._class_name = class_name
-        self._dict = {}
+        self._dict_by_val = {}
+        self._dict_by_name = {}
         for i, name in enumerate(names_list):
+            i += 1
             assert type(name) in string_types, 'names_list should include strings'
             var = _SimpleEnumVar(class_name, name, i)
-            self._dict[i] = var
-            self._dict[name] = var
+            self._dict_by_val[i] = var
+            self._dict_by_name[name] = var
 
     def __call__(self, val):
-        if val not in self._dict:
-            raise Exception("Value '%s' is not part of enum '%s'" % (val, self._class_name))
-        return self._dict[val]
+        if val in self._dict_by_val:
+            return self._dict_by_val[val]
+        elif val in self._dict_by_name:
+            return self._dict_by_name[val]
+        raise Exception("Value '%s' is not part of enum '%s'" % (val, self._class_name))
 
     __getattr__ = __call__
 
     def __str__(self):
-        return '%s(%s)' % (self._class_name, ', '.join(['%s: %s' % (self._dict[val].name, val) for val in range(len(self._dict) // 2)]))
+        return '%s(%s)' % (self._class_name, ', '.join(['%s: %s' % (self._dict_by_val[val].name, val) for val in sorted(self._dict_by_val.keys())]))
 
     __repr__ = __str__
 
 
 if __name__ == '__main__':
-    nums = SimpleEnum('nums', ['zero', 'one', 'two'])
+    nums = SimpleEnum('nums', ['one', 'two', 'three'])
     print(nums)
 
     one1 = nums.one
@@ -89,7 +93,7 @@ if __name__ == '__main__':
     print(one2.value)
 
     try:
-        nums.three
+        nums.four
     except Exception as e:
         print(e)
 
