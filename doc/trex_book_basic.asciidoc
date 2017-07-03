@@ -14,7 +14,7 @@ The following is an example YAML-format traffic configuration file (cap2/dns_tes
 
 [source,python]
 ----
-$cat cap2/dns_test.yaml
+[bash]>cat cap2/dns_test.yaml
 - duration : 10.0
   generator :  
           distribution : "seq"           
@@ -57,7 +57,7 @@ TRex replaces the client_ip, client_port, and server_ip. The server_port will be
 
 [source,bash]
 ----
-$./bp-sim-32-debug -f cap2/dns.yaml -o my.erf -v 3
+[bash]>./bp-sim-32-debug -f cap2/dns.yaml -o my.erf -v 3
  -- loading cap file cap2/dns.pcap 
  id,name               , tps, cps,f-pkts,f-bytes, duration,   Mb/sec,   MB/sec,   #<1>
  00, cap2/dns.pcap     ,1.00,1.00,     2 ,     170 ,   0.02 ,   0.00 ,    0.00 ,  
@@ -102,7 +102,7 @@ file stats
 
 [source,bash]
 ----
-$wireshark  my.erf 
+[bash]>wireshark  my.erf 
 ----
 gives 
 //TBD: Not sure what the output looks like here, with this line showing only "gives"
@@ -182,7 +182,7 @@ The following enlarges the CPS and reduces the duration.
 
 [source,python]
 ----
-$more cap2/dns_test.yaml 
+[bash]>more cap2/dns_test.yaml 
 - duration : 1.0                        <1>
   generator :  
           distribution : "seq"           
@@ -212,7 +212,7 @@ Running this produces the following output:
 
 [source,bash]
 ----
-$./bp-sim-32-debug -f cap2/dns_test.yaml -o my.erf -v 3 
+[bash]>./bp-sim-32-debug -f cap2/dns_test.yaml -o my.erf -v 3 
 ----
 
 .Formated results
@@ -2626,7 +2626,7 @@ TRex commands typically include the following main arguments, but only `-f` is r
 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f <traffic_yaml> -m <multiplier>  -d <duration>  -l <latency test rate>  -c <cores>
+[bash]>sudo /t-rex-64 -f <traffic_yaml> -m <multiplier>  -d <duration>  -l <latency test rate>  -c <cores>
 ----
 Full command line reference can be found xref:cml-line[here]
 
@@ -2635,55 +2635,55 @@ Full command line reference can be found xref:cml-line[here]
 .Simple HTTP  1Gb/sec for 100 sec 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 
+[bash]>sudo ./t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 
 ----
 
 .Simple HTTP  1Gb/sec with latency for 100 sec 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000
+[bash]>sudo ./t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000
 ----
 
 .SFR 35Gb/sec traffic 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 35 -d 100 -p 
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 35 -d 100 -p 
 ----
 
 .SFR 20Gb/sec traffic with latency 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 20 -d 100 -l 1000
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 20 -d 100 -l 1000
 ----
 
 .SFR ipv6 20Gb/sec traffic with latency 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4 -m 20 -d 100 -l 1000 --ipv6 
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4 -m 20 -d 100 -l 1000 --ipv6 
 ----
 
 .Simple HTTP  1Gb/sec with NAT translation support 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000 --learn-mode 1
+[bash]>sudo ./t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000 --learn-mode 1
 ----
 
 .IMIX 1G/sec ,1600 flows 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/imix_fast_1g.yaml -c 4 -m 1 -d 100 -l 1000 
+[bash]>sudo ./t-rex-64 -f cap2/imix_fast_1g.yaml -c 4 -m 1 -d 100 -l 1000 
 ----
 
 .IMIX 1Gb/sec,100K flows 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/imix_fast_1g_100k.yaml -c 4 -m 1 -d 100 -l 1000 
+[bash]>sudo ./t-rex-64 -f cap2/imix_fast_1g_100k.yaml -c 4 -m 1 -d 100 -l 1000 
 ----
 
 .64bytes ~1Gb/sec,1600 flows 
 [source,bash]
 ----
-$.sudo /t-rex-64 -f cap2/imix_64.yaml -c 4 -m 1 -d 100 -l 1000 
+[bash]>sudo ./t-rex-64 -f cap2/imix_64.yaml -c 4 -m 1 -d 100 -l 1000 
 ----
 
 === Traffic profiles provided with the TRex package 
@@ -2715,7 +2715,7 @@ After injecting the number of flows defined by `limit`, TRex repeats the same fl
 Example:
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/imix_64.yaml  -d 1000 -m 40000  -c 4 -p
+[bash]>sudo ./t-rex-64 -f cap2/imix_64.yaml  -d 1000 -m 40000  -c 4 -p
 ----
 
 [WARNING] 
@@ -2892,7 +2892,7 @@ $more cap2/imix_example.yaml
 
 [source,bash]
 ----
-./bp-sim-32-debug -f cap2/imix_example.yaml  -o my.erf -v 3 > a.txt
+[bash]>./bp-sim-32-debug -f cap2/imix_example.yaml  -o my.erf -v 3 > a.txt
 ----
 
 .IMIX example limit=3
