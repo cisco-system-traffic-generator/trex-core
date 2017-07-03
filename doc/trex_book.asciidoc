@@ -123,8 +123,8 @@ TRex curretly works on x86 architecture and can operate well on Cisco UCS hardwa
 
 [IMPORTANT]
 =====================================
-In all bare metal cases, it's important to have 4 DRAM channels. less channels will impose a performance issue.
-to test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANNEL x 
+In all bare metal cases, it's important to have 4 DRAM channels. Fewer channels will impose a performance issue.
+To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANNEL x 
 =====================================
  
 .Supported NICs
@@ -278,9 +278,10 @@ To check whether a kernel is 64-bit, verify that the ouput of the following comm
 
 [source,bash]
 ----
-$uname -m
+[bash]>uname -m
 x86_64 
 ----
+
 
 
 ==== Download Linux
@@ -312,7 +313,7 @@ Choose: "Fedora Linux http" -> releases -> <version number> -> Server -> x86_64 
 
 [source,bash]
 ----
-$sha256sum Fedora-18-x86_64-DVD.iso
+[bash]>sha256sum Fedora-18-x86_64-DVD.iso
 91c5f0aca391acf76a047e284144f90d66d3d5f5dcd26b01f368a43236832c03 
 ----
 
@@ -344,7 +345,7 @@ Example: 4x 10Gb/sec TRex configuration (see output below):
 
 [source,bash]
 ----
-$[root@trex]lspci | grep Ethernet
+[bash]>lspci | grep Ethernet
 01:00.0 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<1>
 01:00.1 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)                #<2>
 03:00.0 Ethernet controller: Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01) #<3>
@@ -370,23 +371,23 @@ Latest release:
 
 [source,bash]
 ----
-$mkdir trex
-$cd trex
-$wget --no-cache $WEB_URL/release/latest 
-$tar -xzvf latest 
+[bash]>mkdir trex
+[bash]>cd trex
+[bash]>wget --no-cache $WEB_URL/release/latest 
+[bash]>tar -xzvf latest 
 ----
 
 
 Bleeding edge version:
 [source,bash]
 ----
-$wget --no-cache $WEB_URL/release/be_latest 
+[bash]>wget --no-cache $WEB_URL/release/be_latest 
 ----
 
 To obtain a specific version:
 [source,bash]
 ----
-$wget --no-cache $WEB_URL/release/vX.XX.tar.gz #<1>
+[bash]>wget --no-cache $WEB_URL/release/vX.XX.tar.gz #<1>
 ----
 
 <1> X.XX = Version number
@@ -415,7 +416,7 @@ Use the following command to identify ports.
 
 [source,bash]
 ----
- $>sudo ./dpdk_setup_ports.py -s
+[bash]>sudo ./dpdk_setup_ports.py -s
 
  Network devices using DPDK-compatible driver
  ============================================
@@ -450,7 +451,7 @@ For many purposes, it is convenient to begin with a copy of the basic configurat
 
 [source,bash]
 ----
-$cp  cfg/simple_cfg.yaml /etc/trex_cfg.yaml
+[bash]>cp  cfg/simple_cfg.yaml /etc/trex_cfg.yaml
 ----
 
 Next, edit the configuration file, adding the interface and IP address details.
@@ -489,7 +490,7 @@ The script provides a list of available interfaces with interface-related inform
 
 [source,bash]
 ----
-sudo ./dpdk_setup_ports.py -i
+[bash]>sudo ./dpdk_setup_ports.py -i
 ----
 
 ==== Command line mode
@@ -498,7 +499,7 @@ Run the following command to display a list of all interfaces and interface-rela
 
 [source,bash]
 ----
-sudo ./dpdk_setup_ports.py -t
+[bash]>sudo ./dpdk_setup_ports.py -t
 ----
 
 * In case of *Loopback* and/or only *L1-L2 Switches* on the way, IPs and destination MACs are not required. The script assumes the following interface connections: 0&#8596;1, 2&#8596;3 etc. +
@@ -509,7 +510,7 @@ Run the following:
 
 [source,bash]
 ----
-sudo ./dpdk_setup_ports.py -c <TRex interface 0> <TRex interface 1> ...
+[bash]>sudo ./dpdk_setup_ports.py -c <TRex interface 0> <TRex interface 1> ...
 ----
 
 * In case of a *Router* (or other next hop device, such as *L3 Switch*), specify the TRex IPs and default gateways, or MACs of the router, as described below.
@@ -591,7 +592,7 @@ After configuration is complete, use the following command to start basic TRex r
 (it will use the default config file name /etc/trex_cfg.yaml):
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10  -l 1000
+[bash]>sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10  -l 1000
 ----
 
 ==== TRex output
@@ -881,7 +882,7 @@ There is IPv6 support for all plugins.
 *Example:*::
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2l/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --ipv6
+[bash]>sudo ./t-rex-64 -f cap2l/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --ipv6
 ----
 
 *Limitations:*::
@@ -955,7 +956,7 @@ In the following example, a profile defines a client generator.
 
 [source,bash]
 ----
-$cat cap2/dns.yaml 
+[bash]>cat cap2/dns.yaml 
 - duration : 10.0
   generator :  
           distribution : "seq"           
@@ -1119,7 +1120,7 @@ Consequently, you can predict exactly which packet (and how many packets) will g
 
 [source,bash]
 ----
-sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml
+[bash]>sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml
 ----
 
 === NAT support 
@@ -1154,14 +1155,14 @@ This mode can provide better connections-per-second performance than mode 1. But
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn-mode 1
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn-mode 1
 ----
 
 *SFR traffic without bundling/ALG support*
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn-mode 2
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundling.yaml -c 4  -l 1000 -d 100000 -m 10  --learn-mode 2
 ----
 
 *NAT terminal counters:*::
@@ -1265,7 +1266,7 @@ This feature ensures that:
 .Full example 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --rx-check 128
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -p -l 100 -d 100000 -m 30  --rx-check 128
 ----
 
 [source,python]
@@ -1486,7 +1487,7 @@ To find out which interfaces (NIC ports) can be used, perform the following:
 
 [source,bash]
 ----
- $>sudo ./dpdk_setup_ports.py --show
+[bash]>>sudo ./dpdk_setup_ports.py --show
 
  Network devices using DPDK-compatible driver
  ============================================
@@ -1786,7 +1787,7 @@ you can create output pcap file from input of traffic YAML.
 [source,bash]
 ----
 
-$./bp-sim-64-debug -f avl/sfr_delay_10_1g.yaml -v 1
+[bash]>./bp-sim-64-debug -f avl/sfr_delay_10_1g.yaml -v 1
 
  -- loading cap file avl/delay_10_http_get_0.pcap 
  -- loading cap file avl/delay_10_http_post_0.pcap 
@@ -1853,10 +1854,10 @@ To upgrade the firmware  follow  this
 
 [source,bash]
 ----
-$tar -xvzf i40e-1.3.47
-$cd i40e-1.3.47/src
-$make 
-$sudo insmod  i40e.ko
+[bash]>tar -xvzf i40e-1.3.47
+[bash]>cd i40e-1.3.47/src
+[bash]>make 
+[bash]>sudo insmod  i40e.ko
 ----
 
 
@@ -1866,7 +1867,7 @@ In this stage we bind the NIC to Linux (take it from DPDK)
 
 [source,bash]
 ----
-$sudo ./dpdk_nic_bind.py --status # show the ports 
+[bash]>sudo ./dpdk_nic_bind.py --status # show the ports 
 
 Network devices using DPDK-compatible driver
 ============================================
@@ -1875,11 +1876,11 @@ Network devices using DPDK-compatible driver
 0000:87:00.0 'Device 1583' drv=igb_uio unused=
 0000:87:00.1 'Device 1583' drv=igb_uio unused=
 
-$sudo dpdk_nic_bind.py -u 02:00.0  02:00.1          #<3> 
+[bash]>sudo dpdk_nic_bind.py -u 02:00.0  02:00.1          #<3> 
 
-$sudo dpdk_nic_bind.py -b i40e 02:00.0 02:00.1      #<4>
+[bash]>sudo dpdk_nic_bind.py -b i40e 02:00.0 02:00.1      #<4>
 
-$ethtool -i p1p2                                    #<5>  
+[bash]>ethtool -i p1p2                                    #<5>  
 
 driver: i40e
 version: 1.3.47
@@ -1892,8 +1893,8 @@ supports-register-dump: yes
 supports-priv-flags: yes
 
    
-$ethtool -S p1p2 
-$lspci -s 02:00.0 -vvv                              #<7>
+[bash]>ethtool -S p1p2 
+[bash]>lspci -s 02:00.0 -vvv                              #<7>
 
 
 ----
@@ -1915,7 +1916,7 @@ Run this:
 
 [source,bash]
 ----
-$sudo ./nvmupdate64e  
+[bash]>sudo ./nvmupdate64e  
 ----
 
 You might need a power cycle and to run this command a few times to get the latest firmware  
@@ -2070,7 +2071,7 @@ Using these commands the configuration is:
 *Simple HTTP:*::
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
 ----
 
 This is more realistic traffic for enterprise (we removed from SFR file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
@@ -2078,16 +2079,16 @@ This is more realistic traffic for enterprise (we removed from SFR file the bidi
 *Enterprise profile:*::
 [source,bash]
 ----
-$sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 4 --learn-mode 1 -k 1
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 4 --learn-mode 1 -k 1
 ----
 
 The TRex output
 
 [source,bash]
 ----
--Per port stats table 
+ -Per port stats table 
       ports |               0 |               1 
- -----------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------
    opackets |       106347896 |       118369678 
      obytes |     33508291818 |    118433748567 
    ipackets |       118378757 |       106338782 
@@ -2096,31 +2097,31 @@ The TRex output
     oerrors |               0 |               0 
       Tx Bw |     656.26 Mbps |       2.27 Gbps 
 
--Global stats enabled 
- Cpu Utilization : 18.4  %  31.7 Gb/core 
- Platform_factor : 1.0  
- Total-Tx        :       2.92 Gbps   NAT time out    :        0 #<1> (0 in wait for syn+ack) #<1>
- Total-Rx        :       2.92 Gbps   NAT aged flow id:        0 #<1>
- Total-PPS       :     542.29 Kpps   Total NAT active:      163  (12 waiting for syn)
- Total-CPS       :       8.30 Kcps   Nat_learn_errors:        0
+ -Global stats enabled 
+  Cpu Utilization : 18.4  %  31.7 Gb/core 
+  Platform_factor : 1.0  
+  Total-Tx        :       2.92 Gbps   NAT time out    :        0 #<1> (0 in wait for syn+ack) #<1>
+  Total-Rx        :       2.92 Gbps   NAT aged flow id:        0 #<1>
+  Total-PPS       :     542.29 Kpps   Total NAT active:      163  (12 waiting for syn)
+  Total-CPS       :       8.30 Kcps   Nat_learn_errors:        0
 
- Expected-PPS    :     539.85 Kpps
- Expected-CPS    :       8.29 Kcps  
- Expected-BPS    :       2.90 Gbps  
+  Expected-PPS    :     539.85 Kpps
+  Expected-CPS    :       8.29 Kcps  
+  Expected-BPS    :       2.90 Gbps  
 
- Active-flows    :     7860  Clients :      255   Socket-util : 0.0489 %    
- Open-flows      :  3481234  Servers :     5375   Socket :     7860 Socket/Clients :  30.8 
- drop-rate       :       0.00  bps   #<1>
- current time    : 425.1 sec  
- test duration   : 574.9 sec  
+  Active-flows    :     7860  Clients :      255   Socket-util : 0.0489 %    
+  Open-flows      :  3481234  Servers :     5375   Socket :     7860 Socket/Clients :  30.8 
+  drop-rate       :       0.00  bps   #<1>
+  current time    : 425.1 sec  
+  test duration   : 574.9 sec  
 
--Latency stats enabled 
- Cpu Utilization : 0.3 %  
- if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
+ -Latency stats enabled 
+  Cpu Utilization : 0.3 %  
+  if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window 
    |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,             
- ---------------------------------------------------------------------------------------------------------------- 
- 0 |   420510,  420495,         0,   1,         58  ,    1555,      14      |  240  257  258  258  219  930  732  896  830  472  190  207  729 
- 1 |   420496,  420509,         0,   1,         51  ,    1551,      13      |  234  253  257  258  214  926  727  893  826  468  187  204  724
+  -------------------------------------------------------------------------------------------------------
+  0 |   420510,  420495,         0,   1,         58  ,    1555,      14      |  240  257  258  258  219  
+  1 |   420496,  420509,         0,   1,         51  ,    1551,      13      |  234  253  257  258  214  
 ----
 <1>  These counters should be zero 
 
@@ -2185,7 +2186,7 @@ One time (will be discarded after reboot): +
 
 [source,bash]
 ----
-echo 1 > /proc/sys/net/ipv4/ip_forward
+[bash]>echo 1 > /proc/sys/net/ipv4/ip_forward
 ----
 To make this permanent, add the following line to the file /etc/sysctl.conf: +
 ----
@@ -2198,13 +2199,13 @@ Example if for the default TRex networks, 48.0.0.0 and 16.0.0.0.
 Routing all traffic from 48.0.0.0 to the gateway 10.0.0.100
 [source,bash]
 ----
-route add -net 48.0.0.0 netmask 255.255.0.0 gw 10.0.0.100
+[cli]>route add -net 48.0.0.0 netmask 255.255.0.0 gw 10.0.0.100
 ----
 
 Routing all traffic from 16.0.0.0 to the gateway 172.168.0.100
 [source,bash]
 ----
-route add -net 16.0.0.0 netmask 255.255.0.0 gw 172.168.0.100
+[cli]>route add -net 16.0.0.0 netmask 255.255.0.0 gw 172.168.0.100
 ----
 If you use stateless mode, and decide to add route only in one direction, remember to disable reverse path check. +
 For example, to disable on all interfaces:
@@ -2230,8 +2231,8 @@ broadcast 16.255.255.255
 ==== Add static ARP entries
 [source,bash]
 ----
-sudo arp -s 10.0.0.100 <Second TRex port MAC>
-sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
+[cli]>sudo arp -s 10.0.0.100 <Second TRex port MAC>
+[cli]>sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
 ----
 
 === Configure Linux to use VF on Intel X710 and 82599 NICs
@@ -2287,7 +2288,7 @@ For example, if you run with max_vfs=1,1 (one VF per PF), you will have somethin
 
 [source,bash]
 ----
-sudo ./dpdk_nic_bind.py -s
+[bash]>sudo ./dpdk_nic_bind.py -s
 Network devices using DPDK-compatible driver
 ============================================
 0000:03:10.0 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
@@ -2303,20 +2304,24 @@ Network devices using kernel driver
 In order to work with 0000:03:10.0 and 0000:03:10.1, you will have to run the following +
 [source,bash]
 ----
-sudo ifconfig eth3 up mtu 9000
-sudo ifconfig eth2 up mtu 9000
+[bash]>sudo ifconfig eth3 up mtu 9000
+[bash]>sudo ifconfig eth2 up mtu 9000
 ----
 
 
 TRex stateful performance::
 
 Using the following command, running on x710 card with VF driver, we can see that TRex can reach 30GBps, using only one core. We can also see that the average latency is around 20 usec, which is pretty much the same value we get on loopback ports with x710 physical function without VF.
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+----
 
 [source,python]
 ----
 
-$sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
 
   -Per port stats table
       ports |               0 |               1
@@ -2329,31 +2334,31 @@ $sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
     oerrors |               0 |               0
       Tx Bw |      15.33 Gbps |      15.45 Gbps
  
--Global stats enabled
-Cpu Utilization : 91.5  %  67.3 Gb/core
-Platform_factor : 1.0
-Total-Tx :      30.79 Gbps
-Total-Rx :      30.79 Gbps
-Total-PPS :       4.12 Mpps
-Total-CPS :     111.32 Kcps
+ -Global stats enabled
+ Cpu Utilization : 91.5  %  67.3 Gb/core
+ Platform_factor : 1.0
+ Total-Tx :      30.79 Gbps
+ Total-Rx :      30.79 Gbps
+ Total-PPS :       4.12 Mpps
+ Total-CPS :     111.32 Kcps
  
-Expected-PPS :       4.11 Mpps
-Expected-CPS :     111.04 Kcps
-Expected-BPS :      30.71 Gbps
+ Expected-PPS :       4.11 Mpps
+ Expected-CPS :     111.04 Kcps
+ Expected-BPS :      30.71 Gbps
  
-Active-flows :    14651  Clients : 255   Socket-util : 0.0912 %
-Open-flows :  5795073  Servers : 65535   Socket :    14652 Socket/Clients :  57.5
-drop-rate :       0.00 bps
-current time : 53.9 sec
-test duration : 3546.1 sec
+ Active-flows :    14651  Clients : 255   Socket-util : 0.0912 %
+ Open-flows :  5795073  Servers : 65535   Socket :    14652 Socket/Clients :  57.5
+ drop-rate :       0.00 bps
+ current time : 53.9 sec
+ test duration : 3546.1 sec
  
  -Latency stats enabled
-Cpu Utilization : 23.4 %
-if| tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter         
+ Cpu Utilization : 23.4 %
+ if| tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter         
    | ,        ,          , ,   average   , max  ,    (usec)
   -------------------------------------------------------------------------------
-0 | 5233,    5233,         0, 0,         19  , 580,       5      | 37  37  37 4
-1 | 5233,    5233,         0, 0,         22  , 577,       5      | 38  40  39 3
+ 0 | 5233,    5233,         0, 0,         19  , 580,       5      | 37  37  37 4
+ 1 | 5233,    5233,         0, 0,         22  , 577,       5      | 38  40  39 3
 ----
 
 TRex stateless performance::
@@ -2361,7 +2366,7 @@ TRex stateless performance::
 [source,python]
 ----
 
-$sudo ./t-rex-64 -i -c 1
+[bash]>sudo ./t-rex-64 -i -c 1
 
 trex>portattr
 Port Status
@@ -2463,21 +2468,21 @@ Make sure you have an internet connection without firewalls for HTTPS/HTTP - req
 .Verify md5
 [source,bash]
 ----
-$md5sum md5sum MLNX_OFED_LINUX-4.0.0.0.0-rhel7.2-x86_64.tgz
+[bash]>md5sum md5sum MLNX_OFED_LINUX-4.0.0.0.0-rhel7.2-x86_64.tgz
 58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-4.0-xx.0.0.0-rhel7.2-x86_64.tgz
 ----
 
 .Open the tar
 [source,bash]
 ----
-$tar -xvzf MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64.tgz
-$cd MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64
+[bash]>tar -xvzf MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64.tgz
+[bash]>cd MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64
 ----
 
 .Run Install script
 [source,bash]
 ----
-$sudo ./mlnxofedinstall  
+[bash]>sudo ./mlnxofedinstall  
 
 
 Log: /tmp/ofed.build.log
@@ -2695,14 +2700,14 @@ To load the new driver, run:
 .Reboot 
 [source,bash]
 ----
-$sudo  reboot 
+[bash]>sudo  reboot 
 ----
 
 
 .After reboot 
 [source,bash]
 ----
-$ibv_devinfo 
+[bash]>ibv_devinfo 
 hca_id: mlx5_1
         transport:                      InfiniBand (0)
         fw_ver:                         12.17.1010             << 12.17.00
@@ -2748,7 +2753,7 @@ hca_id: mlx5_0
 .ibdev2netdev
 [source,bash]
 -----
-$ibdev2netdev
+[bash]>ibdev2netdev
 mlx5_0 port 1 ==> eth6 (Down)
 mlx5_1 port 1 ==> eth7 (Down)
 -----
@@ -2757,7 +2762,8 @@ mlx5_1 port 1 ==> eth7 (Down)
 [source,bash]
 -----
 
-        $sudo ./dpdk_setup_ports.py -t
+   [bash]>sudo ./dpdk_setup_ports.py -t
+   
   +----+------+---------++---------------------------------------------
   | ID | NUMA |   PCI   ||                      Name     |  Driver   | 
   +====+======+=========++===============================+===========+=
@@ -2859,13 +2865,13 @@ There is a task to automate the production of thess reports
 
 * Before running TRex make sure the commands    `ibv_devinfo` and  `ibdev2netdev` present the NICS
 * `ifconfig` should work too, you need to be able to ping from those ports
-* run TRex server with '-v 7' for example `$sudo ./t-rex-64 -i -v 7`
+* run TRex server with '-v 7' for example `sudo ./t-rex-64 -i -v 7`
 * In case the link_layer is not set to *Ethernet* you should run this command
 
 [source,bash]
 ----
-$sudo mlxconfig -d /dev/mst/mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
-$sudo mlxconfig -d /dev/mst/mt4115_pciconf1 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+[bash]>sudo mlxconfig -d /dev/mst/mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+[bash]>sudo mlxconfig -d /dev/mst/mt4115_pciconf1 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
 ----
 
 see link:https://community.mellanox.com/docs/DOC-2294[ConnectX-4 getting Started]
@@ -2876,14 +2882,14 @@ for example to change to 50Gb speed
 
 [source,bash]
 ----
-$sudo ethtool -s enp135s0f1 speed 50000 autoneg off
+[bash]>sudo ethtool -s enp135s0f1 speed 50000 autoneg off
 ----
 
 * Check how many DRAM channels are installed. Less than 4 will impose latency and performance issue 
 
 [source,bash]
 ----
-$sudo dmidecode -t memory | grep CHANNEL
+[bash]>sudo dmidecode -t memory | grep CHANNEL
 Bank Locator: NODE 0 CHANNEL 0 DIMM 0
 Bank Locator: NODE 0 CHANNEL 0 DIMM 1
 Bank Locator: NODE 0 CHANNEL 0 DIMM 2
@@ -2905,12 +2911,12 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 [source,bash]
 ----
 
-$sudo lspci | grep  Mellanox
+[bash]>sudo lspci | grep  Mellanox
 87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]  #<1>
 87:00.1 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
 
 
-$sudo lspci -vv -s 87:00.0                                                         #<2>     
+[bash]>sudo lspci -vv -s 87:00.0                                                         #<2>     
 87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
         Subsystem: Mellanox Technologies Device 0008
         Physical Slot: 0-9
@@ -2981,19 +2987,19 @@ $sudo lspci -vv -s 87:00.0                                                      
         Kernel driver in use: mlx5_core
         
 
-$sudo lspci -vt | grep Mellanox                                                       #<5>  
-+-[0000:80]-+-00.0-[81]--
- |           +-01.0-[82]--
- |           +-01.1-[83]--
- |           +-02.0-[84]--
- |           +-02.2-[85-86]--+-00.0  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
- |           |               \-00.1  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
- |           +-03.0-[87]--+-00.0  Mellanox Technologies MT27700 Family [ConnectX-4]
- |           |            \-00.1  Mellanox Technologies MT27700 Family [ConnectX-4]
+[bash]>sudo lspci -vt | grep Mellanox                                                       #<5>  
+ +-[0000:80]-+-00.0-[81]--
+  |           +-01.0-[82]--
+  |           +-01.1-[83]--
+  |           +-02.0-[84]--
+  |           +-02.2-[85-86]--+-00.0  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+  |           |               \-00.1  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+  |           +-03.0-[87]--+-00.0  Mellanox Technologies MT27700 Family [ConnectX-4]
+  |           |            \-00.1  Mellanox Technologies MT27700 Family [ConnectX-4]
 
 
 
-$sudo lspci -vv -s 0000:80:03.0                                                     #<6>            
+[bash]>sudo lspci -vv -s 0000:80:03.0                                                     #<6>            
 80:03.0 PCI bridge: Intel Corporation Xeon E7 v3/Xeon E5 v3/Core i7 PCI Express Root Port 3 (rev 02) (prog-if 00 [Normal decode])
         Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
         Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
@@ -3099,7 +3105,7 @@ to do so run this on native machine
 
 [source,bash]
 ---- 
-[csi-trex-07]> ./b configure
+[bash]> ./b configure
 Setting top to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core 
 Setting out to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core/linux_dpdk/build_dpdk 
 Checking for program 'g++, c++'          : /bin/g++ 
@@ -3213,7 +3219,7 @@ running it with verbose mode with CLI  `-v 7`
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/dns.yaml -c 1 -m 1 -d 10  -l 1000 -v 7
+[bash]>sudo ./t-rex-64 -f cap2/dns.yaml -c 1 -m 1 -d 10  -l 1000 -v 7
 ----
 
 will give move info 
@@ -3327,7 +3333,7 @@ There is a  special config file to enlarge the number of flows. This tutorial  p
 .command 
 [source,bash]
 ----
-$sudo ./t-rex-64 -f cap2/cur_flow_single.yaml -m 30000 -c 7 -d 40 -l 1000 --active-flows 5000000 -p --cfg cfg/trex_08_5mflows.yaml
+[bash]>sudo ./t-rex-64 -f cap2/cur_flow_single.yaml -m 30000 -c 7 -d 40 -l 1000 --active-flows 5000000 -p --cfg cfg/trex_08_5mflows.yaml
 ----
 
 The number of active flows can be change using `--active-flows` CLI. in this example it is set to 5M flows
