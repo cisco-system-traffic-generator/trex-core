@@ -55,7 +55,7 @@ First run trex in interactive mode
 
 [source,bash]
 ----
-$sudo ./t-rex-64 -i
+[bash]>sudo ./t-rex-64 -i
 ----
 
 on the same machine from a different window connect to to trex 
