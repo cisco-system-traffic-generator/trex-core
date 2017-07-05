@@ -5,7 +5,7 @@ void *zmq_ctx_new (void) {
     return NULL;
 }
 
-void *zmq_socket (void *, int type) {
+void *zmq_socket (void *s, int type) {
     return NULL;
 }
 

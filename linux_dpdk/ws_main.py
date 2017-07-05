@@ -27,6 +27,8 @@ out = 'build_dpdk'
 
 b_path ="./build/linux_dpdk/"
 
+so_path = os.path.abspath(os.path.join(top, 'scripts/so'))
+                          
 C_VER_FILE      = "version.c"
 H_VER_FILE      = "version.h"
 
@@ -355,6 +357,18 @@ yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
             'tag.cpp']);
 
 
+bpf_src =  SrcGroup(dir='external_libs/bpf/',
+        src_list=[
+            'bpf_api.c',
+            'bpf.c',
+            'scanner.c',
+            'grammar.c',
+            'optimize.c',
+            'nametoaddr.c',
+            'bpf_filter.c',
+            'etherent.c'])
+
+
 version_src = SrcGroup(
     dir='linux_dpdk',
     src_list=[
@@ -552,6 +566,9 @@ mlx4_dpdk =SrcGroups([
                 mlx4_dpdk_src
                 ]);
 
+bpf = SrcGroups([
+                bpf_src
+                ]);
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -586,7 +603,6 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-include','../src/pal/linux_dpdk/dpdk1702/rte_config.h'
                ]
 
 common_flags_new = common_flags + [
@@ -629,6 +645,8 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/
                    ../external_libs/json/
+                   ../external_libs/bpf/
+                   
 
 ../src/dpdk/drivers/net/af_packet/
 ../src/dpdk/drivers/net/bnx2x/
@@ -743,10 +761,10 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/      
 ''';
 
+bpf_includes_path = '../external_libs/bpf'
 
 
-
-DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF'];
+DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1702/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
@@ -757,8 +775,8 @@ client_external_libs = [
         'texttable-0.8.4',
         'simpy-3.0.10'
         ]
-
-rpath_linkage = []
+                          
+rpath_linkage = [so_path]
 
 RELEASE_    = "release"
 DEBUG_      = "debug"
@@ -842,6 +860,12 @@ class build_option:
     def get_mlx4so_target (self):
         return self.update_executable_name("libmlx4")+'.so';
 
+    def get_bpf_target (self):
+        return self.update_executable_name("bpf");
+        
+    def get_bpfso_target (self):
+        return self.update_executable_name("libbpf") + '.so';
+        
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -947,13 +971,19 @@ def build_prog (bld, build_obj):
        )
 
         
-
+    bld.shlib(features = 'c',
+              includes = bpf_includes_path,
+              cflags   = build_obj.get_c_flags(),
+              source   = bpf.file_list(top),
+              target   = build_obj.get_bpf_target())
+    
+    
     bld.program(features='cxx cxxprogram', 
                 includes =includes_path,
                 cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
                 linkflags = build_obj.get_link_flags() ,
                 lib=['pthread','dl', 'z'],
-                use =[build_obj.get_dpdk_target(),'zmq'],
+                use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
                 source = bp.file_list(top) + debug_file_list,
                 rpath = rpath_linkage,
                 target = build_obj.get_target())
@@ -965,18 +995,22 @@ def build_type(bld,build_obj):
 
 
 def post_build(bld):
-    print("copy objects")
+
+    print("*** generating softlinks ***")
     exec_p ="../scripts/"
     for obj in build_types:
         install_single_system(bld, exec_p, obj);
+        
+        
 
 def build(bld):
     global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
 
+    # ZMQ
     zmq_lib_path='external_libs/zmq/'
-    bld.read_shlib( name='zmq' , paths=[top+zmq_lib_path] )
+    bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     if bld.env.NO_MLX == False:
         if bld.env['LIB_IBVERBS']:
@@ -996,31 +1030,55 @@ def build(bld):
 def build_info(bld):
     pass;
 
-def do_create_link (src,dst,exec_p):
+    
+def do_create_link (src, name, where):
+    '''
+        creates a soft link
+        'src'        - path to the source file
+        'name'       - link name to be used
+        'where'      - where to put the symbolic link
+    '''
+    
+    # verify that source exists
     if os.path.exists(src):
-        dest_file = exec_p +dst
-        if not os.path.lexists(dest_file):
-            print(dest_file)
-            relative_path = os.path.relpath(src, exec_p)
-            os.symlink(relative_path, dest_file);
+        
+        full_link = os.path.join(where, name)
+        
+        if not os.path.lexists(full_link):
+            rel_path = os.path.relpath(src, where)
+            print('{0} --> {1}'.format(name, rel_path))
+            
+            os.symlink(rel_path, full_link)
+                
 
 def install_single_system (bld, exec_p, build_obj):
-    o='build_dpdk/linux_dpdk/';
+    
+    o = 'build_dpdk/linux_dpdk/'
+ 
+    # executable
+    do_create_link(src = os.path.realpath(o + build_obj.get_target()),
+                   name = build_obj.get_target(),
+                   where = exec_p)
+    
+    
+    # SO libraries below    
+    
+    # MLX5
+    do_create_link(src = os.path.realpath(o + build_obj.get_mlx5so_target()),
+                   name = build_obj.get_mlx5so_target(),
+                   where = so_path)
 
-    src_file =  os.path.realpath(o+build_obj.get_target())
-    dest_file = exec_p +build_obj.get_target()
-    do_create_link(src_file,dest_file,exec_p);
+    # MLX4
+    do_create_link(src = os.path.realpath(o + build_obj.get_mlx4so_target()),
+                   name = build_obj.get_mlx4so_target(),
+                   where = so_path)
 
-    src_mlx_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
-    dest_mlx_file = exec_p + build_obj.get_mlx5so_target()
-    do_create_link(src_mlx_file,dest_mlx_file,exec_p);
+    # BPF
+    do_create_link(src   = os.path.realpath(o + build_obj.get_bpfso_target()),
+                   name  = build_obj.get_bpfso_target(),
+                   where = so_path)
 
-    src_mlx4_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
-    dest_mlx4_file = exec_p + build_obj.get_mlx4so_target()
-    do_create_link(src_mlx4_file,dest_mlx4_file,exec_p);
-
-
-
+    
 
 def pre_build(bld):
     if not bld.options.no_ver:
