@@ -1,9 +1,9 @@
-.. TRex Control Plain documentation master file, created by
+.. TRex Control Plane documentation master file, created by
    sphinx-quickstart on Tue Jun  2 07:48:10 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to TRex Control Plain's documentation!
+Welcome to TRex Control Plane's documentation!
 ==============================================
 
 TRex is a **realistic traffic generator** that enables you to do get learn more about your under development devices.
