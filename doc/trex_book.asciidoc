@@ -2282,7 +2282,7 @@ BOOT_IMAGE=/vmlinuz-3.10.0-514.el7.x86_64 root=/dev/mapper/cl-root ro crashkerne
 *82599 and Mellanox VFs:*::
 [source,bash]
 ----
-# cat /etc.rc.local
+# cat /etc/rc.local
 
 ##############
 # 82599
