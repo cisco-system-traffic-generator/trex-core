@@ -2261,21 +2261,63 @@ is a good tutorial by Intel of SR-IOV and how to configure. +
 
 link:http://dpdk.org/doc/guides/nics/intel_vf.html[This] is a tutorial from DPDK documentation. +
 
-==== Linux configuration
-First, need to verify BIOS support for the feature. Can consult link:http://kpanic.de/node/8[this link] for directions. +
-Second, need to make sure you have the correct kernel options. +
-We added the following options to the kernel boot command on Grub: ``iommu=pt intel_iommu=on pci_pt_e820_access=on''. This
-was needed on Fedora and Ubuntu. When using Centos, adding these options was not needed. +
-To load the kernel module with the correct VF parameters after reboot add following line ``options i40e max_vfs=1,1'' to some file in ``/etc/modprobe.d/'' +
-On Centos, we needed to also add the following file (example for x710 ): +
+link:https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/6/html/Virtualization_Host_Configuration_and_Guest_Installation_Guide/chap-Virtualization_Host_Configuration_and_Guest_Installation_Guide-PCI_Device_Config.html#intel-prep[This]
+ is section from RedHat on Kernel boot params.
 
+link:https://community.mellanox.com/docs/DOC-2386[This] is doc from Mellanox for KVM +
+link:https://community.mellanox.com/docs/DOC-2534[This] is doc from Mellanox for ESXi
+
+==== Linux configuration
+First, need to verify BIOS support for the feature (make sure VT-d is enabled.) +
+Second, need to make sure you have the correct kernel options. (see links above)  +
+In our regression with SR-IOV (Cisco UCS, Intel CPU, host OS: CentOS), we have following configs:
+
+*Kernel params:*::
 [source,bash]
 ----
-cat /etc/sysconfig/modules/i40e.modules
-#!/bin/sh
-rmmod i40e >/dev/null 2>&1
-exec /sbin/modprobe i40e >/dev/null 2>&1
+# cat /proc/cmdline
+BOOT_IMAGE=/vmlinuz-3.10.0-514.el7.x86_64 root=/dev/mapper/cl-root ro crashkernel=auto rd.lvm.lv=cl/root rd.lvm.lv=cl/swap nomodeset rhgb quiet intel_iommu=on iommu=pt isolcpus=2-23 nohz_full=2-23 selinux=0 audit=0
 ----
+
+*82599 and Mellanox VFs:*::
+[source,bash]
+----
+# cat /etc.rc.local
+
+##############
+# 82599
+##############
+
+ifconfig enp2s0f0 up
+ifconfig enp2s0f1 up
+
+echo 9500 > /sys/bus/pci/devices/0000:02:00.0/net/*/mtu
+echo 9500 > /sys/bus/pci/devices/0000:02:00.1/net/*/mtu
+
+echo 3 > /sys/bus/pci/devices/0000:02:00.0/sriov_numvfs
+echo 1 > /sys/bus/pci/devices/0000:02:00.1/sriov_numvfs
+
+
+##############
+# Mellanox
+##############
+
+echo 9500 > /sys/bus/pci/devices/0000:84:00.0/net/*/mtu
+echo 9500 > /sys/bus/pci/devices/0000:84:00.1/net/*/mtu
+
+echo 3 > /sys/bus/pci/devices/0000:84:00.0/sriov_numvfs
+echo 1 > /sys/bus/pci/devices/0000:84:00.1/sriov_numvfs
+----
+
+*Intel i40e VFs:*::
+[source,bash]
+----
+# cat /etc/modprobe.d/tuned.conf
+options i40e max_vfs=3,3
+----
+
+
+
 
 ==== x710 specific instructions
 For x710 (i40e driver), we needed to download latest kernel driver. On all distributions we were using, existing driver was not new enough. +
