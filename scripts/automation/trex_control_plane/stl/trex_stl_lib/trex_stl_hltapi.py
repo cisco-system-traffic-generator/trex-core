@@ -655,6 +655,10 @@ class CTRexHltApi(object):
         if mode not in ALLOWED_MODES:
             return HLT_ERR("'mode' must be one of the following values: %s" % ALLOWED_MODES)
         hlt_stats_dict = dict([(port, {}) for port in port_handle])
+        ports_speed = {}
+        for port_id in port_handle:
+            ports_speed[port_id] = self.trex_client.ports[port_id].get_speed_bps()
+
         try:
             stats = self.trex_client.get_stats(port_handle)
             if mode in ('all', 'aggregate'):
@@ -683,6 +687,10 @@ class CTRexHltApi(object):
                                 }
             if mode in ('all', 'streams'):
                 for pg_id, pg_stats in stats['flow_stats'].items():
+                    try:
+                        pg_id = int(pg_id)
+                    except:
+                        continue
                     for port_id in port_handle:
                         if 'stream' not in hlt_stats_dict[port_id]:
                             hlt_stats_dict[port_id]['stream'] = {}
@@ -693,7 +701,7 @@ class CTRexHltApi(object):
                                     'total_pkts_bytes':     pg_stats['tx_bytes'].get(port_id, 0),
                                     'total_pkt_bit_rate':   pg_stats['tx_bps'].get(port_id, 0),
                                     'total_pkt_rate':       pg_stats['tx_pps'].get(port_id, 0),
-                                    'line_rate_percentage': pg_stats['tx_line_util'].get(port_id, 0),
+                                    'line_rate_percentage': pg_stats['tx_bps_l1'].get(port_id, 0) * 100.0 / ports_speed[port_id] if ports_speed[port_id] else 0,
                                     },
                                 'rx': {
                                     'total_pkts':           pg_stats['rx_pkts'].get(port_id, 0),
@@ -701,7 +709,7 @@ class CTRexHltApi(object):
                                     'total_pkts_bytes':     pg_stats['rx_bytes'].get(port_id, 0),
                                     'total_pkt_bit_rate':   pg_stats['rx_bps'].get(port_id, 0),
                                     'total_pkt_rate':       pg_stats['rx_pps'].get(port_id, 0),
-                                    'line_rate_percentage': pg_stats['rx_line_util'].get(port_id, 0),
+                                    'line_rate_percentage': pg_stats['rx_bps_l1'].get(port_id, 0) * 100.0 / ports_speed[port_id] if ports_speed[port_id] else 0,
                                     },
                                 }
         except Exception as e:

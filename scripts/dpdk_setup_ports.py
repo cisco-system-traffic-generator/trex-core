@@ -500,7 +500,7 @@ Other network devices
         if l > 16:
             raise DpdkSetup("Configuration file %s should include interfaces field with maximum 16 elements, got: %s." % (fcfg,l))
         if l % 2:
-            raise DpdkSetup("Configuration file %s should include even number of interfaces " % (fcfg,l))
+            raise DpdkSetup("Configuration file %s should include even number of interfaces, got: %s" % (fcfg,l))
         if 'port_limit' in cfg_dict and cfg_dict['port_limit'] > len(if_list):
             raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
 
