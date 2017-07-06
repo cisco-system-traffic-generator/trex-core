@@ -871,8 +871,8 @@ class STLRX_Test(CStlGeneral_Test):
         self.__rx_iteration( [exp] )
 
     def get_stats(self):
-        new_stats = self.c.get_pgid_stats()
         old_stats = self.c.get_stats()
+        new_stats = self.c.get_pgid_stats()
         if  'latency' in new_stats:
             if old_stats['latency'] != new_stats['latency']:
                 print ("New and old stats differ in latency")
