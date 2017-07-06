@@ -528,7 +528,7 @@ class CFlowStatRuleMgr {
     void internal_periodic_update(uint16_t min_f, uint16_t max_f, uint16_t min_l, uint16_t max_l);
     int internal_stop_stream(TrexStream * stream);
     void update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
-                         , uint16_t min_l, uint16_t max_l);
+                         , uint16_t min_l, uint16_t max_l, bool is_last);
 
  private:
     static CFlowStatRuleMgr *m_pInstance;

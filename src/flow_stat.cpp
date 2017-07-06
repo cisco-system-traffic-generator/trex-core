@@ -162,6 +162,8 @@ void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_
         to_update.set_p_rate(0);
         to_update.set_b_rate(0);
         to_update.set_last_rate_calc_time(0);
+        to_update.set_pkt_base(val.get_pkts());
+        to_update.set_byte_base(val.get_bytes());
     } else {
         if (to_update.get_last_rate_calc_time() != 0) {
             if (rate_update) {
@@ -1028,18 +1030,24 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 
     if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(hw_id));
-        // Read counters one last time to make sure everything is in sync
-        internal_periodic_update(hw_id, hw_id, HW_ID_INIT, HW_ID_INIT);
     } else {
         p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(hw_id));
-        // Read counters one last time to make sure everything is in sync
-        internal_periodic_update(HW_ID_INIT, HW_ID_INIT, hw_id, hw_id);
     }
     if (p_user_id == NULL) {
         printf ("hw_id:%d. No mapping found. Supposed to be attached to %d\n", hw_id, stream->m_rx_check.m_pg_id);
 
     } else {
         ret = m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id);
+
+        if (ret == 0) {
+            // If we stopped the last stream trasnimitting on this hw_id,
+            // read counters one last time to make sure everything is in sync
+            if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
+                update_counters(false, hw_id, hw_id, HW_ID_INIT, HW_ID_INIT, true);
+            } else {
+                update_counters(false, HW_ID_INIT, HW_ID_INIT, hw_id, hw_id, true);
+            }
+        }
     }
     assert(p_user_id != NULL);
 
@@ -1144,12 +1152,12 @@ void CFlowStatRuleMgr::internal_periodic_update(uint16_t min_f, uint16_t max_f
     if (min_l != HW_ID_INIT) {
         m_api->get_rfc2544_info(NULL, min_l, max_l, false, true);
     }
-    update_counters(true, min_f, max_f, min_l, max_l);
+    update_counters(true, min_f, max_f, min_l, max_l, false);
 }
 
 // read hw counters, and update internal counters
 void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
-                                       , uint16_t min_l, uint16_t max_l) {
+                                       , uint16_t min_l, uint16_t max_l, bool is_last) {
     hr_time_t now = os_get_hr_tick_64();
     hr_time_t freq = os_get_hr_freq();
 #ifdef __DEBUG_FUNC_ENTRY__
@@ -1164,7 +1172,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     rx_per_flow_t rx_pkts = m_rx_stats[i - min_f];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq, update_rate);
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, freq, update_rate);
                     } else {
                         m_rx_cant_count_err[port] += rx_pkts.get_pkts();
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
@@ -1177,7 +1185,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq, update_rate);
+                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, freq, update_rate);
                     } else {
                         m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
@@ -1195,7 +1203,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, false, now, freq, update_rate);
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, freq, update_rate);
                     } else {
                         m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
@@ -1208,7 +1216,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("payload - port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, false, now, freq, update_rate);
+                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, freq, update_rate);
                     } else {
                         m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
@@ -1238,7 +1246,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
 
     uint16_t min_f = (m_max_hw_id >= 0) ? 0 : HW_ID_INIT;
     uint16_t min_l = (m_max_hw_id_payload >= 0) ? 0 : HW_ID_INIT;
-    update_counters(false, min_f, m_max_hw_id, min_l, m_max_hw_id_payload);
+    update_counters(false, min_f, m_max_hw_id, min_l, m_max_hw_id_payload, false);
 
     if (pgids.size() != 0) {
         if (pgids.size() > MAX_ALLOWED_PGID_LIST_LEN) {
