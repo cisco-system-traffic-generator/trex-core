@@ -627,9 +627,8 @@ RXGratARP::to_json() const {
 
 RXPortManager::RXPortManager() : m_feature_api(this) {
     clear_all_features();
-    m_io          = NULL;
-    m_cpu_dp_u    = NULL;
-    m_port_id     = UINT8_MAX;
+    m_io             = NULL;
+    m_port_id        = UINT8_MAX;
 }
 
 
@@ -642,7 +641,9 @@ RXPortManager::create(const TRexPortAttr *port_attr,
     
     m_port_id = port_attr->get_port_id();
     m_io = io;
-    m_cpu_dp_u = cpu_util;
+
+    /* create a predicator for CPU util. */
+    m_cpu_pred.create(cpu_util);
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
@@ -677,15 +678,27 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     rte_mbuf_t *rx_pkts[64];
-
+    
+    /* start CPU util. with heuristics
+       this may or may not start the CPU util.
+       measurement
+     */
+    m_cpu_pred.start_heur();
+    
     /* try to read 64 packets clean up the queue */
     uint16_t cnt_p = m_io->rx_burst(rx_pkts, 64);
     if (cnt_p == 0) {
+        /* update the predicator that no packets have arrived
+           will stop the predictor if it was started
+         */
+        m_cpu_pred.update(false);
         return cnt_p;
     }
 
-
-    m_cpu_dp_u->start_work1();
+    /* for next time mark the predictor as true
+       will start the predictor in case it did not
+     */
+    m_cpu_pred.update(true);
 
     for (int j = 0; j < cnt_p; j++) {
         rte_mbuf_t *m = rx_pkts[j];
@@ -697,9 +710,8 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
         rte_pktmbuf_free(m);
     }
 
-    /* commit only if there was work to do ! */
-    m_cpu_dp_u->commit1();
-
+    /* done */
+    m_cpu_pred.commit();
 
     return cnt_p;
 }

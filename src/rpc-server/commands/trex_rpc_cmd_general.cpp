@@ -30,6 +30,7 @@ limitations under the License.
 #include "trex_stateless_rx_core.h"
 #include "trex_stateless_capture.h"
 #include "trex_stateless_messaging.h"
+#include "bpf_api.h"
 
 #include <fstream>
 #include <iostream>
@@ -1014,6 +1015,17 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     const Json::Value &tx_json  = parse_array(params, "tx", result);
     const Json::Value &rx_json  = parse_array(params, "rx", result);
     CaptureFilter filter;
+ 
+    /* parse a BPF format filter for the capture */
+    const std::string filter_str = parse_string(params, "filter", result, "");
+    
+    /* compile it to verify */
+    if (!bpf_verify(filter_str.c_str())) {
+        generate_parse_err(result, "BPF filter: '" + filter_str + "' is not a valid pattern");
+    }
+    
+    /* set the BPF filter to the capture filter */
+    filter.set_bpf_filter(filter_str);
     
     std::set<uint8_t> ports;
     

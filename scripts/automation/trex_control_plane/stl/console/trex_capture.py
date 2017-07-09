@@ -245,11 +245,11 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         
 # capture monitor - a live capture
 class CaptureMonitor(object):
-    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type):
+    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type, bpf_filter):
         self.client      = client
         self.logger      = client.logger
         self.cmd_lock    = cmd_lock
-
+        
         self.t           = None
         self.writer      = None
         self.capture_id  = None
@@ -258,6 +258,7 @@ class CaptureMonitor(object):
         self.rx_port_list = rx_port_list
         self.rate_pps     = rate_pps
         self.mon_type     = mon_type
+        self.bpf_filter   = bpf_filter
         
         # try to launch
         try:
@@ -271,7 +272,11 @@ class CaptureMonitor(object):
         
         # create a capture on the server
         with self.logger.supress():
-            data = self.client.start_capture(self.tx_port_list, self.rx_port_list, limit = self.rate_pps, mode = 'cyclic')
+            data = self.client.start_capture(self.tx_port_list,
+                                             self.rx_port_list,
+                                             limit = self.rate_pps,
+                                             mode = 'cyclic',
+                                             bpf_filter = self.bpf_filter)
 
         self.capture_id = data['id']
         self.start_ts   = data['ts']
@@ -346,7 +351,8 @@ class CaptureMonitor(object):
                 self.pkt_count,
                 format_num(self.byte_count, suffix = 'B'),
                 ', '.join([str(x) for x in self.tx_port_list] if self.tx_port_list else '-'),
-                ', '.join([str(x) for x in self.rx_port_list] if self.rx_port_list else '-')
+                ', '.join([str(x) for x in self.rx_port_list] if self.rx_port_list else '-'),
+                self.bpf_filter or '-',
                 ]
         
 
@@ -477,7 +483,8 @@ class CaptureManager(object):
         # start
         self.record_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
                                               parsing_opts.RX_PORT_LIST,
-                                              parsing_opts.LIMIT)
+                                              parsing_opts.LIMIT,
+                                              parsing_opts.BPF_FILTER)
 
         # stop
         self.record_stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
@@ -494,7 +501,8 @@ class CaptureManager(object):
 
         self.monitor_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
                                                parsing_opts.RX_PORT_LIST,
-                                               parsing_opts.MONITOR_TYPE)
+                                               parsing_opts.MONITOR_TYPE,
+                                               parsing_opts.BPF_FILTER)
 
         
         
@@ -543,7 +551,7 @@ class CaptureManager(object):
             self.record_start_parser.formatted_error('please provide either --tx or --rx')
             return
 
-        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit, mode = 'fixed')
+        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit, mode = 'fixed', bpf_filter = opts.filter)
         
         self.logger.log(format_text("*** Capturing ID is set to '{0}' ***".format(rc['id']), 'bold'))
         self.logger.log(format_text("*** Please call 'capture record stop --id {0} -o <out.pcap>' when done ***\n".format(rc['id']), 'bold'))
@@ -589,7 +597,7 @@ class CaptureManager(object):
             self.monitor.stop()
             self.monitor = None
             
-        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type)
+        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type, opts.filter)
         
     
     def parse_monitor_stop (self, opts):
@@ -612,13 +620,13 @@ class CaptureManager(object):
 
         # captures
         cap_table = text_tables.TRexTextTable()
-        cap_table.set_cols_align(["c"] * 6)
-        cap_table.set_cols_width([15] * 6)
+        cap_table.set_cols_align(["c"] * 7)
+        cap_table.set_cols_width([15] * 7)
 
         # monitor
         mon_table = text_tables.TRexTextTable()
-        mon_table.set_cols_align(["c"] * 6)
-        mon_table.set_cols_width([15] * 6)
+        mon_table.set_cols_align(["c"] * 7)
+        mon_table.set_cols_width([15] * 7)
 
         for capture_id, elem in data.items():
 
@@ -632,12 +640,13 @@ class CaptureManager(object):
                        '[{0}/{1}]'.format(elem['count'], elem['limit']),
                        format_num(elem['bytes'], suffix = 'B'),
                        bitfield_to_str(elem['filter']['tx']),
-                       bitfield_to_str(elem['filter']['rx'])]
+                       bitfield_to_str(elem['filter']['rx']),
+                       elem['filter']['bpf'] or '-']
 
                 cap_table.add_rows([row], header=False)
 
-        cap_table.header(['ID', 'Status', 'Packets', 'Bytes', 'TX Ports', 'RX Ports'])
-        mon_table.header(['ID', 'Status', 'Packets Seen', 'Bytes Seen', 'TX Ports', 'RX Ports'])
+        cap_table.header(['ID', 'Status', 'Packets', 'Bytes', 'TX Ports', 'RX Ports', 'BPF Filter'])
+        mon_table.header(['ID', 'Status', 'Packets Seen', 'Bytes Seen', 'TX Ports', 'RX Ports', 'BPF Filter'])
 
         if cap_table._rows:
             text_tables.print_table_with_header(cap_table, '\nActive Recorders')

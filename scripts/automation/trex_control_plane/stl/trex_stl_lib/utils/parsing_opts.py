@@ -99,6 +99,7 @@ CAPTURE_PORTS_GROUP
 MONITOR_TYPE_VERBOSE
 MONITOR_TYPE_PIPE
 MONITOR_TYPE
+BPF_FILTER
 
 VLAN_TAGS
 CLEAR_VLAN
@@ -265,7 +266,7 @@ def hex_int (val):
     
     return int(val, 16)
     
-
+    
 def action_check_vlan():
     class VLANCheck(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
@@ -281,7 +282,17 @@ def action_check_vlan():
             
     return VLANCheck
       
-
+    
+def action_bpf_filter_merge ():
+    class BPFFilterMerge(argparse.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            setattr(args, self.dest, ' '.join(values))
+            return
+       
+            
+    return BPFFilterMerge
+    
+    
 def is_valid_file(filename):
     if not os.path.isfile(filename):
         raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
@@ -747,6 +758,15 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                'help': 'forward packets to a pipe'}),
 
 
+              BPF_FILTER: ArgumentPack(['-f', '--filter'],
+                                              {'type': str,
+                                               'nargs': '+',
+                                               'action': action_bpf_filter_merge(),
+                                               'dest': 'filter',
+                                               'default': '',
+                                               'help': 'BPF filter'}),
+              
+              
               CAPTURE_ID: ArgumentPack(['-i', '--id'],
                                   {'help': "capture ID to remove",
                                    'dest': "capture_id",

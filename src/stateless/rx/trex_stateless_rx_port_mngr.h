@@ -408,7 +408,7 @@ private:
     RXServer                     m_server;
     RXGratARP                    m_grat_arp;
     
-    CCpuUtlDp                   *m_cpu_dp_u;
+    CCpuUtlDpPredict             m_cpu_pred;
     CPortLatencyHWBase          *m_io;
     
     CManyIPInfo                  m_src_addr;

@@ -3724,7 +3724,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed'):
+    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed', bpf_filter = ''):
         """
             Starts a low rate packet capturing on the server
 
@@ -3742,6 +3742,10 @@ class STLClient(object):
                     'fixed'  - when full, newer packets will be dropped
                     'cyclic' - when full, older packets will be dropped
                                   
+                bpf_filter: str
+                    A Berkeley Packet Filter pattern
+                    Only packets matching the filter will be appended to the capture
+                    
             :returns:
                 returns a dictionary:
                 {'id: <new_id>, 'ts': <starting timestamp>}
@@ -3783,7 +3787,16 @@ class STLClient(object):
             
         # actual job
         self.logger.pre_cmd("Starting packet capturing up to {0} packets".format(limit))
-        rc = self._transmit("capture", params = {'command': 'start', 'limit': limit, 'mode': mode, 'tx': tx_ports, 'rx': rx_ports})
+
+        # capture RPC parameters
+        params = {'command'   : 'start',
+                  'limit'     : limit,
+                  'mode'      : mode,
+                  'tx'        : tx_ports,
+                  'rx'        : rx_ports,
+                  'filter'    : bpf_filter}
+        
+        rc = self._transmit("capture", params = params)
         self.logger.post_cmd(rc)
 
         if not rc:

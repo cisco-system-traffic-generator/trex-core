@@ -160,6 +160,7 @@ class CRxCoreStateless {
      */
     void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
 
+    
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
 

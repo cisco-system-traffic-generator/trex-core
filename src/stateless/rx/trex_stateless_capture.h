@@ -27,7 +27,7 @@ limitations under the License.
 
 #include "trex_stateless_pkt.h"
 #include "trex_stateless_capture_rc.h"
-
+#include "bpf_api.h"
 
 /**************************************
  * Capture Filter 
@@ -37,8 +37,38 @@ limitations under the License.
 class CaptureFilter {
 public:
     CaptureFilter() {
-        m_tx_active = 0;
-        m_rx_active = 0;
+        m_tx_active  = 0;
+        m_rx_active  = 0;
+        m_bpf_h      = BPF_H_NONE;
+    }
+    
+
+    CaptureFilter(const CaptureFilter &other) {
+        /* copy those fields */
+        m_tx_active   = other.m_tx_active;
+        m_rx_active   = other.m_rx_active;
+        m_bpf_filter  = other.m_bpf_filter;
+        
+        /* do not copy the pointer - need to recompile */
+        m_bpf_h       = BPF_H_NONE;
+    }
+    
+    /**
+     * set a BPF filter
+     *  
+     * by default, match all 
+     */
+    void set_bpf_filter(const std::string &bpf_filter) {
+        m_bpf_filter = bpf_filter;
+    }
+    
+    /**
+     * compile the capture BPF filter
+     */
+    void compile() {
+        m_bpf_h = bpf_compile(m_bpf_filter.c_str());
+        /* should never fail - caller should verify */
+        assert(m_bpf_h);
     }
     
     /**
@@ -60,26 +90,41 @@ public:
         add_rx(port_id);
     }
     
-    bool in_x(uint8_t port_id, TrexPkt::origin_e origin) {
-        return ( 
-                 ( (origin == TrexPkt::ORIGIN_RX) && (in_rx(port_id)) )
-                 ||
-                 ( (origin == TrexPkt::ORIGIN_TX) && (in_tx(port_id)) )
-               );
-    }
-    
+    /**
+     * return true if 'port_id' is being captured 
+     * as RX port 
+     */
     bool in_rx(uint8_t port_id) const {
         uint64_t bit = (1LL << port_id);
         return ((m_rx_active & bit) == bit);
     }
     
+    /**
+     * return true if 'port_id' is being captured 
+     * as TX port 
+     */
     bool in_tx(uint8_t port_id) const {
         uint64_t bit = (1LL << port_id);
         return ((m_tx_active & bit) == bit);
     }
     
+    /**
+     * return true if 'port_id' is being monitored at all
+     */
     bool in_any(uint8_t port_id) const {
         return ( in_tx(port_id) || in_rx(port_id) );
+    }
+    
+    /**
+     * match a packet against the filter
+     * 
+     */
+    bool match(uint8_t port_id, TrexPkt::origin_e origin, const rte_mbuf_t *m) const {
+        if (origin == TrexPkt::ORIGIN_RX) {
+            return (in_rx(port_id) && bpf_match(m));
+        } else {
+            return (in_tx(port_id) && bpf_match(m));
+        }
     }
     
     /**
@@ -90,14 +135,21 @@ public:
         m_tx_active |= other.m_tx_active;
         m_rx_active |= other.m_rx_active;
         
+        /* if any filter is empty the result is an empty filter (OR operator) */
+        if ( (m_bpf_filter == "") || (other.m_bpf_filter == "") ) {
+            m_bpf_filter = "";
+        } else {
+            m_bpf_filter = "(" + m_bpf_filter + ") or (" + other.m_bpf_filter + ")";
+        }
+        
         return *this;
     }
     
     Json::Value to_json() const {
         Json::Value output = Json::objectValue;
-        output["tx"] = Json::UInt64(m_tx_active);
-        output["rx"] = Json::UInt64(m_rx_active);
-
+        output["tx"]     = Json::UInt64(m_tx_active);
+        output["rx"]     = Json::UInt64(m_rx_active);
+        output["bpf"]    = m_bpf_filter;
         return output;
     }
 
@@ -109,10 +161,27 @@ public:
         return m_rx_active;
     }
     
+    const std::string & get_bpf_filter() {
+        return m_bpf_filter;
+    }
+    
 private:
+
+    bool bpf_match(const rte_mbuf_t *m) const {
+        assert(m_bpf_h);
+
+        const char *buffer = rte_pktmbuf_mtod(m, char *);
+        uint32_t len       = rte_pktmbuf_pkt_len(m);
+        
+        int rc = bpf_run(m_bpf_h, buffer, len);
+        return (rc != 0);
+    }
     
     uint64_t  m_tx_active;
     uint64_t  m_rx_active;
+    
+    std::string  m_bpf_filter;
+    bpf_h        m_bpf_h;
 };
 
 
@@ -284,8 +353,8 @@ public:
      */
     inline void handle_pkt_rx(const rte_mbuf_t *m, int port) {
         
-        /* fast path */
-        if (likely(!m_global_filter.in_rx(port))) {
+        /* fast path - use the global filter */
+        if (likely(!m_global_filter.match(port, TrexPkt::ORIGIN_RX, m))) {
             return;
         }
         
@@ -297,10 +366,7 @@ public:
             ulock.lock();
         }
         
-        /* fast bail out IF */
-        if (m_global_filter.in_rx(port)) {
-            handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_RX);
-        }
+        handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_RX);
         
     }
     

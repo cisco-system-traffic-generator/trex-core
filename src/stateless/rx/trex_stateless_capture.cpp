@@ -36,6 +36,8 @@ TrexStatelessCapture::TrexStatelessCapture(capture_id_t id,
     m_state      = STATE_ACTIVE;
     m_start_ts   = now_sec();
     m_pkt_index  = 0;
+    
+    m_filter.compile();
 }
 
 TrexStatelessCapture::~TrexStatelessCapture() {
@@ -52,7 +54,7 @@ TrexStatelessCapture::handle_pkt(const rte_mbuf_t *m, int port, TrexPkt::origin_
     }
     
     /* if not in filter - back off */
-    if (!m_filter.in_x(port, origin)) {
+    if (!m_filter.match(port, origin, m)) {
         return;
     }
     
@@ -129,6 +131,7 @@ TrexStatelessCaptureMngr::update_global_filter() {
     }
   
     m_global_filter = new_filter;
+    m_global_filter.compile();
 }
 
 

@@ -32,7 +32,7 @@ bpf_compile(const char *bpf_filter) {
     assert(program);
     
     /* compile - no attach to PCAP device */
-    int rc = pcap_compile_nopcap(65535, DLT_EN10MB, program, bpf_filter, 1, 0);
+    int rc = pcap_compile_nopcap(1, DLT_EN10MB, program, bpf_filter, 1, 0);
     if (rc != 0) {
         free(program);
         return NULL;
@@ -45,6 +45,15 @@ bpf_compile(const char *bpf_filter) {
 void
 bpf_destroy(bpf_h bpf) {
     free(bpf);
+}
+
+
+int
+bpf_verify(const char *bpf_filter) {
+    struct bpf_program program;
+    
+    int rc = pcap_compile_nopcap(1, DLT_EN10MB, &program, bpf_filter, 1, 0);
+    return (rc == 0);
 }
 
 
