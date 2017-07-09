@@ -762,6 +762,12 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
         m_rx_check_manager.handle_packet(rxc);
     }
 
+#if 0
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
+    utl_DumpBuffer(stdout,p,pkt_size,0);
+#endif
+
     rte_pktmbuf_free(m);
 }
 
