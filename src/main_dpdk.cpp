@@ -2961,6 +2961,7 @@ public:
     float m_cpu_util;
     float m_cpu_util_raw;
     float m_rx_cpu_util;
+    float m_rx_core_pps;
     float m_bw_per_core;
     uint8_t m_threads;
 
@@ -3030,6 +3031,7 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
     json+=GET_FIELD(m_cpu_util_raw);
     json+=GET_FIELD(m_bw_per_core);
     json+=GET_FIELD(m_rx_cpu_util);
+    json+=GET_FIELD(m_rx_core_pps);
     json+=GET_FIELD(m_platform_factor);
     json+=GET_FIELD(m_tx_bps);
     json+=GET_FIELD(m_rx_bps);
@@ -4423,21 +4425,24 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     float total_tx_pps=0.0;
     float total_rx_pps=0.0;
 
-    stats.m_total_tx_pkts  = 0;
-    stats.m_total_rx_pkts  = 0;
-    stats.m_total_tx_bytes = 0;
-    stats.m_total_rx_bytes = 0;
-    stats.m_total_alloc_error=0;
-    stats.m_total_queue_full=0;
-    stats.m_total_queue_drop=0;
-
+    stats.m_total_tx_pkts       = 0;
+    stats.m_total_rx_pkts       = 0;
+    stats.m_total_tx_bytes      = 0;
+    stats.m_total_rx_bytes      = 0;
+    stats.m_total_alloc_error   = 0;
+    stats.m_total_queue_full    = 0;
+    stats.m_total_queue_drop    = 0;
+    stats.m_rx_core_pps         = 0.0;
 
     stats.m_num_of_ports = m_max_ports;
     stats.m_cpu_util = m_fl.GetCpuUtil();
     stats.m_cpu_util_raw = m_fl.GetCpuUtilRaw();
+
     if (get_is_stateless()) {
         stats.m_rx_cpu_util = m_rx_sl.get_cpu_util();
+        stats.m_rx_core_pps = m_rx_sl.get_rx_pps_rate();
     }
+    
     stats.m_threads      = m_fl.m_threads_info.size();
 
     for (i=0; i<m_max_ports; i++) {
@@ -5370,9 +5375,10 @@ bool CPhyEthIF::Create(tvpid_t  tvpid,
     m_tvpid      = tvpid;
     m_repid      = repid;
 
-    m_last_rx_rate = 0.0;
-    m_last_tx_rate = 0.0;
-    m_last_tx_pps  = 0.0;
+    m_last_rx_rate      = 0.0;
+    m_last_tx_rate      = 0.0;
+    m_last_tx_pps       = 0.0;
+    
     m_port_attr    = g_trex.m_drv->create_port_attr(tvpid,repid);
 
     /* set src MAC addr */

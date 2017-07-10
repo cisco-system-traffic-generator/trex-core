@@ -44,6 +44,10 @@ class STLServiceFilterDHCP(STLServiceFilter):
         return self.services.get(xid, [])
 
         
+    def get_bpf_filter (self):
+        return 'dhcp'
+        
+        
 ################### internal ###################
 class STLServiceDHCP(STLService):
     

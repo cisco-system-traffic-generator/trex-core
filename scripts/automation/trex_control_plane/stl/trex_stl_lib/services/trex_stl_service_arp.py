@@ -46,6 +46,9 @@ class STLServiceFilterARP(STLServiceFilter):
         return self.services.get( (scapy_pkt['ARP'].pdst, scapy_pkt['ARP'].psrc, tuple(vlans)), [] ) 
 
    
+    def get_bpf_filter (self):
+        # a simple BPF pattern for ARP
+        return 'arp'
         
 
 class STLServiceARP(STLService):

@@ -134,6 +134,7 @@ class CRxCoreStateless {
     double get_cpu_util();
     void update_cpu_util();
 
+    
     const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id) {
         return m_rx_port_mngr[port_id].get_pkt_buffer();
     }
@@ -160,6 +161,14 @@ class CRxCoreStateless {
      */
     void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
 
+    /**
+     * returns the current rate that 
+     * the RX core handles packets 
+     * 
+     */
+    float get_rx_pps_rate() {
+        return m_rx_pps.add(m_rx_pkts);
+    }
     
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
@@ -203,6 +212,8 @@ class CRxCoreStateless {
     dsec_t           m_sync_time_sec;
     dsec_t           m_grat_arp_sec;
     
+    uint64_t         m_rx_pkts;
+
     // Used for acking "work" (go out of idle) messages from cp
     volatile bool m_ack_start_work_msg __rte_cache_aligned;
 
@@ -210,5 +221,7 @@ class CRxCoreStateless {
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
     RXPortManager m_rx_port_mngr[TREX_MAX_PORTS];
+    
+    CPPSMeasure   m_rx_pps;
 };
 #endif

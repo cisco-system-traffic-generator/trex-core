@@ -69,10 +69,11 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 };
 
 void CRxCoreStateless::create(const CRxSlCfg &cfg) {
-    m_capture = false;
-    m_max_ports = cfg.m_max_ports;
-    m_tx_cores  = cfg.m_tx_cores;
-    
+    m_capture     = false;
+    m_max_ports   = cfg.m_max_ports;
+    m_tx_cores    = cfg.m_tx_cores;
+    m_rx_pkts     = 0;
+
     CMessagingManager * cp_rx = CMsgIns::Ins()->getCpRx();
 
     m_ring_from_cp = cp_rx->getRingCpToDp(0);
@@ -177,8 +178,9 @@ bool CRxCoreStateless::is_latency_or_capture_active() {
 void CRxCoreStateless::hot_state_loop() {
     
     while (m_state == STATE_HOT) {
-        work_tick();
-        rte_pause();
+        if (!work_tick()) {
+            rte_pause();
+        }
     }
 }
 
@@ -231,11 +233,16 @@ void CRxCoreStateless::init_work_stage() {
  */
 bool CRxCoreStateless::work_tick() {
     bool did_something = false;
-    
-    /* if any packet arrived - mark as */
-    if (process_all_pending_pkts()) {
+    int n;
+    int limit = 10;
+
+    /* continue while pending packets are waiting or limit reached */
+    while ( (n = process_all_pending_pkts()) && limit) {
+        m_rx_pkts += n;
+        limit--;
         did_something = true;
     }
+
     
     dsec_t now = now_sec();
         
@@ -249,11 +256,12 @@ bool CRxCoreStateless::work_tick() {
         
         m_sync_time_sec = now + (1.0 / 1000);
     }
-        
+    
     if ( (now - m_grat_arp_sec) > 0) {
         handle_grat_arp();
         m_grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
     }
+
     
     return did_something;
 }

@@ -49,6 +49,11 @@ class STLServiceFilterICMP(STLServiceFilter):
         return self.services.get( (src_ip, id, seq, tuple(vlan)), [] )
 
 
+    def get_bpf_filter (self):
+        # a simple BPF pattern for ICMP
+        return 'icmp'
+
+
 class STLServiceICMP(STLService):
     '''
         ICMP service - generate echo requests

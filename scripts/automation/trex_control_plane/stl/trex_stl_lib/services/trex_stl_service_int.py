@@ -132,7 +132,9 @@ class STLServiceCtx(object):
             self.client.set_port_attr(ports = self.port, promiscuous = True)
 
         try:
-            self.capture_id = self.client.start_capture(rx_ports = self.port)['id']
+            # for each filter, start a capture
+            for f in self.filters.values():
+                f['capture_id'] = self.client.start_capture(rx_ports = self.port, bpf_filter = f['inst'].get_bpf_filter())['id']
 
             # add the maintenace process
             tick_process = self.env.process(self._tick_process())
@@ -140,8 +142,13 @@ class STLServiceCtx(object):
             # start the RT simulation - exit when the tick process dies
             self.env.run(until = tick_process)
 
+
         finally:
-            self.client.stop_capture(self.capture_id)
+            # stop all captures
+            for f in self.filters.values():
+                if f['capture_id'] is not None:
+                    self.client.stop_capture(f['capture_id'])
+
             if not is_promiscuous:
                 self.client.set_port_attr(ports = self.port, promiscuous = False)
             self._reset()
@@ -153,10 +160,10 @@ class STLServiceCtx(object):
 
         # if the service does not have a filter installed - create it
         if not filter_type in self.filters:
-            self.filters[filter_type] = filter_type()
+            self.filters[filter_type] = {'inst': filter_type(), 'capture_id': None}
 
         # add to the filter
-        self.filters[filter_type].add(service)
+        self.filters[filter_type]['inst'].add(service)
 
         # data per service
         self.services[service] = {'pipe': None}
@@ -175,6 +182,23 @@ class STLServiceCtx(object):
         return STLServicePipe(self.env, self.tx_buffer)
 
         
+
+    def _fetch_rx_pkts_per_filter (self, f):
+        pkts = []
+        self.client.fetch_capture_packets(f['capture_id'], pkts)
+
+        # for each packet - try to forward to each service until we hit
+        for pkt in pkts:
+            scapy_pkt = Ether(pkt['binary'])
+            rx_ts     = pkt['ts']
+            
+            # lookup all the services that this filter matches (usually 1)
+            services = f['inst'].lookup(scapy_pkt)
+            for service in services:
+                self.services[service]['pipe']._on_rx_pkt(scapy_pkt, rx_ts)
+
+
+
     def _tick_process (self):
         
         while True:
@@ -183,20 +207,8 @@ class STLServiceCtx(object):
             self.tx_buffer.send_all()
 
             # poll for RX
-            pkts = []
-            self.client.fetch_capture_packets(self.capture_id, pkts)
-            
-            # for each packet - try to forward to each service until we hit
-            for pkt in pkts:
-                scapy_pkt = Ether(pkt['binary'])
-                rx_ts     = pkt['ts']
-                
-                # go through all filters
-                for service_filter in self.filters.values():
-                    
-                    # look up for a service that should get this packet (usually 1)
-                    for service in service_filter.lookup(scapy_pkt):
-                        self.services[service]['pipe']._on_rx_pkt(scapy_pkt, rx_ts)
+            for f in self.filters.values():
+                self._fetch_rx_pkts_per_filter(f)
 
             
             # if no other process exists - exit

@@ -1218,11 +1218,13 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     static MsgReply<uint32_t> reply;
     reply.reset();
     
+    dsec_t now = now_sec();
+    
     TrexStatelessRxTXPkts *tx_pkts_msg = new TrexStatelessRxTXPkts(port_id, pkts, reply);
     get_stateless_obj()->send_msg_to_rx(tx_pkts_msg);
     
     result["result"]["sent"] = reply.wait_for_reply();
-    result["result"]["ts"]   = now_sec();
+    result["result"]["ts"]   = now;
     
     return TREX_RPC_CMD_OK;
 }

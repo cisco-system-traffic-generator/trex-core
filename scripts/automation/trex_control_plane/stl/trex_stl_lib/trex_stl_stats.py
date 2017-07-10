@@ -235,8 +235,9 @@ class CTRexInfoGenerator(object):
                                                                                          global_stats.system_info.get('dp_core_count_per_port'),
                                                                                          )),
 
-                             ("rx_cpu_util.", "{0}% {1}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
-                                                                global_stats.get_trend_gui("m_rx_cpu_util", use_raw = True))),
+                             ("rx_cpu_util.", "{0}% / {1} {2}".format( format_threshold(round_float(global_stats.get("m_rx_cpu_util")), [85, 100], [0, 85]),
+                                                                       global_stats.get("m_rx_core_pps", format = True, suffix = "pkt/sec"),
+                                                                       global_stats.get_trend_gui("m_rx_cpu_util", use_raw = True),)),
 
                              ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self._async_monitor.get_cpu_util()), [85, 100], [0, 85]),
                                                                  format_num(self._async_monitor.get_bps() / 8.0, suffix = "B/sec"))),

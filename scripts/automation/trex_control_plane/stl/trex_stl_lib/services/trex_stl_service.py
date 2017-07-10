@@ -40,6 +40,15 @@ class STLServiceFilter(object):
         raise NotImplementedError
 
 
+    def get_bpf_filter (self):
+        '''
+            Each filter needs to describe a BPF filter
+            any packets matching the BPF pattern will
+            be forwarded to the filter
+        '''
+        raise NotImplementedError
+
+
 #########################         
 #                       
 # STL service           
