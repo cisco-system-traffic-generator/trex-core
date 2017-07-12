@@ -433,6 +433,25 @@ public:
         return m_platform_api->getPortAttrObj(m_port_id);
     }
     
+    /**
+     * simply a const version
+     */
+    const TRexPortAttr *getPortAttrObj() const {
+        return m_platform_api->getPortAttrObj(m_port_id);
+    }
+    
+    /**
+     * get port source MAC
+     * 
+     */
+    const uint8_t * get_src_mac() const;
+    
+    /**
+     * get port dst MAC
+     * 
+     */
+    const uint8_t * get_dst_mac() const;
+    
 private:
     void set_service_mode_on();
     void set_service_mode_off();

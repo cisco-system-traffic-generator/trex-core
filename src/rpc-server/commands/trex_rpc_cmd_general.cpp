@@ -1201,13 +1201,13 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
         
         /* replace dst MAC if needed*/
         if (use_port_dst_mac) {
-            const char *dst_mac = (const char *)port->getPortAttrObj()->get_layer_cfg().get_ether().get_dst();
+            const char *dst_mac = (const char *)port->get_dst_mac();
             pkt_binary.replace(0, 6, dst_mac, 6);
         }
         
         /* replace src MAC if needed */
         if (use_port_src_mac) {
-            const char *src_mac = (const char *)port->getPortAttrObj()->get_layer_cfg().get_ether().get_src();
+            const char *src_mac = (const char *)port->get_src_mac();
             pkt_binary.replace(6, 6, src_mac, 6);
         }
         

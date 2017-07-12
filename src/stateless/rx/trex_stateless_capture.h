@@ -36,13 +36,15 @@ limitations under the License.
  *************************************/
 class CaptureFilter {
 public:
+    
+    /* CTOR */
     CaptureFilter() {
         m_tx_active  = 0;
         m_rx_active  = 0;
         m_bpf_h      = BPF_H_NONE;
     }
     
-
+    /* Copy CTOR */
     CaptureFilter(const CaptureFilter &other) {
         /* copy those fields */
         m_tx_active   = other.m_tx_active;
@@ -85,6 +87,10 @@ public:
         m_rx_active |= (1LL << port_id);
     }
     
+    /**
+     * add a port to both directions
+     * 
+     */
     void add(uint8_t port_id) {
         add_tx(port_id);
         add_rx(port_id);
@@ -119,7 +125,7 @@ public:
      * match a packet against the filter
      * 
      */
-    bool match(uint8_t port_id, TrexPkt::origin_e origin, const rte_mbuf_t *m) const {
+    inline bool match(uint8_t port_id, TrexPkt::origin_e origin, const rte_mbuf_t *m) const {
         if (origin == TrexPkt::ORIGIN_RX) {
             return (in_rx(port_id) && bpf_match(m));
         } else {
@@ -167,7 +173,7 @@ public:
     
 private:
 
-    bool bpf_match(const rte_mbuf_t *m) const {
+    inline bool bpf_match(const rte_mbuf_t *m) const {
         assert(m_bpf_h);
 
         const char *buffer = rte_pktmbuf_mtod(m, char *);
@@ -177,9 +183,10 @@ private:
         return (rc != 0);
     }
     
-    uint64_t  m_tx_active;
-    uint64_t  m_rx_active;
+    uint64_t     m_tx_active;
+    uint64_t     m_rx_active;
     
+    /* BPF pattern and a BPF compiled object handler */
     std::string  m_bpf_filter;
     bpf_h        m_bpf_h;
 };

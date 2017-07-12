@@ -2773,7 +2773,6 @@ public:
 
         uint16_t res=m_port->tx_burst(m_tx_queue_id, tx_pkts, 1);
         if ( res == 0 ) {
-            rte_pktmbuf_free(m);
             //printf(" queue is full for latency packet !!\n");
             return (-1);
 
@@ -2879,16 +2878,17 @@ private:
         }
 
         if ( m_ring_to_dp->Enqueue((CGenNode*)node) != 0 ){
+            CGlobalInfo::free_node((CGenNode *)node);
             return (-1);
         }
 
         return (0);
     }
 
-    CPhyEthIF  * m_port;
+    CPhyEthIF                       *m_port;
     uint8_t                          m_dir;
-    CNodeRing *                      m_ring_to_dp;   /* ring dp -> latency thread */
-    CLatencyManager *                m_mgr;
+    CNodeRing                       *m_ring_to_dp;   /* ring dp -> latency thread */
+    CLatencyManager                 *m_mgr;
 };
 
 

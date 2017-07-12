@@ -203,21 +203,25 @@ public:
     
     /**
      * sends a packet
-     * 
+     *  
+     * in case of a failure the user should free the mbuf 
      */
     virtual int tx(rte_mbuf_t *m) = 0;
     
     /**
      * send a packet as raw (no vlan tagging or any other 
      * modification) 
-     * used mainly by stateless RX core
+     * used mainly by stateless RX core 
+     *  
+     * in case of a failure the user should free the mbuf 
      */
     virtual int tx_raw(rte_mbuf_t *m) = 0;
     
     /**
      * sends a latency packet 
      * if needed, timestamp will be updated 
-     * 
+     *  
+     * in case of a failure the user should free the mbuf
      */
     virtual int tx_latency(rte_mbuf_t *m) = 0;
     

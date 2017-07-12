@@ -828,6 +828,7 @@ class STLClient(object):
 
         return rc
 
+        
     def __push_packets (self, port_id_list, pkts, force):
         port_id_list = self.__ports(port_id_list)
 

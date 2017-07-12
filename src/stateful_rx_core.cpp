@@ -586,6 +586,7 @@ void  CLatencyManager::send_pkt_all_ports(){
                     lp->m_port.m_tx_pkt_ok++;
                 }else{
                     lp->m_port.m_tx_pkt_err++;
+                    rte_pktmbuf_free(m);
                 }
 
             }
@@ -638,6 +639,7 @@ void CLatencyManager::send_one_grat_arp() {
             lp->m_port.m_ign_stats.m_tot_bytes += 64; // mbuf size is smaller, but 64 bytes will be sent
         } else {
             lp->m_port.m_tx_pkt_err++;
+            rte_pktmbuf_free(m);
         }
         break;
     case COneIPInfo::IP6_VER:

@@ -475,7 +475,10 @@ RXServer::handle_icmp(RXPktParser &parser) {
     response_parser.m_icmp->updateCheckSum(response_parser.m_ipv4->getTotalLength() - response_parser.m_ipv4->getHeaderLength());
     
     /* send */
-    m_api->tx_pkt(response);
+    bool rc = m_api->tx_pkt(response);
+    if (!rc) {
+        rte_pktmbuf_free(response);
+    }
 }
 
 void
@@ -529,7 +532,10 @@ RXServer::handle_arp(RXPktParser &parser) {
     response_parser.m_arp->m_arp_tip = parser.m_arp->m_arp_sip;
     
     /* send */
-    m_api->tx_pkt(response);
+    bool rc = m_api->tx_pkt(response);
+    if (!rc) {
+        rte_pktmbuf_free(response);
+    }
 }
 
 rte_mbuf_t *
@@ -537,15 +543,11 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
     
     /* allocate */
     rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(m_api->get_port_id(), rte_pktmbuf_pkt_len(m));
-    if (!clone_mbuf) {
-        return NULL;
-    }
+    assert(clone_mbuf);
     
-    /* append data */
+    /* append data - should always succeed */
     uint8_t *dest = (uint8_t *)rte_pktmbuf_append(clone_mbuf, rte_pktmbuf_pkt_len(m));
-    if (!dest) {
-        return NULL;
-    }
+    assert(dest);
     
     /* copy data */
     mbuf_to_buffer(dest, m);
@@ -608,7 +610,9 @@ RXGratARP::send_next_grat_arp() {
     if (m_api->tx_pkt(m)) {
         m_ign_stats->m_tx_arp    += 1;
         m_ign_stats->m_tot_bytes += 64;
-    }
+    } else {
+       rte_pktmbuf_free(m);
+    }   
    
 }
 
@@ -756,15 +760,15 @@ RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) 
 */
 uint32_t
 RXPortManager::tx_pkts(const std::vector<std::string> &pkts) {
-    uint32_t rc = 0;
+    uint32_t pkts_sent = 0;
     
     for (const auto &pkt : pkts) {
         if (tx_pkt(pkt)) {
-            rc++;
+            pkts_sent++;
         }
     }
     
-    return rc;
+    return pkts_sent;
 }
 
 
@@ -779,7 +783,12 @@ RXPortManager::tx_pkt(const std::string &pkt) {
     memcpy(p, pkt.c_str(), pkt.size());
     
     /* send */
-    return tx_pkt(m);
+    bool rc = tx_pkt(m);
+    if (!rc) {
+        rte_pktmbuf_free(m);
+    }
+    
+    return rc;
 }
 
 

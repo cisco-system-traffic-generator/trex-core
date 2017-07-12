@@ -1019,7 +1019,6 @@ TrexStatelessPort::set_service_mode(bool enabled) {
     send_message_to_all_dp(dp_msg);
 }
 
-
 void 
 TrexStatelessPort::start_rx_queue(uint64_t size) {
     static MsgReply<bool> reply;
@@ -1145,6 +1144,17 @@ TrexStatelessPort::rx_features_to_json() {
     send_message_to_rx( (TrexStatelessCpToRxMsgBase *)msg );
 
     return reply.wait_for_reply();
+}
+
+
+const uint8_t *
+TrexStatelessPort::get_src_mac() const {
+    return getPortAttrObj()->get_layer_cfg().get_ether().get_src();
+}
+
+const uint8_t *
+TrexStatelessPort::get_dst_mac() const {
+    return getPortAttrObj()->get_layer_cfg().get_ether().get_dst();
 }
 
 /************* Trex Port Owner **************/
