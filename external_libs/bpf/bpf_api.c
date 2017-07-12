@@ -26,6 +26,10 @@ limitations under the License.
 #include <stdlib.h>
 #include <assert.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bpf_h
 bpf_compile(const char *bpf_filter) {
     struct bpf_program *program = (struct bpf_program *)malloc(sizeof(struct bpf_program));
@@ -68,4 +72,8 @@ bpf_run(bpf_h bpf, const char *buffer, uint32_t len) {
     const struct bpf_insn *fcode = program->bf_insns;
     return bpf_filter(fcode, buffer, len, len);
 }
+
+#ifdef __cplusplus
+}
+#endif
 

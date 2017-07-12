@@ -27,7 +27,7 @@ out = 'build_dpdk'
 
 b_path ="./build/linux_dpdk/"
 
-so_path = os.path.abspath(os.path.join(top, 'scripts/so'))
+so_path = '../scripts/so'
                           
 C_VER_FILE      = "version.c"
 H_VER_FILE      = "version.h"
@@ -776,7 +776,7 @@ client_external_libs = [
         'simpy-3.0.10'
         ]
                           
-rpath_linkage = [so_path]
+rpath_linkage = ['so']
 
 RELEASE_    = "release"
 DEBUG_      = "debug"

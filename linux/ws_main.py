@@ -237,7 +237,8 @@ yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
 
 # stubs
 stubs = SrcGroup(dir='/src/stub/',
-        src_list=['zmq_stub.c'])
+        src_list=['zmq_stub.c',
+                  'bpf_stub.c'])
 
 
 bp =SrcGroups([
@@ -281,6 +282,7 @@ includes_path =''' ../src/pal/linux/
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
+                   ../external_libs/bpf/
               ''';
 
 

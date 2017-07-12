@@ -386,3 +386,11 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
+        
+    def test_tx_from_rx (self):
+        try:
+            pass
+            
+        except STLError as e:
+            assert False , '{0}'.format(e)
+            

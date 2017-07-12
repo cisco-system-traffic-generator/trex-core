@@ -971,6 +971,7 @@ static int usage(){
     printf(" DPDK       (BSD)       \n");
     printf(" YAML-CPP   (BSD)       \n");
     printf(" JSONCPP    (MIT)       \n");
+    printf(" BPF        (BSD)       \n");
     printf(" \n");
     printf(" Open Source Binaries \n");
     printf(" ZMQ        (LGPL v3plus) \n");
