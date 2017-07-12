@@ -3250,8 +3250,8 @@ class STLClient(object):
             unless 'force' is specified
 
             :parameters:
-                pkts    - Scapy pkt or a list of scapy pkts
-                ports   - On which ports to push the packets
+                pkts    - scapy pkt or a list of scapy pkts
+                ports   - on which ports to push the packets
                 force   - ignore size higer than 1 MB
         """
         
@@ -3264,7 +3264,7 @@ class STLClient(object):
             if not isinstance(pkt, (Ether, bytes)):
                 raise STLTypeError('pkts', type(pkt), (Ether, bytes))
         
-        # for each, packet if scapy turn to bytes and then encode64 and transform to string
+        # for each packet, if scapy turn to bytes and then encode64 and transform to string
         pkts_base64 = []
         for pkt in pkts:
             

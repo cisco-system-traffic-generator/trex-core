@@ -759,12 +759,12 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
 
 
               BPF_FILTER: ArgumentPack(['-f', '--filter'],
-                                              {'type': str,
-                                               'nargs': '+',
-                                               'action': action_bpf_filter_merge(),
-                                               'dest': 'filter',
-                                               'default': '',
-                                               'help': 'BPF filter'}),
+                                       {'type': str,
+                                        'nargs': '+',
+                                        'action': action_bpf_filter_merge(),
+                                        'dest': 'filter',
+                                        'default': '',
+                                        'help': 'BPF filter'}),
               
               
               CAPTURE_ID: ArgumentPack(['-i', '--id'],

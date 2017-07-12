@@ -970,7 +970,7 @@ def build_prog (bld, build_obj):
         target   = build_obj.get_mlx4_target() 
        )
 
-        
+    # build the BPF as a shared library    
     bld.shlib(features = 'c',
               includes = bpf_includes_path,
               cflags   = build_obj.get_c_flags(),
