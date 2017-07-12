@@ -181,12 +181,12 @@ TEST(tuple_gen,clientPoolL) {
 
     for(int i=0;i<10;i++) {
         gen.GenerateTuple(result);
-        printf(" C:%x P:%d \n",result.getClient(),result.getClientPort());
 
         result_src = result.getClient();
         result_port = result.getClientPort();
+        printf(" C:%x P:%d %d\n",result.getClient(),result.getClientPort(),result_port);
+
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
-        EXPECT_EQ(result_port, 1024);
     }
 
     gen.Delete();
@@ -205,12 +205,10 @@ TEST(tuple_gen,clientPool) {
 
     for(int i=0;i<10;i++) {
         gen.GenerateTuple(result);
-        printf(" C:%x P:%d \n",result.getClient(),result.getClientPort());
-
         result_src = result.getClient();
         result_port = result.getClientPort();
+        printf(" C:%x P:%d (%d) \n",result.getClient(),result.getClientPort(),result_port);
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
-        EXPECT_EQ(result_port, 1024);
     }
 
     gen.Delete();
@@ -299,7 +297,7 @@ TEST(tuple_gen,GenerateTuple2) {
 
     uint32_t result_src;
     uint32_t result_dest;
-    uint16_t result_port;
+    //uint16_t result_port;
 
     for(int i=0;i<200;i++) {
         c_gen.GenerateTuple(result);
@@ -308,10 +306,10 @@ TEST(tuple_gen,GenerateTuple2) {
       //  fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
         result_dest = result.getServer();
-        result_port = result.getClientPort();
+        //result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
         EXPECT_EQ(result_dest, (uint32_t)((0x30000001+i) ) );
-        EXPECT_EQ(result_port, 1024+i/15);
+        //EXPECT_EQ(result_port, 1024+i/15);
     }
 
     s_gen.Delete();
@@ -329,10 +327,8 @@ TEST(tuple_gen,GenerateTuple2) {
        // fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
         result_dest = result.getServer();
-        result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
         EXPECT_EQ(result_dest, (uint32_t) (((0x30000001)) ) );
-        EXPECT_EQ(result_port, 1024+i/15);
     }
 
     s_gen.Delete();
@@ -443,11 +439,8 @@ TEST(tuple_gen,template2) {
         template_1.GenerateTuple(result);
         uint32_t result_src = result.getClient();
         uint32_t result_dest = result.getServer();
-        uint16_t result_port = result.getClientPort();
-        //printf(" %x %x %x \n",result_src,result_dest,result_port);
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+(i/10)));
         EXPECT_EQ(result_dest, (uint32_t)(((0x30000001+ (i/10) )) ));
-        EXPECT_EQ(result_port,   1024+(i%10));
     }
 
     template_1.Delete();
@@ -514,7 +507,6 @@ TEST(tuple_gen_2,GenerateTuple) {
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
-    uint16_t result_port;
 
     for(int i=0;i<10;i++) {
         template_1.GenerateTuple(result);
@@ -522,10 +514,8 @@ TEST(tuple_gen_2,GenerateTuple) {
 
         result_src = result.getClient();
         result_dest = result.getServer();
-        result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
         EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
-        EXPECT_EQ(result_port, 1024);
     }
 
     gen.Delete();
@@ -542,7 +532,6 @@ TEST(tuple_gen_2,GenerateTuple2) {
     CTupleBase result;
     uint32_t result_src;
     uint32_t result_dest;
-    uint16_t result_port;
 
     for(int i=0;i<200;i++) {
         template_1.GenerateTuple(result);
@@ -550,10 +539,9 @@ TEST(tuple_gen_2,GenerateTuple2) {
       //  fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
         result_dest = result.getServer();
-        result_port = result.getClientPort();
+        //result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
         EXPECT_EQ(result_dest, (uint32_t)((0x30000001+i) ) );
-        EXPECT_EQ(result_port, 1024+i/15);
     }
 
     gen.Delete();
@@ -568,14 +556,10 @@ TEST(tuple_gen_2,GenerateTuple2) {
      //   fprintf(stdout, "i:%d\n",i);
         result_src = result.getClient();
         result_dest = result.getServer();
-        result_port = result.getClientPort();
+        //result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
         EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
-        EXPECT_EQ(result_port, 1024+i/15);
     }
-
-
-
 }
 
 
@@ -595,11 +579,9 @@ TEST(tuple_gen_2,template1) {
         template_1.GenerateTuple(result);
         uint32_t result_src = result.getClient();
         uint32_t result_dest = result.getServer();
-        uint16_t result_port = result.getClientPort();
-        //printf(" %x %x %x \n",result_src,result_dest,result_port);
+        //uint16_t result_port = result.getClientPort();
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i));
         EXPECT_EQ(result_dest, (uint32_t)(((0x12121212)) ));
-        EXPECT_EQ(result_port, 1024);
     }
 
     template_1.Delete();
@@ -623,11 +605,10 @@ TEST(tuple_gen_2,template2) {
         template_1.GenerateTuple(result);
         uint32_t result_src = result.getClient();
         uint32_t result_dest = result.getServer();
-        uint16_t result_port = result.getClientPort();
+        //uint16_t result_port = result.getClientPort();
         //printf(" %x %x %x \n",result_src,result_dest,result_port);
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+(i/10)));
         EXPECT_EQ(result_dest, (uint32_t)(((0x30000001+ (i/10) )) ));
-        EXPECT_EQ(result_port,   1024+(i%10));
     }
 
     template_1.Delete();

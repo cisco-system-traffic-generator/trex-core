@@ -40,6 +40,7 @@ void CServerPool::Create(IP_DIST_t  dist_value,
             uint32_t max_ip,
             double active_flows
             ) {
+    CServerPoolBase::set_thread_id(0);
     gen = new CIpPool();
     gen->set_dist(dist_value);
     uint32_t total_ip = max_ip - min_ip +1;
@@ -87,8 +88,19 @@ void CClientPool::Create(IP_DIST_t       dist_value,
 
     m_tcp_aging = tcp_aging;
     m_udp_aging = udp_aging;
-
     CreateBase(); 
+}
+
+/* base on thread_id and client_index 
+  client index would be the same for all thread 
+*/
+static uint16_t generate_rand_sport(uint32_t client_index,
+                                   uint16_t threadid){
+
+    uint32_t rand  = ((214013*(client_index + 11213*threadid) + 2531011));
+    uint16_t rand16 = ((rand)&0xffff);
+    uint16_t port = MIN_PORT+(rand16%(MAX_PORT-MIN_PORT))+1;
+    return (port);
 }
 
 /**
@@ -112,6 +124,8 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
         } else {
             m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
         }
+        uint16_t port = generate_rand_sport(i,m_thread_id);
+        m_ip_info[i]->set_start_port(port);
     }
 
 }
@@ -149,6 +163,8 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         } else {
             m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
         }
+        uint16_t port = generate_rand_sport(i,m_thread_id);
+        m_ip_info[i]->set_start_port(port);
     }
 }
 
@@ -162,6 +178,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                                           uint16_t        udp_aging) {
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
+    pool->set_thread_id((uint16_t)m_thread_id);
     pool->Create(client_dist,
                  min_client,
                  max_client,
@@ -169,7 +186,6 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                  client_info,
                  tcp_aging,
                  udp_aging);
-
     m_client_pool.push_back(pool);
     return(true);
 }
@@ -186,6 +202,7 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
     else
         pool = new CServerPoolSimple();
     // we currently only supports mac mapping file for client
+    pool->set_thread_id((uint16_t)m_thread_id);
     pool->Create(server_dist, min_server, max_server,active_flows);
 
     m_server_pool.push_back(pool);

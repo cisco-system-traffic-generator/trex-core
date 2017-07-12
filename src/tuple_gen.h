@@ -180,6 +180,7 @@ class CIpInfoBase {
         virtual uint16_t get_new_free_port() = 0;
         virtual void return_port(uint16_t a) = 0;
         virtual void generate_tuple(CTupleBase & tuple) = 0;
+        virtual void set_start_port(uint16_t a)=0;
         virtual void return_all_ports() = 0;
         uint32_t get_ip() {
             return m_ip;
@@ -200,6 +201,11 @@ class CIpInfoL : public CIpInfoBase {
     CIpInfoL() {
         m_curr_port = MIN_PORT;
     }
+
+    void set_start_port(uint16_t a){
+        m_curr_port = a;
+    }
+
     uint16_t get_new_free_port() {
         if (m_curr_port>MAX_PORT) {
             m_curr_port = MIN_PORT;
@@ -275,6 +281,10 @@ class CIpInfo : public CIpInfoBase {
     CIpInfo() {
         m_head_port = MIN_PORT;
         m_bitmap_port.reset();
+    }
+
+    void set_start_port(uint16_t a){
+        m_head_port = a;
     }
 
     uint16_t get_new_free_port() {
@@ -493,6 +503,10 @@ class CIpPool {
 class CClientPool : public CIpPool {
 public:
 
+    CClientPool(){
+        m_thread_id=0;
+    }
+
     uint32_t GenerateTuple(CTupleBase & tuple) {
         uint32_t idx = generate_ip();
         CIpInfoBase* ip_info = m_ip_info[idx];
@@ -521,9 +535,14 @@ public:
                 uint16_t        tcp_aging,
                 uint16_t        udp_aging); 
 
+    void set_thread_id(uint16_t thread_id){
+        m_thread_id = thread_id;
+    }
+
 public: 
     uint16_t m_tcp_aging;
     uint16_t m_udp_aging;
+    uint16_t m_thread_id;
 
 private:
     void allocate_simple_clients(uint32_t  min_ip,
@@ -539,6 +558,9 @@ private:
 
 class CServerPoolBase {
     public:
+    CServerPoolBase(){
+        m_thread_id=0;
+    }
 
     virtual ~CServerPoolBase() {}
 
@@ -550,7 +572,12 @@ class CServerPoolBase {
                uint32_t min_ip,
                uint32_t max_ip,
                double active_flows) = 0; 
- 
+    void set_thread_id(uint16_t thread_id){
+        m_thread_id =thread_id;
+    }
+
+private:
+    uint16_t m_thread_id;
 };
 
 class CServerPoolSimple : public CServerPoolBase {
