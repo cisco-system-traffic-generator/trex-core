@@ -1163,36 +1163,12 @@ def _copy_single_system1 (bld, exec_p, build_obj):
         os.system("cp %s %s " %(src_file,dest_file));
         os.system("chmod +x %s " %(dest_file));
 
-def _copy_single_system2 (bld, exec_p, build_obj):
-    o='../scripts/';
-    src_file =  os.path.realpath(o+build_obj.get_mlx5so_target())
-    print(src_file)
-    if os.path.exists(src_file):
-        dest_file = exec_p +build_obj.get_mlx5so_target()
-        os.system("cp %s %s " %(src_file,dest_file));
-        os.system("chmod +x %s " %(dest_file));
-
-def _copy_single_system3 (bld, exec_p, build_obj):
-    o='../scripts/';
-    src_file =  os.path.realpath(o+build_obj.get_mlx4so_target())
-    print(src_file)
-    if os.path.exists(src_file):
-        dest_file = exec_p +build_obj.get_mlx4so_target()
-        os.system("cp %s %s " %(src_file,dest_file));
-        os.system("chmod +x %s " %(dest_file));
-
 
 def copy_single_system (bld, exec_p, build_obj):
     _copy_single_system (bld, exec_p, build_obj)
 
 def copy_single_system1 (bld, exec_p, build_obj):
     _copy_single_system1 (bld, exec_p, build_obj)
-
-def copy_single_system2 (bld, exec_p, build_obj):
-    _copy_single_system2 (bld, exec_p, build_obj)
-
-def copy_single_system3 (bld, exec_p, build_obj):
-    _copy_single_system3 (bld, exec_p, build_obj)
 
 
 files_list=[
@@ -1309,8 +1285,6 @@ def release(bld, custom_dir = None):
     for obj in build_types:
         copy_single_system(bld,exec_p,obj)
         copy_single_system1(bld,exec_p,obj)
-        copy_single_system2(bld,exec_p,obj)
-        copy_single_system3(bld,exec_p,obj)
 
     for obj in files_list:
         src_file =  '../scripts/'+obj
@@ -1323,6 +1297,9 @@ def release(bld, custom_dir = None):
         os.system("cp -rv %s %s " %(src_file,dest_file));
         os.system("chmod 755 %s " %(dest_file));
 
+    # copy .SO objects and resolve symbols
+    os.system('cp -rL ../scripts/so {0}'.format(exec_p))
+    
     rel=get_build_num ()
 
     # create client package
