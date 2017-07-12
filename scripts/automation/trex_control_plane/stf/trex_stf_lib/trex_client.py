@@ -1082,6 +1082,7 @@ class CTRexClient(object):
                 print('Exception during request: %s' % e)
             finally:
                 self.prompt_verbose_data()
+            time.sleep(1)
         raise
 
     def start_trex_daemon(self):
