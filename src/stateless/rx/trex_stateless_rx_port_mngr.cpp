@@ -771,7 +771,7 @@ RXPortManager::tx_pkts(const std::vector<std::string> &pkts) {
 bool
 RXPortManager::tx_pkt(const std::string &pkt) {
     /* allocate MBUF */
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(m_port_id));
+    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(CGlobalInfo::m_socket.port_to_socket(m_port_id), pkt.size());
     assert(m);
     
     /* copy */
