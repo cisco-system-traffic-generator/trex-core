@@ -45,7 +45,7 @@ class STLServiceFilterDHCP(STLServiceFilter):
 
         
     def get_bpf_filter (self):
-        return 'dhcp'
+        return 'udp port 67 or 68'
         
         
 ################### internal ###################
@@ -227,10 +227,10 @@ class STLServiceDHCP(STLService):
             self.server_mac = offer.src
             self.client_mac = offer.dst
             
-            self.server_ip  = options['server_id']
-            self.subnet     = options['subnet_mask']
-            self.domain     = options['domain']
-            self.lease      = options['lease_time']
+            self.server_ip  = options.get('server_id', 'N/A')
+            self.subnet     = options.get('subnet_mask', 'N/A')
+            self.domain     = options.get('domain', 'N/A')
+            self.lease      = options.get('lease_time', 'N/A')
             self.client_ip  = offer['BOOTP'].yiaddr
             
             

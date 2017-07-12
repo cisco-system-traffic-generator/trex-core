@@ -39,7 +39,10 @@ class DHCPTest(object):
             
             # create clients
             clients = self.setup(count)
-            
+            if not clients:
+                print('\nno clients have sucessfully registered...exiting...\n')
+                exit(1)
+                
             # inject traffic
             self.inject(clients)
             
