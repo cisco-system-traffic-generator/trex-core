@@ -20,7 +20,7 @@ limitations under the License.
 
 static inline void add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
     m->ol_flags |= PKT_TX_VLAN_PKT;
-    m->l2_len   = 14;
+    assert(m->l2_len!=0);
     m->vlan_tci = vlan_id;
 }
 

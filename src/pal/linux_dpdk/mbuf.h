@@ -25,6 +25,7 @@ limitations under the License.
 #include <stdint.h>
 #include <rte_mbuf.h>
 #include <rte_random.h>
+#include <rte_ip.h>
 
 typedef struct rte_mbuf  rte_mbuf_t;
 inline void utl_rte_pktmbuf_check(struct rte_mbuf *m) {}

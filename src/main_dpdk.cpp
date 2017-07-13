@@ -1085,7 +1085,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_LEARN_VERIFY :
                 // must configure learn_mode for learn verify to work. If different learn mode will be given later, it will be set instead.
                 if (po->m_learn_mode == 0) {
-                    po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+                    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
                 }
                 po->preview.set_learn_and_verify_mode_enable(true);
                 break;
@@ -2608,19 +2608,6 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
 int CCoreEthIF::send_node(CGenNode * node) {
 
-#ifdef OPT_REPEAT_MBUF
-
-    if ( unlikely( node->get_cache_mbuf() !=NULL ) ) {
-        pkt_dir_t       dir;
-        rte_mbuf_t *    m=node->get_cache_mbuf();
-        dir=(pkt_dir_t)node->get_mbuf_cache_dir();
-        CCorePerPort *  lp_port=&m_ports[dir];
-        CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
-        rte_pktmbuf_refcnt_update(m,1);
-        send_pkt(lp_port,m,lp_stats);
-        return (0);
-    }
-#endif
 
     CFlowPktInfo *  lp=node->m_pkt_info;
     rte_mbuf_t *    m=lp->generate_new_mbuf(node);
@@ -2681,23 +2668,6 @@ int CCoreEthIF::send_node(CGenNode * node) {
         lp_stats->m_tx_rx_check_pkt++;
         lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
         lp_stats->m_template.inc_template( node->get_template_id( ));
-    }else{
-
-#ifdef OPT_REPEAT_MBUF
-        // cache only if it is not sample as this is more complex mbuf struct
-        if ( unlikely( node->can_cache_mbuf() ) ) {
-            if ( !CGlobalInfo::m_options.preview.isMbufCacheDisabled() ){
-                m_mbuf_cache++;
-                if (m_mbuf_cache < MAX_MBUF_CACHE) {
-                    /* limit the number of object to cache */
-                    node->set_mbuf_cache_dir( dir);
-                    node->set_cache_mbuf(m);
-                    rte_pktmbuf_refcnt_update(m,1);
-                }
-            }
-        }
-#endif
-
     }
 
     /*printf("send packet -- \n");

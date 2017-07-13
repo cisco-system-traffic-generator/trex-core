@@ -676,6 +676,14 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
                                     rte_mbuf_t * m){
     CRx_check_header *rxc = NULL;
 
+#if 0
+    /****************************************/
+    uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
+    utl_k12_pkt_format(stdout,p ,pkt_size) ;
+    /****************************************/
+#endif 
+
     lp->m_port.check_packet(m,rxc);
     if ( unlikely(rxc!=NULL) ){
         m_rx_check_manager.handle_packet(rxc);

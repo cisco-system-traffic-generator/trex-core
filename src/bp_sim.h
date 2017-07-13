@@ -67,9 +67,6 @@ limitations under the License.
 
 #include <trex_stateless_dp_core.h>
 
-#ifdef RTE_DPDK
-#	include <rte_ip.h>
-#endif /* RTE_DPDK */
 
 class CGenNodePCAP;
 
@@ -359,10 +356,10 @@ protected:
 #define CONST_NB_MBUF  16380
 
 /* this is the first small part of the packet that we manipulate */
-#define FIRST_PKT_SIZE 64
-#define CONST_SMALL_MBUF_SIZE (FIRST_PKT_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+#define _FIRST_PKT_SIZE 64
+#define CONST_SMALL_MBUF_SIZE (_FIRST_PKT_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 
-
+#define _64_MBUF_SIZE 64
 #define _128_MBUF_SIZE 128
 #define _256_MBUF_SIZE 256
 #define _512_MBUF_SIZE 512
@@ -1223,17 +1220,17 @@ public:
     inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
 
         rte_mbuf_t        * m;
-        if ( size < _128_MBUF_SIZE) {
+        if ( size <= _128_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_128);
-        }else if ( size < _256_MBUF_SIZE) {
+        }else if ( size <= _256_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_256);
-        }else if (size < _512_MBUF_SIZE) {
+        }else if (size <= _512_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_512);
-        }else if (size < _1024_MBUF_SIZE) {
+        }else if (size <= _1024_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_1024);
-        }else if (size < _2048_MBUF_SIZE) {
+        }else if (size <= _2048_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_2048);
-        }else if (size < _4096_MBUF_SIZE) {
+        }else if (size <= _4096_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_4096);
         }else{
             assert(size<MAX_PKT_ALIGN_BUF_9K);
@@ -1306,7 +1303,7 @@ public:
      * @return
      */
     static inline rte_mbuf_t   * pktmbuf_alloc(socket_id_t socket,uint16_t size){
-        if (size<FIRST_PKT_SIZE) {
+        if (size<=_64_MBUF_SIZE) {
             return ( pktmbuf_alloc_small(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc(size));
@@ -1314,7 +1311,7 @@ public:
 
     static inline rte_mbuf_t * pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
         socket_id_t socket = m_socket.port_to_socket(port_id);
-        if (size<FIRST_PKT_SIZE) {
+        if (size<=_64_MBUF_SIZE) {
             return ( pktmbuf_alloc_small(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc(size));
@@ -1877,10 +1874,6 @@ public:
             return (false);
         }
     }
-
-
-public:
-    inline void replace_tuple(void);
 
 } __rte_cache_aligned;
 
@@ -2768,6 +2761,8 @@ public:
     uint8_t             m_ip_offset;
     uint8_t             m_udp_tcp_offset;
     uint8_t             m_payload_offset;
+    uint8_t             m_rw_mbuf_size;    /* first R/W mbuf size 64/128/256 */
+    uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exits */
 
 public:
 
@@ -2779,6 +2774,8 @@ public:
     void Clone(CPacketIndication * obj,CCapPktRaw * pkt);
     void RefreshPointers(void);
     void UpdatePacketPadding();
+    void UpdateMbufSize();
+
     void PostProcessIpv6Packet();
 
 
@@ -2899,6 +2896,22 @@ public:
     uint8_t getFastPayloadOffset(void){
         return (m_payload_offset );
     }
+
+    /* first r/w mbuf size could be 64 /128 */
+    uint8_t get_rw_mbuf_size(){
+        return (m_rw_mbuf_size);
+    }
+
+    /* zero mean there is no mbuf */
+    uint16_t get_cons_mbuf_size(){
+        return (m_ro_mbuf_size);
+    }
+
+    /* this is the size of the packet to append, could be smaller than rw_mbuf */
+    uint8_t get_rw_pkt_size(){
+        return (m_packet->pkt_len > m_rw_mbuf_size) ? m_rw_mbuf_size : m_packet->pkt_len;
+    }
+
 private:
     void SetKey(void);
     uint8_t ProcessIpPacketProtocol(CCPacketParserCounters *m_cnt,
@@ -2910,6 +2923,8 @@ private:
     void _ProcessPacket(CPacketParser *parser,CCapPktRaw * pkt);
 
     void UpdateOffsets();
+
+
 };
 
 
@@ -3040,7 +3055,6 @@ public:
     bool Create(CPacketIndication  * pkt_ind);
     void Delete();
     void Dump(FILE *fd);
-    inline void replace_tuple(CGenNode * node);
 
     /* generate a new packet */
     inline rte_mbuf_t * generate_new_mbuf(CGenNode * node);
@@ -3081,12 +3095,22 @@ private:
                                               CGenNode * node);
 
     inline void update_pkt_info(char *p,
-                                       CGenNode * node);
+                                CGenNode * node);
+
     inline void update_pkt_info2(char *p,
                                  CFlowInfo * flow_info,
                                  int update_len,
                                  CGenNode * node
                                  );
+
+    inline void update_tcp_cs(TCPHeader * tcp,
+                              IPHeader  * ipv4);
+
+    inline void update_udp_cs(UDPHeader * udp,
+                              IPHeader  * ipv4);
+
+    inline void update_mbuf(rte_mbuf_t * m,
+                            int16_t pkt_adjust);
 
     void alloc_const_mbuf();
 
@@ -3103,10 +3127,6 @@ public:
     rte_mbuf_t        * m_big_mbuf[MAX_SOCKETS_SUPPORTED]; /* allocate big mbug per socket */
 };
 
-
-inline void CFlowPktInfo::replace_tuple(CGenNode * node){
-    update_pkt_info(m_packet->raw,node);
-}
 
 inline void CFlowPktInfo::update_pkt_info2(char *p,
                                            CFlowInfo * flow_info,
@@ -3148,45 +3168,51 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
             ipv4->setSourceIp(flow_info->server_ip);
             ipv4->setDestIp(flow_info->client_ip);
         }
-        ipv4->updateCheckSum();
-    }
 
+        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+            ipv4->myChecksum = 0;
+        } else {
+            ipv4->updateCheckSum();
+        }
+    }
 
 
     /* replace port base on TCP/UDP */
     if ( m_pkt_indication.m_desc.IsTcp() ) {
-        TCPHeader * m_tcp = (TCPHeader *)(p +m_pkt_indication.getFastTcpOffset());
-        BP_ASSERT(m_tcp);
+        TCPHeader * tcp = (TCPHeader *)(p +m_pkt_indication.getFastTcpOffset());
+        BP_ASSERT(tcp);
         /* replace port */
         if ( flow_info->is_init_port_dir  ) {
-            m_tcp->setSourcePort(flow_info->client_port);
+            tcp->setSourcePort(flow_info->client_port);
             if ( flow_info->replace_server_port ){
-                m_tcp->setDestPort(flow_info->server_port);
+                tcp->setDestPort(flow_info->server_port);
             }
         }else{
-            m_tcp->setDestPort(flow_info->client_port);
+            tcp->setDestPort(flow_info->client_port);
             if ( flow_info->replace_server_port ){
-                m_tcp->setSourcePort(flow_info->server_port);
+                tcp->setSourcePort(flow_info->server_port);
             }
         }
+        update_tcp_cs(tcp,ipv4);
 
     }else {
         if ( m_pkt_indication.m_desc.IsUdp() ){
-            UDPHeader * m_udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
-            BP_ASSERT(m_udp);
-            m_udp->setLength(m_udp->getLength() + update_len);
-            m_udp->setChecksum(0);
+            UDPHeader * udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
+            BP_ASSERT(udp);
+            udp->setLength(udp->getLength() + update_len);
             if ( flow_info->is_init_port_dir  ) {
-                m_udp->setSourcePort(flow_info->client_port);
+                udp->setSourcePort(flow_info->client_port);
                 if ( flow_info->replace_server_port ){
-                    m_udp->setDestPort(flow_info->server_port);
+                    udp->setDestPort(flow_info->server_port);
                 }
             }else{
-                m_udp->setDestPort(flow_info->client_port);
+                udp->setDestPort(flow_info->client_port);
                 if ( flow_info->replace_server_port ){
-                    m_udp->setSourcePort(flow_info->server_port);
+                    udp->setSourcePort(flow_info->server_port);
                 }
             }
+            update_udp_cs(udp,ipv4);
+
         }else{
             BP_ASSERT(0);
         }
@@ -3194,11 +3220,77 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
 }
 
 
-inline void CFlowPktInfo::update_pkt_info(char *p,
-                                   CGenNode * node){
 
+inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m,
+                                      int16_t pkt_adjust){
+
+    m->l2_len = m_pkt_indication.getFastIpOffsetFast();
+    uint8_t l4_offset = m_pkt_indication.getFastTcpOffset();
+    assert(l4_offset > m->l2_len);
+    m->l3_len = l4_offset - m->l2_len + pkt_adjust;
+
+#if 0
+    //printf(" len %d %d \n",(int)m->l2_len,(int)m->l3_len);
+#endif
+
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+
+        if ( unlikely (m_pkt_indication.is_ipv6() ) ) {
+            m->ol_flags |= PKT_TX_IPV6 ;
+        }else{
+            /* Ipv4*/
+            m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+        }
+
+        if ( m_pkt_indication.m_desc.IsTcp() ) {
+            m->ol_flags |=   PKT_TX_TCP_CKSUM;
+        } else {
+            if (m_pkt_indication.m_desc.IsUdp()) {
+                m->ol_flags |= PKT_TX_UDP_CKSUM;
+            }         
+        }
+    }
+}
+
+
+inline void CFlowPktInfo::update_tcp_cs(TCPHeader * tcp,
+                                        IPHeader  * ipv4){
+
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+        /* set pseudo-header checksum */
+        if ( m_pkt_indication.is_ipv6() ){
+            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4->getPointer(), PKT_TX_IPV6 |PKT_TX_TCP_CKSUM));
+        }else{
+            tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4->getPointer(),
+                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM));
+        }
+    }
+}
+
+inline void CFlowPktInfo::update_udp_cs(UDPHeader * udp,
+                                        IPHeader  * ipv4){
+
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+        /* set pseudo-header checksum */
+        if ( m_pkt_indication.is_ipv6() ){
+            udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *) ipv4->getPointer(),
+                                                         PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+        }else{
+            udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *) ipv4->getPointer(),
+                                                         PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM));
+        }
+    } else {
+        udp->setChecksum(0);
+    }
+}
+
+
+inline void CFlowPktInfo::update_pkt_info(char *p,
+                                          CGenNode * node){
+
+    uint8_t ip_offset = m_pkt_indication.getFastIpOffsetFast();
     IPHeader       * ipv4=
-        (IPHeader       *)(p + m_pkt_indication.getFastIpOffsetFast());
+        (IPHeader       *)(p + ip_offset );
 
     uint16_t src_port =   node->m_src_port;
     uint32_t tcp_seq_diff_client = 0;
@@ -3309,60 +3401,38 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             }
         }
 
-#ifdef RTE_DPDK
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
             ipv4->myChecksum = 0;
         } else {
             ipv4->updateCheckSum();
         }
-#else
-        ipv4->updateCheckSum();
-#endif
     }
 
 
     /* replace port base on TCP/UDP */
     if ( m_pkt_indication.m_desc.IsTcp() ) {
-        TCPHeader * m_tcp = (TCPHeader *)(p +m_pkt_indication.getFastTcpOffset());
-        BP_ASSERT(m_tcp);
+        TCPHeader * tcp = (TCPHeader *)(p +m_pkt_indication.getFastTcpOffset());
+        BP_ASSERT(tcp);
         /* replace port */
         if ( port_dir ==  CLIENT_SIDE ) {
-            m_tcp->setSourcePort(src_port);
-            m_tcp->setAckNumber(m_tcp->getAckNumber() + tcp_seq_diff_server);
+            tcp->setSourcePort(src_port);
+            tcp->setAckNumber(tcp->getAckNumber() + tcp_seq_diff_server);
         }else{
-            m_tcp->setDestPort(src_port);
-            m_tcp->setAckNumber(m_tcp->getAckNumber() + tcp_seq_diff_client);
+            tcp->setDestPort(src_port);
+            tcp->setAckNumber(tcp->getAckNumber() + tcp_seq_diff_client);
         }
-
-#ifdef RTE_DPDK
-        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
-            /* set pseudo-header checksum */
-            m_tcp->setChecksum(PKT_NTOHS(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4->getPointer(),
-                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM)));
-        }
-#endif
+        update_tcp_cs(tcp,ipv4);
     }else {
         if ( m_pkt_indication.m_desc.IsUdp() ){
-            UDPHeader * m_udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
-            BP_ASSERT(m_udp);
+            UDPHeader * udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
+            BP_ASSERT(udp);
 
             if ( port_dir ==  CLIENT_SIDE ) {
-                m_udp->setSourcePort(src_port);
+                udp->setSourcePort(src_port);
             }else{
-                m_udp->setDestPort(src_port);
+                udp->setDestPort(src_port);
             }
-
-#ifdef RTE_DPDK
-        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
-            /* set pseudo-header checksum */
-            m_udp->setChecksum(PKT_NTOHS(rte_ipv4_phdr_cksum((struct ipv4_hdr *) ipv4->getPointer(),
-                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM)));
-        } else {
-            m_udp->setChecksum(0);
-        }
-#else
-        m_udp->setChecksum(0);
-#endif
+            update_udp_cs(udp,ipv4);
         }else{
 #ifdef _DEBUG
             if (!m_pkt_indication.m_desc.IsIcmp()) {
@@ -3378,15 +3448,17 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex(CGenNode * node,
                                                           CFlowInfo * flow_info){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
-    m =  CGlobalInfo::pktmbuf_alloc_small(node->get_socket_id());
+    uint16_t len= m_pkt_indication.get_rw_pkt_size();
+    m =  CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),len);
     assert(m);
-    uint16_t len= ( m_packet->pkt_len > FIRST_PKT_SIZE) ?FIRST_PKT_SIZE:m_packet->pkt_len;
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
 
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
     memcpy(p,m_packet->raw,len);
+
+    update_mbuf(m,0);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3411,6 +3483,8 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_big(CGenNode * node,
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
     memcpy(p,m_packet->raw,len);
+
+    update_mbuf(m,0);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3456,7 +3530,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     (void)rc;
 
     /* update IP length , and TCP checksum , we can accelerate this using hardware ! */
-    uint16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;
+    int16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;
+
+    update_mbuf(m,pkt_adjust);
+
     update_pkt_info2(p,flow_info,pkt_adjust,node);
 
     /* return change in packet size due to packet tranforms */
@@ -3483,9 +3560,9 @@ inline void CFlowPktInfo::append_big_mbuf(rte_mbuf_t * m,
 inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
-    m = CGlobalInfo::pktmbuf_alloc_small(node->get_socket_id());
+    uint16_t len= m_pkt_indication.get_rw_pkt_size(); 
+    m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),  len);
     assert(m);
-    uint16_t len= ( m_packet->pkt_len > FIRST_PKT_SIZE) ?FIRST_PKT_SIZE:m_packet->pkt_len;
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
 
@@ -3493,27 +3570,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
 
     memcpy(p,m_packet->raw,len);
 
-#ifdef RTE_DPDK
-    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
-        if (m_pkt_indication.m_desc.IsTcp()) {
-            m->l2_len = 14;
-            m->l3_len = 20;
-            m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
-        } else {
-            if (m_pkt_indication.m_desc.IsUdp()) {
-                m->l2_len = 14;
-                m->l3_len = 20;
-                m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM;
-            } else {
-                if (m_pkt_indication.m_desc.IsIcmp()) {
-                    m->l2_len = 14;
-                    m->l3_len = 20;
-                    m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
-                }
-            }
-        }
-    }
-#endif
+    update_mbuf(m,0);
 
     update_pkt_info(p,node);
 
@@ -3537,6 +3594,8 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
     memcpy(p,m_packet->raw,len);
+
+    update_mbuf(m,0);
 
     update_pkt_info(p,node);
 
@@ -4289,10 +4348,6 @@ inline uint32_t CGenNode::update_next_pkt_in_flow_tw(void){
 
 inline void CGenNode::reset_pkt_in_flow(void){
         m_pkt_info = m_flow_info->GetPacket(0);
-}
-
-inline void CGenNode::replace_tuple(void){
-    m_pkt_info->replace_tuple(this);
 }
 
 enum MINVM_PLUGIN_ID{

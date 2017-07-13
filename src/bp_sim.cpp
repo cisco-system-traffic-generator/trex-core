@@ -909,11 +909,48 @@ void CPacketDescriptor::Dump(FILE *fd){
 }
 
 
+void CPacketIndication::UpdateMbufSize(){
+
+    uint8_t offset = m_udp_tcp_offset;
+    assert(offset>0);
+
+    if ( m_desc.IsTcp() ) {
+        offset+=20; 
+    }else{
+        if ( m_desc.IsUdp() ) {
+            offset+=8;
+        }else{
+            /* ICMP only ports */
+            offset+=8;
+        }
+    }
+
+    if (offset<=64) {
+        m_rw_mbuf_size=64;
+    }else{
+        if (offset<=128) {
+            m_rw_mbuf_size=128;
+        }else{
+            printf(" ERROR packet r/w is more than 128 bytes. it is not supported \n");
+            exit(1);
+        }
+    }
+
+    uint16_t pkt_len = m_packet->getTotalLen();
+
+    if ( pkt_len > m_rw_mbuf_size ) {
+        m_ro_mbuf_size = pkt_len - m_rw_mbuf_size;
+    }else{
+        m_ro_mbuf_size=0;
+    }
+}
+
 void CPacketIndication::UpdateOffsets(){
     m_ether_offset   = getEtherOffset();
     m_ip_offset      = getIpOffset();
     m_udp_tcp_offset = getTcpOffset();
     m_payload_offset = getPayloadOffset();
+    UpdateMbufSize();
 }
 
 void CPacketIndication::UpdatePacketPadding(){
@@ -964,6 +1001,7 @@ void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     m_ip_offset      = obj->m_ip_offset;
     m_udp_tcp_offset = obj->m_udp_tcp_offset;;
     m_payload_offset = obj->m_payload_offset;
+    UpdateMbufSize();
 }
 
 
@@ -1003,6 +1041,8 @@ void CPacketIndication::Clean(){
     l4.m_tcp=0;
     m_payload=0;
     m_payload_len=0;
+    m_rw_mbuf_size=0;
+    m_ro_mbuf_size=0;
 }
 
 
@@ -1649,6 +1689,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     uint16_t current_opt_len =  0;
     assert( (opt_len % 8) == 0 );
 
+    m->l3_len += RX_CHECK_LEN;
+
     /* determine starting move location */
     char *mp1 = rte_pktmbuf_mtod(m, char*);
     uint16_t mp1_offset = m_pkt_indication.getFastIpOffsetFast();
@@ -1733,10 +1775,28 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         rxhdr->set_both_dir(desc->IsBiDirectionalFlow()?1:0);
     }
 
+
     /* update checksum for IPv4, split across 2 mbufs */
     if (likely ( ! m_pkt_indication.is_ipv6()) ) {
-        ipv4->updateCheckSum2((uint8_t *)ipv4, current_opt_len, (uint8_t *)rxhdr, opt_len);
+        if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+            ipv4->myChecksum = 0;
+                        /* update TCP/UDP checksum */
+            if ( m_pkt_indication.m_desc.IsTcp() ) {
+                TCPHeader * tcp = (TCPHeader *)(move_to);
+                update_tcp_cs(tcp,ipv4);
+            }else {
+                if ( m_pkt_indication.m_desc.IsUdp() ){
+                    UDPHeader * udp =(UDPHeader *)(move_to);
+                    update_udp_cs(udp,ipv4);
+                }else{
+                }
+            }
+
+        } else {
+            ipv4->updateCheckSum2((uint8_t *)ipv4, IPHeader::DefaultSize, (uint8_t *)rxhdr, current_opt_len+opt_len -IPHeader::DefaultSize);
+        }
     }
+
 
     /* link new mbuf */
     new_mbuf->next = m->next;
@@ -1782,6 +1842,7 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
     ipv4->setHeaderLength(ipv4->getHeaderLength()+(bytes));
 
     m_pkt_indication.UpdatePacketPadding();
+    m_pkt_indication.UpdateMbufSize();
 
     /* refresh the global mbuf */
     free_const_mbuf();
@@ -1843,6 +1904,7 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
     ipv6->setNextHdr(CNatOption::noIPV6_OPTION);
 
     m_pkt_indication.UpdatePacketPadding();
+    m_pkt_indication.UpdateMbufSize();
 
     /* refresh the global mbuf */
     free_const_mbuf();
@@ -1853,19 +1915,20 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
 
 void CFlowPktInfo::alloc_const_mbuf(){
 
-    if ( m_packet->pkt_len > FIRST_PKT_SIZE ) {
-        /* pkt size is bigger than FIRST_PKT_SIZE let's create an offline buffer */
+    uint16_t pkt_s = m_pkt_indication.get_cons_mbuf_size();
+
+    if ( pkt_s  > 0 ) {
+        uint8_t rw_mbuf_size = m_pkt_indication.get_rw_mbuf_size() ;
         int i;
         for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
             if ( CGlobalInfo::m_socket.is_sockets_enable(i) ){
 
                 rte_mbuf_t        * m;
-                uint16_t pkt_s=(m_packet->pkt_len - FIRST_PKT_SIZE);
 
                 m = CGlobalInfo::pktmbuf_alloc(i,pkt_s);
                 BP_ASSERT(m);
                 char *p=rte_pktmbuf_append(m, pkt_s);
-                rte_memcpy(p,(m_packet->raw+FIRST_PKT_SIZE),pkt_s);
+                rte_memcpy(p,(m_packet->raw+rw_mbuf_size),pkt_s);
 
                 assert(m_big_mbuf[i]==NULL);
                 m_big_mbuf[i]=m;
@@ -2121,14 +2184,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::is_valid_template_loa
                 return kNoSyn;
             }
 
-            // We want at least the TCP flags to be inside first mbuf
-            if (pkt_0_indication.getTcpOffset() + 14 > FIRST_PKT_SIZE) {
-                fprintf(stderr
-                        , "Error: In the chosen learn mode, TCP flags offset should be less than %d, but it is %d.\n"
-                        , FIRST_PKT_SIZE, pkt_0_indication.getTcpOffset() + 14);
-                fprintf(stderr, "       Please give different CAP file, or try different --learn-mode\n");
-                return kTCPOffsetTooBig;
-            }
             if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK) && is_tcp) {
                 // To support TCP seq randomization from server to client, we need second packet in flow to be the server SYN+ACK
                 bool error = false;
@@ -2510,8 +2565,9 @@ void CCapFileFlowInfo::get_total_memory(CCCapFileMemoryUsage & memory){
     int i;
     for (i=0; i<(int)Size(); i++) {
         CFlowPktInfo * lp=GetPacket((uint32_t)i);
-        if ( lp->m_packet->pkt_len > FIRST_PKT_SIZE ) {
-            memory.add_size(lp->m_packet->pkt_len - FIRST_PKT_SIZE);
+        uint16_t const_size = lp->m_pkt_indication.get_cons_mbuf_size();
+        if ( const_size ) {
+            memory.add_size(const_size);
         }
     }
 }
@@ -4691,27 +4747,34 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
 
         // Calculate diff between tcp seq of SYN packet, and TCP ack of SYN+ACK packet
         // For supporting firewalls who do TCP seq num randomization
-        if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) &&
-            (node->m_pkt_info->m_pkt_indication.getIpProto() == IPPROTO_TCP)) {
-            if (node->is_nat_wait_state()) {
-                char *syn_pkt = node->m_flow_info->GetPacket(0)->m_packet->raw;
-                TCPHeader *tcp = (TCPHeader *)(syn_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
-                node->set_nat_tcp_seq_diff_client(nat_msg->m_tcp_seq - tcp->getSeqNumber());
-                if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
-                    node->set_nat_wait_ack_state();
-                    m_stats.m_nat_lookup_wait_ack_state++;
-                    second = false;
+        if ( CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) ) {
+
+            if (node->m_pkt_info->m_pkt_indication.getIpProto() == IPPROTO_TCP) {
+                if (node->is_nat_wait_state()) {
+                    char *syn_pkt = node->m_flow_info->GetPacket(0)->m_packet->raw;
+                    TCPHeader *tcp = (TCPHeader *)(syn_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                    node->set_nat_tcp_seq_diff_client(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                    if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
+                        node->set_nat_wait_ack_state();
+                        m_stats.m_nat_lookup_wait_ack_state++;
+                        second = false;
+                    } else {
+                        node->set_nat_learn_state();
+                    }
                 } else {
+                    char *syn_ack_pkt = node->m_flow_info->GetPacket(1)->m_packet->raw;
+                    TCPHeader *tcp = (TCPHeader *)(syn_ack_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
+                    node->set_nat_tcp_seq_diff_server(nat_msg->m_tcp_seq - tcp->getSeqNumber());
+                    assert(node->is_nat_wait_ack_state());
                     node->set_nat_learn_state();
+                    first = false;
                 }
-            } else {
-                char *syn_ack_pkt = node->m_flow_info->GetPacket(1)->m_packet->raw;
-                TCPHeader *tcp = (TCPHeader *)(syn_ack_pkt + node->m_pkt_info->m_pkt_indication.getFastTcpOffset());
-                node->set_nat_tcp_seq_diff_server(nat_msg->m_tcp_seq - tcp->getSeqNumber());
-                assert(node->is_nat_wait_ack_state());
-                node->set_nat_learn_state();
-                first = false;
-            }
+          }else{
+              /* UDP */
+              assert(node->is_nat_wait_state());
+              node->set_nat_learn_state();
+              m_stats.m_nat_lookup_wait_ack_state++;
+          }
         } else {
             assert(node->is_nat_wait_state());
             node->set_nat_learn_state();
