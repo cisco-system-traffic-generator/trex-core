@@ -29,6 +29,126 @@ limitations under the License.
 #include "trex_stateless_capture_rc.h"
 #include "bpf_api.h"
 
+/**
+ * a class to handle BPF filter 
+ *  
+ */
+class BPFFilter {
+public:
+    
+    /* CTOR */
+    BPFFilter() {
+        m_bpf_h = BPF_H_NONE;
+    }
+    
+    
+    /* DTOR */    
+    ~BPFFilter() {
+        release();
+    }
+    
+    
+    /* Copy CTOR - do not copy object, only pattern */
+    BPFFilter(const BPFFilter &other) {
+        m_bpf_filter = other.m_bpf_filter;
+        m_bpf_h      = BPF_H_NONE;
+    }
+  
+   
+    /**
+     * relase compiled object
+     * 
+     */
+    void release() {
+        if (m_bpf_h != BPF_H_NONE) {
+            bpf_destroy(m_bpf_h);
+            m_bpf_h = BPF_H_NONE;
+        }
+    }
+    
+    /**
+     * set a BPF filter
+     * 
+     */
+    void set_filter(const std::string &bpf_filter) {
+        release();
+        m_bpf_filter = bpf_filter;
+    }
+    
+    
+     /**
+     * returns the pattern asso
+     * 
+     * @author imarom (7/13/2017)
+     * 
+     * @return const std::string& 
+     */
+    const std::string & get_filter() const {
+        return m_bpf_filter;
+    }
+    
+    
+    /**
+     * compile the capture BPF filter
+     */
+    void compile() {
+        /* cleanup if recompiled */
+        release();
+        
+        m_bpf_h = bpf_compile(m_bpf_filter.c_str());
+        
+        /* should never fail - caller should verify */
+        assert(m_bpf_h);
+    }
+    
+    
+
+    /* assignment operator */
+    BPFFilter& operator=(const BPFFilter &other) {
+
+        release();
+        m_bpf_filter = other.m_bpf_filter;
+
+        return *this;
+    }
+
+    
+    /**
+     * combine BPF filters
+     * 
+     */
+    BPFFilter& operator +=(const BPFFilter &other) {
+
+        /* if any filter is empty the result is an empty filter (OR operator) */
+        if ( (m_bpf_filter == "") || (other.m_bpf_filter == "") ) {
+            /* match everything */
+            set_filter("");
+        } else {
+            const std::string new_filter = "(" + m_bpf_filter + ") or (" + other.m_bpf_filter + ")";
+            set_filter(new_filter);
+        }
+        
+        return *this;
+    }
+    
+    inline bool match(const rte_mbuf_t *m) const {
+        assert(m_bpf_h);
+
+        const char *buffer = rte_pktmbuf_mtod(m, char *);
+        uint32_t len       = rte_pktmbuf_pkt_len(m);
+        
+        int rc = bpf_run(m_bpf_h, buffer, len);
+        return (rc != 0);
+    }
+    
+private:
+    /* BPF pattern and a BPF compiled object handler */
+    std::string  m_bpf_filter;
+    bpf_h        m_bpf_h;
+    
+};
+
+
 /**************************************
  * Capture Filter 
  *  
@@ -41,7 +161,6 @@ public:
     CaptureFilter() {
         m_tx_active  = 0;
         m_rx_active  = 0;
-        m_bpf_h      = BPF_H_NONE;
     }
     
     /* Copy CTOR */
@@ -49,10 +168,7 @@ public:
         /* copy those fields */
         m_tx_active   = other.m_tx_active;
         m_rx_active   = other.m_rx_active;
-        m_bpf_filter  = other.m_bpf_filter;
-        
-        /* do not copy the pointer - need to recompile */
-        m_bpf_h       = BPF_H_NONE;
+        m_bpf         = other.m_bpf;
     }
     
     /**
@@ -61,16 +177,14 @@ public:
      * by default, match all 
      */
     void set_bpf_filter(const std::string &bpf_filter) {
-        m_bpf_filter = bpf_filter;
+        m_bpf.set_filter(bpf_filter);
     }
     
     /**
      * compile the capture BPF filter
      */
     void compile() {
-        m_bpf_h = bpf_compile(m_bpf_filter.c_str());
-        /* should never fail - caller should verify */
-        assert(m_bpf_h);
+        m_bpf.compile();
     }
     
     /**
@@ -127,9 +241,9 @@ public:
      */
     inline bool match(uint8_t port_id, TrexPkt::origin_e origin, const rte_mbuf_t *m) const {
         if (origin == TrexPkt::ORIGIN_RX) {
-            return (in_rx(port_id) && bpf_match(m));
+            return (in_rx(port_id) && m_bpf.match(m));
         } else {
-            return (in_tx(port_id) && bpf_match(m));
+            return (in_tx(port_id) && m_bpf.match(m));
         }
     }
     
@@ -141,21 +255,18 @@ public:
         m_tx_active |= other.m_tx_active;
         m_rx_active |= other.m_rx_active;
         
-        /* if any filter is empty the result is an empty filter (OR operator) */
-        if ( (m_bpf_filter == "") || (other.m_bpf_filter == "") ) {
-            m_bpf_filter = "";
-        } else {
-            m_bpf_filter = "(" + m_bpf_filter + ") or (" + other.m_bpf_filter + ")";
-        }
+        /* combine BPF filters */
+        m_bpf += other.m_bpf;
         
         return *this;
     }
+    
     
     Json::Value to_json() const {
         Json::Value output = Json::objectValue;
         output["tx"]     = Json::UInt64(m_tx_active);
         output["rx"]     = Json::UInt64(m_rx_active);
-        output["bpf"]    = m_bpf_filter;
+        output["bpf"]    = m_bpf.get_filter();
         return output;
     }
 
@@ -167,28 +278,13 @@ public:
         return m_rx_active;
     }
     
-    const std::string & get_bpf_filter() {
-        return m_bpf_filter;
-    }
-    
 private:
 
-    inline bool bpf_match(const rte_mbuf_t *m) const {
-        assert(m_bpf_h);
-
-        const char *buffer = rte_pktmbuf_mtod(m, char *);
-        uint32_t len       = rte_pktmbuf_pkt_len(m);
-        
-        int rc = bpf_run(m_bpf_h, buffer, len);
-        return (rc != 0);
-    }
     
     uint64_t     m_tx_active;
     uint64_t     m_rx_active;
     
-    /* BPF pattern and a BPF compiled object handler */
-    std::string  m_bpf_filter;
-    bpf_h        m_bpf_h;
+    BPFFilter    m_bpf;
 };
 
 

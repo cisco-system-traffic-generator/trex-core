@@ -48,6 +48,8 @@ bpf_compile(const char *bpf_filter) {
 
 void
 bpf_destroy(bpf_h bpf) {
+    struct bpf_program *program = (struct bpf_program *)bpf;
+    pcap_freecode(program);
     free(bpf);
 }
 
@@ -57,6 +59,10 @@ bpf_verify(const char *bpf_filter) {
     struct bpf_program program;
     
     int rc = pcap_compile_nopcap(1, DLT_EN10MB, &program, bpf_filter, 1, 0);
+    if (rc == 0) {
+        pcap_freecode(&program);
+    }
+    
     return (rc == 0);
 }
 

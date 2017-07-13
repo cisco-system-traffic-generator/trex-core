@@ -123,13 +123,22 @@ TrexStatelessCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
  */
 void
 TrexStatelessCaptureMngr::update_global_filter() {
-    CaptureFilter new_filter;
     
-    /* recalculates the global filter */
-    for (TrexStatelessCapture *capture : m_captures) {
-        new_filter += capture->get_filter();
+    /* if no captures - clear global filter */
+    if (m_captures.size() == 0) {
+        m_global_filter = CaptureFilter();
+        return;
+    }
+    
+    /* copy the first one */
+    CaptureFilter new_filter = m_captures[0]->get_filter();
+    
+    /* add the rest */
+    for (int i = 1; i < m_captures.size(); i++) {
+        new_filter += m_captures[i]->get_filter();
     }
   
+    /* copy and compile */
     m_global_filter = new_filter;
     m_global_filter.compile();
 }
