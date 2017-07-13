@@ -19,17 +19,17 @@ class CTRexNbarBase(CTRexGeneral_Test):
         for cl_intf in self.router.get_if_manager().get_if_list(if_type = IFType.Client):
             client_intf = cl_intf.get_name()
 
-            for protocol, bench in nbar_benchmark.items():
+            for protocol, golden in nbar_benchmark.items():
                 if protocol != 'total':
+                    golden = float(golden)
+                    protocol = protocol.replace('_','-')
                     try:
-                        bench = float(bench)
-                        protocol = protocol.replace('_','-')
                         protocol_test_res = test_classification[client_intf]['percentage'][protocol]
-                        deviation = 100 * abs(bench/protocol_test_res - 1) # percents
-                        difference = abs(bench - protocol_test_res)
+                        deviation = 100 * abs(golden/protocol_test_res - 1) # percents
+                        difference = abs(golden - protocol_test_res)
                         if (deviation > 10 and difference > noise_level):   # allowing 10% deviation and 'noise_level'% difference
                             missmatchFlag = True
-                            missmatchMsg += fmt.format(protocol, bench, protocol_test_res)
+                            missmatchMsg += fmt.format(protocol, golden, protocol_test_res)
                     except KeyError as e:
                         missmatchFlag = True
                         print(e)

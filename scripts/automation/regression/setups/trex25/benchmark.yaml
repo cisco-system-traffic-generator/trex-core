@@ -84,21 +84,20 @@ test_nbar_simple: &nbar_simple
     cores               : 1
     bw_per_core         : 16.645
     nbar_classification:
-        http            : 24.55
-        rtp             : 19.15
+        http            : 24.67
+        rtp             : 19.28
         sqlnet          : 10.38
         secure-http     : 5.11
-        citrix          : 4.68
-        mapi            : 4.04
-        dns             : 1.56
+        citrix          : 4.64
+        mapi            : 4.02
+        dns             : 1.58
         sctp            : 0.66
         smtp            : 0.48
-        pop3            : 0.30
-        novadigm        : 0.09
+        pop3            : 0.3
+        h323            : 0.29
         sip             : 0.08
-        h323            : 0.05
         rtsp            : 0.04
-        unknown         : 28.52
+        unknown         : 28.44
 
 test_client_cfg_nbar: &client_cfg_nbar
     <<                : *nbar_simple
