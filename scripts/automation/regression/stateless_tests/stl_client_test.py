@@ -59,7 +59,8 @@ class STLClient_Test(CStlGeneral_Test):
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
         self.profiles = get_stl_profiles()
-
+        
+        self.c.clear_stats()
 
     @classmethod
     def tearDownClass(cls):
@@ -388,9 +389,65 @@ class STLClient_Test(CStlGeneral_Test):
 
         
     def test_tx_from_rx (self):
+        '''
+            test TX packets from the RX core
+        '''
+        tx_capture_id = None
+        rx_capture_id = None
+        
+        tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
+        rx_src_mac = self.c.ports[self.rx_port].get_layer_cfg()['ether']['src']
+        
         try:
-            pass
+            # add some background traffic (TCP)
+            s1 = STLStream(name = 'burst', packet = STLPktBuilder(Ether()/IP()/TCP()), mode = STLTXCont())
+            self.c.add_streams(ports = [self.tx_port, self.rx_port], streams = [s1])
+            self.c.start(ports = [self.tx_port, self.rx_port])
+            
+            
+            self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
+            
+            tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp')['id']
+            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp')['id']
+            
+            pkts = [bytes(Ether(src=tx_src_mac,dst=rx_src_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
+            self.c.push_packets(pkts, ports = self.tx_port)
+            
+            # make sure the packets were sent
+            time.sleep(0.1)
+            
+            caps = self.c.get_capture_status()
+            assert(len(caps) == 2)
+            assert(caps[tx_capture_id]['count'] == len(pkts))
+            assert(caps[rx_capture_id]['count'] == len(pkts))
+            
+            # TX capture
+            tx_pkts = []
+            self.c.stop_capture(tx_capture_id, output = tx_pkts)
+                
+            # RX capture
+            rx_pkts = []
+            self.c.stop_capture(rx_capture_id, output = rx_pkts)
+            capture_id = None
+            
+            tx_pkts = [x['binary'] for x in tx_pkts]
+            rx_pkts = [x['binary'] for x in rx_pkts]
+            
+            assert(set(pkts) == set(tx_pkts))
+            assert(set(pkts) == set(rx_pkts))
+            
+            
             
         except STLError as e:
+            # cleanup if needed
+            if tx_capture_id:
+                self.c.stop_capture(tx_capture_id)
+                
+            if rx_capture_id:
+                self.c.stop_capture(rx_capture_id)
+                
             assert False , '{0}'.format(e)
+        finally:
+            self.c.stop(ports = [self.tx_port, self.rx_port])
+            self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
             

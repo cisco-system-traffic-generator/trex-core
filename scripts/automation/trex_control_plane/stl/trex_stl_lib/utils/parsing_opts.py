@@ -286,7 +286,7 @@ def action_check_vlan():
 def action_bpf_filter_merge ():
     class BPFFilterMerge(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
-            setattr(args, self.dest, ' '.join(values))
+            setattr(args, self.dest, ' '.join(values).strip("'\""))
             return
        
             
