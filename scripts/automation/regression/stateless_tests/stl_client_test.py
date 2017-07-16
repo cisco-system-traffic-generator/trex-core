@@ -62,6 +62,11 @@ class STLClient_Test(CStlGeneral_Test):
         
         self.c.clear_stats()
 
+        
+    def cleanup (self):
+        self.c.reset(ports = [self.tx_port, self.rx_port])
+        
+            
     @classmethod
     def tearDownClass(cls):
         if CTRexScenario.stl_init_error:
@@ -402,8 +407,7 @@ class STLClient_Test(CStlGeneral_Test):
             # add some background traffic (TCP)
             s1 = STLStream(name = 'burst', packet = STLPktBuilder(Ether()/IP()/TCP()), mode = STLTXCont())
             self.c.add_streams(ports = [self.tx_port, self.rx_port], streams = [s1])
-            self.c.start(ports = [self.tx_port, self.rx_port])
-            
+            self.c.start(ports = [self.tx_port, self.rx_port], mult = "5kpps")
             
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
             
@@ -424,11 +428,12 @@ class STLClient_Test(CStlGeneral_Test):
             # TX capture
             tx_pkts = []
             self.c.stop_capture(tx_capture_id, output = tx_pkts)
+            tx_capture_id = None
                 
             # RX capture
             rx_pkts = []
             self.c.stop_capture(rx_capture_id, output = rx_pkts)
-            capture_id = None
+            rx_capture_id = None
             
             tx_pkts = [x['binary'] for x in tx_pkts]
             rx_pkts = [x['binary'] for x in rx_pkts]
@@ -447,7 +452,61 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.stop_capture(rx_capture_id)
                 
             assert False , '{0}'.format(e)
-        finally:
-            self.c.stop(ports = [self.tx_port, self.rx_port])
-            self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
             
+        finally:
+            self.cleanup()
+            
+            
+    def test_bpf (self):
+        '''
+            test BPF filters
+        '''
+        
+        tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
+        rx_src_mac = self.c.ports[self.rx_port].get_layer_cfg()['ether']['src']
+                
+        try:
+            self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
+
+            bpf_filter = "udp and src portrange 1-250"
+            tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = bpf_filter)['id']
+            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = bpf_filter)['id']
+            
+            # real
+            pkts = [bytes(Ether(src=tx_src_mac,dst=rx_src_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
+            self.c.push_packets(pkts, ports = self.tx_port)
+            
+            # noise
+            pkts = [bytes(Ether(src=tx_src_mac,dst=rx_src_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
+            self.c.push_packets(pkts, ports = self.tx_port)
+            
+            
+             # TX capture
+            tx_pkts = []
+            self.c.stop_capture(tx_capture_id, output = tx_pkts)
+            tx_capture_id = None
+                
+            # RX capture
+            rx_pkts = []
+            self.c.stop_capture(rx_capture_id, output = rx_pkts)
+            rx_capture_id = None
+            
+            assert(len(tx_pkts) == 250)
+            assert(len(rx_pkts) == 250)
+            
+            
+        except STLError as e:
+            assert False , '{0}'.format(e)
+            
+        finally:
+            # cleanup if needed
+            if tx_capture_id:
+                self.c.stop_capture(tx_capture_id)
+                
+            if rx_capture_id:
+                self.c.stop_capture(rx_capture_id)
+                
+            self.cleanup()
+           
+            
+        
