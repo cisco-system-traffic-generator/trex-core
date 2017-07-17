@@ -38,7 +38,7 @@
 #include <sys/types.h>
 
 #ifdef __linux
-#include <pcap-bpf.h>
+#include "pcap-bpf.h"
 #else
 #include <net/bpf.h>
 #endif

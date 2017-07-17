@@ -67,7 +67,7 @@ __KERNEL_RCSID(0, "$NetBSD: bpfjit.c,v 1.43 2015/02/14 21:32:46 alnsn Exp $");
 
 #define	__BPF_PRIVATE
 #ifdef __linux
-#include <pcap-bpf.h>
+#include "pcap-bpf.h"
 #else
 #include <net/bpf.h>
 #endif
