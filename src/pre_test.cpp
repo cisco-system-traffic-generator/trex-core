@@ -46,12 +46,20 @@ CPretestOnePortInfo::~CPretestOnePortInfo() {
 }
 
 void CPretestOnePortInfo::add_src(uint32_t ip, uint16_t vlan, MacAddress mac) {
+    COneIPv4Info *already_exist = find_ip(ip, vlan);
+    if (already_exist)
+        return;
+
     COneIPv4Info *one_ip = new COneIPv4Info(ip, vlan, mac);
     assert(one_ip);
     m_src_info.push_back(one_ip);
 }
 
 void CPretestOnePortInfo::add_dst(uint32_t ip, uint16_t vlan) {
+    COneIPv4Info *already_exist = find_next_hop(ip, vlan);
+    if (already_exist)
+        return;
+
     MacAddress default_mac;
     COneIPv4Info *one_ip = new COneIPv4Info(ip, vlan, default_mac);
     assert(one_ip);
@@ -60,6 +68,10 @@ void CPretestOnePortInfo::add_dst(uint32_t ip, uint16_t vlan) {
 }
 
 void CPretestOnePortInfo::add_src(uint16_t ip[8], uint16_t vlan, MacAddress mac) {
+    COneIPv6Info *already_exist = find_ipv6(ip, vlan);
+    if (already_exist)
+        return;
+
     COneIPv6Info *one_ip = new COneIPv6Info(ip, vlan, mac);
     assert(one_ip);
     m_src_info.push_back(one_ip);
