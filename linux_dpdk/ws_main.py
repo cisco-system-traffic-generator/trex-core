@@ -368,6 +368,12 @@ bpf_src =  SrcGroup(dir='external_libs/bpf/',
             'bpf_filter.c',
             'etherent.c'])
 
+bpfjit_src = SrcGroup(dir='external_libs/bpf/bpfjit',
+        src_list=[
+            'bpfjit.c',
+            'sljitLir.c'
+            ])
+
 
 version_src = SrcGroup(
     dir='linux_dpdk',
@@ -567,8 +573,8 @@ mlx4_dpdk =SrcGroups([
                 ]);
 
 bpf = SrcGroups([
-                bpf_src
-                ]);
+                bpf_src,
+                bpfjit_src]);
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -761,7 +767,7 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/      
 ''';
 
-bpf_includes_path = '../external_libs/bpf'
+bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1702/rte_config.h'];
@@ -973,7 +979,7 @@ def build_prog (bld, build_obj):
     # build the BPF as a shared library    
     bld.shlib(features = 'c',
               includes = bpf_includes_path,
-              cflags   = build_obj.get_c_flags(),
+              cflags   = build_obj.get_c_flags() + ['-DSLJIT_CONFIG_AUTO=1'],
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
     

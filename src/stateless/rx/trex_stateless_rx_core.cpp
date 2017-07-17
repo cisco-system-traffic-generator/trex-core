@@ -232,17 +232,19 @@ void CRxCoreStateless::init_work_stage() {
  * return true if anything was done
  */
 bool CRxCoreStateless::work_tick() {
+    
     bool did_something = false;
     int n;
-    int limit = 10;
+    int limit = 100;
 
+    /* TODO: add a scheduler - will solve all problems here */
+    
     /* continue while pending packets are waiting or limit reached */
     while ( (n = process_all_pending_pkts()) && limit) {
         m_rx_pkts += n;
         limit--;
         did_something = true;
     }
-
     
     dsec_t now = now_sec();
         

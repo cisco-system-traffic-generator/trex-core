@@ -400,9 +400,12 @@ protected:
     uint16_t       m_size_left;
 };
 
+
+
 RXServer::RXServer() {
     m_api = NULL;
 }
+
 
 void
 RXServer::create(RXFeatureAPI *api) {
@@ -413,7 +416,6 @@ RXServer::create(RXFeatureAPI *api) {
 void
 RXServer::handle_pkt(const rte_mbuf_t *m) {
     try {
-        
         RXPktParser parser(m);
         
         /* verify that packet matches the port VLAN config */
@@ -554,6 +556,7 @@ RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
     
     return clone_mbuf;
 }
+
 
 /**************************************
  * Gratidious ARP

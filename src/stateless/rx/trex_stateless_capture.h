@@ -29,6 +29,9 @@ limitations under the License.
 #include "trex_stateless_capture_rc.h"
 #include "bpf_api.h"
 
+/* use BPFJIT */
+#define TREX_USE_BPFJIT
+
 /**
  * a class to handle BPF filter 
  *  
@@ -61,7 +64,13 @@ public:
      */
     void release() {
         if (m_bpf_h != BPF_H_NONE) {
-            bpf_destroy(m_bpf_h);
+            
+            #ifdef TREX_USE_BPFJIT
+                bpfjit_destroy(m_bpf_h);
+            #else
+                bpf_destroy(m_bpf_h);
+            #endif
+            
             m_bpf_h = BPF_H_NONE;
         }
     }
@@ -95,7 +104,13 @@ public:
         /* cleanup if recompiled */
         release();
         
-        m_bpf_h = bpf_compile(m_bpf_filter.c_str());
+        /* JIT or regular */
+        #ifdef TREX_USE_BPFJIT
+            m_bpf_h = bpfjit_compile(m_bpf_filter.c_str());
+        #else
+            m_bpf_h = bpf_compile(m_bpf_filter.c_str());
+        #endif
+        
         
         /* should never fail - caller should verify */
         assert(m_bpf_h);
@@ -137,7 +152,12 @@ public:
         const char *buffer = rte_pktmbuf_mtod(m, char *);
         uint32_t len       = rte_pktmbuf_pkt_len(m);
         
-        int rc = bpf_run(m_bpf_h, buffer, len);
+        #ifdef TREX_USE_BPFJIT
+            int rc = bpfjit_run(m_bpf_h, buffer, len);
+        #else
+            int rc = bpf_run(m_bpf_h, buffer, len);
+        #endif
+        
         return (rc != 0);
     }
     

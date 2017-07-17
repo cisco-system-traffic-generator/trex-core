@@ -23,6 +23,7 @@ limitations under the License.
 #define __BPF_API_H__
 
 #include <stdint.h>
+#include "bpfjit/bpfjit.h"
 
 typedef void * bpf_h;
 
@@ -33,7 +34,7 @@ extern "C" {
 /**
  * a value to set bpf_h as none
  */
-#define BPF_H_NONE (NULL)
+#define BPF_H_NONE       (NULL)
 
 /**
  * compile a BPF filter pattern 
@@ -61,6 +62,7 @@ bpf_destroy(bpf_h bpf);
 int
 bpf_run(bpf_h bpf, const char *buffer, uint32_t len);
 
+
 /**
  * verifies a BPF pattern 
  * returns nonzero value on success
@@ -86,6 +88,41 @@ bpf_verify(const char *bpf_filter);
  */
 const char *
 bpf_get_pattern(bpf_h bpf);
+
+
+/**
+ * compiles a BPF pattern to x86 native code
+ *  
+ * bpfjit_func_t can be executed by passing NULL and bpf_args_t 
+ */
+bpf_h
+bpfjit_compile(const char *bpf_filter);
+
+
+/**
+ * destroy an object compiled with bpfjit_compile
+ * 
+ */
+void
+bpfjit_destroy(bpf_h bpfjit);
+
+
+/**
+ * execute a BPF JIT-compiled program on a buffer
+ * 
+ * return nonzero in case of a match
+ */
+static inline int
+bpfjit_run(bpf_h bpfjit, const char *buffer, uint32_t len) {
+    bpfjit_func_t func = (bpfjit_func_t)bpfjit;
+    bpf_args_t args;
+    
+    args.pkt     = (const uint8_t *)buffer;
+    args.buflen  = len;
+    args.wirelen = len;
+    
+    return func(NULL, &args);
+}
 
 
 #ifdef __cplusplus

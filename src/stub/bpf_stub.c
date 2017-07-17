@@ -7,7 +7,8 @@ bpf_compile(const char *bpf_filter) {
 }
 
 void
-bpf_destroy(bpf_h bpf) {}
+bpf_destroy(bpf_h bpf) {
+}
 
 
 int
@@ -20,3 +21,12 @@ bpf_run(bpf_h bpf, const char *buffer, uint32_t len) {
     return 0;
 }
 
+
+bpf_h
+bpfjit_compile(const char *bpf_filter) {
+    return BPF_H_NONE;
+}
+
+void
+bpfjit_destroy(bpf_h bpfjit) {
+}

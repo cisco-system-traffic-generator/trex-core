@@ -187,6 +187,7 @@ class RXServer {
 public:
     
     RXServer();
+    
     void create(RXFeatureAPI *api);
     void handle_pkt(const rte_mbuf_t *m);
     

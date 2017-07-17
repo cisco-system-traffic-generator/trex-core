@@ -79,6 +79,30 @@ bpf_run(bpf_h bpf, const char *buffer, uint32_t len) {
     return bpf_filter(fcode, buffer, len, len);
 }
 
+
+bpf_h
+bpfjit_compile(const char *bpf_filter) {
+    
+    /* first, regular compile */
+    bpf_h bpf = bpf_compile(bpf_filter);
+    struct bpf_program *program = (struct bpf_program *)bpf;
+
+    /* now generate code */
+    bpfjit_func_t func = bpfjit_generate_code(NULL, program->bf_insns, program->bf_len);
+    
+    /* dispose program */
+    bpf_destroy(bpf);
+
+    return (bpf_h)func;
+}
+
+
+void
+bpfjit_destroy(bpf_h bpfjit) {
+    bpfjit_free_code((bpfjit_func_t)bpfjit);
+}
+
+
 #ifdef __cplusplus
 }
 #endif
