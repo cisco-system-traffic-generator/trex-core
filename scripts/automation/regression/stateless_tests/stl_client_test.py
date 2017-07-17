@@ -418,7 +418,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.push_packets(pkts, ports = self.tx_port)
             
             # make sure the packets were sent
-            time.sleep(0.1)
+            time.sleep(0.3)
             
             caps = self.c.get_capture_status()
             assert(len(caps) == 2)
@@ -480,6 +480,8 @@ class STLClient_Test(CStlGeneral_Test):
             pkts = [bytes(Ether(src=tx_src_mac,dst=rx_src_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port)
             
+            # make sure the packets were sent
+            time.sleep(0.3)
             
              # TX capture
             tx_pkts = []
