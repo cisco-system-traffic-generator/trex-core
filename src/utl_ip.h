@@ -5,7 +5,7 @@
 */
 
 /*
-Copyright (c) 2016-2016 Cisco Systems, Inc.
+Copyright (c) 2016-2017 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -88,8 +88,11 @@ class CIpVlan {
     }
     uint16_t get_vlan() const {return m_vlan;}
     void set_vlan(uint16_t vlan) {m_vlan = vlan;}
-    uint16_t get_ip() const {return m_ip;}
+    uint32_t get_ip() const {return m_ip;}
     void set_ip(uint32_t ip) {m_ip = ip;}
+    void dump(FILE *fd) const {
+        fprintf(fd, "ip:%s, vlan:%d\n", ip_to_str(m_ip).c_str(), m_vlan);
+    }
 
  private:
     uint32_t m_ip;
@@ -177,6 +180,9 @@ inline bool operator== (const COneIPv4Info& lhs, const COneIPv4Info& rhs) {
     if (lhs.m_ip != rhs.m_ip)
         return false;
 
+    if (lhs.m_port != rhs.m_port)
+        return false;
+
     return true;
 }
 
@@ -237,7 +243,7 @@ class CManyIPInfo {
     bool lookup(uint32_t ip, uint16_t vlan, MacAddress &ret_mac) const;
     bool exists(uint32_t ip, uint16_t vlan = 0) const;
     void clear();
-    
+
     void dump(FILE *fd);
     uint32_t size() { return m_ipv4_resolve.size() + m_ipv6_resolve.size();}
     const COneIPInfo *get_first() const;
@@ -246,21 +252,21 @@ class CManyIPInfo {
         const COneIPInfo *ip_info = get_next();
         return (ip_info ? ip_info : get_next());
     }
-    
+
     CManyIPInfo& operator = (const CManyIPInfo &rhs) {
         m_ipv4_resolve = rhs.m_ipv4_resolve;
         m_ipv6_resolve = rhs.m_ipv6_resolve;
-        
+
         m_iter_initiated = false;
         return (*this);
     }
-    
+
  private:
     ip_vlan_to_many_ip_t      m_ipv4_resolve;
     ipv6_vlan_to_many_ipv6_t  m_ipv6_resolve;
-    
+
     ip_vlan_to_many_ip_iter_t m_ipv4_iter;
-    
+
     bool m_iter_initiated;
 
 };
