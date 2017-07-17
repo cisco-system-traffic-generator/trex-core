@@ -193,6 +193,9 @@ void CPretestOnePortInfo::send_arp_req_all() {
         int num_sent;
         int verbose = CGlobalInfo::m_options.preview.getVMode();
 
+        if (!(*it)->resolve_needed())
+            continue;
+
         m[0] = CGlobalInfo::pktmbuf_alloc_small_by_port(m_port_id);
         if ( unlikely(m[0] == 0) )  {
             fprintf(stderr, "ERROR: Could not allocate mbuf for sending ARP to port:%d\n", m_port_id);
