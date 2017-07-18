@@ -954,7 +954,7 @@ configured per profile. It only defines how the clients will be spread between c
 
 In the following example, a profile defines a client generator.
 
-[source,bash]
+[source,python]
 ----
 [bash]>cat cap2/dns.yaml 
 - duration : 10.0
@@ -980,7 +980,7 @@ Goal:
 
 Create the following cluster configuration file:
 
-[source,bash]
+[source,python]
 ----
 #
 # Client configuration example file
@@ -1059,7 +1059,7 @@ with: +
 
 For example, the first group in the configuration file would be:
 
-[source,bash]
+[source,python]
 ----
 -    ip_start  : 16.0.0.1
      ip_end    : 16.0.0.204
@@ -1122,6 +1122,171 @@ Consequently, you can predict exactly which packet (and how many packets) will g
 ----
 [bash]>sudo ./t-rex-64 -f cap2/dns.yaml --client_cfg my_cfg.yaml
 ----
+
+==== Latency with Cluster mode 
+
+Latency streams client IP is taken from the first IP in the default client pool. Each dual port will have one Client IP. In case of cluster configuration this is a limitation as you can have a topology with many paths.
+
+.Traffic profile 
+[source,python]
+----
+- duration : 10.0
+  generator :  
+          distribution : "seq"           
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"   
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.0.255"   
+          dual_port_mask : "1.0.0.0" 
+  cap_info : 
+     - name: cap2/dns.pcap
+       cps : 1.0          
+       ipg : 10000        
+       rtt : 10000        
+       w   : 1            
+----
+
+
+.Cluster profile 
+[source,python]
+----
+vlan: true
+
+groups:
+
+-    ip_start  : 16.0.0.1
+     ip_end    : 16.0.0.204
+     initiator :
+                 vlan    : 100
+                 dst_mac : "00:00:00:01:00:00"
+     responder :
+                 vlan    : 200
+                 dst_mac : "00:00:00:02:00:00"
+                 
+     count     : 4
+----
+
+For example, in this case 16.0.0.1->48.0.0.1 ICMP will be the flow for latency. The Cluster configuration of this flow will be taken from cluster file ( VLAN=100, dst_mac : "00:00:00:01:00:00" )
+
+==== Clustering example 
+
+In this example we have one DUT with four 10gb interfaces and one TRex with two 40Gb/sec interfaces and we want to convert the traffic from 2 TRex interfaces to 4 DUT Interfaces. 
+The folowing figure shows the topology
+
+.Cluster example 
+image:images/cluster_topo1.png[title="Loopback example"]
+
+For this topology the following traffic and cluster configuration file were created 
+
+.Traffic profile 
+[source,python]
+----
+
+- duration : 10.0
+  generator :  
+          distribution : "seq"           
+          clients_start : "12.1.1.1"      <1> 
+          clients_end   : "12.1.1.1"   
+          servers_start : "13.1.1.1"
+          servers_end   : "13.1.1.1"   
+          dual_port_mask : "1.0.0.0" 
+          generator_clients :
+            - name : "c1"                   <2> 
+              distribution : "seq"
+              ip_start : "12.1.1.2"
+              ip_end :   "12.1.1.20"
+            - name : "c2"
+              distribution : "seq"          <3>
+              ip_start : "12.1.1.21"
+              ip_end :   "12.1.1.40"
+          generator_servers :
+             - name : "s1"
+               distribution : "seq"
+               ip_start : "13.1.1.2"
+               ip_end :   "13.1.1.20"
+             - name : "s2"
+               distribution : "seq"
+               ip_start : "13.1.1.21"
+               ip_end :   "13.1.1.40"
+  cap_ipg : true
+  cap_info :
+    - name: /home/tblevins/file10k.pcap
+      client_pool : "c2"
+      server_pool : "s2"
+      cps : 1
+      ipg : 20000
+      rtt : 20000
+      w   : 1
+    - name: /home/tblevins/file10k.pcap
+      client_pool : "c1"
+      server_pool : "s1"           
+      cps : 1
+      ipg : 20000
+      rtt:  20000
+      w   : 1
+ 
+----
+<1> Latency flow will be IP 12.1.1.1<->13.1.1.1/vlan=4050/next-hop=11.10.0.1
+<2> First clients pool 
+<3> Second clients pool 
+
+
+
+.Cluster profile 
+[source,python]
+----
+ 
+lan: true 
+ 
+groups:
+ 
+-    ip_start  : 12.1.1.1         <1>
+     ip_end    : 12.1.1.20
+     initiator :
+                 vlan     : 4050
+                 next_hop : 11.10.0.1
+                 src_ip   : 11.10.0.11
+     responder :
+                 vlan     : 4054
+                 next_hop : 10.10.0.1
+                 src_ip   : 10.10.0.11
+     count     : 1
+ 
+-    ip_start  : 12.11.1.21
+     ip_end    : 12.11.1.40
+     initiator :
+                 vlan     : 4051
+                 next_hop : 11.11.0.1
+                 src_ip   : 11.11.0.11
+     responder :
+                 vlan     : 4055
+                 next_hop : 10.11.0.1
+                 src_ip   : 10.11.0.11
+     count     : 1
+ 
+----
+<1> *All* the IPs from client pools and default pool should be maped in this file, it is possible to have wider range  in cluster file
+
+
+The following diagram shows how new flow src_ip/dest_ip/next-hop/vlan is choosen with cluster file 
+
+.Cluster example 
+image:images/new_flow_generation.png[title="Loopback example"]
+
+[NOTE]
+=====================================================================
+Latency stream will check only 12.1.1.1/4050 path (one DUT intertface)  there is no way to check latency on all the ports in current version
+=====================================================================
+
+An example of one flow generation 
+
+1. Choose template by CPS, 50% probability for each. take template #1
+2. SRC_IP=12.1.1.2, DEST_IP=13.1.1.2
+3. Allocate src_port for 12.1.1.2 ==>src_port=1025 for the first flow of client=12.1.1.2
+4. Associate the next-hop from cluster pool. In this case 12.1.1.2 has the following information
+4.1 client side : VLAN=4050 and MAC of 11.10.0.1 (Initiator)
+4.2 server side : VLAN=4054 and MAC of 10.10.0.1 (Responder)
+
 
 === NAT support 
 
