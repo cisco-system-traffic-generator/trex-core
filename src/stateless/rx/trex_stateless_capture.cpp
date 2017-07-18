@@ -68,9 +68,6 @@ TrexStatelessCapture::to_json() const {
 
     output["id"]     = Json::UInt64(m_id);
     output["filter"] = m_filter.to_json();
-    output["count"]  = m_pkt_buffer->get_element_count();
-    output["bytes"]  = m_pkt_buffer->get_bytes();
-    output["limit"]  = m_pkt_buffer->get_capacity();
     
     switch (m_state) {
     case STATE_ACTIVE:
@@ -84,6 +81,10 @@ TrexStatelessCapture::to_json() const {
     default:
         assert(0);
     }
+    
+    
+    /* write the pkt buffer status */
+    m_pkt_buffer->to_json_status(output);
     
     return output;
 }

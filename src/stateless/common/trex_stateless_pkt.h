@@ -192,6 +192,14 @@ public:
      */
     Json::Value to_json() const;
 
+    
+    /**
+     * generate a JSON of the status of the capture 
+     * write the relevant info in place on output 
+     */
+    void to_json_status(Json::Value &output) const;
+    
+    
 
     bool is_empty() const {
         return (m_head == m_tail);
@@ -228,6 +236,7 @@ public:
     uint32_t get_bytes() const {
         return m_bytes; 
     }
+  
     
 private:
     int next(int v) const {

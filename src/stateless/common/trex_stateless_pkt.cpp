@@ -196,6 +196,31 @@ TrexPktBuffer::to_json() const {
     return output;
 }
 
+
+void
+TrexPktBuffer::to_json_status(Json::Value &output) const {
+
+    output["count"]  = get_element_count();
+    output["bytes"]  = get_bytes();
+    output["limit"]  = get_capacity();
+    
+    switch (m_mode) {
+    case MODE_DROP_TAIL:
+        output["mode"] = "fixed";
+        break;
+        
+    case MODE_DROP_HEAD:
+        output["mode"] = "cyclic";
+        break;
+        
+    default:
+        assert(0);
+        
+    }
+}
+
+
+
 TrexPktBuffer *
 TrexPktBuffer::pop_n(uint32_t count) {
     /* can't pop more than total */
