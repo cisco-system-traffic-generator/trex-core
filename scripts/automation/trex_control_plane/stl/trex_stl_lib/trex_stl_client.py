@@ -989,7 +989,7 @@ class STLClient(object):
 
 
     # clear stats
-    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pgid_stats):
+    def __clear_stats(self, port_id_list, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats):
 
         # we must be sync with the server
         self.conn.barrier()
@@ -1000,19 +1000,11 @@ class STLClient(object):
         if clear_global:
             self.global_stats.clear_stats()
 
-            # ??? remove
-        if clear_flow_stats:
-            self.flow_stats.clear_stats()
-
-        if clear_latency_stats:
-            self.latency_stats.clear_stats()
+        if clear_flow_stats or clear_latency_stats:
+            self.pgid_stats.clear_stats(clear_flow_stats=clear_flow_stats, clear_latency_stats=clear_latency_stats)
 
         if clear_xstats:
             self.xstats.clear_stats()
-
-        if clear_pgid_stats:
-            self.pgid_stats.clear_stats()
-            self.stats_generator.clear_stats()
 
         self.logger.log_cmd("Clearing stats on port(s) {0}:".format(port_id_list))
 
@@ -3354,7 +3346,7 @@ class STLClient(object):
 
 
     @__api_check(False)
-    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True, clear_pgid_stats = True):
+    def clear_stats (self, ports = None, clear_global = True, clear_flow_stats = True, clear_latency_stats = True, clear_xstats = True):
         """
             Clear stats on port(s)
 
@@ -3363,16 +3355,16 @@ class STLClient(object):
                     Ports on which to execute the command
 
                 clear_global : bool
-                    Clear the global stats
+                    Clear the global statistics
 
                 clear_flow_stats : bool 
-                    Clear the flow stats
+                    Clear the per flow statistics
 
                 clear_latency_stats : bool 
-                    Clear the latency stats
+                    Clear the latency statistics
 
                 clear_xstats : bool 
-                    Clear the extended stats
+                    Clear the extended statistics
 
             :raises:
                 + :exc:`STLError`
@@ -3386,7 +3378,7 @@ class STLClient(object):
         if not type(clear_global) is bool:
             raise STLArgumentError('clear_global', clear_global)
 
-        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats, clear_pgid_stats)
+        rc = self.__clear_stats(ports, clear_global, clear_flow_stats, clear_latency_stats, clear_xstats)
         if not rc:
             raise STLError(rc)
 

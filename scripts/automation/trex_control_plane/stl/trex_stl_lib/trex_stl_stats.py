@@ -1628,11 +1628,18 @@ class CPgIdStats(object):
         base = self._get(self.ref, field, default=0)
         return (value - base) if not format else format_num(value - base, suffix = suffix, opts = opts)
 
-    def clear_stats(self):
-        for key in self.last:
-            self.ref[key].update(self.last[key])
+    def clear_stats(self, clear_flow_stats=True, clear_latency_stats=True):
+        keys_to_clear = []
+        if clear_flow_stats:
+            keys_to_clear.append('flow_stats')
+        if clear_latency_stats:
+            keys_to_clear.append('latency')
 
-        if 'latency' in self.ref:
+        for key in self.last:
+            if key in keys_to_clear:
+                self.ref[key].update(self.last[key])
+
+        if 'latency' in self.ref and 'latency' in keys_to_clear:
             for pg_id in self.ref['latency']:
                 if 'latency' in self.ref['latency'][pg_id]:
                     self.ref['latency'][pg_id]['latency']['total_max'] = 0
