@@ -64,6 +64,7 @@ class STLClient_Test(CStlGeneral_Test):
 
         
     def cleanup (self):
+        self.c.remove_all_captures()
         self.c.reset(ports = [self.tx_port, self.rx_port])
         
             
@@ -411,8 +412,9 @@ class STLClient_Test(CStlGeneral_Test):
             
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
             
-            tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp')['id']
-            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp')['id']
+            # VICs adds VLAN 0
+            tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp or (vlan and udp)')['id']
+            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
             
             pkts = [bytes(Ether(src=tx_src_mac,dst=rx_src_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port)
@@ -436,7 +438,9 @@ class STLClient_Test(CStlGeneral_Test):
             rx_capture_id = None
             
             tx_pkts = [x['binary'] for x in tx_pkts]
-            rx_pkts = [x['binary'] for x in rx_pkts]
+            
+            # VIC might add VLAN 0 to the RX side
+            rx_pkts = [remove_vlan_0(x['binary']) for x in rx_pkts]
             
             assert(set(pkts) == set(tx_pkts))
             assert(set(pkts) == set(rx_pkts))
@@ -461,6 +465,8 @@ class STLClient_Test(CStlGeneral_Test):
         '''
             test BPF filters
         '''
+        tx_capture_id = None
+        rx_capture_id = None
         
         tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
         rx_src_mac = self.c.ports[self.rx_port].get_layer_cfg()['ether']['src']
@@ -468,7 +474,10 @@ class STLClient_Test(CStlGeneral_Test):
         try:
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
 
+            # VICs adds VLAN 0 tagging
             bpf_filter = "udp and src portrange 1-250"
+            bpf_filter = '{0} or (vlan and {1})'.format(bpf_filter, bpf_filter)
+            
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = bpf_filter)['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = bpf_filter)['id']
             
@@ -512,3 +521,22 @@ class STLClient_Test(CStlGeneral_Test):
            
             
         
+# strip out VLAN 0 if exists            
+def remove_vlan_0 (pkt):
+
+    scapy_pkt = Ether(pkt)
+
+    if not Dot1Q in scapy_pkt:
+        return pkt
+        
+    if scapy_pkt[Dot1Q].vlan != 0:
+        return pkt
+        
+    
+    payload = scapy_pkt.payload.payload
+    scapy_pkt.remove_payload()
+    new_pkt = scapy_pkt / payload
+    new_pkt.type = 2048
+    
+    return bytes(new_pkt)
+

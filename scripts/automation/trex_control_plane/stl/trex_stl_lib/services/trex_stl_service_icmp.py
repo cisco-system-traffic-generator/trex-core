@@ -40,18 +40,21 @@ class STLServiceFilterICMP(STLServiceFilter):
         if 'ICMP' not in scapy_pkt:
             return []
 
-        vlan = VLAN.extract(scapy_pkt)
+        vlans = VLAN.extract(scapy_pkt)
+
+        # ignore VLAN 0
+        vlans = vlans if vlans != [0] else []
         
         src_ip = scapy_pkt['IP'].dst
         id     = scapy_pkt['ICMP'].id
         seq    = scapy_pkt['ICMP'].seq
 
-        return self.services.get( (src_ip, id, seq, tuple(vlan)), [] )
+        return self.services.get( (src_ip, id, seq, tuple(vlans)), [] )
 
 
     def get_bpf_filter (self):
-        # a simple BPF pattern for ICMP
-        return 'icmp'
+        # a simple BPF pattern for ICMP (duplicate for QinQ)
+        return 'icmp or (vlan and icmp) or (vlan and icmp)'
 
 
 class STLServiceICMP(STLService):

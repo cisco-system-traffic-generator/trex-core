@@ -70,8 +70,20 @@ public:
      * 
      */
     bool in_vlan(const std::vector<uint16_t> &tags) const {
-        return m_tags == tags;
+        /* consider VLAN 0 as empty VLAN */
+        
+        return ( (m_tags == tags) || ( m_tags.empty() && is_def_vlan(tags)) );
     }
+    
+    
+    /**
+     * return true if VLAN tagging represents 
+     * the default VLAN
+     */
+    bool is_def_vlan(const std::vector<uint16_t> &tags) const {
+        return ( (tags.size() == 1) && (tags[0] == 0) );
+    }
+    
     
     /**
      * return the count of the VLAN tags 

@@ -43,12 +43,15 @@ class STLServiceFilterARP(STLServiceFilter):
         
         vlans = VLAN.extract(scapy_pkt)
         
+        # ignore VLAN 0 - hash as empty VLAN
+        vlans = vlans if vlans != [0] else []
+        
         return self.services.get( (scapy_pkt['ARP'].pdst, scapy_pkt['ARP'].psrc, tuple(vlans)), [] ) 
 
    
     def get_bpf_filter (self):
-        # a simple BPF pattern for ARP
-        return 'arp'
+        # a simple BPF pattern for ARP (this is not duplicate, it is for QinQ)
+        return 'arp or (vlan and arp) or (vlan and arp)'
         
 
 class STLServiceARP(STLService):
