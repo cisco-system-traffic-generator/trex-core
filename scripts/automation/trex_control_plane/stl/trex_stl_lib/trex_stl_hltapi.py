@@ -1015,9 +1015,15 @@ def generate_packet(**user_kwargs):
                                 'id':   int(vlan_kwargs['vlan_cfi'])}
                 vlan_protocol_tag_id = vlan_kwargs['vlan_protocol_tag_id']
                 if vlan_protocol_tag_id is not None:
-                    if type(vlan_protocol_tag_id) is str:
+                    try: # to convert str to int
                         vlan_protocol_tag_id = int(vlan_protocol_tag_id, 16)
-                    dot1q_kwargs['type'] = vlan_protocol_tag_id
+                    except TypeError:
+                        pass
+                    ALLOWED_VLAN_PROTO = [0x8100, 0x88A8, 0x9100, 0x9200, 0x9300]
+                    if vlan_protocol_tag_id not in ALLOWED_VLAN_PROTO:
+                        raise STLError('vlan_protocol_tag_id argument(s) must be one of the following values: %s, got: 0x%04x' %
+                                (', '.join(map('0x{:04x}'.format, ALLOWED_VLAN_PROTO)), vlan_protocol_tag_id))
+                    l2_layer.lastlayer().type = vlan_protocol_tag_id
                 l2_layer /= Dot1Q(**dot1q_kwargs)
 
                 # vlan VM
