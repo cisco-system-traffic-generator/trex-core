@@ -1061,13 +1061,21 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     TrexStatelessRxCaptureStart *start_msg = new TrexStatelessRxCaptureStart(filter, limit, mode, reply);
     get_stateless_obj()->send_msg_to_rx(start_msg);
     
-    TrexCaptureRCStart rc = reply.wait_for_reply();
-    if (!rc) {
-        generate_execute_err(result, rc.get_err());
+      /* wait for reply - might get a timeout */
+    try {
+        
+        TrexCaptureRCStart rc = reply.wait_for_reply();
+        if (!rc) {
+            generate_execute_err(result, rc.get_err());
+        }
+        
+        result["result"]["capture_id"] = rc.get_new_id();
+        result["result"]["start_ts"]   = rc.get_start_ts();
+    
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
     
-    result["result"]["capture_id"] = rc.get_new_id();
-    result["result"]["start_ts"]   = rc.get_start_ts();
 }
 
 /**
@@ -1085,12 +1093,20 @@ TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result
     TrexStatelessRxCaptureStop *stop_msg = new TrexStatelessRxCaptureStop(capture_id, reply);
     get_stateless_obj()->send_msg_to_rx(stop_msg);
     
-    TrexCaptureRCStop rc = reply.wait_for_reply();
-    if (!rc) {
-        generate_execute_err(result, rc.get_err());
-    }
     
-    result["result"]["pkt_count"] = rc.get_pkt_count();
+    /* wait for reply - might get a timeout */
+    try {
+        
+        TrexCaptureRCStop rc = reply.wait_for_reply();
+        if (!rc) {
+            generate_execute_err(result, rc.get_err());
+        }
+        result["result"]["pkt_count"] = rc.get_pkt_count();
+    
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+   
 }
 
 /**
@@ -1108,12 +1124,20 @@ TrexRpcCmdCapture::parse_cmd_status(const Json::Value &params, Json::Value &resu
     TrexStatelessRxCaptureStatus *status_msg = new TrexStatelessRxCaptureStatus(reply);
     get_stateless_obj()->send_msg_to_rx(status_msg);
     
-    TrexCaptureRCStatus rc = reply.wait_for_reply();
-    if (!rc) {
-        generate_execute_err(result, rc.get_err());
+      /* wait for reply - might get a timeout */
+    try {
+        
+        TrexCaptureRCStatus rc = reply.wait_for_reply();
+        if (!rc) {
+            generate_execute_err(result, rc.get_err());
+        }
+        
+        result["result"] = rc.get_status();
+    
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
     
-    result["result"] = rc.get_status();
 }
 
 /**
@@ -1134,20 +1158,29 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
     TrexStatelessRxCaptureFetch *fetch_msg = new TrexStatelessRxCaptureFetch(capture_id, pkt_limit, reply);
     get_stateless_obj()->send_msg_to_rx(fetch_msg);
     
-    TrexCaptureRCFetch rc = reply.wait_for_reply();
-    if (!rc) {
-        generate_execute_err(result, rc.get_err());
+     /* wait for reply - might get a timeout */
+    try {
+        
+        TrexCaptureRCFetch rc = reply.wait_for_reply();
+        if (!rc) {
+            generate_execute_err(result, rc.get_err());
+        }
+    
+        const TrexPktBuffer *pkt_buffer = rc.get_pkt_buffer();
+            
+        result["result"]["pending"]     = rc.get_pending();
+        result["result"]["start_ts"]    = rc.get_start_ts();
+        result["result"]["pkts"]        = pkt_buffer->to_json();
+ 
+        /* delete the buffer */
+        delete pkt_buffer;
+       
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
-    
-    const TrexPktBuffer *pkt_buffer = rc.get_pkt_buffer();
-    
-    result["result"]["pending"]     = rc.get_pending();
-    result["result"]["start_ts"]    = rc.get_start_ts();
-    result["result"]["pkts"]        = pkt_buffer->to_json();
-    
-    /* delete the buffer */
-    delete pkt_buffer;
+ 
 }
+
 
 void
 TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &result) {
@@ -1162,12 +1195,20 @@ TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &resu
     TrexStatelessRxCaptureRemove *remove_msg = new TrexStatelessRxCaptureRemove(capture_id, reply);
     get_stateless_obj()->send_msg_to_rx(remove_msg);
     
-    TrexCaptureRCRemove rc = reply.wait_for_reply();
-    if (!rc) {
-        generate_execute_err(result, rc.get_err());
-    }
     
-    result["result"] = Json::objectValue;
+    /* wait for reply - might get a timeout */
+    try {
+        
+        TrexCaptureRCRemove rc = reply.wait_for_reply();
+        if (!rc) {
+            generate_execute_err(result, rc.get_err());
+        }
+        
+        result["result"] = Json::objectValue;
+        
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
 }
 
 
@@ -1223,7 +1264,15 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessRxTXPkts *tx_pkts_msg = new TrexStatelessRxTXPkts(port_id, pkts, reply);
     get_stateless_obj()->send_msg_to_rx(tx_pkts_msg);
     
-    result["result"]["sent"] = reply.wait_for_reply();
+      /* wait for reply - might get a timeout */
+    try {
+        
+        result["result"]["sent"] = reply.wait_for_reply();
+        
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
     result["result"]["ts"]   = now;
     
     return TREX_RPC_CMD_OK;

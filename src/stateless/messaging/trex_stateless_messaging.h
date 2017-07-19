@@ -72,12 +72,12 @@ public:
         while (is_pending()) {
             guard -= backoff_ms;
             if (guard < 0) {
-                throw TrexException("timeout: failed to get reply from core");
+                throw TrexException("internal error: failed to get response from remote core for more than '" + std::to_string(timeout_ms) + "' ms");
             }
 
             delay(backoff_ms);
         }
-        
+    
         return m_reply;
 
     }

@@ -235,7 +235,7 @@ bool CRxCoreStateless::work_tick() {
     
     bool did_something = false;
     int n;
-    int limit = 100;
+    int limit = 10;
 
     /* TODO: add a scheduler - will solve all problems here */
     

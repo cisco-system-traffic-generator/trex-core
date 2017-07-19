@@ -421,11 +421,18 @@ class STLClient_Test(CStlGeneral_Test):
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port)
             
-            # make sure the packets were sent
-            time.sleep(0.3)
+            # check capture status with timeout
+            timeout = PassiveTimer(1)
             
-            caps = self.c.get_capture_status()
-            assert(len(caps) == 2)
+            while not timeout.has_expired():
+                caps = self.c.get_capture_status()
+                assert(len(caps) == 2)
+                if (caps[tx_capture_id]['count'] == len(pkts)) and (caps[rx_capture_id]['count'] == len(pkts)):
+                    break
+                    
+                time.sleep(0.1)
+            
+            
             assert(caps[tx_capture_id]['count'] == len(pkts))
             assert(caps[rx_capture_id]['count'] == len(pkts))
             
@@ -494,21 +501,22 @@ class STLClient_Test(CStlGeneral_Test):
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port)
             
-            # make sure the packets were sent
-            time.sleep(0.3)
+            # check capture status with timeout
+            timeout = PassiveTimer(1)
             
-             # TX capture
-            tx_pkts = []
-            self.c.stop_capture(tx_capture_id, output = tx_pkts)
-            tx_capture_id = None
+            while not timeout.has_expired():
+                caps = self.c.get_capture_status()
+                assert(len(caps) == 2)
                 
-            # RX capture
-            rx_pkts = []
-            self.c.stop_capture(rx_capture_id, output = rx_pkts)
-            rx_capture_id = None
+                if (caps[tx_capture_id]['count'] == 250) and (caps[rx_capture_id]['count'] == 250):
+                    break
+                    
+                time.sleep(0.1)
             
-            assert(len(tx_pkts) == 250)
-            assert(len(rx_pkts) == 250)
+            # make sure
+            assert(caps[tx_capture_id]['count'] == 250)
+            assert(caps[rx_capture_id]['count'] == 250)
+            
             
             
         except STLError as e:
