@@ -1189,35 +1189,35 @@ For this topology the following traffic and cluster configuration file were crea
           clients_end   : "12.1.1.1"   
           servers_start : "13.1.1.1"
           servers_end   : "13.1.1.1"   
-          dual_port_mask : "1.0.0.0" 
+          dual_port_mask : "0.1.0.0" 
           generator_clients :
             - name : "c1"                   <2> 
               distribution : "seq"
               ip_start : "12.1.1.2"
-              ip_end :   "12.1.1.20"
+              ip_end :   "12.1.1.255"
             - name : "c2"
               distribution : "seq"          <3>
-              ip_start : "12.1.1.21"
-              ip_end :   "12.1.1.40"
+              ip_start : "12.1.2.1"
+              ip_end :   "12.1.2.255"
           generator_servers :
              - name : "s1"
                distribution : "seq"
                ip_start : "13.1.1.2"
-               ip_end :   "13.1.1.20"
+               ip_end :   "13.1.1.255"
              - name : "s2"
                distribution : "seq"
-               ip_start : "13.1.1.21"
-               ip_end :   "13.1.1.40"
+               ip_start : "13.1.2.1"
+               ip_end :   "13.1.2.255"
   cap_ipg : true
   cap_info :
-    - name: /home/tblevins/file10k.pcap
+    - name: file10k.pcap
       client_pool : "c2"
       server_pool : "s2"
       cps : 1
       ipg : 20000
       rtt : 20000
       w   : 1
-    - name: /home/tblevins/file10k.pcap
+    - name: file10k.pcap
       client_pool : "c1"
       server_pool : "s1"           
       cps : 1
@@ -1241,7 +1241,7 @@ lan: true
 groups:
  
 -    ip_start  : 12.1.1.1         <1>
-     ip_end    : 12.1.1.20
+     ip_end    : 12.1.1.255
      initiator :
                  vlan     : 4050
                  next_hop : 11.10.0.1
@@ -1252,16 +1252,16 @@ groups:
                  src_ip   : 10.10.0.11
      count     : 1
  
--    ip_start  : 12.11.1.21
-     ip_end    : 12.11.1.40
+-    ip_start  : 12.1.2.1
+     ip_end    : 12.1.2.255
      initiator :
                  vlan     : 4051
-                 next_hop : 11.11.0.1
-                 src_ip   : 11.11.0.11
+                 next_hop : 11.10.0.2
+                 src_ip   : 11.10.0.11
      responder :
                  vlan     : 4055
-                 next_hop : 10.11.0.1
-                 src_ip   : 10.11.0.11
+                 next_hop : 10.10.0.2
+                 src_ip   : 10.10.0.11
      count     : 1
  
 ----
@@ -1278,14 +1278,154 @@ image:images/new_flow_generation.png[title="Loopback example"]
 Latency stream will check only 12.1.1.1/4050 path (one DUT intertface)  there is no way to check latency on all the ports in current version
 =====================================================================
 
+[NOTE]
+=====================================================================
+DUT should have a static route to move packets from client to server and vice versa, as traffic is not in the same subnet of the ports 
+=====================================================================
+
+
 An example of one flow generation 
 
-1. Choose template by CPS, 50% probability for each. take template #1
-2. SRC_IP=12.1.1.2, DEST_IP=13.1.1.2
-3. Allocate src_port for 12.1.1.2 ==>src_port=1025 for the first flow of client=12.1.1.2
-4. Associate the next-hop from cluster pool. In this case 12.1.1.2 has the following information
-4.1 client side : VLAN=4050 and MAC of 11.10.0.1 (Initiator)
-4.2 server side : VLAN=4054 and MAC of 10.10.0.1 (Responder)
+1. next hop resolotion. TRex resolve all the next hop option e.g. 11.10.0.1/4050 11.11.0.1/4051
+2. Choose template by CPS, 50% probability for each. take template #1
+3. SRC_IP=12.1.1.2, DEST_IP=13.1.1.2
+4. Allocate src_port for 12.1.1.2 ==>src_port=1025 for the first flow of client=12.1.1.2
+5. Associate the next-hop from cluster pool. In this case 12.1.1.2 has the following information
+5.1 client side : VLAN=4050 and MAC of 11.10.0.1 (Initiator)
+5.2 server side : VLAN=4054 and MAC of 10.10.0.1 (Responder)
+
+
+to run this using FirePower and NAT learning and checksum offload 
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f profile.yaml --client_cfg cluster.yaml -m 10 -d 1000 -l 1000 --l-pkt-mode 2 --learn-mode 1 --checksum-offload 
+----
+
+
+==== Clustering example - four ports 
+
+In this example there TRex has two dual ports. We can use traffic mask to differentiate the ip range.
+
+.Cluster example with four ports 
+image:images/cluster_topo2.png[title="Loopback example"]
+
+The profile file is the similar to the previous one with the difference that we need to add more mapping in the cluster file.
+Latency can be tested on another path in the configuration.
+
+.Traffic profile 
+[source,python]
+----
+
+- duration : 10.0
+  generator :  
+          distribution : "seq"           
+          clients_start : "12.1.1.1"      
+          clients_end   : "12.1.1.1"   
+          servers_start : "13.1.1.1"
+          servers_end   : "13.1.1.1"   
+          dual_port_mask : "0.1.0.0"       <1>
+          generator_clients :
+            - name : "c1"                   
+              distribution : "seq"
+              ip_start : "12.1.1.2"
+              ip_end :   "12.1.1.255"
+            - name : "c2"
+              distribution : "seq"          
+              ip_start : "12.1.2.1"
+              ip_end :   "12.1.2.255"
+          generator_servers :
+             - name : "s1"
+               distribution : "seq"
+               ip_start : "13.1.1.2"
+               ip_end :   "13.1.1.255"
+             - name : "s2"
+               distribution : "seq"
+               ip_start : "13.1.2.1"
+               ip_end :   "13.1.2.255"
+  cap_ipg : true
+  cap_info :
+    - name: file10k.pcap
+      client_pool : "c2"
+      server_pool : "s2"
+      cps : 1
+      ipg : 20000
+      rtt : 20000
+      w   : 1
+    - name: file10k.pcap
+      client_pool : "c1"
+      server_pool : "s1"           
+      cps : 1
+      ipg : 20000
+      rtt:  20000
+      w   : 1
+ 
+----
+<1> The mask is 0.1.0.0
+
+
+
+.Cluster profile 
+[source,python]
+----
+ 
+lan: true 
+ 
+groups:
+ 
+-    ip_start  : 12.1.1.1         
+     ip_end    : 12.1.1.255
+     initiator :
+                 vlan     : 4050
+                 next_hop : 11.10.0.1
+                 src_ip   : 11.10.0.11
+     responder :
+                 vlan     : 4054
+                 next_hop : 10.10.0.1
+                 src_ip   : 10.10.0.11
+     count     : 1
+ 
+-    ip_start  : 12.1.2.1
+     ip_end    : 12.1.2.255
+     initiator :
+                 vlan     : 4051
+                 next_hop : 11.10.0.2
+                 src_ip   : 11.10.0.11
+     responder :
+                 vlan     : 4055
+                 next_hop : 10.10.0.2
+                 src_ip   : 10.10.0.11
+     count     : 1
+     
+-    ip_start  : 12.2.1.1            <1>
+     ip_end    : 12.2.1.255
+     initiator :
+                 vlan     : 4060
+                 next_hop : 11.10.0.3
+                 src_ip   : 11.10.0.11
+     responder :
+                 vlan     : 4064
+                 next_hop : 10.10.0.3
+                 src_ip   : 10.10.0.11
+     count     : 1
+
+
+-    ip_start  : 12.2.2.1
+     ip_end    : 12.2.2.255
+     initiator :
+                 vlan     : 4061
+                 next_hop : 11.10.0.4
+                 src_ip   : 11.10.0.11
+     responder :
+                 vlan     : 4065
+                 next_hop : 10.10.0.4
+                 src_ip   : 10.10.0.11
+     count     : 1
+
+ 
+----
+<1> We added more clusters beacuse more IPs will be generated (+mask)
+
 
 
 === NAT support 
