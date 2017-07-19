@@ -156,7 +156,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         }
 
         ClientCfgBase info;
-        group->assign(info);
+        group->assign(info, ip);
 
         if (is_long_range) {
             m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);

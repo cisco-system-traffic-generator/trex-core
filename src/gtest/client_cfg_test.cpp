@@ -166,30 +166,38 @@ TEST_F(basic_client_cfg, test1) {
     ClientCfgEntry *ent1 = test_db.lookup(ip_start + dual_if_mask);
 
     assert (ent0 != NULL);
-    ent0->assign(cfg0);
+    
+    ent0->assign(cfg0, ip_start);
     assert (!memcmp(cfg0.m_initiator.get_dst_mac_addr()
                     , mac0.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent0->assign(cfg0);
+    
+    ent0->assign(cfg0, ip_start + 1);
     assert (!memcmp(cfg0.m_initiator.get_dst_mac_addr()
                     , mac1.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent0->assign(cfg0);
+    
+    ent0->assign(cfg0, ip_start + 2);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac2.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent0->assign(cfg0);
+    
+    ent0->assign(cfg0, ip_start + 3);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac3.GetConstBuffer(), ETHER_ADDR_LEN));
 
     assert(ent1 != NULL);
-    ent1->assign(cfg0);
+    
+    ent1->assign(cfg0, ip_start + dual_if_mask);
     assert (!memcmp(cfg0.m_initiator.get_dst_mac_addr()
                     , mac0.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent1->assign(cfg0);
+    
+    ent1->assign(cfg0, ip_start + dual_if_mask + 1);
     assert (!memcmp(cfg0.m_initiator.get_dst_mac_addr()
                     , mac1.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent1->assign(cfg0);
+    
+    ent1->assign(cfg0, ip_start + dual_if_mask + 2);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac2.GetConstBuffer(), ETHER_ADDR_LEN));
-    ent1->assign(cfg0);
+    
+    ent1->assign(cfg0, ip_start + dual_if_mask + 3);
     assert (!memcmp(cfg0.m_responder.get_dst_mac_addr()
                     , mac3.GetConstBuffer(), ETHER_ADDR_LEN));
 

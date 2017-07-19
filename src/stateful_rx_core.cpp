@@ -125,7 +125,6 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
     m_dummy_node.m_src_port =  0x11;
     m_dummy_node.m_flow_id =0;
     m_dummy_node.m_flags =CGenNode::NODE_FLAGS_LATENCY;
-
 }
 
 rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
@@ -152,16 +151,26 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
     }
 
     rte_mbuf_t *m = m_pkt_info.generate_new_mbuf(&m_dummy_node);
-
+    
+    if (m_client_cfg) {
+        m_client_cfg.apply(m, (is_client_to_server ? CLIENT_SIDE : SERVER_SIDE));
+    }
+    
     return m;
 }
 
-void CLatencyPktInfo::set_ip(uint32_t src,
-                             uint32_t dst,
-                             uint32_t dual_port_mask){
-    m_client_ip.v4=src;
-    m_server_ip.v4=dst;
-    m_dual_port_mask=dual_port_mask;
+void CLatencyPktInfo::set_ip(uint32_t                src,
+                             uint32_t                dst,
+                             uint32_t                dual_port_mask,
+                             const ClientCfgBase    *client_cfg) {
+    m_client_ip.v4   = src;
+    m_server_ip.v4   = dst;
+    m_dual_port_mask = dual_port_mask;
+    
+    /* if given client config - copy it */
+    if (client_cfg) {
+        m_client_cfg = *client_cfg;
+    }
 }
 
 void CLatencyPktInfo::Delete(){
@@ -531,7 +540,7 @@ static uint8_t swap_port(uint8_t port_id){
 
 
 
-bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
+bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
     switch (CGlobalInfo::m_options.get_l_pkt_mode()) {
     default:
     case 0:
@@ -576,7 +585,10 @@ bool CLatencyManager::Create(CLatencyManagerCfg * cfg){
      }
 
 
-    m_pkt_gen.set_ip(cfg->m_client_ip.v4,cfg->m_server_ip.v4,cfg->m_dual_port_mask);
+    m_pkt_gen.set_ip(cfg->m_client_ip.v4,
+                     cfg->m_server_ip.v4,
+                     cfg->m_dual_port_mask);
+    
     m_cpu_cp_u.Create(&m_cpu_dp_u);
     if ( CGlobalInfo::is_learn_mode() ){
         m_nat_check_manager.Create();
@@ -693,7 +705,7 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
                                     rte_mbuf_t * m){
     CRx_check_header *rxc = NULL;
 
-#if 0
+#if 1
     /****************************************/
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);

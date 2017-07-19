@@ -2173,8 +2173,6 @@ public:
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
-    void apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p);
-
     bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
 
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
@@ -2568,28 +2566,6 @@ CCoreEthIFStateless::generate_slow_path_node_pkt(CGenNodeStateless *node_sl) {
     return (NULL);
 }
 
-void CCoreEthIF::apply_client_cfg(const ClientCfgBase *cfg, rte_mbuf_t *m, pkt_dir_t dir, uint8_t *p) {
-
-    assert(cfg);
-
-    /* take the right direction config */
-    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
-
-    /* dst mac */
-    if (cfg_dir.has_dst_mac_addr()) {
-        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
-    }
-
-    /* src mac */
-    if (cfg_dir.has_src_mac_addr()) {
-        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
-    }
-
-    /* VLAN */
-    if (cfg_dir.has_vlan()) {
-        add_vlan(m, cfg_dir.get_vlan());
-    }
-}
 
 /**
  * slow path features goes here (avoid multiple IFs)
@@ -2608,7 +2584,7 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
     /* flag is faster than checking the node pointer (another cacheline) */
     if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
-        apply_client_cfg(node->m_client_cfg, m, dir, p);
+        node->m_client_cfg->apply(m, dir);
     }
 
 }
@@ -3874,10 +3850,10 @@ void CGlobalTRex::rx_stf_conf(void) {
         }
     }
 
-
     m_mg.Create(&mg_cfg);
     m_mg.set_mask(CGlobalInfo::m_options.m_latency_mask);
 }
+
 
 // init m_rx_sl object for stateless rx core
 void CGlobalTRex::rx_sl_configure(void) {
@@ -5191,10 +5167,28 @@ int CGlobalTRex::start_master_statefull() {
 
     CTupleGenYamlInfo * tg=&m_fl.m_yaml_info.m_tuple_gen;
 
-    m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),
-                 tg->m_server_pool[0].get_ip_start(),
-                 tg->m_client_pool[0].getDualMask()
-                 );
+    
+    /* for client cluster configuration - pass the IP start entry */
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+        
+        uint32_t ip_start = tg->m_client_pool[0].get_ip_start();
+        ClientCfgEntry *entry = m_fl.m_client_config_info.lookup(ip_start);
+        assert(entry);
+        
+        ClientCfgBase rx_client_cfg;
+        entry->assign(rx_client_cfg, ip_start);
+        
+        m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),
+                     tg->m_server_pool[0].get_ip_start(),
+                     tg->m_client_pool[0].getDualMask(),
+                     &rx_client_cfg);
+    } else {
+        
+        m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),
+                     tg->m_server_pool[0].get_ip_start(),
+                     tg->m_client_pool[0].getDualMask());
+    }
+    
 
     if (  CGlobalInfo::m_options.preview.getVMode() >0 ) {
         m_fl.DumpCsv(stdout);

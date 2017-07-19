@@ -117,7 +117,37 @@ void ClientCfgDirExt::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t co
 void ClientCfgBase::update(uint32_t index, const ClientCfgExt *cfg) {
     m_initiator.update(index, cfg->m_initiator);
     m_responder.update(index, cfg->m_responder);
+    
+    m_is_set = true;
 }
+
+
+void
+ClientCfgBase::apply(rte_mbuf_t *m, pkt_dir_t dir) const {
+
+    assert(m_is_set);
+    
+    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+    
+    /* take the right direction config */
+    const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? m_initiator : m_responder);
+
+    /* dst mac */
+    if (cfg_dir.has_dst_mac_addr()) {
+        memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
+    }
+
+    /* src mac */
+    if (cfg_dir.has_src_mac_addr()) {
+        memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
+    }
+
+    /* VLAN */
+    if (cfg_dir.has_vlan()) {
+        add_vlan(m, cfg_dir.get_vlan());
+    }
+}
+
 
 void
 ClientCfgEntry::dump(FILE *fd) const {

@@ -26,6 +26,7 @@ limitations under the License.
 #include <map>
 #include "utl_ip.h"
 #include "common/Network/Packet/MacAddress.h"
+#include "mbuf.h"
 
 class YAMLParserWrapper;
 struct CTupleGenYamlInfo;
@@ -189,17 +190,42 @@ class ClientCfgExt;
 class ClientCfgBase {
 
 public:
+    
+    ClientCfgBase() {
+        m_is_set = false;
+    }
+    
     virtual void dump (FILE *fd) const {
         fprintf(fd, "    initiator :\n");
         m_initiator.dump(fd);
         fprintf(fd, "    responder :\n");
         m_responder.dump(fd);
     }
+    
     virtual void update(uint32_t index, const ClientCfgExt *cfg);
 
+    /**
+     * explicit bool operator 
+     * safe to use 
+     */
+    explicit operator bool() const {
+        return m_is_set;
+    }
+    
+    /**
+     * apply client configuration to a MBUF 
+     *  
+     * rte_mbuf_t *m 
+     * pkt_dir_t dir
+     */
+    void apply(rte_mbuf_t *m, uint8_t dir) const;
+    
+    
  public:
-    ClientCfgDirBase m_initiator;
-    ClientCfgDirBase m_responder;
+    ClientCfgDirBase  m_initiator;
+    ClientCfgDirBase  m_responder;
+    
+    bool              m_is_set;
 };
 
 class ClientCfgExt {
@@ -257,37 +283,34 @@ class ClientCfgEntry {
     friend class basic_client_cfg_test1_Test;
 public:
 
-    ClientCfgEntry() {
-        reset();
-    }
-
     void dump(FILE *fd) const;
+    
     void set_resolved_macs(CManyIPInfo &pretest_result);
+    
     bool contains(uint32_t ip) const {
         return ( (ip >= m_ip_start) && (ip <= m_ip_end) );
     }
 
-    void reset() {
-        m_iterator = 0;
-    }
-
-
+    
     /**
      * assings a client config from the group
-     * it will advance MAC addresses andf etc.
      *
      * @author imarom (27-Jun-16)
      *
      * @param info
      */
-    void assign(ClientCfgBase &info) {
+    void assign(ClientCfgBase &info, uint32_t ip) const {
+        assert(contains(ip));
+
+        /* fold the offset */
+        uint32_t index = (ip - m_ip_start) % m_count;
+        
         info.m_initiator = m_cfg.m_initiator;
         info.m_responder = m_cfg.m_responder;
-        info.update(m_iterator, &m_cfg);
+        info.update(index, &m_cfg);
 
-        /* advance for the next assign */
-        m_iterator = (m_iterator + 1) % m_count;
     }
+
 
 public:
     uint32_t    m_ip_start;
@@ -306,7 +329,6 @@ private:
     void set_cfg(const ClientCfgExt &cfg) {
         m_cfg = cfg;
     }
-    uint32_t    m_iterator;
 };
 
 /**
