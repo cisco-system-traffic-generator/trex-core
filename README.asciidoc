@@ -185,7 +185,7 @@ blogs can be found  TRex link:https://communities.cisco.com/community/developer/
 
 Github is here link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]
 
-image::https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif[title="",align="center",width=200, link="https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif"]
+image::doc/images/t_g1.gif[title="",align="center",width=200, link="https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif"]
 
 === Sandbox for evaluation
 
