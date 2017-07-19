@@ -41,6 +41,7 @@ endif::backend-docbook[]
 ** services are using BPF filter for better performance 
 ** Report 0 rate immediately after stopping the flow stat stream
 ** Fix HLTAPI per-stream stats (keys of line utilization in pg_id stats got removed)
+** Add openssl share object for DTLS/CAPWAP services
 
 * General 
 ** Fix dpdk_setup_ports.py fails with Python 3 
