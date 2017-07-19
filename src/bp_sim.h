@@ -3172,7 +3172,7 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
             ipv4->myChecksum = 0;
         } else {
-            ipv4->updateCheckSum();
+            ipv4->updateCheckSumFast();
         }
     }
 
@@ -3404,7 +3404,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
             ipv4->myChecksum = 0;
         } else {
-            ipv4->updateCheckSum();
+            ipv4->updateCheckSumFast();
         }
     }
 
