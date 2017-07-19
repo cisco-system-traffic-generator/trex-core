@@ -664,6 +664,15 @@ public:
         return (btGetMaskBit32(m_flags1, 12, 12) ? true : false);
     }
 
+    void setChecksumOffloadDisable(bool enable) {
+        btSetMaskBit32(m_flags1, 13, 13, (enable ? 1 : 0) );
+    }
+
+    bool getChecksumOffloadDisable(){
+        return (btGetMaskBit32(m_flags1, 13, 13) ? true : false);
+    }
+
+
 public:
     void Dump(FILE *fd);
 
@@ -2762,6 +2771,7 @@ public:
     uint8_t             m_udp_tcp_offset;
     uint8_t             m_payload_offset;
     uint8_t             m_rw_mbuf_size;    /* first R/W mbuf size 64/128/256 */
+    uint8_t             m_pad1;
     uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exits */
 
 public:

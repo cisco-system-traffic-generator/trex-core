@@ -800,6 +800,7 @@ enum { OPT_HELP,
        OPT_NO_WATCHDOG,
        OPT_ALLOW_COREDUMP,
        OPT_CHECKSUM_OFFLOAD,
+       OPT_CHECKSUM_OFFLOAD_DISABLE,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
@@ -865,6 +866,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
+        { OPT_CHECKSUM_OFFLOAD_DISABLE, "--checksum-offload-disable", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
         { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
@@ -892,7 +894,8 @@ static int usage(){
     printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means 'never send' \n");
     printf(" -c <num>>                  : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
     printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
-    printf(" --checksum-offload         : Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this \n");
+    printf(" --checksum-offload         : Deprecated,enable by default. Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
+    printf(" --checksum-offload-disable : Disable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
     printf(" --client_cfg <file>        : YAML file describing clients configuration \n");
     printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions, \n");
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
@@ -1220,6 +1223,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_CHECKSUM_OFFLOAD:
                 po->preview.setChecksumOffloadEnable(true);
+                break;
+
+            case OPT_CHECKSUM_OFFLOAD_DISABLE:
+                po->preview.setChecksumOffloadDisable(true);
                 break;
 
             case OPT_CLOSE:
@@ -6089,6 +6096,8 @@ void wait_x_sec(int sec) {
     fflush(stdout);
 }
 
+#define TCP_UDP_OFFLOAD (DEV_TX_OFFLOAD_IPV4_CKSUM |DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+
 /* should be called after rte_eal_init() */
 void set_driver() {
     uint8_t m_max_ports = rte_eth_dev_count();
@@ -6106,6 +6115,31 @@ void set_driver() {
     }
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
+
+    bool cs_offload=false;
+    printf(" driver capability  :");
+    if ( (dev_info.tx_offload_capa & TCP_UDP_OFFLOAD) == TCP_UDP_OFFLOAD ){
+        cs_offload=true;
+        printf(" TCP_UDP_OFFLOAD ");
+    }
+
+    if ( (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == DEV_TX_OFFLOAD_TCP_TSO ){
+        printf(" TSO ");
+    }
+    printf("\n");
+
+    CPreviewMode * lp=&CGlobalInfo::m_options.preview;
+
+    if (cs_offload) {
+        if (lp->getChecksumOffloadEnable()) {
+            printf("Warning --checksum-offload is turn on by default, no need to call it \n");
+        }
+
+        if (lp->getChecksumOffloadDisable()==false){
+            lp->setChecksumOffloadEnable(true);
+            printf("checksum-offload disabled by user \n");
+        }
+    }
 }
 
 
