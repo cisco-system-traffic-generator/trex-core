@@ -3109,8 +3109,7 @@ private:
     inline void update_udp_cs(UDPHeader * udp,
                               IPHeader  * ipv4);
 
-    inline void update_mbuf(rte_mbuf_t * m,
-                            int16_t pkt_adjust);
+    inline void update_mbuf(rte_mbuf_t * m);
 
     void alloc_const_mbuf();
 
@@ -3221,17 +3220,12 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
 
 
 
-inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m,
-                                      int16_t pkt_adjust){
+inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m){
 
     m->l2_len = m_pkt_indication.getFastIpOffsetFast();
     uint8_t l4_offset = m_pkt_indication.getFastTcpOffset();
-    assert(l4_offset > m->l2_len);
-    m->l3_len = l4_offset - m->l2_len + pkt_adjust;
-
-#if 0
-    //printf(" len %d %d \n",(int)m->l2_len,(int)m->l3_len);
-#endif
+    BP_ASSERT(l4_offset > m->l2_len);
+    m->l3_len = l4_offset - m->l2_len ;
 
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
 
@@ -3458,7 +3452,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex(CGenNode * node,
 
     memcpy(p,m_packet->raw,len);
 
-    update_mbuf(m,0);
+    update_mbuf(m);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3484,7 +3478,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_big(CGenNode * node,
 
     memcpy(p,m_packet->raw,len);
 
-    update_mbuf(m,0);
+    update_mbuf(m);
 
     update_pkt_info2(p,flow_info,0,node);
 
@@ -3532,7 +3526,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     /* update IP length , and TCP checksum , we can accelerate this using hardware ! */
     int16_t pkt_adjust = vm.m_new_pkt_size - m_packet->pkt_len;
 
-    update_mbuf(m,pkt_adjust);
+    update_mbuf(m);
 
     update_pkt_info2(p,flow_info,pkt_adjust,node);
 
@@ -3570,7 +3564,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
 
     memcpy(p,m_packet->raw,len);
 
-    update_mbuf(m,0);
+    update_mbuf(m);
 
     update_pkt_info(p,node);
 
@@ -3595,7 +3589,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
 
     memcpy(p,m_packet->raw,len);
 
-    update_mbuf(m,0);
+    update_mbuf(m);
 
     update_pkt_info(p,node);
 
