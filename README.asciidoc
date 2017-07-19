@@ -53,7 +53,7 @@ TRex addresses these problems through an innovative and extendable software impl
 * Latency/Jitter measurements
 * Flow ordering checks
 * NAT, PAT dynamic translation learning
-* Learn TCP SYN sequence randomization - vASA use case
+* Learn TCP SYN sequence randomization - vASA/Firepower use case
 * Cluster mode for Controler tests
 * IPV6 inline replacement 
 * Some cross flow support (e.g RTSP/SIP)
