@@ -1,7 +1,8 @@
 
 == TRex Low-Cost, High-Speed Stateful Traffic Generator 
 
-TRex is Stateful and Stateless traffic generator. 
+TRex is a traffic generator for Stateful and Stateless usecases. 
+
 Traditionally, network infrastructure devices have been tested using commercial traffic generators, while performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
 Realistic and Stateful traffic generators are needed in order to:
 
@@ -83,8 +84,8 @@ TRex addresses these problems through an innovative and extendable software impl
 * Capture/Monitor traffic with BPF filters - no need for Wireshark 
 * Capture network traffic by redirect the traffic to Wireshark
 * Functional tests 
-* PCAP file import/export at high speed
-* Huge pcap file transmission  (1TB) for DPI
+* PCAP file import/export 
+* Huge pcap file transmission  (e.g. 1TB pcap file) for DPI
 * Multi-user support 
 
 
@@ -101,7 +102,7 @@ more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[
 
 === *Upcomming* TRex scalable TCP support 
 
-With the new advanced scalable TCP support, TRex will use TCP layer for generating the L7 data this will open new capability 
+With the new advanced scalable TCP support, TRex will use TCP layer for generating the L7 data. This will open the following new capabilities: 
 
 * Ability to work when the DUT terminates the TCP stack (e.g. compress/uncompress). In this case there is a different TCP session on each side, but L7 data are *almost* the same.
 * Ability to work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another. 
@@ -115,7 +116,7 @@ With the new advanced scalable TCP support, TRex will use TCP layer for generati
 * Accurate TCP implementation (at least BSD based)
 * Ability to change fields in the L7 application - for example, change HTTP User-Agent field
 
-more can be seen here link:https://communities.cisco.com/community/developer/trex/blog/2017/06/20/trex-upcoming-stateful-scalable-tcp-support[scalable TCP]
+more here link:https://communities.cisco.com/community/developer/trex/blog/2017/06/20/trex-upcoming-stateful-scalable-tcp-support[scalable TCP]
 
 === What it is not
 
@@ -164,12 +165,12 @@ Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[W
 
 === YouTrack
 
-Report bug/request feature link:http://trex-tgn.cisco.com/youtrack/issues[YouTrack]
+Report bug/request feature link:https://trex-tgn.cisco.com/youtrack/issues[YouTrack]
 
 
 === Blogs
 
-blogs can be found  TRex https://communities.cisco.com/community/developer/trex/blog[blog]
+blogs can be found  TRex link:https://communities.cisco.com/community/developer/trex/blog[blog]
 
 
 === Stateless Client GUI 
@@ -182,9 +183,9 @@ blogs can be found  TRex https://communities.cisco.com/community/developer/trex/
 * visual latency/jitter/per stream statistic 
 * Free
 
-More here link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]
+Github is here link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]
 
-image::https://trex-tgn.cisco.com/trex/doc/images/t_g1.gif[title="",align="center",width=200, link="http://trex-tgn.cisco.com/trex/doc/images/t_g1.gif"]
+image::https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif[title="",align="center",width=200, link="https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif"]
 
 === Sandbox for evaluation
 
