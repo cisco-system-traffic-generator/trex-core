@@ -27,6 +27,36 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.28 ==
+
+* Cisco FirePOWER/ASA Stateful friendly 
+** Fix TCP/UDP by default in case DPDK driver support it (--checksum-offload is deprecated, new switch to disable this) 
+** start client source port is random- better distribution to queues 
+** Stateful performance degradation 5-9% due to checksum offload
+
+* Stateless
+** Add capture mode information in JSON
+** Fix behaviour of clear_flow_stats and clear_latency_stats args in stateless clear_stats API 
+** BPF-JIT filter support for traffic capture 
+** services are using BPF filter for better performance 
+** Report 0 rate immediately after stopping the flow stat stream
+** Fix HLTAPI per-stream stats (keys of line utilization in pg_id stats got removed)
+
+* General 
+** Fix dpdk_setup_ports.py fails with Python 3 
+** Fix latency in case cluster configuration 
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-451[trex-451]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-447[trex-447]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-439[trex-439]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-446[trex-446]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-445[trex-445]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-443[trex-443]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-440[trex-440]
+
+
 == Release 2.27 ==
 
 * Support 802.1Q and 802.1AD (QinQ) for Stateless services and port config   
