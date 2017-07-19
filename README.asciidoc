@@ -43,7 +43,7 @@ TRex addresses these problems through an innovative and extendable software impl
 
 === Current General TRex Feature sets 
 
-* Support DPDK 1/2.5/10/25/50/40/100Gbps interfaces 
+* Support Physical DPDK 1/2.5/10/25/50/40/100Gbps interfaces (Intel/Mellanox/Cisco VIC)
 * Virtualization interfaces support (virtio/VMXNET3/E1000)
 * SR-IOV support for best performance
 
