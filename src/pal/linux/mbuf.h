@@ -122,6 +122,14 @@ rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags){
 #define PKT_TX_IPV6          (1ULL << 56)
 
 
+#define PKT_RX_IP_CKSUM_MASK ((1ULL << 4) | (1ULL << 7))
+#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
+
+#define PKT_RX_IP_CKSUM_BAD  (1ULL << 4)
+#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
+
+
+
 
 void rte_pktmbuf_free(rte_mbuf_t *m);
 

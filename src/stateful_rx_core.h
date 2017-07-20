@@ -133,7 +133,11 @@ public:
                 m_no_magic+
                 m_no_id+
                 m_seq_error+
-                m_length_error+m_no_ipv4_option+m_tx_pkt_err)==0) ) {
+                m_l3_cs_err+
+                m_l4_cs_err+
+                m_length_error+
+                m_no_ipv4_option+
+                m_tx_pkt_err)==0) ) {
             return (false);
         }
         return (true);
@@ -185,6 +189,8 @@ public:
      uint64_t m_tx_pkt_err;
      uint64_t m_pkt_ok;
      uint64_t m_unsup_prot;
+     uint64_t m_l3_cs_err; /* ip error */
+     uint64_t m_l4_cs_err; /* tcp/udp error */
      uint64_t m_no_magic;
      uint64_t m_no_id;
      uint64_t m_seq_error;

@@ -182,6 +182,8 @@ void CCPortLatency::reset(){
     m_unsup_prot=0;
     m_no_id=0;
     m_seq_error=0;
+    m_l3_cs_err=0;
+    m_l4_cs_err=0;
     m_length_error=0;
     m_no_ipv4_option=0;
     m_hist.Reset();
@@ -266,7 +268,7 @@ void CCPortLatency::dump_json(std::string & json ){
     json += get_field("avg",m_hist.get_average_latency() );
     json += get_field("max",m_hist.get_max_latency() );
     json += get_field("c-max",m_hist.get_max_latency_last_update() );
-    json += get_field("error",(float)(m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error) );
+    json += get_field("error",(float)(m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_l3_cs_err+m_l4_cs_err));
     json += get_field("jitter",(float)get_jitter_usec() );
 }
 
@@ -278,7 +280,7 @@ void CCPortLatency::DumpShort(FILE *fd){
                     m_tx_pkt_ok,
                     m_pkt_ok,
                     m_rx_check,
-                    m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_no_ipv4_option+m_tx_pkt_err
+                    m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_no_ipv4_option+m_tx_pkt_err+m_l3_cs_err+m_l4_cs_err
             );
 
     fprintf(fd,"   %8.0f  ,%8.0f,%8d ",
@@ -307,6 +309,8 @@ void CCPortLatency::dump_counters_json(std::string & json ){
     DPL_J(m_no_magic);
     DPL_J(m_no_id);
     DPL_J(m_seq_error);
+    DPL_J(m_l3_cs_err);
+    DPL_J(m_l4_cs_err);
     DPL_J(m_length_error);
     DPL_J(m_no_ipv4_option);
     json+=add_json("m_jitter",get_jitter_usec());
@@ -331,6 +335,8 @@ void CCPortLatency::DumpCounters(FILE *fd){
     DP_A1(m_no_magic);
     DP_A1(m_no_id);
     DP_A1(m_seq_error);
+    DP_A1(m_l3_cs_err); /* ip error */
+    DP_A1(m_l4_cs_err); /* tcp/udp error */
     DP_A1(m_length_error);
     DP_A1(m_rx_check);
     DP_A1(m_no_ipv4_option);
@@ -380,6 +386,17 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
         m_unsup_prot++;  // Unsupported protocol
         return (false);
     }
+
+    if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+        if ( (m->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
+            m_l3_cs_err++;
+        }
+    
+        if ( (m->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD ){
+            m_l4_cs_err++;
+        }
+    }
+
     CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     uint16_t vlan_offset=parser.m_vlan_offset;
