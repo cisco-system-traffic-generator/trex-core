@@ -63,6 +63,8 @@ limitations under the License.
 #include "trex_client_config.h"
 #include "h_timer.h"
 #include "tw_cfg.h"
+#include "utl_dbl_human.h"
+
 
 
 #include <trex_stateless_dp_core.h>
@@ -317,6 +319,14 @@ public:
     virtual int open_file(std::string file_name)=0;
     virtual int close_file(void)=0;
 
+      /* read packet from the right queue , per direction, client/server */
+    virtual uint16_t rx_burst(pkt_dir_t dir, 
+                              struct rte_mbuf **rx_pkts, 
+                              uint16_t nb_pkts){
+        assert(0);
+    }
+
+
     /* send one packet */
     virtual int send_node(CGenNode * node)=0;
     
@@ -384,6 +394,7 @@ protected:
 #define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
 #define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
 #define BUCKET_TIME_SEC_LEVEL1 (CGlobalInfo::m_options.get_tw_bucket_level1_time_in_sec())
+#define TCP_RX_FLUSH_SEC  (20.0/1000000.0)
 
 
 class CPreviewMode {
@@ -673,6 +684,15 @@ public:
     }
 
 
+    void set_tcp_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 14, 14, (enable ? 1 : 0) );
+    }
+
+    bool get_tcp_mode() {
+        return (btGetMaskBit32(m_flags1, 14, 14) ? true : false);
+    }
+
+
 public:
     void Dump(FILE *fd);
 
@@ -797,6 +817,8 @@ public:
         // we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
         // and we will start losing packets).
         x710_fdir_reset_threshold = 0xffffffff - 1000000000/8/64*40;
+        m_tcp_http_res=32*1024;
+
     }
 
     CParserOption(){
@@ -842,6 +864,8 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
+    uint32_t        m_tcp_http_res;
+
 
 public:
     uint8_t *       get_src_mac_addr(int if_index){
@@ -1226,6 +1250,30 @@ public:
         assert(0);
     }
 
+    inline rte_mempool_t * pktmbuf_get_pool(uint16_t size){
+
+        rte_mempool_t * p;
+
+        if ( size <= _128_MBUF_SIZE) {
+            p = m_mbuf_pool_128;
+        }else if ( size <= _256_MBUF_SIZE) {
+            p = m_mbuf_pool_256;
+        }else if (size <= _512_MBUF_SIZE) {
+            p = m_mbuf_pool_512;
+        }else if (size <= _1024_MBUF_SIZE) {
+            p = m_mbuf_pool_1024;
+        }else if (size <= _2048_MBUF_SIZE) {
+            p = m_mbuf_pool_2048;
+        }else if (size <= _4096_MBUF_SIZE) {
+            p = m_mbuf_pool_4096;
+        }else{
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
+            p = m_mbuf_pool_9k;
+        }
+        return (p);
+    }
+
+
     inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
 
         rte_mbuf_t        * m;
@@ -1301,6 +1349,11 @@ public:
     static inline rte_mbuf_t * pktmbuf_alloc_small_by_port(uint8_t port_id) {
         return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
     }
+
+    static inline rte_mempool_t * pktmbuf_get_pool(socket_id_t socket,uint16_t size){
+        return (m_mem_pool[socket].pktmbuf_get_pool(size));
+    }
+
 
     /**
      * try to allocate small buffers too
@@ -1395,6 +1448,11 @@ public:
 static inline int get_is_stateless(){
     return (CGlobalInfo::m_options.is_stateless() );
 }
+
+static inline int get_is_tcp_mode(){
+    return (CGlobalInfo::m_options.preview.get_tcp_mode() );
+}
+
 
 static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
@@ -1529,18 +1587,6 @@ public:
 class CFlowPktInfo;
 
 
-
-typedef enum {
-    KBYE_1024,
-    KBYE_1000
-} human_kbyte_t;
-
-std::string double_to_human_str(double num,
-                                std::string units,
-                                human_kbyte_t etype);
-
-
-
 class CCapFileFlowInfo ;
 
 #define SYNC_TIME_OUT ( 1.0/1000)
@@ -1550,6 +1596,12 @@ class CCapFileFlowInfo ;
 /* this is a simple struct, do not add constructor and destractor here!
    we are optimizing the allocation dealocation !!!
  */
+
+struct CNodeTcp {
+     rte_mbuf_t * mbuf;
+     uint8_t      dir;
+};
+
 
 struct CGenNodeBase  {
 public:
@@ -1569,6 +1621,9 @@ public:
         TW_SYNC                 =11,
         TW_SYNC1                =12,
 
+        TCP_RX_FLUSH            =13, /* TCP rx flush */
+        TCP_TX_FIF              =14, /* TCP FIF */
+        TCP_TW                  =15  /* TCP TW -- need to consolidate */
     };
 
     /* flags MASKS*/
@@ -2069,6 +2124,17 @@ private:
     int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };
+
+
+class CErfIFTcp : public CErfIFStl {
+
+public:
+
+    virtual int send_node(CGenNode * node);
+
+};
+
+
 
 /**
  * same as regular STL but no I/O (dry run)
@@ -3891,56 +3957,6 @@ private:
     void fixup_ipg_if_needed();
 };
 
-class CPPSMeasure {
-public:
-    CPPSMeasure(){
-        reset();
-    }
-    //reset
-    void reset(void){
-        m_start=false;
-        m_last_time_msec=0;
-        m_last_pkts=0;
-        m_last_result=0.0;
-    }
-    //add packet size
-    float add(uint64_t pkts);
-
-private:
-    float calc_pps(uint32_t dtime_msec,
-                                 uint32_t pkts){
-        float rate=( (  (float)pkts*(float)os_get_time_freq())/((float)dtime_msec) );
-        return (rate);
-
-    }
-
-public:
-   bool      m_start;
-   uint32_t  m_last_time_msec;
-   uint64_t  m_last_pkts;
-   float     m_last_result;
-};
-
-
-
-class CBwMeasure {
-public:
-    CBwMeasure();
-    //reset
-    void reset(void);
-    //add packet size
-    double add(uint64_t size);
-
-private:
-    double calc_MBsec(uint32_t dtime_msec,
-                     uint64_t dbytes);
-
-public:
-   bool      m_start;
-   uint32_t  m_last_time_msec;
-   uint64_t  m_last_bytes;
-   double     m_last_result;
-};
 
 
 class CFlowGenList;
@@ -3967,6 +3983,12 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////////
 /* per thread info  */
+
+class CTcpPerThreadCtx;
+class CTcpAppProgram;
+class CMbufBuffer;
+class CTcpCtxCb;
+
 class CFlowGenListPerThread {
 
 public:
@@ -4207,6 +4229,35 @@ private:
     TrexStatelessDpCore              m_stateless_dp_info;
     bool                             m_terminated_by_master;
 
+public:
+    /* TCP stack memory */
+
+    CTcpPerThreadCtx      *         m_c_tcp;
+    CTcpCtxCb             *         m_c_tcp_io;
+    CTcpPerThreadCtx      *         m_s_tcp;
+    CTcpCtxCb             *         m_s_tcp_io;
+
+    CTcpAppProgram        *         m_prog_c; /* program of the client */
+    CTcpAppProgram        *         m_prog_s; /* program of the server */
+
+    CMbufBuffer           *         m_req; 
+    CMbufBuffer           *         m_res; 
+
+    double                          m_tcp_fif_d_time;
+
+public:
+    double tcp_get_tw_tick_in_sec();
+
+    bool Create_tcp();
+    void Delete_tcp();
+
+    void tcp_generate_flows_roundrobin(bool &done);
+
+    void tcp_handle_rx_flush(CGenNode * node,bool on_terminate);
+    void tcp_handle_tx_fif(CGenNode * node,bool on_terminate);
+    void tcp_handle_tw(CGenNode * node,bool on_terminate);
+
+
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech
 } __rte_cache_aligned ;
@@ -4238,6 +4289,8 @@ inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){
     defer_client_port_free(p);
     free_node( p);
 }
+
+class CSTTCp;
 
 
 class CFlowGenList {
@@ -4283,6 +4336,7 @@ public:
     CFlowsYamlInfo                          m_yaml_info; /* global yaml*/
     std::vector<CFlowGenListPerThread   *>  m_threads_info;
     ClientCfgDB                             m_client_config_info;
+    CSTTCp                       *          m_stt_cp;
 };
 
 inline void CFlowGeneratorRecPerThread::generate_flow(CNodeGenerator * gen,

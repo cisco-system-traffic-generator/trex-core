@@ -33,17 +33,18 @@ bool utl_is_file_exists (const std::string& name) {
     }   
 }
 
-void utl_k12_pkt_format(FILE* fp,void  * src,  unsigned int size) {
+void utl_k12_pkt_format(FILE* fp,void  * src,  unsigned int size,int time_sec) {
     unsigned int i;
     fprintf(fp,"\n");
     fprintf(fp,"+---------+---------------+----------+\n");
-    fprintf(fp,"00:00:00,000,000   ETHER \n");
+    fprintf(fp,"00:%02lu:%02lu,000,000   ETHER \n",(ulong)(time_sec/60),(ulong)time_sec%60);
     fprintf(fp,"|0   |");
     for ( i=0; i<size;i++ ) {
         fprintf(fp,"%02x|",((unsigned char *)src)[i]);
     }
     fprintf(fp,"\n");;
 }
+
 
 
 void utl_DumpBuffer(FILE* fp,void  * src,  unsigned int size,int offset) {

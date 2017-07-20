@@ -97,6 +97,7 @@ bp_sim_gtest = SrcGroup(dir='src',
         src_list=[
              'bp_gtest.cpp',
              'gtest/bp_timer_gtest.cpp',
+             'gtest/bp_tcp_gtest.cpp',
              'gtest/tuple_gen_test.cpp',
              'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
@@ -105,6 +106,21 @@ bp_sim_gtest = SrcGroup(dir='src',
 
 main_src = SrcGroup(dir='src',
         src_list=[
+            '44bsd/tcp_output.cpp',
+            '44bsd/tcp_timer.cpp',
+            '44bsd/tcp_debug.cpp',
+            '44bsd/tcp_subr.cpp',
+            '44bsd/flow_table.cpp',
+            '44bsd/tcp_input.cpp',
+            '44bsd/tcp_usrreq.cpp',
+            '44bsd/tcp_socket.cpp',
+            '44bsd/tcp_dpdk.cpp',
+            'utl_dbl_human.cpp',
+            'utl_counter.cpp',
+            'stt_cp.cpp',
+            'bp_sim_tcp.cpp',
+            'utl_mbuf.cpp',
+
              'inet_pton.cpp',
              'bp_sim.cpp',
              'utl_port_map.cpp',
@@ -147,7 +163,9 @@ cmn_src = SrcGroup(dir='src/common',
         'captureFile.cpp',
         'erf.cpp',
         'pcap.cpp',
-        'base64.cpp'
+        'base64.cpp',
+        'sim_event_driven.cpp'
+
         ]);
 
          

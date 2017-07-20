@@ -143,6 +143,27 @@ public:
     }
 } ;
 
+class CHTimerBucket : public CHTimerWheelLink {
+public:
+    inline void reset_count(void){
+        m_count=0;
+    }
+
+    inline void append(CHTimerWheelLink * obj){
+
+        CHTimerWheelLink::append(obj);
+        m_count++;
+    }
+    inline void dec_count(){
+        assert(m_count>0);
+        m_count--;
+    }
+
+
+    uint32_t m_count;
+};
+
+
 typedef uint32_t  htw_ticks_t;
 
 class CHTimerObj : public CHTimerWheelLink  {
@@ -152,6 +173,9 @@ public:
         CHTimerWheelLink::reset();
         m_ticks_left=0;
         m_wheel=0;
+        m_root=(CHTimerBucket*)(0);
+        m_type=0;
+        m_pad=0;
     }
 
     inline bool is_running(){
@@ -162,14 +186,23 @@ public:
     }
 
 
+    void detach(void){
+        assert(m_root);
+        m_root->dec_count();
+        m_root=0;
+        CHTimerWheelLink::detach();
+    }
+
+
     void Dump(FILE *fd);
 
 public:
     /* CACHE LINE 0*/
+    CHTimerBucket    * m_root;
     htw_ticks_t       m_ticks_left; /* abs ticks left */
-    uint32_t          m_wheel;
-
-    uint32_t          m_pad[2];      /* aging time in ticks */
+    uint8_t            m_wheel;
+    uint8_t            m_type;
+    uint16_t           m_pad;
 } ;
 
 typedef void (*htw_on_tick_cb_t)(void *userdata,CHTimerObj *tmr);
@@ -223,6 +256,10 @@ public:
         return (m_tick_done);
     }
 
+    inline uint32_t  get_bucket_total_events(void) {
+        return(m_active_bucket->m_count);
+    }
+
 
     inline CHTimerObj *  pop_event(void) {
 
@@ -230,12 +267,12 @@ public:
             return ((CHTimerObj *)0);
         }
 
-        CHTimerWheelLink * first = m_active_bucket->m_next;
+        CHTimerObj * first = (CHTimerObj *)m_active_bucket->m_next;
 
         rte_prefetch0(first->m_next);
 
         first->detach();
-        return ((CHTimerObj *)first);
+        return (first);
     }
 
 
@@ -267,17 +304,18 @@ private:
 
     inline void append (CHTimerObj *tmr, 
                         uint32_t ticks) {
-        CHTimerWheelLink *cur;
+        CHTimerBucket *cur;
     
         uint32_t cursor = ((m_bucket_index + ticks) & m_wheel_mask);
         cur = &m_buckets[cursor];
 
+        tmr->m_root=cur; /* set root */
         cur->append((CHTimerWheelLink *)tmr);
     }
 
 private:
-	CHTimerWheelLink  * m_buckets;
-    CHTimerWheelLink  * m_active_bucket;     /* point to the current bucket m_buckets[m_bucket_index] */
+	CHTimerBucket     * m_buckets;
+    CHTimerBucket     * m_active_bucket;     /* point to the current bucket m_buckets[m_bucket_index] */
 
     htw_ticks_t         m_ticks;               
     uint32_t            m_wheel_size; //e.g. 256
@@ -360,6 +398,7 @@ typedef enum {
 typedef uint8_t na_htw_state_num_t;
 
 
+
 /* two levels 0,1. level 1 would be less accurate */ 
 class CNATimerWheel {
 
@@ -390,6 +429,29 @@ public:
 
     na_htw_state_num_t on_tick_level1(void *userdata,htw_on_tick_cb_t cb);
 
+
+    /* we can use this function only for one level.
+       if we have one timer with one level this would be the level=0
+       if we have two level, it will be level 1 (with the higher ticks 
+       
+       split the event of level1 by the root->m_count/div 
+       for example in case res=100msec and we have 10,000 events in a bucket 
+       and div in 1000 (every 100usec sub-tick ) 
+       give every sub-tick min(10,000/1000,min_events) =min(10,min_event)
+
+       return the tick in div, 0 is the first one                             
+
+       restar timer to sub-tick ();
+       
+     */
+
+    uint16_t on_tick_level_count(int level,
+                                  void *userdata,
+                                  htw_on_tick_cb_t cb,
+                                  uint16_t min_events,
+                                  uint32_t & left);
+
+
     bool is_any_events_left(){
         return(m_total_events>0?true:false);
     }
@@ -397,9 +459,16 @@ public:
     /* iterate all, detach and call the callback */
     void detach_all(void *userdata,htw_on_tick_cb_t cb);
 
+    void set_level1_cnt_div(uint16_t div){
+        m_cnt_div=div;
+    }
+
 
 private:
     void reset(void);
+
+    void on_tick_level_inc(int level);
+
 
     RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
                               htw_ticks_t  ticks);
@@ -415,6 +484,11 @@ private:
     uint64_t            m_total_events;
     CHTimerOneWheel     m_timer_w[HNA_TIMER_LEVELS];
     na_htw_state_num_t  m_state;
+    uint16_t            m_cnt_div;      /* div of time for level1 
+                                        in case of tick of 20msec and 20usec sub-tick we need 1000 div 
+                                        */
+    uint16_t            m_cnt_state; /* the state of level1 for cnt mode */
+    uint32_t            m_cnt_per_iter; /* per iteration events */
 } ;
 
 

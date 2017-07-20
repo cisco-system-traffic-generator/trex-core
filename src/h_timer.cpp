@@ -33,7 +33,7 @@ void detach_all(void *userdata,htw_on_tick_cb_t cb);
 
 RC_HTW_t CHTimerOneWheel::Create(uint32_t wheel_size){
 
-    CHTimerWheelLink *bucket;
+    CHTimerBucket *bucket;
 
     if ( !utl_islog2(wheel_size) ){
         return (RC_HTW_ERR_NO_LOG2);
@@ -41,7 +41,7 @@ RC_HTW_t CHTimerOneWheel::Create(uint32_t wheel_size){
     m_wheel_mask = utl_mask_log2(wheel_size);
     m_wheel_size  = wheel_size;
 
-    m_buckets = (CHTimerWheelLink *)malloc(wheel_size * sizeof(CHTimerWheelLink));
+    m_buckets = (CHTimerBucket *)malloc(wheel_size * sizeof(CHTimerBucket));
     //printf(" bucket %x \n",);
     if (m_buckets == 0) {
         return (RC_HTW_ERR_NO_RESOURCES);
@@ -55,6 +55,7 @@ RC_HTW_t CHTimerOneWheel::Create(uint32_t wheel_size){
     int i;
     for (i = 0; i < wheel_size; i++) {
         bucket->set_self();
+        bucket->reset_count();
         bucket++;
     }
     return (RC_HTW_OK);
@@ -78,14 +79,14 @@ uint32_t CHTimerOneWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
     int i;
     for (i = 0; i < m_wheel_size; i++) {
         CHTimerWheelLink  * lp=&m_buckets[i];
-        CHTimerWheelLink  * first;
+        CHTimerObj   * first;
 
         while (!lp->is_self()) {
-            first = lp->m_next;
+            first = (CHTimerObj *)lp->m_next;
             first->detach();
             m_total_events++;
             assert(cb);
-            cb(userdata,(CHTimerObj *)first);
+            cb(userdata,first);
         }
     }
     return (m_total_events);
@@ -305,6 +306,65 @@ void CNATimerWheel::on_tick_level0(void *userdata,htw_on_tick_cb_t cb){
    m_ticks[0]++;
 }
 
+void CNATimerWheel::on_tick_level_inc(int level){
+    m_cnt_state++;
+    CHTimerOneWheel * lp=&m_timer_w[level];
+    if (m_cnt_state == m_cnt_div) {
+        lp->timer_tick();
+        m_ticks[1]++;
+        m_cnt_state=0;
+    }
+}
+
+
+uint16_t CNATimerWheel::on_tick_level_count(int level,
+                                             void *userdata,
+                                             htw_on_tick_cb_t cb,
+                                             uint16_t min_events,
+                                             uint32_t & left){
+
+    CHTimerOneWheel * lp=&m_timer_w[level];
+    CHTimerObj * event;
+    uint32_t cnt=0; 
+    uint16_t old_state = m_cnt_state;
+
+    left=lp->get_bucket_total_events();
+    if (left==0) {
+        on_tick_level_inc(level);
+        return(old_state);
+    }
+
+    if (m_cnt_state == 0) {
+        /* calculate per sub-bucket */
+        m_cnt_per_iter = std::max((uint16_t)((left+m_cnt_div-1)/m_cnt_div),min_events); /* at least min_events */
+    }
+
+    while (  true ) {
+        event = lp->pop_event();
+        if (!event) {
+            break;
+        }
+        if (event->m_ticks_left==0) {
+            m_total_events--;
+            cb(userdata,event);
+        }else{
+            timer_start_rest(event,event->m_ticks_left);
+        }
+        cnt++;
+        if ( cnt==m_cnt_per_iter)  {
+            on_tick_level_inc(level);
+            assert(left>=cnt);
+            left-=cnt;
+            return(old_state);
+        }
+   }
+   left=lp->get_bucket_total_events();
+   assert(left==0);
+   on_tick_level_inc(level);
+   return(old_state);
+}
+
+
 /* almost always we will have burst here */
 na_htw_state_num_t CNATimerWheel::on_tick_level1(void *userdata,htw_on_tick_cb_t cb){
 
@@ -392,6 +452,9 @@ void CNATimerWheel::reset(){
     m_wheel_level1_shift=0;
     m_wheel_level1_err=0;
     m_state=TW_FIRST_FINISH;
+    m_cnt_state =0;
+    m_cnt_per_iter=0;
+    m_cnt_div=0;
     int i;
     for (i=0; i<HNA_TIMER_LEVELS; i++) {
         m_ticks[i]=0;

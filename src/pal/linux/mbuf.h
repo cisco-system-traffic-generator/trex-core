@@ -41,6 +41,7 @@ typedef struct rte_mbuf  rte_mbuf_t;
 struct rte_mempool {
     uint32_t  magic;
     uint32_t  elt_size;
+    uint32_t  priv_size;
     uint32_t  magic2;
     uint32_t  _id;
     int size;
@@ -202,6 +203,37 @@ rte_lcore_to_socket_id(unsigned lcore_id){
  *   The packet mbuf.
  */
 #define rte_pktmbuf_data_len(m) ((m)->data_len)
+
+
+
+/**
+ * Get the headroom in a packet mbuf.
+ *
+ * @param m
+ *   The packet mbuf.
+ * @return
+ *   The length of the headroom.
+ */
+static inline uint16_t rte_pktmbuf_headroom(const struct rte_mbuf *m)
+{
+	return m->data_off;
+}
+
+/**
+ * Get the tailroom of a packet mbuf.
+ *
+ * @param m
+ *   The packet mbuf.
+ * @return
+ *   The length of the tailroom.
+ */
+static inline uint16_t rte_pktmbuf_tailroom(const struct rte_mbuf *m)
+{
+	return (uint16_t)(m->buf_len - rte_pktmbuf_headroom(m) -
+			  m->data_len);
+}
+
+
 
 
 uint64_t rte_rand(void);

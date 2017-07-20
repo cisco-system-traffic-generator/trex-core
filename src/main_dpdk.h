@@ -168,6 +168,11 @@ class CPhyEthIF  {
     inline uint16_t  rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
         return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
     }
+
+    inline uint16_t  rx_burst_dq(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
+        return rte_eth_rx_burst(m_repid, 0, rx_pkts, nb_pkts);
+    }
+
     inline uint32_t pci_reg_read(uint32_t reg_off) {
         void *reg_addr;
         uint32_t reg_v;

@@ -54,7 +54,9 @@ public:
         ccGL='l',
         ccGRC='r',
         ccMem='m',
-        ccNat='n'
+        ccNat='n',
+        ccsTT='t'
+
     };
 
     enum CliDumpMode {
@@ -69,7 +71,9 @@ public:
       gHELP=1,    // help
       gNORMAL=2,   // normal 
       gMem=3,
-      gNAT
+      gNAT,
+      gSTT /* TCP stats */
+
 
     };
 

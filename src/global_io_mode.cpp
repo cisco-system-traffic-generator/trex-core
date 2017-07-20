@@ -103,6 +103,14 @@ bool CTrexGlobalIoMode::handle_io_modes(void){
                 m_g_mode=gNORMAL;
             }
             break;
+        case ccsTT:
+            if ( m_g_mode==gNORMAL ){
+                m_g_mode=gSTT;
+            }else{
+                m_g_mode=gNORMAL;
+            }
+            break;
+
         case ccNat:
             m_g_mode=gNAT;
             m_nat_mode++;

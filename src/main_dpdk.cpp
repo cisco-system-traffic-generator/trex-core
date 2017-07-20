@@ -52,6 +52,7 @@
 #include <rte_random.h>
 #include <rte_version.h>
 #include <rte_ip.h>
+#include "stt_cp.h"
 
 #include "bp_sim.h"
 #include "os_time.h"
@@ -807,8 +808,11 @@ enum { OPT_HELP,
        OPT_NO_SCAPY_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
+       OPT_TCP_MODE,  
        OPT_MLX4_SO,
-       OPT_MLX5_SO
+       OPT_MLX5_SO,
+       OPT_TCP_HTTP_RES
+
 };
 
 /* these are the argument types:
@@ -875,6 +879,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
+        { OPT_TCP_MODE,               "--tcp",SO_NONE},
+        { OPT_TCP_HTTP_RES,           "--http",SO_REQ_SEP},
+
         SO_END_OF_OPTIONS
     };
 
@@ -1025,6 +1032,14 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_HELP:
                 usage();
                 return -1;
+
+            case OPT_TCP_MODE:
+                po->preview.set_tcp_mode(true);
+                break;
+
+            case OPT_TCP_HTTP_RES:
+                sscanf(args.OptionArg(),"%d", &po->m_tcp_http_res);
+                break;
 
             case OPT_MODE_BATCH:
                 if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
@@ -2239,6 +2254,25 @@ protected:
     rte_mbuf_t * generate_slow_path_node_pkt(CGenNodeStateless *node_sl);
 };
 
+class CCoreEthIFTcp : public CCoreEthIF {
+public:
+    uint16_t     rx_burst(pkt_dir_t dir, 
+                          struct rte_mbuf **rx_pkts, 
+                          uint16_t nb_pkts);
+
+    virtual int send_node(CGenNode *node);
+};
+
+
+uint16_t get_client_side_vlan(CVirtualIF * _ifs){
+    CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
+    CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
+    uint8_t port_id = lp_port->m_port->get_tvpid();
+    uint16_t vlan=CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+    return(vlan);
+} 
+
+
 bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port,
@@ -2422,6 +2456,24 @@ void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
     send_burst(lp_port,lp_port->m_len,lp_stats);
     lp_port->m_len = 0;
 }
+
+uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir, 
+                                 struct rte_mbuf **rx_pkts, 
+                                 uint16_t nb_pkts){
+    uint16_t res = m_ports[dir].m_port->rx_burst_dq(rx_pkts,nb_pkts);
+    return (res);
+}
+
+
+int CCoreEthIFTcp::send_node(CGenNode *node){
+    CNodeTcp * node_tcp = (CNodeTcp *) node;
+    uint8_t dir=node_tcp->dir;
+    CCorePerPort *lp_port = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+    send_pkt(lp_port,node_tcp->mbuf,lp_stats);
+    return (0);
+}
+
 
 int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
@@ -3406,6 +3458,7 @@ public:
     CPhyEthIF   m_ports[TREX_MAX_PORTS];
     CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateful */
     CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateless*/
+    CCoreEthIFTcp       m_cores_vif_tcp[BP_MAX_CORES];
     CCoreEthIF *        m_cores_vif[BP_MAX_CORES];
     CParserOption m_po ;
     CFlowGenList  m_fl;
@@ -3955,7 +4008,11 @@ int  CGlobalTRex::ixgbe_start(void){
         if ( get_is_stateless() ){
             m_cores_vif[j]=&m_cores_vif_sl[j];
         }else{
-            m_cores_vif[j]=&m_cores_vif_sf[j];
+            if (get_is_tcp_mode()) {
+                m_cores_vif[j]=&m_cores_vif_tcp[j];
+            }else{
+                m_cores_vif[j]=&m_cores_vif_sf[j];
+            }
         }
         m_cores_vif[j]->Create(j,
                                queue_id,
@@ -4338,6 +4395,34 @@ void CGlobalTRex::update_stats(){
     }
     m_last_total_cps = m_cps.add(total_open_flows);
 
+    bool all_init=true;
+    if ( get_is_tcp_mode() ){
+        CSTTCp  * lpstt;
+        lpstt =m_fl.m_stt_cp;
+        if (!lpstt->m_init){
+            /* check that we have all objects;*/
+            for (i=0; i<get_cores_tx(); i++) {
+                lpt = m_fl.m_threads_info[i];
+                if ( (lpt->m_c_tcp==0) ||(lpt->m_s_tcp==0) ){
+                    all_init=false;
+                    break;
+                }
+            }
+            if (all_init) {
+                for (i=0; i<get_cores_tx(); i++) {
+                    lpt = m_fl.m_threads_info[i];
+                    lpstt->Add(TCP_CLIENT_SIDE,lpt->m_c_tcp);
+                    lpstt->Add(TCP_SERVER_SIDE,lpt->m_s_tcp);
+                }
+                lpstt->Init();
+                lpstt->m_init=true;
+            }
+        }
+
+        if (lpstt->m_init){
+            lpstt->Update();
+        }
+    }
 }
 
 tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
@@ -4761,6 +4846,16 @@ CGlobalTRex::handle_slow_path() {
 
         }
         fprintf (stdout," test duration   : %.1f sec  \n",d);
+    }
+
+     /* TCP stats */
+    if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gSTT) {
+        CSTTCp   * lpstt=m_fl.m_stt_cp;
+        if (lpstt) {
+            if (lpstt->m_init) {
+                lpstt->DumpTable();
+            }
+        }
     }
 
     if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gMem) {
@@ -5215,6 +5310,12 @@ static CGlobalTRex g_trex;
 void CPhyEthIF::conf_queues() {
     CTrexDpdkParams dpdk_p;
     get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+
+    /* for now we support one core, so let's give both the same size hhaim */
+    if ( get_is_tcp_mode() ) {
+        dpdk_p.rx_desc_num_drop_q = dpdk_p.rx_desc_num_data_q ;
+    }
+
     uint16_t num_tx_q = (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) ?
         1 : g_trex.m_max_queues_per_port;
     socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)m_tvpid);
@@ -6024,9 +6125,11 @@ int main_test(int argc , char * argv[]){
 
     // after doing all needed ARP resolution, we need to flush queues, and stop our drop queue
     g_trex.ixgbe_rx_queue_flush();
-    for (int i = 0; i < g_trex.m_max_ports; i++) {
-        CPhyEthIF *_if = &g_trex.m_ports[i];
-        _if->stop_rx_drop_queue();
+    if (!get_is_tcp_mode()) {
+        for (int i = 0; i < g_trex.m_max_ports; i++) {
+            CPhyEthIF *_if = &g_trex.m_ports[i];
+            _if->stop_rx_drop_queue();
+        }
     }
 
     if ( CGlobalInfo::m_options.is_latency_enabled()

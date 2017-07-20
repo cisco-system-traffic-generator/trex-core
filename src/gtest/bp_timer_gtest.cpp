@@ -68,7 +68,7 @@ void tw_on_tick_cb_test1(void *userdata,
                          CHTimerObj *tmr){
     //int tick=(int)((uintptr_t)userdata);
 
-    printf(" action %lu \n",(ulong)tmr->m_pad[0]);
+    printf(" action %lu \n",(ulong)tmr->m_pad);
 }
 
 
@@ -81,9 +81,9 @@ TEST_F(gt_r_timer, timer4) {
     tmr2.reset();
 
     tmr1.m_ticks_left=0;
-    tmr1.m_pad[0]=1;
+    tmr1.m_pad=1;
     tmr2.m_ticks_left=0;
-    tmr2.m_pad[0]=2;
+    tmr2.m_pad=2;
 
     EXPECT_EQ( timer.Create(512),RC_HTW_OK);
     timer.timer_start(&tmr1,7);
@@ -104,9 +104,9 @@ TEST_F(gt_r_timer, timer5) {
     tmr2.reset();
 
     tmr1.m_ticks_left=0;
-    tmr1.m_pad[0]=1;
+    tmr1.m_pad=1;
     tmr2.m_ticks_left=0;
-    tmr2.m_pad[0]=2;
+    tmr2.m_pad=2;
 
     EXPECT_EQ( timer.Create(512),RC_HTW_OK);
     timer.timer_start(&tmr1,7);
@@ -1110,5 +1110,50 @@ TEST_F(gt_r_timer, timer32) {
         test.Create(cfg);
         test.start_test();
         test.Delete();
+}
+
+void my_test_on_tick_cb19(void *userdata,CHTimerObj *tmr){
+#if 0
+    UNSAFE_CONTAINER_OF_PUSH
+    CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
+    UNSAFE_CONTAINER_OF_POP
+    printf ("action-id: %lu \n",(ulong)lpobj->m_id);
+#endif
+}
+
+
+/* check the new API  */
+TEST_F(gt_r_timer, timer33) {
+
+        CNATimerWheel          m_timer;
+
+        /* each tick is 1msec , second level will not be used  */
+        assert(m_timer.Create(1024,1)==RC_HTW_OK);
+        m_timer.set_level1_cnt_div(50); /* every 20usec do tick */
+
+        /* 1000 events in the same bucket */
+        uint16_t number_of_con_event=40;
+
+        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event]; 
+        int i;
+        for (i=0; i<number_of_con_event; i++) {
+            CMyTestObject * lp=&m_events[i];
+            lp->m_id=i+1;
+            lp->m_d_tick = 10;
+            lp->m_t_tick=lp->m_d_tick;
+            m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+        }
+
+
+        for (i=0; i<50*12; i++) {
+            uint32_t left;
+            //printf(" == pre-sub-tick %d(%d)   \n",(i/50),(i%50));
+            m_timer.on_tick_level_count(0,(void *)0,my_test_on_tick_cb19,50,left);
+            //printf(" == post-sub-tick %d(%d) : %lu \n\n",(i/50),(i%50),(ulong)left);
+        }
+        delete []m_events;
+
+        assert(m_timer.Delete()==RC_HTW_OK);
+
 }
 

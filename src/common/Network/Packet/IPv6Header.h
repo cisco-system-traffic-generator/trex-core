@@ -91,6 +91,10 @@ public:
     inline void     updateLSBIpv6Dst(uint32_t ipdst);
     inline void     swapSrcDest();
 
+    inline uint32_t getSourceIpv6LSB();
+    inline uint32_t getDestIpv6LSB();
+
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +175,15 @@ inline void  IPv6Header::setFlowLabel(uint32_t argFlowLabel)
     setMaskBit32(myFlowLabel, 12, 31, argFlowLabel);
     myVer_TrafficClass_FlowLabel = PKT_NTOHL(myFlowLabel);
 }
+
+inline uint32_t IPv6Header::getSourceIpv6LSB(){
+    return (PKT_NTOHL(*((uint32_t*)&mySource[6])));
+}
+
+inline uint32_t IPv6Header::getDestIpv6LSB(){
+    return (PKT_NTOHL(*((uint32_t*)&myDestination[6])));
+}
+
 
 //--------------------------------
 inline uint16_t IPv6Header::getPayloadLen()

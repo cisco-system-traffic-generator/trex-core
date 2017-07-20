@@ -1,0 +1,263 @@
+/*
+ Hanoh Haim
+ Cisco Systems, Inc.
+*/
+
+/*
+Copyright (c) 2015-2016 Cisco Systems, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+#include "stt_cp.h"
+
+
+
+bool CSTTCpPerDir::Create(){
+    m_tcp.Clear();
+    m_ft.Clear();
+    create_clm_counters();
+    return(true);
+}
+
+void CSTTCpPerDir::Delete(){
+}
+
+void CSTTCpPerDir::update_counters(){
+    tcpstat_int_t *lpt=&m_tcp.m_sts;
+    CFlowTableIntStats * lpft=&m_ft.m_sts;
+    
+    m_tcp.Clear();
+    m_ft.Clear();
+    CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
+    int i;
+    for (i=0; i<m_tcp_ctx.size(); i++) {
+        CTcpPerThreadCtx* lpctx=m_tcp_ctx[i];
+        CGCountersUtl64 tcp_ctx((uint64_t *)&lpctx->m_tcpstat.m_sts,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+        CGCountersUtl32 ft_ctx((uint32_t *)&lpctx->m_ft.m_sts,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
+        tcp+=tcp_ctx;
+        ft+=ft_ctx;
+    }
+
+
+    m_active_flows = lpt->tcps_connattempt + 
+                     lpt->tcps_accepts  - 
+                     lpt->tcps_closed;
+
+    m_est_flows = lpt->tcps_accepts + 
+                  lpt->tcps_connects - 
+                  lpt->tcps_closed;
+
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte);
+    
+    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvtotal);
+
+    m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal);
+    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack);
+}
+
+
+static void create_sc(CGTblClmCounters  * clm,
+                                std::string name,
+                                std::string help,
+                                uint64_t * c,
+                                bool keep_zero){
+    CGSimpleBase *lp;
+    lp = new CGSimpleRefCnt64(c);
+    lp->set_name(name);
+    lp->set_help(help);
+
+    lp->set_dump_zero(keep_zero);
+    clm->add_count(lp);
+}
+
+static void create_sc_32(CGTblClmCounters  * clm,
+                                std::string name,
+                                std::string help,
+                                uint32_t * c,
+                                bool keep_zero){
+    CGSimpleBase *lp;
+    lp = new CGSimpleRefCnt32(c);
+    lp->set_name(name);
+    lp->set_help(help);
+
+    lp->set_dump_zero(keep_zero);
+    clm->add_count(lp);
+}
+
+static void create_sc_d(CGTblClmCounters  * clm,
+                                std::string name,
+                                std::string help,
+                                double * c,
+                                bool keep_zero,
+                                std::string units){
+    CGSimpleBase *lp;
+    lp = new CGSimpleRefCntDouble(c,units);
+    lp->set_name(name);
+    lp->set_help(help);
+
+    lp->set_dump_zero(keep_zero);
+    clm->add_count(lp);
+}
+
+static void create_bar(CGTblClmCounters  * clm,
+                                std::string name){
+    CGSimpleBase *lp;
+    lp = new CGSimpleBar();
+    lp->set_name(name);
+    clm->add_count(lp);
+}
+
+#define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false); }
+
+#define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false); }
+#define TCP_S_ADD_CNT_SZ(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,true); }
+
+#define FT_S_ADD_CNT(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false); }
+#define FT_S_ADD_CNT_Ex(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false); }
+#define FT_S_ADD_CNT_SZ(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true); }
+
+#define CMN_S_ADD_CNT(f,help,z) { create_sc(&m_clm,#f,help,&f,z); }
+#define CMN_S_ADD_CNT_d(f,help,z,u) { create_sc_d(&m_clm,#f,help,&f,z,u); }
+
+void CSTTCpPerDir::create_clm_counters(){
+
+    CMN_S_ADD_CNT(m_active_flows,"active flows",true);
+    CMN_S_ADD_CNT(m_est_flows,"active est flows",true);
+    CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx bw",true,"bps");
+    CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx bw",true,"bps");
+    CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
+    CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
+    CMN_S_ADD_CNT_d(avg_size,"avr pkt",true,"");
+    create_bar(&m_clm,"-");
+    create_bar(&m_clm,"TCP");
+    create_bar(&m_clm,"-");
+
+
+    TCP_S_ADD_CNT(tcps_connattempt,"connections initiated");
+    TCP_S_ADD_CNT(tcps_accepts,"connections accepted");
+    TCP_S_ADD_CNT(tcps_connects,"connections established");
+    TCP_S_ADD_CNT(tcps_closed,"conn. closed (includes drops)");
+    TCP_S_ADD_CNT(tcps_segstimed,"segs where we tried to get rtt");
+    TCP_S_ADD_CNT(tcps_rttupdated,"times we succeeded");
+    TCP_S_ADD_CNT(tcps_delack,"delayed acks sent");
+    TCP_S_ADD_CNT(tcps_sndtotal,"total packets sent");
+    TCP_S_ADD_CNT(tcps_sndpack,"data packets sent");
+    TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent");
+    TCP_S_ADD_CNT(tcps_sndctrl,"control (SYN|FIN|RST) packets sent");
+    TCP_S_ADD_CNT(tcps_sndacks,"ack-only packets sent ");
+    TCP_S_ADD_CNT(tcps_rcvtotal,"total packets received ");
+    TCP_S_ADD_CNT(tcps_rcvpack,"packets received in sequence");
+    TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence ");
+    TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets ");
+    TCP_S_ADD_CNT(tcps_rcvackbyte,"bytes acked by rcvd acks ");
+    TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
+
+    TCP_S_ADD_CNT(tcps_drops,"connections dropped");
+    TCP_S_ADD_CNT(tcps_conndrops,"embryonic connections dropped");
+    TCP_S_ADD_CNT(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
+    TCP_S_ADD_CNT(tcps_rexmttimeo,"retransmit timeouts");
+    TCP_S_ADD_CNT(tcps_persisttimeo,"persist timeouts");
+    TCP_S_ADD_CNT(tcps_keeptimeo,"keepalive timeouts");
+    TCP_S_ADD_CNT(tcps_keepprobe,"keepalive probes sent");
+    TCP_S_ADD_CNT(tcps_keepdrops,"connections dropped in keepalive");
+    
+    TCP_S_ADD_CNT(tcps_sndrexmitpack,"data packets retransmitted");
+    TCP_S_ADD_CNT(tcps_sndrexmitbyte,"data bytes retransmitted");
+    TCP_S_ADD_CNT(tcps_sndprobe,"window probes sent");
+    TCP_S_ADD_CNT(tcps_sndurg,"packets sent with URG only");
+    TCP_S_ADD_CNT(tcps_sndwinup,"window update-only packets sent");
+    
+    TCP_S_ADD_CNT(tcps_rcvbadsum,"packets received with ccksum errs");
+    TCP_S_ADD_CNT(tcps_rcvbadoff,"packets received with bad offset");
+    TCP_S_ADD_CNT(tcps_rcvshort,"packets received too short");
+    TCP_S_ADD_CNT(tcps_rcvduppack,"duplicate-only packets received");
+    TCP_S_ADD_CNT(tcps_rcvdupbyte,"duplicate-only bytes received");
+    TCP_S_ADD_CNT(tcps_rcvpartduppack,"packets with some duplicate data");
+    TCP_S_ADD_CNT(tcps_rcvpartdupbyte,"dup. bytes in part-dup. packets");
+    TCP_S_ADD_CNT(tcps_rcvoopackdrop,"OOO packet drop due to queue len");
+    
+    TCP_S_ADD_CNT(tcps_rcvoopack,"out-of-order packets received");
+    TCP_S_ADD_CNT(tcps_rcvoobyte,"out-of-order bytes received");
+    TCP_S_ADD_CNT(tcps_rcvpackafterwin,"packets with data after window");
+
+    TCP_S_ADD_CNT(tcps_rcvbyteafterwin,"bytes rcvd after window");
+    TCP_S_ADD_CNT(tcps_rcvafterclose,"packets rcvd after close");
+    TCP_S_ADD_CNT(tcps_rcvwinprobe,"rcvd window probe packets");
+    TCP_S_ADD_CNT(tcps_rcvdupack,"rcvd duplicate acks");
+    TCP_S_ADD_CNT(tcps_rcvacktoomuch,"rcvd acks for unsent data");
+    TCP_S_ADD_CNT(tcps_rcvwinupd,"rcvd window update packets");
+    TCP_S_ADD_CNT(tcps_pawsdrop,"segments dropped due to PAWS");
+    TCP_S_ADD_CNT(tcps_predack,"times hdr predict ok for acks");
+    TCP_S_ADD_CNT(tcps_persistdrop,"timeout in persist state");
+    TCP_S_ADD_CNT(tcps_badsyn,"bogus SYN, e.g. premature ACK");
+    
+    TCP_S_ADD_CNT(tcps_reasalloc,"allocate tcp reasembly ctx");
+    TCP_S_ADD_CNT(tcps_reasfree,"free tcp reasembly ctx");
+    TCP_S_ADD_CNT(tcps_nombuf,"no mbuf for tcp - drop the packets");
+
+    create_bar(&m_clm,"-");
+    create_bar(&m_clm,"Flow Table");
+    create_bar(&m_clm,"-");
+
+    FT_S_ADD_CNT_Ex("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
+    FT_S_ADD_CNT(err_no_syn,"server first flow packet with no SYN");
+    FT_S_ADD_CNT(err_len_err,"pkt with length error"); 
+    FT_S_ADD_CNT(err_no_tcp,"no tcp packet");
+    FT_S_ADD_CNT(err_no_template,"no L7 template match");
+    FT_S_ADD_CNT(err_no_memory,"no memory to allocate flow");
+    FT_S_ADD_CNT_Ex("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
+    FT_S_ADD_CNT(err_l3_cs,"ip checksum error");
+    FT_S_ADD_CNT(err_l4_cs,"tcp/udp checksum error");
+}
+
+
+void CSTTCp::Add(tcp_dir_t dir,CTcpPerThreadCtx* ctx){
+    m_sts[dir].m_tcp_ctx.push_back(ctx);
+}
+
+
+void CSTTCp::Init(){
+    int i;
+    const char * names[]={"client","server"};
+    for (i=0; i<TCP_CS_NUM;i++) {
+        m_sts[i].Create();
+        m_sts[i].m_clm.set_name(names[i]);
+    }
+
+}
+
+void CSTTCp::Create(){
+    int i;
+    for (i=0; i<TCP_CS_NUM;i++) {
+        m_dtbl.add(&m_sts[i].m_clm);
+    }
+    m_init=false;
+}
+
+void CSTTCp::Update(){
+    int i;
+    for (i=0; i<TCP_CS_NUM;i++) {
+        m_sts[i].update_counters();
+    }
+}
+
+void CSTTCp::DumpTable(){
+    m_dtbl.dump_table(stdout,false,true);
+}
+
+void CSTTCp::Delete(){
+
+}
+
+

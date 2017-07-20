@@ -26,6 +26,7 @@ limitations under the License.
 #include "msg_manager.h"
 #include "trex_watchdog.h"
 #include "utl_ipg_bucket.h"
+#include "stt_cp.h"
 #include <common/utl_gcc_diag.h>
 
 #include <common/basic_utils.h>
@@ -697,40 +698,6 @@ void  dump_mac_addr(FILE* fd,uint8_t *p){
 
 
 
-static uint8_t human_tbl[]={
-    ' ',
-    'K',
-    'M',
-    'G',
-    'T'
-};
-
-std::string double_to_human_str(double num,
-                                std::string units,
-                                human_kbyte_t etype){
-    double abs_num=num;
-    if (num<0.0) {
-        abs_num=-num;
-    }
-    int i=0;
-    int max_cnt=sizeof(human_tbl)/sizeof(human_tbl[0]);
-    double div =1.0;
-    double f=1000.0;
-    if (etype ==KBYE_1024){
-        f=1024.0;
-    }
-    while ((abs_num > f ) && (i < max_cnt - 1)){
-        abs_num/=f;
-        div*=f;
-        i++;
-    }
-
-    char buf [100];
-    sprintf(buf,"%10.2f %c%s",num/div,human_tbl[i],units.c_str());
-    std::string res(buf);
-    return (res);
-}
-
 
 void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," flags           : %x\n", m_flags);
@@ -746,6 +713,7 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," vlan mode       : %d\n",  get_vlan_mode());
     fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
+    fprintf(fd," tcp_mode        : %d\n", (int)get_tcp_mode()?1:0 );
 }
 
 void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {
@@ -3575,6 +3543,12 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_max_threads=max_threads;
     m_thread_id=thread_id;
 
+    m_c_tcp=0;
+    m_s_tcp=0;
+    m_prog_c=0; 
+    m_prog_s=0; 
+
+
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);
@@ -3582,9 +3556,15 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     char name[100];
     sprintf(name,"nodes-%d",m_core_id);
 
+    unsigned flow_nodes = CGlobalInfo::m_memory_cfg.get_each_core_dp_flows() ;
+    if (get_is_tcp_mode()) {
+        flow_nodes = 1024; /* No need for many nodes, it handles in different ways */
+    }
+
+
 
     m_node_pool = utl_rte_mempool_create_non_pkt(name,
-                                                 CGlobalInfo::m_memory_cfg.get_each_core_dp_flows(),
+                                                 flow_nodes,
                                                  sizeof(CGenNode),
                                                  128,
                                                  socket_id);
@@ -4509,6 +4489,18 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
         handle_batch_tw_level1(node, thread, exit_scheduler,on_terminate);
         break;
 
+    case CGenNode::TCP_RX_FLUSH:
+        thread->tcp_handle_rx_flush(node,on_terminate);
+        break;
+
+    case CGenNode::TCP_TX_FIF:
+        thread->tcp_handle_tx_fif(node,on_terminate);
+        break;
+
+    case CGenNode::TCP_TW:
+        thread->tcp_handle_tw(node,on_terminate);
+        break;
+
     default:
         assert(0);
     }
@@ -4953,32 +4945,63 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     m_cur_template =(m_thread_id % m_cap_gen.size());
     m_stats.clear();
 
-    fprintf(stdout," Generating erf file ...  \n");
-    CGenNode * node= create_node() ;
-    /* add periodic */
-    node->m_type = CGenNode::FLOW_FIF;
-    node->m_time = m_cur_time_sec;
-    m_node_gen.add_node(node);
-
     double old_offset=0.0;
 
-    node= create_node() ;
-    node->m_type = CGenNode::FLOW_SYNC;
-    node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
-    m_node_gen.add_node(node);
+    if ( get_is_tcp_mode() == false ){
 
-
-    if ( !get_is_stateless() ){
-        /* add TW only for Stateful right now */
+        CGenNode * node= create_node() ;
+        /* add periodic */
+        node->m_type = CGenNode::FLOW_FIF;
+        node->m_time = m_cur_time_sec;
+        m_node_gen.add_node(node);
+    
+    
         node= create_node() ;
-        node->m_type = CGenNode::TW_SYNC;
-        node->m_time = m_cur_time_sec + BUCKET_TIME_SEC ;
+        node->m_type = CGenNode::FLOW_SYNC;
+        node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
+        m_node_gen.add_node(node);
+    
+    
+        if ( !get_is_stateless() ){
+            /* add TW only for Stateful right now */
+            node= create_node() ;
+            node->m_type = CGenNode::TW_SYNC;
+            node->m_time = m_cur_time_sec + BUCKET_TIME_SEC ;
+            m_node_gen.add_node(node);
+    
+            node= create_node() ;
+            node->m_type = CGenNode::TW_SYNC1;
+            node->m_time = m_cur_time_sec + BUCKET_TIME_SEC_LEVEL1 ;
+            m_node_gen.add_node(node);
+        }
+    }else{
+
+        if ( !Create_tcp() ){
+            fprintf(stderr," ERROR in tcp object creation \n");
+            return;
+        }
+
+        m_tcp_fif_d_time =  d_time_flow;
+        CGenNode * node= create_node() ;
+        node->m_type = CGenNode::TCP_TX_FIF;
+        node->m_time = m_cur_time_sec;
         m_node_gen.add_node(node);
 
         node= create_node() ;
-        node->m_type = CGenNode::TW_SYNC1;
-        node->m_time = m_cur_time_sec + BUCKET_TIME_SEC_LEVEL1 ;
+        node->m_type = CGenNode::TCP_RX_FLUSH;
+        node->m_time = m_cur_time_sec + TCP_RX_FLUSH_SEC ;
         m_node_gen.add_node(node);
+
+        node= create_node() ;
+        node->m_type = CGenNode::TCP_TW;
+        node->m_time = m_cur_time_sec + tcp_get_tw_tick_in_sec();
+        m_node_gen.add_node(node);
+
+        node= create_node() ;
+        node->m_type = CGenNode::FLOW_SYNC;
+        node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
+        m_node_gen.add_node(node);
+
     }
 
 
@@ -5018,12 +5041,21 @@ void CFlowGenList::Delete(){
         delete  CPluginCallback::callback;
         CPluginCallback::callback = NULL;
     }
+    if (get_is_tcp_mode()) {
+        m_stt_cp->Delete();
+        delete m_stt_cp;
+        m_stt_cp=0;
+    }
 }
 
 
 bool CFlowGenList::Create(){
     check_objects_sizes();
     CPluginCallback::callback=  new CPluginCallbackSimple();
+    if (get_is_tcp_mode()) {
+      m_stt_cp = new CSTTCp();
+      m_stt_cp->Create();
+    }
     return (true);
 }
 
@@ -5351,72 +5383,6 @@ bool CPolicer::update(double dsize,double now_sec){
     }else{
         return (false);
     }
-}
-
-
-float CPPSMeasure::add(uint64_t pkts){
-    if ( false == m_start ){
-        m_start=true;
-        m_last_time_msec = os_get_time_msec() ;
-        m_last_pkts=pkts;
-        return (0.0);
-    }
-
-    uint32_t ctime=os_get_time_msec();
-    if ((ctime - m_last_time_msec) <os_get_time_freq() )  {
-        return  (m_last_result);
-    }
-
-    uint32_t dtime_msec = ctime-m_last_time_msec;
-    uint32_t dpkts     = (pkts - m_last_pkts);
-
-    m_last_time_msec    = ctime;
-    m_last_pkts        = pkts;
-
-    m_last_result= 0.5*calc_pps(dtime_msec,dpkts) +0.5*(m_last_result);
-    return ( m_last_result );
-}
-
-
-
-CBwMeasure::CBwMeasure() {
-    reset();
-}
-
-void CBwMeasure::reset(void) {
-   m_start=false;
-   m_last_time_msec=0;
-   m_last_bytes=0;
-   m_last_result=0.0;
-};
-
-double CBwMeasure::calc_MBsec(uint32_t dtime_msec,
-                             uint64_t dbytes){
-    double rate=0.000008*( (  (double)dbytes*(double)os_get_time_freq())/((double)dtime_msec) );
-    return (rate);
-}
-
-double CBwMeasure::add(uint64_t size) {
-    if ( false == m_start ){
-        m_start=true;
-        m_last_time_msec = os_get_time_msec() ;
-        m_last_bytes=size;
-        return (0.0);
-    }
-
-    uint32_t ctime=os_get_time_msec();
-    if ((ctime - m_last_time_msec) <os_get_time_freq() )  {
-        return  (m_last_result);
-    }
-
-    uint32_t dtime_msec = ctime-m_last_time_msec;
-    uint64_t dbytes     = size - m_last_bytes;
-
-    m_last_time_msec    = ctime;
-    m_last_bytes        = size;
-
-    m_last_result= 0.5*calc_MBsec(dtime_msec,dbytes) +0.5*(m_last_result);
-    return ( m_last_result );
 }
 
 
@@ -5770,6 +5736,25 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
         }
     }
     return (0);
+}
+
+
+int CErfIFTcp::send_node(CGenNode * node){
+    CNodeTcp * node_tcp = (CNodeTcp *) node;
+    uint8_t dir=node_tcp->dir;
+
+    /* TBD need to take this from simulator */
+    static double time=0.0;
+    time+=0.010;
+    fill_pkt(m_raw,node_tcp->mbuf);
+
+    CPktNsecTimeStamp t_c(time);
+    m_raw->time_nsec = t_c.m_time_nsec;
+    m_raw->time_sec  = t_c.m_time_sec;
+    uint8_t p_id = (uint8_t)dir;
+    m_raw->setInterface(p_id);
+    int rc = write_pkt(m_raw);
+    return (rc);
 }
 
 void CErfIF::add_vlan(uint16_t vlan_id) {
