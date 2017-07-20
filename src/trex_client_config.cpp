@@ -68,6 +68,7 @@ bool ClientCfgDirExt::need_resolve() const {
 
 void ClientCfgDirExt::set_no_resolve_needed() {
     m_bitfield &= ~(HAS_DST_MAC | HAS_IPV6_NEXT_HOP | HAS_NEXT_HOP);
+    m_bitfield |= CAN_NOT_USE;
 }
 
 void ClientCfgDirExt::dump(FILE *fd) const {
@@ -419,6 +420,13 @@ ClientCfgDB::lookup(uint32_t ip) {
     it--;
 
     ClientCfgEntry &group = (*it).second;
+    if (! group.m_cfg.m_initiator.can_be_used()) {
+        fprintf(stderr, "There is some client configuration related error\n");
+        fprintf(stderr, "Please check that ip_generator ip range and client_cfg ip_range match\n");
+        fprintf(stderr, "Problem is with following group:\n");
+        group.dump(stdout);
+        exit(1);
+    }
 
     /* because this is a non overlapping intervals
        if IP exists it must be in this group

@@ -51,6 +51,7 @@ class ClientCfgDirBase {
         HAS_IPV6_NEXT_HOP = 0x10,
         HAS_SRC_IP        = 0x20,
         HAS_SRC_IPV6      = 0x40,
+        CAN_NOT_USE       = 0x80,
     };
 
     MacAddress  m_src_mac;
@@ -64,6 +65,11 @@ class ClientCfgDirBase {
     }
 
     virtual void dump(FILE *fd) const;
+
+    bool can_be_used() {
+        return ! (m_bitfield & CAN_NOT_USE);
+    }
+
     bool has_src_mac_addr() const {
         return (m_bitfield & HAS_SRC_MAC);
     }
@@ -76,6 +82,7 @@ class ClientCfgDirBase {
     void set_dst_mac_addr(uint64_t mac_addr) {
         m_dst_mac.set(mac_addr);
         m_bitfield |= HAS_DST_MAC;
+        m_bitfield &= ~CAN_NOT_USE;
     }
 
     void set_vlan(uint16_t vlan_id) {
