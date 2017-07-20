@@ -64,6 +64,7 @@ public:
 
 
 
+#if 0
 TEST_F(gt_tcp, tst2) {
     CTcpPerThreadCtx tcp_ctx;
     CTcpFlow   flow;
@@ -78,6 +79,7 @@ TEST_F(gt_tcp, tst2) {
     }
     tcp_ctx.Delete();
 }
+#endif
 
 
 TEST_F(gt_tcp, tst1) {
@@ -333,6 +335,8 @@ TEST_F(gt_tcp, tst11) {
     tst.Delete();
 }
 
+#if 0
+
 TEST_F(gt_tcp, tst12) {
 
     vec_tcp_reas_t in_pkts = { {.m_seq=1000,.m_len=20,.m_flags=0},
@@ -366,6 +370,7 @@ TEST_F(gt_tcp, tst12) {
     tst.m_ctx.m_tcpstat.Dump(stdout);
     tst.Delete();
 }
+#endif
 
 
 void set_mbuf_test(struct rte_mbuf  *m,
@@ -1738,6 +1743,8 @@ int hash_func_test(uint32_t mask,int clients,int ports,chash_result & res){
     return (0);
 }
 
+#if 0
+
 /* check hash */
 TEST_F(gt_tcp, tst34) {
 
@@ -1769,6 +1776,7 @@ TEST_F(gt_tcp, tst35) {
     }
 }
 
+#endif
 
 typedef CHashEntry<flow_key_t> test_hash_ent_t;
 typedef CCloseHash<flow_key_t> test_hash_t;
