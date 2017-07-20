@@ -107,7 +107,9 @@ static char * allocate_http_res(uint32_t &new_size){
     uint32_t fill=new_size-min_size;
     memcpy(p,http_res,sizeof(http_res));
     p+=sizeof(http_res);
-    memset(p,'*',fill);
+    if (fill) {
+        memset(p,'*',fill);
+    }
     p+=fill;
     memcpy(p,http_res_post,sizeof(http_res_post));
     return(s);
