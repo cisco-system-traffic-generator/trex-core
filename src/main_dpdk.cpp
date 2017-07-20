@@ -5171,17 +5171,10 @@ int CGlobalTRex::start_master_statefull() {
     /* for client cluster configuration - pass the IP start entry */
     if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
         
-        uint32_t ip_start = tg->m_client_pool[0].get_ip_start();
-        ClientCfgEntry *entry = m_fl.m_client_config_info.lookup(ip_start);
-        assert(entry);
-        
-        ClientCfgBase rx_client_cfg;
-        entry->assign(rx_client_cfg, ip_start);
-        
         m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),
                      tg->m_server_pool[0].get_ip_start(),
                      tg->m_client_pool[0].getDualMask(),
-                     &rx_client_cfg);
+                     m_fl.m_client_config_info);
     } else {
         
         m_mg.set_ip( tg->m_client_pool[0].get_ip_start(),

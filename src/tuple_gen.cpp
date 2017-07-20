@@ -152,7 +152,8 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         if (!group) {
             std::stringstream ss;
             ss << "client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
-            throw std::runtime_error(ss.str());
+            std::cout << ss.str();
+            exit(-1);
         }
 
         ClientCfgBase info;

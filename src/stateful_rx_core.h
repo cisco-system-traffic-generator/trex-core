@@ -34,13 +34,32 @@ class TrexWatchDog;
 
 class CLatencyPktInfo {
 public:
+    
+    CLatencyPktInfo() {
+        m_client_cfg = NULL;
+        m_packet     = NULL;
+    }
+    
+    
     void Create(class CLatencyPktMode *m_l_pkt_info);
     void Delete();
 
+    /**
+     * regular set IP
+     */
+    void set_ip(uint32_t                src,
+                uint32_t                dst,
+                uint32_t                dual_port_mask);
+    
+    /**
+     * set IP with client clustering configuration
+     */
     void set_ip(uint32_t                src,
                 uint32_t                dst,
                 uint32_t                dual_port_mask,
-                const ClientCfgBase    *client_cfg = NULL);
+                uint8_t                 port_cnt,
+                ClientCfgDB            &db);
+    
     
     rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0);
 
@@ -68,7 +87,7 @@ private:
     CFlowPktInfo            m_pkt_info;
     CPacketIndication       m_pkt_indication;
     CCapPktRaw *            m_packet;
-    ClientCfgBase           m_client_cfg;
+    ClientCfgBase          *m_client_cfg;
 };
 
 #define LATENCY_MAGIC 0x12345600
@@ -326,13 +345,23 @@ public:
     void  stop();
     bool  is_active();
 
+    
     void set_ip(uint32_t client_ip,
                 uint32_t server_ip,
-                uint32_t mask_dual_port,
-                const ClientCfgBase *client_cfg = NULL) {
+                uint32_t mask_dual_port) {
         
-        m_pkt_gen.set_ip(client_ip, server_ip, mask_dual_port, client_cfg);
+        m_pkt_gen.set_ip(client_ip, server_ip, mask_dual_port);
     }
+    
+    
+    void set_ip(uint32_t        client_ip,
+                uint32_t        server_ip,
+                uint32_t        mask_dual_port,
+                ClientCfgDB    &client_cfg_db) {
+        
+        m_pkt_gen.set_ip(client_ip, server_ip, mask_dual_port, m_max_ports, client_cfg_db);
+    }
+    
     
     void Dump(FILE *fd); // dump all
     void DumpShort(FILE *fd); // dump short histogram of latency

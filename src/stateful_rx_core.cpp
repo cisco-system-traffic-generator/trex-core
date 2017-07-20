@@ -153,7 +153,7 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
     rte_mbuf_t *m = m_pkt_info.generate_new_mbuf(&m_dummy_node);
     
     if (m_client_cfg) {
-        m_client_cfg.apply(m, (is_client_to_server ? CLIENT_SIDE : SERVER_SIDE));
+        m_client_cfg[dual_port_index].apply(m, (is_client_to_server ? CLIENT_SIDE : SERVER_SIDE));
     }
     
     return m;
@@ -161,21 +161,62 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
 
 void CLatencyPktInfo::set_ip(uint32_t                src,
                              uint32_t                dst,
-                             uint32_t                dual_port_mask,
-                             const ClientCfgBase    *client_cfg) {
+                             uint32_t                dual_port_mask) {
     m_client_ip.v4   = src;
     m_server_ip.v4   = dst;
     m_dual_port_mask = dual_port_mask;
     
-    /* if given client config - copy it */
-    if (client_cfg) {
-        m_client_cfg = *client_cfg;
+    if (m_client_cfg) {
+        delete [] m_client_cfg;
+    }
+    
+    /* no client cluster cfg */
+    m_client_cfg = NULL;
+}
+
+
+void CLatencyPktInfo::set_ip(uint32_t        src,
+                             uint32_t        dst,
+                             uint32_t        dual_port_mask,
+                             uint8_t         port_cnt,
+                             ClientCfgDB    &client_cfg_db) {
+    m_client_ip.v4   = src;
+    m_server_ip.v4   = dst;
+    m_dual_port_mask = dual_port_mask;
+    
+    if (m_client_cfg) {
+        delete [] m_client_cfg;
+    }
+    
+    /* allocate one client config for each pair of ports */
+    int dual_port_cnt = port_cnt >> 1;
+    m_client_cfg = new ClientCfgBase[dual_port_cnt];
+    
+    /* for each IP - lookup the client cluster */
+    for (int i = 0; i < dual_port_cnt; i++) {
+        uint32_t ip = src + (dual_port_mask * i);
+        
+        ClientCfgEntry *entry = client_cfg_db.lookup(ip);
+        if (!entry) {
+            std::stringstream ss;
+            ss << "client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
+            std::cout << ss.str();
+            exit(-1);
+        }
+        
+        entry->assign(m_client_cfg[i], ip);
     }
 }
+
 
 void CLatencyPktInfo::Delete(){
     m_pkt_info.Delete();
     delete m_packet;
+    
+    if (m_client_cfg) {
+        delete [] m_client_cfg;
+        m_client_cfg = NULL;
+    }
 }
 
 void CCPortLatency::reset(){
@@ -705,7 +746,7 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
                                     rte_mbuf_t * m){
     CRx_check_header *rxc = NULL;
 
-#if 1
+#if 0
     /****************************************/
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
