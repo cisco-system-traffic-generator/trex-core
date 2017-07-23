@@ -5,7 +5,7 @@
 ### stateful ###
 
 test_short_flow:
-    multiplier          : 50000
+    multiplier          : 40000
     cores               : 7
     bw_per_core         : 1000
 
