@@ -22,8 +22,9 @@ class STLClient_Test(CStlGeneral_Test):
 
     def setUp(self):
         CStlGeneral_Test.setUp(self)
+        self.weak = self.is_virt_nics or CTRexScenario.setup_name in ('trex21', 'trex22')
 
-        if self.is_virt_nics or CTRexScenario.setup_name == 'trex21':
+        if self.weak:
             self.percentage = 5
             self.pps = 500
         else:
@@ -31,7 +32,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.pps = 50000
         
         # strict mode is only for 'wire only' connection
-        if self.is_loopback and not (self.is_virt_nics or CTRexScenario.setup_name == 'trex21'):
+        if self.is_loopback and not self.weak:
             self.strict = True
         else:
             self.strict = False
@@ -434,7 +435,7 @@ class STLClient_Test(CStlGeneral_Test):
             
             
             assert(caps[tx_capture_id]['count'] == len(pkts))
-            assert(caps[rx_capture_id]['count'] == len(pkts))
+            self.verify(len(pkts), caps[rx_capture_id]['count'])
             
             # TX capture
             tx_pkts = []
@@ -453,7 +454,7 @@ class STLClient_Test(CStlGeneral_Test):
             assert(set(pkts) == set(tx_pkts))
             
             # RX pkts are not the same - loose check, all here and are UDP
-            assert(len(rx_pkts) == len(pkts))
+            self.verify(len(pkts), len(rx_pkts))
             assert (all(['UDP' in Ether(x) for x in rx_pkts]))
             
             
