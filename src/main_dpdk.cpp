@@ -550,7 +550,11 @@ class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE;
-        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+        // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
+        // put it, unless user already choose mode using command line arg (--software for example)
+        if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
+            CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+        }
     }
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -574,7 +578,18 @@ public:
          * to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable RSS
          * return zero for disable patch and rx queues number for enable.
         */
-        p.rx_drop_q_num = 4;
+        switch (CGlobalInfo::get_queues_mode()) {
+        case CGlobalInfo::Q_MODE_ONE_QUEUE:
+        case CGlobalInfo::Q_MODE_RSS:
+            p.rx_drop_q_num = 0;
+            break;
+        case CGlobalInfo::Q_MODE_MANY_DROP_Q:
+            p.rx_drop_q_num = 4;
+            break;
+        case CGlobalInfo::Q_MODE_NORMAL:
+            fprintf(stderr, "Internal error. MLX card in Q_MODE_NORMAL mode\n");
+            assert(0);
+        }
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
         p.tx_desc_num = TX_DESC_NUM;
