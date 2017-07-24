@@ -3183,7 +3183,6 @@ NIC with two ports will work better from performance prospective, so it is bette
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-273[Fedora 21 & OFED 3.4.1]
 
 
 ==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
@@ -3421,31 +3420,7 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 
 ==== Limitations/Issues
 
-* The order of the mlx5 PCI addrees in /etc/trex_cfg.yaml should be in the same order reported by `./dpdk_setup_ports.py` tool see link:https://groups.google.com/forum/#!searchin/trex-tgn/unable$20to$20run$20rx-check$20with$204$20port%7Csort:relevance/trex-tgn/DsORbw3AbaU/IT-KLcZbDgAJ[issue_thread] and link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295] else there would be reported this error.
-
-.Will work
-[source,bash]
-----
- - version         : 2
-   interfaces      : ["03:00.0","03:00.1"]
-   port_limit      : 2 
-----
-
-.Will not work
-[source,bash]
-----
- - version         : 2
-   interfaces      : ["03:00.1","03:00.0"]
-   port_limit      : 2 
-----
-
-.The error 
-[source,bash]
-----
- PMD: net_mlx5: 0x7ff2dcfcb2c0: flow director mode 0 not supported
- EAL: Error - exiting with code: 1
-   Cause: rte_eth_dev_filter_ctrl: err=-22, port=2
-----
+* CX5 require the latest OFED (4.1>)
 
 ==== Build with native OFED 
 

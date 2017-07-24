@@ -137,6 +137,8 @@ WARNING: In some future release, per stream statistics will not be reported usin
 
 === Fixed issues: ===
 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-449[trex-449]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-448[trex-448]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-413[trex-413]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-408[trex-408]

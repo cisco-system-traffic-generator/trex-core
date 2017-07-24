@@ -136,9 +136,8 @@ protected:
            does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
         TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN = 0x2,
         // Does the driver support changing MAC address?
-        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
-        /* Mellanox driver does not work well with the DPDK port reorder we do */
-        TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE = 0x8,
+        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4
+
     } trex_drv_cap;
 
 public:
@@ -158,10 +157,6 @@ public:
         return ((m_cap & TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN) != 0);
     }
 
-    bool supports_port_reorder() {
-        /* NOT use any more, might be used in the future */
-        return ((m_cap & TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE) == 0);
-    }
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
@@ -549,7 +544,7 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_NO_PORT_REORDER_POSSIBLE;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG ;
         // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
         // put it, unless user already choose mode using command line arg (--software for example)
         if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
