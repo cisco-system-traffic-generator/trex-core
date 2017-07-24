@@ -1742,6 +1742,7 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
        interfaces    : ["03:00.0", "03:00.1"]   #mandatory <3>
        #enable_zmq_pub  : true #optional <4>
        #zmq_pub_port    : 4500 #optional <5>
+       #zmq_rpc_port    : 4501 #optional <15>
        #prefix          : setup1 #optional <6>
        #limit_memory    : 1024 #optional <7>
        c               : 4 #optional <8>
@@ -1778,6 +1779,7 @@ the result as dest MAC. If no dest_mac given, and no ARP response received, TRex
 gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
 <13> If given (since version 2.18), all traffic on the port will be sent with this VLAN tag.
 <14> Old MAC address format. New format is supported since version v2.09.
+<15>  Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
 
 [NOTE]
 =========================================================================================
@@ -1964,7 +1966,7 @@ For virtual NICs on VM, we always use one thread per interface pair.
 *--cfg <file name>*::
 TRex configuration file to use. See relevant manual section for all config file options.
 
-*--checksum-offload*::
+*--checksum-offload-disable*::
 Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this.
 
 *--client_cfg <file>*::
