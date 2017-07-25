@@ -198,11 +198,12 @@ test_CPU_benchmark:
         cpu_util        : 1
         bw_per_core     : 1
 
+
 test_performance_vm_single_cpu:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 9.6
+                                   min: 9.0
                                    max: 13.3
 
 
@@ -227,7 +228,7 @@ test_performance_vm_multi_cpus:
         core_count             : 7
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 7.7
+                                  min: 7.4
                                   max: 10.8
 
 
@@ -244,7 +245,7 @@ test_performance_syn_attack_multi_cpus:
         core_count             : 7
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 8.0
+                                  min: 7.0
                                   max: 11.0
                                   
 
