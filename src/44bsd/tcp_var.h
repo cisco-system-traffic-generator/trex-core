@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#ifdef _DEBUG
+#define TCPDEBUG
+#endif
+
 #include "tcp.h"
 #include "tcp_timer.h"
 #include "mbuf.h"
@@ -691,6 +696,16 @@ inline void tcp_reass_clean(CTcpPerThreadCtx * ctx,
         tcp_reass_free(ctx,tp);
     }
 }
+
+extern struct tcpcb *debug_flow; 
+
+
+inline void tcp_set_debug_flow(struct tcpcb * debug){
+#ifdef    TCPDEBUG
+    debug_flow  =debug;
+#endif
+}
+
 
 
 

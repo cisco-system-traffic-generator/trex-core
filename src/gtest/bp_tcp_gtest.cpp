@@ -1028,6 +1028,7 @@ public:
     bool Create(std::string pcap_file);
     void Delete();
 
+    void set_debug_mode(bool enable);
 
     /* dir ==0 , C->S 
        dir ==1   S->C */
@@ -1049,6 +1050,7 @@ public:
 
     CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
     CTcpCtxPcapWrt          m_s_pcap;
+    bool                    m_debug;
 
     CTcpCtxDebug            m_io_debug;
 
@@ -1082,8 +1084,13 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
 }
 
 
+void CClientServerTcp::set_debug_mode(bool enable){
+    m_debug=enable;
+}
+
 bool CClientServerTcp::Create(std::string pcap_file){
 
+    m_debug=false;
     m_io_debug.m_p = this;
     m_tx_diff =0.0;
     m_vlan =0;
@@ -1357,7 +1364,6 @@ static void free_http_res(char *p){
 }
 
 
-
 int CClientServerTcp::simple_http(){
 
 
@@ -1378,6 +1384,12 @@ int CClientServerTcp::simple_http(){
     c_tuple.set_port(1025);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
+
+    if (m_debug) {
+        /* enable client debug */
+        c_flow->m_tcp.m_socket.so_options |= US_SO_DEBUG;
+        tcp_set_debug_flow(&c_flow->m_tcp);
+    }
 
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
 
@@ -1536,12 +1548,15 @@ TEST_F(gt_tcp, tst30_http) {
     delete lpt1;
 }
 
+
+
 TEST_F(gt_tcp, tst30_http_simple) {
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
     lpt1->Create("tcp2_http");
-
+    lpt1->set_debug_mode(true);
+    
     lpt1->simple_http();
 
     lpt1->Delete();

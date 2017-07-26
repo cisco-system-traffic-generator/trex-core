@@ -279,6 +279,13 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
               struct rte_mbuf *m){
 
     if (tcp_reass_is_exists(tp)==false ){
+        /* in case of FIN in order with no data there is nothing to do */
+        if ( (ti->ti_flags & TH_FIN) &&
+             (ti->ti_seq == tp->rcv_nxt) && 
+             (tp->t_state > TCPS_ESTABLISHED) && 
+             (ti->ti_len==0) ) {
+            return(ti->ti_flags & TH_FIN);
+        }
         tcp_reass_alloc(ctx,tp);
     }
 
@@ -435,6 +442,11 @@ tcp_pulloutofband(struct tcp_socket *so,
 #endif
 
 
+#ifdef TCPDEBUG
+
+struct tcpcb *debug_flow; 
+
+#endif
 
 /* assuming we found the flow */
 int tcp_flow_input(CTcpPerThreadCtx * ctx,
@@ -459,6 +471,14 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
     int off;
 
     uint8_t *optp;  // TCP option is exist  
+
+#ifdef TCPDEBUG
+  #if 0
+    if ((tp == debug_flow) && (tp->t_state ==TCPS_FIN_WAIT_1 )) {
+        printf(" break !! \n");
+    }
+  #endif
+#endif
 
     if ( tcp->getHeaderLength()==TCP_HEADER_LEN ){
         optp=NULL;
