@@ -1536,6 +1536,18 @@ TEST_F(gt_tcp, tst30_http) {
     delete lpt1;
 }
 
+TEST_F(gt_tcp, tst30_http_simple) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http");
+
+    lpt1->simple_http();
+
+    lpt1->Delete();
+
+    delete lpt1;
+}
 
 
 
