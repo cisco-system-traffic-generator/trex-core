@@ -2791,7 +2791,7 @@ The disadvantage is the OFED dependency.
 
 We tested the following distro with TRex and OFED. Others might work too.
 
-* CentOS 7.2 
+* CentOS 7.3
 
 Following distro was tested and did *not* work for us.
 
@@ -2802,7 +2802,7 @@ Following distro was tested and did *not* work for us.
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download 4.0 OFED tar for your distro  
+* Download latest OFED 4.x OFED tar for your distro. this example shows an old OFED installation
 
 [IMPORTANT]
 =====================================
