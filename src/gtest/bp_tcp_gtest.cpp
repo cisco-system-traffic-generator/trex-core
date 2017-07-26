@@ -2009,3 +2009,148 @@ TEST_F(gt_tcp, tst40) {
 
     tbl.dump_table(stdout,false,true);
 }
+
+
+/* reass test1  flow is not enabled */
+TEST_F(gt_tcp, tst42) {
+    CTcpPerThreadCtx       ctx;  
+    CTcpFlow               flow;
+    ctx.Create(100,true);
+    flow.Create(&ctx);
+
+    tcpcb * tp=&flow.m_tcp;
+
+    tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
+
+    struct tcpiphdr ti;
+    memset(&ti,0,sizeof(struct tcpiphdr));
+    ti.ih_len = 50;
+    ti.ti_seq = 0x1000+100;
+
+    int tiflags=0;
+
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ti.ih_len = 100;
+    ti.ti_seq +=100 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+1000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+2000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+3000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+4000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ctx.m_tcpstat.Dump(stdout);
+    printf(" tiflags:%x \n",tiflags);
+
+    flow.Delete();
+    ctx.Delete();
+}
+
+/* reass test1  flow is enabled by application*/
+
+TEST_F(gt_tcp, tst43) {
+    CTcpPerThreadCtx       ctx;  
+    CTcpFlow               flow;
+    CTcpAppApiImpl         tcp_bh_api_impl_c;
+    ctx.Create(100,true);
+    flow.Create(&ctx);
+
+    CTcpAppProgram * prog_s;
+    prog_s = new CTcpAppProgram();
+    CTcpAppCmd cmd;
+
+    /* server program */
+
+    cmd.m_cmd =tcRX_BUFFER;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm = 1000;
+
+    prog_s->add_cmd(cmd);
+
+
+    CTcpApp * app_c = &flow.m_app;
+
+    app_c->set_program(prog_s);
+    app_c->set_bh_api(&tcp_bh_api_impl_c);
+    app_c->set_flow_ctx(&ctx,&flow);
+    flow.set_app(app_c);
+
+
+    tcpcb * tp=&flow.m_tcp;
+
+    tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
+
+    tp->t_state = TCPS_SYN_RECEIVED;
+
+    struct tcpiphdr ti;
+    memset(&ti,0,sizeof(struct tcpiphdr));
+    ti.ih_len = 50;
+    ti.ti_seq = 0x1000+100;
+
+    int tiflags=0;
+
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ti.ih_len = 100;
+    ti.ti_seq +=100 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+1000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+2000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    tp->m_tpc_reass->Dump(stdout);
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+3000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ti.ih_len = 100;
+    ti.ti_seq =0x1000+4000 ;
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+
+    ctx.m_tcpstat.Dump(stdout);
+    printf(" tiflags:%x \n",tiflags);
+
+    delete prog_s;
+    flow.Delete();
+    ctx.Delete();
+}
+
+

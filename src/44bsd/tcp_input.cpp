@@ -118,6 +118,9 @@ int CTcpReass::tcp_reass_no_data(CTcpPerThreadCtx * ctx,
 
     tp->rcv_nxt += m_blocks[0].m_len;
 
+    INC_STAT(ctx,tcps_rcvpack);
+    INC_STAT_CNT(ctx,tcps_rcvbyte, m_blocks[0].m_len);
+
     flags = (m_blocks[0].m_flags==1) ? TH_FIN :0;
 
     sbappend_bytes(&tp->m_socket,
@@ -238,6 +241,7 @@ int CTcpReass::pre_tcp_reass(CTcpPerThreadCtx * ctx,
     if (ci>MAX_TCP_REASS_BLOCKS) {
         /* drop last segment */
         INC_STAT(ctx,tcps_rcvoopackdrop);
+        INC_STAT_CNT(ctx,tcps_rcvoobytesdrop,tblocks[MAX_TCP_REASS_BLOCKS].m_len);
     }
     
     m_active_blocks = bsd_umin(ci,MAX_TCP_REASS_BLOCKS);

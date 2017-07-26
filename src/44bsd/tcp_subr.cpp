@@ -104,6 +104,7 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_rcvoopack);        
     MYC(tcps_rcvoobyte);        
     MYC(tcps_rcvoopackdrop);
+    MYC(tcps_rcvoobytesdrop);
     MYC(tcps_rcvpackafterwin);  
     MYC(tcps_rcvbyteafterwin);  
     MYC(tcps_rcvafterclose);       

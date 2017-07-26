@@ -186,6 +186,8 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_rcvpartduppack,"packets with some duplicate data");
     TCP_S_ADD_CNT(tcps_rcvpartdupbyte,"dup. bytes in part-dup. packets");
     TCP_S_ADD_CNT(tcps_rcvoopackdrop,"OOO packet drop due to queue len");
+    TCP_S_ADD_CNT(tcps_rcvoobytesdrop,"OOO bytes drop due to queue len");
+    
     
     TCP_S_ADD_CNT(tcps_rcvoopack,"out-of-order packets received");
     TCP_S_ADD_CNT(tcps_rcvoobyte,"out-of-order bytes received");

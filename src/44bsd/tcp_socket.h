@@ -322,6 +322,10 @@ public:
 class  CTcpAppProgram {
 
 public:
+    ~CTcpAppProgram(){ 
+        m_cmds.clear();
+    }
+
     void add_cmd(CTcpAppCmd & cmd);
 
     void Dump(FILE *fd);

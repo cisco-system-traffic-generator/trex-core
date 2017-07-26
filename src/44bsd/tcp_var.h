@@ -309,6 +309,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_rcvpartduppack;    /* packets with some duplicate data */
     uint64_t    tcps_rcvpartdupbyte;    /* dup. bytes in part-dup. packets */
     uint64_t    tcps_rcvoopackdrop;     /* OOO packet drop due to queue len */
+    uint64_t    tcps_rcvoobytesdrop;     /* OOO bytes drop due to queue len */
 
     uint64_t    tcps_rcvoopack;     /* out-of-order packets received */
     uint64_t    tcps_rcvoobyte;     /* out-of-order bytes received */
@@ -620,6 +621,12 @@ struct tcpcb *  tcp_close(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
 void  tcp_setpersist(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
 void  tcp_respond(CTcpPerThreadCtx * ctx,struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
 int  tcp_mss(CTcpPerThreadCtx * ctx,struct tcpcb *tp, u_int offer);
+
+int tcp_reass(CTcpPerThreadCtx * ctx,
+              struct tcpcb *tp, 
+              struct tcpiphdr *ti, 
+              struct rte_mbuf *m);
+
 
 int tcp_flow_input(CTcpPerThreadCtx * ctx,
                    struct tcpcb *tp, 
