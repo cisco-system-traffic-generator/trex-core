@@ -24,6 +24,16 @@ limitations under the License.
 
 #include <string>
 
+#define _1MB_DOUBLE ((double)(1024.0*1024.0))
+#define _1GB_DOUBLE ((double)(1024.0*1024.0*1024.0))
+
+#define _1Mb_DOUBLE ((double)(1000.0*1000.0))
+
+#define _1MB ((1024*1024)ULL)
+#define _1GB 1000000000ULL
+#define _500GB (_1GB*500)
+
+            
 typedef enum {
     KBYE_1024,
     KBYE_1000

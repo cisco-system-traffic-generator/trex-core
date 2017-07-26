@@ -49,21 +49,21 @@ void CSTTCpPerDir::update_counters(){
         ft+=ft_ctx;
     }
 
-
     m_active_flows = lpt->tcps_connattempt + 
                      lpt->tcps_accepts  - 
                      lpt->tcps_closed;
 
-    m_est_flows = lpt->tcps_accepts + 
-                  lpt->tcps_connects - 
+    m_est_flows = lpt->tcps_connects - 
                   lpt->tcps_closed;
 
-    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte);
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_sndbyte)*_1Mb_DOUBLE;
     
-    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvtotal);
+    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte)*_1Mb_DOUBLE;
 
     m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal);
-    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack);
+    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack+lpt->tcps_rcvackpack);
+
+    m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
 }
 
 
@@ -138,7 +138,7 @@ void CSTTCpPerDir::create_clm_counters(){
     CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx bw",true,"bps");
     CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
-    CMN_S_ADD_CNT_d(avg_size,"avr pkt",true,"");
+    CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"bytes");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");
@@ -158,9 +158,9 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_sndacks,"ack-only packets sent ");
     TCP_S_ADD_CNT(tcps_rcvtotal,"total packets received ");
     TCP_S_ADD_CNT(tcps_rcvpack,"packets received in sequence");
-    TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence ");
-    TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets ");
-    TCP_S_ADD_CNT(tcps_rcvackbyte,"bytes acked by rcvd acks ");
+    TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence");
+    TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
+    TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks");
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
     TCP_S_ADD_CNT(tcps_drops,"connections dropped");

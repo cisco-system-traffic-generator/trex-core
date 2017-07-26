@@ -155,7 +155,6 @@ bool CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     }
     lpf->m_l7_total_len  =  l3_pkt_len - lpf->m_l7_offset;
 
-    /* TBD need to check TCP header checksum */
     if ( (mbuf->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
         FT_INC_SCNT(m_err_l3_cs);
         return(false);

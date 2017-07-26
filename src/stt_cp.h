@@ -68,7 +68,7 @@ public:
     CPPSMeasure         m_rx_pps;
     double              m_rx_pps_r;
 
-    double              avg_size;
+    double              m_avg_size;
 
     /* externation counters --end */
 

@@ -1566,19 +1566,6 @@ public:
 
 
 
-
-#define _1MB_DOUBLE ((double)(1024.0*1024.0))
-#define _1GB_DOUBLE ((double)(1024.0*1024.0*1024.0))
-
-#define _1Mb_DOUBLE ((double)(1000.0*1000.0))
-
-
-#define _1MB ((1024*1024)ULL)
-#define _1GB 1000000000ULL
-#define _500GB (_1GB*500)
-
-
-
 #define DP(f) if (f) printf(" %-40s: %llu \n",#f,(unsigned long long)f)
 #define DP_name(n,f) if (f) printf(" %-40s: %llu \n",n,(unsigned long long)f)
 
