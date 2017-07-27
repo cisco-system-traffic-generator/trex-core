@@ -219,6 +219,16 @@ public:
 
 public:
 
+    void        generate_rst_pkt(CTcpPerThreadCtx * ctx,
+                                 uint32_t src,
+                                 uint32_t dst,
+                                 uint16_t src_port,
+                                 uint16_t dst_port,
+                                 uint16_t vlan,
+                                 bool is_ipv6,
+                                 TCPHeader    * lpTcp);
+
+
       CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
                             uint32_t src,
                             uint32_t dst,

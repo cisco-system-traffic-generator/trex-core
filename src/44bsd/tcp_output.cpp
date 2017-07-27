@@ -280,7 +280,6 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
 }
 
 
-
 /*
  * Send a single message to the TCP at address specified by
  * the given TCP/IP header.  If m == 0, then we make a copy
@@ -309,7 +308,7 @@ void tcp_respond(CTcpPerThreadCtx * ctx,
     TCPHeader * ti=pkt.lpTcp;
 
     ti->setSeqNumber(seq);
-    ti->setAckFlag(ack);
+    ti->setAckNumber(ack);
     ti->setFlag(flags);
     ti->setWindowSize((uint16_t) (win >> tp->rcv_scale));
 

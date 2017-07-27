@@ -1025,6 +1025,7 @@ bool test_handle_queue(vec_queue_t * lpq,
 typedef enum {  csSIM_NONE    =0,
                 csSIM_RST_SYN = 0x17,
                 csSIM_RST_SYN1,
+                csSIM_WRONG_PORT,
                 csSIM_RST_MIDDLE , // corrupt the seq number
                 csSIM_RST_MIDDLE2 ,// send RST flag
                } cs_sim_mode_t_;
@@ -1089,7 +1090,7 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct tcpcb * tp,
                         rte_mbuf_t *m){
     int dir=0;
-    if (tp->src_port==80) {
+    if (tp->src_port<1024) {
         dir=1;
     }
     rte_mbuf_t *m_rx= utl_rte_convert_tx_rx_mbuf(m);
@@ -1156,6 +1157,19 @@ void CClientServerTcp::on_tx(int dir,
                 if (tcp->getSynFlag()){
                     tcp->setAckNumber(0x111111);
                     tcp->setSeqNumber(0x111111);
+                }
+            }
+        }
+
+        if ( m_sim_type == csSIM_WRONG_PORT ){
+            if (dir==0) {
+                /* c->s change port from 80 to 81 */
+                if (tcp->getSynFlag()){
+                    tcp->setDestPort(81);
+                }
+            }else{
+                if (tcp->getResetFlag()){
+                    tcp->setSourcePort(80);
                 }
             }
         }
@@ -1656,6 +1670,21 @@ TEST_F(gt_tcp, tst30_http_rst1) {
     lpt1->Create("tcp2_http_rst1");
     lpt1->set_debug_mode(true);
     lpt1->set_simulate_rst_error(csSIM_RST_SYN1);
+    
+    lpt1->simple_http();
+
+    lpt1->Delete();
+
+    delete lpt1;
+}
+
+TEST_F(gt_tcp, tst30_http_wrong_port) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http_wrong_port");
+    lpt1->set_debug_mode(true);
+    lpt1->set_simulate_rst_error(csSIM_WRONG_PORT);
     
     lpt1->simple_http();
 

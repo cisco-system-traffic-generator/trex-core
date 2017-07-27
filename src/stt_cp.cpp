@@ -216,8 +216,8 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT(err_no_syn,"server first flow packet with no SYN");
     FT_S_ADD_CNT(err_len_err,"pkt with length error"); 
     FT_S_ADD_CNT(err_no_tcp,"no tcp packet");
-    FT_S_ADD_CNT(err_no_template,"no L7 template match");
-    FT_S_ADD_CNT(err_no_memory,"no memory to allocate flow");
+    FT_S_ADD_CNT(err_no_template,"server can't match L7 template");
+    FT_S_ADD_CNT(err_no_memory,"No heap memory for allocating flows");
     FT_S_ADD_CNT_Ex("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
     FT_S_ADD_CNT(err_l3_cs,"ip checksum error");
     FT_S_ADD_CNT(err_l4_cs,"tcp/udp checksum error");

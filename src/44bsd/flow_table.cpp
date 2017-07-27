@@ -201,6 +201,40 @@ void CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
     }
 }
 
+void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
+                                         uint32_t src,
+                                         uint32_t dst,
+                                         uint16_t src_port,
+                                         uint16_t dst_port,
+                                         uint16_t vlan,
+                                         bool is_ipv6,
+                                        TCPHeader    * lpTcp){
+   /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
+      allocate flow, 
+      fill information
+      generate RST
+      free flow 
+   */
+    CTcpFlow * flow=alloc_flow(ctx,
+                                 src,
+                                 dst,
+                                 src_port,
+                                 dst_port,
+                                 vlan,
+                                 is_ipv6);
+    if (flow==0) {
+        return;
+    }
+
+    tcp_respond(ctx,
+                 &flow->m_tcp,
+                 lpTcp->getSeqNumber()+1, 
+                 0, 
+                 TH_RST|TH_ACK);
+
+    free_flow(flow);
+}
+
 CTcpFlow * CFlowTable::alloc_flow(CTcpPerThreadCtx * ctx,
                                   uint32_t src,
                                   uint32_t dst,
@@ -297,17 +331,8 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     /* server with SYN packet, it is OK 
     we need to build the flow and add it to the table */
 
-    /* TBD template port */
-    if (lpTcp->getDestPort() != 80) {
-        /* TBD need to generate RST packet in this case */
-
-        rte_pktmbuf_free(mbuf);
-        FT_INC_SCNT(m_err_no_template);
-        return(false);
-    }
 
     IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;
-
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
@@ -316,6 +341,23 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
         vlan = lpVlan->getVlanTag();
     }
+
+    /* TBD template port, need to do somthing better  */
+    if (lpTcp->getDestPort() != 80) {
+        generate_rst_pkt(ctx,
+                         ipv4->getDestIp(),
+                         tuple.get_ip(),
+                         lpTcp->getDestPort(),
+                         tuple.get_port(),
+                         vlan,
+                         false,
+                         lpTcp);
+
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_no_template);
+        return(false);
+    }
+
 
     lptflow = ctx->m_ft.alloc_flow(ctx,
                                    ipv4->getDestIp(),
