@@ -1022,6 +1022,15 @@ bool test_handle_queue(vec_queue_t * lpq,
 #endif
 
 
+typedef enum {  csSIM_NONE    =0,
+                csSIM_RST_SYN = 0x17,
+                csSIM_RST_SYN1,
+                csSIM_RST_MIDDLE , // corrupt the seq number
+                csSIM_RST_MIDDLE2 ,// send RST flag
+               } cs_sim_mode_t_;
+
+typedef uint16_t cs_sim_mode_t ;
+
 
 class CClientServerTcp {
 public:
@@ -1029,6 +1038,9 @@ public:
     void Delete();
 
     void set_debug_mode(bool enable);
+    void set_simulate_rst_error(cs_sim_mode_t  sim_type){
+        m_sim_type = sim_type;
+    }
 
     /* dir ==0 , C->S 
        dir ==1   S->C */
@@ -1051,6 +1063,9 @@ public:
     CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
     CTcpCtxPcapWrt          m_s_pcap;
     bool                    m_debug;
+    cs_sim_mode_t           m_sim_type;
+    uint16_t                m_sim_data;
+
 
     CTcpCtxDebug            m_io_debug;
 
@@ -1091,6 +1106,8 @@ void CClientServerTcp::set_debug_mode(bool enable){
 bool CClientServerTcp::Create(std::string pcap_file){
 
     m_debug=false;
+    m_sim_type=csSIM_NONE;
+    m_sim_data=0;
     m_io_debug.m_p = this;
     m_tx_diff =0.0;
     m_vlan =0;
@@ -1125,11 +1142,64 @@ void CClientServerTcp::on_tx(int dir,
         m_s_pcap.write_pcap_mbuf(m,t);
     }
 
+
+    bool drop=false;
     /* simulate drop/reorder/ corruption HERE !! */
+    if (m_sim_type > 0) {
+        char * p=rte_pktmbuf_mtod(m,char *);
+        TCPHeader * tcp=(TCPHeader *)(p+14+20);
+        //IPHeader * ip=(IPHeader *)(p+14);
 
+        if ( m_sim_type == csSIM_RST_SYN ){
+            /* simulate RST */
+            if (dir==1) {
+                if (tcp->getSynFlag()){
+                    tcp->setAckNumber(0x111111);
+                    tcp->setSeqNumber(0x111111);
+                }
+            }
+        }
 
-    /* move the Tx packet to Rx side of server */
-    m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(t+(m_rtt_sec/2.0) )) );
+        /* send RST/ACK on first message */
+        if ( m_sim_type == csSIM_RST_SYN1 ){
+            if (dir==1) {
+                if (m_sim_data==0){
+                    if (tcp->getSynFlag()){
+                        tcp->setFlag(TCPHeader::Flag::RST | TCPHeader::Flag::ACK);
+                        m_sim_data=1;
+                    }
+                }else{
+                    drop=true;
+                }
+            }
+        }
+
+        if ( m_sim_type == csSIM_RST_MIDDLE ){
+            if (dir==1) {
+                if ( (t> 0.4) && (t> 0.5)){
+                    tcp->setAckNumber(0x111111);
+                    tcp->setSeqNumber(0x111111);
+                }
+            }
+        }
+        if ( m_sim_type == csSIM_RST_MIDDLE2 ){
+            if (dir==1) {
+                if ( (m_sim_data==0) && (t> 0.4) && (t> 0.5)){
+                    m_sim_data=1;
+                    tcp->setResetFlag(true);
+                }
+            }
+        }
+
+        
+    }
+
+    if (drop==false){
+        /* move the Tx packet to Rx side of server */
+        m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(t+(m_rtt_sec/2.0) )) );
+    }else{
+        rte_pktmbuf_free(m);
+    }
 }
 
 bool CTcpSimEventRx::on_event(CSimEventDriven *sched,
@@ -1559,6 +1629,62 @@ TEST_F(gt_tcp, tst30_http_simple) {
     
     lpt1->simple_http();
 
+    lpt1->Delete();
+
+    delete lpt1;
+}
+
+TEST_F(gt_tcp, tst30_http_rst) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http_rst");
+    lpt1->set_debug_mode(true);
+    lpt1->set_simulate_rst_error(csSIM_RST_SYN);
+    
+    lpt1->simple_http();
+
+    lpt1->Delete();
+
+    delete lpt1;
+}
+
+TEST_F(gt_tcp, tst30_http_rst1) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http_rst1");
+    lpt1->set_debug_mode(true);
+    lpt1->set_simulate_rst_error(csSIM_RST_SYN1);
+    
+    lpt1->simple_http();
+
+    lpt1->Delete();
+
+    delete lpt1;
+}
+
+TEST_F(gt_tcp, tst30_http_rst_middle) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http_rst_middle");
+    lpt1->set_debug_mode(true);
+    lpt1->set_simulate_rst_error(csSIM_RST_MIDDLE);
+    lpt1->simple_http();
+    lpt1->Delete();
+
+    delete lpt1;
+}
+
+TEST_F(gt_tcp, tst30_http_rst_middle1) {
+
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http_rst_middle");
+    lpt1->set_debug_mode(true);
+    lpt1->set_simulate_rst_error(csSIM_RST_MIDDLE2);
+    lpt1->simple_http();
     lpt1->Delete();
 
     delete lpt1;

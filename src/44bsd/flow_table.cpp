@@ -221,6 +221,7 @@ CTcpFlow * CFlowTable::alloc_flow(CTcpPerThreadCtx * ctx,
 
 void       CFlowTable::free_flow(CTcpFlow * flow){
     assert(flow);
+    flow->Delete();
     delete flow;
 
 }
@@ -299,6 +300,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     /* TBD template port */
     if (lpTcp->getDestPort() != 80) {
         /* TBD need to generate RST packet in this case */
+
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);

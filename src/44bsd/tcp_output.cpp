@@ -313,10 +313,7 @@ void tcp_respond(CTcpPerThreadCtx * ctx,
     ti->setFlag(flags);
     ti->setWindowSize((uint16_t) (win >> tp->rcv_scale));
 
-    /* TBD repace this */
-    assert(0);
-    utl_k12_pkt_format(stdout,pkt.get_header_ptr(),  pkt.get_pkt_size()) ;
-    // (void) ip_output(m, NULL, ro, 0, NULL);
+    ctx->m_cb->on_tx(ctx,tp,pkt.m_buf);
 }
 
 

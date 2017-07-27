@@ -284,6 +284,10 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
              (ti->ti_seq == tp->rcv_nxt) && 
              (tp->t_state > TCPS_ESTABLISHED) && 
              (ti->ti_len==0) ) {
+            INC_STAT(ctx,tcps_rcvpack);
+            if (m) {
+                rte_pktmbuf_free(m);
+            }
             return(ti->ti_flags & TH_FIN);
         }
         tcp_reass_alloc(ctx,tp);
