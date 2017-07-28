@@ -89,7 +89,7 @@ extern "C" {
 
 #define MAX_PKT_BURST   32
 
-#define BP_MAX_CORES 32
+#define BP_MAX_CORES 48
 #define BP_MAX_TX_QUEUE 16
 #define BP_MASTER_AND_LATENCY 2
 
