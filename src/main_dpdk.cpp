@@ -1307,13 +1307,6 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     /* if we have a platform factor we need to devided by it so we can still work with normalized yaml profile  */
     po->m_factor = po->m_factor/po->m_platform_factor;
 
-    uint32_t cores=po->preview.getCores();
-    if ( cores > ((BP_MAX_CORES)/2-1) ) {
-        fprintf(stderr, " Error: maximum supported core number is: %d \n",((BP_MAX_CORES)/2-1));
-        return -1;
-    }
-
-
     if ( first_time ){
         /* only first time read the configuration file */
         if ( po->platform_cfg_file.length() >0  ) {
@@ -4174,26 +4167,34 @@ int  CGlobalTRex::ixgbe_prob_init(void){
                  m_max_ports);
     }
 
-    if ( CGlobalInfo::m_options.get_expected_ports() > TREX_MAX_PORTS ) {
+    CParserOption * ps=&CGlobalInfo::m_options;
+    if ( ps->get_expected_ports() > TREX_MAX_PORTS ) {
         rte_exit(EXIT_FAILURE, " Maximum number of ports supported is %d. You are trying to use %d. Please use --limit-ports, or change 'port_limit:' in the config file\n"
-                 ,TREX_MAX_PORTS, CGlobalInfo::m_options.get_expected_ports());
+                 ,TREX_MAX_PORTS, ps->get_expected_ports());
     }
 
-    if ( CGlobalInfo::m_options.get_expected_ports() > m_max_ports ){
+    if ( ps->get_expected_ports() > m_max_ports ){
         rte_exit(EXIT_FAILURE, " There are %d ports available. You are trying to use %d. Please use --limit-ports, or change 'port_limit:' in the config file\n",
                  m_max_ports,
-                 CGlobalInfo::m_options.get_expected_ports());
+                 ps->get_expected_ports());
     }
-    if (CGlobalInfo::m_options.get_expected_ports() < m_max_ports ) {
+    if (ps->get_expected_ports() < m_max_ports ) {
         /* limit the number of ports */
-        m_max_ports=CGlobalInfo::m_options.get_expected_ports();
+        m_max_ports=ps->get_expected_ports();
     }
     assert(m_max_ports <= TREX_MAX_PORTS);
+
+
+    if  ( ps->get_number_of_dp_cores_needed() > BP_MAX_CORES ){
+        rte_exit(EXIT_FAILURE, " Your configuration require  %d DP cores but the maximum supported is %d - try to reduce `-c value ` or 'c:' in the config file\n",
+                 (int)ps->get_number_of_dp_cores_needed(),
+                 (int)BP_MAX_CORES);
+    }
 
     struct rte_eth_dev_info dev_info;
     rte_eth_dev_info_get( CTVPort(0).get_repid(),&dev_info);
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+    if ( ps->preview.getVMode() > 0){
         printf("\n\n");
         printf("if_index : %d \n",dev_info.if_index);
         printf("driver name : %s \n",dev_info.driver_name);
@@ -4238,7 +4239,7 @@ int  CGlobalTRex::ixgbe_prob_init(void){
 
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* verify that we have only one thread/core per dual- interface */
-        if ( CGlobalInfo::m_options.preview.getCores()>1 ) {
+        if ( ps->preview.getCores()>1 ) {
             printf("Error: the number of cores should be 1 when the driver support only one tx queue and one rx queue. Please use -c 1 \n");
             exit(1);
         }
@@ -5672,8 +5673,19 @@ int update_global_info_from_platform_file(){
     CGlobalInfo::m_options.preview.setCores(cg->m_thread_per_dual_if);
 
     if ( cg->m_port_limit_exist ){
-        CGlobalInfo::m_options.m_expected_portd =cg->m_port_limit;
+        if (cg->m_port_limit > cg->m_if_list.size() ) {
+            cg->m_port_limit = cg->m_if_list.size();
+        }
+        CGlobalInfo::m_options.m_expected_portd = cg->m_port_limit;
+    }else{
+        CGlobalInfo::m_options.m_expected_portd = cg->m_if_list.size();
     }
+
+    if ( CGlobalInfo::m_options.m_expected_portd < 2 ){
+        printf("ERROR need at least 2 ports \n");
+        exit(-1);
+    }
+
 
     if ( cg->m_enable_zmq_pub_exist ){
         CGlobalInfo::m_options.preview.set_zmq_publish_enable(cg->m_enable_zmq_pub);
