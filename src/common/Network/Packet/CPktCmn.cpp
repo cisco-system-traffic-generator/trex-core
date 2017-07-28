@@ -98,19 +98,6 @@ uint16_t pkt_SubtractInetChecksum(uint16_t checksum, uint16_t csToSubtract){
     return PKT_NTOHS((uint16_t)(~newCS));
 }
 
-uint16_t pkt_AddInetChecksum(uint16_t checksum, uint16_t csToAdd){
-    uint32_t newCS;
-    newCS = (uint16_t)(~PKT_NTOHS(checksum));
-
-    // since the cs is already in ~ format in the packet, there is a need
-    // to negate it for addition in 1's complement.
-    newCS += (uint16_t)PKT_NTOHS(~csToAdd);
-
-    while(newCS >> 16){
-        newCS = (newCS & 0xffff) + (newCS >> 16);
-    }
-    return PKT_NTOHS((uint16_t)(~newCS));
-}
 
 
 extern "C" void pkt_ChecksumTest(){

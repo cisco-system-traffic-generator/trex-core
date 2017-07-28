@@ -235,12 +235,13 @@ struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
 
 void CTcpFlow::init(){
     /* build template */
-    tcp_template(&m_tcp);
-        /* register the timer */
-
     #ifndef TREX_SIM  /* FIX ME -- need to lead from DPDK driver and ctx */
     m_tcp.m_offload_flags = TCP_OFFLOAD_CHKSUM;
     #endif
+
+    tcp_template(&m_tcp);
+
+    /* register the timer */
 
     m_ctx->timer_w_start(this);
 }
@@ -475,13 +476,25 @@ void tcp_template(struct tcpcb *tp){
         }
         /* set default value */
         IPHeader *lpIpv4=(IPHeader *)(p+tp->offset_ip);
+        lpIpv4->setTotalLength(20); /* important for PH calculation */
         lpIpv4->setDestIp(tp->dst_ipv4);
         lpIpv4->setSourceIp(tp->src_ipv4);
         lpIpv4->ClearCheckSum();
         TCPHeader *lpTCP=(TCPHeader *)(p+tp->offset_tcp);
         lpTCP->setSourcePort(tp->src_port);
         lpTCP->setDestPort(tp->dst_port);
+
+        if (tp->m_offload_flags & TCP_OFFLOAD_CHKSUM){
+            tp->l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct ipv4_hdr *)lpIpv4,(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_TCP_CKSUM));
+        }else{
+            tp->l4_pseudo_checksum=0;
+        }
     }else{
+        /* 
+        calculate the IPv6 pseudo header
+        tp->l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct ipv6_hdr *)Ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM)
+
+        */
         assert(0);
     }
 }

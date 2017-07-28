@@ -51,8 +51,31 @@ uint16_t pkt_UpdateInetChecksum(uint16_t csFieldFromPacket, uint16_t oldVal, uin
 // checksum and csToSubtract are two uint16_t cs fields AS THEY APPEAR INSIDE A PACKET !
 uint16_t pkt_SubtractInetChecksum(uint16_t checksum, uint16_t csToSubtract);
 
-// checksum and csToAdd are two uint16_t cs fields AS THEY APPEAR INSIDE A PACKET !
-uint16_t pkt_AddInetChecksum(uint16_t checksum, uint16_t csToAdd);
+
+inline uint16_t pkt_AddInetChecksum(uint16_t checksum, uint16_t csToAdd){
+    uint32_t newCS;
+    newCS = (uint16_t)(~PKT_NTOHS(checksum));
+
+    // since the cs is already in ~ format in the packet, there is a need
+    // to negate it for addition in 1's complement.
+    newCS += (uint16_t)PKT_NTOHS(~csToAdd);
+
+    while(newCS >> 16){
+        newCS = (newCS & 0xffff) + (newCS >> 16);
+    }
+    return PKT_NTOHS((uint16_t)(~newCS));
+}
+
+
+inline uint16_t pkt_AddInetChecksumRaw(uint16_t checksum, uint16_t csToAdd){
+    uint32_t newCS;
+    newCS = (uint16_t)(checksum);
+    newCS += (uint16_t)csToAdd;
+    newCS = (newCS & 0xffff) + (newCS >> 16);
+    return (uint16_t)(newCS);
+}
+
+
 
 
 struct Tunnels

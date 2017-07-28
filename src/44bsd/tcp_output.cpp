@@ -93,7 +93,7 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             ipv4->setTotalLength(tlen);
             ipv4->ClearCheckSum();
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
-            tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_TCP_CKSUM)));
+            tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
         }else{
             uint16_t tlen=tcp_h_pyld;
             m->l2_len = tp->offset_ip;
@@ -102,7 +102,7 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             IPv6Header * Ipv6=(IPv6Header *)(p+tp->offset_ip);
             Ipv6->setPayloadLen(tlen);
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
-            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)Ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM)));
+            tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
         }
     }else{
         if (!tp->is_ipv6){

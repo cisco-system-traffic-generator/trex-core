@@ -195,7 +195,7 @@ struct tcpcb {
     uint16_t  src_port;
     uint16_t  dst_port;
     uint16_t  vlan;
-    uint16_t  pad3;
+    uint16_t  l4_pseudo_checksum;
 
     uint8_t offset_tcp; /* offset of tcp_header, in template */
     uint8_t offset_ip;  /* offset of ip_header in template */

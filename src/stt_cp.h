@@ -44,6 +44,7 @@ typedef enum {
 
 typedef uint8_t tcp_dir_t;
 
+
 class CSTTCpPerDir {
 public:
     bool Create();
