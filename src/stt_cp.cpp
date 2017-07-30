@@ -63,7 +63,11 @@ void CSTTCpPerDir::update_counters(){
     m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal);
     m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack+lpt->tcps_rcvackpack);
 
-    m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
+    if ( (m_tx_pps_r+m_rx_pps_r) >0.0){
+        m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
+    }else{
+        m_avg_size=0.0;
+    }
 }
 
 
