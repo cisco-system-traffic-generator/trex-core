@@ -2335,5 +2335,28 @@ TEST_F(gt_tcp, tst43) {
     ctx.Delete();
 }
 
+#if 0
+
+void  utl_rte_pktmbuf_dump_k12(FILE* fp,rte_mbuf_t   * m){
+    if (m->nb_segs==1) {
+       uint8_t *pkt = rte_pktmbuf_mtod(m, uint8_t*);
+       utl_k12_pkt_format(fp,pkt,  m->pkt_len,0);
+    }else{
+        /* copy the packet */
+        char *p;
+        p=utl_rte_pktmbuf_to_mem(m);
+        utl_k12_pkt_format(fp,p,m->pkt_len,0);
+        free(p);
+    }
+}
+
+
+TEST_F(gt_tcp, tst50) {
+}
+
+
+
+
+#endif
 
 
