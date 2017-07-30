@@ -312,10 +312,18 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
         lps->m_old_ipackets = ipackets;
 
 
-        /* diff of 32bit */
-        uint32_t opackets = (uint32_t)(et_stats->data[lps->inx_tx_vport_unicast_packets] +
+        uint32_t opackets;
+        if ( lps->cx_4_workaround == 0 ) {
+
+        /* diff of 32bit */ 
+          opackets = (uint32_t)(et_stats->data[lps->inx_tx_vport_unicast_packets] +
                                        et_stats->data[lps->inx_tx_vport_multicast_packets] +
                                        et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+        }else{
+
+          opackets = (uint32_t)(et_stats->data[lps->inx_tx_packets_phy] );
+
+        }
 
         lps->m_t_opackets +=(opackets - lps->m_old_opackets);
         tmp.opackets = lps->m_t_opackets;
