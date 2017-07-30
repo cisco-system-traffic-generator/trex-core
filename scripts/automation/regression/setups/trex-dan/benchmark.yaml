@@ -65,6 +65,7 @@ test_nat_simple_mode1: &test_nat_simple
     multiplier          : 550
     cores               : 1
     allow_timeout_dev   : True
+    allowed_no_fid      : 5
     bw_per_core         : 7.465
 
 test_nat_simple_mode2: *test_nat_simple

@@ -242,23 +242,38 @@ class CTRexGeneral_Test(unittest.TestCase):
             pprint.pprint(elk_obj['test']);
             self.elk.perf.push_data(elk_obj)
 
-
-    def check_results_gt (self, res, name, val):
+    # actually greater or equal
+    def check_results_gt(self, res, name, val):
         if res is None:
-            self.fail('TRex results canot be None !')
+            self.fail('TRex results can not be None !')
             return
 
         if name not in res:
             self.fail('TRex results does not include key %s' % name)
             return
 
-        if res[name]< float(val):
-            self.fail('TRex results[%s]<%f and not as expected greater than %f ' % (name, res[name], val))
+        if res[name] < float(val):
+            self.fail('TRex results[%s] is %f and not as expected greater than %f ' % (name, res[name], val))
+
+
+    # actually less or equal
+    def check_results_lt(self, res, name, val):
+        if res is None:
+            self.fail('TRex results can not be None !')
+            return
+
+        if name not in res:
+            self.fail('TRex results does not include key %s' % name)
+            return
+
+        if res[name] > float(val):
+            self.fail('TRex results[%s] is %f and not as expected less than %f ' % (name, res[name], val))
+
 
     def check_for_trex_crash(self):
         pass
 
-    def get_benchmark_param (self, param, sub_param = None, test_name = None,default=None):
+    def get_benchmark_param (self, param, sub_param = None, test_name = None, default = None):
         if not test_name:
             test_name = self.get_name()
         if test_name not in self.benchmark:
@@ -267,9 +282,9 @@ class CTRexGeneral_Test(unittest.TestCase):
             else:
                 return default
         if sub_param:
-            return self.benchmark[test_name][param].get(sub_param)
+            return self.benchmark[test_name][param].get(sub_param, default)
         else:
-            return self.benchmark[test_name].get(param)
+            return self.benchmark[test_name].get(param, default)
 
     def check_general_scenario_results (self, trex_res, check_latency = True):
         

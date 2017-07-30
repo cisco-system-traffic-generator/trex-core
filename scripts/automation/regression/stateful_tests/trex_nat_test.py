@@ -139,7 +139,8 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
                 self.fail('TRex nat_timeout ratio %f > 0.5%%' % nat_timeout_ratio)
         else:
             self.check_results_eq (trex_nat_stats,'m_total_nat_time_out', 0.0)
-        self.check_results_eq (trex_nat_stats,'m_total_nat_no_fid', 0.0)
+        allowed_no_fid = self.get_benchmark_param('allowed_no_fid', default = 0.1)
+        self.check_results_lt(trex_nat_stats, 'm_total_nat_no_fid', allowed_no_fid)
         self.check_results_gt (trex_nat_stats,'m_total_nat_open', 6000)
 
 
