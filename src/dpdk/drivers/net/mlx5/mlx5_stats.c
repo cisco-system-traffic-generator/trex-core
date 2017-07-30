@@ -278,15 +278,25 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
                     et_stats->data[lps->inx_rx_vport_multicast_packets] +
                     et_stats->data[lps->inx_rx_vport_broadcast_packets];
 
-        tmp.opackets += (et_stats->data[lps->inx_tx_vport_unicast_packets] +
-                         et_stats->data[lps->inx_tx_vport_multicast_packets] +
-                         et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+        /* woprkaround CX-4 Lx does not implement tx_vport_unicast_packets and return always ZERO */
+        if ( et_stats->data[lps->inx_tx_vport_unicast_packets]==0 ) {
+            lps->cx_4_workaround=1;
+        }
+
+        if ( lps->cx_4_workaround == 0 ) {
+            tmp.opackets += (et_stats->data[lps->inx_tx_vport_unicast_packets] +
+                             et_stats->data[lps->inx_tx_vport_multicast_packets] +
+                             et_stats->data[lps->inx_tx_vport_broadcast_packets]);
+        }else{
+            tmp.opackets += (et_stats->data[lps->inx_tx_packets_phy] );
+        }
 
         lps->m_t_opackets =0;
         lps->m_t_ipackets =0;
 
         lps->m_old_ipackets = (uint32_t)tmp.ipackets;
         lps->m_old_opackets = (uint32_t)tmp.opackets;
+
 
     }else{
 
@@ -318,9 +328,13 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
                     et_stats->data[lps->inx_rx_in_range_len_errors_phy] +
                     et_stats->data[lps->inx_rx_symbol_err_phy]);
 
-    tmp.obytes += et_stats->data[lps->inx_tx_vport_unicast_bytes] +
-                  et_stats->data[lps->inx_tx_vport_multicast_bytes] +
-                  et_stats->data[lps->inx_tx_vport_broadcast_bytes];
+    if ( lps->cx_4_workaround == 0 ) {
+        tmp.obytes += et_stats->data[lps->inx_tx_vport_unicast_bytes] +
+                      et_stats->data[lps->inx_tx_vport_multicast_bytes] +
+                      et_stats->data[lps->inx_tx_vport_broadcast_bytes];
+    }else{
+        tmp.obytes += et_stats->data[lps->inx_tx_bytes_phy];
+    }
 
 
     tmp.oerrors += et_stats->data[lps->inx_tx_errors_phy];
@@ -440,6 +454,10 @@ mlx5_stats_init(struct rte_eth_dev *dev)
             if (!strcmp("tx_vport_multicast_packets", curr_string)) lps->inx_tx_vport_multicast_packets = i;
             if (!strcmp("tx_vport_broadcast_packets", curr_string)) lps->inx_tx_vport_broadcast_packets = i;
 
+            if (!strcmp("tx_packets_phy", curr_string)) lps->inx_tx_packets_phy = i;
+            if (!strcmp("tx_bytes_phy", curr_string)) lps->inx_tx_bytes_phy = i;
+            lps->cx_4_workaround=0;
+
             if (!strcmp("rx_wqe_err", curr_string)) lps->inx_rx_wqe_err = i;
             if (!strcmp("rx_crc_errors_phy", curr_string)) lps->inx_rx_crc_errors_phy = i;
             if (!strcmp("rx_in_range_len_errors_phy", curr_string)) lps->inx_rx_in_range_len_errors_phy = i;
@@ -464,7 +482,9 @@ mlx5_stats_init(struct rte_eth_dev *dev)
     !lps->inx_tx_vport_broadcast_packets ||
     !lps->inx_rx_wqe_err ||
     !lps->inx_rx_crc_errors_phy ||
-    !lps->inx_rx_in_range_len_errors_phy) {
+    !lps->inx_rx_in_range_len_errors_phy||
+    !lps->inx_tx_packets_phy||
+    !lps->inx_tx_bytes_phy) {
         WARN("Counters are not recognized %s", ifname);
         return;
     }

@@ -114,11 +114,16 @@ struct mlx5_stats_priv {
     uint16_t inx_tx_vport_unicast_packets;
     uint16_t inx_tx_vport_multicast_packets;
     uint16_t inx_tx_vport_broadcast_packets;
+
+    uint16_t inx_tx_packets_phy;
+    uint16_t inx_tx_bytes_phy;
+
     uint16_t inx_rx_wqe_err;
     uint16_t inx_rx_crc_errors_phy;
     uint16_t inx_rx_in_range_len_errors_phy;
     uint16_t inx_rx_symbol_err_phy;
     uint16_t inx_tx_errors_phy;
+    uint16_t cx_4_workaround;
 };
 
 
