@@ -1746,3 +1746,163 @@ def STLIPRange (src = None,
 
     return vm
 
+    
+    
+class STLVM(STLScVmRaw):
+    '''
+        Defines a VM/Field Engine object
+        
+        Describes the interaction on each packet
+        
+    '''
+    
+    def __init__ (self):
+        STLScVmRaw.__init__(self)
+
+
+    def var (self, name, min_value, max_value, size, op, step = 1):
+        """
+        Defines a flow variable.
+        Allocates a variable on a stream context. The size argument determines the variable size.
+        The operation can be inc, dec, and random. 
+        For increment and decrement operations, can set the "step" size.
+        For all operations, can set initialization value, minimum and maximum value.
+
+        :parameters:
+             name : string 
+                Name of the stream variable 
+
+             min_value  : int
+                Min value 
+
+             max_value  : int
+                Max value 
+
+             size  : int
+                Number of bytes of the variable. Possible values: 1,2,4,8 for uint8_t, uint16_t, uint32_t, uint64_t
+
+             step  : int 
+                Step in case of "inc" or "dec" operations
+
+             op    : string 
+                Possible values: "inc", "dec", "random"
+        """
+        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step))
+        
+        
+    def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
+        """
+        Write a previously defined varaible to the packet.
+        
+        The write position is determined by the packet offset + offset fixup. The size of the write is determined by the stream variable. 
+        Example: Offset 10, fixup 0, variable size 4. This function writes at 10, 11, 12, and 13.
+
+        For inromation about chaning the write size, offset, or fixup, see the `STLVmWrMaskFlowVar` command. 
+        The Field name/offset can be given by name in the following format: ``header[:id].field``. 
+
+
+        :parameters:
+            fv_name : string 
+                Stream variable to write to a packet offset.
+
+            pkt_offset : string or in
+                Name of the field or offset in bytes from packet start.
+
+            offset_fixup : int 
+                Number of bytes to move forward. If negative, move backward.
+
+             add_val     : int
+                Value to add to the stream variable before writing it to the packet field. Can be used as a constant offset. 
+
+             is_big      : bool 
+                How to write the variable to the the packet. True=big-endian, False=little-endian 
+        """
+        self.add_cmd(STLVmWrFlowVar(fv_name = fv_name,
+                                    pkt_offset = pkt_offset,
+                                    offset_fixup = offset_fixup,
+                                    add_val = add_val,
+                                    is_big = (byte_order == 'big')))
+        
+
+    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows):
+        """
+        Generate a struct with two variables: ``var_name.ip`` as uint32_t and ``var_name.port`` as uint16_t 
+        The variables are dependent. When the ip variable value reaches its maximum, the port is incremented. 
+
+        For:
+
+        * ip_min      = 10.0.0.1
+        * ip_max      = 10.0.0.5
+        * port_min    = 1025
+        * port_max    = 1028
+        * limit_flows = 10
+
+        The result:
+
+        +------------+------------+-----------+ 
+        | ip         | port       | flow_id   | 
+        +============+============+===========+ 
+        | 10.0.0.1   | 1025       | 1         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.2   | 1025       | 2         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.3   | 1025       | 3         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.4   | 1025       | 4         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.5   | 1025       | 5         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.1   | 1026       | 6         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.2   | 1026       | 7         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.3   | 1026       | 8         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.4   | 1026       | 9         | 
+        +------------+------------+-----------+ 
+        | 10.0.0.5   | 1026       | 10        | 
+        +------------+------------+-----------+ 
+        | 10.0.0.1   | 1025       | 1         | 
+        +------------+------------+-----------+
+
+
+        :parameters:
+            name : string 
+                Name of the stream struct. 
+
+            ip_min : string or int 
+                Min value of the ip value. Number or IPv4 format.
+
+            ip_max : string or int 
+                Max value of the ip value. Number or IPv4 format.
+
+            port_min : int 
+                Min value of port variable. 
+
+            port_max : int 
+                Max value of port variable. 
+
+            limit_flows : int 
+                Limit of number of flows. 
+
+        """
+        
+        self.add_cmd(STLVmTupleGen(name = name,
+                                   ip_min = ip_min,
+                                   ip_max = ip_max,
+                                   port_min = port_min,
+                                   port_max = port_max,
+                                   limit_flows = limit_flows))
+        
+        
+    def fix_chksum (self, offset = "IP"):
+        """
+        Fix IPv4 header checksum. Use this if the packet header has changed and it is necessary to change the checksum.
+
+        :parameters:
+             offset : uint16_t or string 
+                **IPv4 header** offset from packet start. It is **not** the offset of the checksum field itself.
+                in could be string in case of scapy packet. format IP[:[id]]
+        """
+        self.add_cmd(STLVmFixIpv4(offset))
+
