@@ -60,6 +60,7 @@ public:
             ESP     = 0x32,
             AH      = 0x33,
             GRE     = 0x2F,
+            SCTP    = 0x84, 
             IPV6_ICMP = 0x3A,
             IPV6_NONXT = 0x3B,
         };

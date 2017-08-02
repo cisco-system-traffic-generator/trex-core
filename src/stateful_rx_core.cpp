@@ -443,7 +443,10 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
         }
     
         if ( (m->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD ){
-            m_l4_cs_err++;
+            if ( parser.m_protocol != IPHeader::Protocol::SCTP ){
+                /* in case of SCTP packets we don't fix checksum  for L4 */
+                m_l4_cs_err++;
+            }
         }
     }
 
