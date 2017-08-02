@@ -341,7 +341,7 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
                       et_stats->data[lps->inx_tx_vport_multicast_bytes] +
                       et_stats->data[lps->inx_tx_vport_broadcast_bytes];
     }else{
-        tmp.obytes += et_stats->data[lps->inx_tx_bytes_phy];
+        tmp.obytes += (et_stats->data[lps->inx_tx_bytes_phy] - (tmp.opackets*4)) ;
     }
 
 
