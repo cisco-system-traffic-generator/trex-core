@@ -40,6 +40,7 @@
 
 #include "compat.h"
 
+
 /**
  * A structure describing the private information for a uio device.
  */
@@ -81,62 +82,10 @@ store_max_vfs(struct device *dev, struct device_attribute *attr,
 	return err ? err : count;
 }
 
-#ifdef RTE_PCI_CONFIG
-static ssize_t
-show_extended_tag(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	dev_info(dev, "Deprecated\n");
-
-	return 0;
-}
-
-static ssize_t
-store_extended_tag(struct device *dev,
-		   struct device_attribute *attr,
-		   const char *buf,
-		   size_t count)
-{
-	dev_info(dev, "Deprecated\n");
-
-	return 0;
-}
-
-static ssize_t
-show_max_read_request_size(struct device *dev,
-			   struct device_attribute *attr,
-			   char *buf)
-{
-	dev_info(dev, "Deprecated\n");
-
-	return 0;
-}
-
-static ssize_t
-store_max_read_request_size(struct device *dev,
-			    struct device_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-	dev_info(dev, "Deprecated\n");
-
-	return 0;
-}
-#endif
-
 static DEVICE_ATTR(max_vfs, S_IRUGO | S_IWUSR, show_max_vfs, store_max_vfs);
-#ifdef RTE_PCI_CONFIG
-static DEVICE_ATTR(extended_tag, S_IRUGO | S_IWUSR, show_extended_tag,
-	store_extended_tag);
-static DEVICE_ATTR(max_read_request_size, S_IRUGO | S_IWUSR,
-	show_max_read_request_size, store_max_read_request_size);
-#endif
 
 static struct attribute *dev_attrs[] = {
 	&dev_attr_max_vfs.attr,
-#ifdef RTE_PCI_CONFIG
-	&dev_attr_extended_tag.attr,
-	&dev_attr_max_read_request_size.attr,
-#endif
 	NULL,
 };
 
@@ -220,6 +169,37 @@ igbuio_pci_irqhandler(int irq, struct uio_info *info)
 
 	/* Message signal mode, no share IRQ and automasked */
 	return IRQ_HANDLED;
+}
+
+/**
+ * This gets called while opening uio device file.
+ */
+static int
+igbuio_pci_open(struct uio_info *info, struct inode *inode)
+{
+	struct rte_uio_pci_dev *udev = info->priv;
+	struct pci_dev *dev = udev->pdev;
+
+	pci_reset_function(dev);
+
+	/* set bus master, which was cleared by the reset function */
+	pci_set_master(dev);
+
+	return 0;
+}
+
+static int
+igbuio_pci_release(struct uio_info *info, struct inode *inode)
+{
+	struct rte_uio_pci_dev *udev = info->priv;
+	struct pci_dev *dev = udev->pdev;
+
+	/* stop the device from further DMA */
+	pci_clear_master(dev);
+
+	pci_reset_function(dev);
+
+	return 0;
 }
 
 #ifdef CONFIG_XEN_DOM0
@@ -366,7 +346,7 @@ igbuio_setup_bars(struct pci_dev *dev, struct uio_info *info)
 		}
 	}
 
-	return (iom != 0) ? ret : -ENOENT;
+	return (iom != 0 || iop != 0) ? ret : -ENOENT;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
@@ -377,7 +357,11 @@ static int
 igbuio_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	struct rte_uio_pci_dev *udev;
+#ifdef HAVE_PCI_ENABLE_MSIX
 	struct msix_entry msix_entry;
+#endif
+	dma_addr_t map_dma_addr;
+	void *map_addr;
 	int err;
 
 	udev = kzalloc(sizeof(struct rte_uio_pci_dev), GFP_KERNEL);
@@ -392,16 +376,6 @@ igbuio_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	if (err != 0) {
 		dev_err(&dev->dev, "Cannot enable PCI device\n");
 		goto fail_free;
-	}
-
-	/*
-	 * reserve device's PCI memory regions for use by this
-	 * module
-	 */
-	err = pci_request_regions(dev, "igb_uio");
-	if (err != 0) {
-		dev_err(&dev->dev, "Cannot request regions\n");
-		goto fail_disable;
 	}
 
 	/* enable bus mastering on the device */
@@ -430,6 +404,8 @@ igbuio_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	udev->info.version = "0.1";
 	udev->info.handler = igbuio_pci_irqhandler;
 	udev->info.irqcontrol = igbuio_pci_irqcontrol;
+	udev->info.open = igbuio_pci_open;
+	udev->info.release = igbuio_pci_release;
 #ifdef CONFIG_XEN_DOM0
 	/* check if the driver run on Xen Dom0 */
 	if (xen_initial_domain())
@@ -441,18 +417,28 @@ igbuio_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	switch (igbuio_intr_mode_preferred) {
 	case RTE_INTR_MODE_MSIX:
 		/* Only 1 msi-x vector needed */
+#ifdef HAVE_PCI_ENABLE_MSIX
 		msix_entry.entry = 0;
 		if (pci_enable_msix(dev, &msix_entry, 1) == 0) {
 			dev_dbg(&dev->dev, "using MSI-X");
+			udev->info.irq_flags = IRQF_NO_THREAD;
 			udev->info.irq = msix_entry.vector;
 			udev->mode = RTE_INTR_MODE_MSIX;
 			break;
 		}
+#else
+		if (pci_alloc_irq_vectors(dev, 1, 1, PCI_IRQ_MSIX) == 1) {
+			dev_dbg(&dev->dev, "using MSI-X");
+			udev->info.irq = pci_irq_vector(dev, 0);
+			udev->mode = RTE_INTR_MODE_MSIX;
+			break;
+		}
+#endif
 		/* fall back to INTX */
 	case RTE_INTR_MODE_LEGACY:
 		if (pci_intx_mask_supported(dev)) {
 			dev_dbg(&dev->dev, "using INTX");
-			udev->info.irq_flags = IRQF_SHARED;
+			udev->info.irq_flags = IRQF_SHARED | IRQF_NO_THREAD;
 			udev->info.irq = dev->irq;
 			udev->mode = RTE_INTR_MODE_LEGACY;
 			break;
@@ -485,6 +471,27 @@ igbuio_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	dev_info(&dev->dev, "uio device registered with irq %lx\n",
 		 udev->info.irq);
 
+	/*
+	 * Doing a harmless dma mapping for attaching the device to
+	 * the iommu identity mapping if kernel boots with iommu=pt.
+	 * Note this is not a problem if no IOMMU at all.
+	 */
+	map_addr = dma_alloc_coherent(&dev->dev, 1024, &map_dma_addr,
+			GFP_KERNEL);
+	if (map_addr)
+		memset(map_addr, 0, 1024);
+
+	if (!map_addr)
+		dev_info(&dev->dev, "dma mapping failed\n");
+	else {
+		dev_info(&dev->dev, "mapping 1K dma=%#llx host=%p\n",
+			 (unsigned long long)map_dma_addr, map_addr);
+
+		dma_free_coherent(&dev->dev, 1024, map_addr, map_dma_addr);
+		dev_info(&dev->dev, "unmapping 1K dma=%#llx host=%p\n",
+			 (unsigned long long)map_dma_addr, map_addr);
+	}
+
 	return 0;
 
 fail_remove_group:
@@ -493,8 +500,6 @@ fail_release_iomem:
 	igbuio_pci_release_iomem(&udev->info);
 	if (udev->mode == RTE_INTR_MODE_MSIX)
 		pci_disable_msix(udev->pdev);
-	pci_release_regions(dev);
-fail_disable:
 	pci_disable_device(dev);
 fail_free:
 	kfree(udev);
@@ -512,7 +517,6 @@ igbuio_pci_remove(struct pci_dev *dev)
 	igbuio_pci_release_iomem(&udev->info);
 	if (udev->mode == RTE_INTR_MODE_MSIX)
 		pci_disable_msix(dev);
-	pci_release_regions(dev);
 	pci_disable_device(dev);
 	pci_set_drvdata(dev, NULL);
 	kfree(udev);

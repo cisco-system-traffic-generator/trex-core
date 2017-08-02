@@ -24,6 +24,15 @@
 #define   PCI_MSIX_ENTRY_CTRL_MASKBIT   1
 #endif
 
+/*
+ * for kernels < 2.6.38 and backported patch that moves MSI-X entry definition
+ * to pci_regs.h Those kernels has PCI_MSIX_ENTRY_SIZE defined but not
+ * PCI_MSIX_ENTRY_CTRL_MASKBIT
+ */
+#ifndef PCI_MSIX_ENTRY_CTRL_MASKBIT
+#define PCI_MSIX_ENTRY_CTRL_MASKBIT    1
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) && \
 	(!(defined(RHEL_RELEASE_CODE) && \
 	 RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(5, 9)))
@@ -114,3 +123,7 @@ static bool pci_check_and_mask_intx(struct pci_dev *pdev)
 }
 
 #endif /* < 3.3.0 */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+#define HAVE_PCI_ENABLE_MSIX
+#endif
