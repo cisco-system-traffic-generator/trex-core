@@ -44,6 +44,7 @@
 #include "tcpip.h"
 #include "tcp_debug.h"
 #include "tcp_socket.h"
+#include "utl_mbuf.h"
 
 
 #define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
@@ -75,6 +76,15 @@ void CTcpReassBlock::Dump(FILE *fd){
     fprintf(fd,"seq : %lu(%lu)(%s) \n",(ulong)m_seq,(ulong)m_len,m_flags?"FIN":"");
 }
 
+inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
+    assert(m->pkt_len>len);
+    assert(utl_rte_pktmbuf_adj_ex(m, len)!=NULL);
+}
+
+inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
+    assert(m->pkt_len>len);
+    assert(utl_rte_pktmbuf_trim_ex(m, len)==0);
+}
 
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
@@ -639,7 +649,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
              * Drop TCP, IP headers and TCP options then add data
              * to socket buffer.
              */
-            assert(rte_pktmbuf_adj(m, off)!=NULL);
+            tcp_pktmbuf_adj(m, off);
             sbappend(so,
                      &so->so_rcv, m,ti->ti_len);
             sorwakeup(so);
@@ -663,7 +673,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
     /*
      * Drop TCP, IP headers and TCP options. go to L7 
      */
-    assert(rte_pktmbuf_adj(m, off)!=NULL);
+    tcp_pktmbuf_adj(m, off);
 
         /*
      * Calculate amount of space in receive window,
@@ -779,8 +789,7 @@ trimthenstep6:
         ti->ti_seq++;
         if (ti->ti_len > tp->rcv_wnd) {
             todrop = ti->ti_len - tp->rcv_wnd;
-            /* TBD_MBUF_LINKL */
-            assert(rte_pktmbuf_trim(m, todrop)==0);
+            tcp_pktmbuf_trim(m, todrop);
             ti->ti_len = tp->rcv_wnd;
             tiflags &= ~TH_FIN;
             INC_STAT(ctx,tcps_rcvpackafterwin);
@@ -870,8 +879,8 @@ trimthenstep6:
         }
         /* after this operation, it could be a mbuf with len==0 in  case of mbuf_len==todrop
            still need to free it */
-        /* TBD_MBUF_LINKL */
-        assert(rte_pktmbuf_adj(m, todrop)!=NULL);
+        tcp_pktmbuf_adj(m, todrop);
+
         ti->ti_seq += todrop;
         ti->ti_len -= todrop;
         if (ti->ti_urp > todrop)
@@ -929,8 +938,7 @@ trimthenstep6:
         } else{
             INC_STAT_CNT(ctx,tcps_rcvbyteafterwin, todrop);
         }
-        /* TBD_MBUF_LINKL -- need to hadle the case of trim of full size */
-        assert(rte_pktmbuf_trim(m, todrop)==0);
+        tcp_pktmbuf_trim(m, todrop);
         ti->ti_len -= todrop;
         tiflags &= ~(TH_PUSH|TH_FIN);
     }

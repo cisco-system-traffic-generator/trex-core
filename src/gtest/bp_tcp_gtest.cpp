@@ -2335,28 +2335,99 @@ TEST_F(gt_tcp, tst43) {
     ctx.Delete();
 }
 
-#if 0
 
-void  utl_rte_pktmbuf_dump_k12(FILE* fp,rte_mbuf_t   * m){
-    if (m->nb_segs==1) {
-       uint8_t *pkt = rte_pktmbuf_mtod(m, uint8_t*);
-       utl_k12_pkt_format(fp,pkt,  m->pkt_len,0);
-    }else{
-        /* copy the packet */
-        char *p;
-        p=utl_rte_pktmbuf_to_mem(m);
-        utl_k12_pkt_format(fp,p,m->pkt_len,0);
-        free(p);
+
+
+int test_buffer(int pkt_size,
+                int blk_size,
+                int trim,
+                int verbose){
+
+    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1); 
+    struct rte_mbuf * m;
+    assert(buf);
+    m=utl_rte_pktmbuf_mem_to_pkt(buf,pkt_size,
+                                 blk_size,
+                                 tcp_pktmbuf_get_pool(0,blk_size));
+    assert(m);
+    assert(utl_rte_pktmbuf_verify(m)==0);
+
+
+    if ( verbose ){
+        utl_rte_pktmbuf_k12_format(stdout,m,0);
     }
-}
 
+    if (trim>0){
+        assert(utl_rte_pktmbuf_trim_ex(m,trim)==0);
+    }
+    assert(utl_rte_pktmbuf_verify(m)==0);
+    char  * p2= utl_rte_pktmbuf_to_mem(m);
+    assert(p2);
+
+    assert(m->pkt_len==(pkt_size-trim));
+    int res=memcmp(buf,p2,(pkt_size-trim));
+    rte_pktmbuf_free(m);
+    free(p2);
+    free(buf);
+    return(res);
+}
 
 TEST_F(gt_tcp, tst50) {
+    int i;
+    for (i=0; i<2047; i++) {
+        printf(" test : %d \n",(int)i);
+        assert(test_buffer(2048,512,i,0)==0);
+    } 
+}
+
+
+int test_buffer_adj(int pkt_size,
+                    int blk_size,
+                    int adj,
+                    int verbose){
+
+    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1); 
+    struct rte_mbuf * m;
+    assert(buf);
+    m=utl_rte_pktmbuf_mem_to_pkt(buf,pkt_size,
+                                 blk_size,
+                                 tcp_pktmbuf_get_pool(0,blk_size));
+    assert(m);
+    assert(utl_rte_pktmbuf_verify(m)==0);
+
+
+    if ( verbose ){
+        utl_rte_pktmbuf_k12_format(stdout,m,0);
+    }
+
+    if (adj>0){
+        assert(utl_rte_pktmbuf_adj_ex(m,adj)!=0);
+    }
+    assert(utl_rte_pktmbuf_verify(m)==0);
+
+    char  * p2= utl_rte_pktmbuf_to_mem(m);
+    assert(p2);
+
+    assert(m->pkt_len==(pkt_size-adj));
+    int res=memcmp(buf+adj,p2,(pkt_size-adj));
+    rte_pktmbuf_free(m);
+    free(p2);
+    free(buf);
+    return(res);
+}
+
+TEST_F(gt_tcp, tst51) {
+    //assert(test_buffer(2048,512,1,0)==0);
+    assert(test_buffer(2048,512,512,0)==0);
+
+    int i;
+    for (i=0; i<2047; i++) {
+        printf(" test : %d \n",(int)i);
+        assert(test_buffer(2048,512,i,0)==0);
+    } 
 }
 
 
 
-
-#endif
 
 

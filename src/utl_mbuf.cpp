@@ -180,6 +180,7 @@ void  utl_rte_pktmbuf_fill(rte_mbuf_t   * m,
 }
 
 
+
 void  utl_rte_pktmbuf_dump_k12(FILE* fp,rte_mbuf_t   * m){
     if (m->nb_segs==1) {
        uint8_t *pkt = rte_pktmbuf_mtod(m, uint8_t*);
@@ -193,4 +194,165 @@ void  utl_rte_pktmbuf_dump_k12(FILE* fp,rte_mbuf_t   * m){
     }
 }
 
+
+char * utl_rte_pktmbuf_mem_fill(uint32_t size, 
+                                   int to_rand){
+    char *p=(char *)malloc(size);
+    char *res=p;
+
+    uint8_t start_cnt=0x1;
+
+    int i;
+    for (i=0; i<(int)size; i++) {
+        if (to_rand) {
+            *p=(uint8_t)(rand()&0xff);
+        }else{
+            *p=start_cnt++;
+        }
+        p++;
+    }
+    return(res);
+}
+
+/* convert contiguous buffer to chanin of mbuf in the size of pool  */
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
+                                              uint32_t size, 
+                                              uint16_t mp_blk_size,
+                                              struct  rte_mempool *mp){
+    uint16_t blk_size= mp_blk_size; 
+    rte_mbuf * mr=NULL;
+    rte_mbuf * mlast=NULL;
+    uint16_t nseg=0;        
+    uint32_t pkt_size=size;
+    
+    while (size>0) {
+        uint16_t alloc_size=std::min((uint32_t)blk_size,size);
+        rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
+        assert(m);
+        nseg++;
+        if (mr==NULL) {
+            mr=m;
+        }
+        if (mlast) {
+            mlast->next=m;
+        }
+        mlast=m;
+        char *p=(char *)rte_pktmbuf_append(m, alloc_size);
+        memcpy(p,buf,alloc_size);
+        buf+=alloc_size;
+        size-=alloc_size;
+    }
+    mr->nb_segs = nseg;
+    mr->pkt_len = pkt_size;
+    return(mr);
+}
+
+__attribute__ ((noinline)) int _utl_rte_pktmbuf_trim_ex(struct rte_mbuf *m, 
+                                                        uint16_t len){
+        /* more than 1 mbufs */
+    if (m->pkt_len < len) {
+        return(-1);
+    }
+    uint32_t new_pkt_len = m->pkt_len - len;
+    uint32_t sum=0;
+    uint16_t nb_segs=1;
+
+    struct rte_mbuf *m2 = (struct rte_mbuf *)m;
+    while (m2->next != NULL) {
+        if (new_pkt_len <= m2->data_len){
+            break;
+        }
+        new_pkt_len -=m2->data_len;
+        sum+=m2->data_len;
+        m2 = m2->next;
+        nb_segs++;
+    }
+
+    m->pkt_len  -= len;
+    m->nb_segs  = nb_segs;
+    m2->data_len = (uint16_t)(m->pkt_len - sum); /* sum has the prev mbuf sizes*/
+
+    if (m2->next != 0) {
+        //we are in the last but there are more mbufs after that 
+        rte_pktmbuf_free(m2->next);
+        m2->next= NULL;
+    }
+
+    return 0;
+}
+
+/* check that mbuf is valid */
+int utl_rte_pktmbuf_verify(struct rte_mbuf *m){
+
+    uint32_t pkt_len=0;
+    uint16_t nb_seg=0;
+    struct rte_mbuf *o=m;
+    while (m) {
+        uint16_t seg_len=m->data_len;
+        nb_seg++;
+        if (seg_len==0) {
+            printf(" SEG has zero data \n");
+            return(-1);
+        }
+        pkt_len+=seg_len;
+        if (rte_pktmbuf_mtod(m,char *)==0){
+            printf(" SEG has pointer zero \n");
+            return(-1);
+        }
+        m = m->next;
+        if (m==NULL) {
+            break;
+        }
+    }
+    if (pkt_len != o->pkt_len){
+        printf(" total packets length is not valid \n");
+        return(-1);
+    }
+    if (nb_seg != o->nb_segs){
+        printf(" #seg is not valid \n");
+        return(-1);
+    }
+    return(0);
+}
+
+
+/* adjust chain of mbufs */
+__attribute__ ((noinline)) char *_utl_rte_pktmbuf_adj_ex(struct rte_mbuf  * & m, uint16_t len){
+
+    if (len > m->pkt_len){
+        return NULL;
+    }
+    uint16_t pnb_segs=0;
+
+    /* save original */
+    struct rte_mbuf *p = 0;
+    struct rte_mbuf *m2 = (struct rte_mbuf *)m;
+    while (m2->next != NULL) {
+        if (len < m2->data_len){
+            break;
+        }
+        len -=m2->data_len;
+        p = m2;
+        m2 = m2->next;
+        pnb_segs++;
+    }
+
+    if (p) {
+        /* terminate the mbuf */
+        p->next=0;
+    }
+
+    m2->data_len -= (uint16_t)(len);
+    m2->data_off += (uint16_t)(len);
+
+    m2->pkt_len = (m->pkt_len - len);
+    m2->nb_segs =  m->nb_segs -pnb_segs;
+
+    if (m != m2) {
+        struct rte_mbuf *o = m;
+        rte_pktmbuf_free(o);
+        m=m2;
+    }
+    return (char *)m2->buf_addr + m2->data_off;
+}
 
