@@ -641,9 +641,12 @@ public:
         /* first advance the outer var (IP) */
         lp->cur_ip = inc_mod_of(m_min_ip, m_max_ip, lp->cur_ip, m_step_ip, of);
 
-        /* if we had an overflow - advance the port */
+        /* advance the port - most of the time zero but in extreme cases can have each time wrap around */
+        lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_step_port);
+        
+        /* in case of overflow of IP - add 1 to the port */
         if (of) {
-            lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_step_port);
+            lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, 1);
         }
 
         if (m_limit_flows) {
@@ -1179,19 +1182,32 @@ public:
         m_min_value   = min_value;
         m_max_value   = max_value;
         m_step        = step % get_range(); // support step overflow by modulu
-
+        m_wa          = step / get_range(); // save the overflow count (for complex vars such as tuple)
+        
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
     }
 
+    uint32_t get_wrap_arounds(uint32_t steps = 1) const {
+        uint32_t wa = m_wa * steps;
+
+        wa += (steps * m_step) / get_range();
+        
+        return wa;
+    }
+    
     virtual void update(uint64_t phase, uint64_t step_mul) {
 
         /* update the init value to be with a phase */
         m_init_value = peek_next(phase);
 
         /* multiply the step */
-        m_step = (m_step * step_mul) % get_range();
-
+        
+        /* reconstruct the original step, multiply and recalculate */
+        uint64_t step = (m_wa * get_range()) + m_step;
+        m_step = (step * step_mul) % get_range();
+        m_wa   = (step * step_mul) / get_range();
+        
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
     }
@@ -1199,12 +1215,12 @@ public:
 
     uint64_t peek_next(uint64_t skip = 1) const {
         bool dummy;
-        return peek(skip, true, dummy);
+        return peek(skip, true, false, dummy);
     }
 
     uint64_t peek_prev(uint64_t skip = 1) const {
         bool dummy;
-        return peek(skip, false, dummy);
+        return peek(skip, false, false, dummy);
     }
 
 
@@ -1226,7 +1242,7 @@ public:
 protected:
 
     /* fetch the next value in the variable (used for core phase and etc.) */
-    uint64_t peek(int skip, bool forward, bool &of) const {
+    uint64_t peek(int skip, bool forward, bool carry, bool &of) const {
 
         if (m_op == FLOW_VAR_OP_RANDOM) {
             return m_init_value;
@@ -1235,7 +1251,12 @@ protected:
         assert( (m_op == FLOW_VAR_OP_INC) || (m_op == FLOW_VAR_OP_DEC) );
         bool add = ( (m_op == FLOW_VAR_OP_INC) ? forward : !forward );
 
-        uint64_t next_step = (m_step * skip) % get_range();
+        uint64_t next_step = m_step * skip;
+        if (carry) {
+            next_step++;
+        }
+        
+        next_step = next_step % get_range();
 
         if (add) {
             return inc_mod_of(m_min_value, m_max_value, m_init_value, next_step, of);
@@ -1264,6 +1285,7 @@ public:
     uint64_t m_max_value;
 
     uint64_t m_step;
+    uint32_t m_wa;
 };
 
 
@@ -1439,7 +1461,9 @@ public:
 
         m_limit_num_flows = limit_num_flows;
         m_flags = flags;
-
+        
+        /* construct as per single core */
+        update(0, 1);
     }
 
     StreamVmInstructionFlowClient(const StreamVmInstructionFlowClient &other) :StreamVmInstructionVar(other.m_var_name),
@@ -1480,15 +1504,20 @@ public:
         return new StreamVmInstructionFlowClient(*this);
     }
 
+    
     virtual void update(uint64_t phase, uint64_t step_mul) {
 
+        /* calculate the phase BEFORE adjusting the outer var (IP) */
+        uint16_t port_phase = m_ip.get_wrap_arounds(phase);
+        
         /* update outer var */
         m_ip.update(phase, step_mul);
 
         /* inner var should advance as the whole wrap arounds */
-        uint16_t port_phase     =  phase / m_ip.get_range();
-        uint16_t port_step_mul  =  1 + (step_mul / m_ip.get_range());
+        uint16_t port_step_mul  = m_ip.get_wrap_arounds();
 
+        /* ugly, but we need to set the reference to 1 (default is zero) */
+        m_port.m_step = 1;
         m_port.update(port_phase, port_step_mul);
     
         /* update the limit per core */
@@ -1516,14 +1545,8 @@ protected:
     void peek(uint32_t &next_ip, uint16_t &next_port, int skip = 1, bool forward = true) const {
         bool of = false;
 
-        next_ip = m_ip.peek(skip, forward, of);
-
-        int port_skip = skip / m_ip.get_range();
-        if (of) {
-            port_skip++;
-        }
-
-        next_port = m_port.peek(port_skip, forward, of);
+        next_ip = m_ip.peek(skip, forward, false, of);
+        next_port = m_port.peek(skip, forward, of, of);
 
     }
 

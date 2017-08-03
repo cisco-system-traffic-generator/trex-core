@@ -59,15 +59,15 @@ class STLMultiCore(object):
         name = "tuple-{0}".format(i)
 
         # ip
-        ip_bound = (1 << (4 * 8)) - 1
+        ip_bound = 12
         ip_min = rng.randint(0, ip_bound - 1)
         ip_max = rng.randint(ip_min, ip_bound)
-
+        
         # port
-        port_bound = (1 << (2 * 8)) - 1
+        port_bound = 3
         port_min = rng.randint(0, port_bound - 1)
         port_max = rng.randint(port_min, port_bound - 1)
-
+        
         # 840 is the least common multiple
         limit_flows = 840 * rng.randint(1, 1000)
         vm += [STLVmTupleGen(ip_min = ip_min, ip_max = ip_max, 
