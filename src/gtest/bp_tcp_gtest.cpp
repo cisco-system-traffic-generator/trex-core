@@ -822,49 +822,58 @@ TEST_F(gt_tcp, tst21) {
 }
 
 
-CClientServerTcp tcp_test1;
 
-
-TEST_F(gt_tcp, tst30) {
+void tcp_gen_test(std::string pcap_file,
+                  bool debug_mode,
+                  cs_sim_test_id_t test_id=tiTEST2,
+                  int valn=0, 
+                  cs_sim_mode_t sim_mode=csSIM_NONE){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
-    lpt1->Create("tcp2");
+    lpt1->Create("generated",pcap_file);
+    if (debug_mode){
+        lpt1->set_debug_mode(true);
+    }
+    if (valn){
+        lpt1->m_vlan=valn;
+    }
+    if (sim_mode!=csSIM_NONE){
+        lpt1->set_simulate_rst_error(sim_mode);
+    }
 
-    lpt1->test2();
+    if (test_id==tiTEST2) {
+        lpt1->test2();
+    }else{
+        lpt1->simple_http();
+    }
+    lpt1->close_file();
+
+    bool res=lpt1->compare("exp");
+
+    EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 
     lpt1->Delete();
 
     delete lpt1;
+}
+
+
+TEST_F(gt_tcp, tst30) {
+    tcp_gen_test("tcp2",
+                 true,
+                 tiTEST2);
 
 }
 
 TEST_F(gt_tcp, tst30_vlan) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
+    tcp_gen_test("tcp2_vlan",
+                 true,
+                 tiTEST2,
+                 100);
 
-    lpt1->Create("tcp2_vlan");
-    lpt1->m_vlan=100;
 
-    lpt1->test2();
-
-    lpt1->Delete();
-
-    delete lpt1;
-}
-
-TEST_F(gt_tcp, tst30_http) {
-
-    CClientServerTcp *lpt1=new CClientServerTcp;
-
-    lpt1->Create("tcp2_http");
-    lpt1->m_vlan=100;
-
-    lpt1->simple_http();
-
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 #if 0
@@ -883,89 +892,76 @@ TEST_F(gt_tcp, from_file) {
 }
 #endif
 
+
+TEST_F(gt_tcp, tst30_http_vlan) {
+
+    tcp_gen_test("tcp2_http_vlan",
+                 true,
+                 tiHTTP,
+                 100);
+
+}
+
+
 TEST_F(gt_tcp, tst30_http_simple) {
+    tcp_gen_test("tcp2_http_simple",
+                 true,
+                 tiHTTP);
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
-
-    lpt1->Create("tcp2_http");
-    lpt1->set_debug_mode(true);
-    
-    lpt1->simple_http();
-
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 TEST_F(gt_tcp, tst30_http_rst) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
+    tcp_gen_test("tcp2_http_rst",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_RST_SYN
+                 );
 
-    lpt1->Create("tcp2_http_rst");
-    lpt1->set_debug_mode(true);
-    lpt1->set_simulate_rst_error(csSIM_RST_SYN);
-    
-    lpt1->simple_http();
-
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 TEST_F(gt_tcp, tst30_http_rst1) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
+    tcp_gen_test("tcp2_http_rst1",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_RST_SYN1
+                 );
 
-    lpt1->Create("tcp2_http_rst1");
-    lpt1->set_debug_mode(true);
-    lpt1->set_simulate_rst_error(csSIM_RST_SYN1);
-    
-    lpt1->simple_http();
-
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 TEST_F(gt_tcp, tst30_http_wrong_port) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
+    tcp_gen_test("tcp2_http_wrong_port",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_WRONG_PORT
+                 );
 
-    lpt1->Create("tcp2_http_wrong_port");
-    lpt1->set_debug_mode(true);
-    lpt1->set_simulate_rst_error(csSIM_WRONG_PORT);
-    
-    lpt1->simple_http();
-
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 TEST_F(gt_tcp, tst30_http_rst_middle) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
-
-    lpt1->Create("tcp2_http_rst_middle");
-    lpt1->set_debug_mode(true);
-    lpt1->set_simulate_rst_error(csSIM_RST_MIDDLE);
-    lpt1->simple_http();
-    lpt1->Delete();
-
-    delete lpt1;
+    tcp_gen_test("tcp2_http_rst_middle",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_RST_MIDDLE
+                 );
 }
 
 TEST_F(gt_tcp, tst30_http_rst_middle1) {
 
-    CClientServerTcp *lpt1=new CClientServerTcp;
+    tcp_gen_test("tcp2_http_rst_middle2",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_RST_MIDDLE2
+                 );
 
-    lpt1->Create("tcp2_http_rst_middle");
-    lpt1->set_debug_mode(true);
-    lpt1->set_simulate_rst_error(csSIM_RST_MIDDLE2);
-    lpt1->simple_http();
-    lpt1->Delete();
-
-    delete lpt1;
 }
 
 

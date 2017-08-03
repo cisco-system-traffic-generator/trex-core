@@ -188,7 +188,7 @@ bool CErfCmp::cpy(std::string src,std::string dst){
 bool CErfCmp::compare(std::string f1, std::string f2 ){
 
     if ( dump ){
-        printf(" compare %s %s \n",f1.c_str(),f2.c_str());
+        printf(" comparing  '%s' to  '%s' files \n",f1.c_str(),f2.c_str());
     }
     bool res=true;
     CCapReaderBase * lp1=CCapReaderFactory::CreateReader((char *)f1.c_str(),0);
@@ -223,7 +223,7 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
          if ( !has_pkt1  || !has_pkt2 ) {
              if (has_pkt1 != has_pkt2 ) {
                  if ( dump ){
-                     printf(" ERROR not the same number of packets  \n");
+                     printf(" ERROR not the same number of packets \n");
                  }
                  res=false;
              }
@@ -231,11 +231,9 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
          }
         if (!raw_packet1.Compare(&raw_packet2,true,d_sec)  ){
             res=false;
-            printf(" ERROR in pkt %d \n",pkt_cnt);
+            printf(" ERROR in pkt %d (start from 1)\n",pkt_cnt);
             break;
         }
-
-
         pkt_cnt++;
     }
 

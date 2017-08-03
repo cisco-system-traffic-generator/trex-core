@@ -155,9 +155,17 @@ typedef enum {  csSIM_NONE    =0,
 typedef uint16_t cs_sim_mode_t ;
 
 
+typedef enum {  tiTEST2    =0,
+                tiHTTP     =1,
+               } cs_sim_test_id_t_;
+
+typedef uint16_t cs_sim_test_id_t;
+
+
 class CClientServerTcp {
 public:
-    bool Create(std::string pcap_file);
+    bool Create(std::string out_dir,
+                std::string pcap_file);
     void Delete();
 
     void set_debug_mode(bool enable);
@@ -169,11 +177,19 @@ public:
        dir ==1   S->C */
     void on_tx(int dir,rte_mbuf_t *m);
     void on_rx(int dir,rte_mbuf_t *m);
+
+public:
     int test2();
     int simple_http();
     int fill_from_file();
+    bool compare(std::string exp_dir);
+    void close_file();
+
 
 public:
+    std::string             m_out_dir;
+    std::string             m_pcap_file;
+
     CTcpPerThreadCtx        m_c_ctx;  /* context */
     CTcpPerThreadCtx        m_s_ctx;
 

@@ -110,7 +110,35 @@ void CClientServerTcp::set_debug_mode(bool enable){
     m_debug=enable;
 }
 
-bool CClientServerTcp::Create(std::string pcap_file){
+static bool compare_two_pcap_files(std::string c1,
+                            std::string c2,
+                            double dtime){
+    CErfCmp cmp;
+    cmp.dump = 1;
+    cmp.d_sec = dtime;
+    return (cmp.compare(c1, c2));
+}
+
+bool CClientServerTcp::compare(std::string exp_dir){
+    bool res;
+    std::string o_c= m_out_dir+m_pcap_file+"_c.pcap";
+    std::string e_c= exp_dir+"/"+m_pcap_file+"_c.pcap";
+
+    res=compare_two_pcap_files(o_c,e_c,0.001);
+    if (!res) {
+        return (res);
+    }
+
+    std::string o_s= m_out_dir+m_pcap_file+"_s.pcap" ;
+    std::string e_s= exp_dir+"/"+m_pcap_file+"_s.pcap";
+
+    res=compare_two_pcap_files(o_s,e_s,0.001);
+    return (res);
+}
+
+
+bool CClientServerTcp::Create(std::string out_dir,
+                              std::string pcap_file){
 
     m_debug=false;
     m_sim_type=csSIM_NONE;
@@ -121,14 +149,19 @@ bool CClientServerTcp::Create(std::string pcap_file){
 
     m_rtt_sec =0.05; /* 50msec */
 
-    m_c_pcap.open_pcap_file(pcap_file+"_c.pcap");
+    m_out_dir =out_dir + "/";
+    m_pcap_file = pcap_file;
 
-    m_s_pcap.open_pcap_file(pcap_file+"_s.pcap");
+    m_c_pcap.open_pcap_file(m_out_dir+pcap_file+"_c.pcap");
+
+    m_s_pcap.open_pcap_file(m_out_dir+pcap_file+"_s.pcap");
 
     m_c_ctx.Create(100,true);
+    m_c_ctx.tcp_iss=0x12121212; /* for testing start from the same value */
     m_c_ctx.set_cb(&m_io_debug);
 
     m_s_ctx.Create(100,false);
+    m_s_ctx.tcp_iss=0x21212121; /* for testing start from the same value */
     m_s_ctx.set_cb(&m_io_debug);
 
 
@@ -451,6 +484,13 @@ static char * allocate_http_res(uint32_t &new_size){
 static void free_http_res(char *p){
     assert(p);
     free(p);
+}
+
+
+
+void CClientServerTcp::close_file(){
+    m_c_pcap.close_pcap_file();
+    m_s_pcap.close_pcap_file();
 }
 
 
