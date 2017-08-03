@@ -867,6 +867,7 @@ TEST_F(gt_tcp, tst30_http) {
     delete lpt1;
 }
 
+#if 0
 TEST_F(gt_tcp, from_file) {
 
     CClientServerTcp *lpt1=new CClientServerTcp;
@@ -880,6 +881,7 @@ TEST_F(gt_tcp, from_file) {
 
     delete lpt1;
 }
+#endif
 
 TEST_F(gt_tcp, tst30_http_simple) {
 
