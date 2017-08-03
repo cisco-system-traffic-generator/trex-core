@@ -784,11 +784,14 @@ TEST_F(gt_tcp, tst20) {
     m=test_build_packet_size(1024,
                              60,
                              0);
+    rte_mbuf_t   * o=m;
     //rte_pktmbuf_dump(m, 1024);
 
     off=8;
     m=utl_rte_pktmbuf_cpy(p,m,512,off);
-//    utl_DumpBuffer(stdout,p,512,0);
+
+    rte_pktmbuf_free(o);
+
 }
 
 /* deep copy of mbufs from tx to rx */
@@ -943,6 +946,7 @@ TEST_F(gt_tcp, tst30_http_wrong_port) {
 
 }
 
+#if 0
 TEST_F(gt_tcp, tst30_http_rst_middle) {
 
     tcp_gen_test("tcp2_http_rst_middle",
@@ -952,6 +956,7 @@ TEST_F(gt_tcp, tst30_http_rst_middle) {
                  csSIM_RST_MIDDLE
                  );
 }
+#endif
 
 TEST_F(gt_tcp, tst30_http_rst_middle1) {
 
@@ -1011,53 +1016,6 @@ TEST_F(gt_tcp, tst31) {
 
 
 #include <common/dlist.h>
-
-
-
-
-#if 0
-class CRxCheckFlowTableHash   {
-public:
-    bool Create(int max_size){
-		return ( m_hash.Create(max_size,0,false,false,true) );
-	}
-    void Delete(){
-		m_hash.Delete();
-	}
-    bool remove(uint64_t fid ) {
-		return(m_hash.Remove(fid)==hsOK?true:false);
-	}
-    CRxCheckFlow * lookup(uint64_t fid ){
-		rx_c_hash_ent_t *lp=m_hash.Find(fid);
-		if (lp) {
-			return (&lp->value);
-		}else{
-			return ((CRxCheckFlow *)NULL);
-		}
-	}
-    CRxCheckFlow * add(uint64_t fid ){
-		rx_c_hash_ent_t *lp;
-		assert(m_hash.Insert(fid,lp)==hsOK);
-		return (&lp->value);
-	}
-
-    void remove_all(void){
-		
-	}
-    void dump_all(FILE *fd){
-		m_hash.Dump(fd);
-	}
-    uint64_t count(void){
-		return ( m_hash.GetSize());
-
-	}
-public:
-
-	rx_c_hash_t                  m_hash;
-};
-
-#endif
-
 
 
 
@@ -1382,15 +1340,18 @@ TEST_F(gt_tcp, tst40) {
     CGCountersUtl64 au((uint64_t*)&aa,sizeof(aa)/sizeof(uint64_t));
     CGCountersUtl64 bu((uint64_t*)&bb,sizeof(bb)/sizeof(uint64_t));
 
-
-    CGSimpleBase *lp;
     clm_aa.set_name("aa");
     clm_bb.set_name("bb");
+    clm_aa.set_free_objects_own(true);
+    clm_bb.set_free_objects_own(true);
+
+    CGSimpleBase *lp;
 
     lp = new CGSimpleRefCnt64(&aa.a);
     lp->set_name("aa");
     lp->set_help("aa help");
     clm_aa.add_count(lp);
+
 
     lp = new CGSimpleRefCnt64(&aa.b);
     lp->set_name("bb");

@@ -199,7 +199,16 @@ private:
 
 class CGTblClmCounters {
 public:
+
+    CGTblClmCounters(){
+        m_free_objects=0;
+    }
     ~CGTblClmCounters();
+
+    /* enable will tell this object to free counters in the vector */
+    void set_free_objects_own(bool enable){
+        m_free_objects=enable;
+    }
 
     void add_count(CGSimpleBase* cnt){
         m_counters.push_back(cnt);
@@ -218,6 +227,7 @@ public:
     }
     
 private:
+   bool                       m_free_objects;
    std::string                m_name;
    std::vector<CGSimpleBase*> m_counters;
 };
@@ -226,6 +236,14 @@ private:
 class CTblGCounters {
 public:
     CTblGCounters(){
+        m_free_objects=false;
+    }
+
+    ~CTblGCounters();
+
+    /* enable will tell this object to free counters in the vector */
+    void set_free_objects_own(bool enable){
+        m_free_objects=enable;
     }
 
     void add(CGTblClmCounters * clm){
@@ -242,6 +260,7 @@ private:
 
 
 private:
+    bool                       m_free_objects;
     std::vector<CGTblClmCounters*> m_counters;
 };
 

@@ -32,8 +32,8 @@ copy from m + offset -> end into  p
 */
 struct rte_mbuf * utl_rte_pktmbuf_cpy(char *p,
                                       struct rte_mbuf *mi,
-                               uint16_t cp_size, 
-                               uint16_t & off);
+                                      uint16_t cp_size, 
+                                      uint16_t & off);
 
 
 /* deep copy mi to a new mbuf allocated from mp pool, free the input mi at the end */

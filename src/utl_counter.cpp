@@ -64,7 +64,27 @@ CGCountersUtl32 & CGCountersUtl32::operator+=(const CGCountersUtl32 &rhs){
     return *this;
 }
 
+CTblGCounters::~CTblGCounters(){
+    if (m_free_objects){
+        int i;
+        for (i=0; i<m_counters.size(); i++){
+            CGTblClmCounters * lp=m_counters[i];
+            delete lp;
+        }
+
+    }
+    m_counters.clear();
+}
+
 CGTblClmCounters::~CGTblClmCounters(){
+    if (m_free_objects){
+        int i;
+        for (i=0; i<m_counters.size(); i++){
+            CGSimpleBase* lp=m_counters[i];
+            delete lp;
+        }
+    }
+    m_counters.clear();
 }
 
 bool  CTblGCounters::can_skip_zero(int index){
