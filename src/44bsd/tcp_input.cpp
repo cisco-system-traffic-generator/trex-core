@@ -77,12 +77,12 @@ void CTcpReassBlock::Dump(FILE *fd){
 }
 
 inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
-    assert(m->pkt_len>len);
+    assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_adj_ex(m, len)!=NULL);
 }
 
 inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
-    assert(m->pkt_len>len);
+    assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_trim_ex(m, len)==0);
 }
 

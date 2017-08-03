@@ -87,7 +87,7 @@ __attribute__ ((noinline)) char *_utl_rte_pktmbuf_adj_ex(struct rte_mbuf  * & m,
 
 
 inline char *utl_rte_pktmbuf_adj_ex(struct rte_mbuf  * & m, uint16_t len){
-    if (len < m->data_len){
+    if (len <= m->data_len){
         return(rte_pktmbuf_adj(m,len));
     }
     return(_utl_rte_pktmbuf_adj_ex(m, len));

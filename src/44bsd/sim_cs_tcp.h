@@ -1,0 +1,204 @@
+#ifndef BSD44_SIM_CS_TCP
+#define BSD44_SIM_CS_TCP
+
+/*
+ Hanoh Haim
+ Cisco Systems, Inc.
+*/
+
+/*
+Copyright (c) 2015-2017 Cisco Systems, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+
+#include "44bsd/tcp.h"
+#include "44bsd/tcp_var.h"
+#include "44bsd/tcp.h"
+#include "44bsd/tcp_fsm.h"
+#include "44bsd/tcp_seq.h"
+#include "44bsd/tcp_timer.h"
+#include "44bsd/tcp_socket.h"
+#include "44bsd/tcpip.h"
+#include "44bsd/tcp_dpdk.h"
+#include "44bsd/flow_table.h"
+
+#include "mbuf.h"
+#include "utl_mbuf.h"
+#include "utl_counter.h"
+
+#include <stdlib.h>
+#include <common/c_common.h>
+#include <common/captureFile.h>
+#include <common/sim_event_driven.h>
+
+
+
+class CTcpSimEventStop : public CSimEventBase {
+
+public:
+     CTcpSimEventStop(double time){
+         m_time =time;
+     }
+     virtual bool on_event(CSimEventDriven *sched,
+                           bool & reschedule){
+         reschedule=false;
+         return(true);
+     }
+};
+
+
+
+class CClientServerTcp;
+
+class CTcpSimEventTimers : public CSimEventBase {
+
+public:
+     CTcpSimEventTimers(CClientServerTcp *p,
+                        double dtime){
+         m_p = p;
+         m_time = dtime;
+         m_d_time =dtime;
+     }
+
+     virtual bool on_event(CSimEventDriven *sched,
+                           bool & reschedule);
+
+private:
+    CClientServerTcp * m_p;
+    double m_d_time;
+};
+
+class CTcpSimEventRx : public CSimEventBase {
+
+public:
+    CTcpSimEventRx(CClientServerTcp *p,
+                   rte_mbuf_t *m,
+                   int dir,
+                   double time){
+        m_p = p;
+        m_pkt = m;
+        m_dir = dir;
+        m_time = time;
+    }
+
+    virtual bool on_event(CSimEventDriven *sched,
+                          bool & reschedule);
+
+private:
+    CClientServerTcp * m_p;
+    int                m_dir;
+    rte_mbuf_t *       m_pkt;
+};
+
+
+class CTcpCtxPcapWrt  {
+public:
+    CTcpCtxPcapWrt(){
+        m_writer=NULL;
+        m_raw=NULL;
+    }
+    ~CTcpCtxPcapWrt(){
+        close_pcap_file();
+    }
+
+    bool  open_pcap_file(std::string pcap);
+    void  write_pcap_mbuf(rte_mbuf_t *m,double time);
+
+    void  close_pcap_file();
+
+
+public:
+
+   CFileWriterBase         * m_writer;
+   CCapPktRaw              * m_raw;
+};
+
+
+
+class CTcpCtxDebug : public CTcpCtxCb {
+public:
+
+   int on_tx(CTcpPerThreadCtx *ctx,
+             struct tcpcb * tp,
+             rte_mbuf_t *m);
+
+   int on_flow_close(CTcpPerThreadCtx *ctx,
+                     CTcpFlow * flow);
+
+
+public:
+    CClientServerTcp  * m_p ;
+
+};
+
+
+typedef enum {  csSIM_NONE    =0,
+                csSIM_RST_SYN = 0x17,
+                csSIM_RST_SYN1,
+                csSIM_WRONG_PORT,
+                csSIM_RST_MIDDLE , // corrupt the seq number
+                csSIM_RST_MIDDLE2 ,// send RST flag
+               } cs_sim_mode_t_;
+
+typedef uint16_t cs_sim_mode_t ;
+
+
+class CClientServerTcp {
+public:
+    bool Create(std::string pcap_file);
+    void Delete();
+
+    void set_debug_mode(bool enable);
+    void set_simulate_rst_error(cs_sim_mode_t  sim_type){
+        m_sim_type = sim_type;
+    }
+
+    /* dir ==0 , C->S 
+       dir ==1   S->C */
+    void on_tx(int dir,rte_mbuf_t *m);
+    void on_rx(int dir,rte_mbuf_t *m);
+
+public:
+    int test2();
+    int simple_http();
+
+
+public:
+    CTcpPerThreadCtx        m_c_ctx;  /* context */
+    CTcpPerThreadCtx        m_s_ctx;
+
+
+    CTcpAppApiImpl          m_tcp_bh_api_impl_c;
+    CTcpAppApiImpl          m_tcp_bh_api_impl_s;
+
+    CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
+    CTcpCtxPcapWrt          m_s_pcap;
+    bool                    m_debug;
+    cs_sim_mode_t           m_sim_type;
+    uint16_t                m_sim_data;
+
+
+    CTcpCtxDebug            m_io_debug;
+
+    CSimEventDriven         m_sim;
+    double                  m_rtt_sec;
+    double                  m_tx_diff;
+    uint16_t                m_vlan;
+};
+
+
+
+
+#endif
