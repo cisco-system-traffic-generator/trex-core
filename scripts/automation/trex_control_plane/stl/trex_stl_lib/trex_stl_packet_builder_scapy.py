@@ -1824,7 +1824,7 @@ class STLVM(STLScVmRaw):
                                     is_big = (byte_order == 'big')))
         
 
-    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows):
+    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows = 0):
         """
         Generate a struct with two variables: ``var_name.ip`` as uint32_t and ``var_name.port`` as uint16_t 
         The variables are dependent. When the ip variable value reaches its maximum, the port is incremented. 
