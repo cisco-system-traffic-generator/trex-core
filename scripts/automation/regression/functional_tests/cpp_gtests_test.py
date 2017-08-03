@@ -46,6 +46,13 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
         if ret:
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
+    def test_gtests_tcp_valgrind(self):
+        print('')
+        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, 'run-gtest-tcp-clean "gt_tcp.*"'), cwd = CTRexScenario.scripts_path)
+        print('Output:\n%s' % out)
+        if ret:
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
+
     def test_bp_sim_client_cfg(self):
         print('')
         cmd = './bp-sim-64 --pcap -f cap2/dns.yaml --client_cfg automation/regression/cfg/client_cfg_vlan_mac.yaml -o generated/bp_sim_dns_vlans_gen.pcap'
