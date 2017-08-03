@@ -855,6 +855,7 @@ public:
     bool            m_rx_thread_enabled;
     trex_run_mode_e    m_run_mode;
     std::string        cfg_file;
+    std::string        nstf_cfg_file;
     std::string        client_cfg_file;
     std::string        platform_cfg_file;
     std::string        out_file;

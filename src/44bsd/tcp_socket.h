@@ -40,8 +40,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "mbuf.h"
 
-                 
 
 struct  sockbuf {
     uint32_t    sb_cc;      /* actual chars in buffer */
@@ -244,7 +244,8 @@ typedef uint8_t tcp_app_event_bh_t;
 typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcDELAY                 =2,   /* delay some time */
                tcRX_BUFFER             =3,   /* enable/disable Rx counters */
-               tcRESET                 =4    /* explicit reset */
+               tcRESET                 =4,   /* explicit reset */
+               tcNO_CMD                =255  /* explicit reset */
 } tcp_app_cmd_enum_t;
 
 typedef uint8_t tcp_app_cmd_t;

@@ -39,6 +39,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
+#include "nstf/json_reader.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>
@@ -866,7 +867,19 @@ TEST_F(gt_tcp, tst30_http) {
     delete lpt1;
 }
 
+TEST_F(gt_tcp, from_file) {
 
+    CClientServerTcp *lpt1=new CClientServerTcp;
+
+    lpt1->Create("tcp2_http");
+    lpt1->set_debug_mode(true);
+
+    lpt1->fill_from_file();
+
+    lpt1->Delete();
+
+    delete lpt1;
+}
 
 TEST_F(gt_tcp, tst30_http_simple) {
 

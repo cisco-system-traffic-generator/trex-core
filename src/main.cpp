@@ -31,13 +31,13 @@ limitations under the License.
 #include <common/arg/SimpleOpt.h>
 #include <stateless/cp/trex_stateless.h>
 #include <sim/trex_sim.h>
-
+#include "nstf/json_reader.h"
 using namespace std;
 
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
-       OPT_SL, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
+       OPT_SL, OPT_NSF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
        OPT_DRY_RUN, OPT_DURATION};
 
 
@@ -51,6 +51,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
 typedef enum {
     OPT_TYPE_GTEST = 7,
     OPT_TYPE_SF,
+    OPT_TYPE_NSF,
     OPT_TYPE_SL
 } opt_type_e;
 
@@ -76,6 +77,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
+    { OPT_NSF,                "--tcp_cfg",    SO_REQ_SEP   },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
@@ -84,6 +86,7 @@ static CSimpleOpt::SOption parser_options[] =
     
     SO_END_OF_OPTIONS
 };
+
 
 static TrexStateless *m_sim_statelss_obj;
 static char *g_exe_name;
@@ -159,6 +162,12 @@ static int parse_options(int argc,
                 params["type"] = OPT_TYPE_SL;
                 break;
 
+            case OPT_NSF:
+                params["type"] = OPT_TYPE_NSF;
+                po->nstf_cfg_file = args.OptionArg();
+                return 0;
+                break;
+
             case OPT_CFG:
                 po->cfg_file = args.OptionArg();
                 break;
@@ -216,23 +225,29 @@ static int parse_options(int argc,
             return -1;
         }
      } // End of while
-     
 
-    if ((po->cfg_file =="") ) {
-         printf("Invalid combination of parameters you must add -f with configuration file \n");
-         usage();
-         return -1;
+     if ((po->cfg_file =="") ) {
+         if (po->nstf_cfg_file == "") {
+             printf("Invalid combination of parameters you must add either -f or --tcp_cfg \n");
+             usage();
+             return -1;
+         }
+     } else {
+         if (po->nstf_cfg_file != "") {
+             printf("Invalid combination of parameters. Can't specify both -f and --tcp_cfg \n");
+             usage();
+             return -1;
+         }
      }
-
-    if ( node_dump ){
-        po->preview.setVMode(a);
-    }else{
-        if  (po->out_file=="" ){
-         printf("Invalid combination of parameters you must give output file iwth -o  \n");
-         usage();
-         return -1;
-        }
-    }
+     if ( node_dump ){
+         po->preview.setVMode(a);
+     }else{
+         if  (po->out_file=="" ){
+             printf("Invalid combination of parameters you must give output file iwth -o  \n");
+             usage();
+             return -1;
+         }
+     }
 
     /* did the user configure dp core count or dp core index ? */
 
@@ -309,6 +324,15 @@ int main(int argc , char * argv[]){
             return sf.run();
         }
 
+    case OPT_TYPE_NSF:
+        {
+            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.nstf_cfg_file);
+            assert(rc);
+            SimGtest test;
+            int ret = test.run(argc, argv);
+            CJsonData::instance()->clear();
+            return ret;
+        }
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
@@ -341,6 +365,3 @@ int main(int argc , char * argv[]){
         }
     }
 }
-
-
-

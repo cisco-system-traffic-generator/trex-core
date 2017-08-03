@@ -169,11 +169,9 @@ public:
        dir ==1   S->C */
     void on_tx(int dir,rte_mbuf_t *m);
     void on_rx(int dir,rte_mbuf_t *m);
-
-public:
     int test2();
     int simple_http();
-
+    int fill_from_file();
 
 public:
     CTcpPerThreadCtx        m_c_ctx;  /* context */

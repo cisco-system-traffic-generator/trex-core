@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "sim_cs_tcp.h"
-                           
+#include "nstf/json_reader.h"
 
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,
@@ -588,6 +588,79 @@ int CClientServerTcp::simple_http(){
     return(0);
 }
 
+int CClientServerTcp::fill_from_file() {
+    CJsonData::instance()->convert_bufs();
 
+    CMbufBuffer *buf_req;
+    CMbufBuffer *buf_res;
+    CTcpAppProgram *prog_c;
+    CTcpAppProgram *prog_s;
+    CTcpFlow *c_flow;
+    CTcpApp *app_c;
 
+    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+    CFlowKeyTuple c_tuple;
+    c_tuple.set_ip(0x10000001);
+    c_tuple.set_port(1025);
+    c_tuple.set_proto(6);
+    c_tuple.set_ipv4(true);
 
+    if (m_debug) {
+        /* enable client debug */
+        c_flow->m_tcp.m_socket.so_options |= US_SO_DEBUG;
+        tcp_set_debug_flow(&c_flow->m_tcp);
+    }
+
+    assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
+    app_c = &c_flow->m_app;
+
+    /* CONST */
+    buf_req = new CMbufBuffer();
+    buf_res = new CMbufBuffer();
+    prog_c = new CTcpAppProgram();
+    prog_s = new CTcpAppProgram();
+
+    uint16_t temp_index = 0; //??? need to support multiple templates
+    // client program
+    CJsonData::instance()->get_prog(prog_c, temp_index, 0);
+    // server program
+    CJsonData::instance()->get_prog(prog_s, temp_index, 1);
+
+    app_c->set_program(prog_c);
+    app_c->set_bh_api(&m_tcp_bh_api_impl_c);
+    app_c->set_flow_ctx(&m_c_ctx,c_flow);
+    app_c->set_debug_id(1);
+    c_flow->set_app(app_c);
+
+    m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
+    m_s_ctx.m_ft.set_tcp_program(prog_s);
+
+    m_rtt_sec = 0.05;
+
+    m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
+    m_sim.add_event( new CTcpSimEventStop(1000.0) );
+
+    /* start client */
+    app_c->start(true);
+    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+
+    m_sim.run_sim();
+
+    printf(" C counters \n");
+    m_c_ctx.m_tcpstat.Dump(stdout);
+    m_c_ctx.m_ft.dump(stdout);
+    printf(" S counters \n");
+    m_s_ctx.m_tcpstat.Dump(stdout);
+    m_s_ctx.m_ft.dump(stdout);
+
+    delete prog_c;
+    delete prog_s;
+
+    buf_req->Delete();
+    delete buf_req;
+
+    buf_res->Delete();
+    delete buf_res;
+
+    return(0);
+}
