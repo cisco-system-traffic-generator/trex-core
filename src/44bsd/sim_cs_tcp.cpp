@@ -629,7 +629,8 @@ int CClientServerTcp::simple_http(){
 }
 
 int CClientServerTcp::fill_from_file() {
-    CJsonData::instance()->convert_bufs();
+    if (CJsonData::instance()->convert_bufs() < 0)
+        return -1;
 
     CMbufBuffer *buf_req;
     CMbufBuffer *buf_res;

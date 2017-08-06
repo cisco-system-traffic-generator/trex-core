@@ -24,6 +24,7 @@ bool CJsonData::parse_file(std::string file) {
         return false;
     }
 
+    m_initiated = true;
     return true;
 }
 
@@ -44,9 +45,8 @@ uint16_t CJsonData::get_buf_index(uint16_t temp_index, uint16_t cmd_index, int s
         assert(0);
     }
     try {
-        cmd = m_val["templates"][temp_index][temp_str]
-            ["program"]["commands"][cmd_index];
-
+        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
     }
@@ -69,9 +69,8 @@ std::string CJsonData::get_buf(uint16_t temp_index, uint16_t cmd_index, int side
         assert(0);
     }
     try {
-        cmd = m_val["templates"][temp_index][temp_str]
-            ["program"]["commands"][cmd_index];
-
+        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
     }
@@ -97,8 +96,8 @@ tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t temp_index, uint16_t cmd_index, i
         assert(0);
     }
     try {
-        cmd = m_val["templates"][temp_index][temp_str]
-        ["program"]["commands"][cmd_index];
+        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         return tcNO_CMD;
     }
@@ -125,9 +124,8 @@ uint32_t CJsonData::get_num_bytes(uint16_t temp_index, uint16_t cmd_index, int s
         assert(0);
     }
     try {
-        cmd = m_val["templates"][temp_index][temp_str]
-            ["program"]["commands"][cmd_index];
-
+        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
     }
@@ -182,10 +180,14 @@ bool CJsonData::get_prog(CTcpAppProgram *prog, uint16_t temp_index, int side) {
     return true;
 }
 
-void CJsonData::convert_bufs() {
+/* Convert list of buffers from json to CMbufBuffer */
+bool CJsonData::convert_bufs() {
     CMbufBuffer *tcp_buf;
     std::string json_buf;
     uint16_t buf_len;
+
+    if (m_val["buf_list"].size() == 0)
+        return false;
 
     for (int buf_index = 0; buf_index < m_val["buf_list"].size(); buf_index++) {
         tcp_buf = new CMbufBuffer();
@@ -197,11 +199,12 @@ void CJsonData::convert_bufs() {
         m_tcp_data.m_buf_list.push_back(tcp_buf);
     }
 
-    m_tcp_data.dump(stdout);
+    return true;
 }
 
 void CJsonData::clear() {
     m_tcp_data.free();
+    m_initiated = false;
 }
 
 void CTcpData::dump(FILE *fd) {

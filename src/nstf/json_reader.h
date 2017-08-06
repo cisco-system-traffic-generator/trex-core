@@ -27,8 +27,10 @@ class CJsonData {
  public:
     // make the class singelton
     static CJsonData *instance() {
-        if (! m_pInstance)
+        if (! m_pInstance) {
             m_pInstance = new CJsonData;
+            m_pInstance->m_initiated = false;
+        }
         return m_pInstance;
     }
     ~CJsonData();
@@ -40,10 +42,12 @@ class CJsonData {
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
     uint16_t get_buf_index(uint16_t temp_index, uint16_t cmd_index, int side);
     bool get_prog(CTcpAppProgram *prog, uint16_t temp_index, int side);
-    void convert_bufs();
+    bool convert_bufs();
+    bool is_initiated() {return m_initiated;}
     void clear();
 
  private:
+    bool m_initiated;
     static CJsonData *m_pInstance;
     Json::Value  m_val;
     CTcpData m_tcp_data;

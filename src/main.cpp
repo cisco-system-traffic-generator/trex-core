@@ -32,6 +32,8 @@ limitations under the License.
 #include <stateless/cp/trex_stateless.h>
 #include <sim/trex_sim.h>
 #include "nstf/json_reader.h"
+#include "44bsd/sim_cs_tcp.h"
+
 using namespace std;
 
 // An enum for all the option types
@@ -165,7 +167,6 @@ static int parse_options(int argc,
             case OPT_NSF:
                 params["type"] = OPT_TYPE_NSF;
                 po->nstf_cfg_file = args.OptionArg();
-                return 0;
                 break;
 
             case OPT_CFG:
@@ -243,7 +244,7 @@ static int parse_options(int argc,
          po->preview.setVMode(a);
      }else{
          if  (po->out_file=="" ){
-             printf("Invalid combination of parameters you must give output file iwth -o  \n");
+             printf("Invalid combination of parameters you must give output file using -o  \n");
              usage();
              return -1;
          }
@@ -326,12 +327,29 @@ int main(int argc , char * argv[]){
 
     case OPT_TYPE_NSF:
         {
+            // init
+            time_init();
+            CGlobalInfo::m_socket.Create(0);
+            CGlobalInfo::init_pools(1000, MBUF_2048);
             bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.nstf_cfg_file);
             assert(rc);
-            SimGtest test;
-            int ret = test.run(argc, argv);
+            CClientServerTcp *lpt1 = new CClientServerTcp;
+
+            // run
+            lpt1->Create("./", CGlobalInfo::m_options.out_file);
+            lpt1->set_debug_mode(true);
+            lpt1->fill_from_file();
+
+            // free stuff
+            lpt1->close_file();
+            lpt1->Delete();
+            delete lpt1;
             CJsonData::instance()->clear();
-            return ret;
+            CMsgIns::Ins()->Free();
+            CGlobalInfo::free_pools();
+            CGlobalInfo::m_socket.Delete();
+
+            return 0;
         }
     case OPT_TYPE_SL:
         {

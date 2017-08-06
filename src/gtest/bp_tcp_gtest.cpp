@@ -845,11 +845,15 @@ void tcp_gen_test(std::string pcap_file,
         lpt1->set_simulate_rst_error(sim_mode);
     }
 
-    if (test_id==tiTEST2) {
+    switch (test_id) {
+    case tiTEST2:
         lpt1->test2();
-    }else{
+        break;
+    default:
         lpt1->simple_http();
+        break;
     }
+
     lpt1->close_file();
 
     bool res=lpt1->compare("exp");
@@ -878,23 +882,6 @@ TEST_F(gt_tcp, tst30_vlan) {
 
 
 }
-
-#if 0
-TEST_F(gt_tcp, from_file) {
-
-    CClientServerTcp *lpt1=new CClientServerTcp;
-
-    lpt1->Create("tcp2_http");
-    lpt1->set_debug_mode(true);
-
-    lpt1->fill_from_file();
-
-    lpt1->Delete();
-
-    delete lpt1;
-}
-#endif
-
 
 TEST_F(gt_tcp, tst30_http_vlan) {
 

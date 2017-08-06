@@ -18,6 +18,8 @@ import sys
 import subprocess
 from pprint import pprint
 
+DEFAULT_OUT_JSON_FILE = "/tmp/nstf.json"
+
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -43,7 +45,10 @@ def execute_bp_sim(opts):
         if not os.path.exists(exe):
             raise Exception("'{0}' does not exist, please build it before calling the simulation".format(exe))
 
-    cmd = [exe, '--tcp_cfg', opts.output_file, '--gtest_filter=gt_tcp.from_file']
+    cmd = [exe, '--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
+
+    if opts.verbose:
+        print ("executing {0}".format(cmd))
 
     if opts.verbose:
         rc = subprocess.call(cmd)
@@ -62,15 +67,11 @@ def setParserOptions():
                         help="New statefull profile file",
                         required=True)
 
-    parser.add_argument("-g", "--gdb",
-                        help="run under GDB [default is False]",
-                        action="store_true",
-                        default=False)
-
+    DEFAULT_PCAP_FILE_NAME = "nstf_pcap"
     parser.add_argument("-o",
                         dest="output_file",
-                        default="/tmp/nstf.json",
-                        help="File to which json output will be writte")
+                        default=DEFAULT_PCAP_FILE_NAME,
+                        help="File to which pcap output will be written. Default is {0}".format(DEFAULT_PCAP_FILE_NAME))
 
     parser.add_argument('-p', '--path',
                         help="BP sim path",
@@ -93,6 +94,16 @@ def setParserOptions():
 
     group = parser.add_mutually_exclusive_group()
 
+    group.add_argument("-g", "--gdb",
+                       help="run under GDB [default is False]",
+                       action="store_true",
+                       default=False)
+
+    group.add_argument("--json",
+                       help="Print JSON output to stdout and exit",
+                       action="store_true",
+                       default=False)
+
     group.add_argument("-x", "--valgrind",
                        help="run under valgrind [default is False]",
                        action="store_true",
@@ -109,8 +120,12 @@ def process_options():
 def main(args=None):
     opts = process_options()
 
+    basedir = os.path.dirname(opts.input_file)
+    sys.path.insert(0, basedir)
+
     try:
-        prof = __import__(opts.input_file)
+        file = os.path.basename(opts.input_file).split('.')[0]
+        prof = __import__(file, globals(), locals(), [], 0)
     except ImportError as e:
         print("Failed importing {0}".format(opts.input_file))
         print(e)
@@ -120,14 +135,15 @@ def main(args=None):
 
     profile = cl.get_profile()
 
-    if opts.verbose:
+    if opts.json:
         pprint(profile.to_json())
-    f = open(opts.output_file, 'w')
+        sys.exit(0)
+
+    f = open(DEFAULT_OUT_JSON_FILE, 'w')
     f.write(str(profile.to_json()).replace("'", "\""))
     f.close()
 
-    if opts.sim:
-        execute_bp_sim(opts)
+    execute_bp_sim(opts)
 
 if __name__ == '__main__':
     main()
