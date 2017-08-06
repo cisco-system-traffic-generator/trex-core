@@ -92,19 +92,26 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             m->l3_len = tp->offset_tcp-tp->offset_ip;
             m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
             IPHeader * ipv4=(IPHeader *)(p+tp->offset_ip);
-            ipv4->setTotalLength(tlen);
             ipv4->ClearCheckSum();
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
             /* must be before checksum calculation */
-            
+            bool tso_done=false;
             if ( tp->is_tso() ) {
                 uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
                 if ( dlen>seg_size ){
                     m->ol_flags |=PKT_TX_TCP_SEG; 
                     m->tso_segsz = seg_size;
+                    tso_done=true;
                 }
             }
-            tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
+            if (tso_done){
+                /* in case of TSO the len is auto calculated */
+                ipv4->setTotalLength(20);
+                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,0));
+            }else{
+                ipv4->setTotalLength(tlen);
+                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
+            }
         }else{
             /* TBD fix me IPV6 does not work */
             uint16_t tlen=tcp_h_pyld;

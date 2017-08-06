@@ -225,7 +225,7 @@ public:
     }
 
     /* in case TSO is enable return the hardware TSO maximum packet size */
-    inline bool get_maxseg_tso(bool & tso){
+    inline uint16_t get_maxseg_tso(bool & tso){
         if (is_tso()) {
             tso=true;
             return(m_max_tso);
