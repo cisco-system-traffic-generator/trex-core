@@ -65,6 +65,7 @@ struct rte_mbuf {
     uint32_t magic2;
     uint16_t refcnt_reserved;
     uint64_t ol_flags;        /**< Offload features. */
+    uint16_t tso_segsz;
     uint16_t l2_len;
     uint16_t l3_len;
     uint16_t vlan_tci;
@@ -129,6 +130,8 @@ rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags){
 #define PKT_RX_IP_CKSUM_BAD  (1ULL << 4)
 #define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
 
+
+#define PKT_TX_TCP_SEG       (1ULL << 50)
 
 
 

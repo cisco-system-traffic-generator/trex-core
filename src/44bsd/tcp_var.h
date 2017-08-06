@@ -72,6 +72,7 @@ class CTcpReass;
 struct CTcpPkt {
     rte_mbuf_t   * m_buf;
     TCPHeader    * lpTcp;
+    uint16_t       m_optlen;
 
     inline char * get_header_ptr(){
         return (rte_pktmbuf_mtod(m_buf,char *));
@@ -117,7 +118,7 @@ struct tcpcb {
 #define TF_RCVD_TSTMP   0x0100      /* a timestamp was received in SYN */
 #define TF_SACK_PERMIT  0x0200      /* other side said I could SACK */
 
-    uint16_t  m_pad2;
+    uint16_t  m_max_tso;        /* maximum packet size input to TSO */
 
     /*====== end =============*/
 
@@ -202,6 +203,7 @@ struct tcpcb {
     uint8_t is_ipv6;
     uint8_t m_offload_flags;
     #define TCP_OFFLOAD_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
+    #define TCP_OFFLOAD_TSO      0x0002      /* DPDK_TSO_CHECK_SUM */
 
 
     /*====== end =============*/
@@ -215,6 +217,23 @@ struct tcpcb {
     /*====== end =============*/
 
 public:
+
+    
+
+    inline bool is_tso(){
+        return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
+    }
+
+    /* in case TSO is enable return the hardware TSO maximum packet size */
+    inline bool get_maxseg_tso(bool & tso){
+        if (is_tso()) {
+            tso=true;
+            return(m_max_tso);
+        }else{
+            return(t_maxseg);
+        }
+    }
+
 
     inline rte_mbuf_t   * pktmbuf_alloc_small(void){
         return (tcp_pktmbuf_alloc_small(mbuf_socket));
@@ -534,6 +553,7 @@ public:
     uint32_t  sb_max ; /* socket max char */
     int tcprexmtthresh;
     int tcp_mssdflt;
+    int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
     int tcp_do_rfc1323;
     int tcp_keepidle;       /* time before keepalive probes begin */

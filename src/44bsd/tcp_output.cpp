@@ -76,8 +76,10 @@ const char ** tcp_get_tcpstate(){
 
 static inline void tcp_pkt_update_len(struct tcpcb *tp,
                                       CTcpPkt &pkt,
-                                      uint32_t tcp_h_pyld){
+                                      uint32_t dlen,
+                                      uint16_t tcphlen){
 
+    uint32_t tcp_h_pyld=dlen+tcphlen;
     char *p=pkt.get_header_ptr();
 
     if (tp->m_offload_flags & TCP_OFFLOAD_CHKSUM){
@@ -93,8 +95,18 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             ipv4->setTotalLength(tlen);
             ipv4->ClearCheckSum();
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
+            /* must be before checksum calculation */
+            
+            if ( tp->is_tso() ) {
+                uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
+                if ( dlen>seg_size ){
+                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->tso_segsz = seg_size;
+                }
+            }
             tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
         }else{
+            /* TBD fix me IPV6 does not work */
             uint16_t tlen=tcp_h_pyld;
             m->l2_len = tp->offset_ip;
             m->l3_len = tp->offset_tcp-tp->offset_ip;
@@ -102,6 +114,11 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             IPv6Header * Ipv6=(IPv6Header *)(p+tp->offset_ip);
             Ipv6->setPayloadLen(tlen);
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
+            /* must be before checksum calculation */
+            if ( tp->is_tso() && (dlen>tp->t_maxseg)){
+                m->ol_flags |=PKT_TX_TCP_SEG; 
+                m->tso_segsz = tp->t_maxseg;
+            }
             tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
         }
     }else{
@@ -116,6 +133,9 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             Ipv6->setPayloadLen(tlen);
         }
     }
+
+
+
 }
 
 /**
@@ -158,7 +178,7 @@ int tcp_build_cpkt(CTcpPerThreadCtx * ctx,
                    CTcpPkt &pkt){
    int res=_tcp_build_cpkt(ctx,tp,tcphlen,pkt);
    if (res==0){
-       tcp_pkt_update_len(tp,pkt,tcphlen) ;
+       tcp_pkt_update_len(tp,pkt,0,tcphlen) ;
    }
    return(res);
 }
@@ -265,6 +285,8 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
     return(0);
 }
 
+/* len : if TSO==true, it is the TSO packet size (before segmentation), 
+         else it is the packet size */
 int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
                    struct tcpcb *tp,
                    uint32_t offset, 
@@ -274,7 +296,7 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
 
     int res = tcp_build_dpkt_(ctx,tp,offset,dlen,tcphlen,pkt);
     if (res==0){
-        tcp_pkt_update_len(tp,pkt,tcphlen+dlen) ;
+        tcp_pkt_update_len(tp,pkt,dlen,tcphlen) ;
     }
     return(res);
 }
@@ -405,8 +427,11 @@ again:
             tp->snd_nxt = tp->snd_una;
         }
     }
-    if (len > tp->t_maxseg) {
-        len = tp->t_maxseg;
+
+    bool tso=false;
+    uint16_t max_seg = tp->get_maxseg_tso(tso);
+    if (len > max_seg) {
+        len = max_seg;
         sendalot = 1;
     }
     if (SEQ_LT(tp->snd_nxt + len, tp->snd_una + so->so_snd.sb_cc))
@@ -425,7 +450,7 @@ again:
      * to send into a small window), then must resend.
      */
     if (len) {
-        if (len == tp->t_maxseg)
+        if ((len >= tp->t_maxseg))
             goto send;
         if ((idle || tp->t_flags & TF_NODELAY) &&
             len + off >= so->so_snd.sb_cc)
@@ -574,11 +599,14 @@ send:
      * Adjust data length if insertion of options will
      * bump the packet length beyond the t_maxseg length.
      */
-    if (len > tp->t_maxseg - optlen) {
-        len = tp->t_maxseg - optlen;
-        sendalot = 1;
-        flags &= ~TH_FIN;
-     }
+    pkt.m_optlen  = optlen; /* for TSO- current segment, will be replicate, so need to update max_seg  */
+    if (!tso) {
+        if (len > tp->t_maxseg - optlen) {
+            len = tp->t_maxseg - optlen;
+            sendalot = 1;
+            flags &= ~TH_FIN;
+        }
+    }
 
 
 #ifdef DIAGNOSTIC

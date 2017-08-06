@@ -236,8 +236,17 @@ struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
 void CTcpFlow::init(){
     /* build template */
     #ifndef TREX_SIM  /* FIX ME -- need to lead from DPDK driver and ctx */
-    m_tcp.m_offload_flags = TCP_OFFLOAD_CHKSUM;
+    m_tcp.m_offload_flags |= TCP_OFFLOAD_CHKSUM;
+    m_tcp.m_offload_flags |= TCP_OFFLOAD_TSO; 
     #endif
+
+    if (m_tcp.is_tso()){
+        if (m_tcp.t_maxseg >m_tcp.m_max_tso ){
+            m_tcp.m_max_tso=m_tcp.t_maxseg;
+        }
+    }else{
+        m_tcp.m_max_tso=m_tcp.t_maxseg;
+    }
 
     tcp_template(&m_tcp);
 
@@ -268,6 +277,8 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
     tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
 
     tp->t_maxseg = ctx->tcp_mssdflt;
+    tp->m_max_tso = ctx->tcp_max_tso;
+
     tp->mbuf_socket = ctx->m_mbuf_socket;
 
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
@@ -361,6 +372,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_mbuf_socket=0;
     tcprexmtthresh = 3 ;
     tcp_mssdflt = TCP_MSS;
+    tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_do_rfc1323 = 1;
     tcp_keepidle = TCPTV_KEEP_IDLE;

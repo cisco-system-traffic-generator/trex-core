@@ -92,6 +92,7 @@ struct tcphdr {
  * This should be defined as MIN(512, IP_MSS - sizeof (struct tcpiphdr)).
  */
 #define TCP_MSS (1500-20-20)
+#define TCP_TSO_MAX_DEFAULT (16*1024) /* maximum packet size to TSO */
 
 
 #define TCP_MAXWIN  65535   /* largest value for (unscaled) window */
