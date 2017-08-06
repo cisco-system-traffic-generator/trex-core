@@ -35,14 +35,14 @@ class STLMultiCore(object):
         max_value = rng.randint(min_value, bound)
         step      = rng.randint(1, 1000)
         op        = rng.choice(['inc', 'dec'])
+    
+        vm.var(name      = name,
+               min_value = min_value,
+               max_value = max_value,
+               size      = size,
+               op        = op)
         
-        vm += [STLVmFlowVar(name      = name,
-                            min_value = min_value,
-                            max_value = max_value,
-                            size      = size,
-                            op        = op),
-               STLVmWrFlowVar(fv_name = name, pkt_offset = pkt_offset),
-               ]
+        vm.write(fv_name = name, pkt_offset = pkt_offset)
 
         if verbose:
             print('name: {:}, start: {:}, end: {:}, size: {:}, op: {:}, step {:}'.format(name,
@@ -70,15 +70,15 @@ class STLMultiCore(object):
         
         # 840 is the least common multiple
         limit_flows = 840 * rng.randint(1, 1000)
-        vm += [STLVmTupleGen(ip_min = ip_min, ip_max = ip_max, 
-                             port_min = port_min, port_max = port_max,
-                             name = name,
-                             limit_flows = limit_flows),
-
-               STLVmWrFlowVar (fv_name = name + ".ip", pkt_offset = pkt_offset ), # write ip to packet IP.src]
-               STLVmWrFlowVar (fv_name = name + ".port", pkt_offset = (pkt_offset + 4) ),
-               ]
-
+        
+        vm.tuple_var(ip_min = ip_min, ip_max = ip_max, 
+                     port_min = port_min, port_max = port_max,
+                     name = name,
+                     limit_flows = limit_flows)
+        
+        vm.write(fv_name = name + ".ip", pkt_offset = pkt_offset) # write ip to packet IP.src
+        vm.write(fv_name = name + ".port", pkt_offset = (pkt_offset + 4) )
+        
         if verbose:
             print('name: {:}, ip_start: {:}, ip_end: {:}, port_start: {:}, port_end: {:}'.format(name,
                                                                                                  ip_min,
@@ -99,7 +99,7 @@ class STLMultiCore(object):
         # base offset
         pkt_offset = 42
 
-        vm = []
+        vm = STLVM()
 
         if test_type == 'plain':
             for i in range(20):

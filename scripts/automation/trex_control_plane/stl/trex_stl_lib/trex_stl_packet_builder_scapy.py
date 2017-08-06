@@ -1760,6 +1760,13 @@ class STLVM(STLScVmRaw):
         STLScVmRaw.__init__(self)
 
 
+    def set_cached (self, cache_size):
+        """
+        set VM as cached with a cache size
+        """
+        self.cache_size = cache_size
+        
+        
     def var (self, name, min_value, max_value, size, op, step = 1):
         """
         Defines a flow variable.
@@ -1906,3 +1913,15 @@ class STLVM(STLScVmRaw):
         """
         self.add_cmd(STLVmFixIpv4(offset))
 
+        
+    def trim (self, fv_name):
+        """
+        Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
+
+
+        :parameters:
+            fv_name : string
+                Stream variable name. The value of this variable is the new total packet size.
+
+        """
+        self.add_cmd(STLVmTrimPktSize(fv_name = fv_name))

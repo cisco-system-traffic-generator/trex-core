@@ -11,20 +11,18 @@ class STLPcap(object):
         if not ip_src_range and not ip_dst_range:
             return None
 
-        vm = []
+        vm = STLVM()
 
         if ip_src_range:
-            vm += [STLVmFlowVar(name="src", min_value = ip_src_range['start'], max_value = ip_src_range['end'], size = 4, op = "inc"),
-                   STLVmWrFlowVar(fv_name="src",pkt_offset= "IP.src")
-                  ]
-
+            vm.var(name="src", min_value = ip_src_range['start'], max_value = ip_src_range['end'], size = 4, op = "inc")
+            vm.write(fv_name="src",pkt_offset= "IP.src")
+            
         if ip_dst_range:
-            vm += [STLVmFlowVar(name="dst", min_value = ip_dst_range['start'], max_value = ip_dst_range['end'], size = 4, op = "inc"),
-                   STLVmWrFlowVar(fv_name="dst",pkt_offset = 30)
-                   ]
+            vm.var(name="dst", min_value = ip_dst_range['start'], max_value = ip_dst_range['end'], size = 4, op = "inc")
+            vm.write(fv_name="dst",pkt_offset = 30)
 
-        vm += [STLVmFixIpv4(offset = "IP")
-              ]
+        vm.fix_chksum()
+        
 
         return vm
 
