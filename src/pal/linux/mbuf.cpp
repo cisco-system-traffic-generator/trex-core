@@ -92,6 +92,10 @@ void rte_pktmbuf_reset(struct rte_mbuf *m)
     m->nb_segs = 1;
     m->in_port = 0xff;
     m->ol_flags = 0;
+    m->tso_segsz=0;
+    m->l2_len=0;
+    m->l3_len=0;
+    m->vlan_tci=0;
 
     #if RTE_PKTMBUF_HEADROOM > 0
     m->data_off = (RTE_PKTMBUF_HEADROOM <= m->buf_len) ?
