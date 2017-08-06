@@ -521,6 +521,9 @@ public:
         m_cb=cb;
     }
 
+    void set_memory_socket(uint8_t socket){
+        m_mbuf_socket= socket;
+    }
     
 public:
 
@@ -545,6 +548,9 @@ public:
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
     uint32_t    m_tick;
+    uint8_t     m_mbuf_socket;      /* memory socket */
+    uint8_t     m_pad[3];
+
 
     CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
     CTcpCtxCb    * m_cb;

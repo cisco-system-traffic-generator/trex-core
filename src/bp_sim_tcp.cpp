@@ -365,6 +365,12 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 
+    uint8_t mem_socket_id=get_memory_socket_id();
+
+    m_c_tcp->set_memory_socket(mem_socket_id);
+    m_s_tcp->set_memory_socket(mem_socket_id);
+    
+
     CTcpDpdkCb * c_tcp_io = new CTcpDpdkCb();
     CTcpDpdkCb * s_tcp_io = new CTcpDpdkCb();
 
@@ -392,8 +398,8 @@ bool CFlowGenListPerThread::Create_tcp(){
 
     uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
 
-    utl_mbuf_buffer_create_and_copy(m_req,2048,(uint8_t*)http_req,sizeof(http_req));
-    utl_mbuf_buffer_create_and_copy(m_res,2048,(uint8_t*)http_r,http_r_size);
+    utl_mbuf_buffer_create_and_copy(mem_socket_id,m_req,2048,(uint8_t*)http_req,sizeof(http_req));
+    utl_mbuf_buffer_create_and_copy(mem_socket_id,m_res,2048,(uint8_t*)http_r,http_r_size);
 
     free_http_res((char *)http_r);
 

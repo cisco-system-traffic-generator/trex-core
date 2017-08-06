@@ -268,6 +268,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
     tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
 
     tp->t_maxseg = ctx->tcp_mssdflt;
+    tp->mbuf_socket = ctx->m_mbuf_socket;
 
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
 

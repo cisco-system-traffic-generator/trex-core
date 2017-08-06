@@ -3994,6 +3994,9 @@ public:
                 uint32_t           max_threads);
     void Delete();
 
+    uint8_t get_memory_socket_id();
+
+
     void set_terminate_mode(bool is_terminate){
         m_terminated_by_master =is_terminate;
     }

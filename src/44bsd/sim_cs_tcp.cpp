@@ -330,7 +330,7 @@ int CClientServerTcp::test2(){
     buf = new CMbufBuffer();
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
-    utl_mbuf_buffer_create_and_fill(buf,2048,tx_num_bytes);
+    utl_mbuf_buffer_create_and_fill(0,buf,2048,tx_num_bytes);
 
 
     /* PER FLOW  */
@@ -538,8 +538,8 @@ int CClientServerTcp::simple_http(){
 
     uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
 
-    utl_mbuf_buffer_create_and_copy(buf_req,2048,(uint8_t*)http_req,sizeof(http_req));
-    utl_mbuf_buffer_create_and_copy(buf_res,2048,(uint8_t*)http_r,http_r_size);
+    utl_mbuf_buffer_create_and_copy(0,buf_req,2048,(uint8_t*)http_req,sizeof(http_req));
+    utl_mbuf_buffer_create_and_copy(0,buf_res,2048,(uint8_t*)http_r,http_r_size);
 
 
     /* PER FLOW  */

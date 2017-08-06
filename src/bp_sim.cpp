@@ -3528,6 +3528,12 @@ bool CNodeGenerator::has_limit_reached() {
     return ( (m_limit > 0) && (m_cnt >= m_limit) );
 }
 
+uint8_t CFlowGenListPerThread::get_memory_socket_id(){ 
+    uint8_t socket_id=(uint8_t)rte_lcore_to_socket_id(m_core_id);
+    return(socket_id);
+}
+
+
 bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           core_id,
                                    CFlowGenList  *    flow_list,

@@ -980,7 +980,7 @@ TEST_F(gt_tcp, tst31) {
     app = new CTcpApp();
     buf = new CMbufBuffer();
 
-    utl_mbuf_buffer_create_and_fill(buf,2048,100*1024);
+    utl_mbuf_buffer_create_and_fill(0,buf,2048,100*1024);
 
     prog = new CTcpAppProgram();
 

@@ -602,11 +602,13 @@ inline void CTcpSockBuf::get_by_offset(struct tcp_socket *so,uint32_t offset,
 
 
 
-int utl_mbuf_buffer_create_and_fill(CMbufBuffer * buf,
+int utl_mbuf_buffer_create_and_fill(uint8_t socket,
+                                    CMbufBuffer * buf,
                                     uint32_t blk_size,
                                     uint32_t size);
 
-int utl_mbuf_buffer_create_and_copy(CMbufBuffer * buf,
+int utl_mbuf_buffer_create_and_copy(uint8_t socket,
+                                    CMbufBuffer * buf,
                                     uint32_t blk_size,
                                     uint8_t *p,
                                     uint32_t size);
