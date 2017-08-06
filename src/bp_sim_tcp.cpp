@@ -367,10 +367,6 @@ bool CFlowGenListPerThread::Create_tcp(){
 
     uint8_t mem_socket_id=get_memory_socket_id();
 
-    m_c_tcp->set_memory_socket(mem_socket_id);
-    m_s_tcp->set_memory_socket(mem_socket_id);
-    
-
     CTcpDpdkCb * c_tcp_io = new CTcpDpdkCb();
     CTcpDpdkCb * s_tcp_io = new CTcpDpdkCb();
 
@@ -388,6 +384,10 @@ bool CFlowGenListPerThread::Create_tcp(){
     
     m_s_tcp->Create(active_flows,false);
     m_s_tcp->set_cb(m_s_tcp_io);
+
+    m_c_tcp->set_memory_socket(mem_socket_id);
+    m_s_tcp->set_memory_socket(mem_socket_id);
+
 
     uint32_t http_r_size= CGlobalInfo::m_options.m_tcp_http_res;
 

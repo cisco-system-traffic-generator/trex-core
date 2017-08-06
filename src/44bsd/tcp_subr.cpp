@@ -358,6 +358,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_tx_socket_bsize=32*1024;
     tcp_rx_socket_bsize=32*1024 ;
     sb_max = SB_MAX;        /* patchable */
+    m_mbuf_socket=0;
     tcprexmtthresh = 3 ;
     tcp_mssdflt = TCP_MSS;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
