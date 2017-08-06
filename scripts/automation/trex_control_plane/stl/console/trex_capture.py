@@ -348,6 +348,7 @@ class CaptureMonitor(object):
             
         return [self.capture_id,
                 format_text('ACTIVE' if self.t.is_alive() else 'DEAD', 'bold'),
+                format_num(self.matched, compact = False),
                 self.pkt_count,
                 format_num(self.byte_count, suffix = 'B'),
                 ', '.join([str(x) for x in self.tx_port_list] if self.tx_port_list else '-'),
@@ -620,23 +621,25 @@ class CaptureManager(object):
 
         # captures
         cap_table = text_tables.TRexTextTable()
-        cap_table.set_cols_align(["c"] * 7)
-        cap_table.set_cols_width([15] * 7)
+        cap_table.set_cols_align(["c"] * 8)
+        cap_table.set_cols_width([15] * 8)
 
         # monitor
         mon_table = text_tables.TRexTextTable()
-        mon_table.set_cols_align(["c"] * 7)
-        mon_table.set_cols_width([15] * 7)
+        mon_table.set_cols_align(["c"] * 8)
+        mon_table.set_cols_width([15] * 8)
 
         for capture_id, elem in data.items():
 
             if self.monitor and (self.monitor.get_capture_id() == capture_id):
+                self.monitor.matched = elem['matched']
                 row = self.monitor.get_mon_row()
                 mon_table.add_rows([row], header=False)
 
             else:
                 row = [capture_id,
                        format_text(elem['state'], 'bold'),
+                       format_num(elem['matched'], compact = False),
                        '[{0}/{1}]'.format(elem['count'], elem['limit']),
                        format_num(elem['bytes'], suffix = 'B'),
                        bitfield_to_str(elem['filter']['tx']),
@@ -645,8 +648,8 @@ class CaptureManager(object):
 
                 cap_table.add_rows([row], header=False)
 
-        cap_table.header(['ID', 'Status', 'Packets', 'Bytes', 'TX Ports', 'RX Ports', 'BPF Filter'])
-        mon_table.header(['ID', 'Status', 'Packets Seen', 'Bytes Seen', 'TX Ports', 'RX Ports', 'BPF Filter'])
+        cap_table.header(['ID', 'Status', 'Matched', 'Packets', 'Bytes', 'TX Ports', 'RX Ports', 'BPF Filter'])
+        mon_table.header(['ID', 'Status', 'Matched', 'Packets Seen', 'Bytes Seen', 'TX Ports', 'RX Ports', 'BPF Filter'])
 
         if cap_table._rows:
             text_tables.print_table_with_header(cap_table, '\nActive Recorders')

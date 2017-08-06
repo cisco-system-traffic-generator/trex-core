@@ -3766,8 +3766,8 @@ class STLClient(object):
             raise STLError("start_capture - must get at least one port to capture")
             
         validate_type('limit', limit, (int))
-        if limit <= 0:
-            raise STLError("'limit' must be a positive value")
+        if limit < 0:
+            raise STLError("'limit' must be a non zero value")
 
         if mode not in ('fixed', 'cyclic'):
             raise STLError("'mode' must be either 'fixed' or 'cyclic'")

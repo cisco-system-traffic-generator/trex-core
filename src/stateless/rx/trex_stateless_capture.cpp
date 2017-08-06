@@ -66,8 +66,9 @@ Json::Value
 TrexStatelessCapture::to_json() const {
     Json::Value output = Json::objectValue;
 
-    output["id"]     = Json::UInt64(m_id);
-    output["filter"] = m_filter.to_json();
+    output["id"]       = Json::UInt64(m_id);
+    output["matched"]  = Json::UInt64(m_pkt_index);
+    output["filter"]   = m_filter.to_json();
     
     switch (m_state) {
     case STATE_ACTIVE:
