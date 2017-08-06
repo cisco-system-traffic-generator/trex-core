@@ -3996,6 +3996,7 @@ public:
 
     uint8_t get_memory_socket_id();
 
+    uint32_t get_max_active_flows_per_core();
 
     void set_terminate_mode(bool is_terminate){
         m_terminated_by_master =is_terminate;

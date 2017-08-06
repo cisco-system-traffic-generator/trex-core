@@ -382,14 +382,16 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp_io =c_tcp_io;
     m_s_tcp_io =s_tcp_io;
 
-    m_c_tcp->Create(10000,true);
+    uint32_t active_flows=get_max_active_flows_per_core()/2;
+    m_c_tcp->Create(active_flows,true);
     m_c_tcp->set_cb(m_c_tcp_io);
     
-    m_s_tcp->Create(10000,false);
+    m_s_tcp->Create(active_flows,false);
     m_s_tcp->set_cb(m_s_tcp_io);
 
     uint32_t http_r_size= CGlobalInfo::m_options.m_tcp_http_res;
 
+    /* TBD replace this with JSON program */
     m_req = new CMbufBuffer();
     m_res = new CMbufBuffer();
 

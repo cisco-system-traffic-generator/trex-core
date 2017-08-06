@@ -3533,6 +3533,17 @@ uint8_t CFlowGenListPerThread::get_memory_socket_id(){
     return(socket_id);
 }
 
+uint32_t CFlowGenListPerThread::get_max_active_flows_per_core(){ 
+
+    double active_flows_per_core = m_flow_list->get_worse_case_active_flows()/(double)m_max_threads;
+    /* can't have more than 20M flows per core ..*/
+    if (active_flows_per_core>20*1e6) {
+        printf("ERROR something went wrong here, more than 20M flows per core does not make sense (%f) \n",active_flows_per_core);
+        assert(0);
+    }
+    return((uint32_t)active_flows_per_core);
+}
+
 
 bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           core_id,
