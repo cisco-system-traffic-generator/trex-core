@@ -145,7 +145,7 @@ class _CPcapReader_help(object):
                 pad_len = 0
             l4_payload_len = len(l4.payload) - pad_len
             self.total_payload_len += l4_payload_len
-            self._pkts.append(CPacketData(direction, str(l4.payload)[0:l4_payload_len]))
+            self._pkts.append(CPacketData(direction, bytes(l4.payload)[0:l4_payload_len]))
 
     def gen_prog_file_header(self, out):
         out.write("import nstf_path\n")

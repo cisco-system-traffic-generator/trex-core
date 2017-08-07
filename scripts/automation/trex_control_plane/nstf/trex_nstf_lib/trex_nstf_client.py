@@ -49,7 +49,7 @@ class NSTFCmd(object):
 class NSTFCmdTx(NSTFCmd):
     def __init__(self, buf):
         super(NSTFCmdTx, self).__init__()
-        self._buf = base64.b64encode(buf.encode()).decode()
+        self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
 
