@@ -136,7 +136,7 @@ def main(args=None):
     profile = cl.get_profile()
 
     if opts.json:
-        pprint(profile.to_json())
+        print(profile.to_json())
         sys.exit(0)
 
     f = open(DEFAULT_OUT_JSON_FILE, 'w')

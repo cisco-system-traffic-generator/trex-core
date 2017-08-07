@@ -49,7 +49,7 @@ class NSTFCmd(object):
 class NSTFCmdTx(NSTFCmd):
     def __init__(self, buf):
         super(NSTFCmdTx, self).__init__()
-        self._buf = base64.b64encode(buf).decode()
+        self._buf = base64.b64encode(buf.encode()).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
 
@@ -710,7 +710,7 @@ class NSTFProfile(object):
         for i in range(0, len(self.templates)):
             ret['templates'].append(self.templates[i].to_json())
 
-        return json.dumps(ret, indent=4, separators=(',', ': ')).encode('utf8')
+        return json.dumps(ret, indent=4, separators=(',', ': '))
 
 
 if __name__ == '__main__':
@@ -746,5 +746,5 @@ if __name__ == '__main__':
     profile = NSTFProfile(template)
 
     f = open('/tmp/tcp_out.json', 'w')
-    pprint(profile.to_json())
+    print(profile.to_json())
     f.write(str(profile.to_json()).replace("'", "\""))
