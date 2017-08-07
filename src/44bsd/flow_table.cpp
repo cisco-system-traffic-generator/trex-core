@@ -56,7 +56,7 @@ void CFlowKeyTuple::dump(FILE *fd){
 
 bool CFlowTable::Create(uint32_t size,
                         bool client_side){
-
+    m_verbose =false;
     m_client_side = client_side;
     if (!m_ft.Create(size) ){
         printf("ERROR can't allocate flow-table \n");
@@ -283,6 +283,15 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
 
     CFlowKeyTuple tuple;
     CFlowKeyFullTuple ftuple;
+
+    #ifdef _DEBUG
+    if ( m_verbose ){
+        uint8_t *p1=rte_pktmbuf_mtod(mbuf, uint8_t*);
+        uint16_t pkt_size1=rte_pktmbuf_pkt_len(mbuf);
+        utl_k12_pkt_format(stdout,p1 ,pkt_size1) ;
+    }
+    #endif
+    
 
     CSimplePacketParser parser(mbuf);
 

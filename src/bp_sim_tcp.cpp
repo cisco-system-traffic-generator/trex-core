@@ -356,7 +356,7 @@ void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
 
 
 double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
-    return((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0));
+    return(TCP_TIME_TICK_SEC);
 }
 
 
@@ -378,7 +378,10 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp_io =c_tcp_io;
     m_s_tcp_io =s_tcp_io;
 
-    uint32_t active_flows=get_max_active_flows_per_core()/2;
+    uint32_t active_flows = get_max_active_flows_per_core_tcp()/2 ;
+    if (active_flows<100000) {
+        active_flows=100000;
+    }
     m_c_tcp->Create(active_flows,true);
     m_c_tcp->set_cb(m_c_tcp_io);
     
@@ -388,6 +391,10 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);
 
+    if ( m_preview_mode.getVMode() >2 ){
+        m_c_tcp->m_ft.set_debug(true);
+        m_s_tcp->m_ft.set_debug(true);
+    }
 
     uint32_t http_r_size= CGlobalInfo::m_options.m_tcp_http_res;
 

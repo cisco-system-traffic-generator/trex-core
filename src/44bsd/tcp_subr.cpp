@@ -237,7 +237,7 @@ void CTcpFlow::init(){
     /* build template */
     #ifndef TREX_SIM  /* FIX ME -- need to lead from DPDK driver and ctx */
     m_tcp.m_offload_flags |= TCP_OFFLOAD_CHKSUM;
-    //m_tcp.m_offload_flags |= TCP_OFFLOAD_TSO; 
+    m_tcp.m_offload_flags |= TCP_OFFLOAD_TSO; 
     #endif
 
     if (m_tcp.is_tso()){

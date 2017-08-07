@@ -101,17 +101,20 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
                 if ( dlen>seg_size ){
                     m->ol_flags |=PKT_TX_TCP_SEG; 
                     m->tso_segsz = seg_size;
+                    m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
                     tso_done=true;
                 }
             }
             if (tso_done){
                 /* in case of TSO the len is auto calculated */
                 ipv4->setTotalLength(20);
-                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,0));
+                tcp->setChecksumRaw(tp->l4_pseudo_checksum);
             }else{
                 ipv4->setTotalLength(tlen);
                 tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
             }
+
+
         }else{
             /* TBD fix me IPV6 does not work */
             uint16_t tlen=tcp_h_pyld;
@@ -601,7 +604,7 @@ send:
     }
 
     hdrlen += optlen;
- 
+
     /*
      * Adjust data length if insertion of options will
      * bump the packet length beyond the t_maxseg length.
@@ -613,13 +616,18 @@ send:
             sendalot = 1;
             flags &= ~TH_FIN;
         }
+    }else {
+        if (len > tp->t_maxseg - optlen ){
+            if (optlen) {
+                if ((len%tp->t_maxseg)==0) {
+                    len -= (len/tp->t_maxseg)*optlen; /* reduce the optlen from all packets*/
+                    sendalot = 1;
+                    flags &= ~TH_FIN;
+                }
+            }
+        }
     }
 
-
-#ifdef DIAGNOSTIC
-    if (max_linkhdr + hdrlen > MHLEN)
-        panic("tcphdr too big");
-#endif
 
     /*
      * Grab a header mbuf, attaching a copy of data to
@@ -729,9 +737,6 @@ send:
         tp->snd_up = tp->snd_una;       /* drag it along */
     }
 
-
-    /* TBD will be done by HW */
-    //ti->ti_sum = in_cksum(m, (int)(hdrlen + len));
 
     /*
      * In transmit state, time the transmission and arrange for

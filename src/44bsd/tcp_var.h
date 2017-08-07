@@ -385,14 +385,31 @@ public:
 #else 
 
 // base tick in msec
-#define TCP_TIMER_TICK_BASE_MS 20 
-#define TCP_TIMER_W_TICK       1
+
+/* base tick of timer in msec */
+#define TCP_TIMER_W_TICK       1  
+
+/* fast tick msec */
+#define TCP_TIMER_TICK_FAST_MS 100
+
+/* flow tick msec */
+#define TCP_TIMER_TICK_SLOW_MS 500
+
+
+/* to how many micro tick to div the TCP_TIMER_W_TICK */
 #define TCP_TIMER_W_DIV        50
 
-#define TCP_FAST_TICK (TCP_TIMER_TICK_BASE_MS/TCP_TIMER_W_TICK)
-#define TCP_SLOW_RATIO_TICK 1
-#define TCP_SLOW_RATIO_MASTER ((TCP_TIMER_W_DIV*500)/TCP_TIMER_W_TICK)
-#define TCP_SLOW_FAST_RATIO   (500/20)
+
+/* ticks of FAST */
+#define TCP_FAST_TICK       (TCP_TIMER_TICK_FAST_MS/TCP_TIMER_W_TICK)
+
+#define TCP_SLOW_RATIO_MASTER ((TCP_TIMER_TICK_SLOW_MS*TCP_TIMER_W_DIV)/TCP_TIMER_W_TICK)
+
+/* main tick in sec */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+
+/* how many fast ticks need to get */
+#define TCP_SLOW_FAST_RATIO   (TCP_TIMER_TICK_SLOW_MS/TCP_TIMER_TICK_FAST_MS)
 
 
 #endif

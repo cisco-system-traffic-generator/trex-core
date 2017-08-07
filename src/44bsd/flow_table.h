@@ -238,6 +238,9 @@ public:
                             bool is_ipv6);
 
       void       free_flow(CTcpFlow * flow);            
+      void       set_debug(bool enable){
+          m_verbose = enable;
+      }
 
 
 private: 
@@ -246,6 +249,7 @@ public:
       CSttFlowTableStats m_sts;
 
 private:
+    bool            m_verbose;
     bool            m_client_side;
     flow_hash_t     m_ft;
 
