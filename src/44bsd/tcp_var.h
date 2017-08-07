@@ -382,6 +382,7 @@ public:
 #define TCP_SLOW_FAST_RATIO 1
 
 
+
 #else 
 
 // base tick in msec
@@ -405,7 +406,6 @@ public:
 
 #define TCP_SLOW_RATIO_MASTER ((TCP_TIMER_TICK_SLOW_MS*TCP_TIMER_W_DIV)/TCP_TIMER_W_TICK)
 
-/* main tick in sec */
 #define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
 
 /* how many fast ticks need to get */
@@ -413,6 +413,9 @@ public:
 
 
 #endif
+
+/* main tick in sec */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
 
 
 #include "h_timer.h"
