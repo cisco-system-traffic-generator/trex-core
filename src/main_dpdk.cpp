@@ -309,6 +309,9 @@ public:
         return ( new CTRexExtendedDriverVirtio() );
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+
+    virtual void update_configuration(port_cfg_t * cfg);
+
 };
 
 class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtBase {
@@ -323,6 +326,8 @@ public:
     }
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
+
+
 };
 
 class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
@@ -6677,6 +6682,11 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+    if ( get_is_tcp_mode() ) {
+        cfg->m_port_conf.rxmode.hw_strip_crc = 1;
+        cfg->m_port_conf.rxmode.enable_lro = 1;
+        cfg->m_port_conf.rxmode.hw_ip_checksum = 1;
+    }
 }
 
 int CTRexExtendedDriverBase10G::configure_rx_filter_rules(CPhyEthIF * _if) {
@@ -7649,6 +7659,17 @@ CFlowStatParser *CTRexExtendedDriverVirtBase::get_flow_stat_parser() {
     return parser;
 }
 
+
+
+void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
+        CTRexExtendedDriverVirtBase::update_configuration(cfg);
+        if ( get_is_tcp_mode() ) {
+            cfg->m_port_conf.rxmode.enable_lro = 1;
+        }
+
+}
+
+
 void CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     get_extended_stats_fixed(_if, stats, 4, 4);
 }
@@ -7677,6 +7698,9 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
     // must have this, otherwise the driver fail at init
     cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMSCTP;
+    if ( get_is_tcp_mode() ) {
+       cfg->m_port_conf.rxmode.enable_lro = 1;
+    }
 }
 
 ///////////////////////////////////////////////////////// VF
