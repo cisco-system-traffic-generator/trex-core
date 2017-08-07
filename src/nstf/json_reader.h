@@ -16,6 +16,7 @@ class CTcpData {
 
  private:
     std::vector<CMbufBuffer *> m_buf_list;
+    std::vector<CTcpAppProgram *> m_prog_list;
 };
 
 class CJsonData {
@@ -37,14 +38,17 @@ class CJsonData {
 
     bool parse_file(std::string file);
     void dump();
-    tcp_app_cmd_enum_t get_cmd(uint16_t temp_index, uint16_t cmd_index, int side);
-    uint32_t get_num_bytes(uint16_t temp_index, uint16_t cmd_index, int side);
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
-    uint16_t get_buf_index(uint16_t temp_index, uint16_t cmd_index, int side);
-    bool get_prog(CTcpAppProgram *prog, uint16_t temp_index, int side);
-    bool convert_bufs();
+    CTcpAppProgram * get_prog(uint16_t temp_index, int side);
     bool is_initiated() {return m_initiated;}
     void clear();
+
+ private:
+    uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
+    uint32_t get_num_bytes(uint16_t program_index, uint16_t cmd_index);
+    tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
+    bool convert_bufs();
+    bool convert_progs();
 
  private:
     bool m_initiated;

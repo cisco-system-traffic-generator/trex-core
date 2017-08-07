@@ -629,9 +629,6 @@ int CClientServerTcp::simple_http(){
 }
 
 int CClientServerTcp::fill_from_file() {
-    if (CJsonData::instance()->convert_bufs() < 0)
-        return -1;
-
     CMbufBuffer *buf_req;
     CMbufBuffer *buf_res;
     CTcpAppProgram *prog_c;
@@ -658,14 +655,12 @@ int CClientServerTcp::fill_from_file() {
     /* CONST */
     buf_req = new CMbufBuffer();
     buf_res = new CMbufBuffer();
-    prog_c = new CTcpAppProgram();
-    prog_s = new CTcpAppProgram();
 
     uint16_t temp_index = 0; //??? need to support multiple templates
     // client program
-    CJsonData::instance()->get_prog(prog_c, temp_index, 0);
+    prog_c = CJsonData::instance()->get_prog(temp_index, 0);
     // server program
-    CJsonData::instance()->get_prog(prog_s, temp_index, 1);
+    prog_s = CJsonData::instance()->get_prog(temp_index, 1);
 
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);

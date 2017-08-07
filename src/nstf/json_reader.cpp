@@ -24,6 +24,9 @@ bool CJsonData::parse_file(std::string file) {
         return false;
     }
 
+    convert_bufs();
+    convert_progs();
+
     m_initiated = true;
     return true;
 }
@@ -32,20 +35,10 @@ void CJsonData::dump() {
     std::cout << m_val << std::endl;
 }
 
-uint16_t CJsonData::get_buf_index(uint16_t temp_index, uint16_t cmd_index, int side) {
-    std::string temp_str;
+uint16_t CJsonData::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
-    if (side == 0) {
-        temp_str = "client_template";
-    } else if (side == 1) {
-        temp_str = "server_template";
-    } else {
-        fprintf(stderr, "Bad side value %d\n", side);
-        assert(0);
-    }
     try {
-        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
         cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
@@ -83,20 +76,11 @@ std::string CJsonData::get_buf(uint16_t temp_index, uint16_t cmd_index, int side
     return base64_decode(output);
 }
 
-tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t temp_index, uint16_t cmd_index, int side) {
-    std::string temp_str;
+
+tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
-    if (side == 0) {
-        temp_str = "client_template";
-    } else if (side == 1) {
-        temp_str = "server_template";
-    } else {
-        fprintf(stderr, "Bad side value %d\n", side);
-        assert(0);
-    }
     try {
-        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
         cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         return tcNO_CMD;
@@ -111,20 +95,10 @@ tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t temp_index, uint16_t cmd_index, i
     return tcNO_CMD;
 }
 
-uint32_t CJsonData::get_num_bytes(uint16_t temp_index, uint16_t cmd_index, int side) {
-    std::string temp_str;
+uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
-    if (side == 0) {
-        temp_str = "client_template";
-    } else if (side == 1) {
-        temp_str = "server_template";
-    } else {
-        fprintf(stderr, "Bad side value %d\n", side);
-        assert(0);
-    }
     try {
-        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
         cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
@@ -135,49 +109,28 @@ uint32_t CJsonData::get_num_bytes(uint16_t temp_index, uint16_t cmd_index, int s
     return cmd["min_bytes"].asInt();
 }
 
-
 /*
- * Fill program from json file info
- * prog - command to fill
+ * Get program associated with template index and side
  * temp_index - template index
  * side - 0 - client, 1 - server
- * Return true if prog was filled, false if there was an error
+ * Return pointer to program
  */
-bool CJsonData::get_prog(CTcpAppProgram *prog, uint16_t temp_index, int side) {
-    CTcpAppCmd cmd;
-    uint16_t cmd_index = 0;
-    std::string buf_from_json;
-    tcp_app_cmd_enum_t cmd_type;
+CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side) {
+    std::string temp_str;
+    uint16_t program_index;
 
-    do {
-        cmd_type = get_cmd(temp_index, cmd_index, side);
+    if (side == 0) {
+        temp_str = "client_template";
+    } else if (side == 1) {
+        temp_str = "server_template";
+    } else {
+        fprintf(stderr, "Bad side value %d\n", side);
+        assert(0);
+    }
 
-        switch(cmd_type) {
-        case tcNO_CMD:
-            break;
-        case tcTX_BUFFER:
-            cmd.u.m_tx_cmd.m_buf = m_tcp_data.m_buf_list[get_buf_index(temp_index, cmd_index, side)];
-            cmd.m_cmd = tcTX_BUFFER;
-            prog->add_cmd(cmd);
-            break;
-        case tcRX_BUFFER:
-            cmd.m_cmd = tcRX_BUFFER;
-            cmd.u.m_rx_cmd.m_flags = CTcpAppCmdRxBuffer::rxcmd_WAIT;
-            cmd.u.m_rx_cmd.m_rx_bytes_wm = get_num_bytes(temp_index, cmd_index, side);
-            prog->add_cmd(cmd);
-            break;
-        case tcDELAY:
-            break;
-        case tcRESET:
-            break;
-        default:
-            assert(0);
-        }
+    program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
 
-        cmd_index++;
-    } while (cmd_type != tcNO_CMD);
-
-    return true;
+    return m_tcp_data.m_prog_list[program_index];
 }
 
 /* Convert list of buffers from json to CMbufBuffer */
@@ -197,6 +150,55 @@ bool CJsonData::convert_bufs() {
         buf_len = temp_str.size();
         utl_mbuf_buffer_create_and_copy(0,tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len);
         m_tcp_data.m_buf_list.push_back(tcp_buf);
+    }
+
+    return true;
+}
+
+/* Convert list of programs from json to CMbufBuffer */
+bool CJsonData::convert_progs() {
+    CTcpAppCmd cmd;
+    CTcpAppProgram *prog;
+    uint16_t cmd_index;
+    tcp_app_cmd_enum_t cmd_type;
+
+    if (m_val["program_list"].size() == 0)
+        return false;
+
+    for (uint16_t program_index = 0; program_index < m_val["program_list"].size(); program_index++) {
+        prog = new CTcpAppProgram();
+        assert(prog);
+
+        cmd_index = 0;
+        do {
+            cmd_type = get_cmd(program_index, cmd_index);
+
+            switch(cmd_type) {
+            case tcNO_CMD:
+                break;
+            case tcTX_BUFFER:
+                cmd.u.m_tx_cmd.m_buf = m_tcp_data.m_buf_list[get_buf_index(program_index, cmd_index)];
+                cmd.m_cmd = tcTX_BUFFER;
+                prog->add_cmd(cmd);
+                break;
+            case tcRX_BUFFER:
+                cmd.m_cmd = tcRX_BUFFER;
+                cmd.u.m_rx_cmd.m_flags = CTcpAppCmdRxBuffer::rxcmd_WAIT;
+                cmd.u.m_rx_cmd.m_rx_bytes_wm = get_num_bytes(program_index, cmd_index);
+                prog->add_cmd(cmd);
+                break;
+            case tcDELAY:
+                break;
+            case tcRESET:
+                break;
+            default:
+                assert(0);
+            }
+
+            cmd_index++;
+        } while (cmd_type != tcNO_CMD);
+
+        m_tcp_data.m_prog_list.push_back(prog);
     }
 
     return true;
