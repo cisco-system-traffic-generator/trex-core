@@ -6,6 +6,7 @@ import inspect
 from trex_nstf_exceptions import NSTFError, NSTFErrorBadParamCombination, NSTFErrorMissingParam
 import json
 import base64
+import hashlib
 
 def listify(x):
     if isinstance(x, list):
@@ -98,9 +99,19 @@ class NSTFProgram(object):
     class BufferList():
         def __init__(self):
             self.buf_list = []
+            self.buf_hash = {}
 
         # add, and return index of added buffer
         def add(self, new_buf):
+            m = hashlib.sha256(new_buf.encode()).digest()
+            if m in self.buf_hash:
+                return self.buf_hash[m]
+            else:
+                self.buf_list.append(new_buf)
+                new_index = len(self.buf_list) - 1
+                self.buf_hash[m] = new_index
+                return new_index
+
             for index in range(0, len(self.buf_list)):
                 if new_buf == self.buf_list[index]:
                     return index
@@ -142,6 +153,9 @@ class NSTFProgram(object):
         else:
             if commands is not None:
                 self._set_cmds(listify(commands))
+
+    def calc_hash(self):
+        return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
     def send(self, buf):
         cmd = NSTFCmdTx(buf)
@@ -479,16 +493,24 @@ class NSTFAssociation(object):
 
 class _NSTFTemplateBase(object):
     program_list = []
+    program_hash = {}
 
     @staticmethod
     def add_program(program):
-        _NSTFTemplateBase.program_list.append(program)
-        # todo: need to fix to eliminate duplicate programs
-        return len(_NSTFTemplateBase.program_list) - 1
+        m = program.calc_hash()
+        if m in  _NSTFTemplateBase.program_hash:
+            return  _NSTFTemplateBase.program_hash[m]
+        else:
+            _NSTFTemplateBase.program_list.append(program)
+            prog_index = len(_NSTFTemplateBase.program_list) - 1
+            _NSTFTemplateBase.program_hash[m] = prog_index
+            return prog_index
 
     @staticmethod
     def class_reset():
         _NSTFTemplateBase.program_list = []
+        _NSTFTemplateBase.program_hash = {}
+
 
     @staticmethod
     def class_to_json():

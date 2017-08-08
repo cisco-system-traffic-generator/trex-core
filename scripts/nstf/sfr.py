@@ -14,7 +14,7 @@ class Prof1():
                            dist_server=ip_gen_s)
 
         profile = NSTFProfile(default_ip_gen=ip_gen, cap_list=[
-            NSTFCapInfo(file="../cap2/oracle.pcap", cps=150),
+            NSTFCapInfo(file="../cap2/Oracle.pcap", cps=150),
             NSTFCapInfo(file="../cap2/Video_Calls.pcap", cps=11.4),
             NSTFCapInfo(file="../cap2/rtp_160k.pcap", cps=3.6),
             NSTFCapInfo(file="../cap2/rtp_250k_rtp_only_1.pcap", cps=4),
