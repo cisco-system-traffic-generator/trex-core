@@ -170,7 +170,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                              do_no_remove_generated = False,
                              tunables = None):
 
-        print('Testing profile: %s' % profile)
+        print('\nTesting profile: %s' % profile)
         output_cap = "generated/a.pcap"
         input_file =  os.path.join('stl/', profile)
         golden_file = os.path.join('exp',os.path.basename(profile).split('.')[0]+'.pcap');
@@ -196,6 +196,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         if test_generated:
             try:
                 generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
+                print('Generating %s' % generated_filename)
                 if input_file.endswith('.py'):
                     profile = STLProfile.load_py(input_file, **(tunables if tunables else {}))
                 elif input_file.endswith('.yaml'):
@@ -203,6 +204,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                 
                 profile.dump_to_code(generated_filename)
 
+                print('Run simulation on generated file')
                 rc = self.run_sim(yaml     = generated_filename,
                                   output   = output_cap,
                                   options  = options,

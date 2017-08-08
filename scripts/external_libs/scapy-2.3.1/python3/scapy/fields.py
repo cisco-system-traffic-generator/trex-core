@@ -202,6 +202,8 @@ class MACField(Field):
     def m2i(self, pkt, x):
         return str2mac(x)
     def any2i(self, pkt, x):
+        if type(x) is str and len(x) is 6:
+            x = str2bytes(x)
         if type(x) is bytes and len(x) is 6:
             x = self.m2i(pkt, x)
         return x
@@ -301,6 +303,10 @@ class ThreeBytesField(X3BytesField, ByteField):
 class ShortField(Field):
     def __init__(self, name, default):
         Field.__init__(self, name, default, "H")
+
+class SignedShortField(Field):
+    def __init__(self, name, default):
+        Field.__init__(self, name, default, "h")
 
 class LEShortField(Field):
     def __init__(self, name, default):
@@ -542,6 +548,24 @@ class StrLenField(StrField):
     def getfield(self, pkt, s):
         l = self.length_from(pkt)
         return s[l:], self.m2i(pkt,s[:l])
+
+
+class UTF8LenField(StrLenField):
+    def i2h(self, pkt, x):
+        try:
+            return x.decode('utf-8')
+        except:
+            return x
+
+
+class VarLenIntField(StrLenField):
+    def i2h(self, pkt, x):
+        if type(x) is str:
+            return str2int(x)
+        return x
+
+    i2repr = i2h
+
 
 class FieldListField(Field):
     islist=1

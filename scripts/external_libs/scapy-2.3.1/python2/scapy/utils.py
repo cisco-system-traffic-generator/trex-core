@@ -249,6 +249,9 @@ def str2mac(s):
 def strxor(x,y):
     return "".join(map(lambda x,y:chr(ord(x)^ord(y)),x,y))
 
+def str2ip(s):
+    return ("%s."*4)[:-1] % tuple(map(ord, s)) 
+
 # Workarround bug 643005 : https://sourceforge.net/tracker/?func=detail&atid=105470&aid=643005&group_id=5470
 try:
     socket.inet_aton("255.255.255.255")
@@ -814,4 +817,27 @@ def make_lined_table(*args, **kargs):
 
 def make_tex_table(*args, **kargs):
     __make_table(lambda l: "%s", lambda l: "& %s", "\\\\", seplinefunc=lambda a,x:"\\hline", *args, **kargs)
+
+
+
+def str2int(s):
+    assert type(s) in (str, bytes), type(s)
+    i = 0
+    for c in s:
+        i = i << 8
+        i += ord(c)
+    return i
+
+def int2str(num, length = None):
+    c_arr = []
+    i = num
+    while i:
+        c_arr.insert(0, chr(i & 0xff))
+        i = i >> 8
+    s = b''.join(c_arr)
+    if length is None:
+        return s
+    if length < len(s):
+        raise Exception("Given integer: '%s' can't fit string of length '%s'!" % (num, length))
+    return s.rjust(length, b'\0')
 

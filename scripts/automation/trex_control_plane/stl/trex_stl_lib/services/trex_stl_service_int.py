@@ -37,6 +37,7 @@ class STLServiceCtx(object):
         self.client       = client
         self.port         = port
         self.port_obj     = client.ports[port]
+        self._reset()
 
 ######### API functions              #########
 
@@ -44,8 +45,10 @@ class STLServiceCtx(object):
         '''
             Runs 'services' under service context
         '''
+        if not services:
+            raise Exception('No services to run!')
         with self.client.logger.supress():
-            return self._run(services)
+            self._run(services)
         
         
     def get_port_id (self):
@@ -81,7 +84,6 @@ class STLServiceCtx(object):
     def _reset (self):
         self.filters    = {}
         self.services   = {}
-        
         self.active_services = 0
      
              
@@ -115,7 +117,7 @@ class STLServiceCtx(object):
         # add all services
         self._add(services)
         
-        # create an enviorment
+        # create an environment
         self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
         self.tx_buffer    = TXBuffer(self.env, self.client, self.port)
         
@@ -141,8 +143,6 @@ class STLServiceCtx(object):
 
             # start the RT simulation - exit when the tick process dies
             self.env.run(until = tick_process)
-
-
         finally:
             # stop all captures
             for f in self.filters.values():
@@ -234,21 +234,24 @@ class TXBuffer(object):
         
         
     def push (self, pkt):
-        self.pkts.append(pkt)
+        if type(pkt) is list:
+            self.pkts.extend(pkt)
+        else:
+            self.pkts.append(pkt)
         return self.tx_event
         
         
     def send_all (self):
         if self.pkts:
-           rc = self.client.push_packets(ports = self.port, pkts = self.pkts, force = True)
-           tx_ts = rc.data()['ts']
+            rc = self.client.push_packets(ports = self.port, pkts = self.pkts, force = True)
+            tx_ts = rc.data()['ts']
 
-           self.pkts = []
-           
-           # mark as TX event happened
-           self.tx_event.succeed(value = {'ts': tx_ts})
-           # create a new event
-           self.tx_event = self.env.event()
+            self.pkts = []
+
+            # mark as TX event happened
+            self.tx_event.succeed(value = {'ts': tx_ts})
+            # create a new event
+            self.tx_event = self.env.event()
         
 
     def pending (self):

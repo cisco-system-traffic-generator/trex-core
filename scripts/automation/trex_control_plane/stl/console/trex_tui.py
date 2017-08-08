@@ -633,7 +633,8 @@ class TrexTUI():
 
         except TUIQuit:
             print("\nExiting TUI...")
-
+        except KeyboardInterrupt:
+            print("\nExiting TUI...")
         finally:
             self.sb.stop()
 

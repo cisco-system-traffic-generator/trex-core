@@ -105,6 +105,8 @@ VLAN_TAGS
 CLEAR_VLAN
 VLAN_CFG
 
+PLUGIN_NAME
+
 # ALL_STREAMS
 # STREAM_LIST_WITH_ALL
 
@@ -294,6 +296,8 @@ def action_bpf_filter_merge ():
     
     
 def is_valid_file(filename):
+    if os.path.isdir(filename):
+        raise argparse.ArgumentTypeError("Given path '%s' is a directory" % filename)
     if not os.path.isfile(filename):
         raise argparse.ArgumentTypeError("The file '%s' does not exist" % filename)
 
@@ -534,7 +538,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                       'action': 'merge',
                                       'type': decode_tunables}),
 
-              PORT_LIST: ArgumentPack(['--port', '-p'],
+              PORT_LIST: ArgumentPack(['-p', '--port'],
                                         {"nargs": '+',
                                          'dest':'ports',
                                          'metavar': 'PORTS',
@@ -544,7 +548,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                          'default': []}),
 
               
-              SINGLE_PORT: ArgumentPack(['--port', '-p'],
+              SINGLE_PORT: ArgumentPack(['-p', '--port'],
                                         {'dest':'ports',
                                          'type': int,
                                          'metavar': 'PORT',
@@ -799,7 +803,11 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        'dest': 'clear_vlan',
                                        'default': False,
                                        'help': "clear any VLAN configuration"}),
-              
+
+              PLUGIN_NAME: ArgumentPack(['plugin_name'],
+                                        {'type': str,
+                                         'metavar': 'name',
+                                         'help': 'Name of plugin'}),
 
               SCAPY_PKT_CMD: ArgumentGroup(MUTEX, [SCAPY_PKT,
                                                    SHOW_LAYERS],
@@ -886,7 +894,20 @@ class CCmdArgParser(argparse.ArgumentParser):
 
         # override with the hook
         sub.add_parser = add_parser_hook
-        
+
+        def remove_parser(name):
+            if name in sub._name_parser_map:
+                del sub._name_parser_map[name]
+                for action in sub._choices_actions:
+                    if action.dest == name:
+                        sub._choices_actions.remove(action)
+            else:
+                self._print_message(bold('Subparser "%s" does not exist!' % name))
+
+        sub.remove_parser = remove_parser
+        sub.has_parser = lambda name: name in sub._name_parser_map
+        sub.get_parser = lambda name: sub._name_parser_map.get(name)
+
         return sub
 
         
@@ -911,7 +932,6 @@ class CCmdArgParser(argparse.ArgumentParser):
 
             if not self.has_ports_cfg(opts):
                 return opts
-
             opts.ports = listify(opts.ports)
             
             # if all ports are marked or 
@@ -993,21 +1013,19 @@ def populate_parser (parser, *args):
                         group.add_argument(*OPTIONS_DB[sub_argument].name_or_flags,
                                            **OPTIONS_DB[sub_argument].options)
                 else:
-                    # ignore invalid objects
-                    continue
+                    raise Exception('Invalid ArgumentGroup type, should be either MUTEX or NON_MUTEX')
             elif isinstance(argument, ArgumentPack):
                 parser.add_argument(*argument.name_or_flags,
                                     **argument.options)
             else:
-                # ignore invalid objects
-                continue
+                raise Exception('Invalid arg object, should be ArgumentGroup or ArgumentPack, got: %s' % type(argument))
         except KeyError as e:
             cause = e.args[0]
             raise KeyError("The attribute '{0}' is missing as a field of the {1} option.\n".format(cause, param))
 
-def gen_parser(stateless_client, op_name, description, *args):
+def gen_parser(stateless_client, op_name, description, *args, **kw):
     parser = CCmdArgParser(stateless_client, prog=op_name, conflict_handler='resolve',
-                           description=description)
+                           description=description, **kw)
 
     populate_parser(parser, *args)
     return parser

@@ -519,4 +519,4 @@ conf.L3socket = L3PacketSocket
 conf.L2socket = L2Socket
 conf.L2listen = L2ListenSocket
 
-conf.iface = get_working_if()
+conf.iface = LOOPBACK_NAME

@@ -70,8 +70,8 @@ class Net(Gen):
     @classmethod
     def _parse_net(cls, net):
         tmp=net.split('/')+["32"]
-        if not cls.ipaddress.match(net):
-            tmp[0]=socket.gethostbyname(tmp[0])
+        #if not cls.ipaddress.match(net):
+        #    tmp[0]=socket.gethostbyname(tmp[0])
         netmask = int(tmp[1])
         #return map(lambda x,y: cls._parse_digit(x,y), tmp[0].split("."), map(lambda x,nm=netmask: x-nm, (8,16,24,32))),netmask
         return list(map(lambda x,y: cls._parse_digit(x,y), tmp[0].split("."), [ i - netmask for i in (8,16,24,32)] )),netmask

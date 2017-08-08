@@ -360,7 +360,11 @@ class Packet(BasePacket, metaclass = Packet_metaclass):
                     field_pos_list.append( (f.name, sval.encode("string_escape"), len(p), len(sval) ) )
                 f._offset= val
             else:
-                p = f.addfield(self, p, val)
+                try:
+                    p = f.addfield(self, p, val)
+                except Exception as e:
+                    print('Error in %s adding %s, %s' % (self.name, f.name, e))
+                    raise
         return p
 
     def do_build_payload(self):
@@ -687,9 +691,9 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
         s = self.pre_dissect(s)
 
         s = self.do_dissect(s)
+        self._length = start_len - len(s)
 
         s = self.post_dissect(s)
-        self._length = start_len - len(s)
 
         payl,pad = self.extract_padding(s)
         self.do_dissect_payload(payl)
@@ -1122,7 +1126,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             elif fld.islist and fld.holds_packets and type(fv) is list:
                 #fv = "[%s]" % ",".join( map(Packet.command, fv))
                 fv = "[%s]" % ",".join([ Packet.command(i) for i in fv ])
-            else:
+            elif not isinstance(fld, ConditionalField) or fld.cond(self):
                 fv = repr(fv)
             f.append("%s=%s" % (fn, fv))
         c = "%s(%s)" % (self.__class__.__name__, ", ".join(f))

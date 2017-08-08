@@ -279,19 +279,19 @@ class CaptureMonitor(object):
                                              bpf_filter = self.bpf_filter)
 
         self.capture_id = data['id']
-        self.start_ts   = data['ts']
+        start_ts        = data['ts']
         
 
         # create a writer
         if self.mon_type == 'compact':
-            self.writer = CaptureMonitorWriterStdout(self.logger, True, self.start_ts)
+            self.writer = CaptureMonitorWriterStdout(self.logger, True, start_ts)
         elif self.mon_type == 'verbose':
-            self.writer = CaptureMonitorWriterStdout(self.logger, False, self.start_ts)
+            self.writer = CaptureMonitorWriterStdout(self.logger, False, start_ts)
         elif self.mon_type == 'pipe':
-            self.writer = CaptureMonitorWriterPipe(self.logger, self.start_ts)
+            self.writer = CaptureMonitorWriterPipe(self.logger, start_ts)
         else:
             raise STLError('Internal error: unknown writer type')
-        
+
         # start the fetching thread
         self.t = threading.Thread(target = self.__thread_cb)
         self.t.setDaemon(True)
@@ -312,23 +312,6 @@ class CaptureMonitor(object):
         if self.writer:
             self.writer.deinit()
             self.writer = None
-            
-        # take the capture ID
-        capture_id = self.capture_id
-        self.capture_id = None
-        
-        # if we are disconnected - we cannot cleanup the capture
-        if not self.client.is_connected():
-            return
-            
-        # make sure the capture is active on the server
-        captures = self.client.get_capture_status().keys()
-        if capture_id not in captures:
-            return
-            
-        # remove the capture                
-        with self.logger.supress():
-            self.client.stop_capture(capture_id)
             
            
     # user call for stop (adds log)
@@ -404,6 +387,16 @@ class CaptureMonitor(object):
             self.logger.log("\n\n*** A fatal internal error has occurred: '{}'\n".format(str(e)))
             self.logger.log(format_text("\n*** monitor is inactive - please restart the monitor ***\n", 'bold'))
             self.logger.prompt_redraw()
+
+        finally:
+            try: # to remove the capture as best effort
+                with self.logger.supress():
+                    self.client.stop_capture(self.capture_id)
+            except:
+                pass
+            if self.writer:
+                self.writer.deinit()
+                self.writer = None
             
             
     def __thread_main_loop (self):
@@ -595,6 +588,8 @@ class CaptureManager(object):
             return
         
         if self.monitor:
+            if self.monitor.is_active():
+                self.logger.log(format_text('*** Stopping old monitor to open new one. ***', 'bold'))
             self.monitor.stop()
             self.monitor = None
             

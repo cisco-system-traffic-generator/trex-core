@@ -56,6 +56,29 @@ def mac_str_to_num (mac_buffer):
     assert len(mac_buffer)==6, 'Size of mac_buffer is not 6'
     return _buffer_to_num(mac_buffer)
 
+def int2mac(val):
+    mac_arr = []
+    for _ in range(6):
+        val, char = divmod(val, 256)
+        mac_arr.insert(0, '%02x' % char)
+    return ':'.join(mac_arr)
+
+def int2ip(val):
+    ip_arr = []
+    for _ in range(4):
+        val, char = divmod(val, 256)
+        ip_arr.insert(0, '%s' % char)
+    return '.'.join(ip_arr)
+
+def increase_mac(mac_str, val = 1):
+    if ':' in mac_str:
+        mac_str = mac2str(mac_str)
+    mac_val = mac_str_to_num(mac_str)
+    return int2mac((mac_val + val) % (1 << 48))
+
+def increase_ip(ip_str, val = 1):
+    ip_val = ipv4_str_to_num(is_valid_ipv4_ret(ip_str))
+    return int2ip((ip_val + val) % (1 << 32))
 
 # RFC 3513
 def generate_ipv6(mac_str, prefix = 'fe80'):
@@ -1746,8 +1769,7 @@ def STLIPRange (src = None,
 
     return vm
 
-    
-    
+
 class STLVM(STLScVmRaw):
     '''
         Defines a VM/Field Engine object
@@ -1925,3 +1947,30 @@ class STLVM(STLScVmRaw):
 
         """
         self.add_cmd(STLVmTrimPktSize(fv_name = fv_name))
+
+
+class PacketBuffer:
+    '''
+    Class to be used when sending packets via push_packets.
+
+    :parameters:
+        buffer : bytes or Scapy packet
+            Packet to send
+
+        port_src : bool
+            Override src MAC with TRex port src
+
+        port_dst : bool
+            Override dst MAC with TRex port dst
+    '''
+    def __init__(self, buffer, port_src = False, port_dst = False):
+        if isinstance(buffer, Packet):
+            self.buffer = bytes(buffer)
+        else:
+            validate_type('buffer', buffer, bytes)
+            self.buffer = buffer
+        self.port_src = port_src
+        self.port_dst = port_dst
+
+
+

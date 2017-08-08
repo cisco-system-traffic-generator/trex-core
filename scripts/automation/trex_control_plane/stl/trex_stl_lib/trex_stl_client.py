@@ -37,6 +37,7 @@ import traceback
 import tempfile
 import readline
 import os.path
+import threading
 
 
 ############################     logger     #############################
@@ -53,6 +54,7 @@ class LoggerApi(object):
 
     def __init__(self):
         self.level = LoggerApi.VERBOSE_REGULAR
+        self.write_lock = threading.RLock()
 
     # implemented by specific logger
     def write(self, msg, newline = True):
@@ -80,8 +82,8 @@ class LoggerApi(object):
     def log (self, msg, level = VERBOSE_REGULAR_SYNC, newline = True):
         if not self.check_verbose(level):
             return
-
-        self.write(msg, newline)
+        with self.write_lock:
+            self.write(msg, newline)
 
     # logging that comes from async event
     def async_log (self, msg, level = VERBOSE_REGULAR, newline = True):
@@ -3254,8 +3256,8 @@ class STLClient(object):
         # pkts should be scapy, bytes, str or a list of them
         pkts = listify(pkts)
         for pkt in pkts:
-            if not isinstance(pkt, (Ether, bytes)):
-                raise STLTypeError('pkts', type(pkt), (Ether, bytes))
+            if not isinstance(pkt, (Ether, bytes, PacketBuffer)):
+                raise STLTypeError('pkts', type(pkt), (Ether, bytes, PacketBuffer))
         
         # for each packet, if scapy turn to bytes and then encode64 and transform to string
         pkts_base64 = []
@@ -3266,7 +3268,12 @@ class STLClient(object):
                 binary = bytes(pkt)
                 use_port_dst_mac = 'dst' not in pkt.fields
                 use_port_src_mac = 'src' not in pkt.fields
-                
+
+            elif isinstance(pkt, PacketBuffer):
+                binary = pkt.buffer
+                use_port_dst_mac = pkt.port_dst
+                use_port_src_mac = pkt.port_src
+
             else:
                 # binary
                 binary = pkt
@@ -3773,7 +3780,7 @@ class STLClient(object):
             raise STLError("'mode' must be either 'fixed' or 'cyclic'")
         
         # verify service mode
-        non_service_ports =  list_difference(merge_ports, self.get_service_enabled_ports())
+        non_service_ports =  list_difference(merge_ports, self.get_service_enabled_ports(owned = False))
         if non_service_ports:
             raise STLError("Port(s) {0} are not under service mode. packet capturing requires all ports to be in service mode".format(non_service_ports))
         
@@ -3867,9 +3874,6 @@ class STLClient(object):
                 capture_id: int
                     an active capture ID
 
-                pkt_count: int
-                    maximum packets to fetch
-                    
                 output: str / list
                     if output is a 'str' - it will be interpeted as output filename
                     if it is a list, the API will populate the list with packet objects
@@ -3882,6 +3886,9 @@ class STLClient(object):
                     'index'  - order index in the capture
                     'port'   - on which port did the packet arrive or was transmitted from
 
+                pkt_count: int
+                    maximum packets to fetch
+
             :raises:
                 + :exe:'STLError'
 
@@ -3889,7 +3896,7 @@ class STLClient(object):
 
         write_to_file = isinstance(output, basestring)
         
-        self.logger.pre_cmd("Writing {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
+        self.logger.pre_cmd("Writing up to {0} packets to '{1}'".format(pkt_count, output if write_to_file else 'list'))
 
         # create a PCAP file
         if write_to_file:
@@ -3899,13 +3906,12 @@ class STLClient(object):
             # clear the list
             del output[:]
 
-        # assumes the server has 'count' packets
         pending = pkt_count
         rc = RC_OK()
         
-        # fetch with iteratios - each iteration up to 50 packets
-        while pending > 0:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(50, pending)})
+        # fetch with iterations - each iteration up to 50 packets
+        while pending > 0 and pkt_count > 0:
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(50, pkt_count)})
             if not rc:
                 self.logger.post_cmd(rc)
                 raise STLError(rc)
@@ -3913,6 +3919,7 @@ class STLClient(object):
             pkts      = rc.data()['pkts']
             pending   = rc.data()['pending']
             start_ts  = rc.data()['start_ts']
+            pkt_count -= len(pkts)
             
             # write packets
             for pkt in pkts:
@@ -5004,7 +5011,7 @@ class STLClient(object):
  
         
     @__console
-    def debug_line (self, line):
+    def debug_line (self, line, console_obj):
         '''
             Internal debugger for development.
             Requires IPython and readline modules installed

@@ -1,0 +1,5 @@
+
+server   : csi-trex-17
+ap_ip    : 8.8.12.%s
+client_ip: 8.8.13.%s
+

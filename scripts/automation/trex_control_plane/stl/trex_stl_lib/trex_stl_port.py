@@ -726,6 +726,8 @@ class Port(object):
         
 
     def is_service_mode_on (self):
+        if not self.is_acquired(): # update lazy
+            self.sync()
         return self.service_mode
         
                 

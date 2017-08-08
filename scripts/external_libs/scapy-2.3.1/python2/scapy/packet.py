@@ -37,6 +37,12 @@ class RawVal:
 class CPacketRes:
     pass;
 
+def hexstr(x):
+    s = []
+    for c in x:
+        s.append("%02x" % ord(c))
+    return " ".join(s)
+
 
 class Packet(BasePacket):
     __metaclass__ = Packet_metaclass
@@ -340,7 +346,11 @@ class Packet(BasePacket):
                     field_pos_list.append( (f.name, sval.encode("string_escape"), len(p), len(sval) ) )
                 f._offset= val
             else:
-                p = f.addfield(self, p, val)
+                try:
+                    p = f.addfield(self, p, val)
+                except Exception as e:
+                    print 'Error in %s adding %s, %s' % (self.name, f.name, e)
+                    raise
         return p
 
     def do_build_payload(self):
@@ -363,7 +373,7 @@ class Packet(BasePacket):
 
 
 
-    def do_build(self,result):
+    def do_build(self, result = None):
         if not self.explicit:
             self = self.__iter__().next()
         pkt = self.self_build()
@@ -384,8 +394,8 @@ class Packet(BasePacket):
         p=self;
         o=other;
         while True:
-            assert(p.aliastypes==o.aliastypes)
-            assert(type(p) == type(o) )
+            assert p.aliastypes == o.aliastypes, (p, o)
+            assert type(p) == type(o), (type(p), type(o))
 
             #copy
             p._offset=o._offset
@@ -399,7 +409,7 @@ class Packet(BasePacket):
 
 
     def build(self):
-        result = CPacketRes;
+        result = CPacketRes();
         p = self.do_build(result)
         p += self.build_padding()
         p = self.build_done(p)
@@ -638,11 +648,15 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
         while s and flist:
             f = flist.pop()
             f._offset = offset
-            s,fval = f.getfield(self, s)
-            offset = len(raw) - (len(s[0]) if type(s) is tuple else len(s))
-            if getattr(f, 'passon', False): # fix for DNS
-                offset += s[1]
-            self.fields[f.name] = fval
+            try:
+                s,fval = f.getfield(self, s)
+                offset = len(raw) - (len(s[0]) if type(s) is tuple else len(s))
+                if getattr(f, 'passon', False): # fix for DNS
+                    offset += s[1]
+                self.fields[f.name] = fval
+            except Exception as e:
+                print 'Error parsing field %s of layer %s: %s' % (f.name, self.name, e)
+                raise
         assert(raw.endswith(s))
         if s:
             self.raw_packet_cache = raw[:-len(s)]
@@ -674,9 +688,9 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
         s = self.pre_dissect(s)
 
         s = self.do_dissect(s)
+        self._length = start_len - len(s)
 
         s = self.post_dissect(s)
-        self._length = start_len - len(s)
 
         payl,pad = self.extract_padding(s)
         self.do_dissect_payload(payl)
@@ -918,6 +932,11 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
                 for fvalue in fvalue_gen:
                     fvalue.show(indent=indent, label_lvl=label_lvl+lvl+"   |")
             else:
+                try: # to get rid of "long"
+                    if type(fvalue) is long and int(fvalue) == fvalue:
+                        fvalue = int(fvalue)
+                except:
+                    pass
                 begn = "%s  %-10s%s " % (label_lvl+lvl,
                                         ncol(f.name),
                                         ct.punct("="),)
@@ -929,9 +948,21 @@ Creates an EPS file describing a packet. If filename is not provided a temporary
                                                               +4))
                 print "%s%s" % (begn,vcol(reprval))
         self.payload.show(indent=indent, lvl=lvl+(" "*indent*self.show_indent), label_lvl=label_lvl)
+
+    def is_whole_explicit(self):
+        l = self
+        while l:
+            if not l.explicit:
+                return False
+            l = l.payload
+        return True
+
     def show2(self):
         """Prints a hierarchical view of an assembled version of the packet, so that automatic fields are calculated (checksums, etc.)"""
-        self.__class__(str(self)).show()
+        if self.is_whole_explicit():
+            self.show()
+        else:
+            self.__class__(str(self)).show()
 
     def sprintf(self, fmt, relax=1):
         """sprintf(format, [relax=1]) -> str
@@ -1105,12 +1136,17 @@ A side effect is that, to obtain "{" and "}" characters, you must use
         """Returns a string representing the command you have to type to obtain the same packet"""
         f = []
         for fn,fv in self.fields.items():
+            try: # to get rid of "long"
+                if type(fv) is long and int(fv) == fv:
+                    fv = int(fv)
+            except:
+                pass
             fld = self.get_field(fn)
             if isinstance(fv, Packet):
                 fv = fv.command()
             elif fld.islist and fld.holds_packets and type(fv) is list:
                 fv = "[%s]" % ",".join( map(Packet.command, fv))
-            else:
+            elif not isinstance(fld, ConditionalField) or fld.cond(self):
                 fv = repr(fv)
             f.append("%s=%s" % (fn, fv))
         c = "%s(%s)" % (self.__class__.__name__, ", ".join(f))
@@ -1146,7 +1182,7 @@ class NoPayload(Packet):
         return ""
     def __nonzero__(self):
         return False
-    def do_build(self,result):
+    def do_build(self,result = None):
         return ""
     def build(self):
         return ""

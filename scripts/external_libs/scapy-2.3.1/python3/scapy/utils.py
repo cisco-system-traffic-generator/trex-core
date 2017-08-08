@@ -298,6 +298,9 @@ def mac2str(mac):
 def str2mac(s):
     return ("%02x:"*6)[:-1] % tuple(s) 
 
+def str2ip(s):
+    return ("%s."*4)[:-1] % tuple(s)
+
 def strxor(x,y):
     #return "".join(map(lambda i,j:chr(ord(i)^ord(j)),x,y))
     return bytes([ i[0] ^ i[1] for i in zip(x,y) ] )
@@ -1052,4 +1055,30 @@ def make_lined_table(*args, **kargs):
 
 def make_tex_table(*args, **kargs):
     __make_table(lambda l: "%s", lambda l: "& %s", "\\\\", seplinefunc=lambda a,x:"\\hline", *args, **kargs)
+
+
+def str2int(s):
+    if type(s) is str:
+        s = str2bytes(s)
+    assert type(s) in (str, bytes), type(s)
+    i = 0
+    for c in s:
+        i = i << 8
+        i += c
+    return i
+
+def int2str(num, length = None):
+    c_arr = []
+    i = num
+    while i:
+        c_arr.insert(0, chr(i & 0xff))
+        i = i >> 8
+    s = ''.join(c_arr)
+    if length is None:
+        return str2bytes(s)
+    if length < len(s):
+        raise Exception("Given integer: '%s' can't fit string of length '%s'!" % (num, length))
+    return str2bytes(s.rjust(length, '\0'))
+
+
 

@@ -165,3 +165,8 @@ def bitfield_to_str (bf):
     lst = bitfield_to_list(bf)
     return "-" if not lst else ', '.join([str(x) for x in lst])
     
+
+# https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/
+def natural_sorted_key(val):
+    return [int(c) if c.isdigit() else c for c in re.split('(\d+)', val)]
+

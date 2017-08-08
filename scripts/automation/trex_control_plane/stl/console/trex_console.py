@@ -42,6 +42,8 @@ from trex_stl_lib.utils.text_opts import *
 from trex_stl_lib.utils.common import user_input, get_current_user, set_window_always_on_top
 from trex_stl_lib.utils import parsing_opts
 from .trex_capture import CaptureManager
+from .plugins_mngr import PluginsManager
+
 
 try:
     import trex_tui
@@ -55,6 +57,7 @@ __version__ = "2.0"
 # console custom logger
 class ConsoleLogger(LoggerApi):
     def __init__ (self):
+        LoggerApi.__init__(self)
         self.prompt_redraw = None
 
     def write (self, msg, newline = True):
@@ -167,6 +170,7 @@ class TRexConsole(TRexGeneralCmd):
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.cap_mngr = CaptureManager(stateless_client, self.cmd_lock)
+        self.plugins_mngr = PluginsManager(self)
 
         self.postcmd(False, "")
 
@@ -224,13 +228,15 @@ class TRexConsole(TRexGeneralCmd):
                     return "quit"
     
             return ""
-            
+        except KeyboardInterrupt:
+            print(bold('Interrupted by a keyboard signal (probably ctrl + c)'))
+
         except STLError as e:
             print(e)
-            return ''
 
         finally:
             self.cmd_lock.release()
+        return ''
 
 
 
@@ -314,7 +320,7 @@ class TRexConsole(TRexGeneralCmd):
 
     def do_debug (self, line):
         '''Launches IPython for interactively debugging'''
-        self.stateless_client.debug_line(line)
+        self.stateless_client.debug_line(line, self)
         
     def help_debug (self):
         self.do_debug('-h')
@@ -326,6 +332,9 @@ class TRexConsole(TRexGeneralCmd):
 
     def help_portattr (self):
         self.do_portattr("-h")
+
+    def help_plugins(self):
+        self.do_plugins('-h')
 
     @verify_connected
     def do_l2 (self, line):
@@ -428,7 +437,7 @@ class TRexConsole(TRexGeneralCmd):
                                          item)
 
         opts = parser.parse_args(line.split())
-        if opts is None:
+        if not opts:
             return
 
         if opts.item == 0:
@@ -442,6 +451,14 @@ class TRexConsole(TRexGeneralCmd):
 
             return self.onecmd(cmd)
 
+
+    def do_plugins(self, line):
+        '''Show / load / use plugins\n'''
+        self.plugins_mngr.do_plugins(line)
+
+
+    def complete_plugins(self, text, line, start_index, end_index):
+        return self.plugins_mngr.complete_plugins(text, line, start_index, end_index)
 
 
     ############### connect
@@ -457,6 +474,7 @@ class TRexConsole(TRexGeneralCmd):
         '''Disconnect from the server\n'''
         
         # stop any monitors before disconnecting
+        self.plugins_mngr._unload_plugin()
         self.cap_mngr.stop()
         self.stateless_client.disconnect_line(line)
 
@@ -728,6 +746,7 @@ class TRexConsole(TRexGeneralCmd):
     
         finally:
             # capture manager is not presistent - kill it before going out
+            self.plugins_mngr._unload_plugin()
             self.cap_mngr.stop()
 
         if self.terminal:

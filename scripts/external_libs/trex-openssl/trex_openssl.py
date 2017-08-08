@@ -31,6 +31,7 @@ libssl.SSL_SESSION_free.restype = c_void_p
 libssl.SSL_alert_desc_string_long.restype = c_char_p
 libssl.SSL_alert_type_string_long.restype = c_char_p
 libssl.SSL_check_private_key.argtypes = [c_void_p]
+libssl.SSL_clear.argtypes = [c_void_p]
 libssl.SSL_get_error.argtypes = [c_void_p, c_int]
 libssl.SSL_get_shutdown.argtypes = [c_void_p]
 libssl.SSL_new.argtypes = [c_void_p]
