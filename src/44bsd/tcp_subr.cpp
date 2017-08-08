@@ -193,7 +193,7 @@ struct tcpcb * tcp_usrclosed(CTcpPerThreadCtx * ctx,
         tp->t_state = TCPS_LAST_ACK;
         break;
     }
-    if (tp && tp->t_state >= TCPS_FIN_WAIT_2){
+    if ((tp->t_state != TCPS_CLOSED) && tp->t_state >= TCPS_FIN_WAIT_2){
         soisdisconnected(&tp->m_socket);
     }
     return (tp);
@@ -222,7 +222,7 @@ struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
         soisdisconnecting(so);
         sbflush(&so->so_rcv);
         tp = tcp_usrclosed(ctx,tp);
-        if (tp)
+        if (tp->t_state != TCPS_CLOSED)
             (void) tcp_output(ctx,tp);
     }
     return (tp);
@@ -628,7 +628,7 @@ tcp_close(CTcpPerThreadCtx * ctx,
     tp->t_state = TCPS_CLOSED;
     /* TBD -- back pointer to flow and delete it */
     INC_STAT(ctx,tcps_closed);
-    return((struct tcpcb *)0);
+    return((struct tcpcb *)tp);
 }
 
 void tcp_drain(){

@@ -476,8 +476,9 @@ tcp_disconnect(tp)
         soisdisconnecting(so);
         sbflush(&so->so_rcv);
         tp = tcp_usrclosed(tp);
-        if (tp)
+        if (tp->t_state != TCPS_CLOSED) {
             (void) tcp_output(tp);
+        }
     }
     return (tp);
 }

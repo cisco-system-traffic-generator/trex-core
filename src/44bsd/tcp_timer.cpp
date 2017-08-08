@@ -256,8 +256,8 @@ void tcp_slowtimo(CTcpPerThreadCtx * ctx, struct tcpcb *tp)
 
     for (i = 0; i < TCPT_NTIMERS; i++) {
         if (tp->t_timer[i] && --tp->t_timer[i] == 0) {
-            if (tcp_timers(ctx,tp, i)==(struct tcpcb *)0){
-                /* flow was deleted */
+            tcp_timers(ctx,tp, i);
+            if (tp->t_state == TCPS_CLOSED) {
                 return;
             }
         }
