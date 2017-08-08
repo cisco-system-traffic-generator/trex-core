@@ -1667,15 +1667,15 @@ Cpu Utilization : 0.1 %                                                         
 - duration : 10.0                          <1>
   generator :                              <2>
           distribution : "seq"           
-          clients_start : "16.0.0.1"     
+          clients_start : "16.0.0.1"       <8>     
           clients_end   : "16.0.0.255"   
           servers_start : "48.0.0.1"     
           servers_end   : "48.0.0.255"   
-          clients_per_gb : 201
-          min_clients    : 101
+          clients_per_gb : 201             <9>
+          min_clients    : 101             <10>
           dual_port_mask : "1.0.0.0" 
-          tcp_aging      : 1
-          udp_aging      : 1
+          tcp_aging      : 1               <11>
+          udp_aging      : 1               <12>
   cap_ipg    : true                            <3>
   cap_ipg_min    : 30                          <4>
   cap_override_ipg    : 200                    <5>
@@ -1689,6 +1689,11 @@ Cpu Utilization : 0.1 %                                                         
 <5> Value to override (microseconds), as described in note above.
 <6> Enable load balance feature. See xref:trex_load_bal[trex load balance section] for info.
 <7> Enable MAC address replacement by client IP.
+<8> See tuple generator 
+<9> Deprecated. not used
+<10> Deprecated. not used
+<11> time in sec to linger the deallocation of TCP flows (in particular return the src_port to the pool). Good for cases when there is a very high socket utilization (>50%) and there is a need to verify that socket source port are not wrapped and reuse. Default value is zero. Better to keep it like that from performance point of view. High value could create performance penalty 
+<12> same as #11 for UDP flows
 
 ==== Timer Wheel section configuration  
 
