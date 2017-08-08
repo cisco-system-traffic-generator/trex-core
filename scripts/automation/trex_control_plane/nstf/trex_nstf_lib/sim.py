@@ -45,10 +45,15 @@ def execute_bp_sim(opts):
         if not os.path.exists(exe):
             raise Exception("'{0}' does not exist, please build it before calling the simulation".format(exe))
 
-    cmd = [exe, '--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
+    exe = [exe]
+    if opts.valgrind:
+        valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
+        exe=valgrind + exe;
+
+    cmd = exe +[ '--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
 
     if opts.verbose:
-        print ("executing {0}".format(cmd))
+        print ("executing {0}".format(''.join(cmd)))
 
     if opts.verbose:
         rc = subprocess.call(cmd)
