@@ -22,6 +22,8 @@ class CPacketData():
 
 
 class _CPcapReader_help(object):
+    states = {"init": 0, "syn": 1, "syn+ack": 2}
+
     def __init__(self, file_name):
         self.file_name = file_name
         self._pkts = []
@@ -32,9 +34,10 @@ class _CPcapReader_help(object):
         self.c_tcp_win = -1
         self.s_tcp_win = -1
         self.total_payload_len = 0
+        self.state = _CPcapReader_help.states["init"]
 
     def fail(self, msg):
-        print('\nError: %s\n' % msg)
+        print('\nError for file %s: %s\n' % (self.file_name, msg))
         sys.exit(1)
 
     @property
@@ -118,10 +121,26 @@ class _CPcapReader_help(object):
                 l4 = tcp
                 # SYN
                 if l4.flags & 0x02:
-                    self.c_tcp_win = tcp.window
                     # SYN + ACK
                     if l4.flags & 0x10:
                         self.s_tcp_win = tcp.window
+                        if self.state == _CPcapReader_help.states["init"]:
+                            self.fail('Packet #%s is SYN+ACK, but there was no SYN yet, or ' % index)
+                        else:
+                            if self.state != _CPcapReader_help.states["syn"]:
+                                self.fail('Packet #%s is SYN+ACK, but there was already SYN+ACK in cap file' % index)
+                        self.state = _CPcapReader_help.states["syn+ack"]
+                    # SYN - no ACK. Should be first packet client->server
+                    else:
+                        self.c_tcp_win = tcp.window
+                        # allowing syn retransmission because cap2/https.pcap contains this
+                        if self.state > _CPcapReader_help.states["syn"]:
+                            self.fail('Packet #%s is TCP SYN, but there was already TCP SYN in cap file' % index)
+                        else:
+                            self.state = _CPcapReader_help.states["syn"]
+                else:
+                    if self.state != _CPcapReader_help.states["syn+ack"]:
+                        self.fail('Cap file must start with syn, syn+ack sequence')
                 if l4_type not in (None, 'TCP'):
                     self.fail('PCAP contains both TCP and %s. This is not supported currently.' % l4_type)
                 l4_type = 'TCP'
