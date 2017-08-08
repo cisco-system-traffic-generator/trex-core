@@ -261,7 +261,7 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
         break;
     case tcDELAY  :
         m_state = te_DELAY;
-        m_api->delay(cmd->u.m_delay_cmd.m_usec_delay); /* TBD */
+        m_api->tcp_delay(cmd->u.m_delay_cmd.m_usec_delay); /* TBD */
         break;
     case tcRX_BUFFER :
         {
@@ -384,17 +384,19 @@ void CTcpAppCmd::Dump(FILE *fd){
          break;
     case tcRX_BUFFER :
         if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_CLEAR) {
-            fprintf(fd," tcRX_BUFFER clear count \n");
+            fprintf(fd," tcRX_BUFFER clear count,");
         }
         if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_DISABLE_RX) {
-            fprintf(fd," tcRX_BUFFER disable RX \n");
+            fprintf(fd," tcRX_BUFFER disable RX,");
         }else{
-            fprintf(fd," tcRX_BUFFER enable RX \n");
+            fprintf(fd," tcRX_BUFFER enable RX ,");
         }
 
         if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_WAIT) {
-            fprintf(fd," tcRX_BUFFER wait for %lu RX bytes\n",(ulong)u.m_rx_cmd.m_rx_bytes_wm);
+            fprintf(fd," tcRX_BUFFER wait for %lu RX bytes",(ulong)u.m_rx_cmd.m_rx_bytes_wm);
         }
+        fprintf(fd," \n");
+
          break;
     case tcDELAY :
         fprintf(fd," tcDELAY for %lu usec \n",u.m_delay_cmd.m_usec_delay);

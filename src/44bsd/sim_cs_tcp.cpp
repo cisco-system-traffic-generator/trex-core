@@ -629,8 +629,6 @@ int CClientServerTcp::simple_http(){
 }
 
 int CClientServerTcp::fill_from_file() {
-    CMbufBuffer *buf_req;
-    CMbufBuffer *buf_res;
     CTcpAppProgram *prog_c;
     CTcpAppProgram *prog_s;
     CTcpFlow *c_flow;
@@ -652,15 +650,17 @@ int CClientServerTcp::fill_from_file() {
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
     app_c = &c_flow->m_app;
 
-    /* CONST */
-    buf_req = new CMbufBuffer();
-    buf_res = new CMbufBuffer();
 
     uint16_t temp_index = 0; //??? need to support multiple templates
     // client program
     prog_c = CJsonData::instance()->get_prog(temp_index, 0);
     // server program
     prog_s = CJsonData::instance()->get_prog(temp_index, 1);
+
+    if (m_debug) {
+      prog_c->Dump(stdout);
+      prog_s->Dump(stdout);
+    }
 
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
@@ -688,15 +688,6 @@ int CClientServerTcp::fill_from_file() {
     printf(" S counters \n");
     m_s_ctx.m_tcpstat.Dump(stdout);
     m_s_ctx.m_ft.dump(stdout);
-
-    delete prog_c;
-    delete prog_s;
-
-    buf_req->Delete();
-    delete buf_req;
-
-    buf_res->Delete();
-    delete buf_res;
 
     return(0);
 }

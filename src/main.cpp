@@ -344,7 +344,7 @@ int main(int argc , char * argv[]){
             lpt1->close_file();
             lpt1->Delete();
             delete lpt1;
-            CJsonData::instance()->clear();
+            CJsonData::free_instance();
             CMsgIns::Ins()->Free();
             CGlobalInfo::free_pools();
             CGlobalInfo::m_socket.Delete();

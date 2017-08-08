@@ -828,7 +828,7 @@ public:
         tcp_output(ctx,&flow->m_tcp);
     }
 
-    virtual void delay(uint64_t usec){
+    virtual void tcp_delay(uint64_t usec){
         assert(0);
         printf("TBD \n");
     }

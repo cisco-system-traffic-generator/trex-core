@@ -315,7 +315,7 @@ public:
     virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,
                                CTcpFlow *         flow)=0;
 
-    virtual void delay(uint64_t usec)=0;
+    virtual void tcp_delay(uint64_t usec)=0;
 
 };
 

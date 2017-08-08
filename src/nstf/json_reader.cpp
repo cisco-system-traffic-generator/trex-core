@@ -222,6 +222,10 @@ void CTcpData::free() {
         m_buf_list[i]->Delete();
         delete m_buf_list[i];
     }
-
     m_buf_list.clear();
+
+    for (int i = 0; i < m_prog_list.size(); i++) {
+        delete m_prog_list[i];
+    }
+    m_prog_list.clear();
 }

@@ -34,7 +34,16 @@ class CJsonData {
         }
         return m_pInstance;
     }
-    ~CJsonData();
+    static void free_instance(){
+        if (m_pInstance){
+            delete m_pInstance;
+            m_pInstance=0;
+        }
+    }
+
+    ~CJsonData(){
+        clear();
+    }
 
     bool parse_file(std::string file);
     void dump();
