@@ -473,6 +473,10 @@ public:
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
     }
 
+    bool is_close_was_called(){
+        return ((m_tcp.t_state > TCPS_CLOSE_WAIT) ?true:false);
+    }
+
     void set_app(CTcpApp  * app){
         m_tcp.m_socket.m_app = app;
     }

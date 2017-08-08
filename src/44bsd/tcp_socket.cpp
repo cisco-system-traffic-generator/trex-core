@@ -291,9 +291,12 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
 
 void CTcpApp::next(){
     m_cmd_index++;
+    if (m_cmd_index>m_program->get_size()) {
+        /* could be in cases we get data after close of flow */
+        assert(m_flow->is_close_was_called());
+        return;
+    }
     if ( m_cmd_index == m_program->get_size() ) {
-        /* nothing to do */
-        /* TBD */
         tcp_close();
         return;
     }
