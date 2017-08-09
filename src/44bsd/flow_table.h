@@ -196,7 +196,8 @@ public:
       bool parse_packet(struct rte_mbuf *   mbuf,
                         CSimplePacketParser & parser,
                         CFlowKeyTuple      & tuple,
-                        CFlowKeyFullTuple  & ftuple);
+                        CFlowKeyFullTuple  & ftuple,
+                        bool rx_l4_check);
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf);

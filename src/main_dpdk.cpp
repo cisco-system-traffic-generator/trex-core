@@ -2837,12 +2837,14 @@ public:
     void Create(uint8_t port_index,
                 CNodeRing *ring,
                 CLatencyManager *mgr,
-                CPhyEthIF  *p) {
+                CPhyEthIF  *p,
+                bool disable_rx_read) {
 
         m_dir        = (port_index % 2);
         m_ring_to_dp = ring;
         m_mgr        = mgr;
         m_port       = p;
+        m_disable_rx =disable_rx_read;
     }
 
 
@@ -2859,18 +2861,26 @@ public:
     }
 
     virtual rte_mbuf_t * rx() {
-        rte_mbuf_t * rx_pkts[1];
-        uint16_t cnt = m_port->rx_burst(0, rx_pkts, 1);
-        if (cnt) {
-            return (rx_pkts[0]);
-        } else {
+        if (m_disable_rx==false){
+            rte_mbuf_t * rx_pkts[1];
+            uint16_t cnt = m_port->rx_burst(0, rx_pkts, 1);
+            if (cnt) {
+                return (rx_pkts[0]);
+            } else {
+                return (0);
+            }
+        }else{
             return (0);
         }
     }
 
     virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        uint16_t cnt = m_port->rx_burst(0, rx_pkts, nb_pkts);
-        return (cnt);
+        if (m_disable_rx==false){
+            uint16_t cnt = m_port->rx_burst(0, rx_pkts, nb_pkts);
+            return (cnt);
+        }else{
+            return (0);
+        }
     }
 
 private:
@@ -2907,6 +2917,7 @@ private:
 
     CPhyEthIF                       *m_port;
     uint8_t                          m_dir;
+    bool                             m_disable_rx; /* TBD need to read from remote queue */
     CNodeRing                       *m_ring_to_dp;   /* ring dp -> latency thread */
     CLatencyManager                 *m_mgr;
 };
@@ -3903,7 +3914,11 @@ void CGlobalTRex::rx_stf_conf(void) {
             uint8_t thread_id = (i>>1);
 
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if);
+            bool disable_rx_read=get_is_tcp_mode(); /* TBD need to fix this as main read all packets */
+            if (disable_rx_read){
+                printf("WARNING TCP feature with latency is not supported with virtual interfaces for now \n"); 
+            }
+            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if,disable_rx_read);
 
             mg_cfg.m_ports[i] =&m_latency_vm_vports[i];
         }
@@ -3938,7 +3953,7 @@ void CGlobalTRex::rx_sl_configure(void) {
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            m_latency_vm_vports[i].Create(i, r, &m_mg, _if);
+            m_latency_vm_vports[i].Create(i, r, &m_mg, _if,false);
             rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
             
         }

@@ -87,7 +87,8 @@ void CFlowTable::reset_stats(){
 bool CFlowTable::parse_packet(struct rte_mbuf * mbuf,
                               CSimplePacketParser & parser,
                               CFlowKeyTuple & tuple,
-                              CFlowKeyFullTuple & ftuple){
+                              CFlowKeyFullTuple & ftuple,
+                              bool rx_l4_check){
 
     if (!parser.Parse()){
         return(false);
@@ -160,7 +161,7 @@ bool CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         return(false);
     }
 
-    if ( (mbuf->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD ){
+    if ( rx_l4_check &&  ((mbuf->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD) ){
         FT_INC_SCNT(m_err_l4_cs);
         return(false);
     }
@@ -299,7 +300,8 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     if ( !parse_packet(mbuf,
                        parser,
                        tuple,
-                       ftuple) ) {
+                       ftuple,
+                       ctx->get_rx_checksum_check() ) ){
         /* free memory */
         rte_pktmbuf_free(mbuf);
         return(false);

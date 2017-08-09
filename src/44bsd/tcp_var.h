@@ -202,8 +202,9 @@ struct tcpcb {
     uint8_t offset_ip;  /* offset of ip_header in template */
     uint8_t is_ipv6;
     uint8_t m_offload_flags;
-    #define TCP_OFFLOAD_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
-    #define TCP_OFFLOAD_TSO      0x0002      /* DPDK_TSO_CHECK_SUM */
+    #define TCP_OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
+    #define TCP_OFFLOAD_TSO         0x0002      /* DPDK_TSO_CHECK_SUM */
+    #define TCP_OFFLOAD_RX_CHKSUM   0x0004      /* check RX checksum L4*/
 
 
     /*====== end =============*/
@@ -570,6 +571,10 @@ public:
 
     void set_offload_dev_flags(uint8_t flags){
         m_offload_flags=flags;
+    }
+
+    bool get_rx_checksum_check(){
+        return( ((m_offload_flags & TCP_OFFLOAD_RX_CHKSUM) == TCP_OFFLOAD_RX_CHKSUM)?true:false);
     }
 public:
 

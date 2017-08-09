@@ -82,7 +82,7 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
     uint32_t tcp_h_pyld=dlen+tcphlen;
     char *p=pkt.get_header_ptr();
 
-    if (tp->m_offload_flags & TCP_OFFLOAD_CHKSUM){
+    if (tp->m_offload_flags & TCP_OFFLOAD_TX_CHKSUM){
 
         rte_mbuf_t   * m=pkt.m_buf;
 

@@ -496,7 +496,7 @@ void tcp_template(struct tcpcb *tp){
         lpTCP->setSourcePort(tp->src_port);
         lpTCP->setDestPort(tp->dst_port);
 
-        if (tp->m_offload_flags & TCP_OFFLOAD_CHKSUM){
+        if (tp->m_offload_flags & TCP_OFFLOAD_TX_CHKSUM){
             tp->l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct ipv4_hdr *)lpIpv4,(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_TCP_CKSUM));
         }else{
             tp->l4_pseudo_checksum=0;
