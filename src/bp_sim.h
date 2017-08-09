@@ -692,6 +692,22 @@ public:
         return (btGetMaskBit32(m_flags1, 14, 14) ? true : false);
     }
 
+    void set_dev_tso_support(bool enable) {
+        btSetMaskBit32(m_flags1, 15, 15, (enable ? 1 : 0) );
+    }
+
+    bool get_dev_tso_support() {
+        return (btGetMaskBit32(m_flags1, 15, 15) ? true : false);
+    }
+
+    void setTsoOffloadDisable(bool enable){
+        btSetMaskBit32(m_flags1, 16, 16, (enable ? 1 : 0) );
+    }
+
+    bool getTsoOffloadDisable() {
+        return (btGetMaskBit32(m_flags1, 16, 16) ? true : false);
+    }
+
 
 public:
     void Dump(FILE *fd);

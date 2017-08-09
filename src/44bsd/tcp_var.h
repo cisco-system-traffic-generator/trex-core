@@ -567,7 +567,10 @@ public:
     void set_memory_socket(uint8_t socket){
         m_mbuf_socket= socket;
     }
-    
+
+    void set_offload_dev_flags(uint8_t flags){
+        m_offload_flags=flags;
+    }
 public:
 
     /* TUNABLEs */
@@ -593,7 +596,8 @@ public:
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
     uint32_t    m_tick;
     uint8_t     m_mbuf_socket;      /* memory socket */
-    uint8_t     m_pad[3];
+    uint8_t     m_offload_flags;    /* dev offload flags, see flow def */
+    uint8_t     m_pad[2];
 
 
     CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */

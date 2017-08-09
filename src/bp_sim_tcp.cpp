@@ -391,6 +391,21 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);
 
+    /* set dev flags */
+    CPreviewMode * lp=&CGlobalInfo::m_options.preview;
+
+    uint8_t dev_offload_flags=0;
+    if (lp->getChecksumOffloadEnable()) {
+        dev_offload_flags |= TCP_OFFLOAD_CHKSUM;
+    }
+    if (lp->get_dev_tso_support()) {
+        dev_offload_flags |= TCP_OFFLOAD_TSO;
+    }
+
+    m_c_tcp->set_offload_dev_flags(dev_offload_flags);
+    m_s_tcp->set_offload_dev_flags(dev_offload_flags);
+
+
     if ( m_preview_mode.getVMode() >2 ){
         m_c_tcp->m_ft.set_debug(true);
         m_s_tcp->m_ft.set_debug(true);

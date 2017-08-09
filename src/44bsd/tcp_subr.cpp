@@ -235,10 +235,7 @@ struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
 
 void CTcpFlow::init(){
     /* build template */
-    #ifndef TREX_SIM  /* FIX ME -- need to lead from DPDK driver and ctx */
-    m_tcp.m_offload_flags |= TCP_OFFLOAD_CHKSUM;
-    m_tcp.m_offload_flags |= TCP_OFFLOAD_TSO; 
-    #endif
+    m_tcp.m_offload_flags =m_ctx->m_offload_flags;
 
     if (m_tcp.is_tso()){
         if (m_tcp.t_maxseg >m_tcp.m_max_tso ){
@@ -370,6 +367,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_rx_socket_bsize=32*1024 ;
     sb_max = SB_MAX;        /* patchable */
     m_mbuf_socket=0;
+    m_offload_flags=0;
     tcprexmtthresh = 3 ;
     tcp_mssdflt = TCP_MSS;
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
