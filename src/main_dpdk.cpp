@@ -553,8 +553,11 @@ public:
         // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
         // put it, unless user already choose mode using command line arg (--software for example)
         if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
-            CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+            if (get_is_tcp_mode()==false) {
+                CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+            }
         }
+
     }
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -587,13 +590,18 @@ public:
             p.rx_drop_q_num = 4;
             break;
         case CGlobalInfo::Q_MODE_NORMAL:
-            fprintf(stderr, "Internal error. MLX card in Q_MODE_NORMAL mode\n");
-            assert(0);
+            p.rx_drop_q_num = 1; /* TCP mode */
+            break;
         }
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
         p.tx_desc_num = TX_DESC_NUM;
         p.rx_mbuf_type = MBUF_9k;
+        if (CGlobalInfo::get_queues_mode() ==CGlobalInfo::Q_MODE_NORMAL){
+            p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q/4;
+            p.rx_mbuf_type = MBUF_2048;
+        }
+
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
@@ -5363,6 +5371,7 @@ void CPhyEthIF::conf_queues() {
     for (uint16_t qid = 0; qid < num_tx_q; qid++) {
         tx_queue_setup(qid, dpdk_p.tx_desc_num , socket_id, &g_trex.m_port_cfg.m_tx_conf);
     }
+    rte_mempool_t * drop_p=0;
 
     switch (dpdk_p.rx_drop_q_num) {
     case 0:
@@ -5389,11 +5398,23 @@ void CPhyEthIF::conf_queues() {
         // rx core will use largest tx q
         g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
         // configure drop q
-        rx_queue_setup(MAIN_DPDK_DROP_Q, dpdk_p.rx_desc_num_drop_q, socket_id, &g_trex.m_port_cfg.m_rx_conf,
-                            CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
+
+        drop_p = CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
+        if ( get_is_tcp_mode() ) {
+            drop_p = get_ex_drv()->get_rx_mem_pool(socket_id);
+        }
+
+        rx_queue_setup(MAIN_DPDK_DROP_Q, 
+                       dpdk_p.rx_desc_num_drop_q, 
+                       socket_id, 
+                       &g_trex.m_port_cfg.m_rx_conf,
+                       drop_p);
         set_rx_queue(MAIN_DPDK_RX_Q);
-        rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
-                       &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
+        rx_queue_setup(MAIN_DPDK_RX_Q, 
+                       dpdk_p.rx_desc_num_data_q, 
+                       socket_id,
+                       &g_trex.m_port_cfg.m_rx_conf, 
+                       get_ex_drv()->get_rx_mem_pool(socket_id));
         break;
     default:
         // Many drop queues. Mellanox mode.

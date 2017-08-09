@@ -3529,8 +3529,10 @@ bool CNodeGenerator::has_limit_reached() {
 }
 
 uint8_t CFlowGenListPerThread::get_memory_socket_id(){ 
-    uint8_t socket_id=(uint8_t)rte_lcore_to_socket_id(m_core_id);
-    return(socket_id);
+    uint8_t p1;
+    uint8_t p2;
+    get_port_ids(p1,p2);
+    return (CGlobalInfo::m_socket.port_to_socket((port_id_t)p1));
 }
 
 /* the expected number of flows for TCP mode, this is taken from configuration file and div by threads*/
@@ -3547,7 +3549,6 @@ uint32_t CFlowGenListPerThread::get_max_active_flows_per_core_tcp(){
 
 
 bool CFlowGenListPerThread::Create(uint32_t           thread_id,
-                                   uint32_t           core_id,
                                    CFlowGenList  *    flow_list,
                                    uint32_t           max_threads){
 
@@ -3555,7 +3556,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_non_active_nodes = 0;
     m_terminated_by_master=false;
     m_flow_list =flow_list;
-    m_core_id= core_id;
     m_tcp_dpc= 0;
     m_udp_dpc=0;
     m_max_threads=max_threads;
@@ -3569,10 +3569,10 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
-    uint32_t socket_id=rte_lcore_to_socket_id(m_core_id);
+    uint8_t socket_id = get_memory_socket_id();
 
     char name[100];
-    sprintf(name,"nodes-%d",m_core_id);
+    sprintf(name,"nodes-%d",m_thread_id);
 
     unsigned flow_nodes = CGlobalInfo::m_memory_cfg.get_each_core_dp_flows() ;
     if (get_is_tcp_mode()) {
@@ -5084,7 +5084,7 @@ void CFlowGenList::generate_p_thread_info(uint32_t num_threads){
     int i;
     for (i=0; i<(int)num_threads; i++) {
         CFlowGenListPerThread   * lp= new CFlowGenListPerThread();
-        lp->Create(i,i,this,num_threads);
+        lp->Create(i,this,num_threads);
         m_threads_info.push_back(lp);
     }
 }

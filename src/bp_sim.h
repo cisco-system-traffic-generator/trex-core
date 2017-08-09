@@ -4005,12 +4005,10 @@ public:
     typedef  CGenericMap<flow_id_t,CGenNode> flow_id_node_t;
 
     bool Create(uint32_t           thread_id,
-                uint32_t           core_id,
                 CFlowGenList  *    flow_list,
                 uint32_t           max_threads);
     void Delete();
 
-    uint8_t get_memory_socket_id();
 
     uint32_t get_max_active_flows_per_core_tcp();
 
@@ -4048,6 +4046,10 @@ public:
 
      */
     uint32_t getDualPortId();
+
+
+    uint8_t  get_memory_socket_id();
+
 public :
     double get_total_kcps();
     double get_total_kcps(pool_index_t pool_idx, bool is_client);
@@ -4193,7 +4195,6 @@ private:
 
 public:
     uint32_t                         m_thread_id; /* virtual */
-    uint32_t                         m_core_id;   /* phsical */
 
     uint32_t                         m_max_threads;
     CFlowGenList                *    m_flow_list;
