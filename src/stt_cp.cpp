@@ -142,7 +142,7 @@ void CSTTCpPerDir::create_clm_counters(){
     CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx bw",true,"bps");
     CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
-    CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"bytes");
+    CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"B");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");
