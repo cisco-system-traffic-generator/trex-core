@@ -6047,6 +6047,13 @@ int main_test(int argc , char * argv[]){
         return (-1);
     }
 
+    if ( get_is_tcp_mode() && 
+         (CGlobalInfo::m_options.preview.getCores() >1) ){
+        printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
+        printf("we are working to solve this very soon  \n");
+        return (-1);
+    }
+
     /* set affinity to the master core as default */
     cpu_set_t mask;
     CPU_ZERO(&mask);
