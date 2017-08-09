@@ -794,9 +794,10 @@ client_external_libs = [
         'pyzmq-14.5.0',
         'scapy-2.3.1',
         'texttable-0.8.4',
-        'simpy-3.0.10'
+        'simpy-3.0.10',
+        'trex-openssl',
         ]
-                          
+
 rpath_linkage = ['so']
 
 RELEASE_    = "release"
