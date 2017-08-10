@@ -29,6 +29,8 @@ std::string add_json(std::string name, uint64_t counter,bool last=false);
 
 std::string add_json(std::string name, double counter,bool last=false);
 
+std::string add_json(std::string name, std::string val,bool last=false);
+
 
 #endif
 

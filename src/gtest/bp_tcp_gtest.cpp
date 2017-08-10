@@ -1318,11 +1318,11 @@ TEST_F(gt_tcp, tst40) {
     memset(&bb,0,sizeof(CTestStats64));
     aa.a=1;
     aa.b=2;
-    aa.c=0;
+    aa.c=1;
 
     bb.a=17;
     bb.b=18;
-    bb.c=0;
+    bb.c=1;
 
     CGCountersUtl64 au((uint64_t*)&aa,sizeof(aa)/sizeof(uint64_t));
     CGCountersUtl64 bu((uint64_t*)&bb,sizeof(bb)/sizeof(uint64_t));
@@ -1368,11 +1368,13 @@ TEST_F(gt_tcp, tst40) {
     lp = new CGSimpleRefCnt64(&aa.c);
     lp->set_name("cc");
     lp->set_help("cc help");
+    lp->set_info_level(scERROR);
     clm_aa.add_count(lp);
 
     lp = new CGSimpleRefCnt64(&bb.c);
     lp->set_name("cc");
-    lp->set_help("cc help");
+    lp->set_help("cc help1");
+    lp->set_info_level(scERROR);
     clm_bb.add_count(lp);
 
     CTblGCounters tbl;
@@ -1383,6 +1385,10 @@ TEST_F(gt_tcp, tst40) {
     tbl.dump_table(stdout,true,true);
 
     tbl.dump_table(stdout,false,true);
+
+    std::string json;
+    tbl.dump_as_json("my",json);
+    printf("%s \n",json.c_str());
 }
 
 

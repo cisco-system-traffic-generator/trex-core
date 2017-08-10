@@ -21,6 +21,7 @@ limitations under the License.
 #include "utl_counter.h"
 #include "utl_dbl_human.h"
 
+                       
 
 void CGSimpleRefCntDouble::dump_val(FILE *fd){
     fprintf(fd," %15s ",double_to_human_str((double)*m_p,m_units.c_str(),KBYE_1000).c_str());
@@ -105,20 +106,76 @@ bool  CTblGCounters::dump_line(FILE *fd,int index,bool desc){
     uint8_t size = m_counters.size();
     CGTblClmCounters* lp=m_counters[0];
     CGSimpleBase* lpcnt=lp->get_cnt(index);
-    fprintf(fd," %20s  |",lpcnt->get_name().c_str());
+    fprintf(fd," %20s  |", lpcnt->get_name().c_str());
     for (i=0; i<size; i++) {
         lp=m_counters[i];
         lpcnt=lp->get_cnt(index);
         lpcnt->dump_val(fd);
-        fprintf(fd,"  |  ");
+        fprintf(fd," | ");
     }
     if (desc){
         lp=m_counters[0];
         lpcnt=lp->get_cnt(index);
-        fprintf(fd," %s",lpcnt->get_help().c_str());
+        fprintf(fd,"%s%s",lpcnt->get_info_as_short_str().c_str(),
+                              lpcnt->get_help().c_str());
     }
     fprintf(fd,"\n");
     return(true);
+}
+
+
+void CTblGCounters::dump_as_json(std::string name, 
+                                 std::string & json){
+
+    json="{\"name\":\""+ name+"\",\"type\":0,\"data\":{";
+
+    uint8_t size=m_counters.size();
+
+    int i,j;
+    for (i=0; i<size; i++) {
+        CGTblClmCounters* lp=m_counters[i];
+        json+="\""+lp->get_name()+"\" : {";
+
+        /* all section */
+        int cnt_err=0;
+        json+=" \"all\": {";
+        for (j=0; j<lp->get_size(); j++) {
+            CGSimpleBase* lpcnt=lp->get_cnt(j);
+            if (!lpcnt->is_skip_zero()){
+
+                json+=lpcnt->dump_as_json(false);
+                if (lpcnt->get_info_level()>scINFO) {
+                    cnt_err++;
+                }
+            }
+        }
+        json+="\"__last\":0"  ;
+        json+="}"; /* all*/
+
+        /* errors section */
+
+        if (cnt_err){
+            json+=",\"err\": {";
+            for (j=0; j<lp->get_size(); j++) {
+                CGSimpleBase* lpcnt=lp->get_cnt(j);
+                if (!lpcnt->is_skip_zero()){
+                    if (lpcnt->get_info_level()>scINFO) {
+                        json+=lpcnt->dump_as_json_desc(false);
+                    }
+                }
+            }
+            json+="\"__last\":\"\""  ;
+            json+="}"; /* err*/
+        }
+
+        json+="}"; /* section name*/
+
+        if (i<size-1) {
+            json+=",";
+        }
+    }
+
+    json+="} }"  ;
 }
 
 void CTblGCounters::dump_table(FILE *fd,bool zeros,bool desc){

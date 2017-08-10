@@ -27,6 +27,7 @@ limitations under the License.
 #include <vector>
 #include <stdio.h>
 #include <assert.h>
+#include "utl_json.h"
 
 class CGCountersUtl64;
 class CGCountersUtl32 {
@@ -69,11 +70,18 @@ private:
       uint32_t  m_cnt;
 };
 
+typedef enum { scINFO =0x12, 
+               scWARNING = 0x13,
+               scERROR = 0x14
+               } counter_info_t_;
+
+typedef uint8_t counter_info_t;
 
 class CGSimpleBase {
 public:
     CGSimpleBase(){
         m_dump_zero=false;
+        m_info=scINFO;
     }
     virtual ~CGSimpleBase(){
     }
@@ -82,6 +90,42 @@ public:
 
     virtual void dump_val(FILE *fd){
 
+    }
+    void set_info_level(counter_info_t info){
+        m_info=info;
+    }
+
+    counter_info_t get_info_level(){
+        return (m_info);
+    }
+    std::string get_info_as_str(){
+        switch (m_info) {
+        case scINFO:
+            return ("info");
+            break;
+        case scWARNING:
+            return ("warnig");
+            break;
+        case scERROR:
+            return ("error");
+            break;
+        }
+        return ("unknown");
+    }
+     
+    std::string get_info_as_short_str(){
+        switch (m_info) {
+        case scINFO:
+            return (" ");
+            break;
+        case scWARNING:
+            return ("-");
+            break;
+        case scERROR:
+            return ("*");
+            break;
+        }
+        return ("unknown");
     }
 
     void set_name(std::string name){
@@ -123,8 +167,24 @@ public:
         return(m_units);
     }
 
+    virtual std::string dump_as_json(bool last){
+        #if 0
+        std::string s="";
+        if (!last) {
+            s+=",";
+        }
+        return (s);
+        #endif
+        return("");
+    }
 
-private:
+    virtual std::string dump_as_json_desc(bool last){
+        return (add_json(m_name, m_help,last));
+    }
+
+
+protected:
+    counter_info_t m_info;
     bool        m_dump_zero;
     std::string m_help;
     std::string m_name;
@@ -152,6 +212,11 @@ public:
         fprintf(fd," %15lu ",(ulong)*m_p);
     }
 
+    virtual std::string dump_as_json(bool last){
+        return (add_json(m_name, *m_p,last));
+    }
+
+
 private:
      uint32_t *m_p;
 };
@@ -171,6 +236,11 @@ public:
         fprintf(fd," %15lu ",*m_p);
     }
 
+    virtual std::string dump_as_json(bool last){
+        return (add_json(m_name, *m_p,last));
+    }
+
+
 private:
      uint64_t *m_p;
 };
@@ -188,6 +258,10 @@ public:
     }
 
     virtual void dump_val(FILE *fd);
+
+    virtual std::string dump_as_json(bool last){
+        return (add_json(m_name, *m_p,last));
+    }
 
 private:
      double *m_p;
@@ -252,6 +326,9 @@ public:
     }
 
     void dump_table(FILE *fd,bool zeros,bool desc);
+
+    void dump_as_json(std::string name,
+                      std::string & json);
 
 private:
     void verify();

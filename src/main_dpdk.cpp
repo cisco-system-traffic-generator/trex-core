@@ -4830,6 +4830,17 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     m_mg.dump_json_v2(json );
     m_zmq_publisher.publish_json(json);
 
+    if (get_is_tcp_mode()){ 
+        CSTTCp   * lpstt=m_fl.m_stt_cp;
+        if (lpstt) {
+            if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
+               if (lpstt->dump_json(json)){
+                   m_zmq_publisher.publish_json(json);
+               }
+            }
+        }
+    }
+
     if (get_is_stateless()) {
         // json from this class is sent only when requested. Still, we need to maintain the counters periodically.
         CFlowStatRuleMgr::instance()->periodic_update();
@@ -4909,10 +4920,12 @@ CGlobalTRex::handle_slow_path() {
 
      /* TCP stats */
     if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gSTT) {
-        CSTTCp   * lpstt=m_fl.m_stt_cp;
-        if (lpstt) {
-            if (lpstt->m_init) {
-                lpstt->DumpTable();
+        if (get_is_tcp_mode()) {
+            CSTTCp   * lpstt=m_fl.m_stt_cp;
+            if (lpstt) {
+                if (lpstt->m_init) {
+                    lpstt->DumpTable();
+                }
             }
         }
     }

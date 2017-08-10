@@ -75,13 +75,17 @@ static void create_sc(CGTblClmCounters  * clm,
                                 std::string name,
                                 std::string help,
                                 uint64_t * c,
-                                bool keep_zero){
+                                bool keep_zero,
+                                bool error){
     CGSimpleBase *lp;
     lp = new CGSimpleRefCnt64(c);
     lp->set_name(name);
     lp->set_help(help);
 
     lp->set_dump_zero(keep_zero);
+    if (error){
+        lp->set_info_level(scERROR);
+    }
     clm->add_count(lp);
 }
 
@@ -89,13 +93,17 @@ static void create_sc_32(CGTblClmCounters  * clm,
                                 std::string name,
                                 std::string help,
                                 uint32_t * c,
-                                bool keep_zero){
+                                bool keep_zero,
+                                bool error){
     CGSimpleBase *lp;
     lp = new CGSimpleRefCnt32(c);
     lp->set_name(name);
     lp->set_help(help);
 
     lp->set_dump_zero(keep_zero);
+    if (error){
+        lp->set_info_level(scERROR);
+    }
     clm->add_count(lp);
 }
 
@@ -104,13 +112,17 @@ static void create_sc_d(CGTblClmCounters  * clm,
                                 std::string help,
                                 double * c,
                                 bool keep_zero,
-                                std::string units){
+                                std::string units,
+                                bool error){
     CGSimpleBase *lp;
     lp = new CGSimpleRefCntDouble(c,units);
     lp->set_name(name);
     lp->set_help(help);
-
     lp->set_dump_zero(keep_zero);
+    if (error){
+        lp->set_info_level(scERROR);
+    }
+
     clm->add_count(lp);
 }
 
@@ -122,17 +134,20 @@ static void create_bar(CGTblClmCounters  * clm,
     clm->add_count(lp);
 }
 
-#define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false); }
+#define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false,false); }
+// for errors
+#define TCP_S_ADD_CNT_E(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false,true); }
 
-#define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false); }
-#define TCP_S_ADD_CNT_SZ(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,true); }
 
-#define FT_S_ADD_CNT(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false); }
-#define FT_S_ADD_CNT_Ex(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false); }
-#define FT_S_ADD_CNT_SZ(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true); }
+#define FT_S_ADD_CNT(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false,false); }
+#define FT_S_ADD_CNT_Ex(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false,false); }
+#define FT_S_ADD_CNT_SZ(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true,false); }
+#define FT_S_ADD_CNT_E(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false,true); }
+#define FT_S_ADD_CNT_Ex_E(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false,true); }
+#define FT_S_ADD_CNT_SZ_E(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true,true); }
 
-#define CMN_S_ADD_CNT(f,help,z) { create_sc(&m_clm,#f,help,&f,z); }
-#define CMN_S_ADD_CNT_d(f,help,z,u) { create_sc_d(&m_clm,#f,help,&f,z,u); }
+#define CMN_S_ADD_CNT(f,help,z) { create_sc(&m_clm,#f,help,&f,z,false); }
+#define CMN_S_ADD_CNT_d(f,help,z,u) { create_sc_d(&m_clm,#f,help,&f,z,u,false); }
 
 void CSTTCpPerDir::create_clm_counters(){
 
@@ -167,64 +182,64 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks");
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
-    TCP_S_ADD_CNT(tcps_drops,"connections dropped");
-    TCP_S_ADD_CNT(tcps_conndrops,"embryonic connections dropped");
-    TCP_S_ADD_CNT(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
-    TCP_S_ADD_CNT(tcps_rexmttimeo,"retransmit timeouts");
-    TCP_S_ADD_CNT(tcps_persisttimeo,"persist timeouts");
-    TCP_S_ADD_CNT(tcps_keeptimeo,"keepalive timeouts");
-    TCP_S_ADD_CNT(tcps_keepprobe,"keepalive probes sent");
-    TCP_S_ADD_CNT(tcps_keepdrops,"connections dropped in keepalive");
+    TCP_S_ADD_CNT_E(tcps_drops,"connections dropped");
+    TCP_S_ADD_CNT_E(tcps_conndrops,"embryonic connections dropped");
+    TCP_S_ADD_CNT_E(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
+    TCP_S_ADD_CNT_E(tcps_rexmttimeo,"retransmit timeouts");
+    TCP_S_ADD_CNT_E(tcps_persisttimeo,"persist timeouts");
+    TCP_S_ADD_CNT_E(tcps_keeptimeo,"keepalive timeouts");
+    TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
+    TCP_S_ADD_CNT_E(tcps_keepdrops,"connections dropped in keepalive");
     
-    TCP_S_ADD_CNT(tcps_sndrexmitpack,"data packets retransmitted");
-    TCP_S_ADD_CNT(tcps_sndrexmitbyte,"data bytes retransmitted");
-    TCP_S_ADD_CNT(tcps_sndprobe,"window probes sent");
-    TCP_S_ADD_CNT(tcps_sndurg,"packets sent with URG only");
-    TCP_S_ADD_CNT(tcps_sndwinup,"window update-only packets sent");
+    TCP_S_ADD_CNT_E(tcps_sndrexmitpack,"data packets retransmitted");
+    TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
+    TCP_S_ADD_CNT_E(tcps_sndprobe,"window probes sent");
+    TCP_S_ADD_CNT_E(tcps_sndurg,"packets sent with URG only");
+    TCP_S_ADD_CNT_E(tcps_sndwinup,"window update-only packets sent");
     
-    TCP_S_ADD_CNT(tcps_rcvbadsum,"packets received with ccksum errs");
-    TCP_S_ADD_CNT(tcps_rcvbadoff,"packets received with bad offset");
-    TCP_S_ADD_CNT(tcps_rcvshort,"packets received too short");
-    TCP_S_ADD_CNT(tcps_rcvduppack,"duplicate-only packets received");
-    TCP_S_ADD_CNT(tcps_rcvdupbyte,"duplicate-only bytes received");
-    TCP_S_ADD_CNT(tcps_rcvpartduppack,"packets with some duplicate data");
-    TCP_S_ADD_CNT(tcps_rcvpartdupbyte,"dup. bytes in part-dup. packets");
-    TCP_S_ADD_CNT(tcps_rcvoopackdrop,"OOO packet drop due to queue len");
-    TCP_S_ADD_CNT(tcps_rcvoobytesdrop,"OOO bytes drop due to queue len");
+    TCP_S_ADD_CNT_E(tcps_rcvbadsum,"packets received with ccksum errs");
+    TCP_S_ADD_CNT_E(tcps_rcvbadoff,"packets received with bad offset");
+    TCP_S_ADD_CNT_E(tcps_rcvshort,"packets received too short");
+    TCP_S_ADD_CNT_E(tcps_rcvduppack,"duplicate-only packets received");
+    TCP_S_ADD_CNT_E(tcps_rcvdupbyte,"duplicate-only bytes received");
+    TCP_S_ADD_CNT_E(tcps_rcvpartduppack,"packets with some duplicate data");
+    TCP_S_ADD_CNT_E(tcps_rcvpartdupbyte,"dup. bytes in part-dup. packets");
+    TCP_S_ADD_CNT_E(tcps_rcvoopackdrop,"OOO packet drop due to queue len");
+    TCP_S_ADD_CNT_E(tcps_rcvoobytesdrop,"OOO bytes drop due to queue len");
     
     
-    TCP_S_ADD_CNT(tcps_rcvoopack,"out-of-order packets received");
-    TCP_S_ADD_CNT(tcps_rcvoobyte,"out-of-order bytes received");
-    TCP_S_ADD_CNT(tcps_rcvpackafterwin,"packets with data after window");
+    TCP_S_ADD_CNT_E(tcps_rcvoopack,"out-of-order packets received");
+    TCP_S_ADD_CNT_E(tcps_rcvoobyte,"out-of-order bytes received");
+    TCP_S_ADD_CNT_E(tcps_rcvpackafterwin,"packets with data after window");
 
-    TCP_S_ADD_CNT(tcps_rcvbyteafterwin,"bytes rcvd after window");
-    TCP_S_ADD_CNT(tcps_rcvafterclose,"packets rcvd after close");
-    TCP_S_ADD_CNT(tcps_rcvwinprobe,"rcvd window probe packets");
-    TCP_S_ADD_CNT(tcps_rcvdupack,"rcvd duplicate acks");
-    TCP_S_ADD_CNT(tcps_rcvacktoomuch,"rcvd acks for unsent data");
-    TCP_S_ADD_CNT(tcps_rcvwinupd,"rcvd window update packets");
-    TCP_S_ADD_CNT(tcps_pawsdrop,"segments dropped due to PAWS");
-    TCP_S_ADD_CNT(tcps_predack,"times hdr predict ok for acks");
-    TCP_S_ADD_CNT(tcps_persistdrop,"timeout in persist state");
-    TCP_S_ADD_CNT(tcps_badsyn,"bogus SYN, e.g. premature ACK");
+    TCP_S_ADD_CNT_E(tcps_rcvbyteafterwin,"bytes rcvd after window");
+    TCP_S_ADD_CNT_E(tcps_rcvafterclose,"packets rcvd after close");
+    TCP_S_ADD_CNT_E(tcps_rcvwinprobe,"rcvd window probe packets");
+    TCP_S_ADD_CNT_E(tcps_rcvdupack,"rcvd duplicate acks");
+    TCP_S_ADD_CNT_E(tcps_rcvacktoomuch,"rcvd acks for unsent data");
+    TCP_S_ADD_CNT_E(tcps_rcvwinupd,"rcvd window update packets");
+    TCP_S_ADD_CNT_E(tcps_pawsdrop,"segments dropped due to PAWS");
+    TCP_S_ADD_CNT_E(tcps_predack,"times hdr predict ok for acks");
+    TCP_S_ADD_CNT_E(tcps_persistdrop,"timeout in persist state");
+    TCP_S_ADD_CNT_E(tcps_badsyn,"bogus SYN, e.g. premature ACK");
     
-    TCP_S_ADD_CNT(tcps_reasalloc,"allocate tcp reasembly ctx");
-    TCP_S_ADD_CNT(tcps_reasfree,"free tcp reasembly ctx");
-    TCP_S_ADD_CNT(tcps_nombuf,"no mbuf for tcp - drop the packets");
+    TCP_S_ADD_CNT_E(tcps_reasalloc,"allocate tcp reasembly ctx");
+    TCP_S_ADD_CNT_E(tcps_reasfree,"free tcp reasembly ctx");
+    TCP_S_ADD_CNT_E(tcps_nombuf,"no mbuf for tcp - drop the packets");
 
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"Flow Table");
     create_bar(&m_clm,"-");
 
-    FT_S_ADD_CNT_Ex("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
-    FT_S_ADD_CNT(err_no_syn,"server first flow packet with no SYN");
-    FT_S_ADD_CNT(err_len_err,"pkt with length error"); 
-    FT_S_ADD_CNT(err_no_tcp,"no tcp packet");
-    FT_S_ADD_CNT(err_no_template,"server can't match L7 template");
-    FT_S_ADD_CNT(err_no_memory,"No heap memory for allocating flows");
-    FT_S_ADD_CNT_Ex("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
-    FT_S_ADD_CNT(err_l3_cs,"ip checksum error");
-    FT_S_ADD_CNT(err_l4_cs,"tcp/udp checksum error");
+    FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
+    FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
+    FT_S_ADD_CNT_E(err_len_err,"pkt with length error"); 
+    FT_S_ADD_CNT_E(err_no_tcp,"no tcp packet");
+    FT_S_ADD_CNT_E(err_no_template,"server can't match L7 template");
+    FT_S_ADD_CNT_E(err_no_memory,"No heap memory for allocating flows");
+    FT_S_ADD_CNT_Ex_E("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
+    FT_S_ADD_CNT_E(err_l3_cs,"ip checksum error");
+    FT_S_ADD_CNT_E(err_l4_cs,"tcp/udp checksum error");
 }
 
 
@@ -260,6 +275,15 @@ void CSTTCp::Update(){
 
 void CSTTCp::DumpTable(){
     m_dtbl.dump_table(stdout,false,true);
+}
+
+bool CSTTCp::dump_json(std::string &json){
+    if (m_init) {
+        m_dtbl.dump_as_json("tcp-v1",json);
+        return(true);
+    }else{
+        return(false);
+    }
 }
 
 void CSTTCp::Delete(){

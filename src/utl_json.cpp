@@ -53,6 +53,17 @@ std::string add_json(std::string name, double counter,bool last){
     return (s);
 }
 
+std::string add_json(std::string name, std::string val,bool last){
+
+    std::string s= "\""+name+"\":\""+val+"\"";
+    if (!last) {
+        s+=",";
+    }
+    return (s);
+
+}
+
+
 
 
 

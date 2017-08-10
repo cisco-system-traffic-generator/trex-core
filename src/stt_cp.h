@@ -87,6 +87,7 @@ public:
     void Init();
     void Update();
     void DumpTable();
+    bool dump_json(std::string &json);
 
 public:
     CSTTCpPerDir   m_sts[TCP_CS_NUM];
