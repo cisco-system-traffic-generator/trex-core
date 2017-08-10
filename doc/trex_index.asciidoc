@@ -85,6 +85,8 @@ link:../release/[pkgs]
 link:../client_gui/[stateful GUI]
 | XL710 Statless performance    | 
 link:trex_stateless_bench.html[xl710_benchmark.html] 
+| WLC benchmark using plugins | 
+link:trex_stateless_wlc_bench.html[WLC benchmark]
 | TRex performance trend per platform/NIC  | 
 link:trex_analytics.html[trex_perf_trend.html] 
 | TRex performance SR_IOV  | 

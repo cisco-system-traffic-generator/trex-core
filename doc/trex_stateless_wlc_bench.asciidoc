@@ -1,0 +1,453 @@
+TRex Stateless support
+======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+
+include::trex_ga.asciidoc[]
+
+++++
+<style>
+pre {
+    font-size: 14px;
+}
+div.listingblock > div.content {
+    width: 65em;
+}
+</style>
+++++
+
+== WLC benchmark using TRex stateless with plugins
+
+=== Setup details
+
+[cols="1,5"]
+|=================
+| CPU:    | Intel(R) Xeon(R) CPU E5-2650 @ 2.00GHz
+| RAM:    | 32GB @ 1600 MHz
+| NICs:   | 2 x Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+| OS:     | Fedora 18
+| DUT:    | WLC
+| TRex:   | v2.29 using 2 cores per dual interface.
+|=================
+
+TRex ports 0 and 1 are connected to ports 0 and 1 of WLC respectively and act as emulation of AP(s) and Client(s). +
+Ports 2 and 3 are acting as usual network (without CAPWAP etc.)
+
+=== Method
+
+* Run TRex stateless server is one shell.
+* Run TRex console in another shell.
+
+In the console, need to load the WLC plugin:
+
+----
+trex>plugins load wlc
+
+Loading plugin: wlc                                          [SUCCESS]
+----
+
+Next, we need to ensure that emulated AP(s) and client(s) are in the same netmask of WLC. +
+We can set "base" values of IP, MAC, Name for AP and Client, which will be increased for each next device.
+
+----
+trex>plugins wlc base -h
+usage: wlc base [-h] [-n AP_NAME] [-m AP_MAC] [-i AP_IP] [-u AP_UDP] [-r MAC]
+                [--client-mac MAC] [--client-ip IP] [--save] [--load]
+
+Set base values of MAC, IP etc. for created AP/Client. Will be increased for
+each new device.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n AP_NAME, --name AP_NAME
+                        Base name of AP, should end with number
+  -m AP_MAC, --mac AP_MAC
+                        Base AP MAC
+  -i AP_IP, --ip AP_IP  Base AP IP
+  -u AP_UDP, --udp AP_UDP
+                        Base AP UDP port
+  -r MAC, --radio MAC   Base AP Radio MAC
+  --client-mac MAC      Base client MAC
+  --client-ip IP        Base client IP
+  --save                Save "next" AP and Client base values. Will be loaded
+                        at start of console.
+  --load                Load saved AP and Client base values.
+----
+
+In our case those are the values:
+
+----
+trex>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-1 / LAN MAC: 94:12:12:12:12:01 / IP: 9.9.12.1 / UDP: 10001 / Radio MAC: 94:14:14:14:01:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:01 / IP: 9.9.13.1                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+----
+
+Next step would be to create AP. +
+We create 3 APs on port 0 of TRex:
+
+----
+trex>plugins wlc create_ap -p 0 -c 3
+
+Enabling service mode on port(s) [0]:                        [SUCCESS]
+
+
+Discovering WLC                                              [SUCCESS]
+
+
+Establishing DTLS connection                                 [SUCCESS]
+
+
+Join WLC and get SSID                                        [SUCCESS]
+
+trex(service: 0)>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| WLC                   | IP: 9.9.71.50 / Hostname: qwlc-gladious01                                                               |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-4 / LAN MAC: 94:12:12:12:12:04 / IP: 9.9.12.4 / UDP: 10004 / Radio MAC: 94:14:14:14:04:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:01 / IP: 9.9.13.1                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
++------------------+----------------------------------------------+----------------------------------------------------+
+|       Port       |                  AP(s) info                  |                   Client(s) info                   |
++==================+==============================================+====================================================+
+|        0         | Name: test-ap-1                              | None                                               |
+| BG thread: alive | IP: 9.9.12.1 / MAC: 94:12:12:12:12:01        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-2                              | None                                               |
+|                  | IP: 9.9.12.2 / MAC: 94:12:12:12:12:02        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-3                              | None                                               |
+|                  | IP: 9.9.12.3 / MAC: 94:12:12:12:12:03        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
++------------------+----------------------------------------------+----------------------------------------------------+
+----
+
+As you can see, now the WLC was discovered and it's details are shown. +
+Also, on port 0 added 3 APs with increased attributes of MAC etc. +
+
+Next step is to add clients (stations). +
+We will associate 2 clients at first AP and 1 client at second AP. +
+
+----
+trex(service: 0)>plugins wlc add_client -i test-ap-1 -c 2
+
+Associating clients                                          [SUCCESS]
+
+trex(service: 0)>plugins wlc add_client -i test-ap-2 -c 1
+
+Associating clients                                          [SUCCESS]
+
+trex(service: 0)>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| WLC                   | IP: 9.9.71.50 / Hostname: qwlc-gladious01                                                               |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-4 / LAN MAC: 94:12:12:12:12:04 / IP: 9.9.12.4 / UDP: 10004 / Radio MAC: 94:14:14:14:04:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:04 / IP: 9.9.13.4                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
++------------------+----------------------------------------------+----------------------------------------------------+
+|       Port       |                  AP(s) info                  |                   Client(s) info                   |
++==================+==============================================+====================================================+
+|        0         | Name: test-ap-1                              | IP: 9.9.13.1 / MAC: 94:13:13:13:13:01 / Assoc: Yes |
+| BG thread: alive | IP: 9.9.12.1 / MAC: 94:12:12:12:12:01        | IP: 9.9.13.2 / MAC: 94:13:13:13:13:02 / Assoc: Yes |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-2                              | IP: 9.9.13.3 / MAC: 94:13:13:13:13:03 / Assoc: Yes |
+|                  | IP: 9.9.12.2 / MAC: 94:12:12:12:12:02        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-3                              | None                                               |
+|                  | IP: 9.9.12.3 / MAC: 94:12:12:12:12:03        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
++------------------+----------------------------------------------+----------------------------------------------------+
+----
+
+We can see the info at the WLC as well:
+
+[listing]
+....
+qwlc-gladious01#show ap join stats summary
+Number of APs: 3
+
+Base MAC        Ethernet MAC    AP Name               IP Address       Status
+---------------------------------------------------------------------------------
+9414.1414.0100  9412.1212.1201  test-ap-1             9.9.12.1         Joined
+9414.1414.0200  9412.1212.1202  test-ap-2             9.9.12.2         Joined
+9414.1414.0300  9412.1212.1203  test-ap-3             9.9.12.3         Joined
+
+qwlc-gladious01#show wireless
+qwlc-gladious01#show wireless cli
+qwlc-gladious01#show wireless client su
+qwlc-gladious01#show wireless client summary
+Number of Local Clients: 3
+
+MAC Address    AP Name                          WLAN State              Protocol Method
+-------------------------------------------------------------------------------------------
+9413.1313.1301 test-ap-1                        2    Run                11g      None
+9413.1313.1302 test-ap-1                        2    Run                11g      None
+9413.1313.1303 test-ap-2                        2    Run                11g      None
+
+Number of Excluded Clients: 0
+....
+
+We can reset some AP from the WLC:
+
+----
+qwlc-gladious01#ap name test-ap-1 reset
+----
+
+...and reconnect from the console:
+
+----
+trex(service: 0)>
+(WLC) AP test-ap-1 got Reset request, shutting down
+
+trex(service: 0)>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| WLC                   | IP: 9.9.71.50 / Hostname: qwlc-gladious01                                                               |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-4 / LAN MAC: 94:12:12:12:12:04 / IP: 9.9.12.4 / UDP: 10004 / Radio MAC: 94:14:14:14:04:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:04 / IP: 9.9.13.4                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
++------------------+----------------------------------------------+------------------------------------------------------------+
+|       Port       |                  AP(s) info                  |                       Client(s) info                       |
++==================+==============================================+============================================================+
+|        0         | Name: test-ap-1                              | IP: 9.9.13.1 / MAC: 94:13:13:13:13:01 / Assoc: No          |
+| BG thread: alive | IP: 9.9.12.1 / MAC: 94:12:12:12:12:01        | IP: 9.9.13.2 / MAC: 94:13:13:13:13:02 / Assoc: No          |
+|                  | Connected: No / SSID: -                      |                                                            |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -          |
+|                  | Name: test-ap-2                              | IP: 9.9.13.3 / MAC: 94:13:13:13:13:03 / Assoc: Yes         |
+|                  | IP: 9.9.12.2 / MAC: 94:12:12:12:12:02        |                                                            |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                            |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -          |
+|                  | Name: test-ap-3                              | None                                                       |
+|                  | IP: 9.9.12.3 / MAC: 94:12:12:12:12:03        |                                                            |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                            |
++------------------+----------------------------------------------+------------------------------------------------------------+
+
+trex(service: 0)>plugins wlc reconnect
+
+Discovering WLC                                              [SUCCESS]
+
+
+Establishing DTLS connection                                 [SUCCESS]
+
+
+Join WLC and get SSID                                        [SUCCESS]
+
+
+Associating clients                                          [SUCCESS]
+
+trex(service: 0)>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| WLC                   | IP: 9.9.71.50 / Hostname: qwlc-gladious01                                                               |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-4 / LAN MAC: 94:12:12:12:12:04 / IP: 9.9.12.4 / UDP: 10004 / Radio MAC: 94:14:14:14:04:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:04 / IP: 9.9.13.4                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
++------------------+----------------------------------------------+----------------------------------------------------+
+|       Port       |                  AP(s) info                  |                   Client(s) info                   |
++==================+==============================================+====================================================+
+|        0         | Name: test-ap-1                              | IP: 9.9.13.1 / MAC: 94:13:13:13:13:01 / Assoc: Yes |
+| BG thread: alive | IP: 9.9.12.1 / MAC: 94:12:12:12:12:01        | IP: 9.9.13.2 / MAC: 94:13:13:13:13:02 / Assoc: Yes |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-2                              | IP: 9.9.13.3 / MAC: 94:13:13:13:13:03 / Assoc: Yes |
+|                  | IP: 9.9.12.2 / MAC: 94:12:12:12:12:02        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-3                              | None                                               |
+|                  | IP: 9.9.12.3 / MAC: 94:12:12:12:12:03        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
++------------------+----------------------------------------------+----------------------------------------------------+
+----
+
+
+Finally, we want to send traffic on behalf of client(s). +
+We will use stateless IMIX profile. +
+The plugin will add wrapping of CAPWAP and WLAN based on AP and client info. +
+As in usual stateless, we can pass arguments to the imix1.py profile by using -t (tunables) parameter, thus customising it. +
+At first example we will send traffic on behalf of first two clients to destination of TRex port 2.
+
+[NOTE]
+=====================================================================
+Currently CAPWAP DATA is not encrypted.
+=====================================================================
+
+[listing]
+....
+trex(service: 0)>plugins wlc start -i 9.9.13.1 9.9.13.2 -f stl/imix1.py -t dst=9.9.71.5 -m 99%
+
+Removing all streams from port(s) [0]:                       [SUCCESS]
+
+
+Attaching 3 streams to port(s) [0]:                          [SUCCESS]
+
+
+Attaching 3 streams to port(s) [0]:                          [SUCCESS]
+
+
+Starting traffic on port(s) [0]:                             [SUCCESS]
+
+trex(service: 0)>stats
+Global Statistics
+
+connection   : localhost, Port 4501                  total_tx_L2  : 9.48 Gb/sec                    
+version      : v2.28                                 total_tx_L1  : 9.90 Gb/sec                    
+cpu_util.    : 9.87% @ 4 cores (2 per port)          total_rx     : 7.84 Gb/sec                    
+rx_cpu_util. : 0.0% / 0.00 pkt/sec                   total_pps    : 2.63 Mpkt/sec                  
+async_util.  : 0.28% / 1.79 KB/sec                   drop_rate    : 1.64 Gb/sec                    
+                                                     queue_full   : 0 pkts                         
+
+Port Statistics
+
+   port    |         0         |         1         |         2         |         3         |       total       
+--------------------------------------------------------------------------------------------------------------
+owner      |              root |              root |              root |              root |                   
+link       |                UP |                UP |                UP |                UP |                   
+state      |      TRANSMITTING |              IDLE |              IDLE |              IDLE |                   
+speed      |           10 Gb/s |           10 Gb/s |           10 Gb/s |           10 Gb/s |                   
+CPU util.  |             19.7% |              0.0% |              0.0% |              0.0% |                   
+--         |                   |                   |                   |                   |                   
+Tx bps L2  |         9.48 Gbps |          0.00 bps |          0.00 bps |          0.00 bps |         9.48 Gbps 
+Tx bps L1  |         9.90 Gbps |             0 bps |             0 bps |             0 bps |         9.90 Gbps 
+Tx pps     |         2.63 Mpps |          0.00 pps |          0.00 pps |          0.00 pps |         2.63 Mpps 
+Line Util. |           99.02 % |            0.00 % |            0.00 % |            0.00 % |                   
+---        |                   |                   |                   |                   |                   
+Rx bps     |          0.03 bps |          0.00 bps |         7.84 Gbps |          0.00 bps |         7.84 Gbps 
+Rx pps     |          0.00 pps |          0.00 pps |         2.63 Mpps |          0.00 pps |         2.63 Mpps 
+----       |                   |                   |                   |                   |                   
+opackets   |         200735478 |                 0 |                 0 |                 0 |         200735478 
+ipackets   |               325 |                20 |         200734954 |                20 |         200735319 
+obytes     |       90330884101 |                 0 |                 0 |                 0 |       90330884101 
+ibytes     |             86886 |              1280 |       74673398476 |              1280 |       74673487922 
+opackets   |      200.74 Mpkts |            0 pkts |            0 pkts |            0 pkts |      200.74 Mpkts 
+ipackets   |          325 pkts |           20 pkts |      200.73 Mpkts |           20 pkts |      200.74 Mpkts 
+obytes     |          90.33 GB |               0 B |               0 B |               0 B |          90.33 GB 
+ibytes     |          86.89 KB |           1.28 KB |          74.67 GB |           1.28 KB |          74.67 GB 
+-----      |                   |                   |                   |                   |                   
+oerrors    |                 0 |                 0 |                 0 |                 0 |                 0 
+ierrors    |                 0 |                 0 |                 0 |                 0 |                 0 
+....
+
+As we can see, the number of TX and RX packets matches, but bandwidth does not. +
+This is due to CAPWAP + WLAN which are added at TX (by TRex) and stripped at RX (by WLC). +
+ +
+Next example, we will create another AP and client on port 1, and send traffic from first client to the new one:
+
+[listing]
+....
+trex(service: 0, 1)>plugins wlc show
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| WLC                   | IP: 9.9.71.50 / Hostname: qwlc-gladious01                                                               |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next AP:              | Name: test-ap-5 / LAN MAC: 94:12:12:12:12:05 / IP: 9.9.12.5 / UDP: 10005 / Radio MAC: 94:14:14:14:05:00 |
++-----------------------+---------------------------------------------------------------------------------------------------------+
+| Next Client:          | MAC: 94:13:13:13:13:05 / IP: 9.9.13.5                                                                   |
++-----------------------+---------------------------------------------------------------------------------------------------------+
++------------------+----------------------------------------------+----------------------------------------------------+
+|       Port       |                  AP(s) info                  |                   Client(s) info                   |
++==================+==============================================+====================================================+
+|        0         | Name: test-ap-1                              | IP: 9.9.13.1 / MAC: 94:13:13:13:13:01 / Assoc: Yes |
+| BG thread: alive | IP: 9.9.12.1 / MAC: 94:12:12:12:12:01        | IP: 9.9.13.2 / MAC: 94:13:13:13:13:02 / Assoc: Yes |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-2                              | IP: 9.9.13.3 / MAC: 94:13:13:13:13:03 / Assoc: Yes |
+|                  | IP: 9.9.12.2 / MAC: 94:12:12:12:12:02        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
+|                  | - - - - - - - - - - - - - - - - - - - - - -  | - - - - - - - - - - - - - - - - - - - - - - - - -  |
+|                  | Name: test-ap-3                              | None                                               |
+|                  | IP: 9.9.12.3 / MAC: 94:12:12:12:12:03        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
++------------------+----------------------------------------------+----------------------------------------------------+
+|        1         | Name: test-ap-4                              | IP: 9.9.13.4 / MAC: 94:13:13:13:13:04 / Assoc: Yes |
+| BG thread: alive | IP: 9.9.12.4 / MAC: 94:12:12:12:12:04        |                                                    |
+|                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
++------------------+----------------------------------------------+----------------------------------------------------+
+
+trex(service: 0, 1)>plugins wlc start -i 9.9.13.1 -f stl/imix1.py -t dst=9.9.13.4 -m 99%
+
+Removing all streams from port(s) [0]:                       [SUCCESS]
+
+
+Attaching 3 streams to port(s) [0]:                          [SUCCESS]
+
+
+Attaching 3 streams to port(s) [0]:                          [SUCCESS]
+
+
+Starting traffic on port(s) [0]:                             [SUCCESS]
+
+trex(service: 0, 1)>stats
+Global Statistics
+
+connection   : localhost, Port 4501                  total_tx_L2  : 9.49 Gb/sec                    
+version      : v2.28                                 total_tx_L1  : 9.91 Gb/sec                    
+cpu_util.    : 9.23% @ 4 cores (2 per port)          total_rx     : 9.38 Gb/sec                    
+rx_cpu_util. : 76.8% / 3.77 Mpkt/sec                 total_pps    : 2.64 Mpkt/sec                  
+async_util.  : 0.31% / 1.87 KB/sec                   drop_rate    : 0.00 b/sec                     
+                                                     queue_full   : 0 pkts                         
+
+Port Statistics
+
+   port    |         0         |         1         |         2         |         3         |       total       
+--------------------------------------------------------------------------------------------------------------
+owner      |              root |              root |              root |              root |                   
+link       |                UP |                UP |                UP |                UP |                   
+state      |      TRANSMITTING |              IDLE |              IDLE |              IDLE |                   
+speed      |           10 Gb/s |           10 Gb/s |           10 Gb/s |           10 Gb/s |                   
+CPU util.  |             18.5% |              0.0% |              0.0% |              0.0% |                   
+--         |                   |                   |                   |                   |                   
+Tx bps L2  |         9.49 Gbps |          0.06 bps |          0.00 bps |          0.00 bps |         9.49 Gbps 
+Tx bps L1  |         9.91 Gbps |          0.07 bps |             0 bps |             0 bps |         9.91 Gbps 
+Tx pps     |         2.64 Mpps |          0.00 pps |          0.00 pps |          0.00 pps |         2.64 Mpps 
+Line Util. |           99.11 % |            0.00 % |            0.00 % |            0.00 % |                   
+---        |                   |                   |                   |                   |                   
+Rx bps     |          1.48 bps |         9.38 Gbps |          1.47 bps |          1.47 bps |         9.38 Gbps 
+Rx pps     |          0.00 pps |         3.83 Mpps |          0.00 pps |          0.00 pps |         3.83 Mpps 
+----       |                   |                   |                   |                   |                   
+opackets   |         721598484 |                 7 |                 0 |                 0 |         721598491 
+ipackets   |                29 |        1047914676 |                 9 |                 9 |        1047914723 
+obytes     |      324719312771 |               902 |                 0 |                 0 |      324719313673 
+ibytes     |              3285 |      320871489006 |               576 |               576 |      320871493443 
+opackets   |      721.60 Mpkts |            7 pkts |            0 pkts |            0 pkts |      721.60 Mpkts 
+ipackets   |           29 pkts |        1.05 Gpkts |            9 pkts |            9 pkts |        1.05 Gpkts 
+obytes     |         324.72 GB |             902 B |               0 B |               0 B |         324.72 GB 
+ibytes     |           3.29 KB |         320.87 GB |             576 B |             576 B |         320.87 GB 
+-----      |                   |                   |                   |                   |                   
+oerrors    |                 0 |                 0 |                 0 |                 0 |                 0 
+ierrors    |                 0 |                 0 |                 0 |                 0 |                 0 
+....
+
+Number of RX packets is greater due to fragmentation. +
+RX bandwidth is now higher than in previous example, due to CAPWAP + WLAN not being stripped. +
+However, it does not match. The reason is drops at interface level of DUT:
+
+----
+qwlc-gladious01#show int Te0/0/0
+...
+     26351183 packets input, 11752626750 bytes, 0 no buffer
+...
+     1448107 input errors, 0 CRC, 0 frame, 1448107 overrun, 0 ignored
+...
+----
+
+Now we can find the BW drop threshold, debug the reason etc.
+
+
+== Appendix
+
+TBD.
+
