@@ -232,3 +232,8 @@ test_performance_syn_attack_multi_cpus:
                                   min: 11.2
                                   max: 12.4
 
+test_tcp_http :
+    multiplier          : 20000
+    cores               : 1
+    bw_per_core         : 20
+

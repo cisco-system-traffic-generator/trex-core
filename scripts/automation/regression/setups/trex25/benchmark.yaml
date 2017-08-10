@@ -263,3 +263,8 @@ test_CPU_benchmark:
         bw_per_core     : 1
 
 
+test_tcp_http :
+    multiplier          : 1000
+    cores               : 1
+    bw_per_core         : 25
+

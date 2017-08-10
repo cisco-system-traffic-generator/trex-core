@@ -157,3 +157,8 @@ test_all_profiles :
     mult      : "0.3%"
     skip      : [mac]
 
+test_tcp_http :
+    multiplier          : 1000
+    cores               : 1
+    bw_per_core         : 25
+

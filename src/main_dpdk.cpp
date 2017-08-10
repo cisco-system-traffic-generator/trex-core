@@ -4833,11 +4833,11 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     if (get_is_tcp_mode()){ 
         CSTTCp   * lpstt=m_fl.m_stt_cp;
         if (lpstt) {
-            if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
+            //if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
                if (lpstt->dump_json(json)){
                    m_zmq_publisher.publish_json(json);
                }
-            }
+            //}
         }
     }
 

@@ -234,3 +234,9 @@ test_performance_syn_attack_multi_cpus:
                                   min: 8.0
                                   max: 10.0
 
+test_tcp_http :
+    multiplier          : 10000
+    cores               : 1
+    bw_per_core         : 20
+    no_latency_support  : 1
+
