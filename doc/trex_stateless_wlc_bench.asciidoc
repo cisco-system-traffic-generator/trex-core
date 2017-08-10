@@ -1,5 +1,5 @@
-TRex Stateless support
-======================
+WLC benchmark using TRex stateless with plugins
+================================================
 :email: trex.tgen@gmail.com 
 :quotes.++:
 :numbered:
@@ -7,8 +7,6 @@ TRex Stateless support
 :local_web_server_url: csi-wiki-01:8181/trex
 :toclevels: 6
 :tabledef-default.subs: normal,callouts
-
-include::trex_ga.asciidoc[]
 
 ++++
 <style>
@@ -18,12 +16,15 @@ pre {
 div.listingblock > div.content {
     width: 65em;
 }
+#header {
+    width: 65em;
+}
 </style>
 ++++
 
-== WLC benchmark using TRex stateless with plugins
+include::trex_ga.asciidoc[]
 
-=== Setup details
+== Setup details
 
 [cols="1,5"]
 |=================
@@ -38,7 +39,7 @@ div.listingblock > div.content {
 TRex ports 0 and 1 are connected to ports 0 and 1 of WLC respectively and act as emulation of AP(s) and Client(s). +
 Ports 2 and 3 are acting as usual network (without CAPWAP etc.)
 
-=== Method
+== Method
 
 * Run TRex stateless server is one shell.
 * Run TRex console in another shell.
