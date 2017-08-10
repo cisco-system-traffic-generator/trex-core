@@ -57,11 +57,12 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
         no_latency_support = self.get_benchmark_param('no_latency_support');   # some devices does not support this yet
+        print(no_latency_support)
 
         if self.is_VM: # should be fixed , latency could be supported in this mode
             no_latency_support = 1;
 
-        check_latency = True;
+        cl = True;
         if no_latency_support == None:
             ret = self.trex.start_trex(
                 c = core,
@@ -74,7 +75,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 tcp =True
                 )
         else:
-            check_latency = False;
+            cl = False;
             ret = self.trex.start_trex(
                 c = core,
                 m = mult,
@@ -93,7 +94,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         print ("\nLATEST DUMP:")
         #pprint(trex_res.get_latest_dump());
 
-        self.check_general_scenario_results(trex_res,check_latency)
+        self.check_general_scenario_results(trex_res,check_latency=cl)
         self.check_CPU_benchmark(trex_res)
         if bypass == None:
            self.check_tcp_errors(trex_res)
