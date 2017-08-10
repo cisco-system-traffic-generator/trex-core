@@ -1662,7 +1662,7 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
 void CPhyEthIF::configure_rx_duplicate_rules(){
     if ( get_is_rx_filter_enable() ){
         get_ex_drv()->configure_rx_filter_rules(this);
-    }
+    } 
 }
 
 int CPhyEthIF::set_port_rcv_all(bool is_rcv) {
@@ -3986,6 +3986,7 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->conf_queues();
         _if->stats_clear();
         _if->start();
+
         _if->configure_rx_duplicate_rules();
 
         if ( ! CGlobalInfo::m_options.preview.get_is_disable_flow_control_setting()
@@ -5257,7 +5258,7 @@ int CGlobalTRex::start_master_stateless(){
         lpt = m_fl.m_threads_info[i];
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
+        
     }
     m_fl_was_init=true;
 
@@ -5340,9 +5341,6 @@ int CGlobalTRex::start_master_statefull() {
         //CNullIF * erf_vif = new CNullIF();
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        /* socket id */
-        lpt->m_node_gen.m_socket_id =m_cores_vif[i+1]->get_socket_id();
-
     }
     m_fl_was_init=true;
 
@@ -7415,9 +7413,7 @@ int CTRexExtendedDriverBaseMlnx5G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
         add_del_rules(RTE_ETH_FILTER_DELETE, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 2, 17, MAIN_DPDK_RX_Q);
         add_del_rx_filter_rules(_if, true);
     }
-
     return 0;
-
 }
 
 int CTRexExtendedDriverBaseMlnx5G::add_del_rx_filter_rules(CPhyEthIF * _if, bool set_on) {

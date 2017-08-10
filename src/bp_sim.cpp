@@ -3580,7 +3580,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     }
 
 
-
     m_node_pool = utl_rte_mempool_create_non_pkt(name,
                                                  flow_nodes,
                                                  sizeof(CGenNode),
@@ -3596,6 +3595,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
      }
 
     m_node_gen.Create(this);
+    m_node_gen.m_socket_id =socket_id;
     m_flow_id_to_node_lookup.Create();
 
     /* split the clients to threads */
