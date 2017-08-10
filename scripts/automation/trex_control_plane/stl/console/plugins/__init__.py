@@ -5,6 +5,7 @@ from trex_stl_lib.utils.parsing_opts import is_valid_file, check_mac_addr, check
 
 class ConsolePlugin(object):
     def plugin_description(self):
+        '''description to be used in plugins menu in console'''
         raise NotImplementedError('Should implement plugin_description() function')
 
     def plugin_load(self):
@@ -15,8 +16,8 @@ class ConsolePlugin(object):
         '''called upon removing plugin'''
         pass
 
-    # define argparse argument for do_* functions
     def add_argument(self, *a, **k):
+        '''define argparse argument for do_* functions'''
         p = parsing_opts.CCmdArgParser(add_help = False)
         p.add_argument(*a, **k)
         assert(len(p._actions) == 1)

@@ -551,68 +551,57 @@ class STLStream(object):
     # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
     def to_code (self):
         """ Convert to Python code as profile  """
-        packet = Ether(self.pkt)
-        layer = packet
+        layer = Ether(self.pkt)
+        layer.hide_defaults()          # remove fields with default values
         imports_arr = []
+        layers_commands = []
         # remove checksums, add imports if needed
         while layer:
             layer_class = layer.__class__.__name__
-            try: # check if class can be instantiated
-                eval('%s()' % layer_class)
-            except NameError: # no such layer
+            if layer_class not in vars(scapy.layers.all): # custom import
                 found_import = False
                 for module_path, module in sys.modules.items():
-                    import_string = 'from %s import %s' % (module_path, layer_class)
-                    if import_string in imports_arr:
-                        found_import = True
-                        break
                     if not module_path.startswith(('scapy.layers', 'scapy.contrib')):
                         continue
-                    check_layer = getattr(module, layer_class, None)
-                    if not check_layer:
-                        continue
-                    try:
-                        check_layer()
+                    import_string = 'from %s import %s' % (module_path, layer_class)
+                    if import_string in imports_arr: # already present in extra imports
+                        found_import = True
+                        break
+                    if hasattr(module, layer_class): # add as extra import
                         imports_arr.append(import_string)
                         found_import = True
                         break
-                    except: # can't by instantiated
-                        continue
                 if not found_import:
                     raise STLError('Could not determine import of layer %s' % layer.name)
+
+            # remove checksums
             for chksum_name in ('cksum', 'chksum'):
                 if chksum_name in layer.fields:
                     del layer.fields[chksum_name]
-            layer = layer.payload
-        packet.hide_defaults()          # remove fields with default values
-        payload = packet.getlayer('Raw')
-        packet_command = packet.command()
+
+            # remove Paddings (FCS etc.)
+            if isinstance(layer, Padding):
+                break
+
+            payload = layer.payload
+            layer.remove_payload()
+
+            if isinstance(layer, Raw):
+                payload_data = bytes(layer)
+                if payload_data == payload_data[0:1] * len(payload_data): # compact form Raw('x' * 100) etc.
+                    layer_command = '%s * %s)' % (Raw(payload_data[0:1]).command().rstrip(')'), len(payload_data))
+                else:
+                    layer_command = layer.command()
+                layers_commands.append(layer_command)
+                break
+
+            layers_commands.append(layer.command())
+
+            layer = payload
 
         imports = '\n'.join(imports_arr)
-        if payload:
-            payload.remove_payload() # fcs etc.
-            data = payload.fields.get('load', '')
+        packet_code = 'packet = (' + (' / \n          ').join(layers_commands) + ')'
 
-            good_printable = [c for c in string.printable if ord(c) not in range(32)]
-            good_printable.remove("'")
-
-            if type(data) is str:
-                new_data = ''.join([c if c in good_printable else r'\x{0:02x}'.format(ord(c)) for c in data])
-            else:
-                new_data = ''.join([chr(c) if chr(c) in good_printable else r'\x{0:02x}'.format(c) for c in data])
-
-            payload_start = packet_command.find("Raw(load=")
-            if payload_start != -1:
-                packet_command = packet_command[:payload_start-1]
-        layers = packet_command.split('/')
-
-        if payload:
-            if len(new_data) and new_data == new_data[0] * len(new_data):
-                layers.append("Raw(load='%s' * %s)" % (new_data[0], len(new_data)))
-            else:
-                layers.append("Raw(load='%s')" % new_data)
-
-        packet_code = 'packet = (' + (' / \n          ').join(layers) + ')'
         vm_list = []
         for inst in self.fields['vm']['instructions']:
             if inst['type'] == 'flow_var':
@@ -635,7 +624,7 @@ class STLStream(object):
             elif inst['type'] == 'flow_var_rand_limit':
                 vm_list.append("STLVmFlowVarRepetableRandom(name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value})".format(**inst))
 
-        vm_code = 'vm = STLScVmRaw([' + ',\n                 '.join(vm_list) + '], split_by_field = %s)' % STLStream.__add_quotes(self.fields['vm'].get('split_by_var'))
+        vm_code = 'vm = STLScVmRaw([' + ',\n                 '.join(vm_list) + '])'
         stream_params_list = []
         stream_params_list.append('packet = STLPktBuilder(pkt = packet, vm = vm)')
         if default_STLStream.name != self.name:
