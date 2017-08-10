@@ -193,3 +193,125 @@ There is no way to forward response from another port to the context.
 
 Also, the number of service instances per execution is currently limited to *1000*.
 
+==== Console plugins
+
+Another usage of services (or even mix of them) is plugins infrastructure in trex-console. +
+Plugins system is a way to dynamically import and run some code.
+
+[source,bash]
+----
+trex>plugins -h
+usage: plugins [-h]  ...
+
+Show / load / use plugins
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+command:
+  
+    show      Show / search for plugins
+    load      Load (or implicitly reload) plugin by name
+    unload    Unload plugin by name
+----
+
+Plugins are located in console/plugins directory, and their filename begins with "plugin_". +
+They can be searched via "show" command and loaded via "load" command:
+
+[source,bash]
+----
+trex>plugins load wlc
+
+Loading plugin: wlc                                          [SUCCESS]
+
+trex>plugins show
++----------------------+-----------------+
+|     Plugin name      |     Loaded      |
++======================+=================+
+|        hello         |       No        |
++----------------------+-----------------+
+|         wlc          |       Yes       |
++----------------------+-----------------+
+----
+
+Now, loaded plugin can be seen in menu of plugins and used:
+
+[source,bash]
+----
+trex>plugins -h
+usage: plugins [-h]  ...
+
+Show / load / use plugins
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+command:
+  
+    show      Show / search for plugins
+    load      Load (or implicitly reload) plugin by name
+    unload    Unload plugin by name
+    wlc       WLC testing related functionality
+
+trex>plugins wlc -h
+usage: plugins wlc [-h]
+                   {add_client,base,close,create_ap,reconnect,show,start} ...
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+commands:
+  {add_client,base,close,create_ap,reconnect,show,start}
+    add_client          Add client(s) to AP(s)
+    base                Set base values of MAC, IP etc. for created AP/Client.
+                        Will be increased for each new device.
+    close               Closes all wlc-related stuff
+    create_ap           Create AP(s) on port
+    reconnect           Reconnect disconnected AP(s) or Client(s).
+    show                Show status of APs
+    start               Start traffic on behalf on client(s).
+
+trex>plugins wlc create_ap -p 0
+
+Enabling service mode on port(s) [0]:                        [SUCCESS]
+
+
+Discovering WLC                                              [SUCCESS]
+
+
+Establishing DTLS connection                                 [SUCCESS]
+
+
+Join WLC and get SSID                                        [SUCCESS]
+----
+
+Example of plugin (file console/plugins/plugin_hello.py):
+
+[source,python]
+----
+#!/usr/bin/python
+
+from console.plugins import *
+
+'''
+Example plugin
+'''
+
+class Hello_Plugin(ConsolePlugin):
+    def plugin_description(self):
+        return 'Simple example'
+
+    # used to init stuff
+    def plugin_load(self):
+        # Adding arguments to be used at do_* functions
+        self.add_argument(type = str,
+                dest = 'username', # <----- variable name to be used
+                help = 'Username to greet')
+
+    # We build argparser from do_* functions, stripping the "do_" from name
+    def do_greet(self, username): # <------ username was registered in plugin_load
+        '''Greet some username'''
+        self.trex_client.logger.log('Hello, %s!' % bold(username.capitalize())) # <--- trex_client is set implicitly
+----
+
+
