@@ -781,8 +781,11 @@ RXPortManager::tx_pkt(const std::string &pkt) {
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(CGlobalInfo::m_socket.port_to_socket(m_port_id), pkt.size());
     assert(m);
     
-    /* copy */
+    /* allocate */
     uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt.size());
+    assert(p);
+    
+    /* copy */
     memcpy(p, pkt.c_str(), pkt.size());
     
     /* send */
