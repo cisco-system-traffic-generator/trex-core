@@ -136,7 +136,11 @@ protected:
            does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
         TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN = 0x2,
         // Does the driver support changing MAC address?
-        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4
+        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
+
+        // when there is more than one RX queue, does RSS is configured by by default to split to all the queues.
+        // some driver configure RSS by default (MLX5/ENIC) and some (Intel) does not. in case of TCP stack need to remove the latency thread from RSS
+        TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES = 0x08
 
     } trex_drv_cap;
 
@@ -147,6 +151,9 @@ public:
     virtual int configure_rx_filter_rules(CPhyEthIF * _if)=0;
     virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3, uint8_t l4
                                           , uint8_t ipv6_next_h, uint16_t id) {return 0;}
+    bool is_hardware_default_rss(){
+        return ((m_cap & TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES) != 0);
+    }
     bool is_hardware_support_drop_queue() {
         return ((m_cap & TREX_DRV_CAP_DROP_Q) != 0);
     }
@@ -498,7 +505,7 @@ private:
 class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC(){
-        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES;
     }
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -549,7 +556,7 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG ;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG|TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES ;
         // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
         // put it, unless user already choose mode using command line arg (--software for example)
         if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
@@ -5428,16 +5435,32 @@ void CPhyEthIF::conf_queues() {
         rx_queue_setup(MAIN_DPDK_RX_Q, dpdk_p.rx_desc_num_data_q, socket_id,
                        &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
         // rss on all drop queues. Skip MAIN_DPDK_RX_Q
-        configure_rss_redirect_table(dpdk_p.rx_drop_q_num + 1, MAIN_DPDK_RX_Q);
+        configure_rss_redirect_table(dpdk_p.rx_drop_q_num + 1, 
+                                     MAIN_DPDK_RX_Q);
         break;
+    }
+
+
+    /* FIX RSS to queue 0 if needed */
+    if ( get_is_tcp_mode() ) {
+      if ( get_ex_drv()->is_hardware_default_rss() ){
+          /* redirect it to queue zero */
+          configure_rss_redirect_table(MAIN_DPDK_RX_Q+1, 
+                                       MAIN_DPDK_RX_Q);
+      }
     }
 }
 
-void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t skip_queue) {
+int CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t skip_queue) {
      struct rte_eth_dev_info dev_info;
 
      rte_eth_dev_info_get(m_repid,&dev_info);
-     assert(dev_info.reta_size > 0);
+     if (dev_info.reta_size == 0) {
+         printf("ERROR driver does not support RSS table configuration for accurate latency measurement, \n");
+         printf("You must add the flag --software to CLI \n");
+         exit(1);
+         return(-1);
+     }
      int reta_conf_size = std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE);
      struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];
 
@@ -5459,9 +5482,12 @@ void CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t 
          }
      }
      rte_eth_dev_rss_reta_update(m_repid, &reta_conf[0], dev_info.reta_size);
-     rte_eth_dev_rss_reta_query(m_repid, &reta_conf[0], dev_info.reta_size);
+     return(0);
 
 #if 0
+     rte_eth_dev_rss_reta_query(m_repid, &reta_conf[0], dev_info.reta_size);
+     int j; int i;
+
      /* verification */
      for (j = 0; j < reta_conf_size; j++) {
          for (i = 0; i<RTE_RETA_GROUP_SIZE; i++) {

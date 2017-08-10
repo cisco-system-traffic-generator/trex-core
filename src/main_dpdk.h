@@ -124,7 +124,7 @@ class CPhyEthIF  {
     void dump_stats(FILE *fd);
     void set_ignore_stats_base(CPreTestStats &pre_stats);
     void update_counters();
-    void configure_rss_redirect_table(uint16_t numer_of_queues,
+    int configure_rss_redirect_table(uint16_t numer_of_queues,
                                      uint16_t skip_queue);
 
     void stats_clear();
