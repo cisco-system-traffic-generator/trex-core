@@ -968,7 +968,7 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.pdf', scan=ascii_doc_scan)
     
-    bld(rule=convert_to_html_toc_book, source='trex_ndr_benchmark.asciidoc waf.css', target='trex_ndr_benchmark.asciidoc.html',scan=ascii_doc_scan);
+    bld(rule=convert_to_html_toc_book, source='trex_ndr_benchmark.asciidoc waf.css', target='trex_ndr_benchmark.html',scan=ascii_doc_scan);
     
     bld(rule=convert_to_pdf_book, source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.pdf', scan=ascii_doc_scan)
 

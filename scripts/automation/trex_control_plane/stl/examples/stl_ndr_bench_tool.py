@@ -54,6 +54,9 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
     c = STLClient(server=server)
     # connect to server
     c.connect()
+    trex_info = c.get_server_system_info()
+    configs['cores'] = trex_info['dp_core_count_per_port']
+    # pprint(c.get_util_stats())
     # take all the ports
     c.reset()
 
@@ -132,7 +135,8 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
         return result
 
     result = {'results': b.results.stats, 'config': b.config.config_to_dict()}
-    return result
+    hu_dict = {'results': b.results.human_readable_dict(), 'config': b.config.config_to_dict()}
+    return result, hu_dict
 
 
 if __name__ == '__main__':
