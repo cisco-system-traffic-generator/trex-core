@@ -3,7 +3,7 @@ from cap_handling import CPcapReader
 from arg_verify import ArgVerify
 import os
 import inspect
-from trex_nstf_exceptions import NSTFError, NSTFErrorBadParamCombination, NSTFErrorMissingParam
+from trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam
 import json
 import base64
 import hashlib
@@ -15,12 +15,12 @@ def listify(x):
         return [x]
 
 
-class _NSTFCapPath(object):
+class _ASTFCapPath(object):
     @staticmethod
     def get_pcap_file_path(pcap_file_name):
         f_path = pcap_file_name
         if not os.path.isabs(pcap_file_name):
-            p = _NSTFCapPath.get_path_relative_to_profile()
+            p = _ASTFCapPath.get_path_relative_to_profile()
             if p:
                 f_path = os.path.abspath(os.path.join(os.path.dirname(p), pcap_file_name))
 
@@ -35,7 +35,7 @@ class _NSTFCapPath(object):
         return None
 
 
-class NSTFCmd(object):
+class ASTFCmd(object):
     def __init__(self):
         self.fields = {}
 
@@ -47,9 +47,9 @@ class NSTFCmd(object):
         return ret
 
 
-class NSTFCmdSend(NSTFCmd):
+class ASTFCmdSend(ASTFCmd):
     def __init__(self, buf):
-        super(NSTFCmdSend, self).__init__()
+        super(ASTFCmdSend, self).__init__()
         self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
@@ -71,9 +71,9 @@ class NSTFCmdSend(NSTFCmd):
         return ret
 
 
-class NSTFCmdRecv(NSTFCmd):
+class ASTFCmdRecv(ASTFCmd):
     def __init__(self, min_bytes):
-        super(NSTFCmdRecv, self).__init__()
+        super(ASTFCmdRecv, self).__init__()
         self.fields['name'] = 'rx'
         self.fields['min_bytes'] = min_bytes
 
@@ -82,20 +82,20 @@ class NSTFCmdRecv(NSTFCmd):
         return ret
 
 
-class NSTFCmdDelay(NSTFCmd):
+class ASTFCmdDelay(ASTFCmd):
     def __init__(self, msec):
-        super(NSTFCmdDelay, self).__init__()
+        super(ASTFCmdDelay, self).__init__()
         self.fields['name'] = 'delay'
         self.fields['delay'] = msec
 
 
-class NSTFCmdReset(NSTFCmd):
+class ASTFCmdReset(ASTFCmd):
     def __init__(self):
-        super(NSTFCmdReset, self).__init__()
+        super(ASTFCmdReset, self).__init__()
         self.fields['name'] = 'reset'
 
 
-class NSTFProgram(object):
+class ASTFProgram(object):
     class BufferList():
         def __init__(self):
             self.buf_list = []
@@ -126,26 +126,26 @@ class NSTFProgram(object):
 
     @staticmethod
     def class_reset():
-        NSTFProgram.buf_list = NSTFProgram.BufferList()
+        ASTFProgram.buf_list = ASTFProgram.BufferList()
 
     @staticmethod
     def class_to_json():
-        return NSTFProgram.buf_list.to_json()
+        return ASTFProgram.buf_list.to_json()
 
     def __init__(self, file=None, side="c", commands=None):
         ver_args = {"types":
                     [{"name": "file", 'arg': file, "t": str, "must": False},
-                     {"name": "commands", 'arg': commands, "t": NSTFCmd, "must": False, "allow_list": True},
+                     {"name": "commands", 'arg': commands, "t": ASTFCmd, "must": False, "allow_list": True},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         side_vals = ["c", "s"]
         if side not in side_vals:
-            raise NSTFError("Side must be one of {0}".side_vals)
+            raise ASTFError("Side must be one of {0}".side_vals)
 
         self.fields = {}
         self.fields['commands'] = []
         if file is not None:
-            cap = CPcapReader(_NSTFCapPath.get_pcap_file_path(file))
+            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
             self._p_len = cap.payload_len
             cap.condense_pkt_data()
@@ -158,23 +158,23 @@ class NSTFProgram(object):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
     def send(self, buf):
-        cmd = NSTFCmdSend(buf)
-        cmd.index = NSTFProgram.buf_list.add(buf)
+        cmd = ASTFCmdSend(buf)
+        cmd.index = ASTFProgram.buf_list.add(buf)
         self.fields['commands'].append(cmd)
 
     def recv(self, bytes):
-            self.fields['commands'].append(NSTFCmdRecv(bytes))
+            self.fields['commands'].append(ASTFCmdRecv(bytes))
 
     def delay(self, msec):
-        self.fields['commands'].append(NSTFCmdDelay(msec))
+        self.fields['commands'].append(ASTFCmdDelay(msec))
 
     def reset(self):
-        self.fields['commands'].append(NSTFCmdReset())
+        self.fields['commands'].append(ASTFCmdReset())
 
     def _set_cmds(self, cmds):
         for cmd in cmds:
-            if type(cmd) is NSTFCmdSend:
-                cmd.index = NSTFProgram.buf_list.add(cmd.buf)
+            if type(cmd) is ASTFCmdSend:
+                cmd.index = ASTFProgram.buf_list.add(cmd.buf)
             self.fields['commands'].append(cmd)
 
     def _create_cmds_from_cap(self, cmds, init_side):
@@ -182,11 +182,11 @@ class NSTFProgram(object):
         origin = init_side
         for cmd in cmds:
             if origin == "c":
-                new_cmd = NSTFCmdSend(cmd.payload)
+                new_cmd = ASTFCmdSend(cmd.payload)
                 origin = "s"
             else:
                 l = len(cmd.payload)
-                new_cmd = NSTFCmdRecv(l - 5)
+                new_cmd = ASTFCmdRecv(l - 5)
                 origin = "c"
             new_cmds.append(new_cmd)
         self._set_cmds(new_cmds)
@@ -211,20 +211,20 @@ class NSTFProgram(object):
         return self._p_len
 
 
-class NSTFIPGenDist(object):
+class ASTFIPGenDist(object):
     in_list = []
 
     @staticmethod
     def class_to_json():
         ret = []
-        for i in range(0, len(NSTFIPGenDist.in_list)):
-            ret.append(NSTFIPGenDist.in_list[i].to_json())
+        for i in range(0, len(ASTFIPGenDist.in_list)):
+            ret.append(ASTFIPGenDist.in_list[i].to_json())
 
         return ret
 
     @staticmethod
     def class_reset():
-        NSTFIPGenDist.in_list = []
+        ASTFIPGenDist.in_list = []
 
     class Inner(object):
         def __init__(self, ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq"):
@@ -260,7 +260,7 @@ class NSTFIPGenDist(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         distribution_vals = ["seq", "rand"]
         if distribution not in distribution_vals:
-            raise NSTFError("Distribution must be one of {0}".format(distribution_vals))
+            raise ASTFError("Distribution must be one of {0}".format(distribution_vals))
 
         new_inner = self.Inner(ip_range=ip_range, distribution=distribution)
         for i in range(0, len(self.in_list)):
@@ -286,7 +286,7 @@ class NSTFIPGenDist(object):
         return {"index": self.index}
 
 
-class NSTFIPGenGlobal(object):
+class ASTFIPGenGlobal(object):
     def __init__(self, ip_offset="1.0.0.0"):
         ver_args = {"types":
                     [{"name": "ip_offset", 'arg': ip_offset, "t": "ip address", "must": False},
@@ -300,14 +300,14 @@ class NSTFIPGenGlobal(object):
         return dict(self.fields)
 
 
-class NSTFIPGen(object):
-    def __init__(self, glob=NSTFIPGenGlobal(),
-                 dist_client=NSTFIPGenDist(["16.0.0.1", "16.0.0.255"], distribution="seq"),
-                 dist_server=NSTFIPGenDist(["48.0.0.1", "48.0.255.255"], distribution="seq")):
+class ASTFIPGen(object):
+    def __init__(self, glob=ASTFIPGenGlobal(),
+                 dist_client=ASTFIPGenDist(["16.0.0.1", "16.0.0.255"], distribution="seq"),
+                 dist_server=ASTFIPGenDist(["48.0.0.1", "48.0.255.255"], distribution="seq")):
         ver_args = {"types":
-                    [{"name": "glob", 'arg': glob, "t": NSTFIPGenGlobal, "must": False},
-                     {"name": "dist_client", 'arg': dist_client, "t": NSTFIPGenDist, "must": False},
-                     {"name": "dist_server", 'arg': dist_server, "t": NSTFIPGenDist, "must": False},
+                    [{"name": "glob", 'arg': glob, "t": ASTFIPGenGlobal, "must": False},
+                     {"name": "dist_client", 'arg': dist_client, "t": ASTFIPGenDist, "must": False},
+                     {"name": "dist_server", 'arg': dist_server, "t": ASTFIPGenDist, "must": False},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -329,25 +329,25 @@ class NSTFIPGen(object):
 
 
 # for future use
-class NSTFCluster(object):
+class ASTFCluster(object):
     def to_json(self):
         return {}
 
 
-class NSTFTCPInfo(object):
+class ASTFTCPInfo(object):
     in_list = []
     DEFAULT_WIN = 32768
     DEFAULT_PORT = 80
 
     @staticmethod
     def class_reset():
-        NSTFTCPInfo.in_list = []
+        ASTFTCPInfo.in_list = []
 
     @staticmethod
     def class_to_json():
         ret = []
-        for i in range(0, len(NSTFTCPInfo.in_list)):
-            ret.append(NSTFTCPInfo.in_list[i].to_json())
+        for i in range(0, len(ASTFTCPInfo.in_list)):
+            ret.append(ASTFTCPInfo.in_list[i].to_json())
 
         return ret
 
@@ -381,13 +381,13 @@ class NSTFTCPInfo(object):
     def __init__(self, window=None, options=None, port=None, file=None, side="c"):
         side_vals = ["c", "s"]
         if side not in side_vals:
-            raise NSTFError("Side must be one of {0}".format(side_vals))
+            raise ASTFError("Side must be one of {0}".format(side_vals))
 
         new_opt = None
         new_port = None
         new_win = None
         if file is not None:
-            cap = CPcapReader(_NSTFCapPath.get_pcap_file_path(file))
+            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
             if side == "c":
                 new_win = cap.c_tcp_win
@@ -404,7 +404,7 @@ class NSTFTCPInfo(object):
             new_win = window
         else:
             if new_win is None:
-                new_win = NSTFTCPInfo.DEFAULT_WIN
+                new_win = ASTFTCPInfo.DEFAULT_WIN
         if options is not None:
             new_opt = options
         else:
@@ -414,7 +414,7 @@ class NSTFTCPInfo(object):
             new_port = port
         else:
             if new_port is None:
-                new_port = NSTFTCPInfo.DEFAULT_PORT
+                new_port = ASTFTCPInfo.DEFAULT_PORT
 
         new_inner = self.Inner(window=new_win, options=new_opt, port=new_port)
         for i in range(0, len(self.in_list)):
@@ -445,7 +445,7 @@ class NSTFTCPInfo(object):
         out.write("{0} = {1}(window={2}, options={3})\n".format(self.__class__.__name__, var_name, win, opt))
 
 
-class NSTFAssociationRule(object):
+class ASTFAssociationRule(object):
     def __init__(self, port=80, ip_start=None, ip_end=None):
         ver_args = {"types":
                     [{"name": "ip_start", 'arg': ip_start, "t": "ip address", "must": False},
@@ -468,10 +468,10 @@ class NSTFAssociationRule(object):
         return dict(self.fields)
 
 
-class NSTFAssociation(object):
-    def __init__(self, rules=NSTFAssociationRule()):
+class ASTFAssociation(object):
+    def __init__(self, rules=ASTFAssociationRule()):
         ver_args = {"types":
-                    [{"name": "rules", 'arg': rules, "t": NSTFAssociationRule, "must": False, "allow_list": True},
+                    [{"name": "rules", 'arg': rules, "t": ASTFAssociationRule, "must": False, "allow_list": True},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -491,37 +491,37 @@ class NSTFAssociation(object):
         return self.rules[0].port
 
 
-class _NSTFTemplateBase(object):
+class _ASTFTemplateBase(object):
     program_list = []
     program_hash = {}
 
     @staticmethod
     def add_program(program):
         m = program.calc_hash()
-        if m in  _NSTFTemplateBase.program_hash:
-            return  _NSTFTemplateBase.program_hash[m]
+        if m in  _ASTFTemplateBase.program_hash:
+            return  _ASTFTemplateBase.program_hash[m]
         else:
-            _NSTFTemplateBase.program_list.append(program)
-            prog_index = len(_NSTFTemplateBase.program_list) - 1
-            _NSTFTemplateBase.program_hash[m] = prog_index
+            _ASTFTemplateBase.program_list.append(program)
+            prog_index = len(_ASTFTemplateBase.program_list) - 1
+            _ASTFTemplateBase.program_hash[m] = prog_index
             return prog_index
 
     @staticmethod
     def class_reset():
-        _NSTFTemplateBase.program_list = []
-        _NSTFTemplateBase.program_hash = {}
+        _ASTFTemplateBase.program_list = []
+        _ASTFTemplateBase.program_hash = {}
 
 
     @staticmethod
     def class_to_json():
         ret = []
-        for i in range(0, len(_NSTFTemplateBase.program_list)):
-            ret.append(_NSTFTemplateBase.program_list[i].to_json())
+        for i in range(0, len(_ASTFTemplateBase.program_list)):
+            ret.append(_ASTFTemplateBase.program_list[i].to_json())
         return ret
 
     def __init__(self, program=None):
         self.fields = {}
-        self.fields['program_index'] = _NSTFTemplateBase.add_program(program)
+        self.fields['program_index'] = _ASTFTemplateBase.add_program(program)
 
     def to_json(self):
         ret = {}
@@ -530,75 +530,75 @@ class _NSTFTemplateBase(object):
         return ret
 
 
-class _NSTFClientTemplate(_NSTFTemplateBase):
-    def __init__(self, ip_gen=NSTFIPGen(), cluster=NSTFCluster(), program=None):
-        super(_NSTFClientTemplate, self).__init__(program=program)
+class _ASTFClientTemplate(_ASTFTemplateBase):
+    def __init__(self, ip_gen=ASTFIPGen(), cluster=ASTFCluster(), program=None):
+        super(_ASTFClientTemplate, self).__init__(program=program)
         self.fields['ip_gen'] = ip_gen
         self.fields['cluster'] = cluster
 
     def to_json(self):
-        ret = super(_NSTFClientTemplate, self).to_json()
+        ret = super(_ASTFClientTemplate, self).to_json()
         ret['ip_gen'] = self.fields['ip_gen'].to_json()
         ret['cluster'] = self.fields['cluster'].to_json()
         return ret
 
 
-class NSTFTCPClientTemplate(_NSTFClientTemplate):
-    def __init__(self, ip_gen=NSTFIPGen(), cluster=NSTFCluster(), tcp_info=NSTFTCPInfo(), program=None,
+class ASTFTCPClientTemplate(_ASTFClientTemplate):
+    def __init__(self, ip_gen=ASTFIPGen(), cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
                  port=80, cps=1):
         ver_args = {"types":
-                    [{"name": "ip_gen", 'arg': ip_gen, "t": NSTFIPGen, "must": False},
-                     {"name": "cluster", 'arg': cluster, "t": NSTFCluster, "must": False},
-                     {"name": "tcp_info", 'arg': tcp_info, "t": NSTFTCPInfo, "must": False},
-                     {"name": "program", 'arg': program, "t": NSTFProgram}]
+                    [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
+                     {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
+                     {"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
-        super(NSTFTCPClientTemplate, self).__init__(ip_gen=ip_gen, cluster=cluster, program=program)
+        super(ASTFTCPClientTemplate, self).__init__(ip_gen=ip_gen, cluster=cluster, program=program)
         self.fields['tcp_info'] = tcp_info
         self.fields['port'] = port
         self.fields['cps'] = cps
 
     def to_json(self):
-        ret = super(NSTFTCPClientTemplate, self).to_json()
+        ret = super(ASTFTCPClientTemplate, self).to_json()
         ret['tcp_info'] = self.fields['tcp_info'].to_json()
         ret['port'] = self.fields['port']
         ret['cps'] = self.fields['cps']
         return ret
 
 
-class NSTFTCPServerTemplate(_NSTFTemplateBase):
-    def __init__(self, tcp_info=NSTFTCPInfo(), program=None, assoc=NSTFAssociation()):
+class ASTFTCPServerTemplate(_ASTFTemplateBase):
+    def __init__(self, tcp_info=ASTFTCPInfo(), program=None, assoc=ASTFAssociation()):
         ver_args = {"types":
-                    [{"name": "tcp_info", 'arg': tcp_info, "t": NSTFTCPInfo, "must": False},
-                     {"name": "assoc", 'arg': assoc, "t": [NSTFAssociation, NSTFAssociationRule], "must": False},
-                     {"name": "program", 'arg': program, "t": NSTFProgram}]
+                    [{"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
+                     {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
-        super(NSTFTCPServerTemplate, self).__init__(program=program)
+        super(ASTFTCPServerTemplate, self).__init__(program=program)
         self.fields['tcp_info'] = tcp_info
         self.fields['assoc'] = assoc
 
     def to_json(self):
-        ret = super(NSTFTCPServerTemplate, self).to_json()
+        ret = super(ASTFTCPServerTemplate, self).to_json()
         ret['tcp_info'] = self.fields['tcp_info'].to_json()
         ret['assoc'] = self.fields['assoc'].to_json()
         return ret
 
 
-class NSTFCapInfo(object):
+class ASTFCapInfo(object):
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None):
         ver_args = {"types":
                     [{"name": "file", 'arg': file, "t": str},
-                     {"name": "assoc", 'arg': assoc, "t": [NSTFAssociation, NSTFAssociationRule], "must": False},
-                     {"name": "ip_gen", 'arg': ip_gen, "t": NSTFIPGen, "must": False}]
+                     {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
+                     {"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         if l7_percent is not None:
             if cps is not None:
-                raise NSTFErrorBadParamCombination(self.__class__.__name__, "cps", "l7_percent")
+                raise ASTFErrorBadParamCombination(self.__class__.__name__, "cps", "l7_percent")
             self.l7_percent = l7_percent
             self.cps = None
         else:
@@ -610,23 +610,23 @@ class NSTFCapInfo(object):
 
         self.file = file
         if assoc is not None:
-            if type(assoc) is NSTFAssociationRule:
-                self.assoc = NSTFAssociation(assoc)
+            if type(assoc) is ASTFAssociationRule:
+                self.assoc = ASTFAssociation(assoc)
             else:
                 self.assoc = assoc
         else:
             if port is not None:
-                self.assoc = NSTFAssociation(NSTFAssociationRule(port=port))
+                self.assoc = ASTFAssociation(ASTFAssociationRule(port=port))
             else:
                 self.assoc = None
         self.ip_gen = ip_gen
 
 
-class NSTFTemplate(object):
+class ASTFTemplate(object):
     def __init__(self, client_template=None, server_template=None):
         ver_args = {"types":
-                    [{"name": "client_template", 'arg': client_template, "t": NSTFTCPClientTemplate},
-                     {"name": "server_template", 'arg': server_template, "t": NSTFTCPServerTemplate}]
+                    [{"name": "client_template", 'arg': client_template, "t": ASTFTCPClientTemplate},
+                     {"name": "server_template", 'arg': server_template, "t": ASTFTCPServerTemplate}]
         }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -643,28 +643,28 @@ class NSTFTemplate(object):
 
 
 # For future use
-class NSTFGlobal(object):
+class ASTFGlobal(object):
     pass
 
 
-class NSTFProfile(object):
-    def __init__(self, templates=None, glob=None, cap_list=None, default_ip_gen=NSTFIPGen()):
+class ASTFProfile(object):
+    def __init__(self, templates=None, glob=None, cap_list=None, default_ip_gen=ASTFIPGen()):
         ver_args = {"types":
-                    [{"name": "templates", 'arg': templates, "t": NSTFTemplate, "allow_list": True, "must": False},
-                     {"name": "glob", 'arg': glob, "t": NSTFGlobal, "must": False},
-                     {"name": "cap_list", 'arg': cap_list, "t": NSTFCapInfo, "allow_list": True, "must": False},
-                     {"name": "default_ip_gen", 'arg': default_ip_gen, "t": NSTFIPGen, "must": False}]
+                    [{"name": "templates", 'arg': templates, "t": ASTFTemplate, "allow_list": True, "must": False},
+                     {"name": "glob", 'arg': glob, "t": ASTFGlobal, "must": False},
+                     {"name": "cap_list", 'arg': cap_list, "t": ASTFCapInfo, "allow_list": True, "must": False},
+                     {"name": "default_ip_gen", 'arg': default_ip_gen, "t": ASTFIPGen, "must": False}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         if cap_list is not None:
             if templates is not None:
-                raise NSTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
+                raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
             self.cap_list = listify(cap_list)
             self.templates = []
         else:
             if templates is None:
-                raise NSTFErrorMissingParam(self.__class__.__name__, "templates", "cap_list")
+                raise ASTFErrorMissingParam(self.__class__.__name__, "templates", "cap_list")
             self.templates = listify(templates)
 
         if cap_list is not None:
@@ -675,10 +675,10 @@ class NSTFProfile(object):
             for cap in self.cap_list:
                 cap_file = cap.file
                 ip_gen = cap.ip_gen if cap.ip_gen is not None else default_ip_gen
-                prog_c = NSTFProgram(file=cap_file, side="c")
-                prog_s = NSTFProgram(file=cap_file, side="s")
-                tcp_c = NSTFTCPInfo(file=cap_file, side="c")
-                tcp_s = NSTFTCPInfo(file=cap_file, side="s")
+                prog_c = ASTFProgram(file=cap_file, side="c")
+                prog_s = ASTFProgram(file=cap_file, side="s")
+                tcp_c = ASTFTCPInfo(file=cap_file, side="c")
+                tcp_s = ASTFTCPInfo(file=cap_file, side="s")
                 cps = cap.cps
                 l7_percent = cap.l7_percent
                 if mode is None:
@@ -688,19 +688,19 @@ class NSTFProfile(object):
                         mode = "cps"
                 else:
                     if mode == "l7_percent" and l7_percent is None:
-                        raise NSTFError("If one cap specifies l7_percent, then all should specify it")
+                        raise ASTFError("If one cap specifies l7_percent, then all should specify it")
                     if mode is "cps" and l7_percent is not None:
-                        raise NSTFError("Can't mix specifications of cps and l7_percent in same cap list")
+                        raise ASTFError("Can't mix specifications of cps and l7_percent in same cap list")
 
                 total_payload += prog_c.payload_len
                 if cap.assoc is None:
                     d_port = tcp_c.port
-                    my_assoc = NSTFAssociation(rules=NSTFAssociationRule(port=d_port))
+                    my_assoc = ASTFAssociation(rules=ASTFAssociationRule(port=d_port))
                 else:
                     d_port = cap.assoc.port
                     my_assoc = cap.assoc
                 if d_port in d_ports:
-                    raise NSTFError("More than one cap use dest port {0}. This is currently not supported.".format(d_port))
+                    raise ASTFError("More than one cap use dest port {0}. This is currently not supported.".format(d_port))
                 d_ports.append(d_port)
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "tcp_c": tcp_c, "tcp_s": tcp_s,
@@ -713,21 +713,21 @@ class NSTFProfile(object):
                     c["cps"] = c["prog_c"].payload_len * 100.0 / total_payload
                     percent_sum += c["cps"]
                 if percent_sum != 100:
-                    raise NSTFError("l7_percent values must sum up to 100")
+                    raise ASTFError("l7_percent values must sum up to 100")
 
             for c in all_cap_info:
-                temp_c = NSTFTCPClientTemplate(program=c["prog_c"], tcp_info=c["tcp_c"], ip_gen=c["ip_gen"], port=c["d_port"],
+                temp_c = ASTFTCPClientTemplate(program=c["prog_c"], tcp_info=c["tcp_c"], ip_gen=c["ip_gen"], port=c["d_port"],
                                                cps=c["cps"])
-                temp_s = NSTFTCPServerTemplate(program=c["prog_s"], tcp_info=c["tcp_s"], assoc=c["my_assoc"])
-                template = NSTFTemplate(client_template=temp_c, server_template=temp_s)
+                temp_s = ASTFTCPServerTemplate(program=c["prog_s"], tcp_info=c["tcp_s"], assoc=c["my_assoc"])
+                template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
                 self.templates.append(template)
 
     def to_json(self):
         ret = {}
-        ret['buf_list'] = NSTFProgram.class_to_json()
-        ret['tcp_info_list'] = NSTFTCPInfo.class_to_json()
-        ret['ip_gen_dist_list'] = NSTFIPGenDist.class_to_json()
-        ret['program_list'] = _NSTFTemplateBase.class_to_json()
+        ret['buf_list'] = ASTFProgram.class_to_json()
+        ret['tcp_info_list'] = ASTFTCPInfo.class_to_json()
+        ret['ip_gen_dist_list'] = ASTFIPGenDist.class_to_json()
+        ret['program_list'] = _ASTFTemplateBase.class_to_json()
         ret['templates'] = []
         for i in range(0, len(self.templates)):
             ret['templates'].append(self.templates[i].to_json())
@@ -737,35 +737,35 @@ class NSTFProfile(object):
 
 if __name__ == '__main__':
     cmd_list = []
-    cmd_list.append(NSTFCmdSend("aaaaaaaaaaaaaa"))
-    cmd_list.append(NSTFCmdSend("bbbbbbbb"))
-    cmd_list.append(NSTFCmdSend("aaaaaaaaaaaaaa"))
-    cmd_list.append(NSTFCmdReset())
-    my_prog_c = NSTFProgram(commands=cmd_list)
-    my_prog_s = NSTFProgram(file="/Users/ibarnea/src/trex-core/scripts/cap2/http_get.pcap", side="s")
-    ip_gen_c = NSTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
-    ip_gen_c2 = NSTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
-    ip_gen_s = NSTFIPGenDist(ip_range=["49.0.0.0", "49.255.255.255"], distribution="seq")
-    ip_gen_s2 = NSTFIPGenDist(ip_range=["200.0.0.0", "200.255.255.255"], distribution="seq")
-    ip_gen = NSTFIPGen(glob=NSTFIPGenGlobal(ip_offset="1.0.0.0"),
+    cmd_list.append(ASTFCmdSend("aaaaaaaaaaaaaa"))
+    cmd_list.append(ASTFCmdSend("bbbbbbbb"))
+    cmd_list.append(ASTFCmdSend("aaaaaaaaaaaaaa"))
+    cmd_list.append(ASTFCmdReset())
+    my_prog_c = ASTFProgram(commands=cmd_list)
+    my_prog_s = ASTFProgram(file="/Users/ibarnea/src/trex-core/scripts/cap2/http_get.pcap", side="s")
+    ip_gen_c = ASTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
+    ip_gen_c2 = ASTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
+    ip_gen_s = ASTFIPGenDist(ip_range=["49.0.0.0", "49.255.255.255"], distribution="seq")
+    ip_gen_s2 = ASTFIPGenDist(ip_range=["200.0.0.0", "200.255.255.255"], distribution="seq")
+    ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                        dist_client=ip_gen_c,
                        dist_server=ip_gen_s)
-    ip_gen2 = NSTFIPGen(glob=NSTFIPGenGlobal(ip_offset="1.0.0.0"),
+    ip_gen2 = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                         dist_client=ip_gen_c2,
                         dist_server=ip_gen_s2)
 
-    tcp1 = NSTFTCPInfo(file="../../../../cap2/http_get.pcap", side="c")
-    tcp2 = NSTFTCPInfo(window=32768, options=0x2)
+    tcp1 = ASTFTCPInfo(file="../../../../cap2/http_get.pcap", side="c")
+    tcp2 = ASTFTCPInfo(window=32768, options=0x2)
 
-    assoc_rule1 = NSTFAssociationRule(port=81, ip_start="1.1.1.1", ip_end="1.1.1.10", ip_type="dst")
-    assoc_rule2 = NSTFAssociationRule(port=90, ip_start="2.1.1.1", ip_end="2.1.1.10", ip_type="src")
-    assoc = NSTFAssociation(rules=[assoc_rule1, assoc_rule2])
+    assoc_rule1 = ASTFAssociationRule(port=81, ip_start="1.1.1.1", ip_end="1.1.1.10", ip_type="dst")
+    assoc_rule2 = ASTFAssociationRule(port=90, ip_start="2.1.1.1", ip_end="2.1.1.10", ip_type="src")
+    assoc = ASTFAssociation(rules=[assoc_rule1, assoc_rule2])
 
-    temp_c = NSTFTCPClientTemplate(program=my_prog_c, tcp_info=tcp1, ip_gen=ip_gen)
-    temp_s = NSTFTCPServerTemplate(program=my_prog_s, tcp_info=tcp2, assoc=assoc)
-    template = NSTFTemplate(client_template=temp_c, server_template=temp_s)
+    temp_c = ASTFTCPClientTemplate(program=my_prog_c, tcp_info=tcp1, ip_gen=ip_gen)
+    temp_s = ASTFTCPServerTemplate(program=my_prog_s, tcp_info=tcp2, assoc=assoc)
+    template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
-    profile = NSTFProfile(template)
+    profile = ASTFProfile(template)
 
     f = open('/tmp/tcp_out.json', 'w')
     print(profile.to_json())

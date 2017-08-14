@@ -18,7 +18,7 @@ import sys
 import subprocess
 from pprint import pprint
 
-DEFAULT_OUT_JSON_FILE = "/tmp/nstf.json"
+DEFAULT_OUT_JSON_FILE = "/tmp/astf.json"
 
 
 def is_valid_file(filename):
@@ -65,14 +65,14 @@ def execute_bp_sim(opts):
 
 
 def setParserOptions():
-    parser = argparse.ArgumentParser(prog="nstf_sim.py")
+    parser = argparse.ArgumentParser(prog="astf_sim.py")
 
     parser.add_argument("-f",
                         dest="input_file",
                         help="New statefull profile file",
                         required=True)
 
-    DEFAULT_PCAP_FILE_NAME = "nstf_pcap"
+    DEFAULT_PCAP_FILE_NAME = "astf_pcap"
     parser.add_argument("-o",
                         dest="output_file",
                         default=DEFAULT_PCAP_FILE_NAME,

@@ -31,7 +31,7 @@ limitations under the License.
 #include <common/arg/SimpleOpt.h>
 #include <stateless/cp/trex_stateless.h>
 #include <sim/trex_sim.h>
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 #include "44bsd/sim_cs_tcp.h"
 
 using namespace std;
@@ -166,7 +166,7 @@ static int parse_options(int argc,
 
             case OPT_NSF:
                 params["type"] = OPT_TYPE_NSF;
-                po->nstf_cfg_file = args.OptionArg();
+                po->astf_cfg_file = args.OptionArg();
                 break;
 
             case OPT_CFG:
@@ -228,13 +228,13 @@ static int parse_options(int argc,
      } // End of while
 
      if ((po->cfg_file =="") ) {
-         if (po->nstf_cfg_file == "") {
+         if (po->astf_cfg_file == "") {
              printf("Invalid combination of parameters you must add either -f or --tcp_cfg \n");
              usage();
              return -1;
          }
      } else {
-         if (po->nstf_cfg_file != "") {
+         if (po->astf_cfg_file != "") {
              printf("Invalid combination of parameters. Can't specify both -f and --tcp_cfg \n");
              usage();
              return -1;
@@ -331,7 +331,7 @@ int main(int argc , char * argv[]){
             time_init();
             CGlobalInfo::m_socket.Create(0);
             CGlobalInfo::init_pools(1000, MBUF_2048);
-            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.nstf_cfg_file);
+            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
             assert(rc);
             CClientServerTcp *lpt1 = new CClientServerTcp;
 

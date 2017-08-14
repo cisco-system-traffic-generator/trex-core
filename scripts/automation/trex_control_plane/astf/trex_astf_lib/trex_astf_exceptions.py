@@ -11,7 +11,7 @@ except NameError:
 
 
 # basic error for API
-class NSTFError(Exception):
+class ASTFError(Exception):
     def __init__(self, msg):
         self.msg = str(msg)
         self.stack = traceback.extract_stack()
@@ -38,22 +38,22 @@ class NSTFError(Exception):
         return self.msg
 
 
-class NSTFErrorBadParamCombination(NSTFError):
+class ASTFErrorBadParamCombination(ASTFError):
     def __init__(self, func, name1, name2):
         msg = "When creating \"{0}\", must not specify both \"{1}\" and \"{2}\"".format(func, name1, name2)
-        NSTFError.__init__(self, msg)
+        ASTFError.__init__(self, msg)
 
 
-class NSTFErrorMissingParam(NSTFError):
+class ASTFErrorMissingParam(ASTFError):
     def __init__(self, func, name1, name2=None):
         if name2 is not None:
             msg = "When creating \"{0}\", must specify one of \"{1}\" and \"{2}\"".format(func, name1, name2)
         else:
             msg = "When creating \"{0}\", must specify \"{1}\"".format(func, name1)
-        NSTFError.__init__(self, msg)
+        ASTFError.__init__(self, msg)
 
 
-class NSTFErrorWrongType(NSTFError):
+class ASTFErrorWrongType(ASTFError):
     def __init__(self, func, param, t, allow_list):
         msg = "Parameter \"{0}\" to function \"{1}\" must be of type \"{2}\"".format(param, func, t[0])
         if len(t) > 1:
@@ -61,16 +61,16 @@ class NSTFErrorWrongType(NSTFError):
                 msg += " or {0}".format(t[i])
         if allow_list:
             msg += " or list of the allowed types"
-        NSTFError.__init__(self, msg)
+        ASTFError.__init__(self, msg)
 
 
-class NSTFErrorBadIp(NSTFError):
+class ASTFErrorBadIp(ASTFError):
     def __init__(self, func, param, addr):
         msg = "Bad IP \"{0}\" for parameter {1} to function {2}".format(addr, param, func)
-        NSTFError.__init__(self, msg)
+        ASTFError.__init__(self, msg)
 
 
-class NSTFErrorBadIpRange(NSTFError):
+class ASTFErrorBadIpRange(ASTFError):
     def __init__(self, func, param, addr, err):
         msg = "Bad IP range \"{0}\" for parameter {1} to function {2} - {3}".format(addr, param, func, err)
-        NSTFError.__init__(self, msg)
+        ASTFError.__init__(self, msg)

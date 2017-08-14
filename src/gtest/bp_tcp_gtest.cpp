@@ -39,7 +39,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>

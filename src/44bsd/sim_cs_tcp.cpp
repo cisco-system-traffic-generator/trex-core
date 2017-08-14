@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "sim_cs_tcp.h"
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,

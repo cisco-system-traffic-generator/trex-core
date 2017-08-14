@@ -1,4 +1,4 @@
-from trex_nstf_exceptions import NSTFErrorWrongType, NSTFErrorMissingParam, NSTFErrorBadIp, NSTFErrorBadIpRange
+from trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange
 import socket
 
 
@@ -43,7 +43,7 @@ class ArgVerify(object):
                 must = True
             if given_arg is None:
                 if must:
-                    raise NSTFErrorMissingParam(f_name, name)
+                    raise ASTFErrorMissingParam(f_name, name)
                 else:
                     continue
             if allow_list and isinstance(given_arg, list):
@@ -54,15 +54,15 @@ class ArgVerify(object):
                     if ArgVerify.verify_ip(given_arg):
                         type_ok = True
                     else:
-                        raise NSTFErrorBadIp(f_name, name, given_arg)
+                        raise ASTFErrorBadIp(f_name, name, given_arg)
                 elif one_type == "ip range":
                     ret = ArgVerify.verify_ip_range(given_arg)
                     if ret == "ok":
                         type_ok = True
                     else:
-                        raise NSTFErrorBadIpRange(f_name, name, given_arg, ret)
+                        raise ASTFErrorBadIpRange(f_name, name, given_arg, ret)
                 else:
                     if isinstance(given_arg, one_type):
                         type_ok = True
             if not type_ok:
-                raise NSTFErrorWrongType(f_name, name, needed_type, allow_list)
+                raise ASTFErrorWrongType(f_name, name, needed_type, allow_list)

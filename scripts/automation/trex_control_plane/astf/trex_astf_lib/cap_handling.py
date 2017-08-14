@@ -167,8 +167,8 @@ class _CPcapReader_help(object):
             self._pkts.append(CPacketData(direction, bytes(l4.payload)[0:l4_payload_len]))
 
     def gen_prog_file_header(self, out):
-        out.write("import nstf_path\n")
-        out.write("from trex_nstf_lib.api import *\n")
+        out.write("import astf_path\n")
+        out.write("from trex_astf_lib.api import *\n")
         out.write("import json\n")
         out.write("\n")
 
@@ -179,17 +179,17 @@ class _CPcapReader_help(object):
 #        c_tcp_var_name = "c_tcp"
 #        s_tcp_var_name = "s_tcp"
 #
-#        c_tcp_info = NSTFTCPInfo(window=self.c_tcp_win)
+#        c_tcp_info = ASTFTCPInfo(window=self.c_tcp_win)
 #        c_tcp_info.dump(out, c_tcp_var_name)
-#        s_tcp_info = NSTFTCPInfo(window=self.s_tcp_win)
+#        s_tcp_info = ASTFTCPInfo(window=self.s_tcp_win)
 #        s_tcp_info.dump(out, s_tcp_var_name)
 #
-#        prog = NSTFProgram()
+#        prog = ASTFProgram()
 #        prog.create_cmds(self._pkts, origin)
 #        print(prog.to_json())
 #        prog.dump(out, prog_var_name)
 #
-#        out.write("prof = NSTFProfile(program={0}, tcp_info={1})\n"
+#        out.write("prof = ASTFProfile(program={0}, tcp_info={1})\n"
 #                  .format(prog_var_name, c_tcp_var_name))
 
 
