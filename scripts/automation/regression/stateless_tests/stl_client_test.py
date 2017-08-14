@@ -274,19 +274,28 @@ class STLClient_Test(CStlGeneral_Test):
             return
 
         default_mult  = self.get_benchmark_param('mult',default="30%")
-        skip_tests     = self.get_benchmark_param('skip',default=[])
+        skip_tests_per_setup     = self.get_benchmark_param('skip',default=[])
+        skip_tests_global = ['imix_wlc.py']
 
         try:
             for profile in self.profiles:
                 print('\nProfile: %s' % profile[len(CTRexScenario.scripts_path):]);
 
                 skip = False
-                for skip_test in skip_tests:
+                for skip_test in skip_tests_per_setup:
                     if skip_test in profile:
                         skip = True
                         break
                 if skip:
                     print('  * Skip due to config file...')
+                    continue
+
+                for skip_test in skip_tests_global:
+                    if skip_test in profile:
+                        skip = True
+                        break
+                if skip:
+                    print('  * Skip due to global ignore of this profile...')
                     continue
 
                 p1 = STLProfile.load(profile, port_id = self.tx_port)
