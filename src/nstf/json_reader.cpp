@@ -89,7 +89,7 @@ tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t program_index, uint16_t cmd_index
     if (cmd["name"] == "tx") {
         return tcTX_BUFFER;
     }
-    if (cmd["name"] == "rcv")
+    if (cmd["name"] == "rx")
         return tcRX_BUFFER;
 
     return tcNO_CMD;
@@ -104,7 +104,7 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
         assert(0);
     }
 
-    assert (cmd["name"] == "rcv");
+    assert (cmd["name"] == "rx");
 
     return cmd["min_bytes"].asInt();
 }

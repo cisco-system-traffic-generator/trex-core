@@ -47,9 +47,9 @@ class NSTFCmd(object):
         return ret
 
 
-class NSTFCmdTx(NSTFCmd):
+class NSTFCmdSend(NSTFCmd):
     def __init__(self, buf):
-        super(NSTFCmdTx, self).__init__()
+        super(NSTFCmdSend, self).__init__()
         self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
@@ -74,7 +74,7 @@ class NSTFCmdTx(NSTFCmd):
 class NSTFCmdRecv(NSTFCmd):
     def __init__(self, min_bytes):
         super(NSTFCmdRecv, self).__init__()
-        self.fields['name'] = 'rcv'
+        self.fields['name'] = 'rx'
         self.fields['min_bytes'] = min_bytes
 
     def dump(self):
@@ -158,7 +158,7 @@ class NSTFProgram(object):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
     def send(self, buf):
-        cmd = NSTFCmdTx(buf)
+        cmd = NSTFCmdSend(buf)
         cmd.index = NSTFProgram.buf_list.add(buf)
         self.fields['commands'].append(cmd)
 
@@ -173,7 +173,7 @@ class NSTFProgram(object):
 
     def _set_cmds(self, cmds):
         for cmd in cmds:
-            if type(cmd) is NSTFCmdTx:
+            if type(cmd) is NSTFCmdSend:
                 cmd.index = NSTFProgram.buf_list.add(cmd.buf)
             self.fields['commands'].append(cmd)
 
@@ -182,7 +182,7 @@ class NSTFProgram(object):
         origin = init_side
         for cmd in cmds:
             if origin == "c":
-                new_cmd = NSTFCmdTx(cmd.payload)
+                new_cmd = NSTFCmdSend(cmd.payload)
                 origin = "s"
             else:
                 l = len(cmd.payload)
@@ -737,9 +737,9 @@ class NSTFProfile(object):
 
 if __name__ == '__main__':
     cmd_list = []
-    cmd_list.append(NSTFCmdTx("aaaaaaaaaaaaaa"))
-    cmd_list.append(NSTFCmdTx("bbbbbbbb"))
-    cmd_list.append(NSTFCmdTx("aaaaaaaaaaaaaa"))
+    cmd_list.append(NSTFCmdSend("aaaaaaaaaaaaaa"))
+    cmd_list.append(NSTFCmdSend("bbbbbbbb"))
+    cmd_list.append(NSTFCmdSend("aaaaaaaaaaaaaa"))
     cmd_list.append(NSTFCmdReset())
     my_prog_c = NSTFProgram(commands=cmd_list)
     my_prog_s = NSTFProgram(file="/Users/ibarnea/src/trex-core/scripts/cap2/http_get.pcap", side="s")
