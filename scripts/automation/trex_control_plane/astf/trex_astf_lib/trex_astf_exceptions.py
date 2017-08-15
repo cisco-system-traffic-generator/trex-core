@@ -2,7 +2,7 @@ import os
 import sys
 import traceback
 
-from text_opts import *
+from .text_opts import *
 
 try:
     basestring

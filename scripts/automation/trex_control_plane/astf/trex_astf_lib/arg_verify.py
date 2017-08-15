@@ -1,4 +1,4 @@
-from trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange
+from .trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange
 import socket
 
 

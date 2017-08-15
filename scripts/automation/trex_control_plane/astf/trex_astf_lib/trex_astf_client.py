@@ -1,9 +1,9 @@
-from cap_handling import CPcapReader
-from arg_verify import ArgVerify
+from .cap_handling import CPcapReader
+from .arg_verify import ArgVerify
 import os
 import sys
 import inspect
-from trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam
+from .trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam
 import json
 import base64
 import hashlib
