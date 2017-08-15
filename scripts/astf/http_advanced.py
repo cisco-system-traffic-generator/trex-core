@@ -7,7 +7,9 @@ class Prof1():
 
     def create_profile(self):
         # program
+        # Client program taken from client side of given file
         my_prog_c = ASTFProgram(file="../cap2/http_get.pcap", side="c")
+        # Server program taken from server side of given file
         my_prog_s = ASTFProgram(file="../cap2/http_get.pcap", side="s")
 
         # ip generator
@@ -23,7 +25,9 @@ class Prof1():
                             dist_client=ip_gen_c2,
                             dist_server=ip_gen_s2)
 
+        # TCP parameters taken from client side of given file
         tcp_c = ASTFTCPInfo(file="../cap2/http_get.pcap", side="c")
+        # TCP parameters taken from server side of given file
         tcp_s = ASTFTCPInfo(file='../cap2/http_get.pcap', side="s")
 
         # template

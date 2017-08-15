@@ -53,7 +53,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
 typedef enum {
     OPT_TYPE_GTEST = 7,
     OPT_TYPE_SF,
-    OPT_TYPE_NSF,
+    OPT_TYPE_ASF,
     OPT_TYPE_SL
 } opt_type_e;
 
@@ -165,7 +165,7 @@ static int parse_options(int argc,
                 break;
 
             case OPT_NSF:
-                params["type"] = OPT_TYPE_NSF;
+                params["type"] = OPT_TYPE_ASF;
                 po->astf_cfg_file = args.OptionArg();
                 break;
 
@@ -325,7 +325,7 @@ int main(int argc , char * argv[]){
             return sf.run();
         }
 
-    case OPT_TYPE_NSF:
+    case OPT_TYPE_ASF:
         {
             // init
             time_init();

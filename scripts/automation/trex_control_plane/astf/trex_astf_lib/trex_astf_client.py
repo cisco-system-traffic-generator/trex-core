@@ -1,12 +1,13 @@
-from pprint import pprint
 from cap_handling import CPcapReader
 from arg_verify import ArgVerify
 import os
+import sys
 import inspect
 from trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam
 import json
 import base64
 import hashlib
+
 
 def listify(x):
     if isinstance(x, list):
@@ -158,14 +159,39 @@ class ASTFProgram(object):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
     def send(self, buf):
-        cmd = ASTFCmdSend(buf)
-        cmd.index = ASTFProgram.buf_list.add(buf)
+        ver_args = {"types":
+                     [{"name": "buf", 'arg': buf, "t": [bytes, str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        # we support bytes or ascii strings
+        if type(buf) is str:
+            try:
+                enc_buf = buf.encode('ascii')
+            except UnicodeEncodeError as e:
+                print (e)
+                raise ASTFError("If buf is a string, it must contain only ascii")
+        else:
+            enc_buf = buf
+
+        cmd = ASTFCmdSend(enc_buf)
+        cmd.index = ASTFProgram.buf_list.add(cmd.buf)
         self.fields['commands'].append(cmd)
 
     def recv(self, bytes):
-            self.fields['commands'].append(ASTFCmdRecv(bytes))
+        ver_args = {"types":
+                     [{"name": "bytes", 'arg': bytes, "t": int}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdRecv(bytes))
 
     def delay(self, msec):
+        ver_args = {"types":
+                    [{"name": "msec", 'arg': msec, "t": [int, float]}]
+        }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
         self.fields['commands'].append(ASTFCmdDelay(msec))
 
     def reset(self):
@@ -498,8 +524,8 @@ class _ASTFTemplateBase(object):
     @staticmethod
     def add_program(program):
         m = program.calc_hash()
-        if m in  _ASTFTemplateBase.program_hash:
-            return  _ASTFTemplateBase.program_hash[m]
+        if m in _ASTFTemplateBase.program_hash:
+            return _ASTFTemplateBase.program_hash[m]
         else:
             _ASTFTemplateBase.program_list.append(program)
             prog_index = len(_ASTFTemplateBase.program_list) - 1
@@ -510,7 +536,6 @@ class _ASTFTemplateBase(object):
     def class_reset():
         _ASTFTemplateBase.program_list = []
         _ASTFTemplateBase.program_hash = {}
-
 
     @staticmethod
     def class_to_json():
@@ -627,7 +652,7 @@ class ASTFTemplate(object):
         ver_args = {"types":
                     [{"name": "client_template", 'arg': client_template, "t": ASTFTCPClientTemplate},
                      {"name": "server_template", 'arg': server_template, "t": ASTFTCPServerTemplate}]
-        }
+                    }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         self.fields = {}

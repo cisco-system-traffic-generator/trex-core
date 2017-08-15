@@ -16,7 +16,6 @@ import argparse
 import os
 import sys
 import subprocess
-from pprint import pprint
 
 DEFAULT_OUT_JSON_FILE = "/tmp/astf.json"
 
@@ -48,9 +47,9 @@ def execute_bp_sim(opts):
     exe = [exe]
     if opts.valgrind:
         valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
-        exe=valgrind + exe;
+        exe = valgrind + exe
 
-    cmd = exe +[ '--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
+    cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
 
     if opts.verbose:
         print ("executing {0}".format(''.join(cmd)))
@@ -131,14 +130,18 @@ def main(args=None):
     try:
         file = os.path.basename(opts.input_file).split('.')[0]
         prof = __import__(file, globals(), locals(), [], 0)
-    except ImportError as e:
+    except Exception as e:
         print("Failed importing {0}".format(opts.input_file))
         print(e)
         sys.exit(1)
 
     cl = prof.register()
 
-    profile = cl.get_profile()
+    try:
+        profile = cl.get_profile()
+    except Exception as e:
+        print (e)
+        sys.exit(1)
 
     if opts.json:
         print(profile.to_json())
