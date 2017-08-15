@@ -30,9 +30,9 @@ class STLServiceFilter(object):
         raise NotImplementedError
         
         
-    def lookup (self, scapy_pkt):
+    def lookup (self, pkt):
         '''
-            Given a 'scapy_pkt' return a list
+            Given a 'pkt' return a list
             of services that should get this packet
             
             can be an empty list

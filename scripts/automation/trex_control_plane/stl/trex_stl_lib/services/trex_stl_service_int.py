@@ -19,6 +19,8 @@ from ..trex_stl_exceptions import STLError
 from ..trex_stl_psv import *
 from scapy.layers.l2 import Ether
 from .trex_stl_service import STLService
+from collections import deque, namedtuple
+
 
 ##################           
 #
@@ -39,6 +41,9 @@ class STLServiceCtx(object):
         self.port_obj     = client.ports[port]
         self._reset()
 
+        # operate at 2kpps
+        self.pps = 2000
+        
 ######### API functions              #########
 
     def run (self, services):  
@@ -84,8 +89,8 @@ class STLServiceCtx(object):
     def _reset (self):
         self.filters    = {}
         self.services   = {}
-        self.active_services = 0
-     
+        self.done_services   = 0
+        
              
     def _add (self, services):
         '''
@@ -102,7 +107,6 @@ class STLServiceCtx(object):
             raise STLError("'services' should be STLService subtype or list/tuple of it")
 
 
- 
     def _run (self, services):
         
         # check port state
@@ -121,13 +125,14 @@ class STLServiceCtx(object):
         self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
         self.tx_buffer    = TXBuffer(self.env, self.client, self.port)
         
-        # create processes
-        for service in self.services:
+        # start all services
+        for service in services:
             pipe = self._pipe()
             self.services[service]['pipe'] = pipe
             p = self.env.process(service.run(pipe))
-            self._on_process_create(p)
-        
+            self._on_process_create(p) 
+            
+                       
         # save promisicous state and move to enabled
         is_promiscuous = self.client.get_port_attr(port = self.port)['prom'] == "on"
         if not is_promiscuous:
@@ -136,13 +141,17 @@ class STLServiceCtx(object):
         try:
             # for each filter, start a capture
             for f in self.filters.values():
-                f['capture_id'] = self.client.start_capture(rx_ports = self.port, bpf_filter = f['inst'].get_bpf_filter())['id']
+                # capture limit is dictated by the PPS times a factor
+                limit = self.pps * 5
+                f['capture_id'] = self.client.start_capture(rx_ports = self.port, bpf_filter = f['inst'].get_bpf_filter(), limit = limit)['id']
 
-            # add the maintenace process
-            tick_process = self.env.process(self._tick_process())
+            # add maintence processes
+            tx_process      = self.env.process(self._tx_pkts_process())
+            rx_process      = self.env.process(self._rx_pkts_process())
+            
+            # start the RT simulation - exit when the TX process has ended (RX has no sense if no proceesses exists)
+            self.env.run(until = tx_process)
 
-            # start the RT simulation - exit when the tick process dies
-            self.env.run(until = tick_process)
         finally:
             # stop all captures
             for f in self.filters.values():
@@ -170,14 +179,13 @@ class STLServiceCtx(object):
         
 
     def _on_process_create (self, p):
-        self.active_services += 1
         p.callbacks.append(self._on_process_exit)
 
 
     def _on_process_exit (self, event):
-        self.active_services -= 1
+        self.done_services += 1
 
-
+            
     def _pipe (self):
         return STLServicePipe(self.env, self.tx_buffer)
 
@@ -189,74 +197,126 @@ class STLServiceCtx(object):
 
         # for each packet - try to forward to each service until we hit
         for pkt in pkts:
-            scapy_pkt = Ether(pkt['binary'])
+            pkt_bin   = pkt['binary']
             rx_ts     = pkt['ts']
             
             # lookup all the services that this filter matches (usually 1)
-            services = f['inst'].lookup(scapy_pkt)
-            for service in services:
-                self.services[service]['pipe']._on_rx_pkt(scapy_pkt, rx_ts)
-
-
-
-    def _tick_process (self):
-        
-        while True:
+            services = f['inst'].lookup(pkt_bin)
             
-            # if any packets are pending - send them
-            self.tx_buffer.send_all()
+            for service in services:
+                self.services[service]['pipe']._on_rx_pkt(pkt_bin, rx_ts)
 
-            # poll for RX
+                    
+        return len(pkts)
+
+
+    def is_done (self):
+        return self.done_services == len(self.services)
+        
+        
+    
+    # TX pkts process
+    def _tx_pkts_process (self):
+        while not self.is_done():
+            yield self.env.timeout(0.1)
+            self.tx_buffer.send_all()
+                
+                
+            
+    # reads packets from the server
+    def _rx_pkts_process (self):
+        while not self.is_done():
+
+            yield self.env.timeout(0.1)
+            
             for f in self.filters.values():
                 self._fetch_rx_pkts_per_filter(f)
-
-            
-            # if no other process exists - exit
-            if self.active_services == 0:
-                return
-            else:
-                # backoff
-                yield self.env.timeout(0.05)
-
+        
+                
             
 class TXBuffer(object):
     '''
         TX buffer
         handles buffering and sending packets
     '''
-    def __init__ (self, env, client, port):
-        self.env    = env
-        self.client = client
-        self.port   = port
+    
+    # defines a basic buffer to hold packets to be sent
+    Buffer = namedtuple('Buffer', ['pkts', 'event'])
+
+    
+    def __init__ (self, env, client, port, threshold = 200):
+        self.env        = env
+        self.client     = client
+        self.port       = port
+        self.threshold  = threshold
         
-        self.pkts     = []
-        self.tx_event = self.env.event()
+     
+        # fast queue
+        self.queue = deque()
+        
+        
+    @property
+    def head (self):
+        '''
+            returns the head of the queue - a buffer
+        '''
+        return self.queue[-1]
+        
+        
+    def allocate_new_buffer (self):
+        '''
+            allocate a new buffer and append it
+        '''
+            
+        buffer = TXBuffer.Buffer(pkts = [], event = self.env.event())
+        self.queue.append(buffer)
+        
+        
+    def roomleft (self):
+        '''
+            return true if there is still room in the current buffer
+        '''
+        return self.queue and (len(self.head.pkts) < self.threshold)
         
         
     def push (self, pkt):
-        if type(pkt) is list:
-            self.pkts.extend(pkt)
-        else:
-            self.pkts.append(pkt)
-        return self.tx_event
+        '''
+            push a packet to the head buffer
+            returns the event assosicated with it
+        '''
+        
+        # if no room left, allocate a new queue
+        if not self.roomleft():
+            self.allocate_new_buffer()
+        
+        # should always havea room after new buffer
+        assert(self.roomleft())
+        
+        self.head.pkts.append(pkt)
+
+        return self.head.event
         
         
     def send_all (self):
-        if self.pkts:
-            rc = self.client.push_packets(ports = self.port, pkts = self.pkts, force = True)
+        '''
+            performs a single tick - one buffer will be sent (max of THRESHOLD)
+        '''
+        
+        if self.queue:
+            buffer = self.queue.popleft()
+            rc = self.client.push_packets(ports = self.port, pkts = buffer.pkts, force = True)
             tx_ts = rc.data()['ts']
 
             self.pkts = []
 
             # mark as TX event happened
-            self.tx_event.succeed(value = {'ts': tx_ts})
-            # create a new event
-            self.tx_event = self.env.event()
-        
+            buffer.event.succeed(value = {'ts': tx_ts})
+    
+            return len(buffer.pkts)
+            
+        else:
+            return 0
 
-    def pending (self):
-        return len(self.pkts)
-        
         
 class PktRX(simpy.resources.store.StoreGet):
     '''
