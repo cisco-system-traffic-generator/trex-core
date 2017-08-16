@@ -36,8 +36,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
                        fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None, drop_rate_interval=10,
                        output=None, ports_list=[],
                        latency_rate=1000, max_iterations=10, yaml=None):
-    config_dict = {}
-    configs = {'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
+    configs = {'server': server, 'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
                'pdr_error': pdr_error, 'title': title,
                'q_ful_resolution': q_ful_resolution, 'latency': latency,
@@ -47,11 +46,17 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
                'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
                'fe_dst_stop_ip': fe_dst_stop_ip}
     passed = True
-    if ports_list:
-        if len(ports_list) % 2 != 0:
-            print("illegal ports list")
-            return
-    c = STLClient(server=server)
+    if yaml:
+        try:
+            f = open(yaml)
+            yml_config_dict = yml.safe_load(f)
+            configs.update(yml_config_dict)
+            f.close()
+        except IOError as e:
+            print ("Error loading YAML file: %s \nExiting", e.message)
+            return -1
+
+    c = STLClient(server=configs['server'])
     # connect to server
     c.connect()
     trex_info = c.get_server_system_info()
@@ -62,7 +67,15 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
 
     # map ports - identify the routes
     table = stl_map_ports(c)
-    # pprint(table)
+    ports_list = configs['ports']
+    if ports_list:
+        if len(ports_list) % 2 != 0:
+            print("illegal ports list")
+            return
+        for i in range(0,len(ports_list), 2):
+            if (ports_list[i],ports_list[i+1]) not in table['bi']:
+                print("some given ports pairs are not configured properly ")
+                return
     if ports_list:
         dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
         ports = ports_list
@@ -96,17 +109,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
     # add both streams to ports
     else:
         c.add_streams(streams, ports=dir_0)
-    if yaml:
-        try:
-            f = open(yaml)
-            config_dict = yml.safe_load(f)
-            f.close()
-        except IOError as e:
-            print ("Error loading YAML file: %s \nExiting", e.message)
-            c.disconnect()
-            return -1
 
-    configs.update(config_dict)
     config = ndr.NdrBenchConfig(**configs)
     b = ndr.NdrBench(stl_client=c, config=config)
 
@@ -124,9 +127,9 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
         c.disconnect()
 
     if passed:
-        print("\nTest has passed :-)\n")
+        print("\nBench Run has finished :-)\n")
     else:
-        print("\nTest has failed :-(\n")
+        print("\nBench Run has failed :-(\n")
 
     if output == 'json':
         result = b.results.to_json()
@@ -209,7 +212,7 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--latency-rate',
                         dest='latency_rate',
                         help='Specify the desired latency rate.',
-                        default=1000,
+                        default=100,
                         type=float)
     parser.add_argument('-fe',
                         dest='vm',
