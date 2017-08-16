@@ -161,7 +161,7 @@ class STLServiceDHCP(STLService):
                 offers = [offer for offer in offers if offer]
                         
                 if not offers:
-                    self.log('DHCP: {0} *** timeout - retries left: {1}'.format(self.mac, self.retries))
+                    self.log('DHCP: {0} *** timeout on offers - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)
                     self.state = 'INIT'
                     continue
                     
@@ -191,7 +191,7 @@ class STLServiceDHCP(STLService):
                 acknacks = [acknack for acknack in acknacks if acknack]
                 
                 if not acknacks:
-                    self.log('DHCP: {0} *** timeout - retries left: {1}'.format(self.mac, self.retries))
+                    self.log('DHCP: {0} *** timeout on ack - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)
                     self.state = 'INIT'
                     continue
                 

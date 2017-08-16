@@ -41,17 +41,25 @@ class STLServiceCtx(object):
         self.port_obj     = client.ports[port]
         self._reset()
 
-        # operate at 2kpps
-        self.pps = 2000
         
 ######### API functions              #########
 
-    def run (self, services):  
+    def run (self, services, pps = 2000):
         '''
             Runs 'services' under service context
+            
+            'pps' - provides a rate for services to 
+                    generate traffic
         '''
+
         if not services:
             raise Exception('No services to run!')
+
+        self.pps              = pps
+        self.ipg_sec          = 1.0 / pps
+        self.ipg_usec         = int(self.ipg_sec * 1e6)
+        self.tx_batch_size    = 100
+        
         with self.client.logger.supress():
             self._run(services)
         
@@ -123,7 +131,7 @@ class STLServiceCtx(object):
         
         # create an environment
         self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
-        self.tx_buffer    = TXBuffer(self.env, self.client, self.port)
+        self.tx_buffer    = TXBuffer(self.env, self.client, self.port, self.tx_batch_size, self.ipg_usec)
         
         # start all services
         for service in services:
@@ -217,10 +225,15 @@ class STLServiceCtx(object):
     
     # TX pkts process
     def _tx_pkts_process (self):
+        
+        sent = 0
+        
         while not self.is_done():
-            yield self.env.timeout(0.1)
-            self.tx_buffer.send_all()
-                
+            interval_sec = self.ipg_sec * sent if sent else 0.1
+            yield self.env.timeout(interval_sec)
+            
+            sent = self.tx_buffer.send_all()
+            
                 
             
     # reads packets from the server
@@ -244,11 +257,12 @@ class TXBuffer(object):
     Buffer = namedtuple('Buffer', ['pkts', 'event'])
 
     
-    def __init__ (self, env, client, port, threshold = 200):
+    def __init__ (self, env, client, port, threshold, ipg_usec):
         self.env        = env
         self.client     = client
         self.port       = port
         self.threshold  = threshold
+        self.ipg_usec   = ipg_usec
         
      
         # fast queue
@@ -304,7 +318,7 @@ class TXBuffer(object):
         
         if self.queue:
             buffer = self.queue.popleft()
-            rc = self.client.push_packets(ports = self.port, pkts = buffer.pkts, force = True)
+            rc = self.client.push_packets(ports = self.port, pkts = buffer.pkts, ipg_usec = self.ipg_usec, force = True)
             tx_ts = rc.data()['ts']
 
             self.pkts = []

@@ -768,8 +768,9 @@ private:
 class TrexStatelessRxTXPkts : public TrexStatelessCpToRxMsgBase {
 public:
     
-    TrexStatelessRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, MsgReply<uint32_t> &reply) : m_pkts(pkts), m_reply(reply) {
-        m_port_id = port_id;
+    TrexStatelessRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec, MsgReply<uint32_t> &reply) : m_pkts(pkts), m_reply(reply) {
+        m_port_id  = port_id;
+        m_ipg_usec = ipg_usec;
     }
 
     /**
@@ -780,6 +781,7 @@ public:
 
 private:
     std::vector<std::string>      m_pkts;
+    uint32_t                      m_ipg_usec;
     MsgReply<uint32_t>           &m_reply;
     uint8_t                       m_port_id;
 };

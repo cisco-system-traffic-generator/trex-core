@@ -658,6 +658,9 @@ RXPortManager::create(const TRexPortAttr *port_attr,
     m_server.create(&m_feature_api);
     m_grat_arp.create(&m_feature_api, &m_ign_stats);
     
+    /* generate a TX queue */
+    m_tx_queue.create(&m_feature_api, 5000);
+    
     /* by default, server is always on */
     set_feature(SERVER);
 }
@@ -691,6 +694,9 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
        measurement
      */
     m_cpu_pred.start_heur();
+    
+    /* give a tick to the TX queue */
+    m_tx_queue.tick();
     
     /* try to read 64 packets clean up the queue */
     uint16_t cnt_p = m_io->rx_burst(rx_pkts, 64);
@@ -762,18 +768,24 @@ RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) 
  * 
 */
 uint32_t
-RXPortManager::tx_pkts(const std::vector<std::string> &pkts) {
-    uint32_t pkts_sent = 0;
+RXPortManager::tx_pkts(const std::vector<std::string> &pkts, uint32_t ipg_usec) {
+
+    double time_to_send_sec = now_sec();
+    uint32_t pkts_sent      = 0;
     
     for (const auto &pkt : pkts) {
-        if (tx_pkt(pkt)) {
-            pkts_sent++;
+        bool rc = m_tx_queue.push(pkt, time_to_send_sec);
+        if (!rc) {
+            break;
+            
         }
+        
+        pkts_sent++;
+        time_to_send_sec += usec_to_sec(ipg_usec);
     }
     
     return pkts_sent;
 }
-
 
 bool
 RXPortManager::tx_pkt(const std::string &pkt) {

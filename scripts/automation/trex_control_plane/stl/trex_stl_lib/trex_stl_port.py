@@ -753,10 +753,11 @@ class Port(object):
         return self.ok()
 
         
-    def push_packets (self, pkts, force):
-        params = {'port_id': self.port_id,
-                  'pkts'   : pkts,
-                  'force'  : force}
+    def push_packets (self, pkts, force, ipg_usec):
+        params = {'port_id'   : self.port_id,
+                  'pkts'      : pkts,
+                  'force'     : force,
+                  'ipg_usec'  : ipg_usec}
         
         rc = self.transmit("push_pkts", params)
         if rc.bad():

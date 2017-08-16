@@ -1221,6 +1221,9 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
  
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
     
+    /* IPG in usec */
+    uint32_t ipg_usec = parse_uint32(params, "ipg_usec", result, 0);
+    
     const Json::Value &pkts_json = parse_array(params, "pkts", result);
      
     std::vector<std::string> pkts;
@@ -1261,7 +1264,7 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     
     dsec_t now = now_sec();
     
-    TrexStatelessRxTXPkts *tx_pkts_msg = new TrexStatelessRxTXPkts(port_id, pkts, reply);
+    TrexStatelessRxTXPkts *tx_pkts_msg = new TrexStatelessRxTXPkts(port_id, pkts, ipg_usec, reply);
     get_stateless_obj()->send_msg_to_rx(tx_pkts_msg);
     
       /* wait for reply - might get a timeout */

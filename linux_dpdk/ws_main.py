@@ -332,6 +332,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'messaging/trex_stateless_messaging.cpp',
                                     'rx/trex_stateless_rx_core.cpp',
                                     'rx/trex_stateless_rx_port_mngr.cpp',
+                                    'rx/trex_stateless_rx_tx.cpp',
                                     'rx/trex_stateless_capture.cpp',
                                     'common/trex_stateless_pkt.cpp',
                                     ])
