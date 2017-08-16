@@ -1,0 +1,27 @@
+======================
+:email: trex.tgen@gmail.com 
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+======================
+include::trex_ga.asciidoc[]
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+= TRex NDR BenchMark 
+
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/NDR_benchmark.csv[]
+|===
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/NDR_benchmark_latency.csv[]
+|===
