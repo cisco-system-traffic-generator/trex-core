@@ -2,203 +2,167 @@ from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
 from scapy.packet import NoPayload
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
+
+from .trex_stl_service_fast_parser import FastParser
 
 import struct
 
-class DHCPParser(object):
-    
-    # messages types
-    DISCOVER = 1
-    OFFER    = 2
-    ACK      = 5
-    NACK     = 6
-    
-    
+class DHCPParser(FastParser):
     def __init__ (self):
-        self.base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
-                              /BOOTP(chaddr=b'123456',xid=55555,yiaddr='1.2.3.4')/DHCP(options=[("message-type","discover"),"end"])
-        
-        self.base_pkt.build()
-         
-        self.fields = {}
-        for f in ['Ethernet.dst', 'Ethernet.src', 'BOOTP.xid', 'BOOTP.chaddr', 'BOOTP.yiaddr', 'DHCP options.options']:
-            self.fields[f] = self.get_field_info(f)
-    
-        self.msg_types = {1: 'discover', 2: 'offer', 3: 'request'}
-    
-        self.opt_types = {53: {'name': 'message-type',   'fmt': 'B'},
-                          54: {'name': 'server_id',      'fmt': 'I'},
-                          50: {'name': 'requested_addr', 'fmt': 'I'},
-                          51: {'name': 'lease-time',     'fmt': 'I'},
-                          58: {'name': 'renewal_time',   'fmt': 'I'},
-                          59: {'name': 'rebinding_time', 'fmt': 'I'},
-                          1:  {'name': 'subnet_mask',    'fmt': 'I'},
-                          15: {'name': 'domain',         'fmt': 's'},
-                         }
-           
-        
-    def get_srcmac(self, pkt):
-        try:
-            return struct.unpack_from('!6s', pkt, self.fields['Ethernet.src']['offset'])[0]
-        except struct.error as e:
-            return None
-            
-            
-    def get_dstmac(self, pkt):
-        try:
-            return struct.unpack_from('!6s', pkt, self.fields['Ethernet.dst']['offset'])[0]
-        except struct.error as e:
-            return None
-            
-            
-    def get_xid (self, pkt):
-        try:
-            return struct.unpack_from('!I', pkt, self.fields['BOOTP.xid']['offset'])[0]
-        except struct.error as e:
-            return None
-    
-    
-    def get_chaddr (self, pkt):
-        try:
-            return struct.unpack_from('!16s', pkt, self.fields['BOOTP.chaddr']['offset'])[0]
-        except struct.error as e:
-            return None
+        base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
+                         /BOOTP(chaddr=b'123456',xid=55555,yiaddr='1.2.3.4')/DHCP(options=[("message-type","discover"), ("server_id", '1.2.3.4'),"end"])
 
-            
-    def get_yiaddr (self, pkt):
-        try:
-            return struct.unpack_from('!I', pkt, self.fields['BOOTP.yiaddr']['offset'])[0]
-        except struct.error as e:
-            return None
-    
-            
-    def parse_as_offer (self, pkt):
-        options = self.get_options(pkt)
+        FastParser.__init__(self, base_pkt)
 
-        if options['message-type'] != self.OFFER:
-            return None
-        
-        # it's an offer
-        rc = options
-        rc['yiaddr'] = self.get_yiaddr(pkt)
-        rc['srcmac'] = self.get_srcmac(pkt)
-        rc['dstmac'] = self.get_dstmac(pkt)
-        
-        return rc
-        
-        
-    def parse_as_acknack (self, pkt):
-        options = self.get_options(pkt)
+        self.add_field('Ethernet.dst', 'dst')
+        self.add_field('Ethernet.dst', 'src')
+        self.add_field('BOOTP.xid', 'xid')
+        self.add_field('BOOTP.chaddr', 'chaddr')
+        self.add_field('BOOTP.yiaddr', 'yiaddr', fmt = '!I')
+        self.add_field('DHCP options.options', 'options', getter = self.get_options, setter = self.set_options)
 
-        if options['message-type'] not in (self.ACK, self.NACK):
-            return None
+        msg_types = [{'id': 1, 'name': 'discover'},
+                     {'id': 2, 'name': 'offer'},
+                     {'id': 3, 'name': 'request'},
+                    ]
         
-        return options
+
+        self.msg_types = {}
         
+        for t in msg_types:
+            self.msg_types[t['id']] = t
+            self.msg_types[t['name']] = t
             
-    def get_options (self, pkt):
-        info = self.fields['DHCP options.options']
-        options = pkt[info['offset']:]
         
-        opt = {}
+        opts = [{'id': 53, 'name': 'message-type',   'type': 'byte'},
+                {'id': 54, 'name': 'server_id',      'type': 'int'},
+                {'id': 50, 'name': 'requested_addr', 'type': 'int'},
+                {'id': 51, 'name': 'lease-time',     'type': 'int'},
+                {'id': 58, 'name': 'renewal_time',   'type': 'int'},
+                {'id': 59, 'name': 'rebinding_time', 'type': 'int'},
+                {'id': 1,  'name': 'subnet_mask',    'type': 'int'},
+                {'id': 15, 'name': 'domain',         'type': 'str'},
+               ]
+        
+        self.opts = {}
+        
+        for opt in opts:
+            self.opts[opt['id']]    = opt
+            self.opts[opt['name']]  = opt
+            
+
+    def get_options (self, pkt_bytes, info):
+        
+        # min length
+        if len(pkt_bytes) < info['offset']:
+            return None
+            
+        options = pkt_bytes[info['offset']:]
+
+        opt = OrderedDict()
         index = 0
         while index < len(options):
-            
+
             o  = ord(options[index])
             index += 1
-            
+
             # end
             if o == 255:
                 break
-                
+
             # pad
             elif o == 0:
                 continue
-            
+
             # fetch length
             olen = ord(options[index])
             index += 1
-            
+
             # message type
-            if o in self.opt_types:
-                ot = self.opt_types[o]
-                fmt = "!{0}{1}".format(olen, ot['fmt'])
-                opt[ot['name']] = struct.unpack_from(fmt, options, index)[0]
-                
+            if o in self.opts:
+                ot = self.opts[o]
+                if ot['type'] == 'byte':
+                    opt[ot['name']] = struct.unpack_from('!B', options, index)[0]
+                    
+                elif ot['type'] == 'int':
+                    opt[ot['name']] = struct.unpack_from('!I', options, index)[0]
+                    
+                elif ot['type'] == 'str':
+                    opt[ot['name']] = struct.unpack_from('!{0}s'.format(olen), options, index)[0]
+                    
+                else:
+                    raise Exception('unknown type: {0}'.format(ot['type']))
+
             else:
                 raise Exception('unknown option: {0}'.format(o))
-        
+
             # advance
             index += olen
-            
-        return opt    
+
+        return opt
+
+
+    def set_options (self, pkt_bytes, info, options):
+
+        output = bytes()
+
+        for o, v in options.items():
+            if o in self.opts:
+                ot = self.opts[o]
+                
+                # write tag
+                output += struct.pack('!B', ot['id'])
+                
+                # write the size and value
+                if ot['type'] == 'byte':
+                    output += struct.pack('!B', 1)
+                    output += struct.pack('!B', v)
+                    
+                elif ot['type'] == 'int':
+                    output += struct.pack('!B', 4)
+                    output += struct.pack('!I', v)
+                    
+                elif ot['type'] == 'str':
+                    output += struct.pack('!B', len(v))
+                    output += struct.pack('!{0}s'.format(len(v)), v)
+                    
+                
+                
+        # write end
+        output += struct.pack('!B', 255)
         
-    def get_field_info (self, field):
-        p = self.base_pkt
-        offset = 0
-        while p is not None and not isinstance(p, NoPayload):
-            offset = p._offset
-            for f in p.fields_desc:
-                if field == "{}.{}".format(p.name, f.name):
-                    return {'offset': offset + f._offset, 'size': f.sz, 'fmt': f.fmt}
-
-            p = p.payload
-
-        raise STLError('unknown fields: {0}'.format(field))
-
-
-class DHCPPacketGenerator(object):
-    Field = namedtuple('Field', ['start', 'end'])
+        return pkt_bytes[:info['offset']] + output + pkt_bytes[info['offset'] + len(output):]
     
-    XID = Field(46, 50)
-    MAC = Field(70, 86)
-    
-    def __init__ (self):
-        self.disc_pkt = bytes(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
-                              /BOOTP(chaddr=b'123456',xid=0xffffffff)/DHCP(options=[("message-type","discover"),"end"]))
-
-        self.req_pkt = bytes(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
-                         /BOOTP(chaddr=b'123456',xid=0xffffffff)/DHCP(options=[("message-type","request"),("requested_addr", '8.8.8.8'),"end"]))
-
-        #self.release_pkt = bytes(Ether(dst="ff:ff:ff:ff:ff:ff"))/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-        #                    /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
-        #                        /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
         
-
     def disc (self, xid, chaddr):
-        bin = self.disc_pkt
-
-        # XID
-        bin = bin[:self.XID.start] + struct.pack('!I', xid) + bin[self.XID.end:]
-
-        # MAC
-        bin = bin[:self.MAC.start] + struct.pack('!16s', chaddr) + bin[self.MAC.end:]
-
-        return bin    
-
-
-    def req (self, xid, chaddr, req_addr):
-        bin = self.req_pkt
-
-        # XID
-        bin = bin[:46] + struct.pack('!I', xid) + bin[50:]
-
-        # MAC
-        bin = bin[:70] + struct.pack('!16s', chaddr) + bin[86:]
-
-        # req_addr
-        bin = bin[:287] + struct.pack('!I', req_addr) + bin[291:]
-
-        return bin
+        '''
+            generates a DHCP discovery packet
+        '''
+        
+        # generate a new packet
+        obj = self.clone()
+        
+        obj.options = {'message-type': 1}
+        obj.xid = xid
+        obj.chaddr = chaddr
+        
+        return obj.raw()
         
 
-    def release (self, xid, chaddr, req_addr):
-        bin = self.req_pkt
+    def req (self, xid, chaddr, yiaddr):
+        '''
+            generate a new request packet
+        '''
         
-        # XID
-        bin = bin[:46] + struct.pack('!I', xid) + bin[50:]
+        # generate a new packet
+        obj = self.clone()
+        
+        obj.options = {'message-type': 3, 'requested_addr': yiaddr}
+        obj.xid = xid
+        obj.chaddr = chaddr
+        
+        return obj.raw()
+        
+        
 
-        # MAC
-        bin = bin[:70] + struct.pack('!16s', chaddr) + bin[86:]
-        
