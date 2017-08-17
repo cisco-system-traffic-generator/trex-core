@@ -44,7 +44,7 @@ class STLServiceCtx(object):
         
 ######### API functions              #########
 
-    def run (self, services, pps = 2000):
+    def run (self, services, pps = 1000):
         '''
             Runs 'services' under service context
             
@@ -58,7 +58,9 @@ class STLServiceCtx(object):
         self.pps              = pps
         self.ipg_sec          = 1.0 / pps
         self.ipg_usec         = int(self.ipg_sec * 1e6)
-        self.tx_batch_size    = 100
+        
+        # for TX batch size, we cannot accumulate more than 1 second
+        self.tx_batch_size    = min(100, self.pps)
         
         with self.client.logger.supress():
             self._run(services)

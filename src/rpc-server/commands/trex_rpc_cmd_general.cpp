@@ -1225,7 +1225,12 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     uint32_t ipg_usec = parse_uint32(params, "ipg_usec", result, 0);
     
     const Json::Value &pkts_json = parse_array(params, "pkts", result);
-     
+    
+    /* do not allow batch of more than 1 seconds to be added - this can cause a non ending TX queue */
+    if ( (usec_to_sec(pkts_json.size() * ipg_usec)) > 1) {
+        generate_parse_err(result, "TX batch total transmit time exceeds the limit of 1 second");
+    }
+    
     std::vector<std::string> pkts;
     
     for (int i = 0; i < pkts_json.size(); i++) {
