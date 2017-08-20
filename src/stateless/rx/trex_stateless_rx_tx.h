@@ -120,13 +120,24 @@ public:
     /**
      * a constant tick to the queue
      */
-    void tick();
+    inline void tick() {
+        /* fast path */
+        if (m_heap.empty()) {
+            return;
+        }
+        
+        /* slow path */
+        _tick();
+    }
     
 private:
+
+    void _tick();
+    
     std::priority_queue<TXPacket *, std::vector<TXPacket *>, TXPacketCompare> m_heap;
     
     RXFeatureAPI            *m_api;
-    uint32_t                m_capacity;
+    uint32_t                 m_capacity;
 };
 
 

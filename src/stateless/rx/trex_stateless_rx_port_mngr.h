@@ -315,10 +315,6 @@ public:
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
     
-    /**
-     * for for IPG (in sec)
-     */
-    void wait_ipg_sec(double ipg_sec) const;
     
     /**
      * configure VLAN

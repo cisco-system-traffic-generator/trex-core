@@ -188,7 +188,7 @@ class STLServiceDHCP(STLService):
                 acknack = acknacks[0]
                 
                 
-                if acknack.options['message-type'] == self.ACK:
+                if acknack.options['message-type'] == parser.ACK:
                     self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, ipv4_num_to_str(offer.options['server_id']), ipv4_num_to_str(offer.yiaddr)))
                     self.state = 'BOUND'
                 else:

@@ -38,7 +38,7 @@ class DHCPParser(FastParser):
         self.msg_types = {}
         
         for t in msg_types:
-            self.msg_types[t['id']] = t
+            self.msg_types[t['id']]   = t
             self.msg_types[t['name']] = t
             
         
