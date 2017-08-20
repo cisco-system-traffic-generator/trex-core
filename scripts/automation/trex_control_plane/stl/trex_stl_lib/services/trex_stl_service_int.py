@@ -136,7 +136,7 @@ class STLServiceCtx(object):
         self.tx_buffer    = TXBuffer(self.env, self.client, self.port, self.tx_batch_size, self.ipg_usec)
         
         # start all services
-        for service in services:
+        for service in self.services:
             pipe = self._pipe()
             self.services[service]['pipe'] = pipe
             p = self.env.process(service.run(pipe))
