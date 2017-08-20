@@ -58,13 +58,13 @@ def register():
         os.remove("../../exp/astf_test_out_c.pcap")
         os.remove("../../exp/astf_test_out_s.pcap")
 
-    def one_cap_test(self, file):
+    def check_one_cap(self, file):
         self.handle_one_cap(file)
 
     def test_caps(self):
         files = ["avl/delay_10_rtp_160k_1.pcap", "avl/delay_10_http_browsing_0.pcap", "cap2/Video_Calls.pcap"]
         for file in files:
-            self.one_cap_test(file)
+            self.check_one_cap(file)
 
 
 @attr('run_on_trex')
