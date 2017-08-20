@@ -66,13 +66,6 @@ class STLServiceDHCP(STLService):
     # DHCP states
     INIT, SELECTING, REQUESTING, BOUND = range(4)
     
-    # messages types
-    DISCOVER = 1
-    OFFER    = 2
-    ACK      = 5
-    NACK     = 6
-    
-    
     def __init__ (self, mac, verbose_level = STLService.ERROR):
 
         # init the base object
@@ -127,9 +120,6 @@ class STLServiceDHCP(STLService):
         self.record  = None
         self.retries = 5
         
-        # holds the temporary client IP being requested
-        client_ip = None
-        
         while True:
             
             # INIT state
@@ -152,12 +142,12 @@ class STLServiceDHCP(STLService):
             elif self.state == 'SELECTING':
                 
                 # wait until packet arrives or timeout occurs
-                pkts = yield pipe.async_wait_for_pkt(5)
+                pkts = yield pipe.async_wait_for_pkt(3)
                 pkts = [pkt['pkt'] for pkt in pkts]
                 
                 # filter out the offer responses
                 offers = [parser.parse(pkt) for pkt in pkts]
-                offers = [offer for offer in offers if offer.options['message-type'] == self.OFFER]
+                offers = [offer for offer in offers if offer.options['message-type'] == parser.OFFER]
                         
                 if not offers:
                     self.log('DHCP: {0} *** timeout on offers - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)
@@ -182,12 +172,12 @@ class STLServiceDHCP(STLService):
                 yield pipe.async_tx_pkt(parser.req(self.xid, self.mac_bytes, offer.yiaddr))
                 
                 # wait for response
-                pkts = yield pipe.async_wait_for_pkt(5)
+                pkts = yield pipe.async_wait_for_pkt(3)
                 pkts = [pkt['pkt'] for pkt in pkts]
                 
                 # filter out the offer responses
                 acknacks = [parser.parse(pkt) for pkt in pkts]
-                acknacks = [acknack for acknack in acknacks if acknack.options['message-type'] in (self.ACK, self.NACK)]
+                acknacks = [acknack for acknack in acknacks if acknack.options['message-type'] in (parser.ACK, parser.NACK)]
                 
                 if not acknacks:
                     self.log('DHCP: {0} *** timeout on ack - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)

@@ -33,14 +33,26 @@ class RXFeatureAPI;
  */
 class TXPacket {
 public:
+    
+    /**
+     * create a new packet 
+     *  
+     */
     TXPacket(const std::string &raw, double ts_sec) : m_raw(raw) {
         m_time = ts_sec;
     }
     
+    /**
+     * returns the timestamp of the packet
+     */
     double get_time() const {
         return m_time;
     }
     
+    /**
+     * returns the binary raw of the packet (string)
+     * 
+     */
     const std::string &get_raw() const {
         return m_raw;
     }

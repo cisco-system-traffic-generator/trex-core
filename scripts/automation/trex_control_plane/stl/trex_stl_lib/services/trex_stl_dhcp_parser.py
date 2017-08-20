@@ -9,6 +9,13 @@ from .trex_stl_service_fast_parser import FastParser
 import struct
 
 class DHCPParser(FastParser):
+    
+    # message types
+    DISCOVER = 1
+    OFFER    = 2
+    ACK      = 5
+    NACK     = 6
+    
     def __init__ (self):
         base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
                          /BOOTP(chaddr=b'123456',xid=55555,yiaddr='1.2.3.4')/DHCP(options=[("message-type","discover"), ("server_id", '1.2.3.4'),"end"])

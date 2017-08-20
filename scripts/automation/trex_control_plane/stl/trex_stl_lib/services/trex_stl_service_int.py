@@ -97,8 +97,8 @@ class STLServiceCtx(object):
 ######### internal functions              #########
         
     def _reset (self):
-        self.filters    = {}
-        self.services   = {}
+        self.filters         = {}
+        self.services        = {}
         self.done_services   = 0
         
              
@@ -151,8 +151,9 @@ class STLServiceCtx(object):
         try:
             # for each filter, start a capture
             for f in self.filters.values():
+                
                 # capture limit is dictated by the PPS times a factor
-                limit = self.pps * 5
+                limit = max(self.pps * 5, 10000)
                 f['capture_id'] = self.client.start_capture(rx_ports = self.port, bpf_filter = f['inst'].get_bpf_filter(), limit = limit)['id']
 
             # add maintence processes

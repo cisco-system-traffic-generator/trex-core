@@ -80,6 +80,8 @@ TXQueue::tick() {
             
             /* send the packet */
             m_api->tx_pkt(pkt->get_raw());
+            delete pkt;
+            
             pkts_sent++;
             
         } else {
