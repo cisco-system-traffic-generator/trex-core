@@ -116,13 +116,12 @@ def setParserOptions():
     return parser
 
 
-def process_options():
-    parser = setParserOptions()
-    return parser.parse_args()
-
-
 def main(args=None):
-    opts = process_options()
+    parser = setParserOptions()
+    if args is None:
+        opts = parser.parse_args()
+    else:
+        opts = parser.parse_args(args)
 
     basedir = os.path.dirname(opts.input_file)
     sys.path.insert(0, basedir)
@@ -151,7 +150,11 @@ def main(args=None):
     f.write(str(profile.to_json()).replace("'", "\""))
     f.close()
 
-    execute_bp_sim(opts)
+    try:
+        execute_bp_sim(opts)
+    except Exception as e:
+        print (e)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
