@@ -143,6 +143,8 @@ static void create_bar(CGTblClmCounters  * clm,
 #define FT_S_ADD_CNT_Ex(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false,false); }
 #define FT_S_ADD_CNT_SZ(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true,false); }
 #define FT_S_ADD_CNT_E(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false,true); }
+#define FT_S_ADD_CNT_OK(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false,false); }
+
 #define FT_S_ADD_CNT_Ex_E(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false,true); }
 #define FT_S_ADD_CNT_SZ_E(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true,true); }
 
@@ -240,6 +242,9 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT_Ex_E("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
     FT_S_ADD_CNT_E(err_l3_cs,"ip checksum error");
     FT_S_ADD_CNT_E(err_l4_cs,"tcp/udp checksum error");
+
+    FT_S_ADD_CNT_E(err_redirect_rx,"redirect to rx error");
+    FT_S_ADD_CNT_OK(redirect_rx_ok,"redirect to rx OK");
 }
 
 

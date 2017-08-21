@@ -262,6 +262,7 @@ public:
     uint64_t   m_tx_drop;
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
+    uint64_t   m_tx_redirect_error;
     tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
     CLatencyPktData m_lat_data[MAX_FLOW_STATS_PAYLOAD];
     CPerTxthreadTemplateInfo m_template;
@@ -275,6 +276,7 @@ public:
         m_tx_drop    += obj->m_tx_drop;
         m_tx_alloc_error += obj->m_tx_alloc_error;
         m_tx_queue_full +=obj->m_tx_queue_full;
+        m_tx_redirect_error +=obj->m_tx_redirect_error;
         m_template.Add(&obj->m_template);
     }
 
@@ -285,6 +287,7 @@ public:
        m_tx_drop=0;
        m_tx_alloc_error=0;
        m_tx_queue_full=0;
+       m_tx_redirect_error=0;
        m_template.Clear();
        for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
            m_lat_data[i].reset();
@@ -307,6 +310,7 @@ void CVirtualIFPerSideStats::Dump(FILE *fd){
     DP_B(m_tx_drop);
     DP_B(m_tx_alloc_error);
     DP_B(m_tx_queue_full);
+    DP_B(m_tx_redirect_error);
     m_template.Dump(fd);
 }
 
@@ -325,7 +329,6 @@ public:
                               uint16_t nb_pkts){
         assert(0);
     }
-
 
     /* send one packet */
     virtual int send_node(CGenNode * node)=0;
@@ -353,6 +356,12 @@ public:
     virtual CVirtualIFPerSideStats * get_stats() {
         return m_stats;
     }
+    virtual  bool redirect_to_rx_core(pkt_dir_t   dir,
+                                      rte_mbuf_t * m){
+        return(false);
+    }
+
+    
 
 protected:
     CPreviewMode             *m_preview_mode;
@@ -1627,7 +1636,9 @@ public:
 
         TCP_RX_FLUSH            =13, /* TCP rx flush */
         TCP_TX_FIF              =14, /* TCP FIF */
-        TCP_TW                  =15  /* TCP TW -- need to consolidate */
+        TCP_TW                  =15,  /* TCP TW -- need to consolidate */
+
+        RX_MSG                  =16  /* message to Rx core */
     };
 
     /* flags MASKS*/

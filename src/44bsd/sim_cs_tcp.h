@@ -137,6 +137,9 @@ public:
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CTcpFlow * flow);
 
+   int on_redirect_rx(CTcpPerThreadCtx *ctx,
+                      rte_mbuf_t *m);
+
 
 public:
     CClientServerTcp  * m_p ;

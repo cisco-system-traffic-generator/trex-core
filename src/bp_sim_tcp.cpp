@@ -133,6 +133,10 @@ public:
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CTcpFlow * flow);
 
+   int on_redirect_rx(CTcpPerThreadCtx *ctx,
+                      rte_mbuf_t *m);
+
+
 public:
     uint8_t                 m_dir;
     CFlowGenListPerThread * m_p;
@@ -164,6 +168,12 @@ int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
     return(0);
 }
 
+
+int CTcpDpdkCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
+                               rte_mbuf_t *m){
+    pkt_dir_t   dir = ctx->m_ft.is_client_side()?CLIENT_SIDE:SERVER_SIDE;
+    return(m_p->m_node_gen.m_v_if->redirect_to_rx_core(dir,m)?0:-1);
+}
 
 int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
                       struct tcpcb * tp,

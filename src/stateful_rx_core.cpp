@@ -803,9 +803,64 @@ void  CLatencyManager::reset(){
 
 }
 
+
 void CLatencyManager::tickle() {
     m_monitor.tickle();
 }
+
+#define RX_MSG_POOL_SEC (100.0/1000000.0)
+
+
+void CLatencyManager::handle_pkt_msg(uint8_t thread_id, CGenNodeLatencyPktInfo * msg) {
+
+    assert(msg->m_latency_offset==0xdead);
+
+    uint8_t rx_port_index=(thread_id<<1)+(msg->m_dir&1);
+    assert( rx_port_index <m_max_ports ) ;
+    CLatencyManagerPerPort * lp=&m_ports[rx_port_index];
+    handle_rx_pkt(lp,(rte_mbuf_t *)msg->m_pkt);
+}
+
+
+void CLatencyManager::handle_rx_one_queue(uint8_t ti,CNodeRing * r){
+
+    while ( true ) {
+         CGenNode * node;
+         if ( r->Dequeue(node)!=0 ){
+             break;
+         }
+         assert(node);
+   
+         CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
+   
+         uint8_t   msg_type =  msg->m_msg_type;
+         switch (msg_type ) {
+         case CGenNodeMsgBase::LATENCY_PKT:
+             handle_pkt_msg(ti,(CGenNodeLatencyPktInfo *) msg);
+             break;
+         default:
+             printf("ERROR latency-thread message type is not valid %d \n",msg_type);
+             assert(0);
+         }
+   
+         CGlobalInfo::free_node(node);
+    }
+}
+
+/* check for messages from DP cores */
+void CLatencyManager::handle_rx_msgs(){
+    /* dp->rx , rx->dp queues */
+    CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
+    uint8_t threads=CMsgIns::Ins()->get_num_threads();
+    int ti;
+    for (ti=0; ti<(int)threads; ti++) {
+        CNodeRing * r = rx_dp->getRingDpToCp(ti);
+        if ( !r->isEmpty() ){
+            handle_rx_one_queue((uint8_t)ti,r);
+        }
+    }
+}
+
 
 void  CLatencyManager::start(int iter, bool activate_watchdog) {
     m_do_stop =false;
@@ -831,6 +886,11 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
         node->m_time = now_sec() + (double) CGlobalInfo::m_options.m_arp_ref_per;
         m_p_queue.push(node);
     }
+
+    node = new CGenNode();
+    node->m_type = CGenNode::RX_MSG; /* gratuitous ARP */
+    node->m_time = now_sec() + (double) RX_MSG_POOL_SEC;
+    m_p_queue.push(node);
 
     if (activate_watchdog) {
         m_monitor.create("STF RX CORE", 1);
@@ -882,6 +942,16 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             m_p_queue.push(node);
             m_cpu_dp_u.commit1();
             break;
+
+        case CGenNode::RX_MSG:
+            m_cpu_dp_u.start_work1();
+            handle_rx_msgs();
+            m_p_queue.pop();
+            node->m_time += RX_MSG_POOL_SEC;
+            m_p_queue.push(node);
+            m_cpu_dp_u.commit1();
+            break;
+
         }
 
         /* this will be called every sync which is 1msec */
