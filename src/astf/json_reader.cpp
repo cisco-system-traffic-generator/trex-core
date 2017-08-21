@@ -13,22 +13,35 @@
 CJsonData* CJsonData::m_pInstance = NULL;
 
 bool CJsonData::parse_file(std::string file) {
+    static bool parsed = false;
+    if (parsed)
+        return true;
+    else
+        parsed = true;
+
     Json::Reader reader;
     std::ifstream t(file);
+    if (!  t.is_open()) {
+        std::cerr << "Failed openeing json file " << file << std::endl;
+        exit(1);
+    }
     std::string m_msg((std::istreambuf_iterator<char>(t)),
                                     std::istreambuf_iterator<char>());
     bool rc = reader.parse(m_msg, m_val, false);
 
     if (!rc) {
-        std::cout << "Failed parsing json file " << file << std::endl;
+        std::cerr << "Failed parsing json file " << file << std::endl;
         return false;
     }
 
-    convert_bufs();
-    convert_progs();
-
-    m_initiated = true;
+    m_json_initiated = true;
     return true;
+}
+
+void CJsonData::convert_from_json(uint8_t socket_id) {
+    convert_bufs(socket_id);
+    convert_progs(socket_id);
+    m_tcp_data[socket_id].m_init = true;
 }
 
 void CJsonData::dump() {
@@ -115,9 +128,18 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
  * side - 0 - client, 1 - server
  * Return pointer to program
  */
-CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side) {
+CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
     uint16_t program_index;
+
+    printf("get_prog: %d %d %d\n", temp_index, side, socket_id);
+    if (! m_tcp_data[socket_id].is_init()) {
+        std::unique_lock<std::mutex> my_lock(m_mtx[socket_id]);
+        if (! m_tcp_data[socket_id].is_init()) {
+            convert_from_json(socket_id);
+        }
+        my_lock.unlock();
+    }
 
     if (side == 0) {
         temp_str = "client_template";
@@ -130,11 +152,11 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side) {
 
     program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
 
-    return m_tcp_data.m_prog_list[program_index];
+    return m_tcp_data[socket_id].m_prog_list[program_index];
 }
 
 /* Convert list of buffers from json to CMbufBuffer */
-bool CJsonData::convert_bufs() {
+bool CJsonData::convert_bufs(uint8_t socket_id) {
     CMbufBuffer *tcp_buf;
     std::string json_buf;
     uint16_t buf_len;
@@ -148,15 +170,15 @@ bool CJsonData::convert_bufs() {
         json_buf = m_val["buf_list"][buf_index].asString();
         std::string temp_str = base64_decode(json_buf);
         buf_len = temp_str.size();
-        utl_mbuf_buffer_create_and_copy(0,tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len);
-        m_tcp_data.m_buf_list.push_back(tcp_buf);
+        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len);
+        m_tcp_data[socket_id].m_buf_list.push_back(tcp_buf);
     }
 
     return true;
 }
 
 /* Convert list of programs from json to CMbufBuffer */
-bool CJsonData::convert_progs() {
+bool CJsonData::convert_progs(uint8_t socket_id) {
     CTcpAppCmd cmd;
     CTcpAppProgram *prog;
     uint16_t cmd_index;
@@ -177,7 +199,7 @@ bool CJsonData::convert_progs() {
             case tcNO_CMD:
                 break;
             case tcTX_BUFFER:
-                cmd.u.m_tx_cmd.m_buf = m_tcp_data.m_buf_list[get_buf_index(program_index, cmd_index)];
+                cmd.u.m_tx_cmd.m_buf = m_tcp_data[socket_id].m_buf_list[get_buf_index(program_index, cmd_index)];
                 cmd.m_cmd = tcTX_BUFFER;
                 prog->add_cmd(cmd);
                 break;
@@ -198,15 +220,16 @@ bool CJsonData::convert_progs() {
             cmd_index++;
         } while (cmd_type != tcNO_CMD);
 
-        m_tcp_data.m_prog_list.push_back(prog);
+        m_tcp_data[socket_id].m_prog_list.push_back(prog);
     }
 
     return true;
 }
 
 void CJsonData::clear() {
-    m_tcp_data.free();
-    m_initiated = false;
+    m_tcp_data[0].free();
+    m_tcp_data[1].free();
+    m_json_initiated = false;
 }
 
 void CTcpData::dump(FILE *fd) {
@@ -228,4 +251,5 @@ void CTcpData::free() {
         delete m_prog_list[i];
     }
     m_prog_list.clear();
+    m_init = false;
 }

@@ -660,9 +660,9 @@ int CClientServerTcp::fill_from_file() {
 
     uint16_t temp_index = 0; //??? need to support multiple templates
     // client program
-    prog_c = CJsonData::instance()->get_prog(temp_index, 0);
+    prog_c = CJsonData::instance()->get_prog(temp_index, 0, 0);
     // server program
-    prog_s = CJsonData::instance()->get_prog(temp_index, 1);
+    prog_s = CJsonData::instance()->get_prog(temp_index, 1, 0);
 
     if (m_debug) {
       prog_c->Dump(stdout);

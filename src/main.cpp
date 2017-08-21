@@ -39,7 +39,7 @@ using namespace std;
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
-       OPT_SL, OPT_NSF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
+       OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
        OPT_DRY_RUN, OPT_DURATION};
 
 
@@ -79,7 +79,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
-    { OPT_NSF,                "--tcp_cfg",    SO_REQ_SEP   },
+    { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
@@ -164,7 +164,7 @@ static int parse_options(int argc,
                 params["type"] = OPT_TYPE_SL;
                 break;
 
-            case OPT_NSF:
+            case OPT_ASF:
                 params["type"] = OPT_TYPE_ASF;
                 po->astf_cfg_file = args.OptionArg();
                 break;
