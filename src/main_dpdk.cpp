@@ -6132,11 +6132,44 @@ int main_test(int argc , char * argv[]){
         return (-1);
     }
 
-    if ( get_is_tcp_mode() && 
-         (CGlobalInfo::m_options.preview.getCores() >1) ){
-        printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
-        printf("we are working to solve this very soon  \n");
-        return (-1);
+    if ( get_is_tcp_mode() ){
+        CParserOption * po=&CGlobalInfo::m_options;
+
+        if ( po->preview.getCores() >1 ) {
+           printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
+           printf("we are working to solve this very soon  \n");
+           return (-1);
+        }
+
+        if ( po->preview.get_is_rx_check_enable() ){
+           printf("ERROR advanced stateful does not require --rx-check mode, it is done by default, please remove this switch\n");
+           return (-1);
+        }
+
+        if ( po->m_learn_mode !=0 ){
+           printf("ERROR advanced stateful does not require --learn/--learn-mode, it is done by default, please remove this switch\n");
+           return (-1);
+        }
+
+        if ( po->preview.getClientServerFlip() ){
+            printf("ERROR advanced stateful does not support --flip option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->preview.getClientServerFlowFlip() ){
+            printf("ERROR advanced stateful does not support -p option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->preview.getClientServerFlowFlipAddr() ){
+            printf("ERROR advanced stateful does not support -e option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->m_active_flows ){
+            printf("ERROR advanced stateful does not support --active-flows option, please remove this switch  \n");
+            return (-1);
+        }
     }
 
     /* set affinity to the master core as default */

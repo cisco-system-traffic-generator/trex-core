@@ -63,6 +63,18 @@ class _CPcapReader_help(object):
         new_list.append(prev_pkt)
         self._pkts = new_list
 
+    # return -1 if packets in given cap_reader equals to ones in self.
+    # If not equal, return number of packets which differs
+    def is_same_pkts(self, cap_reader):
+        if len(self._pkts) != len(cap_reader._pkts):
+            return -2
+
+        for i in range(0, len(self._pkts)):
+            if self._pkts[i] == cap_reader._pkts[i]:
+                return i
+
+        return -1
+
     def dump(self):
         print("{0}:{1} --> {2}:{3}".format(self.c_ip, self.s_port, self.s_ip, self.d_port))
         if self.c_tcp_win != -1:
@@ -215,6 +227,9 @@ class CPcapReader(object):
 
     def dump(self):
         return self.obj.dump()
+
+    def is_same_pkts(self, cap_reader):
+        return self.obj.is_same_pkts(cap_reader.obj)
 
     def analyze(self):
         if not self.analyzed:

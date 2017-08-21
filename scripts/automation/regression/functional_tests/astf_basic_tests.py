@@ -1,7 +1,70 @@
+import os
 from trex_astf_lib.trex_astf_client import *   # noqa: ignore=F403
 from trex_astf_lib.trex_astf_exceptions import *   # noqa: ignore=F403
+from trex_astf_lib.cap_handling import *   # noqa: ignore=F403
+from trex_astf_lib.sim import main as sim_main
 import functional_general_test
 from nose.plugins.attrib import attr
+
+
+@attr('run_on_trex')
+class CNstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
+    def setUp(self):
+        sys.path.append("../../astf")
+
+    def compare_l7(self, cap1, cap2):
+        cap1_reader = CPcapReader(cap1)
+        cap1_reader.analyze()
+        cap1_reader.condense_pkt_data()
+        cap2_reader = CPcapReader(cap2)
+        cap2_reader.analyze()
+        cap2_reader.condense_pkt_data()
+
+        num = cap1_reader.is_same_pkts(cap2_reader)
+        if num != -1:
+            print("Error comparing cap files. pkt number {0} is different".format(num))
+            print("{0} is:".format(cap1))
+            cap1_reader.dump()
+            print("{0} is:".format(cap2))
+            cap1_reader.dump()
+            sys.exit(1)
+
+    def handle_one_cap(self, cap_file_name):
+        profile = """
+from trex_astf_lib.api import ASTFProfile, ASTFCapInfo
+class Prof1():
+    def __init__(self):
+        pass
+    def get_profile(self):
+        return ASTFProfile(cap_list=[ASTFCapInfo(file="%s")])
+
+def register():
+    return Prof1()
+"""
+        prof_file_name = "../../astf/" + cap_file_name.split('/')[-1].split('.')[0]
+        p = profile % ("../" + cap_file_name)
+        f = open(prof_file_name+".py", 'w')
+        f.write(p)
+        f.close()
+
+        sim_main(args=["-p", "../..", "-f", prof_file_name+".py", "-o", "../../exp/astf_test_out"])
+        self.compare_l7("../../" + cap_file_name, "../../exp/astf_test_out_c.pcap")
+        self.compare_l7("../../" + cap_file_name, "../../exp/astf_test_out_s.pcap")
+        os.remove(prof_file_name + ".py")
+        try:
+            os.remove(prof_file_name + ".pyc")
+        except FileNotFoundError:
+            pass
+        os.remove("../../exp/astf_test_out_c.pcap")
+        os.remove("../../exp/astf_test_out_s.pcap")
+
+    def check_one_cap(self, file):
+        self.handle_one_cap(file)
+
+    def test_caps(self):
+        files = ["avl/delay_10_rtp_160k_1.pcap", "avl/delay_10_http_browsing_0.pcap", "cap2/Video_Calls.pcap"]
+        for file in files:
+            self.check_one_cap(file)
 
 
 @attr('run_on_trex')
