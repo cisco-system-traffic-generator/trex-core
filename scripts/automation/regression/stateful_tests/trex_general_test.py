@@ -217,24 +217,10 @@ class CTRexGeneral_Test(unittest.TestCase):
         trex_drop_precent = trex_drops *100.0/trex_tx_pckt;
 
         # report benchmarks
-        if self.elk:
+        if self.elk : 
             elk_obj = self.get_elk_obj()
             print("Reporting to elk")
-
-            if trex_res.get_min_latency() !=None :
-               __min = min(trex_res.get_min_latency().values())
-               __max = max(trex_res.get_max_latency().values())
-               __avr = max(trex_res.get_avg_latency().values())
-               __jitter = max(trex_res.get_jitter_latency().values())
-               __max_win =  max(trex_res.get_avg_window_latency ().values())
-            else:
-                __min = 0
-                __max = 0
-                __avr = 0
-                __jitter = 0
-                __max_win = 0
-
-            elk_obj['test']={ "name" : self.get_name(),
+            obj ={ "name" : self.get_name(),
                         "type"  : "stateful",
                         "cores" : total_dp_cores,
                         "cpu%"  : cpu_util,
@@ -245,14 +231,23 @@ class CTRexGeneral_Test(unittest.TestCase):
                         "gbps" :  (trex_tx_gbps),
                         "kcps"  : (trex_res.get_last_value("trex-global.data.m_tx_cps")/1000.0),
                         "avg-pktsize" : round((1000.0*trex_tx_gbps/(8.0*trex_tx_mpps))),
-                        "latecny" : { "min" : __min,
-                                      "max" : __max,
-                                      "avr" : __avr,
-                                      "jitter" : __jitter,
-                                      "max-win" : __max_win,
-                                      "drop-rate" :trex_drop_precent
-                                     }
                 };
+
+            if trex_res.get_is_latency_exists():
+                __min = min(trex_res.get_min_latency().values())
+                __max = max(trex_res.get_max_latency().values())
+                __avr = max(trex_res.get_avg_latency().values())
+                __jitter = max(trex_res.get_jitter_latency().values())
+                __max_win =  max(trex_res.get_avg_window_latency ().values())
+
+                obj["latecny"]= { "min" : __min,
+                                  "max" : __max,
+                                  "avr" : __avr,
+                                  "jitter" : __jitter,
+                                  "max-win" : __max_win,
+                                  "drop-rate" :trex_drop_precent
+                                 };
+            elk_obj['test'] =obj;
             pprint.pprint(elk_obj['test']);
             self.elk.perf.push_data(elk_obj)
 

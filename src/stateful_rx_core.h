@@ -395,6 +395,11 @@ public:
     void add_grat_arp_src(COneIPv4Info &ip);
 
 private:
+    void handle_rx_msgs();
+    void handle_rx_one_queue(uint8_t ti,CNodeRing * r);
+    void handle_pkt_msg(uint8_t thread_id, 
+                        CGenNodeLatencyPktInfo * msg);
+
     void  tickle();
     void  send_pkt_all_ports();
     double grat_arp_timeout();

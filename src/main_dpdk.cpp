@@ -2223,7 +2223,7 @@ public:
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
-    bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
+    bool redirect_to_rx_core(pkt_dir_t   dir,rte_mbuf_t * m);
 
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
 
@@ -2675,6 +2675,38 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
     }
 
 }
+
+bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
+                                     rte_mbuf_t * m){
+    bool sent=false;
+
+    CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
+    if ( node ) {
+        node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
+        node->m_dir      = dir;
+        node->m_latency_offset = 0xdead;
+        node->m_pkt      = m;
+        if ( m_ring_to_rx->Enqueue((CGenNode*)node)==0 ){
+            sent=true;
+        }else{
+            rte_pktmbuf_free(m);
+            CGlobalInfo::free_node((CGenNode *)node);
+        }
+
+#ifdef LATENCY_QUEUE_TRACE_
+        printf("rx to cp --\n");
+        rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
+#endif
+    }
+
+    if (sent==false) {
+        /* inc counter */
+        CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+        lp_stats->m_tx_redirect_error++;
+    }
+    return (sent);
+}
+
 
 int CCoreEthIF::send_node(CGenNode * node) {
 
@@ -4377,7 +4409,7 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
         CVirtualIFPerSideStats stats;
         erf_vif->GetCoreCounters(&stats);
         sw_pkt_out     += stats.m_tx_pkt;
-        sw_pkt_out_err += stats.m_tx_drop +stats.m_tx_queue_full +stats.m_tx_alloc_error ;
+        sw_pkt_out_err += stats.m_tx_drop +stats.m_tx_queue_full +stats.m_tx_alloc_error+stats.m_tx_redirect_error ;
         sw_pkt_out_bytes +=stats.m_tx_bytes;
     }
 

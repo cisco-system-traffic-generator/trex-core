@@ -92,6 +92,13 @@ int CTcpCtxDebug::on_flow_close(CTcpPerThreadCtx *ctx,
 }
 
 
+int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
+                                 rte_mbuf_t *m){
+    assert(0);
+    return(0);
+}
+
+
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct tcpcb * tp,
                         rte_mbuf_t *m){
