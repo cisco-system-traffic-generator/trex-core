@@ -8,6 +8,8 @@ from .trex_stl_service_fast_parser import FastParser
 
 import struct
 
+import pprint
+
 class DHCPParser(FastParser):
     
     # message types
@@ -15,6 +17,8 @@ class DHCPParser(FastParser):
     OFFER    = 2
     ACK      = 5
     NACK     = 6
+    RELEASE  = 7
+    
     
     def __init__ (self):
         base_pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0) \
@@ -22,11 +26,18 @@ class DHCPParser(FastParser):
 
         FastParser.__init__(self, base_pkt)
 
-        self.add_field('Ethernet.dst', 'dst')
-        self.add_field('Ethernet.dst', 'src')
+        self.add_field('Ethernet.dst', 'dstmac')
+        self.add_field('Ethernet.src', 'srcmac')
+        
+        self.add_field('IP.ihl',      'ihl', fmt = "!B")
+        self.add_field('IP.dst',      'dstip')
+        self.add_field('IP.src',      'srcip')
+        self.add_field('IP.chksum',   'chksum')
+        
         self.add_field('BOOTP.xid', 'xid')
         self.add_field('BOOTP.chaddr', 'chaddr')
-        self.add_field('BOOTP.yiaddr', 'yiaddr', fmt = '!I')
+        self.add_field('BOOTP.ciaddr', 'ciaddr')
+        self.add_field('BOOTP.yiaddr', 'yiaddr')
         self.add_field('DHCP options.options', 'options', getter = self.get_options, setter = self.set_options)
 
         msg_types = [{'id': 1, 'name': 'discover'},
@@ -34,7 +45,7 @@ class DHCPParser(FastParser):
                      {'id': 3, 'name': 'request'},
                     ]
         
-
+        
         self.msg_types = {}
         
         for t in msg_types:
@@ -172,4 +183,29 @@ class DHCPParser(FastParser):
         return obj.raw()
         
         
+
+    def release (self, xid, client_mac, client_ip, server_mac, server_ip):
+        '''
+            generate a release request packet
+        '''
+        
+        # generate a new packet
+        obj = self.clone()
+        
+        obj.dstmac = server_mac
+        obj.srcmac = client_mac
+        
+        obj.dstip  = server_ip
+        obj.srcip  = client_ip
+        
+        obj.fix_chksum()
+        
+        obj.ciaddr = client_ip
+        obj.chaddr = client_mac
+        obj.xid    = xid
+        
+        obj.options = {'message-type': 7, 'server_id': server_ip}
+        
+        return obj.raw()
+ 
 

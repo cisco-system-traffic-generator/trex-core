@@ -31,7 +31,11 @@ parser = DHCPParser()
 
            
 def ipv4_num_to_str (num):
-    return socket.inet_ntoa(struct.pack('!L', num))
+    return socket.inet_ntoa(struct.pack('!I', num))
+    
+    
+def ipv4_str_to_num (ipv4_str):
+    return struct.unpack("!I", socket.inet_aton(ipv4_str))[0]
     
             
 class STLServiceFilterDHCP(STLServiceFilter):
@@ -213,10 +217,15 @@ class STLServiceDHCP(STLService):
         '''
         self.log('DHCP: {0} ---> RELEASING'.format(self.mac))
         
-        yield pipe.async_tx_pkt(Ether(dst=self.record.server_mac)/IP(src=self.record.client_ip,dst=self.record.server_ip)/UDP(sport=68,dport=67) \
-                                /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
-                                /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
+        release_pkt = parser.release(self.xid,
+                                     self.record.client_mac,
+                                     ipv4_str_to_num(self.record.client_ip),
+                                     self.record.server_mac,
+                                     ipv4_str_to_num(self.record.server_ip))
         
+        yield pipe.async_tx_pkt(release_pkt)
+        
+        # clear the record
         self.record = None
         
 
@@ -231,8 +240,8 @@ class STLServiceDHCP(STLService):
             
         def __init__ (self, offer):
             
-            self.server_mac = offer.src
-            self.client_mac = offer.dst
+            self.server_mac = offer.srcmac
+            self.client_mac = offer.dstmac
             
             options = offer.options
             

@@ -48,6 +48,7 @@ class FastParser(object):
         '''
         
         info = self.__get_field_info(fullname)
+            
         info['name']     = name
         info['fullname'] = fullname
         
@@ -62,7 +63,13 @@ class FastParser(object):
         # override format if specified by user
         if fmt is not None:
             info['fmt'] = fmt
-        
+            
+        elif info['fmt'] == '!4s':
+            info['fmt'] = '!I'
+            
+        elif info['fmt'] == '!2s':
+            info['fmt'] = '!H'
+
         # use custom functions if those were defined
         info['getter'] = ParserInstance.def_getter if not getter else getter
         info['setter'] = ParserInstance.def_setter if not setter else setter
@@ -104,7 +111,6 @@ class FastParser(object):
 
         raise ValueError('unknown field: {0}'.format(field))
         
-
 
 class ParserInstance(object):
     '''
@@ -160,6 +166,25 @@ class ParserInstance(object):
         Ether(self.pkt_bytes).show2()
         
                                         
+    def fix_chksum (self):
+        if not 'ihl' in self.fields:
+            raise ParserError("'ihl' field must be registered under the parser for checksum fix")
+            
+        ihl = self.ihl & 0xf
+        ip_start = self.fields['ihl']['offset']
+        
+        # clear the current checksum
+        self.chksum = 0
+        
+        # init accumulator
+        sum = 0
+        
+        for i in range(0, ihl * 4, 2):
+            word = struct.unpack_from("!H", self.pkt_bytes, offset = ip_start + i)[0]
+            sum += word
+        
+        self.chksum = (~((sum & 0xffff) + (sum >> 16))) & 0xffff
+        
     
     @staticmethod
     def def_getter (pkt_bytes, info):
@@ -188,6 +213,6 @@ class ParserInstance(object):
         if len(pkt_bytes) < min_size:
             raise ParserError("packet length is '{0}' but setting '{1}' requires at least '{2}' bytes".format(len(pkt_bytes), info['name'], min_size))
 
-        packed = struct.pack(info['fmt'], value)    
+        packed = struct.pack(info['fmt'], value)
         return pkt_bytes[:info['offset']] + packed + pkt_bytes[info['offset'] + len(packed):]
 

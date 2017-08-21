@@ -26,7 +26,6 @@
 #include "common/base64.h"
 
 #include "trex_stateless_pkt.h"
-#include "trex_stateless_rx_tx.h"
 #include "trex_stateless_rx_feature_api.h"
 
 class CPortLatencyHWBase;
@@ -299,15 +298,6 @@ public:
     void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
   
     /**
-     * sends packets through the RX core TX queue
-     * returns how many packets were sent successfully 
-     *  
-     * this is a non-blocking function. 
-     * pkts will be defered to a queue 
-     */
-    uint32_t tx_pkts(const std::vector<std::string> &pkts, uint32_t ipg_usec);
-    
-    /**
      * TX packets immediately (no queue)
      *  
      * returns true in case packets was transmitted succesfully 
@@ -380,8 +370,6 @@ private:
     CRXCoreIgnoreStat            m_ign_stats_prev;
     
     RXFeatureAPI                 m_feature_api;
-    
-    TXQueue                      m_tx_queue;
 };
 
 

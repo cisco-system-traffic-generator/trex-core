@@ -26,7 +26,7 @@
 #include <queue>
 #include "os_time.h"
 
-class RXFeatureAPI;
+class CRxCoreStateless;
 
 /**
  * TX packet - an object to hold a packet to be sent
@@ -38,8 +38,9 @@ public:
      * create a new packet 
      *  
      */
-    TXPacket(const std::string &raw, double ts_sec) : m_raw(raw) {
-        m_time = ts_sec;
+    TXPacket(int port_id, const std::string &raw, double ts_sec) : m_raw(raw) {
+        m_port_id = port_id;
+        m_time    = ts_sec;
     }
     
     /**
@@ -47,6 +48,13 @@ public:
      */
     double get_time() const {
         return m_time;
+    }
+    
+    /**
+     * returns the port id on which the packet should be sent
+     */
+    int get_port_id() const {
+        return m_port_id;
     }
     
     /**
@@ -61,6 +69,7 @@ private:
     
     const std::string   m_raw;
     double              m_time;
+    int                 m_port_id;
 };
 
 
@@ -85,14 +94,14 @@ class TXQueue {
 public:
 
     TXQueue() {
-        m_api       = NULL;
+        m_rx = NULL;
         m_capacity  = 0;
     }
     
     /**
      * create a TX queue
      */
-    void create(RXFeatureAPI *api, uint32_t capacity);
+    void create(CRxCoreStateless *rx, uint32_t capacity);
     
     /**
      * release all resources
@@ -105,7 +114,7 @@ public:
      * raw    - a string of the packet 
      * ts_sec - when to send the packet ( in respect to now_sec() )
      */
-    bool push(const std::string &raw, double ts_sec);
+    bool push(int port_id, const std::string &raw, double ts_sec);
     
     /**
      * return true if the queue is full
@@ -136,7 +145,7 @@ private:
     
     std::priority_queue<TXPacket *, std::vector<TXPacket *>, TXPacketCompare> m_heap;
     
-    RXFeatureAPI            *m_api;
+    CRxCoreStateless        *m_rx;
     uint32_t                 m_capacity;
 };
 

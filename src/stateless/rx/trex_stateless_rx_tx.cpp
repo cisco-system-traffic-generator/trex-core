@@ -20,19 +20,17 @@
 */
 
 #include "trex_stateless_rx_tx.h"
-#include "trex_stateless_rx_feature_api.h"
+#include "trex_stateless_rx_core.h"
 
 /**
  * create a new queue with a capacity
  * 
  * @author imarom (8/20/2017)
- * 
- * @param api 
- * @param capacity 
+ *  
  */
 void
-TXQueue::create(RXFeatureAPI *api, uint32_t capacity) {
-    m_api        = api;
+TXQueue::create(CRxCoreStateless *rx, uint32_t capacity) {
+    m_rx         = rx;
     m_capacity   = capacity;
 }
 
@@ -57,7 +55,7 @@ TXQueue::destroy() {
  * if capacity is met - return false o.w true
  */
 bool
-TXQueue::push(const std::string &raw, double ts_sec) {
+TXQueue::push(int port_id, const std::string &raw, double ts_sec) {
     
     /* do we have space ? */
     if (is_full()) {
@@ -65,7 +63,7 @@ TXQueue::push(const std::string &raw, double ts_sec) {
     }
     
     /* add the packet to the heap */
-    m_heap.push(new TXPacket(raw, ts_sec));
+    m_heap.push(new TXPacket(port_id, raw, ts_sec));
     
     return true;
 }
@@ -88,7 +86,7 @@ TXQueue::_tick() {
             m_heap.pop();
             
             /* send the packet */
-            m_api->tx_pkt(pkt->get_raw());
+            m_rx->tx_pkt(pkt->get_port_id(), pkt->get_raw());
             delete pkt;
             
             pkts_sent++;
