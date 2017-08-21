@@ -197,6 +197,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'rx/trex_stateless_rx_core.cpp',
                                     'rx/trex_stateless_rx_port_mngr.cpp',
                                     'rx/trex_stateless_capture.cpp',
+                                    'rx/trex_stateless_rx_tx.cpp',
                                     'common/trex_stateless_pkt.cpp'
                                     ])
 # RPC code
