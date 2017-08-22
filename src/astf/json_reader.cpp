@@ -12,6 +12,50 @@
 // make the class singelton
 CJsonData* CJsonData::m_pInstance = NULL;
 
+CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &params) {
+    if (m_vec.size() == 0) {
+        assoc_map_it_t it = m_map.find(params);
+
+        if (it == m_map.end()) {
+            return NULL;
+        } else {
+            return it->second;
+        }
+    }
+
+    for (int i = 0; i < m_vec.size(); i++) {
+        if (params == m_vec[i].m_params)
+            return m_vec[i].m_prog;
+    }
+
+    return NULL;
+}
+
+void CTcpDataAssocTranslation::dump(FILE *fd) {
+    if (m_vec.size() != 0) {
+        fprintf(fd, "CTcpDataAssocTranslation - Dumping vector:\n");
+        for (int i = 0; i < m_vec.size(); i++) {
+            fprintf(fd, "  port %d mapped to %p\n", m_vec[i].m_params.m_port, m_vec[i].m_prog);
+        }
+    } else {
+        fprintf(fd, "CTcpDataAssocTranslation - Dumping map:\n");
+        //        std::map<>::const_iterator
+        assoc_map_it_t it;
+        for (it = m_map.begin(); it != m_map.end(); it++) {
+            fprintf(fd, "  port %d mapped to %p\n", it->first.m_port, it->second);
+        }
+    }
+}
+
+void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
+    CTcpDataAssocTransHelp trans_help(params, prog);
+    m_vec.push_back(trans_help);
+}
+
+void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
+    m_map.insert(std::pair<CTcpDataAssocParams, CTcpAppProgram *>(params, prog));
+}
+
 bool CJsonData::parse_file(std::string file) {
     static bool parsed = false;
     if (parsed)
@@ -38,10 +82,16 @@ bool CJsonData::parse_file(std::string file) {
     return true;
 }
 
-void CJsonData::convert_from_json(uint8_t socket_id) {
-    convert_bufs(socket_id);
-    convert_progs(socket_id);
-    m_tcp_data[socket_id].m_init = true;
+void CJsonData::convert_from_json(uint8_t socket_id, uint8_t level) {
+    if (level == 1) {
+        convert_bufs(socket_id);
+        convert_progs(socket_id);
+        m_tcp_data[socket_id].m_init = 1;
+    }
+    if (level == 2) {
+        build_assoc_translation(socket_id);
+        m_tcp_data[socket_id].m_init = 2;
+    }
 }
 
 void CJsonData::dump() {
@@ -117,11 +167,22 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
         assert(0);
     }
 
-    assert (cmd["name"] == "rx");
+     assert (cmd["name"] == "rx");
 
     return cmd["min_bytes"].asInt();
 }
 
+void CJsonData::verify_init(uint16_t socket_id, uint16_t level) {
+    if (! m_tcp_data[socket_id].is_init(level)) {
+        std::unique_lock<std::mutex> my_lock(m_mtx[socket_id]);
+        for (int i = 1; i <= level; i++) {
+            if (! m_tcp_data[socket_id].is_init(i)) {
+                convert_from_json(socket_id, i);
+            }
+        }
+        my_lock.unlock();
+    }
+}
 /*
  * Get program associated with template index and side
  * temp_index - template index
@@ -132,14 +193,7 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socke
     std::string temp_str;
     uint16_t program_index;
 
-    printf("get_prog: %d %d %d\n", temp_index, side, socket_id);
-    if (! m_tcp_data[socket_id].is_init()) {
-        std::unique_lock<std::mutex> my_lock(m_mtx[socket_id]);
-        if (! m_tcp_data[socket_id].is_init()) {
-            convert_from_json(socket_id);
-        }
-        my_lock.unlock();
-    }
+    verify_init(socket_id, 1);
 
     if (side == 0) {
         temp_str = "client_template";
@@ -153,6 +207,38 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socke
     program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
 
     return m_tcp_data[socket_id].m_prog_list[program_index];
+}
+
+CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
+    CTcpDataAssocParams params(port);
+
+    verify_init(socket_id, 2);
+
+    return m_tcp_data[socket_id].m_assoc_trans.get_prog(params);
+}
+
+bool CJsonData::build_assoc_translation(uint8_t socket_id) {
+    verify_init(socket_id, 1);
+    bool is_hash_needed = false;
+
+    if (m_val["templates"].size() > 10) {
+        is_hash_needed = true;
+    }
+
+    for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
+        uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
+        CTcpDataAssocParams tcp_params(port);
+        CTcpAppProgram *prog_p = get_prog(index, 1, socket_id);
+        assert(prog_p);
+
+        if (is_hash_needed) {
+            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p);
+        } else {
+            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p);
+        }
+    }
+
+    return true;
 }
 
 /* Convert list of buffers from json to CMbufBuffer */
@@ -251,5 +337,7 @@ void CTcpData::free() {
         delete m_prog_list[i];
     }
     m_prog_list.clear();
+    m_assoc_trans.clear();
+
     m_init = false;
 }
