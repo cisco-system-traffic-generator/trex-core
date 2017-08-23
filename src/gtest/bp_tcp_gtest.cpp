@@ -1627,6 +1627,46 @@ TEST_F(gt_tcp, tst51) {
 }
 
 
+#include "astf/astf_template_db.h"
+
+TEST_F(gt_tcp, tst52) {
+    CTupleGeneratorSmart  g_gen;
+    ClientCfgDB g_dummy;
+
+    g_gen.Create(0,0);
+    g_gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000, g_dummy, 0, 0);
+    g_gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,false);
+
+    CAstfPerTemplateRO template_ro;
+    CAstfPerTemplateRO *lp=&template_ro;
+
+    template_ro.m_dual_mask=0x01000000;
+
+    lp->m_client_pool_idx=0;
+    lp->m_server_pool_idx=0;
+    lp->m_one_app_server =false;
+    lp->m_server_addr =0;
+    lp->m_dual_mask=0x01000000;
+    lp->m_w=1;
+    lp->m_k_cps=1;
+    lp->m_destination_port=80;
+
+    CAstfPerTemplateRW t;
+    t.Create(&g_gen,0,0,lp,0);
+    CTupleBase tuple;
+    t.m_tuple_gen.GenerateTuple(tuple);
+    tuple.setServerPort(t.get_dest_port()) ;
+
+
+    printf(" %x %x %x %x \n",tuple.getClient(),
+                            tuple.getServer(),
+                            tuple.getClientPort(),
+                            tuple.getServerPort());
+
+
+    g_gen.Delete();
+}
+
 
 
 

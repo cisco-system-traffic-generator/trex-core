@@ -64,7 +64,7 @@ limitations under the License.
 #include "h_timer.h"
 #include "tw_cfg.h"
 #include "utl_dbl_human.h"
-
+#include "utl_policer.h"
 
 
 #include <trex_stateless_dp_core.h>
@@ -2411,45 +2411,6 @@ public:
 };
 
 
-class CPolicer {
-
-public:
-
-    CPolicer(){
-        ClearMeter();
-    }
-
-    void ClearMeter(){
-        m_cir=0.0;
-        m_bucket_size=1.0;
-        m_level=0.0;
-        m_last_time=0.0;
-    }
-
-    bool update(double dsize,dsec_t now_sec);
-
-    void set_cir(double cir){
-        BP_ASSERT(cir>=0.0);
-        m_cir=cir;
-    }
-    void set_level(double level){
-        m_level =level;
-    }
-
-    void set_bucket_size(double bucket){
-        m_bucket_size =bucket;
-    }
-
-private:
-
-    double                      m_cir;
-
-    double                      m_bucket_size;
-
-    double                      m_level;
-
-    double                      m_last_time;
-};
 
 class CFlowKey {
 public:
