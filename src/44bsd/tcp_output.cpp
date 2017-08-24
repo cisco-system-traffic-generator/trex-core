@@ -116,20 +116,31 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
 
 
         }else{
-            /* TBD fix me IPV6 does not work */
             uint16_t tlen=tcp_h_pyld;
             m->l2_len = tp->offset_ip;
             m->l3_len = tp->offset_tcp-tp->offset_ip;
             m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
-            IPv6Header * Ipv6=(IPv6Header *)(p+tp->offset_ip);
-            Ipv6->setPayloadLen(tlen);
+            IPv6Header * ipv6=(IPv6Header *)(p+tp->offset_ip);
             TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
-            /* must be before checksum calculation */
-            if ( tp->is_tso() && (dlen>tp->t_maxseg)){
-                m->ol_flags |=PKT_TX_TCP_SEG; 
-                m->tso_segsz = tp->t_maxseg;
+
+            bool tso_done=false;
+            if ( tp->is_tso() ) {
+                uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
+                if ( dlen>seg_size ){
+                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->tso_segsz = seg_size;
+                    m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
+                    tso_done=true;
+                }
             }
-            tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
+            if (tso_done){
+                /* in case of TSO the len is auto calculated */
+                ipv6->setPayloadLen(0);
+                tcp->setChecksumRaw(tp->l4_pseudo_checksum);
+            }else{
+                ipv6->setPayloadLen(tlen);
+                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen)));
+            }
         }
     }else{
         if (!tp->is_ipv6){

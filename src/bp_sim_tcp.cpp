@@ -269,6 +269,8 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
 #endif
     }
 
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable();
+
     /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
                                                  tuple.getClient(),
@@ -276,7 +278,7 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
                                                  tuple.getClientPort(),
                                                  tuple.getServerPort(),
                                                  vlan,
-                                                 false);
+                                                 is_ipv6);
     if (c_flow == (CTcpFlow *)0) {
         return;
     }
@@ -294,7 +296,7 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
     c_tuple.set_ip(tuple.getClient());
     c_tuple.set_port(tuple.getClientPort());
     c_tuple.set_proto(6);
-    c_tuple.set_ipv4(true);
+    c_tuple.set_ipv4(is_ipv6?false:true);
 
     if (!m_c_tcp->m_ft.insert_new_flow(c_flow,c_tuple)){
         /* need to free the tuple */
