@@ -496,6 +496,8 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
                  'drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  'drivers/net/vmxnet3/vmxnet3_rxtx.c',
+                 'drivers/net/ntacc/filter_ntacc.c',
+                 'drivers/net/ntacc/rte_eth_ntacc.c',
                  'lib/librte_cfgfile/rte_cfgfile.c',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
@@ -624,6 +626,8 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                '-I/opt/napatech3/include',
+                '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
                ]
 
 common_flags_new = common_flags + [
@@ -684,6 +688,7 @@ includes_path =''' ../src/pal/linux_dpdk/
 ../src/dpdk/drivers/net/ixgbe/base/
 ../src/dpdk/drivers/net/mlx4/
 ../src/dpdk/drivers/net/mlx5/
+../src/dpdk/drivers/net/ntacc/
 ../src/dpdk/drivers/net/mpipe/
 ../src/dpdk/drivers/net/null/
 ../src/dpdk/drivers/net/pcap/
@@ -742,6 +747,7 @@ dpdk_includes_path =''' ../src/
 ../src/dpdk/drivers/net/ixgbe/base/
 ../src/dpdk/drivers/net/mlx4/
 ../src/dpdk/drivers/net/mlx5/
+../src/dpdk/drivers/net/ntacc/
 ../src/dpdk/drivers/net/mpipe/
 ../src/dpdk/drivers/net/null/
 ../src/dpdk/drivers/net/pcap/
