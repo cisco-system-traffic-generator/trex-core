@@ -531,11 +531,13 @@ public:
 static inline uint16_t fast_csum(const void *iph, unsigned int ihl) {
     const uint16_t *ipv4 = (const uint16_t *)iph;
 
-    int sum = 0;
+    uint32_t sum = 0;
     for (int i = 0; i < (ihl >> 1); i++) {
         sum += ipv4[i];
     }
 
+    /* two folds are required */
+    sum = (sum & 0xffff) + (sum >> 16);
     sum = (sum & 0xffff) + (sum >> 16);
 
     return (uint16_t)(~sum);
