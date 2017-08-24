@@ -143,7 +143,6 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         }
 
         l3_pkt_len = ipv4->getTotalLength() + lpf->m_l3_offset;
-
     }else{
         lpf->m_ipv4      =false;
         lpf->m_l3_offset = (uintptr_t)parser.m_ipv6 - (uintptr_t)p;
@@ -151,6 +150,7 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         IPv6Header *   ipv6= parser.m_ipv6;
         TCPHeader    * lpTcp = (TCPHeader *)parser.m_l4;
 
+        
         if ( m_client_side ) {
             tuple.set_ip(ipv6->getDestIpv6LSB());
             tuple.set_port(lpTcp->getDestPort());
@@ -158,9 +158,8 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
             tuple.set_ip(ipv6->getSourceIpv6LSB());
             tuple.set_port(lpTcp->getSourcePort());
         }
-        /* TBD need to find the last header here */
-
-        l3_pkt_len = ipv6->getPayloadLen();
+        /* TBD need to find the last IPv6 header here */
+        l3_pkt_len = ipv6->getPayloadLen()+ lpf->m_l3_offset + IPV6_HDR_LEN;
     }
 
     lpf->m_proto     =   parser.m_protocol;
@@ -376,8 +375,19 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     /* server with SYN packet, it is OK 
     we need to build the flow and add it to the table */
 
+    /* Patch */
+    uint32_t dest_ip;
+    bool is_ipv6=false;
+    if (parser.m_ipv4){
+        IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;    
+        dest_ip=ipv4->getDestIp();
+    }else{
+        IPv6Header *   ipv6= parser.m_ipv6;
+        dest_ip =ipv6->getDestIpv6LSB();
+        is_ipv6=true;
+    }
 
-    IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;
+
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
@@ -390,12 +400,12 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     /* TBD template port, need to do somthing better  */
     if (lpTcp->getDestPort() != 80) {
         generate_rst_pkt(ctx,
-                         ipv4->getDestIp(),
+                         dest_ip,
                          tuple.get_ip(),
                          lpTcp->getDestPort(),
                          tuple.get_port(),
                          vlan,
-                         false,
+                         is_ipv6,
                          lpTcp);
 
         rte_pktmbuf_free(mbuf);
@@ -405,19 +415,18 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
 
 
     lptflow = ctx->m_ft.alloc_flow(ctx,
-                                   ipv4->getDestIp(),
+                                   dest_ip,
                                    tuple.get_ip(),
                                    lpTcp->getDestPort(),
                                    tuple.get_port(),
                                    vlan,
-                                   false);
+                                   is_ipv6);
 
 
     if (lptflow == 0 ) {
         rte_pktmbuf_free(mbuf);
         return(false);
     }
-
 
     lptflow->server_update_mac_from_packet(pkt);
 

@@ -49,6 +49,8 @@
 #include <common/basic_utils.h>
 #include "h_timer.h"
 #include <stddef.h> 
+#include <common/Network/Packet/IPv6Header.h>
+
            
 
 //extern    struct inpcb *tcp_last_inpcb;
@@ -442,18 +444,17 @@ void tcp_template(struct tcpcb *tp){
     };
 
 
-#if 0
     const uint8_t default_ipv6_header[] = {
         0x00,0x00,0x00,0x01,0x0,0x0,  // Ethr
         0x00,0x00,0x00,0x02,0x0,0x0,
-        0x08,00,
+        0x86,0xdd,
 
 
-        0x45,0x00,0x00,0x00,          //Ipv6
-        0x00,0x00,0x40,0x00,
-        0x7f,0x06,0x00,0x00,
-        0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x00,
+        0x60,0x00,0x00,0x00,          //Ipv6
+        0x00,0x18,0x06,0x40,
+
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, // src IP
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, // dst IP
 
         0x00, 0x00, 0x00, 0x00, // src, dst ports  //TCP
         0x00, 0x00, 0x00, 0x00, 
@@ -461,7 +462,6 @@ void tcp_template(struct tcpcb *tp){
         0x50, 0x00, 0x00, 0x00, // Header size, flags, window size
         0x00, 0x00, 0x00, 0x00 // checksum ,urgent pointer
     };
-#endif
 
     if (!tp->is_ipv6) {
         uint8_t vlan_offset=0;
@@ -502,12 +502,41 @@ void tcp_template(struct tcpcb *tp){
             tp->l4_pseudo_checksum=0;
         }
     }else{
-        /* 
-        calculate the IPv6 pseudo header
-        tp->l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct ipv6_hdr *)Ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM)
+        uint8_t vlan_offset=0;
+        if (tp->vlan){
+            vlan_offset=4;
+        }
 
-        */
-        assert(0);
+        tp->offset_ip  = 14+vlan_offset;
+        tp->offset_tcp = tp->offset_ip + IPV6_HDR_LEN;
+        tp->is_ipv6    = 1;
+
+        uint8_t *p=tp->template_pkt;
+        if (vlan_offset==0){
+            memcpy(p,default_ipv6_header,sizeof(default_ipv6_header) );
+        }else{
+            memcpy(p,default_ipv6_header,sizeof(12));
+            const uint8_t next_vlan[2]={0x81,00};
+            memcpy(p+12,next_vlan,2);
+            VLANHeader vlan_head;
+            vlan_head.setVlanTag(tp->vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x86dd);
+            memcpy(p+14,vlan_head.getPointer(),4);
+            memcpy(p+18,default_ipv6_header+14,sizeof(default_ipv6_header)-14);
+        }
+        /* set default value */
+        IPv6Header *ipv6=(IPv6Header *)(p+tp->offset_ip);
+        ipv6->updateLSBIpv6Dst(tp->dst_ipv4);
+        ipv6->updateLSBIpv6Src(tp->src_ipv4);
+        TCPHeader *lpTCP=(TCPHeader *)(p+tp->offset_tcp);
+        lpTCP->setSourcePort(tp->src_port);
+        lpTCP->setDestPort(tp->dst_port);
+
+        if (tp->m_offload_flags & TCP_OFFLOAD_TX_CHKSUM){
+            tp->l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+        }else{
+            tp->l4_pseudo_checksum=0;
+        }
     }
 }
 

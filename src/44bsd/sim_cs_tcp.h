@@ -213,6 +213,7 @@ public:
     double                  m_rtt_sec;
     double                  m_tx_diff;
     uint16_t                m_vlan;
+    bool                    m_ipv6;
 };
 
 

@@ -830,7 +830,8 @@ void tcp_gen_test(std::string pcap_file,
                   bool debug_mode,
                   cs_sim_test_id_t test_id=tiTEST2,
                   int valn=0, 
-                  cs_sim_mode_t sim_mode=csSIM_NONE){
+                  cs_sim_mode_t sim_mode=csSIM_NONE,
+                  bool is_ipv6=false){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
@@ -841,6 +842,11 @@ void tcp_gen_test(std::string pcap_file,
     if (valn){
         lpt1->m_vlan=valn;
     }
+
+    if (is_ipv6){
+        lpt1->m_ipv6=true;
+    }
+    
     if (sim_mode!=csSIM_NONE){
         lpt1->set_simulate_rst_error(sim_mode);
     }
@@ -952,6 +958,18 @@ TEST_F(gt_tcp, tst30_http_rst_middle1) {
                  tiHTTP,
                  0,
                  csSIM_RST_MIDDLE2
+                 );
+
+}
+
+TEST_F(gt_tcp, tst30_http_ipv6) {
+
+    tcp_gen_test("tcp2_http_ipv6",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_NONE,
+                 true /* IPV6*/
                  );
 
 }
