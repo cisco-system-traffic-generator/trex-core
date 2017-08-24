@@ -29,7 +29,7 @@ def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, 
 # then it load a predefind profile 'IMIX'
 # and attach it to both sides and inject
 # then searches for NDR according to specified values
-def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_duration=20.00, ndr_results=1,
+def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1, iteration_duration=20.00, ndr_results=1,
                        title='Default Title', first_run_duration=20.00, verbose=False,
                        pdr_error=1.00, q_ful_resolution=2.00, latency=True, vm='cached', pkt_size=64,
                        fe_src_start_ip=None,
@@ -67,6 +67,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
 
     # map ports - identify the routes
     table = stl_map_ports(c)
+    # print table
     ports_list = configs['ports']
     if ports_list:
         if len(ports_list) % 2 != 0:
@@ -111,11 +112,14 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=None, pdr=0.1, iteration_du
         c.add_streams(streams, ports=dir_0)
 
     config = ndr.NdrBenchConfig(**configs)
+    # print "config before running: "
+    # pprint(config.core_mask)
+    # pprint(config.ports)
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
         b.find_ndr()
-        if b.config.verbose:
+        if config.verbose:
             b.results.print_final(latency)
             # pprint(run_results)
     except STLError as e:
@@ -152,7 +156,8 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--core-mask',
                         dest='core_mask',
                         help='Determines the allocation of cores per port, see Stateless help for more info',
-                        default=None,
+                        default=0xffffffffffffffff,
+                        nargs='*',
                         type=int)
     parser.add_argument('-p', '--pdr',
                         dest='pdr',

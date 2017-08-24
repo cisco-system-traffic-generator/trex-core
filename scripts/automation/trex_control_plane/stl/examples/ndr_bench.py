@@ -114,7 +114,7 @@ class NdrBenchConfig:
                  iteration_duration=20.00,
                  q_ful_resolution=2.00,
                  first_run_duration=20.00, pdr=0.1, pdr_error=1.0, ndr_results=1, max_iterations=10, latency=True,
-                 core_mask=1, drop_rate_interval=10, verbose=False, **kwargs):
+                 core_mask=0xffffffffffffffff, drop_rate_interval=10, verbose=False, **kwargs):
         self.iteration_duration = iteration_duration
         self.q_ful_resolution = q_ful_resolution
         self.first_run_duration = first_run_duration
@@ -127,6 +127,16 @@ class NdrBenchConfig:
         self.verbose = verbose
         self.ports = list(ports)
         self.transmit_ports = [self.ports[i] for i in range(0, len(self.ports), 2)]
+        if isinstance(core_mask, list):
+            # print "inside ndr bench config"
+            self.transmit_core_masks = [self.core_mask[i] for i in range(0, len(self.ports), 2)]
+            # for x in self.transmit_core_masks:
+            #     print('%x' % x)
+        else:
+            # print "inside ndr bench config"
+            self.transmit_core_masks = [self.core_mask]*(len(ports)/2)
+            # for x in self.transmit_core_masks:
+            #     print "%x" % x
         self.receive_ports = [self.ports[i] for i in range(1, len(self.ports), 2)]
         self.drop_rate_interval = drop_rate_interval
         self.pkt_size = pkt_size
@@ -150,9 +160,7 @@ class NdrBenchConfig:
 class NdrBenchResults:
     def __init__(self, config=None, results={}):
         self.stats = dict(results)
-        self.init_time = time.time()
-        self.stats['Elapsed Time'] = float(self.init_time)
-        self.config = config
+        self.init_time = float(time.time())
 
     def update(self, updated_dict):
         updated_dict['Elapsed Time'] = (float(time.time()) - self.init_time)
@@ -230,11 +238,11 @@ class NdrBenchResults:
         self.print_run_stats(latency)
         for x in self.stats['ndr_points']:
             print("NDR(s)                            :%s " % self.convert_rate(x))
-        if self.config:
-            print("Packet Size                       :%s " % self.config.pkt_size)
-            print("VM                                :%s " % self.config.vm)
-            print("Ports                             :%s " % self.config.ports)
-            print("Cores                             :%d " % self.config.cores)
+        # if self.config:
+        #     print("Packet Size                       :%s " % self.config.pkt_size)
+        #     print("VM                                :%s " % self.config.vm)
+        #     print("Ports                             :%s " % self.config.ports)
+        #     print("Cores                             :%d " % self.config.cores)
 
     def print_assumed_drop_rate(self, low_bound, high_bound):
         print("\nResult of max rate measurement    :Drops Occured, Assuming NDR in following interval")
@@ -258,18 +266,18 @@ class NdrBenchResults:
     def human_readable_dict(self):
         hu_dict = {'Queue Full [%]': str(round(self.stats['queue_full_percentage'], 2)) + "%",
                    'BW per core [Gbit/sec @100% per core]': str(
-                       float(self.stats['bw_per_core'])) + 'Gbit/Sec @100% per core',
+                       round(float(self.stats['bw_per_core']), 2)) + 'Gbit/Sec @100% per core',
                    'RX [MPPS]': self.convert_rate(float(self.stats['rx_pps']), True),
                    'TX [MPPS]': self.convert_rate(float(self.stats['tx_pps']), True),
-                   'TX Utilization [%]': str(round(self.stats['tx_util'], 2)),
-                   'CPU Utilization [%]': str(self.stats['cpu_util']),
+                   'Line Utilization [%]': str(round(self.stats['tx_util'], 2)),
+                   'CPU Utilization [%]': str(round(self.stats['cpu_util'],2)),
                    'Total TX L1': self.convert_rate(float(self.stats['total_tx_L1'])),
                    'Total RX L1': self.convert_rate(float(self.stats['total_rx_L1'])),
                    'TX [bps]': self.convert_rate(float(self.stats['tx_bps'])),
                    'RX [bps]': self.convert_rate(float(self.stats['rx_bps'])),
                    'OPT TX Rate [bps]': self.convert_rate(float(self.stats['rate_tx_bps'])),
                    'OPT RX Rate [bps]': self.convert_rate(float(self.stats['rate_rx_bps'])),
-                   'OPT Rate [%]': str(self.stats['rate_p']),
+                   'OPT Rate (Multiplier) [%]': str(self.stats['rate_p']),
                    'Max Rate [bps]': self.convert_rate(float(self.stats['max_rate_bps'])),
                    'Drop Rate [%]': str(round(self.stats['drop_rate_percentage'], 2)),
                    'Elapsed Time [Sec]': str(round(self.stats['Elapsed Time'], 2)),
@@ -292,7 +300,7 @@ class NdrBench:
         self.stl_client.clear_stats()
         if run_max:
             self.stl_client.start(ports=self.config.transmit_ports, mult="100%",
-                                  duration=self.config.iteration_duration, core_mask=self.config.core_mask)
+                                  duration=self.config.iteration_duration, core_mask=self.config.transmit_core_masks)
             rate_mb_percent = 100
         else:
             m_rate = Rate(self.results.stats['max_rate_bps'])
@@ -300,7 +308,7 @@ class NdrBench:
                 rate_mb_percent += 1
             run_rate = m_rate.convert_percent_to_rate(rate_mb_percent)
             self.stl_client.start(ports=self.config.transmit_ports, mult=str(run_rate) + "bps",
-                                  duration=self.config.iteration_duration, core_mask=self.config.core_mask)
+                                  duration=self.config.iteration_duration, core_mask=self.config.transmit_core_masks)
         time.sleep(self.config.iteration_duration / 2)
         stats = self.stl_client.get_stats()
         self.stl_client.stop(ports=self.config.ports)
