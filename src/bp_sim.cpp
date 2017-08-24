@@ -3077,6 +3077,16 @@ bool CFlowsYamlInfo::verify_correctness(uint32_t num_threads) {
 
 
 
+void CFlowsYamlInfo::set_astf_mode(){
+    m_vec.clear();
+    m_tw.reset();
+    if (CGlobalInfo::m_options.m_duration > 0.1) {
+        m_duration_sec = CGlobalInfo::m_options.m_duration;
+    }
+    m_is_plugin_configured=false;
+}
+
+
 int CFlowsYamlInfo::load_from_yaml_file(std::string file_name){
     m_vec.clear();
     m_tw.reset();
@@ -3563,9 +3573,6 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     m_c_tcp=0;
     m_s_tcp=0;
-    m_prog_c=0; 
-    m_prog_s=0; 
-
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
@@ -3599,41 +3606,46 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_flow_id_to_node_lookup.Create();
 
     /* split the clients to threads */
-    CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
-    double active_flows_per_core = flow_list->get_worse_case_active_flows()/(double)m_max_threads;
+    if (! get_is_tcp_mode()) {
 
-    m_smart_gen.Create(0,m_thread_id);
+        CTupleGenYamlInfo * tuple_gen = &m_flow_list->m_yaml_info.m_tuple_gen;
 
-    /* split the clients to threads using the mask */
-    CIpPortion  portion;
-    for (int i=0;i<tuple_gen->m_client_pool.size();i++) {
-        split_ips(m_thread_id, m_max_threads, getDualPortId(),
-                  tuple_gen->m_client_pool[i],
-                  portion);
+        double active_flows_per_core = flow_list->get_worse_case_active_flows()/(double)m_max_threads;
 
-        m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
-                                    portion.m_ip_start,
-                                    portion.m_ip_end,
-                                    active_flows_per_core,
-                                    m_flow_list->m_client_config_info,
-                                    tuple_gen->m_client_pool[i].m_tcp_aging_sec,
-                                    tuple_gen->m_client_pool[i].m_udp_aging_sec
-                                    );
+        m_smart_gen.Create(0,m_thread_id);
+
+        /* split the clients to threads using the mask */
+        CIpPortion  portion;
+        for (int i=0;i<tuple_gen->m_client_pool.size();i++) {
+            split_ips(m_thread_id, m_max_threads, getDualPortId(),
+                      tuple_gen->m_client_pool[i],
+                      portion);
+
+            m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
+                                        portion.m_ip_start,
+                                        portion.m_ip_end,
+                                        active_flows_per_core,
+                                        m_flow_list->m_client_config_info,
+                                        tuple_gen->m_client_pool[i].m_tcp_aging_sec,
+                                        tuple_gen->m_client_pool[i].m_udp_aging_sec
+                                        );
+        }
+        for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
+            split_ips(m_thread_id, m_max_threads, getDualPortId(),
+                      tuple_gen->m_server_pool[i],
+                      portion);
+            m_smart_gen.add_server_pool(tuple_gen->m_server_pool[i].m_dist,
+                                        portion.m_ip_start,
+                                        portion.m_ip_end,
+                                        active_flows_per_core,
+                                        tuple_gen->m_server_pool[i].m_is_bundling);
+        }
+
+        init_from_global();
+    }else{
+        m_yaml_info =m_flow_list->m_yaml_info;
     }
-    for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
-        split_ips(m_thread_id, m_max_threads, getDualPortId(),
-                  tuple_gen->m_server_pool[i],
-                  portion);
-        m_smart_gen.add_server_pool(tuple_gen->m_server_pool[i].m_dist,
-                        portion.m_ip_start,
-                        portion.m_ip_end,
-                        active_flows_per_core,
-                        tuple_gen->m_server_pool[i].m_is_bundling);
-    }
-
-
-    init_from_global();
 
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
@@ -4938,18 +4950,29 @@ void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
 
 void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
                                 CPreviewMode & preview){
-    /* now we are ready to generate*/
-    if ( m_cap_gen.size()==0 ){
-        fprintf(stderr," nothing to generate no template loaded \n");
-        return;
-    }
+    dsec_t d_time_flow;
 
+    /* now we are ready to generate*/
+    if ( ! get_is_tcp_mode()) {
+        if ( m_cap_gen.size()==0 ){
+            fprintf(stderr," nothing to generate no template loaded \n");
+            return;
+        }
+        m_cur_template =(m_thread_id % m_cap_gen.size());
+
+        d_time_flow=get_delta_flow_is_sec();
+        m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
+    }else{
+        if ( !Create_tcp() ){
+            fprintf(stderr," ERROR in tcp object creation \n");
+            return;
+        }
+
+        d_time_flow = m_tcp_fif_d_time; /* set by Create_tcp function */
+        m_cur_time_sec =  0.01 + (double)m_thread_id*m_tcp_fif_d_time/(double)m_max_threads;
+    }
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
-    dsec_t d_time_flow=get_delta_flow_is_sec();
-
-    m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
-
 
     if ( CGlobalInfo::is_realtime()  ){
         if (m_cur_time_sec > 0.2 ) {
@@ -4960,7 +4983,6 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
     m_cur_flow_id =1;
-    m_cur_template =(m_thread_id % m_cap_gen.size());
     m_stats.clear();
 
     double old_offset=0.0;
@@ -4993,11 +5015,6 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
             m_node_gen.add_node(node);
         }
     }else{
-
-        if ( !Create_tcp() ){
-            fprintf(stderr," ERROR in tcp object creation \n");
-            return;
-        }
 
         m_tcp_fif_d_time =  d_time_flow;
         CGenNode * node= create_node() ;
@@ -5165,6 +5182,20 @@ int CFlowGenList::update_active_flows(uint32_t active_flows){
         lp->updateIpg(ipg_factor);
         lp->getFlowStats(&stats);
         sum.Add(stats);
+    }
+
+    return(0);
+}
+
+
+int CFlowGenList::load_astf(){
+
+    m_yaml_info.set_astf_mode();
+
+    uint8_t idx;
+    for (idx=0; idx<6; idx++){
+        CGlobalInfo::m_options.m_src_ipv6[idx] = 0;
+        CGlobalInfo::m_options.m_dst_ipv6[idx] = 0;
     }
 
     return(0);

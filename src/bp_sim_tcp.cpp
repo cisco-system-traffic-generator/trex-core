@@ -25,7 +25,6 @@ limitations under the License.
 #include "h_timer.h"
 #include <cmath>
 #include "utl_mbuf.h"
-
 #include "44bsd/tcp.h"
 #include "44bsd/tcp_var.h"
 #include "44bsd/tcp.h"
@@ -36,94 +35,14 @@ limitations under the License.
 #include "44bsd/tcpip.h"
 #include "44bsd/tcp_dpdk.h"
 #include "44bsd/flow_table.h"
-
 #include "mbuf.h"
 #include <stdlib.h>
 #include <common/c_common.h>
+#include <astf/json_reader.h>
+#include <astf/astf_template_db.h>
 
-static char http_req[] = {
-0x47, 0x45, 0x54, 0x20, 0x2f, 0x32, 0x31, 0x30, 
-0x30, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x31, 
-0x2e, 0x31, 0x0d, 0x0a, 0x48, 0x6f, 0x73, 0x74, 
-0x3a, 0x20, 0x32, 0x32, 0x2e, 0x30, 0x2e, 0x30, 
-0x2e, 0x33, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x6e, 
-0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x3a, 0x20, 
-0x4b, 0x65, 0x65, 0x70, 0x2d, 0x41, 0x6c, 0x69, 
-0x76, 0x65, 0x0d, 0x0a, 0x55, 0x73, 0x65, 0x72, 
-0x2d, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x3a, 0x20, 
-0x4d, 0x6f, 0x7a, 0x69, 0x6c, 0x6c, 0x61, 0x2f, 
-0x34, 0x2e, 0x30, 0x20, 0x28, 0x63, 0x6f, 0x6d, 
-0x70, 0x61, 0x74, 0x69, 0x62, 0x6c, 0x65, 0x3b, 
-0x20, 0x4d, 0x53, 0x49, 0x45, 0x20, 0x37, 0x2e, 
-0x30, 0x3b, 0x20, 0x57, 0x69, 0x6e, 0x64, 0x6f, 
-0x77, 0x73, 0x20, 0x4e, 0x54, 0x20, 0x35, 0x2e, 
-0x31, 0x3b, 0x20, 0x53, 0x56, 0x31, 0x3b, 0x20, 
-0x2e, 0x4e, 0x45, 0x54, 0x20, 0x43, 0x4c, 0x52, 
-0x20, 0x31, 0x2e, 0x31, 0x2e, 0x34, 0x33, 0x32, 
-0x32, 0x3b, 0x20, 0x2e, 0x4e, 0x45, 0x54, 0x20, 
-0x43, 0x4c, 0x52, 0x20, 0x32, 0x2e, 0x30, 0x2e, 
-0x35, 0x30, 0x37, 0x32, 0x37, 0x29, 0x0d, 0x0a, 
-0x41, 0x63, 0x63, 0x65, 0x70, 0x74, 0x3a, 0x20, 
-0x2a, 0x2f, 0x2a, 0x0d, 0x0a, 0x41, 0x63, 0x63, 
-0x65, 0x70, 0x74, 0x2d, 0x4c, 0x61, 0x6e, 0x67, 
-0x75, 0x61, 0x67, 0x65, 0x3a, 0x20, 0x65, 0x6e, 
-0x2d, 0x75, 0x73, 0x0d, 0x0a, 0x41, 0x63, 0x63, 
-0x65, 0x70, 0x74, 0x2d, 0x45, 0x6e, 0x63, 0x6f, 
-0x64, 0x69, 0x6e, 0x67, 0x3a, 0x20, 0x67, 0x7a, 
-0x69, 0x70, 0x2c, 0x20, 0x64, 0x65, 0x66, 0x6c, 
-0x61, 0x74, 0x65, 0x2c, 0x20, 0x63, 0x6f, 0x6d, 
-0x70, 0x72, 0x65, 0x73, 0x73, 0x0d, 0x0a, 0x0d, 
-0x0a };
-
-static char http_res[] = {
-0x48, 0x54, 0x54, 0x50, 0x2f, 0x31, 0x2e, 0x31, 
-0x20, 0x32, 0x30, 0x30, 0x20, 0x4f, 0x4b, 0x0d, 
-0x0a, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x3a, 
-0x20, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x73, 0x6f, 
-0x66, 0x74, 0x2d, 0x49, 0x49, 0x53, 0x2f, 0x36, 
-0x2e, 0x30, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 
-0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 
-0x3a, 0x20, 0x74, 0x65, 0x78, 0x74, 0x2f, 0x68, 
-0x74, 0x6d, 0x6c, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 
-0x74, 0x65, 0x6e, 0x74, 0x2d, 0x4c, 0x65, 0x6e, 
-0x67, 0x74, 0x68, 0x3a, 0x20, 0x33, 0x32, 0x30, 
-0x30, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x3c, 0x68, 
-0x74, 0x6d, 0x6c, 0x3e, 0x3c, 0x70, 0x72, 0x65, 
-0x3e, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a
-};
-
-static char http_res_post[] ={
-0x3c, 0x2f, 0x70, 0x72, 0x65, 0x3e, 0x3c, 0x2f, 0x68, 0x74, 0x6d, 
-0x6c, 0x3e
-};
-
-static char * allocate_http_res(uint32_t &new_size){
-    uint16_t min_size=sizeof(http_res)+sizeof(http_res_post);
-    if (new_size<min_size) {
-        new_size=min_size;
-    }
-    char *p=(char *)malloc(new_size);
-    char *s=p;
-    uint32_t fill=new_size-min_size;
-    memcpy(p,http_res,sizeof(http_res));
-    p+=sizeof(http_res);
-    if (fill) {
-        memset(p,'*',fill);
-    }
-    p+=fill;
-    memcpy(p,http_res_post,sizeof(http_res_post));
-    return(s);
-}
-
-static void free_http_res(char *p){
-    assert(p);
-    free(p);
-}
-
-
-                                            
 #undef DEBUG_TX_PACKET
-                                          
+
 class CTcpDpdkCb : public CTcpCtxCb {
 public:
    int on_tx(CTcpPerThreadCtx *ctx,
@@ -160,8 +79,9 @@ int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
     flow->get_tuple_generator(c_idx,c_pool_idx,c_template_id,enable);
     assert(enable==true); /* all flows should have tuple generator */
 
-    CFlowGeneratorRecPerThread * cur = m_p->m_cap_gen[c_template_id];
-    CTupleGeneratorSmart * lpgen=cur->tuple_gen.get_gen();
+    CAstfPerTemplateRW * cur = ctx->m_template_rw->get_template_by_id(c_template_id);
+    CTupleGeneratorSmart * lpgen= cur->m_tuple_gen.get_gen();
+
     if ( lpgen->IsFreePortRequired(c_pool_idx) ){
         lpgen->FreePort(c_pool_idx,c_idx,flow->m_tcp.src_port);
     }
@@ -186,7 +106,7 @@ int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
      //fprintf(stdout,"TX---> dir %d \n",m_dir);
      //utl_rte_pktmbuf_dump_k12(stdout,m);
 #endif
-    
+
     m_p->m_node_gen.m_v_if->send_node((CGenNode *) &node_tcp);
     return(0);
 }
@@ -240,21 +160,24 @@ static CTcpAppApiImpl     m_tcp_bh_api_impl_c;
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
 
-void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
+void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
     done=false;
-    /* TBD need to scan the vector of template .. for now we have one template */
 
-    CFlowGeneratorRecPerThread * cur;
-    uint8_t template_id=0; /* TBD take template zero */
+    CAstfTemplatesRW * c_rw = m_c_tcp->m_template_rw;
 
-    cur=m_cap_gen[template_id]; /* first template TBD need to fix this */
+    /* choose template index */
+    uint16_t template_id = c_rw->do_schedule_template();
+
+    CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
+    CTcpData    *   cur_tmp_ro = m_c_tcp->m_template_ro;
 
 
     CTupleBase  tuple;
-    cur->tuple_gen.GenerateTuple(tuple);
+    cur->m_tuple_gen.GenerateTuple(tuple);
+
     /* it is not set by generator, need to take it from the pcap file */
-    tuple.setServerPort(80) ;
+    tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
     /* TBD this include an information on the client/vlan/destination */ 
     /*ClientCfgBase * lpc=tuple.getClientCfg(); */
@@ -284,8 +207,8 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
     }
 
     /* save tuple generator information into the flow */
-    c_flow->set_tuple_generator(tuple.getClientId(), 
-                                cur->m_info->m_client_pool_idx,
+    c_flow->set_tuple_generator(tuple.getClientId(),
+                                cur->m_client_pool_idx, 
                                 template_id,
                                 true);
 
@@ -308,7 +231,7 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
 
     app_c = &c_flow->m_app;
 
-    app_c->set_program(m_prog_c);
+    app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(m_c_tcp,c_flow);
     c_flow->set_app(app_c);
@@ -327,7 +250,7 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
     if ( on_terminate == false ) {
         m_cur_time_sec = node->m_time ;
 
-        tcp_generate_flows_roundrobin(done);
+        tcp_generate_flow(done);
 
         if (!done) {
             node->m_time += m_tcp_fif_d_time;
@@ -373,14 +296,20 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 
 
 bool CFlowGenListPerThread::Create_tcp(){
-
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 
     uint8_t mem_socket_id=get_memory_socket_id();
-
+    CTcpData *template_db = CJsonData::instance()->get_tcp_data_handle(mem_socket_id);
     CTcpDpdkCb * c_tcp_io = new CTcpDpdkCb();
     CTcpDpdkCb * s_tcp_io = new CTcpDpdkCb();
+
+    m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
+
+    #if 0
+    printf("socket id:%d pointer:%p\n", mem_socket_id, template_db); //??? remove
+    template_db->dump(stdout);
+    #endif
 
     c_tcp_io->m_dir =0;
     c_tcp_io->m_p   = this;
@@ -396,7 +325,13 @@ bool CFlowGenListPerThread::Create_tcp(){
     }
     m_c_tcp->Create(active_flows,true);
     m_c_tcp->set_cb(m_c_tcp_io);
-    
+
+    m_c_tcp->set_template_ro(template_db);
+    m_c_tcp->set_template_rw(CJsonData::instance()->get_tcp_data_handle_rw(mem_socket_id, &m_smart_gen
+                                                                           , m_thread_id, m_max_threads
+                                                                           , getDualPortId()));
+    m_s_tcp->set_template_ro(template_db);
+ 
     m_s_tcp->Create(active_flows,false);
     m_s_tcp->set_cb(m_s_tcp_io);
 
@@ -423,67 +358,12 @@ bool CFlowGenListPerThread::Create_tcp(){
         m_s_tcp->m_ft.set_debug(true);
     }
 
-    uint32_t http_r_size= CGlobalInfo::m_options.m_tcp_http_res;
-
-    /* TBD replace this with JSON program */
-    m_req = new CMbufBuffer();
-    m_res = new CMbufBuffer();
-
-    m_prog_c = new CTcpAppProgram();
-    m_prog_s = new CTcpAppProgram();
-
-    uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
-
-    utl_mbuf_buffer_create_and_copy(mem_socket_id,m_req,2048,(uint8_t*)http_req,sizeof(http_req));
-    utl_mbuf_buffer_create_and_copy(mem_socket_id,m_res,2048,(uint8_t*)http_r,http_r_size);
-
-    free_http_res((char *)http_r);
-
-
-    CTcpAppCmd cmd;
-
-
-    cmd.m_cmd =tcTX_BUFFER;
-    cmd.u.m_tx_cmd.m_buf =m_req;
-    m_prog_c->add_cmd(cmd);
-
-    cmd.m_cmd =tcRX_BUFFER ;
-    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
-    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
-    m_prog_c->add_cmd(cmd);
-
-
-    /* server program */
-
-    cmd.m_cmd =tcRX_BUFFER;
-    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
-    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
-    m_prog_s->add_cmd(cmd);
-
-    cmd.m_cmd = tcTX_BUFFER;
-    cmd.u.m_tx_cmd.m_buf =m_res;
-    m_prog_s->add_cmd(cmd);
-
-
-
     m_s_tcp->m_ft.set_tcp_api(&m_tcp_bh_api_impl_c);
-    m_s_tcp->m_ft.set_tcp_program(m_prog_s);
-
 
     return(true);
 }
 
 void CFlowGenListPerThread::Delete_tcp(){
-
-    delete m_prog_c;
-    delete m_prog_s;
-
-    m_req->Delete();
-    delete m_req;
-
-    m_res->Delete();
-    delete m_res;
-
     m_c_tcp->Delete();
     m_s_tcp->Delete();
 

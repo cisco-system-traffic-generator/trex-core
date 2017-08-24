@@ -14,6 +14,12 @@ if [ $RESULT -eq 255 ]; then
   exit $RESULT
 fi
 
+if [ $RESULT -eq 2 ]; then
+  echo "ERROR encountered while configuring trex system"
+  exit $RESULT
+fi
+
+
 if [ $RESULT -eq 32 ]; then
   EXTRA_INPUT_ARGS="--mlx5-so"
 fi

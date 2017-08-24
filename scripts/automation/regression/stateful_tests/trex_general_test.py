@@ -295,7 +295,12 @@ class CTRexGeneral_Test(unittest.TestCase):
         else:
             return self.benchmark[test_name].get(param, default)
 
-    def check_general_scenario_results (self, trex_res, check_latency = True):
+    def check_general_scenario_results (self, trex_res, check_latency = True, skip_expected = False):
+        """ 
+
+           skip expected is for case of TCP that those value does not exits beacuse we can'r predict them 
+
+        """
         
         try:
             # check history size is enough
@@ -303,19 +308,20 @@ class CTRexGeneral_Test(unittest.TestCase):
                 self.fail('TRex results list is too short. Increase the test duration or check unexpected stopping.')
 
             # check if test is valid
-            if not trex_res.is_done_warmup():
-                self.fail('TRex did not reach warm-up situtaion. Results are not valid.')
 
-            # check that BW is not much more than expected
-            trex_exp_bps = trex_res.get_expected_tx_rate().get('m_tx_expected_bps') / 1e6
-            trex_cur_bps = max(trex_res.get_value_list('trex-global.data.m_tx_bps')) / 1e6
+            if skip_expected == False: 
+              if not trex_res.is_done_warmup():
+                  self.fail('TRex did not reach warm-up situtaion. Results are not valid.')
 
-            assert trex_exp_bps > 0, 'Expected BPS is zero: %s' % trex_exp_bps
+              #check that BW is not much more than expected
+              trex_exp_bps = trex_res.get_expected_tx_rate().get('m_tx_expected_bps') / 1e6
+              trex_cur_bps = max(trex_res.get_value_list('trex-global.data.m_tx_bps')) / 1e6
 
-            if trex_exp_bps * 1.05 + 10 < trex_cur_bps:
-                msg = 'Got BW (%gMbps) that is %g%% more than expected (%gMbps)!' % (round(trex_cur_bps, 2), round(100.0 * trex_cur_bps / trex_exp_bps - 100, 2), round(trex_exp_bps, 2))
-                print('WARNING: %s' % msg)
-                #self.fail(msg)
+              assert trex_exp_bps > 0, 'Expected BPS is zero: %s' % trex_exp_bps
+
+              if trex_exp_bps * 1.05 + 10 < trex_cur_bps:
+                    msg = 'Got BW (%gMbps) that is %g%% more than expected (%gMbps)!' % (round(trex_cur_bps, 2), round(100.0 * trex_cur_bps / trex_exp_bps - 100, 2), round(trex_exp_bps, 2))
+                    print('WARNING: %s' % msg)
 
             # check TRex number of drops
             trex_tx_pckt    = trex_res.get_last_value("trex-global.data.m_total_tx_pkts")

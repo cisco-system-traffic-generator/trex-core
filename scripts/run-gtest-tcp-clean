@@ -1,5 +1,5 @@
 #! /bin/bash
 ARGS="$@"
 echo $ARGS
-valgrind --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64-debug --ut --gtest_filter=$ARGS
+valgrind --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter=$ARGS
 

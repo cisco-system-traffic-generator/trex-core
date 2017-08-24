@@ -62,7 +62,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             m = mult,
             nc = True,
             d = 120,
-            f = 'cap2/http_simple.yaml',
+            f = 'astf/http_simple.py',
             l = 1000,
             k = 10,
             astf =True
@@ -76,7 +76,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         print ("\nLATEST DUMP:")
         #pprint(trex_res.get_latest_dump());
 
-        self.check_general_scenario_results(trex_res,True)
+        self.check_general_scenario_results(trex_res,True,True)
         self.check_CPU_benchmark(trex_res)
         if bypass == None:
            self.check_tcp_errors(trex_res)

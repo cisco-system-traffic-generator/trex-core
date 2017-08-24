@@ -3832,6 +3832,10 @@ public:
     CTimerWheelYamlInfo         m_tw;
 
 public:
+    bool is_any_template(){
+        return(m_vec.size()>1?true:false);
+    }
+    void set_astf_mode();
     void Dump(FILE *fd);
     int load_from_yaml_file(std::string file_name);
     bool verify_correctness(uint32_t num_threads) ;
@@ -4212,18 +4216,10 @@ private:
 
 public:
     /* TCP stack memory */
-
     CTcpPerThreadCtx      *         m_c_tcp;
     CTcpCtxCb             *         m_c_tcp_io;
     CTcpPerThreadCtx      *         m_s_tcp;
     CTcpCtxCb             *         m_s_tcp_io;
-
-    CTcpAppProgram        *         m_prog_c; /* program of the client */
-    CTcpAppProgram        *         m_prog_s; /* program of the server */
-
-    CMbufBuffer           *         m_req; 
-    CMbufBuffer           *         m_res; 
-
     double                          m_tcp_fif_d_time;
 
 public:
@@ -4232,7 +4228,7 @@ public:
     bool Create_tcp();
     void Delete_tcp();
 
-    void tcp_generate_flows_roundrobin(bool &done);
+    void tcp_generate_flow(bool &done);
 
     void tcp_handle_rx_flush(CGenNode * node,bool on_terminate);
     void tcp_handle_tx_fif(CGenNode * node,bool on_terminate);
@@ -4285,7 +4281,7 @@ public:
     void clean_p_thread_info(void);
 
 public:
-
+    int load_astf();
     int load_from_yaml(std::string csv_file,uint32_t num_threads);
     int load_client_config_file(std::string file_name);
     void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);

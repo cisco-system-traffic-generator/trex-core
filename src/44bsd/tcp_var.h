@@ -537,6 +537,9 @@ public:
 
 };
 
+class CTcpData;
+class CAstfTemplatesRW;
+
 class CTcpPerThreadCtx {
 public:
     bool Create(uint32_t size,
@@ -563,6 +566,9 @@ public:
 
     void timer_w_on_tick();
 
+    CTcpData *get_template_ro() {return m_template_ro;}
+    void set_template_ro(CTcpData *t) {m_template_ro = t;}
+    void set_template_rw(CAstfTemplatesRW *t) {m_template_rw = t;}
     void set_cb(CTcpCtxCb    * cb){
         m_cb=cb;
     }
@@ -604,6 +610,8 @@ public:
     uint32_t    m_tick;
     uint8_t     m_mbuf_socket;      /* memory socket */
     uint8_t     m_offload_flags;    /* dev offload flags, see flow def */
+    CAstfTemplatesRW * m_template_rw;
+    CTcpData    * m_template_ro;
     uint8_t     m_pad[2];
 
 

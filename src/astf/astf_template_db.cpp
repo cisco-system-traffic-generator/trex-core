@@ -45,6 +45,9 @@ bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
     m_tuple_gen.SetW(info->m_w);
     m_dest_port = info->m_destination_port;
 
+    m_client_pool_idx = info->m_client_pool_idx;
+    m_server_pool_idx = info->m_server_pool_idx;
+
     // set policer give bucket size for bursts
     m_policer.set_cir(info->m_k_cps*1000.0);
     m_policer.set_level(0.0);
@@ -58,20 +61,49 @@ void CAstfPerTemplateRW::Delete(){
 }
 
 void CAstfPerTemplateRW::Dump(FILE *fd){
+    fprintf(fd, "  port:%d\n", m_dest_port);
+    fprintf(fd, "  thread_id:%d template id:%d\n", m_thread_id, m_tid);
+    fprintf(fd, "  First IPs from client pool 0:\n");
+
+    CTupleBase tuple;
+    for (uint16_t idx = 0; idx < 20; idx++) {
+        m_tuple_gen.GenerateTuple(tuple);
+        printf("  c:%x(%d) s:%x(%d)\n", tuple.getClient(), tuple.getClientPort(), tuple.getServer(), tuple.getServerPort());
+    }
+}
+
+void CAstfTemplatesRW::Dump(FILE *fd) {
+    for (int i = 0; i < m_cap_gen.size(); i++) {
+        fprintf(fd, "template %d:\n", i);
+        m_cap_gen[i]->Dump(fd);
+    }
 
 }
 
+
+void CAstfTemplatesRW::init_scheduler(std::vector<double> & dist){
+    m_nru =new KxuNuRand(dist,&m_rnd);
+}
+
+uint16_t CAstfTemplatesRW::do_schedule_template(){
+    assert(m_nru);
+    return ((uint16_t)m_nru->getRandom());
+}
 
 
 bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
                               astf_thread_id_t           max_threads){
     m_thread_id = thread_id;
     m_max_threads =max_threads;
+    m_rnd.setSeed(thread_id);
+    m_nru = 0;
     return(true);
 }
 
 void CAstfTemplatesRW::Delete(){ 
-
+    if (m_nru) {
+        delete m_nru;
+    }
 }
 
 

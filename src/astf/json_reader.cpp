@@ -7,10 +7,34 @@
 #include "common/base64.h"
 #include <string.h>
 #include "44bsd/tcp_socket.h"
+#include "tuple_gen.h"
+#include "astf/astf_template_db.h"
 #include "json_reader.h"
+#include "bp_sim.h"
+
+
+extern int my_inet_pton4(const char *src, unsigned char *dst);
+
+inline std::string methodName(const std::string& prettyFunction)
+{
+    size_t colons = prettyFunction.find("::");
+    size_t begin = prettyFunction.substr(0,colons).rfind(" ") + 1;
+    size_t end = prettyFunction.rfind("(") - begin;
+
+    return prettyFunction.substr(begin,end) + "()";
+}
+
+#define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
 // make the class singelton
 CJsonData* CJsonData::m_pInstance = NULL;
+
+
+static double cps_factor(double cps){
+    return ( CGlobalInfo::m_options.m_factor*cps );
+
+}
+
 
 CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &params) {
     if (m_vec.size() == 0) {
@@ -183,6 +207,107 @@ void CJsonData::verify_init(uint16_t socket_id, uint16_t level) {
         my_lock.unlock();
     }
 }
+
+// ???CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id, uint16_t num_threads, uint16_t num_ports) {
+CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id) {
+    verify_init(socket_id, 2);
+
+    return &m_tcp_data[socket_id];
+
+
+    /// add list of templates ???
+    // compute cps according to ports and threads
+}
+
+uint32_t CJsonData::ip_from_str(const char *c_ip) {
+    int rc;
+    uint32_t ip_num;
+    rc = my_inet_pton4(c_ip, (unsigned char *)&ip_num);
+    if (! rc) {
+        fprintf(stderr, "Error: Bad IP address %s in json. Exiting.", c_ip);
+        exit(1);
+    }
+
+    return ntohl(ip_num);
+}
+
+CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
+                                                    uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
+    CAstfTemplatesRW *ret = new CAstfTemplatesRW();
+    assert(ret);
+
+    ClientCfgDB g_dummy;
+    g_gen->Create(0, thread_id);
+    uint32_t active_flows_per_core;
+    CIpPortion  portion;
+    CTupleGenPoolYaml poolinfo;
+    uint16_t last_c_idx=0;
+    uint16_t last_s_idx=0;
+    std::vector<uint16_t> gen_idx_trans;
+
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+    for (int i = 0; i < ip_gen_list.size(); i++) {
+        IP_DIST_t dist;
+        poolinfo.m_ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+        poolinfo.m_ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
+        if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "seq", 3)) {
+            dist = cdSEQ_DIST;
+        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "rand", 4)) {
+            dist = cdRANDOM_DIST;
+        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "normal", 6)) {
+            dist = cdNORMAL_DIST;
+        } else {
+            fprintf(stderr, "wrong distribution string %s in json\n", ip_gen_list[i]["distribution"].asString().c_str());
+            exit(1);
+        }
+        poolinfo.m_dist =  dist;
+        poolinfo.m_dual_interface_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
+        split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+        active_flows_per_core = (portion.m_ip_end - portion.m_ip_start) * 32000;
+        if (ip_gen_list[i]["dir"] == "c") {
+            gen_idx_trans.push_back(last_c_idx);
+            last_c_idx++;
+            g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, g_dummy, 0, 0);
+        } else {
+            gen_idx_trans.push_back(last_s_idx);
+            last_s_idx++;
+            g_gen->add_server_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, false);
+        }
+#if 0
+        printf("Thread id:%d - orig ip(%s - %s) per thread ip (%s - %s) dist:%d\n", thread_id,
+            ip_to_str(poolinfo.m_ip_start).c_str(), ip_to_str(poolinfo.m_ip_end).c_str(),
+               ip_to_str(portion.m_ip_start).c_str(), ip_to_str(portion.m_ip_end).c_str(), dist);
+#endif
+
+    }
+
+    std::vector<double>  dist;
+    // loop over all templates
+    for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
+        CAstfPerTemplateRW *temp_rw = new CAstfPerTemplateRW();
+        assert(temp_rw);
+
+        Json::Value c_temp = m_val["templates"][index]["client_template"];
+        CAstfPerTemplateRO template_ro;
+        template_ro.m_dual_mask = poolinfo.m_dual_interface_mask; // Should be the same for all poolinfo, so just take from last one
+        template_ro.m_client_pool_idx = gen_idx_trans[c_temp["ip_gen"]["dist_client"]["index"].asInt()];
+        template_ro.m_server_pool_idx = gen_idx_trans[c_temp["ip_gen"]["dist_server"]["index"].asInt()];
+        template_ro.m_one_app_server = false;
+        template_ro.m_server_addr = 0;
+        template_ro.m_w = 1;
+        double cps = cps_factor (c_temp["cps"].asDouble() / max_threads);
+        template_ro.m_k_cps = cps;
+        dist.push_back(cps);
+        template_ro.m_destination_port = c_temp["port"].asInt();
+        temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
+        ret->add_template(temp_rw);
+    }
+
+    /* init sheduler */
+    ret->init_scheduler(dist);
+
+    return ret;
+}
 /*
  * Get program associated with template index and side
  * temp_index - template index
@@ -220,12 +345,15 @@ CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket
 bool CJsonData::build_assoc_translation(uint8_t socket_id) {
     verify_init(socket_id, 1);
     bool is_hash_needed = false;
+    double cps_sum=0;
+    CTcpTemplateInfo one_template;
 
     if (m_val["templates"].size() > 10) {
         is_hash_needed = true;
     }
 
     for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
+        // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
         CTcpDataAssocParams tcp_params(port);
         CTcpAppProgram *prog_p = get_prog(index, 1, socket_id);
@@ -236,7 +364,17 @@ bool CJsonData::build_assoc_translation(uint8_t socket_id) {
         } else {
             m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p);
         }
+
+        // build template info
+        one_template.m_dport = m_val["templates"][index]["client_template"]["port"].asInt();
+        uint32_t prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
+        one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[prog_index];
+        assert(one_template.m_client_prog);
+
+        cps_sum += cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
+        m_tcp_data[socket_id].m_templates.push_back(one_template);
     }
+    m_tcp_data[socket_id].m_cps_sum = cps_sum;
 
     return true;
 }
@@ -312,10 +450,36 @@ bool CJsonData::convert_progs(uint8_t socket_id) {
     return true;
 }
 
+void CJsonData::get_latency_params(CTcpLatency &lat) {
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+    bool client_set = false;
+    bool server_set = false;
+
+    for (int i = 0; i < ip_gen_list.size(); i++) {
+        if ((ip_gen_list[i]["dir"] == "c") && ! client_set) {
+            client_set = true;
+            lat.m_c_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+            lat.m_dual_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
+        }
+        if ((ip_gen_list[i]["dir"] == "s") && ! server_set) {
+            server_set = true;
+            lat.m_s_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+        }
+
+        if (server_set && client_set)
+            return;
+    }
+}
+
 void CJsonData::clear() {
     m_tcp_data[0].free();
     m_tcp_data[1].free();
     m_json_initiated = false;
+}
+
+CTcpAppProgram * CTcpData::get_server_prog_by_port(uint16_t port) {
+    CTcpDataAssocParams params(port);
+    return m_assoc_trans.get_prog(params);
 }
 
 void CTcpData::dump(FILE *fd) {
