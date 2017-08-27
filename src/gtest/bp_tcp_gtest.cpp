@@ -1784,7 +1784,11 @@ TEST_F(gt_tcp, tst54) {
     std::vector<double>  ndist;
     Kx_norm_prob(dist,ndist);
     Kx_dump_prob(ndist);
-    test_prob(100000000,ndist);
+    #ifdef _DEBUG
+        test_prob(1000,ndist);
+    #else
+      test_prob(100000000,ndist);
+    #endif
 }
 
 class CPerProbInfo {
@@ -1885,6 +1889,7 @@ public:
      return(0);
  }
 
+ #if 0
 
  TEST_F(gt_tcp, tst55) {
      std::vector<double>  dist {
@@ -1960,7 +1965,4 @@ public:
 
 
 
-
-
-
-
+#endif
