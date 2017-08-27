@@ -274,7 +274,8 @@ cmn_src = SrcGroup(dir='src/common',
         'captureFile.cpp',
         'erf.cpp',
         'pcap.cpp',
-        'base64.cpp'
+        'base64.cpp',
+        'n_uniform_prob.cpp'
         ]);
 
 net_src = SrcGroup(dir='src/common/Network/Packet',
