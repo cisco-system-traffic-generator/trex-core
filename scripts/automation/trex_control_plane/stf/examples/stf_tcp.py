@@ -19,10 +19,10 @@ def run_stateful_tcp_test(server):
             c = 1, # limitation for now
             m = 1000,
             f = 'cap2/http_simple.yaml',
-            k=10,
+            k = 10,
             d = 20,
             l = 1000,
-            astf =True, #enable TCP 
+            astf =True, #enable ASTF mode
             nc=True
             )
 
