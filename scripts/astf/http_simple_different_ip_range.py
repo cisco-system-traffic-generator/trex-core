@@ -14,13 +14,13 @@ class Prof1():
                             dist_server=ip_gen_s1)
 
         ip_gen_c2 = ASTFIPGenDist(ip_range=["10.0.0.1", "10.0.0.255"], distribution="seq")
-        ip_gen_s2 = ASTFIPGenDist(ip_range=["20.0.0.1", "20.255.255"], distribution="seq")
+        ip_gen_s2 = ASTFIPGenDist(ip_range=["20.0.0.1", "20.0.255.255"], distribution="seq")
         ip_gen2 = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                             dist_client=ip_gen_c2,
                             dist_server=ip_gen_s2)
 
-        profile = ASTFProfile(cap_list=[
-            ASTFCapInfo(file="../cap2/http_get.pcap", ip_gen=ip_gen1),
+        profile = ASTFProfile(default_ip_gen=ip_gen1, cap_list=[
+            ASTFCapInfo(file="../cap2/http_get.pcap"),
             ASTFCapInfo(file="../cap2/http_get.pcap", ip_gen=ip_gen2, port=8080)
             ])
 

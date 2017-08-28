@@ -253,7 +253,7 @@ class ASTFIPGenDist(object):
         ASTFIPGenDist.in_list = []
 
     class Inner(object):
-        def __init__(self, ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq"):
+        def __init__(self, ip_range, distribution="seq"):
             self.fields = {}
             self.fields['ip_start'] = ip_range[0]
             self.fields['ip_end'] = ip_range[1]
@@ -276,12 +276,28 @@ class ASTFIPGenDist(object):
         def distribution(self):
             return self.fields['distribution']
 
+        @property
+        def direction(self):
+            return self.fields['dir']
+
+        @direction.setter
+        def direction(self, direction):
+            self.fields['dir'] = direction
+
+        @property
+        def ip_offset(self):
+            return self.fields['ip_offset']
+
+        @ip_offset.setter
+        def ip_offset(self, ip_offset):
+            self.fields['ip_offset'] = ip_offset
+
         def to_json(self):
             return dict(self.fields)
 
-    def __init__(self, ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq"):
+    def __init__(self, ip_range, distribution="seq"):
         ver_args = {"types":
-                    [{"name": "ip_range", 'arg': ip_range, "t": "ip range", "must": False},
+                    [{"name": "ip_range", 'arg': ip_range, "t": "ip range", "must": True},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         distribution_vals = ["seq", "rand"]
@@ -308,6 +324,22 @@ class ASTFIPGenDist(object):
     def distribution(self):
         return self.in_list[self.index].distribution
 
+    @property
+    def direction(self):
+        return self.in_list[self.index].direction
+
+    @direction.setter
+    def direction(self, direction):
+        self.in_list[self.index].direction = direction
+
+    @property
+    def ip_offset(self):
+        return self.in_list[self.index].ip_offset
+
+    @ip_offset.setter
+    def ip_offset(self, ip_offset):
+        self.in_list[self.index].ip_offset = ip_offset
+
     def to_json(self):
         return {"index": self.index}
 
@@ -322,25 +354,30 @@ class ASTFIPGenGlobal(object):
         self.fields = {}
         self.fields['ip_offset'] = ip_offset
 
+    @property
+    def ip_offset(self):
+        return self.fields['ip_offset']
+
     def to_json(self):
         return dict(self.fields)
 
 
 class ASTFIPGen(object):
-    def __init__(self, glob=ASTFIPGenGlobal(),
-                 dist_client=ASTFIPGenDist(["16.0.0.1", "16.0.0.255"], distribution="seq"),
-                 dist_server=ASTFIPGenDist(["48.0.0.1", "48.0.255.255"], distribution="seq")):
+    def __init__(self, dist_client, dist_server, glob=ASTFIPGenGlobal()):
         ver_args = {"types":
                     [{"name": "glob", 'arg': glob, "t": ASTFIPGenGlobal, "must": False},
-                     {"name": "dist_client", 'arg': dist_client, "t": ASTFIPGenDist, "must": False},
-                     {"name": "dist_server", 'arg': dist_server, "t": ASTFIPGenDist, "must": False},
+                     {"name": "dist_client", 'arg': dist_client, "t": ASTFIPGenDist, "must": True},
+                     {"name": "dist_server", 'arg': dist_server, "t": ASTFIPGenDist, "must": True},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         self.fields = {}
-        self.fields['global'] = glob
         self.fields['dist_client'] = dist_client
+        dist_client.direction = "c"
+        dist_client.ip_offset = glob.ip_offset
         self.fields['dist_server'] = dist_server
+        dist_server.direction = "s"
+        dist_server.ip_offset = glob.ip_offset
 
     @staticmethod
     def __str__():
@@ -556,7 +593,7 @@ class _ASTFTemplateBase(object):
 
 
 class _ASTFClientTemplate(_ASTFTemplateBase):
-    def __init__(self, ip_gen=ASTFIPGen(), cluster=ASTFCluster(), program=None):
+    def __init__(self, ip_gen, cluster=ASTFCluster(), program=None):
         super(_ASTFClientTemplate, self).__init__(program=program)
         self.fields['ip_gen'] = ip_gen
         self.fields['cluster'] = cluster
@@ -569,10 +606,10 @@ class _ASTFClientTemplate(_ASTFTemplateBase):
 
 
 class ASTFTCPClientTemplate(_ASTFClientTemplate):
-    def __init__(self, ip_gen=ASTFIPGen(), cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
+    def __init__(self, ip_gen, cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
                  port=80, cps=1):
         ver_args = {"types":
-                    [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
+                    [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
                      {"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
@@ -673,12 +710,12 @@ class ASTFGlobal(object):
 
 
 class ASTFProfile(object):
-    def __init__(self, templates=None, glob=None, cap_list=None, default_ip_gen=ASTFIPGen()):
+    def __init__(self, default_ip_gen, templates=None, glob=None, cap_list=None):
         ver_args = {"types":
                     [{"name": "templates", 'arg': templates, "t": ASTFTemplate, "allow_list": True, "must": False},
                      {"name": "glob", 'arg': glob, "t": ASTFGlobal, "must": False},
                      {"name": "cap_list", 'arg': cap_list, "t": ASTFCapInfo, "allow_list": True, "must": False},
-                     {"name": "default_ip_gen", 'arg': default_ip_gen, "t": ASTFIPGen, "must": False}]
+                     {"name": "default_ip_gen", 'arg': default_ip_gen, "t": ASTFIPGen}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -759,39 +796,3 @@ class ASTFProfile(object):
 
         return json.dumps(ret, indent=4, separators=(',', ': '))
 
-
-if __name__ == '__main__':
-    cmd_list = []
-    cmd_list.append(ASTFCmdSend("aaaaaaaaaaaaaa"))
-    cmd_list.append(ASTFCmdSend("bbbbbbbb"))
-    cmd_list.append(ASTFCmdSend("aaaaaaaaaaaaaa"))
-    cmd_list.append(ASTFCmdReset())
-    my_prog_c = ASTFProgram(commands=cmd_list)
-    my_prog_s = ASTFProgram(file="/Users/ibarnea/src/trex-core/scripts/cap2/http_get.pcap", side="s")
-    ip_gen_c = ASTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
-    ip_gen_c2 = ASTFIPGenDist(ip_range=["17.0.0.0", "17.255.255.255"], distribution="seq")
-    ip_gen_s = ASTFIPGenDist(ip_range=["49.0.0.0", "49.255.255.255"], distribution="seq")
-    ip_gen_s2 = ASTFIPGenDist(ip_range=["200.0.0.0", "200.255.255.255"], distribution="seq")
-    ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
-                       dist_client=ip_gen_c,
-                       dist_server=ip_gen_s)
-    ip_gen2 = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
-                        dist_client=ip_gen_c2,
-                        dist_server=ip_gen_s2)
-
-    tcp1 = ASTFTCPInfo(file="../../../../cap2/http_get.pcap", side="c")
-    tcp2 = ASTFTCPInfo(window=32768, options=0x2)
-
-    assoc_rule1 = ASTFAssociationRule(port=81, ip_start="1.1.1.1", ip_end="1.1.1.10", ip_type="dst")
-    assoc_rule2 = ASTFAssociationRule(port=90, ip_start="2.1.1.1", ip_end="2.1.1.10", ip_type="src")
-    assoc = ASTFAssociation(rules=[assoc_rule1, assoc_rule2])
-
-    temp_c = ASTFTCPClientTemplate(program=my_prog_c, tcp_info=tcp1, ip_gen=ip_gen)
-    temp_s = ASTFTCPServerTemplate(program=my_prog_s, tcp_info=tcp2, assoc=assoc)
-    template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
-
-    profile = ASTFProfile(template)
-
-    f = open('/tmp/tcp_out.json', 'w')
-    print(profile.to_json())
-    f.write(str(profile.to_json()).replace("'", "\""))

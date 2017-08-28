@@ -31,12 +31,15 @@ class CNstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
 
     def handle_one_cap(self, cap_file_name):
         profile = """
-from trex_astf_lib.api import ASTFProfile, ASTFCapInfo
+from trex_astf_lib.api import ASTFProfile, ASTFCapInfo, ASTFIPGenDist, ASTFIPGen
 class Prof1():
     def __init__(self):
         pass
     def get_profile(self):
-        return ASTFProfile(cap_list=[ASTFCapInfo(file="%s")])
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.1", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(dist_client=ip_gen_c, dist_server=ip_gen_s)
+        return ASTFProfile(default_ip_gen=ip_gen, cap_list=[ASTFCapInfo(file="%s")])
 
 def register():
     return Prof1()
@@ -130,8 +133,7 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         else:
             assert 0, "Bad exception, or no exception"
 
-        # default distribution
-        default_ip_gen = ASTFIPGenDist()
+        default_ip_gen = ASTFIPGenDist(ip_range=['16.0.0.1', '16.0.0.255'])
         non_default_ip_gen = ASTFIPGenDist(ip_range=["1.1.1.1", "1.1.1.255"], distribution="rand")
 
         assert(self.compare_json(class_json, ASTFIPGenDist.class_to_json()))
@@ -189,7 +191,7 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_ASTFTCPClientTemplate(self):
         json = {'tcp_info': {'index': 0}, 'cluster': {}, 'program_index': 0, 'cps': 1, 'port': 80,
-                'ip_gen': {'dist_client': {'index': 0}, 'global': {'ip_offset': '1.0.0.0'}, 'dist_server': {'index': 1}}}
+                'ip_gen': {'dist_client': {'index': 0}, 'dist_server': {'index': 1}}}
 
         # no program
         try:
@@ -202,7 +204,10 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         # Valid client template
         prog = ASTFProgram()
         prog.send("ttt")
-        c_temp = ASTFTCPClientTemplate(program=prog)
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.1", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(dist_client=ip_gen_c, dist_server=ip_gen_s)
+        c_temp = ASTFTCPClientTemplate(ip_gen=ip_gen, program=prog)
 
         assert(self.compare_json(json, c_temp.to_json()))
 
@@ -258,9 +263,13 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
             assert 0, "Bad exception, or no exception"
 
     def test_ASTFProfile(self):
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.1", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(dist_client=ip_gen_c, dist_server=ip_gen_s)
+
         # Missing parameters
         try:
-            prof = ASTFProfile()
+            prof = ASTFProfile(default_ip_gen=ip_gen)
         except ASTFError as e:
             assert type(e) == ASTFErrorMissingParam
         else:
@@ -269,11 +278,12 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         # specifying both templates and cap_list
         prog = ASTFProgram()
         prog.send("yyy")
-        c_temp = ASTFTCPClientTemplate(program=prog)
+        c_temp = ASTFTCPClientTemplate(program=prog, ip_gen=ip_gen)
         s_temp = ASTFTCPServerTemplate(program=prog)
         template = ASTFTemplate(client_template=c_temp, server_template=s_temp)
         try:
-            prof = ASTFProfile(templates=template, cap_list=ASTFCapInfo(file="/tmp/aaa"))  # noqa: ignore=F841
+            prof = ASTFProfile(default_ip_gen=ip_gen,   # noqa: ignore=F841
+                templates=template, cap_list=ASTFCapInfo(file="/tmp/aaa"))
         except ASTFError as e:
             assert type(e) == ASTFErrorBadParamCombination
         else:

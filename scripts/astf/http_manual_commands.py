@@ -37,7 +37,7 @@ class Prof1():
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
         # profile
-        profile = ASTFProfile(template)
+        profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
         return profile
 
     def get_profile(self):
