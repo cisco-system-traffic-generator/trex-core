@@ -1,5 +1,7 @@
 from trex_astf_lib.api import *
 
+# SFR UDP templates are not here yet (e.g. DNS)
+
 
 class Prof1():
     def __init__(self):
