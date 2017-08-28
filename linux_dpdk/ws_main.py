@@ -1204,7 +1204,7 @@ files_list=[
             'bp-sim-64-debug',
             't-rex-64-debug-gdb',
             'stl-sim',
-            'astl-sim',
+            'astf-sim',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',
