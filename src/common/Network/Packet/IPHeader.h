@@ -196,6 +196,7 @@ protected:
         sum += ipv4[9];
 
         sum = (sum & 0xffff) + (sum >> 16);
+        sum = (sum & 0xffff) + (sum >> 16);
 
         return (uint16_t)(~sum);
     }
@@ -211,6 +212,7 @@ protected:
             sum += ipv4[i];
         }
 
+        sum = (sum & 0xffff) + (sum >> 16);
         sum = (sum & 0xffff) + (sum >> 16);
 
         return (uint16_t)(~sum);
