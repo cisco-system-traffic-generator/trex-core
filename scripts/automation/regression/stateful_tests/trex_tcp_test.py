@@ -65,7 +65,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             f = 'cap2/http_simple.yaml',
             l = 1000,
             k = 10,
-            tcp =True
+            astf =True
             )
 
 

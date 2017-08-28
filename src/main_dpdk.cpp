@@ -916,7 +916,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
-        { OPT_TCP_MODE,               "--tcp",SO_NONE},
+        { OPT_TCP_MODE,               "--astf",SO_NONE},
         { OPT_TCP_HTTP_RES,           "--http",SO_REQ_SEP},
 
         SO_END_OF_OPTIONS

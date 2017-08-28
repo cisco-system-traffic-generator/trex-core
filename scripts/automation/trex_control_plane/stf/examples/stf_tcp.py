@@ -22,7 +22,7 @@ def run_stateful_tcp_test(server):
             k=10,
             d = 20,
             l = 1000,
-            tcp =True, #enable TCP 
+            astf =True, #enable TCP 
             nc=True
             )
 
