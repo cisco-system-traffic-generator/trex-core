@@ -955,6 +955,7 @@ def build(bld):
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
+
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless_moved1.asciidoc waf.css', target='draft_trex_stateless1.html', scan=ascii_doc_scan)
 
@@ -981,6 +982,11 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_astf.asciidoc waf.css', target='trex_astf.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless_bench.asciidoc waf.css', target='trex_stateless_bench.html',scan=ascii_doc_scan);

@@ -14,9 +14,9 @@ class Prof1():
                            dist_server=ip_gen_s)
 
         return ASTFProfile(default_ip_gen=ip_gen,
-                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=1)])
+                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=1),
+                            cap_list=[ASTFCapInfo(file="avl/delay_10_https_0.pcap",cps=2)])
 
 
 def register():
     return Prof1()
-
