@@ -936,7 +936,7 @@ those are the pcap file that generated
 
 === Traffic profile reference 
 
-*see python doc (TBD)*
+link:cp_astf_docs/index.html[python index]
 
 === Counters reference 
 

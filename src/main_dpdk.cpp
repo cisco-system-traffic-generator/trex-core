@@ -931,6 +931,7 @@ static int usage(){
     printf("\n");
 
     printf(" Available options are:\n");
+    printf(" --astf                     : Enable advanced stateful mode. profile should be in py format and not YAML format \n");
     printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
     printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
     printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
