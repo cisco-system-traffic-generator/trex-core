@@ -757,24 +757,6 @@ RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) 
 }
 
 
-/**
- * sends packets through the RX core TX queue
- * 
-*/
-uint32_t
-RXPortManager::tx_pkts(const std::vector<std::string> &pkts) {
-    uint32_t pkts_sent = 0;
-    
-    for (const auto &pkt : pkts) {
-        if (tx_pkt(pkt)) {
-            pkts_sent++;
-        }
-    }
-    
-    return pkts_sent;
-}
-
-
 bool
 RXPortManager::tx_pkt(const std::string &pkt) {
     /* allocate MBUF */

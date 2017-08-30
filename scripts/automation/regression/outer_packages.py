@@ -10,7 +10,8 @@ if not TREX_PATH or not os.path.isfile('%s/trex_daemon_server' % TREX_PATH):
 PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(TREX_PATH, 'external_libs'))
 PATH_TO_CTRL_PLANE  = os.path.abspath(os.path.join(TREX_PATH, 'automation', 'trex_control_plane')) 
 PATH_STF_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stf')) 
-PATH_STL_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stl')) 
+PATH_STL_API        = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'stl'))
+PATH_ASTF_API       = os.path.abspath(os.path.join(PATH_TO_CTRL_PLANE, 'astf'))
 
 
 NIGHTLY_MODULES = [ {'name': 'ansi2html'},
@@ -61,7 +62,7 @@ def import_module_list(modules_list):
 
 def import_nightly_modules ():
     #sys.path.append(PATH_TO_CTRL_PLANE)
-    for path in (TREX_PATH, PATH_STL_API, PATH_STF_API):
+    for path in (TREX_PATH, PATH_STL_API, PATH_STF_API, PATH_ASTF_API):
         if path not in sys.path:
             sys.path.append(path)
     import_module_list(NIGHTLY_MODULES)

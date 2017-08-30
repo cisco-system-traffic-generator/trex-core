@@ -449,8 +449,7 @@ TrexStatelessRxSetVLAN::handle(CRxCoreStateless *rx_core) {
 
 bool
 TrexStatelessRxTXPkts::handle(CRxCoreStateless *rx_core) {
-    RXPortManager &port_mngr = rx_core->get_rx_port_mngr(m_port_id);
-    uint32_t sent = port_mngr.tx_pkts(m_pkts);
+    uint32_t sent = rx_core->tx_pkts(m_port_id, m_pkts, m_ipg_usec);
     
     m_reply.set_reply(sent);
     

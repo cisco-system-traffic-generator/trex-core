@@ -47,6 +47,8 @@ link:release_notes.html[Release_notes.html]
 link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
 | Stateless Manual    | 
 link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf]
+| Advanced Stateful Manual    | 
+link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf]
 | Tutorial TRex on VirtualBox    | 
 link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
 | Cisco Devnet SandBox   | 
@@ -62,6 +64,8 @@ link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c2
 link:cp_stl_docs/index.html[stateless_sdk] 
 | Stateful  Python automation API    | 
 link:cp_docs/index.html[statelful_sdk] 
+| Advanced Stateful  Python automation API    | 
+link:cp_astf_docs/index.html[astf_sdk] 
 | Stateful API tutorial              | 
 link:trex_control_plane_peek.html[Stateful API]
 | Stateless API tutorial              | 
@@ -85,6 +89,8 @@ link:../release/[pkgs]
 link:../client_gui/[stateful GUI]
 | XL710 Statless performance    | 
 link:trex_stateless_bench.html[xl710_benchmark.html] 
+| WLC benchmark using plugins | 
+link:trex_stateless_wlc_bench.html[WLC benchmark]
 | TRex performance trend per platform/NIC  | 
 link:trex_analytics.html[trex_perf_trend.html] 
 | TRex performance SR_IOV  | 

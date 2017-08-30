@@ -226,6 +226,8 @@ main_src = SrcGroup(dir='src',
              'utl_mbuf.cpp',
              'utl_dbl_human.cpp',
              'utl_counter.cpp',
+             'utl_policer.cpp',
+             'astf/astf_template_db.cpp',
              'stt_cp.cpp',
              'bp_sim.cpp',
              'utl_term_io.cpp',
@@ -272,7 +274,8 @@ cmn_src = SrcGroup(dir='src/common',
         'captureFile.cpp',
         'erf.cpp',
         'pcap.cpp',
-        'base64.cpp'
+        'base64.cpp',
+        'n_uniform_prob.cpp'
         ]);
 
 net_src = SrcGroup(dir='src/common/Network/Packet',
@@ -332,6 +335,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'messaging/trex_stateless_messaging.cpp',
                                     'rx/trex_stateless_rx_core.cpp',
                                     'rx/trex_stateless_rx_port_mngr.cpp',
+                                    'rx/trex_stateless_rx_tx.cpp',
                                     'rx/trex_stateless_capture.cpp',
                                     'common/trex_stateless_pkt.cpp',
                                     ])
@@ -966,8 +970,8 @@ def build_prog (bld, build_obj):
 
     # add electric fence only for debug image  
     debug_file_list='';
-    if not build_obj.isRelease ():
-        debug_file_list +=ef_src.file_list(top)
+    #if not build_obj.isRelease ():
+    #    debug_file_list +=ef_src.file_list(top)
 
     bld.objects(
       features='c ',
@@ -1206,6 +1210,7 @@ files_list=[
             'bp-sim-64-debug',
             't-rex-64-debug-gdb',
             'stl-sim',
+            'astf-sim',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',

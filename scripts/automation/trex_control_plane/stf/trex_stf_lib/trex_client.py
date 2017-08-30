@@ -1245,6 +1245,22 @@ class CTRexResult(object):
         """
         return self._min_latency
 
+    def get_is_latency_exists (self):
+        """
+        return True if latency information exists
+
+        :parameters:        
+            None
+
+        :return: 
+            True or False
+
+        """
+        if self._min_latency != None:
+            return True;
+        else:
+            return False;
+
         
 
     def get_jitter_latency (self):

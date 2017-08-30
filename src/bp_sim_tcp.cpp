@@ -133,6 +133,10 @@ public:
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CTcpFlow * flow);
 
+   int on_redirect_rx(CTcpPerThreadCtx *ctx,
+                      rte_mbuf_t *m);
+
+
 public:
     uint8_t                 m_dir;
     CFlowGenListPerThread * m_p;
@@ -164,6 +168,12 @@ int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
     return(0);
 }
 
+
+int CTcpDpdkCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
+                               rte_mbuf_t *m){
+    pkt_dir_t   dir = ctx->m_ft.is_client_side()?CLIENT_SIDE:SERVER_SIDE;
+    return(m_p->m_node_gen.m_v_if->redirect_to_rx_core(dir,m)?0:-1);
+}
 
 int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
                       struct tcpcb * tp,
@@ -259,6 +269,8 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
 #endif
     }
 
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable();
+
     /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
                                                  tuple.getClient(),
@@ -266,7 +278,7 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
                                                  tuple.getClientPort(),
                                                  tuple.getServerPort(),
                                                  vlan,
-                                                 false);
+                                                 is_ipv6);
     if (c_flow == (CTcpFlow *)0) {
         return;
     }
@@ -284,7 +296,7 @@ void CFlowGenListPerThread::tcp_generate_flows_roundrobin(bool &done){
     c_tuple.set_ip(tuple.getClient());
     c_tuple.set_port(tuple.getClientPort());
     c_tuple.set_proto(6);
-    c_tuple.set_ipv4(true);
+    c_tuple.set_ipv4(is_ipv6?false:true);
 
     if (!m_c_tcp->m_ft.insert_new_flow(c_flow,c_tuple)){
         /* need to free the tuple */

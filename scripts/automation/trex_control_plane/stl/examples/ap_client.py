@@ -9,56 +9,54 @@ import yaml
 with open(sys.argv[1]) as f:
     config_yaml = yaml.load(f.read())
 
-ap_count = 2
-clients_per_ap = 1
-ap_ports = list(range(ap_count))
+base_data = config_yaml['base']
+ports_data = config_yaml['ports']
+ap_ports = list(ports_data.keys())
 
 
 c = STLClient(server = config_yaml['server'])
 c.connect()
-c.acquire(ports = ap_ports, force = True)
-c.stop(ports = ap_ports)
-c.remove_all_streams(ports = ap_ports)
+c.acquire(force = True)
+c.stop()
+c.remove_all_streams()
 #c.remove_all_captures()
 
 m = AP_Manager(c)
 
 try:
-    m.init(ap_ports)
-
-    for index in range(ap_count):
-        index += 1
-        m.create_ap(
-            trex_port_id = index - 1,
-            name = 'ap-yaro-%s' % index,
-            #mac = '94:d4:69:12:34:%02x' % index,
-            mac = '94:12:12:12:12:%02x' % index,
-            ip = config_yaml['ap_ip'] % index,
-            udp_port = 10000 + index,
-            radio_mac = '94:12:12:12:%02x:00' % index,
-            #rsa_priv_file = '/users/ybrustin/certs/priv_key',
-            #rsa_cert_file = '/users/ybrustin/certs/cisco_signed_cert.cert',
+    def establish_setup():
+        m.set_base_values(
+            name = base_data['ap_name'],
+            mac = base_data['ap_mac'],
+            ip = base_data['ap_ip'],
+            udp = base_data['ap_udp'],
+            radio = base_data['ap_radio'],
+            client_mac = base_data['client_mac'],
+            client_ip = base_data['client_ip'],
             )
 
-    m.join_aps()
-    print 'Joined all APs'
+        for port_id, port_data in ports_data.items():
+            m.init(port_id)
+            ap_params = m._gen_ap_params()
+            m.create_ap(port_id, *ap_params)
+            m.aps[-1].profile_dst_ip = port_data['dst_ip'] # dirty hack
+            for _ in range(port_data['clients']):
+                client_params = m._gen_client_params()
+                m.create_client(*client_params, ap_id = ap_params[0])
 
-    for client_index in range(ap_count * clients_per_ap):
-        ap_index = client_index % ap_count
-        client_index += 1
-        m.create_client(
-            mac = '94:13:13:13:13:%02x' % client_index,
-            ip = config_yaml['client_ip'] % client_index,
-            ap_id = m.aps[ap_index].ip_src,
-            )
+        print('Joining APs')
+        m.join_aps()
+    
+        print('Associating clients')
+        m.join_clients()
 
-    m.join_clients()
-    print 'Associated all clients, starting traffic'
+    establish_setup()
     pprint(m.get_info())
     #time.sleep(1)
 
-    m.add_profile(m.clients[0], '../../../../stl/imix.py')
-    m.add_profile(m.clients[1], '../../../../stl/imix.py', direction = 1, port = 1)
+    for client in m.clients:
+        m.add_profile(client, '../../../../stl/imix.py', direction = client.ap.port_id % 2, port = client.ap.port_id)
+    print('Starting traffic')
     c.start(ports = ap_ports, mult = '0.5%', force = True)
 
     while m.get_connected_aps():
@@ -71,8 +69,10 @@ except KeyboardInterrupt:
     pass
 
 finally:
-    c.stop(ports = ap_ports)
+    c.stop()
     m.close()
+    time.sleep(0.1)
+    c.disconnect()
 
 
 

@@ -28,6 +28,7 @@
 #include "utl_cpuu.h"
 #include "trex_stateless_rx_port_mngr.h"
 #include "trex_stateless_capture.h"
+#include "trex_stateless_rx_tx.h"
 
 class TrexStatelessCpToRxMsgBase;
 
@@ -170,6 +171,17 @@ class CRxCoreStateless {
         return m_rx_pps.add(m_rx_pkts);
     }
     
+    /**
+     * sends a list of packets using a queue (delayed) with IPG
+     */
+    uint32_t tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec);
+    
+    /**
+     * sends a packet through the TX queue assigned to the RX core
+     */
+    bool tx_pkt(int port_id, const std::string &pkt);
+    
+    
  private:
     void handle_cp_msg(TrexStatelessCpToRxMsgBase *msg);
 
@@ -199,6 +211,7 @@ class CRxCoreStateless {
 
     void try_rx_queues();
     
+        
  private:
     TrexMonitor      m_monitor;
     uint32_t         m_max_ports;
@@ -214,14 +227,13 @@ class CRxCoreStateless {
     
     uint64_t         m_rx_pkts;
 
-    // Used for acking "work" (go out of idle) messages from cp
-    volatile bool m_ack_start_work_msg __rte_cache_aligned;
-
     CRxCoreErrCntrs m_err_cntrs;
     CRFC2544Info m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
     RXPortManager m_rx_port_mngr[TREX_MAX_PORTS];
     
     CPPSMeasure   m_rx_pps;
+    
+    TXQueue       m_tx_queue;
 };
 #endif

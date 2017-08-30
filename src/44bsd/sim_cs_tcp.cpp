@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "sim_cs_tcp.h"
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,
@@ -92,6 +92,13 @@ int CTcpCtxDebug::on_flow_close(CTcpPerThreadCtx *ctx,
 }
 
 
+int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
+                                 rte_mbuf_t *m){
+    assert(0);
+    return(0);
+}
+
+
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct tcpcb * tp,
                         rte_mbuf_t *m){
@@ -146,6 +153,7 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_io_debug.m_p = this;
     m_tx_diff =0.0;
     m_vlan =0;
+    m_ipv6=false;
 
     m_rtt_sec =0.05; /* 50msec */
 
@@ -508,12 +516,12 @@ int CClientServerTcp::simple_http(){
     CTcpAppCmd cmd;
     uint32_t http_r_size=32*1024;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(1025);
     c_tuple.set_proto(6);
-    c_tuple.set_ipv4(true);
+    c_tuple.set_ipv4(m_ipv6?false:true);
 
     if (m_debug) {
         /* enable client debug */
@@ -653,9 +661,9 @@ int CClientServerTcp::fill_from_file() {
 
     uint16_t temp_index = 0; //??? need to support multiple templates
     // client program
-    prog_c = CJsonData::instance()->get_prog(temp_index, 0);
+    prog_c = CJsonData::instance()->get_prog(temp_index, 0, 0);
     // server program
-    prog_s = CJsonData::instance()->get_prog(temp_index, 1);
+    prog_s = CJsonData::instance()->get_prog(temp_index, 1, 0);
 
     if (m_debug) {
       prog_c->Dump(stdout);

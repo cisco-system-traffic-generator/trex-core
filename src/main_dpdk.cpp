@@ -982,7 +982,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
-        { OPT_TCP_MODE,               "--tcp",SO_NONE},
+        { OPT_TCP_MODE,               "--astf",SO_NONE},
         { OPT_TCP_HTTP_RES,           "--http",SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
@@ -997,6 +997,7 @@ static int usage(){
     printf("\n");
 
     printf(" Available options are:\n");
+    printf(" --astf                     : Enable advanced stateful mode. profile should be in py format and not YAML format \n");
     printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
     printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
     printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
@@ -2289,7 +2290,7 @@ public:
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
-    bool process_rx_pkt(pkt_dir_t   dir,rte_mbuf_t * m);
+    bool redirect_to_rx_core(pkt_dir_t   dir,rte_mbuf_t * m);
 
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t       dir, uint8_t * p);
 
@@ -2741,6 +2742,38 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
     }
 
 }
+
+bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
+                                     rte_mbuf_t * m){
+    bool sent=false;
+
+    CGenNodeLatencyPktInfo * node=(CGenNodeLatencyPktInfo * )CGlobalInfo::create_node();
+    if ( node ) {
+        node->m_msg_type = CGenNodeMsgBase::LATENCY_PKT;
+        node->m_dir      = dir;
+        node->m_latency_offset = 0xdead;
+        node->m_pkt      = m;
+        if ( m_ring_to_rx->Enqueue((CGenNode*)node)==0 ){
+            sent=true;
+        }else{
+            rte_pktmbuf_free(m);
+            CGlobalInfo::free_node((CGenNode *)node);
+        }
+
+#ifdef LATENCY_QUEUE_TRACE_
+        printf("rx to cp --\n");
+        rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));
+#endif
+    }
+
+    if (sent==false) {
+        /* inc counter */
+        CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+        lp_stats->m_tx_redirect_error++;
+    }
+    return (sent);
+}
+
 
 int CCoreEthIF::send_node(CGenNode * node) {
 
@@ -4445,7 +4478,7 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
         CVirtualIFPerSideStats stats;
         erf_vif->GetCoreCounters(&stats);
         sw_pkt_out     += stats.m_tx_pkt;
-        sw_pkt_out_err += stats.m_tx_drop +stats.m_tx_queue_full +stats.m_tx_alloc_error ;
+        sw_pkt_out_err += stats.m_tx_drop +stats.m_tx_queue_full +stats.m_tx_alloc_error+stats.m_tx_redirect_error ;
         sw_pkt_out_bytes +=stats.m_tx_bytes;
     }
 
@@ -6200,11 +6233,44 @@ int main_test(int argc , char * argv[]){
         return (-1);
     }
 
-    if ( get_is_tcp_mode() &&
-         (CGlobalInfo::m_options.preview.getCores() >1) ){
+    if ( get_is_tcp_mode() ){
+        CParserOption * po=&CGlobalInfo::m_options;
+
+        if ( po->preview.getCores() >1 ) {
         printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
         printf("we are working to solve this very soon  \n");
         return (-1);
+        }
+
+        if ( po->preview.get_is_rx_check_enable() ){
+           printf("ERROR advanced stateful does not require --rx-check mode, it is done by default, please remove this switch\n");
+           return (-1);
+        }
+
+        if ( po->m_learn_mode !=0 ){
+           printf("ERROR advanced stateful does not require --learn/--learn-mode, it is done by default, please remove this switch\n");
+           return (-1);
+        }
+
+        if ( po->preview.getClientServerFlip() ){
+            printf("ERROR advanced stateful does not support --flip option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->preview.getClientServerFlowFlip() ){
+            printf("ERROR advanced stateful does not support -p option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->preview.getClientServerFlowFlipAddr() ){
+            printf("ERROR advanced stateful does not support -e option, please remove this switch\n");
+            return (-1);
+        }
+
+        if ( po->m_active_flows ){
+            printf("ERROR advanced stateful does not support --active-flows option, please remove this switch  \n");
+            return (-1);
+        }
     }
 
     /* set affinity to the master core as default */

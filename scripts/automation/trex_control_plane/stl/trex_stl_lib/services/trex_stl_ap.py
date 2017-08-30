@@ -606,7 +606,7 @@ class STLServiceAp(STLService):
 def hex(buf, delimiter = ' '):
     if not buf:
         return 'Empty buffer'
-    return delimiter.join(['%02x' % c if type(c) is int else ord(c) for c in buf])
+    return delimiter.join(['%02x' % (c if type(c) is int else ord(c)) for c in buf])
 
 ################ FSMs ##################
 

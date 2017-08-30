@@ -12,6 +12,10 @@ Author:
 
 """
 from .trex_stl_service import STLService, STLServiceFilter
+from .trex_stl_dhcp_parser import DHCPParser
+
+from ..trex_stl_exceptions import STLError
+
 from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
@@ -19,8 +23,21 @@ from scapy.layers.inet import IP, UDP
 from collections import defaultdict
 import random
 import struct
+import socket
 import re
 
+# create a single global parser
+parser = DHCPParser()
+
+           
+def ipv4_num_to_str (num):
+    return socket.inet_ntoa(struct.pack('!I', num))
+    
+    
+def ipv4_str_to_num (ipv4_str):
+    return struct.unpack("!I", socket.inet_aton(ipv4_str))[0]
+    
+            
 class STLServiceFilterDHCP(STLServiceFilter):
     '''
         Service filter for DHCP services
@@ -33,32 +50,25 @@ class STLServiceFilterDHCP(STLServiceFilter):
         self.services[service.get_xid()].append(service)
         
         
-    def lookup (self, scapy_pkt):
-        # if not BOOTP 
-        if 'BOOTP' not in scapy_pkt:
-            return []
-            
-        # it's a DHCP packet - check if its with an XID that we own
-        xid = scapy_pkt['BOOTP'].xid
+    def lookup (self, pkt):
+        # correct XID is enough to verify ownership
+        xid = parser.parse(pkt).xid
         
         return self.services.get(xid, [])
 
         
     def get_bpf_filter (self):
         return 'udp port 67 or 68'
+    
+    
         
-        
+
+    
 ################### internal ###################
 class STLServiceDHCP(STLService):
     
     # DHCP states
     INIT, SELECTING, REQUESTING, BOUND = range(4)
-    
-    # messages types
-    DISCOVER = 1
-    OFFER    = 2
-    ACK      = 5
-    NACK     = 6
     
     def __init__ (self, mac, verbose_level = STLService.ERROR):
 
@@ -126,8 +136,7 @@ class STLServiceDHCP(STLService):
                 self.log('DHCP: {0} ---> DISCOVERY'.format(self.mac))
                 
                 # send a discover message
-                pipe.async_tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","discover"),"end"]))
+                yield pipe.async_tx_pkt(parser.disc(self.xid, self.mac_bytes))
                 
                 self.state = 'SELECTING'
                 continue
@@ -136,25 +145,22 @@ class STLServiceDHCP(STLService):
             # SELECTING state
             elif self.state == 'SELECTING':
                 
-                # give a chance to all the servers to respond
-                yield pipe.async_wait(0.5)
-                
                 # wait until packet arrives or timeout occurs
                 pkts = yield pipe.async_wait_for_pkt(3)
                 pkts = [pkt['pkt'] for pkt in pkts]
                 
-                offers = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] == self.OFFER]
+                # filter out the offer responses
+                offers = [parser.parse(pkt) for pkt in pkts]
+                offers = [offer for offer in offers if offer.options['message-type'] == parser.OFFER]
+                        
                 if not offers:
-                    self.log('DHCP: {0} *** timeout - retries left: {1}'.format(self.mac, self.retries))
+                    self.log('DHCP: {0} *** timeout on offers - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)
                     self.state = 'INIT'
                     continue
                     
                     
                 offer = offers[0]
-                options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
-                self.log("DHCP: {0} <--- OFFER from '{1}' with address '{2}' ".format(self.mac, options['server_id'], offer['BOOTP'].yiaddr))
-        
-                record = self.DHCPRecord(offer)
+                self.log("DHCP: {0} <--- OFFER from '{1}' with address '{2}' ".format(self.mac, ipv4_num_to_str(offer.options['server_id']), ipv4_num_to_str(offer.yiaddr)))
                 
                 self.state = 'REQUESTING'
                 continue
@@ -166,27 +172,31 @@ class STLServiceDHCP(STLService):
                 
                 self.log('DHCP: {0} ---> REQUESTING'.format(self.mac))
                 
-                pipe.async_tx_pkt(Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67) \
-                                  /BOOTP(chaddr=self.mac_bytes,xid=self.xid)/DHCP(options=[("message-type","request"),("requested_addr", record.client_ip),"end"]))
+                # send the request
+                yield pipe.async_tx_pkt(parser.req(self.xid, self.mac_bytes, offer.yiaddr))
                 
+                # wait for response
                 pkts = yield pipe.async_wait_for_pkt(3)
                 pkts = [pkt['pkt'] for pkt in pkts]
                 
-                acknacks = [pkt for pkt in pkts if pkt['DHCP options'].options[0][1] in (self.ACK, self.NACK)]
+                # filter out the offer responses
+                acknacks = [parser.parse(pkt) for pkt in pkts]
+                acknacks = [acknack for acknack in acknacks if acknack.options['message-type'] in (parser.ACK, parser.NACK)]
+                
                 if not acknacks:
-                    self.log('DHCP: {0} *** timeout - retries left: {1}'.format(self.mac, self.retries))
+                    self.log('DHCP: {0} *** timeout on ack - retries left: {1}'.format(self.mac, self.retries), level = STLService.ERROR)
                     self.state = 'INIT'
                     continue
                 
                 # by default we choose the first one... usually there should be only one response
                 acknack = acknacks[0]
-                options = {x[0]:x[1] for x in acknack['DHCP options'].options if isinstance(x, tuple)}
                 
-                if options['message-type'] == self.ACK:
-                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, record.server_ip, record.client_ip))
+                
+                if acknack.options['message-type'] == parser.ACK:
+                    self.log("DHCP: {0} <--- ACK from '{1}' to address '{2}' ".format(self.mac, ipv4_num_to_str(offer.options['server_id']), ipv4_num_to_str(offer.yiaddr)))
                     self.state = 'BOUND'
                 else:
-                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, record.server_ip))
+                    self.log("DHCP: {0} <--- NACK from '{1}'".format(self.mac, ipv4_num_to_str(offer.options['server_ip'])))
                     self.state = 'INIT'
                     
                 
@@ -194,7 +204,9 @@ class STLServiceDHCP(STLService):
                 
                 
             elif self.state == 'BOUND':
-                self.record = record
+                
+                # parse the offer and save it
+                self.record = self.DHCPRecord(offer)
                 break
             
             
@@ -205,10 +217,15 @@ class STLServiceDHCP(STLService):
         '''
         self.log('DHCP: {0} ---> RELEASING'.format(self.mac))
         
-        yield pipe.async_tx_pkt(Ether(dst=self.record.server_mac)/IP(src=self.record.client_ip,dst=self.record.server_ip)/UDP(sport=68,dport=67) \
-                                /BOOTP(ciaddr=self.record.client_ip,chaddr=self.mac_bytes,xid=self.xid) \
-                                /DHCP(options=[("message-type","release"),("server_id",self.record.server_ip), "end"]))
+        release_pkt = parser.release(self.xid,
+                                     self.record.client_mac,
+                                     ipv4_str_to_num(self.record.client_ip),
+                                     self.record.server_mac,
+                                     ipv4_str_to_num(self.record.server_ip))
         
+        yield pipe.async_tx_pkt(release_pkt)
+        
+        # clear the record
         self.record = None
         
 
@@ -222,18 +239,21 @@ class STLServiceDHCP(STLService):
     class DHCPRecord(object):
             
         def __init__ (self, offer):
-            options = {x[0]:x[1] for x in offer['DHCP options'].options if isinstance(x, tuple)}
             
-            self.server_mac = offer.src
-            self.client_mac = offer.dst
+            self.server_mac = offer.srcmac
+            self.client_mac = offer.dstmac
             
-            self.server_ip  = options.get('server_id', 'N/A')
-            self.subnet     = options.get('subnet_mask', 'N/A')
+            options = offer.options
+            
+            self.server_ip = ipv4_num_to_str(options['server_id']) if 'server_id' in options else 'N/A'
+            self.subnet    = ipv4_num_to_str(options['subnet_mask']) if 'subnet_mask' in options else 'N/A'
+            self.client_ip = ipv4_num_to_str(offer.yiaddr)
+            
             self.domain     = options.get('domain', 'N/A')
-            self.lease      = options.get('lease_time', 'N/A')
-            self.client_ip  = offer['BOOTP'].yiaddr
+            self.lease      = options.get('lease-time', 'N/A')
             
             
         def __str__ (self):
             return "ip: {0}, server_ip: {1}, subnet: {2}, domain: {3}, lease_time: {4}".format(self.client_ip, self.server_ip, self.subnet, self.domain, self.lease)
+
 

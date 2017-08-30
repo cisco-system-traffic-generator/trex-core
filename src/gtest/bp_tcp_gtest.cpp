@@ -23,6 +23,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 #include "h_timer.h"
 #include <common/utl_gcc_diag.h>
+#include <common/n_uniform_prob.h>
 #include <cmath>
 
 #include "44bsd/tcp.h"
@@ -39,7 +40,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>
@@ -830,7 +831,8 @@ void tcp_gen_test(std::string pcap_file,
                   bool debug_mode,
                   cs_sim_test_id_t test_id=tiTEST2,
                   int valn=0, 
-                  cs_sim_mode_t sim_mode=csSIM_NONE){
+                  cs_sim_mode_t sim_mode=csSIM_NONE,
+                  bool is_ipv6=false){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
@@ -841,6 +843,11 @@ void tcp_gen_test(std::string pcap_file,
     if (valn){
         lpt1->m_vlan=valn;
     }
+
+    if (is_ipv6){
+        lpt1->m_ipv6=true;
+    }
+    
     if (sim_mode!=csSIM_NONE){
         lpt1->set_simulate_rst_error(sim_mode);
     }
@@ -952,6 +959,18 @@ TEST_F(gt_tcp, tst30_http_rst_middle1) {
                  tiHTTP,
                  0,
                  csSIM_RST_MIDDLE2
+                 );
+
+}
+
+TEST_F(gt_tcp, tst30_http_ipv6) {
+
+    tcp_gen_test("tcp2_http_ipv6",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_NONE,
+                 true /* IPV6*/
                  );
 
 }
@@ -1627,6 +1646,323 @@ TEST_F(gt_tcp, tst51) {
 }
 
 
+#include "astf/astf_template_db.h"
+
+TEST_F(gt_tcp, tst52) {
+    CTupleGeneratorSmart  g_gen;
+    ClientCfgDB g_dummy;
+
+    g_gen.Create(0,0);
+    g_gen.add_client_pool(cdSEQ_DIST,0x10000001,0x1000000f,64000, g_dummy, 0, 0);
+    g_gen.add_server_pool(cdSEQ_DIST,0x30000001,0x40000001,64000,false);
+
+    CAstfPerTemplateRO template_ro;
+    CAstfPerTemplateRO *lp=&template_ro;
+
+    template_ro.m_dual_mask=0x01000000;
+
+    lp->m_client_pool_idx=0;
+    lp->m_server_pool_idx=0;
+    lp->m_one_app_server =false;
+    lp->m_server_addr =0;
+    lp->m_dual_mask=0x01000000;
+    lp->m_w=1;
+    lp->m_k_cps=1;
+    lp->m_destination_port=80;
+
+    CAstfPerTemplateRW t;
+    t.Create(&g_gen,0,0,lp,0);
+    CTupleBase tuple;
+    t.m_tuple_gen.GenerateTuple(tuple);
+    tuple.setServerPort(t.get_dest_port()) ;
+
+
+    printf(" %x %x %x %x \n",tuple.getClient(),
+                            tuple.getServer(),
+                            tuple.getClientPort(),
+                            tuple.getServerPort());
+
+
+    g_gen.Delete();
+}
+
+
+int test_prob(int intr,std::vector<double> & dist){
+    std::vector<int>     cnt;   
+    cnt.resize(dist.size());
+
+    KxuLCRand rnd;
+    KxuNuRand * ru=new KxuNuRand(dist,&rnd);
+    int i;
+
+    for (i=0; i<intr; i++) {
+        uint32_t index=ru->getRandom();
+        cnt[index]++;
+    }
+    for (i=0; i<cnt.size(); i++) {
+        double p= ((double)cnt[i]/(double)intr);
+        double pp=fabs((100.0*p/dist[i])-100.0);
+        printf(" %f %f\n",p,pp);
+    }
+    delete ru;
+    return(0);
+}
+
+TEST_F(gt_tcp, tst53) {
+    std::vector<double>  dist {0.1,0.2,0.3,0.4 };
+    test_prob(10000,dist);
+}
+
+/* example of SFR prob */
+TEST_F(gt_tcp, tst54) {
+    std::vector<double>  dist {
+        102,
+        102,
+        33.0,
+        179.0,
+        64.0,
+        1.2,
+        1.2,
+        1.2,
+
+        20,
+        0.7,
+        0.5,
+        1.85,
+        1.85,
+        1.85,
+
+        3.0,
+        7.4,
+        11.0,
+        498.0 ,
+
+            102,
+            102,
+            33.0,
+            179.0,
+            64.0,
+            1.2,
+            1.2,
+            1.2,
+
+            20,
+            0.7,
+            0.5,
+            1.85,
+            1.85,
+            1.85,
+
+            3.0,
+            7.4,
+            11.0,
+            498.0 ,
+
+            102,
+            102,
+            33.0,
+            179.0,
+            64.0,
+            1.2,
+            1.2,
+            1.2,
+
+            20,
+            0.7,
+            0.5,
+            1.85,
+            1.85,
+            1.85,
+
+            3.0,
+            7.4,
+            11.0,
+            498.0 ,
+
+
+    };
+    std::vector<double>  ndist;
+    Kx_norm_prob(dist,ndist);
+    Kx_dump_prob(ndist);
+    #ifdef _DEBUG
+        test_prob(1000,ndist);
+    #else
+      test_prob(100000000,ndist);
+    #endif
+}
+
+class CPerProbInfo {
+public:
+    CPolicer        m_policer;
+};
+/* policer random */
+ class CPolicerNuRand : public  KxuRand {
+ public:
+    virtual ~CPolicerNuRand();
+    CPolicerNuRand(const std::vector<double> & prob);
+    virtual uint32_t    getRandom();
+
+ private:
+     bool  getTick(uint32_t & tmp);
+ private:
+     std::vector<CPerProbInfo *> m_vec;
+     uint32_t                    m_index;
+     double                      m_cur_time_sec;
+ };
+
+
+ CPolicerNuRand::CPolicerNuRand(const std::vector<double> & prob){
+     int i;
+     for (i=0; i<prob.size(); i++) {
+         CPerProbInfo * lp= new CPerProbInfo();
+         lp->m_policer.set_cir(prob[i]);
+         lp->m_policer.set_level(0.0);
+         lp->m_policer.set_bucket_size(100.0);
+         m_vec.push_back(lp);
+     }
+     m_index=0;
+     m_cur_time_sec=1.0;
+ }
+
+
+ CPolicerNuRand::~CPolicerNuRand(){
+     int i;
+     for (i=0; i<m_vec.size(); i++) {
+         delete m_vec[i];
+     }
+     m_vec.clear();
+ }
+
+ bool  CPolicerNuRand::getTick(uint32_t & tmp){
+     CPerProbInfo * cur;
+     int i;
+     for (i=0;i<(int)m_vec.size();i++ ) {
+         cur=m_vec[m_index];
+         if ( cur->m_policer.update(1.0,m_cur_time_sec) ){
+             tmp=m_index;
+             m_index++;
+             if (m_index == m_vec.size()) {
+                 m_index=0;
+             }
+             return(true);
+         }
+         m_index++;
+         if (m_index == m_vec.size()) {
+             m_index=0;
+         }
+     }
+     return(false);
+ }
 
 
 
+ uint32_t  CPolicerNuRand::getRandom(){
+
+     uint32_t tmp;
+     while (true) {
+         if ( getTick(tmp) ) {
+             return (tmp);
+         }
+         m_cur_time_sec+=1.0;
+     }
+
+  }
+
+
+ int test_prob2(int intr,std::vector<double> & dist){
+     std::vector<int>     cnt;   
+     cnt.resize(dist.size());
+
+     CPolicerNuRand * ru=new CPolicerNuRand(dist);
+     int i;
+
+     for (i=0; i<intr; i++) {
+         uint32_t index=ru->getRandom();
+         cnt[index]++;
+     }
+     for (i=0; i<cnt.size(); i++) {
+         double p= ((double)cnt[i]/(double)intr);
+         double pp=fabs((100.0*p/dist[i])-100.0);
+         printf(" %f %f\n",p,pp);
+     }
+     delete ru;
+     return(0);
+ }
+
+ #if 0
+
+ TEST_F(gt_tcp, tst55) {
+     std::vector<double>  dist {
+         102,
+         102,
+         33.0,
+         179.0,
+         64.0,
+         1.2,
+         1.2,
+         1.2,
+
+         20,
+         0.7,
+         0.5,
+         1.85,
+         1.85,
+         1.85,
+
+         3.0,
+         7.4,
+         11.0,
+         498.0 ,
+
+             102,
+             102,
+             33.0,
+             179.0,
+             64.0,
+             1.2,
+             1.2,
+             1.2,
+
+             20,
+             0.7,
+             0.5,
+             1.85,
+             1.85,
+             1.85,
+
+             3.0,
+             7.4,
+             11.0,
+             498.0 ,
+
+             102,
+             102,
+             33.0,
+             179.0,
+             64.0,
+             1.2,
+             1.2,
+             1.2,
+
+             20,
+             0.7,
+             0.5,
+             1.85,
+             1.85,
+             1.85,
+
+             3.0,
+             7.4,
+             11.0,
+             498.0 ,
+
+     };
+     std::vector<double>  ndist;
+     Kx_norm_prob(dist,ndist);
+     Kx_dump_prob(ndist);
+     test_prob2(100000000,ndist);
+ }
+
+
+
+#endif

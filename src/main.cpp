@@ -31,7 +31,7 @@ limitations under the License.
 #include <common/arg/SimpleOpt.h>
 #include <stateless/cp/trex_stateless.h>
 #include <sim/trex_sim.h>
-#include "nstf/json_reader.h"
+#include "astf/json_reader.h"
 #include "44bsd/sim_cs_tcp.h"
 
 using namespace std;
@@ -39,7 +39,7 @@ using namespace std;
 // An enum for all the option types
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
-       OPT_SL, OPT_NSF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
+       OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
        OPT_DRY_RUN, OPT_DURATION};
 
 
@@ -53,7 +53,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
 typedef enum {
     OPT_TYPE_GTEST = 7,
     OPT_TYPE_SF,
-    OPT_TYPE_NSF,
+    OPT_TYPE_ASF,
     OPT_TYPE_SL
 } opt_type_e;
 
@@ -79,7 +79,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
-    { OPT_NSF,                "--tcp_cfg",    SO_REQ_SEP   },
+    { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
@@ -164,9 +164,9 @@ static int parse_options(int argc,
                 params["type"] = OPT_TYPE_SL;
                 break;
 
-            case OPT_NSF:
-                params["type"] = OPT_TYPE_NSF;
-                po->nstf_cfg_file = args.OptionArg();
+            case OPT_ASF:
+                params["type"] = OPT_TYPE_ASF;
+                po->astf_cfg_file = args.OptionArg();
                 break;
 
             case OPT_CFG:
@@ -228,13 +228,13 @@ static int parse_options(int argc,
      } // End of while
 
      if ((po->cfg_file =="") ) {
-         if (po->nstf_cfg_file == "") {
+         if (po->astf_cfg_file == "") {
              printf("Invalid combination of parameters you must add either -f or --tcp_cfg \n");
              usage();
              return -1;
          }
      } else {
-         if (po->nstf_cfg_file != "") {
+         if (po->astf_cfg_file != "") {
              printf("Invalid combination of parameters. Can't specify both -f and --tcp_cfg \n");
              usage();
              return -1;
@@ -325,13 +325,13 @@ int main(int argc , char * argv[]){
             return sf.run();
         }
 
-    case OPT_TYPE_NSF:
+    case OPT_TYPE_ASF:
         {
             // init
             time_init();
             CGlobalInfo::m_socket.Create(0);
             CGlobalInfo::init_pools(1000, MBUF_2048);
-            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.nstf_cfg_file);
+            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
             assert(rc);
             CClientServerTcp *lpt1 = new CClientServerTcp;
 

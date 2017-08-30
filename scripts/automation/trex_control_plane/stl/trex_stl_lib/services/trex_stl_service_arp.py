@@ -32,7 +32,11 @@ class STLServiceFilterARP(STLServiceFilter):
         self.services[(service.src_ip, service.dst_ip, tuple(service.vlan))].append(service)
 
         
-    def lookup (self, scapy_pkt):
+    def lookup (self, pkt):
+        
+        # use scapy to parse
+        scapy_pkt = Ether(pkt)
+        
         # not ARP
         if 'ARP' not in scapy_pkt:
             return []
@@ -101,7 +105,7 @@ class STLServiceARP(STLService):
             return
             
         # parse record
-        response = pkts[0]['pkt']
+        response = Ether(pkts[0]['pkt'])
         self.record = ARPRecord(self.src_ip, self.dst_ip, response)
 
         self.log("ARP: <--- '{0} is at '{1}'".format(self.record.dst_ip, self.record.dst_mac))

@@ -26,61 +26,11 @@
 #include "common/base64.h"
 
 #include "trex_stateless_pkt.h"
+#include "trex_stateless_rx_feature_api.h"
 
 class CPortLatencyHWBase;
 class CRFC2544Info;
 class CRxCoreErrCntrs;
-class RXPortManager;
-
-
-/**
- * a general API class to provide common functions to 
- * all RX features 
- *  
- * it simply exposes part of the RX port mngr instead of 
- * a full back pointer 
- *  
- */
-class RXFeatureAPI {
-public:
-
-    RXFeatureAPI(RXPortManager *port_mngr) {
-        m_port_mngr = port_mngr;
-    }
-    
-    /**
-     * sends a packet through the TX queue
-     * 
-     */
-    bool tx_pkt(const std::string &pkt);
-    bool tx_pkt(rte_mbuf_t *m);
-    
-    /**
-     * returns the port id associated with the port manager
-     * 
-     */
-    uint8_t get_port_id();
-    
-    /**
-     * returns the port VLAN configuration
-     */
-    const VLANConfig *get_vlan_cfg();
-    
-    /**
-     * source addresses associated with the port
-     * 
-     */
-    CManyIPInfo *get_src_addr();
-    
-    /**
-     * returns the *first* IPv4 address associated with the port
-     */
-    uint32_t get_src_ipv4();
-    
-private:
-    
-    RXPortManager *m_port_mngr;
-};
 
 
 /**************************************
@@ -348,13 +298,13 @@ public:
     void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
   
     /**
-     * sends packets through the RX core TX queue
-     * returns how many packets were sent successfully
+     * TX packets immediately (no queue)
+     *  
+     * returns true in case packets was transmitted succesfully 
      */
-    uint32_t tx_pkts(const std::vector<std::string> &pkts);
-    
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
+    
     
     /**
      * configure VLAN

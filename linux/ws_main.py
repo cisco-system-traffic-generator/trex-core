@@ -118,10 +118,11 @@ main_src = SrcGroup(dir='src',
             '44bsd/sim_cs_tcp.cpp',
             'utl_dbl_human.cpp',
             'utl_counter.cpp',
+            'utl_policer.cpp',
+            'astf/astf_template_db.cpp',
             'stt_cp.cpp',
             'bp_sim_tcp.cpp',
             'utl_mbuf.cpp',
-
              'inet_pton.cpp',
              'bp_sim.cpp',
              'utl_port_map.cpp',
@@ -154,7 +155,7 @@ main_src = SrcGroup(dir='src',
              'sim/trex_sim_stateless.cpp',
              'sim/trex_sim_stateful.cpp',
              'h_timer.cpp',
-             'nstf/json_reader.cpp'
+             'astf/json_reader.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -166,8 +167,8 @@ cmn_src = SrcGroup(dir='src/common',
         'erf.cpp',
         'pcap.cpp',
         'base64.cpp',
-        'sim_event_driven.cpp'
-
+        'sim_event_driven.cpp',
+        'n_uniform_prob.cpp'
         ]);
 
          
@@ -197,6 +198,7 @@ stateless_src = SrcGroup(dir='src/stateless/',
                                     'rx/trex_stateless_rx_core.cpp',
                                     'rx/trex_stateless_rx_port_mngr.cpp',
                                     'rx/trex_stateless_capture.cpp',
+                                    'rx/trex_stateless_rx_tx.cpp',
                                     'common/trex_stateless_pkt.cpp'
                                     ])
 # RPC code

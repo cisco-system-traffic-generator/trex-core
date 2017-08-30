@@ -64,7 +64,7 @@ limitations under the License.
 #include "h_timer.h"
 #include "tw_cfg.h"
 #include "utl_dbl_human.h"
-
+#include "utl_policer.h"
 
 
 #include <trex_stateless_dp_core.h>
@@ -262,6 +262,7 @@ public:
     uint64_t   m_tx_drop;
     uint64_t   m_tx_queue_full;
     uint64_t   m_tx_alloc_error;
+    uint64_t   m_tx_redirect_error;
     tx_per_flow_t m_tx_per_flow[MAX_FLOW_STATS + MAX_FLOW_STATS_PAYLOAD];
     CLatencyPktData m_lat_data[MAX_FLOW_STATS_PAYLOAD];
     CPerTxthreadTemplateInfo m_template;
@@ -275,6 +276,7 @@ public:
         m_tx_drop    += obj->m_tx_drop;
         m_tx_alloc_error += obj->m_tx_alloc_error;
         m_tx_queue_full +=obj->m_tx_queue_full;
+        m_tx_redirect_error +=obj->m_tx_redirect_error;
         m_template.Add(&obj->m_template);
     }
 
@@ -285,6 +287,7 @@ public:
        m_tx_drop=0;
        m_tx_alloc_error=0;
        m_tx_queue_full=0;
+       m_tx_redirect_error=0;
        m_template.Clear();
        for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
            m_lat_data[i].reset();
@@ -307,6 +310,7 @@ void CVirtualIFPerSideStats::Dump(FILE *fd){
     DP_B(m_tx_drop);
     DP_B(m_tx_alloc_error);
     DP_B(m_tx_queue_full);
+    DP_B(m_tx_redirect_error);
     m_template.Dump(fd);
 }
 
@@ -325,7 +329,6 @@ public:
                               uint16_t nb_pkts){
         assert(0);
     }
-
 
     /* send one packet */
     virtual int send_node(CGenNode * node)=0;
@@ -353,6 +356,12 @@ public:
     virtual CVirtualIFPerSideStats * get_stats() {
         return m_stats;
     }
+    virtual  bool redirect_to_rx_core(pkt_dir_t   dir,
+                                      rte_mbuf_t * m){
+        return(false);
+    }
+
+    
 
 protected:
     CPreviewMode             *m_preview_mode;
@@ -871,7 +880,7 @@ public:
     bool            m_rx_thread_enabled;
     trex_run_mode_e    m_run_mode;
     std::string        cfg_file;
-    std::string        nstf_cfg_file;
+    std::string        astf_cfg_file;
     std::string        client_cfg_file;
     std::string        platform_cfg_file;
     std::string        out_file;
@@ -1627,7 +1636,9 @@ public:
 
         TCP_RX_FLUSH            =13, /* TCP rx flush */
         TCP_TX_FIF              =14, /* TCP FIF */
-        TCP_TW                  =15  /* TCP TW -- need to consolidate */
+        TCP_TW                  =15,  /* TCP TW -- need to consolidate */
+
+        RX_MSG                  =16  /* message to Rx core */
     };
 
     /* flags MASKS*/
@@ -2400,45 +2411,6 @@ public:
 };
 
 
-class CPolicer {
-
-public:
-
-    CPolicer(){
-        ClearMeter();
-    }
-
-    void ClearMeter(){
-        m_cir=0.0;
-        m_bucket_size=1.0;
-        m_level=0.0;
-        m_last_time=0.0;
-    }
-
-    bool update(double dsize,dsec_t now_sec);
-
-    void set_cir(double cir){
-        BP_ASSERT(cir>=0.0);
-        m_cir=cir;
-    }
-    void set_level(double level){
-        m_level =level;
-    }
-
-    void set_bucket_size(double bucket){
-        m_bucket_size =bucket;
-    }
-
-private:
-
-    double                      m_cir;
-
-    double                      m_bucket_size;
-
-    double                      m_level;
-
-    double                      m_last_time;
-};
 
 class CFlowKey {
 public:

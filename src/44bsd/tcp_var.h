@@ -531,6 +531,8 @@ public:
     virtual int on_flow_close(CTcpPerThreadCtx *ctx,
                               CTcpFlow * flow)=0;
 
+    virtual int on_redirect_rx(CTcpPerThreadCtx *ctx,
+                               rte_mbuf_t *m)=0;
 
 
 };

@@ -588,7 +588,7 @@ if __name__ == "__main__":
         CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
 
 
-    nose_argv = ['', '-s', '-v', '--exe', '--rednose']
+    nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--nologcapture']
     test_client_package = False
     if '--test-client-package' in sys.argv:
         test_client_package = True

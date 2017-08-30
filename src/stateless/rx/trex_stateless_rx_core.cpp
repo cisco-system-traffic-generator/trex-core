@@ -94,6 +94,9 @@ void CRxCoreStateless::create(const CRxSlCfg &cfg) {
                                  &m_err_cntrs,
                                  &m_cpu_dp_u);
     }
+    
+    /* create a TX queue */
+    m_tx_queue.create(this, 5000);
 }
 
 void CRxCoreStateless::handle_cp_msg(TrexStatelessCpToRxMsgBase *msg) {
@@ -264,6 +267,10 @@ bool CRxCoreStateless::work_tick() {
         m_grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
     }
 
+    /* pass a tick to the TX queue
+     
+       */
+    m_tx_queue.tick();
     
     return did_something;
 }
@@ -420,3 +427,35 @@ CRxCoreStateless::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool ge
     get_rx_port_mngr(port_id).get_ignore_stats(stat, get_diff);
 }
 
+
+/**
+ * sends packets through the RX core TX queue
+ * 
+*/
+uint32_t
+CRxCoreStateless::tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec) {
+
+    double time_to_send_sec = now_sec();
+    uint32_t pkts_sent      = 0;
+    
+    for (const auto &pkt : pkts) {
+        bool rc = m_tx_queue.push(port_id, pkt, time_to_send_sec);
+        if (!rc) {
+            break;
+            
+        }
+        
+        pkts_sent++;
+        time_to_send_sec += usec_to_sec(ipg_usec);
+    }
+    
+    return pkts_sent;
+}
+
+/**
+ * forward the actual send to the port manager
+ */
+bool
+CRxCoreStateless::tx_pkt(int port_id, const std::string &pkt) {
+    return m_rx_port_mngr[port_id].tx_pkt(pkt);
+}

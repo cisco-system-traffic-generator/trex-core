@@ -137,6 +137,9 @@ public:
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CTcpFlow * flow);
 
+   int on_redirect_rx(CTcpPerThreadCtx *ctx,
+                      rte_mbuf_t *m);
+
 
 public:
     CClientServerTcp  * m_p ;
@@ -210,6 +213,7 @@ public:
     double                  m_rtt_sec;
     double                  m_tx_diff;
     uint16_t                m_vlan;
+    bool                    m_ipv6;
 };
 
 

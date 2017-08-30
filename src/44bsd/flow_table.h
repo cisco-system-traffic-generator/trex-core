@@ -160,6 +160,8 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_duplicate_client_tuple; 
     uint32_t        m_err_l3_cs;
     uint32_t        m_err_l4_cs;
+    uint32_t        m_err_redirect_rx;
+    uint32_t        m_redirect_rx_ok;
 };
 
 class  CSttFlowTableStats {
@@ -171,6 +173,12 @@ public:
     void Dump(FILE *fd);
 };
 
+
+typedef enum { tPROCESS=0x12,
+               tDROP , 
+               tREDIRECT_RX_CORE,
+               tEOP 
+               } tcp_rx_pkt_action_t;
 
 
 class CFlowTable {
@@ -193,11 +201,12 @@ public:
     }
 
 public:
-      bool parse_packet(struct rte_mbuf *   mbuf,
+      void parse_packet(struct rte_mbuf *   mbuf,
                         CSimplePacketParser & parser,
                         CFlowKeyTuple      & tuple,
                         CFlowKeyFullTuple  & ftuple,
-                        bool rx_l4_check);
+                        bool rx_l4_check,
+                        tcp_rx_pkt_action_t & action);
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf);
@@ -242,6 +251,14 @@ public:
       void       set_debug(bool enable){
           m_verbose = enable;
       }
+
+private:
+    void redirect_to_rx_core(CTcpPerThreadCtx * ctx,
+                             struct rte_mbuf * mbuf);
+
+    __attribute__ ((noinline)) void rx_non_process_packet(tcp_rx_pkt_action_t action,
+                                                          CTcpPerThreadCtx * ctx,
+                                                          struct rte_mbuf * mbuf);
 
 
 private: 

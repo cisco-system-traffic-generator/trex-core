@@ -35,7 +35,9 @@ class STLServiceFilterICMP(STLServiceFilter):
         self.services[(service.src_ip, service.id, service.seq, tuple(service.vlan))].append(service)
         
         
-    def lookup (self, scapy_pkt):
+    def lookup (self, pkt):
+        scapy_pkt = Ether(pkt)
+        
         # not ICMP
         if 'ICMP' not in scapy_pkt:
             return []
@@ -118,7 +120,7 @@ class STLServiceICMP(STLService):
         response = pkts[0]
         
         # parse record
-        self.record = self.PINGRecord(response['pkt'], tx_info['ts'], response['ts'])
+        self.record = self.PINGRecord(Ether(response['pkt']), tx_info['ts'], response['ts'])
 
         # log and exit
         self.log('ICMP: {:<15} <--- {}'.format(self.src_ip, str(self.record)))

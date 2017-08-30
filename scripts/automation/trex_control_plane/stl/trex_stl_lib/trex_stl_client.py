@@ -831,13 +831,13 @@ class STLClient(object):
         return rc
 
         
-    def __push_packets (self, port_id_list, pkts, force):
+    def __push_packets (self, port_id_list, pkts, force, ipg_usec):
         port_id_list = self.__ports(port_id_list)
 
         rc = RC()
 
         for port_id in port_id_list:
-            rc.add(self.ports[port_id].push_packets(pkts, force))
+            rc.add(self.ports[port_id].push_packets(pkts, force, ipg_usec))
 
         return rc
         
@@ -3235,7 +3235,7 @@ class STLClient(object):
 
 
     @__api_check(True)
-    def push_packets (self, pkts, ports = None, force = False):
+    def push_packets (self, pkts, ports = None, force = False, ipg_usec = 0):
         """
             Pushes a list of packets to the server
             a 'packet' can be anything with a bytes representation
@@ -3245,9 +3245,10 @@ class STLClient(object):
             unless 'force' is specified
 
             :parameters:
-                pkts    - scapy pkt or a list of scapy pkts
-                ports   - on which ports to push the packets
-                force   - ignore size higer than 1 MB
+                pkts       - scapy pkt or a list of scapy pkts
+                ports      - on which ports to push the packets
+                force      - ignore size higer than 1 MB
+                ipg_usec   - IPG in usec
         """
         
         # by default, take acquire ports
@@ -3287,7 +3288,7 @@ class STLClient(object):
         
             
         self.logger.pre_cmd("Pushing {0} packets on port(s) {1}:".format(len(pkts), ports))
-        rc = self.__push_packets(ports, pkts_base64, force)
+        rc = self.__push_packets(ports, pkts_base64, force, ipg_usec)
         self.logger.post_cmd(rc)
 
         if not rc:
