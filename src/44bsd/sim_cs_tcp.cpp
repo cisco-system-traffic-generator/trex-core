@@ -172,8 +172,13 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_s_ctx.tcp_iss=0x21212121; /* for testing start from the same value */
     m_s_ctx.set_cb(&m_io_debug);
 
-
     return(true);
+}
+
+// Set fictive association table to be used by server side in simulation
+void CClientServerTcp::set_assoc_table(uint16_t port, CTcpAppProgram *prog) {
+    m_tcp_data_ro.set_test_assoc_table(port, prog);
+    m_s_ctx.set_template_ro(&m_tcp_data_ro);
 }
 
 void CClientServerTcp::on_tx(int dir,
@@ -302,6 +307,7 @@ void CClientServerTcp::on_rx(int dir,
 void CClientServerTcp::Delete(){
     m_c_ctx.Delete();
     m_s_ctx.Delete();
+    m_tcp_data_ro.free();
 }
 
 
@@ -367,8 +373,7 @@ int CClientServerTcp::test2(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    m_s_ctx.m_ft.set_tcp_program(prog_s);
-
+    set_assoc_table(80, prog_s);
 
     m_rtt_sec = 0.05;
 
@@ -583,8 +588,7 @@ int CClientServerTcp::simple_http(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    m_s_ctx.m_ft.set_tcp_program(prog_s);
-
+    set_assoc_table(80, prog_s);
 
     m_rtt_sec = 0.05;
 
@@ -677,8 +681,7 @@ int CClientServerTcp::fill_from_file() {
     c_flow->set_app(app_c);
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    m_s_ctx.m_ft.set_tcp_program(prog_s);
-
+    set_assoc_table(80, prog_s);
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));

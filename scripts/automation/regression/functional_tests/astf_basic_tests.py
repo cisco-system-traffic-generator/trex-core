@@ -65,7 +65,7 @@ def register():
         self.handle_one_cap(file)
 
     def test_caps(self):
-        files = ["avl/delay_10_rtp_160k_1.pcap", "avl/delay_10_http_browsing_0.pcap", "cap2/Video_Calls.pcap"]
+        files = ["avl/delay_10_http_browsing_0.pcap"]
         for file in files:
             self.check_one_cap(file)
 

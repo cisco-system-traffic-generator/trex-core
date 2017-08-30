@@ -86,7 +86,7 @@ Not all the features will be available in the first release.
 
 ==== Status
 
-The ASTF version is in pre-alpha state it is still under development  
+WARNING: The ASTF version is in pre-alpha state and it is still under development. There are many known issues that we are working to fix, however you are welcome to report new issues  
 
 ===== What works in the current version 
 
@@ -101,6 +101,12 @@ The ASTF version is in pre-alpha state it is still under development
 * Flexible tuple generator 
 * Automation support (using STF framework)
 
+===== Known bugs
+
+* Some pcap files could create a race condition and shows *fake* TCP error counters (e.g. tcps_conndrops/tcps_reasalloc/tcps_reasfree/tcps_rcvoopack)
+* RST in the middle of the FIN/FIN-ACK keep the flow open for a long time 
+* Mellanox CX-4/5 has a performance issue  
+
 
 ===== Limitation/feature that wasn't implemented/exposed yet
 
@@ -114,8 +120,6 @@ The ASTF version is in pre-alpha state it is still under development
 * Accurate latency for TCP session. Measure sample of the flows in EF/low latency queue. Measure the SYN=SYN-ACK and REQ-RES latency histogram 
 * Fragmentation is not supported 
 * TCP statistic per template 
-* TCP layer 
-** RST in the middle of the FIN/FIN-ACK keep the flow open 
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
 
 ==== Can we address the above requirements using existing DPDK TCP stacks?

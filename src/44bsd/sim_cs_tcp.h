@@ -37,6 +37,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
+#include "astf/json_reader.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>
@@ -187,7 +188,7 @@ public:
     int fill_from_file();
     bool compare(std::string exp_dir);
     void close_file();
-
+    void set_assoc_table(uint16_t port, CTcpAppProgram *prog);
 
 public:
     std::string             m_out_dir;
@@ -195,7 +196,7 @@ public:
 
     CTcpPerThreadCtx        m_c_ctx;  /* context */
     CTcpPerThreadCtx        m_s_ctx;
-
+    CTcpData                m_tcp_data_ro;
 
     CTcpAppApiImpl          m_tcp_bh_api_impl_c;
     CTcpAppApiImpl          m_tcp_bh_api_impl_s;

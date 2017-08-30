@@ -564,9 +564,28 @@ Other network devices
         dpdk_nic_bind.get_nic_details()
         self.m_devices= dpdk_nic_bind.devices
 
+    def preprocess_astf_file_is_needed(self):
+        """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
+        is_asrf_mode = map_driver.parent_args.astf
+        if is_asrf_mode:
+            input_file = map_driver.parent_args.file
+            extension = os.path.splitext(input_file)[1]
+            if extension !=".py":
+                raise DpdkSetup(' ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML ')
+
+            msg="converting astf profile {file} to json {out}".format(file = input_file,out="/tmp/astf.json")
+            print(msg);
+            cmd = './astf-sim -f {file} --json > /tmp/astf.json'.format(
+                file = input_file)
+            print(cmd)
+            if os.system(cmd)!=0:
+                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
+
+
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
 
+        self.preprocess_astf_file_is_needed()
         self.run_dpdk_lspci ()
         self.load_config_file()
         if (map_driver.parent_args is None or
@@ -1028,6 +1047,8 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
+    parent_parser.add_argument('--astf', action = 'store_true')
+    parent_parser.add_argument('-f', dest = 'file')
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if map_driver.parent_args.help:

@@ -284,8 +284,8 @@ main_src = SrcGroup(dir='src',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
-             'h_timer.cpp'
-
+             'h_timer.cpp',
+             'astf/json_reader.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -1274,7 +1274,7 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp']
+files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp','astf']
 
 
 class Env(object):

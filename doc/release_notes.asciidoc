@@ -27,6 +27,27 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.29 ==
+
+* Preliminary version with Advance Stateful (ASTF) with scalable TCP support see here link:trex_astf.html[ASTF mode]
+* Wireless AP/Station emulation plugin for WLC testing see link:trex_stateless_wlc_bench.html[WLC] 
+
+
+* General 
+** IPv4 software checksum was wrong for 0.01% of the cases - found by link:https://wiki.fd.io/view/CSIT[CSIT group]
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-469[trex-469]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-464[trex-464]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-463[trex-463]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-462[trex-462]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-460[trex-460]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-457[trex-457]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-435[trex-435]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-453[trex-453]
+
+
 == Release 2.28 ==
 
 * Cisco FirePOWER/ASA Stateful friendly 

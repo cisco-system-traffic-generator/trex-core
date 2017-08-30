@@ -1,5 +1,3 @@
-#include "flow_table.h"
-#include "tcp_var.h"
 /*
  Hanoh Haim
  Cisco Systems, Inc.
@@ -21,8 +19,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
+#include "astf/json_reader.h"
+#include "tcp_var.h"
 #include "flow_stat_parser.h"
+#include "flow_table.h"
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -66,7 +66,6 @@ bool CFlowTable::Create(uint32_t size,
     }
     reset_stats();
     m_tcp_api=(CTcpAppApi    *)0;
-    m_prog =(CTcpAppProgram *)0;
     return(true);
 }
 
@@ -397,8 +396,11 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         vlan = lpVlan->getVlanTag();
     }
 
-    /* TBD template port, need to do somthing better  */
-    if (lpTcp->getDestPort() != 80) {
+
+    CTcpData *tcp_data_ro = ctx->get_template_ro();
+    CTcpAppProgram *server_prog = tcp_data_ro->get_server_prog_by_port(lpTcp->getDestPort());
+
+    if (! server_prog) {
         generate_rst_pkt(ctx,
                          dest_ip,
                          tuple.get_ip(),
@@ -438,7 +440,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
 
     CTcpApp * app =&lptflow->m_app;
 
-    app->set_program(m_prog);
+    app->set_program(server_prog);
     app->set_bh_api(m_tcp_api);
     app->set_flow_ctx(ctx,lptflow);
 

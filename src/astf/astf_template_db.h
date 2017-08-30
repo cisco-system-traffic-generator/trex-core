@@ -25,11 +25,12 @@ limitations under the License.
 
 #include "tuple_gen.h"
 #include "utl_policer.h"
+#include <common/n_uniform_prob.h>
 
 
 /* template ID type */
 typedef uint16_t astf_t_id_t;
-typedef uint16_t astf_thread_id_t;   
+typedef uint16_t astf_thread_id_t;
 
 
 /* per template RO information */
@@ -64,6 +65,8 @@ public:
 
 public:
     CTupleTemplateGeneratorSmart  m_tuple_gen;
+    pool_index_t                  m_client_pool_idx;  /* client pool index - default is zero*/
+    pool_index_t                  m_server_pool_idx;  /* server pool index - default is zero*/
     CPolicer                      m_policer;
     uint16_t                      m_dest_port;
     astf_t_id_t                   m_tid ; 
@@ -85,9 +88,16 @@ public:
         BP_ASSERT(tid<m_cap_gen.size());
         return(m_cap_gen[tid]);
     }
+    void Dump(FILE *fd);
+    void add_template(CAstfPerTemplateRW *temp_rw) {m_cap_gen.push_back(temp_rw);}
+    uint16_t get_num_templates() {return m_cap_gen.size();}
+    void init_scheduler(std::vector<double> & dist);
+    uint16_t do_schedule_template();
+
 
 private:
-
+    KxuNuRand *                       m_nru;
+    KxuLCRand                         m_rnd;
     std::vector<CAstfPerTemplateRW *> m_cap_gen;
     astf_thread_id_t                  m_thread_id;
     astf_thread_id_t                  m_max_threads;

@@ -157,10 +157,11 @@ class _CPcapReader_help(object):
                     self.fail('PCAP contains both TCP and %s. This is not supported currently.' % l4_type)
                 l4_type = 'TCP'
             elif udp:
-                l4 = udp
-                if l4_type not in (None, 'UDP'):
-                    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
-                l4_type = 'UDP'
+                self.fail('CAP file contains UDP packets. This is not supported yet')
+                #l4 = udp
+                #if l4_type not in (None, 'UDP'):
+                #    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
+                #l4_type = 'UDP'
             else:
                 scapy_pkt.show2()
                 self.fail('Packet #%s in pcap is not TCP or UDP.' % index)

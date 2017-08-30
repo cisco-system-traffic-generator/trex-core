@@ -36,6 +36,7 @@ class CTcpDataAssocParams {
     friend class CJsonData;
     friend class CTcpDataAssocTransHelp;
     friend class CTcpDataAssocTranslation;
+    friend class CTcpData;
     friend bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs);
     friend bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs);
 
@@ -97,7 +98,15 @@ class CTcpDataAssocTranslation {
 };
 
 class CTcpDataFlowInfo {
-    uint16_t tcp_win;
+    uint16_t m_tcp_win;
+};
+
+class CTcpTemplateInfo {
+    friend class CJsonData;
+    friend class CTcpData;
+
+    uint16_t            m_dport;
+    CTcpAppProgram *    m_client_prog; /* client program per template */
 };
 
 class CTcpData {
@@ -110,13 +119,51 @@ class CTcpData {
     void dump(FILE *fd);
     void free();
     bool is_init(uint8_t num) {return (m_init >= num);}
+    uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
+    CTcpAppProgram * get_client_prog(uint16_t temp_id){
+        return m_templates[temp_id].m_client_prog;
+    }
+    CTcpAppProgram * get_server_prog_by_port(uint16_t port);
+    double  get_total_cps(){
+        return (m_cps_sum);
+    }
+    double  get_total_cps_per_thread(uint16_t max_threads){
+        return (m_cps_sum/(double)max_threads);
+    }
+    double  get_delta_tick_sec_thread(uint16_t max_threads){
+        return (1.0/get_total_cps_per_thread(max_threads));
+    }
 
+    // for tests in simulation
+    void set_test_assoc_table(uint16_t port, CTcpAppProgram *prog) {
+        CTcpDataAssocParams params(port);
+        m_assoc_trans.insert_vec(params, prog);
+    }
  private:
     uint8_t m_init;
+    double m_cps_sum;
     std::vector<CMbufBuffer *> m_buf_list;
     std::vector<CTcpAppProgram *> m_prog_list;
     std::vector<CTcpDataFlowInfo> m_flow_info;
+    std::vector<CTcpTemplateInfo> m_templates;
     CTcpDataAssocTranslation m_assoc_trans;
+};
+
+class CAstfTemplatesRW;
+class CTupleGeneratorSmart;
+
+class CTcpLatency {
+    friend class CJsonData;
+
+ public:
+    uint32_t get_c_ip() {return m_c_ip;}
+    uint32_t get_s_ip() {return m_s_ip;}
+    uint32_t get_mask() {return m_dual_mask;}
+
+ private:
+    uint32_t m_c_ip;
+    uint32_t m_s_ip;
+    uint32_t m_dual_mask;
 };
 
 class CJsonData {
@@ -148,6 +195,10 @@ class CJsonData {
     bool parse_file(std::string file);
     CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
+    CTcpData *get_tcp_data_handle(uint8_t socket_id);
+    CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
+                                             uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
+    void get_latency_params(CTcpLatency &lat);
     bool is_initiated() {return m_json_initiated;}
     void clear();
     void dump();
@@ -162,12 +213,14 @@ class CJsonData {
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
     void verify_init(uint16_t socket_id, uint16_t level);
+    uint32_t ip_from_str(const char*c_ip);
 
  private:
     bool m_json_initiated;
     static CJsonData *m_pInstance;
     Json::Value  m_val;
     std::mutex m_mtx[2];
+    // Data duplicated per memory socket
     CTcpData m_tcp_data[2];
 };
 

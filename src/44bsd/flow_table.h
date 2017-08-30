@@ -192,9 +192,6 @@ public:
          m_tcp_api = tcp_api;
     }
 
-    void set_tcp_program(CTcpAppProgram *  prog){
-        m_prog = prog;
-    }
 
     bool is_client_side(){
         return (m_client_side);
@@ -271,8 +268,7 @@ private:
     bool            m_client_side;
     flow_hash_t     m_ft;
 
-    CTcpAppApi    *   m_tcp_api;
-    CTcpAppProgram *  m_prog; /* we have one program for now */
+    CTcpAppApi    *   m_tcp_api;  //????? remove these 2
 };
 
 

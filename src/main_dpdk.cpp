@@ -83,6 +83,7 @@ extern "C" {
 #include "main_dpdk.h"
 #include "trex_watchdog.h"
 #include "utl_port_map.h"
+#include "astf/json_reader.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -1501,6 +1502,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             po->set_tw_levels(lp->m_levels);
         }
     }
+
 
     return 0;
 }
@@ -3556,6 +3558,7 @@ private:
 
 public:
     void check_for_dp_messages();
+    int start_master_astf();
     int start_master_statefull();
     int start_master_stateless();
     int run_in_core(virtual_thread_id_t virt_core_id);
@@ -4250,10 +4253,15 @@ bool CGlobalTRex::Create(){
 
     m_stats_cnt =0;
     if (!get_is_stateless()) {
-        pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
-        if ( CGlobalInfo::m_options.preview.getVMode() > 0){
-            CGlobalInfo::m_options.dump(stdout);
-            CGlobalInfo::m_memory_cfg.Dump(stdout);
+
+        if ( get_is_tcp_mode() ){
+            pre_yaml_info.m_vlan_info.m_enable =false;
+        }else{
+            pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+            if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+                CGlobalInfo::m_options.dump(stdout);
+                CGlobalInfo::m_memory_cfg.Dump(stdout);
+            }
         }
     }
 
@@ -4872,6 +4880,10 @@ bool CGlobalTRex::sanity_check(){
 void CGlobalTRex::dump_template_info(std::string & json){
     CFlowGenListPerThread   * lpt = m_fl.m_threads_info[0];
     CFlowsYamlInfo * yaml_info=&lpt->m_yaml_info;
+    if ( yaml_info->is_any_template()==false){ 
+        json="";
+        return;
+    }
 
     json="{\"name\":\"template_info\",\"type\":0,\"data\":[";
     int i;
@@ -4946,7 +4958,9 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
 
     if ( !get_is_stateless() ){
         dump_template_info(json);
-        m_zmq_publisher.publish_json(json);
+        if (json != ""){
+            m_zmq_publisher.publish_json(json);
+        }
     }
 
     if ( get_is_rx_check_mode() ) {
@@ -5379,6 +5393,14 @@ int CGlobalTRex::stop_master(){
 
     dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     dump_post_test_stats(stdout);
+
+    if (get_is_tcp_mode()) {
+        CSTTCp   * lpstt=m_fl.m_stt_cp;
+        assert(lpstt);
+        assert(lpstt->m_init);
+        lpstt->DumpTable();
+    }
+
     publish_async_data(false);
 
     return (0);
@@ -5422,6 +5444,49 @@ int CGlobalTRex::start_master_stateless(){
     return (0);
 }
 
+int CGlobalTRex::start_master_astf() {
+    int i;
+    for (i=0; i<BP_MAX_CORES; i++) {
+        m_signal[i]=0;
+    }
+    m_fl.Create();
+    m_fl.load_astf();
+    /* verify options */
+    try {
+        CGlobalInfo::m_options.verify();
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        exit(-1);
+    }
+    /* load json */
+    if (!CJsonData::instance()->parse_file("/tmp/astf.json") ){
+       exit(-1);
+    }
+
+    /* TBD need to read from JSON */
+    m_expected_pps = 0;
+    m_expected_cps = 0;
+    m_expected_bps = 0;
+
+    CTcpLatency lat;
+    CJsonData::instance()->get_latency_params(lat);
+
+    m_mg.set_ip( lat.get_c_ip() ,
+                 lat.get_s_ip(),
+                 lat.get_mask());
+
+    m_fl.generate_p_thread_info(get_cores_tx());
+    CFlowGenListPerThread   * lpt;
+
+    for (i=0; i<get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        CVirtualIF * erf_vif = m_cores_vif[i+1];
+        lpt->set_vif(erf_vif);
+    }
+    m_fl_was_init=true;
+    return (0);
+}
+
 int CGlobalTRex::start_master_statefull() {
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
@@ -5429,12 +5494,11 @@ int CGlobalTRex::start_master_statefull() {
     }
 
     m_fl.Create();
-    m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
 
+    m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
     if ( CGlobalInfo::m_options.m_active_flows>0 ) {
         m_fl.update_active_flows(CGlobalInfo::m_options.m_active_flows);
     }
-
     /* client config */
     if (CGlobalInfo::m_options.client_cfg_file != "") {
         try {
@@ -5447,6 +5511,8 @@ int CGlobalTRex::start_master_statefull() {
         m_fl.set_client_config_tuple_gen_info(&m_fl.m_yaml_info.m_tuple_gen);
         pre_test();
     }
+
+
 
     /* verify options */
     try {
@@ -6356,7 +6422,11 @@ int main_test(int argc , char * argv[]){
         g_trex.start_master_stateless();
 
     }else{
-        g_trex.start_master_statefull();
+        if (get_is_tcp_mode()) {
+            g_trex.start_master_astf();
+        }else{
+            g_trex.start_master_statefull();
+        }
     }
 
     // For unit testing of HW rules and queues configuration. Just send some packets and exit.
