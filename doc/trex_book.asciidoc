@@ -142,8 +142,8 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
 | Mellanox ConnectX-5  | 25/40/50/56/100 | + | + |Supported 
 | Cisco 1300 series    | 40              | + | - |QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
-| VMXNET               |+ | - | VMXNET3 (see notes) | VMware paravirtualized  | Connect using VMware vSwitch
-| E1000    | paravirtualized  | + | - |VMware/KVM/VirtualBox 
+| VMXNET3  | VMware paravirtualized  | + | - |  Connect using VMware vSwitch
+| E1000    | paravirtualized  | + | - | VMware/KVM/VirtualBox 
 | Virtio | paravirtualized    | + | - | KVM
 |=================
 
