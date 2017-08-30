@@ -22,9 +22,9 @@ import platform
 # -1 : don't continue
 # 0  : no errors - no need to load mlx share object
 # 32  : no errors - mlx share object should be loaded
-# 33  : no errors - napatech 3GD should be running
+# 64  : no errors - napatech 3GD should be running
 MLX_EXIT_CODE = 32
-NTX_EXIT_CODE = 33
+NTACC_EXIT_CODE = 64
 class VFIOBindErr(Exception): pass
 
 PATH_ARR = os.getenv('PATH', '').split(':')
@@ -698,7 +698,7 @@ Other network devices
         elif Mellanox_cnt:
             return MLX_EXIT_CODE
         elif Napatech_cnt:
-            return NTX_EXIT_CODE
+            return NTACC_EXIT_CODE
 
 
     def do_return_to_linux(self):

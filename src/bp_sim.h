@@ -324,20 +324,20 @@ public:
     virtual int close_file(void)=0;
 
       /* read packet from the right queue , per direction, client/server */
-    virtual uint16_t rx_burst(pkt_dir_t dir, 
-                              struct rte_mbuf **rx_pkts, 
+    virtual uint16_t rx_burst(pkt_dir_t dir,
+                              struct rte_mbuf **rx_pkts,
                               uint16_t nb_pkts){
         assert(0);
     }
 
     /* send one packet */
     virtual int send_node(CGenNode * node)=0;
-    
+
     /* by default does the same */
     virtual int send_node_service_mode(CGenNode *node) {
         return send_node(node);
     }
-    
+
     /* send one packet to a specific dir. flush all packets */
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {}
     /* flush all pending packets into the stream */
@@ -361,7 +361,7 @@ public:
         return(false);
     }
 
-    
+
 
 protected:
     CPreviewMode             *m_preview_mode;
@@ -715,6 +715,14 @@ public:
 
     bool getTsoOffloadDisable() {
         return (btGetMaskBit32(m_flags1, 16, 16) ? true : false);
+    }
+
+    void set_ntacc_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 17, 17, (enable ? 1 : 0) );
+    }
+
+    bool get_ntacc_so_mode() {
+        return (btGetMaskBit32(m_flags1, 17, 17) ? true : false);
     }
 
 
@@ -1456,12 +1464,12 @@ public:
     static void dump_pool_as_json(Json::Value &json);
     static std::string dump_pool_as_json_str(void);
     static inline int get_queues_mode() {
-        return m_q_mode;        
+        return m_q_mode;
     }
     static inline void set_queues_mode(queues_mode mode) {
         m_q_mode = mode;
     }
-    
+
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
     static uint32_t              m_nodes_pool_size;
@@ -1559,8 +1567,8 @@ struct CFlowYamlInfo {
         m_client_pool_idx = 0;
         m_server_pool_idx = 0;
         m_cap_mode=false;
-        m_ipg_sec=0.01; 
-        m_rtt_sec=0.01; 
+        m_ipg_sec=0.01;
+        m_rtt_sec=0.01;
     }
 
     std::string     m_name;
@@ -1825,7 +1833,7 @@ public:
         return (  (m_flags &NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE)?true:false );
     }
 
-  
+
 
     /* direction for ip addr */
     inline  pkt_dir_t cur_pkt_ip_addr_dir();
@@ -2245,19 +2253,19 @@ public:
 
      typedef enum { scINIT = 0x17,
                     scWORK ,
-                    scWAIT , 
+                    scWAIT ,
                     scSTRECH,
-                    scTERMINATE 
+                    scTERMINATE
                    } sch_state_t;
 
    typedef enum { smSTATELESS = 0x17,
                   smSTATEFUL  ,
                  } sch_mode_t;
 
-   #define BURST_OFFSET_DTIME    (100.0/1000000) 
-   #define EAT_WINDOW_DTIME      (15.0/1000000) 
+   #define BURST_OFFSET_DTIME    (100.0/1000000)
+   #define EAT_WINDOW_DTIME      (15.0/1000000)
    #define WAIT_WINDOW_SIZE      (-1.0/1000000)
-   
+
     bool  Create(CFlowGenListPerThread  *  parent);
     void  Delete();
 
@@ -2310,10 +2318,10 @@ private:
 
     #ifdef _DEBUG
       #define UPDATE_STATS(a) update_stats(a)
-    #else 
-      #define UPDATE_STATS(a) 
-    #endif  
-    
+    #else
+      #define UPDATE_STATS(a)
+    #endif
+
     int   update_stats(CGenNode * node);
 
     inline int   flush_one_node_to_file(CGenNode * node){
@@ -2338,34 +2346,34 @@ private:
         FORCE_INLINE bool do_work_stl(CGenNode * node,
                                       CFlowGenListPerThread * thread,
                                       bool on_terminate);
-        
+
         template<bool ON_TERMINATE>
         FORCE_INLINE bool do_work_both(CGenNode * node,
                                       CFlowGenListPerThread * thread,
                                       dsec_t d_time);
-        
+
         template<int SCH_MODE,bool ON_TERMINATE>
         FORCE_INLINE bool do_work(CGenNode * node,
                                   CFlowGenListPerThread * thread,
                                   dsec_t d_time);
-        
+
         FORCE_INLINE void do_sleep(dsec_t & cur_time,
                                    CFlowGenListPerThread * thread,
                                    dsec_t ntime);
-        
-        
+
+
         FORCE_INLINE int teardown(CFlowGenListPerThread * thread,
                                    bool on_terminate,
                                    double &old_offset,
                                    double offset);
-        
+
         template<int SCH_MODE,bool ON_TERIMATE>
-        int flush_file_realtime(dsec_t max_time, 
+        int flush_file_realtime(dsec_t max_time,
                                 dsec_t d_time,
                                 CFlowGenListPerThread * thread,
                                 double &old_offset);
-        
-        int flush_file_sim(dsec_t max_time, 
+
+        int flush_file_sim(dsec_t max_time,
                             dsec_t d_time,
                             bool always,
                             CFlowGenListPerThread * thread,
@@ -2385,7 +2393,7 @@ private:
                                 CFlowGenListPerThread *thread);
 
 
-private:        
+private:
     void handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
     void handle_flow_pkt(CGenNode *node, CFlowGenListPerThread *thread);
     void handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
@@ -3293,7 +3301,7 @@ inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m){
         } else {
             if (m_pkt_indication.m_desc.IsUdp()) {
                 m->ol_flags |= PKT_TX_UDP_CKSUM;
-            }         
+            }
         }
     }
 }
@@ -3606,7 +3614,7 @@ inline void CFlowPktInfo::append_big_mbuf(rte_mbuf_t * m,
 inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
-    uint16_t len= m_pkt_indication.get_rw_pkt_size(); 
+    uint16_t len= m_pkt_indication.get_rw_pkt_size();
     m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),  len);
     assert(m);
     /* append*/
@@ -4064,13 +4072,13 @@ public:
     bool  set_stateless_next_node( CGenNodeStateless * cur_node,
                                    CGenNodeStateless * next_node);
 
-    void stop_stateless_traffic(uint8_t port_id) { 
+    void stop_stateless_traffic(uint8_t port_id) {
         m_stateless_dp_info.stop_traffic(port_id, false, 0);
     }
 
     /**
-     * return true if a core currently has some pending CP 
-     * messages 
+     * return true if a core currently has some pending CP
+     * messages
      */
     bool are_any_pending_cp_messages() {
         if (get_is_stateless()) {
@@ -4083,8 +4091,8 @@ public:
 
     /**
      * a core provides services for two interfaces
-     * it can either be idle, active for one port 
-     * or active for both 
+     * it can either be idle, active for one port
+     * or active for both
      */
     bool is_port_active(uint8_t port_id) {
         /* for stateful (batch) core is always active,
@@ -4100,7 +4108,7 @@ public:
 
     /**
      * returns the two ports associated with this core
-     * 
+     *
      */
     void get_port_ids(uint8_t &p1, uint8_t &p2) {
         p1 = 2 * getDualPortId();
@@ -4117,15 +4125,15 @@ public:
         return ( m_cpu_cp_u.GetVal());
     }
 
-    
+
     bool check_msgs();
-    
+
 private:
-    
+
     FORCE_NO_INLINE void   no_memory_error();
 
     bool check_msgs_from_rx();
-    
+
     void handle_nat_msg(CGenNodeNatInfo * msg);
     void handle_latency_pkt_msg(CGenNodeLatencyPktInfo * msg);
 
@@ -4221,8 +4229,8 @@ public:
     CTcpAppProgram        *         m_prog_c; /* program of the client */
     CTcpAppProgram        *         m_prog_s; /* program of the server */
 
-    CMbufBuffer           *         m_req; 
-    CMbufBuffer           *         m_res; 
+    CMbufBuffer           *         m_req;
+    CMbufBuffer           *         m_res;
 
     double                          m_tcp_fif_d_time;
 
@@ -4302,7 +4310,7 @@ public:
     double GetCpuUtilRaw();
 
 public:
-    /* update ipg in a way for */ 
+    /* update ipg in a way for */
     int update_active_flows(uint32_t active_flows);
     double get_worse_case_active_flows();
 

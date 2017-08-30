@@ -119,6 +119,7 @@ static char g_socket_mem_str[200];
 static char g_prefix_str[100];
 static char g_loglevel_str[20];
 static char g_master_id_str[10];
+static char g_ntacc_so_id_str[50];
 static char g_mlx5_so_id_str[50];
 static char g_mlx4_so_id_str[50];
 static char g_image_postfix[10];
@@ -661,11 +662,32 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
 };
 
+#include <dlfcn.h>
+
 class CTRexExtendedDriverBaseNtAcc : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseNtAcc(){
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
         TAILQ_INIT(&lh_fid);
+        // The current rte_flow.h is not C++ includable so rte_flow wrappers
+        // have been made in libntacc
+        void *libntacc = dlopen(g_ntacc_so_id_str, RTLD_NOW);
+        if (libntacc == NULL) {
+          /* Library does not exist. */
+          fprintf(stderr, "Failed to find needed library : %s\n", g_ntacc_so_id_str);
+          exit(-1);
+        }
+        ntacc_add_rules = (void* (*)(uint8_t, uint16_t,
+            uint8_t, int, char *))dlsym(libntacc, "ntacc_add_rules");
+        if (ntacc_add_rules == NULL) {
+          fprintf(stderr, "Failed to find \"ntacc_add_rules\" in %s\n", g_ntacc_so_id_str);
+          exit(-1);
+        }
+        ntacc_del_rules = (void * (*)(uint8_t, void*))dlsym(libntacc, "ntacc_del_rules");
+        if (ntacc_add_rules == NULL) {
+          fprintf(stderr, "Failed to find \"ntacc_del_rules\" in %s\n", g_ntacc_so_id_str);
+          exit(-1);
+        }
     }
 
     ~CTRexExtendedDriverBaseNtAcc();
@@ -714,6 +736,9 @@ public:
     virtual int verify_fw_ver(int i);
 
 private:
+    void* (*ntacc_add_rules)(uint8_t port_id, uint16_t type,
+            uint8_t l4_proto, int queue, char *ntpl_str);
+    void* (*ntacc_del_rules)(uint8_t port_id, void *rte_flow);
 
     virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type,
                                uint8_t l4_proto, int queue, uint32_t f_id, char *ntpl_str);
@@ -913,6 +938,7 @@ enum { OPT_HELP,
        OPT_TCP_MODE,
        OPT_MLX4_SO,
        OPT_MLX5_SO,
+       OPT_NTACC_SO,
        OPT_TCP_HTTP_RES
 
 };
@@ -975,6 +1001,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_CHECKSUM_OFFLOAD_DISABLE, "--checksum-offload-disable", SO_NONE   },
         { OPT_TSO_OFFLOAD_DISABLE, "--tso-disable", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
+        { OPT_NTACC_SO,               "--ntacc-so", SO_NONE    },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
         { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
@@ -1183,6 +1210,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_RT:
                 po->preview.set_rt_prio_mode(true);
+                break;
+
+            case OPT_NTACC_SO:
+                po->preview.set_ntacc_so_mode(true);
                 break;
 
             case OPT_MLX5_SO:
@@ -6026,6 +6057,12 @@ int  update_dpdk_args(void){
     SET_ARGS((char *)"xx");
     CPreviewMode *lpp=&CGlobalInfo::m_options.preview;
 
+    if ( lpp->get_ntacc_so_mode() ){
+        SET_ARGS("-d");
+        snprintf(g_ntacc_so_id_str, sizeof(g_ntacc_so_id_str), "libntacc-64%s.so",g_image_postfix );
+        SET_ARGS(g_ntacc_so_id_str);
+    }
+
     if ( lpp->get_mlx5_so_mode() ){
         SET_ARGS("-d");
         snprintf(g_mlx5_so_id_str, sizeof(g_mlx5_so_id_str), "libmlx5-64%s.so",g_image_postfix );
@@ -7868,10 +7905,6 @@ void CTRexExtendedDriverBaseNtAcc::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.rxmode.max_rx_pkt_len =9000;
 }
 
-extern "C" void* ntacc_add_rules(uint8_t port_id, uint16_t type,
-                       uint8_t l4_proto, int queue, char *ntpl_str);
-extern "C" void* ntacc_del_rules(uint8_t port_id, void *rte_flow);
-
 CTRexExtendedDriverBaseNtAcc::~CTRexExtendedDriverBaseNtAcc() {
     struct fid_s *fid, *tfid;
     TAILQ_FOREACH_SAFE(fid, &lh_fid, leTQ, tfid) {
@@ -7934,24 +7967,24 @@ int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_stateless(CPhyEthIF 
     set_rcv_all(_if, false);
     repid_t port_id =_if->get_repid();
 
-    if (g_trex.m_max_ports <= 4) {
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
-    } else {
-        // Due to some current driver limitations we need to use the Napatech Filter Language to avoid resource misuse
-        // This might never get utilized because it seems TREX TUI is limited to only show 4 ports
-        char ntpl_str[] =
-            "((Data[DynOffset = DynOffIpv4Frame; Offset = 1; DataType = ByteStr1 ; DataMask = [0:0]] == 1) OR "
-            " (Data[DynOffset = DynOffIpv6Frame; Offset = 0; DataType = ByteStr2 ; DataMask = [11:11]] == 1)) AND "
-            "Layer4Protocol == ICMP,UDP,TCP,SCTP";
-        add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
-    }
+#if 0
+    // Enable this when all NICs have rte_flow support
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
+#else
+    // Not all NICs have proper rte_flow support. use the Napatech Filter Language for now.
+    char ntpl_str[] =
+        "((Data[DynOffset = DynOffIpv4Frame; Offset = 1; DataType = ByteStr1 ; DataMask = [0:0]] == 1) OR "
+        " (Data[DynOffset = DynOffIpv6Frame; Offset = 0; DataType = ByteStr2 ; DataMask = [11:11]] == 1)) AND "
+        "Layer4Protocol == ICMP,UDP,TCP,SCTP";
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
+#endif
     return 0;
 }
 
