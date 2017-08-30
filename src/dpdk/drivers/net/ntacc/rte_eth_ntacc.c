@@ -84,7 +84,7 @@ static struct {
 #define PCI_DEVICE_ID_NT40A01  0x0185
 #define PCI_DEVICE_ID_NT100E3  0x0155
 
-#define NB_SUPPORTED_FPGAS 7
+#define NB_SUPPORTED_FPGAS 8
 struct {
   uint32_t item:12;
   uint32_t product:16;
@@ -100,6 +100,7 @@ struct {
   { 200, 9505, 8, 6, 0 },
   { 200, 9508, 7, 6, 0 },
   { 200, 9512, 8, 8, 0 },
+  { 200, 9516, 9, 3, 0 },
 };
 
 static void *_libnt;
