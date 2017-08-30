@@ -128,7 +128,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 =====================================
  
 .Supported NICs
-[options="header",cols="1,1,4",width="90%"]
+[options="header",cols="1,1,1,1,4",width="90%"]
 |=================
 | Chipset              | Bandwidth  (Gb/sec)  | TSO |LRO  | Example
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
