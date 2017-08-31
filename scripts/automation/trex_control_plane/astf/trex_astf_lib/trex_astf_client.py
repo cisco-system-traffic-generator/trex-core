@@ -54,6 +54,11 @@ class ASTFCmdSend(ASTFCmd):
         self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
+        self.buffer_len = len(buf) # buf len before decode
+
+    @property
+    def buf_len(self):
+        return self.buffer_len
 
     @property
     def buf(self):
@@ -117,6 +122,9 @@ class ASTFProgram(object):
             self.buf_list = []
             self.buf_hash = {}
 
+        def get_len(self):
+            return len(self.buf_list)
+
         # add, and return index of added buffer
         def add(self, new_buf):
             m = hashlib.sha256(new_buf.encode()).digest()
@@ -154,7 +162,7 @@ class ASTFProgram(object):
         :parameters:
                   file : string 
                      pcap file to analyze  
-                
+
                   side : string 
                         "c" for client side or "s" for server side 
 
@@ -174,6 +182,7 @@ class ASTFProgram(object):
 
         self.fields = {}
         self.fields['commands'] = []
+        self.total_send_bytes = 0
         if file is not None:
             cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
@@ -192,8 +201,8 @@ class ASTFProgram(object):
         send (l7_buffer)
 
         :parameters:
-                  buf : string 
-                     l7 stream    
+                  buf : string
+                     l7 stream
 
         """
 
@@ -213,6 +222,7 @@ class ASTFProgram(object):
             enc_buf = buf
 
         cmd = ASTFCmdSend(enc_buf)
+        self.total_send_bytes += cmd.buf_len
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
         self.fields['commands'].append(cmd)
 
@@ -261,6 +271,7 @@ class ASTFProgram(object):
     def _set_cmds(self, cmds):
         for cmd in cmds:
             if type(cmd) is ASTFCmdSend:
+                self.total_send_bytes += cmd.buf_len
                 cmd.index = ASTFProgram.buf_list.add(cmd.buf)
             self.fields['commands'].append(cmd)
 
@@ -761,6 +772,14 @@ class _ASTFTemplateBase(object):
             return prog_index
 
     @staticmethod
+    def get_total_send_bytes(ind):
+        return _ASTFTemplateBase.program_list[ind].total_send_bytes
+
+    @staticmethod
+    def num_programs():
+        return len(_ASTFTemplateBase.program_list)
+
+    @staticmethod
     def class_reset():
         _ASTFTemplateBase.program_list = []
         _ASTFTemplateBase.program_hash = {}
@@ -1183,3 +1202,21 @@ class ASTFProfile(object):
 
         return json.dumps(ret, indent=4, separators=(',', ': '))
 
+
+    def print_stats(self):
+        tot_bps = 0
+        tot_cps = 0
+        print ("Num buffers: {0}".format(ASTFProgram.buf_list.get_len()))
+        print ("Num programs: {0}".format(_ASTFTemplateBase.num_programs()))
+        for i in range(0, len(self.templates)):
+            print ("template {0}:".format(i))
+            d = self.templates[i].to_json()
+            c_prog_ind = d['client_template']['program_index']
+            s_prog_ind = d['server_template']['program_index']
+            tot_bytes = _ASTFTemplateBase.get_total_send_bytes(c_prog_ind) + _ASTFTemplateBase.get_total_send_bytes(s_prog_ind)
+            temp_cps = d['client_template']['cps']
+            temp_bps = tot_bytes * temp_cps * 8
+            print ("  total bytes:{0} cps:{1} bps(bytes * cps * 8):{2}".format(tot_bytes, temp_cps, temp_bps))
+            tot_bps += temp_bps
+            tot_cps += temp_cps
+        print("total for all templates - cps:{0} bps:{1}".format(tot_cps, tot_bps))

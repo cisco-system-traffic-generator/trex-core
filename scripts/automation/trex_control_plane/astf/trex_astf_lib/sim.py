@@ -63,6 +63,10 @@ def execute_bp_sim(opts):
             raise Exception('simulation has failed with error code {0}'.format(rc))
 
 
+def print_stats(prof):
+    # num programs, buffers, cps, bps client/server ip range
+    prof.print_stats()
+
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="astf_sim.py")
 
@@ -90,6 +94,10 @@ def setParserOptions():
 
     parser.add_argument('-s', '--sim',
                         help="Run simulator with json result",
+                        action="store_true")
+
+    parser.add_argument('--stat',
+                        help="Print expected usage statistics on TRex server (memory, bps,...) if this file will be used.",
                         action="store_true")
 
     parser.add_argument('-v', '--verbose',
@@ -144,6 +152,10 @@ def main(args=None):
 
     if opts.json:
         print(profile.to_json())
+        sys.exit(0)
+
+    if opts.stat:
+        print_stats(profile)
         sys.exit(0)
 
     f = open(DEFAULT_OUT_JSON_FILE, 'w')
