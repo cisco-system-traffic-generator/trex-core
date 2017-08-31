@@ -3230,7 +3230,8 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
         fprintf (fd,"\n");
     }
     fprintf (fd," Expected-CPS    : %s  \n",double_to_human_str(m_tx_expected_cps,"cps",KBYE_1000).c_str());
-    fprintf (fd," Expected-BPS    : %s  \n",double_to_human_str(m_tx_expected_bps,"bps",KBYE_1000).c_str());
+    fprintf (fd," Expected-%s : %s  \n", get_is_tcp_mode() ? "L7-BPS" : "BPS   "
+             ,double_to_human_str(m_tx_expected_bps,"bps",KBYE_1000).c_str());
     fprintf (fd,"\n");
     fprintf (fd," Active-flows    : %8llu  Clients : %8llu   Socket-util : %3.4f %%    \n",
              (unsigned long long)m_active_flows,
@@ -4734,6 +4735,11 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     else
         stats.m_bw_per_core   = 2*(stats.m_tx_bps/1e9)*100.0/(stats.m_cpu_util*stats.m_threads);
 
+    if ((m_expected_cps == 0) && get_is_tcp_mode()) {
+        // In astf mode, we know the info only after doing first get of data from json (which triggers analyzing the data)
+        m_expected_cps = CJsonData::instance()->get_expected_cps();
+        m_expected_bps = CJsonData::instance()->get_expected_bps();
+    }
     stats.m_tx_expected_cps        = m_expected_cps*pf;
     stats.m_tx_expected_pps        = m_expected_pps*pf;
     stats.m_tx_expected_bps        = m_expected_bps*pf;
@@ -5364,8 +5370,8 @@ int CGlobalTRex::start_master_astf() {
        exit(-1);
     }
 
-    /* TBD need to read from JSON */
-    m_expected_pps = 0;
+    m_expected_pps = 0; // Can't know this in astf mode.
+    // two below are computed later. Need to do this after analyzing data read from json.
     m_expected_cps = 0;
     m_expected_bps = 0;
 

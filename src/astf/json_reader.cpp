@@ -208,15 +208,10 @@ void CJsonData::verify_init(uint16_t socket_id, uint16_t level) {
     }
 }
 
-// ???CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id, uint16_t num_threads, uint16_t num_ports) {
 CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id) {
     verify_init(socket_id, 2);
 
     return &m_tcp_data[socket_id];
-
-
-    /// add list of templates ???
-    // compute cps according to ports and threads
 }
 
 uint32_t CJsonData::ip_from_str(const char *c_ip) {
@@ -342,11 +337,17 @@ CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket
     return m_tcp_data[socket_id].m_assoc_trans.get_prog(params);
 }
 
+/*
+  Building association translation, and all template related info.
+
+ */
 bool CJsonData::build_assoc_translation(uint8_t socket_id) {
     verify_init(socket_id, 1);
     bool is_hash_needed = false;
     double cps_sum=0;
     CTcpTemplateInfo one_template;
+    uint32_t num_bytes_in_template=0;
+    double template_cps;
 
     if (m_val["templates"].size() > 10) {
         is_hash_needed = true;
@@ -366,12 +367,18 @@ bool CJsonData::build_assoc_translation(uint8_t socket_id) {
         }
 
         // build template info
+        template_cps = cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
         one_template.m_dport = m_val["templates"][index]["client_template"]["port"].asInt();
-        uint32_t prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
-        one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[prog_index];
+        uint32_t c_prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
+        uint32_t s_prog_index = m_val["templates"][index]["server_template"]["program_index"].asInt();
+        num_bytes_in_template += m_prog_lens[c_prog_index];
+        num_bytes_in_template += m_prog_lens[s_prog_index];
+        one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[c_prog_index];
+        one_template.m_num_bytes = num_bytes_in_template;
+        m_exp_bps += template_cps * num_bytes_in_template * 8;
+        num_bytes_in_template = 0;
         assert(one_template.m_client_prog);
-
-        cps_sum += cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
+        cps_sum += template_cps;
         m_tcp_data[socket_id].m_templates.push_back(one_template);
     }
     m_tcp_data[socket_id].m_cps_sum = cps_sum;
@@ -407,6 +414,7 @@ bool CJsonData::convert_progs(uint8_t socket_id) {
     CTcpAppProgram *prog;
     uint16_t cmd_index;
     tcp_app_cmd_enum_t cmd_type;
+    uint32_t prog_len=0;
 
     if (m_val["program_list"].size() == 0)
         return false;
@@ -425,6 +433,7 @@ bool CJsonData::convert_progs(uint8_t socket_id) {
             case tcTX_BUFFER:
                 cmd.u.m_tx_cmd.m_buf = m_tcp_data[socket_id].m_buf_list[get_buf_index(program_index, cmd_index)];
                 cmd.m_cmd = tcTX_BUFFER;
+                prog_len += cmd.u.m_tx_cmd.m_buf->len();
                 prog->add_cmd(cmd);
                 break;
             case tcRX_BUFFER:
@@ -445,6 +454,8 @@ bool CJsonData::convert_progs(uint8_t socket_id) {
         } while (cmd_type != tcNO_CMD);
 
         m_tcp_data[socket_id].m_prog_list.push_back(prog);
+        m_prog_lens.push_back(prog_len);
+        prog_len = 0;
     }
 
     return true;

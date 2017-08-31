@@ -223,6 +223,7 @@ public:
      */
     void get_by_offset(uint32_t offset,CBufMbufRef & res);
 
+    uint32_t len() {return m_t_bytes;}
 private:
     void Reset();
 public:

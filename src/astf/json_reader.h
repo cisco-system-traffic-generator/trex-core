@@ -107,8 +107,10 @@ class CTcpTemplateInfo {
 
     uint16_t            m_dport;
     CTcpAppProgram *    m_client_prog; /* client program per template */
+    uint32_t m_num_bytes;
 };
 
+// This is used by all threads. Should not be changed after initialization stage, in order not to reduce performance
 class CTcpData {
     friend class CJsonData;
 
@@ -199,6 +201,8 @@ class CJsonData {
     CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
+    float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
+    float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
     void clear();
     void dump();
@@ -219,6 +223,8 @@ class CJsonData {
     bool m_json_initiated;
     static CJsonData *m_pInstance;
     Json::Value  m_val;
+    std::vector<uint32_t> m_prog_lens; // program lengths in bytes
+    float m_exp_bps; // total expected bit per second for all templates
     std::mutex m_mtx[2];
     // Data duplicated per memory socket
     CTcpData m_tcp_data[2];
