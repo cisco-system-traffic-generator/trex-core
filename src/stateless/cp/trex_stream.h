@@ -1,7 +1,6 @@
 /*
  Itay Marom
- Hanoch Haim
- Cisco Systems, Inc.
+ ystems, Inc.
 */
 
 /*
@@ -454,7 +453,7 @@ public:
         /* deep copy */
         dp->m_pkt.clone(m_pkt.binary,m_pkt.len);
 
-        dp->m_expected_pkt_len      =   m_expected_pkt_len;
+        dp->m_pkt_len_data          =   m_pkt_len_data;
         dp->m_rx_check              =   m_rx_check;
         dp->m_burst_total_pkts      =   m_burst_total_pkts;
         dp->m_num_bursts            =   m_num_bursts;
@@ -562,7 +561,8 @@ public:
     StreamVmDp   *m_vm_dp;
 
     CStreamPktData   m_pkt;
-    double           m_expected_pkt_len;
+
+    TrexStreamPktLenData m_pkt_len_data;
 
     /* pkt */
 
@@ -586,23 +586,23 @@ public:
     /* original template provided by requester */
     Json::Value m_stream_json;
 
-private:
-
-    double get_pkt_size() {
+    TrexStreamPktLenData *get_pkt_size() {
         /* lazy calculate the expected packet length */
-        if (m_expected_pkt_len == 0) {
+        if (m_pkt_len_data.m_expected_pkt_len == 0) {
             /* if we have a VM - it might have changed the packet (even random) */
             if (m_vm.is_vm_empty()) {
-                m_expected_pkt_len = m_pkt.len;
+                m_pkt_len_data.m_expected_pkt_len = m_pkt.len;
+                m_pkt_len_data.m_min_pkt_len = m_pkt.len;
+                m_pkt_len_data.m_max_pkt_len = m_pkt.len;
             } else {
-                m_expected_pkt_len = m_vm.calc_expected_pkt_size(m_pkt.len);
+                m_vm.calc_pkt_len_data(m_pkt.len, m_pkt_len_data);
             }
         }
 
-        return m_expected_pkt_len;
+        return &m_pkt_len_data;
     }
 
-  
+ private:
     /* no access to this without a lazy build method */
     TrexStreamRate m_rate;
 };
