@@ -4735,11 +4735,14 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     else
         stats.m_bw_per_core   = 2*(stats.m_tx_bps/1e9)*100.0/(stats.m_cpu_util*stats.m_threads);
 
+#if 0
     if ((m_expected_cps == 0) && get_is_tcp_mode()) {
         // In astf mode, we know the info only after doing first get of data from json (which triggers analyzing the data)
         m_expected_cps = CJsonData::instance()->get_expected_cps();
         m_expected_bps = CJsonData::instance()->get_expected_bps();
     }
+#endif
+
     stats.m_tx_expected_cps        = m_expected_cps*pf;
     stats.m_tx_expected_pps        = m_expected_pps*pf;
     stats.m_tx_expected_bps        = m_expected_bps*pf;
