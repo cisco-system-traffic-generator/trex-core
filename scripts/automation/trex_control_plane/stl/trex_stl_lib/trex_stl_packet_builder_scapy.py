@@ -318,6 +318,7 @@ class CTRexVmInsFixIpv4(CTRexVmInsBase):
 class CTRexVmInsFixHwCs(CTRexVmInsBase):
     L4_TYPE_UDP = 11
     L4_TYPE_TCP = 13
+    L4_TYPE_IP  = 17
 
     def __init__(self, l2_len,l3_len,l4_type):
         super(CTRexVmInsFixHwCs, self).__init__("fix_checksum_hw")
@@ -852,7 +853,7 @@ class STLVmFlowVarRepetableRandom(STLVmFlowVarRepeatableRandom):
 class STLVmFixChecksumHw(CTRexVmDescBase):
     def __init__(self, l3_offset,l4_offset,l4_type):
         """
-        Fix Ipv4 header checksum and TCP/UDP checksum using hardware assist. 
+        Fix IPv4 header checksum and/or TCP/UDP checksum using hardware assist. 
         Use this if the packet header has changed or data payload has changed as it is necessary to fix the checksums.
         This instruction works on NICS that support this hardware offload.
 
@@ -860,6 +861,8 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         
         example for supported packets
 
+        Ether()/IPv4
+        SomeTunnel()/IPv4
         Ether()/(IPv4|IPv6)/(UDP|TCP)
         Ether()/(IPv4|IPv6)/(UDP|TCP)
         SomeTunnel()/(IPv4|IPv6)/(UDP|TCP)
@@ -871,9 +874,9 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
                 **IPv4/IPv6 header** offset from packet start. It is **not** the offset of the checksum field itself.
                 in could be string in case of scapy packet. format IP[:[id]]
 
-             l4_offset : offset in bytes to UDP/TCP header
+             l4_offset : offset in bytes to UDP/TCP header or IPv4 payload. in case of IPv4 checksum CTRexVmInsFixHwCs.L4_TYPE_IP could be set to zero to be auto calculated by the server
 
-             l4_type   : CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP 
+             l4_type   : [CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP or CTRexVmInsFixHwCs.L4_TYPE_IP]
 
              see full example stl/syn_attack_fix_cs_hw.py
 
@@ -910,8 +913,16 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
         if type(self.l4_offset)==str:
             self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
 
-        assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset'
-        self.l3_len = self.l4_offset - self.l2_len;
+        if (self.l4_type != CTRexVmInsFixHwCs.L4_TYPE_IP):
+           assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset'
+           self.l3_len = self.l4_offset - self.l2_len;
+        else:
+           if self.l4_offset!=0:
+               assert self.l4_offset >= self.l2_len+8, 'l4_offset should be higher than l3_offset offset'
+               self.l3_len = self.l4_offset - self.l2_len;
+           else:
+               self.l3_len=0
+
 
 
 class STLVmFixIpv4(CTRexVmDescBase):

@@ -46,6 +46,60 @@ class STLS1(object):
                          mode = STLTXCont())
 
 
+    def create_stream_ip (self):
+
+        # IP packet 
+        base_pkt  = Ether()/IP(dst="48.0.0.1")
+
+
+        # vm
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
+                                              min_value="16.0.0.0", 
+                                              max_value="18.0.0.254", 
+                                              size=4, op="random"),
+
+                           # must be last 
+                           STLVmFixChecksumHw(l3_offset = "IP",
+                                              l4_offset = 0, # 0 means auto calculate 
+                                              l4_type  = CTRexVmInsFixHwCs.L4_TYPE_IP )# hint, TRex can know that 
+
+                          ]
+                       )
+
+        pkt = STLPktBuilder(pkt = base_pkt,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         random_seed = 0x1234,# can be remove. will give the same random value any run
+                         mode = STLTXCont())
+
+    def create_stream_ip_pyload (self):
+
+        # IP packet 
+        base_pkt  = Ether()/IP(dst="48.0.0.1")/(30*'x')
+
+
+        # vm
+        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
+                                              min_value="16.0.0.0", 
+                                              max_value="18.0.0.254", 
+                                              size=4, op="random"),
+
+                           # must be last 
+                           STLVmFixChecksumHw(l3_offset = "IP",
+                                              l4_offset = 0, # 0 means auto calculate 
+                                              l4_type  = CTRexVmInsFixHwCs.L4_TYPE_IP )# hint, TRex can know that 
+
+                          ]
+                       )
+
+        pkt = STLPktBuilder(pkt = base_pkt,
+                            vm = vm)
+
+        return STLStream(packet = pkt,
+                         random_seed = 0x1234,# can be remove. will give the same random value any run
+                         mode = STLTXCont())
+
     def create_stream_udp1 (self):
 
         # UDP packet
@@ -233,6 +287,8 @@ class STLS1(object):
         #return [ self.create_stream_ipv6_udp(),self.create_stream_tcp_syn(), self.create_stream_udp1(),self.create_stream_ipv6_tcp()]
         #return [ self.create_stream_udp_random () ]
         return [ self.create_stream_tcp_syn()]
+        #return [ self.create_stream_ip()]
+        #return [ self.create_stream_ip_pyload()]
 
 
 # dynamic load - used for trex console or simulator

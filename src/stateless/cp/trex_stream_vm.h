@@ -1105,6 +1105,7 @@ public:
     enum {
         L4_TYPE_UDP = 11,
         L4_TYPE_TCP = 13,
+        L4_TYPE_IP  = 17
 
     }; /* for flags */
 
