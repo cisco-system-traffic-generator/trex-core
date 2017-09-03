@@ -84,6 +84,20 @@ extern "C" {
 #define RTE_ETH_FLOW_GENEVE             20 /**< GENEVE protocol based flow */
 #define RTE_ETH_FLOW_NVGRE              21 /**< NVGRE protocol based flow */
 #define RTE_ETH_FLOW_MAX                22
+	/* Napatech ADD ON */
+#define RTE_ETH_FLOW_INNER_IPV4					23
+#define RTE_ETH_FLOW_INNER_IPV4_TCP     24
+#define RTE_ETH_FLOW_INNER_IPV4_UDP     25
+#define RTE_ETH_FLOW_INNER_IPV4_SCTP    26
+#define RTE_ETH_FLOW_INNER_IPV4_OTHER   27
+#define RTE_ETH_FLOW_INNER_IPV6         28
+#define RTE_ETH_FLOW_INNER_IPV6_TCP     29
+#define RTE_ETH_FLOW_INNER_IPV6_UDP     30
+#define RTE_ETH_FLOW_INNER_IPV6_SCTP    31
+#define RTE_ETH_FLOW_INNER_IPV6_OTHER   32
+#define RTE_ETH_FLOW_NTPL               33
+
+
 
 /**
  * Feature filter types

@@ -54,6 +54,7 @@ import termios
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
+NAPATECH_CLASS = "0280"
 PATH = os.getenv('PATH', '')
 needed_path = '.:/bin:/usr/bin:/usr/sbin'
 if needed_path not in PATH:
@@ -65,7 +66,7 @@ devices = {}
 # list of supported DPDK drivers
 # ,
 
-dpdk_and_kernel=[ "mlx5_core", "mlx5_ib" ] 
+dpdk_and_kernel=[ "mlx5_core", "mlx5_ib" ]
 
 dpdk_drivers = ["igb_uio", "vfio-pci", "uio_pci_generic" ]
 
@@ -273,7 +274,7 @@ def get_nic_details():
     dev_lines = check_output(["lspci", "-Dvmmn"], universal_newlines = True).splitlines()
     for dev_line in dev_lines:
         if (len(dev_line) == 0):
-            if dev["Class"] == ETHERNET_CLASS:
+            if dev["Class"] == ETHERNET_CLASS or dev["Class"] == NAPATECH_CLASS:
                 #convert device and vendor ids to numbers, then add to global
                 dev["Vendor"] = int(dev["Vendor"],16)
                 dev["Device"] = int(dev["Device"],16)
