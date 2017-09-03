@@ -20,6 +20,8 @@ limitations under the License.
 */
 
 #include "sim_event_driven.h"
+#include <stdio.h>
+#include <stdint.h>
 
 
 
