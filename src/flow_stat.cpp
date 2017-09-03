@@ -616,7 +616,6 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         throw TrexFStatEx("Interface does not support given rule type", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
 
-    TrexStreamPktLenData *pkt_len_data = stream->get_pkt_size();
     switch(rule_type) {
     case TrexPlatformApi::IF_STAT_IPV4_ID:
         uint16_t l3_proto;
@@ -651,22 +650,6 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
-
-        if (pkt_len_data->m_min_pkt_len != pkt_len_data->m_max_pkt_len) {
-            // We have field engine which changes packets size
-            uint16_t min_pkt_len = stream->m_pkt.len - payload_len + sizeof(struct flow_stat_payload_header);
-            if (min_pkt_len < 60 + sizeof(struct flow_stat_payload_header)) {
-                // We have first mbuf of 60, and then we need the payload data to be contiguous.
-                min_pkt_len = 60 + sizeof(struct flow_stat_payload_header);
-            }
-            if (pkt_len_data->m_min_pkt_len < min_pkt_len) {
-                throw TrexFStatEx("You specified field engine with minimum packet size of " + std::to_string(pkt_len_data->m_min_pkt_len) + " bytes."
-                                  + " For latency together with random packet size, minimum packet size should be at least "
-                                  + std::to_string(min_pkt_len)
-                                  , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
-            }
-        }
-
         if (do_action) {
             m_user_id_map.add_stream(stream->m_rx_check.m_pg_id, 0, PAYLOAD_RULE_PROTO, 0);
         }

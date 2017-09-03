@@ -590,16 +590,14 @@ void StreamVm::build_flow_var_table() {
             /* for random packet size - we need to find the average */
             if (var.m_ins.m_ins_flowv->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
                 uint16_t range = var.m_ins.m_ins_flowv->m_max_value - var.m_ins.m_ins_flowv->m_min_value;
-                m_pkt_len_data.m_expected_pkt_len = var.m_ins.m_ins_flowv->m_min_value + g_fastrand_util.calc_fastrand_avg(range);
+                m_expected_pkt_size = var.m_ins.m_ins_flowv->m_min_value + g_fastrand_util.calc_fastrand_avg(range);
             } else {
-                m_pkt_len_data.m_expected_pkt_len = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2.0;
-
+                m_expected_pkt_size = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2.0;
             }
-            m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_max_value;
-            m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_min_value;
-
+            
         }
     }
+
 }
 
 void StreamVm::alloc_bss(){
@@ -1238,20 +1236,19 @@ StreamVm::~StreamVm() {
 }
 
 /**
- * calculate packet len data (min, max, expected size) of stream's VM
+ * calculate expected packet size of stream's VM
  * 
  */
-void StreamVm::calc_pkt_len_data(uint16_t regular_pkt_size, TrexStreamPktLenData &pkt_len_data) const {
+double
+StreamVm::calc_expected_pkt_size(uint16_t regular_pkt_size) const {
 
     /* if no packet size change - simply return the regular packet size */
     if (!m_is_change_pkt_size) {
-        pkt_len_data.m_expected_pkt_len = regular_pkt_size;
-        pkt_len_data.m_min_pkt_len = regular_pkt_size;
-        pkt_len_data.m_max_pkt_len = regular_pkt_size;
-        return;
+        return regular_pkt_size;
     }
-    /* if we have an instruction that changes the packet size,
-       we must compile the VM temporarly to get values
+    /* if we have an instruction that changes the packet size
+       so find the expected size
+       we must compile the VM temporarly to get this value
      */
 
     StreamVm dummy;
@@ -1259,9 +1256,9 @@ void StreamVm::calc_pkt_len_data(uint16_t regular_pkt_size, TrexStreamPktLenData
     this->clone(dummy);
     dummy.compile(regular_pkt_size);
 
-    assert(dummy.m_pkt_len_data.m_expected_pkt_len != 0);
+    assert(dummy.m_expected_pkt_size != 0);
 
-    pkt_len_data = dummy.m_pkt_len_data;
+    return (dummy.m_expected_pkt_size);
 }
 
 /** 

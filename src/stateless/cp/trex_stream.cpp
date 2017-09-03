@@ -141,6 +141,7 @@ TrexStream::TrexStream(uint8_t type,
 
     m_pkt.binary       = NULL;
     m_pkt.len          = 0;
+    m_expected_pkt_len = 0.0;
 
     m_rx_check.m_enabled = false;
 
@@ -264,8 +265,7 @@ TrexStreamRate::get_line_speed_bps() {
 
 double
 TrexStreamRate::get_pkt_size() {
-    TrexStreamPktLenData *pkt_len_data = m_stream.get_pkt_size();
-    double pkt_size = pkt_len_data->m_expected_pkt_len;
+    double pkt_size = m_stream.get_pkt_size();
 
     // compensate for Ethernet FCS (CRC) added by driver
     pkt_size += 4;
