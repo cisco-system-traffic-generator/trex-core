@@ -138,7 +138,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
 | Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710]
 | Intel XL710/X710 VF  | x  | + | - |
-| Intel FM10420        | 25/100 | + | + |QSFP28,  by Silicom link:http://www.silicom-usa.com/100_Gigabit_Dual_Port_Fiber_Ethernet_PCI_Express_PE3100G2DQiR_96[Silicom PE3100G2DQiR_96] (*in development*) 
+| Napatech SmartNICs NT200A1 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken 
 | Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
 | Mellanox ConnectX-5  | 25/40/50/56/100 | + | + |Supported 
 | Cisco 1300 series    | 40              | + | - |QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
