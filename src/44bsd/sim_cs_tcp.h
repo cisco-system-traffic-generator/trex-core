@@ -215,6 +215,7 @@ public:
     double                  m_tx_diff;
     uint16_t                m_vlan;
     bool                    m_ipv6;
+    uint16_t                m_mss;
 };
 
 
