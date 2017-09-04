@@ -144,9 +144,11 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
             for (i=0; i<(int)cnt;i++) {
                 rte_mbuf_t * m=rx_pkts[i];
 
-#ifdef DEBUG_TX_PACKET
-                fprintf(stdout,"RX---> dir %d \n",dir);
-                utl_rte_pktmbuf_dump_k12(stdout,m);
+#ifdef _DEBUG
+                if ( CGlobalInfo::m_options.preview.getVMode() > 6){
+                    fprintf(stdout,"RX---> dir %d \n",dir);
+                    utl_rte_pktmbuf_dump_k12(stdout,m);
+                }
 #endif
                 ctx->m_ft.rx_handle_packet(ctx,m);
             }
