@@ -429,7 +429,7 @@ class STLClient_Test(CStlGeneral_Test):
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
             
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
             timeout = PassiveTimer(1)
@@ -505,11 +505,11 @@ class STLClient_Test(CStlGeneral_Test):
             
             # real
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # noise
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
             timeout = PassiveTimer(1)
