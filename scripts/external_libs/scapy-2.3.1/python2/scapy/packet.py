@@ -183,6 +183,32 @@ class Packet(BasePacket):
             self.payload.dump_offsets()
 
 
+    def dump_offsets_tree(self, indent = '', base_offset = 0):
+        ct = conf.color_theme
+        print("%s%s %s %s" % (indent,
+                              ct.punct("###["),
+                              ct.layer_name(self.name),
+                              ct.punct("]###")))
+        for f in self.fields_desc:
+            if isinstance(f, ConditionalField) and not f._evalcond(self):
+                continue
+            fvalue = self.getfieldval(f.name)
+            if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and type(fvalue) is list):
+                print('\n%s  %s: %s' % (indent, f.name, base_offset + f._offset))
+                fvalue_gen = SetGen(fvalue, _iterpacket = 0)
+                fvalue_bu = None
+                for fvalue in fvalue_gen:
+                    if fvalue_bu:
+                        fvalue._offset = fvalue_bu._offset + len(fvalue_bu)
+                        print('%s  %s: %s' % (indent, fvalue.name, base_offset + f._offset + fvalue._offset))
+                    fvalue.dump_offsets_tree('    ' + indent, base_offset + f._offset + fvalue._offset)
+                    fvalue_bu = fvalue
+            else:
+                print('%s    %s: %s' % (indent, f.name, base_offset + f._offset))
+        if self.payload:
+            print('---- payload ----')
+            self.payload.dump_offsets_tree(indent, base_offset + self._length)
+
 
     def getfieldval(self, attr):
         if attr in self.fields:

@@ -7,6 +7,7 @@ from scapy.all import *
 from scapy.contrib.capwap import *
 from trex_openssl import *
 import threading
+import struct
 import sys
 import time
 import base64
@@ -37,7 +38,7 @@ class STLServiceBufferedCtx(STLServiceCtx):
 
         # create an environment
         self.env          = simpy.rt.RealtimeEnvironment(factor = 1, strict = False)
-        self.tx_buffer    = TXBuffer(self.env, self.client, self.port)
+        self.tx_buffer    = TXBuffer(self.env, self.client, self.port, 99, 1)
 
         # create processes
         for service in self.services:
@@ -56,23 +57,23 @@ class STLServiceBufferedCtx(STLServiceCtx):
     def _tick_process (self):
         while True:
 
-                self.tx_buffer.send_all()
-    
-                for ap, services in self.filter.services_per_ap.items():
-                    for _ in range(len(ap.rx_buffer)):
-                        try:
-                            scapy_pkt = ap.rx_buffer.popleft()
-                        except IndexError:
-                            break
-                        for service in services:
-                            self.services[service]['pipe']._on_rx_pkt(scapy_pkt, None)
-    
-                # if no other process exists - exit
-                if self.active_services == 0:
-                    return
-                else:
-                    # backoff
-                    yield self.env.timeout(0.05)
+            self.tx_buffer.send_all()
+
+            for ap, services in self.filter.services_per_ap.items():
+                for _ in range(len(ap.rx_buffer)):
+                    try:
+                        scapy_pkt = ap.rx_buffer.popleft()
+                    except IndexError:
+                        break
+                    for service in services:
+                        self.services[service]['pipe']._on_rx_pkt(scapy_pkt, None)
+
+            # if no other process exists - exit
+            if self.is_done():
+                return
+            else:
+                # backoff
+                yield self.env.timeout(0.05)
 
 
 '''
@@ -118,11 +119,13 @@ class STLServiceApBgMaintenance:
         self.ap_mngr = ap_mngr
         self.port_id = port_id
         self.ap_per_ip = {}
+        self.client_per_mac = {}
         self.client_per_ip = {}
         self.bg_client = self.ap_mngr.bg_client
         self.port = self.bg_client.ports[port_id]
         self.capture_id = None
         self.bg_thread = None
+        self.send_pkts = []
 
 ################
 #     API      #
@@ -141,16 +144,24 @@ class STLServiceApBgMaintenance:
 
 
     def stop(self):
+        capture_id = self.capture_id
+        self.capture_id = None
         try:
-            self.bg_client.stop_capture(self.capture_id)
+            self.bg_client.stop_capture(capture_id)
         except:
             pass
-        self.capture_id = None
 
 
 ##################
 #    INTERNAL    #
 ##################
+
+
+    def AP_ARP_RESP_TEMPLATE(self, src_mac, dst_mac, src_ip, dst_ip):
+        return (
+            dst_mac + src_mac + self.ARP_ETHTYPE + # Ethernet
+            b'\x00\x01\x08\x00\x06\x04\x00\x02' + src_mac + src_ip + dst_mac + dst_ip # ARP
+            )
 
 
     def log(self, msg, level = LoggerApi.VERBOSE_REGULAR):
@@ -173,15 +184,15 @@ class STLServiceApBgMaintenance:
         push_pkts = [{'binary': base64.b64encode(bytes(p) if isinstance(p, Ether) else p).decode(),
                       'use_port_dst_mac': False,
                       'use_port_src_mac': False} for p in pkts]
-        rc = self.port.push_packets(push_pkts, False)
+        rc = self.port.push_packets(push_pkts, False, ipg_usec = 1)
         #if not rc:
         #    self.err(rc.err())
 
 
     def recv(self):
         pkts = []
-        self.bg_client.fetch_capture_packets(self.capture_id, pkts, 1000)
-        if len(pkts) > 995:
+        self.bg_client.fetch_capture_packets(self.capture_id, pkts, 10000)
+        if len(pkts) > 9995:
             self.err('Too much packets in rx queue (%s)' % len(pkts))
         return pkts
 
@@ -190,7 +201,7 @@ class STLServiceApBgMaintenance:
         try:
             for client in ap.clients:
                 client.disconnect()
-            if ap.is_dtls_established():
+            if ap.is_dtls_established:
                 with ap.ssl_lock:
                     libssl.SSL_shutdown(ap.ssl)
                 tx_pkt = ap.wrap_capwap_pkt(b'\1\0\0\0' + ap.ssl_read())
@@ -201,8 +212,9 @@ class STLServiceApBgMaintenance:
 
     def main_loop_wrapper(self):
         err_msg = ''
+        self.capture_id = self.bg_client.start_capture(rx_ports = self.port_id, bpf_filter = self.bpf_filter, limit = 10000)['id']
         try:
-            self.capture_id = self.bg_client.start_capture(rx_ports = self.port_id, bpf_filter = self.bpf_filter, limit = 5000)['id']
+            #with Profiler_Context(20):
             self.main_loop()
         except KeyboardInterrupt:
             pass
@@ -213,6 +225,8 @@ class STLServiceApBgMaintenance:
                     traceback.print_exc()
                 err_msg = ' (Exception: %s)' % e
         finally:
+            if not self.capture_id:
+                return
             try:
                 self.bg_client.stop_capture(self.capture_id)
             except:
@@ -226,42 +240,38 @@ class STLServiceApBgMaintenance:
                     self.shutdown_ap(ap)
 
 
-    def handle_ap_arp(self, rx_bytes, send_pkts):
-        ip = rx_bytes[38:42]
-        if ip not in self.ap_per_ip: # check IP
+    def handle_ap_arp(self, rx_bytes):
+        src_ip = rx_bytes[28:32]
+        dst_ip = rx_bytes[38:42]
+        if src_ip == dst_ip: # GARP
             return
-        ap = self.ap_per_ip[ip]
+        if dst_ip not in self.ap_per_ip: # check IP
+            return
+        ap = self.ap_per_ip[dst_ip]
+        src_mac = rx_bytes[6:12]
         dst_mac = rx_bytes[:6]
-        if dst_mac not in (b'\xff\xff\xff\xff\xff\xff', ap.mac_src): # check MAC
-            ap.err('Bad MAC (%s), although IP of AP (%s)' % (str2mac(dst_mac), str2ip(ip)))
+        if dst_mac not in (b'\xff\xff\xff\xff\xff\xff', ap.mac_bytes): # check MAC
+            ap.err('Bad MAC (%s) of AP %s' % (str2mac(dst_mac), ap.name))
             return
-        rx_pkt = Ether(rx_bytes)
         if ap.is_debug:
             ap.debug('AP %s got ARP' % ap.name)
-            rx_pkt.show2()
+            Ether(rx_bytes).show2()
 
-        rx_arp = rx_pkt[ARP]
-        if rx_arp.op == 1: # 'who-has'
-            if rx_arp.psrc == rx_arp.pdst:    # GARP
-                return
-            if rx_arp.pdst == ap.ip_hum:      # arp request to AP
-                #print 'Arp to AP'
-                tx_pkt = rx_pkt.copy()
-                tx_pkt.dst = tx_pkt.src
-                tx_pkt.src = ap.mac_src
-                tx_pkt[ARP].op = 'is-at'
-                tx_pkt[ARP].hwdst = rx_arp.hwsrc
-                tx_pkt[ARP].pdst = rx_arp.psrc
-                tx_pkt[ARP].hwsrc = ap.mac_src
-                tx_pkt[ARP].psrc = ap.ip_hum
-                #tx_pkt.show2()
-                send_pkts.append(tx_pkt)
+        if rx_bytes[20:22] == self.ARP_REQ: # 'who-has'
+            tx_pkt = self.AP_ARP_RESP_TEMPLATE(
+                src_mac = ap.mac_bytes,
+                dst_mac = src_mac,
+                src_ip = dst_ip,
+                dst_ip = src_ip,
+                )
+            #Ether(tx_pkt).show2()
+            self.send_pkts.append(tx_pkt)
 
-        elif rx_arp.op == 2: # 'is-at'
-            ap.rx_buffer.append(rx_pkt)
+        #elif rx_bytes[20:22] == self.ARP_REP: # 'is-at'
+        #    ap.rx_buffer.append(Ether(rx_bytes))
 
 
-    def handle_ap_icmp(self, rx_bytes, ap, send_pkts):
+    def handle_ap_icmp(self, rx_bytes, ap):
         rx_pkt = Ether(rx_bytes)
         icmp_pkt = rx_pkt[ICMP]
         if icmp_pkt.type == 8: # echo-request
@@ -274,42 +284,63 @@ class STLServiceApBgMaintenance:
                 tx_pkt[ICMP].type = 'echo-reply'
                 del tx_pkt[ICMP].chksum
                 #tx_pkt.show2()
-                send_pkts.append(tx_pkt)
+                self.send_pkts.append(tx_pkt)
 
-        elif icmp_pkt.type == 0: # echo-reply
-            ap.rx_buffer.append(rx_pkt)
+        #elif icmp_pkt.type == 0: # echo-reply
+        #    ap.rx_buffer.append(rx_pkt)
 
 
-    def process_capwap_ctrl(self, rx_bytes, ap, send_pkts):
+    def process_capwap_ctrl(self, rx_bytes, ap):
         ap.info('Got CAPWAP CTRL at AP %s' % ap.name)
-        rx_pkt = CAPWAP_CTRL(rx_bytes[42:])
         if ap.is_debug:
+            rx_pkt = Ether(rx_bytes)
             rx_pkt.show2()
-        capwap_assemble = ap.capwap_assemble
-        if not ap.is_dtls_established():
-            if CAPWAP_Control_Header in rx_pkt and rx_pkt.control_header.type == 2:
-                ap.mac_dst = str2mac(rx_bytes[6:12])
-                ap.ip_dst = str2ip(rx_bytes[26:30])
-            ap.rx_buffer.append(rx_pkt)
+            rx_pkt.dump_offsets_tree()
+
+        if not ap.is_dtls_established:
+            if rx_bytes[42:43] == b'\0': # discovery response
+                capwap_bytes = rx_bytes[42:]
+                capwap_hlen = (struct.unpack('!B', capwap_bytes[1:2])[0] & 0b11111000) >> 1
+                ctrl_header_type = struct.unpack('!B', capwap_bytes[capwap_hlen+3:capwap_hlen+4])[0]
+                if ctrl_header_type != 2:
+                    return
+                ap.mac_dst_bytes = rx_bytes[6:12]
+                ap.mac_dst = str2mac(ap.mac_dst_bytes)
+                ap.ip_dst_bytes = rx_bytes[26:30]
+                ap.ip_dst = str2ip(ap.ip_dst_bytes)
+                result_code = CAPWAP_PKTS.parse_message_elements(capwap_bytes, capwap_hlen, ap, self.ap_mngr)
+                ap.rx_responses[2] = result_code
+
+            elif rx_bytes[42:43] == b'\1': # dtls handshake
+                ap.rx_buffer.append(rx_bytes)
             return
 
-        if rx_pkt.is_dtls(): # decrypt
-            dtls_buf = bytes(rx_pkt.payload)
-            if (dtls_buf[0:1] == '\x15'):
-                ap.is_connected = False
-                self.err("Server sent DTLS alert to AP '%s'." % ap.name)
-            rx_pkt_buf = ap.decrypt(dtls_buf)
-            if not rx_pkt_buf:
-                return
-            if rx_pkt_buf[0:1] not in (b'\0', b'\1'): # definitely not CAPWAP... should we debug it?
-                ap.debug('Not CAPWAP, skipping: %s' % hex(rx_pkt_buf))
-                return
-            rx_pkt = CAPWAP_CTRL(rx_pkt_buf)
-            ap.last_recv_ts = time.time()
+        is_dtls = struct.unpack('?', rx_bytes[42:43])[0]
+        if not is_dtls: # dtls is established, ctrl should be encrypted
+            return
+
+        if (rx_bytes[46:47] == b'\x15'): # DTLS alert
+            ap.is_dtls_closed = True
+            ap.is_connected = False
+            self.err("Server sent DTLS alert to AP '%s'." % ap.name)
+
+        rx_pkt_buf = ap.decrypt(rx_bytes[46:])
+        if not rx_pkt_buf:
+            return
+        if rx_pkt_buf[0:1] not in (b'\0', b'\1'): # definitely not CAPWAP... should we debug it?
+            ap.debug('Not CAPWAP, skipping: %s' % hex(rx_pkt_buf))
+            return
+
+        #rx_pkt = CAPWAP_CTRL(rx_pkt_buf)
+        ap.last_recv_ts = time.time()
 
         if ap.is_debug:
             rx_pkt.show2()
-        if rx_pkt.header.is_fragment():
+
+        capwap_assemble = ap.capwap_assemble
+
+        if struct.unpack('!B', rx_pkt_buf[3:4])[0] & 0x80: # is_fragment
+            rx_pkt = CAPWAP_CTRL(rx_pkt_buf)
             if capwap_assemble:
                 assert ap.capwap_assemble['header'].fragment_id == rx_pkt.header.fragment_id, 'Got CAPWAP fragments with out of order (different fragment ids)'
                 control_str = bytes(rx_pkt[CAPWAP_Control_Header_Fragment])
@@ -317,6 +348,7 @@ class STLServiceApBgMaintenance:
                     self.err('Fragment offset and data length mismatch')
                     capwap_assemble.clear()
                     return
+
                 #if rx_pkt.header.fragment_offset * 8 > len(capwap_assemble['buf']):
                 #    print('Fragment offset: %s, data so far length: %s (not enough data)' % (rx_pkt.header.fragment_offset, len(capwap_assemble['buf'])))
                 #elif rx_pkt.header.fragment_offset * 8 < len(capwap_assemble['buf']):
@@ -347,38 +379,48 @@ class STLServiceApBgMaintenance:
             self.err('Got not fragment in middle of assemble of fragments (OOO).')
             capwap_assemble.clear()
         else:
-            assert CAPWAP_Control_Header in rx_pkt, rx_pkt.command()
-            capwap_assemble['assembled'] = rx_pkt
+            capwap_assemble['assembled'] = rx_pkt_buf
 
-        rx_pkt = capwap_assemble.get('assembled')
-        if not rx_pkt:
+        rx_pkt_buf = capwap_assemble.get('assembled')
+        if not rx_pkt_buf or rx_pkt_buf[0:1] != b'\0':
             return
         capwap_assemble.clear()
 
-        if ap.is_debug and CAPWAP_CTRL in rx_pkt:
-            rx_pkt[CAPWAP_CTRL].show2()
-        if CAPWAP_Control_Header not in rx_pkt:
-            return
-        if rx_pkt.control_header.type == 7: # Configuration Update Request
+        #rx_pkt = CAPWAP_CTRL(rx_pkt_buf)
+        #rx_pkt.show2()
+        #rx_pkt.dump_offsets_tree()
+        if ap.is_debug:
+            CAPWAP_CTRL(rx_pkt_buf).show2()
+        capwap_hlen = (struct.unpack('!B', rx_pkt_buf[1:2])[0] & 0b11111000) >> 1
+        ctrl_header_type = struct.unpack('!B', rx_pkt_buf[capwap_hlen+3:capwap_hlen+4])[0]
+
+        if ctrl_header_type == 7: # Configuration Update Request
             #rx_pkt.show2()
-            CAPWAP_PKTS.parse_message_elements(rx_pkt, ap, self.ap_mngr) # get info from incoming packet
-            seq = rx_pkt.control_header.sequence_number
+            CAPWAP_PKTS.parse_message_elements(rx_pkt_buf, capwap_hlen, ap, self.ap_mngr) # get info from incoming packet
+            seq = struct.unpack('!B', rx_pkt_buf[capwap_hlen+4:capwap_hlen+5])[0]
             tx_pkt = ap.get_config_update_capwap(seq)
             if ap.is_debug:
                 CAPWAP_CTRL(tx_pkt.value).show2()
-            send_pkts.append(ap.wrap_capwap_pkt(b'\1\0\0\0' + ap.encrypt(tx_pkt)))
-        elif rx_pkt.control_header.type == 14: # Echo Response
+            self.send_pkts.append(ap.wrap_capwap_pkt(b'\1\0\0\0' + ap.encrypt(tx_pkt)))
+
+        elif ctrl_header_type == 14: # Echo Response
             ap.echo_resp_timer = None
-        elif rx_pkt.control_header.type == 17: # Reset Request
+
+        elif ctrl_header_type == 17: # Reset Request
             self.err('AP %s got Reset request, shutting down' % ap.name)
-            #send_pkts.append(ap.wrap_capwap_pkt(b'\1\0\0\0' + ap.encrypt(tx_pkt)))
+            #self.send_pkts.append(ap.wrap_capwap_pkt(b'\1\0\0\0' + ap.encrypt(tx_pkt)))
             self.shutdown_ap(ap)
+
+        elif ctrl_header_type in (4, 6, 12):
+            result_code = CAPWAP_PKTS.parse_message_elements(rx_pkt_buf, capwap_hlen, ap, self.ap_mngr)
+            ap.rx_responses[ctrl_header_type] = result_code
+
         else:
-            #rx_pkt.show2()
-            ap.rx_buffer.append(rx_pkt)
+            rx_pkt.show2()
+            ap.err('Got unhandled capwap header type: %s' % ctrl_header_type)
 
 
-    def handle_client_arp(self, dot11_bytes, ap, send_pkts):
+    def handle_client_arp(self, dot11_bytes, ap):
         ip = dot11_bytes[58:62]
         client = self.client_per_ip.get(ip)
         if not client:
@@ -390,14 +432,14 @@ class STLServiceApBgMaintenance:
         if dot11_bytes[40:42] == self.ARP_REQ: # 'who-has'
             if dot11_bytes[48:52] == dot11_bytes[58:62]: # GARP
                 return
-            tx_pkt = ap.wrap_pkt_by_wlan(client, ap.get_arp_pkt(client, 'is-at', dot11_bytes[42:48], str2ip(dot11_bytes[48:52])))
-            send_pkts.append(tx_pkt)
+            tx_pkt = ap.wrap_pkt_by_wlan(client, ap.get_arp_pkt('is-at', client))
+            self.send_pkts.append(tx_pkt)
 
         elif dot11_bytes[40:42] == self.ARP_REP: # 'is-at'
-            ap.rx_buffer.append(Dot11_swapped(dot11_bytes))
+            client.seen_arp_reply = True
 
 
-    def handle_client_icmp(self, dot11_bytes, ap, send_pkts):
+    def handle_client_icmp(self, dot11_bytes, ap):
         ip = dot11_bytes[50:54]
         client = self.client_per_ip.get(ip)
         if not client:
@@ -412,16 +454,16 @@ class STLServiceApBgMaintenance:
             tx_pkt[IP].src, tx_pkt[IP].dst = tx_pkt[IP].dst, tx_pkt[IP].src
             tx_pkt[ICMP].type = 'echo-reply'
             del tx_pkt[ICMP].chksum
-            send_pkts.append(ap.wrap_pkt_by_wlan(client, tx_pkt))
+            self.send_pkts.append(ap.wrap_pkt_by_wlan(client, tx_pkt))
 
 
     def main_loop(self):
         echo_send_timer = PassiveTimer(1)
-        send_pkts = []
-        while True:
+        self.send_pkts = []
+        while self.capture_id:
             now_time = time.time()
-            self.send(send_pkts)
-            send_pkts = []
+            self.send(self.send_pkts)
+            self.send_pkts = []
             resps = self.recv()
 
             try:
@@ -431,6 +473,7 @@ class STLServiceApBgMaintenance:
                         clients = list(self.ap_mngr.clients)
                         self.ap_mngr.service_ctx[self.port_id]['synced'] = True
                     self.ap_per_ip = dict([(ap.ip_src, ap) for ap in aps if ap.port_id == self.port_id])
+                    self.client_per_mac = dict([(client.mac_bytes, client) for client in clients])
                     self.client_per_ip = dict([(client.ip_bytes, client) for client in clients])
             except KeyError as e:
                 if self.port_id not in self.ap_mngr.service_ctx:
@@ -447,7 +490,7 @@ class STLServiceApBgMaintenance:
                                 ap.echo_resp_timer = PassiveTimer(ap.echo_resp_timeout)
                                 ap.echo_resp_retry -= 1
                                 tx_pkt = ap.get_echo_capwap()
-                                send_pkts.append(ap.get_echo_wrap(ap.encrypt(tx_pkt)))
+                                self.send_pkts.append(ap.get_echo_wrap(ap.encrypt(tx_pkt)))
                             else:
                                 self.err("Timeout in echo response for AP '%s', disconnecting" % ap.name)
                                 self.shutdown_ap(ap)
@@ -460,21 +503,24 @@ class STLServiceApBgMaintenance:
                             ap.echo_resp_timeout = ap.capwap_RetransmitInterval
                             ap.echo_resp_timer = PassiveTimer(ap.echo_resp_timeout)
                             ap.echo_resp_retry = ap.capwap_MaxRetransmit
-                            send_pkts.append(ap.get_echo_wrap(ap.encrypt(tx_pkt)))
-                    if len(send_pkts) > 200:
+                            self.send_pkts.append(ap.get_echo_wrap(ap.encrypt(tx_pkt)))
+                    if len(self.send_pkts) > 200:
                         break
 
-            if not resps and not send_pkts:
+            if not resps and not self.send_pkts:
                 time.sleep(0.01)
                 continue
 
             for resp in resps:
+                if not self.capture_id:
+                    return
+
                 rx_bytes = resp['binary']
                 dst_mac = rx_bytes[:7]
                 ether_type = rx_bytes[12:14]
 
                 if ether_type == self.ARP_ETHTYPE:
-                    self.handle_ap_arp(rx_bytes, send_pkts)
+                    self.handle_ap_arp(rx_bytes)
 
                 elif ether_type == self.IP_ETHTYPE:
                     ip = rx_bytes[30:34]
@@ -482,14 +528,14 @@ class STLServiceApBgMaintenance:
                         continue
                     ap = self.ap_per_ip[ip]
                     dst_mac = rx_bytes[:6]
-                    if dst_mac not in ('\xff\xff\xff\xff\xff\xff', ap.mac_src): # check MAC
+                    if dst_mac not in ('\xff\xff\xff\xff\xff\xff', ap.mac_bytes): # check MAC
                         ap.err('Bad MAC (%s), although IP of AP (%s)' % (str2mac(dst_mac), str2ip(ip)))
                         continue
 
                     ip_proto = rx_bytes[23:24]
 
                     if ip_proto == self.ICMP_PROTO:
-                        self.handle_ap_icmp(rx_bytes, ap, send_pkts)
+                        self.handle_ap_icmp(rx_bytes, ap)
 
                     elif ip_proto == self.UDP_PROTO:
                         udp_port_str = rx_bytes[36:38]
@@ -499,24 +545,28 @@ class STLServiceApBgMaintenance:
                         udp_src = rx_bytes[34:36]
 
                         if udp_src == self.CAPWAP_CTRL_PORT:
-                            self.process_capwap_ctrl(rx_bytes, ap, send_pkts)
+                            self.process_capwap_ctrl(rx_bytes, ap)
 
                         elif udp_src == self.CAPWAP_DATA_PORT:
                             if ord(rx_bytes[45:46]) & 0b1000: # CAPWAP Data Keep-alive
-                                ap.rx_buffer.append(CAPWAP_DATA(rx_bytes[42:]))
+                                ap.got_keep_alive = True
                                 continue
 
                             dot11_offset = 42 + ((ord(rx_bytes[43:44]) & 0b11111000) >> 1)
                             dot11_bytes = rx_bytes[dot11_offset:]
+                            #Dot11_swapped(dot11_bytes).dump_offsets_tree()
 
                             if dot11_bytes[:2] == self.WLAN_ASSOC_RESP: # Client assoc. response
-                                ap.rx_buffer.append(Dot11_swapped(dot11_bytes))
+                                mac_bytes = dot11_bytes[4:10]
+                                client = self.client_per_mac.get(mac_bytes)
+                                if client:
+                                    client.is_associated = True
 
                             elif dot11_bytes[32:34] == self.ARP_ETHTYPE:
-                                self.handle_client_arp(dot11_bytes, ap, send_pkts)
+                                self.handle_client_arp(dot11_bytes, ap)
 
                             elif dot11_bytes[32:34] == self.IP_ETHTYPE and dot11_bytes[43:44] == self.ICMP_PROTO:
-                                self.handle_client_icmp(dot11_bytes, ap, send_pkts)
+                                self.handle_client_icmp(dot11_bytes, ap)
 
 
 
@@ -532,16 +582,6 @@ class STLServiceAp(STLService):
         return STLServiceFilterPerAp
 
 
-    @staticmethod
-    def wrap_capwap_static(ap, dst_mac, dst_ip, dst_port, pkt):
-        assert ap and dst_mac and dst_ip and dst_port
-        return (
-            Ether(src = ap.mac_src, dst = dst_mac) /
-            IP(src = ap.ip_hum, dst = dst_ip) /
-            UDP(sport = ap.udp_port, dport = dst_port) /
-            pkt)
-
-
     def timeout(self):
         self.ap.warn('Timeout in FSM %s' % self.name)
 
@@ -555,14 +595,14 @@ class STLServiceAp(STLService):
 
 
     def run(self, pipe):
-        if self.requires_dtls and not self.ap.is_dtls_established():
+        if self.requires_dtls and not self.ap.is_dtls_established:
             self.err('DTLS is not established for AP %s' % self.ap.name)
             return
         self.ap.info('Starting FSM %s' % self.name)
         run_gen = self.run_with_buffer()
         send_data = None
         while True:
-            if self.requires_dtls and not self.ap.is_dtls_established():
+            if self.requires_dtls and not self.ap.is_dtls_established:
                 self.log('DTLS session got closed for AP %s, exiting FSM' % self.ap.name)
                 break
             try:
@@ -580,12 +620,13 @@ class STLServiceAp(STLService):
 
             elif action == 'put':
                 if type(val) is list:
-                    pipe.async_tx_pkt([PacketBuffer(v) for v in val])
+                    for v in val:
+                        pipe.async_tx_pkt(PacketBuffer(v))
                 else:
                     pipe.async_tx_pkt(PacketBuffer(val))
 
             elif action == 'sleep':
-                pipe.async_wait(val)
+                yield pipe.async_wait(val)
 
             elif action == 'done':
                 self.log('Finished successfully FSM %s' % self.name)
@@ -614,29 +655,21 @@ class STLServiceApDiscoverWLC(STLServiceAp):
     requires_dtls = False
 
     def run_with_buffer(self):
+        self.ap.rx_responses[2] = -1
         RetransmitInterval = self.ap.capwap_RetransmitInterval
-        for _ in range(max(2, self.ap.capwap_MaxRetransmit)):
+        for _ in range(self.ap.capwap_MaxRetransmit):
             RetransmitInterval *= 2
-            discovery_pkt = self.ap.wrap_capwap_pkt(CAPWAP_PKTS.discovery(self.ap), dst_mac = 'ff:ff:ff:ff:ff:ff', dst_ip = '255.255.255.255')
+            discovery_pkt = self.ap.wrap_capwap_pkt(CAPWAP_PKTS.discovery(self.ap), is_discovery = True)
             yield ('put', discovery_pkt)
             timer = PassiveTimer(RetransmitInterval)
             while not timer.has_expired():
-                rx_pkt = yield ('get', RetransmitInterval)
-                if not rx_pkt:
-                    continue
-                if not rx_pkt or CAPWAP_Control_Header not in rx_pkt or rx_pkt.control_header.type != 2:
-                    continue
-                if self.ap.is_debug:
-                    rx_pkt.show2()
-
-                for ME in rx_pkt.control_header.message_elements:
-                    if ME.type == 10:
-                        self.ap.ip_dst = ME.ip_address # give higher priority to ME
-                    if ME.type == 1:
-                        if ME.max_wtps <= ME.active_wtps:
-                            yield ('err', 'WLC reached maximal number of APs connected (%s)!' % ME.max_wtps)
-                self.log('Got discovery response from %s' % self.ap.ip_dst)
-                return
+                result_code = self.ap.rx_responses[2]
+                if result_code in (None, 0, 2):
+                    self.log('Got discovery response from %s' % self.ap.ip_dst)
+                    yield 'done'
+                if result_code != -1:
+                    yield ('err', 'Not successful result %s - %s.' % (result_code, capwap_result_codes.get(result_code, 'Unknown')))
+                yield ('sleep', 0.1)
 
         yield 'time'
 
@@ -653,7 +686,7 @@ class STLServiceApEstablishDTLS(STLServiceAp):
         if libcrypto.BIO_ctrl_pending(ap.out_bio):
             ssl_data = ap.ssl_read()
             if ssl_data:
-                pkt = STLServiceAp.wrap_capwap_static(ap, ap.mac_dst, ap.ip_dst, 5246, b'\1\0\0\0' + ssl_data)
+                pkt = ap.wrap_capwap_pkt(b'\1\0\0\0' + ssl_data)
                 pipe.async_tx_pkt(PacketBuffer(pkt))
 
         return 0
@@ -673,19 +706,21 @@ class STLServiceApEstablishDTLS(STLServiceAp):
             timer = PassiveTimer(5)
             self.ap.info('Start handshake')
             while not timer.has_expired():
-                if self.ap.is_handshake_done():
+                if self.ap.is_handshake_done_libssl():
+                    self.ap.is_handshake_done = True
                     return
-                if self.ap.is_dtls_closed():
+                if self.ap.is_dtls_closed_libssl():
+                    self.ap.is_dtls_closed = True
                     self.err('DTLS session got closed for ap %s' % self.ap.name)
                     return
 
                 resps = yield pipe.async_wait_for_pkt(time_sec = 1, limit = 1)
                 if not resps:
                     continue
-                pkt = resps[0]['pkt']
-                if isinstance(pkt, CAPWAP_CTRL) and pkt.is_dtls():
-                    dtls_buf = bytes(pkt.payload)
-                    self.ap.decrypt(dtls_buf)
+                pkt_bytes = resps[0]['pkt']
+                is_dtls = struct.unpack('?', pkt_bytes[42:43])[0]
+                if is_dtls:
+                    self.ap.decrypt(pkt_bytes[46:])
 
             self.timeout()
 
@@ -699,6 +734,7 @@ class STLServiceApEstablishDTLS(STLServiceAp):
 class STLServiceApEncryptedControl(STLServiceAp):
 
     def control_round_trip(self, tx_pkt, expected_response_type):
+        self.ap.rx_responses[expected_response_type] = -1
         RetransmitInterval = self.ap.capwap_RetransmitInterval
         if isinstance(tx_pkt, Packet) and self.ap.is_debug:
             tx_pkt.show2()
@@ -710,28 +746,12 @@ class STLServiceApEncryptedControl(STLServiceAp):
 
             timer = PassiveTimer(RetransmitInterval)
             while not timer.has_expired():
-                rx_pkt = yield ('get', RetransmitInterval)
-                if not rx_pkt:
-                    continue
-
-                if CAPWAP_Control_Header not in rx_pkt:
-                    continue
-                ctrl_header = rx_pkt[CAPWAP_Control_Header]
-                if ctrl_header.type != expected_response_type:
-                    continue
-
-                result_code = None
-                for ME in ctrl_header.message_elements:
-                    if ME.type == 33:
-                        result_code = ME.result_code
-                        break
-                if result_code not in (None, 0, 2):
+                result_code = self.ap.rx_responses[expected_response_type]
+                if result_code in (None, 0, 2):
+                    yield 'good_resp'
+                if result_code != -1:
                     yield ('err', 'Not successful result %s - %s.' % (result_code, capwap_result_codes.get(result_code, 'Unknown')))
-
-                if self.ap.is_debug:
-                    rx_pkt.show2()
-
-                yield ('resp', rx_pkt)
+                yield ('sleep', 0.1)
 
         yield 'time'
 
@@ -743,16 +763,11 @@ class STLServiceApJoinWLC(STLServiceApEncryptedControl):
         send_data = None
         while True:
             action = ctrl_gen.send(send_data)
-            if type(action) is tuple and action[0] == 'resp':
-                resp = action[1]
+            if action == 'good_resp':
                 ctrl_gen.close()
                 break
             else:
                 send_data = yield action
-
-        for ME in resp[CAPWAP_Control_Header].message_elements:
-            if ME.type == 4:
-                self.ap.wlc_name = ME.ac_name
         self.log('Got Join Response')
 
         self.log('Sending Configuration Status Request')
@@ -760,8 +775,7 @@ class STLServiceApJoinWLC(STLServiceApEncryptedControl):
         send_data = None
         while True:
             action = ctrl_gen.send(send_data)
-            if type(action) is tuple and action[0] == 'resp':
-                resp = action[1]
+            if action == 'good_resp':
                 ctrl_gen.close()
                 break
             else:
@@ -773,8 +787,7 @@ class STLServiceApJoinWLC(STLServiceApEncryptedControl):
         send_data = None
         while True:
             action = ctrl_gen.send(send_data)
-            if type(action) is tuple and action[0] == 'resp':
-                resp = action[1]
+            if action == 'good_resp':
                 ctrl_gen.close()
                 break
             else:
@@ -785,9 +798,9 @@ class STLServiceApJoinWLC(STLServiceApEncryptedControl):
         while self.ap.last_recv_ts + 5 > time.time(): # ack all config updates in BG thread
             if self.ap.SSID:
                 break
-            if self.ap.is_dtls_closed():
+            if self.ap.is_dtls_closed:
                 return
-            yield ('sleep', 0.5)
+            yield ('sleep', 0.1)
 
         if not self.ap.SSID:
             yield ('err', 'Did not get SSID from WLC!')
@@ -802,12 +815,14 @@ class STLServiceApJoinWLC(STLServiceApEncryptedControl):
             yield ('put', tx_pkt)
             timer = PassiveTimer(RetransmitInterval)
             while not timer.has_expired():
-                rx_pkt = yield ('get', RetransmitInterval)
-                if rx_pkt and isinstance(rx_pkt, CAPWAP_DATA) and rx_pkt.is_keepalive():
+                if self.ap.got_keep_alive:
                     self.log('Received Keep-alive response.')
                     self.ap.last_echo_req_ts = time.time()
                     self.ap.is_connected = True
                     return
+                if self.ap.is_dtls_closed:
+                    return
+                yield ('sleep', 0.1)
         yield 'time'
 
 
@@ -821,7 +836,9 @@ class STLServiceApAddClients(STLServiceAp):
 
     def run_with_buffer(self):
         self.log('Sending Association requests.')
-        need_assoc_resp_clients = dict([(client.mac, client) for client in self.clients])
+        need_assoc_resp_clients = list(self.clients)
+        for client in need_assoc_resp_clients:
+            client.reset()
 
         RetransmitInterval = self.ap.capwap_RetransmitInterval
         for _ in range(self.ap.capwap_MaxRetransmit):
@@ -829,64 +846,50 @@ class STLServiceApAddClients(STLServiceAp):
                 break
             RetransmitInterval *= 2
             tx_pkts = []
-            for client in need_assoc_resp_clients.values():
-                tx_pkt = CAPWAP_PKTS.client_assoc(self.ap, slot_id = 0, client_mac = client.mac)
+            for client in need_assoc_resp_clients:
+                tx_pkt = CAPWAP_PKTS.client_assoc(self.ap, slot_id = 0, client_mac = client.mac_bytes)
                 tx_pkts.append(self.ap.wrap_capwap_pkt(tx_pkt, dst_port = 5247))
             yield ('put', tx_pkts)
 
             timer = PassiveTimer(RetransmitInterval)
-            while not timer.has_expired():
-                if not need_assoc_resp_clients:
-                    break
-                rx_pkt = yield ('get', RetransmitInterval)
-                if rx_pkt and isinstance(rx_pkt, Dot11_swapped):
-                    if self.ap.is_debug:
-                        rx_pkt.show2()
-                    if rx_pkt.type == 0 and rx_pkt.subtype == 1 and rx_pkt.addr1 in need_assoc_resp_clients:
-                        self.log('Received Association response for %s.' % need_assoc_resp_clients[rx_pkt.addr1].ip)
-                        need_assoc_resp_clients[rx_pkt.addr1].is_associated = True
-                        del need_assoc_resp_clients[rx_pkt.addr1]
+            while not timer.has_expired() and need_assoc_resp_clients:
+                yield ('sleep', 0.1)
+                for client in list(need_assoc_resp_clients):
+                    if client.got_disconnect or client.is_associated:
+                        need_assoc_resp_clients.remove(client)
 
-        if need_assoc_resp_clients:
-            yield ('err', 'No Association response for clients: %s' % ', '.join([client.ip for client in need_assoc_resp_clients.values()]))
+        not_assoc = [client.ip for client in self.clients if not client.is_associated]
+        if not_assoc:
+            yield ('err', 'No Association response for clients: %s' % ', '.join(sorted(not_assoc, key = natural_sorted_key)))
 
-        need_arp_resp_clients = dict([(client.ip, client) for client in self.clients])
+        need_arp_resp_clients = list(self.clients)
 
         RetransmitInterval = self.ap.capwap_RetransmitInterval
         for _ in range(self.ap.capwap_MaxRetransmit):
             if not need_arp_resp_clients:
                 return
-
             RetransmitInterval *= 2
             tx_pkts = []
-            for client in need_arp_resp_clients.values():
-                tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, self.ap.get_garp_pkt(client)))
-                tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, self.ap.get_arp_pkt(client, 'who-has', 'ff:ff:ff:ff:ff:ff', self.ap.ip_dst)))
+            for client in need_arp_resp_clients:
+                garp = self.ap.get_arp_pkt('garp', client)
+                tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, garp))
+                arp = self.ap.get_arp_pkt('who-has', client)
+                tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, arp))
             yield ('put', tx_pkts)
 
             timer = PassiveTimer(RetransmitInterval)
-            while not timer.has_expired():
-                if not need_arp_resp_clients:
-                    return
-                rx_pkt = yield ('get', RetransmitInterval)
-                if rx_pkt and isinstance(rx_pkt, Dot11_swapped) and ARP in rx_pkt:
-                    rx_arp = rx_pkt[ARP]
-                    client = need_arp_resp_clients.get(rx_arp.pdst)
-                    if not client or client.mac != rx_arp.hwdst or client.mac != rx_pkt[Dot11_swapped].addr1:
-                        continue
-                    #print 'client for arp resp'
-                    if rx_arp.hwsrc != self.ap.mac_dst:
-                        self.log('MAC address returned from ARP (%s) differs from WLC MAC (%s)' % (rx_arp.hwsrc, self.ap.mac_dst))
-                    client.seen_arp_reply = True
-                    del need_arp_resp_clients[rx_arp.pdst]
-                    self.log('Got WLC response with MAC: %s' % rx_arp.hwsrc)
+            while not timer.has_expired() and need_arp_resp_clients:
+                yield ('sleep', 0.1)
+                for client in list(need_arp_resp_clients):
+                    if client.got_disconnect or client.seen_arp_reply:
+                        need_arp_resp_clients.remove(client)
 
 
 class STLServiceApShutdownDTLS(STLServiceAp):
     def run(self, pipe):
         for client in self.ap.clients:
             client.disconnect()
-        if not self.ap.is_dtls_established():
+        if not self.ap.is_dtls_established:
             return
         with self.ap.ssl_lock:
             libssl.SSL_shutdown(self.ap.ssl)
