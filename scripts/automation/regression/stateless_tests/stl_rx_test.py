@@ -97,6 +97,16 @@ class STLRX_Test(CStlGeneral_Test):
                 'rx_bytes_fix': True,
                 'no_vlan_even_in_software_mode': True,
             },
+            'net_ntacc': {
+                'rate_percent': 10,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 150,
+                'latency_9k_max_latency': 350,
+                'no_vlan': True,
+                'no_ipv6': True,
+            },
         }
 
         CStlGeneral_Test.setUp(self)
