@@ -294,10 +294,8 @@ class WLC_Plugin(ConsolePlugin):
 
     def do_base(self, ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
-        if not filter(lambda x: x, [ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load]):
-            self.show_base()
-        else:
-            self.ap_manager.set_base_values(ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.ap_manager.set_base_values(ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.show_base()
 
 
 

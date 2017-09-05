@@ -553,20 +553,23 @@ class AP_Manager:
         if not self.bg_client.is_connected():
             self.bg_client.connect()
 
-        for trex_port_id in trex_port_ids:
-            if trex_port_id >= len(self.trex_client.ports):
-                raise Exception('TRex port %s does not exist!' % trex_port_id)
-            port_id = trex_port_id
-            trex_port = self.trex_client.ports[port_id]
+        for port_id in trex_port_ids:
             if port_id in self.service_ctx:
                 raise Exception('AP manager already initialized on port %s. Close it to proceed.' % port_id)
+            if port_id >= len(self.trex_client.ports):
+                raise Exception('TRex port %s does not exist!' % port_id)
+            trex_port = self.trex_client.ports[port_id]
+            if not trex_port.is_acquired():
+                raise Exception('Port %s is not acquired' % port_id)
+            if trex_port.get_vlan_cfg():
+                raise Exception('Port %s has VLAN, plugin does not support it. Use trunk with native vlans.' % port_id)
+
+        for port_id in trex_port_ids:
             success = False
             try:
                 self.service_ctx[port_id] = {}
                 if not self.ssl_ctx:
                     self.ssl_ctx = SSL_Context()
-                if not trex_port.is_acquired():
-                    raise Exception('Port %s is not acquired' % port_id)
                 self.trex_client.set_service_mode(port_id, True)
                 if not self.trex_client.get_port_attr(port = port_id)['prom'] == 'on':
                     self.trex_client.set_port_attr(ports = port_id, promiscuous = True)
