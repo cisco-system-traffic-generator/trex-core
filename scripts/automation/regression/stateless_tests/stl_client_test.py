@@ -396,9 +396,9 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.wait_on_traffic(ports = [master])
 
             stats = self.c.get_stats()
+            self.verify(52, stats[master]['opackets'])
+            self.verify(48, stats[slave]['opackets'])
 
-            self.verify(stats[master]['opackets'], 52)
-            self.verify(stats[slave]['opackets'], 48)
 
         except STLError as e:
             assert False , '{0}'.format(e)
