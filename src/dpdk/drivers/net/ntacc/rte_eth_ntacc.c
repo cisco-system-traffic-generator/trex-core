@@ -385,6 +385,8 @@ static uint16_t eth_ntacc_tx(void *queue,
         mbuf = mbuf->next;
         wLen += mbuf->data_len;
       }
+      // Reset the pointer
+      mbuf = bufs[i];
     }
     /* Check if packet needs padding or is too big to transmit */
     if (unlikely(wLen < tx_q->minTxPktSize)) {
