@@ -432,7 +432,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
-            timeout = PassiveTimer(1)
+            timeout = PassiveTimer(2)
             
             while not timeout.has_expired():
                 caps = self.c.get_capture_status()
@@ -512,7 +512,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
-            timeout = PassiveTimer(1)
+            timeout = PassiveTimer(2)
             
             while not timeout.has_expired():
                 caps = self.c.get_capture_status()
