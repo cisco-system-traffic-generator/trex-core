@@ -386,11 +386,24 @@ static uint16_t eth_ntacc_tx(void *queue,
         wLen += mbuf->data_len;
       }
     }
+    /* Check if packet needs padding or is too big to transmit */
+    if (unlikely(wLen < tx_q->minTxPktSize)) {
+      wLen = tx_q->minTxPktSize; // Add padding
+      //TODO: There is a data leak issue here. If wLen is just extended
+      //the memory in the ring is not zero'ed and padding will contain
+      //data from previous packets. For performance reasons this has not been
+      //addressed, but the fix is to memset() the padding area.
+    }
+    if (unlikely(wLen > tx_q->maxTxPktSize)) {
+      /* Packet is too big. Drop it as an error and continue */
+      tx_q->err_pkts++;
+      rte_pktmbuf_free(bufs[i]);
+      continue;
+    }
     // 8B align wireLength and add 16B descriptor
     sLen = ((wLen + 7) & ~7) + 16;
-    /* Do we have space for this packet and is within bounds*/
-    if (likely((wLen >= tx_q->ringControl.minTxPktSize) &&
-        (wLen <= tx_q->ringControl.maxTxPktSize) && (spaceLeft >= sLen))) {
+    // Do we have space for this packet
+    if (likely(spaceLeft >= sLen)) {
       // Add packet descriptor
       *((uint64_t*)dst)=0;
       *((uint64_t*)dst+1)=(0x0100000040100000LL | (uint64_t)wLen<<32 | sLen);
@@ -410,7 +423,6 @@ static uint16_t eth_ntacc_tx(void *queue,
       rte_pktmbuf_free(bufs[i]);
     } else {
       // We cannot place more packets
-      tx_q->err_pkts += (nb_pkts - i);
       break;
     }
   }
@@ -458,11 +470,23 @@ static uint16_t eth_ntacc_tx(void *queue,
         wLen += mbuf->data_len;
       }
     }
+    /* Check if packet needs padding or is too big to transmit */
+    if (unlikely(wLen < tx_q->minTxPktSize)) {
+      frag[fragCnt].data = rte_pktmbuf_mtod(mbuf, u_char *);
+      frag[fragCnt++].size = tx_q->minTxPktSize - wLen;
+      wLen = tx_q->minTxPktSize;
+    }
+    if (unlikely(wLen > tx_q->maxTxPktSize)) {
+      /* Packet is too big. Drop it as an error and continue */
+      tx_q->err_pkts++;
+      rte_pktmbuf_free(bufs[i]);
+      continue;
+    }
     ret = (*_NT_NetTxAddPacket)(tx_q->pNetTx, tx_q->port, frag, fragCnt, 0);
     if (unlikely(ret != NT_SUCCESS)) {
     /* unsent packets is not expected to be freed */
   #ifdef USE_SW_STAT
-      tx_q->err_pkts += (nb_pkts - i);
+      tx_q->err_pkts++;
   #endif
       break;
     }
@@ -1770,7 +1794,9 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
       internals->txq[i].port = internals->port;
       internals->txq[i].local_port = localPort;
       internals->txq[i].enabled = 0;
-    }
+      internals->txq[i].minTxPktSize = info.u.port_v7.data.capabilities.minTxPktSize;
+      internals->txq[i].maxTxPktSize = info.u.port_v7.data.capabilities.maxTxPktSize;
+      }
 
     switch (info.u.port_v7.data.speed) {
     case NT_LINK_SPEED_UNKNOWN:
