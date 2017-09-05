@@ -283,8 +283,7 @@ class ASTFProgram(object):
                 new_cmd = ASTFCmdSend(cmd.payload)
                 origin = "s"
             else:
-                l = len(cmd.payload)
-                new_cmd = ASTFCmdRecv(l - 5)
+                new_cmd = ASTFCmdRecv(len(cmd.payload))
                 origin = "c"
             new_cmds.append(new_cmd)
         self._set_cmds(new_cmds)
