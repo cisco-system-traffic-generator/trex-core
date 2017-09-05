@@ -107,6 +107,8 @@ struct ntacc_tx_queue {
 #endif
   volatile uint16_t     *plock;
   uint32_t               port;
+  uint16_t               minTxPktSize;
+  uint16_t               maxTxPktSize;
   uint8_t                local_port;
   int                    enabled;
 };
