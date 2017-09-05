@@ -1986,11 +1986,17 @@ void CCapFileFlowInfo::generate_flow(CTupleTemplateGeneratorSmart   * tuple_gen,
         // check if flow is two direction
         if ( lp->m_pkt_indication.m_desc.IsBiDirectionalFlow() ) {
             /* we are in learn mode */
+            bool is_ok;
             if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_IP_OPTION) ||
                 node->m_pkt_info->m_pkt_indication.l3.m_ipv4->getProtocol() == IPPROTO_TCP) {
-                lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_TCP_ACK, node);  /* associate flow_id=>node */
+                is_ok = lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_TCP_ACK, node);  /* associate flow_id=>node */
+                assert(is_ok);
             } else {
-                lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_IP_ID, node);  /* associate flow_id=>node */
+               is_ok = lpThread->associate(((uint32_t)flow_id) & NAT_FLOW_ID_MASK_IP_ID, node);  /* associate flow_id=>node */
+               if (! is_ok) {
+                   fprintf(stderr, "With given learn mode, max supported rate of UDP flows is limited. Please reduce the rate\n");
+                   exit(1);
+               }
             }
             node->set_nat_first_state();
         }
