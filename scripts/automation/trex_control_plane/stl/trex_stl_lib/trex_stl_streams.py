@@ -478,8 +478,6 @@ class STLStream(object):
 
         if not packet:
             packet = STLPktBuilder(pkt = Ether()/IP())
-            if dummy_stream:
-                self.packet_desc = 'Dummy'
 
         self.scapy_pkt_builder = packet
         # packet builder
@@ -529,6 +527,15 @@ class STLStream(object):
         """ Return True if stream was configured with flow stats """
         return self.fields['flow_stats']['enabled']
 
+    def get_pg_id (self):
+        """ Returns packet group ID if exists """
+        return self.fields['flow_stats'].get('stream_id')
+        
+    def get_flow_stats_type (self):
+        """ Returns flow stats type if exists """
+        return self.fields['flow_stats'].get('rule_type')
+        
+        
     def get_pkt (self):
         """ Get packet as string """
         return self.pkt
@@ -541,16 +548,22 @@ class STLStream(object):
 
         return pkt_len
 
-
+    def is_dummy (self):
+        """ return true if stream is marked as dummy stream """
+        return ( (self.fields['flags'] & 0x8) == 0x8 )
+        
     def get_pkt_type (self):
         """ Get packet description. Example: IP:UDP """
-        if self.packet_desc == None:
+        if self.is_dummy():
+            return '-'
+        elif self.packet_desc == None:
             self.packet_desc = STLPktBuilder.pkt_layers_desc_from_buffer(self.get_pkt())
 
         return self.packet_desc
 
     def get_mode (self):
-        return self.mode_desc
+        return 'delay' if self.is_dummy() else self.mode_desc
+        
 
     @staticmethod
     def get_rate_from_field (rate_json):
@@ -755,7 +768,7 @@ class STLStream(object):
                              
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
-                             dummy_stream             = (json_data['flags'] & 0x4) == 0x4)
+                             dummy_stream             = (json_data['flags'] & 0x8) == 0x8)
             
         except KeyError as e:
             raise STLError("from_json: missing field {0} from JSON".format(e))

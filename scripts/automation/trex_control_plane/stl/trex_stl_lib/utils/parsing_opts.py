@@ -934,12 +934,13 @@ class CCmdArgParser(argparse.ArgumentParser):
                 return opts
             opts.ports = listify(opts.ports)
             
-            # if all ports are marked or 
-            if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
-                if default_ports is None:
-                    opts.ports = self.stateless_client.get_acquired_ports()
-                else:
-                    opts.ports = default_ports
+            # explicit -a means ALL ports
+            if (getattr(opts, "all_ports", None) == True):
+                opts.ports = self.stateless_client.get_all_ports()
+                
+            # default ports
+            elif (getattr(opts, "ports", None) == []):
+                opts.ports = self.stateless_client.get_acquired_ports() if default_ports is None else default_ports
 
             opts.ports = list_remove_dup(opts.ports)
             

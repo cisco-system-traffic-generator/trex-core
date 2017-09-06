@@ -208,7 +208,7 @@ class CTRexInfoGenerator(object):
             return {}
 
     def generate_streams_info(self, port_id_list, stream_id_list):
-        relevant_ports = self.__get_relevant_ports(port_id_list)
+        relevant_ports = self.__get_relevant_ports(port_id_list, limit = 32)
         return_data = OrderedDict()
 
         for port_obj in relevant_ports:
@@ -766,29 +766,28 @@ class CTRexInfoGenerator(object):
             p_type_field_len = max(p_type_field_len, len(stream_id_sum['packet_type']))
 
         info_table = text_tables.TRexTextTable()
-        info_table.set_cols_align(["c"] + ["l"] + ["r"] + ["c"] + ["r"] + ["c"])
-        info_table.set_cols_width([10]   + [p_type_field_len]  + [8]   + [16]  + [15]  + [12])
-        info_table.set_cols_dtype(["t"] + ["t"] + ["t"] + ["t"] + ["t"] + ["t"])
+        info_table.set_cols_align(["c"] + ["c"] + ["c"] + ["r"] + ["c"] + ["c"] + ["c"] + ["c"])
+        info_table.set_cols_width([10]  + [15]  + [p_type_field_len]  + [8] + [16]  + [15] + [12] + [12])
+        info_table.set_cols_dtype(["t"] * 8)
 
         info_table.add_rows([v.values()
                              for k, v in return_streams_data['streams'].items()],
                              header=False)
-        info_table.header(["ID", "packet type", "length", "mode", "rate", "next stream"])
+        info_table.header(["ID", "name", "packet type", "length", "mode", "rate", "PG ID", "next"])
 
         return ExportableStats(return_streams_data, info_table)
 
 
-    def __get_relevant_ports(self, port_id_list):
+    def __get_relevant_ports(self, port_id_list, limit = 4):
         # fetch owned ports
         ports = [port_obj
                  for _, port_obj in self._ports_dict.items()
                  if port_obj.port_id in port_id_list]
         
         # display only the first FOUR options, by design
-        if len(ports) > 4:
-            #self.logger is not defined
-            #self.logger.log(format_text("[WARNING]: ", 'magenta', 'bold'), format_text("displaying up to 4 ports", 'magenta'))
-            ports = ports[:4]
+        if len(ports) > limit:
+            ports = ports[:limit]
+            
         return ports
 
     def __update_per_field_dict(self, dict_src_data, dict_dest_ref):

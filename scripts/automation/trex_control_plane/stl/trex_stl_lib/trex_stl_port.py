@@ -11,7 +11,7 @@ from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
 import base64
-import copy
+from copy import deepcopy
 from datetime import datetime, timedelta
 import threading
 
@@ -199,11 +199,8 @@ class Port(object):
             return self.err(rc.err())
 
         for k, v in rc.data()['streams'].items():
-            self.streams[k] = {'next_id': v['next_stream_id'],
-                               'pkt'    : base64.b64decode(v['packet']['binary']),
-                               'mode'   : v['mode']['type'],
-                               'dummy'  : bool(v['flags'] & 8),
-                               'rate'   : STLStream.get_rate_from_field(v['mode']['rate'])}
+            self.streams[k] = STLStream.from_json(v)
+            
         return self.ok()
 
     # release the port
@@ -319,13 +316,8 @@ class Port(object):
         for i, single_rc in enumerate(rc):
             if single_rc.rc:
                 stream_id = batch[i].params['stream_id']
-                next_id   = batch[i].params['stream']['next_stream_id']
-                self.streams[stream_id] = {'next_id'        : next_id,
-                                           'pkt'            : streams_list[i].get_pkt(),
-                                           'mode'           : streams_list[i].get_mode(),
-                                           'rate'           : streams_list[i].get_rate(),
-                                           'has_flow_stats' : streams_list[i].has_flow_stats()}
-
+                self.streams[stream_id] = deepcopy(streams_list[i])
+                
                 ret.add(RC_OK(data = stream_id))
 
                 self.has_rx_streams = self.has_rx_streams or streams_list[i].has_flow_stats()
@@ -370,7 +362,7 @@ class Port(object):
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
         # recheck if any RX stats streams present on the port
-        self.has_rx_streams = any([stream['has_flow_stats'] for stream in self.streams.values()])
+        self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams.values()])
 
         return self.ok() if rc else self.err(rc.err())
 
@@ -1040,22 +1032,21 @@ class Port(object):
         
         data = OrderedDict()
         for id in sorted(map(int, self.streams.keys())):
-            obj = self.streams[str(id)]
+            stream = self.streams[str(id)]
 
-            obj['pkt_len'] = len(obj['pkt']) + 4
-            if obj['dummy']:
-                obj['pkt_type'] = 'Dummy'
-                obj['pkt_len'] = '-'
-            if 'pkt_type' not in obj:
-                # lazy build scapy repr.
-                obj['pkt_type'] = STLPktBuilder.pkt_layers_desc_from_buffer(obj['pkt'])
+            if stream.has_flow_stats():
+                pg_id = '{0}: {1}'.format(stream.get_flow_stats_type(), stream.get_pg_id())
+            else:
+                pg_id = '-'
             
-            data[id] = OrderedDict([ ('id',  id),
-                                     ('packet_type',  obj['pkt_type']),
-                                     ('L2 len',       obj['pkt_len']),
-                                     ('mode',         obj['mode']),
-                                     ('rate',         obj['rate']),
-                                     ('next_stream',  obj['next_id'] if obj['next_id'] != '-1' else 'None')
+            data[id] = OrderedDict([ ('id',           id),
+                                     ('name',         stream.get_name() or '-'),
+                                     ('packet_type',  stream.get_pkt_type()),
+                                     ('L2 len',       len(stream.get_pkt())+ 4),
+                                     ('mode',         stream.get_mode()),
+                                     ('rate',         stream.get_rate()),
+                                     ('PG ID',        pg_id),
+                                     ('next',         stream.get_next() or '-')
                                     ])
     
         return {"streams" : data}
