@@ -92,7 +92,7 @@ class STLTXMode(object):
         
 
     def to_json (self):
-        return self.fields
+        return dict(self.fields)
 
 
     @staticmethod
@@ -113,12 +113,15 @@ class STLTXMode(object):
                 
             elif mode['type'] == 'multi_burst':
                 return STLTXMultiBurst(pkts_per_burst = mode['pkts_per_burst'],
-                                       ibg = mode['ibg'],
-                                       count = mode['count'],
+                                       ibg            = mode['ibg'],
+                                       count          = mode['count'],
                                        **kwargs)
                 
             elif mode['type'] == 'continuous':
                 return STLTXCont(**kwargs)
+                
+            else:
+                raise STLError("from_json: unknown mode type '{0}'".format(mode['type']))
                 
                 
         except KeyError as e:
@@ -504,22 +507,6 @@ class STLStream(object):
         s += "Stream JSON:\n{0}\n".format(json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True))
         return s
 
-        
-    def to_json (self):
-        """ 
-        Return json format
-        """
-        json_data = dict(self.fields)
-        
-        # required fields for 'from_json' - send it to the server
-        if self.name:
-            json_data['name'] = self.name 
-            
-        if self.next:
-            json_data['next'] = self.next
-            
-        return json_data
-            
 
     def get_id (self):
         """ Get the stream id after resolution  """
@@ -726,6 +713,21 @@ class STLStream(object):
     def __replchars_to_hex(match):
         return r'\x{0:02x}'.format(ord(match.group()))
 
+        
+
+    def to_json (self):
+        """ convert stream object to JSON """
+        json_data = dict(self.fields)
+
+        # required fields for 'from_json' - send it to the server
+        if self.name:
+            json_data['name'] = self.name 
+
+        if self.next:
+            json_data['next'] = self.next
+
+        return json_data
+
 
     @staticmethod
     def from_json (json_data):
@@ -742,13 +744,15 @@ class STLStream(object):
                              next                     = json_data.get('next'),
                              packet                   = builder,
                              mode                     = mode,
+                             flow_stats               = fs,
                              enabled                  = json_data['enabled'],
                              self_start               = json_data['self_start'],
                              isg                      = json_data['isg'],
-                             flow_stats               = fs,
-                             stream_id                = json_data.get('stream_id'),
                              action_count             = json_data['action_count'],
+                             
+                             stream_id                = json_data.get('stream_id'),
                              random_seed              = json_data.get('random_seed', 0),
+                             
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
                              dummy_stream             = (json_data['flags'] & 0x4) == 0x4)
@@ -1133,10 +1137,14 @@ class STLProfile(object):
 
             
     def to_json (self):
+        """ convert profile to JSON object """
         return [s.to_json() for s in self.get_streams()]
+        
         
     @staticmethod
     def from_json (json_data):
+        """ create profile object from JSON object """
+        
         if not isinstance(json_data, list):
             raise STLError("JSON should contain a list of streams")
                     

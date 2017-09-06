@@ -1651,13 +1651,15 @@ class STLPktBuilder(CTrexPktBuilderInterface):
     @staticmethod
     def from_json (json_data):
         ''' given a JSON, construct a valid packet builder object '''
+        
         try:
             # packet
             pkt_buffer = base64.b64decode(json_data['packet']['binary'])
             
             # VM
             vm = json_data['vm']
-            
+        
+            # create VM object    
             vm_obj = STLVM()
             
             # set cache size
@@ -1736,6 +1738,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                     print(instr)
                     raise STLError("from_json: unknown VM instruction type '{0}'".format(instr['type']))
             
+                    
         except binascii.Error:
             raise STLError("from_json: bad packet format")
             
