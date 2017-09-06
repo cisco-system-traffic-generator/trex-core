@@ -428,7 +428,6 @@ class STLStream(object):
         self.mac_dst_override_mode = mac_dst_override_mode
         self.id = stream_id
 
-
         self.fields = {}
 
         int_mac_src_override_by_pkt = 0;
@@ -488,9 +487,6 @@ class STLStream(object):
         # packet and VM
         self.fields.update(packet.to_json())
         
-        #self.fields['packet'] = packet.dump_pkt()
-        #self.fields['vm']     = packet.get_vm_data()
-
         self.pkt = base64.b64decode(self.fields['packet']['binary'])
 
         # this is heavy, calculate lazy
@@ -517,7 +513,6 @@ class STLStream(object):
     def get_id (self):
         """ Get the stream id after resolution  """
         return self.id
-
 
     def has_custom_mac_addr (self):
         """ Return True if src or dst MAC were set as custom """
@@ -732,21 +727,21 @@ class STLStream(object):
         fs = STLFlowStatsInterface.from_json(json_data['flow_stats'])
         
         try:
-            return STLStream(name                     = json_data.get('name', None),
+            return STLStream(name                     = None,
+                             next                     = None,
                              packet                   = builder,
                              mode                     = mode,
                              enabled                  = json_data['enabled'],
                              self_start               = json_data['self_start'],
                              isg                      = json_data['isg'],
                              flow_stats               = fs,
-                             next                     = json_data.get('next_stream_id', None),
                              stream_id                = json_data.get('stream_id'),
                              action_count             = json_data['action_count'],
                              random_seed              = json_data.get('random_seed', 0),
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
-                             mac_dst_override_mode    = (json_data['flags'] & 0x2) == 0x2,
-                             dummy_stream             = (json_data['flags'] & 0x3) == 0x3)
-                  
+                             mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
+                             dummy_stream             = (json_data['flags'] & 0x4) == 0x4)
+            
             
         except KeyError as e:
             raise STLError("from_json: missing field {0} from JSON".format(e))
@@ -837,19 +832,26 @@ class STLProfile(object):
         with open(json_file) as f:
             try:
                 json_data = json.load(f)
-                if not isinstance(json_data, list):
-                    raise STLError("file '{0}' should contain a list of streams in JSON format".format(json_file))
                     
             except ValueError:
                 raise STLError("file '{0}' is not a valid JSON formatted file".format(json_file))
-                
+            
+        return load_json_data(json_data)
+
+    
+    @staticmethod
+    def load_json_data (json_data):
+        
+        if not isinstance(json_data, list):
+            raise STLError("JSON should contain a list of streams".format(json_file))
+                    
         streams = [STLStream.from_json(stream_json) for stream_json in json_data]
 
         profile = STLProfile(streams)
 
         return profile
-
-    
+        
+        
         
     @staticmethod
     def get_module_tunables(module):

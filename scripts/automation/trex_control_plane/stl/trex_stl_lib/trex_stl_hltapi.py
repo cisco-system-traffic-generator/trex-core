@@ -1511,7 +1511,6 @@ def generate_packet(**user_kwargs):
     if fix_ipv4_checksum and l3_layer.name == 'IP' and kwargs['ip_checksum'] is None:
         vm_cmds.append(STLVmFixIpv4(offset = 'IP'))
     if vm_cmds:
-        split_by_field = None
         if kwargs['split_by_cores'] == 'split':
             max_length = 0
             for cmd in vm_cmds:
@@ -1520,16 +1519,14 @@ def generate_packet(**user_kwargs):
                         continue
                     length = float(cmd.max_value - cmd.min_value) / cmd.step
                     if cmd.name == 'ip_src' and length > 7: # priority is to split by ip_src
-                        split_by_field = 'ip_src'
                         break
                     if length > max_length:
                         max_length = length
-                        split_by_field = cmd.name
         elif kwargs['split_by_cores'] == 'single':
             raise STLError("split_by_cores 'single' not implemented yet")
         elif kwargs['split_by_cores'] != 'duplicate':
             raise STLError("split_by_cores '%s' is not supported" % kwargs['split_by_cores'])
-        pkt.add_command(STLScVmRaw(vm_cmds, split_by_field))
+        pkt.add_command(STLScVmRaw(vm_cmds))
 
     # debug (only the base packet, without VM)
     debug_filename = kwargs.get('save_to_pcap')

@@ -213,7 +213,6 @@ class STLRX_Test(CStlGeneral_Test):
                            STLVmFixIpv4(offset = "IP")                                # fix checksum
                           ]
                          # Latency is bound to one core. We test that this option is not causing trouble
-                         ,split_by_field = "ip_src"
                          ,cache_size =255 # Cache is ignored by latency flows. Need to test it is not crashing.
                          );
 

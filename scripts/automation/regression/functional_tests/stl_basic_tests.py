@@ -254,7 +254,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
              ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
              ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
-             ["imix.py","-m 50kpps --limit 20",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],

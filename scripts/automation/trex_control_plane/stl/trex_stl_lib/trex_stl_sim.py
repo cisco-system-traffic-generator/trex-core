@@ -15,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from deepdiff import DeepDiff
-
 # simulator can be run as a standalone
 from . import trex_stl_ext
 from .trex_stl_exceptions import *
@@ -128,12 +126,15 @@ class STLSim(object):
 
 
         # load streams
-        cmds_json = []
-
+        cmds_json    = []
+        streams_json = []
+        
         id_counter = 1
 
         lookup = {}
 
+        
+        
         # allocate IDs
         for stream in stream_list:
             if stream.get_id() is not None:
@@ -162,14 +163,11 @@ class STLSim(object):
 
 
             stream_json = stream.to_json()
-            reverse = STLStream.from_json(stream_json).to_json()
-            
-            if reverse != stream_json:
-                pprint.pprint(DeepDiff(reverse, stream_json), indent = 2)
-                exit(1)
+            streams_json.append(dict(stream_json))
                 
             stream_json['next_stream_id'] = next_id
-
+            
+            
             cmd = {"id":1,
                    "jsonrpc": "2.0",
                    "method": "add_stream",
@@ -187,6 +185,9 @@ class STLSim(object):
                                                  force = True,
                                                  duration = duration))
 
+        # verify from_json
+        self.verify_json(streams_json)
+        
         if mode == 'json':
             print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
             return
@@ -197,7 +198,7 @@ class STLSim(object):
             print(STLProfile(stream_list).dump_to_code())
             return
 
-
+        
         # start simulation
         self.outfile = outfile
         self.dp_core_count = dp_core_count
@@ -298,6 +299,12 @@ class STLSim(object):
         pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
 
 
+        
+    def verify_json (self, streams_json):
+        " make sure to/from conversion works "
+        from_json_streams = [s.to_json() for s in STLProfile.load_json_data(streams_json).get_streams()]
+        assert(from_json_streams == streams_json)
+        
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):

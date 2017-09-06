@@ -242,16 +242,13 @@ class STLScVmRaw(CTRexScriptsBase):
     """
     Raw instructions
     """
-    def __init__(self,list_of_commands=None,split_by_field=None,cache_size=None):
+    def __init__(self,list_of_commands=None, cache_size=None):
         """
         Include a list of a basic instructions objects.
 
         :parameters:
              list_of_commands : list
                 list of instructions 
-
-             split_by_field : string 
-                by which field to split to threads
 
              cache_size     : uint16_t 
                 In case it is bigger than zero, FE results will be cached - this will speedup of the program at the cost of limiting the number of possible packets to the number of cache. The cache size is limited to the pool size
@@ -277,14 +274,12 @@ class STLScVmRaw(CTRexScriptsBase):
     
                                STLVmFixIpv4(offset = "IP"), # fix checksum              
                               ]
-                             ,split_by_field = "ip_src",
                              cache_size = 1000
                            )
 
         """
 
         super(STLScVmRaw, self).__init__()
-        self.split_by_field = split_by_field
         self.cache_size = cache_size
 
         if list_of_commands==None:
@@ -438,7 +433,6 @@ class CTRexVmEngine(object):
             """
             super(CTRexVmEngine, self).__init__()
             self.ins=[]
-            self.split_by_var = ''
             self.cache_size = 0
 
 
@@ -449,7 +443,7 @@ class CTRexVmEngine(object):
            for obj in self.ins:
                inst_array.append(obj.__dict__);
 
-           d={'instructions': inst_array, 'split_by_var': self.split_by_var};
+           d={'instructions': inst_array};
            if self.cache_size >0 :
                d['cache']=self.cache_size
            return d
@@ -822,13 +816,19 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         else:
             self.seed = seed
 
-        self.min_value  = convert_val (min_value);
+            
+        if min_value == None:
+            self.min_value  = convert_val (0);
+        else:
+            self.min_value  = convert_val (min_value);
 
+            
         if max_value == None :
             self.max_value = get_max_by_size (self.size) 
         else:
             self.max_value = convert_val (max_value)
 
+            
         if self.min_value > self.max_value :
             raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
 
@@ -1656,13 +1656,23 @@ class STLPktBuilder(CTrexPktBuilderInterface):
             pkt_buffer = base64.b64decode(json_data['packet']['binary'])
             
             # VM
-            vm = json_data['vm']['instructions']
-            if not type(vm) == list:
-                raise STLError("from_json: bad type {0} for 'VM' field".format(type(vm)))
-                
+            vm = json_data['vm']
+            
             vm_obj = STLVM()
             
-            for instr in vm:
+            # set cache size
+            if 'cache' in vm:
+                vm_obj.set_cached(vm['cache'])
+                
+                
+            # fetch instructions    
+            vm_instr = json_data['vm']['instructions']
+            if not type(vm_instr) == list:
+                raise STLError("from_json: bad type {0} for 'VM' field".format(type(vm_instr)))
+                
+            
+            # iterate over instructions
+            for instr in vm_instr:
                 
                 # flow var
                 if instr['type'] == 'flow_var':
@@ -1711,6 +1721,16 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                                       shift         = instr['shift'],
                                       add_val       = instr['add_value'],
                                       byte_order    = 'big' if instr['is_big_endian'] else 'little')
+                    
+                    
+                elif instr['type'] == 'flow_var_rand_limit':
+                    vm_obj.repeatable_random_var(fv_name       = instr['name'],
+                                                 size          = instr['size'],
+                                                 limit         = instr['limit'],
+                                                 seed          = instr['seed'],
+                                                 min_value     = instr['min_value'],
+                                                 max_value     = instr['max_value'])
+                        
                     
                 else:
                     print(instr)
@@ -1778,11 +1798,6 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         for desc in obj.commands:
             self.vm_low_level.add_ins(desc.get_obj());
-
-        # set split_by_var
-        if obj.split_by_field :
-            validate_type('obj.split_by_field', obj.split_by_field, basestring)
-            self.vm_low_level.split_by_var = obj.split_by_field
 
         #set cache size 
         if obj.cache_size :
@@ -2087,6 +2102,45 @@ class STLVM(STLScVmRaw):
                                         add_value         = add_val,
                                         offset_fixup      = offset_fixup,
                                         is_big            = (byte_order == 'big')))
+        
+        
+        
+    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None):
+        """
+        Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
+        The size argument determines the variable size. Could be 1,2,4 or 8
+
+        1. The maximum number of distinct values will  'limit'. There could be a case of repetition
+        2. The values will be repeated  after 'limit' number of values.
+
+        :parameters:
+             name : string 
+                Name of the stream variable 
+
+             size  : int
+                Number of bytes of the variable. Possible values: 1,2,4,8 for uint8_t, uint16_t, uint32_t, uint64_t
+
+             limit  : int 
+                The number of distinct repetable random number 
+
+             seed   : int 
+                For deterministic result, you can set this to a uint16_t number
+
+             min_value  : int
+                Min value 
+
+             max_value  : int
+                Max value 
+
+        """
+        
+        self.add_cmd(STLVmFlowVarRepeatableRandom(name       =  fv_name,
+                                                  size       =  size,
+                                                  limit      =  limit,
+                                                  seed       =  seed,
+                                                  min_value  =  min_value,
+                                                  max_value  =  max_value))
+        
         
         
 class PacketBuffer:
