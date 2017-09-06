@@ -2050,7 +2050,7 @@ TEST_F(basic_vm, vm_syn_attack) {
     vm.Dump(stdout);
 
     CPcapLoader pcap;
-    pcap.load_pcap_file("stl/yaml/syn_packet.pcap",0);
+    pcap.load_pcap_file("stl/syn_packet.pcap",0);
 
 
 
@@ -2176,7 +2176,7 @@ TEST_F(basic_vm, vm_inc_size_64_128) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
                         );
 
-    run_vm_program(vm,"stl/yaml/udp_1518B_no_crc.pcap","stl_vm_inc_size_64_128",20);
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_inc_size_64_128",20);
 }
 
 TEST_F(basic_vm, vm_random_size_64_128) {
@@ -2206,7 +2206,7 @@ TEST_F(basic_vm, vm_random_size_64_128) {
                         );
 
 
-    run_vm_program(vm,"stl/yaml/udp_1518B_no_crc.pcap","stl_vm_rand_size_64_128",20);
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_rand_size_64_128",20);
 
 }
 
@@ -2242,7 +2242,7 @@ TEST_F(basic_vm, vm_random_size_64_127_128) {
     bool fail=false;
 
     try {
-       run_vm_program(vm,"stl/yaml/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
+       run_vm_program(vm,"stl/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
      } catch (const TrexException &ex) {
         fail=true;
     }
@@ -2278,7 +2278,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
                         );
 
-    run_vm_program(vm,"stl/yaml/udp_594B_no_crc.pcap","stl_vm_rand_size_512B_64_128",10);
+    run_vm_program(vm,"stl/udp_594B_no_crc.pcap","stl_vm_rand_size_512B_64_128",10);
 
 }
 
@@ -3553,7 +3553,7 @@ TEST_F(basic_stl, vm_enable_cache_500) {
     /* multi mbuf cache */
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1_cache_500";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false,20.0,19);
 }
 
@@ -3582,7 +3582,7 @@ TEST_F(basic_stl, vm_enable1) {
 
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false);
 }
 
@@ -3592,7 +3592,7 @@ TEST_F(basic_stl, vm_enable1_flow_stat) {
 
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1_flow_stat";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.m_pg_id = 5;
     vm_test.run(false);
 }

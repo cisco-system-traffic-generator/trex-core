@@ -96,6 +96,37 @@ class STLTXMode(object):
         return self.fields
 
 
+    @staticmethod
+    def from_json (json_data):
+        try:
+            mode = json_data['mode']
+            rate = mode['rate']
+            
+            # check the rate type
+            if rate['type'] not in ['pps', 'bps_L1', 'bps_L2', 'percentage']:
+                raise STLError("from_json: invalid rate type '{0}'".format(rate['type']))
+            
+            # construct the pair
+            kwargs = {rate['type'] : rate['value']}
+            
+            if mode['type'] == 'single_burst':
+                return STLTXSingleBurst(total_pkts = mode['total_pkts'], **kwargs)
+                
+            elif mode['type'] == 'multi_burst':
+                return STLTXMultiBurst(pkts_per_burst = mode['pkts_per_burst'],
+                                       ibg = mode['ibg'],
+                                       count = mode['count'],
+                                       **kwargs)
+                
+            elif mode['type'] == 'continuous':
+                return STLTXCont(**kwargs)
+                
+                
+        except KeyError as e:
+            raise STLError("from_json: missing field {0} from JSON".format(e))
+            
+        
+        
 # continuous mode
 class STLTXCont(STLTXMode):
     """ Continuous mode """
@@ -225,6 +256,35 @@ class STLFlowStatsInterface(object):
         """ Dump as json"""
         return dict(self.fields)
 
+
+    @staticmethod
+    def from_json (json_data):
+        '''
+        create the object from JSON output
+        '''
+        
+        try:
+            # no flow stats
+            if not json_data['enabled']:
+                return None
+                
+            # flow stats
+            if json_data['rule_type'] == 'stats':
+                return STLFlowStats(pg_id = json_data['stream_id'])
+                
+            # latency
+            elif json_data['rule_type'] == 'latency':
+                return STLFlowLatencyStats(pg_id = json_data['stream_id'])
+                
+            else:
+                raise STLError("from_json: invalid flow stats type {0}".format(json_data['rule_type']))
+                
+                
+        except KeyError as e:
+            raise STLError("from_json: missing field {0} from JSON".format(e))
+
+        
+        
     @staticmethod
     def defaults ():
         return {'enabled' : False}
@@ -426,8 +486,10 @@ class STLStream(object):
         packet.compile()
 
         # packet and VM
-        self.fields['packet'] = packet.dump_pkt()
-        self.fields['vm']     = packet.get_vm_data()
+        self.fields.update(packet.to_json())
+        
+        #self.fields['packet'] = packet.dump_pkt()
+        #self.fields['vm']     = packet.get_vm_data()
 
         self.pkt = base64.b64decode(self.fields['packet']['binary'])
 
@@ -526,27 +588,6 @@ class STLStream(object):
             print("Nothing to dump")
 
 
-
-    def to_yaml (self):
-        """ Convert to YAML  """
-        y = {}
-
-        if self.name:
-            y['name'] = self.name
-
-        if self.next:
-            y['next'] = self.next
-
-        y['stream'] = copy.deepcopy(self.fields)
-        
-        # some shortcuts for YAML
-        rate_type  = self.fields['mode']['rate']['type']
-        rate_value = self.fields['mode']['rate']['value']
-
-        y['stream']['mode'][rate_type] = rate_value
-        del y['stream']['mode']['rate']
-
-        return y
 
     # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
     def to_code (self):
@@ -679,152 +720,38 @@ class STLStream(object):
     def __replchars_to_hex(match):
         return r'\x{0:02x}'.format(ord(match.group()))
 
-    def dump_to_yaml (self, yaml_file = None):
-        """ Print as yaml  """
-        yaml_dump = yaml.dump([self.to_yaml()], default_flow_style = False)
 
-        # write to file if provided
-        if yaml_file:
-            with open(yaml_file, 'w') as f:
-                f.write(yaml_dump)
-
-        return yaml_dump
-
-class YAMLLoader(object):
-
-    def __init__ (self, yaml_file):
-        self.yaml_path = os.path.dirname(yaml_file)
-        self.yaml_file = yaml_file
-
-
-    def __parse_packet (self, packet_dict):
-
-        packet_type = set(packet_dict).intersection(['binary', 'pcap'])
-        if len(packet_type) != 1:
-            raise STLError("Packet section must contain either 'binary' or 'pcap'")
-
-        if 'binary' in packet_type:
-            try:
-                pkt_str = base64.b64decode(packet_dict['binary'])
-            except TypeError:
-                raise STLError("'binary' field is not a valid packet format")
-
-            builder = STLPktBuilder(pkt_buffer = pkt_str)
-
-        elif 'pcap' in packet_type:
-            pcap = os.path.join(self.yaml_path, packet_dict['pcap'])
-
-            if not os.path.exists(pcap):
-                raise STLError("'pcap' - cannot find '{0}'".format(pcap))
-
-            builder = STLPktBuilder(pkt = pcap)
-
-        return builder
-
-
-    def __parse_mode (self, mode_obj):
-        if not mode_obj:
-            return None
-
-        rate_parser = set(mode_obj).intersection(['pps', 'bps_L1', 'bps_L2', 'percentage'])
-        if len(rate_parser) != 1:
-            raise STLError("'rate' must contain exactly one from 'pps', 'bps_L1', 'bps_L2', 'percentage'")
-
-        rate_type  = rate_parser.pop()
-        rate = {rate_type : mode_obj[rate_type]}
-
-        mode_type = mode_obj.get('type')
-
-        if mode_type == 'continuous':
-            mode = STLTXCont(**rate)
-
-        elif mode_type == 'single_burst':
-            defaults = STLTXSingleBurst()
-            mode = STLTXSingleBurst(total_pkts  = mode_obj.get('total_pkts', defaults.fields['total_pkts']),
-                                    **rate)
-
-        elif mode_type == 'multi_burst':
-            defaults = STLTXMultiBurst()
-            mode = STLTXMultiBurst(pkts_per_burst = mode_obj.get('pkts_per_burst', defaults.fields['pkts_per_burst']),
-                                   ibg            = mode_obj.get('ibg', defaults.fields['ibg']),
-                                   count          = mode_obj.get('count', defaults.fields['count']),
-                                   **rate)
-
-        else:
-            raise STLError("mode type can be 'continuous', 'single_burst' or 'multi_burst")
-
-
-        return mode
-
-
-
-    def __parse_flow_stats (self, flow_stats_obj):
-
-        # no such object
-        if not flow_stats_obj or flow_stats_obj.get('enabled') == False:
-            return None
-
-        pg_id = flow_stats_obj.get('stream_id') 
-        if pg_id == None:
-            raise STLError("Enabled RX stats section must contain 'stream_id' field")
-
-        return STLFlowStats(pg_id = pg_id)
-
-
-    def __parse_stream (self, yaml_object):
-        s_obj = yaml_object['stream']
-
-        # parse packet
-        packet = s_obj.get('packet')
-        if not packet:
-            raise STLError("YAML file must contain 'packet' field")
-
-        builder = self.__parse_packet(packet)
-
-
-        # mode
-        mode = self.__parse_mode(s_obj.get('mode'))
-
-        # rx stats
-        flow_stats = self.__parse_flow_stats(s_obj.get('flow_stats'))
+    @staticmethod
+    def from_json (json_data):
         
-
-        defaults = default_STLStream
-        # create the stream
-        stream = STLStream(name       = yaml_object.get('name'),
-                           packet     = builder,
-                           mode       = mode,
-                           flow_stats   = flow_stats,
-                           enabled    = s_obj.get('enabled', defaults.fields['enabled']),
-                           self_start = s_obj.get('self_start', defaults.fields['self_start']),
-                           isg        = s_obj.get('isg', defaults.fields['isg']),
-                           next       = yaml_object.get('next'),
-                           action_count = s_obj.get('action_count', defaults.fields['action_count']),
-                           mac_src_override_by_pkt = s_obj.get('mac_src_override_by_pkt', 0),
-                           mac_dst_override_mode = s_obj.get('mac_src_override_by_pkt', 0) 
-                           )
-
-        # hack the VM fields for now
-        if 'vm' in s_obj:
-            stream.fields['vm'].update(s_obj['vm'])
-
-        return stream
-
-
-    def parse (self):
-        with open(self.yaml_file, 'r') as f:
-            # read YAML and pass it down to stream object
-            yaml_str = f.read()
-
-            try:
-                objects = yaml.safe_load(yaml_str)
-            except yaml.parser.ParserError as e:
-                raise STLError(str(e))
-
-            streams = [self.__parse_stream(object) for object in objects]
+        # packet builder
+        builder = STLPktBuilder.from_json(json_data)
+        mode    = STLTXMode.from_json(json_data)
+        
+        # flow stats / latency
+        fs = STLFlowStatsInterface.from_json(json_data['flow_stats'])
+        
+        try:
+            return STLStream(name                     = json_data.get('name', None),
+                             packet                   = builder,
+                             mode                     = mode,
+                             enabled                  = json_data['enabled'],
+                             self_start               = json_data['self_start'],
+                             isg                      = json_data['isg'],
+                             flow_stats               = fs,
+                             next                     = json_data.get('next_stream_id', None),
+                             stream_id                = json_data.get('stream_id'),
+                             action_count             = json_data['action_count'],
+                             random_seed              = json_data.get('random_seed', 0),
+                             mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
+                             mac_dst_override_mode    = (json_data['flags'] & 0x2) == 0x2,
+                             dummy_stream             = (json_data['flags'] & 0x3) == 0x3)
+                  
             
-            return streams
-
+        except KeyError as e:
+            raise STLError("from_json: missing field {0} from JSON".format(e))
+            
+        
 
 # profile class
 class STLProfile(object):
@@ -897,22 +824,33 @@ class STLProfile(object):
     def has_flow_stats (self):
         return any([x.has_flow_stats() for x in self.get_streams()])
 
+        
     @staticmethod
-    def load_yaml (yaml_file):
-        """ Load (from YAML file) a profile with a number of streams"""
+    def load_json (json_file):
+        """ Load (from JSON file) a profile with a number of streams """
 
         # check filename
-        if not os.path.isfile(yaml_file):
-            raise STLError("file '{0}' does not exists".format(yaml_file))
+        if not os.path.isfile(json_file):
+            raise STLError("file '{0}' does not exists".format(json_file))
 
-        yaml_loader = YAMLLoader(yaml_file)
-        streams = yaml_loader.parse()
+        # read the JSON content
+        with open(json_file) as f:
+            try:
+                json_data = json.load(f)
+                if not isinstance(json_data, list):
+                    raise STLError("file '{0}' should contain a list of streams in JSON format".format(json_file))
+                    
+            except ValueError:
+                raise STLError("file '{0}' is not a valid JSON formatted file".format(json_file))
+                
+        streams = [STLStream.from_json(stream_json) for stream_json in json_data]
 
         profile = STLProfile(streams)
-        profile.meta = {'type': 'yaml'}
 
         return profile
 
+    
+        
     @staticmethod
     def get_module_tunables(module):
         # remove self and variables
@@ -1168,8 +1106,8 @@ class STLProfile(object):
         if suffix == 'py':
             profile = STLProfile.load_py(filename, direction, port_id, **kwargs)
 
-        elif suffix == 'yaml':
-            profile = STLProfile.load_yaml(filename)
+        elif suffix == 'json':
+            profile = STLProfile.load_json(filename)
 
         elif suffix in ['cap', 'pcap']:
             profile = STLProfile.load_pcap(filename, speedup = 1, ipg_usec = 1e6)

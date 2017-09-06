@@ -15,6 +15,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from deepdiff import DeepDiff
+
 # simulator can be run as a standalone
 from . import trex_stl_ext
 from .trex_stl_exceptions import *
@@ -26,8 +28,6 @@ from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWri
 
 from random import randint
 from random import choice as rand_choice
-
-from yaml import YAMLError
 
 import re
 import json
@@ -73,7 +73,7 @@ class STLSim(object):
 
 
     # run command
-    # input_list - a list of streams or YAML files
+    # input_list - a list of streams or JSON files
     # outfile - pcap file to save output, if None its a dry run
     # dp_core_count - how many DP cores to use
     # dp_core_index - simulate only specific dp core without merging
@@ -94,7 +94,7 @@ class STLSim(object):
              silent = False,
              tunables = None):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'pkt', 'native']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -162,6 +162,12 @@ class STLSim(object):
 
 
             stream_json = stream.to_json()
+            reverse = STLStream.from_json(stream_json).to_json()
+            
+            if reverse != stream_json:
+                pprint.pprint(DeepDiff(reverse, stream_json), indent = 2)
+                exit(1)
+                
             stream_json['next_stream_id'] = next_id
 
             cmd = {"id":1,
@@ -183,9 +189,6 @@ class STLSim(object):
 
         if mode == 'json':
             print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
-            return
-        elif mode == 'yaml':
-            print(STLProfile(stream_list).dump_to_yaml())
             return
         elif mode == 'pkt':
             print(STLProfile(stream_list).dump_as_pkt())
@@ -315,7 +318,7 @@ def setParserOptions():
 
     parser.add_argument("-f",
                         dest ="input_file",
-                        help = "input file in YAML or Python format",
+                        help = "input file (Python or JSON)",
                         type = is_valid_file,
                         required=True)
 
@@ -406,11 +409,6 @@ def setParserOptions():
 
     group.add_argument("--pkt",
                        help = "Parse the packet and show it as hex",
-                       action = "store_true",
-                       default = False)
-
-    group.add_argument("--yaml",
-                       help = "generate YAML from input file [default is False]",
                        action = "store_true",
                        default = False)
 
@@ -574,8 +572,6 @@ def main (args = None):
         mode = 'gdb'
     elif options.json:
         mode = 'json'
-    elif options.yaml:
-        mode = 'yaml'
     elif options.native:
         mode = 'native'
     elif options.pkt:

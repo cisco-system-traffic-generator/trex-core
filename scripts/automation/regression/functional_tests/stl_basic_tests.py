@@ -102,20 +102,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "stl/yaml/")
+        self.profiles_path = os.path.join(self.scripts_path, "stl/")
 
         self.profiles = {}
-        self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
-        self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt_vm.yaml")
-        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "../udp_rand_len_9k.py")
-        self.profiles['imix_tuple_gen'] = os.path.join(self.profiles_path, "imix_1pkt_tuple_gen.yaml")
+        self.profiles['imix'] = os.path.join(self.profiles_path, "imix.py")
+        self.profiles['syn_attack'] = os.path.join(self.profiles_path, "syn_attack.py")
+        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "udp_rand_len_9k.py")
+        self.profiles['udp_tuple_gen'] = os.path.join(self.profiles_path, "udp_1pkt_tuple_gen.py")
 
         for k, v in self.profiles.items():
             self.verify_exists(v)
 
-        self.valgrind_profiles = [ self.profiles['imix_3pkt_vm'],
+        self.valgrind_profiles = [ self.profiles['syn_attack'],
                                    self.profiles['random_size_9k'],
-                                   self.profiles['imix_tuple_gen'] ]
+                                   self.profiles['udp_tuple_gen'] ]
 
         self.golden_path = os.path.join(self.test_path,"stl/golden/")
 
@@ -245,14 +245,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["flow_stats.py", "-m 1 -l 1", True],
              ["flow_stats_latency.py", "-m 1 -l 1", True],
 
-            # YAML test
-             ["yaml/burst_1000_pkt.yaml","-m 1 -l 100",True],
-             ["yaml/burst_1pkt_1burst.yaml","-m 1 -l 100",True],
-             ["yaml/burst_1pkt_vm.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True],
+             
              ["udp_1pkt_pcap.py","-m 1 -l 10",True, False],
              ["udp_3pkt_pcap.py","-m 1 -l 10",True, False],
              #["udp_1pkt_simple.py","-m 1 -l 3",True],
@@ -261,8 +254,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
              ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
              ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
-             ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20",True],
-             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20",True],
+             ["imix.py","-m 50kpps --limit 20",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],
