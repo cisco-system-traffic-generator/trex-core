@@ -29,6 +29,7 @@ from random import choice as rand_choice
 
 import re
 import json
+import yaml
 import argparse
 import tempfile
 import subprocess
@@ -78,7 +79,7 @@ class STLSim(object):
     # is_debug - debug or release image
     # pkt_limit - how many packets to simulate
     # mult - multiplier
-    # mode - can be 'valgrind, 'gdb', 'json' or 'none'
+    # mode - can be 'valgrind, 'gdb', 'json', 'yaml' or 'none'
     def run (self,
              input_list,
              outfile = None,
@@ -92,7 +93,7 @@ class STLSim(object):
              silent = False,
              tunables = None):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'pkt', 'native']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml', 'pkt', 'native']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -185,12 +186,18 @@ class STLSim(object):
         self.verify_json(stream_list)
         
         if mode == 'json':
-            #print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
-            print(json.dumps([s.to_json() for s in stream_list], indent = 4, separators=(',', ': '), sort_keys = True))
+            pprint.pprint(STLProfile(stream_list).to_json(), indent = 2)
             return
+            
+        elif mode == 'yaml':
+            json_data = STLProfile(stream_list).to_json()
+            print(yaml.dump(json_data, default_flow_style = False))
+            return
+            
         elif mode == 'pkt':
             print(STLProfile(stream_list).dump_as_pkt())
             return
+            
         elif mode == 'native':
             print(STLProfile(stream_list).dump_to_code())
             return
@@ -413,6 +420,11 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
+    group.add_argument("--yaml",
+                       help = "generate YAML from input file [default is False]",
+                       action = "store_true",
+                       default = False)
+     
     group.add_argument("--pkt",
                        help = "Parse the packet and show it as hex",
                        action = "store_true",
@@ -578,6 +590,8 @@ def main (args = None):
         mode = 'gdb'
     elif options.json:
         mode = 'json'
+    elif options.yaml:
+        mode = 'yaml'
     elif options.native:
         mode = 'native'
     elif options.pkt:

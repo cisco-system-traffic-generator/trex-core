@@ -473,10 +473,6 @@ class STLStream(object):
         self.mode_desc      = str(mode)
 
 
-        # packet
-        self.fields['packet'] = {}
-        self.fields['vm'] = {}
-
         if not packet:
             packet = STLPktBuilder(pkt = Ether()/IP())
             if dummy_stream:
@@ -487,7 +483,9 @@ class STLStream(object):
         packet.compile()
 
         # packet and VM
-        self.fields.update(packet.to_json())
+        pkt_json = packet.to_json()
+        self.fields['packet'] = pkt_json['packet']
+        self.fields['vm']     = pkt_json['vm']
         
         self.pkt = base64.b64decode(self.fields['packet']['binary'])
 
@@ -513,6 +511,7 @@ class STLStream(object):
         """
         json_data = dict(self.fields)
         
+        # required fields for 'from_json' - send it to the server
         if self.name:
             json_data['name'] = self.name 
             
