@@ -24,6 +24,22 @@ div.listingblock > div.content {
 
 include::trex_ga.asciidoc[]
 
+== Abstract
+
+The general purpose is to check *specific* WLC in local mode (it might not work with other WLCs):
+
+* Throughput of data plane
+* Scale of control plane
+
+[NOTE]
+=====================================================================
+Building of CAPWAP packets as well as parsing responses was partially extracted to separate encrypted file. +
+Follow instructions from link below to decrypt (Cisco internal only): +
+link:http://csi-wiki-01:8181/trex/capwap_keys/[capwap_keys]
+
+=====================================================================
+
+
 == Setup details
 
 [cols="1,5"]
@@ -33,13 +49,24 @@ include::trex_ga.asciidoc[]
 | NICs:   | 2 x Intel Corporation 82599EB 10-Gigabit SFI/SFP+ Network Connection (rev 01)
 | OS:     | Fedora 18
 | DUT:    | WLC
-| TRex:   | v2.29 using 2 cores per dual interface.
+| TRex:   | v2.30 using 2 cores per dual interface.
 |=================
 
 TRex ports 0 and 1 are connected to ports 0 and 1 of WLC respectively and act as emulation of AP(s) and Client(s). +
 Ports 2 and 3 are acting as usual network (without CAPWAP etc.)
 
+Simulated environment:
+
+image::images/wlc_emulated_env.png[title="Simulated environment",align="center"]
+
+Where the WLC is real DUT, and APs + Clients are emulated by TRex stateless Python API.
+
 == Method
+
+We assume some basic knowledge about configuring/running server, client etc. +
+If it's not the case, please refer to other documentation pages.
+
+=== Preparations
 
 * Run TRex stateless server is one shell.
 * Run TRex console in another shell.
@@ -91,7 +118,14 @@ trex>plugins wlc show
 +-----------------------+---------------------------------------------------------------------------------------------------------+
 ----
 
-Next step would be to create AP. +
+[NOTE]
+=====================================================================
+No support for VLAN at TRex port. +
+Use trunk native VLAN at DUT for same effect.
+=====================================================================
+
+=== AP creation
+
 We create 3 APs on port 0 of TRex:
 
 ----
@@ -134,10 +168,22 @@ trex(service: 0)>plugins wlc show
 ----
 
 As you can see, now the WLC was discovered and it's details are shown. +
-Also, on port 0 added 3 APs with increased attributes of MAC etc. +
+Also, on port 0 added 3 APs with increased attributes of MAC etc.
 
-Next step is to add clients (stations). +
-We will associate 2 clients at first AP and 1 client at second AP. +
+.Troubleshooting
+[options="header",cols="1,3"]
+|=================
+| Problem | Possible resolution
+| Discovery of WLC fails  | Check that IPs of APs are in same subnet as WLC
+| DTLS connection fails | The WLC might require certificate + private key in order to connect. +
+You can provide path to those files with "--cert" and "--priv" arguments of create_ap command.
+|=================
+
+
+
+=== Client creation
+
+Next step is associating 2 clients (stations) at first AP and 1 client at second AP. +
 
 ----
 trex(service: 0)>plugins wlc add_client -i test-ap-1 -c 2
@@ -200,6 +246,8 @@ MAC Address    AP Name                          WLAN State              Protocol
 
 Number of Excluded Clients: 0
 ....
+
+=== Reconnecting
 
 We can reset some AP from the WLC:
 
@@ -276,20 +324,24 @@ trex(service: 0)>plugins wlc show
 ----
 
 
-Finally, we want to send traffic on behalf of client(s). +
-We will use stateless IMIX profile. +
+=== Stateless traffic
+
+We will use stateless IMIX profile sent on behalf of client(s). +
 The plugin will add wrapping of CAPWAP and WLAN based on AP and client info. +
-As in usual stateless, we can pass arguments to the imix1.py profile by using -t (tunables) parameter, thus customising it. +
-At first example we will send traffic on behalf of first two clients to destination of TRex port 2.
+As in usual stateless, we can pass arguments to the imix_wlc.py profile by using -t (tunables) parameter, thus customising it. +
 
 [NOTE]
 =====================================================================
-Currently CAPWAP DATA is not encrypted.
+No support for encrypted CAPWAP DATA.
 =====================================================================
+
+==== Example 1
+
+We will send traffic on behalf of first two clients to TRex port 2 as destination.
 
 [listing]
 ....
-trex(service: 0)>plugins wlc start -i 9.9.13.1 9.9.13.2 -f stl/imix1.py -t dst=9.9.71.5 -m 99%
+trex(service: 0)>plugins wlc start -i 9.9.13.1 9.9.13.2 -f stl/imix_wlc.py -t dst=9.9.71.5 -m 99%
 
 Removing all streams from port(s) [0]:                       [SUCCESS]
 
@@ -344,9 +396,11 @@ ierrors    |                 0 |                 0 |                 0 |        
 ....
 
 As we can see, the number of TX and RX packets matches, but bandwidth does not. +
-This is due to CAPWAP + WLAN which are added at TX (by TRex) and stripped at RX (by WLC). +
- +
-Next example, we will create another AP and client on port 1, and send traffic from first client to the new one:
+This is due to CAPWAP + WLAN which are added at TX (by TRex) and stripped at RX (by WLC).
+
+==== Example 2
+
+We will create another AP and client on port 1, and send traffic from first client to the new one:
 
 [listing]
 ....
@@ -378,7 +432,7 @@ trex(service: 0, 1)>plugins wlc show
 |                  | Connected: Yes / SSID: GLADIUS_SSID          |                                                    |
 +------------------+----------------------------------------------+----------------------------------------------------+
 
-trex(service: 0, 1)>plugins wlc start -i 9.9.13.1 -f stl/imix1.py -t dst=9.9.13.4 -m 99%
+trex(service: 0, 1)>plugins wlc start -i 9.9.13.1 -f stl/imix_wlc.py -t dst=9.9.13.4 -m 99%
 
 Removing all streams from port(s) [0]:                       [SUCCESS]
 
@@ -446,6 +500,10 @@ qwlc-gladious01#show int Te0/0/0
 ----
 
 Now we can find the BW drop threshold, debug the reason etc.
+
+=== Stateful traffic
+
+TODO: describe the proxy usage
 
 
 == Appendix
