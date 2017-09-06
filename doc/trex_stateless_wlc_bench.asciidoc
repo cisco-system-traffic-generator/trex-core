@@ -26,17 +26,15 @@ include::trex_ga.asciidoc[]
 
 == Abstract
 
-The general purpose is to check *specific* WLC in local mode (it might not work with other WLCs):
-
-* Throughput of data plane
-* Scale of control plane
+The main objective of this feature is to test WLC datapath performance by emulating many AP and clients and after setup time to send high speed traffic. +
+We utilize the Stateless services framework link:https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_services[services] for that purpose. +
+Another usecase is to test control plane at scale
 
 [NOTE]
 =====================================================================
 Building of CAPWAP packets as well as parsing responses was partially extracted to separate encrypted file. +
 Follow instructions from link below to decrypt (Cisco internal only): +
 link:http://csi-wiki-01:8181/trex/capwap_keys/[capwap_keys]
-
 =====================================================================
 
 
@@ -247,6 +245,44 @@ MAC Address    AP Name                          WLAN State              Protocol
 Number of Excluded Clients: 0
 ....
 
+=== Connection speeds
+
+.AP connections
+[options="header",cols="1,1,1,1,1"]
+|=================
+| AP count | Wall time (s) | Packets | PPS  | AP/s
+| 1        | 1             | 61      | 61   | 1
+| 2        | 1             | 122     | 122  | 2
+| 4        | 1             | 244     | 244  | 4
+| 8        | 1             | 488     | 488  | 8
+| 16       | 1.1           | 1016    | 923  | 14
+| 32       | 2.1           | 2168    | 1032 | 15
+| 64       | 2.3           | 4424    | 1923 | 27
+| 128      | 2.7           | 8936    | 3309 | 47
+| 256      | 3.8           | 16208   | 4265 | 67
+| 512      | 5.5           | 33406   | 6073 | 93
+|=================
+
+image::images/wlc_ap_connection.png[title="Graph of AP connections",align="center"]
+
+
+.Client connections
+[options="header",cols="1,1,1,1,1"]
+|=================
+| Clients count | Wall time (s) | Packets | PPS  | Clients/s
+| 200           | 1.6           | 1663    | 1039 | 125
+| 400           | 3.5           | 3616    | 1033 | 114
+| 600           | 3.9           | 5558    | 1425 | 153
+| 800           | 4             | 7926    | 1981 | 200
+| 1000          | 4.1           | 9552    | 2329 | 243
+| 1200          | 4.2           | 13733   | 3269 | 285
+| 1400          | 4.4           | 14288   | 3247 | 318
+| 1600          | 8.1           | 15828   | 1954 | 197
+| 1800          | 9.6           | 20972   | 2184 | 187
+|=================
+
+image::images/wlc_client_connection.png[title="Graph of Client connections",align="center"]
+
 === Reconnecting
 
 We can reset some AP from the WLC:
@@ -339,6 +375,8 @@ No support for encrypted CAPWAP DATA.
 
 We will send traffic on behalf of first two clients to TRex port 2 as destination.
 
+image::images/wlc_stl_example1.png[title="Example 1 figure",align="center"]
+
 [listing]
 ....
 trex(service: 0)>plugins wlc start -i 9.9.13.1 9.9.13.2 -f stl/imix_wlc.py -t dst=9.9.71.5 -m 99%
@@ -401,6 +439,8 @@ This is due to CAPWAP + WLAN which are added at TX (by TRex) and stripped at RX 
 ==== Example 2
 
 We will create another AP and client on port 1, and send traffic from first client to the new one:
+
+image::images/wlc_stl_example2.png[title="Example 2 figure",align="center"]
 
 [listing]
 ....
@@ -503,7 +543,56 @@ Now we can find the BW drop threshold, debug the reason etc.
 
 === Stateful traffic
 
-TODO: describe the proxy usage
+==== Purpose
+
+Using stateful traffic, features like AVC can be checked.
+
+==== Connectivity
+
+image::images/wlc_stf_figure.png[title="Stateful proxy figure",align="center"]
+
+The method is to establish connection of AP, clients, and then to proxify stateful traffic by adding CAPWAP/WLAN to traffic coming from stateful TRex and removing CAPWAP/WLAN from traffic coming from WLC. +
+
+==== Running
+
+[NOTE]
+=====================================================================
+Currently CAPWAP proxy code is not merged into master. +
+In order to use it, get the source from github and build it: +
+link:https://github.com/ybrustin/trex-core/tree/capwap_stf[capwap_stf]
+=====================================================================
+
+. Configure routing to 48.0.0.0 at WLC
+. Run the stateless TRex
+. Create AP and Clients via trex-console (look at examples above)
+. Enable the proxy (wireless is Stateful TRex side and wired is WLC side):
++
+----
+trex(service: 0)>plugins wlc proxy --wired 0 --wireless 1
+
+Setting wireless side                                        [SUCCESS]
+
+
+Setting wired side                                           [SUCCESS]
+----
+
+. Once the clients are associated, you can send stateful traffic using range of client IPs:
++
+----
+  generator :
+          distribution : "seq"
+          clients_start : "8.8.100.1"
+          clients_end   : "8.8.100.11"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+----
+
+
+==== Screenshots
+
+image::images/wlc_stf_sfr.png[title="Stateful output SFR profile",align="center"]
+
+image::images/wlc_stf_proxy.png[title="trex-console TUI",align="center"]
 
 
 == Appendix
