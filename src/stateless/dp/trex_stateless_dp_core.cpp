@@ -334,20 +334,32 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             fsp_head = (struct flow_stat_payload_header *)(p + rte_pktmbuf_data_len(m) - fsp_head_size);
             return m;
         } else {
-            // We have: r/w --> read only.
-            // Changing to:
-            // (original) r/w -> (new) indirect (direct is original read_only, after trimming last bytes) -> (new) latency info
-            rte_mbuf_t *m_read_only = m->next, *m_indirect;
-
-            m_indirect = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
-            assert(m_indirect);
-            // alloc mbuf just for the latency header
+            // Two options here.
+            //   Normal case. We have: r/w --> read only.
+            //     Changing to:
+            //     (original) r/w -> (new) indirect (direct is original read_only, after trimming last bytes) -> (new) latency info
+            //  In case of field engine with random packet size, we already have r/w->indirect(direct read only with packet data).
+            //     Need to trim bytes from indirect, and make it point to new mbuf with latency data.
             m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), fsp_head_size);
             assert(m_lat);
             fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
-            utl_rte_pktmbuf_chain_with_indirect(m, m_indirect, m_read_only, m_lat);
-            m_indirect->data_len = (uint16_t)(m_indirect->data_len - fsp_head_size);
-            return m;
+
+            if (RTE_MBUF_INDIRECT(m->next)) {
+                // Variable length field engine case
+                rte_mbuf_t *m_indirect = m->next;
+                utl_rte_pktmbuf_chain_to_indirect(m, m_indirect, m_lat);
+                return m;
+            } else {
+                // normal case.
+                rte_mbuf_t *m_read_only = m->next, *m_indirect;
+
+                m_indirect = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+                assert(m_indirect);
+                // alloc mbuf just for the latency header
+                utl_rte_pktmbuf_chain_with_indirect(m, m_indirect, m_read_only, m_lat);
+                m_indirect->data_len = (uint16_t)(m_indirect->data_len - fsp_head_size);
+                return m;
+            }
         }
     }
 }

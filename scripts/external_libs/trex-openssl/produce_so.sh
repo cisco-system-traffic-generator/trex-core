@@ -1,4 +1,6 @@
-wget https://www.openssl.org/source/openssl-1.1.0f.tar.gz
+#!/bin/bash
+
+wget https://www.openssl.org/source/openssl-1.1.0f.tar.gz -O openssl-1.1.0f.tar.gz
 tar -xzf openssl-1.1.0f.tar.gz
 cd openssl-1.1.0f
 ./config

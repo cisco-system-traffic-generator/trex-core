@@ -20,7 +20,3 @@ ports:
         dst_ip   : 48.0.0.0
         dst_port : 2
 
-    1:
-        clients  : 5
-        dst_ip   : 49.0.0.0
-        dst_port : 3

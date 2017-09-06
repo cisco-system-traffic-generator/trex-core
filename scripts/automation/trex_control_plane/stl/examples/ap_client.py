@@ -2,9 +2,10 @@ from stl_path import *
 from trex_stl_lib.api import *
 from trex_stl_lib.trex_stl_wlc import AP_Manager
 from pprint import pprint
-import threading
 import sys
 import yaml
+import time
+
 
 with open(sys.argv[1]) as f:
     config_yaml = yaml.load(f.read())
@@ -20,6 +21,9 @@ c.acquire(force = True)
 c.stop()
 c.remove_all_streams()
 #c.remove_all_captures()
+
+def get_pkts():
+    return c.get_stats()[0]['opackets'] + c.get_stats()[0]['ipackets']
 
 m = AP_Manager(c)
 
@@ -37,33 +41,27 @@ try:
 
         for port_id, port_data in ports_data.items():
             m.init(port_id)
-            ap_params = m._gen_ap_params()
-            m.create_ap(port_id, *ap_params)
-            m.aps[-1].profile_dst_ip = port_data['dst_ip'] # dirty hack
-            for _ in range(port_data['clients']):
-                client_params = m._gen_client_params()
-                m.create_client(*client_params, ap_id = ap_params[0])
+            for i in range(int(sys.argv[2])):
 
-        print('Joining APs')
-        m.join_aps()
-    
-        print('Associating clients')
-        m.join_clients()
+                ap_params = m._gen_ap_params()
+                m.create_ap(port_id, *ap_params)
+                for _ in range(int(sys.argv[3])):
+                    client_params = m._gen_client_params()
+                    m.create_client(*client_params, ap_id = ap_params[0])
+
+        with Profiler_Context(20):
+            print('Joining APs')
+            m.join_aps()
+
+            start_pkts = get_pkts()
+            start_time = time.time()
+            print('Associating clients')
+            m.join_clients()
+            print('Took: %s' % (time.time() - start_time))
+            print('Pkts: %s' % (get_pkts() - start_pkts))
 
     establish_setup()
-    pprint(m.get_info())
-    #time.sleep(1)
 
-    for client in m.clients:
-        m.add_profile(client, '../../../../stl/imix.py', direction = client.ap.port_id % 2, port = client.ap.port_id)
-    print('Starting traffic')
-    c.start(ports = ap_ports, mult = '0.5%', force = True)
-
-    while m.get_connected_aps():
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
 
 except KeyboardInterrupt:
     pass

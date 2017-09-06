@@ -63,6 +63,24 @@ static inline void utl_rte_pktmbuf_add_last(rte_mbuf_t *m,rte_mbuf_t *m_last){
 }
 
 // Create following m_buf structure:
+// Assuming following in input:
+// base->indirect
+// Creating:
+// base -> indirect -> last
+// Trimming from indirect the number of bytes in last
+static inline rte_mbuf_t * utl_rte_pktmbuf_chain_to_indirect (rte_mbuf_t *base, rte_mbuf_t *indirect
+                                                                , rte_mbuf_t *last) {
+
+    indirect->next = last;
+    indirect->data_len -= last->data_len;
+    assert(indirect->data_len >= 0);
+    base->nb_segs = 3;
+    indirect->nb_segs = 2;
+    last->nb_segs = 1;
+    return base;
+}
+
+// Create following m_buf structure:
 // base -> indirect -> last
 // Read only is the direct of indirect.
 static inline rte_mbuf_t * utl_rte_pktmbuf_chain_with_indirect (rte_mbuf_t *base, rte_mbuf_t *indirect

@@ -396,9 +396,9 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.wait_on_traffic(ports = [master])
 
             stats = self.c.get_stats()
+            self.verify(52, stats[master]['opackets'])
+            self.verify(48, stats[slave]['opackets'])
 
-            self.verify(stats[master]['opackets'], 52)
-            self.verify(stats[slave]['opackets'], 48)
 
         except STLError as e:
             assert False , '{0}'.format(e)
@@ -429,10 +429,10 @@ class STLClient_Test(CStlGeneral_Test):
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
             
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
-            timeout = PassiveTimer(1)
+            timeout = PassiveTimer(2)
             
             while not timeout.has_expired():
                 caps = self.c.get_capture_status()
@@ -502,28 +502,30 @@ class STLClient_Test(CStlGeneral_Test):
             
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = bpf_filter)['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = bpf_filter)['id']
-            
+           
+            self.c.clear_stats(ports = self.tx_port)
+
             # real
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # noise
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
-            self.c.push_packets(pkts, ports = self.tx_port)
+            self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
-            timeout = PassiveTimer(1)
+            timeout = PassiveTimer(2)
             
             while not timeout.has_expired():
-                caps = self.c.get_capture_status()
-                assert(len(caps) == 2)
-                
-                if (caps[tx_capture_id]['count'] == 250) and (caps[rx_capture_id]['count'] == 250):
+                opackets = self.c.get_stats(ports = self.tx_port)[self.tx_port]['opackets']
+                if (opackets >= 1000):
                     break
                     
                 time.sleep(0.1)
-            
+        
             # make sure
+            caps = self.c.get_capture_status()
+            assert(len(caps) == 2)
             assert(caps[tx_capture_id]['count'] == 250)
             assert(caps[rx_capture_id]['count'] == 250)
             

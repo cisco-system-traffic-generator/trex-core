@@ -4171,10 +4171,12 @@ private:
     }
 
 private:
-     FORCE_NO_INLINE void associate(uint32_t fid,CGenNode *     node ){
-         assert(m_flow_id_to_node_lookup.lookup(fid)==0);
+    FORCE_NO_INLINE bool associate(uint32_t fid,CGenNode *     node ){
+         if (m_flow_id_to_node_lookup.lookup(fid) != 0)
+             return false;
         m_stats.m_nat_lookup_add_flow_id++;
         m_flow_id_to_node_lookup.add(fid,node);
+        return true;
     }
 
 public:

@@ -5,6 +5,7 @@ import random
 import time
 import socket
 import re
+import cProfile, pstats
 
 try:
     import pwd
@@ -166,7 +167,31 @@ def bitfield_to_str (bf):
     return "-" if not lst else ', '.join([str(x) for x in lst])
     
 
+# a2 before a10 in sorting
 # https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/
 def natural_sorted_key(val):
     return [int(c) if c.isdigit() else c for c in re.split('(\d+)', val)]
+
+
+# with Profiler_Context():
+#     <profiled code>
+class Profiler_Context:
+    def __init__(self, lines = None, sortby = None):
+        self.lines = lines
+        #default_sort = 'cumulative' # func time includes inner funcs
+        default_sort = 'time'     # func time excludes inner funcs
+        self.sortby = sortby or default_sort
+
+    def __enter__(self):
+        self.pr = cProfile.Profile()
+        self.pr.enable()
+
+    def __exit__(self, *a, **k):
+        self.pr.disable()
+        ps = pstats.Stats(self.pr).sort_stats(self.sortby)
+        if self.lines:
+            ps.print_stats(self.lines)
+        else:
+            ps.print_stats()
+
 

@@ -217,6 +217,14 @@ class STLRX_Test(CStlGeneral_Test):
                          ,cache_size =255 # Cache is ignored by latency flows. Need to test it is not crashing.
                          );
 
+        vm_random_size = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=100, max_value=1500, size=2, op="random"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=-14), # fix ip len
+                           STLVmFixIpv4(offset = "IP"),                                # fix checksum
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=-34) # fix udp len
+                          ]
+                       )
+
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.vlan_pkt = STLPktBuilder(pkt = Ether()/Dot1Q()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.qinq_pkt = STLPktBuilder(pkt = Ether(type=0x88A8)/Dot1Q(vlan=19)/Dot1Q(vlan=11)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
@@ -229,6 +237,8 @@ class STLRX_Test(CStlGeneral_Test):
                                     , vm = vm)
         self.vm_large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000)
                                           , vm = vm)
+        self.vm_rand_size_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1500)
+                                              , vm = vm_random_size)
         # Packet size is 8202, with 2k mbuf size in RX, this makes 4 2K mbufs, plus leftover of 10 bytes in 5th mbuf
         # This test that latency code can handle the situation where latency data is not contiguous in memory
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
@@ -364,8 +374,8 @@ class STLRX_Test(CStlGeneral_Test):
             self.__exit_with_error(flow_stats, xstats
                               , 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
                               , pkt_len, pkt_type)
-
-        if tx_bytes != (total_pkts * pkt_len):
+        # pkt_len == 0, means do not compare pkt length (used for streams with random length)
+        if pkt_len != 0 and tx_bytes != (total_pkts * pkt_len):
             self.__exit_with_error(flow_stats, xstats
                               , 'TX bytes mismatch - got: {0}, expected: {1}'.format(tx_bytes, (total_pkts * pkt_len))
                               , pkt_len, pkt_type)
@@ -375,17 +385,18 @@ class STLRX_Test(CStlGeneral_Test):
                               , 'RX pkts mismatch - got: {0}, expected: {1}'.format(rx_pkts, total_pkts)
                               , pkt_len, pkt_type)
 
-        rx_pkt_len = pkt_len
-        if self.fix_rx_byte_count:
-            # Patch. Vic card always add vlan, so we should expect 4 extra bytes in each packet
-            rx_pkt_len += 4
+        if pkt_len != 0:
+            rx_pkt_len = pkt_len
+            if self.fix_rx_byte_count:
+                # Patch. Vic card always add vlan, so we should expect 4 extra bytes in each packet
+                rx_pkt_len += 4
 
-        if "rx_bytes" in self.cap:
-            rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
-            if abs(rx_bytes / rx_pkt_len  - total_pkts ) > self.allow_drop and not self.drops_expected:
-                self.__exit_with_error(flow_stats, xstats
-                                  , 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * rx_pkt_len))
-                                  , pkt_len, pkt_type)
+            if "rx_bytes" in self.cap:
+                rx_bytes = flow_stats['rx_bytes'].get(self.rx_port, 0)
+                if abs(rx_bytes / rx_pkt_len  - total_pkts ) > self.allow_drop and not self.drops_expected:
+                    self.__exit_with_error(flow_stats, xstats
+                                           , 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * rx_pkt_len))
+                                           , pkt_len, pkt_type)
 
     # RX itreation
     def __rx_iteration (self, exp_list, duration=0):
@@ -574,6 +585,7 @@ class STLRX_Test(CStlGeneral_Test):
     def test_1_stream_many_iterations (self):
         total_pkts = self.total_pkts
         streams_data = [
+            {'name': 'Latency, with field engine of random packet size', 'pkt': self.vm_rand_size_pkt, 'lat': True},
             {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
             {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
             {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
@@ -612,7 +624,11 @@ class STLRX_Test(CStlGeneral_Test):
         for stream in streams:
             self.c.add_streams([stream], ports = [self.tx_port])
             print("Stream: {0}".format(stream.name))
-            exp['pkt_len'] = stream.get_pkt_len()
+            if 'random packet size' in stream.name:
+                # hack for not trying to check match in received byte len when using random size packets
+                exp['pkt_len'] = 0
+            else:
+                exp['pkt_len'] = stream.get_pkt_len()
             if self.is_VM:
                 num_repeats = 1
             else:

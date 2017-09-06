@@ -19,6 +19,21 @@ import ctypes
 import struct
 
 
+def base64encode(buf):
+    try:
+        return base64.b64encode(buf).decode()
+    except:
+        print('Could not encode: %s' % buf)
+        raise
+
+def base64decode(buf):
+    try:
+        return base64.b64decode(buf)
+    except:
+        print('Could not decode: %s' % buf)
+        raise
+
+
 class SSL_Context:
     ''' Shared among all APs '''
     def __init__(self):
@@ -54,11 +69,10 @@ class SSL_Context:
                 libcrypto.RSA_free(rsa)
 
     def __del__(self):
-        if libssl:
-            if self.ctx:
-                libssl.SSL_CTX_free(self.ctx)
-            if self.evp:
-                libssl.EVP_PKEY_free(self.evp)
+        if libssl and self.ctx:
+            libssl.SSL_CTX_free(self.ctx)
+        if libcrypto and self.evp:
+            libcrypto.EVP_PKEY_free(self.evp)
 
 
 class AP:
@@ -67,6 +81,7 @@ class AP:
     VERB_WARN  = 2 # default
     VERB_INFO  = 3
     VERB_DEBUG = 4
+    _scapy_cache_static = {}
 
     def __init__(self, ssl_ctx, logger, trex_port, name, mac, ip, port, radio_mac, verbose_level = VERB_WARN, rsa_priv_file = None, rsa_cert_file = None):
         self.ssl_ctx = ssl_ctx
@@ -74,22 +89,20 @@ class AP:
         self.trex_port = trex_port
         self.port_id = trex_port.port_id
         self.name = name
-        if ':' in mac:
-            self.mac_src = mac2str(mac)
-            self.mac_hum = mac
-        else:
-            self.mac_src = mac
-            self.mac_hum = str2mac(mac)
-        if '.' in ip:
-            self.ip_src = is_valid_ipv4_ret(ip)
-            self.ip_hum = ip
-        elif len(ip) == 4:
-            self.ip_src = ip
-            self.ip_hum = str2ip(ip)
-        else:
-            raise Exception('Bad IP format. Expected: n.n.n.n, got: %s' % ip)
+        try:
+            self.mac_bytes = mac2str(mac)
+        except:
+            raise Exception('Bad MAC format, expected aa:bb:cc:dd:ee:ff')
+        self.mac = mac
+        assert '.' in ip, 'Bad IP format, expected x.x.c.d'
+        self.ip_src = is_valid_ipv4_ret(ip)
+        self.ip_hum = ip
         self.udp_port = port
         self.udp_port_str = int2str(port, 2)
+        try:
+            self.radio_mac_bytes = mac2str(radio_mac)
+        except:
+            raise Exception('Bad radio MAC format, expected aa:bb:cc:dd:ee:ff')
         self.radio_mac = radio_mac
         self.ssl = None
         self.in_bio = None
@@ -102,7 +115,7 @@ class AP:
         self.clients = []
         self.rsa_priv_file = rsa_priv_file
         self.rsa_cert_file = rsa_cert_file
-        self.capwap_MaxRetransmit = 3
+        self.capwap_MaxRetransmit = 5
         self.capwap_RetransmitInterval = 0.5
         self.ssl_lock = threading.RLock()
         self._create_ssl()
@@ -120,11 +133,17 @@ class AP:
         self.SSID = {}
         self.session_id = None
         self.mac_dst = None
+        self.mac_dst_bytes = None
         self.ip_dst = None
+        self.ip_dst_bytes = None
         self.dot11_seq = 0
         self.__capwap_seq = 0
         self._scapy_cache = {}
         self.last_recv_ts = None
+        self.is_handshake_done = False
+        self.is_dtls_closed = False
+        self.got_keep_alive = False
+        self.rx_responses = {}
 
 
     def debug(self, msg):
@@ -216,7 +235,7 @@ eWLC:
                 #if libcrypto.X509_NAME_add_entry_by_txt(x509_name, b'O', SSL_CONST.MBSTRING_ASC, b'Cisco Systems', -1, -1, 0) != 1:
                 if libcrypto.X509_NAME_add_entry_by_txt(x509_name, b'O', SSL_CONST.MBSTRING_ASC, b'Cisco Virtual Wireless LAN Controller', -1, -1, 0) != 1:
                     self.fatal('Could not assign O to certificate')
-                #if libcrypto.X509_NAME_add_entry_by_txt(x509_name, b'CN', SSL_CONST.MBSTRING_ASC, ('AP1G4-%s' % hex(self.mac_src, delimiter = '').upper()).encode('ascii'), -1, -1, 0) != 1:
+                #if libcrypto.X509_NAME_add_entry_by_txt(x509_name, b'CN', SSL_CONST.MBSTRING_ASC, ('AP1G4-%s' % hex(self.mac_bytes, delimiter = '').upper()).encode('ascii'), -1, -1, 0) != 1:
                 if libcrypto.X509_NAME_add_entry_by_txt(x509_name, b'CN', SSL_CONST.MBSTRING_ASC, b'CA-vWLC', -1, -1, 0) != 1:
                     self.fatal('Could not assign CN to certificate')
                 if libcrypto.X509_set_subject_name(x509_cert, x509_name) != 1:
@@ -242,23 +261,19 @@ eWLC:
         libssl.SSL_set_connect_state(self.ssl)
 
 
-    def get_port(self):
-        return self.sport
-
-
     def get_config_update_capwap(self, seq):
         if 'config_update' in self._scapy_cache:
-            self._scapy_cache['config_update'][20] = struct.pack('>B', seq)
+            self._scapy_cache['config_update'][20] = struct.pack('!B', seq)
         else:
-            self._scapy_cache['config_update'] = c_buffer(bytes(CAPWAP_PKTS.config_update(self, seq)))
+            self._scapy_cache['config_update'] = CAPWAP_PKTS.config_update(self, seq)
         return self._scapy_cache['config_update']
 
 
     def get_echo_capwap(self):
         if 'echo_pkt' in self._scapy_cache:
-            self._scapy_cache['echo_pkt'][20] = struct.pack('>B', self.get_capwap_seq())
+            self._scapy_cache['echo_pkt'][20] = struct.pack('!B', self.get_capwap_seq())
         else:
-            self._scapy_cache['echo_pkt'] = c_buffer(bytes(CAPWAP_PKTS.echo(self)))
+            self._scapy_cache['echo_pkt'] = CAPWAP_PKTS.echo(self)
         return self._scapy_cache['echo_pkt']
 
 
@@ -268,52 +283,99 @@ eWLC:
         return self._scapy_cache['echo_wrap'] + encrypted
 
 
-    def wrap_capwap_pkt(self, capwap_pkt, dst_mac = None, dst_ip = None, dst_port = 5246):
-        if self.mac_dst and not dst_mac:
-            if 'ether' not in self._scapy_cache:
-                self._scapy_cache['ether'] = bytes(Ether(src = self.mac_src, dst = self.mac_dst, type = 0x0800))
-            return self._scapy_cache['ether'] + bytes(
-                    IP(src = self.ip_hum, dst = dst_ip or self.ip_dst) /
-                    UDP(sport = self.udp_port, dport = dst_port, chksum = 0) /
-                    capwap_pkt)
-        return bytes(Ether(src = self.mac_src, dst = dst_mac or self.mac_dst) /
-                IP(src = self.ip_hum, dst = dst_ip or self.ip_dst) /
-                UDP(sport = self.udp_port, dport = dst_port, chksum = 0) /
-                capwap_pkt)
+    def wrap_capwap_pkt(self, capwap_bytes, is_discovery = False, dst_port = 5246):
+        if isinstance(capwap_bytes, ctypes.Array):
+            capwap_bytes = capwap_bytes.raw
+        assert isinstance(capwap_bytes, bytes)
+        if is_discovery:
+            ip = b'\x45\x00' + struct.pack('!H', 28 + len(capwap_bytes)) + b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_src + b'\xff\xff\xff\xff'
+            checksum = scapy.utils.checksum(ip)
+            ip = ip[:10] + struct.pack('!H', checksum) + ip[12:]
+            return (
+                b'\xff\xff\xff\xff\xff\xff' + self.mac_bytes + b'\x08\x00' +
+                ip +
+                struct.pack('!H', self.udp_port) + struct.pack('!H', dst_port) + struct.pack('!H', 8 + len(capwap_bytes)) + b'\0\0' +
+                capwap_bytes
+                )
+
+        if 'capwap_wrap' not in self._scapy_cache:
+            self._scapy_cache['capwap_wrap_ether'] = self.mac_dst_bytes + self.mac_bytes + b'\x08\x00'
+            self._scapy_cache['capwap_wrap_ip1'] = b'\x45\x00' # 2 bytes of total length after this one
+            self._scapy_cache['capwap_wrap_ip2'] = b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_src + self.ip_dst_bytes
+            self._scapy_cache['capwap_wrap_udp_src'] = struct.pack('!H', self.udp_port)
+            self._scapy_cache['capwap_wrap'] = True
+
+        ip = self._scapy_cache['capwap_wrap_ip1'] + struct.pack('!H', 28 + len(capwap_bytes)) + self._scapy_cache['capwap_wrap_ip2']
+        checksum = scapy.utils.checksum(ip)
+        ip = ip[:10] + struct.pack('!H', checksum) + ip[12:]
+        udp = self._scapy_cache['capwap_wrap_udp_src'] + struct.pack('!H', dst_port) + struct.pack('!H', 8 + len(capwap_bytes)) + b'\0\0'
+        return self._scapy_cache['capwap_wrap_ether'] + ip + udp + capwap_bytes
 
 
     def wrap_pkt_by_wlan(self, client, pkt):
-        assert type(pkt) is Ether, 'wrap_pkt_by_wlan() expects Ethernet packet, got: %s' % type(pkt)
-        assert pkt.payload, 'wrap_pkt_by_wlan() expects Ethernet packet with some payload (IP etc.)'
+        assert type(pkt) is bytes, 'wrap_pkt_by_wlan() expects bytes, got: %s' % type(pkt)
+        assert len(pkt) >= 14, 'Too small buffer to wrap'
         self.dot11_seq += 1
         if self.dot11_seq > 0xfff:
             self.dot11_seq = 0
-        return self.wrap_capwap_pkt(
-            CAPWAP_DATA(
-                header = CAPWAP_Header(
-                    wbid = 1,
-                    flags = 'WT',
-                    wireless_info_802 = CAPWAP_Wireless_Specific_Information_IEEE802_11(
-                        rssi = 216,
-                        snr = 31,
-                        data_rate = 0,
+
+        verify = False
+        if 'wlan_wrapping' not in AP._scapy_cache_static:
+            verify = True
+            p1 = bytes(
+                CAPWAP_DATA(
+                    header = CAPWAP_Header(
+                        wbid = 1,
+                        flags = 'WT',
+                        wireless_info_802 = CAPWAP_Wireless_Specific_Information_IEEE802_11(
+                            rssi = 216,
+                            snr = 31,
+                            data_rate = 0,
+                            )
                         )
-                    )
-                )/
-            Dot11_swapped(
-                FCfield = 'to-DS',
-                subtype = 8,
-                type = 'Data',
-                ID = 0,
-                addr1 = self.radio_mac,
-                addr2 = client.mac,
-                addr3 = pkt.dst,
-                SC = (self.dot11_seq << 4)
-                )/
-            Dot11QoS()/
-            LLC(dsap = 170, ssap = 170, ctrl = 3)/
-            SNAP(code = pkt.type)/
-            pkt.payload, dst_port = 5247)
+                    )/
+                Dot11_swapped(
+                    FCfield = 'to-DS',
+                    subtype = 8,
+                    type = 'Data',
+                    ID = 0,
+                    addr1 = self.radio_mac,
+                    addr2 = client.mac,
+                    addr3 = str2mac(pkt[:6]),
+                    #SC = self.dot11_seq << 4
+                    )/
+                Dot11QoS()/
+                LLC(dsap = 170, ssap = 170, ctrl = 3)/
+                SNAP()[0])
+            AP._scapy_cache_static['wlan_wrapping_1'] = p1[:20]
+            AP._scapy_cache_static['wlan_wrapping_2'] = p1[38:-2]
+            AP._scapy_cache_static['wlan_wrapping'] = True
+
+        p = (
+            AP._scapy_cache_static['wlan_wrapping_1'] +
+            self.radio_mac_bytes +
+            client.mac_bytes +
+            pkt[:6] +
+            AP._scapy_cache_static['wlan_wrapping_2']
+            )
+        #CAPWAP_DATA(p).dump_offsets_tree()
+        # need to update following:
+        # Dot11_swapped.addr1 = self.radio_mac_bytes
+        # Dot11_swapped.addr2 = client.mac_bytes
+        # Dot11_swapped.addr3 = pkt.dst
+        # Dot11_swapped.SC = self.dot11_seq << 4
+        # SNAP.code = struct.unpack('!H', pkt[12:14]
+
+        #p1 = (
+        #    p[:9] + ap.radio_mac_bytes +
+        #    p[15:20] + struct.pack('!B', capwap_seq) +
+        #    p[21:]
+        #    )
+        #
+        if verify and os.getenv('VERIFY_SCAPY_CACHE'):
+            print('verifying wlan_wrapping')
+            assert p == p1[:-2], '\n%s\n%s\n\n%s\n%s' % (type(p), hexstr(p), type(p1), hexstr(p1))
+        return self.wrap_capwap_pkt(p + pkt[12:], dst_port = 5247)
 
 
     def patch_stream(self, client, stream):
@@ -332,8 +394,8 @@ eWLC:
             pkt_meta += ', Changed destination'
             patched_pkt.dst = port_layer['ether']['dst']
 
-        stream.pkt = bytes(self.wrap_pkt_by_wlan(client, patched_pkt))
-        stream.fields['packet'] = {'binary': base64.b64encode(stream.pkt).decode(),
+        stream.pkt = self.wrap_pkt_by_wlan(client, bytes(patched_pkt))
+        stream.fields['packet'] = {'binary': base64encode(stream.pkt),
                                    'meta': pkt_meta}
 
         for inst in  stream.fields['vm']['instructions']:
@@ -344,24 +406,24 @@ eWLC:
         return stream
 
 
-    def is_handshake_done(self):
+    def is_handshake_done_libssl(self):
         with self.ssl_lock:
             return bool(libssl.SSL_is_init_finished(self.ssl))
 
 
-    def is_dtls_closed(self):
+    def is_dtls_closed_libssl(self):
         with self.ssl_lock:
             return bool(libssl.SSL_get_shutdown(self.ssl))
 
 
+    @property
     def is_dtls_established(self):
-        with self.ssl_lock:
-            return bool(self.ssl and libssl.SSL_is_init_finished(self.ssl) and not libssl.SSL_get_shutdown(self.ssl))
+        return self.is_handshake_done and not self.is_dtls_closed
 
 
     def ssl_read(self):
         with self.ssl_lock:
-            ret = libcrypto.BIO_read(self.out_bio, self.openssl_buf, 20000)
+            ret = libcrypto.BIO_read(self.out_bio, self.openssl_buf, 10000)
             if ret >= 0:
                 return self.openssl_buf[:ret]
             ret = libcrypto.BIO_test_flags(self.out_bio, SSL_CONST.BIO_FLAGS_SHOULD_RETRY)
@@ -370,28 +432,28 @@ eWLC:
             self.is_connected = False
 
 
-    def ssl_write(self, buf):
-        with self.ssl_lock:
-            if isinstance(buf, ctypes.Array):
-                ret = libcrypto.BIO_write(self.in_bio, buf, len(buf))
-            else:
-                ret = libcrypto.BIO_write(self.in_bio, c_buffer(buf), len(buf) + 1)
-            if ret >= 0:
-                return ret
-            ret = libcrypto.BIO_test_flags(out_bio, SSL_CONST.BIO_FLAGS_SHOULD_RETRY)
-            if ret:
-                return ''
-            self.is_connected = False
+    # without lock, careful
+    def __ssl_write(self, buf):
+        if isinstance(buf, ctypes.Array):
+            ret = libcrypto.BIO_write(self.in_bio, buf, len(buf))
+        else:
+            ret = libcrypto.BIO_write(self.in_bio, c_buffer(buf), len(buf) + 1)
+        if ret >= 0:
+            return ret
+        ret = libcrypto.BIO_test_flags(out_bio, SSL_CONST.BIO_FLAGS_SHOULD_RETRY)
+        if ret:
+            return ''
+        self.is_connected = False
 
 
     def encrypt(self, buf):
         with self.ssl_lock:
             if isinstance(buf, Packet):
-                buf = bytes(buf)
+                raise Exception('Consider converting to buffer: %s' % buf.command())
             if isinstance(buf, ctypes.Array):
                 ret = libssl.SSL_write(self.ssl, buf, len(buf))
             else:
-                ret = libssl.SSL_write(self.ssl, c_buffer(buf), len(buf) + 1)
+                ret = libssl.SSL_write(self.ssl, c_buffer(buf), len(buf))
             #err = SSL_CONST.ssl_err.get(libcrypto.ERR_get_error(self.ssl, ret))
             #if err != 'SSL_ERROR_NONE':
             #    self.fatal('Got SSL error: %s (ret %s)' % (err, ret))
@@ -400,31 +462,22 @@ eWLC:
 
     def decrypt(self, buf):
         with self.ssl_lock:
-            self.ssl_write(buf)
-            ret = libssl.SSL_read(self.ssl, self.openssl_buf, 20000)
+            self.__ssl_write(buf)
+            ret = libssl.SSL_read(self.ssl, self.openssl_buf, 10000)
             #err = SSL_CONST.ssl_err.get(libcrypto.ERR_get_error(self.ssl, ret))
             #if err != 'SSL_ERROR_NONE':
             #    self.fatal('Got SSL error: %s' % (err, ret))
             return self.openssl_buf[:ret]
 
 
-    def get_garp_pkt(self, client):
-        return self.get_arp_pkt(client, 'who-has', 'ff:ff:ff:ff:ff:ff', client.ip)
-
-
-    def get_arp_pkt(self, client, op, mac_dst, ip_dst):
+    def get_arp_pkt(self, op, client):
+        assert op in ('who-has', 'is-at', 'garp')
         return (
-            Ether(
-                src = client.mac,
-                dst = mac_dst,
-                )/
-            ARP(
-                op = op,
-                hwsrc = client.mac,
-                hwdst = '00:00:00:00:00:00' if (op == 'who-has' and client.ip != ip_dst) else mac_dst,
-                psrc = client.ip,
-                pdst = ip_dst,
-                )
+            self.mac_dst_bytes + client.mac_bytes + b'\x08\x06' + # Ethernet
+            b'\x00\x01\x08\x00\x06\x04' +
+            (b'\x00\x01' if op in ('who-has', 'garp') else b'\x00\x02') +
+            client.mac_bytes + client.ip_bytes +
+            (b'\0\0\0\0\0\0' + client.ip_bytes if op == 'garp' else self.mac_dst_bytes + self.ip_dst_bytes) # ARP
             )
 
 
@@ -455,11 +508,16 @@ class APClient:
         else:
             raise Exception('Bad IP provided, should be x.x.x.x, got: %s' % ip)
         self.ap = ap
-        self.disconnect()
+        self.reset()
 
-    def disconnect(self):
+    def reset(self):
+        self.got_disconnect = False
         self.is_associated = False
         self.seen_arp_reply = False
+
+    def disconnect(self):
+        self.reset()
+        self.got_disconnect = True
 
 
 class AP_Manager:
@@ -473,7 +531,11 @@ class AP_Manager:
         self.trex_client = trex_client or self.bg_client
         self.aps = []
         self.clients = []
-        self.ap_by_id = {}
+        self.ap_by_name = {}
+        self.ap_by_mac = {}
+        self.ap_by_ip = {}
+        self.ap_by_udp_port = {}
+        self.ap_by_radio_mac = {}
         self.client_by_id = {}
         self.bg_lock = threading.RLock()
         self.service_ctx = {}
@@ -491,20 +553,23 @@ class AP_Manager:
         if not self.bg_client.is_connected():
             self.bg_client.connect()
 
-        for trex_port_id in trex_port_ids:
-            if trex_port_id >= len(self.trex_client.ports):
-                raise Exception('TRex port %s does not exist!' % trex_port_id)
-            port_id = trex_port_id
-            trex_port = self.trex_client.ports[port_id]
+        for port_id in trex_port_ids:
             if port_id in self.service_ctx:
                 raise Exception('AP manager already initialized on port %s. Close it to proceed.' % port_id)
+            if port_id >= len(self.trex_client.ports):
+                raise Exception('TRex port %s does not exist!' % port_id)
+            trex_port = self.trex_client.ports[port_id]
+            if not trex_port.is_acquired():
+                raise Exception('Port %s is not acquired' % port_id)
+            if trex_port.get_vlan_cfg():
+                raise Exception('Port %s has VLAN, plugin does not support it. Use trunk with native vlans.' % port_id)
+
+        for port_id in trex_port_ids:
             success = False
             try:
                 self.service_ctx[port_id] = {}
                 if not self.ssl_ctx:
                     self.ssl_ctx = SSL_Context()
-                if not trex_port.is_acquired():
-                    raise Exception('Port %s is not acquired' % port_id)
                 self.trex_client.set_service_mode(port_id, True)
                 if not self.trex_client.get_port_attr(port = port_id)['prom'] == 'on':
                     self.trex_client.set_port_attr(ports = port_id, promiscuous = True)
@@ -534,8 +599,16 @@ class AP_Manager:
     def _get_ap_by_id(self, ap_id):
         if isinstance(ap_id, AP):
             return ap_id
-        if ap_id in self.ap_by_id:
-            return self.ap_by_id[ap_id]
+        if ap_id in self.ap_by_name:
+            return self.ap_by_name[ap_id]
+        elif ap_id in self.ap_by_mac:
+            return self.ap_by_mac[ap_id]
+        elif ap_id in self.ap_by_ip:
+            return self.ap_by_ip[ap_id]
+        elif ap_id in self.ap_by_udp_port:
+            return self.ap_by_udp_port[ap_id]
+        elif ap_id in self.ap_by_radio_mac:
+            return self.ap_by_radio_mac[ap_id]
         else:
             raise Exception('AP with id %s does not exist!' % ap_id)
 
@@ -556,22 +629,22 @@ class AP_Manager:
             mac = str2mac(mac)
         if ':' not in radio_mac:
             radio_mac = str2mac(radio_mac)
-        if name in self.ap_by_id:
+        if name in self.ap_by_name:
             raise Exception('AP with such name (%s) already exists!' % name)
-        if mac in self.ap_by_id:
+        if mac in self.ap_by_mac:
             raise Exception('AP with such MAC (%s) already exists!' % mac)
-        if ip in self.ap_by_id:
+        if ip in self.ap_by_ip:
             raise Exception('AP with such IP (%s) already exists!' % ip)
-        if udp_port in self.ap_by_id:
+        if udp_port in self.ap_by_udp_port:
             raise Exception('AP with such UDP port (%s) already exists!' % udp_port)
-        if radio_mac in self.ap_by_id:
+        if radio_mac in self.ap_by_radio_mac:
             raise Exception('AP with such radio MAC port (%s) already exists!' % radio_mac)
         ap = AP(self.ssl_ctx, self.trex_client.logger, self.trex_client.ports[trex_port_id], name, mac, ip, udp_port, radio_mac, verbose_level, rsa_priv_file, rsa_cert_file)
-        self.ap_by_id[name] = ap
-        self.ap_by_id[mac] = ap
-        self.ap_by_id[ip] = ap
-        self.ap_by_id[udp_port] = ap
-        self.ap_by_id[radio_mac] = ap
+        self.ap_by_name[name] = ap
+        self.ap_by_mac[mac] = ap
+        self.ap_by_ip[ip] = ap
+        self.ap_by_udp_port[udp_port] = ap
+        self.ap_by_radio_mac[radio_mac] = ap
         with self.bg_lock:
             self.aps.append(ap)
             self.service_ctx[trex_port_id]['synced'] = False
@@ -579,7 +652,7 @@ class AP_Manager:
 
     def remove_ap(self, ap_id):
         ap = self._get_ap_by_id(ap_id)
-        if ap.is_dtls_established():
+        if ap.is_dtls_established:
             self.service_ctx[ap.port_id]['fg'].run([STLServiceApShutdownDTLS(ap)])
         with self.bg_lock:
             for client in ap.clients:
@@ -589,9 +662,11 @@ class AP_Manager:
                 self.clients.remove(client)
             self.aps.remove(ap)
             self.service_ctx[ap.port_id]['synced'] = False
-        for key, val in list(self.ap_by_id.items()):
-            if val == ap:
-                del self.ap_by_id[key]
+        del self.ap_by_name[ap.name]
+        del self.ap_by_mac[ap.mac]
+        del self.ap_by_ip[ap.ip_hum]
+        del self.ap_by_udp_port[ap.udp_port]
+        del self.ap_by_radio_mac[ap.radio_mac]
 
 
     def remove_client(self, id):
@@ -635,7 +710,7 @@ class AP_Manager:
         if not aps:
             raise Exception('No APs to join!')
 
-        MAX_JOINS = 10
+        MAX_JOINS = 512
         if len(aps) > MAX_JOINS:
             raise Exception('Can not join more than %s at once, please split the joins' % MAX_JOINS)
 
@@ -648,14 +723,13 @@ class AP_Manager:
         good_aps = [ap for ap in aps if ap.ip_dst]
         self._compare_aps(good_aps, aps, 'discover WLC')
 
-
         # establish DTLS
         self.trex_client.logger.pre_cmd('Establishing DTLS connection')
         for port_id, aps_of_port in self._get_ap_per_port(aps).items():
             self.service_ctx[port_id]['fg'].run([STLServiceApEstablishDTLS(ap) for ap in aps_of_port])
 
         # check results
-        good_aps = [ap for ap in aps if ap.is_dtls_established()]
+        good_aps = [ap for ap in aps if ap.is_dtls_established]
         self._compare_aps(good_aps, aps, 'establish DTLS session')
 
 
@@ -697,19 +771,23 @@ class AP_Manager:
             raise Exception('No Clients to join!')
 
         # Assoc clients
+        batch_size = 1024
         self.trex_client.logger.pre_cmd('Associating clients')
         clients_per_ap_per_port = {}
+        clients_count = 0
         for client in clients:
+            clients_count += 1
             if client.ap.port_id not in clients_per_ap_per_port:
                 clients_per_ap_per_port[client.ap.port_id] = {}
             if client.ap not in clients_per_ap_per_port[client.ap.port_id]:
                 clients_per_ap_per_port[client.ap.port_id][client.ap] = [client]
             else:
                 clients_per_ap_per_port[client.ap.port_id][client.ap].append(client)
-            if len(clients_per_ap_per_port) >= 100:
+            if clients_count >= batch_size:
                 for port_id, clients_per_ap in clients_per_ap_per_port.items():
                     self.service_ctx[port_id]['fg'].run([STLServiceApAddClients(ap, c) for ap, c in clients_per_ap.items()])
                 clients_per_ap_per_port = {}
+                clients_count = 0
 
         for port_id, clients_per_ap in clients_per_ap_per_port.items():
             self.service_ctx[port_id]['fg'].run([STLServiceApAddClients(ap, c) for ap, c in clients_per_ap.items()])
@@ -752,9 +830,9 @@ class AP_Manager:
                     'aps': {},
                     }
             info_per_port[ap.port_id]['aps'][ap.name] = {
-                'mac': ap.mac_hum,
+                'mac': ap.mac,
                 'ip': ap.ip_hum,
-                'dtls_established': ap.is_dtls_established(),
+                'dtls_established': ap.is_dtls_established,
                 'is_connected': ap.is_connected,
                 'ssid': ssid,
                 'clients': [],
@@ -773,13 +851,17 @@ class AP_Manager:
 
 
     def close(self, ports = None):
-        ports = ports or list(self.service_ctx.keys())
+        if ports is None:
+            ports = list(self.service_ctx.keys())
+        else:
+            ports = listify(ports)
         ap_per_port = self._get_ap_per_port([ap for ap in self.aps if ap.port_id in ports])
 
         for port_id in ports:
             if port_id not in self.service_ctx:
                 raise Exception('AP manager is not initialized on port %s!' % port_id)
             service = self.service_ctx[port_id]
+            service['bg'].stop()
             aps = ap_per_port.get(port_id, [])
             if aps:
                 service['fg'].run([STLServiceApShutdownDTLS(ap) for ap in aps])
@@ -788,35 +870,34 @@ class AP_Manager:
                 self.remove_ap(ap)
 
             del self.service_ctx[port_id]
-            service['bg'].stop()
 
 
     def _gen_ap_params(self):
         # name
-        while self.next_ap_name in self.ap_by_id:
+        while self.next_ap_name in self.ap_by_name:
             m = self._ap_name_re.match(self.next_ap_name)
             if not m:
                 raise Exception('Bad AP base name, should end with number, got: %s' % self.next_ap_name)
             self.next_ap_name = m.group(1) + str(int(m.group(2)) + 1)
 
         # mac
-        while self.next_ap_mac in self.ap_by_id:
+        while self.next_ap_mac in self.ap_by_mac:
             self.next_ap_mac = increase_mac(self.next_ap_mac)
             assert is_valid_mac(self.next_ap_mac)
 
         # ip
-        while self.next_ap_ip in self.ap_by_id:
+        while self.next_ap_ip in self.ap_by_ip:
             self.next_ap_ip = increase_ip(self.next_ap_ip)
             assert is_valid_ipv4(self.next_ap_ip)
 
         # udp
-        while self.next_ap_udp in self.ap_by_id:
+        while self.next_ap_udp in self.ap_by_udp_port:
             if self.next_ap_udp >= 65500:
                 raise Exception('Can not increase base UDP any further: %s' % self.next_ap_udp)
             self.next_ap_udp += 1
 
         # radio
-        while self.next_ap_radio in self.ap_by_id:
+        while self.next_ap_radio in self.ap_by_radio_mac:
             self.next_ap_radio = increase_mac(self.next_ap_radio, 256)
             assert is_valid_mac(self.next_ap_radio)
 

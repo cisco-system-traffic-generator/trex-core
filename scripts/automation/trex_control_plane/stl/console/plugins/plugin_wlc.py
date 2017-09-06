@@ -13,12 +13,14 @@ class WLC_Plugin(ConsolePlugin):
         except:
             del sys.modules['scapy.contrib.capwap']
             raise
+        if 'trex_stl_lib.trex_stl_wlc' in sys.modules:
+            del sys.modules['trex_stl_lib.trex_stl_wlc']
         from trex_stl_lib.trex_stl_wlc import AP_Manager
         self.ap_manager = AP_Manager(self.trex_client)
-        self.add_argument('-p', '--ports', nargs = '+', action = 'merge', type = int, default = [],
+        self.add_argument('-p', '--ports', nargs = '+', action = 'merge', type = int, default = None,
                 dest = 'port_list',
                 help = 'A list of ports on which to apply the command. Default = all')
-        self.add_argument('-v', default = 1, type = int,
+        self.add_argument('-v', default = 2, type = int,
                 dest = 'verbose_level',
                 help = 'Verbosity level, 0 = quiet, 1 = errors (default), 2 = warnings, 3 = info, 4 = debug')
         self.add_argument('-c', '--count', default = 1, type = int,
@@ -94,8 +96,7 @@ class WLC_Plugin(ConsolePlugin):
         self.ap_manager.close(port_list)
 
 
-    def do_show(self):
-        '''Show status of APs'''
+    def show_base(self):
         general_table = text_tables.Texttable(max_width = 200)
         general_table.set_cols_align(['l', 'l'])
         general_table.set_deco(15)
@@ -106,6 +107,9 @@ class WLC_Plugin(ConsolePlugin):
         general_table.add_row([bold('Next Client:'), 'MAC: %s / IP: %s' % self.ap_manager._gen_client_params()])
         self.ap_manager.log(general_table.draw())
 
+    def do_show(self):
+        '''Show status of APs'''
+        self.show_base()
         info = self.ap_manager.get_info()
         if not info:
             return
@@ -179,8 +183,8 @@ class WLC_Plugin(ConsolePlugin):
 
     def do_add_client(self, ap_ids, count):
         '''Add client(s) to AP(s)'''
-        if count < 1 or count > 250:
-            raise Exception('Count of clients should be within range 1-250')
+        if count < 1 or count > 200:
+            raise Exception('Count of clients should be within range 1-200')
         ap_ids = ap_ids or self.ap_manager.aps
 
         start_params = self.ap_manager._gen_client_params()
@@ -224,9 +228,14 @@ class WLC_Plugin(ConsolePlugin):
                     err_ids.add(device_id)
         if err_ids:
             raise Exception('Invalid IDs: %s' % ', '.join(sorted(err_ids, key = natural_sorted_key)))
-
+        if not self.ap_manager.bg_client.is_connected():
+            self.ap_manager.bg_client.connect()
+        for port_id in ports:
+            if port_id in self.ap_manager.service_ctx:
+                if not self.ap_manager.service_ctx[port_id]['bg'].is_running():
+                    self.ap_manager.service_ctx[port_id]['bg'].run()
         non_init_ports = [p for p in ports if p not in self.ap_manager.service_ctx]
-        not_joined_aps = [a for a in aps if not (a.is_connected and a.is_dtls_established())]
+        not_joined_aps = [a for a in aps if not (a.is_connected and a.is_dtls_established)]
         not_assoc_clients = [c for c in clients if not (c.is_associated and c.seen_arp_reply)]
         if not (non_init_ports or not_joined_aps or not_assoc_clients):
             self.ap_manager.log(bold('Nothing to reconnect, everything works fine.'))
@@ -255,12 +264,12 @@ class WLC_Plugin(ConsolePlugin):
         ports = list(set([client.ap.port_id for client in clients]))
 
         # stop ports if needed
-        active_ports = list_intersect(self.ap_manager.trex_client.get_active_ports(), ports)
+        active_ports = list_intersect(self.trex_client.get_active_ports(), ports)
         if active_ports:
-            self.ap_manager.trex_client.stop(active_ports)
+            self.trex_client.stop(active_ports)
 
         # remove all streams
-        self.ap_manager.trex_client.remove_all_streams(ports)
+        self.trex_client.remove_all_streams(ports)
 
         # pack the profile
         try:
@@ -278,7 +287,7 @@ class WLC_Plugin(ConsolePlugin):
             self.ap_manager.log(msg + '\n')
             self.ap_manager.log(e.brief() + "\n")
 
-        self.ap_manager.trex_client.start(ports = ports, mult = multiplier, force = True, total = total_mult)
+        self.trex_client.start(ports = ports, mult = multiplier, force = True, total = total_mult)
 
         return RC_OK()
 
@@ -286,6 +295,7 @@ class WLC_Plugin(ConsolePlugin):
     def do_base(self, ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
         self.ap_manager.set_base_values(ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.show_base()
 
 
 

@@ -8,7 +8,7 @@ Designed to work with OpenSSL v1.1.0f
 from ctypes import CDLL, c_void_p, CFUNCTYPE, c_int, c_buffer, sizeof, byref, c_char_p, c_ulong, c_long
 import os
 
-cur_dir = os.path.dirname(__file__)
+cur_dir = os.path.abspath(os.path.dirname(__file__))
 libcrypto = CDLL(os.path.join(cur_dir, 'libcrypto.so.1.1'))
 libssl    = CDLL(os.path.join(cur_dir, 'libssl.so.1.1'))
 
@@ -19,24 +19,28 @@ libssl    = CDLL(os.path.join(cur_dir, 'libssl.so.1.1'))
 
 libssl.DTLSv1_method.argtypes = []
 libssl.DTLSv1_method.restype = c_void_p
-libssl.SSL_CTX_free.argtypes = []
-libssl.SSL_CTX_free.restype = c_void_p
+libssl.SSL_CTX_free.argtypes = [c_void_p]
 libssl.SSL_CTX_new.argtypes = [c_void_p]
 libssl.SSL_CTX_new.restype = c_void_p
-libssl.SSL_CTX_set_options.argtypes = [c_void_p, c_long]
-libssl.SSL_CTX_set_options.restype = c_long
+libssl.SSL_CTX_set_options.argtypes = [c_void_p, c_ulong]
+libssl.SSL_CTX_set_options.restype = c_ulong
 libssl.SSL_CTX_use_PrivateKey.argtypes = [c_void_p, c_void_p]
+libssl.SSL_CTX_use_RSAPrivateKey.argtypes = [c_void_p, c_void_p]
 libssl.SSL_SESSION_free.argtypes = []
 libssl.SSL_SESSION_free.restype = c_void_p
 libssl.SSL_alert_desc_string_long.restype = c_char_p
 libssl.SSL_alert_type_string_long.restype = c_char_p
 libssl.SSL_check_private_key.argtypes = [c_void_p]
 libssl.SSL_clear.argtypes = [c_void_p]
+libssl.SSL_do_handshake.argtypes = [c_void_p]
+libssl.SSL_free.argtypes = [c_void_p]
 libssl.SSL_get_error.argtypes = [c_void_p, c_int]
 libssl.SSL_get_shutdown.argtypes = [c_void_p]
+libssl.SSL_is_init_finished.argtypes = [c_void_p]
 libssl.SSL_new.argtypes = [c_void_p]
 libssl.SSL_new.restype = c_void_p
 libssl.SSL_read.argtypes = [c_void_p, c_void_p, c_int]
+libssl.SSL_set_bio.argtypes = [c_void_p, c_void_p, c_void_p]
 libssl.SSL_set_connect_state.argtypes = [c_void_p]
 libssl.SSL_set_info_callback.argtypes = [c_void_p, c_void_p]
 libssl.SSL_shutdown.argtypes = [c_void_p]
@@ -45,6 +49,8 @@ libssl.SSL_state_string.restype = c_char_p
 libssl.SSL_state_string_long.argtypes = [c_void_p]
 libssl.SSL_state_string_long.restype = c_char_p
 libssl.SSL_use_certificate.argtypes = [c_void_p, c_void_p]
+libssl.SSL_use_certificate_file.argtypes = [c_void_p, c_char_p, c_int]
+libssl.SSL_use_PrivateKey_file.argtypes = [c_void_p, c_char_p, c_int]
 libssl.SSL_write.argtypes = [c_void_p, c_void_p, c_int]
 
 
@@ -55,21 +61,34 @@ libssl.SSL_write.argtypes = [c_void_p, c_void_p, c_int]
 libcrypto.BIO_ctrl_pending.argtypes = [c_void_p]
 libcrypto.BIO_ctrl_wpending.argtypes = [c_void_p]
 libcrypto.BIO_new.argtypes = [c_void_p]
+libcrypto.BIO_new.restype = c_void_p
 libcrypto.BIO_read.argtypes = [c_void_p, c_void_p, c_int]
 libcrypto.BIO_s_mem.restype = c_void_p
 libcrypto.BIO_test_flags.argtypes = [c_void_p, c_int]
 libcrypto.BIO_write.argtypes = [c_void_p, c_void_p, c_int]
 libcrypto.BN_free.argtypes = [c_void_p]
 libcrypto.BN_new.restype = c_void_p
+libcrypto.BN_set_word.argtypes = [c_void_p, c_ulong]
 libcrypto.ERR_get_error.argtypes = []
 libcrypto.ERR_get_error.restype = c_ulong
 libcrypto.ERR_reason_error_string.argtypes = [c_ulong]
 libcrypto.ERR_reason_error_string.restype = c_char_p
 libcrypto.EVP_sha256.restype = c_void_p
+libcrypto.EVP_PKEY_free.argtypes = [c_void_p]
+libcrypto.EVP_PKEY_new.restype = c_void_p
+libcrypto.EVP_PKEY_set1_RSA.argtypes = [c_void_p, c_void_p]
 libcrypto.PEM_read_bio_PrivateKey.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
 libcrypto.PEM_read_bio_PrivateKey.restype = c_void_p
 libcrypto.PEM_write_bio_X509.argtypes = [c_void_p, c_void_p]
+libcrypto.RSA_free.argtypes = [c_void_p]
+libcrypto.RSA_generate_key_ex.argtypes = [c_void_p, c_int, c_void_p, c_void_p]
+libcrypto.RSA_new.restype = c_void_p
 libcrypto.X509_NAME_add_entry_by_txt.argtypes = [c_void_p, c_char_p, c_int, c_char_p, c_int, c_int, c_int]
+libcrypto.X509_NAME_free.argtypes = [c_void_p]
+libcrypto.X509_NAME_new.restype = c_void_p
+libcrypto.X509_free.argtypes = [c_void_p]
+libcrypto.X509_getm_notAfter.argtypes = [c_void_p]
+libcrypto.X509_getm_notAfter.restype = c_void_p
 libcrypto.X509_getm_notBefore.argtypes = [c_void_p]
 libcrypto.X509_getm_notBefore.restype = c_void_p
 libcrypto.X509_new.argtypes = []
@@ -79,6 +98,8 @@ libcrypto.X509_set_pubkey.argtypes = [c_void_p, c_void_p]
 libcrypto.X509_set_subject_name.argtypes = [c_void_p, c_void_p]
 libcrypto.X509_set_version.argtypes = [c_void_p, c_long]
 libcrypto.X509_sign.argtypes = [c_void_p, c_void_p, c_void_p]
+libcrypto.X509_time_adj_ex.argtypes = [c_void_p, c_int, c_long, c_void_p]
+libcrypto.X509_time_adj_ex.restype = c_void_p
 
 
 ##################

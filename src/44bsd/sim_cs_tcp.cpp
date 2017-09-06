@@ -154,6 +154,7 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_tx_diff =0.0;
     m_vlan =0;
     m_ipv6=false;
+    m_mss=0;
 
     m_rtt_sec =0.05; /* 50msec */
 
@@ -520,6 +521,12 @@ int CClientServerTcp::simple_http(){
     //CTcpApp * app_s;
     CTcpAppCmd cmd;
     uint32_t http_r_size=32*1024;
+
+    if (m_mss) {
+        /* change context MSS */
+        m_c_ctx.tcp_mssdflt =m_mss;
+        m_s_ctx.tcp_mssdflt =m_mss;
+    }
 
     c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;

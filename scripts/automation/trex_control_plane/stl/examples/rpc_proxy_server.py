@@ -82,7 +82,10 @@ def hltapi_proxy_del():
 def native_method(func_name, *args, **kwargs):
     try:
         func = getattr(native_client, func_name)
-        return OK(func(*deunicode_json(args), **deunicode_json(kwargs)))
+        res = func(*deunicode_json(args), **deunicode_json(kwargs))
+        if isinstance(res, RC):
+            return OK(res.data()) if res else ERR(res.err())
+        return OK(res)
     except:
         return ERR(traceback.format_exc())
 
