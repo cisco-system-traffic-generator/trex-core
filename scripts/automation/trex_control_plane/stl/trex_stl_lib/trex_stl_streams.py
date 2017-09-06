@@ -9,7 +9,6 @@ from collections import OrderedDict, namedtuple
 from scapy.utils import ltoa
 from scapy.error import Scapy_Exception
 import random
-import yaml
 import base64
 import string
 import traceback
@@ -407,6 +406,8 @@ class STLStream(object):
 
 
         # type checking
+        validate_type('name', name, (type(None), int, basestring))
+        validate_type('next', next, (type(None), int, basestring))
         validate_type('mode', mode, STLTXMode)
         validate_type('packet', packet, (type(None), CTrexPktBuilderInterface))
         validate_type('flow_stats', flow_stats, (type(None), STLFlowStatsInterface))
@@ -428,6 +429,7 @@ class STLStream(object):
         self.mac_dst_override_mode = mac_dst_override_mode
         self.id = stream_id
 
+        # set externally
         self.fields = {}
 
         int_mac_src_override_by_pkt = 0;
@@ -504,11 +506,21 @@ class STLStream(object):
         s += "Stream JSON:\n{0}\n".format(json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True))
         return s
 
+        
     def to_json (self):
         """ 
         Return json format
         """
-        return dict(self.fields)
+        json_data = dict(self.fields)
+        
+        if self.name:
+            json_data['name'] = self.name 
+            
+        if self.next:
+            json_data['next'] = self.next
+            
+        return json_data
+            
 
     def get_id (self):
         """ Get the stream id after resolution  """
@@ -727,8 +739,8 @@ class STLStream(object):
         fs = STLFlowStatsInterface.from_json(json_data['flow_stats'])
         
         try:
-            return STLStream(name                     = None,
-                             next                     = None,
+            return STLStream(name                     = json_data.get('name'),
+                             next                     = json_data.get('next'),
                              packet                   = builder,
                              mode                     = mode,
                              enabled                  = json_data['enabled'],
@@ -741,7 +753,6 @@ class STLStream(object):
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
                              dummy_stream             = (json_data['flags'] & 0x4) == 0x4)
-            
             
         except KeyError as e:
             raise STLError("from_json: missing field {0} from JSON".format(e))
@@ -836,23 +847,9 @@ class STLProfile(object):
             except ValueError:
                 raise STLError("file '{0}' is not a valid JSON formatted file".format(json_file))
             
-        return load_json_data(json_data)
+        return STLProfile.form_json(json_data)
 
-    
-    @staticmethod
-    def load_json_data (json_data):
-        
-        if not isinstance(json_data, list):
-            raise STLError("JSON should contain a list of streams".format(json_file))
-                    
-        streams = [STLStream.from_json(stream_json) for stream_json in json_data]
-
-        profile = STLProfile(streams)
-
-        return profile
-        
-        
-        
+  
     @staticmethod
     def get_module_tunables(module):
         # remove self and variables
@@ -1091,7 +1088,7 @@ class STLProfile(object):
     def load (filename, direction = 0, port_id = 0, **kwargs):
         """ Load a profile by its type. Supported types are: 
            * py
-           * yaml 
+           * json
            * pcap file that converted to profile automaticly 
 
            :Parameters:
@@ -1135,18 +1132,24 @@ class STLProfile(object):
             cnt = cnt +1 
             stream.to_pkt_dump()
 
-    def dump_to_yaml (self, yaml_file = None):
-        """ Convert the profile to yaml """
-        yaml_list = [stream.to_yaml() for stream in self.streams]
-        yaml_str = yaml.dump(yaml_list, default_flow_style = False)
+            
+    def to_json (self):
+        return [s.to_json() for s in self.get_streams()]
+        
+    @staticmethod
+    def from_json (json_data):
+        if not isinstance(json_data, list):
+            raise STLError("JSON should contain a list of streams")
+                    
+        streams = [STLStream.from_json(stream_json) for stream_json in json_data]
 
-        # write to file if provided
-        if yaml_file:
-            with open(yaml_file, 'w') as f:
-                f.write(yaml_str)
-
-        return yaml_str
-
+        profile = STLProfile(streams)
+        profile.meta = {'type': 'json'}
+        
+        return profile
+        
+        
+    
     def dump_to_code (self, profile_file = None):
         """ Convert the profile to Python native profile. """
         profile_dump = '''# !!! Auto-generated code !!!

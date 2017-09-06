@@ -106,7 +106,6 @@ class STLSim(object):
         input_files  = [x for x in input_list if isinstance(x, str)]
         stream_list = [x for x in input_list if isinstance(x, STLStream)]
 
-        # handle YAMLs
         if tunables == None:
             tunables = {}
 
@@ -127,7 +126,6 @@ class STLSim(object):
 
         # load streams
         cmds_json    = []
-        streams_json = []
         
         id_counter = 1
 
@@ -162,11 +160,9 @@ class STLSim(object):
                 next_id = lookup[next]
 
 
-            stream_json = stream.to_json()
-            streams_json.append(dict(stream_json))
-                
-            stream_json['next_stream_id'] = next_id
             
+            stream_json = stream.to_json()
+            stream_json['next_stream_id'] = next_id
             
             cmd = {"id":1,
                    "jsonrpc": "2.0",
@@ -186,10 +182,11 @@ class STLSim(object):
                                                  duration = duration))
 
         # verify from_json
-        self.verify_json(streams_json)
+        self.verify_json(stream_list)
         
         if mode == 'json':
-            print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
+            #print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
+            print(json.dumps([s.to_json() for s in stream_list], indent = 4, separators=(',', ': '), sort_keys = True))
             return
         elif mode == 'pkt':
             print(STLProfile(stream_list).dump_as_pkt())
@@ -300,10 +297,12 @@ class STLSim(object):
 
 
         
-    def verify_json (self, streams_json):
+    def verify_json (self, stream_list):
         " make sure to/from conversion works "
-        from_json_streams = [s.to_json() for s in STLProfile.load_json_data(streams_json).get_streams()]
-        assert(from_json_streams == streams_json)
+        to_json_streams   = STLProfile(stream_list).to_json()
+        from_json_streams = STLProfile.from_json(to_json_streams).to_json()
+        
+        assert(from_json_streams == to_json_streams)
         
 
 def is_valid_file(filename):
