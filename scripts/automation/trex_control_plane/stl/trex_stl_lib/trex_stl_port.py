@@ -316,7 +316,7 @@ class Port(object):
         for i, single_rc in enumerate(rc):
             if single_rc.rc:
                 stream_id = batch[i].params['stream_id']
-                self.streams[stream_id] = deepcopy(streams_list[i])
+                self.streams[stream_id] = streams_list[i].clone()
                 
                 ret.add(RC_OK(data = stream_id))
 

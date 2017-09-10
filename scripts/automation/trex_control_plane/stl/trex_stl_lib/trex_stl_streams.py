@@ -774,7 +774,10 @@ class STLStream(object):
             raise STLError("from_json: missing field {0} from JSON".format(e))
             
         
+    def clone (self):
+        return STLStream.from_json(self.to_json())
 
+        
 # profile class
 class STLProfile(object):
     """ Describe a list of streams   
