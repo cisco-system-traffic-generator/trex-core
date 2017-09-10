@@ -53,8 +53,12 @@ void CSTTCpPerDir::update_counters(){
                      lpt->tcps_accepts  - 
                      lpt->tcps_closed;
 
-    m_est_flows = lpt->tcps_connects - 
-                  lpt->tcps_closed;
+    if (lpt->tcps_connects>lpt->tcps_closed) {
+        m_est_flows = lpt->tcps_connects - 
+                      lpt->tcps_closed;
+    }else{
+        m_est_flows=0;
+    }
 
     m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_sndbyte)*_1Mb_DOUBLE;
     
@@ -293,6 +297,11 @@ bool CSTTCp::dump_json(std::string &json){
 
 void CSTTCp::Delete(){
 
+    int i;
+    for (i=0; i<TCP_CS_NUM;i++) {
+        m_sts[i].m_clm.set_free_objects_own(true);
+        m_sts[i].Delete();
+    }
 }
 
 

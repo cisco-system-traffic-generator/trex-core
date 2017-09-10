@@ -40,7 +40,8 @@ using namespace std;
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
-       OPT_DRY_RUN, OPT_DURATION};
+       OPT_DRY_RUN, OPT_DURATION,
+       OPT_DUMP_JSON};
 
 
 
@@ -83,6 +84,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
+    { OPT_DUMP_JSON,          "--sim-json", SO_NONE },
     { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
     
@@ -92,6 +94,11 @@ static CSimpleOpt::SOption parser_options[] =
 
 static TrexStateless *m_sim_statelss_obj;
 static char *g_exe_name;
+
+struct asrtf_args_t {
+    bool dump_json;
+};
+static asrtf_args_t  asrtf_args;
 
 const char *get_exe_name() {
     return g_exe_name;
@@ -191,6 +198,11 @@ static int parse_options(int argc,
                 po->preview.setFileWrite(false);
                 break;
 
+            case OPT_DUMP_JSON:
+                asrtf_args.dump_json =true;
+                break;
+
+                break;
             case OPT_PCAP:
                 po->preview.set_pcap_mode_enable(true);
                 break;
@@ -328,22 +340,26 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_ASF:
         {
             // init
+            CParserOption * po=&CGlobalInfo::m_options;
             time_init();
             CGlobalInfo::m_socket.Create(0);
             CGlobalInfo::init_pools(1000, MBUF_2048);
             bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
             assert(rc);
-            CClientServerTcp *lpt1 = new CClientServerTcp;
+            CClientServerTcp *lpt = new CClientServerTcp;
 
             // run
-            lpt1->Create("./", CGlobalInfo::m_options.out_file);
-            lpt1->set_debug_mode(true);
-            lpt1->fill_from_file();
+            lpt->Create("./", CGlobalInfo::m_options.out_file);
+            lpt->set_debug_mode(true);
+            lpt->m_dump_json_counters = asrtf_args.dump_json;
+            lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();
+            
+            lpt->fill_from_file();
 
             // free stuff
-            lpt1->close_file();
-            lpt1->Delete();
-            delete lpt1;
+            lpt->close_file();
+            lpt->Delete();
+            delete lpt;
             CJsonData::free_instance();
             CMsgIns::Ins()->Free();
             CGlobalInfo::free_pools();

@@ -183,6 +183,7 @@ class ASTFProgram(object):
         self.fields = {}
         self.fields['commands'] = []
         self.total_send_bytes = 0
+        self.total_rcv_bytes = 0
         if file is not None:
             cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
@@ -241,7 +242,8 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        self.fields['commands'].append(ASTFCmdRecv(bytes))
+        self.total_rcv_bytes += bytes
+        self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes))
 
     def delay(self, msec):
         """ 
@@ -278,12 +280,16 @@ class ASTFProgram(object):
     def _create_cmds_from_cap(self, cmds, init_side):
         new_cmds = []
         origin = init_side
+        tot_rcv_bytes = 0
+
         for cmd in cmds:
             if origin == "c":
                 new_cmd = ASTFCmdSend(cmd.payload)
                 origin = "s"
             else:
-                new_cmd = ASTFCmdRecv(len(cmd.payload))
+                # Server need to see total rcv bytes, and not amount for each packet
+                tot_rcv_bytes += len(cmd.payload)
+                new_cmd = ASTFCmdRecv(tot_rcv_bytes)
                 origin = "c"
             new_cmds.append(new_cmd)
         self._set_cmds(new_cmds)

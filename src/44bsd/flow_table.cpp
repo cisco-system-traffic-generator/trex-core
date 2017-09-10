@@ -307,6 +307,11 @@ void CFlowTable::rx_non_process_packet(tcp_rx_pkt_action_t action,
     }
 }
 
+#undef FLOW_TABLE_DEBUG
+
+#ifdef FLOW_TABLE_DEBUG
+static int pkt_cnt=0;
+#endif
 
 bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                                   struct rte_mbuf * mbuf){
@@ -321,7 +326,12 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         utl_k12_pkt_format(stdout,p1 ,pkt_size1) ;
     }
     #endif
-    
+
+   #ifdef FLOW_TABLE_DEBUG
+   printf ("-- \n");
+   printf (" client:%d process packet %d \n",m_client_side,pkt_cnt);
+   pkt_cnt++;
+   #endif
 
     CSimplePacketParser parser(mbuf);
 
@@ -341,6 +351,11 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
 
     flow_key_t key=tuple.get_as_uint64();
     uint32_t  hash=tuple.get_hash();
+   #ifdef FLOW_TABLE_DEBUG
+    tuple.dump(stdout);
+    printf ("-- \n");
+   #endif
+
 
     flow_hash_ent_t * lpflow;
     lpflow = m_ft.find(key,hash);
@@ -362,17 +377,8 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    /* server side */
-    if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
-        /* no syn */
-        /* TBD need to generate RST packet in this case?? need to check what are the conditions in the old code ??? */
-        rte_pktmbuf_free(mbuf);
-        FT_INC_SCNT(m_err_no_syn);
-        return(false);
-    }
-
     /* server with SYN packet, it is OK 
-    we need to build the flow and add it to the table */
+      we need to build the flow and add it to the table */
 
     /* Patch */
     uint32_t dest_ip;
@@ -386,7 +392,6 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         is_ipv6=true;
     }
 
-
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
@@ -396,15 +401,34 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         vlan = lpVlan->getVlanTag();
     }
 
+    uint16_t dst_port = lpTcp->getDestPort();
+
+    /* server side */
+    if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
+        /* no syn */
+        generate_rst_pkt(ctx,
+                         dest_ip,
+                         tuple.get_ip(),
+                         dst_port,
+                         tuple.get_port(),
+                         vlan,
+                         is_ipv6,
+                         lpTcp);
+
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_no_syn);
+        return(false);
+    }
+
 
     CTcpData *tcp_data_ro = ctx->get_template_ro();
-    CTcpAppProgram *server_prog = tcp_data_ro->get_server_prog_by_port(lpTcp->getDestPort());
+    CTcpAppProgram *server_prog = tcp_data_ro->get_server_prog_by_port(dst_port);
 
     if (! server_prog) {
         generate_rst_pkt(ctx,
                          dest_ip,
                          tuple.get_ip(),
-                         lpTcp->getDestPort(),
+                         dst_port,
                          tuple.get_port(),
                          vlan,
                          is_ipv6,
@@ -419,7 +443,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     lptflow = ctx->m_ft.alloc_flow(ctx,
                                    dest_ip,
                                    tuple.get_ip(),
-                                   lpTcp->getDestPort(),
+                                   dst_port,
                                    tuple.get_port(),
                                    vlan,
                                    is_ipv6);

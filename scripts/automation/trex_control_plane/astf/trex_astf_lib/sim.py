@@ -44,15 +44,20 @@ def execute_bp_sim(opts):
         if not os.path.exists(exe):
             raise Exception("'{0}' does not exist, please build it before calling the simulation".format(exe))
 
+    if opts.cmd:
+       args=opts.cmd.split(",");
+    else:
+        args=[]
+
     exe = [exe]
     if opts.valgrind:
         valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
         exe = valgrind + exe
 
-    cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]
+    cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]+args
 
     if opts.verbose:
-        print ("executing {0}".format(''.join(cmd)))
+        print ("executing {0}".format(' '.join(cmd)))
 
     if opts.verbose:
         rc = subprocess.call(cmd)
@@ -104,6 +109,12 @@ def setParserOptions():
                         action="store_true",
                         help="Print output to screen")
 
+    parser.add_argument("-c", "--cmd",
+                       help="command to the simulator",
+                       dest='cmd',
+                       default=None,
+                       type=str)
+
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument("-g", "--gdb",
@@ -121,6 +132,7 @@ def setParserOptions():
                        action="store_true",
                        default=False)
 
+
     return parser
 
 
@@ -133,6 +145,7 @@ def main(args=None):
 
     basedir = os.path.dirname(opts.input_file)
     sys.path.insert(0, basedir)
+    
 
     try:
         file = os.path.basename(opts.input_file).split('.')[0]
@@ -143,7 +156,6 @@ def main(args=None):
         sys.exit(1)
 
     cl = prof.register()
-
     try:
         profile = cl.get_profile()
     except Exception as e:

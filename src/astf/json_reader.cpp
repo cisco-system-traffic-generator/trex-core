@@ -390,7 +390,7 @@ bool CJsonData::build_assoc_translation(uint8_t socket_id) {
 bool CJsonData::convert_bufs(uint8_t socket_id) {
     CMbufBuffer *tcp_buf;
     std::string json_buf;
-    uint16_t buf_len;
+    uint32_t buf_len;
 
     if (m_val["buf_list"].size() == 0)
         return false;

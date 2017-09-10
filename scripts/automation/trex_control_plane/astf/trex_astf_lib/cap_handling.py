@@ -38,7 +38,7 @@ class _CPcapReader_help(object):
 
     def fail(self, msg):
         print('\nError for file %s: %s\n' % (self.file_name, msg))
-        sys.exit(1)
+        sys.exit(2)
 
     @property
     def pkts(self):

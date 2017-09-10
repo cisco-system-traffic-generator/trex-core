@@ -21,7 +21,9 @@ limitations under the License.
 
 #include "sim_cs_tcp.h"
 #include "astf/json_reader.h"
+#include "stt_cp.h"
 
+#define CLIENT_SIDE_PORT        1025
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,
                                       double time){
@@ -102,9 +104,9 @@ int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct tcpcb * tp,
                         rte_mbuf_t *m){
-    int dir=0;
-    if (tp->src_port<1024) {
-        dir=1;
+    int dir=1;
+    if (tp->src_port==CLIENT_SIDE_PORT) {
+        dir=0;
     }
     rte_mbuf_t *m_rx= utl_rte_convert_tx_rx_mbuf(m);
 
@@ -154,6 +156,7 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_tx_diff =0.0;
     m_vlan =0;
     m_ipv6=false;
+    m_dump_json_counters=false;
     m_mss=0;
 
     m_rtt_sec =0.05; /* 50msec */
@@ -653,10 +656,20 @@ int CClientServerTcp::fill_from_file() {
     CTcpFlow *c_flow;
     CTcpApp *app_c;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+
+
+    CTcpData * ro_db=CJsonData::instance()->get_tcp_data_handle(0);
+    uint16_t dst_port = ro_db->get_dport(0);
+    uint16_t src_port = CLIENT_SIDE_PORT;
+    if (src_port == dst_port) {
+        printf("WARNING DEST port changed \n");
+        dst_port+=1;
+    }
+
+    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false);
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);
-    c_tuple.set_port(1025);
+    c_tuple.set_port(src_port);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
 
@@ -688,7 +701,7 @@ int CClientServerTcp::fill_from_file() {
     c_flow->set_app(app_c);
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
+    set_assoc_table(dst_port, prog_s);
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
@@ -700,12 +713,23 @@ int CClientServerTcp::fill_from_file() {
 
     m_sim.run_sim();
 
-    printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
-    m_c_ctx.m_ft.dump(stdout);
-    printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
-    m_s_ctx.m_ft.dump(stdout);
+
+    CSTTCp stt_cp;
+    stt_cp.Create();
+    stt_cp.Init();
+    stt_cp.m_init=true;
+    stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
+    stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
+    stt_cp.Update();
+    stt_cp.DumpTable();
+    std::string json;
+    stt_cp.dump_json(json);
+    if (m_dump_json_counters ){
+      fprintf(stdout,"json-start \n");
+      fprintf(stdout,"%s\n",json.c_str());
+      fprintf(stdout,"json-end \n");
+    }
+    stt_cp.Delete();
 
     return(0);
 }

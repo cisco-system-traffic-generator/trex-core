@@ -215,6 +215,7 @@ public:
     double                  m_tx_diff;
     uint16_t                m_vlan;
     bool                    m_ipv6;
+    bool                    m_dump_json_counters;
     uint16_t                m_mss;
 };
 
