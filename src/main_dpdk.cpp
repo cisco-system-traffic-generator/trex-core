@@ -1240,7 +1240,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_LEARN_VERIFY :
                 // must configure learn_mode for learn verify to work. If different learn mode will be given later, it will be set instead.
                 if (po->m_learn_mode == 0) {
-                    po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+                    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
                 }
                 po->preview.set_learn_and_verify_mode_enable(true);
                 break;
