@@ -166,7 +166,7 @@ class WLC_Plugin(ConsolePlugin):
             for port in port_list:
                 for _ in range(count):
                     ap_params = self.ap_manager._gen_ap_params()
-                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_priv_file = ap_cert, rsa_cert_file = ap_privkey)
+                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_priv_file = ap_privkey, rsa_cert_file = ap_cert)
                     ap_names.append(ap_params[0])
             assert ap_names
             self.ap_manager.join_aps(ap_names)

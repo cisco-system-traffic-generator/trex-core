@@ -47,6 +47,7 @@ class CTRexScenario:
     elk              = None
     elk_info         = None
     global_cfg       = None
+    config_dict = None
 
 def copy_elk_info ():
    assert(CTRexScenario.elk_info)

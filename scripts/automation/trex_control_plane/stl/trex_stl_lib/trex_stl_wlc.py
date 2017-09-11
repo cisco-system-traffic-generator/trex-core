@@ -186,8 +186,10 @@ class AP:
         self.out_bio = libcrypto.BIO_new(libcrypto.BIO_s_mem())
         if self.rsa_priv_file and self.rsa_cert_file:
             self.debug('Using provided certificate')
-            libssl.SSL_use_certificate_file(self.ssl, c_buffer(self.rsa_cert_file), SSL_CONST.SSL_FILETYPE_PEM)
-            libssl.SSL_use_PrivateKey_file(self.ssl, c_buffer(self.rsa_priv_file), SSL_CONST.SSL_FILETYPE_PEM)
+            if libssl.SSL_use_certificate_file(self.ssl, c_buffer(self.rsa_cert_file), SSL_CONST.SSL_FILETYPE_PEM) != 1:
+                self.fatal('Could not load given certificate file %s' % self.rsa_cert_file)
+            if libssl.SSL_use_PrivateKey_file(self.ssl, c_buffer(self.rsa_priv_file), SSL_CONST.SSL_FILETYPE_PEM) != 1:
+                self.fatal('Could not load given private key %s' % self.rsa_priv_file)
         else:
             x509_cert = None
             x509_name = None
@@ -471,13 +473,19 @@ eWLC:
 
 
     def get_arp_pkt(self, op, client):
-        assert op in ('who-has', 'is-at', 'garp')
+        if op == 'who-has':
+            arp_dst = b'\xff\xff\xff\xff\xff\xff' + self.ip_dst_bytes
+        elif op == 'is-at':
+            arp_dst = self.mac_dst_bytes + self.ip_dst_bytes
+        elif op == 'garp':
+            arp_dst = b'\0\0\0\0\0\0' + client.ip_bytes
+        else:
+            raise Exception('Bad op of ARP: %s' % op)
         return (
-            self.mac_dst_bytes + client.mac_bytes + b'\x08\x06' + # Ethernet
+            (b'\xff\xff\xff\xff\xff\xff' if op in ('who-has', 'garp') else self.mac_dst_bytes) + client.mac_bytes + b'\x08\x06' + # Ethernet
             b'\x00\x01\x08\x00\x06\x04' +
             (b'\x00\x01' if op in ('who-has', 'garp') else b'\x00\x02') +
-            client.mac_bytes + client.ip_bytes +
-            (b'\0\0\0\0\0\0' + client.ip_bytes if op == 'garp' else self.mac_dst_bytes + self.ip_dst_bytes) # ARP
+            client.mac_bytes + client.ip_bytes + arp_dst # ARP
             )
 
 

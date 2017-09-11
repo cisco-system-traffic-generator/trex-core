@@ -69,6 +69,43 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     def is_connected():
         return CTRexScenario.stl_trex.is_connected()
 
+
+    def config_dut(self):
+        sys.stdout.flush()
+        if not CTRexScenario.router_cfg['no_dut_config']:
+            sys.stdout.write('Configuring DUT... ')
+            start_time = time.time()
+            if CTRexScenario.router_cfg['forceCleanConfig']:
+                CTRexScenario.router.load_clean_config()
+            CTRexScenario.router.configure_basic_interfaces()
+            CTRexScenario.router.config_pbr(mode = "config")
+            CTRexScenario.router.config_ipv6_pbr(mode = "config")
+            sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+
+
+    def start_trex(self):
+        sys.stdout.write('Starting TRex... ')
+        start_time = time.time()
+        cores = self.configuration.trex.get('trex_cores', 1)
+        if self.is_virt_nics and cores > 1:
+            raise Exception('Number of cores should be 1 with virtual NICs')
+        if not CTRexScenario.no_daemon:
+            self.trex.start_stateless(c = cores)
+        self.stl_trex = STLClient(username = 'TRexRegression',
+                                  server = self.configuration.trex['trex_name'],
+                                  verbose_level = LoggerApi.VERBOSE_HIGH if CTRexScenario.json_verbose else LoggerApi.VERBOSE_QUIET)
+        CTRexScenario.stl_trex = self.stl_trex
+        sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+
+
+    def update_elk_obj(self):
+        stl_info = self.stl_trex.get_server_system_info()
+        setup = CTRexScenario.elk_info['info']['setup']
+        setup['drv-name']  = stl_info['ports'][0]['driver']
+        setup['nic-ports'] = stl_info['port_count']
+        setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
+
+
 class STLBasic_Test(CStlGeneral_Test):
     # will run it first explicitly, check connectivity and configure routing
     @nottest
@@ -76,16 +113,7 @@ class STLBasic_Test(CStlGeneral_Test):
         CTRexScenario.stl_init_error = 'Unknown error'
         if not self.is_loopback:
             try:
-                sys.stdout.flush()
-                if not CTRexScenario.router_cfg['no_dut_config']:
-                    sys.stdout.write('Configuring DUT... ')
-                    start_time = time.time()
-                    if CTRexScenario.router_cfg['forceCleanConfig']:
-                        CTRexScenario.router.load_clean_config()
-                    CTRexScenario.router.configure_basic_interfaces()
-                    CTRexScenario.router.config_pbr(mode = "config")
-                    CTRexScenario.router.config_ipv6_pbr(mode = "config")
-                    sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+                self.config_dut()
             except Exception as e:
                 print('')
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
@@ -93,18 +121,7 @@ class STLBasic_Test(CStlGeneral_Test):
                 return
 
         try:
-            sys.stdout.write('Starting TRex... ')
-            start_time = time.time()
-            cores = self.configuration.trex.get('trex_cores', 1)
-            if self.is_virt_nics and cores > 1:
-                raise Exception('Number of cores should be 1 with virtual NICs')
-            if not CTRexScenario.no_daemon:
-                self.trex.start_stateless(c = cores)
-            self.stl_trex = STLClient(username = 'TRexRegression',
-                                      server = self.configuration.trex['trex_name'],
-                                      verbose_level = LoggerApi.VERBOSE_HIGH if CTRexScenario.json_verbose else LoggerApi.VERBOSE_QUIET)
-            CTRexScenario.stl_trex = self.stl_trex
-            sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
+            self.start_trex()
         except Exception as e:
             print('')
             CTRexScenario.stl_init_error = 'Could not start stateless TRex, err: %s' % e
@@ -116,6 +133,7 @@ class STLBasic_Test(CStlGeneral_Test):
             self.fail(CTRexScenario.stl_init_error)
             return
         print('Connected')
+
         if not self.map_ports():
             CTRexScenario.stl_init_error = 'Client could not map ports'
             self.fail(CTRexScenario.stl_init_error)
@@ -124,11 +142,7 @@ class STLBasic_Test(CStlGeneral_Test):
 
         #update elk const object 
         if self.elk:
-            stl_info = self.stl_trex.get_server_system_info()
-            setup = CTRexScenario.elk_info['info']['setup']
-            setup['drv-name']  = stl_info['ports'][0]['driver']
-            setup['nic-ports'] = stl_info['port_count']
-            setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
+            self.update_elk_obj()
 
         CTRexScenario.stl_init_error = None
 
