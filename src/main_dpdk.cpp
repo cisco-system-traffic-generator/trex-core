@@ -1240,7 +1240,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_LEARN_VERIFY :
                 // must configure learn_mode for learn verify to work. If different learn mode will be given later, it will be set instead.
                 if (po->m_learn_mode == 0) {
-                    po->m_learn_mode = CParserOption::LEARN_MODE_TCP_ACK;
+                    po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
                 }
                 po->preview.set_learn_and_verify_mode_enable(true);
                 break;
@@ -5467,8 +5467,17 @@ int CGlobalTRex::start_master_astf() {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
     }
+
+    std::string json_file_name = "/tmp/astf";
+    if (CGlobalInfo::m_options.prefix.size() != 0) {
+        json_file_name += "-" + CGlobalInfo::m_options.prefix;
+    }
+    json_file_name += ".json";
+
+    fprintf(stdout, "Using json file %s\n", json_file_name.c_str());
+
     /* load json */
-    if (!CJsonData::instance()->parse_file("/tmp/astf.json") ){
+    if (! CJsonData::instance()->parse_file(json_file_name) ) {
        exit(-1);
     }
 

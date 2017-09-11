@@ -17,6 +17,7 @@ from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
 import subprocess
 import platform
+import stat
 
 # exit code is Important should be
 # -1 : don't continue
@@ -566,21 +567,38 @@ Other network devices
 
     def preprocess_astf_file_is_needed(self):
         """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
-        is_asrf_mode = map_driver.parent_args.astf
-        if is_asrf_mode:
+        is_astf_mode = map_driver.parent_args.astf
+        if is_astf_mode:
             input_file = map_driver.parent_args.file
             extension = os.path.splitext(input_file)[1]
+            if map_driver.parent_args.cfg is not '':
+                cfg_file = map_driver.parent_args.cfg
+            else:
+                cfg_file = "/etc/trex_cfg.yaml"
+
+            instance_name = ""
+            if map_driver.parent_args.prefix is not '':
+                instance_name = "-" + map_driver.parent_args.prefix
+            else:
+                with open(cfg_file, 'r') as stream:
+                    try:
+                        yaml_cfg = yaml.load(stream)
+                        if 'prefix' in yaml_cfg[0]:
+                            instance_name = '-' + yaml_cfg[0]['prefix']
+                    except yaml.YAMLError as exc:
+                        print(exc)
+
+            json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
             if extension !=".py":
                 raise DpdkSetup(' ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML ')
 
-            msg="converting astf profile {file} to json {out}".format(file = input_file,out="/tmp/astf.json")
+            msg="converting astf profile {file} to json {out}".format(file = input_file, out=json_file)
             print(msg);
-            cmd = './astf-sim -f {file} --json > /tmp/astf.json'.format(
-                file = input_file)
+            cmd = './astf-sim -f {file} --json > {json_file}'.format(file=input_file, json_file=json_file)
             print(cmd)
             if os.system(cmd)!=0:
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
-
+            os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
@@ -1043,6 +1061,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser = argparse.ArgumentParser(add_help = False)
     parent_parser.add_argument('-?', '-h', '--help', dest = 'help', action = 'store_true')
     parent_parser.add_argument('--cfg', default='')
+    parent_parser.add_argument('--prefix', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
@@ -1166,6 +1185,8 @@ To see more detailed info on interfaces (table):
         parse_parent_cfg (map_driver.args.parent)
         if map_driver.parent_args.cfg:
             map_driver.cfg_file = map_driver.parent_args.cfg;
+        if map_driver.parent_args.prefix:
+            map_driver.prefix = map_driver.parent_args.prefix
     if  map_driver.args.cfg :
         map_driver.cfg_file = map_driver.args.cfg;
 
