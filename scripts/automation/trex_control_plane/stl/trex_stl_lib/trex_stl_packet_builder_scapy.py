@@ -1697,6 +1697,13 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                 # IPv4 checksum fix
                 elif instr['type'] == 'fix_checksum_ipv4':
                     vm_obj.fix_chksum(offset = instr['pkt_offset'])
+                
+                
+                # HW checksum fix
+                elif instr['type'] == 'fix_checksum_hw':
+                    vm_obj.fix_chksum_hw(l3_offset  = instr['l2_len'],
+                                         l4_offset  = instr['l2_len'] + instr['l3_len'],
+                                         l4_type    = instr['l4_type'])
                     
                     
                 # tuple flow var
@@ -2050,7 +2057,31 @@ class STLVM(STLScVmRaw):
         """
         self.add_cmd(STLVmFixIpv4(offset))
 
+    
+    def fix_chksum_hw (self, l3_offset, l4_offset, l4_type):
+        """
+        Fix IPv4 header checksum and/or TCP/UDP checksum using hardware assist. 
+        Use this if the packet header has changed or data payload has changed as it is necessary to fix the checksums.
+        This instruction works on NICS that support this hardware offload.
+
+        For fixing only IPv4 header checksum use STLVmFixIpv4. This instruction should be used if both L4 and L3 need to be fixed. 
         
+        :parameters:
+             l3_offset : offset in bytes 
+                **IPv4/IPv6 header** offset from packet start. It is **not** the offset of the checksum field itself.
+                in could be string in case of scapy packet. format IP[:[id]]
+
+             l4_offset : offset in bytes to UDP/TCP header or IPv4 payload. in case of IPv4 checksum CTRexVmInsFixHwCs.L4_TYPE_IP could be set to zero to be auto calculated by the server
+
+             l4_type   : [CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP or CTRexVmInsFixHwCs.L4_TYPE_IP]
+
+             see full example stl/syn_attack_fix_cs_hw.py
+        """
+        self.add_cmd(STLVmFixChecksumHw(l3_offset = l3_offset,
+                                        l4_offset = l4_offset,
+                                        l4_type   = l4_type))
+        
+                     
     def trim (self, fv_name):
         """
         Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
