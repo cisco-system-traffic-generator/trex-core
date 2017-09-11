@@ -171,6 +171,9 @@ public:
     virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link();
+    virtual bool sleep_after_arp_needed(){
+        return(false);
+    }
     virtual void wait_after_link_up();
     virtual bool hw_rx_stat_supported(){return false;}
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes
@@ -695,6 +698,10 @@ public:
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         return new DpdkTRexPortAttr(tvpid,repid, false, false);
+    }
+
+    virtual bool sleep_after_arp_needed(){
+        return(true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -3836,7 +3843,9 @@ void CGlobalTRex::pre_test() {
             // update statistics baseline, so we can ignore what happened in pre test phase
             CPhyEthIF *pif = &m_ports[port_id];
             // some adapters (napatech at least) have a little delayed statistics
-            sleep(1);
+            if (get_ex_drv()->sleep_after_arp_needed() ){
+                sleep(1);
+            }
             CPreTestStats pre_stats = pretest.get_stats(port_id);
             pif->set_ignore_stats_base(pre_stats);
             // Configure port back to normal mode. Only relevant packets handled by software.
