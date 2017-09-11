@@ -657,8 +657,7 @@ if __name__ == "__main__":
                 additional_args = ['--stl', '-a', 'wlc'] + CTRexScenario.test_types['stateless_tests']
             else:
                 additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
-                if not test_client_package:
-                    additional_args.extend(['-a', '!client_package'])
+                additional_args.extend(['-a', '!wlc%s' % ('' if test_client_package else ',!client_package')])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
