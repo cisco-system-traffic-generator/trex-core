@@ -225,7 +225,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_rcvacktoomuch,"rcvd acks for unsent data");
     TCP_S_ADD_CNT_E(tcps_rcvwinupd,"rcvd window update packets");
     TCP_S_ADD_CNT_E(tcps_pawsdrop,"segments dropped due to PAWS");
-    TCP_S_ADD_CNT_E(tcps_predack,"times hdr predict ok for acks");
+    TCP_S_ADD_CNT(tcps_predack,"times hdr predict ok for acks");
     TCP_S_ADD_CNT_E(tcps_persistdrop,"timeout in persist state");
     TCP_S_ADD_CNT_E(tcps_badsyn,"bogus SYN, e.g. premature ACK");
     
