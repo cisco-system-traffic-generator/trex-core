@@ -1000,6 +1000,18 @@ void CPacketIndication::Dump(FILE *fd,int verbose){
     }else{
         fprintf(fd," not valid packet \n");
     }
+   
+    fprintf(fd," offsets \n");
+    fprintf(fd," ------\n");
+    fprintf(fd," eth       : %d \n",(int)m_ether_offset);
+    fprintf(fd," ip        : %d \n",(int)m_ip_offset);
+    fprintf(fd," udp/tcp   : %d \n",(int)m_udp_tcp_offset);
+    fprintf(fd," payload   : %d \n",(int)m_payload_offset);
+    fprintf(fd," l3_size   : %d \n",(int)m_udp_tcp_offset-m_ip_offset);
+    fprintf(fd," r/w       : %d \n",(int)m_rw_mbuf_size);
+    fprintf(fd," r/o       : %d \n",(int)m_ro_mbuf_size);
+    fprintf(fd,"----------------\n");
+    fprintf(fd,"\n");
 }
 
 void CPacketIndication::Clean(){
@@ -1654,7 +1666,7 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
 
     /* retrieve size of rx-check header, must be multiple of 8 */
     uint16_t opt_len =  RX_CHECK_LEN;
-    uint16_t current_opt_len =  0;
+    uint16_t old_ipv4_header_len =  0;
     assert( (opt_len % 8) == 0 );
 
     m->l3_len += RX_CHECK_LEN;
@@ -1706,8 +1718,8 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
         rxhdr->m_option_type = save_header;
         rxhdr->m_option_len = RX_CHECK_V6_OPT_LEN;
     }else{
-        current_opt_len = ipv4->getHeaderLength();
-        ipv4->setHeaderLength(current_opt_len+opt_len);
+        old_ipv4_header_len = ipv4->getHeaderLength();
+        ipv4->setHeaderLength(old_ipv4_header_len+opt_len);
         ipv4->setTotalLength(ipv4->getTotalLength()+opt_len);
         ipv4->setTimeToLive(TTL_RESERVE_DUPLICATE);
         ipv4->setTOS(ipv4->getTOS() | TOS_GO_TO_CPU);
@@ -1748,20 +1760,21 @@ void CFlowPktInfo::do_generate_new_mbuf_rxcheck(rte_mbuf_t * m,
     if (likely ( ! m_pkt_indication.is_ipv6()) ) {
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
             ipv4->myChecksum = 0;
-                        /* update TCP/UDP checksum */
+            char * tcp_udp=move_to+old_ipv4_header_len-IPHeader::DefaultSize;
+            /* update TCP/UDP checksum */
             if ( m_pkt_indication.m_desc.IsTcp() ) {
-                TCPHeader * tcp = (TCPHeader *)(move_to);
+                TCPHeader * tcp = (TCPHeader *)(tcp_udp);
                 update_tcp_cs(tcp,ipv4);
             }else {
                 if ( m_pkt_indication.m_desc.IsUdp() ){
-                    UDPHeader * udp =(UDPHeader *)(move_to);
+                    UDPHeader * udp =(UDPHeader *)(tcp_udp);
                     update_udp_cs(udp,ipv4);
                 }else{
                 }
             }
 
         } else {
-            ipv4->updateCheckSum2((uint8_t *)ipv4, IPHeader::DefaultSize, (uint8_t *)rxhdr, current_opt_len+opt_len -IPHeader::DefaultSize);
+            ipv4->updateCheckSum2((uint8_t *)ipv4, IPHeader::DefaultSize, (uint8_t *)rxhdr, old_ipv4_header_len+opt_len -IPHeader::DefaultSize);
         }
     }
 
