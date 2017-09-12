@@ -45,9 +45,9 @@ def execute_bp_sim(opts):
             raise Exception("'{0}' does not exist, please build it before calling the simulation".format(exe))
 
     if opts.cmd:
-       args=opts.cmd.split(",");
+        args = opts.cmd.split(",")
     else:
-        args=[]
+        args = []
 
     exe = [exe]
     if opts.valgrind:
@@ -71,6 +71,7 @@ def execute_bp_sim(opts):
 def print_stats(prof):
     # num programs, buffers, cps, bps client/server ip range
     prof.print_stats()
+
 
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="astf_sim.py")
@@ -110,10 +111,10 @@ def setParserOptions():
                         help="Print output to screen")
 
     parser.add_argument("-c", "--cmd",
-                       help="command to the simulator",
-                       dest='cmd',
-                       default=None,
-                       type=str)
+                        help="command to the simulator",
+                        dest='cmd',
+                        default=None,
+                        type=str)
 
     group = parser.add_mutually_exclusive_group()
 
@@ -132,7 +133,6 @@ def setParserOptions():
                        action="store_true",
                        default=False)
 
-
     return parser
 
 
@@ -145,7 +145,6 @@ def main(args=None):
 
     basedir = os.path.dirname(opts.input_file)
     sys.path.insert(0, basedir)
-    
 
     try:
         file = os.path.basename(opts.input_file).split('.')[0]
@@ -153,14 +152,14 @@ def main(args=None):
     except Exception as e:
         print("Failed importing {0}".format(opts.input_file))
         print(e)
-        sys.exit(1)
+        sys.exit(100)
 
     cl = prof.register()
     try:
         profile = cl.get_profile()
     except Exception as e:
         print (e)
-        sys.exit(1)
+        sys.exit(100)
 
     if opts.json:
         print(profile.to_json())
@@ -178,7 +177,7 @@ def main(args=None):
         execute_bp_sim(opts)
     except Exception as e:
         print (e)
-        sys.exit(1)
+        sys.exit(100)
 
 if __name__ == '__main__':
     main()

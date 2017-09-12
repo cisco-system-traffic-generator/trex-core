@@ -1,6 +1,6 @@
 import sys
 from scapy.all import RawPcapReader, Ether
-
+from .trex_astf_exceptions import ASTFError
 
 class CPacketData():
     def __init__(self, direction, payload):
@@ -37,8 +37,7 @@ class _CPcapReader_help(object):
         self.state = _CPcapReader_help.states["init"]
 
     def fail(self, msg):
-        print('\nError for file %s: %s\n' % (self.file_name, msg))
-        sys.exit(2)
+        raise ASTFError('\nError for file %s: %s\n' % (self.file_name, msg))
 
     @property
     def pkts(self):
@@ -158,10 +157,10 @@ class _CPcapReader_help(object):
                 l4_type = 'TCP'
             elif udp:
                 self.fail('CAP file contains UDP packets. This is not supported yet')
-                #l4 = udp
-                #if l4_type not in (None, 'UDP'):
+                # l4 = udp
+                # if l4_type not in (None, 'UDP'):
                 #    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
-                #l4_type = 'UDP'
+                # l4_type = 'UDP'
             else:
                 scapy_pkt.show2()
                 self.fail('Packet #%s in pcap is not TCP or UDP.' % index)
