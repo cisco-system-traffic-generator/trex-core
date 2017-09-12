@@ -18,8 +18,11 @@ class CTRexWLC_Test(CStlGeneral_Test):
 
 
     def test_basic_wlc(self):
-        ''' Joins 2 APs, add 2 clients on each, sends traffic '''
+        ''' Joins 1 AP, 1 client, sends traffic '''
 
+        ap_count = 1
+        client_count = 1
+        
         self.start_trex()
         self.connect()
         if self.elk:
@@ -41,10 +44,10 @@ class CTRexWLC_Test(CStlGeneral_Test):
 
         self.client.acquire([0, 1], force = True)
         ap_manager.init(0)
-        for _ in range(2):
+        for _ in range(ap_count):
             ap_params = ap_manager._gen_ap_params()
             ap_manager.create_ap(0, *ap_params)
-            for _ in range(2):
+            for _ in range(client_count):
                 client_params = ap_manager._gen_client_params()
                 ap_manager.create_client(*client_params, ap_id = ap_params[0])
 
