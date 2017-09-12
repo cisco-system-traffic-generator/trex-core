@@ -754,11 +754,13 @@ public:
         memset(u.m_data, 0, sizeof(u.m_data));
         u.m_mac.dest[3] = 1;
         u.m_mac.is_set = 0;
+        m_tunnels.clear();
     }
     union {
         mac_align_t m_mac;
         uint8_t     m_data[16];
     } u;
+    std::vector<Tunnel*> m_tunnels;
 } __rte_cache_aligned; ;
 
 class CPerPortIPCfg {

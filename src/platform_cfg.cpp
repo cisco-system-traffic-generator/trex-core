@@ -26,6 +26,7 @@ limitations under the License.
 #include "utl_yaml.h"
 #include "platform_cfg.h"
 #include "utl_yaml.h"
+#include "tunnel.h"
 
 void CPlatformMemoryYamlInfo::reset(){
        int i;
@@ -257,6 +258,10 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     }
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
         mac_info.m_vlan = 0;
+    }
+
+    if (node.FindValue("tunnels")) {
+        Tunnel::Parse(node["tunnels"], mac_info.m_tunnels);
     }
 }
 

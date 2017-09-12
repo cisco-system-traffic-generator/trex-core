@@ -285,6 +285,7 @@ main_src = SrcGroup(dir='src',
              'pal/linux_dpdk/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
              'h_timer.cpp',
+             'tunnel.cpp',
              'astf/json_reader.cpp'
              ]);
 

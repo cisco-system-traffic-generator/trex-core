@@ -84,6 +84,7 @@ extern "C" {
 #include "trex_watchdog.h"
 #include "utl_port_map.h"
 #include "astf/json_reader.h"
+#include "tunnel.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -1835,6 +1836,8 @@ void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
         rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup: "
                  "err=%d, port=%u\n",
                  ret, m_repid);
+
+    Tunnel::InstallRxCallback(m_repid, rx_queue_id);
 }
 
 
@@ -1854,6 +1857,7 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
 
+    Tunnel::InstallTxCallback(m_repid, tx_queue_id);
 }
 
 void CPhyEthIF::stop(){
@@ -6023,6 +6027,7 @@ int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
             CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.is_set = 1;
+            CGlobalInfo::m_options.m_mac_addr[i].m_tunnels = cg->m_mac_info[i].m_tunnels;
 
             CGlobalInfo::m_options.m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());

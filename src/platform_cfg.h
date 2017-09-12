@@ -97,10 +97,11 @@ const std::string * get_mbuf_names(void);
 */
 
 
-
+class Tunnel;
 struct CMacYamlInfo {
     std::vector     <uint8_t> m_dest_base;
     std::vector     <uint8_t> m_src_base;
+    std::vector     <Tunnel*> m_tunnels;
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
