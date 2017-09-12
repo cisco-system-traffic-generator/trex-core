@@ -177,7 +177,7 @@ def main(args=None):
         execute_bp_sim(opts)
     except Exception as e:
         print (e)
-        sys.exit(100)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
