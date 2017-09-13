@@ -427,43 +427,43 @@ class CTRexVmInsTupleGen(CTRexVmInsBase):
 #
 class CTRexVmEngine(object):
 
-       def __init__(self):
-            """
-            Inlcude list of instructions.
-            """
-            super(CTRexVmEngine, self).__init__()
-            self.ins=[]
-            self.cache_size = 0
+    def __init__(self):
+        """
+        Inlcude list of instructions.
+        """
+        super(CTRexVmEngine, self).__init__()
+        self.ins=[]
+        self.cache_size = 0
 
 
-       # return as json
-       def get_json (self):
-           inst_array = [];
-           # dump it as dict
-           for obj in self.ins:
-               inst_array.append(obj.__dict__);
+    # return as json
+    def get_json (self):
+        inst_array = [];
+        # dump it as dict
+        for obj in self.ins:
+            inst_array.append(obj.__dict__);
 
-           d={'instructions': inst_array};
-           if self.cache_size >0 :
-               d['cache']=self.cache_size
-           return d
+        d={'instructions': inst_array};
+        if self.cache_size >0 :
+            d['cache']=self.cache_size
+        return d
 
-       def add_ins (self,ins):
-           #assert issubclass(ins, CTRexVmInsBase)
-           self.ins.append(ins);
+    def add_ins (self,ins):
+        #assert issubclass(ins, CTRexVmInsBase)
+        self.ins.append(ins);
 
-       def dump (self):
-           cnt=0;
-           for obj in self.ins:
-               print("ins",cnt)
-               cnt = cnt +1
-               print(obj.__dict__)
+    def dump (self):
+        cnt=0;
+        for obj in self.ins:
+            print("ins",cnt)
+            cnt = cnt +1
+            print(obj.__dict__)
 
-       def dump_bjson (self):
-          print(json.dumps(self.get_json(), sort_keys=True, indent=4))
+    def dump_bjson (self):
+        print(json.dumps(self.get_json(), sort_keys=True, indent=4))
 
-       def dump_as_yaml (self):
-          print(yaml.dump(self.get_json(), default_flow_style=False))
+    def dump_as_yaml (self):
+        print(yaml.dump(self.get_json(), default_flow_style=False))
 
 
 
@@ -472,6 +472,7 @@ class CTRexVmEngine(object):
 class CTRexScapyPktUtl(object):
 
     def __init__(self, scapy_pkt):
+        assert isinstance(scapy_pkt, Packet)
         self.pkt = scapy_pkt
 
     def pkt_iter (self):
@@ -538,6 +539,37 @@ class CTRexScapyPktUtl(object):
                 return (l_offset+f._offset,f.get_size_bytes ());
 
         raise CTRexPacketBuildException(-11, "No layer %s-%d." % (field_name, layer_cnt))
+
+
+    def get_field_by_offset(self, offset):
+        '''
+        Try to convert numeric offset to layer name, layer index, field name.
+        The opposite of get_field_offet()
+        Return None if not successful.
+        '''
+        offset_int = int(offset)
+        assert offset_int == offset
+        assert offset_int >= 0
+
+        # look for layer
+        layer_cnt = {}
+        for pkt in self.pkt_iter():
+            layer_name = pkt.__class__.__name__
+            if pkt._offset > offset_int:
+                break
+            if layer_name in layer_cnt:
+                layer_cnt[layer_name] += 1
+            else:
+                layer_cnt[layer_name] = 0
+            last_name = layer_name
+            last_count = layer_cnt[layer_name]
+            last_layer = pkt
+
+        # look for field inside layer
+        for f in last_layer.fields_desc:
+            if last_layer._offset + f._offset == offset_int:
+                return (last_name, last_count, f.name)
+
 
     def get_layer_offet_by_str(self, layer_des):
         """
@@ -910,6 +942,8 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
     def compile(self,parent):
         if type(self.l3_offset)==str:
             self.l2_len = parent._pkt_layer_offset(self.l3_offset);
+        else:
+            self.l2_len = self.l3_offset
         if type(self.l4_offset)==str:
             self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
 
@@ -1293,9 +1327,9 @@ class STLVmTupleGen(CTRexVmDescBase):
             limit_flows : int 
                 Limit of number of flows. 
 
-            flags       : 0
-
-            ="0.0.0.10", port_min=1025, port_max=65535, limit_flows=100000, flags=0
+            flags : int
+                0 - noop
+                1 - ignore port min and max.
 
         .. code-block:: python
 
@@ -1911,7 +1945,7 @@ class STLVM(STLScVmRaw):
         self.cache_size = cache_size
         
         
-    def var (self, name, min_value, max_value, size, op, step = 1):
+    def var (self, name, min_value, max_value, size, op, step = 1, **k):
         """
         Defines a flow variable.
         Allocates a variable on a stream context. The size argument determines the variable size.
@@ -1938,7 +1972,7 @@ class STLVM(STLScVmRaw):
              op    : string 
                 Possible values: "inc", "dec", "random"
         """
-        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step))
+        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step, **k))
         
         
     def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
@@ -1975,7 +2009,7 @@ class STLVM(STLScVmRaw):
                                     is_big = (byte_order == 'big')))
         
 
-    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows = 0):
+    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows = 0, **k):
         """
         Generate a struct with two variables: ``var_name.ip`` as uint32_t and ``var_name.port`` as uint16_t 
         The variables are dependent. When the ip variable value reaches its maximum, the port is incremented. 
@@ -2043,7 +2077,7 @@ class STLVM(STLScVmRaw):
                                    ip_max = ip_max,
                                    port_min = port_min,
                                    port_max = port_max,
-                                   limit_flows = limit_flows))
+                                   limit_flows = limit_flows, **k))
         
         
     def fix_chksum (self, offset = "IP"):

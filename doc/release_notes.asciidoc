@@ -27,6 +27,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.31 ==
+
+* Stateless
+** Console - added option to save loaded streams as Python profile
+
+
 == Release 2.30 ==
 
 * Advance Stateful (ASTF) with scalable TCP support 

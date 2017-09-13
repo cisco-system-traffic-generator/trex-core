@@ -1128,9 +1128,9 @@ class STLClient(object):
 
         return stats_obj
 
-    def _get_streams(self, port_id_list, streams_mask=set()):
+    def _get_streams(self, port_id_list, streams_mask=set(), table_format = True):
 
-        streams_obj = self.stats_generator.generate_streams_info(port_id_list, streams_mask)
+        streams_obj = self.stats_generator.generate_streams_info(port_id_list, streams_mask, table_format)
 
         return streams_obj
 
@@ -4545,25 +4545,67 @@ class STLClient(object):
                                          "streams",
                                          self.show_streams_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.STREAMS_MASK)
+                                         parsing_opts.STREAMS_MASK,
+                                         parsing_opts.STREAMS_CODE)
 
         opts = parser.parse_args(line.split())
 
         if not opts:
             return opts
 
-        streams = self._get_streams(opts.ports, set(opts.streams))
-        if not streams:
+        streams_per_port = self._get_streams(opts.ports, set(opts.ids), table_format = opts.code is None)
+        if not streams_per_port:
             self.logger.log(format_text("No streams found with desired filter.\n", "bold", "magenta"))
 
-        else:
-            # print stats to screen
-            for stream_hdr, port_streams_data in streams.items():
+        elif opts.code is None: # Just print the summary table of streams
+
+            for port_id, port_streams_data in streams_per_port.items():
                 text_tables.print_table_with_header(port_streams_data.text_table,
-                                                    header= stream_hdr.split(":")[0] + ":",
-                                                    untouched_header= stream_hdr.split(":")[1])
+                                                    header = 'Port %s:' % port_id)
 
+        elif opts.code: # Save the code that generates streams to file
 
+            if not opts.code.endswith('.py'):
+                raise STLError('Saved filename should end with .py')
+            is_several_ports = len(streams_per_port) > 1
+            if is_several_ports:
+                print(format_text('\nWarning: several ports specified, will save in separate file per port.', 'bold'))
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data['streams']:
+                    print('No streams to save at port %s, skipping.' % port_id)
+                    continue
+                filename = ('%s_port%s.py' % (opts.code[:-3], port_id)) if is_several_ports else opts.code
+                if os.path.exists(filename):
+                    sys.stdout.write('\nFilename %s already exists, overwrite? (y/N) ' % filename)
+                    history_bu = self.__push_history()
+                    try:
+                        ans = user_input().strip()
+                    finally:
+                        self.__pop_history(history_bu)
+                    if ans.lower() not in ('y', 'yes'):
+                        print('Not saving.')
+                        continue
+                self.logger.pre_cmd('Saving file as: %s' % filename)
+                try:
+                    profile = STLProfile(list(port_streams_data['streams'].values()))
+                    with open(filename, 'w') as f:
+                        f.write(profile.dump_to_code())
+                except Exception as e:
+                    self.logger.post_cmd(False)
+                    print(e.brief() if isinstance(e, STLError) else e)
+                    print('')
+                else:
+                    self.logger.post_cmd(True)
+    
+        else: # Print the code that generates streams
+
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data['streams']:
+                    continue
+                print(format_text('Port: %s' % port_id, 'cyan', 'underline') + '\n')
+                for stream_id, stream in port_streams_data['streams'].items():
+                    print(format_text('Stream ID: %s' % stream_id, 'cyan', 'underline'))
+                    print('    ' + '\n    '.join(stream.to_code().splitlines()) + '\n')
 
 
     @__console
@@ -5036,11 +5078,6 @@ class STLClient(object):
             self.logger.log(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
             return
             
-        try:
-            import readline
-        except ImportError:
-            self.logger.log(format_text("\n*** 'readline' is required for interactive debugging ***\n", 'bold'))
-            return
             
         self.logger.log(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
         

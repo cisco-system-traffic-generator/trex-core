@@ -1023,7 +1023,7 @@ class Port(object):
         return self.port_stats.invalidate()
 
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self, sync = True):
+    def generate_loaded_streams_sum(self, sync = True, table_format = True):
         if self.state == self.STATE_DOWN:
             return {}
 
@@ -1033,6 +1033,9 @@ class Port(object):
         data = OrderedDict()
         for id in sorted(map(int, self.streams.keys())):
             stream = self.streams[str(id)]
+            if not table_format:
+                data[id] = stream
+                continue
 
             if stream.has_flow_stats():
                 pg_id = '{0}: {1}'.format(stream.get_flow_stats_type(), stream.get_pg_id())

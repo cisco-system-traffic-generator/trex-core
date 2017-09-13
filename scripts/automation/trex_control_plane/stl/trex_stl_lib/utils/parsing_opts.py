@@ -93,6 +93,7 @@ EXTENDED_STATS
 EXTENDED_INC_ZERO_STATS
 
 STREAMS_MASK
+STREAMS_CODE
 CORE_MASK_GROUP
 CAPTURE_PORTS_GROUP
 
@@ -700,13 +701,20 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        {'action': 'store_true',
                                         'help': "Fetch xstats of port, including lines with zero values"}),
 
-              STREAMS_MASK: ArgumentPack(['--streams'],
+              STREAMS_MASK: ArgumentPack(['-i', '--id'],
                                          {"nargs": '+',
-                                          'dest':'streams',
-                                          'metavar': 'STREAMS',
+                                          'dest':'ids',
+                                          'metavar': 'ID',
                                           'type': int,
                                           'help': "A list of stream IDs to query about. Default: analyze all streams",
                                           'default': []}),
+
+              STREAMS_CODE: ArgumentPack(['--code'],
+                                      {'type': str,
+                                       'nargs': '?',
+                                       'const': '',
+                                       'metavar': 'FILE',
+                                       'help': 'Get Python code that creates the stream(s). Provided argument is filename to save, or by default prints to stdout.'}),
 
 
               PIN_CORES: ArgumentPack(['--pin'],

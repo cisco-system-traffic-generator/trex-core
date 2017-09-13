@@ -308,9 +308,13 @@ class STLSim(object):
         " make sure to/from conversion works "
         to_json_streams   = STLProfile(stream_list).to_json()
         from_json_streams = STLProfile.from_json(to_json_streams).to_json()
-        
-        assert(from_json_streams == to_json_streams)
-        
+        if from_json_streams != to_json_streams:
+            print('to_json result:')
+            pprint.pprint(to_json_streams)
+            print('from_json result:')
+            pprint.pprint(from_json_streams)
+            raise STLError('Generated JSON does not match')
+
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):

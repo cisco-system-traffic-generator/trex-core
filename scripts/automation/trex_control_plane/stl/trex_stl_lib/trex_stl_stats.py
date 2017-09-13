@@ -207,18 +207,17 @@ class CTRexInfoGenerator(object):
             # ignore by returning empty object
             return {}
 
-    def generate_streams_info(self, port_id_list, stream_id_list):
+    def generate_streams_info(self, port_id_list, stream_id_list, table_format = True):
         relevant_ports = self.__get_relevant_ports(port_id_list, limit = 32)
         return_data = OrderedDict()
 
         for port_obj in relevant_ports:
-            streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list)
+            streams_data = self._generate_single_port_streams_info(port_obj, stream_id_list, table_format)
             if not streams_data:
                 continue
-            hdr_key = "Port {port}:".format(port= port_obj.port_id)
 
             # TODO: test for other ports with same stream structure, and join them
-            return_data[hdr_key] = streams_data
+            return_data[port_obj.port_id] = streams_data
 
         return return_data
 
@@ -746,9 +745,12 @@ class CTRexInfoGenerator(object):
 
         return {"port_status": ExportableStats(return_stats_data, stats_table)}
 
-    def _generate_single_port_streams_info(self, port_obj, stream_id_list):
+    def _generate_single_port_streams_info(self, port_obj, stream_id_list, table_format = True):
 
-        return_streams_data = port_obj.generate_loaded_streams_sum()
+        return_streams_data = port_obj.generate_loaded_streams_sum(table_format = table_format)
+
+        if stream_id_list:
+            return_streams_data = {'streams': OrderedDict([(k, v) for k, v in return_streams_data['streams'].items() if k in stream_id_list])}
 
         if not return_streams_data.get("streams"):
             # we got no streams available
@@ -759,7 +761,10 @@ class CTRexInfoGenerator(object):
         # because we mutate this - deep copy before
         return_streams_data = copy.deepcopy(return_streams_data)
 
-        p_type_field_len = 0
+        if not table_format:
+            return return_streams_data
+
+        p_type_field_len = 1
 
         for stream_id, stream_id_sum in return_streams_data['streams'].items():
             stream_id_sum['packet_type'] = self._trim_packet_headers(stream_id_sum['packet_type'], 30)
@@ -770,9 +775,8 @@ class CTRexInfoGenerator(object):
         info_table.set_cols_width([10]  + [15]  + [p_type_field_len]  + [8] + [16]  + [15] + [12] + [12])
         info_table.set_cols_dtype(["t"] * 8)
 
-        info_table.add_rows([v.values()
-                             for k, v in return_streams_data['streams'].items()],
-                             header=False)
+        for k, v in return_streams_data['streams'].items():
+            info_table.add_row(v.values())
         info_table.header(["ID", "name", "packet type", "length", "mode", "rate", "PG ID", "next"])
 
         return ExportableStats(return_streams_data, info_table)

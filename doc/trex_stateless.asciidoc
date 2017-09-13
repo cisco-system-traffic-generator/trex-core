@@ -4399,10 +4399,9 @@ tx_size_64_packets             |       154612595 |       153744902
 
 ===== streams
 
-Shows info about configured streams on each port, from the client cache. 
+Shows info about loaded streams on TRex port(s). +
+By default, streams are printed as brief summary table:
 
-*Example*::
-  
 [source,bash]
 ----
 trex>streams 
@@ -4424,28 +4423,116 @@ Port 1:
 ----
 
 
-*Example*::
-
-Use this command to show only ports 1 and 2. 
+Streams can be filtered by port ID(s) and/or stream ID(s).
 
 [source,bash]
 ----
-trex>streams --port 1 2 
+trex>streams --port 0 1 --id 0
 
  ..
  ..
+
 ----
 
-*Example*::
+Argument --code can be used either:
 
-Use this command to show full information for stream 0 and port 0, output in JSON format.
-
+* Without argument to print generated Python code that produces the streams.
++
 [source,bash]
 ----
-trex>streams --port 0 --streams 0
+trex>streams -i 2 --code
+Port: 0
 
+Stream ID: 2
+    packet = (Ether(type=2048) /
+              IP(proto=17, chksum=14507, len=576, ihl=5) /
+              UDP(len=556, chksum=51769) /
+              Raw(load='x' * 548))
+    vm = STLVM()
+    vm.var(name='src', size=4, op='inc', init_value='16.0.0.1', min_value='16.0.0.1', max_value='16.0.0.254', step=1)
+    vm.var(name='dst', size=4, op='inc', init_value='48.0.0.1', min_value='48.0.0.1', max_value='48.0.0.254', step=1)
+    vm.write(fv_name='src', pkt_offset='IP.src', add_val=0, byte_order='big')
+    vm.write(fv_name='dst', pkt_offset='IP.dst', add_val=0, byte_order='big')
+    vm.fix_chksum(offset='IP')
+    stream = STLStream(packet = STLPktBuilder(pkt = packet, vm = vm),
+                       isg = 0.1,
+                       mac_src_override_by_pkt = False,
+                       mac_dst_override_mode = 0,
+                       mode = STLTXCont(pps = 20))
 ----
-        
+
+* With filename argument to save the streams as Python profile.
++
+[source,bash]
+----
+trex>streams -p 0 --code /tmp/my_imix.py
+
+Saving file as: /tmp/my_imix.py                              [SUCCESS]
+
+...
+
+bash> cat /tmp/my_imix.py
+
+# !!! Auto-generated code !!!
+from trex_stl_lib.api import *
+
+class STLS1(object):
+    def get_streams(self, direction = 0, **kwargs):
+        streams = []
+        packet = (Ether(type=2048) /
+                  IP(proto=17, chksum=15037, len=46, ihl=5) /
+                  UDP(len=26, chksum=33554) /
+                  Raw(load='x' * 18))
+        vm = STLVM()
+        vm.var(name='src', size=4, op='inc', init_value='16.0.0.1', min_value='16.0.0.1', max_value='16.0.0.254', step=1)
+        vm.var(name='dst', size=4, op='inc', init_value='48.0.0.1', min_value='48.0.0.1', max_value='48.0.0.254', step=1)
+        vm.write(fv_name='src', pkt_offset='IP.src', add_val=0, byte_order='big')
+        vm.write(fv_name='dst', pkt_offset='IP.dst', add_val=0, byte_order='big')
+        vm.fix_chksum(offset='IP')
+        stream = STLStream(packet = STLPktBuilder(pkt = packet, vm = vm),
+                           mac_src_override_by_pkt = False,
+                           mac_dst_override_mode = 0,
+                           mode = STLTXCont(pps = 28))
+        streams.append(stream)
+        packet = (Ether(type=2048) /
+                  IP(proto=17, chksum=14507, len=576, ihl=5) /
+                  UDP(len=556, chksum=51769) /
+                  Raw(load='x' * 548))
+        vm = STLVM()
+        vm.var(name='src', size=4, op='inc', init_value='16.0.0.1', min_value='16.0.0.1', max_value='16.0.0.254', step=1)
+        vm.var(name='dst', size=4, op='inc', init_value='48.0.0.1', min_value='48.0.0.1', max_value='48.0.0.254', step=1)
+        vm.write(fv_name='src', pkt_offset='IP.src', add_val=0, byte_order='big')
+        vm.write(fv_name='dst', pkt_offset='IP.dst', add_val=0, byte_order='big')
+        vm.fix_chksum(offset='IP')
+        stream = STLStream(packet = STLPktBuilder(pkt = packet, vm = vm),
+                           isg = 0.1,
+                           mac_src_override_by_pkt = False,
+                           mac_dst_override_mode = 0,
+                           mode = STLTXCont(pps = 20))
+        streams.append(stream)
+        packet = (Ether(type=2048) /
+                  IP(proto=17, chksum=13583, len=1500, ihl=5) /
+                  UDP(len=1480, chksum=22936) /
+                  Raw(load='x' * 1472))
+        vm = STLVM()
+        vm.var(name='src', size=4, op='inc', init_value='16.0.0.1', min_value='16.0.0.1', max_value='16.0.0.254', step=1)
+        vm.var(name='dst', size=4, op='inc', init_value='48.0.0.1', min_value='48.0.0.1', max_value='48.0.0.254', step=1)
+        vm.write(fv_name='src', pkt_offset='IP.src', add_val=0, byte_order='big')
+        vm.write(fv_name='dst', pkt_offset='IP.dst', add_val=0, byte_order='big')
+        vm.fix_chksum(offset='IP')
+        stream = STLStream(packet = STLPktBuilder(pkt = packet, vm = vm),
+                           isg = 0.2,
+                           mac_src_override_by_pkt = False,
+                           mac_dst_override_mode = 0,
+                           mode = STLTXCont(pps = 4))
+        streams.append(stream)
+
+        return streams
+
+def register():
+    return STLS1()
+----
+
 
 ===== start 
 

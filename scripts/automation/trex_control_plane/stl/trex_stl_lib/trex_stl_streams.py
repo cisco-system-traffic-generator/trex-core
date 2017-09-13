@@ -593,12 +593,139 @@ class STLStream(object):
         else:
             print("Nothing to dump")
 
+    # return True if FE variable is being written only to IP src or dst, to show its value as IP
+    @staticmethod
+    def __is_all_IP(vm_var_usage_list):
+        for offsets_tuple in vm_var_usage_list:
+            if type(offsets_tuple) is not tuple:
+                return False
+            if offsets_tuple[0] != 'IP' or offsets_tuple[2] not in ('src', 'dst'):
+                return False
+        return True
+
+    # replace offset number by user-friendly string 'IP.src' etc.
+    @staticmethod
+    def __fix_offset_by_name(pkt, inst, name):
+        if name in inst:
+            ret = pkt.get_field_by_offset(inst[name])
+            if ret:
+                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw'): # do not include field name
+                    if ret[1] == 0: # layer index is redundant
+                        inst[name] = "'%s'" % ret[0]
+                    else: 
+                        inst[name] = "'%s:%s'" % ret[0:2]
+                else:
+                    if ret[1] == 0:
+                        inst[name] = "'%s.%s'" % (ret[0], ret[2])
+                    else:
+                        inst[name] = "'%s:%s.%s'" % ret[0:3]
 
 
     # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
-    def to_code (self):
+    def to_code(self):
         """ Convert to Python code as profile  """
         layer = Ether(self.pkt)
+        pkt = CTRexScapyPktUtl(layer)
+
+        vm_var_usage = {}
+        for inst in self.fields['vm']['instructions']:
+            if inst['type'] == 'trim_pkt_size':
+                fv_name = inst['name']
+                if fv_name in vm_var_usage:
+                    vm_var_usage[fv_name].append('trim')
+                else:
+                    vm_var_usage[fv_name] = ['trim']
+
+            if 'pkt_offset' in inst:
+                fv_name = inst.get('fv_name', inst.get('name'))
+                if fv_name in vm_var_usage:
+                    vm_var_usage[fv_name].append(pkt.get_field_by_offset(inst['pkt_offset']))
+                else:
+                    vm_var_usage[fv_name] = [pkt.get_field_by_offset(inst['pkt_offset'])]
+
+        vm_list = ['vm = STLVM()']
+        for inst in self.fields['vm']['instructions']:
+            inst = dict(inst)
+            #print inst
+            self.__fix_offset_by_name(pkt, inst, 'pkt_offset')
+            if 'is_big_endian' in inst:
+                inst['byte_order'] = "'big'" if inst['is_big_endian'] else "'little'"
+            if inst['type'] == 'flow_var':
+                if inst['name'] in vm_var_usage and inst['size'] == 4 and self.__is_all_IP(vm_var_usage[inst['name']]):
+                    inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
+                    inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
+                    inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
+                vm_list.append("vm.var(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
+            elif inst['type'] == 'write_flow_var':
+                vm_list.append("vm.write(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, byte_order={byte_order})".format(**inst))
+            elif inst['type'] == 'write_mask_flow_var':
+                inst['mask'] = hex(inst['mask'])
+                vm_list.append("vm.write_mask(fv_name='{name}', pkt_offset={pkt_offset}, pkt_cast_size={pkt_cast_size}, mask={mask}, shift={shift}, add_val={add_value}, byte_order={byte_order})".format(**inst))
+            elif inst['type'] == 'fix_checksum_ipv4':
+                vm_list.append("vm.fix_chksum(offset={pkt_offset})".format(**inst))
+            elif inst['type'] == 'fix_checksum_hw':
+                inst['l3_offset'] = inst['l2_len']
+                inst['l4_offset'] = inst['l2_len'] + inst['l3_len']
+                self.__fix_offset_by_name(pkt, inst, 'l3_offset')
+                self.__fix_offset_by_name(pkt, inst, 'l4_offset')
+                vm_list.append("vm.fix_chksum_hw(l3_offset={l3_offset}, l4_offset={l4_offset}, l4_type={l4_type})".format(**inst))
+            elif inst['type'] == 'trim_pkt_size':
+                vm_list.append("vm.trim(fv_name='{name}')".format(**inst))
+            elif inst['type'] == 'tuple_flow_var':
+                inst['ip_min'] = ltoa(inst['ip_min'])
+                inst['ip_max'] = ltoa(inst['ip_max'])
+                vm_list.append("vm.tuple_var(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
+            elif inst['type'] == 'flow_var_rand_limit':
+                vm_list.append("vm.repeatable_random_var(fv_name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value})".format(**inst))
+            else:
+                raise STLError('Got unhandled FE instruction type: %s' % inst['type'])
+        if 'cache' in self.fields['vm']:
+            vm_list.append('vm.set_cached(%s)' % self.fields['vm']['cache'])
+
+        vm_code = '\n'.join(vm_list)
+
+        stream_params_list = []
+        stream_params_list.append('packet = STLPktBuilder(pkt = packet, vm = vm)')
+        if default_STLStream.name != self.name:
+            stream_params_list.append('name = %s' % STLStream.__add_quotes(self.name))
+        if default_STLStream.fields['enabled'] != self.fields['enabled']:
+            stream_params_list.append('enabled = %s' % self.fields['enabled'])
+        if default_STLStream.fields['self_start'] != self.fields['self_start']:
+            stream_params_list.append('self_start = %s' % self.fields['self_start'])
+        if default_STLStream.fields['isg'] != self.fields['isg']:
+            stream_params_list.append('isg = %s' % self.fields['isg'])
+        if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
+            if 'rule_type' in self.fields['flow_stats']:
+                stream_params_list.append('flow_stats = %s(%s)' % ('STLFlowStats' if self.fields['flow_stats']['rule_type'] == 'stats' else 'STLFlowLatencyStats', self.fields['flow_stats']['stream_id']))
+        if default_STLStream.next != self.next:
+            stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
+        if default_STLStream.id != self.id:
+            stream_params_list.append('stream_id = %s' % self.id)
+        if default_STLStream.fields['action_count'] != self.fields['action_count']:
+            stream_params_list.append('action_count = %s' % self.fields['action_count'])
+        if 'random_seed' in self.fields:
+            stream_params_list.append('random_seed = %s' % self.fields.get('random_seed', 0))
+        stream_params_list.append('mac_src_override_by_pkt = %s' % bool(self.fields['flags'] & 1))
+        stream_params_list.append('mac_dst_override_mode = %s' % (self.fields['flags'] >> 1 & 3))
+        if self.is_dummy():
+            stream_params_list.append('dummy_stream = True')
+
+        mode_args = ''
+        for key, value in self.fields['mode'].items():
+            if key not in ('rate', 'type'):
+                mode_args += '%s = %s, ' % (key, value)
+        mode_args += '%s = %s' % (self.fields['mode']['rate']['type'], self.fields['mode']['rate']['value'])
+        if self.mode_desc == STLTXCont.__str__():
+            stream_params_list.append('mode = STLTXCont(%s)' % mode_args)
+        elif self.mode_desc == STLTXSingleBurst().__str__():
+            stream_params_list.append('mode = STLTXSingleBurst(%s)' % mode_args)
+        elif self.mode_desc == STLTXMultiBurst().__str__():
+            stream_params_list.append('mode = STLTXMultiBurst(%s)' % mode_args)
+        else:
+            raise STLError('Could not determine mode: %s' % self.mode_desc)
+
+        stream = "stream = STLStream(" + ',\n                   '.join(stream_params_list) + ')'
+
         layer.hide_defaults()          # remove fields with default values
         imports_arr = []
         layers_commands = []
@@ -621,15 +748,6 @@ class STLStream(object):
                 if not found_import:
                     raise STLError('Could not determine import of layer %s' % layer.name)
 
-            # remove checksums
-            for chksum_name in ('cksum', 'chksum'):
-                if chksum_name in layer.fields:
-                    del layer.fields[chksum_name]
-
-            # remove Paddings (FCS etc.)
-            if isinstance(layer, Padding):
-                break
-
             payload = layer.payload
             layer.remove_payload()
 
@@ -640,79 +758,17 @@ class STLStream(object):
                 else:
                     layer_command = layer.command()
                 layers_commands.append(layer_command)
-                break
-
-            layers_commands.append(layer.command())
+            else:
+                layers_commands.append(layer.command())
 
             layer = payload
 
         imports = '\n'.join(imports_arr)
         packet_code = 'packet = (' + (' / \n          ').join(layers_commands) + ')'
 
-        vm_list = []
-        for inst in self.fields['vm']['instructions']:
-            if inst['type'] == 'flow_var':
-                vm_list.append("STLVmFlowVar(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
-            elif inst['type'] == 'write_flow_var':
-                vm_list.append("STLVmWrFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, is_big={is_big_endian})".format(**inst))
-            elif inst['type'] == 'write_mask_flow_var':
-                inst = copy.copy(inst)
-                inst['mask'] = hex(inst['mask'])
-                vm_list.append("STLVmWrMaskFlowVar(fv_name='{name}', pkt_offset={pkt_offset}, pkt_cast_size={pkt_cast_size}, mask={mask}, shift={shift}, add_value={add_value}, is_big={is_big_endian})".format(**inst))
-            elif inst['type'] == 'fix_checksum_ipv4':
-                vm_list.append("STLVmFixIpv4(offset={pkt_offset})".format(**inst))
-            elif inst['type'] == 'trim_pkt_size':
-                vm_list.append("STLVmTrimPktSize(fv_name='{name}')".format(**inst))
-            elif inst['type'] == 'tuple_flow_var':
-                inst = copy.copy(inst)
-                inst['ip_min'] = ltoa(inst['ip_min'])
-                inst['ip_max'] = ltoa(inst['ip_max'])
-                vm_list.append("STLVmTupleGen(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
-            elif inst['type'] == 'flow_var_rand_limit':
-                vm_list.append("STLVmFlowVarRepetableRandom(name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value})".format(**inst))
-
-        vm_code = 'vm = STLScVmRaw([' + ',\n                 '.join(vm_list) + '])'
-        stream_params_list = []
-        stream_params_list.append('packet = STLPktBuilder(pkt = packet, vm = vm)')
-        if default_STLStream.name != self.name:
-            stream_params_list.append('name = %s' % STLStream.__add_quotes(self.name))
-        if default_STLStream.fields['enabled'] != self.fields['enabled']:
-            stream_params_list.append('enabled = %s' % self.fields['enabled'])
-        if default_STLStream.fields['self_start'] != self.fields['self_start']:
-            stream_params_list.append('self_start = %s' % self.fields['self_start'])
-        if default_STLStream.fields['isg'] != self.fields['isg']:
-            stream_params_list.append('isg = %s' % self.fields['isg'])
-        if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
-            stream_params_list.append('flow_stats = STLFlowStats(%s)' % self.fields['flow_stats']['stream_id'])
-        if default_STLStream.next != self.next:
-            stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
-        if default_STLStream.id != self.id:
-            stream_params_list.append('stream_id = %s' % self.id)
-        if default_STLStream.fields['action_count'] != self.fields['action_count']:
-            stream_params_list.append('action_count = %s' % self.fields['action_count'])
-        if 'random_seed' in self.fields:
-            stream_params_list.append('random_seed = %s' % self.fields.get('random_seed', 0))
-        if default_STLStream.mac_src_override_by_pkt != self.mac_src_override_by_pkt:
-            stream_params_list.append('mac_src_override_by_pkt = %s' % self.mac_src_override_by_pkt)
-        if default_STLStream.mac_dst_override_mode != self.mac_dst_override_mode:
-            stream_params_list.append('mac_dst_override_mode = %s' % self.mac_dst_override_mode)
-
-        mode_args = ''
-        for key, value in self.fields['mode'].items():
-            if key not in ('rate', 'type'):
-                mode_args += '%s = %s, ' % (key, value)
-        mode_args += '%s = %s' % (self.fields['mode']['rate']['type'], self.fields['mode']['rate']['value'])
-        if self.mode_desc == STLTXCont.__str__():
-            stream_params_list.append('mode = STLTXCont(%s)' % mode_args)
-        elif self.mode_desc == STLTXSingleBurst().__str__():
-            stream_params_list.append('mode = STLTXSingleBurst(%s)' % mode_args)
-        elif self.mode_desc == STLTXMultiBurst().__str__():
-            stream_params_list.append('mode = STLTXMultiBurst(%s)' % mode_args)
-        else:
-            raise STLError('Could not determine mode: %s' % self.mode_desc)
-
-        stream = "stream = STLStream(" + ',\n                   '.join(stream_params_list) + ')'
-        return '\n'.join([imports, packet_code, vm_code, stream])
+        if imports:
+            return '\n'.join([imports, packet_code, vm_code, stream])
+        return '\n'.join([packet_code, vm_code, stream])
 
     # add quoted for string, or leave as is if other type
     @staticmethod
