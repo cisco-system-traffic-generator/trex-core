@@ -973,14 +973,15 @@ link:cp_astf_docs/index.html[python index]
 |   tcps_delack      || delayed acks sent
 |   tcps_sndtotal    || total packets sent (TSO)
 |   tcps_sndpack     || data packets sent  (TSO)
-|   tcps_sndbyte     || data bytes sent
+|   tcps_sndbyte     || data bytes sent by application 
 |   tcps_sndctrl     || control (SYN,FIN,RST) packets sent
 |   tcps_sndacks     || ack-only packets sent 
 |   tcps_rcvtotal    || total packets received (LRO)
 |   tcps_rcvpack     || packets received in sequence (LRO)
 |   tcps_rcvbyte     || bytes received in sequence
 |   tcps_rcvackpack  || rcvd ack packets (LRO)        *2*         
-|   tcps_rcvackbyte  || tx bytes acked by rcvd acks
+|   tcps_rcvackbyte  || tx bytes acked by rcvd acks (should be the same as tcps_sndbyte )
+|   tcps_rcvackbyte_all  || tx bytes acked by rcvd acks -overflow ack
 |   tcps_preddat     || times hdr predict ok for data pkts 
 |   tcps_drops       |*| connections dropped
 |   tcps_conndrops   |*| embryonic connections dropped
@@ -1050,6 +1051,10 @@ see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the 
 [NOTE] 
 =====================================================================
 You won't be able to compare the number of TCP  tx (client) TSO packets to rx (server)LRO packets as it might be different. The better approach would be to compare the number of bytes 
+(client.tcps_sndbyte == server.tcps_rcvbyte) and 
+(server.tcps_sndbyte == client.tcps_rcvbyte) and 
+(client.tcps_sndbyte == application_upload_total_bytes) and 
+(server.tcps_sndbyte == application_download_total_bytes) 
 =====================================================================
 
 [NOTE] 
