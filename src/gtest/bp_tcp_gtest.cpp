@@ -985,6 +985,24 @@ TEST_F(gt_tcp, tst30_http_drop) {
 
 }
 
+TEST_F(gt_tcp, tst30_http_drop_high) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.6;
+    cfg.m_check_counters=true;
+    cfg.m_seed = 29;
+
+    tcp_gen_test("tcp2_http_drop_high",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_DROP,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+}
+
+
 TEST_F(gt_tcp, tst30_http_drop_loop) {
 
     CClientServerTcpCfgExt cfg;
@@ -994,9 +1012,16 @@ TEST_F(gt_tcp, tst30_http_drop_loop) {
 
     int i;
     for (i=1; i<50; i++) {
+        cfg.m_rate=(double)rand()/(double)(0xffffffff);
+        if (cfg.m_rate>0.4) {
+            cfg.m_rate=0.4;
+        }
+        if (cfg.m_rate<0.1) {
+            cfg.m_rate=0.1;
+        }
         cfg.m_seed=i+1;
-        printf(" itr:%d seed %d \n",i,i);
-        tcp_gen_test("tcp2_http_drop",
+        printf(" itr:%d rate %f seed %d \n",i,cfg.m_rate,i);
+        tcp_gen_test("tcp2_http_drop_loop",
                      true,
                      tiHTTP,
                      0,
@@ -1006,10 +1031,54 @@ TEST_F(gt_tcp, tst30_http_drop_loop) {
                      &cfg
                      );
     }
-
-
-
 }
+
+TEST_F(gt_tcp, tst30_http_reorder) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=false;
+
+    tcp_gen_test("tcp2_http_reorder",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_REORDER,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+}
+
+
+TEST_F(gt_tcp, tst30_http_reorder_loop) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=true;
+
+    int i;
+    for (i=1; i<50; i++) {
+        cfg.m_rate=(double)rand()/(double)(0xffffffff);
+        if (cfg.m_rate>0.4) {
+            cfg.m_rate=0.4;
+        }
+        if (cfg.m_rate<0.1) {
+            cfg.m_rate=0.1;
+        }
+        cfg.m_seed=i+1;
+        tcp_gen_test("tcp2_http_reorder",
+                     true,
+                     tiHTTP,
+                     0,
+                     csSIM_REORDER,
+                     false, /* ipv6*/
+                     0, /*mss*/
+                     &cfg
+                     );
+    }
+}
+
 
 #if 0
 TEST_F(gt_tcp, tst30_http_rst_middle) {

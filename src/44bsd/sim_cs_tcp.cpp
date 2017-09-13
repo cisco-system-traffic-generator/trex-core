@@ -324,7 +324,7 @@ void CClientServerTcp::on_tx(int dir,
         /* move the Tx packet to Rx side of server */
         double reorder_time=0.0;
         if (reorder) {
-            reorder=m_reorder_rnd->getRandomInRange(0,m_rtt_sec*2);
+            reorder_time=m_reorder_rnd->getRandomInRange(0,m_rtt_sec*2);
         }
         m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(reorder_time+t+(m_rtt_sec/2.0) )) );
     }else{
@@ -691,7 +691,7 @@ int CClientServerTcp::simple_http(){
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
-    m_sim.add_event( new CTcpSimEventStop(1000.0) );
+    m_sim.add_event( new CTcpSimEventStop(10000.0) );
 
     /* start client */
     app_c->start(true);
@@ -712,11 +712,15 @@ int CClientServerTcp::simple_http(){
                                          (int)RX_BYTES );
 
     if (m_check_counters){
-        assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
-        assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
+        if (m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte>0 && 
+            m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte>0) {
+            /* flow wasn't initiated due to drop of SYN too many times */
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
 
-        assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
-        assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+        }
     }
 
 
