@@ -3514,10 +3514,13 @@ NIC with two ports will work better from performance prospective, so it is bette
 
 ==== Limitation/Issues
 
+for some reason the mlx5 driver has a few issues with TRex see here link:https://trex-tgn.cisco.com/youtrack/issues/trex?q=%23MLX%20state:Submitted%20[open issues]
+
+* In ASTF mode there is an out of order of TCP packets see link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[out-of-order]
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
-
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-411[CX-5 performance issue]
 
 ==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
 

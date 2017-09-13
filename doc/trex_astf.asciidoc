@@ -103,7 +103,8 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 
 ===== Known bugs
 
-* Mellanox CX-4/5 for some reason  needs to "warm up". At startup ("warm up stage") of the run *TCP* packets are reordered in the Rx side for some reason by the NIC (not sure if this is a Tx issue or Rx issue)
+* Mellanox CX-4/5 out of order issue see link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
+
 
 ===== Limitation/feature that wasn't implemented/exposed yet
 
