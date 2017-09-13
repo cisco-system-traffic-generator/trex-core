@@ -49,6 +49,17 @@ limitations under the License.
 #include "44bsd/sim_cs_tcp.h"
 
 
+class gt_tcp_long  : public testing::Test {
+
+protected:
+      virtual void SetUp() {
+      }
+
+      virtual void TearDown() {
+      }
+    public:
+};
+
 
 class gt_tcp  : public testing::Test {
 
@@ -1003,7 +1014,7 @@ TEST_F(gt_tcp, tst30_http_drop_high) {
 }
 
 
-TEST_F(gt_tcp, tst30_http_drop_loop) {
+TEST_F(gt_tcp_long, tst30_http_drop_loop) {
 
     CClientServerTcpCfgExt cfg;
     cfg.m_rate=0.1;
@@ -1051,7 +1062,7 @@ TEST_F(gt_tcp, tst30_http_reorder) {
 }
 
 
-TEST_F(gt_tcp, tst30_http_reorder_loop) {
+TEST_F(gt_tcp_long, tst30_http_reorder_loop) {
     CClientServerTcpCfgExt cfg;
     cfg.m_rate=0.1;
     cfg.m_check_counters=true;
@@ -1730,7 +1741,7 @@ int test_buffer(int pkt_size,
     return(res);
 }
 
-TEST_F(gt_tcp, tst50) {
+TEST_F(gt_tcp_long, tst50) {
     int i;
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
@@ -1774,7 +1785,7 @@ int test_buffer_adj(int pkt_size,
     return(res);
 }
 
-TEST_F(gt_tcp, tst51) {
+TEST_F(gt_tcp_long, tst51) {
     //assert(test_buffer(2048,512,1,0)==0);
     assert(test_buffer(2048,512,512,0)==0);
 
@@ -2104,7 +2115,6 @@ public:
 
 
 
-#endif
 
 
 
@@ -2125,4 +2135,6 @@ TEST_F(gt_tcp, tst61) {
        printf(" %f \n", ur.getRandomInRange(10.0,100.0));
     }
 }
+
+#endif
 
