@@ -353,6 +353,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
+    uint64_t    tcps_rcvackbyte_all;    /* bytes acked by rcvd acks */
 };
 
 /*
@@ -836,6 +837,7 @@ public:
 
     /* add bytes to tx queue */
     virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
+        INC_STAT_CNT(flow->m_ctx,tcps_sndbyte,bytes);
         flow->m_tcp.m_socket.so_snd.sbappend(bytes);
     }
 

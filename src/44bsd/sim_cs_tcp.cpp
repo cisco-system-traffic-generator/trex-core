@@ -115,6 +115,35 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
 }
 
 
+void CClientServerTcp::set_cfg_ext(CClientServerTcpCfgExt * cfg){
+    if (cfg->m_rate>0.0){
+        set_drop_rate(cfg->m_rate);
+        m_drop_rnd->setSeed(cfg->m_seed);
+    }
+
+    m_check_counters = cfg->m_check_counters;
+    m_skip_compare_file = cfg->m_skip_compare_file;
+}
+
+
+
+void CClientServerTcp::set_drop_rate(double rate){
+    assert(rate<0.99);
+    assert(rate>0.01);
+    m_drop_ratio=rate;
+    if (m_drop_rnd) {
+        delete m_drop_rnd;
+    }
+    m_drop_rnd = new KxuNuBinRand(rate);
+}
+
+bool CClientServerTcp::is_drop(){
+    assert(m_drop_rnd);
+    return(m_drop_rnd->getRandom());
+}
+
+
+
 void CClientServerTcp::set_debug_mode(bool enable){
     m_debug=enable;
 }
@@ -157,12 +186,17 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_vlan =0;
     m_ipv6=false;
     m_dump_json_counters=false;
+    m_check_counters=false;
+    m_skip_compare_file=false;
     m_mss=0;
+    m_drop_rnd = NULL;
 
     m_rtt_sec =0.05; /* 50msec */
+    m_drop_ratio =0.0;
 
     m_out_dir =out_dir + "/";
     m_pcap_file = pcap_file;
+    m_reorder_rnd  = new KxuLCRand();
 
     m_c_pcap.open_pcap_file(m_out_dir+pcap_file+"_c.pcap");
 
@@ -201,11 +235,33 @@ void CClientServerTcp::on_tx(int dir,
 
 
     bool drop=false;
+    bool reorder=false;
     /* simulate drop/reorder/ corruption HERE !! */
     if (m_sim_type > 0) {
         char * p=rte_pktmbuf_mtod(m,char *);
         TCPHeader * tcp=(TCPHeader *)(p+14+20);
         //IPHeader * ip=(IPHeader *)(p+14);
+
+        if ( m_sim_type == csSIM_REORDER_DROP ){
+            if (is_drop()){
+                drop=true;
+            }
+            if (is_drop()){
+                reorder=true;
+            }
+        }
+
+        if (m_sim_type == csSIM_DROP ){
+            if (is_drop()){
+                drop=true;
+            }
+        }
+
+        if (m_sim_type == csSIM_REORDER ){
+            if (is_drop()){
+                reorder=true;
+            }
+        }
 
         if ( m_sim_type == csSIM_RST_SYN ){
             /* simulate RST */
@@ -266,7 +322,11 @@ void CClientServerTcp::on_tx(int dir,
 
     if (drop==false){
         /* move the Tx packet to Rx side of server */
-        m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(t+(m_rtt_sec/2.0) )) );
+        double reorder_time=0.0;
+        if (reorder) {
+            reorder=m_reorder_rnd->getRandomInRange(0,m_rtt_sec*2);
+        }
+        m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(reorder_time+t+(m_rtt_sec/2.0) )) );
     }else{
         rte_pktmbuf_free(m);
     }
@@ -312,6 +372,11 @@ void CClientServerTcp::Delete(){
     m_c_ctx.Delete();
     m_s_ctx.Delete();
     m_tcp_data_ro.free();
+    if (m_drop_rnd){
+        delete m_drop_rnd;
+    }
+    delete m_reorder_rnd;
+
 }
 
 
@@ -505,9 +570,32 @@ static void free_http_res(char *p){
 
 
 
+
+
 void CClientServerTcp::close_file(){
     m_c_pcap.close_pcap_file();
     m_s_pcap.close_pcap_file();
+}
+
+
+void CClientServerTcp::dump_counters(){
+
+    CSTTCp stt_cp;
+    stt_cp.Create();
+    stt_cp.Init();
+    stt_cp.m_init=true;
+    stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
+    stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
+    stt_cp.Update();
+    stt_cp.DumpTable();
+    std::string json;
+    stt_cp.dump_json(json);
+    if (m_dump_json_counters ){
+      fprintf(stdout,"json-start \n");
+      fprintf(stdout,"%s\n",json.c_str());
+      fprintf(stdout,"json-end \n");
+    }
+    stt_cp.Delete();
 }
 
 
@@ -611,31 +699,26 @@ int CClientServerTcp::simple_http(){
 
     m_sim.run_sim();
 
-    printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
-    m_c_ctx.m_ft.dump(stdout);
-    printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
-    m_s_ctx.m_ft.dump(stdout);
+    dump_counters();
 
+    #define TX_BYTES 249
+    #define RX_BYTES 32768
 
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_connects,1);
+    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+                                         (int)m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+                                         (int)TX_BYTES,
+                                         (int)RX_BYTES );
 
+    if (m_check_counters){
+        assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
+        assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
 
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,4024);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_accepts,1);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_preddat,m_s_ctx.m_tcpstat.m_sts.tcps_rcvpack-1);
+        assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
+        assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+    }
 
-
-    //app.m_write_buf.Delete();
-    //printf (" rx %d \n",m_s_flow.m_tcp.m_socket.so_rcv.sb_cc);
-    //assert( m_s_flow.m_tcp.m_socket.so_rcv.sb_cc == 4024);
-
-
-    //delete app_c;
-    //delete app_s;
 
     free_http_res((char *)http_r);
     delete prog_c;
@@ -655,8 +738,6 @@ int CClientServerTcp::fill_from_file() {
     CTcpAppProgram *prog_s;
     CTcpFlow *c_flow;
     CTcpApp *app_c;
-
-
 
     CTcpData * ro_db=CJsonData::instance()->get_tcp_data_handle(0);
     uint16_t dst_port = ro_db->get_dport(0);
@@ -713,23 +794,7 @@ int CClientServerTcp::fill_from_file() {
 
     m_sim.run_sim();
 
-
-    CSTTCp stt_cp;
-    stt_cp.Create();
-    stt_cp.Init();
-    stt_cp.m_init=true;
-    stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
-    stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
-    stt_cp.Update();
-    stt_cp.DumpTable();
-    std::string json;
-    stt_cp.dump_json(json);
-    if (m_dump_json_counters ){
-      fprintf(stdout,"json-start \n");
-      fprintf(stdout,"%s\n",json.c_str());
-      fprintf(stdout,"json-end \n");
-    }
-    stt_cp.Delete();
+    dump_counters();
 
     return(0);
 }

@@ -833,7 +833,8 @@ void tcp_gen_test(std::string pcap_file,
                   int valn=0, 
                   cs_sim_mode_t sim_mode=csSIM_NONE,
                   bool is_ipv6=false,
-                  uint16_t mss=0){
+                  uint16_t mss=0,
+                  CClientServerTcpCfgExt * cfg=NULL){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
@@ -853,6 +854,10 @@ void tcp_gen_test(std::string pcap_file,
         lpt1->m_mss=mss;
     }
 
+    if (cfg){
+        lpt1->set_cfg_ext(cfg);
+    }
+
     if (sim_mode!=csSIM_NONE){
         lpt1->set_simulate_rst_error(sim_mode);
     }
@@ -865,10 +870,14 @@ void tcp_gen_test(std::string pcap_file,
         lpt1->simple_http();
         break;
     }
+    
 
     lpt1->close_file();
 
-    bool res=lpt1->compare("exp");
+    bool res=true;
+    if (lpt1->m_skip_compare_file==false){
+        res=lpt1->compare("exp");
+    }
 
     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 
@@ -954,6 +963,51 @@ TEST_F(gt_tcp, tst30_http_wrong_port) {
                  0,
                  csSIM_WRONG_PORT
                  );
+
+}
+
+
+TEST_F(gt_tcp, tst30_http_drop) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+
+    tcp_gen_test("tcp2_http_drop",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_DROP,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+
+
+}
+
+TEST_F(gt_tcp, tst30_http_drop_loop) {
+
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=true;
+
+    int i;
+    for (i=1; i<50; i++) {
+        cfg.m_seed=i+1;
+        printf(" itr:%d seed %d \n",i,i);
+        tcp_gen_test("tcp2_http_drop",
+                     true,
+                     tiHTTP,
+                     0,
+                     csSIM_DROP,
+                     false, /* ipv6*/
+                     0, /*mss*/
+                     &cfg
+                     );
+    }
+
+
 
 }
 
@@ -1982,3 +2036,24 @@ public:
 
 
 #endif
+
+
+
+TEST_F(gt_tcp, tst60) {
+    KxuNuBinRand bin_rand(0.2);
+
+    int i;
+    for (i=0; i<100; i++) {
+        bool index=bin_rand.getRandom();
+        printf(" %d \n",index?1:0);
+    }
+}
+
+TEST_F(gt_tcp, tst61) {
+    KxuLCRand ur;
+    int i;
+    for (i=0; i<100; i++) {
+       printf(" %f \n", ur.getRandomInRange(10.0,100.0));
+    }
+}
+

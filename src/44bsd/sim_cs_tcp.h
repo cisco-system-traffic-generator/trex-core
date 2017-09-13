@@ -43,6 +43,7 @@ limitations under the License.
 #include <common/c_common.h>
 #include <common/captureFile.h>
 #include <common/sim_event_driven.h>
+#include <common/n_uniform_prob.h>
 
 
 
@@ -154,6 +155,9 @@ typedef enum {  csSIM_NONE    =0,
                 csSIM_WRONG_PORT,
                 csSIM_RST_MIDDLE , // corrupt the seq number
                 csSIM_RST_MIDDLE2 ,// send RST flag
+                csSIM_DROP,
+                csSIM_REORDER,
+                csSIM_REORDER_DROP,
                } cs_sim_mode_t_;
 
 typedef uint16_t cs_sim_mode_t ;
@@ -165,6 +169,20 @@ typedef enum {  tiTEST2    =0,
 
 typedef uint16_t cs_sim_test_id_t;
 
+/* extenstion cfg class */
+class CClientServerTcpCfgExt {
+public:
+    CClientServerTcpCfgExt(){
+        m_rate=0.0;
+        m_check_counters=false;
+        m_skip_compare_file=false;
+        m_seed=0x5555;
+    }
+    double m_rate;
+    bool   m_check_counters;
+    bool   m_skip_compare_file;
+    uint32_t m_seed;
+};
 
 class CClientServerTcp {
 public:
@@ -176,11 +194,13 @@ public:
     void set_simulate_rst_error(cs_sim_mode_t  sim_type){
         m_sim_type = sim_type;
     }
+    void set_drop_rate(double rate);
 
     /* dir ==0 , C->S 
        dir ==1   S->C */
     void on_tx(int dir,rte_mbuf_t *m);
     void on_rx(int dir,rte_mbuf_t *m);
+    void set_cfg_ext(CClientServerTcpCfgExt * cfg);
 
 public:
     int test2();
@@ -189,7 +209,9 @@ public:
     bool compare(std::string exp_dir);
     void close_file();
     void set_assoc_table(uint16_t port, CTcpAppProgram *prog);
-
+private: 
+    void dump_counters();
+    bool is_drop();
 public:
     std::string             m_out_dir;
     std::string             m_pcap_file;
@@ -213,10 +235,16 @@ public:
     CSimEventDriven         m_sim;
     double                  m_rtt_sec;
     double                  m_tx_diff;
+    double                  m_drop_ratio; /* 1 drop all, 0.0 no drop, valid in case of csSIM_DROP */
+    KxuNuBinRand *          m_drop_rnd;
+    KxuLCRand*              m_reorder_rnd;
     uint16_t                m_vlan;
     bool                    m_ipv6;
     bool                    m_dump_json_counters;
+    bool                    m_check_counters;
+    bool                    m_skip_compare_file;
     uint16_t                m_mss;
+
 };
 
 

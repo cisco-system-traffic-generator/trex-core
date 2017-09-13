@@ -178,14 +178,16 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_delack,"delayed acks sent");
     TCP_S_ADD_CNT(tcps_sndtotal,"total packets sent");
     TCP_S_ADD_CNT(tcps_sndpack,"data packets sent");
-    TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent");
+    TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent by application");
     TCP_S_ADD_CNT(tcps_sndctrl,"control (SYN|FIN|RST) packets sent");
     TCP_S_ADD_CNT(tcps_sndacks,"ack-only packets sent ");
     TCP_S_ADD_CNT(tcps_rcvtotal,"total packets received ");
     TCP_S_ADD_CNT(tcps_rcvpack,"packets received in sequence");
     TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence");
     TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
-    TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks");
+    TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks ");
+    TCP_S_ADD_CNT(tcps_rcvackbyte_all,"tx bytes acked by rcvd acks - overflow acked");
+
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
     TCP_S_ADD_CNT_E(tcps_drops,"connections dropped");

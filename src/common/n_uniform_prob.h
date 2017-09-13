@@ -23,6 +23,7 @@ limitations under the License.
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
+#include <assert.h>
 
 #define U32_MAX 0xFFFFFFFF
  
@@ -42,6 +43,12 @@ class KxuRandUniform : public KxuRand {
        { uint64_t v = getRandom(); v *= n; return uint32_t( v >> 32 ); }
     uint32_t  getRandomInRange( uint32_t start, uint32_t end ) 
        { return getRandomInRange( end - start ) + start; }
+
+    double  getRandomInRange( double start, double end)  {
+        assert(start<end);
+        uint32_t   rand= getRandom();
+        return (((double)rand* (end -start)/((double)U32_MAX)+start));
+    }
 };
  
 // a dead simple Linear Congruent random number generator
@@ -91,6 +98,34 @@ void Kx_norm_prob(std::vector<double> prob,
                   std::vector<double> & result );
 
 void Kx_dump_prob(std::vector<double> prob);
+
+/* Binary distribution, you should give one number for success betwean 0.. 1 */
+class KxuNuBinRand {
+public:
+    KxuNuBinRand(double prob_sucess){
+        std::vector<double>  dist {
+            prob_sucess,
+            1-prob_sucess};
+        m_rnd = new KxuLCRand();
+        m_ru = new KxuNuRand(dist,m_rnd);
+    }
+    ~KxuNuBinRand(){
+        delete m_ru;
+        delete m_rnd;
+    }
+
+    void setSeed(uint32_t seed){
+        m_rnd->setSeed(seed);
+    }
+
+    bool getRandom(){
+        return(m_ru->getRandom()==0?true:false);
+    }
+
+private:
+    KxuLCRand * m_rnd;
+    KxuNuRand * m_ru;
+};
 
 
 #endif
