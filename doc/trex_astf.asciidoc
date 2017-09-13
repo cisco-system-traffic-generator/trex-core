@@ -103,10 +103,7 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 
 ===== Known bugs
 
-* Some pcap files could create a race condition and shows *fake* TCP error counters (e.g. tcps_conndrops/tcps_reasalloc/tcps_reasfree/tcps_rcvoopack)
-* RST in the middle of the FIN/FIN-ACK keep the flow open for a long time 
-* Mellanox CX-4/5 has a performance issue  
-
+* Mellanox CX-4/5 for some reason  needs to "warm up". At startup ("warm up stage") of the run *TCP* packets are reordered in the Rx side for some reason by the NIC (not sure if this is a Tx issue or Rx issue)
 
 ===== Limitation/feature that wasn't implemented/exposed yet
 
