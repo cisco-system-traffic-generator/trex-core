@@ -566,15 +566,21 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG|TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES ;
-        // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
-        // put it, unless user already choose mode using command line arg (--software for example)
-        if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
-            if (get_is_tcp_mode()==false) {
-                CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+
+        if (get_is_tcp_mode()) { /* PATCH for trex-481, move the device to software mode in case of TCP, 
+                                   better to have less accurate latency than errors of out-of-order  */
+            CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+            m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
+        }else{
+            m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG|TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES ;
+            // In Mellanox, default mode is Q_MODE_MANY_DROP_Q.
+            // put it, unless user already choose mode using command line arg (--software for example)
+            if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_NORMAL) {
+                if (get_is_tcp_mode()==false) {
+                    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_MANY_DROP_Q);
+                }
             }
         }
-
     }
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
