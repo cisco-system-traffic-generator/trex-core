@@ -98,6 +98,7 @@ public:
 
     TrexStatelessCpToDpMsgBase() {
         m_quit_scheduler=false;
+        m_event_id=0;
     }
 
     virtual ~TrexStatelessCpToDpMsgBase() {

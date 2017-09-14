@@ -478,7 +478,6 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
     int iss = 0;
     uint32_t tiwin, ts_val, ts_ecr;
     int ts_present = 0;
-    int dropsocket = 0;
     short ostate=0;
     int optlen;
     int todrop, acked, ourfinisacked, needoutput = 0;
@@ -720,7 +719,6 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
         tp->t_flags |= TF_ACKNOW;
         tp->t_state = TCPS_SYN_RECEIVED;
         tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
-        dropsocket = 0;     /* committed to socket */
         INC_STAT(ctx,tcps_accepts);
         goto trimthenstep6;
         }
@@ -1451,8 +1449,6 @@ dropwithreset:
             TH_RST|TH_ACK);
     }
     /* destroy temporarily created socket */
-    if (dropsocket)
-        (void) soabort(so);
     return 0;
 
 drop:
@@ -1464,10 +1460,6 @@ drop:
     }
     rte_pktmbuf_free(m);
     /* destroy temporarily created socket */
-    if (dropsocket){
-        (void)soabort(so);
-    }
-
 
 findpcb:
     /* SYN packet that need to reopen the flow as the flow was closed already and free .. */

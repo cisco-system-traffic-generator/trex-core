@@ -117,6 +117,7 @@ class CTcpData {
  public:
     CTcpData() {
         m_init = 0;
+        m_cps_sum=0.0;
     }
     void dump(FILE *fd);
     void free();
