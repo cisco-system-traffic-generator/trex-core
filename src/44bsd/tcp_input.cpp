@@ -1163,7 +1163,7 @@ trimthenstep6:
         }
         if (acked > so->so_snd.sb_cc) {
             INC_STAT_CNT(ctx,tcps_rcvackbyte,so->so_snd.sb_cc);
-            INC_STAT_CNT(ctx,tcps_rcvackbyte_all,(acked-so->so_snd.sb_cc));
+            INC_STAT_CNT(ctx,tcps_rcvackbyte_of,(acked-so->so_snd.sb_cc));
             tp->snd_wnd -= so->so_snd.sb_cc;
             so->so_snd.sbdrop_all(so);
             ourfinisacked = 1;

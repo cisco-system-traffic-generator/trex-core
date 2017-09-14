@@ -300,7 +300,10 @@ struct  tcpstat_int_t {
     uint64_t    tcps_delack;        /* delayed acks sent */
     uint64_t    tcps_sndtotal;      /* total packets sent */
     uint64_t    tcps_sndpack;       /* data packets sent */
-    uint64_t    tcps_sndbyte;       /* data bytes sent */
+
+    uint64_t    tcps_sndbyte;       /* data bytes sent by application layer  */
+    uint64_t    tcps_sndbyte_ok;    /* data bytes sent by tcp  */
+
     uint64_t    tcps_sndctrl;       /* control (SYN|FIN|RST) packets sent */
     uint64_t    tcps_sndacks;       /* ack-only packets sent */
     uint64_t    tcps_rcvtotal;      /* total packets received */
@@ -353,7 +356,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
-    uint64_t    tcps_rcvackbyte_all;    /* bytes acked by rcvd acks */
+    uint64_t    tcps_rcvackbyte_of;    /* bytes acked by rcvd acks */
 };
 
 /*

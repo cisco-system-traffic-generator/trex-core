@@ -60,7 +60,12 @@ void CSTTCpPerDir::update_counters(){
         m_est_flows=0;
     }
 
-    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_sndbyte)*_1Mb_DOUBLE;
+    /* total bytes sent */
+    uint64_t total_tx_bytes = lpt->tcps_sndbyte_ok+lpt->tcps_sndrexmitbyte+lpt->tcps_sndprobe;
+
+
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte)*_1Mb_DOUBLE; /* better to add the acked tx bytes than tcps_sndbyte */
+    m_tx_bw_l7_total_r = m_tx_bw_l7_total.add(total_tx_bytes)*_1Mb_DOUBLE; /* how many L7 bytes sent */
     
     m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte)*_1Mb_DOUBLE;
 
@@ -71,6 +76,11 @@ void CSTTCpPerDir::update_counters(){
         m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
     }else{
         m_avg_size=0.0;
+    }
+
+    m_tx_ratio=0.0;
+    if (m_tx_bw_l7_total_r>0.0) {
+        m_tx_ratio = m_tx_bw_l7_r*100.0/m_tx_bw_l7_total_r;
     }
 }
 
@@ -159,11 +169,13 @@ void CSTTCpPerDir::create_clm_counters(){
 
     CMN_S_ADD_CNT(m_active_flows,"active flows",true);
     CMN_S_ADD_CNT(m_est_flows,"active est flows",true);
-    CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx bw",true,"bps");
-    CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx bw",true,"bps");
+    CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx L7 bw acked",true,"bps");
+    CMN_S_ADD_CNT_d(m_tx_bw_l7_total_r,"tx L7 bw total",true,"bps");
+    CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx L7 bw acked",true,"bps");
     CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"B");
+    CMN_S_ADD_CNT_d(m_tx_ratio,"Tx acked/sent ratio",true,"%%");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");
@@ -179,6 +191,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_sndtotal,"total packets sent");
     TCP_S_ADD_CNT(tcps_sndpack,"data packets sent");
     TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent by application");
+    TCP_S_ADD_CNT(tcps_sndbyte_ok,"data bytes sent by tcp");
     TCP_S_ADD_CNT(tcps_sndctrl,"control (SYN|FIN|RST) packets sent");
     TCP_S_ADD_CNT(tcps_sndacks,"ack-only packets sent ");
     TCP_S_ADD_CNT(tcps_rcvtotal,"total packets received ");
@@ -186,7 +199,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence");
     TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
     TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks ");
-    TCP_S_ADD_CNT(tcps_rcvackbyte_all,"tx bytes acked by rcvd acks - overflow acked");
+    TCP_S_ADD_CNT(tcps_rcvackbyte_of,"tx bytes acked by rcvd acks - overflow acked");
 
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 

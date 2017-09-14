@@ -62,6 +62,8 @@ public:
 
     CBwMeasure          m_tx_bw_l7;
     double              m_tx_bw_l7_r;
+    CBwMeasure          m_tx_bw_l7_total;
+    double              m_tx_bw_l7_total_r;
     CBwMeasure          m_rx_bw_l7;
     double              m_rx_bw_l7_r;
     CPPSMeasure         m_tx_pps;
@@ -70,6 +72,8 @@ public:
     double              m_rx_pps_r;
 
     double              m_avg_size;
+    double              m_tx_ratio;
+
 
     /* externation counters --end */
 

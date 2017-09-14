@@ -135,18 +135,18 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Intel 82599          | 10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
 | Intel 82599 VF       | x   | + | + |
 | Intel X710           | 10  | + | - |Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
-| Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
-| Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710]
+| Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical) *Preferred* support per stream stats in hardware
+| Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710] *Preferred* support per stream stats in hardware
 | Intel XL710/X710 VF  | x  | + | - |
-| Napatech SmartNICs NT40E3-4 | 10 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
-| Napatech SmartNICs NT80E3-2 | 40 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT40E3-4 | 10 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
+| Napatech SmartNICs NT80E3-2 | 40 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
   *Note:* This NIC require a BIOS with PCIe bifurcation support.
   link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
-| Napatech SmartNICs NT200A01 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT200A01 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
   *Note:* This NIC require a BIOS with PCIe bifurcation support.
   link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
-| Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
-| Mellanox ConnectX-5  | 25/40/50/56/100 | + | + |Supported
+| Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details and issues xref:connectx_support[TRex Support]
+| Mellanox ConnectX-5  | 25/40/50/56/100 | + | + | Supported, see issues xref:connectx_support[TRex Support]
 | Cisco 1300 series    | 40              | + | - |QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
 | VMXNET3  | VMware paravirtualized  | + | - |  Connect using VMware vSwitch
 | E1000    | paravirtualized  | + | - | VMware/KVM/VirtualBox
@@ -3514,8 +3514,10 @@ NIC with two ports will work better from performance prospective, so it is bette
 
 ==== Limitation/Issues
 
-for some reason the mlx5 driver has a few issues with TRex see here link:https://trex-tgn.cisco.com/youtrack/issues/trex?q=%23MLX%20state:Submitted%20[open issues]
+For some reason the mlx5 driver is special and while working, integrating and running regression 24/7 we found  a few issues with how TRex utilized it. TRex uses special RSS configurations and filters and this might bring up the issues that otherwise were not observed (e.g. Simple DPDK l3 application). The list of the issues can be seen here link:https://trex-tgn.cisco.com/youtrack/issues/trex?q=%23MLX%20state:Submitted%20[open issues]
+Mellanox is aware of those issues.
 
+for example:
 * In ASTF mode there is an out of order of TCP packets see link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[out-of-order]
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
@@ -3539,6 +3541,7 @@ image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
 3. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
 4. In the average stateful scenario, ConnectX-4 is the same as XL710.
 5. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
+
 
 
 [NOTE]

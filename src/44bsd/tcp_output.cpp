@@ -653,7 +653,7 @@ send:
             INC_STAT_CNT(ctx,tcps_sndrexmitbyte,len);
         } else {
             INC_STAT(ctx,tcps_sndpack);
-            //INC_STAT_CNT(ctx,tcps_sndbyte,len); /* better to be handle by application layer */
+            INC_STAT_CNT(ctx,tcps_sndbyte_ok,len); /* better to be handle by application layer */
         }
 
         if (tcp_build_dpkt(ctx,tp,off,len,hdrlen,pkt)!=0){

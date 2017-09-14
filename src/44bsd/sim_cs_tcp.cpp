@@ -717,8 +717,11 @@ int CClientServerTcp::simple_http(){
             /* flow wasn't initiated due to drop of SYN too many times */
             assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
             assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==TX_BYTES);
 
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==RX_BYTES);
             assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
+
             assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
         }
     }
