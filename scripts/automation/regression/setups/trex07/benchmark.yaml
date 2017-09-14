@@ -254,8 +254,7 @@ test_all_profiles :
         skip          : ['udp_rand_len_9k.py', 'udp_inc_len_9k.py']
         
 test_tcp_http :
-    multiplier          : 10000
+    multiplier          : 5000
     cores               : 1
     bw_per_core         : 25
-    bypass_result       : 1
 
