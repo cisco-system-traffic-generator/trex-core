@@ -249,6 +249,9 @@ void CTcpFlow::init(){
 
     tcp_template(&m_tcp);
 
+    /* default keepalive */
+    m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
+
     /* register the timer */
 
     m_ctx->timer_w_start(this);

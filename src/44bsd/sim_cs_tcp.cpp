@@ -225,7 +225,6 @@ void CClientServerTcp::on_tx(int dir,
     m_tx_diff+=1/1000000.0;  /* to make sure there is no out of order */
     double t=m_sim.get_time()+m_tx_diff;
 
-
     /* write TX side */
     if (dir==0) {
         m_c_pcap.write_pcap_mbuf(m,t);
@@ -302,7 +301,7 @@ void CClientServerTcp::on_tx(int dir,
 
         if ( m_sim_type == csSIM_RST_MIDDLE ){
             if (dir==1) {
-                if ( (t> 0.4) && (t> 0.5)){
+                if ( (t>0.4) && (t<0.6)){
                     tcp->setAckNumber(0x111111);
                     tcp->setSeqNumber(0x111111);
                 }
@@ -714,7 +713,9 @@ int CClientServerTcp::simple_http(){
     if (m_check_counters){
         if (m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte>0 && 
             m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte>0) {
-            /* flow wasn't initiated due to drop of SYN too many times */
+            if ( (m_c_ctx.m_tcpstat.m_sts.tcps_drops ==0) && 
+                 (m_s_ctx.m_tcpstat.m_sts.tcps_drops ==0) ){
+                            /* flow wasn't initiated due to drop of SYN too many times */
             assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
             assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
             assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==TX_BYTES);
@@ -723,6 +724,7 @@ int CClientServerTcp::simple_http(){
             assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
 
             assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+            }
         }
     }
 

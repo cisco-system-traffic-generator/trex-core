@@ -1091,7 +1091,6 @@ TEST_F(gt_tcp_long, tst30_http_reorder_loop) {
 }
 
 
-#if 0
 TEST_F(gt_tcp, tst30_http_rst_middle) {
 
     tcp_gen_test("tcp2_http_rst_middle",
@@ -1101,7 +1100,7 @@ TEST_F(gt_tcp, tst30_http_rst_middle) {
                  csSIM_RST_MIDDLE
                  );
 }
-#endif
+
 
 TEST_F(gt_tcp, tst30_http_rst_middle1) {
 
