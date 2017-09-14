@@ -64,24 +64,24 @@ def process_options ():
 
 
 def run_cmd (cmd,is_exception=True):
-    print "run cmd '%s'" % (cmd)
+    print ("run cmd '%s'" % (cmd))
     res=os.system(cmd);
     if is_exception and (res !=0):
         s= "ERORR cmd return error !";
         raise Exception(s);
     else:
-        print  "OK"
+        print("OK")
 
 
 def run_build (is_clean):
     clean_str = ""
     if is_clean :
         clean_str = "clean"
-    cov_build_cmd = cov_driver.tool_path+"cov-analysis-linux64-7.7.0.4/bin/cov-build --dir cov-int ./b %s build --target=_t-rex-64" % (clean_str);
+    cov_build_cmd = cov_driver.tool_path+"cov-analysis-linux64-2017.07/bin/cov-build --dir cov-int ./b %s build --target=_t-rex-64" % (clean_str);
     run_cmd(cov_build_cmd);
     if os.path.isfile(COV_FILE_OUT) :
         run_cmd(('rm %s' % COV_FILE_OUT));
-    run_cmd("tar caf %s cov-int" % COV_FILE_OUT);
+    run_cmd("tar czvf %s cov-int" % COV_FILE_OUT);
 
 def upload ():
     if not os.path.isfile(COV_FILE_OUT) :
@@ -94,8 +94,8 @@ def upload ():
     ver=get_build_num_dis ()
     cmd='curl --form token=fRIZZCAGD9TnkSiuxXiEAQ --form email='+cov_driver.user_name+'@cisco.com --form file=@./'+COV_FILE_OUT+'  --form version="'+ver+'" --form description="'+ver+'" https://scan.coverity.com/builds?project=cisco-system-traffic-generator%2Ftrex-core'
     run_cmd(cmd);
-    print "You should get an email with the results"  
-    print "or visit http://scan.coverity.com/projects/cisco-system-traffic-generator-trex-core?tab=overview"  
+    print("You should get an email with the results")
+    print("or visit http://scan.coverity.com/projects/cisco-system-traffic-generator-trex-core?tab=overview")
 
 def check_env (env,err):
     if  os.environ.has_key(env) == False :
@@ -129,8 +129,8 @@ def main ():
         process_options ()
         main_cov ()
         exit(0);
-    except Exception, e:
-        print str(e);
+    except Exception as e:
+        print(str(e))
         exit(-1);
 
 
