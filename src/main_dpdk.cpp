@@ -3633,6 +3633,9 @@ public:
 
     bool lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id);
 
+    uint16_t get_rx_core_tx_queue_id();
+    uint16_t get_latency_tx_queue_id();
+
 public:
     port_cfg_t  m_port_cfg;
     uint32_t    m_max_ports;    /* active number of ports supported options are  2,4,8,10,12  */
@@ -4202,7 +4205,7 @@ int  CGlobalTRex::ixgbe_start(void){
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         lat_q_id = 0;
     } else {
-        lat_q_id = get_cores_tx() / get_base_num_cores() + 1;
+        lat_q_id = get_latency_tx_queue_id();
     }
     for (i=0; i<get_cores_tx(); i++) {
         int j=(i+1);
@@ -4504,6 +4507,52 @@ void CGlobalTRex::dump_links_status(FILE *fd){
         m_ports[i].get_port_attr()->dump_link(fd);
     }
 }
+
+uint16_t CGlobalTRex::get_rx_core_tx_queue_id(){
+    /* 2 spare tx queues per port 
+      X is the number of dual_ports  0--x-1 for DP
+      
+    
+       stateless 
+       x+0 - DP
+       x+1 - rx core ARPs 
+       x+2 - low latency 
+
+       STL/ASTF
+
+       x+0 - DP
+       x+1 - not used 
+       x+2 - rx core, latency 
+   */
+
+    if (get_is_stateless()) {
+        return (m_cores_to_dual_ports);
+    }
+    return(m_cores_to_dual_ports+1);
+}
+
+uint16_t CGlobalTRex::get_latency_tx_queue_id(){
+    /* 2 spare tx queues per port 
+      X is the number of dual_ports  0--x-1 for DP
+
+
+       stateless 
+       x+0 - DP
+       x+1 - rx core ARPs 
+       x+2 - low latency 
+
+       STL/ASTF
+
+       x+0 - DP
+       x+1 - not used 
+       x+2 - rx core, latency 
+   */
+    if (get_is_stateless()) {
+        return (m_cores_to_dual_ports+1);
+    }
+    return (CCoreEthIF::INVALID_Q_ID);
+}
+
 
 bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     for (int i = 0; i < m_max_ports; i++) {
@@ -5640,7 +5689,7 @@ void CPhyEthIF::conf_queues() {
             // no drop q. Many rcv queues. RSS mode.
             // rss on all rcv queues. Do not skip any q.
             configure_rss_redirect_table(dpdk_p.rx_data_q_num, 0xff);
-            g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+            g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
             for (int queue = 0; queue < dpdk_p.rx_data_q_num; queue++) {
                 rx_queue_setup(queue, dpdk_p.rx_desc_num_data_q, socket_id,
                                &g_trex.m_port_cfg.m_rx_conf, get_ex_drv()->get_rx_mem_pool(socket_id));
@@ -5650,7 +5699,7 @@ void CPhyEthIF::conf_queues() {
     case 1:
         // 1 drop q. 1 or more rx queues. Normal mode.
         // rx core will use largest tx q
-        g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+        g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
         // configure drop q
 
         drop_p = CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
@@ -5672,7 +5721,7 @@ void CPhyEthIF::conf_queues() {
         break;
     default:
         // Many drop queues. Mellanox mode.
-        g_trex.m_rx_core_tx_q_id = g_trex.m_cores_to_dual_ports;
+        g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
         // configure drop queues (all queues but MAIN_DPDK_RX_Q)
         for (int j = 0; j < dpdk_p.rx_drop_q_num + 1; j++) {
             if (j == MAIN_DPDK_RX_Q) {
