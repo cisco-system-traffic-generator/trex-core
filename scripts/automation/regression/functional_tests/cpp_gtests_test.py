@@ -74,6 +74,7 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def test_astf_sim_utl_sfr_drop(self):
+        pass;
         print('')
         cmd = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
         ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
