@@ -9,6 +9,8 @@ import shlex
 import time
 import errno
 import tempfile
+import platform
+
 
 # runs command
 def run_command(command, timeout = 15, poll_rate = 0.1, cwd = None):
@@ -64,21 +66,28 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
         compare_caps(output = os.path.join(CTRexScenario.scripts_path, 'generated/bp_sim_dns_vlans_gen.pcap'),
                      golden = 'functional_tests/golden/bp_sim_dns_vlans.pcap')
 
-    #def test_astf_sim_utl_sfr(self):
-    #    print('')
-    #    cmd = './astf-sim-utl --sfr'
-    #    ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
-    #    print('Output:\n%s' % out)
-    #    if ret:
-    #        raise Exception('Non zero return status of test_astf_sim_utl_sfr (%s)' % ret)
+    def test_astf_sim_utl_sfr(self):
+        # tshark of trex-05 is the valid one 
+        print(platform.node())
+        if not ("csi-trex-05" in platform.node()):
+            print("skip")
+            return;
+        print('')
+        cmd = './astf-sim-utl --sfr'
+        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
+        print('Output:\n%s' % out)
+        if ret:
+            raise Exception('Non zero return status of test_astf_sim_utl_sfr (%s)' % ret)
 
 
-    #def test_astf_sim_utl_sfr_drop(self):
-    #    pass;
-    #    print('')
-    #    cmd = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
-    #    ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
-    #    print('Output:\n%s' % out)
-    #    if ret:
-    #        raise Exception('Non zero return status of test_astf_sim_utl_sfr_drop (%s)' % ret)
+    def test_astf_sim_utl_sfr_drop(self):
+        # tshark of trex-05 is the valid one 
+        if platform.node()!="csi-trex-05.cisco.com":
+            return;
+        print('')
+        cmd = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
+        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
+        print('Output:\n%s' % out)
+        if ret:
+            raise Exception('Non zero return status of test_astf_sim_utl_sfr_drop (%s)' % ret)
 

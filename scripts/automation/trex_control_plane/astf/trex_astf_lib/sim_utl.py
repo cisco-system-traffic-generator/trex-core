@@ -245,7 +245,7 @@ def  _run_sim(file):
     f=open("n.py",'w')
     lines=f.write(p);
     f.close();
-    ofile="output/"+os.path.split(ifile)[1]
+    ofile="generated/"+os.path.split(ifile)[1]
 
     print("process: ", ifile)
     cmd=""
