@@ -137,6 +137,7 @@ def setParserOptions():
 
 
 def main(args=None):
+
     parser = setParserOptions()
     if args is None:
         opts = parser.parse_args()

@@ -1262,6 +1262,7 @@ files_list=[
             't-rex-64-debug-gdb',
             'stl-sim',
             'astf-sim',
+            'astf-sim-utl',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',

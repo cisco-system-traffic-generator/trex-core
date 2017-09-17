@@ -40,6 +40,9 @@ using namespace std;
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
+       OPT_ASTF_SIM_MODE,
+       OPT_ASTF_SIM_ARG,
+
        OPT_DRY_RUN, OPT_DURATION,
        OPT_DUMP_JSON};
 
@@ -85,6 +88,8 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
     { OPT_DUMP_JSON,          "--sim-json", SO_NONE },
+    { OPT_ASTF_SIM_MODE,      "--sim-mode", SO_REQ_SEP },
+    { OPT_ASTF_SIM_ARG,       "--sim-arg",  SO_REQ_SEP },
     { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
     
@@ -97,6 +102,8 @@ static char *g_exe_name;
 
 struct asrtf_args_t {
     bool dump_json;
+    uint8_t sim_mode;
+    double sim_arg;
 };
 static asrtf_args_t  asrtf_args;
 
@@ -134,6 +141,18 @@ static int usage(){
     printf("  #>bp_sim -f cfg.yaml -o outfile.erf \n");
     printf("\n");
     printf("\n");
+    printf(" ASTF modes :\n");
+    printf("                                     \n");
+    printf("                                     \n");
+    printf("            csSIM_RST_SYN       0x17 23 \n");
+    printf("            csSIM_RST_SYN1      0x18 24 \n");
+    printf("            csSIM_WRONG_PORT    0x19 25 \n");
+    printf("            csSIM_RST_MIDDLE    0x1a 26 \n");
+    printf("            csSIM_RST_MIDDLE2   0x1b 27 \n");
+    printf("            csSIM_DROP,         0x1c 28 \n");
+    printf("            csSIM_REORDER,      0x1d 29  \n");
+    printf("            csSIM_REORDER_DROP  0x1e 30  \n");
+    printf("                                      \n");
     printf(" Copyright (C) 2015 by hhaim Cisco-System for IL dev-test \n");
     printf(" version : 1.0 beta  \n");
     return (0);
@@ -200,6 +219,14 @@ static int parse_options(int argc,
 
             case OPT_DUMP_JSON:
                 asrtf_args.dump_json =true;
+                break;
+            case OPT_ASTF_SIM_MODE:
+                asrtf_args.sim_mode = atoi(args.OptionArg());
+                break;
+            case OPT_ASTF_SIM_ARG:
+                float a;
+                sscanf(args.OptionArg(),"%f", &a);
+                asrtf_args.sim_arg=(double)a;
                 break;
 
                 break;
@@ -353,6 +380,17 @@ int main(int argc , char * argv[]){
             lpt->set_debug_mode(true);
             lpt->m_dump_json_counters = asrtf_args.dump_json;
             lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();
+
+            if (asrtf_args.sim_mode){
+                lpt->set_simulate_rst_error(asrtf_args.sim_mode);
+            }
+
+            if (asrtf_args.sim_arg>0.0){
+                CClientServerTcpCfgExt cfg;
+                cfg.m_rate=asrtf_args.sim_arg;
+                cfg.m_check_counters=true;
+                lpt->set_cfg_ext(&cfg);
+            }
             
             lpt->fill_from_file();
 
