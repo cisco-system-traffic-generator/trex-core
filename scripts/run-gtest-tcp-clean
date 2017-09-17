@@ -1,5 +1,19 @@
 #! /bin/bash
 ARGS="$@"
 echo $ARGS
-valgrind --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter=$ARGS
+
+if [ -z "$VALGRIND_LOC" ]; then
+  export VALGRIND_EXE=valgrind
+else
+  export VALGRIND_LIB=$VALGRIND_LOC/lib/valgrind
+  export VALGRIND_EXE=$VALGRIND_LOC/bin/valgrind
+fi
+
+$VALGRIND_EXE --version
+$VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter=$ARGS
+RESULT=$?
+if [ $RESULT  -ne 0 ]; then
+  echo "ERROR ...."
+fi
+
 
