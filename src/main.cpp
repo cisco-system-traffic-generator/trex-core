@@ -374,6 +374,7 @@ int main(int argc , char * argv[]){
             CGlobalInfo::m_options.preview.setFileWrite(true);
             if (asrtf_args.full_sim){
                 SimAstf sf;
+                sf.args=&asrtf_args;
                 return sf.run();
             }else{
                 SimAstfSimple sf;

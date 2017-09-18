@@ -101,6 +101,10 @@ int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
     CNodeTcp node_tcp;
     node_tcp.dir  = m_dir;
     node_tcp.mbuf = m;
+#ifdef TREX_SIM
+    node_tcp.sim_time =m_p->m_cur_time_sec;
+#endif
+
 
 #ifdef _DEBUG
     if ( CGlobalInfo::m_options.preview.getVMode() > 6){
@@ -108,6 +112,8 @@ int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
         utl_rte_pktmbuf_dump_k12(stdout,m);
     }
 #endif
+
+
 
     m_p->m_node_gen.m_v_if->send_node((CGenNode *) &node_tcp);
     return(0);
@@ -117,12 +123,22 @@ int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
 void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                                                 bool on_terminate){
 
+#ifdef TREX_SIM
+    m_cur_time_sec =node->m_time;
+    m_node_gen.m_v_if->set_rx_burst_time(m_cur_time_sec);
+#endif
+
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ){
         node->m_time += TCP_RX_FLUSH_SEC;
         m_node_gen.m_p_queue.push(node);
     }else{
-        free_node(node);
+        if (m_tcp_terminate){
+            free_node(node);
+        }else{
+            node->m_time += TCP_RX_FLUSH_SEC;
+            m_node_gen.m_p_queue.push(node);
+        }
     }
 
     CVirtualIF * v_if=m_node_gen.m_v_if;
@@ -249,6 +265,10 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
 void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
                                               bool on_terminate){
+    #ifdef TREX_SIM
+    m_cur_time_sec =node->m_time;
+    #endif
+
     bool done;
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ) {
@@ -269,13 +289,14 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
 
 void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
                                           bool on_terminate){
+    #ifdef TREX_SIM
+    m_cur_time_sec = node->m_time;
+    #endif
 
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ){
         node->m_time += tcp_get_tw_tick_in_sec();
         m_node_gen.m_p_queue.push(node);
-    }else{
-        free_node(node);
     }
 
     CTcpPerThreadCtx  * mctx_dir[2]={
@@ -284,10 +305,25 @@ void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
     };
 
     int dir;
+    bool any_event=false;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
         ctx->timer_w_on_tick();
+        if(ctx->timer_w_any_events()){
+            any_event=true;
+        } 
     }
+
+    if ( on_terminate == true ){
+        if (any_event){
+            node->m_time += tcp_get_tw_tick_in_sec();
+            m_node_gen.m_p_queue.push(node);
+        }else{
+            free_node(node);
+            m_tcp_terminate=true;
+        }
+    }
+    
 }
 
 
@@ -297,6 +333,7 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 
 
 bool CFlowGenListPerThread::Create_tcp(){
+    m_tcp_terminate = false;
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 

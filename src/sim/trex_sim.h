@@ -184,6 +184,13 @@ private:
     std::vector<uint8_t> m_active_dp_cores;
 };
 
+struct asrtf_args_t {
+    bool  full_sim;
+    bool dump_json;
+    uint8_t sim_mode;
+    double sim_arg;
+};
+
 /**
  * stateful target
  * 
@@ -192,14 +199,9 @@ class SimAstf : public SimInterface {
 
 public:
     int run();
+    asrtf_args_t * args;
 };
 
-struct asrtf_args_t {
-    bool  full_sim;
-    bool dump_json;
-    uint8_t sim_mode;
-    double sim_arg;
-};
 
 class SimAstfSimple : public SimInterface {
 

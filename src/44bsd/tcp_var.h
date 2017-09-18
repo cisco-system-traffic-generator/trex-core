@@ -569,6 +569,9 @@ public:
     }
 
     void timer_w_on_tick();
+    bool timer_w_any_events(){
+        return(m_timer_w.is_any_events_left());
+    }
 
     CTcpData *get_template_ro() {return m_template_ro;}
     void set_template_ro(CTcpData *t) {m_template_ro = t;}

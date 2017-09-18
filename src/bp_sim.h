@@ -361,6 +361,9 @@ public:
         return(false);
     }
 
+    /* set the time for simulation */
+    virtual void set_rx_burst_time(double time){
+    }
 
 
 protected:
@@ -4225,6 +4228,7 @@ public:
     CTcpPerThreadCtx      *         m_s_tcp;
     CTcpCtxCb             *         m_s_tcp_io;
     double                          m_tcp_fif_d_time;
+    bool                            m_tcp_terminate;
 
 public:
     double tcp_get_tw_tick_in_sec();
