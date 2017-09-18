@@ -31,8 +31,6 @@ limitations under the License.
 #include <common/arg/SimpleOpt.h>
 #include <stateless/cp/trex_stateless.h>
 #include <sim/trex_sim.h>
-#include "astf/json_reader.h"
-#include "44bsd/sim_cs_tcp.h"
 
 using namespace std;
 
@@ -101,12 +99,6 @@ static CSimpleOpt::SOption parser_options[] =
 static TrexStateless *m_sim_statelss_obj;
 static char *g_exe_name;
 
-struct asrtf_args_t {
-    bool  full_sim;
-    bool dump_json;
-    uint8_t sim_mode;
-    double sim_arg;
-};
 static asrtf_args_t  asrtf_args;
 
 const char *get_exe_name() {
@@ -350,44 +342,6 @@ int astf_full_sim(void){
 }
 
 
-int astf_simple_sim(void){
-    CParserOption * po=&CGlobalInfo::m_options;
-    time_init();
-    CGlobalInfo::m_socket.Create(0);
-    CGlobalInfo::init_pools(1000, MBUF_2048);
-    bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
-    assert(rc);
-    CClientServerTcp *lpt = new CClientServerTcp;
-
-    // run
-    lpt->Create("./", CGlobalInfo::m_options.out_file);
-    lpt->set_debug_mode(true);
-    lpt->m_dump_json_counters = asrtf_args.dump_json;
-    lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();
-
-    if (asrtf_args.sim_mode){
-        lpt->set_simulate_rst_error(asrtf_args.sim_mode);
-    }
-
-    if (asrtf_args.sim_arg>0.0){
-        CClientServerTcpCfgExt cfg;
-        cfg.m_rate=asrtf_args.sim_arg;
-        cfg.m_check_counters=true;
-        lpt->set_cfg_ext(&cfg);
-    }
-
-    lpt->fill_from_file();
-
-    // free stuff
-    lpt->close_file();
-    lpt->Delete();
-    delete lpt;
-    CJsonData::free_instance();
-    CMsgIns::Ins()->Free();
-    CGlobalInfo::free_pools();
-    CGlobalInfo::m_socket.Delete();
-    return 0;
-}
 
 int main(int argc , char * argv[]){
     g_exe_name = argv[0];
@@ -422,7 +376,9 @@ int main(int argc , char * argv[]){
                 SimAstf sf;
                 return sf.run();
             }else{
-                return astf_simple_sim();
+                SimAstfSimple sf;
+                sf.args=&asrtf_args;
+                return sf.run();
             }
         }
     case OPT_TYPE_SL:

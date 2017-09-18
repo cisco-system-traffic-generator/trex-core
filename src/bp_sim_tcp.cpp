@@ -43,7 +43,7 @@ limitations under the License.
 
 #undef DEBUG_TX_PACKET
 
-class CTcpDpdkCb : public CTcpCtxCb {
+class CTcpIOCb : public CTcpCtxCb {
 public:
    int on_tx(CTcpPerThreadCtx *ctx,
              struct tcpcb * tp,
@@ -62,7 +62,7 @@ public:
 };
 
 
-int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_flow_close(CTcpPerThreadCtx *ctx,
                               CTcpFlow * flow){
     uint32_t   c_idx;
     uint16_t   c_pool_idx;
@@ -89,13 +89,13 @@ int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
 }
 
 
-int CTcpDpdkCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
                                rte_mbuf_t *m){
     pkt_dir_t   dir = ctx->m_ft.is_client_side()?CLIENT_SIDE:SERVER_SIDE;
     return(m_p->m_node_gen.m_v_if->redirect_to_rx_core(dir,m)?0:-1);
 }
 
-int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
                       struct tcpcb * tp,
                       rte_mbuf_t *m){
     CNodeTcp node_tcp;
@@ -302,8 +302,8 @@ bool CFlowGenListPerThread::Create_tcp(){
 
     uint8_t mem_socket_id=get_memory_socket_id();
     CTcpData *template_db = CJsonData::instance()->get_tcp_data_handle(mem_socket_id);
-    CTcpDpdkCb * c_tcp_io = new CTcpDpdkCb();
-    CTcpDpdkCb * s_tcp_io = new CTcpDpdkCb();
+    CTcpIOCb * c_tcp_io = new CTcpIOCb();
+    CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
     m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
 
@@ -371,8 +371,8 @@ void CFlowGenListPerThread::Delete_tcp(){
     delete m_c_tcp;
     delete m_s_tcp;
 
-    CTcpDpdkCb * c_tcp_io = (CTcpDpdkCb *)m_c_tcp_io;
-    CTcpDpdkCb * s_tcp_io = (CTcpDpdkCb *)m_s_tcp_io;
+    CTcpIOCb * c_tcp_io = (CTcpIOCb *)m_c_tcp_io;
+    CTcpIOCb * s_tcp_io = (CTcpIOCb *)m_s_tcp_io;
     delete c_tcp_io;
     delete s_tcp_io;
 }

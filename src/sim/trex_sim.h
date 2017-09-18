@@ -194,6 +194,20 @@ public:
     int run();
 };
 
+struct asrtf_args_t {
+    bool  full_sim;
+    bool dump_json;
+    uint8_t sim_mode;
+    double sim_arg;
+};
+
+class SimAstfSimple : public SimInterface {
+
+public:
+    int run();
+    asrtf_args_t * args;
+};
+
 
 
 #endif /* __TREX_SIM_H__ */
