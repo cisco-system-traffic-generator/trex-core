@@ -33,7 +33,6 @@ class CTRexWLC_Test(CStlGeneral_Test):
 
         base_data = CTRexScenario.config_dict['base']
         ap_manager.set_base_values(
-            name = base_data['ap_name'],
             mac = base_data['ap_mac'],
             ip = base_data['ap_ip'],
             udp = base_data['ap_udp'],
