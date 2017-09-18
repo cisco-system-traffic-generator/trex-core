@@ -331,8 +331,8 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help="Warm up the system for stateful: run 30 seconds 9k imix test without check of results.")
         parser.add_option('--test-client-package', '--test_client_package', action="store_true", default = False,
                             help="Includes tests of client package.")
-        parser.add_option('--long', action="store_true", default = False,
-                            help="Flag of long tests (stability).")
+        parser.add_option('--long', '--nightly', action="store_true", default = False,
+                            help='Flag to enable longer (nightly) tests.')
         parser.add_option('--ga', action="store_true", default = False,
                             help="Flag to send benchmarks to GA.")
         parser.add_option('--no-daemon', action="store_true", default = False,
@@ -647,8 +647,19 @@ if __name__ == "__main__":
     addplugins = [RedNose(), cfg_plugin]
     result = True
     try:
+        attr_arr = []
+        if not is_wlc:
+            attr_arr.append('!wlc')
+        if not test_client_package:
+            attr_arr.append('!client_package')
+        if not options.long:
+            attr_arr.append('!nightly')
+            attr_arr.append('!long')
+        attrs = ','.join(attr_arr)
         if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins)
@@ -657,7 +668,8 @@ if __name__ == "__main__":
                 additional_args = ['--stl', '-a', 'wlc'] + CTRexScenario.test_types['stateless_tests']
             else:
                 additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
-                additional_args.extend(['-a', '!wlc%s' % ('' if test_client_package else ',!client_package')])
+                if attrs:
+                    additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
@@ -666,8 +678,8 @@ if __name__ == "__main__":
             if '--warmup' in sys.argv:
                 additional_args.append('stateful_tests/trex_imix_test.py:CTRexIMIX_Test.test_warm_up')
             additional_args += CTRexScenario.test_types['stateful_tests']
-            if not test_client_package:
-                additional_args.extend(['-a', '!client_package'])
+            if attrs:
+                additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
