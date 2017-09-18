@@ -100,7 +100,15 @@ bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
     return(true);
 }
 
+
 void CAstfTemplatesRW::Delete(){ 
+    int i;
+    for (i=0; i<m_cap_gen.size(); i++) {
+        CAstfPerTemplateRW * lp=m_cap_gen[i];
+        lp->Delete();
+        delete lp;
+    }
+
     if (m_nru) {
         delete m_nru;
     }

@@ -225,6 +225,7 @@ class CJsonData {
     static CJsonData *m_pInstance;
     Json::Value  m_val;
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
+    std::vector<CAstfTemplatesRW *> m_rw_db;
     float m_exp_bps; // total expected bit per second for all templates
     std::mutex m_mtx[2];
     // Data duplicated per memory socket

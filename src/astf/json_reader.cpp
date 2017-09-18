@@ -301,6 +301,8 @@ CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGen
     /* init sheduler */
     ret->init_scheduler(dist);
 
+    m_rw_db.push_back(ret);
+
     return ret;
 }
 /*
@@ -483,6 +485,13 @@ void CJsonData::get_latency_params(CTcpLatency &lat) {
 }
 
 void CJsonData::clear() {
+    int i;
+    for (i = 0; i < m_rw_db.size(); i++) {
+        CAstfTemplatesRW * lp=m_rw_db[i];
+        lp->Delete();
+        delete lp;
+    }
+
     m_tcp_data[0].free();
     m_tcp_data[1].free();
     m_json_initiated = false;
@@ -514,5 +523,6 @@ void CTcpData::free() {
     m_prog_list.clear();
     m_assoc_trans.clear();
 
+    
     m_init = false;
 }

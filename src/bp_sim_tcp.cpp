@@ -365,9 +365,10 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_cb(m_c_tcp_io);
 
     m_c_tcp->set_template_ro(template_db);
-    m_c_tcp->set_template_rw(CJsonData::instance()->get_tcp_data_handle_rw(mem_socket_id, &m_smart_gen
+    CAstfTemplatesRW * rw= CJsonData::instance()->get_tcp_data_handle_rw(mem_socket_id, &m_smart_gen
                                                                            , m_thread_id, m_max_threads
-                                                                           , getDualPortId()));
+                                                                           , getDualPortId());
+    m_c_tcp->set_template_rw(rw);
     m_s_tcp->set_template_ro(template_db);
  
     m_s_tcp->Create(active_flows,false);
