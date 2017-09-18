@@ -31,9 +31,9 @@ class AsynchronousTRexSession(threading.Thread):
 
     def run (self):
         try:
-            with open(self.export_path, 'w') as output_file:
+            with open(self.export_path, 'w') as output_file, open(os.devnull, 'w') as devnull:
                 self.time_stamps['start'] = self.time_stamps['run_time'] = time.time()
-                self.session   = subprocess.Popen(shlex.split(self.cmd), cwd = self.launch_path, stdout = output_file,
+                self.session   = subprocess.Popen(shlex.split(self.cmd), cwd = self.launch_path, stdout = output_file, stdin = devnull,
                                                   stderr = subprocess.STDOUT, preexec_fn=os.setsid, close_fds = True)
                 logger.info("TRex session initialized successfully, Parent process pid is {pid}.".format( pid = self.session.pid ))
                 while self.session.poll() is None:  # subprocess is NOT finished
