@@ -167,8 +167,8 @@ public:
     }
 
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
-    void get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
+    bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link();
     virtual bool sleep_after_arp_needed(){
@@ -248,7 +248,7 @@ public:
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
     virtual void clear_rx_filter_rules(CPhyEthIF * _if);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {return 0;}
     virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
@@ -297,7 +297,7 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
@@ -320,7 +320,7 @@ public:
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverVirtio() );
     }
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual void update_configuration(port_cfg_t * cfg);
 
@@ -336,7 +336,7 @@ public:
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverVmxnet3() );
     }
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
 
 
@@ -348,8 +348,8 @@ public:
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
-    virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-        get_extended_stats_fixed(_if, stats, 4, 4);
+    virtual bool get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+        return get_extended_stats_fixed(_if, stats, 4, 4);
     }
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {
@@ -364,8 +364,8 @@ public:
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
     }
-    virtual void get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-        get_extended_stats_fixed(_if, stats, 4, 4);
+    virtual bool get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+        return get_extended_stats_fixed(_if, stats, 4, 4);
     }
 
     static CTRexExtendedDriverBase * create() {
@@ -385,7 +385,7 @@ public:
     }
     // e1000 driver handing us packets with ethernet CRC, so we need to chop them
     virtual void update_configuration(port_cfg_t * cfg);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
 };
 
@@ -412,7 +412,7 @@ public:
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
     virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
@@ -460,7 +460,7 @@ public:
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3_proto
                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
@@ -528,7 +528,7 @@ public:
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
     void clear_extended_stats(CPhyEthIF * _if);
-    void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual int get_min_sample_rate(void){
         return (RX_CHECK_MIX_SAMPLE_RATE);
@@ -628,7 +628,7 @@ public:
     }
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
@@ -665,8 +665,8 @@ public:
         return ( new CTRexExtendedDriverMlnx4() );
     }
 
-    virtual void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-        get_extended_stats_fixed(_if, stats, 4, 4);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+        return get_extended_stats_fixed(_if, stats, 4, 4);
     };
 
     virtual void update_configuration(port_cfg_t * cfg);
@@ -732,7 +732,7 @@ public:
 
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    void get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     void clear_extended_stats(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
@@ -2241,8 +2241,12 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
 void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     // reading m_stats, so drivers saving prev in m_stats will be updated.
     // Actually, we want m_stats to be cleared
-    get_ex_drv()->get_extended_stats(this, &m_stats);
-
+    
+    /* block until this succeeds */
+    while (!get_extended_stats()) {
+        delay(10);
+    }
+    
     m_ignore_stats.ipackets = m_stats.ipackets;
     m_ignore_stats.ibytes = m_stats.ibytes;
     m_ignore_stats.opackets = m_stats.opackets;
@@ -5795,8 +5799,30 @@ int CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t s
 #endif
 }
 
+/**
+ * get extended stats might fail on some drivers (i40e_vf) 
+ * so wrap it another a watch 
+ */
+bool CPhyEthIF::get_extended_stats() {
+    bool rc = get_ex_drv()->get_extended_stats(this, &m_stats);
+    if (!rc) {
+        m_stats_err_cnt++;
+        assert(m_stats_err_cnt <= 5);
+        return false;
+    }
+    
+    /* clear the counter */
+    m_stats_err_cnt = 0;
+    return true;
+}
+
+
 void CPhyEthIF::update_counters() {
-    get_ex_drv()->get_extended_stats(this, &m_stats);
+    bool rc = get_extended_stats();
+    if (!rc) {
+        return;
+    }
+    
     CRXCoreIgnoreStat ign_stats;
 
     if (get_is_stateless()) {
@@ -6750,10 +6776,15 @@ CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
     return parser;
 }
 
-void CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
+bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
     struct rte_eth_stats stats1;
     struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    rte_eth_stats_get(_if->get_repid(), &stats1);
+    
+    int rc = rte_eth_stats_get(_if->get_repid(), &stats1);
+    if (rc != 0) {
+        /* error (might happen on i40e_vf ) */
+        return false;
+    }
 
     stats->ipackets   += stats1.ipackets - prev_stats->ipackets;
     // Some drivers report input byte counts without Ethernet FCS (4 bytes), we need to fix the reported numbers
@@ -6777,6 +6808,8 @@ void CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthI
     prev_stats->oerrors = stats1.oerrors;
     prev_stats->ierrors = stats1.ierrors;
     prev_stats->rx_nombuf = stats1.rx_nombuf;
+    
+    return true;
 }
 
 // in 1G we need to wait if links became ready to soon
@@ -7020,7 +7053,7 @@ int CTRexExtendedDriverBase1G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     return 0;
 }
 
-void CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+bool CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
 
     stats->ipackets     +=  _if->pci_reg_read(E1000_GPRC) ;
 
@@ -7056,6 +7089,8 @@ void CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
     stats->oerrors      +=  0;
     stats->imcasts      =  0;
     stats->rx_nombuf    =  0;
+    
+    return true;
 }
 
 void CTRexExtendedDriverBase1G::clear_extended_stats(CPhyEthIF * _if){
@@ -7270,7 +7305,7 @@ int CTRexExtendedDriverBase10G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     return res;
 }
 
-void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+bool CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
 
     int i;
     uint64_t t=0;
@@ -7306,6 +7341,7 @@ void CTRexExtendedDriverBase10G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
     stats->imcasts      =  0;
     stats->rx_nombuf    =  0;
 
+    return true;
 }
 
 int CTRexExtendedDriverBase10G::wait_for_stable_link(){
@@ -7606,8 +7642,8 @@ int CTRexExtendedDriverBase40G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
     }
 }
 
-void CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    get_extended_stats_fixed(_if, stats, 0, 4);
+bool CTRexExtendedDriverBase40G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    return get_extended_stats_fixed(_if, stats, 0, 4);
 }
 
 int CTRexExtendedDriverBase40G::wait_for_stable_link(){
@@ -7840,8 +7876,8 @@ int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE 
     }
 }
 
-void CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-        get_extended_stats_fixed(_if, stats, 4, 4);
+bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
 int CTRexExtendedDriverBaseMlnx5G::wait_for_stable_link(){
@@ -7978,9 +8014,9 @@ void CTRexExtendedDriverBaseVIC::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(repid);
 }
 
-void CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+bool CTRexExtendedDriverBaseVIC::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     // In VIC, we need to reduce 4 bytes from the amount reported for each incoming packet
-    get_extended_stats_fixed(_if, stats, -4, 0);
+    return get_extended_stats_fixed(_if, stats, -4, 0);
 }
 
 int CTRexExtendedDriverBaseVIC::verify_fw_ver(tvpid_t   tvpid) {
@@ -8152,8 +8188,8 @@ void CTRexExtendedDriverBaseNtAcc::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(_if->get_repid());
 }
 
-void CTRexExtendedDriverBaseNtAcc::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    get_extended_stats_fixed(_if, stats, 0, 0);
+bool CTRexExtendedDriverBaseNtAcc::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    return get_extended_stats_fixed(_if, stats, 0, 0);
 }
 
 int CTRexExtendedDriverBaseNtAcc::verify_fw_ver(int port_id) {
@@ -8237,16 +8273,16 @@ void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
 }
 
 
-void CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    get_extended_stats_fixed(_if, stats, 4, 4);
+bool CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
-void CTRexExtendedDriverVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-    get_extended_stats_fixed(_if, stats, 4, 4);
+bool CTRexExtendedDriverVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
-void CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-    get_extended_stats_fixed(_if, stats, 0, 4);
+bool CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 0, 4);
 }
 
 void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {

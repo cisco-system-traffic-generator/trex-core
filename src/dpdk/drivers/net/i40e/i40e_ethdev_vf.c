@@ -973,8 +973,13 @@ i40evf_get_statistics(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	struct i40e_eth_stats *pstats = NULL;
 
 	ret = i40evf_update_stats(dev, &pstats);
-	if (ret != 0)
-		return 0;
+    if (ret != 0) {
+        #ifdef TREX_PATCH
+            stats->err_flag = 1;
+        #endif
+        return ret;
+    }
+		
 
 	stats->ipackets = pstats->rx_unicast + pstats->rx_multicast +
 						pstats->rx_broadcast;

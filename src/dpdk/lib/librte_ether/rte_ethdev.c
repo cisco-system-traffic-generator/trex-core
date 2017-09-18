@@ -1409,8 +1409,21 @@ rte_eth_stats_get(uint8_t port_id, struct rte_eth_stats *stats)
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->stats_get, -ENOTSUP);
 	stats->rx_nombuf = dev->data->rx_mbuf_alloc_failed;
-	(*dev->dev_ops->stats_get)(dev, stats);
-	return 0;
+    
+    /* i40e_vf might return error - handle it */
+    #ifdef TREX_PATCH
+    
+        /* imarom: clear the flag */
+        stats->err_flag = 0;
+        (*dev->dev_ops->stats_get)(dev, stats);
+        
+        return stats->err_flag;
+    #else
+    
+        (*dev->dev_ops->stats_get)(dev, stats);
+        return 0;
+    
+    #endif
 }
 
 void

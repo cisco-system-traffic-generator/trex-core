@@ -74,7 +74,7 @@
 #define I40E_FDIR_UDP_DEFAULT_LEN           400
 
 /* Wait count and interval for fdir filter programming */
-#define TREX_PATCH
+
 // TREX_PATCH - Values were 10 and 1000. These numbers give much better performance when
 // configuring large amount of rules
 #define I40E_FDIR_WAIT_COUNT       100

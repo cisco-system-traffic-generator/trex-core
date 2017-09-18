@@ -1716,7 +1716,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t base, bsf, tc_mapping;
 	int use_def_burst_func = 1;
 
-#define TREX_PATCH_LOW_LATENCY
+
 #ifdef TREX_PATCH_LOW_LATENCY
     int is_vf = 0;
 #endif

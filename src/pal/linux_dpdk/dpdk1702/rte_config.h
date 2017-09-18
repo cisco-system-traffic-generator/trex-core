@@ -365,4 +365,6 @@
 #define RTE_ARCH_64 1
 #undef RTE_TOOLCHAIN_GCC
 #define RTE_TOOLCHAIN_GCC 1
+#define TREX_PATCH 1
+#define TREX_PATCH_LOW_LATENCY 1
 #endif /* __RTE_CONFIG_H */

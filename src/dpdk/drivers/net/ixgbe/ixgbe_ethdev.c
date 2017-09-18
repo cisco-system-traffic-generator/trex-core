@@ -6506,7 +6506,6 @@ ixgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 	if (filter->queue >= IXGBE_MAX_RX_QUEUE_NUM)
 		return -EINVAL;
 
-#define TREX_PATCH
 #ifndef TREX_PATCH
     // no real reason to block this.
     // We configure rules using FDIR and ethertype that point to same queue, so there are no race condition issues.

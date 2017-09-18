@@ -247,7 +247,7 @@ configure_fdir_flags(const struct rte_fdir_conf *conf, uint32_t *fdirctrl)
 		return -EINVAL;
 	};
 
-#define TREX_PATCH
+
 #ifdef TREX_PATCH
 	*fdirctrl |= (conf->flexbytes_offset << IXGBE_FDIRCTRL_FLEX_SHIFT);
 #else

@@ -704,9 +704,6 @@ static inline void i40e_GLQF_reg_init(struct i40e_hw *hw)
 
 #define I40E_FLOW_CONTROL_ETHERTYPE  0x8808
 
-#define TREX_PATCH
-#define TREX_PATCH_LOW_LATENCY
-
 /*
  * Add a ethertype filter to drop all flow control frames transmitted
  * from VSIs.

@@ -132,7 +132,6 @@ copy_fltr_v1(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
 	fltr->u.ipv4.flags = FILTER_FIELDS_IPV4_5TUPLE;
 }
 
-#define TREX_PATCH
 #ifdef TREX_PATCH
 void
 copy_fltr_recv_all(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
