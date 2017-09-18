@@ -55,11 +55,11 @@ The following UDP/TCP related use-cases will be addressed by ASTF mode.
 
 * Ability to work when the DUT terminates the TCP stack (e.g. compress/uncompress, see figure 1). In this case there is a different TCP session on each side, but L7 data are *almost* the same.
 
-image::images/t_c2.png[title="DUT is TCP proxy",align="left",width={p_width}, link="images/t_c2.png"]
+image::images/t_c2.png[title="DUT is TCP proxy",align="center",width={p_width}, link="images/t_c2.png"]
 
 * Ability to work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another. figure 2 shows such an example
 
-image::images/t_c3.png[title="C/S mode",align="left",width={p_width}, link="images/t_c2.png"]
+image::images/t_c3.png[title="C/S mode",align="center",width={p_width}, link="images/t_c2.png"]
 
 * Performance and scale
 ** High bandwidth - ~200gb/sec with many realistic flows (not one elephant flow)
@@ -148,7 +148,7 @@ And now lets proceed to our challenges, let me just repeat the objective of TRex
 
 ==== Tx Scale to millions of flows
 
-image::images/t_c5.png[title="TCP Tx side",align="left",width={p_width}, link="images/t_c5.png"]
+image::images/t_c5.png[title="TCP Tx side",align="center",width={p_width}, link="images/t_c5.png"]
 
 Most TCP stacks have an API that allow the user to provide his buffer for write (push) and the TCP module will save them until the packets are acknowledged by the remote side. Figure 4 shows how one TX queue of one TCP flow looks like on the Tx side. This could create a scale issue in worst case. Let's assume we need 1M active flows with 64K TX buffer (with reasonable buffer, let's say RTT is small). The worst case buffer in this case could be
 1M x 64K * mbuf-factor (let's assume 2) = 128GB. The mbuf resource is expensive and needs to be allocated ahead of time.
@@ -161,7 +161,7 @@ This optimization won't work with TLS since constant sessions will have new data
 
 ==== Rx Scale to millions of flows
 
-image::images/t_c6.png[title="Example of multiple streams",align="left",width={p_width}, link="images/t_c6.png"]
+image::images/t_c6.png[title="Example of multiple streams",align="center",width={p_width}, link="images/t_c6.png"]
                                             
 The same problem exists in the case of reassembly in the rx side, in worst case there is a need to store a lot of memory in reassembly queue. To fix this we can add a filter API for the application layer. Let's assume that the application layer can request only a partial portion of the data since the rest is less important, for example data in offset of 61K-64K and only in case of restransmission (simulation). In this case we can give the application layer only the filtered data that is really important to it and still allow TCP layer to work in the same way from seq/ack perspective.
 
@@ -172,7 +172,7 @@ This optimization won't work with TLS since constant sessions will have new data
             
 ==== Simulation of latency/jitter/drop in high scale
 
-image::images/t_c7.png[title="TCP Rx side",align="left",width={p_width}, link="images/t_c7.png"]
+image::images/t_c7.png[title="TCP Rx side",align="center",width={p_width}, link="images/t_c7.png"]
 
 There is a requirement to simulate latency/jitter/drop in the network layer. Simulating drop in high rate it is not a problem, but simulating latency/jitter in high rate is a challenge because there is a need to queue a high number of packets. See figure 6 on the left.
 A better solution is to queue a pointer to both the TCP flow and the TCP descriptor (with TSO information) and only when needed (i.e. when it has already left the tx queue) build the packet again (lazy). The memory footprint in this case can be reduced dramatically.
@@ -626,7 +626,7 @@ Python API library: `automation/trex_control_plane/stf/trex_stl_lib`.
 
 We are using for the first version the same STF python API framework, we are working to move to interactive mode like the STL mode
 
-image::images/trex_control_plane_modules.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+image::images/trex_control_plane_modules.png[title="RPC Server Components",align="center",width={p_width}, link="images/trex_architecture_01.png"]
 
 *File*:: link:{github_stf_examples_path}/stf_tcp.py[stl_tcp.py]
 
@@ -918,8 +918,6 @@ we might change the JSON format in the future as this is a first version
 
 ==== Tutorial: advanced simulator 
 
-TBD need to update information here 
-
 *Goal*:: Use the TRex ASTF advanced simulator.
 
 It is like the simple simulator but simulate multiple templates and flows exacly like TRex server would do with one DP core 
@@ -929,10 +927,18 @@ It is like the simple simulator but simulate multiple templates and flows exacly
 [bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap 
 ----
 
-those are the pcap file that generated 
 
-* b.pcap_c.pcap  client side pcap 
-* b.pcap_s.pcap  server side pcap 
+* Use `--full' initiated the full simulation mode
+* b.pcap output pcap file will be generated, it is the client side multiplex pcap
+* There is no server side pcap file in this simulation because we are not simulating latency/jitter/drop in this case so the server should be the same as client side.
+
+another example that will run sfr profile in release mode and will show the counters 
+
+[source,bash]
+----
+[bash]>./astf-sim -f astf/sfr.py --full -o o.pcap -d 1 -r -v 
+----
+
 
 
 === Traffic profile reference 
@@ -1053,6 +1059,25 @@ see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the 
 ** tcps_sndbyte == tcps_rcvackbyte only if the flow were terminated correctly (in other words what was put in the Tx queue was transmitted and acked) 
 * Total Tx L7 bytes are tcps_sndbyte_ok+tcps_sndrexmitbyte+tcps_sndprobe
 * The Console/JSON does not show/sent zero counters
+
+.Pseudo code tcp counters
+[source,c]
+----
+            if ( (c->tcps_drops ==0) && 
+                 (s->tcps_drops ==0) ){
+               /* flow wasn't initiated due to drop of SYN too many times */
+               
+            /* client side */    
+            assert(c->tcps_sndbyte==UPLOAD_BYTES);
+            assert(c->tcps_rcvbyte==DOWNLOAD_BYTES);
+            assert(c->tcps_rcvackbyte==UPLOAD_BYTES);
+
+            /* server side */
+            assert(s->tcps_rcvackbyte==DOWNLOAD_BYTES);
+            assert(s->tcps_sndbyte==DOWNLOAD_BYTES);
+            assert(s->tcps_rcvbyte==UPLOAD_BYTES);
+            }
+----
 
 
 ==== TSO/LRO NIC support 
