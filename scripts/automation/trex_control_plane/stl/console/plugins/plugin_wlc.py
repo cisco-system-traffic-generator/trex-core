@@ -53,9 +53,6 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--total', action = 'store_true',
                 dest = 'total_mult',
                 help = 'Traffic will be divided between all clients specified')
-        self.add_argument('-n', '--name', type = str,
-                dest = 'ap_name',
-                help = 'Base name of AP, should end with number')
         self.add_argument('-m', '--mac', type = check_mac_addr,
                 dest = 'ap_mac',
                 help = 'Base AP MAC')
@@ -102,8 +99,9 @@ class WLC_Plugin(ConsolePlugin):
         general_table.set_deco(15)
         aps = self.ap_manager.get_connected_aps()
         if aps:
-            general_table.add_row([bold('WLC'), 'IP: %s / Hostname: %s' % (aps[0].ip_dst or '?', aps[0].wlc_name or '?')])
-        general_table.add_row([bold('Next AP:'), 'Name: %s / LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s' % self.ap_manager._gen_ap_params()])
+            info_arr = [('IP', aps[0].ip_dst), ('Hostname', aps[0].wlc_name.decode('ascii')), ('Image ver', '.'.join(['%s' % c for c in aps[0].wlc_sw_ver]))]
+            general_table.add_row([bold('WLC'), ' / '.join(['%s: %s' % (k, v or '?') for k, v in info_arr])])
+        general_table.add_row([bold('Next AP:'), 'LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s' % self.ap_manager._gen_ap_params()])
         general_table.add_row([bold('Next Client:'), 'MAC: %s / IP: %s' % self.ap_manager._gen_client_params()])
         self.ap_manager.log(general_table.draw())
 
@@ -292,9 +290,9 @@ class WLC_Plugin(ConsolePlugin):
         return RC_OK()
 
 
-    def do_base(self, ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
+    def do_base(self, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
-        self.ap_manager.set_base_values(ap_name, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.ap_manager.set_base_values(ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
         self.show_base()
 
 
