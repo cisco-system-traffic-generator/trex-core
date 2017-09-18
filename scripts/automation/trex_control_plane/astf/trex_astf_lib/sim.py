@@ -56,6 +56,9 @@ def execute_bp_sim(opts):
 
     cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]+args
 
+    if opts.full:
+        cmd = cmd + ['--full','-d',str(opts.duration)]
+
     if opts.verbose:
         print ("executing {0}".format(' '.join(cmd)))
 
@@ -109,6 +112,15 @@ def setParserOptions():
     parser.add_argument('-v', '--verbose',
                         action="store_true",
                         help="Print output to screen")
+
+    parser.add_argument('--full',
+                        action="store_true",
+                        help="run in full simulation mode (with many clients and servers)")
+
+    parser.add_argument('-d','--duration',
+                        type=float,
+                        default=5.0,
+                        help="duration in time for full mode")
 
     parser.add_argument("-c", "--cmd",
                         help="command to the simulator",
