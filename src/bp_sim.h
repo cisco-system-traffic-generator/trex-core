@@ -1619,6 +1619,7 @@ class CCapFileFlowInfo ;
  */
 
 struct CNodeTcp {
+     double       sim_time;
      rte_mbuf_t * mbuf;
      uint8_t      dir;
 };
@@ -2149,13 +2150,6 @@ private:
 };
 
 
-class CErfIFTcp : public CErfIFStl {
-
-public:
-
-    virtual int send_node(CGenNode * node);
-
-};
 
 
 

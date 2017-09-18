@@ -5637,23 +5637,6 @@ int CErfIFStl::send_node(CGenNode * _no_to_use){
 }
 
 
-int CErfIFTcp::send_node(CGenNode * node){
-    CNodeTcp * node_tcp = (CNodeTcp *) node;
-    uint8_t dir=node_tcp->dir;
-
-    /* TBD need to take this from simulator */
-    static double time=0.0;
-    time+=0.010;
-    fill_pkt(m_raw,node_tcp->mbuf);
-
-    CPktNsecTimeStamp t_c(time);
-    m_raw->time_nsec = t_c.m_time_nsec;
-    m_raw->time_sec  = t_c.m_time_sec;
-    uint8_t p_id = (uint8_t)dir;
-    m_raw->setInterface(p_id);
-    int rc = write_pkt(m_raw);
-    return (rc);
-}
 
 void CErfIF::add_vlan(uint16_t vlan_id) {
     uint8_t *buffer =(uint8_t *)m_raw->raw;

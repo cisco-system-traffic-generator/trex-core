@@ -102,9 +102,11 @@ int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
     node_tcp.dir  = m_dir;
     node_tcp.mbuf = m;
 
-#ifdef DEBUG_TX_PACKET
-     //fprintf(stdout,"TX---> dir %d \n",m_dir);
-     //utl_rte_pktmbuf_dump_k12(stdout,m);
+#ifdef _DEBUG
+    if ( CGlobalInfo::m_options.preview.getVMode() > 6){
+        fprintf(stdout,"TX---> dir %d \n",m_dir);
+        utl_rte_pktmbuf_dump_k12(stdout,m);
+    }
 #endif
 
     m_p->m_node_gen.m_v_if->send_node((CGenNode *) &node_tcp);
@@ -263,9 +265,6 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
     }else{
         free_node(node);
     }
-
-
-
 }
 
 void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,

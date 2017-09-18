@@ -40,7 +40,7 @@ using namespace std;
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
-       OPT_ASTF_SIM_MODE,
+       OPT_ASTF_SIM_MODE,OPT_ASTF_FULL,
        OPT_ASTF_SIM_ARG,
 
        OPT_DRY_RUN, OPT_DURATION,
@@ -84,6 +84,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
     { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
+    { OPT_ASTF_FULL,          "--full",       SO_NONE    },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
@@ -101,6 +102,7 @@ static TrexStateless *m_sim_statelss_obj;
 static char *g_exe_name;
 
 struct asrtf_args_t {
+    bool  full_sim;
     bool dump_json;
     uint8_t sim_mode;
     double sim_arg;
@@ -234,6 +236,9 @@ static int parse_options(int argc,
                 po->preview.set_pcap_mode_enable(true);
                 break;
 
+            case OPT_ASTF_FULL :
+                asrtf_args.full_sim=true;
+                break;
             case OPT_DP_CORE_COUNT:
                 params["dp_core_count"] = atoi(args.OptionArg());
                 break;
@@ -338,6 +343,52 @@ void set_stateless_obj(TrexStateless *obj) {
     m_sim_statelss_obj = obj;
 }
 
+
+int astf_full_sim(void){
+
+    return(0);
+}
+
+
+int astf_simple_sim(void){
+    CParserOption * po=&CGlobalInfo::m_options;
+    time_init();
+    CGlobalInfo::m_socket.Create(0);
+    CGlobalInfo::init_pools(1000, MBUF_2048);
+    bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
+    assert(rc);
+    CClientServerTcp *lpt = new CClientServerTcp;
+
+    // run
+    lpt->Create("./", CGlobalInfo::m_options.out_file);
+    lpt->set_debug_mode(true);
+    lpt->m_dump_json_counters = asrtf_args.dump_json;
+    lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();
+
+    if (asrtf_args.sim_mode){
+        lpt->set_simulate_rst_error(asrtf_args.sim_mode);
+    }
+
+    if (asrtf_args.sim_arg>0.0){
+        CClientServerTcpCfgExt cfg;
+        cfg.m_rate=asrtf_args.sim_arg;
+        cfg.m_check_counters=true;
+        lpt->set_cfg_ext(&cfg);
+    }
+
+    lpt->fill_from_file();
+
+    // free stuff
+    lpt->close_file();
+    lpt->Delete();
+    delete lpt;
+    CJsonData::free_instance();
+    CMsgIns::Ins()->Free();
+    CGlobalInfo::free_pools();
+    CGlobalInfo::m_socket.Delete();
+    return 0;
+}
+
 int main(int argc , char * argv[]){
     g_exe_name = argv[0];
 
@@ -366,44 +417,13 @@ int main(int argc , char * argv[]){
 
     case OPT_TYPE_ASF:
         {
-            // init
-            CParserOption * po=&CGlobalInfo::m_options;
-            time_init();
-            CGlobalInfo::m_socket.Create(0);
-            CGlobalInfo::init_pools(1000, MBUF_2048);
-            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
-            assert(rc);
-            CClientServerTcp *lpt = new CClientServerTcp;
-
-            // run
-            lpt->Create("./", CGlobalInfo::m_options.out_file);
-            lpt->set_debug_mode(true);
-            lpt->m_dump_json_counters = asrtf_args.dump_json;
-            lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();
-
-            if (asrtf_args.sim_mode){
-                lpt->set_simulate_rst_error(asrtf_args.sim_mode);
+            CGlobalInfo::m_options.preview.setFileWrite(true);
+            if (asrtf_args.full_sim){
+                SimAstf sf;
+                return sf.run();
+            }else{
+                return astf_simple_sim();
             }
-
-            if (asrtf_args.sim_arg>0.0){
-                CClientServerTcpCfgExt cfg;
-                cfg.m_rate=asrtf_args.sim_arg;
-                cfg.m_check_counters=true;
-                lpt->set_cfg_ext(&cfg);
-            }
-            
-            lpt->fill_from_file();
-
-            // free stuff
-            lpt->close_file();
-            lpt->Delete();
-            delete lpt;
-            CJsonData::free_instance();
-            CMsgIns::Ins()->Free();
-            CGlobalInfo::free_pools();
-            CGlobalInfo::m_socket.Delete();
-
-            return 0;
         }
     case OPT_TYPE_SL:
         {

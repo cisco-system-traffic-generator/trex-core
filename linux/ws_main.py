@@ -155,6 +155,7 @@ main_src = SrcGroup(dir='src',
              'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
              'sim/trex_sim_stateful.cpp',
+             'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
              'astf/json_reader.cpp'
              ]);

@@ -184,4 +184,16 @@ private:
     std::vector<uint8_t> m_active_dp_cores;
 };
 
+/**
+ * stateful target
+ * 
+ */
+class SimAstf : public SimInterface {
+
+public:
+    int run();
+};
+
+
+
 #endif /* __TREX_SIM_H__ */
