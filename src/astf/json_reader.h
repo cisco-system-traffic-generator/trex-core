@@ -30,6 +30,7 @@ limitations under the License.
 #include <vector>
 #include <stdio.h>
 #include <mutex>
+#include <trex_defs.h>
 #include "44bsd/tcp_socket.h"
 
 class CTcpDataAssocParams {
@@ -195,20 +196,24 @@ class CJsonData {
         clear();
     }
 
+    // Parsing json file
     bool parse_file(std::string file);
-    CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
+    // called by each core, using socket_id associated with the core
     CTcpData *get_tcp_data_handle(uint8_t socket_id);
+    // called by each core. Allocating memory that will be freed in clear()
     CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
+
+ private:
+    CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
     void clear();
     void dump();
 
- private:
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
     void convert_from_json(uint8_t socket_id, uint8_t level);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
@@ -227,9 +232,10 @@ class CJsonData {
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     float m_exp_bps; // total expected bit per second for all templates
-    std::mutex m_mtx[2];
+    std::mutex m_socket_mtx[MAX_SOCKETS_SUPPORTED];
+    std::mutex m_global_mtx;
     // Data duplicated per memory socket
-    CTcpData m_tcp_data[2];
+    CTcpData m_tcp_data[MAX_SOCKETS_SUPPORTED];
 };
 
 #endif

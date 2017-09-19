@@ -198,7 +198,7 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
 
 void CJsonData::verify_init(uint16_t socket_id, uint16_t level) {
     if (! m_tcp_data[socket_id].is_init(level)) {
-        std::unique_lock<std::mutex> my_lock(m_mtx[socket_id]);
+        std::unique_lock<std::mutex> my_lock(m_socket_mtx[socket_id]);
         for (int i = 1; i <= level; i++) {
             if (! m_tcp_data[socket_id].is_init(i)) {
                 convert_from_json(socket_id, i);
@@ -230,6 +230,9 @@ CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGen
                                                     uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
+
+    // json data should not be accessed by multiple threads in parallel
+    std::unique_lock<std::mutex> my_lock(m_global_mtx);
 
     ClientCfgDB g_dummy;
     g_gen->Create(0, thread_id);
@@ -298,11 +301,12 @@ CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGen
         ret->add_template(temp_rw);
     }
 
-    /* init sheduler */
+    /* init scheduler */
     ret->init_scheduler(dist);
 
     m_rw_db.push_back(ret);
 
+    my_lock.unlock();
     return ret;
 }
 /*

@@ -772,12 +772,9 @@ int CClientServerTcp::fill_from_file() {
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
     app_c = &c_flow->m_app;
 
-
-    uint16_t temp_index = 0; //??? need to support multiple templates
-    // client program
-    prog_c = CJsonData::instance()->get_prog(temp_index, 0, 0);
-    // server program
-    prog_s = CJsonData::instance()->get_prog(temp_index, 1, 0);
+    uint16_t temp_index = 0;
+    prog_c = ro_db->get_client_prog(temp_index);
+    prog_s = ro_db->get_server_prog_by_port(dst_port);
 
     if (m_debug) {
       prog_c->Dump(stdout);
