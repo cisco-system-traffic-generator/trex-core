@@ -454,7 +454,7 @@ class STLServiceApBgMaintenance:
             tx_pkt[IP].src, tx_pkt[IP].dst = tx_pkt[IP].dst, tx_pkt[IP].src
             tx_pkt[ICMP].type = 'echo-reply'
             del tx_pkt[ICMP].chksum
-            self.send_pkts.append(ap.wrap_pkt_by_wlan(client, tx_pkt))
+            self.send_pkts.append(ap.wrap_pkt_by_wlan(client, bytes(tx_pkt)))
 
 
     def main_loop(self):

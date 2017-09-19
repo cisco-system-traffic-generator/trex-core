@@ -155,7 +155,7 @@ class WLC_Plugin(ConsolePlugin):
         if not port_list:
             raise Exception('Please specify TRex ports where to add AP(s)')
 
-        start_params = self.ap_manager._gen_ap_params()
+        bu_mac, bu_ip, bu_udp, bu_radio = self.ap_manager._gen_ap_params()
         init_ports = [port for port in port_list if port not in self.ap_manager.service_ctx]
         ap_names = []
         success = False
@@ -173,7 +173,7 @@ class WLC_Plugin(ConsolePlugin):
             if not success:
                 for name in ap_names: # rollback
                     self.ap_manager.remove_ap(name)
-                self.ap_manager.set_base_values(*start_params, client_mac = None, client_ip = None)
+                self.ap_manager.set_base_values(mac = bu_mac, ip = bu_ip, udp = bu_udp, radio = bu_radio)
                 close_ports = [port for port in init_ports if port in self.ap_manager.service_ctx]
                 if close_ports:
                     self.ap_manager.close(close_ports)
@@ -185,7 +185,7 @@ class WLC_Plugin(ConsolePlugin):
             raise Exception('Count of clients should be within range 1-200')
         ap_ids = ap_ids or self.ap_manager.aps
 
-        start_params = self.ap_manager._gen_client_params()
+        bu_mac, bu_ip = self.ap_manager._gen_client_params()
         client_ips = []
         success = False
         try:
@@ -200,7 +200,7 @@ class WLC_Plugin(ConsolePlugin):
             if not success:
                 for ip in client_ips: # rollback
                     self.ap_manager.remove_client(ip)
-                self.ap_manager.set_base_values(None, None, None, None, None, *start_params)
+                self.ap_manager.set_base_values(client_mac = bu_mac, client_ip = bu_ip)
 
 
     def do_reconnect(self, device_ids):

@@ -89,6 +89,9 @@ class AP:
         self.logger = logger
         self.trex_port = trex_port
         self.port_id = trex_port.port_id
+        check_mac_addr(mac)
+        check_ipv4_addr(ip)
+        check_mac_addr(radio_mac)
         try:
             self.mac_bytes = mac2str(mac)
         except:
@@ -518,6 +521,9 @@ class APClient:
             self.ip = str2ip(ip)
         else:
             raise Exception('Bad IP provided, should be x.x.x.x, got: %s' % ip)
+        check_mac_addr(self.mac)
+        check_ipv4_addr(self.ip)
+        assert isinstance(ap, AP)
         self.ap = ap
         self.reset()
 
@@ -929,6 +935,7 @@ class AP_Manager:
             if not os.path.exists(self.base_file_path):
                 raise Exception('No saved file.')
             try:
+                self.trex_client.logger.pre_cmd('Loading base values')
                 with open(self.base_file_path) as f:
                     base_values = yaml.safe_load(f.read())
                 mac        = base_values['ap_mac']
@@ -938,15 +945,26 @@ class AP_Manager:
                 client_mac = base_values['client_mac']
                 client_ip  = base_values['client_ip']
             except Exception as e:
+                self.trex_client.logger.post_cmd(False)
                 raise Exception('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
+            self.trex_client.logger.post_cmd(True)
 
         # first pass, check arguments
+        if mac:
+            check_mac_addr(mac)
+        if ip:
+            check_ipv4_addr(ip)
         if udp:
             if udp < 1023 and udp > 65000:
                 raise Exception('Base UDP port should be within range 1024-65000')
         if radio:
+            check_mac_addr(radio)
             if radio.split(':')[-1] != '00':
                 raise Exception('Radio MACs should end with zero, got: %s' % radio)
+        if client_mac:
+            check_mac_addr(client_mac)
+        if client_ip:
+            check_ipv4_addr(client_ip)
 
         # second pass, assign arguments
         if mac:
@@ -962,15 +980,21 @@ class AP_Manager:
         if client_ip:
             self.next_client_ip = client_ip
         if save:
-            with open(self.base_file_path, 'w') as f:
-                f.write(yaml.dump({
-                    'ap_mac':     self.next_ap_mac,
-                    'ap_ip':      self.next_ap_ip,
-                    'ap_udp':     self.next_ap_udp,
-                    'ap_radio':   self.next_ap_radio,
-                    'client_mac': self.next_client_mac,
-                    'client_ip':  self.next_client_ip,
-                    }))
+            self.trex_client.logger.pre_cmd('Saving base values')
+            try:
+                with open(self.base_file_path, 'w') as f:
+                    f.write(yaml.dump({
+                        'ap_mac':     self.next_ap_mac,
+                        'ap_ip':      self.next_ap_ip,
+                        'ap_udp':     self.next_ap_udp,
+                        'ap_radio':   self.next_ap_radio,
+                        'client_mac': self.next_client_mac,
+                        'client_ip':  self.next_client_ip,
+                        }))
+            except Exception as e:
+                self.trex_client.logger.post_cmd(False)
+                raise Exception('Could not save config file %s, error: %s' % (self.base_file_path, e))
+            self.trex_client.logger.post_cmd(True)
 
 
     def __del__(self):
