@@ -6780,8 +6780,14 @@ bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthI
     struct rte_eth_stats stats1;
     struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
     
-    int rc = rte_eth_stats_get(_if->get_repid(), &stats1);
-    if (rc != 0) {
+    /* clear the error flag */
+    stats1.err_flag = 0;
+    
+    /* fetch stats */
+    rte_eth_stats_get(_if->get_repid(), &stats1);
+    
+    /* check the error flag */
+    if (stats1.err_flag) {
         /* error (might happen on i40e_vf ) */
         return false;
     }

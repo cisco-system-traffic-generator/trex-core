@@ -327,7 +327,12 @@ _atomic_set_cmd(struct i40e_vf *vf, enum i40e_virtchnl_ops ops)
 	return !ret;
 }
 
-#define MAX_TRY_TIMES 200
+#ifdef TREX_PATCH
+    #define MAX_TRY_TIMES 20
+#else
+    #define MAX_TRY_TIMES 200
+#endif
+
 #define ASQ_DELAY_MS  10
 
 static int
@@ -386,10 +391,25 @@ i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
 				err = 0;
 				break;
 			}
-			rte_delay_ms(ASQ_DELAY_MS);
+            
+            #ifdef TREX_PATCH
+                /* imarom: response from the PF drive will be handled by the interrupt process
+                           this requires us to relinquish the thread as both are pinned to the same
+                           core - busy wait might hold us back
+                */
+                usleep(ASQ_DELAY_MS * 1000);
+            #else
+                rte_delay_ms(ASQ_DELAY_MS);
+            #endif
+            
 			/* If don't read msg or read sys event, continue */
 		} while (i++ < MAX_TRY_TIMES);
-		break;
+        /* If there's no response is received, clear command */
+        if (i >= MAX_TRY_TIMES) {
+            PMD_DRV_LOG(WARNING, "No response for %d", args->ops);
+            _clear_cmd(vf);
+        }
+        break;
 	}
 
 	return err | vf->cmd_retval;
