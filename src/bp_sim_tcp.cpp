@@ -403,15 +403,26 @@ bool CFlowGenListPerThread::Create_tcp(){
 }
 
 void CFlowGenListPerThread::Delete_tcp(){
-    m_c_tcp->Delete();
-    m_s_tcp->Delete();
-
-    delete m_c_tcp;
-    delete m_s_tcp;
+    if (m_c_tcp) {
+        m_c_tcp->Delete();
+        delete m_c_tcp;
+        m_c_tcp=0;
+    }
+    if (m_s_tcp) {
+        m_s_tcp->Delete();
+        delete m_s_tcp;
+        m_s_tcp=0;
+    }
 
     CTcpIOCb * c_tcp_io = (CTcpIOCb *)m_c_tcp_io;
+    if (c_tcp_io) {
+        delete c_tcp_io;
+        m_c_tcp_io=0;
+    }
     CTcpIOCb * s_tcp_io = (CTcpIOCb *)m_s_tcp_io;
-    delete c_tcp_io;
-    delete s_tcp_io;
+    if (s_tcp_io) {
+        delete s_tcp_io;
+        m_s_tcp_io=0;
+    }
 }
 

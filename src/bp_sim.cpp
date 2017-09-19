@@ -2796,7 +2796,11 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_thread_id=thread_id;
 
     m_c_tcp=0;
+    m_c_tcp_io =0;
     m_s_tcp=0;
+    m_s_tcp_io=0;
+    m_tcp_fif_d_time=0.0;
+    m_tcp_terminate=false;
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
@@ -3006,6 +3010,7 @@ static void free_map_flow_id_to_node(CGenNode *p){
 
 
 void CFlowGenListPerThread::Delete(){
+    Delete_tcp();
 
     // free all current maps
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);

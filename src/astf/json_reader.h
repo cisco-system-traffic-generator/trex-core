@@ -185,6 +185,7 @@ class CJsonData {
         }
         return m_pInstance;
     }
+
     static void free_instance(){
         if (m_pInstance){
             delete m_pInstance;
@@ -196,17 +197,23 @@ class CJsonData {
         clear();
     }
 
-    // Parsing json file
+    // Parsing json file called from master 
     bool parse_file(std::string file);
-    CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
-    // called by each core, using socket_id associated with the core
+
+    // called *once* by each core, using socket_id associated with the core 
+    // multi-threaded need to be protected 
     CTcpData *get_tcp_data_handle(uint8_t socket_id);
-    // called by each core. Allocating memory that will be freed in clear()
+
+    // called by each core *once*. Allocating memory that will be freed in clear()
+    // multi-threaded need to be protected 
     CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
 
  private:
+
+   CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
+
     CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
@@ -232,10 +239,10 @@ class CJsonData {
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     float m_exp_bps; // total expected bit per second for all templates
-    std::mutex m_socket_mtx[MAX_SOCKETS_SUPPORTED];
-    std::mutex m_global_mtx;
+    std::mutex          m_socket_mtx[MAX_SOCKETS_SUPPORTED];
+    std::mutex          m_global_mtx;
     // Data duplicated per memory socket
-    CTcpData m_tcp_data[MAX_SOCKETS_SUPPORTED];
+    CTcpData            m_tcp_data[MAX_SOCKETS_SUPPORTED];
 };
 
 #endif

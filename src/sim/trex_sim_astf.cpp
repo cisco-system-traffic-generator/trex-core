@@ -259,7 +259,6 @@ static int load_list_of_cap_files(CParserOption * op,
     uint32_t stop=    os_get_time_msec();
     printf(" d time = %ul %ul \n",stop-start,os_get_time_freq());
 
-    lpt->Delete_tcp();
     lpt->Delete();
     fl.Delete();
     CJsonData::free_instance();
