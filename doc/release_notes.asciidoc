@@ -27,6 +27,30 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.30 ==
+
+* Advance Stateful (ASTF) with scalable TCP support 
+** Support all SFR profile with TCP flows 
+** Mellanox driver issue workaround see here link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
+** Hardening
+** Add full simulation support using `./astf-sim --full`  see here link:trex_astf.html[ASTF mode] 
+* Wireless AP/Station emulation plugin for WLC testing. 
+** Improve performance considerably
+** Update documentation link:trex_stateless_wlc_bench.html[WLC] 
+* Support Napatech NIC (100Gb@64B line-rate)
+* Stateless 
+** Full Stream object are return from the client
+** Old YAML profile support was removed
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-483[trex-483]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-480[trex-480]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-472[trex-472]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-475[trex-475]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-461[trex-461]
+
+
 == Release 2.29 ==
 
 * Preliminary version with Advance Stateful (ASTF) with scalable TCP support see here link:trex_astf.html[ASTF mode]
