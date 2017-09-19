@@ -528,7 +528,5 @@ void CTcpData::Delete() {
     }
     m_prog_list.clear();
     m_assoc_trans.clear();
-
-    
     m_init = false;
 }
