@@ -121,7 +121,7 @@ class CTcpData {
         m_cps_sum=0.0;
     }
     void dump(FILE *fd);
-    void free();
+    void Delete();
     bool is_init(uint8_t num) {return (m_init >= num);}
     uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
     CTcpAppProgram * get_client_prog(uint16_t temp_id){
@@ -144,13 +144,13 @@ class CTcpData {
         m_assoc_trans.insert_vec(params, prog);
     }
  private:
-    uint8_t m_init;
-    double m_cps_sum;
-    std::vector<CMbufBuffer *> m_buf_list;
-    std::vector<CTcpAppProgram *> m_prog_list;
-    std::vector<CTcpDataFlowInfo> m_flow_info;
-    std::vector<CTcpTemplateInfo> m_templates;
-    CTcpDataAssocTranslation m_assoc_trans;
+    uint8_t                         m_init;
+    double                          m_cps_sum;
+    std::vector<CMbufBuffer *>      m_buf_list;
+    std::vector<CTcpAppProgram *>   m_prog_list;
+    std::vector<CTcpDataFlowInfo>   m_flow_info;
+    std::vector<CTcpTemplateInfo>   m_templates;
+    CTcpDataAssocTranslation        m_assoc_trans;
 };
 
 class CAstfTemplatesRW;

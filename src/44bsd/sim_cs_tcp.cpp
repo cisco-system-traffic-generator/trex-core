@@ -370,7 +370,7 @@ void CClientServerTcp::on_rx(int dir,
 void CClientServerTcp::Delete(){
     m_c_ctx.Delete();
     m_s_ctx.Delete();
-    m_tcp_data_ro.free();
+    m_tcp_data_ro.Delete();
     if (m_drop_rnd){
         delete m_drop_rnd;
     }

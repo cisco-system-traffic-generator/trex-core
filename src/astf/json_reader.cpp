@@ -496,8 +496,9 @@ void CJsonData::clear() {
         delete lp;
     }
 
-    m_tcp_data[0].free();
-    m_tcp_data[1].free();
+    for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
+        m_tcp_data[i].Delete();
+    }
     m_json_initiated = false;
 }
 
@@ -514,14 +515,15 @@ void CTcpData::dump(FILE *fd) {
     }
 }
 
-void CTcpData::free() {
-    for (int i = 0; i < m_buf_list.size(); i++) {
+void CTcpData::Delete() {
+    int i;
+    for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();
         delete m_buf_list[i];
     }
     m_buf_list.clear();
 
-    for (int i = 0; i < m_prog_list.size(); i++) {
+    for (i = 0; i < m_prog_list.size(); i++) {
         delete m_prog_list[i];
     }
     m_prog_list.clear();
