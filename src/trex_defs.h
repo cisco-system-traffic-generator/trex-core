@@ -1,3 +1,6 @@
+#ifndef __TREX_DEFS_H__
+#define __TREX_DEFS_H__
+
 /*
 Copyright (c) 2015-2016 Cisco Systems, Inc.
 
@@ -18,8 +21,6 @@ limitations under the License.
 #include <vector>
 #include <string>
 
-#ifndef __TREX_DEFS_H__
-#define __TREX_DEFS_H__
 
 #define TREX_MAX_PORTS 16
 
