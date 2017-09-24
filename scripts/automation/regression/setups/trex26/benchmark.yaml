@@ -256,3 +256,15 @@ test_tcp_http :
     cores               : 1
     bw_per_core         : 25
     bypass_result       : 1
+    
+
+test_ipv6_tcp_http :
+    multiplier          : 10000
+    cores               : 1
+    bw_per_core         : 20
+
+test_tcp_sfr :
+    multiplier          : 10
+    cores               : 1
+    bw_per_core         : 20
+

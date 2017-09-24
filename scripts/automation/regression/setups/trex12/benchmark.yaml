@@ -184,4 +184,15 @@ test_tcp_http :
     cores               : 1
     bw_per_core         : 20
     
+test_ipv6_tcp_http :
+    multiplier          : 7000
+    cores               : 1
+    bw_per_core         : 20
+
+test_tcp_sfr :
+    multiplier          : 7
+    cores               : 1
+    bw_per_core         : 20
+
+    
 
