@@ -107,7 +107,7 @@ int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
 
 
 #ifdef _DEBUG
-    if ( CGlobalInfo::m_options.preview.getVMode() > 6){
+    if ( CGlobalInfo::m_options.preview.getVMode() == 6){
         fprintf(stdout,"TX---> dir %d \n",m_dir);
         utl_rte_pktmbuf_dump_k12(stdout,m);
     }
@@ -163,7 +163,7 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                 rte_mbuf_t * m=rx_pkts[i];
 
 #ifdef _DEBUG
-                if ( CGlobalInfo::m_options.preview.getVMode() > 6){
+                if ( CGlobalInfo::m_options.preview.getVMode() ==7 ){
                     fprintf(stdout,"RX---> dir %d \n",dir);
                     utl_rte_pktmbuf_dump_k12(stdout,m);
                 }

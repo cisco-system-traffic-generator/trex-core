@@ -216,7 +216,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndprobe,"window probes sent");
     TCP_S_ADD_CNT_E(tcps_sndurg,"packets sent with URG only");
-    TCP_S_ADD_CNT_E(tcps_sndwinup,"window update-only packets sent");
+    TCP_S_ADD_CNT(tcps_sndwinup,"window update-only packets sent");
     
     TCP_S_ADD_CNT_E(tcps_rcvbadsum,"packets received with ccksum errs");
     TCP_S_ADD_CNT_E(tcps_rcvbadoff,"packets received with bad offset");
