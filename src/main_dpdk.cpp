@@ -98,7 +98,7 @@ extern "C" {
 #define RX_DESC_NUM_DATA_Q 4096
 #define RX_DESC_NUM_DROP_Q_MLX 8
 #define RX_DESC_NUM_DATA_Q_VM 512
-#define TX_DESC_NUM 512
+#define TX_DESC_NUM 1024
 
 typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
 struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
