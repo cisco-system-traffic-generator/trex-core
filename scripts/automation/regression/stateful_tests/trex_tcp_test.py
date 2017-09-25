@@ -97,7 +97,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
         trex_res = self.trex.sample_to_run_finish()
-        time.sleep(10); /* workaournd for ZMQ flush, we are going to solve this in the infra - hhaim*/
+        time.sleep(10); # workaournd for ZMQ flush, we are going to solve this in the infra - hhaim
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -139,7 +139,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
         trex_res = self.trex.sample_to_run_finish()
-        time.sleep(10); /* workaournd for ZMQ flush, we are going to solve this in the infra - hhaim*/
+        time.sleep(10); # workaournd for ZMQ flush, we are going to solve this in the infra - hhaim
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -175,7 +175,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
         trex_res = self.trex.sample_to_run_finish()
-        time.sleep(10); /* workaournd for ZMQ flush, we are going to solve this in the infra - hhaim*/
+        time.sleep(10); # workaournd for ZMQ flush, we are going to solve this in the infra - hhaim
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
