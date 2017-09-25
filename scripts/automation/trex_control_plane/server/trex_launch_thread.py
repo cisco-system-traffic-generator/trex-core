@@ -65,6 +65,7 @@ class AsynchronousTRexSession(threading.Thread):
                     output = self.load_trex_output(self.export_path)))
                 self.trexObj.errcode = -15
             else:
+                time.sleep(0.5)
                 logger.info("TRex run session finished.")
                 self.trexObj.set_verbose_status('TRex finished.')
                 self.trexObj.errcode = None
