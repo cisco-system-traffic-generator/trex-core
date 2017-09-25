@@ -625,7 +625,7 @@ if __name__ == "__main__":
     parser.add_option = parser.add_argument
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
-    if options.stateless or options.stateful or not (options.stateful and options.stateless and options.functional):
+    if not CTRexScenario.is_test_list and (options.stateless or options.stateful or not (options.stateful or options.stateless or options.functional)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:

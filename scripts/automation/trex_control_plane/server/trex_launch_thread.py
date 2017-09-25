@@ -21,7 +21,6 @@ class AsynchronousTRexSession(threading.Thread):
     def __init__(self, trexObj , trex_launch_path, trex_cmd_data):
         super(AsynchronousTRexSession, self).__init__()
         self.stoprequest                            = threading.Event()
-        self.terminateFlag                          = False
         self.launch_path                            = trex_launch_path
         self.cmd, self.export_path, self.duration   = trex_cmd_data
         self.session                                = None
@@ -82,10 +81,8 @@ class AsynchronousTRexSession(threading.Thread):
         super(AsynchronousTRexSession, self).join(timeout)
 
     def load_trex_output (self, export_path):
-        output = None
-        with open(export_path, 'r') as f:
-            output = f.read()
-        return output
+        with open(export_path) as f:
+            return f.read()
 
 
 
