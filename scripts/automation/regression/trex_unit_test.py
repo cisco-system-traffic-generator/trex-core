@@ -575,9 +575,6 @@ if __name__ == "__main__":
 
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--nologcapture']
-    test_client_package = False
-    if '--test-client-package' in sys.argv:
-        test_client_package = True
 
     if '--collect' in sys.argv:
         sys.argv.append('--collect-only')
@@ -628,7 +625,7 @@ if __name__ == "__main__":
     parser.add_option = parser.add_argument
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
-    if options.stateless or options.stateful:
+    if options.stateless or options.stateful or not (options.stateful and options.stateless and options.functional):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -650,7 +647,7 @@ if __name__ == "__main__":
         attr_arr = []
         if not is_wlc:
             attr_arr.append('!wlc')
-        if not test_client_package:
+        if not options.test_client_package:
             attr_arr.append('!client_package')
         if not options.long:
             attr_arr.append('!nightly')
