@@ -418,7 +418,7 @@ class Packet(BasePacket, metaclass = Packet_metaclass):
                 break;
 
     def build(self):
-        result = CPacketRes;
+        result = CPacketRes();
         p = self.do_build(result)
         p += self.build_padding()
         p = self.build_done(p)
