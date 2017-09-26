@@ -6704,6 +6704,7 @@ void set_driver() {
 
         if (lp->getChecksumOffloadDisable()==false){
             lp->setChecksumOffloadEnable(true);
+        }else{
             printf("checksum-offload disabled by user \n");
         }
     }
