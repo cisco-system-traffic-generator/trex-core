@@ -20,7 +20,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
     def validate_tcp(self,tcp_s):
-        vm_valid_error=['__last','err_no_tcp','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack'];
+        vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack'];
 
         if 'err' in tcp_s :
             if self.is_VM: # should be fixed , latency could be supported in this mode
