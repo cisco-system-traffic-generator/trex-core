@@ -254,12 +254,12 @@ test_all_profiles :
           - udp_1pkt_range_clients_split_garp.py # https://trex-tgn.cisco.com/youtrack/issue/trex-391
 
 test_tcp_http :
-    multiplier          : 10000
+    multiplier          : 6000
     cores               : 1
     bw_per_core         : 25
         
 test_ipv6_tcp_http :
-    multiplier          : 10000
+    multiplier          : 6000
     cores               : 1
     bw_per_core         : 20
 
