@@ -4208,7 +4208,7 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
             m_cur_time_sec =  0.01 + m_thread_id*0.01;
         }
         m_cur_time_sec += now_sec() + 0.1 ;
-    }
+    } 
     dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
     m_stop_time_sec =c_stop_sec;
     m_cur_flow_id =1;
@@ -4244,6 +4244,9 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
             m_node_gen.add_node(node);
         }
     }else{
+        /* we are delaying only the generation of the traffic 
+           timers/rx should Work immediately 
+        */
 
         m_tcp_fif_d_time =  d_time_flow;
         CGenNode * node= create_node() ;
@@ -4251,19 +4254,21 @@ void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
         node->m_time = m_cur_time_sec;
         m_node_gen.add_node(node);
 
+        dsec_t now=now_sec() ;
+
         node= create_node() ;
         node->m_type = CGenNode::TCP_RX_FLUSH;
-        node->m_time = m_cur_time_sec + TCP_RX_FLUSH_SEC ;
+        node->m_time = now;
         m_node_gen.add_node(node);
 
         node= create_node() ;
         node->m_type = CGenNode::TCP_TW;
-        node->m_time = m_cur_time_sec + tcp_get_tw_tick_in_sec();
+        node->m_time = now ;
         m_node_gen.add_node(node);
 
         node= create_node() ;
         node->m_type = CGenNode::FLOW_SYNC;
-        node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
+        node->m_time = now ;
         m_node_gen.add_node(node);
 
     }
