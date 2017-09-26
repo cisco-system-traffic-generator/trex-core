@@ -645,7 +645,7 @@ def get_info_from_trex(pci_addr_list):
                 print('Internal error while getting info of DPDK bound interfaces, unknown PCI: %s' % pci)
                 sys.exit(-1)
             pci_info_dict[pci] = {}
-            pci_info_dict[pci]['MAC'] = match.group(2)
+            pci_info_dict[pci]['MAC'] = match.group(2).lower()
             pci_info_dict[pci]['TRex_Driver'] = match.group(3)
     return pci_info_dict
 

@@ -6362,15 +6362,17 @@ void dump_interfaces_info() {
     uint8_t m_max_ports = rte_eth_dev_count();
     struct ether_addr mac_addr;
     char mac_str[ETHER_ADDR_FMT_SIZE];
-    struct rte_pci_addr pci_addr;
+    struct rte_eth_dev_info dev_info;
+    struct rte_pci_addr *pci_addr = NULL;
 
     for (uint8_t port_id=0; port_id<m_max_ports; port_id++) {
         // PCI, MAC and Driver
-        pci_addr = rte_eth_devices[port_id].device->devargs->pci.addr;
+        rte_eth_dev_info_get(port_id, &dev_info);
+        pci_addr = &(dev_info.pci_dev->addr);
         rte_eth_macaddr_get(port_id, &mac_addr);
         ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
         printf("PCI: %04x:%02x:%02x.%d - MAC: %s - Driver: %s\n",
-            pci_addr.domain, pci_addr.bus, pci_addr.devid, pci_addr.function, mac_str,
+            pci_addr->domain, pci_addr->bus, pci_addr->devid, pci_addr->function, mac_str,
             rte_eth_devices[port_id].data->drv_name);
     }
 }
