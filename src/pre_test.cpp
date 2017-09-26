@@ -244,6 +244,10 @@ void CPretestOnePortInfo::send_arp_req_all() {
 
 void CPretestOnePortInfo::send_grat_arp_all() {
     for (std::vector<COneIPInfo *>::iterator it = m_src_info.begin(); it != m_src_info.end(); ++it) {
+
+        if ((*it)->is_zero_ip())
+            continue;
+
         rte_mbuf_t *m[1];
         int num_sent;
         int verbose = CGlobalInfo::m_options.preview.getVMode();

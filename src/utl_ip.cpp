@@ -62,12 +62,20 @@ void COneIPv4Info::fill_grat_arp_buf(uint8_t *p) {
     CTestPktGen::create_arp_req(p, m_ip, m_ip, src_mac, 0, m_vlan);
 }
 
+bool COneIPv4Info::is_zero_ip() {
+    return m_ip == 0;
+}
+
 void COneIPv6Info::fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *sip) {
     //??? implement ipv6
 }
 
 void COneIPv6Info::fill_grat_arp_buf(uint8_t *p) {
     //??? implement ipv6
+}
+
+bool COneIPv6Info::is_zero_ip() {
+    return m_ip[0] == 0 && m_ip[1] == 0 && m_ip[2] == 0 && m_ip[3] == 0 && m_ip[4] == 0 && m_ip[5] == 0 && m_ip[6] == 0 && m_ip[7] == 0;
 }
 
 const COneIPInfo *CManyIPInfo::get_next() {
