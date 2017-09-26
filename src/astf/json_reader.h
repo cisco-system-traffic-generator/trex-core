@@ -122,7 +122,7 @@ class CTcpData {
     }
     void dump(FILE *fd);
     void Delete();
-    bool is_init(uint8_t num) {return (m_init >= num);}
+    bool is_init() {return (m_init == 2);}
     uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
     CTcpAppProgram * get_client_prog(uint16_t temp_id){
         return m_templates[temp_id].m_client_prog;
@@ -211,9 +211,7 @@ class CJsonData {
     void get_latency_params(CTcpLatency &lat);
 
  private:
-
-   CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
-
+    CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
     CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
@@ -222,14 +220,14 @@ class CJsonData {
     void dump();
 
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
-    void convert_from_json(uint8_t socket_id, uint8_t level);
+    void convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
     uint32_t get_num_bytes(uint16_t program_index, uint16_t cmd_index);
     tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
-    void verify_init(uint16_t socket_id, uint16_t level);
+    void verify_init(uint16_t socket_id);
     uint32_t ip_from_str(const char*c_ip);
 
  private:
@@ -239,7 +237,6 @@ class CJsonData {
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     float m_exp_bps; // total expected bit per second for all templates
-    std::mutex          m_socket_mtx[MAX_SOCKETS_SUPPORTED];
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket
     CTcpData            m_tcp_data[MAX_SOCKETS_SUPPORTED];

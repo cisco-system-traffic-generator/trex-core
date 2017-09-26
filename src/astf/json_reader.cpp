@@ -106,16 +106,12 @@ bool CJsonData::parse_file(std::string file) {
     return true;
 }
 
-void CJsonData::convert_from_json(uint8_t socket_id, uint8_t level) {
-    if (level == 1) {
-        convert_bufs(socket_id);
-        convert_progs(socket_id);
-        m_tcp_data[socket_id].m_init = 1;
-    }
-    if (level == 2) {
-        build_assoc_translation(socket_id);
-        m_tcp_data[socket_id].m_init = 2;
-    }
+void CJsonData::convert_from_json(uint8_t socket_id) {
+    convert_bufs(socket_id);
+    convert_progs(socket_id);
+    m_tcp_data[socket_id].m_init = 1;
+    build_assoc_translation(socket_id);
+    m_tcp_data[socket_id].m_init = 2;
 }
 
 void CJsonData::dump() {
@@ -196,20 +192,19 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
     return cmd["min_bytes"].asInt();
 }
 
-void CJsonData::verify_init(uint16_t socket_id, uint16_t level) {
-    if (! m_tcp_data[socket_id].is_init(level)) {
-        std::unique_lock<std::mutex> my_lock(m_socket_mtx[socket_id]);
-        for (int i = 1; i <= level; i++) {
-            if (! m_tcp_data[socket_id].is_init(i)) {
-                convert_from_json(socket_id, i);
-            }
+void CJsonData::verify_init(uint16_t socket_id) {
+    if (! m_tcp_data[socket_id].is_init()) {
+        // json data should not be accessed by multiple threads in parallel
+        std::unique_lock<std::mutex> my_lock(m_global_mtx);
+        if (! m_tcp_data[socket_id].is_init()) {
+            convert_from_json(socket_id);
         }
         my_lock.unlock();
     }
 }
 
 CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id) {
-    verify_init(socket_id, 2);
+    verify_init(socket_id);
 
     return &m_tcp_data[socket_id];
 }
@@ -319,7 +314,7 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socke
     std::string temp_str;
     uint16_t program_index;
 
-    verify_init(socket_id, 1);
+    assert(m_tcp_data[socket_id].m_init > 0);
 
     if (side == 0) {
         temp_str = "client_template";
@@ -338,7 +333,7 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socke
 CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
     CTcpDataAssocParams params(port);
 
-    verify_init(socket_id, 2);
+    assert(m_tcp_data[socket_id].m_init > 0);
 
     return m_tcp_data[socket_id].m_assoc_trans.get_prog(params);
 }
@@ -348,12 +343,13 @@ CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket
 
  */
 bool CJsonData::build_assoc_translation(uint8_t socket_id) {
-    verify_init(socket_id, 1);
     bool is_hash_needed = false;
     double cps_sum=0;
     CTcpTemplateInfo one_template;
     uint32_t num_bytes_in_template=0;
     double template_cps;
+
+    assert(m_tcp_data[socket_id].m_init > 0);
 
     if (m_val["templates"].size() > 10) {
         is_hash_needed = true;
