@@ -111,6 +111,25 @@ class CTcpTemplateInfo {
     uint32_t m_num_bytes;
 };
 
+typedef enum {
+    CJsonData_err_pool_ok,
+    CJsonData_err_pool_too_small,
+} CJsonData_err_type;
+
+class CJsonData_err {
+ public:
+    CJsonData_err( CJsonData_err_type type, std::string desc) {
+        m_desc = desc;
+        m_type = type;
+    }
+    bool is_error() {return m_type != CJsonData_err_pool_ok;}
+    std::string description() {return m_desc;}
+
+ private:
+    std::string m_desc;
+    CJsonData_err_type m_type;
+};
+
 // This is used by all threads. Should not be changed after initialization stage, in order not to reduce performance
 class CTcpData {
     friend class CJsonData;
@@ -209,6 +228,7 @@ class CJsonData {
     CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
+    CJsonData_err verify_data(uint16_t max_threads);
 
  private:
     CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);

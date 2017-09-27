@@ -187,9 +187,34 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
         assert(0);
     }
 
-     assert (cmd["name"] == "rx");
+    assert (cmd["name"] == "rx");
 
     return cmd["min_bytes"].asInt();
+}
+
+// verify correctness of json data
+CJsonData_err CJsonData::verify_data(uint16_t max_threads) {
+    uint32_t ip_start;
+    uint32_t ip_end;
+    uint32_t num_ips;
+    std::string err_str;
+
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+    for (int i = 0; i < ip_gen_list.size(); i++) {
+        ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+        ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
+        num_ips = ip_end - ip_start + 1;
+        if (num_ips < max_threads) {
+            err_str = "Pool:(" + ip_gen_list[i]["ip_start"].asString() + "-"
+                + ip_gen_list[i]["ip_end"].asString() + ") has only "
+                + std::to_string(num_ips) + " address" + ((num_ips == 1) ? "" : "es")
+                + ". Number of IPs in each pool must exceed the number of"
+                + " Data path threads, which is " + std::to_string(max_threads);
+            return CJsonData_err(CJsonData_err_pool_too_small, err_str);
+        }
+    }
+
+    return CJsonData_err(CJsonData_err_pool_ok, "");
 }
 
 void CJsonData::verify_init(uint16_t socket_id) {

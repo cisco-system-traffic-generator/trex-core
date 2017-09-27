@@ -5549,6 +5549,14 @@ int CGlobalTRex::start_master_astf() {
        exit(-1);
     }
 
+    int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
+    CJsonData_err err_obj = CJsonData::instance()->verify_data(num_dp_cores);
+
+    if (err_obj.is_error()) {
+        std::cerr << "Error: " << err_obj.description() << std::endl;
+        exit(-1);
+    }
+
     m_expected_pps = 0; // Can't know this in astf mode.
     // two below are computed later. Need to do this after analyzing data read from json.
     m_expected_cps = 0;
