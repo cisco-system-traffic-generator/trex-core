@@ -84,6 +84,7 @@ Usually web servers are tested with constant number of active flows that are ope
 Many web stress tools are supporting a constant number of active flows (e.g. the Apache ab xref:5[], there are newer tools in golang that are faster now)
 It is not *clear* why. In our use-case (traffic generation) it was required to open a *new* TCP connection for each request, one request for each new flow.
 We used a simple HTTP flows with a request of  100B and a response of 32KB. (32packets per flow) with initwnd=2.
+The HTTP flow was taken from our EMIX standard L7 benchmark. 
 
 the example of the flow case be seen here link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/astf/http_simple.py[http_simple.py]
 
@@ -562,6 +563,7 @@ With TRex implementation there is a need for 100MB heap memory factor of *2000* 
 == Conclusion 
 
 DPDK TCP user space implementation for Firewall L7 tests save a lot of memory/CPU resources and it worth to invest in this direction. 
+It is probably worth considering  running nginx application on top of DPDK, this could improve this benchmark result.
 
 == References
 
