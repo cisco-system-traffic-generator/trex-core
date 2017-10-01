@@ -1024,6 +1024,9 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_astf.asciidoc waf.css', target='trex_astf.html',scan=ascii_doc_scan);
 
+    bld(rule=convert_to_html_toc_book,
+        source='trex_astf_vs_nginx.asciidoc waf.css', target='trex_astf_vs_nginx.html',scan=ascii_doc_scan);
+
     bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_html_toc_book,

@@ -1,0 +1,570 @@
+======================
+:email: hhaim@cisco.com
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+======================
+include::trex_ga.asciidoc[]
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+endif::backend-xhtml11[]
+
+= Comparing TRex Advance Stateful performance to Linux nginx
+
+
+== Overview
+
+TRex Advance Stateful (ASTF) mode supports user space TCP stack to emulate L7 protocols like HTTP for Firewall routers tests.
+TRex saves memory when generating the traffic using pull API (and not push) and utilized DPDK for bathing the packets. More about TRex ASTF mode here link:trex_astf.html[trex astf mode]
+
+== Benchmark  objective 
+
+We have been asked a few times why TRex user-space TCP stack was implemented for traffic generation, why not to use Linux kernel TCP and use user-space event driven mechanism over user-space like done in many event driven user-space application e.g. NGINX (accept_mutex and kernel socket sharding) see xref:1[].
+
+There were a few user space DPDK TCP implementations (e.g. *SeaStar* xref:2[] and *WARP17* xref:3[]) that have already shown that DPDK with the right event driven implementation has a very good scale numbers (range of MPPS/MCPS) Especially with small flows and high active flows,  but we didn't find any good apple to apple comparison for the same test with Linux TCP stack.
+
+Another benefit achieved from this experiment is a validation that TRex TCP implementation(base of BSD) can work with standard web server.  
+
+So back to the objective, the question this blog tries to answer is this:
+
+Let's assume one wants to test a Firewall/NAT64/DPI using TCP stack at high scale. 
+One option is to use Linux curl as a client and nginx as a server another option is to use TRex ASTF mode the question, what would be the performance difference? How many more x86 servers, he would need to have to do the same test? is it factor 2 or maybe more?
+
+In other words, what is the CPU/Memory resource price when using the Linux TCP stack/User space async app in our traffic generation use case?
+
+Our focus on this blog is performance and memory aspect. Having our own user-space TCP stack that can be tuned to our use-case has many other functional benefit like: 
+
+1. More accurate statistics per template. For example some profile can have HTTP and P2P and verify that there are drop only for HTTP termplate in some Qos use case. In case of the kernel we can't change the kernel TCP stack.
+2. Very accurate latency measurement (usec resolution) 
+3. Flexibility to simulate millions  of clients/server
+4. Adding tunneling support in a simple way (user-space)
+5. Simple way to simulate latency in high rate with minimum memory 
+
+== Benchmark definition 
+
+=== The setup TRex vs NGINX
+
+
+image::images/nginx_setup1.png[title="TRex vs NGINX",align="center",width=800, link="images/nginx_setup1.png"]
+
+It was chosen to take a good event driven Linux server implementation and to test TRex client against it.
+TRex will be the client requesting the pages. figure 1 shows the topology in this case.
+TRex generates requests using *one* DP core and we will exercise the *whole* 16 cores of the nginx server. The server is installed with nginx process on *all* the 16 cores. 
+After some trial and error, it was identified that it is very hard to separate Linux kernel/IRQ context events from user-space process CPU% so we choose to give the nginx all the server resources and monitor what is the limiting factor.
+
+In both case (client/server) the same type of x86 server was used 
+
+.x86 server configurtion
+[options='header',cols="1,5",width="50%"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs:   | 1 NICS x 82599
+| NUMA    | NIC0-NUMA 0 , NIC1-NUMA1
+| Memory  | 2x32GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | Fedora 18 - baremetal
+|=================
+
+
+=== The setup TRex vs TRex
+
+image::images/nginx_setup2.png[title="C-TRex vs S-TRex",align="center",width=800, link="images/nginx_setup2.png"]
+
+To compare apples to apple the NGINX server was replaced with TRex server with *one* DP core and we choose to use XL710 NIC (40Gb) see figure 2
+
+
+=== The traffic pattern 
+
+Usually web servers are tested with constant number of active flows that are opened ahead of time. In nginx benchmark blog only 50 TCP constant connections are used see xref:4[]. 
+Many web stress tools are supporting a constant number of active flows (e.g. the Apache ab xref:5[], there are newer tools in golang that are faster now)
+It is not *clear* why. In our use-case (traffic generation) it was required to open a *new* TCP connection for each request, one request for each new flow.
+We used a simple HTTP flows with a request of  100B and a response of 32KB. (32packets per flow) with initwnd=2.
+
+the example of the flow case be seen here link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/astf/http_simple.py[http_simple.py]
+
+=== Discussion
+
+The comparison is not perfect as TRex just generates emulation of HTTP and it is not a real web server and not a real HTTP client. 
+For example, in current TRex client TRex does not parse the HTTP response for the Length field, TRex just waits for specific data size (32KB) over TCP.  
+
+== Tunning NGINX and Linux TCP kernel 
+
+There was a need to tune many things before the tests could run. This is one of the downsides of using the Kernel (each server/NIC type should be tuned carfuly for best performance)
+
+=== nginx tunning 
+
+[source,bash]
+----
+
+worker_processes  auto;      #<1> 
+#worker_cpu_affinity auto;
+#worker_cpu_affinity 100000000000000 010000000000000 001000000000000 000100000000000 000010000000000 000001000000000 000000100000000 000000010000000 ;
+
+#worker_processes 1;
+#worker_cpu_affinity 100000000000000;
+
+#error_log  /tmp/nginx/error.log;
+#error_log  /var/log/nginx/error.log  notice;
+#error_log  /var/log/nginx/error.log  info;
+
+pid        /run/nginx.pid;
+
+worker_rlimit_nofile 1000000;  #<2>
+
+
+events {
+    worker_connections  1000000;  #<3>
+}
+----
+<1> Nginx server has all the 16 cores
+<2> Limit the number of files to 1M 
+<3> Worker_connections will have 1M active connection
+
+see xref:6[] for more info.
+
+
+=== Linux Kernel TCP tunning 
+
+see xref:7[] For how to tune the kernel for best performance
+
+[source,bash]
+------
+sysctl fs.file-max=99999999
+sysctl net.core.netdev_max_backlog=9999999
+sysctl net.core.somaxconn=65000
+sysctl net.ipv4.tcp_max_orphans=128
+sysctl net.ipv4.tcp_max_syn_backlog=9999999
+sysctl net.ipv4.tcp_mem="1542108  2056147 13084216"
+sysctl net.netfilter.nf_conntrack_tcp_established=5
+sysctl net.netfilter.nf_conntrack_tcp_timeout_close=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_close_wait=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_established=5
+sysctl net.netfilter.nf_conntrack_tcp_timeout_fin_wait=1
+sysctl net.netfilter.nf_conntrack_tcp_timeout_last_ack=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_syn_recv=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_syn_sent=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_time_wait=3
+sysctl net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=10
+sysctl sunrpc.tcp_fin_timeout=1
+------
+
+* The TCP timeouts were considerably reduced to reduce the number of active flows
+* Add much more memory for TCP 
+* Add more file descriptors (about 1M)
+
+
+=== NIC tunning  (IRQ/RSS)
+
+The NIC RSS/IRQ needed to be tuned. 
+irqbalance was installed and it was verified that interrupts are evenly distributed 
+using 
+
+[source,bash]
+------
+$egrep 'CPU|p2p1' /proc/interrupts
+------
+
+[source,bash]
+------
+$sudo ethtool -n p2p1 rx-flow-hash tcp4
+TCP over IPV4 flows use these fields for computing Hash flow key:
+IP SA
+IP DA
+L4 bytes 0 & 1 [TCP/UDP src port]
+L4 bytes 2 & 3 [TCP/UDP dst port]
+------
+
+
+== TRex profile and commands
+
+
+TRex profile generate HTTP flows from 200 clients (16.0.0.1 -16.0.0.200) to one server 48.0.0.1. 
+Static route was configured so the traffic will return the right interface and to handle the link-up/down case. 
+
+
+.TRex Profile
+[source,python]
+----
+from trex_astf_lib.api import *
+
+class Prof1():
+    def get_profile(self):
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range = ["16.0.0.1", "16.0.0.200"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range = ["48.0.0.1", "48.0.0.200"], distribution="seq")
+        ip_gen = ASTFIPGen(glob = ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client = ip_gen_c,
+                           dist_server = ip_gen_s)
+
+        return ASTFProfile(default_ip_gen = ip_gen,
+                            cap_list = [ASTFCapInfo(file = 'nginx.pcap',
+                            cps = 1)])
+
+
+def register():
+    return Prof1()
+----
+
+
+
+.Script to handle the static route and link-down in the Linux side 
+[source,bash]
+----
+$more /scratch/nginx_nic_watch.sh
+#!/bin/bash
+
+if_re='^[^:]+:\s*(\S+)\s*:.+$'
+if_name=foo
+mac=00:e0:ed:5d:84:65
+
+function get_name () {
+    if [ ! -f /sys/class/net/${if_name}/carrier ]; then
+        echo clear arp
+        arp -d 48.0.0.2
+        echo clear route
+        ip route del 16.0.0.0/8
+
+        if [[ `ip -o link | grep $mac` =~ $if_re ]]; then
+            if_name=${BASH_REMATCH[1]}
+            echo if name: $if_name
+            ifconfig $if_name up
+            sleep 1
+
+        else
+            echo Could not find IF
+        fi
+    fi
+}
+
+while true; do
+    while [ "$(cat /sys/class/net/${if_name}/carrier)" == "1" ]; do
+        get_name
+        sleep 0.1
+    done
+
+    echo carrier not 1
+
+    while [ "$(cat /sys/class/net/${if_name}/carrier)" == "0" ]; do
+        get_name
+        sleep 0.1
+    done
+
+    echo carrier not 0
+
+    get_name
+
+    echo conf ip
+    ifconfig $if_name 48.0.0.1
+    echo $?
+    echo conf route
+    ip route add 16.0.0.0/8 dev $if_name via 48.0.0.2 initcwnd 2
+    echo $?
+    echo conf arp
+    arp -s 48.0.0.2 00:e0:ed:5d:84:64
+    echo $?
+
+    sleep 5
+----
+
+
+.TRex ASTF CLI command 
+[source,bash]
+----
+$sudo ./t-rex-64 --astf -f astf/nginx_wget.py -m 182000 -c 1 -d 1000
+----
+
+The TRex version used in this test is v2.30 with some changes (it wasn't released yet), we expect that v2.31 will have the same performance.
+
+== Getting Linux kenrel TCP memory 
+
+to get the TCP kernel memory the command `cat /proc/slabinfo` was used 
+Linux and nginx required much more memory than TRex due to the TCP transmit queues and reassembly queues
+
+== The results 
+
+Again, we are comparing 1 DP core running TRex to nginx running on 16 cores with a kernel that can interrupt any nginx process with IRQ.
+
+image::images/nginx_results.png[title="TRex with 1 DP core vs Nginx 16 cores",align="center",width=800, link="images/nginx_results.png"]
+
+=== TRex results 1 DP core @ maximum rate
+
+.TRex @25Gb/sec with one core 
+[source,bash]
+----
+
+-Per port stats table 
+      ports |               0 |               1 |               2 |               3 
+ -----------------------------------------------------------------------------------------
+   opackets |               0 |        32528390 |        12195883 |               0 
+     obytes |               0 |     44776566818 |      1015380642 |               0 
+   ipackets |               0 |        12192506 |        32528673 |               0 
+     ibytes |               0 |      1015380642 |     44776984044 |               0 
+    ierrors |               0 |            3377 |               0 |               0 
+    oerrors |               0 |               0 |               0 |               0 
+      Tx Bw |       0.00  bps |      23.96 Gbps |     542.51 Mbps |       0.00  bps 
+
+-Global stats enabled 
+ Cpu Utilization : 69.7  %  35.2 Gb/core [84.7 ,54.7  ] #<1>
+ Platform_factor : 1.0  
+ Total-Tx        :      24.50 Gbps  
+ Total-Rx        :      24.50 Gbps  
+ Total-PPS       :       2.99 Mpps  
+ Total-CPS       :      90.87 Kcps  
+
+ Expected-PPS    :       0.00  pps  
+ Expected-CPS    :       0.00  cps  
+ Expected-L7-BPS :       0.00  bps  
+
+ Active-flows    :    57634  Clients :      200   Socket-util : 0.4576 %    
+ Open-flows      :  1381926  Servers :      200   Socket :    57634 Socket/Clients :  288.2 
+ drop-rate       :       0.00  bps   
+ current time    : 19.0 sec  
+ test duration   : 981.0 sec  
+ *** TRex is shutting down - cause: 'CTRL + C detected'
+ All cores stopped !! 
+----
+<1>TRex server is 84% and Client is 54% (server has more cycles)
+
+
+.TRex TCP counters- no drop
+[source,bash]
+----
+                      |          client   |            server   |  
+  -----------------------------------------------------------------------------------------
+       m_active_flows  |           54590  |           242902  |  active open flows
+          m_est_flows  |           54578  |           242893  |  active established flows
+         m_tx_bw_l7_r  |      75.80 Mbps  |       21.57 Gbps  |  tx L7 bw acked
+   m_tx_bw_l7_total_r  |      75.81 Mbps  |       21.63 Gbps  |  tx L7 bw total
+         m_rx_bw_l7_r  |      21.63 Gbps  |       75.80 Mbps  |  rx L7 bw acked
+           m_tx_pps_r  |     776.09 Kpps  |      690.41 Kpps  |  tx pps
+           m_rx_pps_r  |       2.16 Mpps  |      861.75 Kpps  |  rx pps
+           m_avg_size  |       925.43  B  |          1.74 KB  |  average pkt size
+           m_tx_ratio  |      100.00  %%  |        99.73  %%  |  Tx acked/sent ratio
+                    -  |             ---  |              ---  |  
+                  TCP  |             ---  |              ---  |  
+                    -  |             ---  |              ---  |  
+     tcps_connattempt  |          512253  |                0  |  connections initiated
+         tcps_accepts  |               0  |           512246  |  connections accepted
+        tcps_connects  |          512241  |           512237  |  connections established
+          tcps_closed  |          457663  |           269344  |  conn. closed (includes drops)
+       tcps_segstimed  |         1491237  |          3915963  |  segs where we tried to get rtt
+      tcps_rttupdated  |         1491201  |          3870455  |  times we succeeded
+          tcps_delack  |         2424787  |                0  |  delayed acks sent
+        tcps_sndtotal  |         4382761  |          3915963  |  total packets sent
+         tcps_sndpack  |          512241  |          2936981  |  data packets sent
+         tcps_sndbyte  |        55835577  |      16056068765  |  data bytes sent by application
+      tcps_sndbyte_ok  |        55834269  |      15289046350  |  data bytes sent by tcp
+         tcps_sndctrl  |          512253  |                0  |  control (SYN|FIN|RST) packets sent
+         tcps_sndacks  |         3358267  |           978983  |  ack-only packets sent 
+         tcps_rcvpack  |        11190011  |           978974  |  packets received in sequence
+         tcps_rcvbyte  |     15288795079  |         55833833  |  bytes received in sequence
+      tcps_rcvackpack  |          978960  |          3870455  |  rcvd ack packets
+      tcps_rcvackbyte  |        55832307  |      15025525681  |  tx bytes acked by rcvd acks 
+   tcps_rcvackbyte_of  |          466737  |           978974  |  tx bytes acked by rcvd acks - overflow acked
+         tcps_preddat  |        10211051  |                0  |  times hdr predict ok for data pkts 
+                    -  |             ---  |              ---  |  
+           Flow Table  |             ---  |              ---  |  
+                    -  |             ---  |              ---  |  
+     err_rx_throttled  |               0  |               42  |  rx thread was throttled
+
+----
+
+.Linux top on about 5.4Gb/sec IRQ is hitting Cpu0
+[source,bash]
+----
+asks: 428 total,   6 running, 422 sleeping,   0 stopped,   0 zombie
+%Cpu0  :  0.4 us, 10.3 sy,  0.0 ni,  9.9 id,  0.0 wa,  1.8 hi, 77.7 si,  0.0 st    #<1>
+%Cpu1  :  5.6 us, 23.6 sy,  0.0 ni, 42.6 id,  0.0 wa,  1.4 hi, 26.8 si,  0.0 st
+%Cpu2  :  5.2 us, 24.7 sy,  0.0 ni, 41.8 id,  0.0 wa,  1.7 hi, 26.5 si,  0.0 st
+%Cpu3  :  5.3 us, 23.0 sy,  0.0 ni, 42.9 id,  0.0 wa,  1.8 hi, 27.0 si,  0.0 st
+%Cpu4  :  5.3 us, 23.2 sy,  0.0 ni, 43.2 id,  0.0 wa,  1.8 hi, 26.7 si,  0.0 st
+%Cpu5  :  5.3 us, 22.4 sy,  0.0 ni, 44.1 id,  0.0 wa,  1.8 hi, 26.3 si,  0.0 st
+%Cpu6  :  4.9 us, 23.5 sy,  0.0 ni, 43.5 id,  0.0 wa,  1.8 hi, 26.3 si,  0.0 st
+%Cpu7  :  4.6 us, 22.1 sy,  0.0 ni, 44.6 id,  0.0 wa,  1.8 hi, 26.8 si,  0.0 st
+%Cpu8  :  0.0 us,  0.0 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.0 hi,  1.7 si,  0.0 st
+%Cpu9  :  0.0 us,  0.3 sy,  0.0 ni, 99.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu10 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu11 :  0.3 us,  0.3 sy,  0.0 ni, 99.0 id,  0.0 wa,  0.0 hi,  0.3 si,  0.0 st
+%Cpu12 :  0.0 us,  1.0 sy,  0.0 ni, 98.7 id,  0.0 wa,  0.0 hi,  0.3 si,  0.0 st
+%Cpu13 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu14 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu15 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu16 :  0.0 us,  0.7 sy,  0.0 ni, 98.7 id,  0.0 wa,  0.3 hi,  0.3 si,  0.0 st
+%Cpu17 :  1.3 us,  4.3 sy,  0.0 ni, 91.6 id,  0.0 wa,  0.7 hi,  2.0 si,  0.0 st
+%Cpu18 :  1.3 us,  4.4 sy,  0.0 ni, 91.6 id,  0.0 wa,  0.7 hi,  2.0 si,  0.0 st
+%Cpu19 :  1.4 us,  4.1 sy,  0.0 ni, 91.9 id,  0.0 wa,  0.7 hi,  2.0 si,  0.0 st
+%Cpu20 :  1.0 us,  4.1 sy,  0.0 ni, 92.2 id,  0.3 wa,  0.7 hi,  1.7 si,  0.0 st
+%Cpu21 :  1.0 us,  4.0 sy,  0.0 ni, 92.9 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
+%Cpu22 :  1.3 us,  3.4 sy,  0.0 ni, 93.0 id,  0.0 wa,  0.3 hi,  2.0 si,  0.0 st
+%Cpu23 :  0.7 us,  3.7 sy,  0.0 ni, 93.2 id,  0.0 wa,  0.7 hi,  1.7 si,  0.0 st
+%Cpu24 :  0.0 us,  0.3 sy,  0.0 ni, 99.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu25 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu26 :  0.0 us,  0.3 sy,  0.0 ni, 99.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu27 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu28 :  0.3 us,  0.3 sy,  0.0 ni, 99.3 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu29 :  0.3 us,  1.0 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu30 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu31 :  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem:  65936068 total, 24154896 used, 41781172 free,   150808 buffers
+KiB Swap: 32940028 total,    40096 used, 32899932 free,  1989836 cached
+----
+<1> IRQ is stuck at CPu0 with spikes (si) is the IRQ context
+
+
+.Linux message @5Gb/sec
+[source,bash]
+----
+ kernel:[383975.990716] BUG: soft lockup - CPU#0 stuck for 22s! [nginx:6557]
+----
+
+
+.Kernel slabinfo (800MB for TCP)@5Gb/sec
+[source,bash]
+----
+$sudo cat /proc/slabinfo
+slabinfo - version: 2.1
+# name            <active_objs> <num_objs> <objsize>
+nf_conntrack_ffffffff81cbd800 137505 138476    312 63 
+nfs_direct_cache       0      0    208   39    2   
+nfs_commit_data       46     46    704   46    8   
+nfs_write_data       408    408    960   34    8   
+nfs_inode_cache     2528   2666   1032   31    8   
+rpc_inode_cache        0      0    640   51    8   
+fscache_cookie_jar    204    204     80   51    1  
+ext4_groupinfo_1k     64     64    128   32    1  :
+kvm_async_pf           0      0    144   28    1  :
+kvm_vcpu               0      0  16064    2    8  :
+kvm_mmu_page_header      0      0    168   48    2 
+ip6_dst_cache        924    924    384   42    4  :
+UDPLITEv6              0      0   1088   30    8  :
+UDPv6                960    960   1088   30    8  :
+tw_sock_TCPv6          0      0    256   32    2  :
+TCPv6                112    112   1984   16    8  :
+dm_snap_pending_exception      0      0    104   39
+kcopyd_job             0      0   3312    9    8 : 
+dm_uevent              0      0   2608   12    8 : 
+dm_rq_target_io        0      0    416   39    4 : 
+cfq_queue           1120   1120    232   35    2 : 
+bsg_cmd                0      0    312   52    4 : 
+mqueue_inode_cache    108    108    896   36    8 :
+isofs_inode_cache      0      0    616   53    8 : 
+hugetlbfs_inode_cache   4200   4340    584   28    
+jbd2_journal_handle   2720   2720     48   85    1 
+jbd2_journal_head   2016   2016    112   36    1 : 
+jbd2_revoke_table_s    768    768     16  256    1 
+jbd2_revoke_record_s   1024   1024     32  128    1
+ext4_inode_cache   29727  29888   1016   32    8 : 
+ext4_xattr            92     92     88   46    1 : 
+ext4_free_data      1344   1344     64   64    1 : 
+ext4_allocation_context   2970   2970    136   30  
+ext4_io_end         1683   1683     80   51    1 : 
+ext4_extent_status  26520  26520     40  102    1 :
+configfs_dir_cache      0      0     88   46    1 :
+dquot               1024   1024    256   32    2 : 
+kioctx               900    900    448   36    4 : 
+pid_namespace         30     30   2176   15    8 : 
+posix_timers_cache      0      0    248   33    2 :
+UDP-Lite               0      0    896   36    8 : 
+ip_fib_trie          803    803     56   73    1 : 
+UDP                 1152   1152    896   36    8 : 
+tw_sock_TCP         5250   5460    192   42    2 : 
+TCP                53650  53766   1792   18    8 : 
+blkdev_queue         318    405   2080   15    8 : 
+blkdev_requests     4945   5246    376   43    4 : 
+fsnotify_event_holder    170    170     24  170    
+fsnotify_event      1258   1258    120   34    1 : 
+sock_inode_cache   56849  57120    640   51    8 : 
+shmem_inode_cache   5557   5978    656   49    8 : 
+Acpi-ParseExt      77263  77336     72   56    1 : 
+Acpi-Namespace     40902  41412     40  102    1 : 
+taskstats            735    735    328   49    4 : 
+proc_inode_cache   16620  16983    632   51    8 : 
+sigqueue            1734   1734    160   51    2 : 
+bdev_cache           390    390    832   39    8 : 
+sysfs_dir_cache    59996  60084    112   36    1 : 
+inode_cache        13884  13972    568   28    4 : 
+dentry            137269 138012    192   42    2 : 
+selinux_inode_security  14553  15096     80   51    0
+buffer_head        82173  82173    104   39    1 : 
+vm_area_struct     22830  23364    184   44    2 : 
+mm_struct           3060   3060    896   36    8 : 
+files_cache         2703   2703    640   51    8 : 
+signal_cache        3498   3750   1088   30    8 : 
+sighand_cache       1408   1515   2112   15    8 : 
+task_xstate         5361   5460    832   39    8 : 
+task_struct         2280   2672   1952   16    8 : 
+anon_vma           24780  26112     64   64    1 : 
+shared_policy_node   5015   5015     48   85    1 :
+numa_policy           60     60    136   30    1 : 
+radix_tree_node    15251  15344    568   28    4 : 
+idr_layer_cache      795    795   2112   15    8 : 
+dma-kmalloc-8192       0      0   8192    4    8 : 
+dma-kmalloc-4096       0      0   4096    8    8 : 
+dma-kmalloc-2048       0      0   2048   16    8 : 
+dma-kmalloc-1024       0      0   1024   32    8 : 
+dma-kmalloc-512        0      0    512   32    4 : 
+dma-kmalloc-256        0      0    256   32    2 : 
+dma-kmalloc-128        0      0    128   32    1 : 
+dma-kmalloc-64         0      0     64   64    1 : 
+dma-kmalloc-32         0      0     32  128    1 : 
+dma-kmalloc-16         0      0     16  256    1 : 
+dma-kmalloc-8          0      0      8  512    1 : 
+dma-kmalloc-192        0      0    192   42    2 : 
+dma-kmalloc-96         0      0     96   42    1 : 
+kmalloc-8192         284    288   8192    4    8 : 
+kmalloc-4096         955   1019   4096    8    8 : 
+kmalloc-2048        2935   3088   2048   16    8 : 
+kmalloc-1024      233936 234212   1024   32    8 : 
+kmalloc-512       236653 236928    512   32    4 : 
+kmalloc-256        87517  87904    256   32    2 : 
+kmalloc-192       178243 178290    192   42    2 : 
+kmalloc-128       128594 128832    128   32    1 : 
+kmalloc-96          3709   3822     96   42    1 : 
+kmalloc-64         89344  89600     64   64    1 : 
+kmalloc-32         21182  22400     32  128    1 : 
+kmalloc-16         17408  17408     16  256    1 : 
+kmalloc-8          33280  33280      8  512    1 : 
+kmem_cache_node      678    704     64   64    1 : 
+kmem_cache           320    320    256   32    2 : 
+----
+
+=== Test results - Explained
+
+nginx installed on 2 sockets setup with 8 cores per socket(total of 16 cores/32 threads) can't handle more than 20K new flow/sec due to kernel/IRQ (nginx could continue but not for much).  With more NICs and optimized distribution one could have extrapolated it by factor x2 but not more than that.
+The total number of packets is about  about 200KPPS. the number of active flows was 12K flows (not request response)
+the limitation was the kernel and *not* nginx. 
+
+Back to our question:
+
+==== Speed Factor
+
+To get 100Gb/sec of this profile as a server side. we need 4 cores of TRex and 20x16 cores of nginx servers, this gives factor of *~80* faster
+
+==== Memory Factor
+
+in our implementation each flows need about 500 bytes with Rx and Tx ring (memory is not saved only reference) in the Kernel with real server each socket need to save a lot of memory 
+for 5Gb/sec with this profile it was needed  about 10GB of memory for 100Gb/sec there is a need for 200GB. 
+With TRex implementation there is a need for 100MB heap memory factor of *2000* in memory.
+
+== Conclusion 
+
+DPDK TCP user space implementation for Firewall L7 tests save a lot of memory/CPU resources and it worth to invest in this direction. 
+
+== References
+
+1. [[1]] link:https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/[]
+2. [[2]] link:http://www.seastar-project.org/networking/[]
+3. [[3]] link:https://github.com/Juniper/warp17[]
+4. [[4]] link:https://www.nginx.com/blog/testing-the-performance-of-nginx-and-nginx-plus-web-servers/[]
+5. [[5]] link:https://httpd.apache.org/docs/2.4/programs/ab.html[]
+6. [[6]] link:https://www.nginx.com/blog/tuning-nginx/[]
+7. [[7]] link:https://blog.cloudflare.com/how-to-achieve-low-latency/[]
+    
+many thanks for Yaroslav for setup the nginx and kernel 
+Hanoh Haim 
+
