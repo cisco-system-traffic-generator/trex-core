@@ -288,8 +288,12 @@ Linux and nginx required much more memory than TRex due to the TCP transmit queu
 == The results 
 
 Again, we are comparing 1 DP core running TRex to nginx running on 16 cores with a kernel that can interrupt any nginx process with IRQ.
+Figure 3 shows the performance of one DP TRex, it can scale to about 25Gb/sec of download of HTTP.
+Figure 4 shows the nginx performance with 16 cores, it scale(or not scale) up to about 5.4Gb/sec of this type of HTTP.
 
-image::images/nginx_results.png[title="TRex with 1 DP core vs Nginx 16 cores",align="center",width=800, link="images/nginx_results.png"]
+image::images/nginx_result_trex.png[title="TRex with 1 DP core",align="center",width=800, link="images/nginx_result_trex.png"]
+
+image::images/nginx_result_linux.png[title="Nginx 16 cores",align="center",width=800, link="images/nginx_result_linux.png"]
 
 === TRex results 1 DP core @ maximum rate
 
@@ -297,7 +301,7 @@ image::images/nginx_results.png[title="TRex with 1 DP core vs Nginx 16 cores",al
 [source,bash]
 ----
 
--Per port stats table 
+ -Per port stats table 
       ports |               0 |               1 |               2 |               3 
  -----------------------------------------------------------------------------------------
    opackets |               0 |        32528390 |        12195883 |               0 
@@ -328,7 +332,11 @@ image::images/nginx_results.png[title="TRex with 1 DP core vs Nginx 16 cores",al
  *** TRex is shutting down - cause: 'CTRL + C detected'
  All cores stopped !! 
 ----
-<1>TRex server is 84% and Client is 54% (server has more cycles)
+<1> TRex server has 84% CPU util and Client has only 54% CPU util (server spend more cycles per packet because TSO is applied on client side and LRO does not exits in Rx side for X710 )
+
+
+
+
 
 
 .TRex TCP counters- no drop
