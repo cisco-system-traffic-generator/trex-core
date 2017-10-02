@@ -16,6 +16,7 @@ import subprocess
 import json
 import re
 from waflib import Logs
+import string
 
 
 top = '.'
@@ -675,7 +676,39 @@ TOC_END = """
 
 </script>
 
+
+
 """
+
+DISQUS_HTML = """
+
+<div id="disqus_thread"></div>
+<script>
+
+/**
+*  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+*  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables*/
+/*
+var disqus_config = function () {
+this.page.url = https://trex-tgn.cisco.com/trex/doc/<ID>;  
+this.page.identifier = <ID>; 
+};
+*/
+(function() { // DON'T EDIT BELOW THIS LINE
+var d = document, s = d.createElement('script');
+s.src = 'https://trex-tgn.disqus.com/embed.js';
+s.setAttribute('data-timestamp', +new Date());
+(d.head || d.body).appendChild(s);
+})();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+"""
+
+def build_disqus(page_name):
+    s=DISQUS_HTML;
+    s=s.replace('<ID>', page_name)
+    return s;
 
 def do_replace (input_file,contents,look,str_replaced):
     if contents.count(look)!=1 :
@@ -687,14 +720,20 @@ def do_replace (input_file,contents,look,str_replaced):
 
 def toc_fixup_file (input_file,
                     out_file, 
-                    json_file_name
+                    json_file_name,
+                    disqus=False
                     ):
 
     file = open(input_file)
     contents = file.read()
 
     contents = do_replace(input_file,contents,'<body class="book">', TOC_HEAD);
-    contents = do_replace(input_file,contents,'</body>', TOC_END)
+    toc_end=TOC_END;
+    if disqus:
+        disqus_key=os.path.split(out_file)[1]
+        toc_end =build_disqus(disqus_key)+toc_end
+
+    contents = do_replace(input_file,contents,'</body>', toc_end)
     contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
 
     file = open(out_file,'w')
@@ -702,9 +741,7 @@ def toc_fixup_file (input_file,
     file.close();
 
 
-
-def convert_to_html_toc_book(task):
-
+def _convert_to_html_toc_book (task,disqus=False):
     input_file = task.inputs[0].abspath()
 
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
@@ -723,9 +760,16 @@ def convert_to_html_toc_book(task):
 
     create_toc_json(tmp,json_out_file)
 
-    toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short);
+    toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short,disqus);
 
     return os.system('rm {0}'.format(tmp));
+
+
+def convert_to_html_toc_book(task):
+    _convert_to_html_toc_book (task,False)
+
+def convert_to_html_toc_book_disqus(task):
+    _convert_to_html_toc_book (task,True)
 
 
 
@@ -1024,7 +1068,7 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_astf.asciidoc waf.css', target='trex_astf.html',scan=ascii_doc_scan);
 
-    bld(rule=convert_to_html_toc_book,
+    bld(rule=convert_to_html_toc_book_disqus,
         source='trex_astf_vs_nginx.asciidoc waf.css', target='trex_astf_vs_nginx.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
@@ -1208,9 +1252,12 @@ def publish_both(bld):
          
 def test(bld):
     # copy all the files to our web server 
-    toc_fixup_file ('build/trex_stateless.tmp',
-                    'build/trex_stateless.html',
-                    'trex_stateless.json')
+    #toc_fixup_file ('build/trex_stateless.tmp',
+    #                'build/trex_stateless.html',
+    #                'trex_stateless.json')
+
+    print build_disqus("my_html")
+  
 
 
 
