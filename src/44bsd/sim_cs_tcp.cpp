@@ -24,6 +24,8 @@ limitations under the License.
 #include "stt_cp.h"
 
 #define CLIENT_SIDE_PORT        1025
+#define DEFAULT_WIN 32768
+#define DEFAULT_MSS 1460
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,
                                       double time){
@@ -214,8 +216,8 @@ bool CClientServerTcp::Create(std::string out_dir,
 }
 
 // Set fictive association table to be used by server side in simulation
-void CClientServerTcp::set_assoc_table(uint16_t port, CTcpAppProgram *prog) {
-    m_tcp_data_ro.set_test_assoc_table(port, prog);
+void CClientServerTcp::set_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *s_tune) {
+    m_tcp_data_ro.set_test_assoc_table(port, prog, s_tune);
     m_s_ctx.set_template_ro(&m_tcp_data_ro);
 }
 
@@ -392,7 +394,8 @@ int CClientServerTcp::test2(){
     CMbufBuffer * buf;
     CTcpAppProgram * prog_c;
     CTcpAppProgram * prog_s;
-    CTcpFlow          *  c_flow; 
+    CTcpFlow          *  c_flow;
+    CTcpTuneables *s_tune;
 
     CTcpApp * app_c;
     //CTcpApp * app_s;
@@ -423,6 +426,10 @@ int CClientServerTcp::test2(){
     buf = new CMbufBuffer();
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
+    s_tune = new CTcpTuneables();
+    s_tune->m_window = DEFAULT_WIN;
+    s_tune->m_mss = DEFAULT_MSS;
+
     utl_mbuf_buffer_create_and_fill(0,buf,2048,tx_num_bytes);
 
 
@@ -452,7 +459,7 @@ int CClientServerTcp::test2(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
+    set_assoc_table(80, prog_s, s_tune);
 
     m_rtt_sec = 0.05;
 
@@ -493,6 +500,7 @@ int CClientServerTcp::test2(){
 
     delete prog_c;
     delete prog_s;
+    delete s_tune;
 
     buf->Delete();
     delete buf;
@@ -616,7 +624,8 @@ int CClientServerTcp::simple_http(){
     CMbufBuffer * buf_res;
     CTcpAppProgram * prog_c;
     CTcpAppProgram * prog_s;
-    CTcpFlow          *  c_flow; 
+    CTcpFlow          *  c_flow;
+    CTcpTuneables *s_tune;
 
     CTcpApp * app_c;
     //CTcpApp * app_s;
@@ -660,6 +669,14 @@ int CClientServerTcp::simple_http(){
 
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
+    s_tune = new CTcpTuneables();
+
+    s_tune->m_window = DEFAULT_WIN;
+    if (m_mss) {
+        s_tune->m_mss = m_mss;
+    } else {
+        s_tune->m_mss = DEFAULT_MSS;
+    }
 
     uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
 
@@ -700,7 +717,8 @@ int CClientServerTcp::simple_http(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
+
+    set_assoc_table(80, prog_s, s_tune);
 
     m_rtt_sec = 0.05;
 
@@ -747,6 +765,7 @@ int CClientServerTcp::simple_http(){
     free_http_res((char *)http_r);
     delete prog_c;
     delete prog_s;
+    delete s_tune;
 
     buf_req->Delete();
     delete buf_req;
@@ -759,7 +778,6 @@ int CClientServerTcp::simple_http(){
 
 int CClientServerTcp::fill_from_file() {
     CTcpAppProgram *prog_c;
-    CTcpAppProgram *prog_s;
     CTcpFlow *c_flow;
     CTcpApp *app_c;
 
@@ -772,6 +790,7 @@ int CClientServerTcp::fill_from_file() {
     }
 
     c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false);
+
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(src_port);
@@ -789,11 +808,17 @@ int CClientServerTcp::fill_from_file() {
 
     uint16_t temp_index = 0;
     prog_c = ro_db->get_client_prog(temp_index);
-    prog_s = ro_db->get_server_prog_by_port(dst_port);
+    // tunables setting currently does not work with this simulation.
+    // need to do something like
+    // c_flow->set_c_tcp_info(rw_db, temp_index);
+    // s_flow->set_c_tcp_info(rw_db, temp_index);
+    m_s_ctx.set_template_ro(ro_db);
 
     if (m_debug) {
-      prog_c->Dump(stdout);
-      prog_s->Dump(stdout);
+        CTcpServreInfo * s_info = ro_db->get_server_info_by_port(dst_port);
+        CTcpAppProgram *prog_s = s_info->get_prog();
+        prog_c->Dump(stdout);
+        prog_s->Dump(stdout);
     }
 
     app_c->set_program(prog_c);
@@ -803,7 +828,6 @@ int CClientServerTcp::fill_from_file() {
     c_flow->set_app(app_c);
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(dst_port, prog_s);
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));

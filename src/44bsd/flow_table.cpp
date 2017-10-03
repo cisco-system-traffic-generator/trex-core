@@ -424,11 +424,10 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-
     CAstfDbRO *tcp_data_ro = ctx->get_template_ro();
-    CTcpAppProgram *server_prog = tcp_data_ro->get_server_prog_by_port(dst_port);
+    CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port);
 
-    if (! server_prog) {
+    if (! server_info) {
         generate_rst_pkt(ctx,
                          dest_ip,
                          tuple.get_ip(),
@@ -449,6 +448,9 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    CTcpAppProgram *server_prog = server_info->get_prog();
+    CTcpTuneables *s_tune = server_info->get_tuneables();
+
     lptflow = ctx->m_ft.alloc_flow(ctx,
                                    dest_ip,
                                    tuple.get_ip(),
@@ -463,7 +465,9 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
     lptflow->server_update_mac_from_packet(pkt);
+    lptflow->m_c_template_idx = server_info->get_temp_idx();
 
     /* add to flow-table */
     lptflow->m_hash.key = key;

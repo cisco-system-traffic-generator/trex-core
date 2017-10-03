@@ -50,8 +50,8 @@
 #include "h_timer.h"
 #include <stddef.h> 
 #include <common/Network/Packet/IPv6Header.h>
-
-           
+#include <astf/astf_template_db.h>
+#include <astf/astf_db.h>
 
 //extern    struct inpcb *tcp_last_inpcb;
 
@@ -258,7 +258,6 @@ void CTcpFlow::init(){
     m_ctx->timer_w_start(this);
 }
 
-
 void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
     m_tick=0;
 
@@ -300,6 +299,47 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
     tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
     tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
 
+}
+
+void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
+    m_tcp.m_tuneable_flags = 0;
+
+    CTcpTuneables *tune = rw_db->get_c_tune();
+    if (! tune)
+        return;
+
+    if (tune->is_empty())
+        return;
+
+    if (tune->mss_valid()) {
+        m_tcp.m_tuneable_flags |= TUNE_MSS;
+        m_tcp.t_maxseg = tune->get_mss();
+    }
+    if (tune->init_win_valid()) {
+        m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
+    }
+}
+
+void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
+    m_tcp.m_tuneable_flags = 0;
+
+    if (! tune)
+        return;
+
+    if (tune->is_empty())
+        return;
+
+    if (tune->mss_valid()) {
+        m_tcp.m_tuneable_flags |= TUNE_MSS;
+        m_tcp.t_maxseg = tune->get_mss();
+#ifdef REMOVE_LATER
+        printf("setting server maxseg to %d\n", m_tcp.t_maxseg);
+#endif
+    }
+
+    if (tune->init_win_valid()) {
+        m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
+    }
 }
 
 
@@ -386,7 +426,18 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
     }
 }
 
+void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
+    if (tune == NULL)
+        return;
 
+    if (tune->is_empty())
+        return;
+
+    if (tune->mss_valid()) {
+        tcp_mssdflt = tune->get_mss();
+        tcp_initwnd = tcp_initwnd_factor * tcp_mssdflt;
+    }
+}
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
                               bool is_client){

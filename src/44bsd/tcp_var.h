@@ -67,7 +67,7 @@
 
 
 class CTcpReass;
-
+class CAstfPerTemplateRW;
 
 struct CTcpPkt {
     rte_mbuf_t   * m_buf;
@@ -97,7 +97,9 @@ struct tcpcb {
     char    t_force;        /* 1 if forcing out a byte */
     uint8_t mbuf_socket;    /* mbuf socket */
     uint8_t t_dupacks;      /* consecutive dup acks recd */
-    uint8_t m_pad1;
+#define TUNE_MSS         0x01
+#define TUNE_INIT_WIN    0x02
+    uint8_t m_tuneable_flags;
     /*====== end =============*/
 
     /* ======= size 12 bytes  */
@@ -220,7 +222,9 @@ struct tcpcb {
 public:
 
     
-
+    tcpcb() {
+        m_tuneable_flags = 0;
+    }
     inline bool is_tso(){
         return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
     }
@@ -427,8 +431,8 @@ public:
 #include "h_timer.h"
 
 class CTcpPerThreadCtx ;
-
-
+class CAstfDbRO;
+class CTcpTuneables;
 
 
 class CTcpFlow {
@@ -509,6 +513,8 @@ public:
 
     /* update MAC addr from the packet in reverse */
     void server_update_mac_from_packet(uint8_t *pkt);
+    void set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id);
+    void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
 public:
     flow_hash_ent_t   m_hash; /* object   */
@@ -544,6 +550,7 @@ public:
 
 class CAstfDbRO;
 class CAstfTemplatesRW;
+class CTcpTuneables;
 
 class CTcpPerThreadCtx {
 public:
@@ -575,6 +582,7 @@ public:
     }
 
     CAstfDbRO *get_template_ro() {return m_template_ro;}
+    CAstfTemplatesRW *get_template_rw() {return m_template_rw;}
     void set_template_ro(CAstfDbRO *t) {m_template_ro = t;}
     void set_template_rw(CAstfTemplatesRW *t) {m_template_rw = t;}
     void set_cb(CTcpCtxCb    * cb){
@@ -598,6 +606,7 @@ public:
 
     bool is_open_flow_enabled();
 
+    void update_tuneables(CTcpTuneables *tune);
 public:
 
     /* TUNABLEs */

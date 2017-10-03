@@ -210,7 +210,7 @@ public:
     int fill_from_file();
     bool compare(std::string exp_dir);
     void close_file();
-    void set_assoc_table(uint16_t port, CTcpAppProgram *prog);
+    void set_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *s_tune);
 private: 
     void dump_counters();
     bool is_drop();

@@ -35,8 +35,12 @@ static double cps_factor(double cps){
 
 }
 
+void CTcpTuneables::dump(FILE *fd) {
+    if (mss_valid())
+        fprintf(fd, "mss: %d\n", m_mss);
+}
 
-CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &params) {
+CTcpServreInfo *CTcpDataAssocTranslation::get_server_info(const CTcpDataAssocParams &params) {
     if (m_vec.size() == 0) {
         assoc_map_it_t it = m_map.find(params);
 
@@ -49,7 +53,7 @@ CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &p
 
     for (int i = 0; i < m_vec.size(); i++) {
         if (params == m_vec[i].m_params)
-            return m_vec[i].m_prog;
+            return &m_vec[i].m_server_info;
     }
 
     return NULL;
@@ -59,7 +63,7 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     if (m_vec.size() != 0) {
         fprintf(fd, "CTcpDataAssocTranslation - Dumping vector:\n");
         for (int i = 0; i < m_vec.size(); i++) {
-            fprintf(fd, "  port %d mapped to %p\n", m_vec[i].m_params.m_port, m_vec[i].m_prog);
+            fprintf(fd, "  port %d mapped to %p\n", m_vec[i].m_params.m_port, &m_vec[i].m_server_info);
         }
     } else {
         fprintf(fd, "CTcpDataAssocTranslation - Dumping map:\n");
@@ -71,13 +75,26 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     }
 }
 
-void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
-    CTcpDataAssocTransHelp trans_help(params, prog);
+void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+                                          , uint16_t temp_idx) {
+    CTcpDataAssocTransHelp trans_help(params, prog, tune, temp_idx);
     m_vec.push_back(trans_help);
 }
 
-void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
-    m_map.insert(std::pair<CTcpDataAssocParams, CTcpAppProgram *>(params, prog));
+void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+                                           , uint16_t temp_idx) {
+    CTcpServreInfo *tcp_s_info = new CTcpServreInfo(prog, tune, temp_idx);
+    assert(tcp_s_info);
+
+    m_map.insert(std::pair<CTcpDataAssocParams, CTcpServreInfo *>(params, tcp_s_info));
+}
+
+void CTcpDataAssocTranslation::clear() {
+     for (assoc_map_it_t it = m_map.begin(); it != m_map.end(); it++) {
+        delete it->second;
+    }
+    m_map.clear();
+    m_vec.clear();
 }
 
 bool CAstfDB::parse_file(std::string file) {
@@ -246,8 +263,26 @@ uint32_t CAstfDB::ip_from_str(const char *c_ip) {
     return ntohl(ip_num);
 }
 
+bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
+    if (tune_json == Json::nullValue) {
+        return true;
+    }
+
+    if (tune_json["tcp"] == Json::nullValue) {
+        return true;
+    }
+
+    Json::Value json = tune_json["tcp"];
+    if (json["mss"] != Json::nullValue) {
+        tune->m_mss = json["mss"].asInt();
+        tune->add_value(CTcpTuneables::mss_bit);
+    }
+
+    return true;
+}
+
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
-                                                    uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
+                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
 
@@ -299,6 +334,17 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
     }
 
+    CTcpTuneables *c_tune = new CTcpTuneables();
+    assert (c_tune);
+
+    CTcpTuneables *s_tune = new CTcpTuneables();
+    assert (s_tune);
+
+    read_tunables(c_tune, m_val["c_glob_info"]);
+    read_tunables(s_tune, m_val["s_glob_info"]);
+
+    ret->set_tuneables(c_tune, s_tune);
+
     std::vector<double>  dist;
     // loop over all templates
     for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
@@ -317,7 +363,20 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_k_cps = cps;
         dist.push_back(cps);
         template_ro.m_destination_port = c_temp["port"].asInt();
+
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
+
+        CTcpTuneables *s_tuneable = new CTcpTuneables();
+        CTcpTuneables *c_tuneable = new CTcpTuneables();
+        assert(s_tuneable);
+        assert(c_tuneable);
+        read_tunables(s_tuneable, m_val["templates"][index]["server_template"]["glob_info"]);
+        assert(CAstfDB::m_pInstance);
+        s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
+
+        read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"]);
+        temp_rw->set_tuneables(c_tuneable, s_tuneable);
+
         ret->add_template(temp_rw);
     }
 
@@ -327,6 +386,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     m_rw_db.push_back(ret);
 
     my_lock.unlock();
+
     return ret;
 }
 /*
@@ -337,7 +397,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
  */
 CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
-    uint16_t program_index;
+    uint32_t program_index;
 
     assert(m_tcp_data[socket_id].m_init > 0);
 
@@ -355,17 +415,16 @@ CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_
     return m_tcp_data[socket_id].m_prog_list[program_index];
 }
 
-CTcpAppProgram *CAstfDB::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
+CTcpServreInfo *CAstfDB::get_server_info_by_port(uint16_t port, uint8_t socket_id) {
     CTcpDataAssocParams params(port);
 
     assert(m_tcp_data[socket_id].m_init > 0);
 
-    return m_tcp_data[socket_id].m_assoc_trans.get_prog(params);
+    return m_tcp_data[socket_id].m_assoc_trans.get_server_info(params);
 }
 
 /*
   Building association translation, and all template related info.
-
  */
 bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     bool is_hash_needed = false;
@@ -387,11 +446,16 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         CTcpAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
 
+        CTcpTuneables *s_tuneable = new CTcpTuneables();
+        assert(s_tuneable);
+        read_tunables(s_tuneable, m_val["templates"][index]["server_template"]["glob_info"]);
+
         if (is_hash_needed) {
-            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p);
+            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p, s_tuneable, index);
         } else {
-            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p);
+            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p, s_tuneable, index);
         }
+        m_s_tuneables.push_back(s_tuneable);
 
         // build template info
         template_cps = cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
@@ -516,6 +580,10 @@ void CAstfDB::clear() {
         lp->Delete();
         delete lp;
     }
+    for (i = 0; i < m_s_tuneables.size(); i++) {
+        delete m_s_tuneables[i];
+    }
+    m_s_tuneables.clear();
 
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
         m_tcp_data[i].Delete();
@@ -523,17 +591,19 @@ void CAstfDB::clear() {
     m_json_initiated = false;
 }
 
-CTcpAppProgram * CAstfDbRO::get_server_prog_by_port(uint16_t port) {
+    CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port) {
     CTcpDataAssocParams params(port);
-    return m_assoc_trans.get_prog(params);
+    return m_assoc_trans.get_server_info(params);
 }
 
 void CAstfDbRO::dump(FILE *fd) {
+#if 0
     fprintf(fd, "buf list:\n");
     for (int i = 0; i < m_buf_list.size(); i++) {
-        fprintf(fd, "*******%d*******\n", i);
+        fprintf(fd, "  *******%d*******\n", i);
         m_buf_list[i]->Dump(fd);
     }
+#endif
 }
 
 void CAstfDbRO::Delete() {
@@ -548,6 +618,12 @@ void CAstfDbRO::Delete() {
         delete m_prog_list[i];
     }
     m_prog_list.clear();
+
+    for (i = 0; i < m_templates.size(); i++) {
+        m_templates[i].Delete();
+    }
+    m_templates.clear();
+
     m_assoc_trans.clear();
     m_init = false;
 }

@@ -75,7 +75,6 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def reset(self):
         ASTFIPGenDist.class_reset()
         ASTFProgram.class_reset()
-        ASTFTCPInfo.class_reset()
 
     def compare_json(self, json1, json2):
         if json1 != json2:
@@ -149,31 +148,6 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         else:
             assert 0, "Bad exception, or no exception"
 
-    def test_ASTFTCPInfo(self):
-        class_json = [{'window': 32768, 'options': 0, 'port': 80}, {'window': 100, 'options': 0, 'port': 8080}]
-        json1 = {'index': 1}
-        json2 = {'index': 0}
-
-        # bad side
-        try:
-            tcp_info = ASTFTCPInfo(side="t")  # noqa: ignore=F841
-        except ASTFError as e:
-            assert (type(e) == ASTFError)
-        else:
-            assert 0, "Bad exception, or no exception"
-
-        # default arguments test
-        tcp_info = ASTFTCPInfo(side="c")
-        assert (tcp_info.window == ASTFTCPInfo.DEFAULT_WIN)
-        assert (tcp_info.port == ASTFTCPInfo.DEFAULT_PORT)
-
-        tcp_info1 = ASTFTCPInfo(side="c", window=100, port=8080)
-        tcp_info2 = ASTFTCPInfo(side="c", window=ASTFTCPInfo.DEFAULT_WIN)
-
-        assert(self.compare_json(class_json, ASTFTCPInfo.class_to_json()))
-        assert(self.compare_json(json1, tcp_info1.to_json()))
-        assert(self.compare_json(json2, tcp_info2.to_json()))
-
     def test_ASTFAssociationRule(self):
         json = {'ip_end': '2.2.2.2', 'port': 80, 'ip_start': '1.1.1.1'}
 
@@ -190,7 +164,7 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         assert(self.compare_json(json, assoc.to_json()))
 
     def test_ASTFTCPClientTemplate(self):
-        json = {'tcp_info': {'index': 0}, 'cluster': {}, 'program_index': 0, 'cps': 1, 'port': 80,
+        json = {'cluster': {}, 'program_index': 0, 'cps': 1, 'port': 80,
                 'ip_gen': {'dist_client': {'index': 0}, 'dist_server': {'index': 1}}}
 
         # no program
@@ -212,7 +186,7 @@ class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         assert(self.compare_json(json, c_temp.to_json()))
 
     def test_ASTFTCPServerTemplate(self):
-        json = {'program_index': 0, 'assoc': [{'port': 80}], 'tcp_info': {'index': 0}}
+        json = {'program_index': 0, 'assoc': [{'port': 80}]}
         template_json = [{'commands': [{'name': 'tx', 'buf_index': 0}]}, {'commands': [{'name': 'tx', 'buf_index': 1}]}]
         prog_json = [u'eXl5', u'YWFh']
 

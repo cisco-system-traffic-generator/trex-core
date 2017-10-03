@@ -45,6 +45,8 @@
 #include "tcp_debug.h"
 #include "tcp_socket.h"
 #include "utl_mbuf.h"
+#include "astf/astf_db.h"
+#include "astf/astf_template_db.h"
 
 
 #define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
@@ -1592,9 +1594,43 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    tp->snd_cwnd = ctx->tcp_initwnd;
+    if (! (TUNE_MSS & tp->m_tuneable_flags)) {
+        tp->snd_cwnd = ctx->tcp_initwnd;
+        return ctx->tcp_mssdflt;
+    } else {
+        uint16_t init_win;
+        uint32_t mss;
+        // find the flow associated with the tcpcb object. We know tcpcb is part of CTcpFlow because
+        // of TUNE_MSS flag
+        CTcpFlow temp_tcp_flow;
+        uint16_t offset =  (char *)&temp_tcp_flow.m_tcp - (char *)&temp_tcp_flow;
+        CTcpFlow *tcp_flow = (CTcpFlow *)((char *)tp - offset);
+        uint16_t temp_id = tcp_flow->m_c_template_idx;
+        CTcpTuneables *tcp_tune = NULL;
+        CAstfPerTemplateRW *temp_rw = NULL;
+        CAstfTemplatesRW *ctx_temp_rw = ctx->get_template_rw();
+        if (ctx_temp_rw)
+            temp_rw = ctx_temp_rw->get_template_by_id(temp_id);
 
-    return (ctx->tcp_mssdflt);
+        if (temp_rw) {
+            if (ctx->m_ft.is_client_side())
+                tcp_tune = temp_rw->get_c_tune();
+            else
+                tcp_tune = temp_rw->get_s_tune();
+        }
+        if (tcp_tune) {
+            mss = tcp_tune->get_mss();
+            if (TUNE_INIT_WIN & tp->m_tuneable_flags) {
+                init_win = tcp_tune->get_init_win();
+            } else {
+                init_win = 10;
+            }
+            tp->snd_cwnd = mss * init_win;
+        } else{
+            tp->snd_cwnd = ctx->tcp_initwnd;
+            mss = ctx->tcp_mssdflt;
+        }
+
+        return mss;
+    }
 }
-
-

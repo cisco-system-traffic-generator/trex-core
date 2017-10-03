@@ -136,6 +136,7 @@ class _CPcapReader_help(object):
                 if l4.flags & 0x02:
                     # SYN + ACK
                     if l4.flags & 0x10:
+                        self.s_tcp_opts = tcp.options
                         self.s_tcp_win = tcp.window
                         if self.state == _CPcapReader_help.states["init"]:
                             self.fail('Packet #%s is SYN+ACK, but there was no SYN yet, or ' % index)
@@ -146,6 +147,7 @@ class _CPcapReader_help(object):
                         exp_s_seq = tcp.seq + 1
                     # SYN - no ACK. Should be first packet client->server
                     else:
+                        self.c_tcp_opts = tcp.options
                         self.c_tcp_win = tcp.window
                         exp_c_seq = tcp.seq + 1
                         # allowing syn retransmission because cap2/https.pcap contains this
@@ -272,6 +274,14 @@ class CPcapReader(object):
     @property
     def s_tcp_win(self):
         return self.obj.s_tcp_win
+
+    @property
+    def c_tcp_opts(self):
+        return self.obj.c_tcp_opts
+
+    @property
+    def s_tcp_opts(self):
+        return self.obj.s_tcp_opts
 
     @property
     def payload_len(self):
