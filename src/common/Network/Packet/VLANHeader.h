@@ -47,7 +47,7 @@ class VLANHeader
 ////////////////////////////////////////////////////////////////////////////////////////
 public:
 
-    // Sets the complete tag field without sub fields manipulation
+    // Sets the complete tag field without sub fields manipulation, host byte order
     void    setVlanTag          (uint16_t data);
     uint16_t  getVlanTag          ();
 
