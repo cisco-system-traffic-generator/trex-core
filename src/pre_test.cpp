@@ -395,9 +395,9 @@ void CPretest::send_grat_arp_all() {
     }
 }
 
-bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_t &vlan_tag) {
+bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_t &vlan_id) {
     EthernetHeader *m_ether = (EthernetHeader *)p;
-    vlan_tag = 0;
+    vlan_id = 0;
     uint16_t min_size = sizeof(EthernetHeader);
     VLANHeader *vlan;
 
@@ -419,7 +419,7 @@ bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_
         if (vlan->getNextProtocolHostOrder() != EthernetHeader::Protocol::ARP) {
             return false;
         } else {
-            vlan_tag = vlan->getVlanTag();
+            vlan_id = vlan->getTagID();
             arp = (ArpHdr *)(p + 14 + sizeof(VLANHeader));
         }
         min_size += sizeof(ArpHdr);
@@ -453,8 +453,8 @@ int CPretest::handle_rx(int port_id, int queue_id) {
             int pkt_size = rte_pktmbuf_pkt_len(m);
             uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
             ArpHdr *arp;
-            uint16_t vlan_tag;
-            if (is_arp(p, pkt_size, arp, vlan_tag)) {
+            uint16_t vlan_id;
+            if (is_arp(p, pkt_size, arp, vlan_id)) {
                 port->m_stats.m_rx_arp++;
                 if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REQUEST)) {
                     if (verbose >= 3) {
@@ -467,21 +467,21 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                 , port_id, queue_id
                                 , ip_to_str(ntohl(arp->m_arp_sip)).c_str()
                                 , ip_to_str(ntohl(arp->m_arp_tip)).c_str()
-                                , vlan_tag);
+                                , vlan_id);
                         if (verbose >= 7)
                             utl_DumpBuffer(stdout, p, rte_pktmbuf_pkt_len(m), 0);
                     }
                     // is this request for our IP?
                     COneIPv4Info *src_addr;
                     COneIPv4Info *rcv_addr;
-                    if ((src_addr = port->find_ip(ntohl(arp->m_arp_tip), vlan_tag))) {
+                    if ((src_addr = port->find_ip(ntohl(arp->m_arp_tip), vlan_id))) {
                         // If our request(i.e. we are connected in loopback)
                         // , do a shortcut, and write info directly to asking port
                         uint8_t magic[5] = {0x1, 0x3, 0x5, 0x7, 0x9};
                         if (! memcmp((uint8_t *)&arp->m_arp_tha.data, magic, 5)) {
                             uint8_t sent_port_id = arp->m_arp_tha.data[5];
                             if ((sent_port_id < m_max_ports) &&
-                                (rcv_addr = m_port_info[sent_port_id].find_next_hop(ntohl(arp->m_arp_tip), vlan_tag))) {
+                                (rcv_addr = m_port_info[sent_port_id].find_next_hop(ntohl(arp->m_arp_tip), vlan_id))) {
                                 uint8_t mac[ETHER_ADDR_LEN];
                                 src_addr->get_mac(mac);
                                 rcv_addr->set_mac(mac);
@@ -520,22 +520,23 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                     } else {
                         // ARP request not to our IP. Check if this is gratitues ARP for something we need.
                         if ((arp->m_arp_tip == arp->m_arp_sip)
-                            && (rcv_addr = port->find_next_hop(ntohl(arp->m_arp_tip), vlan_tag))) {
+                            && (rcv_addr = port->find_next_hop(ntohl(arp->m_arp_tip), vlan_id))) {
                             rcv_addr->set_mac((uint8_t *)&arp->m_arp_sha);
                         }
                     }
                 } else {
                     if (arp->m_arp_op == htons(ArpHdr::ARP_HDR_OP_REPLY)) {
                         if (verbose >= 3) {
-                            fprintf(stdout, "RX ARP reply on port %d queue %d sip:%s tip:%s\n"
+                            fprintf(stdout, "RX ARP reply on port %d queue %d sip:%s tip:%s vlan:%d\n"
                                     , port_id, queue_id
                                     , ip_to_str(ntohl(arp->m_arp_sip)).c_str()
-                                    , ip_to_str(ntohl(arp->m_arp_tip)).c_str());
+                                    , ip_to_str(ntohl(arp->m_arp_tip)).c_str()
+                                    , vlan_id);
                         }
 
                         // If this is response to our request, update our tables
                         COneIPv4Info *addr;
-                        if ((addr = port->find_next_hop(ntohl(arp->m_arp_sip), vlan_tag))) {
+                        if ((addr = port->find_next_hop(ntohl(arp->m_arp_sip), vlan_id))) {
                             addr->set_mac((uint8_t *)&arp->m_arp_sha);
                         }
                     }
