@@ -389,6 +389,8 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tick=0;
     tcp_now=0;
     m_cb = NULL;
+    m_template_rw = NULL;
+    m_template_ro = NULL;
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;

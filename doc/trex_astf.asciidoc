@@ -975,7 +975,7 @@ link:cp_astf_docs/index.html[python index]
 |   tcps_connattempt || connections initiated
 |   tcps_accepts     || connections accepted
 |   tcps_connects    || connections established
-|   tcps_closed      || conn. closed (includes drops)
+|   tcps_closed      || conn. closed (includes drops) - this counter could be higher than tcps_connects for client side as flow could be be dropped before establishment 
 |   tcps_segstimed   || segs where we tried to get rtt
 |   tcps_rttupdated  || times we succeeded
 |   tcps_delack      || delayed acks sent
@@ -1081,6 +1081,20 @@ see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the 
             assert(s->tcps_rcvbyte==UPLOAD_BYTES);
             }
 ----
+
+some rules for counters 
+[source,c]
+----
+/* for client side */
+  1. tcps_connects<=tcps_closed      /* Drop before socket is connected will be counted in different counter and will be counted in tcps_closed but not in tcps_connects */
+  2. tcps_connattempt==tcps_closed
+
+/* for server side */
+1. tcps_accepts=tcps_connects=tcps_closed
+  
+----
+
+
 
 
 ==== TSO/LRO NIC support 

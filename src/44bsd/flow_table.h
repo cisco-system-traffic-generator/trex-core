@@ -162,6 +162,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_l4_cs;
     uint32_t        m_err_redirect_rx;
     uint32_t        m_redirect_rx_ok;
+    uint32_t        m_err_rx_throttled;
 };
 
 class  CSttFlowTableStats {
@@ -223,6 +224,10 @@ public:
                               CFlowKeyFullTuple &ftuple);
 
       void dump(FILE *fd);
+
+      void inc_rx_throttled_cnt(){
+          m_sts.m_sts.m_err_rx_throttled++;
+      }
 
 public:
 

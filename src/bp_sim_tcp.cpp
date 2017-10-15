@@ -150,9 +150,11 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
         m_c_tcp,
         m_s_tcp
     };
-    
+
+    int sum;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
+        sum=0;
         while (true) {
             cnt=v_if->rx_burst(dir,rx_pkts,64);
             if (cnt==0) {
@@ -169,6 +171,11 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                 }
 #endif
                 ctx->m_ft.rx_handle_packet(ctx,m);
+            }
+            sum+=cnt;
+            if (sum>127) {
+                ctx->m_ft.inc_rx_throttled_cnt();
+                break;
             }
         }
     }
@@ -369,10 +376,10 @@ bool CFlowGenListPerThread::Create_tcp(){
                                                                            , m_thread_id, m_max_threads
                                                                            , getDualPortId());
     m_c_tcp->set_template_rw(rw);
-    m_s_tcp->set_template_ro(template_db);
  
     m_s_tcp->Create(active_flows,false);
     m_s_tcp->set_cb(m_s_tcp_io);
+    m_s_tcp->set_template_ro(template_db);
 
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);

@@ -167,8 +167,8 @@ static void create_bar(CGTblClmCounters  * clm,
 
 void CSTTCpPerDir::create_clm_counters(){
 
-    CMN_S_ADD_CNT(m_active_flows,"active flows",true);
-    CMN_S_ADD_CNT(m_est_flows,"active est flows",true);
+    CMN_S_ADD_CNT(m_active_flows,"active open flows",true);
+    CMN_S_ADD_CNT(m_est_flows,"active established flows",true);
     CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx L7 bw acked",true,"bps");
     CMN_S_ADD_CNT_d(m_tx_bw_l7_total_r,"tx L7 bw total",true,"bps");
     CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx L7 bw acked",true,"bps");
@@ -264,6 +264,7 @@ void CSTTCpPerDir::create_clm_counters(){
 
     FT_S_ADD_CNT_E(err_redirect_rx,"redirect to rx error");
     FT_S_ADD_CNT_OK(redirect_rx_ok,"redirect to rx OK");
+    FT_S_ADD_CNT_OK(err_rx_throttled,"rx thread was throttled");
 }
 
 

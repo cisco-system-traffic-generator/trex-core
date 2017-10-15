@@ -187,6 +187,41 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             print("BYPASS the counter test for now");
 
 
+
+    def test_tcp_http_no_crash(self):
+        """ 
+         Request much higher speed than it could handle, make sure TRex does not crash in this case. 
+         It is more important on setup that the port (C/S) are not on the same core (like trex-12)
+         There is no need to test error counters in this case. 
+        """ 
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = 'config')
+
+        core  = 1 #self.get_benchmark_param('cores')
+        mult  = self.get_benchmark_param('multiplier')
+        bypass = self.get_benchmark_param('bypass_result');
+
+        ret = self.trex.start_trex(
+            c = core,
+            m = mult,
+            d = 30,
+            nc = True,
+            f = 'astf/http_simple.py',
+            l = 1000,
+            k = 10,
+            astf =True
+            )
+
+
+        trex_res = self.trex.sample_to_run_finish()
+
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print ("\nLATEST DUMP:")
+        pprint(trex_res.get_latest_dump());
+
+
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
         pass
