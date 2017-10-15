@@ -1083,11 +1083,6 @@ class STLClient(object):
 
 
     ############ functions used by other classes but not users ##############
-
-    # fetch the API Handlers from the connection object
-    def _get_api_h (self):
-        return self.conn.get_api_h()
-
         
     def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
@@ -1110,8 +1105,8 @@ class STLClient(object):
 
 
     # transmit request on the RPC link
-    def _transmit(self, method_name, params = None, api_class = 'core'):
-        return self.conn.rpc.transmit(method_name, params, api_class)
+    def _transmit(self, method_name, params = None):
+        return self.conn.rpc.transmit(method_name, params)
 
     # transmit batch request on the RPC link
     def _transmit_batch(self, batch_list):
@@ -1896,7 +1891,7 @@ class STLClient(object):
 
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
-        rc = self._transmit("ping", api_class = None)
+        rc = self._transmit("ping")
             
         self.logger.post_cmd(rc)
 

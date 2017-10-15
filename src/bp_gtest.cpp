@@ -1890,9 +1890,12 @@ public:
     }
 
     virtual int close_file(void){
-        assert(m_raw);
-        m_raw->raw=0;
-        delete m_raw;
+        if (m_raw) {
+            m_raw->raw=0;
+            delete m_raw;
+            m_raw = nullptr;
+        }
+        
         return (0);
     }
 
@@ -1985,7 +1988,7 @@ public:
         int i;
         for (i=0; i<m_threads; i++) {
             lpt=fl.m_threads_info[i];
-            lpt->start_generate_stateful("t1",CGlobalInfo::m_options.preview);
+            lpt->start_sim("t1",CGlobalInfo::m_options.preview);
         }
         fl.Delete();
         return (true);
@@ -2023,7 +2026,7 @@ class rx_check_system  : public trexTest {
       po->preview.setVMode(0);
       po->preview.setFileWrite(true);
       po->preview.set_rx_check_enable(true);
-      po->m_run_mode = CParserOption::RUN_MODE_BATCH;
+      po->m_op_mode = CParserOption::OP_MODE_STF;
   }
 
   virtual void TearDown() {

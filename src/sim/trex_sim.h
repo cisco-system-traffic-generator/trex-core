@@ -25,8 +25,13 @@ limitations under the License.
 #include <os_time.h>
 #include <bp_sim.h>
 #include <json/json.h>
-#include <trex_stateless.h>
+
 #include <vector>
+
+#include "stl/trex_stl.h"
+#include "stf/trex_stf.h"
+#include "astf/trex_astf.h"
+#include "astf_batch/trex_astf_batch.h"
 
 int gtest_main(int argc, char **argv);
 
@@ -35,7 +40,8 @@ class TrexPublisher;
 class DpToCpHandler;
 class DPCoreStats;
 
-void set_stateless_obj(TrexStateless *obj);
+TrexSTX * get_stx();
+void set_stx(TrexSTX *obj);
 
 static inline bool 
 in_range(int x, int low, int high) {
@@ -63,8 +69,9 @@ public:
         CGlobalInfo::m_socket.Delete();
     }
 
-
+    
 };
+
 
 /**
  * gtest target
@@ -75,23 +82,8 @@ class SimGtest : SimInterface {
 public:
 
     int run(int argc, char **argv) {
-        TrexStatelessCfg cfg;
-    
-        cfg.m_port_count         = 2;
-        cfg.m_rpc_req_resp_cfg   = NULL;
-        cfg.m_rpc_server_verbose = false;
-        cfg.m_platform_api       = new SimPlatformApi(1);
-        cfg.m_publisher          = NULL;
-
-        set_stateless_obj(new TrexStateless(cfg));
-        
         assert( CMsgIns::Ins()->Create(4) );
-        int rc = gtest_main(argc, argv);
-
-        delete get_stateless_obj();
-        set_stateless_obj(NULL);
-
-        return rc;
+        return gtest_main(argc, argv);
     }
 };
 
@@ -140,6 +132,7 @@ private:
     SimStateless();
     ~SimStateless();
 
+    void init();
     void prepare_control_plane();
     void prepare_dataplane();
     void execute_json(const std::string &json_filename);
@@ -153,8 +146,10 @@ private:
                      DPCoreStats &total);
 
     void cleanup();
+    void flush_messages();
     void flush_dp_to_cp_messages_core(int core_index);
     void flush_cp_to_dp_messages_core(int core_index);
+    void flush_cp_to_rx_messages();
 
     void validate_response(const Json::Value &resp);
 

@@ -199,8 +199,7 @@ static void dump_tcp_counters(CTcpPerThreadCtx  *      c_ctx,
 static int load_list_of_cap_files(CParserOption * op,
                                   asrtf_args_t * args){
     /* set TCP mode */
-    op->preview.set_tcp_mode(true);
-    op->m_run_mode = CParserOption::RUN_MODE_BATCH;
+    op->m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
 
     CFlowGenList fl;
     fl.Create();
@@ -246,7 +245,7 @@ static int load_list_of_cap_files(CParserOption * op,
     lpt->set_vif(&tcp_erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->start_generate_stateful(op->out_file,op->preview);
+        lpt->start_sim(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);

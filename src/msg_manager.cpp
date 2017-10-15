@@ -114,7 +114,6 @@ bool CMsgIns::Create(uint8_t num_threads){
     return (m_rx_dp.Create(num_threads,"rx_dp"));
 }
 
-
 void CMsgIns::Delete(){
     m_cp_dp.Delete();
     m_rx_dp.Delete();

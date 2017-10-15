@@ -148,7 +148,6 @@ main_src = SrcGroup(dir='src',
              'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'stateful_rx_core.cpp',
-             'flow_stat.cpp',
              'flow_stat_parser.cpp',
              'trex_watchdog.cpp',
              'trex_client_config.cpp',
@@ -188,38 +187,63 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+
+# STX - common code
+stx_src = SrcGroup(dir='src/stx/common',
+                           src_list=['trex_stx.cpp',
+                                     'trex_pkt.cpp',
+                                     'trex_capture.cpp',
+                                     'trex_port.cpp',
+                                     'trex_dp_port_events.cpp',
+                                     'trex_dp_core.cpp',
+                                     'trex_messaging.cpp',
+
+                                     'trex_rx_core.cpp',
+                                     'trex_rx_port_mngr.cpp',
+                                     'trex_rx_tx.cpp',
+
+                                     'trex_rpc_cmds_common.cpp'
+                                     ])
+
+
 # stateless code
-stateless_src = SrcGroup(dir='src/stateless/',
-                          src_list=['cp/trex_stream.cpp',
-                                    'cp/trex_stream_vm.cpp',
-                                    'cp/trex_stateless.cpp',
-                                    'cp/trex_stateless_port.cpp',
-                                    'cp/trex_streams_compiler.cpp',
-                                    'cp/trex_vm_splitter.cpp',
-                                    'cp/trex_dp_port_events.cpp',
-                                    'dp/trex_stateless_dp_core.cpp',
-                                    'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp',
-                                    'rx/trex_stateless_rx_port_mngr.cpp',
-                                    'rx/trex_stateless_capture.cpp',
-                                    'rx/trex_stateless_rx_tx.cpp',
-                                    'common/trex_stateless_pkt.cpp'
+stateless_src = SrcGroup(dir='src/stx/stl/',
+                          src_list=['trex_stl_stream.cpp',
+                                    'trex_stl_stream_vm.cpp',
+                                    'trex_stl.cpp',
+                                    'trex_stl_port.cpp',
+                                    'trex_stl_streams_compiler.cpp',
+                                    'trex_stl_vm_splitter.cpp',
+
+                                    'trex_stl_dp_core.cpp',
+                                    'trex_stl_fs.cpp',
+
+                                    'trex_stl_messaging.cpp',
+                                    
+                                    'trex_stl_rpc_cmds.cpp'
+
                                     ])
+
+
+
+# ASTF
+astf_src = SrcGroup(dir='src/stx/astf/',
+                         src_list=['trex_astf.cpp',
+                                   'trex_astf_port.cpp',
+                                   'trex_astf_rpc_cmds.cpp',
+                                   'trex_astf_dp_core.cpp'
+                         ])
+
+
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
-                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
                               'trex_rpc_zip.cpp',
-
-                              'commands/trex_rpc_cmd_test.cpp',
-                              'commands/trex_rpc_cmd_general.cpp',
-                              'commands/trex_rpc_cmd_stream.cpp',
-
                           ])
 
 
@@ -276,7 +300,9 @@ bp =SrcGroups([
                 net_src ,
                 yaml_src,
                 json_src,
+                stx_src,
                 stateless_src,
+                astf_src,
                 rpc_server_src
                 ]);
 
@@ -299,12 +325,13 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/pal/common/
                    ../src/
+                   
                    ../src/rpc-server/
-                   ../src/stateless/cp/
-                   ../src/stateless/dp/
-                   ../src/stateless/rx/
-                   ../src/stateless/common/
-                   ../src/stateless/messaging/
+                   
+                   ../src/stx/
+                   ../src/stx/common/
+                   ../src/stx/common/rx/
+                   
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/

@@ -570,6 +570,9 @@ Other network devices
         is_astf_mode = map_driver.parent_args.astf
         if is_astf_mode:
             input_file = map_driver.parent_args.file
+            if not input_file:
+                return
+                
             extension = os.path.splitext(input_file)[1]
             if map_driver.parent_args.cfg is not '':
                 cfg_file = map_driver.parent_args.cfg

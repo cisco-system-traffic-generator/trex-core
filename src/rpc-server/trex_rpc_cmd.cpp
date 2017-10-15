@@ -18,35 +18,36 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <trex_rpc_cmd_api.h>
-#include <trex_rpc_server_api.h>
-#include <trex_stateless.h>
-#include <trex_stateless_port.h>
+
+#include "trex_rpc_cmd_api.h"
+#include "trex_rpc_server_api.h"
+
+#include "trex_stx.h"
+#include "trex_port.h"
+
+TrexRpcComponent::~TrexRpcComponent() {
+    for (auto cmd : m_cmds) {
+        delete cmd;
+    }
+    
+    m_cmds.clear();
+}
+
 
 /**
  * method name and params
  * 
  */
 TrexRpcCommand::TrexRpcCommand(const std::string &method_name,
-                               int param_count,
-                               bool needs_ownership,
-                               APIClass::type_e type) :   m_name(method_name),
-                                                          m_param_count(param_count),
-                                                          m_needs_ownership(needs_ownership) {
+                               TrexRpcComponent *component,
+                               bool needs_ownership) {
 
-    /* if needs ownership - another field is needed (handler) */
-    if (m_needs_ownership) {
-        m_param_count++;
-    }
-
-    /* API verification */
-     m_api_type = type;
-
-    if (type != APIClass::API_CLASS_TYPE_NO_API) {
-        m_api_handler = get_stateless_obj()->get_api_handler(type);
-        m_param_count++;
-    }
-
+    m_name            = method_name;
+    m_component       = component;
+    m_needs_ownership = needs_ownership;
+    
+    /* by default, any commands needs to be API verified */
+    m_needs_api       = true;
 }
 
 trex_rpc_cmd_rc_e 
@@ -57,7 +58,7 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
     try {
 
         /* verify API handler is correct (version mismatch) */
-        if ( (m_api_type != APIClass::API_CLASS_TYPE_NO_API) && !g_test_override_api ) {
+        if (m_needs_api && !g_test_override_api) {
             verify_api_handler(params, result);
         }
 
@@ -65,8 +66,6 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
         if (m_needs_ownership && !g_test_override_ownership) {
             verify_ownership(params, result);
         }
-
-        check_param_count(params, m_param_count, result);
 
         /* run the command itself*/
         rc = _run(params, result);
@@ -78,26 +77,12 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
     return (rc);
 }
 
-void 
-TrexRpcCommand::check_param_count(const Json::Value &params, int expected, Json::Value &result) {
-
-    if (expected == TrexRpcCommand::PARAM_COUNT_IGNORE) {
-        return;
-    }
-
-    if (params.size() < expected) {
-        std::stringstream ss;
-        ss << "method '" << m_name << "' expects at least " << expected << " parameter(s), " << params.size() << " provided";
-        generate_parse_err(result, ss.str());
-    }
-}
-
 void
 TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result) {
     std::string handler = parse_string(params, "handler", result);
     uint8_t port_id = parse_port(params, result);
 
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
 
     if (port->get_owner().is_free()) {
         generate_execute_err(result, "please acquire the port before modifying port state");
@@ -112,9 +97,9 @@ void
 TrexRpcCommand::verify_api_handler(const Json::Value &params, Json::Value &result) {
     std::string api_handler = parse_string(params, "api_h", result);
 
-    if (m_api_handler != api_handler) {
+    if (api_handler != m_component->get_rpc_api_ver()->get_api_handler()) {
         std::stringstream ss;
-        ss << "API verification failed - API handler provided mismatch for class: '" << APIClass::type_to_name(m_api_type) << "'";
+        ss << "API verification failed - API handler provided mismatch for class: '" << m_component->get_name() << "'";
         generate_execute_err(result, ss.str());
     }
 }
@@ -129,9 +114,9 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
 
 void 
 TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
-    if (port_id >= get_stateless_obj()->get_port_count()) {
+    if (port_id >= get_stx()->get_port_count()) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)get_stateless_obj()->get_port_count() - 1;
+        ss << "invalid port id - should be between 0 and " << (int)get_stx()->get_port_count() - 1;
         generate_execute_err(result, ss.str());
     }
 }
@@ -349,3 +334,4 @@ TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg
  */
 bool TrexRpcCommand::g_test_override_ownership = false;
 bool TrexRpcCommand::g_test_override_api = false;
+

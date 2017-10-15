@@ -27,7 +27,7 @@ limitations under the License.
 #include <vector>
 #include <json/json.h>
 
-class TrexRpcCommand;
+#include "trex_rpc_cmd_api.h"
 
 /**
  * holds all the commands registered
@@ -43,6 +43,26 @@ public:
         return instance;
     }
 
+    /**
+     * init the RPC table
+     *  
+     * @param config_name - how the RPC configuration will be 
+     *                      presented.
+     *                      in api_sync RPC command, the client
+     *                      should provide the correct config name
+     *                      and version
+     *  
+     * @param major         configuration major version
+     * @param minor         configuration minor version
+     */
+    void init(const std::string &config_name, int major, int minor);
+    
+    /**
+     * loads a new component to the RPC table
+     * 
+     */
+    void load_component(TrexRpcComponent *component);
+    
     /**
      * register a new command
      * 
@@ -60,20 +80,44 @@ public:
      * 
      */
     void query(std::vector<std::string> &cmds);
-
+    
+    
+    /**
+     * returns the config name
+     */
+    const std::string & get_config_name() const {
+        return m_api_ver.get_name();
+    }
+    
 private:
     TrexRpcCommandsTable();
     ~TrexRpcCommandsTable();
 
+    /**
+     * clears the RPC table
+     * 
+     */
+    void reset();
+    
     /* c++ 2011 style singleton */
     TrexRpcCommandsTable(TrexRpcCommandsTable const&)  = delete;  
     void operator=(TrexRpcCommandsTable const&)        = delete;
 
+    
     /**
-     * holds all the registered RPC commands
+     * holds all the loaded RPC components
+     * 
+     */
+    std::vector<TrexRpcComponent *> m_rpc_components;
+    
+    /**
+     * holds all the registered RPC commands in a flat hash table
      * 
      */
     std::unordered_map<std::string, TrexRpcCommand *> m_rpc_cmd_table;
+    
+    TrexRpcAPIVersion   m_api_ver;
+    bool                m_is_init;
 };
 
 #endif /* __TREX_RPC_CMDS_TABLE_H__ */

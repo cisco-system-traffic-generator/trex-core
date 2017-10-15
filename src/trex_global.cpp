@@ -268,7 +268,8 @@ void CPreviewMode::Dump(FILE *fd){
     fprintf(fd," vlan mode       : %d\n",  get_vlan_mode());
     fprintf(fd," client_cfg      : %d\n", (int)get_is_client_cfg_enable() );
     fprintf(fd," mbuf_cache_disable  : %d\n", (int)isMbufCacheDisabled() );
-    fprintf(fd," tcp_mode        : %d\n", (int)get_tcp_mode()?1:0 );
+    /* imarom: not in he flags anymore */
+    //fprintf(fd," tcp_mode        : %d\n", (int)get_tcp_mode()?1:0 );
 }
 
 void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {

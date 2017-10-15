@@ -28,9 +28,9 @@ class BatchMessage(object):
         self.rpc_client = rpc_client
         self.batch_list = []
 
-    def add (self, method_name, params = None, api_class = 'core'):
+    def add (self, method_name, params = None, api_h = None):
 
-        id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_class, encode = False)
+        id, msg = self.rpc_client.create_jsonrpc_v2(method_name, params, api_h, encode = False)
         self.batch_list.append(msg)
 
     def invoke(self, block = False, chunk_size = 500000, retry = 0):
@@ -62,7 +62,6 @@ class BatchMessage(object):
 class JsonRpcClient(object):
 
     def __init__ (self, default_server, default_port, client):
-        self.get_api_h   = client._get_api_h
         self.logger      = client.logger
         self.connected   = False
 
@@ -111,7 +110,7 @@ class JsonRpcClient(object):
     def create_batch (self):
         return BatchMessage(self)
 
-    def create_jsonrpc_v2 (self, method_name, params = None, api_class = 'core', encode = True):
+    def create_jsonrpc_v2 (self, method_name, params = None, api_h = None, encode = True):
         msg = {}
         msg["jsonrpc"] = "2.0"
         msg["method"]  = method_name
@@ -119,9 +118,9 @@ class JsonRpcClient(object):
 
         msg["params"] = params if params is not None else {}
 
-        # if this RPC has an API class - add it's handler
-        if api_class:
-            msg["params"]["api_h"] = self.get_api_h()[api_class]
+        # if api_h is provided, add it
+        if api_h:
+            msg["params"]["api_h"] = api_h
         
 
         if encode:
@@ -130,11 +129,11 @@ class JsonRpcClient(object):
             return id, msg
 
 
-    def invoke_rpc_method (self, method_name, params = None, api_class = 'core', retry = 0):
+    def invoke_rpc_method (self, method_name, params = None, api_h = None, retry = 0):
         if not self.connected:
             return RC_ERR("Not connected to server")
 
-        id, msg = self.create_jsonrpc_v2(method_name, params, api_class)
+        id, msg = self.create_jsonrpc_v2(method_name, params, api_h)
 
         return self.send_msg(msg, retry = retry)
 

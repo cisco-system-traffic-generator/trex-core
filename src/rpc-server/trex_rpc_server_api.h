@@ -28,8 +28,9 @@ limitations under the License.
 #include <thread>
 #include <string>
 #include <stdexcept>
-#include <trex_rpc_exception_api.h>
 #include <json/json.h>
+
+#include "trex_rpc_exception_api.h"
 #include "trex_watchdog.h"
 
 class TrexRpcServerInterface;
@@ -48,12 +49,20 @@ public:
         RPC_PROT_MOCK
     };
 
-    TrexRpcServerConfig(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock) {
-        m_protocol  = protocol;
-        m_port      = port;
-        m_lock      = lock;
+    TrexRpcServerConfig() {
+        m_protocol    = RPC_PROT_MOCK;
+        m_port        = 0;
+        m_lock        = nullptr;
+        m_is_verbose  = false;
     }
-
+       
+    void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, bool is_verbose = false)  {
+        m_protocol    = protocol;
+        m_port        = port;
+        m_lock        = lock;
+        m_is_verbose  = is_verbose;
+    }
+    
     uint16_t get_port() const {
         return m_port;
     }
@@ -62,10 +71,15 @@ public:
         return m_protocol;
     }
 
+    bool is_verbose() const {
+        return m_is_verbose;
+    }
+    
 private:
-    rpc_prot_e       m_protocol;
-    uint16_t         m_port;
-
+    rpc_prot_e              m_protocol;
+    uint16_t                m_port;
+    bool                    m_is_verbose;
+    
 public:
     std::recursive_mutex   *m_lock;
 };
@@ -154,7 +168,7 @@ class TrexRpcServer {
 public:
   
     /* creates the collection of servers using configurations */
-    TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg);
+    TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
 
     ~TrexRpcServer();
 

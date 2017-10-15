@@ -57,7 +57,7 @@ limitations under the License.
 #include <common/cgen_map.h>
 #include <arpa/inet.h>
 #include "platform_cfg.h"
-#include "flow_stat.h"
+
 #include "trex_watchdog.h"
 #include "trex_client_config.h"
 #include "h_timer.h"
@@ -68,7 +68,9 @@ limitations under the License.
 #include "trex_global.h"
 
 
-#include <trex_stateless_dp_core.h>
+/* stateless includes */
+#include "stl/trex_stl_dp_core.h"
+#include "stl/trex_stl_fs.h"
 
 class CGenNodePCAP;
 
@@ -1143,7 +1145,6 @@ public:
 public:
     void  add_node(CGenNode * mynode);
     void  remove_all(CFlowGenListPerThread * thread);
-    void  remove_all_stateless(CFlowGenListPerThread * thread);
 
     int   open_file(std::string file_name,
                     CPreviewMode * preview);
@@ -2912,14 +2913,6 @@ public :
 
     inline CGenNode * create_node(void);
 
-    inline CGenNodeStateless * create_node_sl(void){
-        return ((CGenNodeStateless*)create_node() );
-    }
-
-    inline CGenNodePCAP * allocate_pcap_node(void) {
-        return ((CGenNodePCAP*)create_node());
-    }
-
     inline void free_node(CGenNode *p);
     inline void free_last_flow_node(CGenNode *p);
 
@@ -2927,37 +2920,10 @@ public :
 
 public:
     void Clean();
-    void start_generate_stateful(std::string erf_file_name,CPreviewMode &preview);
-    void start_stateless_daemon(CPreviewMode &preview);
 
-    void start_stateless_daemon_simulation();
-
-    /* open a file for simulation */
-    void start_stateless_simulation_file(std::string erf_file_name,CPreviewMode &preview, uint64_t limit = 0);
-    /* close a file for simulation */
-    void stop_stateless_simulation_file();
-
-    /* return true if we need to shedule next_stream,  */
-    bool  set_stateless_next_node( CGenNodeStateless * cur_node,
-                                   CGenNodeStateless * next_node);
-
-    void stop_stateless_traffic(uint8_t port_id) {
-        m_stateless_dp_info.stop_traffic(port_id, false, 0);
-    }
-
-    /**
-     * return true if a core currently has some pending CP
-     * messages
-     */
-    bool are_any_pending_cp_messages() {
-        if (get_is_stateless()) {
-            return m_stateless_dp_info.are_any_pending_cp_messages();
-        } else {
-            /* for stateful this is always false */
-            return false;
-        }
-    }
-
+    void start(std::string &erf_file_name, CPreviewMode &preview);
+    void start_sim(const std::string &erf_file_name, CPreviewMode &preview, uint64_t limit = 0);
+  
     /**
      * a core provides services for two interfaces
      * it can either be idle, active for one port
@@ -2967,11 +2933,7 @@ public:
         /* for stateful (batch) core is always active,
            for stateless relay the query to the next level
          */
-        if (get_is_stateless()) {
-            return m_stateless_dp_info.is_port_active(port_id);
-        } else {
-            return true;
-        }
+        return m_dp_core->is_port_active(port_id);
     }
 
 
@@ -2997,10 +2959,17 @@ public:
 
     bool check_msgs();
 
+    TrexDpCore * get_dp_core() {
+        return m_dp_core;
+    }
+
+    
 private:
 
     FORCE_NO_INLINE void   no_memory_error();
 
+
+    
     bool check_msgs_from_rx();
 
     void handle_nat_msg(CGenNodeNatInfo * msg);
@@ -3035,6 +3004,8 @@ private:
         return (m_udp_dpc);
     }
 
+
+    
 private:
     FORCE_NO_INLINE bool associate(uint32_t fid,CGenNode *     node ){
          if (m_flow_id_to_node_lookup.lookup(fid) != 0)
@@ -3086,7 +3057,7 @@ private:
 
     flow_id_node_t                   m_flow_id_to_node_lookup;
 
-    TrexStatelessDpCore              m_stateless_dp_info;
+    TrexDpCore                      *m_dp_core; /* polymorphic DP core (stl/stf/astf) */
     bool                             m_terminated_by_master;
 
 public:
@@ -3342,7 +3313,13 @@ class CRXCoreIgnoreStat {
     friend class CCPortLatency;
     friend class CLatencyManager;
     friend class RXGratARP;
+    
  public:
+     
+    CRXCoreIgnoreStat() {
+        clear();
+    }
+
     inline CRXCoreIgnoreStat operator- (const CRXCoreIgnoreStat &t_in) const {
         CRXCoreIgnoreStat t_out;
         t_out.m_tx_arp = this->m_tx_arp - t_in.m_tx_arp;

@@ -27,12 +27,17 @@ limitations under the License.
 #include "trex_watchdog.h"
 #include "utl_ipg_bucket.h"
 #include "stt_cp.h"
+
 #include <common/utl_gcc_diag.h>
 
 #include <common/basic_utils.h>
 
-#include <trex_stream_node.h>
-#include <trex_stateless_messaging.h>
+#include "trex_stx.h"
+
+/* stateless includes */
+#include "stl/trex_stl_stream_node.h"
+#include "stl/trex_stl_messaging.h"
+
 
 #undef VALG
 
@@ -2878,14 +2883,14 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
     m_ring_from_rx = rx_dp->getRingCpToDp(thread_id);
-    m_ring_to_rx =rx_dp->getRingDpToCp(thread_id);
+    m_ring_to_rx   = rx_dp->getRingDpToCp(thread_id);
 
     assert(m_ring_from_rx);
     assert(m_ring_to_rx);
 
-    /* create the info required for stateless DP core */
-    m_stateless_dp_info.create(thread_id, this);
-
+    /* will be set by start */
+    m_dp_core = get_stx()->create_dp_core(thread_id, this);
+    
     return (true);
 }
 
@@ -3024,6 +3029,10 @@ void CFlowGenListPerThread::Delete(){
     m_tw.Delete();
 
     utl_rte_mempool_delete(m_node_pool);
+    
+    if (m_dp_core) {
+        delete m_dp_core;
+    }
 }
 
 
@@ -3084,7 +3093,7 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
 
             #ifdef TREX_SIM
             if (has_limit_reached()) {
-                thread->m_stateless_dp_info.stop_traffic(node_sl->get_port_id(), false, 0);
+                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(node_sl->get_port_id(), false, 0);
             }
             #endif
         }
@@ -3524,7 +3533,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
                                dsec_t d_time,
                                bool on_terminate,
                                CFlowGenListPerThread * thread,
-                               double &old_offset){
+                               double &old_offset) {
     #ifdef TREX_SIM
       return ( flush_file_sim(max_time, d_time,on_terminate,thread,old_offset) );
     #else
@@ -3686,8 +3695,8 @@ CNodeGenerator::handle_maintenance(CFlowGenListPerThread *thread) {
 void CNodeGenerator::handle_command(CGenNode *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
     m_p_queue.pop();
     CGenNodeCommand *node_cmd = (CGenNodeCommand *)node;
-    TrexStatelessCpToDpMsgBase * cmd=node_cmd->m_cmd;
-    cmd->handle(&thread->m_stateless_dp_info);
+    TrexCpToDpMsgBase * cmd=node_cmd->m_cmd;
+    cmd->handle(thread->m_dp_core);
     exit_scheduler = cmd->is_quit();
     thread->free_node((CGenNode *)node_cmd);/* free the node */
 }
@@ -4122,7 +4131,7 @@ bool CFlowGenListPerThread::check_msgs() {
     bool had_msg = false;
 
     /* inlined for performance */
-    if (m_stateless_dp_info.periodic_check_for_cp_messages()) {
+    if (m_dp_core->periodic_check_for_cp_messages()) {
         had_msg = true;
     }
 
@@ -4135,173 +4144,32 @@ bool CFlowGenListPerThread::check_msgs() {
 
 
 
-void CFlowGenListPerThread::start_stateless_simulation_file(std::string erf_file_name,
-                                                            CPreviewMode &preview,
-                                                            uint64_t limit){
+void CFlowGenListPerThread::start(std::string &erf_file_name, CPreviewMode &preview) {
+    
+    /* reset the time */
+    m_cur_time_sec = 0;
+    
+    /* set per thread global info, for performance */
+    m_preview_mode = preview;
+    
+    m_node_gen.open_file(erf_file_name, &m_preview_mode);
+    
+    /* start the core */
+    m_dp_core->start();
+}
+
+void CFlowGenListPerThread::start_sim(const std::string &erf_file_name, CPreviewMode &preview, uint64_t limit) {
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     m_node_gen.set_packet_limit(limit);
-}
-
-void CFlowGenListPerThread::stop_stateless_simulation_file(){
+    
+    m_cur_time_sec = 0;
+    m_dp_core->start_once();
     m_node_gen.m_v_if->close_file();
 }
 
-void CFlowGenListPerThread::start_stateless_daemon_simulation(){
-    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
-    m_cur_time_sec = 0;
-
-    /* if no pending CP messages - the core will simply be stuck forever */
-    if (m_stateless_dp_info.are_any_pending_cp_messages()) {
-        m_stateless_dp_info.run_once();
-    }
-}
 
 
-/* return true if we need to shedule next_stream,  */
-
-bool CFlowGenListPerThread::set_stateless_next_node( CGenNodeStateless * cur_node,
-                                                     CGenNodeStateless * next_node){
-    return ( m_stateless_dp_info.set_stateless_next_node(cur_node,next_node) );
-}
-
-
-void CFlowGenListPerThread::start_stateless_daemon(CPreviewMode &preview){
-    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
-    m_cur_time_sec = 0;
-    /* set per thread global info, for performance */
-    m_preview_mode = preview;
-    m_node_gen.open_file("",&m_preview_mode);
-
-    m_stateless_dp_info.start();
-}
-
-
-void CFlowGenListPerThread::start_generate_stateful(std::string erf_file_name,
-                                CPreviewMode & preview){
-    dsec_t d_time_flow;
-
-    /* now we are ready to generate*/
-    if ( ! get_is_tcp_mode()) {
-        if ( m_cap_gen.size()==0 ){
-            fprintf(stderr," nothing to generate no template loaded \n");
-            return;
-        }
-        m_cur_template =(m_thread_id % m_cap_gen.size());
-
-        d_time_flow=get_delta_flow_is_sec();
-        m_cur_time_sec =  0.01 + m_thread_id*m_flow_list->get_delta_flow_is_sec();
-    }else{
-        if ( !Create_tcp() ){
-            fprintf(stderr," ERROR in tcp object creation \n");
-            return;
-        }
-
-        d_time_flow = m_tcp_fif_d_time; /* set by Create_tcp function */
-        m_cur_time_sec =  0.01 + (double)m_thread_id*m_tcp_fif_d_time/(double)m_max_threads;
-    }
-    m_preview_mode = preview;
-    m_node_gen.open_file(erf_file_name,&m_preview_mode);
-
-    if ( CGlobalInfo::is_realtime()  ){
-        if (m_cur_time_sec > 0.2 ) {
-            m_cur_time_sec =  0.01 + m_thread_id*0.01;
-        }
-        m_cur_time_sec += now_sec() + 0.1 ;
-    } 
-    dsec_t c_stop_sec = m_cur_time_sec + m_yaml_info.m_duration_sec;
-    m_stop_time_sec =c_stop_sec;
-    m_cur_flow_id =1;
-    m_stats.clear();
-
-    double old_offset=0.0;
-
-    if ( get_is_tcp_mode() == false ){
-
-        CGenNode * node= create_node() ;
-        /* add periodic */
-        node->m_type = CGenNode::FLOW_FIF;
-        node->m_time = m_cur_time_sec;
-        m_node_gen.add_node(node);
-    
-    
-        node= create_node() ;
-        node->m_type = CGenNode::FLOW_SYNC;
-        node->m_time = m_cur_time_sec + SYNC_TIME_OUT ;
-        m_node_gen.add_node(node);
-    
-    
-        if ( !get_is_stateless() ){
-            /* add TW only for Stateful right now */
-            node= create_node() ;
-            node->m_type = CGenNode::TW_SYNC;
-            node->m_time = m_cur_time_sec + BUCKET_TIME_SEC ;
-            m_node_gen.add_node(node);
-    
-            node= create_node() ;
-            node->m_type = CGenNode::TW_SYNC1;
-            node->m_time = m_cur_time_sec + BUCKET_TIME_SEC_LEVEL1 ;
-            m_node_gen.add_node(node);
-        }
-    }else{
-        /* we are delaying only the generation of the traffic 
-           timers/rx should Work immediately 
-        */
-
-        m_tcp_fif_d_time =  d_time_flow;
-        CGenNode * node= create_node() ;
-        node->m_type = CGenNode::TCP_TX_FIF;
-        node->m_time = m_cur_time_sec;
-        m_node_gen.add_node(node);
-
-        dsec_t now=now_sec() ;
-
-        node= create_node() ;
-        node->m_type = CGenNode::TCP_RX_FLUSH;
-        node->m_time = now;
-        m_node_gen.add_node(node);
-
-        node= create_node() ;
-        node->m_type = CGenNode::TCP_TW;
-        node->m_time = now ;
-        m_node_gen.add_node(node);
-
-        node= create_node() ;
-        node->m_type = CGenNode::FLOW_SYNC;
-        node->m_time = now ;
-        m_node_gen.add_node(node);
-
-    }
-
-
-    #ifdef _DEBUG
-    if ( m_preview_mode.getVMode() >2 ){
-
-        CGenNode::DumpHeader(stdout);
-    }
-    #endif
-
-    m_node_gen.flush_file(c_stop_sec,d_time_flow, false,this,old_offset);
-
-
-#ifdef VALG
-    CALLGRIND_STOP_INSTRUMENTATION;
-    printf (" %llu \n",os_get_hr_tick_64()-_start_time);
-#endif
-    if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() &&  (is_terminated_by_master()==false) ){
-        /* clean close */
-        m_node_gen.flush_file(m_cur_time_sec, d_time_flow, true,this,old_offset);
-    }
-
-    if (m_preview_mode.getVMode() > 1 ) {
-        fprintf(stdout,"\n\n");
-        fprintf(stdout,"\n\n");
-        fprintf(stdout,"file stats \n");
-        fprintf(stdout,"=================\n");
-        m_stats.dump(stdout);
-    }
-    m_node_gen.close_file(this);
-}
 
 void CFlowGenList::Delete(){
     clean_p_thread_info();

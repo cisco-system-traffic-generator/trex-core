@@ -19,10 +19,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <trex_rpc_server_api.h>
-#include <trex_rpc_req_resp_server.h>
-#include <trex_rpc_async_server.h>
-#include <trex_rpc_jsonrpc_v2_parser.h>
+#include "trex_rpc_server_api.h"
+#include "trex_rpc_req_resp_server.h"
+#include "trex_rpc_jsonrpc_v2_parser.h"
+
 #include <unistd.h>
 #include <zmq.h>
 #include <sstream>
@@ -35,10 +35,10 @@ limitations under the License.
 TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name) : m_cfg(cfg) {
     m_name = name;
 
-    m_lock              = cfg.m_lock;
+    m_lock = cfg.m_lock;
 
     m_is_running = false;
-    m_is_verbose = false;
+    m_is_verbose = cfg.is_verbose();
 
     if (m_lock == NULL) {
         m_lock = &m_dummy_lock;
@@ -126,22 +126,18 @@ get_current_date_time() {
 
 const std::string TrexRpcServer::s_server_uptime = get_current_date_time();
 
-TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig *req_resp_cfg) {
+TrexRpcServer::TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg) {
 
     m_req_resp = NULL;
 
     /* add the request response server */
-    if (req_resp_cfg) {
-
-        if (req_resp_cfg->get_protocol() == TrexRpcServerConfig::RPC_PROT_MOCK) {
-            m_req_resp = new TrexRpcServerReqResMock(*req_resp_cfg);
-        } else {
-            m_req_resp = new TrexRpcServerReqRes(*req_resp_cfg);
-        }
-
-        m_servers.push_back(m_req_resp);
+    if (req_resp_cfg.get_protocol() == TrexRpcServerConfig::RPC_PROT_MOCK) {
+        m_req_resp = new TrexRpcServerReqResMock(req_resp_cfg);
+    } else {
+        m_req_resp = new TrexRpcServerReqRes(req_resp_cfg);
     }
-    
+
+    m_servers.push_back(m_req_resp);
 }
 
 TrexRpcServer::~TrexRpcServer() {

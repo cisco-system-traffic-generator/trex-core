@@ -879,9 +879,12 @@ def setParserOptions():
 
 # a simple info printed on log on
 def show_intro (logger, c):
-    x   = c.get_server_system_info()
-    ver = c.get_server_version().get('version', 'N/A')
-
+    modes = {'STL': 'Stateless', 'ASTF': 'Advanced Stateful'}
+    
+    x    = c.get_server_system_info()
+    ver  = c.get_server_version().get('version', 'N/A')
+    mode = c.get_server_version().get('mode', 'N/A')
+    
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
@@ -899,7 +902,8 @@ def show_intro (logger, c):
         port_line += "{0} x {1}Gbps @ {2}\t".format(v, k[0], k[1])
 
     logger.log(format_text("\nServer Info:\n", 'underline'))
-    logger.log("Server version:   {:>}".format(format_text(ver, 'bold')))
+    logger.log("Server version:   {:>}".format(format_text(ver + ' @ ' + mode, 'bold')))
+    logger.log("Server mode:      {:>}".format(format_text(modes.get(mode, 'N/A'), 'bold')))
     logger.log("Server CPU:       {:>}".format(format_text("{:>} x {:>}".format(x.get('dp_core_count'), x.get('core_type')), 'bold')))
     logger.log("Ports count:      {:>}".format(format_text(port_line, 'bold')))
 

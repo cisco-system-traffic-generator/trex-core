@@ -354,15 +354,6 @@ public:
         return (btGetMaskBit32(m_flags1, 13, 13) ? true : false);
     }
 
-
-    void set_tcp_mode(bool enable) {
-        btSetMaskBit32(m_flags1, 14, 14, (enable ? 1 : 0) );
-    }
-
-    bool get_tcp_mode() {
-        return (btGetMaskBit32(m_flags1, 14, 14) ? true : false);
-    }
-
     void set_dev_tso_support(bool enable) {
         btSetMaskBit32(m_flags1, 15, 15, (enable ? 1 : 0) );
     }
@@ -447,14 +438,18 @@ public:
         RUN_FLAGS_RXCHECK_CONST_TS =1,
     };
 
-    /**
-     * different running modes for Trex
+    /** 
+     * operation mode 
+     * stateful, stateless or advacned stateful
      */
-    enum trex_run_mode_e {
-        RUN_MODE_INVALID,
-        RUN_MODE_BATCH,
-        RUN_MODE_INTERACTIVE,
-        RUN_MODE_DUMP_INFO,
+    enum trex_op_mode_e {
+        OP_MODE_INVALID,
+        OP_MODE_STF,
+        OP_MODE_STL,
+        OP_MODE_ASTF,
+        OP_MODE_ASTF_BATCH,
+        
+        OP_MODE_DUMP_INTERFACES,
     };
 
     enum trex_learn_mode_e {
@@ -499,7 +494,7 @@ public:
         m_debug_pkt_proto = 0;
         m_arp_ref_per = 120; // in seconds
         m_rx_thread_enabled = false;
-        m_run_mode = RUN_MODE_INVALID;
+        m_op_mode = OP_MODE_INVALID;
         cfg_file = "";
         client_cfg_file = "";
         platform_cfg_file = "";
@@ -545,7 +540,8 @@ public:
     uint16_t        m_debug_pkt_proto;
     uint16_t        m_arp_ref_per;
     bool            m_rx_thread_enabled;
-    trex_run_mode_e    m_run_mode;
+    trex_op_mode_e  m_op_mode;
+    
     std::string        cfg_file;
     std::string        astf_cfg_file;
     std::string        client_cfg_file;
@@ -579,14 +575,6 @@ public:
 
     uint32_t get_number_of_dp_cores_needed() {
         return ( (m_expected_portd>>1)   * preview.getCores());
-    }
-    bool is_stateless(){
-        if (m_run_mode == RUN_MODE_INVALID) {
-            fprintf(stderr, "Internal bug: Calling is stateless before initializing run mode\n");
-            fprintf(stderr, "Try to put -i or -f <file> option as first in the option list\n");
-            exit(-1);
-        }
-        return (m_run_mode == RUN_MODE_INTERACTIVE ?true:false);
     }
     bool is_latency_enabled() {
         return ( (m_latency_rate == 0) ? false : true);
@@ -903,12 +891,21 @@ public:
     static queues_mode           m_q_mode;
 };
 
+
+static inline CParserOption::trex_op_mode_e get_op_mode() {
+    return CGlobalInfo::m_options.m_op_mode;
+}
+
 static inline int get_is_stateless(){
-    return (CGlobalInfo::m_options.is_stateless() );
+    return (get_op_mode() == CParserOption::OP_MODE_STL);
 }
 
 static inline int get_is_tcp_mode(){
-    return (CGlobalInfo::m_options.preview.get_tcp_mode() );
+    return ( (get_op_mode() == CParserOption::OP_MODE_ASTF) || (get_op_mode() == CParserOption::OP_MODE_ASTF_BATCH) );
+}
+
+static inline int get_is_interactive(){
+    return ( (get_op_mode() == CParserOption::OP_MODE_STL) || (get_op_mode() == CParserOption::OP_MODE_ASTF) );
 }
 
 

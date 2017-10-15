@@ -59,15 +59,28 @@
 #include "common/arg/SimpleGlob.h"
 #include "common/arg/SimpleOpt.h"
 #include "common/basic_utils.h"
-#include "stateless/cp/trex_stateless.h"
-#include "stateless/dp/trex_stream_node.h"
-#include "stateless/messaging/trex_stateless_messaging.h"
-#include "stateless/rx/trex_stateless_rx_core.h"
-#include "publisher/trex_publisher.h"
-#include "../linux_dpdk/version.h"
+
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
 }
+
+#include "trex_messaging.h"
+#include "trex_rx_core.h"
+
+/* stateless */
+#include "stl/trex_stl.h"
+#include "stl/trex_stl_stream_node.h"
+
+/* stateful */
+#include "stf/trex_stf.h"
+
+/* ASTF */
+#include "astf/trex_astf.h"
+#include "astf_batch/trex_astf_batch.h"
+
+#include "publisher/trex_publisher.h"
+#include "../linux_dpdk/version.h"
+
 #include "dpdk_funcs.h"
 #include "dpdk/drivers/net/e1000/base/e1000_regs.h"
 #include "global_io_mode.h"
@@ -106,7 +119,7 @@ void set_driver();
 void reorder_dpdk_ports();
 
 static inline int get_is_rx_thread_enabled() {
-    return ((CGlobalInfo::m_options.is_rx_enabled() || CGlobalInfo::m_options.is_stateless()) ?1:0);
+    return ((CGlobalInfo::m_options.is_rx_enabled() || get_is_interactive()) ?1:0);
 }
 
 struct port_cfg_t;
@@ -896,7 +909,11 @@ static inline int get_min_sample_rate(void){
 
 // cores =0==1,1*2,2,3,4,5,6
 // An enum for all the option types
-enum { OPT_HELP,
+enum { 
+       /* no more before this */
+       OPT_MIN,
+
+       OPT_HELP,
        OPT_MODE_BATCH,
        OPT_MODE_INTERACTIVE,
        OPT_NODE_DUMP,
@@ -950,12 +967,19 @@ enum { OPT_HELP,
        OPT_ACTIVE_FLOW,
        OPT_RT,
        OPT_TCP_MODE,
+       OPT_STL_MODE,
        OPT_MLX4_SO,
        OPT_MLX5_SO,
        OPT_NTACC_SO,
-       OPT_TCP_HTTP_RES
+       OPT_TCP_HTTP_RES,
+    
+       /* no more pass this */
+       OPT_MAX
 
 };
+
+/* options hash - for first pass */
+using OptHash = std::unordered_map<int, bool>;
 
 /* these are the argument types:
    SO_NONE --    no argument needed
@@ -1023,8 +1047,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
-        { OPT_TCP_MODE,               "--astf",SO_NONE},
-        { OPT_TCP_HTTP_RES,           "--http",SO_REQ_SEP},
+        { OPT_TCP_MODE,               "--astf",            SO_NONE},
+        { OPT_STL_MODE,               "--stl",             SO_NONE},
+        { OPT_TCP_HTTP_RES,           "--http",            SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -1039,6 +1064,7 @@ static int usage(){
 
     printf(" Available options are:\n");
     printf(" --astf                     : Enable advanced stateful mode. profile should be in py format and not YAML format \n");
+    printf(" --stl                      : Starts in stateless mode. must be provided along with '-i' for interactive mode \n");
     printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
     printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
     printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
@@ -1149,6 +1175,96 @@ static void parse_err(const std::string &msg) {
     exit(-1);
 }
 
+/**
+ * convert an option to string
+ * 
+ */
+static std::string opt_to_str(int opt) {
+    for (const CSimpleOpt::SOption &x : parser_options) {
+        if (x.nId == opt) {
+            return std::string(x.pszArg);
+        }
+    }
+    
+    assert(0);
+    return "";
+}
+
+
+/**
+ * checks options exclusivity
+ * 
+ */
+static void check_exclusive(const OptHash &args_set,
+                            const std::initializer_list<int> &opts,
+                            bool at_least_one = false) {
+    int seen = -1;
+    
+    for (int x : opts) {
+        if (args_set.at(x)) {
+            if (seen == -1) {
+                seen = x;
+            } else {
+                parse_err("'" + opt_to_str(seen) + "' and '" + opt_to_str(x) + "' are mutual exclusive");
+            }
+        }
+    }
+    
+    if ( (seen == -1) && at_least_one ) {
+        std::string opts_str;
+        for (int x : opts) {
+            opts_str += "'" + opt_to_str(x) + "', ";
+        }
+        
+        /* remove the last 2 chars */
+        opts_str.pop_back();
+        opts_str.pop_back();
+        parse_err("please specify at least one from the following paramters: " + opts_str);
+    }
+}
+
+
+static OptHash
+args_first_pass(int argc, char *argv[], CParserOption* po) {
+    CSimpleOpt args(argc, argv, parser_options);
+    OptHash args_set;
+    
+    /* clear */
+    for (int i = OPT_MIN + 1; i < OPT_MAX; i++) {
+        args_set[i] = false;
+    }
+    
+    /* set */
+    while (args.Next()) {
+        args_set[args.OptionId()] = true;
+    }
+    
+    if (args_set[OPT_HELP]) {
+        usage();
+        exit(0);
+    }
+    
+    /* sanity */
+    
+    /* STL and TCP */
+    check_exclusive(args_set, {OPT_STL_MODE, OPT_TCP_MODE});
+    
+    /* interactive, batch or dump */
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_MODE_BATCH, OPT_DUMP_INTERFACES}, true);
+    
+    /* interactive mutual exclusion options */
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_DURATION});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_CLIENT_CFG_FILE});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_RX_CHECK});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_LATENCY});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_ONLY_LATENCY});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_SINGLE_CORE});
+    check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_RATE_MULT});
+    
+    return args_set;
+}
+
+
 static int parse_options(int argc, char *argv[], CParserOption* po, bool first_time ) {
     CSimpleOpt args(argc, argv, parser_options);
 
@@ -1164,9 +1280,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     po->preview.setRealTime(true);
     uint32_t tmp_data;
     float tmp_double;
-
-    po->m_run_mode = CParserOption::RUN_MODE_INVALID;
-
+    
+    po->m_op_mode  = CParserOption::OP_MODE_INVALID;
+    
+    /* first run - pass all parameters for existance */
+    OptHash args_set = args_first_pass(argc, argv, po);
+    
+    
     while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
@@ -1179,27 +1299,28 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 usage();
                 return -1;
 
+            /* astf */
             case OPT_TCP_MODE:
-                po->preview.set_tcp_mode(true);
+                /* can be batch or non batch */
+                po->m_op_mode = (args_set[OPT_MODE_INTERACTIVE] ? CParserOption::OP_MODE_ASTF : CParserOption::OP_MODE_ASTF_BATCH);
+                break;
+                
+            /* stl */
+            case OPT_STL_MODE:
+                po->m_op_mode = CParserOption::OP_MODE_STL;
                 break;
 
+                
             case OPT_TCP_HTTP_RES:
                 sscanf(args.OptionArg(),"%d", &po->m_tcp_http_res);
                 break;
 
             case OPT_MODE_BATCH:
-                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
-                    parse_err("Please specify single run mode");
-                }
-                po->m_run_mode = CParserOption::RUN_MODE_BATCH;
                 po->cfg_file = args.OptionArg();
                 break;
 
             case OPT_MODE_INTERACTIVE:
-                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
-                    parse_err("Please specify single run mode");
-                }
-                po->m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
+                /* defines the OP mode */
                 break;
 
             case OPT_NO_KEYBOARD_INPUT  :
@@ -1309,10 +1430,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                         rgpszArg = args.MultiArg(1);
                     }
                 }
-                if (po->m_run_mode != CParserOption::RUN_MODE_INVALID) {
-                    parse_err("Please specify single run mode (-i for stateless, or -f <file> for stateful");
-                }
-                po->m_run_mode = CParserOption::RUN_MODE_DUMP_INFO;
+                po->m_op_mode = CParserOption::OP_MODE_DUMP_INTERFACES;
                 break;
             case OPT_MBUF_FACTOR:
                 sscanf(args.OptionArg(),"%f", &po->m_mbuf_factor);
@@ -1428,10 +1546,12 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     } // End of while
 
 
-    if ((po->m_run_mode ==  CParserOption::RUN_MODE_INVALID) ) {
-        parse_err("Please provide single run mode. -f <file> for stateful or -i for stateless (interactive)");
+    /* if no specific mode was provided, fall back to defaults - stateless on intearactive, stateful on batch */
+    if (po->m_op_mode == CParserOption::OP_MODE_INVALID) {
+        po->m_op_mode = ( (args_set.at(OPT_MODE_INTERACTIVE)) ? CParserOption::OP_MODE_STL : CParserOption::OP_MODE_STF);
     }
-
+    
+    
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
         parse_err("--learn mode is not supported with --ipv6, beacuse there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
                   "If you think it is important, please open a defect or write to TRex mailing list\n");
@@ -1474,28 +1594,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         }
     }
 
-    if ( get_is_stateless() ) {
+    if ( get_is_interactive() ) {
         if ( opt_vlan_was_set ) {
-            // Only purpose of this in stateless is for configuring the 82599 rules correctly
+            // Only purpose of this in interactive is for configuring the 82599 rules correctly
             po->preview.set_vlan_mode(CPreviewMode::VLAN_MODE_NORMAL);
-        }
-        if (CGlobalInfo::m_options.client_cfg_file != "") {
-            parse_err("Client config file is not supported with interactive (stateless) mode ");
-        }
-        if ( po->m_duration ) {
-            parse_err("Duration is not supported with interactive (stateless) mode ");
-        }
-
-        if ( po->preview.get_is_rx_check_enable() ) {
-            parse_err("Rx check is not supported with interactive (stateless) mode ");
-        }
-
-        if  ( (po->is_latency_enabled()) || (po->preview.getOnlyLatency()) ){
-            parse_err("Latency check is not supported with interactive (stateless) mode ");
-        }
-
-        if ( po->preview.getSingleCore() ){
-            parse_err("Single core is not supported with interactive (stateless) mode ");
         }
 
     } else {
@@ -2746,7 +2848,7 @@ int CCoreEthIFStateless::send_node_common(CGenNode *node) {
 
     /* template boolean - this will be removed at compile time */
     if (SERVICE_MODE) {
-        TrexStatelessCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_tvpid());
+        TrexCaptureMngr::getInstance().handle_pkt_tx(m, lp_port->m_port->get_tvpid());
     }
 
     /* send */
@@ -3492,7 +3594,7 @@ public:
         m_expected_pps=0.0;
         m_expected_cps=0.0;
         m_expected_bps=0.0;
-        m_trex_stateless = NULL;
+        m_stx = NULL;
         m_mark_for_shutdown = SHUTDOWN_NONE;
     }
 
@@ -3503,8 +3605,18 @@ public:
     int  queues_prob_init();
     int  ixgbe_start();
     int  ixgbe_rx_queue_flush();
-    void rx_stf_conf();
-    void rx_sl_configure();
+    void init_vif_cores();
+    
+    void rx_batch_conf();
+    void rx_interactive_conf();
+    
+    TrexSTXCfg get_stx_cfg();
+    
+    void init_stl();
+    void init_stf();
+    void init_astf();
+    void init_astf_batch();
+    
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
     void abort_gracefully(const std::string &on_stdout,
@@ -3528,12 +3640,7 @@ private:
     void register_signals();
 
     /* try to stop all datapath cores and RX core */
-    void try_stop_all_cores();
-    /* send message to all dp cores */
-    int  send_message_all_dp(TrexStatelessCpToDpMsgBase *msg);
-    int  send_message_to_rx(TrexStatelessCpToRxMsgBase *msg);
-    void check_for_dp_message_from_core(int thread_id);
-
+    void wait_for_all_cores();
 
     bool is_marked_for_shutdown() const {
         return (m_mark_for_shutdown != SHUTDOWN_NONE);
@@ -3575,7 +3682,6 @@ private:
     void shutdown();
 
 public:
-    void check_for_dp_messages();
     int start_master_astf();
     int start_master_statefull();
     int start_master_stateless();
@@ -3613,8 +3719,13 @@ public:
     }
 
 private:
+    bool is_all_dp_cores_finished();
     bool is_all_cores_finished();
 
+    void check_for_ports_link_change();
+    void check_for_io();
+    void show_panel();
+        
 public:
 
     void sync_threads_stats();
@@ -3664,9 +3775,7 @@ public:
     CFlowGenList  m_fl;
     bool          m_fl_was_init;
     volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
-    volatile bool m_sl_rx_running; // Signal main core when RX thread finished
     CLatencyManager     m_mg; // statefull RX core
-    CRxCoreStateless    m_rx_sl; // stateless RX core
     CTrexGlobalIoMode   m_io_modes;
     CTRexExtendedDriverBase * m_drv;
 
@@ -3683,7 +3792,7 @@ private:
     shutdown_rc_e         m_mark_for_shutdown;
 
 public:
-    TrexStateless       *m_trex_stateless;
+    TrexSTX              *m_stx;
 
 };
 
@@ -3833,7 +3942,7 @@ void CGlobalTRex::pre_test() {
                     fprintf(stderr, "Failed resolving dest MAC for default gateway:%d.%d.%d.%d on port %d\n"
                             , (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF, port_id);
 
-                    if (get_is_stateless()) {
+                    if (get_is_interactive()) {
                         continue;
                     } else {
                         exit(1);
@@ -3866,8 +3975,8 @@ void CGlobalTRex::pre_test() {
         }
     }
 
-    /* for stateless only - set port mode */
-    if (get_is_stateless()) {
+    /* for interactive only - set port mode */
+    if (get_is_interactive()) {
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
             uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
             uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
@@ -3876,14 +3985,14 @@ void CGlobalTRex::pre_test() {
             /* L3 mode */
             if (src_ipv4 && dg) {
                 if (memcmp(dst_mac, empty_mac, 6) == 0) {
-                    m_trex_stateless->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg);
+                    m_stx->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg);
                 } else {
-                    m_trex_stateless->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg, dst_mac);
+                    m_stx->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg, dst_mac);
                 }
 
             /* L2 mode */
             } else if (CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.is_set) {
-                m_trex_stateless->get_port_by_id(port_id)->set_l2_mode(dst_mac);
+                m_stx->get_port_by_id(port_id)->set_l2_mode(dst_mac);
             }
 
             /* configure single VLAN */
@@ -3893,7 +4002,7 @@ void CGlobalTRex::pre_test() {
                 VLANConfig vlan_cfg;
                 vlan_cfg.set_vlan(vlan);
 
-                m_trex_stateless->get_port_by_id(port_id)->set_vlan_cfg(vlan_cfg);
+                m_stx->get_port_by_id(port_id)->set_vlan_cfg(vlan_cfg);
             }
         }
     }
@@ -3939,50 +4048,6 @@ CGlobalTRex::abort_gracefully(const std::string &on_stdout,
 }
 
 
-/**
- * check for a single core
- *
- * @author imarom (19-Nov-15)
- *
- * @param thread_id
- */
-void
-CGlobalTRex::check_for_dp_message_from_core(int thread_id) {
-
-    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(thread_id);
-
-    /* fast path check */
-    if ( likely ( ring->isEmpty() ) ) {
-        return;
-    }
-
-    while ( true ) {
-        CGenNode * node = NULL;
-        if (ring->Dequeue(node) != 0) {
-            break;
-        }
-        assert(node);
-
-        TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
-        msg->handle();
-        delete msg;
-    }
-
-}
-
-/**
- * check for messages that arrived from DP to CP
- *
- */
-void
-CGlobalTRex::check_for_dp_messages() {
-
-    /* for all the cores - check for a new message */
-    for (int i = 0; i < get_cores_tx(); i++) {
-        check_for_dp_message_from_core(i);
-    }
-}
-
 bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
     int i;
@@ -4000,16 +4065,7 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
     return (all_link_are);
 }
 
-void CGlobalTRex::try_stop_all_cores(){
-
-    TrexStatelessDpQuit * dp_msg= new TrexStatelessDpQuit();
-    send_message_all_dp(dp_msg);
-    delete dp_msg;
-
-    if (get_is_stateless()) {
-        TrexStatelessRxQuit * rx_msg= new TrexStatelessRxQuit();
-        send_message_to_rx(rx_msg);
-    }
+void CGlobalTRex::wait_for_all_cores(){
 
     // no need to delete rx_msg. Deleted by receiver
     bool all_core_finished = false;
@@ -4033,26 +4089,6 @@ void CGlobalTRex::try_stop_all_cores(){
 }
 
 
-int  CGlobalTRex::send_message_all_dp(TrexStatelessCpToDpMsgBase *msg){
-
-    int max_threads=(int)CMsgIns::Ins()->getCpDp()->get_num_threads();
-    int i;
-
-    for (i=0; i<max_threads; i++) {
-        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
-        ring->Enqueue((CGenNode*)msg->clone());
-    }
-    return (0);
-}
-
-int CGlobalTRex::send_message_to_rx(TrexStatelessCpToRxMsgBase *msg) {
-    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    ring->Enqueue((CGenNode *) msg);
-
-    return (0);
-}
-
-
 int  CGlobalTRex::ixgbe_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -4063,8 +4099,8 @@ int  CGlobalTRex::ixgbe_rx_queue_flush(){
 }
 
 
-// init stateful rx core
-void CGlobalTRex::rx_stf_conf(void) {
+// init RX core for batch mode (STF, ASTF batch)
+void CGlobalTRex::rx_batch_conf(void) {
     int i;
     CLatencyManagerCfg mg_cfg;
     mg_cfg.m_max_ports = m_max_ports;
@@ -4104,7 +4140,7 @@ void CGlobalTRex::rx_stf_conf(void) {
     }else{
         for (i=0; i<m_max_ports; i++) {
             CPhyEthIF * _if=&m_ports[i];
-            _if->dump_stats(stdout);
+            //_if->dump_stats(stdout);
             m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
 
             mg_cfg.m_ports[i] =&m_latency_vports[i];
@@ -4116,35 +4152,25 @@ void CGlobalTRex::rx_stf_conf(void) {
 }
 
 
-// init m_rx_sl object for stateless rx core
-void CGlobalTRex::rx_sl_configure(void) {
-    CRxSlCfg rx_sl_cfg;
-    int i;
-
-    rx_sl_cfg.m_max_ports = m_max_ports;
-    rx_sl_cfg.m_tx_cores  = get_cores_tx();
-
+void CGlobalTRex::rx_interactive_conf(void) {
+    
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* vm mode, indirect queues  */
-        for (i=0; i < m_max_ports; i++) {
+        for (int i=0; i < m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
             m_latency_vm_vports[i].Create(i, r, &m_mg, _if,false);
-            rx_sl_cfg.m_ports[i] = &m_latency_vm_vports[i];
-
         }
     } else {
-        for (i = 0; i < m_max_ports; i++) {
+        for (int i = 0; i < m_max_ports; i++) {
             CPhyEthIF * _if = &m_ports[i];
             m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
-            rx_sl_cfg.m_ports[i] = &m_latency_vports[i];
         }
     }
-
-    m_rx_sl.create(rx_sl_cfg);
 }
+
 
 int  CGlobalTRex::ixgbe_start(void){
     int i;
@@ -4173,7 +4199,7 @@ int  CGlobalTRex::ixgbe_start(void){
         /* wait for ports to be stable */
         get_ex_drv()->wait_for_stable_link();
 
-        if ( !is_all_links_are_up() /*&& !get_is_stateless()*/ ){ // disable start with link down for now
+        if ( !is_all_links_are_up() ){ // disable start with link down for now
 
             /* temporary solution for trex-192 issue, solve the case for X710/XL710, will work for both Statless and Stateful */
             if (  get_ex_drv()->drop_packets_incase_of_linkdown() ){
@@ -4191,19 +4217,13 @@ int  CGlobalTRex::ixgbe_start(void){
 
     ixgbe_rx_queue_flush();
 
-    if (! get_is_stateless()) {
-        rx_stf_conf();
-    }
+    return (0);
+}
 
 
-    /* core 0 - control
-       core 1 - port 0-0,1-0,
-       core 2 - port 2-0,3-0,
-       core 3 - port 0-1,1-1,
-       core 4 - port 2-1,3-1,
-
-    */
-    int port_offset=0;
+void
+CGlobalTRex::init_vif_cores() {
+    int port_offset = 0;
     uint8_t lat_q_id;
 
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
@@ -4211,18 +4231,10 @@ int  CGlobalTRex::ixgbe_start(void){
     } else {
         lat_q_id = get_latency_tx_queue_id();
     }
-    for (i=0; i<get_cores_tx(); i++) {
+    for (int i = 0; i < get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
-        if ( get_is_stateless() ){
-            m_cores_vif[j]=&m_cores_vif_sl[j];
-        }else{
-            if (get_is_tcp_mode()) {
-                m_cores_vif[j]=&m_cores_vif_tcp[j];
-            }else{
-                m_cores_vif[j]=&m_cores_vif_sf[j];
-            }
-        }
+     
         m_cores_vif[j]->Create(j,
                                queue_id,
                                &m_ports[port_offset], /* 0,2*/
@@ -4240,13 +4252,12 @@ int  CGlobalTRex::ixgbe_start(void){
     fprintf(stdout," -------------------------------\n");
     fprintf(stdout, "RX core uses TX queue number %d on all ports\n", m_rx_core_tx_q_id);
     CCoreEthIF::DumpIfCfgHeader(stdout);
-    for (i=0; i<get_cores_tx(); i++) {
+    for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i+1]->DumpIfCfg(stdout);
     }
     fprintf(stdout," -------------------------------\n");
-
-    return (0);
 }
+
 
 static void trex_termination_handler(int signum);
 
@@ -4270,37 +4281,23 @@ void CGlobalTRex::register_signals() {
 }
 
 bool CGlobalTRex::Create(){
-    CFlowsYamlInfo     pre_yaml_info;
 
     register_signals();
 
     m_stats_cnt =0;
-    if (!get_is_stateless()) {
+    
+    /* End update pre flags */
 
-        if ( get_is_tcp_mode() ){
-            pre_yaml_info.m_vlan_info.m_enable =false;
-        }else{
-            pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
-            if ( CGlobalInfo::m_options.preview.getVMode() > 0){
-                CGlobalInfo::m_options.dump(stdout);
-                CGlobalInfo::m_memory_cfg.Dump(stdout);
-            }
-        }
-    }
+    ixgbe_prob_init();
+    cores_prob_init();
+    queues_prob_init();
+
 
     if ( !m_zmq_publisher.Create( CGlobalInfo::m_options.m_zmq_port,
                                   !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
         return (false);
     }
 
-    if ( pre_yaml_info.m_vlan_info.m_enable ){
-        CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_LOAD_BALANCE);
-    }
-    /* End update pre flags */
-
-    ixgbe_prob_init();
-    cores_prob_init();
-    queues_prob_init();
 
     /* allocate rings */
     assert( CMsgIns::Ins()->Create(get_cores_tx()) );
@@ -4323,43 +4320,157 @@ bool CGlobalTRex::Create(){
                             (dpdk_p.rx_data_q_num * dpdk_p.rx_desc_num_data_q +
                              dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q)
                             , dpdk_p.rx_mbuf_type);
+  
+     
     ixgbe_start();
     dump_config(stdout);
 
-    /* start stateless */
-    if (get_is_stateless()) {
 
-        TrexStatelessCfg cfg;
+    switch (get_op_mode()) {
 
-        TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_TCP,
-                                             global_platform_cfg_info.m_zmq_rpc_port,
-                                             &m_cp_lock);
+    case CParserOption::OP_MODE_STL:
+        init_stl();
+        break;
 
-        cfg.m_port_count         = CGlobalInfo::m_options.m_expected_portd;
-        cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-        cfg.m_rpc_server_verbose = false;
-        cfg.m_platform_api       = new TrexDpdkPlatformApi();
-        cfg.m_publisher          = &m_zmq_publisher;
+    case CParserOption::OP_MODE_ASTF:
+        init_astf();
+        break;
 
-        m_trex_stateless = new TrexStateless(cfg);
+    case CParserOption::OP_MODE_STF:
+        init_stf();
+        break;
 
-        rx_sl_configure();
+    case CParserOption::OP_MODE_ASTF_BATCH:
+        init_astf_batch();
+        break;
+
+    default:
+        assert(0);
     }
 
+    
     return (true);
 
 }
+
+TrexSTXCfg
+CGlobalTRex::get_stx_cfg() {
+
+    TrexSTXCfg cfg;
+    
+    /* control plane config */
+    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_TCP,
+                                  global_platform_cfg_info.m_zmq_rpc_port,
+                                  &m_cp_lock);
+    
+    bool vm_cfg = (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE);
+    std::vector<CPortLatencyHWBase *> ports;
+    
+    if (vm_cfg) {
+        for (int i = 0; i < m_max_ports; i++) {
+            ports.push_back(&m_latency_vm_vports[i]);
+        }
+    } else {
+        for (int i = 0; i < m_max_ports; i++) {
+            ports.push_back(&m_latency_vports[i]);
+        }
+    }
+    
+    /* RX core */
+    cfg.m_rx_cfg.create(get_cores_tx(),
+                        ports);
+    
+    cfg.m_publisher = &m_zmq_publisher;
+    
+    return cfg;
+}
+
+
+void CGlobalTRex::init_stl() {
+    
+    for (int i = 0; i < get_cores_tx(); i++) {
+        m_cores_vif[i + 1] = &m_cores_vif_sl[i + 1];
+    }
+    
+    init_vif_cores();
+    rx_interactive_conf();
+    
+    m_stx = new TrexStateless(get_stx_cfg());
+    
+    start_master_stateless();
+}
+
+
+void CGlobalTRex::init_astf() {
+        
+    for (int i = 0; i < get_cores_tx(); i++) {
+        m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
+    }
+
+    init_vif_cores();
+    rx_interactive_conf();
+    
+    m_stx = new TrexAstf(get_stx_cfg());
+    
+    start_master_astf();
+}
+
+
+void CGlobalTRex::init_astf_batch() {
+    
+     for (int i = 0; i < get_cores_tx(); i++) {
+        m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
+    }
+     
+     init_vif_cores();
+     rx_batch_conf();
+     
+     m_stx = new TrexAstfBatch(get_stx_cfg(), &m_mg);
+     
+     start_master_astf();
+}
+
+
+void CGlobalTRex::init_stf() {
+    CFlowsYamlInfo  pre_yaml_info;
+    
+    pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
+    if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+        CGlobalInfo::m_options.dump(stdout);
+        CGlobalInfo::m_memory_cfg.Dump(stdout);
+    }
+    
+    if (pre_yaml_info.m_vlan_info.m_enable) {
+        CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_LOAD_BALANCE);
+    }
+        
+    for (int i = 0; i < get_cores_tx(); i++) {
+        m_cores_vif[i + 1] = &m_cores_vif_sf[i + 1];
+    }
+    
+    init_vif_cores();
+    rx_batch_conf();
+        
+    m_stx = new TrexStateful(get_stx_cfg(), &m_mg);
+    
+    start_master_statefull();
+}
+
+
 void CGlobalTRex::Delete(){
 
     m_zmq_publisher.Delete();
 
-    if (m_trex_stateless) {
-        delete m_trex_stateless;
-        m_trex_stateless = NULL;
+    if (m_stx) {
+        delete m_stx;
+        m_stx = nullptr;
     }
 
     m_fl.Delete();
-
+    m_mg.Delete();
+    
+    /* imarom: effectively has no meaning as memory is not released (See msg_manager.cpp) */
+    CMsgIns::Ins()->Delete();
 }
 
 
@@ -4512,7 +4623,7 @@ void CGlobalTRex::dump_links_status(FILE *fd){
     }
 }
 
-uint16_t CGlobalTRex::get_rx_core_tx_queue_id(){
+uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
     /* 2 spare tx queues per port 
       X is the number of dual_ports  0--x-1 for DP
       
@@ -4528,14 +4639,16 @@ uint16_t CGlobalTRex::get_rx_core_tx_queue_id(){
        x+1 - not used 
        x+2 - rx core, latency 
    */
-
+    
+    /* imarom: is this specific to stateless ? */
     if (get_is_stateless()) {
         return (m_cores_to_dual_ports);
+    } else {
+        return (m_cores_to_dual_ports+1);
     }
-    return(m_cores_to_dual_ports+1);
 }
 
-uint16_t CGlobalTRex::get_latency_tx_queue_id(){
+uint16_t CGlobalTRex::get_latency_tx_queue_id() {
     /* 2 spare tx queues per port 
       X is the number of dual_ports  0--x-1 for DP
 
@@ -4551,10 +4664,13 @@ uint16_t CGlobalTRex::get_latency_tx_queue_id(){
        x+1 - not used 
        x+2 - rx core, latency 
    */
+    
+    /* imarom: is this specific to stateless ? */
     if (get_is_stateless()) {
         return (m_cores_to_dual_ports+1);
+    } else {
+        return (CCoreEthIF::INVALID_Q_ID);
     }
-    return (CCoreEthIF::INVALID_Q_ID);
 }
 
 
@@ -4745,11 +4861,9 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     stats.m_cpu_util = m_fl.GetCpuUtil();
     stats.m_cpu_util_raw = m_fl.GetCpuUtilRaw();
 
-    if (get_is_stateless()) {
-        stats.m_rx_cpu_util = m_rx_sl.get_cpu_util();
-        stats.m_rx_core_pps = m_rx_sl.get_rx_pps_rate();
-    }
-
+    stats.m_rx_cpu_util = m_stx->get_rx()->get_cpu_util();
+    stats.m_rx_core_pps = m_stx->get_rx()->get_pps_rate();
+        
     stats.m_threads      = m_fl.m_threads_info.size();
 
     for (i=0; i<m_max_ports; i++) {
@@ -4947,6 +5061,10 @@ bool CGlobalTRex::sanity_check(){
     if ( errors ) {
         printf(" ERRORs sockets allocation errors! \n");
         printf(" you should allocate more clients in the pool \n");
+        
+        /* mark test end and get out */
+        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
+        
         return(true);
     }
     return ( false);
@@ -5025,6 +5143,7 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
         sync_threads_stats();
     }
 
+    /* common stats */
     m_stats.dump_json(json, baseline);
     m_zmq_publisher.publish_json(json);
 
@@ -5032,43 +5151,10 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
     m_zmq_publisher.publish_json(json);
 
-
-    if ( !get_is_stateless() ){
-        dump_template_info(json);
-        if (json != ""){
-            m_zmq_publisher.publish_json(json);
-        }
-    }
-
-    if ( get_is_rx_check_mode() ) {
-        m_mg.rx_check_dump_json(json );
-        m_zmq_publisher.publish_json(json);
-    }
-
-    /* backward compatible */
-    m_mg.dump_json(json );
-    m_zmq_publisher.publish_json(json);
-
-    /* more info */
-    m_mg.dump_json_v2(json );
-    m_zmq_publisher.publish_json(json);
-
-    if (get_is_tcp_mode()){
-        CSTTCp   * lpstt=m_fl.m_stt_cp;
-        if (lpstt) {
-            //if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
-               if (lpstt->dump_json(json)){
-                   m_zmq_publisher.publish_json(json);
-               }
-            //}
-        }
-    }
-
-    if (get_is_stateless()) {
-        // json from this class is sent only when requested. Still, we need to maintain the counters periodically.
-        CFlowStatRuleMgr::instance()->periodic_update();
-    }
+    /* config specific stats */
+    m_stx->publish_async_data();
 }
+
 
 void
 CGlobalTRex::publish_async_barrier(uint32_t key) {
@@ -5086,10 +5172,10 @@ CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
     m_zmq_publisher.publish_event(TrexPublisher::EVENT_PORT_ATTR_CHANGED, data);
 }
 
-void
-CGlobalTRex::handle_slow_path() {
-    m_stats_cnt+=1;
 
+void
+CGlobalTRex::check_for_ports_link_change() {
+    
     // update speed, link up/down etc.
     for (int i=0; i<m_max_ports; i++) {
         bool changed = m_ports[i].get_port_attr()->update_link_status_nowait();
@@ -5098,17 +5184,26 @@ CGlobalTRex::handle_slow_path() {
         }
     }
 
-    if ( CGlobalInfo::m_options.preview.get_no_keyboard() ==false ) {
-        if ( m_io_modes.handle_io_modes() ) {
-            mark_for_shutdown(SHUTDOWN_CTRL_C);
-            return;
-        }
-    }
+}
 
-    if ( sanity_check() ) {
-        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
+void
+CGlobalTRex::check_for_io() {
+    /* is IO allowed ? - if not, get out */
+    if (CGlobalInfo::m_options.preview.get_no_keyboard()) {
         return;
     }
+    
+    bool rc = m_io_modes.handle_io_modes();
+    if (rc) {
+        mark_for_shutdown(SHUTDOWN_CTRL_C);
+        return;
+    }
+    
+}
+
+
+void
+CGlobalTRex::show_panel() {
 
     if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
         fprintf(stdout,"\033[2J");
@@ -5141,7 +5236,7 @@ CGlobalTRex::handle_slow_path() {
         fprintf (stdout," test duration   : %.1f sec  \n",d);
     }
 
-     /* TCP stats */
+    /* TCP stats */
     if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gSTT) {
         if (get_is_tcp_mode()) {
             CSTTCp   * lpstt=m_fl.m_stt_cp;
@@ -5210,31 +5305,49 @@ CGlobalTRex::handle_slow_path() {
         }
     }
 
+
+}
+
+
+
+void
+CGlobalTRex::handle_slow_path() {
+    m_stats_cnt++;
+
+    /* sanity checks */
+    sanity_check();
+    
+    /* handle port link changes */
+    check_for_ports_link_change();
+    
+    /* keyboard input */
+    check_for_io();
+    
+    /* based on the panel chosen, show it */
+    show_panel();
+    
     /* publish data */
     publish_async_data(false);
+    
+    /* provide the STX object a tick (used by implementing objects) */
+    m_stx->slowpath_tick();
 }
 
 
 void
 CGlobalTRex::handle_fast_path() {
-    /* check from messages from DP */
-    check_for_dp_messages();
+
+    /* pass fast path tick to the polymorphic object */
+    m_stx->fastpath_tick();
 
     /* measure CPU utilization by sampling (we sample 1000 to get an accurate sampling) */
     for (int i = 0; i < 1000; i++) {
         m_fl.UpdateFast();
-
-        if (get_is_stateless()) {
-            m_rx_sl.update_cpu_util();
-        }else{
-            m_mg.update_fast();
-        }
-
         rte_pause();
     }
 
-
-    if ( is_all_cores_finished() ) {
+    /* in case of batch, when all DP cores are done, mark for shutdown */
+    if ( is_all_dp_cores_finished() ) {
         mark_for_shutdown(SHUTDOWN_TEST_ENDED);
     }
 }
@@ -5261,18 +5374,12 @@ void CGlobalTRex::shutdown() {
     /* first stop the WD */
     TrexWatchDog::getInstance().stop();
 
-    /* stateless shutdown */
-    if (get_is_stateless()) {
-        m_trex_stateless->shutdown();
-    }
+    /* interactive shutdown */
+    m_stx->shutdown();
 
     if (!is_all_cores_finished()) {
-        try_stop_all_cores();
+        wait_for_all_cores();
     }
-
-    m_mg.stop();
-
-    delay(1000);
 
     /* shutdown drivers */
     for (int i = 0; i < m_max_ports; i++) {
@@ -5292,10 +5399,8 @@ int CGlobalTRex::run_in_master() {
 
     //rte_thread_setname(pthread_self(), "TRex Control");
 
-    if ( get_is_stateless() ) {
-        m_trex_stateless->launch_control_plane();
-    }
-
+    m_stx->launch_control_plane();
+    
     /* exception and scope safe */
     std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);
 
@@ -5357,17 +5462,9 @@ int CGlobalTRex::run_in_rx_core(void){
         }
     }
 
-    if (get_is_stateless()) {
-        m_sl_rx_running = true;
-        m_rx_sl.start();
-        m_sl_rx_running = false;
-    } else {
-        if ( CGlobalInfo::m_options.is_rx_enabled() ){
-            m_sl_rx_running = false;
-            m_mg.start(0, true);
-        }
-    }
-
+    /* will block until RX core is signaled to stop */
+    m_stx->get_rx()->start();
+  
     return (0);
 }
 
@@ -5407,12 +5504,8 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     lpt->m_monitor.create(ss.str(), 1);
     TrexWatchDog::getInstance().register_monitor(&lpt->m_monitor);
 
-    if (get_is_stateless()) {
-        lpt->start_stateless_daemon(*lp);
-    }else{
-        lpt->start_generate_stateful(CGlobalInfo::m_options.out_file,*lp);
-    }
-
+    lpt->start(CGlobalInfo::m_options.out_file, *lp);
+    
     /* done - remove this from the watchdog (we might wait on join for a long time) */
     lpt->m_monitor.disable();
 
@@ -5483,15 +5576,28 @@ int CGlobalTRex::stop_master(){
     return (0);
 }
 
-bool CGlobalTRex::is_all_cores_finished() {
-    int i;
-    for (i=0; i<get_cores_tx(); i++) {
-        if ( m_signal[i+1]==0){
+
+bool CGlobalTRex::is_all_dp_cores_finished() {
+    for (int i = 0; i < get_cores_tx(); i++) {
+        if (m_signal[i+1]==0) {
             return false;
         }
     }
-    if (m_sl_rx_running)
+    
+    return true;
+}
+
+bool CGlobalTRex::is_all_cores_finished() {
+    
+    /* DP cores */
+    if (!is_all_dp_cores_finished()) {
         return false;
+    }
+    
+    /* RX core */
+    if (m_stx->get_rx()->is_active()) {
+        return false;
+    }
 
     return true;
 }
@@ -5833,12 +5939,8 @@ void CPhyEthIF::update_counters() {
     
     CRXCoreIgnoreStat ign_stats;
 
-    if (get_is_stateless()) {
-        g_trex.m_rx_sl.get_ignore_stats(m_tvpid, ign_stats, true);
-    } else {
-        g_trex.m_mg.get_ignore_stats(m_tvpid, ign_stats, true);
-    }
-
+    g_trex.m_stx->get_ignore_stats(m_tvpid, ign_stats, true);
+    
     m_stats.obytes -= ign_stats.get_tx_bytes();
     m_stats.opackets -= ign_stats.get_tx_pkts();
     m_ignore_stats.opackets += ign_stats.get_tx_pkts();
@@ -5897,7 +5999,8 @@ int CPhyEthIF::reset_hw_flow_stats() {
     if (get_ex_drv()->hw_rx_stat_supported()) {
         get_ex_drv()->reset_rx_stats(this, m_stats.m_fdir_prev_pkts, 0, MAX_FLOW_STATS);
     } else {
-        g_trex.m_rx_sl.reset_rx_stats(get_tvpid());
+        /* TODO: imarom: move this to a message to the RX core */
+        get_stateless_obj()->get_stl_rx()->reset_rx_stats(get_tvpid());
     }
     return 0;
 }
@@ -5918,7 +6021,8 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
             return -1;
         }
     } else {
-        g_trex.m_rx_sl.get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID);
+        /* TODO: imarom: move this to a message to the RX core */
+        get_stateless_obj()->get_stl_rx()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID);
     }
 
     for (int i = min; i <= max; i++) {
@@ -5956,7 +6060,8 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
 }
 
 int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
-    g_trex.m_rx_sl.get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD);
+    get_stateless_obj()->get_stl_rx()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD);
+    
     for (int i = min; i <= max; i++) {
         if ( reset ) {
             if (tx_stats != NULL) {
@@ -5972,8 +6077,8 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
     return 0;
 }
 
-TrexStateless * get_stateless_obj() {
-    return g_trex.m_trex_stateless;
+TrexSTX * get_stx() {
+    return g_trex.m_stx;
 }
 
 /**
@@ -5986,10 +6091,6 @@ void abort_gracefully(const std::string &on_stdout,
     g_trex.abort_gracefully(on_stdout, on_publisher);
 }
 
-
-CRxCoreStateless * get_rx_sl_core_obj() {
-    return &g_trex.m_rx_sl;
-}
 
 static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
@@ -6224,7 +6325,7 @@ int  update_dpdk_args(void){
     }
 
 
-    if ( lpop->m_run_mode != CParserOption::RUN_MODE_DUMP_INFO ){
+    if ( lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES ){
         std::string err;
         if ( port_map.set_cfg_input(global_platform_cfg_info.m_if_list,err)!= 0){
             printf("%s \n",err.c_str());
@@ -6278,7 +6379,7 @@ int  update_dpdk_args(void){
     SET_ARGS(g_master_id_str);
 
     /* add white list */
-    if ((lpop->m_run_mode == CParserOption::RUN_MODE_DUMP_INFO) && (lpop->dump_interfaces.size())) {
+    if ((lpop->m_op_mode == CParserOption::OP_MODE_DUMP_INTERFACES) && (lpop->dump_interfaces.size())) {
         for (int i=0; i<(int)lpop->dump_interfaces.size(); i++) {
             SET_ARGS("-w");
             SET_ARGS(lpop->dump_interfaces[i].c_str());
@@ -6354,7 +6455,7 @@ int sim_load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->start_generate_stateful(op->out_file,op->preview);
+        lpt->start_sim(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);
@@ -6506,7 +6607,7 @@ int main_test(int argc , char * argv[]){
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
     set_driver();
-    if (CGlobalInfo::m_options.m_run_mode == CParserOption::RUN_MODE_DUMP_INFO) {
+    if (CGlobalInfo::m_options.m_op_mode == CParserOption::OP_MODE_DUMP_INTERFACES) {
         dump_interfaces_info();
         exit(0);
     }
@@ -6534,18 +6635,6 @@ int main_test(int argc , char * argv[]){
     /* disable WD if needed */
     bool wd_enable = (CGlobalInfo::m_options.preview.getWDDisable() ? false : true);
     TrexWatchDog::getInstance().init(wd_enable);
-
-    g_trex.m_sl_rx_running = false;
-    if ( get_is_stateless() ) {
-        g_trex.start_master_stateless();
-
-    }else{
-        if (get_is_tcp_mode()) {
-            g_trex.start_master_astf();
-        }else{
-            g_trex.start_master_statefull();
-        }
-    }
 
     // For unit testing of HW rules and queues configuration. Just send some packets and exit.
     if (CGlobalInfo::m_options.m_debug_pkt_proto != 0) {
@@ -7117,7 +7206,7 @@ void CTRexExtendedDriverBase1G::clear_extended_stats(CPhyEthIF * _if){
 int CTRexExtendedDriverBase1G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts
                                             ,uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
     repid_t repid = _if->get_repid();
-    return g_trex.m_rx_sl.get_rx_stats(repid, pkts, prev_pkts, bytes, prev_bytes, min, max);
+    return g_trex.m_rx.get_rx_stats(repid, pkts, prev_pkts, bytes, prev_bytes, min, max);
 }
 #endif
 
@@ -8408,19 +8497,13 @@ int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstat
 }
 
 
-void TrexDpdkPlatformApi::get_port_num(uint8_t &port_num) const {
-    port_num = g_trex.m_max_ports;
-}
-
 void
 TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
     CGlobalStats trex_stats;
     g_trex.get_stats(trex_stats);
 
-    stats.m_stats.m_cpu_util = trex_stats.m_cpu_util;
-    if (get_is_stateless()) {
-        stats.m_stats.m_rx_cpu_util = trex_stats.m_rx_cpu_util;
-    }
+    stats.m_stats.m_cpu_util           = trex_stats.m_cpu_util;
+    stats.m_stats.m_rx_cpu_util        = trex_stats.m_rx_cpu_util;
 
     stats.m_stats.m_tx_bps             = trex_stats.m_tx_bps;
     stats.m_stats.m_tx_pps             = trex_stats.m_tx_pps;
@@ -8436,6 +8519,12 @@ TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
 void
 TrexDpdkPlatformApi::get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const {
 
+}
+
+uint32_t
+TrexDpdkPlatformApi::get_port_count() const {
+    return g_trex.m_max_ports;
+    
 }
 
 uint8_t
@@ -8507,11 +8596,11 @@ int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_
 
 int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset
                                           , bool period_switch) const {
-    return g_trex.m_rx_sl.get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
+    return get_stateless_obj()->get_stl_rx()->get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
 }
 
 int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
-    return g_trex.m_rx_sl.get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
+    return get_stateless_obj()->get_stl_rx()->get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
 }
 
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
@@ -8542,10 +8631,6 @@ int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type
 
     return CTRexExtendedDriverDb::Ins()->get_drv()
         ->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
-}
-
-void TrexDpdkPlatformApi::flush_dp_messages() const {
-    g_trex.check_for_dp_messages();
 }
 
 int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
@@ -8639,4 +8724,20 @@ DpdkTRexPortAttrMlnx5G::set_link_up(bool up) {
  */
 void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
+}
+
+
+CFlowGenList *
+TrexDpdkPlatformApi::get_fl() const {
+    return &g_trex.m_fl;
+}
+
+
+/**
+ * DPDK API target
+ */
+TrexPlatformApi &get_platform_api() {
+    static TrexDpdkPlatformApi api;
+    
+    return api;
 }

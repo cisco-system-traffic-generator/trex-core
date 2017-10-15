@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include "trex_sim.h"
+#include "stf/trex_stf.h"
 
 static int cores = 1;
 
@@ -58,7 +59,7 @@ void * thread_task(void *info){
 
         char buf[100];
         sprintf(buf,"my%d.erf",obj->thread_id);
-        lpt->start_generate_stateful(buf,*obj->preview_info);
+        lpt->start_sim(buf,*obj->preview_info);
         lpt->m_node_gen.DumpHist(stdout);
         printf("end thread %d \n",obj->thread_id);
     }
@@ -151,7 +152,7 @@ void test_load_list_of_cap_files(CParserOption * op){
         lpt=fl.m_threads_info[i];
         char buf[100];
         sprintf(buf,"my%d.erf",i);
-        lpt->start_generate_stateful(buf,op->preview);
+        lpt->start_sim(buf,op->preview);
         lpt->m_node_gen.DumpHist(stdout);
     }
     //sprintf(buf,"my%d.erf",7);
@@ -200,7 +201,7 @@ int load_list_of_cap_files(CParserOption * op){
     lpt->set_vif(&erf_vif);
 
     if ( (op->preview.getVMode() >1)  || op->preview.getFileWrite() ) {
-        lpt->start_generate_stateful(op->out_file,op->preview);
+        lpt->start_sim(op->out_file,op->preview);
     }
 
     lpt->m_node_gen.DumpHist(stdout);
@@ -616,11 +617,20 @@ int merge_2_cap_files_sip() {
 
 int
 SimStateful::run() {
+    TrexSTXCfg cfg;
+    
     assert( CMsgIns::Ins()->Create(4) );
+    set_stx(new TrexStateful(cfg, nullptr));
+    
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options);
     } catch (const std::runtime_error &e) {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
     }
+    
+     delete get_stx();
+     set_stx(NULL);
+     
+     return (0);
 }

@@ -21,7 +21,6 @@ limitations under the License.
 
 #include "trex_watchdog.h"
 #include "trex_exception.h"
-#include "trex_stateless.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -36,6 +35,10 @@ limitations under the License.
 #include <string.h>
 #include <iostream>
 #include  <stdexcept>
+
+
+void abort_gracefully(const std::string &on_stdout,
+                      const std::string &on_publisher) __attribute__ ((__noreturn__));
 
 
 static TrexMonitor *global_monitor;

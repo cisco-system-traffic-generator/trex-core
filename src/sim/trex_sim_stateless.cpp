@@ -20,13 +20,19 @@ limitations under the License.
 */
 
 #include "trex_sim.h"
-#include <trex_stateless.h>
-#include <trex_stateless_messaging.h>
-#include <trex_rpc_cmd_api.h>
+#include "trex_rpc_cmd_api.h"
+
+#include "stl/trex_stl.h"
+#include "stl/trex_stl_streams_compiler.h"
+#include "stl/trex_stl_messaging.h"
+#include "stl/trex_stl_port.h"
+
+#include "publisher/trex_publisher.h"
+
 #include <json/json.h>
 #include <stdexcept>
 #include <sstream>
-#include <trex_streams_compiler.h>
+
 
 using namespace std;
 
@@ -89,7 +95,7 @@ public:
  */
 class DpToCpHandler {
 public:
-    virtual void handle(TrexStatelessDpToCpMsgBase *msg) = 0;
+    virtual void handle(TrexDpToCpMsgBase *msg) = 0;
 };
 
 /************************ 
@@ -135,6 +141,7 @@ SimStateless::SimStateless() {
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
     TrexRpcCommand::test_set_override_api(true);
+  
 }
 
 
@@ -148,11 +155,34 @@ SimStateless::SimStateless() {
 void
 SimStateless::find_active_dp_cores() {
     for (int core_index = 0; core_index < m_dp_core_count; core_index++) {
-        CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
-        if (lpt->are_any_pending_cp_messages()) {
+        TrexDpCore *dp_core = m_fl.m_threads_info[core_index]->get_dp_core();
+        if (dp_core->are_any_pending_cp_messages()) {
             m_active_dp_cores.push_back(core_index);
         }
     }
+}
+
+
+void
+SimStateless::init() {
+    
+    /* message queue init */
+    assert(CMsgIns::Ins()->Create(m_dp_core_count));
+    
+    /* a hack for the simulator - change the DP core count in runtime */
+    SimPlatformApi &sim_api = dynamic_cast<SimPlatformApi &>(get_platform_api());
+    sim_api.set_dp_core_count(m_dp_core_count);
+
+    TrexSTXCfg cfg;
+
+    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr);
+    
+    m_publisher = new SimPublisher();
+    cfg.m_publisher = m_publisher;
+    
+    cfg.m_rx_cfg.create(1, {nullptr});
+    
+    set_stx(new TrexStateless(cfg));
 }
 
 int
@@ -175,6 +205,7 @@ SimStateless::run(const string &json_filename,
     m_limit         = limit;
     m_is_dry_run    = is_dry_run;
 
+    init();
     prepare_dataplane();
     prepare_control_plane();
 
@@ -186,9 +217,8 @@ SimStateless::run(const string &json_filename,
     }
 
     find_active_dp_cores();
-
     run_dp(out_filename);
-
+    
     return 0;
 }
 
@@ -197,7 +227,7 @@ SimStateless::~SimStateless() {
     
     if (get_stateless_obj()) {
         delete get_stateless_obj();
-        set_stateless_obj(NULL);
+        set_stx(NULL);
     }
 
     if (m_publisher) {
@@ -215,19 +245,6 @@ SimStateless::~SimStateless() {
  */
 void
 SimStateless::prepare_control_plane() {
-    TrexStatelessCfg cfg;
-    
-    m_publisher = new SimPublisher();
-
-    TrexRpcServerConfig rpc_req_resp_cfg(TrexRpcServerConfig::RPC_PROT_MOCK, 0, NULL);
-
-    cfg.m_port_count         = m_port_count;
-    cfg.m_rpc_req_resp_cfg   = &rpc_req_resp_cfg;
-    cfg.m_rpc_server_verbose = false;
-    cfg.m_platform_api       = new SimPlatformApi(m_dp_core_count);
-    cfg.m_publisher          = m_publisher;
-
-    set_stateless_obj(new TrexStateless(cfg));
 
     get_stateless_obj()->launch_control_plane();
 
@@ -246,9 +263,8 @@ void
 SimStateless::prepare_dataplane() {
     
     CGlobalInfo::m_options.m_expected_portd = m_port_count;
-    CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
+    CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
 
-    assert(CMsgIns::Ins()->Create(m_dp_core_count));
     m_fl.Create();
     m_fl.generate_p_thread_info(m_dp_core_count);
 
@@ -416,16 +432,24 @@ SimStateless::run_dp(const std::string &out_filename) {
 }
 
 void
+SimStateless::flush_messages() {
+    for (int i = 0; i < m_dp_core_count; i++) {
+        flush_cp_to_dp_messages_core(i);
+        flush_dp_to_cp_messages_core(i);
+    }
+    flush_cp_to_rx_messages();
+}
+
+void
 SimStateless::cleanup() {
 
     for (int port_id = 0; port_id < get_stateless_obj()->get_port_count(); port_id++) {
         get_stateless_obj()->get_port_by_id(port_id)->stop_traffic();
         get_stateless_obj()->get_port_by_id(port_id)->remove_and_delete_all_streams();
     }
-    for (int i = 0; i < m_dp_core_count; i++) {
-        flush_cp_to_dp_messages_core(i);
-        flush_dp_to_cp_messages_core(i);
-    }
+    
+    flush_messages();
+    CFlowStatRuleMgr::cleanup();
 }
 
 uint64_t 
@@ -450,10 +474,8 @@ SimStateless::run_dp_core(int core_index,
 
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
-    lpt->start_stateless_simulation_file((std::string)out_filename, CGlobalInfo::m_options.preview, get_limit_per_core(core_index));
-    lpt->start_stateless_daemon_simulation();
-    lpt->stop_stateless_simulation_file();
-
+    lpt->start_sim((std::string)out_filename, CGlobalInfo::m_options.preview, get_limit_per_core(core_index));
+    
     flush_dp_to_cp_messages_core(core_index);
 
     /* core */
@@ -483,7 +505,7 @@ SimStateless::flush_dp_to_cp_messages_core(int core_index) {
         }
         assert(node);
 
-        TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
+        TrexDpToCpMsgBase * msg = (TrexDpToCpMsgBase *)node;
         if (m_dp_to_cp_handler) {
             m_dp_to_cp_handler->handle(msg);
         }
@@ -504,7 +526,23 @@ SimStateless::flush_cp_to_dp_messages_core(int core_index) {
         }
         assert(node);
 
-        TrexStatelessCpToDpMsgBase * msg = (TrexStatelessCpToDpMsgBase *)node;
+        TrexCpToDpMsgBase * msg = (TrexCpToDpMsgBase *)node;
+        delete msg;
+    }
+}
+
+void
+SimStateless::flush_cp_to_rx_messages() {
+    CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+
+    while ( true ) {
+        CGenNode * node = NULL;
+        if (ring->Dequeue(node) != 0) {
+            break;
+        }
+        assert(node);
+
+        TrexCpToRxMsgBase * msg = (TrexCpToRxMsgBase *)node;
         delete msg;
     }
 }

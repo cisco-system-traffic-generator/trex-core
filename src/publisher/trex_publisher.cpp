@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "trex_publisher.h"
-#include "trex_rpc_zip.h"
+#include "rpc-server/trex_rpc_zip.h"
 #include <zmq.h>
 #include <assert.h>
 #include <sstream>

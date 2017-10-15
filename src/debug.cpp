@@ -368,7 +368,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                 exp_q = MAIN_DPDK_RX_Q;
                 break;
             case STL:
-                if ( CGlobalInfo::m_options.is_stateless() ) {
+                if ( get_is_stateless() ) {
                     exp_q = MAIN_DPDK_RX_Q;
                     pkt_flags |= DPF_TOS_1;
                 } else {
@@ -376,7 +376,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                 }
                 break;
             case STF:
-                if ( CGlobalInfo::m_options.is_stateless() ) {
+                if ( get_is_stateless() ) {
                     exp_q = MAIN_DPDK_DROP_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;

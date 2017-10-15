@@ -18,83 +18,97 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <trex_rpc_cmds_table.h>
+#include "trex_rpc_cmds_table.h"
 #include <iostream>
 
-#include "commands/trex_rpc_cmds.h"
 
 using namespace std;
 
+
 /************* table related methods ***********/
+
 TrexRpcCommandsTable::TrexRpcCommandsTable() {
-    /* add the test command (for gtest) */
-    register_command(new TrexRpcCmdTestAdd());
-    register_command(new TrexRpcCmdTestSub());
-    
-
-    /* general */
-    register_command(new TrexRpcCmdAPISync());
-    register_command(new TrexRpcCmdPing());
-    register_command(new TrexRpcPublishNow());
-    register_command(new TrexRpcCmdGetCmds());
-    register_command(new TrexRpcCmdGetVersion());
-    register_command(new TrexRpcCmdGetActivePGIds());
-    register_command(new TrexRpcCmdGetPGIdsStats());
-    register_command(new TrexRpcCmdGetUtilization());
-    register_command(new TrexRpcCmdGetSysInfo());
-    register_command(new TrexRpcCmdGetOwner());
-    register_command(new TrexRpcCmdAcquire());
-    register_command(new TrexRpcCmdRelease());
-    register_command(new TrexRpcCmdGetPortStats());
-    register_command(new TrexRpcCmdGetPortStatus());
-    register_command(new TrexRpcCmdSetPortAttr());
-    register_command(new TrexRpcCmdGetPortXStatsValues());
-    register_command(new TrexRpcCmdGetPortXStatsNames());
-    
-
-    /* stream commands */
-    register_command(new TrexRpcCmdAddStream());
-    register_command(new TrexRpcCmdRemoveStream());
-    register_command(new TrexRpcCmdRemoveAllStreams());
-    register_command(new TrexRpcCmdGetStreamList());
-    register_command(new TrexRpcCmdGetStream());
-    register_command(new TrexRpcCmdGetAllStreams());
-
-    register_command(new TrexRpcCmdStartTraffic());
-    register_command(new TrexRpcCmdStopTraffic());
-    register_command(new TrexRpcCmdPauseTraffic());
-    register_command(new TrexRpcCmdResumeTraffic());
-    register_command(new TrexRpcCmdUpdateTraffic());
-
-    register_command(new TrexRpcCmdRemoveRXFilters());
-
-    register_command(new TrexRpcCmdValidate());
-    register_command(new TrexRpcCmdPushRemote());
-
-    register_command(new TrexRpcCmdShutdown());
-
-    register_command(new TrexRpcCmdSetRxFeature());
-    register_command(new TrexRpcCmdGetRxQueuePkts());
-    
-    register_command(new TrexRpcCmdSetServiceMode());
-    register_command(new TrexRpcCmdSetL2());
-    register_command(new TrexRpcCmdSetL3());
-    
-    register_command(new TrexRpcCmdCapture());
-    
-    register_command(new TrexRpcCmdSetVLAN());
-    
-    register_command(new TrexRpcCmdTXPkts());
+    m_is_init = false;
 }
 
 
 TrexRpcCommandsTable::~TrexRpcCommandsTable() {
-    for (auto cmd : m_rpc_cmd_table) {
-        delete cmd.second;
+    reset();
+}
+
+
+/**
+ * init the RPC table with configuration name and version
+ * 
+ */
+void
+TrexRpcCommandsTable::init(const std::string &config_name, int major, int minor) {
+    
+    /* reset any previous data */
+    reset();
+    
+    /* init the API version */
+    m_api_ver.init(config_name, major, minor);
+    
+    m_is_init = true;
+}
+
+
+void
+TrexRpcCommandsTable::reset() {
+    /* delete all components loaded */
+    for (auto comp : m_rpc_components) {
+        delete comp;
+    }
+    
+    m_rpc_components.clear();
+    m_is_init = false;
+}
+
+
+/**
+ * load a component to the table
+ */
+void
+TrexRpcCommandsTable::load_component(TrexRpcComponent *comp) {
+    
+    /* set the component to the right API version / config */
+    comp->set_rpc_api_ver(&m_api_ver);
+    
+    /* add the component */
+    m_rpc_components.push_back(comp);
+     
+    /* register all the RPC commands */
+    for (auto cmd : comp->get_rpc_cmds()) {
+        register_command(cmd);
     }
 }
 
-TrexRpcCommand * TrexRpcCommandsTable::lookup(const string &method_name) {
+
+/**
+ * register a new command to the table
+ * 
+ */
+void
+TrexRpcCommandsTable::register_command(TrexRpcCommand *command) {
+
+    m_rpc_cmd_table[command->get_name()] = command;
+}
+
+
+/**
+ * query for all the commands
+ * @param cmds 
+ */
+void TrexRpcCommandsTable::query(vector<string> &cmds) {
+    for (auto cmd : m_rpc_cmd_table) {
+        cmds.push_back(cmd.first);
+    }
+}
+
+
+TrexRpcCommand *
+TrexRpcCommandsTable::lookup(const string &method_name) {
     auto search = m_rpc_cmd_table.find(method_name);
 
     if (search != m_rpc_cmd_table.end()) {
@@ -104,15 +118,4 @@ TrexRpcCommand * TrexRpcCommandsTable::lookup(const string &method_name) {
     }
 }
 
-
-void TrexRpcCommandsTable::register_command(TrexRpcCommand *command) {
-
-    m_rpc_cmd_table[command->get_name()] = command;
-}
-
-void TrexRpcCommandsTable::query(vector<string> &cmds) {
-    for (auto cmd : m_rpc_cmd_table) {
-        cmds.push_back(cmd.first);
-    }
-}
 

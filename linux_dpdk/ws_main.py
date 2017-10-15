@@ -252,6 +252,7 @@ main_src = SrcGroup(dir='src',
              'trex_global.cpp',
              'bp_sim.cpp',
              'trex_platform.cpp',
+             'flow_stat_parser.cpp',
              'utl_term_io.cpp',
              'utl_port_map.cpp',
              'global_io_mode.cpp',
@@ -260,8 +261,6 @@ main_src = SrcGroup(dir='src',
              'trex_watchdog.cpp',
              'trex_client_config.cpp',
              'debug.cpp',
-             'flow_stat.cpp',
-             'flow_stat_parser.cpp',
              'inet_pton.cpp',
              'pkt_gen.cpp',
              'tw_cfg.cpp',
@@ -324,16 +323,10 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
-                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
                               'trex_rpc_zip.cpp',
-
-                              'commands/trex_rpc_cmd_test.cpp',
-                              'commands/trex_rpc_cmd_general.cpp',
-                              'commands/trex_rpc_cmd_stream.cpp',
-
                           ])
 
 
@@ -345,23 +338,53 @@ ef_src = SrcGroup(dir='src/common',
         ]);
 
 
+
+# common code for STL / ASTF / STF
+stx_src = SrcGroup(dir='src/stx/common/',
+                           src_list=['trex_stx.cpp',
+                                     'trex_pkt.cpp',
+                                     'trex_capture.cpp',
+                                     'trex_port.cpp',
+                                     'trex_dp_port_events.cpp',
+                                     'trex_dp_core.cpp',
+                                     'trex_messaging.cpp',
+                                     
+                                     'trex_rx_core.cpp',
+                                     'trex_rx_port_mngr.cpp',
+                                     'trex_rx_tx.cpp',
+                                     
+                                     'trex_rpc_cmds_common.cpp'
+                                     ])
+
+                                    
 # stateless code
-stateless_src = SrcGroup(dir='src/stateless/',
-                          src_list=['cp/trex_stream.cpp',
-                                    'cp/trex_stream_vm.cpp',
-                                    'cp/trex_stateless.cpp',
-                                    'cp/trex_stateless_port.cpp',
-                                    'cp/trex_streams_compiler.cpp',
-                                    'cp/trex_vm_splitter.cpp',
-                                    'cp/trex_dp_port_events.cpp',
-                                    'dp/trex_stateless_dp_core.cpp',
-                                    'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp',
-                                    'rx/trex_stateless_rx_port_mngr.cpp',
-                                    'rx/trex_stateless_rx_tx.cpp',
-                                    'rx/trex_stateless_capture.cpp',
-                                    'common/trex_stateless_pkt.cpp',
+stateless_src = SrcGroup(dir='src/stx/stl/',
+                          src_list=['trex_stl_stream.cpp',
+                                    'trex_stl_stream_vm.cpp',
+                                    'trex_stl.cpp',
+                                    'trex_stl_port.cpp',
+                                    'trex_stl_streams_compiler.cpp',
+                                    'trex_stl_vm_splitter.cpp',
+                                    
+                                    'trex_stl_dp_core.cpp',
+                                    'trex_stl_fs.cpp',
+                                    
+                                    'trex_stl_messaging.cpp',
+                                    
+                                    'trex_stl_rpc_cmds.cpp'
+                                    
                                     ])
+
+
+
+# ASTF
+astf_src = SrcGroup(dir='src/stx/astf/',
+                         src_list=['trex_astf.cpp',
+                                   'trex_astf_port.cpp',
+                                   'trex_astf_rpc_cmds.cpp',
+                                   'trex_astf_dp_core.cpp'
+                         ])
+
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
                     src_list=[
@@ -634,9 +657,11 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
-                rpc_server_src,
                 json_src,
+                rpc_server_src,
+                stx_src,
                 stateless_src,
+                astf_src,
                 version_src
                 ]);
 
@@ -693,13 +718,10 @@ includes_path =''' ../src/pal/linux_dpdk/
                    ../src/pal/common/
                    ../src/
 
-                   ../src/rpc-server/
-                   ../src/stateless/cp/
-                   ../src/stateless/dp/
-                   ../src/stateless/rx/
-                   ../src/stateless/common/
-                   ../src/stateless/messaging/
 
+                   ../src/stx/
+                   ../src/stx/common/
+                   
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/
                    ../external_libs/json/

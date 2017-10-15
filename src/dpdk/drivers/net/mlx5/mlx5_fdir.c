@@ -37,8 +37,6 @@
 #include <string.h>
 #include <errno.h>
 
-#define TREX_PATCH
-         
 /* Verbs header. */
 /* ISO C doesn't support unnamed structs/unions, disabling -pedantic. */
 #ifdef PEDANTIC

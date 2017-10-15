@@ -27,10 +27,12 @@ limitations under the License.
 #include <unordered_map>
 #include <string>
 
-#include <common/arg/SimpleGlob.h>
-#include <common/arg/SimpleOpt.h>
-#include <stateless/cp/trex_stateless.h>
-#include <sim/trex_sim.h>
+#include "common/arg/SimpleGlob.h"
+#include "common/arg/SimpleOpt.h"
+
+#include "stl/trex_stl.h"
+
+#include "sim/trex_sim.h"
 
 using namespace std;
 
@@ -96,7 +98,7 @@ static CSimpleOpt::SOption parser_options[] =
 };
 
 
-static TrexStateless *m_sim_statelss_obj;
+static TrexSTX *m_sim_stx;
 static char *g_exe_name;
 
 static asrtf_args_t  asrtf_args;
@@ -314,25 +316,21 @@ void set_default_mac_addr(){
     }
 }
 
-TrexStateless * get_stateless_obj() {
-    return m_sim_statelss_obj;
+TrexSTX * get_stx() {
+    return m_sim_stx;
 }
+
+
+void set_stx(TrexSTX *obj) {
+    m_sim_stx = obj;
+}
+
 
 void abort_gracefully(const std::string &on_stdout,
                       const std::string &on_publisher) {
     
     std::cout << on_stdout << "\n";
     abort();
-}
-
-
-CRxCoreStateless * get_rx_sl_core_obj() {
-    return NULL;
-}
-
-
-void set_stateless_obj(TrexStateless *obj) {
-    m_sim_statelss_obj = obj;
 }
 
 
@@ -365,7 +363,7 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
-            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
             return sf.run();
         }
 
@@ -385,7 +383,7 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;
@@ -414,3 +412,14 @@ int main(int argc , char * argv[]){
         }
     }
 }
+
+
+/**
+ * SIM API target
+ */
+TrexPlatformApi &get_platform_api() {
+    static SimPlatformApi api(1);
+    
+    return api;
+}
+
