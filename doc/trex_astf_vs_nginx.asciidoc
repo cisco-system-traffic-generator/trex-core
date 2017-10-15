@@ -106,7 +106,7 @@ Flow example: link:https://github.com/cisco-system-traffic-generator/trex-core/b
 
 The comparison is not perfect, as TRex merely emulates HTTP traffic. It is not a real-world web server or HTTP client. 
 For example, currently the TRex client does not parse the HTTP response for the *Length* field. TRex simply waits for a specific data size (32KB) over TCP.  
-However the TCP layer is a full featured base for BSD implementation. 
+However the TCP layer is a full featured TCP (e.g. delay-ack/Retransimiotion/Reassembly/timers) .It is based on BSD implementation. 
 
 == Tuning NGINX and Linux TCP kernel 
 
