@@ -100,7 +100,7 @@ image::https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title
 more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
 
 
-=== *Upcoming* TRex scalable TCP support
+=== TRex scalable TCP support
 
 With the new advanced scalable TCP support, TRex will use TCP layer for generating the L7 data. This will open the following new capabilities:
 
@@ -116,7 +116,8 @@ With the new advanced scalable TCP support, TRex will use TCP layer for generati
 * Accurate TCP implementation (at least BSD based)
 * Ability to change fields in the L7 application - for example, change HTTP User-Agent field
 
-more here link:https://communities.cisco.com/community/developer/trex/blog/2017/06/20/trex-upcoming-stateful-scalable-tcp-support[scalable TCP]
+more here link:https://communities.cisco.com/community/developer/trex/blog/2017/06/20/trex-upcoming-stateful-scalable-tcp-support[scalable TCP], 
+ link:https://trex-tgn.cisco.com/trex/doc/trex_astf.html[ASTF documentation] and link:https://trex-tgn.cisco.com/trex/doc/trex_astf_vs_nginx.html[ASTF Performance]
 
 === What it is not
 

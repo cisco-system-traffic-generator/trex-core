@@ -940,6 +940,9 @@ another example that will run sfr profile in release mode and will show the coun
 ----
 
 
+=== Performance 
+
+see link:trex_astf_vs_nginx.html[ASTF Performance]
 
 === Traffic profile reference 
 
