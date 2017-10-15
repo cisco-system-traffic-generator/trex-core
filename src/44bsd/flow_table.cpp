@@ -44,6 +44,7 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_err_l4_cs);                   
     MYC(m_err_redirect_rx);
     MYC(m_redirect_rx_ok);
+    MYC(m_err_rx_throttled);
 }
 
 
