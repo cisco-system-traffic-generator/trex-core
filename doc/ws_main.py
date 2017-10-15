@@ -983,6 +983,7 @@ def create_ndr_report(task):
 
 def build(bld):
     bld(rule=my_copy, target='symbols.lang')
+    bld(rule=my_copy, target='nginx_if_cfg.txt')
 
     for x in bld.path.ant_glob('images\\**\**.png'):
             bld(rule=my_copy, target=x)
@@ -992,6 +993,7 @@ def build(bld):
     for x in bld.path.ant_glob('yaml\\**\**.yaml'):
             bld(rule=my_copy, target=x)
             bld.add_group() 
+
 
 
     for x in bld.path.ant_glob('video\\**\**.mp4'):
