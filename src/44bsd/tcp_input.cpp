@@ -1211,7 +1211,7 @@ trimthenstep6:
             if (ourfinisacked) {
                 tp->t_state = TCPS_TIME_WAIT;
                 tcp_canceltimers(tp);
-                tp->t_timer[TCPT_2MSL] = 2 * TCPTV_MSL;
+                tp->t_timer[TCPT_2MSL] = TCPTV_2MSL;
                 soisdisconnected(so);
             }
             break;
@@ -1235,7 +1235,7 @@ trimthenstep6:
          * it and restart the finack timer.
          */
         case TCPS_TIME_WAIT:
-            tp->t_timer[TCPT_2MSL] = 2 * TCPTV_MSL;
+            tp->t_timer[TCPT_2MSL] = TCPTV_2MSL;
             goto dropafterack;
         }
     }
@@ -1391,7 +1391,7 @@ step6:
         case TCPS_FIN_WAIT_2:
             tp->t_state = TCPS_TIME_WAIT;
             tcp_canceltimers(tp);
-            tp->t_timer[TCPT_2MSL] = 2 * TCPTV_MSL;
+            tp->t_timer[TCPT_2MSL] = TCPTV_2MSL;
             soisdisconnected(so);
             break;
 
@@ -1399,7 +1399,7 @@ step6:
          * In TIME_WAIT state restart the 2 MSL time_wait timer.
          */
         case TCPS_TIME_WAIT:
-            tp->t_timer[TCPT_2MSL] = 2 * TCPTV_MSL;
+            tp->t_timer[TCPT_2MSL] = TCPTV_2MSL;
             break;
         }
     }

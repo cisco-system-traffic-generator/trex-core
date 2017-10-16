@@ -92,7 +92,7 @@
 
  
 /* reduce the 2MSL to 2 sec from 30 sec */                      
-#define TCPTV_MSL   ( 1*PR_SLOWHZ)     /* max seg lifetime (hah!) */
+#define TCPTV_2MSL   ( 1)     /* max seg lifetime (hah!) */
 #define TCPTV_SRTTBASE  0           /* base roundtrip time;
                            if 0, no idea yet */
 #define TCPTV_SRTTDFLT  (  3*PR_SLOWHZ)     /* assumed RTT if no info */

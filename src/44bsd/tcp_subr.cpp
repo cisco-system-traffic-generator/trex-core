@@ -351,8 +351,8 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
 
     if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
         tcp_maxidle = tcp_keepcnt * tcp_keepintvl;
-        if (tcp_maxidle > (2 * TCPTV_MSL)) {
-            tcp_maxidle = (2 * TCPTV_MSL);
+        if (tcp_maxidle > (TCPTV_2MSL)) {
+            tcp_maxidle = (TCPTV_2MSL);
         }
 
         tcp_iss += TCP_ISSINCR/PR_SLOWHZ;       /* increment iss */
