@@ -85,7 +85,7 @@ link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 | Release pkgs    | 
 link:../release/[pkgs]
-| Windows Stateful GUI    | 
+| Windows Stateful GUI v0.6   | 
 link:../client_gui/[stateful GUI]
 | XL710 Statless performance    | 
 link:trex_stateless_bench.html[xl710_benchmark.html] 
