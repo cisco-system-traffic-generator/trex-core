@@ -221,6 +221,39 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         print ("\nLATEST DUMP:")
         pprint(trex_res.get_latest_dump());
 
+    def test_tcp_sfr_no_crash(self):
+        """ 
+         Request much higher speed than it could handle, make sure TRex does not crash in this case. 
+         setup with LRO is better 
+         There is no need to test error counters in this case. 
+        """ 
+        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
+            self.router.configure_basic_interfaces()
+            self.router.config_pbr(mode = 'config')
+
+        core  = 1 #self.get_benchmark_param('cores')
+        mult  = self.get_benchmark_param('multiplier')
+        bypass = self.get_benchmark_param('bypass_result');
+
+        ret = self.trex.start_trex(
+            c = core,
+            m = mult,
+            d = 60,
+            nc = True,
+            f = 'astf/sfr.py',
+            l = 1000,
+            k = 1,
+            astf =True
+            )
+
+
+        trex_res = self.trex.sample_to_run_finish()
+
+        print("\nLATEST RESULT OBJECT:")
+        print(trex_res)
+        print ("\nLATEST DUMP:")
+        pprint(trex_res.get_latest_dump());
+
 
     def tearDown(self):
         CTRexGeneral_Test.tearDown(self)
