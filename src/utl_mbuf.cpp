@@ -325,6 +325,7 @@ __attribute__ ((noinline)) char *_utl_rte_pktmbuf_adj_ex(struct rte_mbuf  * & m,
     uint16_t pnb_segs=0;
 
     /* save original */
+    uint16_t o_len=len;
     struct rte_mbuf *p = 0;
     struct rte_mbuf *m2 = (struct rte_mbuf *)m;
     while (m2->next != NULL) {
@@ -345,7 +346,7 @@ __attribute__ ((noinline)) char *_utl_rte_pktmbuf_adj_ex(struct rte_mbuf  * & m,
     m2->data_len -= (uint16_t)(len);
     m2->data_off += (uint16_t)(len);
 
-    m2->pkt_len = (m->pkt_len - len);
+    m2->pkt_len = (m->pkt_len - o_len);
     m2->nb_segs =  m->nb_segs -pnb_segs;
 
     if (m != m2) {

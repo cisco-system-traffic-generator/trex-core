@@ -1796,6 +1796,18 @@ TEST_F(gt_tcp_long, tst51) {
 }
 
 
+TEST_F(gt_tcp_long, tst_adj) {
+    //assert(test_buffer(2048,512,1,0)==0);
+    assert(test_buffer_adj(2048,512,512,0)==0);
+
+    int i;
+    for (i=0; i<2047; i++) {
+        printf(" test : %d \n",(int)i);
+        assert(test_buffer_adj(2048,512,i,0)==0);
+    } 
+}
+
+
 #include "astf/astf_template_db.h"
 
 TEST_F(gt_tcp, tst52) {
