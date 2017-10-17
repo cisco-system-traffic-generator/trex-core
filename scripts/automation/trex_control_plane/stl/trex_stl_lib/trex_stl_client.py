@@ -2661,18 +2661,33 @@ class STLClient(object):
             Remove a list of streams from ports
 
             :parameters:
+            
+                stream_id_list: int or list of ints
+                    Stream id list to remove
+                    
                 ports : list
                     Ports on which to execute the command
-                stream_id_list: list
-                    Stream id list to remove
+                
 
 
             :raises:
                 + :exc:`STLError`
 
         """
-
-
+        validate_type('streams_id_list', stream_id_list, (int, list))
+        
+        # transform single stream
+        stream_id_list = listify(stream_id_list)
+        
+        # check at least one exists
+        if not stream_id_list:
+            raise STLError("remove_streams - 'stream_id_list' cannot be empty")
+            
+        # check stream IDs
+        for i, stream_id in enumerate(stream_id_list):
+            validate_type('stream ID:{0}'.format(i), stream_id, int)
+            
+        
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 

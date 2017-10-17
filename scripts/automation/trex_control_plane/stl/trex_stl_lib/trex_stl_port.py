@@ -10,6 +10,8 @@ from .rx_services.trex_stl_rx_service_ipv6 import *
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
+from .utils.common import list_difference, list_intersect
+
 import base64
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -199,7 +201,7 @@ class Port(object):
             return self.err(rc.err())
 
         for k, v in rc.data()['streams'].items():
-            self.streams[k] = STLStream.from_json(v)
+            self.streams[int(k)] = STLStream.from_json(v)
             
         return self.ok()
 
@@ -339,12 +341,12 @@ class Port(object):
         stream_id_list = listify(stream_id_list)
 
         # verify existance
-        if not all([stream_id in self.streams for stream_id in stream_id_list]):
-            return self.err("stream {0} does not exists".format(stream_id))
+        not_found = list_difference(stream_id_list, self.streams)
+        found     = list_intersect(stream_id_list, self.streams)
 
         batch = []
-
-        for stream_id in stream_id_list:
+        
+        for stream_id in found:
             params = {"handler": self.handler,
                       "port_id": self.port_id,
                       "stream_id": stream_id}
@@ -353,18 +355,25 @@ class Port(object):
             batch.append(cmd)
 
 
-        rc = self.transmit_batch(batch)
-        for i, single_rc in enumerate(rc):
-            if single_rc:
-                id = batch[i].params['stream_id']
-                del self.streams[id]
+        if batch:
+            rc = self.transmit_batch(batch)
+            for i, single_rc in enumerate(rc):
+                if single_rc:
+                    id = batch[i].params['stream_id']
+                    del self.streams[id]
+    
+            self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
+    
+            # recheck if any RX stats streams present on the port
+            self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams.values()])
 
-        self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
-
-        # recheck if any RX stats streams present on the port
-        self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams.values()])
-
-        return self.ok() if rc else self.err(rc.err())
+            # did the batch send fail ?
+            if not rc:
+                return self.err(rc.err())
+            
+                
+        # partially succeeded ?
+        return self.err("stream(s) {0} do not exist".format(not_found)) if not_found else self.ok()
 
 
     # remove all the streams
@@ -1031,8 +1040,8 @@ class Port(object):
             self.sync_streams()
         
         data = OrderedDict()
-        for id in sorted(map(int, self.streams.keys())):
-            stream = self.streams[str(id)]
+        for id in sorted(self.streams.keys()):
+            stream = self.streams[id]
             if not table_format:
                 data[id] = stream
                 continue
