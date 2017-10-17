@@ -207,6 +207,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_conndrops,"embryonic connections dropped");
     TCP_S_ADD_CNT_E(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
     TCP_S_ADD_CNT_E(tcps_rexmttimeo,"retransmit timeouts");
+    TCP_S_ADD_CNT_E(tcps_rexmttimeo_syn,"retransmit SYN timeouts");
     TCP_S_ADD_CNT_E(tcps_persisttimeo,"persist timeouts");
     TCP_S_ADD_CNT_E(tcps_keeptimeo,"keepalive timeouts");
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");

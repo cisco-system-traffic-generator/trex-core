@@ -318,6 +318,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_conndrops;     /* embryonic connections dropped */
     uint64_t    tcps_timeoutdrop;   /* conn. dropped in rxmt timeout */
     uint64_t    tcps_rexmttimeo;    /* retransmit timeouts */
+    uint64_t    tcps_rexmttimeo_syn;  /* retransmit SYN timeouts */
     uint64_t    tcps_persisttimeo;  /* persist timeouts */
     uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
     uint64_t    tcps_keepprobe;     /* keepalive probes sent */
@@ -603,6 +604,7 @@ public:
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
     int tcp_do_rfc1323;
+    int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */
     int tcp_keepcnt;

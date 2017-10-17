@@ -77,6 +77,7 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_delack); 
     MYC(tcps_timeoutdrop);
     MYC(tcps_rexmttimeo);
+    MYC(tcps_rexmttimeo_syn);
     MYC(tcps_persisttimeo);
     MYC(tcps_keeptimeo);
     MYC(tcps_keepprobe);   
@@ -291,7 +292,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
      * reasonable initial retransmit time.
      */
     tp->t_srtt = TCPTV_SRTTBASE;
-    tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ << 2;
+    tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ ;
     tp->t_rttmin = TCPTV_MIN;
     TCPT_RANGESET(tp->t_rxtcur, 
         ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
@@ -378,6 +379,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_do_rfc1323 = 1;
+    tcp_keepinit = TCPTV_KEEP_INIT;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepintvl = TCPTV_KEEPINTVL;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */

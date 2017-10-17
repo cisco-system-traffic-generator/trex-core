@@ -196,7 +196,7 @@ tcp_usrreq(CTcpPerThreadCtx * ctx,
         soisconnecting(so);
         tcpstat.tcps_connattempt++;
         tp->t_state = TCPS_SYN_SENT;
-        tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
+        tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
         tp->iss = tcp_iss; tcp_iss += TCP_ISSINCR/4;
         tcp_sendseqinit(tp);
         error = tcp_output(tp);
