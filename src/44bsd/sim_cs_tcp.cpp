@@ -407,6 +407,10 @@ int CClientServerTcp::test2(){
 
     app_c = &c_flow->m_app;
 
+        /* IW=1 */
+    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+
 
     /* CONST */
     buf = new CMbufBuffer();
@@ -617,6 +621,10 @@ int CClientServerTcp::simple_http(){
         m_c_ctx.tcp_mssdflt =m_mss;
         m_s_ctx.tcp_mssdflt =m_mss;
     }
+
+    /* IW=1 */
+    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
 
     c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
