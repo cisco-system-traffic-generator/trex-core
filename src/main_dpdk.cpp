@@ -4128,12 +4128,8 @@ void CGlobalTRex::rx_batch_conf(void) {
             uint8_t thread_id = (i>>1);
 
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            bool disable_rx_read=get_is_tcp_mode(); /* TBD need to fix this as main read all packets */
-            if (disable_rx_read){
-                printf("WARNING TCP feature with latency is not supported with virtual interfaces for now \n");
-            }
+            bool disable_rx_read=get_is_tcp_mode(); 
             m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if,disable_rx_read);
-
             mg_cfg.m_ports[i] =&m_latency_vm_vports[i];
         }
 
