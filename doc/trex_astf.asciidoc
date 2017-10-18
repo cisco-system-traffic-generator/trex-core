@@ -208,14 +208,14 @@ close()
 This way both Client and Server don't need to know the exact application protocol, they just need to have the same story/program. In real HTTP server, the server parses the HTTP requeset, learns the Content-Length field, waits for  the rest of the data and finally retrieves the information from disk. With our L7 emulation there is no need. Even in cases where the data length is changed (for example NAT/LB that changes the data length) we can give some flexibility within the program on the value range of the length
 In case of UDP it would be message base protocols like send_msg/wait_for_msg etc. with UDP we will have the ability to wait for a few packets. 
 
-==== Stateful vs Advance Stateless 
+==== Stateful(STF) vs Advance Stateful (ASTF)
 
 * Same Flexible tuple generator 
-* Clustering mode 
-* NAT - no need for learn mode
-* VLAN 
-* Flow order - TCP layer will take care of this
-* Latency measurement is supported
+* Same Clustering mode 
+* Same VLAN support
+* NAT - no need for complex learn mode. ASTF supports NAT64 out of the box.
+* Flow order. ASTF has inherent ordering verification using the TCP layer. It also checks IP/TCP/UDP checksum out of the box.
+* Latency measurement is supported in both.
 * In ASTF mode, you can't control the IPG, less predictable (concurrent flows is less deterministic)
 
 === ASTF package folders 
