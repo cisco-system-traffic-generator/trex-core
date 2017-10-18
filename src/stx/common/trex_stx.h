@@ -90,7 +90,7 @@ public:
     /**
      * pure virtual DTOR to enforce deriviation
      */
-    virtual ~TrexSTX() = 0;
+    virtual ~TrexSTX();
     
 
     /**

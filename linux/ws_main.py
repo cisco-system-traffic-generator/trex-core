@@ -206,6 +206,11 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      ])
 
 
+# stateful code
+stf_src = SrcGroup(dir='src/stx/stf/',
+                    src_list=['trex_stf.cpp'])
+
+
 # stateless code
 stateless_src = SrcGroup(dir='src/stx/stl/',
                           src_list=['trex_stl_stream.cpp',
@@ -225,6 +230,10 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
                                     ])
 
 
+
+# ASTF batch
+astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
+                           src_list=['trex_astf_batch.cpp'])
 
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
@@ -300,9 +309,13 @@ bp =SrcGroups([
                 net_src ,
                 yaml_src,
                 json_src,
+                
                 stx_src,
+                stf_src,
                 stateless_src,
+                astf_batch_src,
                 astf_src,
+                
                 rpc_server_src
                 ]);
 
