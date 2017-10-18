@@ -2309,9 +2309,13 @@ bool CFlowsYamlInfo::verify_correctness(uint32_t num_threads) {
 void CFlowsYamlInfo::set_astf_mode(){
     m_vec.clear();
     m_tw.reset();
+
     if (CGlobalInfo::m_options.m_duration > 0.1) {
         m_duration_sec = CGlobalInfo::m_options.m_duration;
+    } else {
+        m_duration_sec = 0;
     }
+    
     m_is_plugin_configured=false;
 }
 
@@ -3032,6 +3036,7 @@ void CFlowGenListPerThread::Delete(){
     
     if (m_dp_core) {
         delete m_dp_core;
+        m_dp_core = nullptr;
     }
 }
 

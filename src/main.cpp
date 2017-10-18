@@ -370,6 +370,8 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_ASF:
         {
             CGlobalInfo::m_options.preview.setFileWrite(true);
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
+
             if (asrtf_args.full_sim){
                 SimAstf sf;
                 sf.args=&asrtf_args;

@@ -267,13 +267,20 @@ static int load_list_of_cap_files(CParserOption * op,
 
 
 int SimAstf::run() {
+     
     assert( CMsgIns::Ins()->Create(4) );
+    set_stx(new TrexAstfBatch(TrexSTXCfg(), nullptr));
+    
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options,args);
     } catch (const std::runtime_error &e) {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
     }
+    
+    delete get_stx();
+    set_stx(NULL);
+    
 }
 
 
