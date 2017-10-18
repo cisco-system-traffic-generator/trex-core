@@ -1560,7 +1560,7 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    tp->snd_cwnd = ctx->tcp_mssdflt;
+    tp->snd_cwnd = ctx->tcp_initwnd;
 
     return (ctx->tcp_mssdflt);
 }

@@ -601,6 +601,8 @@ public:
     uint32_t  sb_max ; /* socket max char */
     int tcprexmtthresh;
     int tcp_mssdflt;
+    int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
+    int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
     int tcp_do_rfc1323;

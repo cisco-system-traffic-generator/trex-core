@@ -376,6 +376,8 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_offload_flags=0;
     tcprexmtthresh = 3 ;
     tcp_mssdflt = TCP_MSS;
+    tcp_initwnd_factor=TCP_INITWND_FACTOR;
+    tcp_initwnd = tcp_initwnd_factor * tcp_mssdflt;
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_do_rfc1323 = 1;
