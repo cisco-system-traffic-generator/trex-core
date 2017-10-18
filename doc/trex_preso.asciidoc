@@ -1286,7 +1286,7 @@ import trex_client
 
 * You can experience TRex on your laptop 
 
-== Mode information
+== More information
 
 * This presentation is about Stateful mode, have a look into Stateless (STL) and Advance Stateful (ASTF) models
 
