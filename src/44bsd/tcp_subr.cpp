@@ -341,6 +341,28 @@ static void tcp_timer(void *userdata,
     tcp_ctx->timer_w_restart(tcp_flow);
 }
 
+/*  this function is called every 20usec to see if we have an issue with resource */
+void CTcpPerThreadCtx::maintain_resouce(){
+    if ( m_ft.flow_table_resource_ok() ) {
+        if (m_disable_new_flow==1) {
+            m_disable_new_flow=0;
+        }
+    }else{
+        if (m_disable_new_flow==0) {
+            m_ft.inc_flow_overflow_cnt();
+        }
+        m_disable_new_flow=1;
+    }
+    /* TBD mode checks here */
+}
+
+bool CTcpPerThreadCtx::is_open_flow_enabled(){
+    if (m_disable_new_flow==0) {
+        return(true);
+    }
+    return(false);
+}
+
 /* tick every 50msec TCP_TIMER_W_TICK */
 void CTcpPerThreadCtx::timer_w_on_tick(){
 #ifndef TREX_SIM
@@ -388,6 +410,8 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
     tcp_maxidle=0;
     tcp_ttl=0;
+    m_disable_new_flow=0;
+    m_pad=0;
     tcp_iss = rand();   /* wrong, but better than a constant */
     m_tcpstat.Clear();
     m_tick=0;

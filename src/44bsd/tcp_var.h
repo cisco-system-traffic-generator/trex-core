@@ -592,6 +592,12 @@ public:
     bool get_rx_checksum_check(){
         return( ((m_offload_flags & TCP_OFFLOAD_RX_CHKSUM) == TCP_OFFLOAD_RX_CHKSUM)?true:false);
     }
+
+    /*  this function is called every 20usec to see if we have an issue with resource */
+    void maintain_resouce();
+
+    bool is_open_flow_enabled();
+
 public:
 
     /* TUNABLEs */
@@ -621,10 +627,11 @@ public:
     uint32_t    m_tick;
     uint8_t     m_mbuf_socket;      /* memory socket */
     uint8_t     m_offload_flags;    /* dev offload flags, see flow def */
-    CAstfTemplatesRW * m_template_rw;
-    CTcpData    * m_template_ro;
-    uint8_t     m_pad[2];
+    uint8_t     m_disable_new_flow;
+    uint8_t     m_pad;
 
+    CAstfTemplatesRW * m_template_rw;
+    CTcpData         * m_template_ro;
 
     CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
     CTcpCtxCb    * m_cb;

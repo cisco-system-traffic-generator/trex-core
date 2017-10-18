@@ -163,6 +163,9 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_redirect_rx;
     uint32_t        m_redirect_rx_ok;
     uint32_t        m_err_rx_throttled;
+    uint32_t        m_err_c_nf_throttled;
+    uint32_t        m_err_s_nf_throttled;
+    uint32_t        m_err_flow_overflow;
 };
 
 class  CSttFlowTableStats {
@@ -229,6 +232,21 @@ public:
           m_sts.m_sts.m_err_rx_throttled++;
       }
 
+      void inc_err_c_new_flow_throttled_cnt(){
+          m_sts.m_sts.m_err_c_nf_throttled++;
+      }
+
+      void inc_err_s_new_flow_throttled_cnt(){
+          m_sts.m_sts.m_err_s_nf_throttled++;
+      }
+
+      void inc_flow_overflow_cnt(){
+          m_sts.m_sts.m_err_flow_overflow++;
+      }
+
+      bool flow_table_resource_ok(){
+          return(m_ft.get_count() < m_ft.get_hash_size()?true:false);
+      }
 public:
 
     void        generate_rst_pkt(CTcpPerThreadCtx * ctx,

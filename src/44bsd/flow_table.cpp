@@ -45,6 +45,9 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_err_redirect_rx);
     MYC(m_redirect_rx_ok);
     MYC(m_err_rx_throttled);
+    MYC(m_err_flow_overflow);
+    MYC(m_err_c_nf_throttled);
+    MYC(m_err_s_nf_throttled);
 }
 
 
@@ -440,6 +443,11 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    if ( ctx->is_open_flow_enabled()==false ){
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_s_nf_throttled);
+        return(false);
+    }
 
     lptflow = ctx->m_ft.alloc_flow(ctx,
                                    dest_ip,
