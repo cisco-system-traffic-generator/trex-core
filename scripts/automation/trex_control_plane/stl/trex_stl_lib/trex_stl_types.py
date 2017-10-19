@@ -5,7 +5,7 @@ from .trex_stl_exceptions import *
 import types
 
 RpcCmdData = namedtuple('RpcCmdData', ['method', 'params', 'api_class'])
-TupleRC    = namedtuple('RCT', ['rc', 'data', 'is_warn'])
+TupleRC    = namedtuple('RCT', ['rc', 'data', 'is_warn', 'errno'])
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()
@@ -17,11 +17,11 @@ class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg']
 # simple class to represent complex return value
 class RC():
 
-    def __init__ (self, rc = None, data = None, is_warn = False):
+    def __init__ (self, rc = None, data = None, is_warn = False, errno = 0):
         self.rc_list = []
 
         if (rc != None):
-            self.rc_list.append(TupleRC(rc, data, is_warn))
+            self.rc_list.append(TupleRC(rc, data, is_warn, errno))
 
     def __nonzero__ (self):
         return self.good()
@@ -48,6 +48,10 @@ class RC():
     def err (self):
         e = [x.data if not x.rc else "" for x in self.rc_list]
         return (e if len(e) != 1 else e[0])
+
+    def errno(self):
+        en = [x.errno if not x.rc else "" for x in self.rc_list]
+        return (en if len(en) != 1 else en[0])
 
     def __str__ (self):
         if self.good():
@@ -110,8 +114,8 @@ class RC():
 def RC_OK(data = ""):
     return RC(True, data)
 
-def RC_ERR (err = ""):
-    return RC(False, err)
+def RC_ERR (err = "", errno = 0):
+    return RC(False, err, errno = errno)
 
 def RC_WARN (warn):
     return RC(True, warn, is_warn = True)

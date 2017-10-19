@@ -57,6 +57,10 @@ class BatchMessage(object):
             batch_json = json.dumps(self.batch_list)
             return self.rpc_client.send_msg(batch_json, retry = retry)
 
+# values from JSON-RPC RFC
+class ErrNo:
+    MethodNotSupported = -32601
+
 
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
@@ -230,9 +234,9 @@ class JsonRpcClient(object):
         # error reported by server
         if ("error" in response_json):
             if "specific_err" in response_json["error"]:
-                return RC_ERR(response_json["error"]["specific_err"])
+                return RC_ERR(response_json["error"]["specific_err"], errno = response_json['error']['code'])
             else:
-                return RC_ERR(response_json["error"]["message"])
+                return RC_ERR(response_json["error"]["message"], errno = response_json['error']['code'])
 
         
         # if no error there should be a result

@@ -601,7 +601,7 @@ class STLClient(object):
 
         self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
 
-        self.pgid_stats = trex_stl_stats.CPgIdStats()
+        self.pgid_stats = trex_stl_stats.CPgIdStats(self)
 
         self.util_stats = trex_stl_stats.CUtilStats(self)
 
@@ -1036,14 +1036,8 @@ class STLClient(object):
 
         stats['total'] = total
 
-        if 'flow_stats' in pgid_stats:
-            stats['flow_stats'] = pgid_stats['flow_stats']
-        else:
-            stats['flow_stats'] = {}
-        if 'latency' in pgid_stats:
-            stats['latency'] = pgid_stats['latency']
-        else:
-            stats['latency'] = {}
+        stats['flow_stats'] = pgid_stats.get('flow_stats', {})
+        stats['latency'] = pgid_stats.get('latency', {})
 
         return stats
 
@@ -2322,153 +2316,13 @@ class STLClient(object):
         """
 
         # transform single stream
-        if not isinstance(pgid_list, list):
-            pgid_list = [pgid_list]
-
+        pgid_list = listify(pgid_list)
         if pgid_list == []:
             active_pgids = self.get_active_pgids()
             pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
 
-        # Should not exceed MAX_ALLOWED_PGID_LIST_LEN from flow_stat.cpp
-        max_pgid_in_query = 1024 + 128
-        pgid_list_len = len(pgid_list)
-        index = 0
-        ans_dict = {}
-
-        while index <= pgid_list_len:
-            curr_pgid_list = pgid_list[index : index + max_pgid_in_query]
-            index += max_pgid_in_query
-            rc = self._transmit("get_pgid_stats", params = {'pgids': curr_pgid_list})
-
-            if not rc:
-                raise STLError(rc)
-
-            for key in rc.data().keys():
-                if key in ans_dict:
-                    try:
-                        ans_dict[key].update(rc.data()[key])
-                    except:
-                        pass
-                else:
-                    ans_dict[key] = rc.data()[key]
-
-        # translation from json values to python API names
-        j_to_p_lat = {'jit': 'jitter', 'average':'average', 'total_max': 'total_max', 'last_max':'last_max'}
-        j_to_p_err = {'drp':'dropped', 'ooo':'out_of_order', 'dup':'dup', 'sth':'seq_too_high', 'stl':'seq_too_low'}
-        j_to_p_global = {'old_flow':'old_flow', 'bad_hdr':'bad_hdr'}
-        j_to_p_f_stat = {'rp': 'rx_pkts', 'rb': 'rx_bytes', 'tp': 'tx_pkts', 'tb': 'tx_bytes'
-                         , 'rbs': 'rx_bps', 'rps': 'rx_pps', 'tbs': 'tx_bps', 'tps': 'tx_pps'}
-        j_to_p_g_f_err = {'rx_err': 'rx_err', 'tx_err': 'tx_err'}
-
-        # translate json 'latency' to python API 'latency'
-        new = {}
-        if 'ver_id' in ans_dict and ans_dict['ver_id'] is not None:
-            new['ver_id'] = ans_dict['ver_id']
-        else:
-            new['ver_id'] = {}
-
-        if 'latency' in ans_dict.keys() and ans_dict['latency'] is not None:
-            new['latency'] = {}
-            new['latency']['global'] = {}
-            for key in j_to_p_global.keys():
-                new['latency']['global'][j_to_p_global[key]] = 0
-            for pg_id in ans_dict['latency']:
-                # 'g' value is not a number
-                try:
-                    int_pg_id = int(pg_id)
-                except:
-                    continue
-                new['latency'][int_pg_id] = {}
-                new['latency'][int_pg_id]['err_cntrs'] = {}
-                if 'er' in ans_dict['latency'][pg_id]:
-                    for key in j_to_p_err.keys():
-                        if key in ans_dict['latency'][pg_id]['er']:
-                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = ans_dict['latency'][pg_id]['er'][key]
-                        else:
-                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
-                else:
-                    for key in j_to_p_err.keys():
-                        new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
-
-                new['latency'][int_pg_id]['latency'] = {}
-                for field in j_to_p_lat.keys():
-                    if field in ans_dict['latency'][pg_id]['lat']:
-                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = ans_dict['latency'][pg_id]['lat'][field]
-                    else:
-                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = StatNotAvailable(field)
-
-                if 'histogram' in ans_dict['latency'][pg_id]['lat']:
-                    #translate histogram numbers from string to integers
-                    new['latency'][int_pg_id]['latency']['histogram'] = {
-                                        int(elem): ans_dict['latency'][pg_id]['lat']['histogram'][elem]
-                                         for elem in ans_dict['latency'][pg_id]['lat']['histogram']
-                    }
-                    min_val = min(new['latency'][int_pg_id]['latency']['histogram'])
-                    if min_val == 0:
-                        min_val = 2
-                    new['latency'][int_pg_id]['latency']['total_min'] = min_val
-                else:
-                    new['latency'][int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
-                    new['latency'][int_pg_id]['latency']['histogram'] = {}
-
-        # translate json 'flow_stats' to python API 'flow_stats'
-        if 'flow_stats' in ans_dict.keys() and ans_dict['flow_stats'] is not None:
-            new['flow_stats'] = {}
-            new['flow_stats']['global'] = {}
-
-            all_ports = []
-            for pg_id in ans_dict['flow_stats']:
-                # 'g' value is not a number
-                try:
-                    int_pg_id = int(pg_id)
-                except:
-                    continue
-
-                # do this only once
-                if all_ports == []:
-                    # if field does not exist, we don't know which ports we have. We assume 'tp' will always exist
-                    for port in ans_dict['flow_stats'][pg_id]['tp']:
-                        all_ports.append(int(port))
-
-                new['flow_stats'][int_pg_id] = {}
-                for field in j_to_p_f_stat.keys():
-                    new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
-                    #translate ports to integers
-                    total = 0
-                    if field in ans_dict['flow_stats'][pg_id]:
-                        for port in ans_dict['flow_stats'][pg_id][field]:
-                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = ans_dict['flow_stats'][pg_id][field][port]
-                            total += new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)]
-                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = total
-                    else:
-                        for port in all_ports:
-                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = StatNotAvailable(j_to_p_f_stat[field])
-                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = StatNotAvailable('total')
-                new['flow_stats'][int_pg_id]['rx_bps_l1'] = {}
-                new['flow_stats'][int_pg_id]['tx_bps_l1'] = {}
-                for port in new['flow_stats'][int_pg_id]['rx_pkts']:
-                    # L1 overhead is 20 bytes per packet
-                    new['flow_stats'][int_pg_id]['rx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['rx_bps'][port]) + float(new['flow_stats'][int_pg_id]['rx_pps'][port]) * 20 * 8
-                    new['flow_stats'][int_pg_id]['tx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['tx_bps'][port]) + float(new['flow_stats'][int_pg_id]['tx_pps'][port]) * 20 * 8
-
-            if 'g' in ans_dict['flow_stats']:
-                for field in j_to_p_g_f_err.keys():
-                    if field in ans_dict['flow_stats']['g']:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
-                    else:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
-                        for port in all_ports:
-                            new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
-            else:
-                for field in j_to_p_g_f_err.keys():
-                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
-                    for port in all_ports:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
-
-
-        self.pgid_stats.save_stats(new)
-
-        return self.pgid_stats.get_stats()
+        self.logger.pre_cmd('Getting Utilization stats')
+        return self.pgid_stats.get_stats(pgid_list)
 
     @__api_check(True)
     def get_util_stats(self):

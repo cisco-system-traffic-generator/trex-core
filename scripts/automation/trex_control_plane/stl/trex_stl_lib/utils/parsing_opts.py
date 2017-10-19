@@ -86,6 +86,8 @@ GLOBAL_STATS
 PORT_STATS
 PORT_STATUS
 STREAMS_STATS
+LATENCY_STATS
+LATENCY_HISTOGRAM
 STATS_MASK
 CPU_STATS
 MBUF_STATS
@@ -685,6 +687,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           {'action': 'store_true',
                                            'help': "Fetch only streams stats"}),
 
+              LATENCY_STATS: ArgumentPack(['-l'],
+                                          {'action': 'store_true',
+                                           'help': "Fetch only latency stats"}),
+
+              LATENCY_HISTOGRAM: ArgumentPack(['--lh'],
+                                          {'action': 'store_true',
+                                           'help': "Fetch only latency histogram"}),
+
               CPU_STATS: ArgumentPack(['-c'],
                                       {'action': 'store_true',
                                        'help': "Fetch only CPU utilization stats"}),
@@ -839,6 +849,8 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 PORT_STATS,
                                                 PORT_STATUS,
                                                 STREAMS_STATS,
+                                                LATENCY_STATS,
+                                                LATENCY_HISTOGRAM,
                                                 CPU_STATS,
                                                 MBUF_STATS,
                                                 EXTENDED_STATS,

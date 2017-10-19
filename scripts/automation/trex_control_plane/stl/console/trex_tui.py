@@ -223,7 +223,6 @@ class TrexTUIStreamsStats(TrexTUIPanel):
 
     def action_clear (self):
          self.stateless_client.pgid_stats.clear_stats()
-
          return ""
 
 
@@ -259,7 +258,6 @@ class TrexTUILatencyStats(TrexTUIPanel):
 
     def action_clear (self):
          self.stateless_client.pgid_stats.clear_stats()
-         self.stateless_client.clear_stats()
          return ""
 
 
@@ -391,7 +389,11 @@ class TrexTUIPanelManager():
         self.generate_legend()
 
     def show (self, show_legend, buffer):
-        self.main_panel.show(buffer)
+        try:
+            self.main_panel.show(buffer)
+        except:
+            if self.stateless_client.is_connected():
+                raise
         self.print_connection_status(buffer)
 
         if show_legend:

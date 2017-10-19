@@ -1,6 +1,6 @@
 
 from .trex_stl_types import *
-from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage, ErrNo as JsonRpcErrNo
 from .trex_stl_async_client import CTRexAsyncClient
 
 import time
@@ -214,6 +214,9 @@ class Connection(object):
         self.logger.post_cmd(rc)
         
         if not rc:
+            # api_sync_v2 is not present in v2.30 and older
+            if rc.errno() == JsonRpcErrNo.MethodNotSupported:
+                return RC_ERR('Mismatch between client and server versions')
             return rc
         
         
