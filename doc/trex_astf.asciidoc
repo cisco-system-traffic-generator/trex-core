@@ -1046,6 +1046,10 @@ link:cp_astf_docs/index.html[python index]
 |    err_l4_cs|*| tcp/udp checksum error (in case NIC support it)
 |    err_redirect_rx |*| redirect to rx error 
 |    redirect_rx_ok || redirect to rx OK
+|    err_rx_throttled || rx thread was throttled due too many packets in NIC rx queue 
+|    err_c_nf_throttled || Number of client side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled || Number of server side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled || Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
 |=================
 
 *1*:: 
@@ -1124,6 +1128,7 @@ yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes fo
 * RFC 793
 * RFC 1122
 * RFC 1323
+* RFC 6928
 
 Not implemented:  
 
