@@ -36,27 +36,35 @@ class TrexRpcComponent;
  * syntactic sugar for creating a simple command
  */
 
-#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, needs_ownership, ext)                                        \
-    class class_name : public TrexRpcCommand {                                                                          \
-    public:                                                                                                             \
-        class_name (TrexRpcComponent *component) : TrexRpcCommand(cmd_name, component, needs_ownership) {}              \
-    protected:                                                                                                          \
-        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                                 \
-        ext                                                                                                             \
+#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, needs_api, needs_ownership, ext)                                \
+    class class_name : public TrexRpcCommand {                                                                             \
+    public:                                                                                                                \
+        class_name (TrexRpcComponent *component) : TrexRpcCommand(cmd_name, component, needs_api, needs_ownership) {}      \
+    protected:                                                                                                             \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                                    \
+        ext                                                                                                                \
     }
 
 
 /**
  * defines an owned RPC command (requires ownership)
  */
-#define TREX_RPC_CMD_OWNED(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, ;)
-#define TREX_RPC_CMD_OWNED_EXT(class_name, cmd_name, ext)  TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, ext)
+#define TREX_RPC_CMD_OWNED(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, true, ;)
+#define TREX_RPC_CMD_OWNED_EXT(class_name, cmd_name, ext)  TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, true, ext)
 
 /**
  * defins unowned commands
  */
-#define TREX_RPC_CMD(class_name, cmd_name)                 TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, false, ;)
-#define TREX_RPC_CMD_EXT(class_name, cmd_name, ext)        TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, false, ext)
+#define TREX_RPC_CMD(class_name, cmd_name)                 TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, false, ;)
+#define TREX_RPC_CMD_EXT(class_name, cmd_name, ext)        TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, false, ext)
+
+
+/**
+ * open (no API) commands 
+ * no commands should be here besides API sync 
+ * and ping 
+ */
+#define TREX_RPC_CMD_NOAPI(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, false, false, ;)
 
 
 /**
@@ -259,6 +267,7 @@ public:
      */
     TrexRpcCommand(const std::string &method_name,
                    TrexRpcComponent *component,
+                   bool needs_api,
                    bool needs_ownership);
 
     /**

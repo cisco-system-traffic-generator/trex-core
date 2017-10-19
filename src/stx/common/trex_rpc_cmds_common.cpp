@@ -53,9 +53,16 @@ using namespace std;
 /****************************** commands declerations ******************************/
 
 /**
+ * API sync
+ */
+TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISync,   "api_sync");
+TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2, "api_sync_v2");
+
+
+/**
  * ping - the most basic command
  */
-TREX_RPC_CMD(TrexRpcCmdPing, "ping");
+TREX_RPC_CMD_NOAPI(TrexRpcCmdPing, "ping");
 
 /**
  * general cmds
@@ -128,82 +135,63 @@ TREX_RPC_CMD(TrexRpcCmdTXPkts, "push_pkts");
 
 /****************************** commands implementation ******************************/
 
-
 /**
  * old API sync command (for backward compatability of GUI)
- *  
+ * 
  */
-class TrexRpcCmdAPISync : public TrexRpcCommand {
-public:
-    
-    TrexRpcCmdAPISync(TrexRpcComponent *component) : TrexRpcCommand("api_sync", component, false) {
-        /* override API check for this command */
-        m_needs_api = false;
+trex_rpc_cmd_rc_e
+TrexRpcCmdAPISync::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &api_vers = parse_array(params, "api_vers", result);
+
+    if (api_vers.size() != 1) {
+        generate_parse_err(result, "'api_vers' should be a list of size 1");
     }
-    
-protected:
-    virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) {
-        const Json::Value &api_vers = parse_array(params, "api_vers", result);
 
-        if (api_vers.size() != 1) {
-            generate_parse_err(result, "'api_vers' should be a list of size 1");
-        }
-        
-        const Json::Value &api_ver = api_vers[0];
-        const std::string type = parse_choice(api_ver, "type", {"core"}, result);
-        int major = parse_int(api_ver, "major", result);
-        int minor = parse_int(api_ver, "minor", result);
-        
-        Json::Value api_ver_rc = Json::arrayValue;
-        Json::Value single_rc;
-        
-        single_rc["type"] = type;
-        
-        try {
-            single_rc["api_h"] = m_component->get_rpc_api_ver()->verify("STL", major, minor);
+    const Json::Value &api_ver = api_vers[0];
+    const std::string type = parse_choice(api_ver, "type",{"core"}, result);
+    int major = parse_int(api_ver, "major", result);
+    int minor = parse_int(api_ver, "minor", result);
 
-        } catch (const TrexRpcException &e) {
-            generate_execute_err(result, e.what());
-        }
-        
-        api_ver_rc.append(single_rc);
-        
-     
-        result["result"]["api_vers"] = api_ver_rc;
+    Json::Value api_ver_rc = Json::arrayValue;
+    Json::Value single_rc;
 
-        return(TREX_RPC_CMD_OK);
+    single_rc["type"] = type;
+
+    try {
+        single_rc["api_h"] = m_component->get_rpc_api_ver()->verify("STL", major, minor);
+
+    } catch (const TrexRpcException &e) {
+        generate_execute_err(result, e.what());
     }
-};
+
+    api_ver_rc.append(single_rc);
+
+
+    result["result"]["api_vers"] = api_ver_rc;
+
+    return(TREX_RPC_CMD_OK);
+}
 
 
 /**
  * API sync command V2
  *  
  */
-class TrexRpcCmdAPISyncV2 : public TrexRpcCommand {
-public:
-    
-    TrexRpcCmdAPISyncV2(TrexRpcComponent *component) : TrexRpcCommand("api_sync_v2", component, false) {
-        /* override API check for this command */
-        m_needs_api = false;
-    }
-    
-protected:
-    virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) {
-        string name     = parse_string(params, "name", result);
-        int major       = parse_int(params, "major", result);
-        int minor       = parse_int(params, "minor", result);
-        
-        try {
-            result["result"]["api_h"] = m_component->get_rpc_api_ver()->verify(name, major, minor);
+trex_rpc_cmd_rc_e
+TrexRpcCmdAPISyncV2::_run(const Json::Value &params, Json::Value &result) {
+    string name     = parse_string(params, "name", result);
+    int major       = parse_int(params, "major", result);
+    int minor       = parse_int(params, "minor", result);
 
-        } catch (const TrexRpcException &e) {
-            generate_execute_err(result, e.what());
-        }
-        
-        return (TREX_RPC_CMD_OK);
+    try {
+        result["result"]["api_h"] = m_component->get_rpc_api_ver()->verify(name, major, minor);
+
+    } catch (const TrexRpcException &e) {
+        generate_execute_err(result, e.what());
     }
-};
+
+    return(TREX_RPC_CMD_OK);
+}
 
 
 /**

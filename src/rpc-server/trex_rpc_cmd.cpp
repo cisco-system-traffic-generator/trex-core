@@ -40,15 +40,15 @@ TrexRpcComponent::~TrexRpcComponent() {
  */
 TrexRpcCommand::TrexRpcCommand(const std::string &method_name,
                                TrexRpcComponent *component,
+                               bool needs_api,
                                bool needs_ownership) {
 
     m_name            = method_name;
     m_component       = component;
+    m_needs_api       = needs_api;
     m_needs_ownership = needs_ownership;
-    
-    /* by default, any commands needs to be API verified */
-    m_needs_api       = true;
 }
+
 
 trex_rpc_cmd_rc_e 
 TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
@@ -95,6 +95,7 @@ TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result)
 
 void
 TrexRpcCommand::verify_api_handler(const Json::Value &params, Json::Value &result) {
+    
     std::string api_handler = parse_string(params, "api_h", result);
 
     if (api_handler != m_component->get_rpc_api_ver()->get_api_handler()) {
@@ -199,6 +200,12 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, int index, field_typ
 
 void 
 TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result) {
+
+    /* is the parent missing ? */
+    if (parent == Json::Value::null) {
+        generate_parse_err(result, "field '" + name + "' is missing");
+    }
+    
      /* should never get here without parent being object */
     if (!parent.isObject()) {
         throw TrexRpcException("internal parsing error");
