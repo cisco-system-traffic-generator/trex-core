@@ -1893,6 +1893,12 @@ void CPhyEthIF::configure_rx_duplicate_rules(){
 }
 
 int CPhyEthIF::set_port_rcv_all(bool is_rcv) {
+    // in ASTF mode we recv all packets anyway
+    if (( get_op_mode() == CParserOption::OP_MODE_ASTF_BATCH) ||
+        (get_op_mode() == CParserOption::OP_MODE_ASTF)) {
+            return 0;
+        }
+
     // In these modes we are always receiving all packets anyway.
     switch (CGlobalInfo::get_queues_mode()) {
     case CGlobalInfo::Q_MODE_ONE_QUEUE:
