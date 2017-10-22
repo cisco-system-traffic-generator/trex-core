@@ -186,7 +186,7 @@ class STLSim(object):
         self.verify_json(stream_list)
         
         if mode == 'json':
-            pprint.pprint(STLProfile(stream_list).to_json(), indent = 2)
+            print(json.dumps(STLProfile(stream_list).to_json(), indent = 4))
             return
             
         elif mode == 'yaml':

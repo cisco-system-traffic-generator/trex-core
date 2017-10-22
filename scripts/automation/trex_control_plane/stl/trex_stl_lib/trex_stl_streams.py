@@ -906,25 +906,56 @@ class STLProfile(object):
         return any([x.has_flow_stats() for x in self.get_streams()])
 
         
+  
+    @staticmethod
+    def __flatten_json (stream_list):
+        # GUI provides a YAML/JSON from the RPC capture - flatten it to match
+        if not isinstance(stream_list, list):
+            return
+        
+        for stream in stream_list:
+            if 'stream' in stream:
+                d = stream['stream']
+                del stream['stream']
+                stream.update(d)
+        
+                        
+    @staticmethod
+    def __load_plain (plain_file, fmt):
+        """
+            Load (from JSON / YAML file) a profile with a number of streams
+            'fmt' can be either 'json' or 'yaml'
+        """
+
+        # check filename
+        if not os.path.isfile(plain_file):
+            raise STLError("file '{0}' does not exists".format(plain_file))
+
+        # read the content
+        with open(plain_file) as f:
+            try:
+                data = json.load(f) if fmt == 'json' else yaml.load(f)
+                STLProfile.__flatten_json(data)
+                
+            except (ValueError, yaml.parser.ParserError):
+                raise STLError("file '{0}' is not a valid {1} formatted file".format(plain_file, 'JSON' if fmt == 'json' else 'YAML'))
+            
+        return STLProfile.from_json(data)
+
+                    
+        
+    @staticmethod
+    def load_yaml (yaml_file):
+        """ Load (from YAML file) a profile with a number of streams """
+        return STLProfile.__load_plain(yaml_file, fmt = 'yaml')
+    
+        
     @staticmethod
     def load_json (json_file):
         """ Load (from JSON file) a profile with a number of streams """
+        return STLProfile.__load_plain(json_file, fmt = 'json')
 
-        # check filename
-        if not os.path.isfile(json_file):
-            raise STLError("file '{0}' does not exists".format(json_file))
-
-        # read the JSON content
-        with open(json_file) as f:
-            try:
-                json_data = json.load(f)
-                    
-            except ValueError:
-                raise STLError("file '{0}' is not a valid JSON formatted file".format(json_file))
-            
-        return STLProfile.form_json(json_data)
-
-  
+        
     @staticmethod
     def get_module_tunables(module):
         # remove self and variables
@@ -1183,6 +1214,9 @@ class STLProfile(object):
         elif suffix == 'json':
             profile = STLProfile.load_json(filename)
 
+        elif suffix == 'yaml':
+            profile = STLProfile.load_yaml(filename)
+            
         elif suffix in ['cap', 'pcap']:
             profile = STLProfile.load_pcap(filename, speedup = 1, ipg_usec = 1e6)
 

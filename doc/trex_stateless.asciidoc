@@ -221,7 +221,6 @@ If you are confused you probably need Stateless. :-)
 | Location        | Description   
 | /               | t-rex-64/dpdk_set_ports/stl-sim 
 | /stl            | Stateless native (py) profiles 
-| /stl/yaml       | Stateless YAML profiles 
 | /stl/hlt        | Stateless HLT profiles 
 | /ko             | Kernel modules for DPDK
 | /external_libs  | Python external libs used by server/clients
@@ -857,7 +856,7 @@ if __name__ == "__main__":
      hlt_udp_simple.py -s 800 -d 30 -rate_bps 500000000 --debug
 
      then run the simulator on the output 
-       ./stl-sim -f example.yaml -o a.pcap  ==> a.pcap include the packet
+       ./stl-sim -f example.py -o a.pcap  ==> a.pcap include the packet
 
     """,
     description="Example for TRex HLTAPI",
@@ -1171,7 +1170,6 @@ To convert any profile type to native again, use the `--native` option:
 .Input YAML format
 [source,python]
 ----
-$more stl/yaml/imix_1pkt.yaml
 - name: udp_64B
   stream:
     self_start: True
@@ -1186,7 +1184,7 @@ To convert to native:
 
 [source,bash]
 ----
-[bash]>./stl-sim -f stl/yaml/imix_1pkt.yaml --native
+[bash]>./stl-sim -f my_yaml.yaml --native
 ----
 
 
@@ -2404,7 +2402,7 @@ The user of TRex is oblivious to the number of cores.
 
 *Some rules regarding split stream variables and burst/multi-burst*::
 
-* When using burst/multi-burst, the number of packets are split to the defualt number of threads specified in the YAML cofiguraiton file, without any need to explicitly split the threads.
+* When using burst/multi-burst, the number of packets are split to the default number of threads specified in the YAML configuration file, without any need to explicitly split the threads.
 * When the number of packets in a burst is smaller than the number of threads, one thread handles the burst. 
 * In the case of a stream with a burst of *1* packet, only the first DP thread handles the stream.
 
@@ -2446,7 +2444,7 @@ Assumption: The pcap file contains only one packet. If the pcap file contains mo
 
     def get_streams (self, direction = 0, **kwargs):
         return [STLStream(packet = 
-                          STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"), # path relative to pwd   <1>
+                          STLPktBuilder(pkt ="stl/udp_64B_no_crc.pcap"), # path relative to pwd   <1>
                            mode = STLTXCont(pps=10)) ] 
 
 ----
@@ -2460,7 +2458,7 @@ Assumption: The pcap file contains only one packet. If the pcap file contains mo
 ----
 
     def get_streams (self, direction = 0, **kwargs):
-        return [STLStream(packet = STLPktBuilder(pkt ="yaml/udp_64B_no_crc.pcap",
+        return [STLStream(packet = STLPktBuilder(pkt ="udp_64B_no_crc.pcap",
                                                  path_relative_to_profile = True), <1>
                          mode = STLTXCont(pps=10)) ] 
 
@@ -2896,11 +2894,11 @@ The following simple traffic profile defines 2 streams and configures them with 
 class STLS1(object):
 
     def get_streams (self, direction = 0):
-        return [STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"),
+        return [STLStream(packet = STLPktBuilder(pkt ="stl/udp_64B_no_crc.pcap"),
                           mode = STLTXCont(pps = 1000),
                           flow_stats = STLFlowStats(pg_id = 7)), <1>
 
-                STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_594B_no_crc.pcap"),
+                STLStream(packet = STLPktBuilder(pkt ="stl/udp_594B_no_crc.pcap"),
                           mode = STLTXCont(pps = 5000),
                           flow_stats = STLFlowStats(pg_id = 12)) <2>
                ]
@@ -3080,11 +3078,11 @@ The following simple traffic profile defines 2 streams and configures them with 
 class STLS1(object):
 
     def get_streams (self, direction = 0):
-        return [STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_64B_no_crc.pcap"),
+        return [STLStream(packet = STLPktBuilder(pkt ="stl/udp_64B_no_crc.pcap"),
                           mode = STLTXCont(pps = 1000),
                           flow_stats = STLFlowLatencyStats(pg_id = 7)), <1>
 
-                STLStream(packet = STLPktBuilder(pkt ="stl/yaml/udp_594B_no_crc.pcap"),
+                STLStream(packet = STLPktBuilder(pkt ="stl/udp_594B_no_crc.pcap"),
                           mode = STLTXCont(pps = 5000),
                           flow_stats = STLFlowLatencyStats(pg_id = 12)) <2>
                ]
