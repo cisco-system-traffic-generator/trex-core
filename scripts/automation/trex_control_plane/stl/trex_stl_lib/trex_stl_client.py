@@ -2321,7 +2321,6 @@ class STLClient(object):
             active_pgids = self.get_active_pgids()
             pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
 
-        self.logger.pre_cmd('Getting Utilization stats')
         return self.pgid_stats.get_stats(pgid_list)
 
     @__api_check(True)
