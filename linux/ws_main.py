@@ -158,7 +158,8 @@ main_src = SrcGroup(dir='src',
              'sim/trex_sim_stateful.cpp',
              'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
-             'astf/astf_db.cpp'
+             'astf/astf_db.cpp',
+             'utl_sync_barrier.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',

@@ -2842,6 +2842,7 @@ class CTcpPerThreadCtx;
 class CTcpAppProgram;
 class CMbufBuffer;
 class CTcpCtxCb;
+class CSyncBarrier;
 
 class CFlowGenListPerThread {
 
@@ -2871,6 +2872,13 @@ public:
 
     void set_vif(CVirtualIF * v_if){
         m_node_gen.set_vif(v_if);
+    }
+
+    void set_sync_barrier(CSyncBarrier * sync_b){
+        m_sync_b=sync_b;
+    }
+    CSyncBarrier * get_sync_b(){
+        return (m_sync_b);
     }
 
     void flush_tx_queue() {
@@ -3069,6 +3077,8 @@ public:
     double                          m_tcp_fif_d_time;
     bool                            m_tcp_terminate;
 
+private:
+    CSyncBarrier *                  m_sync_b;
 public:
     double tcp_get_tw_tick_in_sec();
 

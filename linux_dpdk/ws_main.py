@@ -288,6 +288,7 @@ main_src = SrcGroup(dir='src',
              'h_timer.cpp',
              'astf/astf_db.cpp',
              'bp_sim_stf.cpp',
+             'utl_sync_barrier.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',

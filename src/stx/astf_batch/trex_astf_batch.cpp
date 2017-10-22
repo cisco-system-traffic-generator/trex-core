@@ -20,10 +20,29 @@ limitations under the License.
 */
 
 #include "trex_astf_batch.h"
+#include "trex_global.h"
+#include "utl_sync_barrier.h"
+
 
 void 
 TrexDpCoreAstfBatch::start_astf() {
     dsec_t d_time_flow;
+
+    CParserOption *go=&CGlobalInfo::m_options;
+
+    /* do we need to disable this tread client port */
+    bool disable_client=false;
+    if (go->m_astf_mode==CParserOption::OP_ASTF_MODE_SERVR_ONLY) {
+        disable_client=true;
+    }else{
+        uint8_t p1;
+        uint8_t p2;
+        m_core->get_port_ids(p1,p2);
+        if (go->m_astf_mode==CParserOption::OP_ASTF_MODE_CLIENT_MASK && 
+           ((go->m_astf_client_mask & (0x1<<p1))==0) ){
+            disable_client=true;
+        }
+    }
 
     if ( !m_core->Create_tcp() ) {
         fprintf(stderr," ERROR in tcp object creation \n");
@@ -31,16 +50,16 @@ TrexDpCoreAstfBatch::start_astf() {
     }
 
     d_time_flow = m_core->m_tcp_fif_d_time; /* set by Create_tcp function */
-    m_core->m_cur_time_sec =  0.01 + (double)m_core->m_thread_id * m_core->m_tcp_fif_d_time / (double)m_core->m_max_threads;
+
+    double d_phase= 0.01 + (double)m_core->m_thread_id * m_core->m_tcp_fif_d_time / (double)m_core->m_max_threads;
 
 
     if ( CGlobalInfo::is_realtime()  ) {
-        if (m_core->m_cur_time_sec > 0.2 ) {
-            m_core->m_cur_time_sec =  0.01 + m_core->m_thread_id * 0.01;
+        if (d_phase > 0.2 ) {
+            d_phase =  0.01 + m_core->m_thread_id * 0.01;
         }
-        m_core->m_cur_time_sec += now_sec() + 0.1 ;
     }
-    dsec_t c_stop_sec = m_core->m_cur_time_sec + m_core->m_yaml_info.m_duration_sec;
+    dsec_t c_stop_sec = d_phase + m_core->m_yaml_info.m_duration_sec;
     m_core->m_stop_time_sec = c_stop_sec;
     m_core->m_cur_flow_id = 1;
     m_core->m_stats.clear();
@@ -52,13 +71,23 @@ TrexDpCoreAstfBatch::start_astf() {
       */
 
     m_core->m_tcp_fif_d_time = d_time_flow;
-    CGenNode *node = m_core->create_node();
 
-    node->m_type = CGenNode::TCP_TX_FIF;
-    node->m_time = m_core->m_cur_time_sec;
-    m_core->m_node_gen.add_node(node);
+    /* sync all core to the same time */
+    CSyncBarrier * b=m_core->get_sync_b();
+    if (b) {
+       assert(b->sync_barrier(m_core->m_thread_id)==0);
+    }
+    dsec_t now= now_sec() ;
+    m_core->m_cur_time_sec = now;
 
-    dsec_t now = now_sec() ;
+    CGenNode *node=0;
+
+    if (!disable_client){
+        node = m_core->create_node();
+        node->m_type = CGenNode::TCP_TX_FIF;
+        node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
+        m_core->m_node_gen.add_node(node);
+    }
 
     node = m_core->create_node() ;
     node->m_type = CGenNode::TCP_RX_FLUSH;
@@ -91,7 +120,7 @@ TrexDpCoreAstfBatch::start_astf() {
 #endif
     if ( !CGlobalInfo::m_options.preview.getNoCleanFlowClose() &&  (m_core->is_terminated_by_master()==false) ) {
         /* clean close */
-        m_core->m_node_gen.flush_file(m_core->m_cur_time_sec, d_time_flow, true, m_core, old_offset);
+        m_core->m_node_gen.flush_file(0, d_time_flow, true, m_core, old_offset);
     }
 
     if (m_core->m_preview_mode.getVMode() > 1 ) {
