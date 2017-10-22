@@ -31,6 +31,7 @@ endif::backend-docbook[]
 
 * Stateless
 ** Console - added option to save loaded streams as Python profile (stream command from the Console)
+** Console - ability to load JSON/YAML from start command (e.g. `start -f stl/gui_example.yaml -m 100kpps --port 0`)
 * TCP some performance improvements (up to 5MPPS/core)
 ** Tune TCP timers for traffic generation case (e.g. 2MSL/keepalive is shorter)
 ** Add support to RFC6928 (add support for initwnd and set it by default to 10). A way to tune all the TCP parameters (including this one) will be given from the traffic profile.
@@ -38,6 +39,7 @@ endif::backend-docbook[]
 ** General hardening  
 * Refactor the code to support ASTF in interactive mode (both STL and STF will work with the same RPC framework)
 * Increase the TX queue for all drivers by default - less probability for queue_full in high rates
+
 
 === Fixed issues: ===
 

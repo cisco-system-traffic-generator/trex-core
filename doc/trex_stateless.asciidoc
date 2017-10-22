@@ -1174,7 +1174,7 @@ To convert any profile type to native again, use the `--native` option:
   stream:
     self_start: True
     packet:
-      pcap: udp_64B_no_crc.pcap  # pcap should not include CRC
+       binary: AAAAAAAAAAAAAAAACABFAAAuBNIAAH8R9usQAAABMAAAAQQBBAEAEgAAAAAAAAAAAAAAAAAAAAAAAAAA
     mode:
       type: continuous
       pps: 100
@@ -1226,7 +1226,7 @@ The following are the main traffic profile formats. Native is the preferred form
 | Profile Type       | Format | Description  
 | Native             | Python | Most flexibile. Any format can be converted to native using the `stl-sim` command with the `--native` option.
 | HLT                | Python | Uses HLT arguments.
-| YAML               | YAML   | The common denominator traffic profile. Information is shared between console, GUI, and simulator in YAML format. This format is difficult to use for defining packets; primarily for machine use. YAML can be converted to native using the `stl-sim` command with the `--native` option. 
+| YAML/JSON          | YAML/JSON   | The common denominator traffic profile. Information is shared between console, GUI, and simulator in YAML format. This format is difficult to use for defining packets; primarily for machine use. YAML can be converted to native using the `stl-sim` command with the `--native` option. 
 |=================
 
 
