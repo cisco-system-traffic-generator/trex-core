@@ -158,7 +158,7 @@ main_src = SrcGroup(dir='src',
              'sim/trex_sim_stateful.cpp',
              'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
-             'astf/json_reader.cpp'
+             'astf/astf_db.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',

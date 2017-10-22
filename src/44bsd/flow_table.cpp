@@ -19,7 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 #include "tcp_var.h"
 #include "flow_stat_parser.h"
 #include "flow_table.h"
@@ -425,7 +425,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
 
 
-    CTcpData *tcp_data_ro = ctx->get_template_ro();
+    CAstfDbRO *tcp_data_ro = ctx->get_template_ro();
     CTcpAppProgram *server_prog = tcp_data_ro->get_server_prog_by_port(dst_port);
 
     if (! server_prog) {

@@ -38,7 +38,7 @@ limitations under the License.
 #include "mbuf.h"
 #include <stdlib.h>
 #include <common/c_common.h>
-#include <astf/json_reader.h>
+#include <astf/astf_db.h>
 #include <astf/astf_template_db.h>
 
 #undef DEBUG_TX_PACKET
@@ -202,7 +202,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     uint16_t template_id = c_rw->do_schedule_template();
 
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
-    CTcpData    *   cur_tmp_ro = m_c_tcp->m_template_ro;
+    CAstfDbRO    *   cur_tmp_ro = m_c_tcp->m_template_ro;
 
 
     CTupleBase  tuple;
@@ -351,7 +351,7 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_s_tcp = new CTcpPerThreadCtx();
 
     uint8_t mem_socket_id=get_memory_socket_id();
-    CTcpData *template_db = CJsonData::instance()->get_tcp_data_handle(mem_socket_id);
+    CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
     CTcpIOCb * c_tcp_io = new CTcpIOCb();
     CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
@@ -378,7 +378,7 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_cb(m_c_tcp_io);
 
     m_c_tcp->set_template_ro(template_db);
-    CAstfTemplatesRW * rw= CJsonData::instance()->get_tcp_data_handle_rw(mem_socket_id, &m_smart_gen
+    CAstfTemplatesRW * rw= CAstfDB::instance()->get_db_template_rw(mem_socket_id, &m_smart_gen
                                                                            , m_thread_id, m_max_threads
                                                                            , getDualPortId());
     m_c_tcp->set_template_rw(rw);

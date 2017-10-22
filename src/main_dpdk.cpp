@@ -96,7 +96,7 @@ extern "C" {
 #include "main_dpdk.h"
 #include "trex_watchdog.h"
 #include "utl_port_map.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -5021,8 +5021,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 #if 0
     if ((m_expected_cps == 0) && get_is_tcp_mode()) {
         // In astf mode, we know the info only after doing first get of data from json (which triggers analyzing the data)
-        m_expected_cps = CJsonData::instance()->get_expected_cps();
-        m_expected_bps = CJsonData::instance()->get_expected_bps();
+        m_expected_cps = CAstfDB::instance()->get_expected_cps();
+        m_expected_bps = CAstfDB::instance()->get_expected_bps();
     }
 #endif
 
@@ -5653,12 +5653,12 @@ int CGlobalTRex::start_master_astf() {
     fprintf(stdout, "Using json file %s\n", json_file_name.c_str());
 
     /* load json */
-    if (! CJsonData::instance()->parse_file(json_file_name) ) {
+    if (! CAstfDB::instance()->parse_file(json_file_name) ) {
        exit(-1);
     }
 
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
-    CJsonData_err err_obj = CJsonData::instance()->verify_data(num_dp_cores);
+    CJsonData_err err_obj = CAstfDB::instance()->verify_data(num_dp_cores);
 
     if (err_obj.is_error()) {
         std::cerr << "Error: " << err_obj.description() << std::endl;
@@ -5671,7 +5671,7 @@ int CGlobalTRex::start_master_astf() {
     m_expected_bps = 0;
 
     CTcpLatency lat;
-    CJsonData::instance()->get_latency_params(lat);
+    CAstfDB::instance()->get_latency_params(lat);
 
     m_mg.set_ip( lat.get_c_ip() ,
                  lat.get_s_ip(),
