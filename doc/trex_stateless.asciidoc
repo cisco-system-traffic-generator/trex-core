@@ -43,7 +43,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 == Stateless support 
 
 === High level functionality
-// maybe Feature overview
+// maybe feature overview
 
 * Large scale - Supports about 10-22 million packets per second (mpps) per core, scalable with the number of cores 
 * Support for 1, 10, 25, 40, and 100 Gb/sec interfaces
