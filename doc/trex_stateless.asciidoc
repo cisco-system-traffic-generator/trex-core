@@ -35,7 +35,7 @@ endif::backend-xhtml11[]
 
 
 
-== Audience 
+== Audience
 
 This document assumes basic knowledge of TRex, and assumes that TRex is installed and configured.
 For information, see the link:trex_manual.html[manual], especially the material up to the link:trex_manual.html#_basic_usage[Basic Usage] section.
@@ -65,7 +65,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 * Interactive support - Fast Console,  GUI 
 * Statistics per interface
 * Statistics per stream done in hardware
-* Latency and Jitter per stream
+* Latency and jitter per stream
 * Blazingly fast automation support 
 ** Python 2.7/3.0 Client API 
 ** Python HLTAPI Client API
@@ -81,7 +81,8 @@ image::images/stl_streams_example_02.png[title="Example of multiple streams",ali
 
 ==== High level functionality - Roadmap for future development
 
-* Routing protocol support -- RIP/BGP/ISIS/SPF, The current plan is not to open this support   
+* Routing protocol support -- RIP/BGP/ISIS/SPF 
+(no current plan to extend supported protocols)
                                                                                              
 
 === IXIA IXExplorer vs TRex 
@@ -94,19 +95,19 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Feature       |  IXExplorer  |TRex | Description 
 | Line rate       | Yes | 10-24MPPS/core, depends on the use case |
 | Multi stream    | 255 | [green]*Software limited to ~20K* |
-| Packet build flexibility | Limited | [green]*Scapy - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols
-| Packet Field engine      | limited | [green]*Unlimited* |
+| Packet build flexibility | Limited | [green]*Scapy - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols.
+| Packet Field engine      | Limited | [green]*Unlimited* |
 | Tx Mode | Continuous/Burst/Multi-burst | Continuous/Burst/Multi-burst|
 | ARP/IPv6 ND Emulation | Yes | Yes  |
 | DHCP Client Emulation | Yes | Yes  |
 | Extendable Emulation framework | No | Yes  |
-| Automation  | TCL/Python wrapper to TCL | [green]*native Python/Scapy*  |
+| Automation  | TCL/Python wrapper to TCL | [green]*Native Python/Scapy*  |
 | Automation speed sec| 30 sec | [green]*1 msec* | Test of load/start/stop/get counters 
 | HLTAPI | Full support. 2000 pages of documentation |  Limited. 20 pages of documentation|
-| Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710. Software mode can be extended to 32K rules 
-| Latency Jitter |  Yes,Resolution of nsec (hardware) | Yes,Resolution of usec (software)  |
+| Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710. Software mode can be extended to 32K rules. 
+| Latency Jitter |  Yes. Nanosecond resolution (hardware-based) | Yes. Microsecond resolution (software-based)  |
 | Multi-user support | Yes | Yes |
-| GUI  | very good | WIP, packet builder, Field Engine, Global port statistic, Latency, per stream statistic . Not the same as IXIA. link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
+| GUI  | Very good | WIP, packet builder, field engine, global port statistics, latency, per stream statistics. Differs from IXIA GUI - for details, see: link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
 | Cisco pyATS support | Yes | Yes - Python 2.7/Python 3.4 |    
 | Routing Emulation | Yes | WIP. Will integrate Cisco Proprietary tool on top of TRex |
 | Port IDs  | Based on IXIA numebrs  | Depends on PCI enumeration  
@@ -119,7 +120,7 @@ A JSON-RPC2 thread in the TRex control plane core provides support for interacti
 
 // RPC = Remote Procedure Call, alternative to REST? --YES, no change
 
-image::images/trex_architecture_01.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+image::images/trex_architecture_01.png[title="RPC server components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
 
 // OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
@@ -158,7 +159,7 @@ For details about the TRex RPC server, see the link:trex_rpc_server_spec.html[RP
 
 ==== RPC architecture highlights
 
-This Architecture provides the following advantages:
+The RPC architecture provides the following advantages:
 
 * Fast interaction with TRex server. Loading, starting, and stopping a profile for an interface is very fast - about 2000 cycles/sec.
 * Leverages Python/Scapy for building a packet/field engine.
@@ -168,49 +169,55 @@ This Architecture provides the following advantages:
 
 // maybe call it "Objects" in title and figure caption
 
-image::images/stateless_objects_02.png[title="TRex Objects",align="left",width={p_width_1}, link="images/stateless_objects_02.png"]
+image::images/stateless_objects_02.png[title="TRex objects",align="left",width=60%, link="images/stateless_objects_02.png"]
 
 * *TRex*: Each TRex instance supports numerous interfaces. 
-// "one or more"?
 * *Interface*: Each interface supports one or more traffic profiles.
 * *Traffic profile*: Each traffic profile supports one or more streams. 
 * *Stream*: Each stream includes:
 ** *Packet*: Packet template up to 9 KB 
-// ok to standardize to KB? 
-** *Field Engine*: Which field to change, do we want to change packet size 
+** *Field Engine*: Determines field to change and whether to change packet size 
 // unclear
 ** *Mode*: Specifies how to send packets: Continuous/Burst/Multi-burst 
 ** *Rx Stats*: Statistics to collect for each stream
 ** *Rate*: Rate (packets per second or bandwidth) 
-** *Action*:  Specifies stream to follow when the current stream is complete (valid for Continuous or Burst modes).
+** *Action*:  Specifies stream to follow when the current stream is complete (valid for Continuous or Burst modes)
 
 
 === Stateful vs Stateless 
 
-TRex Stateless support enables basic L2/L3 testing, relevant mostly for a switch or router. Using Statelss mode, it is possible to define a stream with a *one* packet template, define a program to change any fields in the packet, and run the stream in continuous, burst, or multi-burst mode.
-With Stateless, you *cannot* learn NAT translation; there is no context of flow/client/server. 
+TRex Stateless support enables basic L2/L3 testing, relevant mostly for a switch or router. In Stateless mode it is possible to define a stream with a *one* packet template, define a program to change any fields in the packet, and run the stream in one of the following modes:
+
+* Continuous
+* Burst
+* Multi-burst
+
+Stateless mode does *not* support learning NAT translation, as there is no context of flow/client/server. 
 
 * In Stateful mode, the basic building block is a flow/application (composed of many packets). 
 * Stateless mode is much more flexible, enabling you to define any type of packet, and build a simple program. 
 
-.Stateful vs Stateless features 
+.Features: Stateful vs Stateless 
 [cols="1^,3^,3^", options="header"]
 |=================
-| Feature       |  Stateless  |Stateful 
-| Per flow state | No | Yes
-| NAT             | No | Yes
-| Tunnel          | Yes | Some are supported 
-| L7 App emulation | No | Yes
-| Any type of packet | Yes | No 
-| Latency Jitter | Per Stream | Global/Per flow
+| Feature       |  Stateful  |Stateless
+| Per flow state | Yes | No
+| NAT             | Yes | No
+| Tunnel          | Some are supported | Yes 
+| L7 App emulation | Yes | No
+| Any type of packet | No | Yes
+| Latency Jitter | Global/Per flow | Per Stream
 |=================
 
 ==== Using Stateless mode to mimic Stateful mode
 
 Stateless mode can mimic some, but not all functionality of Stateful mode. 
-For example, you can load a pcap with the number of packets as a link of streams:
-a->b->c->d-> back to a
-You can then create a program for each stream to change src_ip=10. 0.0.1-10.0.0.254. This creates traffic similar to that of Stateful mode, but with a completely different basis.
+For example, you can load a pcap with the number of packets as a link of streams: +
+*a->b->c->d-> back to a* +
+You can then create a program for each stream to change: +
+*src_ip=10.0.0.1-10.0.0.254* +
+This creates traffic similar to that of Stateful mode, but with a completely different basis.
+// TBD: completely different basis?
 
 If you are confused you probably need Stateless. :-)
 
@@ -233,7 +240,7 @@ If you are confused you probably need Stateless. :-)
 | /automation/config     | Regression setups config files
 | /automation/trex_control_plane/stl     | Stateless lib and Console 
 | /automation/trex_control_plane/stl/trex_stl_lib     | Stateless lib
-| /automation/trex_control_plane/stl/examples     | Stateless Examples
+| /automation/trex_control_plane/stl/examples     | Stateless examples
 |=============================
 
 
@@ -252,11 +259,12 @@ Follow this chapter  link:trex_manual.html#_first_time_running[first time config
 
 *Goal*:: 
 
-Send a simple UDP packets from all ports of a TRex server.
+Send simple UDP packets from all ports of a TRex server.
+// TBD: define "simple"
 
 *Traffic profile*::  
 
-The following profile defines one stream, with an IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. For more examples of defining packets using Scapy see the  link:http://www.secdev.org/projects/scapy/doc/[Scapy documentation].
+The following profile defines one stream, with an IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. For more examples of defining packets using Scapy, see the link:http://www.secdev.org/projects/scapy/doc/[Scapy documentation].
 
 *File*:: 
 
@@ -274,23 +282,23 @@ class STLS1(object):
             packet = 
                     STLPktBuilder(
                         pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/
-                                UDP(dport=12,sport=1025)/(10*'x')                       <1>                
+                                UDP(dport=12,sport=1025)/(10*'x')                   <1>                
                     ),
-             mode = STLTXCont())                                                        <2>
+             mode = STLTXCont())                                                    <2>
 
 
-    def get_streams (self, direction = 0, **kwargs):                                              <3>
+    def get_streams (self, direction = 0, **kwargs):                                <3>
         # create 1 stream 
         return [ self.create_stream() ]
 
 
 # dynamic load - used for TRex console or simulator
-def register():                                                                         <4>        
+def register():                                                                     <4>        
     return STLS1()
 ----
 <1> Defines the packet. In this case, the packet is IP/UDP with 10 bytes of 'x'. For more information, see the link:http://www.secdev.org/projects/scapy/doc/[Scapy documentation].
 <2> Mode: Continuous. Rate: 1 PPS (default rate is 1 PPS)
-<3> The `get_streams` function is mandatory 
+<3> The `get_streams` function is mandatory.
 <4> Each traffic profile module requires a `register` function. 
 
 [NOTE] 
@@ -303,7 +311,7 @@ The SRC/DST MAC addresses are taken from /etc/trex_cfg.yaml. To change them, add
 
 [NOTE] 
 =====================================================================
-The TRex package includes all required packages. It is unnecessary to install any python packages (including Scapy). 
+The TRex package includes all required packages. It is not necessary to install any Python packages (including Scapy). 
 =====================================================================
 
 [source,bash]
@@ -323,7 +331,7 @@ On the same machine, in a new terminal window (open a new window using `xterm`, 
 
 [source,bash]
 ----
-[bash]>trex-console                                                           #<1>
+[bash]>trex-console                                                    #<1>
 
 Connecting to RPC server on localhost:4501                   [SUCCESS]
 connecting to publisher server on localhost:4500             [SUCCESS]
@@ -338,13 +346,13 @@ Attaching 1 streams to port(s) [0, 1, 2, 3]:                 [SUCCESS]
 Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
 
 # pause  the traffic on all port
->pause -a                                                               #<3>
+>pause -a                                                              #<3>
 
 # resume  the traffic on all port
->resume -a                                                              #<4>
+>resume -a                                                             #<4>
 
 # stop traffic on all port      
->stop -a                                                                #<5>
+>stop -a                                                               #<5>
 
 # show dynamic statistic 
 >tui
@@ -353,7 +361,7 @@ Starting traffic on port(s) [0, 1, 2, 3]:                    [SUCCESS]
 <2> Start the traffic on all ports at 10 mbps. Can also specify as MPPS. Example: 14 MPPS (`-m 14mpps`).
 <3> Pauses the traffic.
 <4> Resumes.
-<5> Stops traffic on all the ports.
+<5> Stops traffic on all ports.
 
 
 [NOTE] 
@@ -457,7 +465,7 @@ Port Statistics
 
 *Discussion*::
 
-In this example TRex sends the *same* packet from all ports. If your setup is connected with loopback, you will see Tx packets from port 0 in Rx port 1 and vice versa.  If you have DUT with static route, you might see all the packets going to specific port.
+In this example TRex sends the *same* packet from all ports. If your setup is connected with loopback, you will see Tx packets from port 0 in Rx port 1 and vice versa.  If you have DUT with static route, you might see all packets going to a specific port.
 
 .Static route
 [source,bash]
@@ -477,7 +485,7 @@ ip route 48.0.0.0 255.0.0.0 1.1.10.2
 
 // this is good info, but it isn't organized into specific tasks or explanations of specific goals. so comes across as useful but somewhat random. for example in the Static route example above, we should explain at the beginning that this will route all packets to one port, and that the next example will demonstrate how to route the packets to different ports.
 
-In this example all the packets will be routed to `TenGigabitEthernet0/1/0` port. The following example uses the `direction` flag to change this.
+In this example all packets are routed to the `TenGigabitEthernet0/1/0` port. The following example uses the `direction` flag to change this.
 
 *File*:: link:{github_stl_path}/udp_1pkt_simple_bdir.py[stl/udp_1pkt_simple_bdir.py]
 
@@ -515,7 +523,7 @@ In this example all the packets will be routed to `TenGigabitEthernet0/1/0` port
 
 ==== Tutorial: Connect from a remote server 
 
-*Goal*:: Connect by console from remote machine to a TRex server
+*Goal*:: Connect by console from remote machine to a TRex server.
 
 *Check that TRex server is operational*::
 
@@ -558,9 +566,9 @@ The client machine should run Python 2.7.x or 3.4.x. Cisco CEL/ADS is supported.
 
 ==== Tutorial: Source and Destination MAC addresses
 
-*Goal*:: Change the source/destination MAC address
+*Goal*:: Change the source/destination MAC address.
 
-Each TRex port has a source and destination MAC (DUT) configured in the /etc/trex_cfg.yaml configuration file. The source MAC is not necessarily the hardware MAC address configured in EEPROM. By default, the hardware-specified MAC addresses (source and destination) are used. If a source or destination MAC address is configured explicitly, that address takes precedence over the hardware-specified default.
+Each TRex port has a source and destination MAC (DUT) configured in the /etc/trex_cfg.yaml configuration file. The source MAC is not necessarily the hardware MAC address configured in EEPROM. By default, the hardware-specified MAC addresses (source and destination) are used. If a source or destination MAC address is configured explicitly, that address has priority over the hardware-specified default.
 
 .MAC address
 [format="csv",cols="2^,2^,2^", options="header",width="100%"]
@@ -587,7 +595,7 @@ Ether(dst="00:bb:12:34:56:01"),trex_cfg(src),"00:bb:12:34:56:01"
 
 [IMPORTANT]
 =====================================
-TRex port will receive a packet only if the packet's destination MAC matches the HW Src MAC defined for that port in the `/etc/trex_cfg.yaml` configuration file. Alternatively, a port can be put into link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode], allowing the port to receive all packets on the line. The port can be configured to promiscuous mode by API or by the following command at the console: `portattr -a --prom`.
+A TRex port receives a packet only if the packet's destination MAC matches the HW Src MAC defined for that port in the `/etc/trex_cfg.yaml` configuration file. Alternatively, a port can be put into link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode], allowing the port to receive all packets on the line. The port can be configured to promiscuous mode by API or by the following command at the console: `portattr -a --prom`.
 =====================================
 
 To set ports to link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous mode] and show the port status:
@@ -595,7 +603,7 @@ To set ports to link:https://en.wikipedia.org/wiki/Promiscuous_mode[promiscuous 
 [source,bash]
 ----
 trex>portattr -a --prom on                                          #<1> 
-trex>stats --ps
+trex>stats --ps                                                     #<2>
 Port Status
 
      port       |          0           |          1           |     
@@ -603,7 +611,7 @@ Port Status
 driver          |    rte_ixgbe_pmd     |    rte_ixgbe_pmd     |     
 maximum         |       10 Gb/s        |       10 Gb/s        |     
 status          |         IDLE         |         IDLE         |     
-promiscuous     |         on           |         on           |     #<2>
+promiscuous     |         on           |         on           |     #<3>
   --            |                      |                      | 
 HW src mac      |  90:e2:ba:36:33:c0   |  90:e2:ba:36:33:c1   | 
 SW src mac      |  00:00:00:01:00:00   |  00:00:00:01:00:00   | 
@@ -613,7 +621,8 @@ PCI Address     |     0000:03:00.0     |     0000:03:00.1     |
 NUMA Node       |          0           |          0           |   
 ----
 <1> Configures all ports to promiscuous mode.
-<2> Indicates port promiscuous mode status.
+<2> Show port status.
+<3> "on" indicates port promiscuous mode.
 
 To change ports to promiscuous mode by Python API:
 
@@ -642,22 +651,26 @@ For more information see the link:cp_stl_docs/api/client_code.html[Python Client
 
 [NOTE] 
 =====================================================================
-An interface is not set to promiscuous mode by default. Typically, after changing the port to promiscuous mode for a specific test, it is advisable to change it back to non-promiscuous mode.
+Interfaces are not set to promiscuous mode by default. Typically, after changing the port to promiscuous mode for a specific test, it is advisable to change it back to non-promiscuous mode.
 =====================================================================
 
 ==== Tutorial: Python automation 
 
-*Goal*:: Simple automation test using Python from a local or remote machine 
+*Goal*:: Simple automation test using Python from a local or remote machine.
 
 *Directories*::
 
-Python API examples: `automation/trex_control_plane/stl/examples`.
+// This comment is here to fix rendering error.
 
-Python API library: `automation/trex_control_plane/stl/trex_stl_lib`.
+Python API examples: `automation/trex_control_plane/stl/examples`
+
+Python API library: `automation/trex_control_plane/stl/trex_stl_lib`
 
 The TRex console uses the Python API library to interact with the TRex server using the JSON-RPC2 protocol over ZMQ.
 
-image::images/trex_architecture_01.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+// TBD: The figure below uses different labels for TRex Client and TRex Server, compared to a similar figure above: trex_stateless_multi_user_02.png
+
+image::images/trex_architecture_01.png[title="RPC server components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
 
 // OBSOLETE: image::images/trex_2_stateless.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_2_stateless.png"]
 
@@ -666,13 +679,13 @@ image::images/trex_architecture_01.png[title="RPC Server Components",align="left
 
 [source,python]
 ----
-import stl_path                                                            <1>
-from trex_stl_lib.api import *                                             <2>               
+import stl_path                                                         <1>
+from trex_stl_lib.api import *                                          <2>               
 
 import time
 import json
 
-# simple packet creation                                                   <3>
+# simple packet creation                                                <3>
 def create_pkt (size, direction):
 
     ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
@@ -686,7 +699,7 @@ def create_pkt (size, direction):
         dst = ip_range['src']
 
     vm = [
-        # src                                                               <4>
+        # src                                                            <4>
         STLVmFlowVar(name="src",
                      min_value=src['start'],
                      max_value=src['end'],
@@ -805,8 +818,11 @@ See link:cp_stl_docs/index.html[TRex Stateless Python API] for details about usi
 
 ==== Tutorial: HLT Python API 
 
-HLT Python API is a layer on top of the native layer. It supports the standard Cisco traffic generator API. For more information, see Cisco/IXIA/Spirent documentation.
-TRex supports limited number of HLTAPI arguments and the recommendation is to use the native API due to the flexibility and simplicity.
+HLT Python API is a layer on top of the native layer. It supports the standard Cisco traffic generator API. For more information, see Cisco/IXIA/Spirent documentation. +
+TRex supports a limited number of HLTAPI arguments. It is recommended to use the native API for simplicity and flexibility.
+
+// TBD: For "standard Cisco traffic generator API" above, is there a reference to add? Clarify: "native API"
+// TBD: simplicty and flexibility? those are usually mutually exclusive
 
 Supported HLT Python API classes:
 
@@ -823,10 +839,11 @@ Supported HLT Python API classes:
 ** traffic_control
 ** traffic_stats
 
-// IGNORE: This line simply ends the bulletted section so that the next line will be formatted correctly.
+// IGNORE: This line is here only to fix a rendering bug.
 
-For details, see link:#_hlt_supported_arguments_a_id_altapi_support_a[Appendix]
-// confirm link above
+For details, see: link:#_hlt_supported_arguments_a_id_altapi_support_a[Appendix]
+
+// The link above is not really an appendix, just a section.
 
 *File*:: link:{github_stl_examples_path}/hlt_udp_simple.py[hlt_udp_simple.py]
 
@@ -949,7 +966,7 @@ if __name__ == "__main__":
 
 *Goal*:: Use the TRex Stateless simulator.
 
-Demonstrates the most basic use case using TRex simulator.
+Demonstrates the most basic use case for the TRex simulator.
 
 The TRex package includes a simulator tool, `stl-sim`. The simulator operates as a Python script that calls an executable. The platform requirements for the simulator tool are the same as for TRex.
 
@@ -1165,7 +1182,7 @@ To display packet details, use the `--pkt` option (using Scapy).
 0030   78 78 78 78                                        xxxx
 ----
 
-To convert any profile type to native again, use the `--native` option:
+To convert any profile type to native again, use the `--native` option, as shown in the following example, which includes the input file, the command to convert it to native, and the output:
 
 .Input YAML format
 [source,python]
@@ -1180,13 +1197,14 @@ To convert any profile type to native again, use the `--native` option:
       pps: 100
 ----
 
-To convert to native:
+Command to convert to native:
 
 [source,bash]
 ----
 [bash]>./stl-sim -f my_yaml.yaml --native
 ----
 
+The output:
 
 .Output Native
 [source,python]
@@ -1221,10 +1239,10 @@ def register():
 The following are the main traffic profile formats. Native is the preferred format. There is a separation between how the traffic is defined and how to control/activate it. The API/Console/GUI can load a traffic profile and start/stop/get a statistic. Due to this separation it is possible to share traffic profiles.
 
 .Traffic profile formats
-[cols="1^,1^,10<", options="header",width="80%"]
+[cols="1,1,3", options="header",width="100%"]
 |=================
 | Profile Type       | Format | Description  
-| Native             | Python | Most flexibile. Any format can be converted to native using the `stl-sim` command with the `--native` option.
+| Native             | Python | Most flexible. Any format can be converted to native using the `stl-sim` command with the `--native` option.
 | HLT                | Python | Uses HLT arguments.
 | YAML/JSON          | YAML/JSON   | The common denominator traffic profile. Information is shared between console, GUI, and simulator in YAML format. This format is difficult to use for defining packets; primarily for machine use. YAML can be converted to native using the `stl-sim` command with the `--native` option. 
 |=================
@@ -1232,27 +1250,26 @@ The following are the main traffic profile formats. Native is the preferred form
 
 ==== Tutorial: Port Layer Mode Configuration 
 
-*Goal*:: Configure TRex port with either IPv4 or MAC addrees 
+*Goal*:: Configure TRex port with either IPv4 or MAC address.
 
 
-TRex ports can operate in two different mutual exclusive modes:
+TRex ports can operate in two different mutually exclusive modes:
+
+// TBD: let's clarify precisely what is meant by "mutually exclusive modes"
 
 * *Layer 2 mode* - MAC level configuration
 * *Layer 3 mode* - IPv4/IPv6 configuration
 
-When configuring a port for L2 mode, it is only required to provide
-the destination MAC address for the port (Legacy mode previous to v2.12 version).
-
-When configuring a port for L3, it is required to provide both
-source IPv4/IPv6 address and a IPv4/IPv6 destination address.
-
-As an intergral part of configuring L3, the client will try to ARP resolve the
-destination address and automatically configure the correct destination MAC.
-(instead of sending ARP request when starting traffic)
-
-[NOTE]
-While in L3 mode, TRex server will generate *gratuitous ARP* packets to make sure
-that no ARP timeout on the DUT/router will result in a faliure of the test.
+.Port layer modes
+[cols="1,3,3", options="header",width="100%"]
+|=================
+| Mode          | Port configuration requirements | Notes  
+| Layer 2 mode  | When configuring a port for L2 mode, must provide the destination MAC address for the port (Legacy mode previous to v2.12 version). | -
+| Layer 3 mode  | When configuring a port for L3, must provide both source IPv4/IPv6 address and a IPv4/IPv6 destination address. | As an intergral part of configuring L3, the client will try to ARP resolve the destination address and automatically configure the correct destination MAC, instead of sending an ARP request when starting traffic. +
+ +
+*Note*: While in L3 mode, TRex server will generate *gratuitous ARP* packets to make sure
+that no ARP timeout on the DUT/router will result in a faliure of the test.| 
+|=================
 
 .*Example of configuring L2 mode Console*
 [source,bash]
@@ -1345,12 +1362,11 @@ include::trex_packet_capture.asciidoc[]
 
 === Neighboring Protocols
 
-As mentioned, in order to preserve high speed traffic generation,
-TRex handles neighboring protocols in pre test phase.
+As mentioned, to preserve high speed traffic generation, TRex handles neighboring protocols in the pre-test phase.
 
-A test that requires running a neighboring protocol should first move
-to 'service mode', execute the required steps in Python, switch back to 'normal mode'
-and start the actual test.
+// TBD: not sure what "As mentioned" refers to, or what "neighboring protocols" means.
+
+A test that requires running a neighboring protocol should first move to 'service mode', execute the required steps in Python, switch back to 'normal mode' and start the actual test.
 
 ==== ARP
 A basic neighboring protocol that is provided as part of TRex is ARP.
@@ -1362,7 +1378,7 @@ image::images/router_arp.png[title="Router ARP",align="left",width={p_width}, li
 [source,bash]
 ----
 
-trex>service                                                                   #<1> 
+trex>service                                                      #<1> 
 
 Enabling service mode on port(s) [0, 1]:                     [SUCCESS]   
 
@@ -1406,14 +1422,14 @@ Port 1 - Recieved ARP reply from: 1.1.2.1, hw: d0:d0:fd:a8:a1:02
 trex(service)>service --off                                       #<4>
 
 ----
-<1> Enable service mode 
-<2> Set IPv4/default gateway. it will resolve the arp
-<3> repeat ARP resolution
-<4> exist from service mode 
+<1> Enable service mode. 
+<2> Set IPv4/default gateway. It will resolve the ARP.
+<3> Repeat ARP resolution.
+<4> Exit from service mode.
  
 
 
-to revert  back to MAC address mode (without ARP resolution) you do the following 
+To revert back to MAC address mode (without ARP resolution):
 
 .Disable L3 mode
 [source,bash]
@@ -1448,7 +1464,7 @@ trex>portattr  --port 0
         Grat ARP        |         off          |  
         
 ----
-<1> disable service mode 
+<1> Disable service mode.
 
 
 
@@ -1468,15 +1484,13 @@ c.resolve(ports = [0, 1])
 client.set_service_mode(ports = [0, 1], enabled = False)                 <3>
 
 ----
-<1> Enable service mode
-<2> configure IPv4 and Default Gateway 
-<3> Disable service mode
+<1> Enable service mode.
+<2> Configure IPv4 and default gateway.
+<3> Disable service mode.
 
 ==== ICMP
 
-Another basic protocol provided with TRex is ICMP.
-It is possible, under service mode to ping the DUT or even a TRex port
-from the console / API.
+Another basic protocol provided with TRex is ICMP. It is possible, under service mode, to ping the DUT or even a TRex port from the console / API.
 
 .TRex Console
 [source,bash]
@@ -1526,14 +1540,16 @@ client.ping_ip(src_port = 0, dst_ipv4 = '1.1.2.2', pkt_size = 64)        <1>
 client.set_service_mode(enabled = False)
 
 ----
-<1> Check connectivity
+<1> Check connectivity.
 
 
 ==== IPv6 ND client
 
-At this phase, implemented scanning of network for IPv6 enabled neighbors and ping nearby devices from the console. +
-Next phase, planned support at the CPP server. +
-The advantage of those methods is that they can be easily extended to simulate lots of clients in automation.
+*Current*: TRex supports scanning of network for IPv6-enabled neighbors, and pinging nearby devices from the console. +
+*Plans for next phase*: Add support at the CPP server. +
+The advantage of those methods is that they can be easily extended to simulate a large number of clients in automation.
+
+// TBD: clarify
 
 *Scanning example:*
 
@@ -1563,7 +1579,7 @@ Example of using IPv6 methods in automation:
 
 
 
-=== Traffic profile Tutorials
+=== Traffic Profile Tutorials
 
 ==== Tutorial: Simple Interleaving streams
 
