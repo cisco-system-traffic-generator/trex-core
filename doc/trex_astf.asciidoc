@@ -948,16 +948,16 @@ see link:trex_astf_vs_nginx.html[ASTF Performance]
 
 With ASTF mode, it is possible to  work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.
 
-WARNING: We are in the process to move to interactive model, so the following ways to configure the C/S modes (as batch) is changing. This is a temporary solution and it going to be more flexible in the future. the roadmap is to give a way to to configure each port to client or server mode.
+WARNING: We are in the process to move to interactive model, so the following ways to configure the C/S modes (as batch) is changing. This is a temporary solution and it going to be more flexible in the future. the roadmap is to give a RCP command to configure each port to client or server mode.
 
-The current way to control the C/S mode is using the following CLI switch. There is only way to disable the Client side ports for transmission, but there is no way to change the mode of each port. 
+The current way to control the C/S mode is using the following CLI switch. There is only a way to disable the Client side ports for transmission, but there is no way to change the mode of each port. 
 
 .batch CLI options
 [options="header",cols="^1,5"]
 |=================
 | CLI            | Description
 | --astf-server-only | Only server side ports (1,3..) are enabled with ASTF service. Traffic won't be transmitted on clients ports. 
-| --astf-client-mask | Enable only specific client side ports with ASTF service. 
+| --astf-client-mask [mask] | Enable only specific client side ports with ASTF service. 0x1 means to enable only port 0. 0x2 means to enable only port 2. 0x5 to enable port 0 and port 4.
 |=================
 
 some examples 
@@ -976,9 +976,9 @@ some examples
 [options="header",cols="1,5"]
 |=================
 | Port id  |Mode     
-| 0        | C-Disabled
+| 0        | [green]*C-Disabled*
 | 1        | S-Enabled
-| 2        | C-Disabled
+| 2        | [green]*C-Disabled*
 | 3        | S-Enabled
 |=================
 
@@ -989,7 +989,17 @@ some examples
 | Port id  |Mode     
 | 0        |  C-Enabled
 | 1        |  S-Enabled
-| 2        |  C-Disabled
+| 2        | [green]*C-Disabled*
+| 3        |  S-Enabled
+|=================
+
+.Normal mode, 4 ports --astf-client-mask 2
+[options="header",cols="1,5"]
+|=================
+| Port id  |Mode     
+| 0        | [green]*C-Disabled*
+| 1        |  S-Enabled
+| 2        |  C-Enabled
 | 3        |  S-Enabled
 |=================
 
@@ -1000,6 +1010,7 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 ==== Limitation 
 
 * Latency (`-l` switch) should be disabled when working in this mode because both Client and Server will send ICMP packets to all the ports
+* It is not possible to configure TRex with all ports acting as client side or all ports acting as server side. 
 
 === Traffic profile reference 
 
