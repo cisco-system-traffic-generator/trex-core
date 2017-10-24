@@ -10,8 +10,8 @@
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
 
 :navigation:
-
 :source-highlighter: coderay
+
 
 == TRex Python API Cookbook
 
@@ -29,7 +29,8 @@ Through out the examples we will assume:
 * Default ports will be called *'tx_port'* and *'rx_port'*
 
 
-== Getting Started
+=== Getting Started
+
 
 Execute TRex service by calling the following from the main package path or from 'scripts'
 from a developer branch.
@@ -38,6 +39,8 @@ from a developer branch.
 ----
 ./t-rex-64 -i
 ----
+
+$DISQUS$
 
 == Connecting To TRex Server
 Connect to TRex server and then disconnect
@@ -58,7 +61,6 @@ except STLError as e:
 finally:
     c.disconnect()
 ----
-
 
 == Moving to service mode
 
@@ -108,4 +110,3 @@ finally:
     c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
     c.disconnect()
 ----
-

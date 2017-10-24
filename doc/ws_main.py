@@ -15,9 +15,10 @@ import shlex
 import subprocess
 import json
 import re
+import tempfile
 from waflib import Logs
 import string
-
+import pprint
 
 top = '.'
 out = 'build'
@@ -29,13 +30,16 @@ except:
     from html.parser import HTMLParser
 
 class CTocNode:
-    def __init__ (self):
+    def __init__ (self, link_fmt = None):
         self.name="root"
         self.level=1; # 1,2,3,4
         self.link=None;
         self.parent=None
         self.childs=[]; # link to CTocNode
 
+        # by default, link_fmt will foramt as in-page links
+        self.link_fmt = link_fmt if link_fmt else lambda x: '#_' + x
+        
     def get_link (self):
         if self.link==None:
             name=self.name
@@ -46,18 +50,21 @@ class CTocNode:
                 if c.isalpha() or c.isspace():
                     s+=c
     
-            return  '#_'+'_'.join(s.lower().split());
+            link = '_'.join(s.lower().split());
         else:
-            return '#'+self.link
+            link = self.link
+            
+        return self.link_fmt(link)
 
 
 
     def add_new_child (self,name,level,link):
         n=CTocNode();
-        n.name=name;
+        n.name=name
         n.link=link
-        n.level=level;
-        n.parent=self;
+        n.level=level
+        n.parent=self
+        n.link_fmt=n.parent.link_fmt
         self.childs.append(n);
         return n
 
@@ -89,10 +96,10 @@ class CTocNode:
 
 class TocHTMLParser(HTMLParser):
 
-    def __init__ (self):
+    def __init__ (self, link_fmt = None):
         HTMLParser.__init__(self);
-        self.state=0;
-        self.root=CTocNode()
+        self.state=0
+        self.root = CTocNode(link_fmt)
         self.root.parent=self.root
         self.level=2;
         self.attrs=None
@@ -171,12 +178,12 @@ class TocHTMLParser(HTMLParser):
 
 
 
-def create_toc_json (input_file,output_file):
+def create_toc_json (input_file, output_file, link_fmt = None):
     f = open (input_file)
     l=f.readlines()
     f.close();
     html_input = ''.join(l)
-    parser = TocHTMLParser()
+    parser = TocHTMLParser(link_fmt)
     parser.feed(html_input);
     f = open (output_file,'w')
     f.write(parser.dump_as_json());
@@ -256,13 +263,17 @@ def options(opt):
     opt.add_option('--ndr', action = 'store_true', help = 'Include build of NDR report.')
 
 def configure(conf):
-    search_path = '~/.local/bin /usr/local/bin/ /usr/bin'
+    search_path = '/auto/srg-sce-swinfra/comp/tools/asciidoctor/bin ~/.local/bin /usr/local/bin/ /usr/bin'
     conf.find_program('asciidoc', path_list=search_path, var='ASCIIDOC')
     conf.find_program('sphinx-build', path_list=search_path, var='SPHINX')
     conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
     conf.find_program('dblatex', path_list=search_path, var='DBLATEX')
     conf.find_program('a2x', path_list=search_path, var='A2X')
-    pass;
+    
+    # asciidoctor
+    conf.find_program('asciidoctor', path_list=search_path, var='ASCIIDOCTOR')
+    conf.find_file('multipage-html5-converter.rb', path_list=search_path)
+    
 
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
@@ -556,7 +567,22 @@ TOC_END = """
           $('#nav-tree').jstree(toc_tree_options) ;
 
           toc_tree.on("changed.jstree", function (e, data) {
-            window.location.href = data.instance.get_selected(true)[0].original.link;
+          
+            // filename
+            var filename = data.instance.get_selected(true)[0].original.link
+          
+            // is it another page ?  
+            if (filename.search('[\.]html')) {
+            
+                $.get(filename, function(r) {
+                var els = $(r).find('.sect1');
+                $('#content').html(els);
+                });
+            
+            } else {
+              window.location.href = link  
+            }
+                
           });
         }
         
@@ -705,11 +731,11 @@ s.setAttribute('data-timestamp', +new Date());
 
 """
 
-def build_disqus(page_name):
-    s=DISQUS_HTML;
-    s=s.replace('<ID>', page_name)
-    return s;
 
+def build_disqus(page_name):
+    return DISQUS_HTML.replace('<ID>', page_name)
+
+    
 def do_replace (input_file,contents,look,str_replaced):
     if contents.count(look)!=1 :
         raise Exception('Cannot find {0} in file {1} '.format(look,input_file))
@@ -723,11 +749,16 @@ def toc_fixup_file (input_file,
                     json_file_name,
                     disqus=False
                     ):
-
+    
     file = open(input_file)
     contents = file.read()
 
-    contents = do_replace(input_file,contents,'<body class="book">', TOC_HEAD);
+    # can be book or an article
+    m = re.search('(<body class=("book"|"article")>)', contents)
+    if m:
+        contents = do_replace(input_file, contents, m.group(0), TOC_HEAD);
+            
+        
     toc_end=TOC_END;
     if disqus:
         disqus_key=os.path.split(out_file)[1]
@@ -735,7 +766,8 @@ def toc_fixup_file (input_file,
 
     contents = do_replace(input_file,contents,'</body>', toc_end)
     contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
-
+        
+        
     file = open(out_file,'w')
     file.write(contents)
     file.close();
@@ -747,15 +779,14 @@ def _convert_to_html_toc_book (task,disqus=False):
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
-
     cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
             task.env['ASCIIDOC'][0],
             task.inputs[1].abspath(),
             tmp,
             task.inputs[0].abspath());
 
-    res= os.system( cmd )
-    if res !=0 :
+    res = os.system(cmd)
+    if res != 0 :
         return (1)
 
     create_toc_json(tmp,json_out_file)
@@ -765,12 +796,105 @@ def _convert_to_html_toc_book (task,disqus=False):
     return os.system('rm {0}'.format(tmp));
 
 
+    
 def convert_to_html_toc_book(task):
     _convert_to_html_toc_book (task,False)
 
 def convert_to_html_toc_book_disqus(task):
     _convert_to_html_toc_book (task,True)
 
+
+# strip hierarchy from an asciidoc file    
+def strip_hierarchy (in_file, out_file):
+    with open(in_file) as f:
+        lines = f.readlines()
+    
+    for i, line in enumerate(lines):
+        if re.match("==+ [^ ].*", line):
+            prefix, name = line.split(' ', 1)
+            lines[i] = '== {0}\n'.format(name)
+            
+    with open(out_file, "w") as f:
+        f.write(''.join(lines))
+    
+    
+# given an asciidoc file, replace all $DISQUS$ keywords with embedded disqus code
+def add_disqus (input_file, output_file, page_id):
+    with open(input_file) as f:
+       data = f.read()
+    
+    data = data.replace('$DISQUS$', build_disqus(page_id))
+    
+    with open(output_file, "w") as f:
+        f.write(data)
+    
+
+# generate an asciidoctor chunk book for a target
+def convert_to_asciidoctor_chunk_book(task):
+
+    in_file          = task.inputs[0].abspath()
+    out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
+    target_name      = os.path.basename(out_dir)
+
+    
+    
+    # build chunked with no hierarchy
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        # strip the hierarchy to make sure all pages are generated
+        strip_hierarchy(in_file, tmp_file.name)
+    
+        multipage_backend = os.path.join(os.path.dirname(task.env['ASCIIDOCTOR'][0]), 'multipage-html5-converter.rb')
+        cmd = '{0} -r {1} -b multipage_html5 -D {2} {3} -o trex_cookbook.html'.format(
+                task.env['ASCIIDOCTOR'][0],
+                multipage_backend,
+                out_dir,
+                tmp_file.name)
+
+        res = os.system(cmd)
+        if res != 0:
+            return (1)
+    
+    
+    # build single only to get the TOC
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        cmd = '{0} -a toc=left -b html5 -o {2} {3}'.format(
+                task.env['ASCIIDOCTOR'][0],
+                multipage_backend,
+                tmp_file.name,
+                in_file)
+    
+        res = os.system( cmd )
+        if res != 0:
+            return (1)
+        
+        # create TOC JSON in the library
+        create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format("trex_cookbook", link))
+    
+    # add TOC to the main page
+    toc_fixup_file(input_file      = os.path.join(out_dir, 'trex_cookbook_trex_python_api_cookbook.html'),
+                   out_file        = os.path.join(out_dir, 'index.html'),
+                   json_file_name  = 'toc.json')
+
+    for filename in [f for f in os.listdir(out_dir) if f.endswith('.html')]:
+        add_disqus(input_file  = os.path.join(out_dir, filename),
+                   output_file = os.path.join(out_dir, filename),
+                   page_id     = filename)
+        
+        
+    return 0
+        
+
+
+def convert_to_chunked(task):
+    return
+    
+    input_file = task.outputs[0].abspath()
+    out_dir = task.outputs[0].parent.get_bld().abspath()
+    cmd = 'a2x --xsl-file=/tmp/docbook-xsl-1.79.1/xhtml/chunk.xsl --no-xmllint %s -a icons=true -a docinfo -f chunked -d book %s -D %s ' %('-v' if Logs.verbose else '', task.inputs[0].abspath(),out_dir)
+    print(cmd)
+    return os.system(cmd)
+
+    
 
 
 
@@ -1063,6 +1187,9 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
+
+    bld(rule=convert_to_asciidoctor_chunk_book,
+                    source='trex_cookbook.asciidoc waf.css', target='trex_cookbook',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
