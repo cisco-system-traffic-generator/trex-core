@@ -23,7 +23,7 @@ ifdef::backend-docbook[]
 :p_width_lge: 500
 endif::backend-docbook[]
 
-// HTML version - image width variable
+// HTML version - image width variable .
 ifdef::backend-xhtml11[]
 :p_width: 800
 :p_width_1: 400
