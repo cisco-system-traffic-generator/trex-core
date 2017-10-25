@@ -251,7 +251,9 @@ void CClientServerTcp::on_tx(int dir,
 
         if (m_sim_type == csSIM_PAD ){
             if (m->pkt_len<1000) {
-                assert(rte_pktmbuf_append(m, 12)!=NULL);
+                char *p=rte_pktmbuf_append(m, 12);
+                assert(p!=NULL);
+                memset(p,0xaa,12);
             }
         }
 
