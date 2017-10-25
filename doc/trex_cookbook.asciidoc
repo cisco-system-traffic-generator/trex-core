@@ -11,7 +11,7 @@
 
 :navigation:
 :source-highlighter: coderay
-
+:nofooter:
 
 == TRex Python API Cookbook
 
@@ -29,20 +29,35 @@ Through out the examples we will assume:
 * Default ports will be called *'tx_port'* and *'rx_port'*
 
 
-=== Getting Started
+//################################################## STL ##############################################
 
+== Stateless
+
+In the following section we will provide recipies for common tasks
+done in TRex stateless mode.
+
+For more information about TRex stateless mode please refer to the manual.
+
+
+=== Launching The Server
 
 Execute TRex service by calling the following from the main package path or from 'scripts'
 from a developer branch.
 
+Provide *'--stl'* for stateless mode.
+
+
 [source,python]
 ----
-./t-rex-64 -i
+
+For stateless: 
+./t-rex-64 -i --stl
 ----
 
-$DISQUS$
+*For a complete description of the command line paramters please refer to the manual*
 
-== Connecting To TRex Server
+
+=== Connecting To TRex Server
 Connect to TRex server and then disconnect
 
 [source,python]
@@ -62,30 +77,11 @@ finally:
     c.disconnect()
 ----
 
-== Moving to service mode
-
-Move to service mode and then exit service mode
-
-[source,python]
-----
-# get TRex APIs
-from trex_stl_lib.api import *
-
-c = STLClient(server = '127.0.0.1')
-
-try:
-    c.set_service_mode(ports = [tx_port, rx_port])
-    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
-    
-except STLError as e:
-    print(e)
-
-finally:
-    c.disconnect()
-----
+$DISQUS$
 
 
-== Configure L2 mode
+
+=== Configure L2 mode
 
 Configure both ports for L2 mode
 
@@ -110,3 +106,53 @@ finally:
     c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
     c.disconnect()
 ----
+     
+$DISQUS$
+
+=== Moving to service mode
+
+Move to service mode and then exit service mode
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+
+try:
+    c.set_service_mode(ports = [tx_port, rx_port])
+    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
+    
+except STLError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+
+$DISQUS$
+
+       
+
+// ################################################## ASTF ##############################################
+
+
+== Advanced Stateful
+
+*TBD*
+
+=== Launching The Server
+
+Execute TRex service by calling the following from the main package path or from 'scripts'
+from a developer branch.
+
+Provide '--astf' for stateless.
+
+[source,python]
+----
+
+For stateless: 
+./t-rex-64 -i --astf
+----
+                     
