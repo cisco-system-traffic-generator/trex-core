@@ -34,10 +34,10 @@ limitations under the License.
 #include "44bsd/tcp_socket.h"
 
 class CTcpDataAssocParams {
-    friend class CJsonData;
+    friend class CAstfDB;
     friend class CTcpDataAssocTransHelp;
     friend class CTcpDataAssocTranslation;
-    friend class CTcpData;
+    friend class CAstfDbRO;
     friend bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs);
     friend bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs);
 
@@ -81,8 +81,8 @@ class CTcpDataAssocTransHelp {
 };
 
 class CTcpDataAssocTranslation {
-    friend class CJsonData;
-    friend class CTcpData;
+    friend class CAstfDB;
+    friend class CAstfDbRO;
 
     CTcpAppProgram * get_prog(const CTcpDataAssocParams& params);
     void insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog);
@@ -103,8 +103,8 @@ class CTcpDataFlowInfo {
 };
 
 class CTcpTemplateInfo {
-    friend class CJsonData;
-    friend class CTcpData;
+    friend class CAstfDB;
+    friend class CAstfDbRO;
 
     uint16_t            m_dport;
     CTcpAppProgram *    m_client_prog; /* client program per template */
@@ -131,11 +131,11 @@ class CJsonData_err {
 };
 
 // This is used by all threads. Should not be changed after initialization stage, in order not to reduce performance
-class CTcpData {
-    friend class CJsonData;
+class CAstfDbRO {
+    friend class CAstfDB;
 
  public:
-    CTcpData() {
+    CAstfDbRO() {
         m_init = 0;
         m_cps_sum=0.0;
     }
@@ -176,7 +176,7 @@ class CAstfTemplatesRW;
 class CTupleGeneratorSmart;
 
 class CTcpLatency {
-    friend class CJsonData;
+    friend class CAstfDB;
 
  public:
     uint32_t get_c_ip() {return m_c_ip;}
@@ -189,7 +189,7 @@ class CTcpLatency {
     uint32_t m_dual_mask;
 };
 
-class CJsonData {
+class CAstfDB {
     struct json_handle {
         std::string str;
         int (*func)(Json::Value val);
@@ -197,9 +197,9 @@ class CJsonData {
 
  public:
     // make the class singelton
-    static CJsonData *instance() {
+    static CAstfDB *instance() {
         if (! m_pInstance) {
-            m_pInstance = new CJsonData;
+            m_pInstance = new CAstfDB;
             m_pInstance->m_json_initiated = false;
         }
         return m_pInstance;
@@ -212,7 +212,7 @@ class CJsonData {
         }
     }
 
-    ~CJsonData(){
+    ~CAstfDB(){
         clear();
     }
 
@@ -220,12 +220,12 @@ class CJsonData {
     bool parse_file(std::string file);
 
     // called *once* by each core, using socket_id associated with the core 
-    // multi-threaded need to be protected 
-    CTcpData *get_tcp_data_handle(uint8_t socket_id);
+    // multi-threaded need to be protected / per socket read-only data 
+    CAstfDbRO *get_db_ro(uint8_t socket_id);
 
     // called by each core *once*. Allocating memory that will be freed in clear()
     // multi-threaded need to be protected 
-    CAstfTemplatesRW *get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
+    CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
@@ -252,14 +252,14 @@ class CJsonData {
 
  private:
     bool m_json_initiated;
-    static CJsonData *m_pInstance;
+    static CAstfDB *m_pInstance;
     Json::Value  m_val;
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     float m_exp_bps; // total expected bit per second for all templates
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket
-    CTcpData            m_tcp_data[MAX_SOCKETS_SUPPORTED];
+    CAstfDbRO            m_tcp_data[MAX_SOCKETS_SUPPORTED];
 };
 
 #endif

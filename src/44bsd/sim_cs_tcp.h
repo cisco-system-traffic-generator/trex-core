@@ -37,7 +37,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>
@@ -218,7 +218,7 @@ public:
 
     CTcpPerThreadCtx        m_c_ctx;  /* context */
     CTcpPerThreadCtx        m_s_ctx;
-    CTcpData                m_tcp_data_ro;
+    CAstfDbRO                m_tcp_data_ro;
 
     CTcpAppApiImpl          m_tcp_bh_api_impl_c;
     CTcpAppApiImpl          m_tcp_bh_api_impl_s;

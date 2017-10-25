@@ -9,7 +9,7 @@
 #include "44bsd/tcp_socket.h"
 #include "tuple_gen.h"
 #include "astf/astf_template_db.h"
-#include "json_reader.h"
+#include "astf_db.h"
 #include "bp_sim.h"
 
 
@@ -27,7 +27,7 @@ inline std::string methodName(const std::string& prettyFunction)
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
 // make the class singelton
-CJsonData* CJsonData::m_pInstance = NULL;
+CAstfDB* CAstfDB::m_pInstance = NULL;
 
 
 static double cps_factor(double cps){
@@ -80,7 +80,7 @@ void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CT
     m_map.insert(std::pair<CTcpDataAssocParams, CTcpAppProgram *>(params, prog));
 }
 
-bool CJsonData::parse_file(std::string file) {
+bool CAstfDB::parse_file(std::string file) {
     static bool parsed = false;
     if (parsed)
         return true;
@@ -106,7 +106,7 @@ bool CJsonData::parse_file(std::string file) {
     return true;
 }
 
-void CJsonData::convert_from_json(uint8_t socket_id) {
+void CAstfDB::convert_from_json(uint8_t socket_id) {
     convert_bufs(socket_id);
     convert_progs(socket_id);
     m_tcp_data[socket_id].m_init = 1;
@@ -114,11 +114,11 @@ void CJsonData::convert_from_json(uint8_t socket_id) {
     m_tcp_data[socket_id].m_init = 2;
 }
 
-void CJsonData::dump() {
+void CAstfDB::dump() {
     std::cout << m_val << std::endl;
 }
 
-uint16_t CJsonData::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
+uint16_t CAstfDB::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -132,7 +132,7 @@ uint16_t CJsonData::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
     return cmd["buf_index"].asInt();
 }
 
-std::string CJsonData::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) {
+std::string CAstfDB::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) {
     std::string temp_str;
     Json::Value cmd;
 
@@ -160,7 +160,7 @@ std::string CJsonData::get_buf(uint16_t temp_index, uint16_t cmd_index, int side
 }
 
 
-tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t program_index, uint16_t cmd_index) {
+tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -178,7 +178,7 @@ tcp_app_cmd_enum_t CJsonData::get_cmd(uint16_t program_index, uint16_t cmd_index
     return tcNO_CMD;
 }
 
-uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
+uint32_t CAstfDB::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -193,7 +193,7 @@ uint32_t CJsonData::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
 }
 
 // verify correctness of json data
-CJsonData_err CJsonData::verify_data(uint16_t max_threads) {
+CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     uint32_t ip_start;
     uint32_t ip_end;
     uint32_t num_ips;
@@ -217,7 +217,7 @@ CJsonData_err CJsonData::verify_data(uint16_t max_threads) {
     return CJsonData_err(CJsonData_err_pool_ok, "");
 }
 
-void CJsonData::verify_init(uint16_t socket_id) {
+void CAstfDB::verify_init(uint16_t socket_id) {
     if (! m_tcp_data[socket_id].is_init()) {
         // json data should not be accessed by multiple threads in parallel
         std::unique_lock<std::mutex> my_lock(m_global_mtx);
@@ -228,13 +228,13 @@ void CJsonData::verify_init(uint16_t socket_id) {
     }
 }
 
-CTcpData *CJsonData::get_tcp_data_handle(uint8_t socket_id) {
+CAstfDbRO *CAstfDB::get_db_ro(uint8_t socket_id) {
     verify_init(socket_id);
 
     return &m_tcp_data[socket_id];
 }
 
-uint32_t CJsonData::ip_from_str(const char *c_ip) {
+uint32_t CAstfDB::ip_from_str(const char *c_ip) {
     int rc;
     uint32_t ip_num;
     rc = my_inet_pton4(c_ip, (unsigned char *)&ip_num);
@@ -246,7 +246,7 @@ uint32_t CJsonData::ip_from_str(const char *c_ip) {
     return ntohl(ip_num);
 }
 
-CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
+CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                                     uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
@@ -335,7 +335,7 @@ CAstfTemplatesRW *CJsonData::get_tcp_data_handle_rw(uint8_t socket_id, CTupleGen
  * side - 0 - client, 1 - server
  * Return pointer to program
  */
-CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
+CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
     uint16_t program_index;
 
@@ -355,7 +355,7 @@ CTcpAppProgram *CJsonData::get_prog(uint16_t temp_index, int side, uint8_t socke
     return m_tcp_data[socket_id].m_prog_list[program_index];
 }
 
-CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
+CTcpAppProgram *CAstfDB::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
     CTcpDataAssocParams params(port);
 
     assert(m_tcp_data[socket_id].m_init > 0);
@@ -367,7 +367,7 @@ CTcpAppProgram *CJsonData::get_server_prog_by_port(uint16_t port, uint8_t socket
   Building association translation, and all template related info.
 
  */
-bool CJsonData::build_assoc_translation(uint8_t socket_id) {
+bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     bool is_hash_needed = false;
     double cps_sum=0;
     CTcpTemplateInfo one_template;
@@ -414,7 +414,7 @@ bool CJsonData::build_assoc_translation(uint8_t socket_id) {
 }
 
 /* Convert list of buffers from json to CMbufBuffer */
-bool CJsonData::convert_bufs(uint8_t socket_id) {
+bool CAstfDB::convert_bufs(uint8_t socket_id) {
     CMbufBuffer *tcp_buf;
     std::string json_buf;
     uint32_t buf_len;
@@ -436,7 +436,7 @@ bool CJsonData::convert_bufs(uint8_t socket_id) {
 }
 
 /* Convert list of programs from json to CMbufBuffer */
-bool CJsonData::convert_progs(uint8_t socket_id) {
+bool CAstfDB::convert_progs(uint8_t socket_id) {
     CTcpAppCmd cmd;
     CTcpAppProgram *prog;
     uint16_t cmd_index;
@@ -488,7 +488,7 @@ bool CJsonData::convert_progs(uint8_t socket_id) {
     return true;
 }
 
-void CJsonData::get_latency_params(CTcpLatency &lat) {
+void CAstfDB::get_latency_params(CTcpLatency &lat) {
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     bool client_set = false;
     bool server_set = false;
@@ -509,7 +509,7 @@ void CJsonData::get_latency_params(CTcpLatency &lat) {
     }
 }
 
-void CJsonData::clear() {
+void CAstfDB::clear() {
     int i;
     for (i = 0; i < m_rw_db.size(); i++) {
         CAstfTemplatesRW * lp=m_rw_db[i];
@@ -523,12 +523,12 @@ void CJsonData::clear() {
     m_json_initiated = false;
 }
 
-CTcpAppProgram * CTcpData::get_server_prog_by_port(uint16_t port) {
+CTcpAppProgram * CAstfDbRO::get_server_prog_by_port(uint16_t port) {
     CTcpDataAssocParams params(port);
     return m_assoc_trans.get_prog(params);
 }
 
-void CTcpData::dump(FILE *fd) {
+void CAstfDbRO::dump(FILE *fd) {
     fprintf(fd, "buf list:\n");
     for (int i = 0; i < m_buf_list.size(); i++) {
         fprintf(fd, "*******%d*******\n", i);
@@ -536,7 +536,7 @@ void CTcpData::dump(FILE *fd) {
     }
 }
 
-void CTcpData::Delete() {
+void CAstfDbRO::Delete() {
     int i;
     for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();

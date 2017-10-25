@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 #include "sim_cs_tcp.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 #include "stt_cp.h"
 
 #define CLIENT_SIDE_PORT        1025
@@ -756,7 +756,7 @@ int CClientServerTcp::fill_from_file() {
     CTcpFlow *c_flow;
     CTcpApp *app_c;
 
-    CTcpData * ro_db=CJsonData::instance()->get_tcp_data_handle(0);
+    CAstfDbRO * ro_db=CAstfDB::instance()->get_db_ro(0);
     uint16_t dst_port = ro_db->get_dport(0);
     uint16_t src_port = CLIENT_SIDE_PORT;
     if (src_port == dst_port) {

@@ -34,7 +34,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 #include "44bsd/sim_cs_tcp.h"
 #include "stt_cp.h"
 
@@ -231,7 +231,7 @@ static int load_list_of_cap_files(CParserOption * op,
     fprintf(stdout, "Using json file %s\n", json_file_name.c_str());
 
     /* load json */
-    if (! CJsonData::instance()->parse_file(json_file_name) ) {
+    if (! CAstfDB::instance()->parse_file(json_file_name) ) {
        exit(-1);
     }
 
@@ -260,7 +260,7 @@ static int load_list_of_cap_files(CParserOption * op,
 
     lpt->Delete();
     fl.Delete();
-    CJsonData::free_instance();
+    CAstfDB::free_instance();
     return (0);
 }
 
@@ -287,7 +287,7 @@ int SimAstf::run() {
 
 int SimAstfSimple::run(){
     CParserOption * po=&CGlobalInfo::m_options;
-    bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
+    bool rc = CAstfDB::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
     assert(rc);
     CClientServerTcp *lpt = new CClientServerTcp;
     // run
@@ -313,6 +313,6 @@ int SimAstfSimple::run(){
     lpt->close_file();
     lpt->Delete();
     delete lpt;
-    CJsonData::free_instance();
+    CAstfDB::free_instance();
     return 0;
 }

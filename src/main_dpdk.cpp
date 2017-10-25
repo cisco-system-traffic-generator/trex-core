@@ -59,6 +59,9 @@
 #include "common/arg/SimpleGlob.h"
 #include "common/arg/SimpleOpt.h"
 #include "common/basic_utils.h"
+#include "utl_sync_barrier.h"
+
+
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -96,7 +99,7 @@ extern "C" {
 #include "main_dpdk.h"
 #include "trex_watchdog.h"
 #include "utl_port_map.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
 
 #define RX_CHECK_MIX_SAMPLE_RATE 8
 #define RX_CHECK_MIX_SAMPLE_RATE_1G 2
@@ -971,8 +974,8 @@ enum {
        OPT_MLX4_SO,
        OPT_MLX5_SO,
        OPT_NTACC_SO,
-       OPT_TCP_HTTP_RES,
-    
+       OPT_ASTF_SERVR_ONLY,
+       OPT_ASTF_CLIENT_MASK,
        /* no more pass this */
        OPT_MAX
 
@@ -1049,7 +1052,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
         { OPT_STL_MODE,               "--stl",             SO_NONE},
-        { OPT_TCP_HTTP_RES,           "--http",            SO_REQ_SEP},
+        { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
+        { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -1064,6 +1068,11 @@ static int usage(){
 
     printf(" Available options are:\n");
     printf(" --astf                     : Enable advanced stateful mode. profile should be in py format and not YAML format \n");
+    printf(" --astf-server-only         : Only server  side ports (1,3..) are enabled with ASTF service. Traffic won't be transmitted on clients ports. \n");
+    printf(" --astf-client-mask         : Enable only specific client side ports with ASTF service. \n");
+    printf("                              For example, with 4 ports setup. 0x1 means that only port 0 will be enabled. ports 2 won't be enabled. \n");
+    printf("                              Can't be used with --astf-server-only. \n");
+    printf("\n");
     printf(" --stl                      : Starts in stateless mode. must be provided along with '-i' for interactive mode \n");
     printf(" --active-flows             : An experimental switch to scale up or down the number of active flows.  \n");
     printf("                              It is not accurate due to the quantization of flow scheduler and in some case does not work. \n");
@@ -1310,9 +1319,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 po->m_op_mode = CParserOption::OP_MODE_STL;
                 break;
 
-                
-            case OPT_TCP_HTTP_RES:
-                sscanf(args.OptionArg(),"%d", &po->m_tcp_http_res);
+            case OPT_ASTF_SERVR_ONLY:
+                po->m_astf_mode = CParserOption::OP_ASTF_MODE_SERVR_ONLY;
+                break;
+
+            case OPT_ASTF_CLIENT_MASK:
+                po->m_astf_mode = CParserOption::OP_ASTF_MODE_CLIENT_MASK;
+                sscanf(args.OptionArg(),"%x", &po->m_astf_client_mask);
                 break;
 
             case OPT_MODE_BATCH:
@@ -3602,6 +3615,7 @@ public:
         m_expected_bps=0.0;
         m_stx = NULL;
         m_mark_for_shutdown = SHUTDOWN_NONE;
+        m_start_sync=0;
     }
 
     bool Create();
@@ -3799,6 +3813,7 @@ private:
 
 public:
     TrexSTX              *m_stx;
+    CSyncBarrier *        m_start_sync;
 
 };
 
@@ -4326,6 +4341,7 @@ bool CGlobalTRex::Create(){
      
     ixgbe_start();
     dump_config(stdout);
+    m_start_sync =new CSyncBarrier(get_cores_tx(),1.0);
 
 
     switch (get_op_mode()) {
@@ -4473,6 +4489,7 @@ void CGlobalTRex::Delete(){
     
     /* imarom: effectively has no meaning as memory is not released (See msg_manager.cpp) */
     CMsgIns::Ins()->Delete();
+    delete m_start_sync;
 }
 
 
@@ -5021,8 +5038,8 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 #if 0
     if ((m_expected_cps == 0) && get_is_tcp_mode()) {
         // In astf mode, we know the info only after doing first get of data from json (which triggers analyzing the data)
-        m_expected_cps = CJsonData::instance()->get_expected_cps();
-        m_expected_bps = CJsonData::instance()->get_expected_bps();
+        m_expected_cps = CAstfDB::instance()->get_expected_cps();
+        m_expected_bps = CAstfDB::instance()->get_expected_bps();
     }
 #endif
 
@@ -5622,7 +5639,7 @@ int CGlobalTRex::start_master_stateless(){
         lpt = m_fl.m_threads_info[i];
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-
+        lpt->set_sync_barrier(m_start_sync);
     }
     m_fl_was_init=true;
 
@@ -5653,12 +5670,12 @@ int CGlobalTRex::start_master_astf() {
     fprintf(stdout, "Using json file %s\n", json_file_name.c_str());
 
     /* load json */
-    if (! CJsonData::instance()->parse_file(json_file_name) ) {
+    if (! CAstfDB::instance()->parse_file(json_file_name) ) {
        exit(-1);
     }
 
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
-    CJsonData_err err_obj = CJsonData::instance()->verify_data(num_dp_cores);
+    CJsonData_err err_obj = CAstfDB::instance()->verify_data(num_dp_cores);
 
     if (err_obj.is_error()) {
         std::cerr << "Error: " << err_obj.description() << std::endl;
@@ -5671,7 +5688,7 @@ int CGlobalTRex::start_master_astf() {
     m_expected_bps = 0;
 
     CTcpLatency lat;
-    CJsonData::instance()->get_latency_params(lat);
+    CAstfDB::instance()->get_latency_params(lat);
 
     m_mg.set_ip( lat.get_c_ip() ,
                  lat.get_s_ip(),
@@ -5684,6 +5701,7 @@ int CGlobalTRex::start_master_astf() {
         lpt = m_fl.m_threads_info[i];
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
+        lpt->set_sync_barrier(m_start_sync);
     }
     m_fl_was_init=true;
     return (0);
@@ -5766,6 +5784,7 @@ int CGlobalTRex::start_master_statefull() {
         //CNullIF * erf_vif = new CNullIF();
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
+        lpt->set_sync_barrier(m_start_sync);
     }
     m_fl_was_init=true;
 

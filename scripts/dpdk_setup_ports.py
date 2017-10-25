@@ -567,33 +567,23 @@ Other network devices
 
     def preprocess_astf_file_is_needed(self):
         """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
-        is_astf_mode = map_driver.parent_args.astf
+        is_astf_mode = map_driver.parent_args and map_driver.parent_args.astf
         if is_astf_mode:
             input_file = map_driver.parent_args.file
             if not input_file:
                 return
                 
             extension = os.path.splitext(input_file)[1]
-            if map_driver.parent_args.cfg is not '':
-                cfg_file = map_driver.parent_args.cfg
-            else:
-                cfg_file = "/etc/trex_cfg.yaml"
+            if extension != '.py':
+                raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
 
             instance_name = ""
             if map_driver.parent_args.prefix is not '':
                 instance_name = "-" + map_driver.parent_args.prefix
-            else:
-                with open(cfg_file, 'r') as stream:
-                    try:
-                        yaml_cfg = yaml.load(stream)
-                        if 'prefix' in yaml_cfg[0]:
-                            instance_name = '-' + yaml_cfg[0]['prefix']
-                    except yaml.YAMLError as exc:
-                        print(exc)
+            elif 'prefix' in self.m_cfg_dict[0]:
+                instance_name = '-' + self.m_cfg_dict[0]['prefix']
 
             json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
-            if extension !=".py":
-                raise DpdkSetup(' ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML ')
 
             msg="converting astf profile {file} to json {out}".format(file = input_file, out=json_file)
             print(msg);
@@ -606,9 +596,9 @@ Other network devices
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
 
-        self.preprocess_astf_file_is_needed()
         self.run_dpdk_lspci ()
         self.load_config_file()
+        self.preprocess_astf_file_is_needed()
         if (map_driver.parent_args is None or
                 map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
@@ -1220,7 +1210,7 @@ def main ():
             obj.do_interactive_create();
         elif map_driver.args.linux:
             obj.do_return_to_linux();
-        else:
+        elif not (map_driver.parent_args and map_driver.parent_args.dump_interfaces is not None):
             ret = obj.do_run()
             print('The ports are bound/configured.')
             sys.exit(ret)

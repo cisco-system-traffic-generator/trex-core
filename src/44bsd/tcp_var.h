@@ -542,7 +542,7 @@ public:
 
 };
 
-class CTcpData;
+class CAstfDbRO;
 class CAstfTemplatesRW;
 
 class CTcpPerThreadCtx {
@@ -574,8 +574,8 @@ public:
         return(m_timer_w.is_any_events_left());
     }
 
-    CTcpData *get_template_ro() {return m_template_ro;}
-    void set_template_ro(CTcpData *t) {m_template_ro = t;}
+    CAstfDbRO *get_template_ro() {return m_template_ro;}
+    void set_template_ro(CAstfDbRO *t) {m_template_ro = t;}
     void set_template_rw(CAstfTemplatesRW *t) {m_template_rw = t;}
     void set_cb(CTcpCtxCb    * cb){
         m_cb=cb;
@@ -631,7 +631,7 @@ public:
     uint8_t     m_pad;
 
     CAstfTemplatesRW * m_template_rw;
-    CTcpData         * m_template_ro;
+    CAstfDbRO         * m_template_ro;
 
     CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
     CTcpCtxCb    * m_cb;

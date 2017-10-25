@@ -452,6 +452,12 @@ public:
         OP_MODE_DUMP_INTERFACES,
     };
 
+    enum trex_astf_mode_e {
+        OP_ASTF_MODE_NONE       =0,
+        OP_ASTF_MODE_SERVR_ONLY =1,
+        OP_ASTF_MODE_CLIENT_MASK=2
+    };
+
     enum trex_learn_mode_e {
     LEARN_MODE_DISABLED=0,
     LEARN_MODE_TCP_ACK=1,
@@ -504,8 +510,8 @@ public:
         // we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
         // and we will start losing packets).
         x710_fdir_reset_threshold = 0xffffffff - 1000000000/8/64*40;
-        m_tcp_http_res=32*1024;
-
+        m_astf_mode =OP_ASTF_MODE_NONE;
+        m_astf_client_mask=0;
     }
 
     CParserOption(){
@@ -541,6 +547,9 @@ public:
     uint16_t        m_arp_ref_per;
     bool            m_rx_thread_enabled;
     trex_op_mode_e  m_op_mode;
+    trex_astf_mode_e m_astf_mode;
+    uint32_t         m_astf_client_mask;
+
     
     std::string        cfg_file;
     std::string        astf_cfg_file;
@@ -553,7 +562,6 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
-    uint32_t        m_tcp_http_res;
 
 
 public:

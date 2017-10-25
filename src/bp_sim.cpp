@@ -2796,6 +2796,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                    uint32_t           max_threads){
 
 
+    m_sync_b= (CSyncBarrier *)0;
     m_non_active_nodes = 0;
     m_terminated_by_master=false;
     m_flow_list =flow_list;
