@@ -76,16 +76,45 @@ void CTcpReassBlock::Dump(FILE *fd){
     fprintf(fd,"seq : %lu(%lu)(%s) \n",(ulong)m_seq,(ulong)m_len,m_flags?"FIN":"");
 }
 
-inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
+static inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
     assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_adj_ex(m, len)!=NULL);
 }
 
-inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
+static inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
     assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_trim_ex(m, len)==0);
 }
 
+/*
+ * Drop TCP, IP headers and TCP options. go to L7 
+   remove pad if exists
+ */
+static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m, 
+                                        uint16_t adj_len,
+                                        uint16_t l7_len){
+
+    /*
+     * Drop TCP, IP headers and TCP options. go to L7 
+     */
+    tcp_pktmbuf_adj(m, adj_len);
+
+    /*
+     * remove padding if exists. 
+     */
+    if (unlikely(m->pkt_len > l7_len)) {
+        uint32_t pad_size = m->pkt_len-(uint32_t)l7_len;
+        assert(pad_size<0xffff);
+        tcp_pktmbuf_trim(m, (uint16_t)pad_size);
+    }
+
+     #ifdef _DEBUG
+         assert(m->pkt_len == l7_len);
+         if (l7_len>0) {
+             assert(utl_rte_pktmbuf_verify(m)==0);
+         }
+     #endif
+}
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
     int i; 
@@ -462,6 +491,7 @@ struct tcpcb *debug_flow;
 
 #endif
 
+
 /* assuming we found the flow */
 int tcp_flow_input(CTcpPerThreadCtx * ctx,
                     struct tcpcb *tp, 
@@ -646,9 +676,10 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
             INC_STAT_CNT(ctx,tcps_rcvbyte, ti->ti_len);
             /*
              * Drop TCP, IP headers and TCP options then add data
-             * to socket buffer.
+             * to socket buffer. remove padding 
              */
-            tcp_pktmbuf_adj(m, off);
+            tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
+
             sbappend(so,
                      &so->so_rcv, m,ti->ti_len);
             sorwakeup(so);
@@ -671,10 +702,11 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
 
     /*
      * Drop TCP, IP headers and TCP options. go to L7 
+       remove padding
      */
-    tcp_pktmbuf_adj(m, off);
+    tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
 
-        /*
+    /*
      * Calculate amount of space in receive window,
      * and then do TCP input processing.
      * Receive window is amount of space in rcv queue,

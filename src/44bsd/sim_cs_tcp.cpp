@@ -232,7 +232,6 @@ void CClientServerTcp::on_tx(int dir,
         m_s_pcap.write_pcap_mbuf(m,t);
     }
 
-
     bool drop=false;
     bool reorder=false;
     /* simulate drop/reorder/ corruption HERE !! */
@@ -247,6 +246,12 @@ void CClientServerTcp::on_tx(int dir,
             }
             if (is_drop()){
                 reorder=true;
+            }
+        }
+
+        if (m_sim_type == csSIM_PAD ){
+            if (m->pkt_len<1000) {
+                assert(rte_pktmbuf_append(m, 12)!=NULL);
             }
         }
 

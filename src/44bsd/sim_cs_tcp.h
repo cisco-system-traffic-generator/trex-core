@@ -158,6 +158,8 @@ typedef enum {  csSIM_NONE    =0,
                 csSIM_DROP,
                 csSIM_REORDER,
                 csSIM_REORDER_DROP,
+                csSIM_PAD,
+
                } cs_sim_mode_t_;
 
 typedef uint16_t cs_sim_mode_t ;
