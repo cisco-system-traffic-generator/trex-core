@@ -1771,7 +1771,7 @@ image::images/stl_multiple_streams_01.png[title="Example of multiple streams",al
 
 ==== Tutorial: Loops of streams
 
-*Goal* : Demonstrate a limited loop of streams
+*Goal*: Demonstrate a limited loop of streams.
 
 *File*:: link:{github_stl_path}/burst_3st_loop_x_times.py[stl/burst_3st_loop_x_times.py]
 
@@ -1809,12 +1809,12 @@ image::images/stl_multiple_streams_01.png[title="Example of multiple streams",al
                             ]).get_streams()
 
 ----
-<1> go back to S0 but limit it to 2 loops
+<1> Go back to S0, but limit it to 2 loops.
 
 
 ==== Tutorial: IMIX with UDP packets, bi-directional 
 
-*Goal* : Demonstrate how to create an IMIX traffic profile.
+*Goal*: Demonstrate how to create an IMIX traffic profile.
 
 This profile defines 3 streams, with packets of different sizes. The rate is different for each stream/size. See the link:https://en.wikipedia.org/wiki/Internet_Mix[Wikipedia article on Internet Mix].
 
@@ -1891,20 +1891,28 @@ This profile defines 3 streams, with packets of different sizes. The rate is dif
 
 The following example demonstrates changing packet fields. The Field Engine (FE) has a limited number of instructions/operation, which support most use cases. 
 
-*The FE can*::
+*The FE can*:
+
+// this line is here to fix rendering bug
+
 * Allocate stream variables in a stream context
 * Write a stream variable to a packet offset
 * Change packet size
 * and more...
 * There is a plan to add LuaJIT to be more flexible at the cost of performance.
 
-*Examples:*::
+// this line is here to fix rendering bug
+
+*Examples*:
+
+// this line is here to fix rendering bug
+
 * Change ipv4.tos value (1 to 10)
 * Change packet size to a random value in the range 64 to 9K
 * Create a range of flows (change src_ip, dest_ip, src_port, dest_port) 
 * Update the IPv4 checksum 
 
-For more information, see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
+For more information, see: link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
 // add link to Python API: http://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/field_engine.html
 
 The following example demonstrates creating a SYN attack from many src addresses to one server.
