@@ -37,12 +37,13 @@ endif::backend-docbook[]
 ** Add support to RFC6928 (add support for initwnd and set it by default to 10). A way to tune all the TCP parameters (including this one) will be given from the traffic profile.
 ** Protect TRex ASTF resource (e.g. overflow in active flows)
 ** General hardening  
+** Support client or server mode see link:trex_astf.html#_client_server_only_mode[client_server_only_mode]
 * Refactor the code to support ASTF in interactive mode (both STL and STF will work with the same RPC framework)
 * Increase the TX queue for all drivers by default - less probability for queue_full in high rates
 
-
 === Fixed issues: ===
 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-495[trex-495]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-491[trex-491]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-486[trex-486]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-492[trex-492]
