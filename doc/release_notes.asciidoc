@@ -27,7 +27,8 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Pre-Release 2.31 ==
+
+== Release 2.31 ==
 
 * Stateless
 ** Console - added option to save loaded streams as Python profile (stream command from the Console)
