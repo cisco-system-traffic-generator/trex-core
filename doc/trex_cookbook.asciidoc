@@ -39,7 +39,7 @@ done in TRex stateless mode.
 For more information about TRex stateless mode please refer to the manual.
 
 
-=== Launching The Server
+=== Launching TRex Server
 
 Execute TRex service by calling the following from the main package path or from 'scripts'
 from a developer branch.
@@ -57,7 +57,7 @@ For stateless:
 *For a complete description of the command line paramters please refer to the manual*
 
 
-=== Connecting To TRex Server
+=== Connecting To The Server
 Connect to TRex server and then disconnect
 
 [source,python]
@@ -81,7 +81,7 @@ $DISQUS$
 
 
 
-=== Configure L2 mode
+=== Configure Ports For L2 mode
 
 Configure both ports for L2 mode
 
@@ -109,7 +109,7 @@ finally:
      
 $DISQUS$
 
-=== Moving to service mode
+=== Moving Ports To Service Mode
 
 Move to service mode and then exit service mode
 
@@ -155,4 +155,4 @@ Provide '--astf' for stateless.
 For stateless: 
 ./t-rex-64 -i --astf
 ----
-                     
+
