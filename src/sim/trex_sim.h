@@ -43,6 +43,20 @@ class DPCoreStats;
 TrexSTX * get_stx();
 void set_stx(TrexSTX *obj);
 
+/* a stack-based guard for allocating/deallocating STX object */
+class STXSimGuard {
+public:
+    STXSimGuard(TrexSTX *stx) {
+        set_stx(stx);
+    }
+    
+    ~STXSimGuard() {
+        delete get_stx();
+        set_stx(nullptr);
+    }
+};
+
+
 static inline bool 
 in_range(int x, int low, int high) {
     return ( (x >= low) && (x <= high) );
