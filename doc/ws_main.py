@@ -410,19 +410,6 @@ def convert_to_asciidoctor_chunk_book(task):
         
 
 
-def convert_to_chunked(task):
-    return
-    
-    input_file = task.outputs[0].abspath()
-    out_dir = task.outputs[0].parent.get_bld().abspath()
-    cmd = 'a2x --xsl-file=/tmp/docbook-xsl-1.79.1/xhtml/chunk.xsl --no-xmllint %s -a icons=true -a docinfo -f chunked -d book %s -D %s ' %('-v' if Logs.verbose else '', task.inputs[0].abspath(),out_dir)
-    print(cmd)
-    return os.system(cmd)
-
-    
-
-
-
 def convert_to_pdf_book(task):
     input_file = task.outputs[0].abspath()
     out_dir = task.outputs[0].parent.get_bld().abspath()
