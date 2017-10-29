@@ -41,7 +41,7 @@ class CTocNode:
         self.parent=None
         self.childs=[]; # link to CTocNode
 
-        # by default, link_fmt will foramt as in-page links
+        # by default, link_fmt will formatted as in-page links
         self.link_fmt = link_fmt if link_fmt else lambda x: '#' + x
         
     def get_link (self):
@@ -267,7 +267,7 @@ def options(opt):
     opt.add_option('--ndr', action = 'store_true', help = 'Include build of NDR report.')
 
 def configure(conf):
-    search_path = '/auto/srg-sce-swinfra/comp/tools/asciidoctor/bin ~/.local/bin /usr/local/bin/ /usr/bin'
+    search_path = ' ~/.local/bin /usr/local/bin/ /usr/bin ./extensions'
     conf.find_program('asciidoc', path_list=search_path, var='ASCIIDOC')
     conf.find_program('sphinx-build', path_list=search_path, var='SPHINX')
     conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
@@ -363,7 +363,7 @@ def convert_to_asciidoctor_chunk_book(task):
         # strip the hierarchy to make sure all pages are generated
         multipage_strip_hierarchy(in_file, tmp_file.name)
     
-        multipage_backend = os.path.join(os.path.dirname(task.env['ASCIIDOCTOR'][0]), 'multipage-html5-converter.rb')
+        multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
         cmd = '{0} -r {1} -b multipage_html5 -D {2} {3} -o trex_cookbook.html'.format(
                 task.env['ASCIIDOCTOR'][0],
                 multipage_backend,
