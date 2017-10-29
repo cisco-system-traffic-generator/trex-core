@@ -326,8 +326,11 @@ class HTMLInjector(object):
                 $ONCLICK$
               });
               }
-              
             
+              
+            // a hook for selecting the first node if needed
+            $SELECTFIRST$
+              
             function initResizable() {
               var toc = $("#toc");
               var body = $("body");
@@ -506,6 +509,15 @@ class HTMLInjector(object):
 
     """
     
+    
+    SELECT_FIRST = """
+          // on loaded event  
+          $('#nav-tree').on('loaded.jstree', function() {
+              $('#nav-tree').jstree('select_node', 'j1_1');
+          });
+    """
+    
+    
     def __init__ (self, input_filename, output_filename = None):
         """
             Open filename for HTML injection
@@ -559,13 +571,21 @@ class HTMLInjector(object):
         # on click event
         toc_end = toc_end.replace('$ONCLICK$', HTMLInjector.ONCLICK_MULTIPAGE if fmt == 'multi' else HTMLInjector.ONCLICK_SINGLEPAGE)
         
+        # select first on multipage
+        toc_end = toc_end.replace('$SELECTFIRST$', HTMLInjector.SELECT_FIRST if fmt == 'multi' else '')
+        
         # use regex to support book and article
+        if not re.search(r'<body class="(article|book)".*>', self.contents):
+            raise Exception('unable to inject TOC')
+        if not re.search(r'</body>', self.contents):
+            raise Exception('unable to inject TOC')
+            
         self.contents = re.sub(r'<body class="(article|book)".*>', toc_begin, self.contents)
         self.contents = re.sub(r'</body>', toc_end, self.contents)
         
         
             
-    def inject_disqus (self, page_id, mode = 'pattern'):
+    def inject_disqus (self, page_id, mode):
         """
             Inject disqus to HTML
             
@@ -855,42 +875,6 @@ def convert_to_pdf(task):
 
 
 
-def do_replace (input_file,contents,look,str_replaced):
-    if contents.count(look)!=1 :
-        raise Exception('Cannot find {0} in file {1} '.format(look,input_file))
-
-    return  contents.replace(look, str_replaced)
-
-
-
-def toc_fixup_file (input_file,
-                    out_file, 
-                    json_file_name,
-                    disqus=False
-                    ):
-    
-    file = open(input_file)
-    contents = file.read()
-
-    # can be book or an article
-    m = re.search('(<body class=("book"|"article")>)', contents)
-    if m:
-        contents = do_replace(input_file, contents, m.group(0), TOCInjector.TOC_BEGIN);
-            
-        
-    toc_end=TOCInjector.TOC_END;
-    if disqus:
-        disqus_key=os.path.split(out_file)[1]
-        toc_end =build_disqus(disqus_key)+toc_end
-
-    contents = do_replace(input_file,contents,'</body>', toc_end)
-    contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
-        
-        
-    file = open(out_file,'w')
-    file.write(contents)
-    file.close();
-
 
 def _convert_to_html_toc_book (task,disqus=False):
     input_file = task.inputs[0].abspath()
@@ -913,7 +897,7 @@ def _convert_to_html_toc_book (task,disqus=False):
     in_file  = tmp
     out_file = task.outputs[0].abspath()
     
-    # inject TOC and DISQUS                                                
+    # inject TOC and DISQUS if needed
     with HTMLInjector(in_file, out_file) as injector:
         injector.inject_toc(json_out_file_short)
         if disqus:
@@ -931,8 +915,12 @@ def convert_to_html_toc_book_disqus(task):
     _convert_to_html_toc_book (task,True)
 
 
-# strip hierarchy from an asciidoc file    
-def strip_hierarchy (in_file, out_file):
+# strip hierarchy from a multipage doc
+# used to generate equal hierarchy for generating
+# the pages
+# also a 'main' hook will be added
+def multipage_strip_hierarchy (in_file, out_file):
+    
     with open(in_file) as f:
         lines = f.readlines()
     
@@ -941,8 +929,13 @@ def strip_hierarchy (in_file, out_file):
             prefix, name = line.split(' ', 1)
             lines[i] = '== {0}\n'.format(name)
             
+                
+    # add a hook                
+    lines.append('\n== main\n')
+    
     with open(out_file, "w") as f:
         f.write(''.join(lines))
+    
     
     
 # generate an asciidoctor chunk book for a target
@@ -957,7 +950,7 @@ def convert_to_asciidoctor_chunk_book(task):
     # build chunked with no hierarchy
     with tempfile.NamedTemporaryFile() as tmp_file:
         # strip the hierarchy to make sure all pages are generated
-        strip_hierarchy(in_file, tmp_file.name)
+        multipage_strip_hierarchy(in_file, tmp_file.name)
     
         multipage_backend = os.path.join(os.path.dirname(task.env['ASCIIDOCTOR'][0]), 'multipage-html5-converter.rb')
         cmd = '{0} -r {1} -b multipage_html5 -D {2} {3} -o trex_cookbook.html'.format(
@@ -987,19 +980,20 @@ def convert_to_asciidoctor_chunk_book(task):
         create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format("trex_cookbook", link))
   
     
-    # iterate over all files and inject DISQUS if needed
+    # iterate over all files and inject DISQUS if the pattern matches
     for filename in [f for f in os.listdir(out_dir) if f.endswith('.html')]:
-        page_id = "{0}".format(filename)
-        print("adding disqus with ID: {0}".format(page_id))
-
         with HTMLInjector(os.path.join(out_dir, filename)) as injector:
-            injector.inject_disqus(page_id)
+            injector.inject_disqus(page_id = filename, mode = 'pattern')
         
-      
+    
     # add TOC and disqus to the main page
-    with HTMLInjector(os.path.join(out_dir, 'trex_cookbook_trex_python_api_cookbook.html'),
+    main = '{0}_main.html'.format(target_name)
+
+    with HTMLInjector(os.path.join(out_dir, main),
                       os.path.join(out_dir, 'index.html')) as injector:
         injector.inject_toc('toc.json', fmt = 'multi', image_path = '..')
+
+    os.remove(os.path.join(out_dir, main))
 
     return 0
         
