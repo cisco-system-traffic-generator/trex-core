@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import traceback
+import errno
 
 stl_pathname = os.path.abspath(os.path.join(os.pardir, os.pardir))
 if stl_pathname not in sys.path:
@@ -130,8 +131,14 @@ class Scapy_server():
         self.logger.info('Server IP address: %s' % self.IP_address)
         try:
             while True:
-                message = self.socket.recv_string()
-                self.logger.info('Received Message: %s' % message)
+                try:
+                    message = self.socket.recv_string()
+                    self.logger.info('Received Message: %s' % message)
+                except zmq.ZMQError as e:
+                    if e.errno != errno.EINTR:
+                        raise e
+                    continue
+
                 try:
                     params = []
                     method=''
@@ -187,5 +194,4 @@ if __name__=='__main__':
         args = parser.parse_args()
         port = args.scapy_port
         sys.exit(main(args,port))
-
 
