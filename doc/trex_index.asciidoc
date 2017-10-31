@@ -14,7 +14,7 @@ include::trex_ga.asciidoc[]
 DevNet webinar Webex 
 image:images/webinar.png[width=250,title=""]  
 
-* Wednesday, November 1, 2017 6:00 pm (Tel Aviv, GMT+02:00) Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e4871560716647f8e97f85a5dd5c2701a[REGISTER NOW]
+* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session *The new registration link will be published soon*
 
 Cisco Live! 2018, Barcelona
 image:images/cl1028.png[width=250,title=""]  
