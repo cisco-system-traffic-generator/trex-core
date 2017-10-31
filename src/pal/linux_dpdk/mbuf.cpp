@@ -69,5 +69,7 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
 
 
 
+/* make sure we didn't enlarge the MBUF */
+static_assert( (sizeof(struct rte_mbuf) == 128), "size of MBUF must be 128" );
 
 

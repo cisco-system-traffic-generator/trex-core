@@ -524,6 +524,7 @@ struct rte_mbuf {
 
 
 #ifdef TREX_PATCH
+
 /**
  * MBUF core locality type 
  *  
@@ -547,6 +548,7 @@ rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
 }
 
 #else
+
 static inline void
 rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
 }

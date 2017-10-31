@@ -260,6 +260,10 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
     assert(m->magic2== MAGIC2);
 }
 
+static inline void rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
+    
+}
+
 #define __rte_cache_aligned 
 
 
