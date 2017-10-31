@@ -459,19 +459,16 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			addr += pkt_inline_sz;
 		}
 		raw += MLX5_WQE_DWORD_SIZE;
-		if (txq->tso_en) {
-			tso = buf->ol_flags & PKT_TX_TCP_SEG;
+		tso = txq->tso_en && (buf->ol_flags & PKT_TX_TCP_SEG);
 		if (tso) {
-				uintptr_t end = (uintptr_t)
-						(((uintptr_t)txq->wqes) +
-						(1 << txq->wqe_n) *
-						MLX5_WQE_SIZE);
+			uintptr_t end =
+				(uintptr_t)(((uintptr_t)txq->wqes) +
+					    (1 << txq->wqe_n) * MLX5_WQE_SIZE);
 			unsigned int copy_b;
-				uint8_t vlan_sz = (buf->ol_flags &
-						  PKT_TX_VLAN_PKT) ? 4 : 0;
+			uint8_t vlan_sz =
+				(buf->ol_flags & PKT_TX_VLAN_PKT) ? 4 : 0;
 			const uint64_t is_tunneled =
-							buf->ol_flags &
-							(PKT_TX_TUNNEL_GRE |
+				buf->ol_flags & (PKT_TX_TUNNEL_GRE |
 						 PKT_TX_TUNNEL_VXLAN);
 
 			tso_header_sz = buf->l2_len + vlan_sz +
@@ -488,24 +485,20 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			} else {
 				cs_flags |= MLX5_ETH_WQE_L4_CSUM;
 			}
-				if (unlikely(tso_header_sz >
-					     MLX5_MAX_TSO_HEADER)) {
+			if (unlikely(tso_header_sz > MLX5_MAX_TSO_HEADER)) {
 				txq->stats.oerrors++;
 				break;
 			}
 			copy_b = tso_header_sz - pkt_inline_sz;
 			/* First seg must contain all headers. */
 			assert(copy_b <= length);
-				if (copy_b &&
-				   ((end - (uintptr_t)raw) > copy_b)) {
-					uint16_t n = (MLX5_WQE_DS(copy_b) -
-						      1 + 3) / 4;
+			if (copy_b && ((end - (uintptr_t)raw) > copy_b)) {
+				uint16_t n = (MLX5_WQE_DS(copy_b) - 1 + 3) / 4;
 
 				if (unlikely(max_wqe < n))
-					break;
+				break;
 				max_wqe -= n;
-					rte_memcpy((void *)raw,
-						   (void *)addr, copy_b);
+				rte_memcpy((void *)raw, (void *)addr, copy_b);
 				addr += copy_b;
 				length -= copy_b;
 				/* Include padding for TSO header. */
@@ -516,10 +509,8 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			} else {
 				/* NOP WQE. */
 				wqe->ctrl = (rte_v128u32_t){
-						     rte_cpu_to_be_32(
-							txq->wqe_ci << 8),
-						     rte_cpu_to_be_32(
-							txq->qp_num_8s | 1),
+					rte_cpu_to_be_32(txq->wqe_ci << 8),
+					rte_cpu_to_be_32(txq->qp_num_8s | 1),
 					0,
 					0,
 				};
@@ -529,7 +520,6 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 #endif
 				k++;
 				goto next_wqe;
-			}
 		}
 		}
 		/* Inline if enough room. */
