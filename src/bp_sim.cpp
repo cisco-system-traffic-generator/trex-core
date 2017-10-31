@@ -6121,3 +6121,7 @@ void CGenNodeBase::free_base(){
     }
 
 }
+
+/* make sure we didn't enlarge the MBUF */
+static_assert( (sizeof(struct rte_mbuf) == 128), "size of MBUF must be 128");
+
