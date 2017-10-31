@@ -984,6 +984,8 @@ enum {
        OPT_NTACC_SO,
        OPT_ASTF_SERVR_ONLY,
        OPT_ASTF_CLIENT_MASK,
+       OPT_NO_TERMIO,
+    
        /* no more pass this */
        OPT_MAX
 
@@ -1062,6 +1064,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
+        { OPT_NO_TERMIO,              "--no-termio", SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -1146,6 +1149,7 @@ static int usage(){
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
 
     printf("\n");
     printf(" Examples: ");
@@ -1477,6 +1481,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_ONLY_LATENCY :
                 po->preview.setOnlyLatency(true);
+                break;
+            case OPT_NO_TERMIO:
+                po->preview.set_termio_disabled(true);
                 break;
             case OPT_NO_WATCHDOG :
                 po->preview.setWDDisable(true);
@@ -2640,7 +2647,12 @@ void CCoreEthIF::DumpIfStats(FILE *fd){
     }
 }
 
+/**
+ * when measureing performance - drop in case of queue full
+ */
+#ifndef TREX_PERF
 #define DELAY_IF_NEEDED
+#endif
 
 int CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
@@ -5416,7 +5428,9 @@ void CGlobalTRex::shutdown() {
     if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
         /* we should stop latency and exit to stop agents */
         Delete();
-        utl_termio_reset();
+        if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+            utl_termio_reset();
+        }
         exit(-1);
     }
 }
@@ -6529,8 +6543,6 @@ int main_test(int argc , char * argv[]){
 
     learn_image_postfix(argv[0]);
 
-    utl_termio_init();
-
     int ret;
     unsigned lcore_id;
     printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
@@ -6541,6 +6553,11 @@ int main_test(int argc , char * argv[]){
         exit(-1);
     }
 
+    if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+        utl_termio_init();
+    }
+    
+    
     /* enable core dump if requested */
     if (CGlobalInfo::m_options.preview.getCoreDumpEnable()) {
         utl_set_coredump_size(-1);
@@ -6764,7 +6781,10 @@ int main_test(int argc , char * argv[]){
 
     g_trex.stop_master();
     g_trex.Delete();
-    utl_termio_reset();
+    
+    if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+        utl_termio_reset();
+    }
 
     return (0);
 }

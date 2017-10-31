@@ -379,6 +379,14 @@ public:
     }
 
 
+    void set_termio_disabled(bool enable) {
+        btSetMaskBit32(m_flags1, 18, 18, (enable ? 1 : 0) );
+    }
+
+    bool get_is_termio_disabled() {
+        return (btGetMaskBit32(m_flags1, 18, 18) ? true : false);
+    }
+    
 public:
     void Dump(FILE *fd);
 

@@ -701,6 +701,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
                ]
 
 common_flags_new = common_flags + [

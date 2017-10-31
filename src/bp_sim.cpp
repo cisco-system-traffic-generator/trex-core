@@ -3317,9 +3317,22 @@ inline bool CNodeGenerator::do_work(CGenNode * node,
 inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
                                      CFlowGenListPerThread * thread,
                                      dsec_t n_time){
-    thread->m_cpu_dp_u.commit1();
     dsec_t dt;
 
+    #ifdef TREX_PERF
+    dt = n_time - now_sec();
+    if (dt > 0) {
+        thread->m_cpu_dp_u.commit1();
+        delay_sec(dt);
+        thread->m_cpu_dp_u.start_work1();
+    }
+
+    cur_time = now_sec();
+    
+    #else
+
+    thread->m_cpu_dp_u.commit1();
+    
     /* TBD make this better using calculation, minimum now_sec() */
     while ( true ) {
         cur_time = now_sec();
@@ -3333,6 +3346,7 @@ inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
     }
 
     thread->m_cpu_dp_u.start_work1();
+    #endif
 }
 
 
