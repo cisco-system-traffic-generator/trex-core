@@ -2648,7 +2648,10 @@ void CCoreEthIF::DumpIfStats(FILE *fd){
 }
 
 /**
- * when measureing performance - drop in case of queue full
+ * when measureing performance with perf prefer drop in case of 
+ * queue full 
+ * this will allow us actually measure the max B/W possible 
+ * without the noise of retrying 
  */
 #ifndef TREX_PERF
 #define DELAY_IF_NEEDED
