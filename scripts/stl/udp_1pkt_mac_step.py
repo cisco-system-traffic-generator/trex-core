@@ -15,7 +15,7 @@ class STLS1(object):
         pad = max(0, size - len(base_pkt)) * 'x'
 
         vm = STLScVmRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=100, size=1,step=2, op="inc"), 
-                           STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 11)                                 # write it to LSB of SRC offset it 11
+                           STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 10)                                 # write it to LSB - 1 of SRC offset it 11
                           ]
                        )
 

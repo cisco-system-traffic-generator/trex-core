@@ -13,7 +13,7 @@ import platform
 
 
 # runs command
-def run_command(command, timeout = 15, poll_rate = 0.1, cwd = None):
+def run_command(command, timeout = 60, poll_rate = 0.1, cwd = None):
     # pipes might stuck, even with timeout
     with tempfile.TemporaryFile() as stdout_file:
         proc = Popen(shlex.split(command), stdout = stdout_file, stderr = STDOUT, cwd = cwd, close_fds = True, universal_newlines = True)
