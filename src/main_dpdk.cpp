@@ -116,8 +116,8 @@ extern "C" {
 #define RX_DESC_NUM_DATA_Q_VM 512
 #define TX_DESC_NUM 1024
 
-typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
-struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
+//typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
+//struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 void set_driver();
 void reorder_dpdk_ports();
 
@@ -8474,7 +8474,7 @@ void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
-
+#if 0  
 /**
  * convert chain of mbuf to one big mbuf
  *
@@ -8508,6 +8508,7 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
     rte_pktmbuf_free(old_m);
     return(r);
 }
+#endif
 
 /**
  * handle a signal for termination

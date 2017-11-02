@@ -164,6 +164,8 @@ public:
     void Dump(FILE *fd);
     void Free(){
         if (m_mbuf) {
+            rte_mbuf_set_as_core_multi(m_mbuf);
+            assert(rte_mbuf_refcnt_read(m_mbuf)==1);
             rte_pktmbuf_free(m_mbuf);
             m_mbuf=0;
         }
@@ -606,13 +608,15 @@ inline void CTcpSockBuf::get_by_offset(struct tcp_socket *so,uint32_t offset,
 int utl_mbuf_buffer_create_and_fill(uint8_t socket,
                                     CMbufBuffer * buf,
                                     uint32_t blk_size,
-                                    uint32_t size);
+                                    uint32_t size,
+                                    bool mbuf_const=false);
 
 int utl_mbuf_buffer_create_and_copy(uint8_t socket,
                                     CMbufBuffer * buf,
                                     uint32_t blk_size,
                                     uint8_t *p,
-                                    uint32_t size);
+                                    uint32_t size,
+                                    bool mbuf_const=false);
 
 
 #endif

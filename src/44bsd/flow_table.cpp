@@ -353,6 +353,10 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    /* it is local mbuf, no need to atomic ref count */
+    rte_mbuf_set_as_core_local(mbuf);
+
+
     flow_key_t key=tuple.get_as_uint64();
     uint32_t  hash=tuple.get_hash();
    #ifdef FLOW_TABLE_DEBUG

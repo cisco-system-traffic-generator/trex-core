@@ -47,6 +47,24 @@ struct rte_mempool {
     int size;
 };
 
+#ifdef TREX_MBUF_SIM_LOCAL
+  #define TREX_MBUF_SIM_LOCAL
+#else
+  #undef TREX_MBUF_SIM_LOCAL
+#endif
+
+
+#ifdef TREX_MBUF_SIM_LOCAL
+
+typedef enum {
+    RTE_MBUF_CORE_LOCALITY_MULTI = 0,
+    RTE_MBUF_CORE_LOCALITY_LOCAL = 1,
+    RTE_MBUF_CORE_LOCALITY_CONST = 2,
+} mbuf_type_e;
+
+#endif
+
+
 struct rte_mbuf {
     uint32_t magic;
     struct rte_mempool *pool; /**< Pool from which mbuf was allocated. */
@@ -70,7 +88,42 @@ struct rte_mbuf {
     uint16_t l3_len;
     uint16_t l4_len;
     uint16_t vlan_tci;
+    uint8_t  m_core_locality;
 } ;
+
+#ifdef TREX_MBUF_SIM_LOCAL
+
+static inline void 
+rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_LOCAL;
+}
+
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_CONST;
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
+}
+
+#else
+static inline void 
+rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
+    
+}
+
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+    
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+}
+
+#endif
 
 typedef struct rte_mempool rte_mempool_t;
 
@@ -178,6 +231,12 @@ rte_memcpy(void *dst, const void *src, size_t n)
 }
 
 
+static inline uint16_t
+rte_mbuf_refcnt_read(const struct rte_mbuf *m)
+{
+	return m->refcnt_reserved;
+}
+
 
 void rte_exit(int exit_code, const char *format, ...);
 
@@ -260,9 +319,7 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
     assert(m->magic2== MAGIC2);
 }
 
-static inline void rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
-    
-}
+
 
 #define __rte_cache_aligned 
 

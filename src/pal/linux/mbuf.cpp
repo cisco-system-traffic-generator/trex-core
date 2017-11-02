@@ -72,16 +72,35 @@ void utl_rte_mempool_delete(rte_mempool_t * & pool){
     }
 }
 
-
-uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
-{
+static inline uint16_t _rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value){
     utl_rte_pktmbuf_check(m);
     m->refcnt_reserved = (uint16_t)(m->refcnt_reserved + value);
     assert(m->refcnt_reserved >= 0);
-	return m->refcnt_reserved;
+    return m->refcnt_reserved;
 }
 
 
+#ifdef TREX_MBUF_SIM_LOCAL
+
+uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
+{
+    if (m->m_core_locality==RTE_MBUF_CORE_LOCALITY_CONST) {
+        assert(m->refcnt_reserved==1);
+        return(m->refcnt_reserved);
+    }else{
+        return(_rte_mbuf_refcnt_update(m,value));
+    }
+}
+
+#else
+
+
+uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
+{
+    return (_rte_mbuf_refcnt_update(m,value));
+}
+
+#endif
 
 
 void rte_pktmbuf_reset(struct rte_mbuf *m)
@@ -106,6 +125,7 @@ void rte_pktmbuf_reset(struct rte_mbuf *m)
     #endif
 
     m->data_len = 0;
+    m->m_core_locality=0;
 }
 
 

@@ -1117,6 +1117,7 @@ void CFlowPktInfo::alloc_const_mbuf(){
                 rte_mbuf_t        * m;
 
                 m = CGlobalInfo::pktmbuf_alloc(i,pkt_s);
+                rte_mbuf_set_as_core_const(m);
                 BP_ASSERT(m);
                 char *p=rte_pktmbuf_append(m, pkt_s);
                 rte_memcpy(p,(m_packet->raw+rw_mbuf_size),pkt_s);
@@ -1133,7 +1134,9 @@ void CFlowPktInfo::free_const_mbuf(){
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
         rte_mbuf_t   * m=m_big_mbuf[i];
         if (m) {
-            rte_pktmbuf_free(m );
+            rte_mbuf_set_as_core_multi(m);
+            assert(rte_mbuf_refcnt_read(m)==1);
+            rte_pktmbuf_free(m);
             m_big_mbuf[i]=NULL;
         }
     }

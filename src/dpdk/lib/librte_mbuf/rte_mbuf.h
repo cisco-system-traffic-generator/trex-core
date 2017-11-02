@@ -529,17 +529,22 @@ struct rte_mbuf {
  * MBUF core locality type 
  *  
  * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with 
- * the allocating core only 
+ * the allocating core only.
  *  
+ * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count 
+ * 
  * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be 
  * used with multiple cores 
  *  
  * having an MBUF set as core-local will allow us to skip 
  * atomic checks 
+ * 
+ * WARNING don't change the NUMBERS orders 0,1,2
  */
 typedef enum {
     RTE_MBUF_CORE_LOCALITY_MULTI = 0,
     RTE_MBUF_CORE_LOCALITY_LOCAL = 1,
+    RTE_MBUF_CORE_LOCALITY_CONST = 2,
 } mbuf_type_e;
 
 static inline void
@@ -547,11 +552,30 @@ rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
     m->m_core_locality = RTE_MBUF_CORE_LOCALITY_LOCAL;
 }
 
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_CONST;
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
+}
+
 #else
 
 static inline void
 rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
 }
+
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+}
+
 
 #endif
 
@@ -704,10 +728,10 @@ static inline uint16_t
 rte_mbuf_refcnt_read(const struct rte_mbuf *m)
 {
     #ifdef TREX_PATCH
-        if (likely(m->m_core_locality == RTE_MBUF_CORE_LOCALITY_LOCAL)) {
+        if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
             return m->refcnt;
         } else {
-            return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+           return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
         }
     #else
         return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
@@ -725,7 +749,7 @@ static inline void
 rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 {
     #ifdef TREX_PATCH
-        if (likely(m->m_core_locality == RTE_MBUF_CORE_LOCALITY_LOCAL)) {
+        if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
             m->refcnt = new_value;
         } else {
             rte_atomic16_set(&m->refcnt_atomic, new_value);
@@ -748,9 +772,8 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
-    // TREX_PATCH - The code in #if 0 caused tx queue to hang when running:
-    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundeling.yaml -m 35 -p -d 100
 #if 0
+    /* ORIGINAL DPDK code */
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
 	 * call it in the case where we know we are the uniq holder of
@@ -769,7 +792,12 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
             m->refcnt = (uint16_t)(m->refcnt + value);
             return m->refcnt;
         } else {
-            return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+            if ( m->m_core_locality == RTE_MBUF_CORE_LOCALITY_CONST ){
+                /* no ref count */
+                return m->refcnt;
+            }else{
+                return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+            }
         }
     #else
         return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));

@@ -492,7 +492,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
         json_buf = m_val["buf_list"][buf_index].asString();
         std::string temp_str = base64_decode(json_buf);
         buf_len = temp_str.size();
-        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len);
+        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len,true);
         m_tcp_data[socket_id].m_buf_list.push_back(tcp_buf);
     }
 
