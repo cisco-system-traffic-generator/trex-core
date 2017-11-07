@@ -59,8 +59,6 @@ TrexDpCoreAstfBatch::start_astf() {
             d_phase =  0.01 + m_core->m_thread_id * 0.01;
         }
     }
-    dsec_t c_stop_sec = d_phase + m_core->m_yaml_info.m_duration_sec;
-    m_core->m_stop_time_sec = c_stop_sec;
     m_core->m_cur_flow_id = 1;
     m_core->m_stats.clear();
 
@@ -78,6 +76,11 @@ TrexDpCoreAstfBatch::start_astf() {
        assert(b->sync_barrier(m_core->m_thread_id)==0);
     }
     dsec_t now= now_sec() ;
+
+    dsec_t c_stop_sec = now + d_phase + m_core->m_yaml_info.m_duration_sec;
+
+    m_core->m_stop_time_sec = c_stop_sec;
+
     m_core->m_cur_time_sec = now;
 
     CGenNode *node=0;
