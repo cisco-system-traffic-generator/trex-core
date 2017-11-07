@@ -366,13 +366,12 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
 
-        CTcpTuneables *s_tuneable = new CTcpTuneables();
+        CTcpTuneables *s_tuneable;
         CTcpTuneables *c_tuneable = new CTcpTuneables();
-        assert(s_tuneable);
         assert(c_tuneable);
-        read_tunables(s_tuneable, m_val["templates"][index]["server_template"]["glob_info"]);
         assert(CAstfDB::m_pInstance);
         s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
+        assert(s_tuneable);
 
         read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"]);
         temp_rw->set_tuneables(c_tuneable, s_tuneable);

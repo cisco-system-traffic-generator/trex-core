@@ -1,4 +1,5 @@
 import os
+from stl_basic_tests import compare_caps
 from trex_astf_lib.trex_astf_client import *   # noqa: ignore=F403
 from trex_astf_lib.trex_astf_exceptions import *   # noqa: ignore=F403
 from trex_astf_lib.cap_handling import *   # noqa: ignore=F403
@@ -8,7 +9,27 @@ from nose.plugins.attrib import attr
 
 
 @attr('run_on_trex')
-class CNstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
+class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
+    def setUp(self):
+        sys.path.append("../../astf")
+
+    def run_sim(self, prof, output, options=""):
+        args = ["-f", prof, "-o", output, "--full", "-p", "../..", "-v", "--pcap"]
+        sim_main(args=args)
+
+    def test_caps(self):
+        files = ["astf/tcp_param_change.py"]
+        for file in files:
+            base_name = file.split("/")[-1].split(".")[0]
+            output = base_name + ".generated"
+            golden = "functional_tests/golden/" + base_name + ".cap"
+            print ("checking {0}".format(file))
+            self.run_sim(file, output)
+            compare_caps(golden, output, 1)
+
+
+@attr('run_on_trex')
+class CAstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp(self):
         sys.path.append("../../astf")
 
@@ -71,7 +92,7 @@ def register():
 
 
 @attr('run_on_trex')
-class CNstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
+class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def reset(self):
         ASTFIPGenDist.class_reset()
         ASTFProgram.class_reset()

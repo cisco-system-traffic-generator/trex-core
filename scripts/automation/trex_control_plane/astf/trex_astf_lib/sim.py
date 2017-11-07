@@ -54,10 +54,13 @@ def execute_bp_sim(opts):
         valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
         exe = valgrind + exe
 
+    if opts.pcap:
+        exe += ["--pcap"]
+
     cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]+args
 
     if opts.full:
-        cmd = cmd + ['--full','-d',str(opts.duration)]
+        cmd = cmd + ['--full', '-d', str(opts.duration)]
 
     if opts.verbose:
         print ("executing {0}".format(' '.join(cmd)))
@@ -96,6 +99,11 @@ def setParserOptions():
                         default=None,
                         type=str)
 
+    parser.add_argument("--pcap",
+                        help="Create output in pcap format (if not specified, will be in erf)",
+                        action="store_true",
+                        default=False)
+
     parser.add_argument("-r", "--release",
                         help="runs on release image instead of debug [default is False]",
                         action="store_true",
@@ -117,7 +125,7 @@ def setParserOptions():
                         action="store_true",
                         help="run in full simulation mode (with many clients and servers)")
 
-    parser.add_argument('-d','--duration',
+    parser.add_argument('-d', '--duration',
                         type=float,
                         default=5.0,
                         help="duration in time for full mode")
