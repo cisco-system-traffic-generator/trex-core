@@ -32,35 +32,110 @@ limitations under the License.
 #include <mutex>
 #include <trex_defs.h>
 #include "44bsd/tcp_socket.h"
+#include "rpc-server/trex_rpc_cmd_api.h"
+
+
+class CTRexDummyCommand : public  TrexRpcCommand {
+
+public:
+    CTRexDummyCommand(): TrexRpcCommand ("dummy",
+                                         (TrexRpcComponent *)NULL,
+                                         false,
+                                         false){
+    }
+
+    virtual ~CTRexDummyCommand() {}
+
+protected:
+    virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) {
+        return (TREX_RPC_CMD_OK);
+    }
+};
+
 
 class CTcpTuneables {
  public:
     enum {
-        mss_bit = 0x1,
-        init_win_bit = 0x2
+        tcp_mss_bit      = 0x1,
+        tcp_initwnd_bit  = 0x2,
+        ipv6_src_addr    = 0x4,
+        ipv6_dst_addr    = 0x8,
+        ipv6_enable      = 0x10,
+
+        tcp_rx_buf_size  = 0x20,
+        tcp_tx_buf_size  = 0x40,
+
+        tcp_rexmtthresh  = 0x80,
+        tcp_do_rfc1323   = 0x100,
+        tcp_keepinit     = 0x200,
+        tcp_keepidle     = 0x400,
+
+        tcp_keepintvl   =  0x800,
+        tcp_delay_ack   =  0x1000
     };
+
 
  public:
     CTcpTuneables() {
         m_bitfield = 0;
+        m_flags=0;
+        m_tcp_mss=0;
+        m_tcp_initwnd=0;
+        m_tcp_txbufsize=0;
+        m_tcp_rxbufsize=0;
+
+        m_tcp_rexmtthresh=0;
+        m_tcp_do_rfc1323=0;
+        m_tcp_keepinit=0;;
+        m_tcp_keepidle=0;
+        m_tcp_keepintvl=0;
+        m_tcp_pad=0;
+        m_tcp_delay_ack_msec=0;
+
+        memset(m_ipv6_src,0,16);
+        memset(m_ipv6_dst,0,16);
     }
 
+
     bool is_empty() { return m_bitfield == 0;}
+
+    void set_ipv6_enable(uint32_t val){
+        if (val) {
+            add_value(ipv6_enable);
+        }
+    }
+
+    bool is_valid_field(uint32_t val){
+        return ( ((m_bitfield & val)==val)?true:false);
+    }
+
     void add_value(uint32_t val) {m_bitfield |= val;}
     uint32_t get_bitfield() {return m_bitfield;}
-    uint32_t get_mss() {return m_mss;}
-    bool mss_valid() {return m_bitfield & mss_bit;}
-    bool init_win_valid() {return m_bitfield & init_win_bit;}
-    uint16_t get_init_win() {return m_init_win;}
     void dump(FILE *fd);
 
  public:
-    uint32_t m_mss;
-    uint32_t m_window;
-    uint16_t m_init_win;
+    uint8_t  m_tcp_rexmtthresh; /* ACK retransmition */
+    uint8_t  m_tcp_do_rfc1323; /* 1/0 */
+    uint8_t  m_tcp_keepinit;
+    uint8_t  m_tcp_keepidle;
+
+    uint8_t  m_tcp_keepintvl;
+    uint8_t  m_tcp_pad;
+    uint16_t m_tcp_delay_ack_msec; /* 20-500msec */
+
+    uint16_t m_tcp_mss;
+    uint16_t m_tcp_initwnd; /* init window*/
+    uint32_t m_tcp_txbufsize;
+    uint32_t m_tcp_rxbufsize;
+
+
+    uint8_t  m_ipv6_src[16];
+    uint8_t  m_ipv6_dst[16];
 
  private:
     uint32_t m_bitfield;
+    uint32_t m_flags;
+
 };
 
 
@@ -245,7 +320,12 @@ class CTcpLatency {
     uint32_t m_dual_mask;
 };
 
-class CAstfDB {
+typedef enum {
+    CJsonData_ipv6_addr  = 1,
+} CJsonData_read_type_t ;
+
+class CAstfDB  : public CTRexDummyCommand  {
+
     struct json_handle {
         std::string str;
         int (*func)(Json::Value val);
@@ -255,7 +335,7 @@ class CAstfDB {
     // make the class singelton
     static CAstfDB *instance() {
         if (! m_pInstance) {
-            m_pInstance = new CAstfDB;
+            m_pInstance = new CAstfDB();
             m_pInstance->m_json_initiated = false;
         }
         return m_pInstance;
@@ -268,7 +348,7 @@ class CAstfDB {
         }
     }
 
-    ~CAstfDB(){
+    virtual ~CAstfDB(){
         clear();
     }
 
@@ -308,6 +388,66 @@ class CAstfDB {
     bool build_assoc_translation(uint8_t socket_id);
     void verify_init(uint16_t socket_id);
     uint32_t ip_from_str(const char*c_ip);
+
+private:
+    bool read_tunables_ipv6_field(CTcpTuneables *tune,
+                                  Json::Value json,
+                                  void *field,
+                                  uint32_t enum_val);
+
+    bool read_tunable_uint8(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint8_t & val);
+
+    bool read_tunable_uint16(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint16_t & val);
+
+    bool read_tunable_uint32(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint32_t & val);
+
+    bool read_tunable_uint64(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint64_t & val);
+
+
+
+    bool read_tunable_double(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                            double & val);
+
+    bool read_tunable_bool(CTcpTuneables *tune,
+                          const Json::Value &parent, 
+                          const std::string &param,
+                          uint32_t enum_val,
+                          double & val);    
+
+    void tunable_min_max_u32(std::string param,
+                             uint32_t val,
+                             uint32_t min,
+                             uint32_t max);
+
+    void tunable_min_max_u64(std::string param,
+                             uint64_t val,
+                             uint64_t min,
+                             uint64_t max);
+
+    void tunable_min_max_d(std::string param,
+                           double val,
+                           double min,
+                           double max);
+
 
  private:
     bool m_json_initiated;

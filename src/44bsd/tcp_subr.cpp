@@ -52,6 +52,7 @@
 #include <common/Network/Packet/IPv6Header.h>
 #include <astf/astf_template_db.h>
 #include <astf/astf_db.h>
+#include <cmath>
 
 //extern    struct inpcb *tcp_last_inpcb;
 
@@ -149,7 +150,7 @@ int tcp_connect(CTcpPerThreadCtx * ctx,
 
     INC_STAT(ctx,tcps_connattempt);
     tp->t_state = TCPS_SYN_SENT;
-    tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
+    tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
     tp->iss = ctx->tcp_iss; 
     ctx->tcp_iss += TCP_ISSINCR/4;
     tcp_sendseqinit(tp);
@@ -232,7 +233,23 @@ struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
 }
 
 
+void CTcpFlow::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
 
+    tcpcb  * tp=&m_tcp;
+    assert(tp->is_ipv6==1);
+    uint8_t * p=tp->template_pkt;
+    IPv6Header *ipv6=(IPv6Header *)(p+tp->offset_ip);
+
+    ipv6->setSourceIpv6Raw((uint8_t*)&net_ipv6->myDestination[0]);
+    ipv6->setDestIpv6Raw((uint8_t*)&net_ipv6->mySource[0]);
+
+    /* recalculate */
+    if (tp->m_offload_flags & TCP_OFFLOAD_TX_CHKSUM){
+        tp->l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+    }else{
+        tp->l4_pseudo_checksum=0;
+    }
+}
 
 
 
@@ -248,7 +265,7 @@ void CTcpFlow::init(){
         m_tcp.m_max_tso=m_tcp.t_maxseg;
     }
 
-    tcp_template(&m_tcp);
+    tcp_template(&m_tcp,m_ctx);
 
     /* default keepalive */
     m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
@@ -305,17 +322,20 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
     m_tcp.m_tuneable_flags = 0;
 
     CTcpTuneables *tune = rw_db->get_c_tune();
-    if (! tune)
+    if (!tune)
         return;
 
     if (tune->is_empty())
         return;
+    /* TCP object is part of a bigger object */
+    m_tcp.m_tuneable_flags |= TUNE_HAS_PARENT_FLOW;
 
-    if (tune->mss_valid()) {
+    if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit) ) {
         m_tcp.m_tuneable_flags |= TUNE_MSS;
-        m_tcp.t_maxseg = tune->get_mss();
+        m_tcp.t_maxseg = tune->m_tcp_mss;
     }
-    if (tune->init_win_valid()) {
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit) ) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
     }
 }
@@ -329,15 +349,15 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     if (tune->is_empty())
         return;
 
-    if (tune->mss_valid()) {
+    /* TCP object is part of a bigger object */
+    m_tcp.m_tuneable_flags |= TUNE_HAS_PARENT_FLOW;
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
         m_tcp.m_tuneable_flags |= TUNE_MSS;
-        m_tcp.t_maxseg = tune->get_mss();
-#ifdef REMOVE_LATER
-        printf("setting server maxseg to %d\n", m_tcp.t_maxseg);
-#endif
+        m_tcp.t_maxseg = tune->m_tcp_mss;
     }
 
-    if (tune->init_win_valid()) {
+    if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
     }
 }
@@ -426,6 +446,17 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
     }
 }
 
+#ifndef TREX_SIM
+static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
+    double factor = round((double)TCP_TIMER_TICK_SLOW_MS/(double)tcp_delay_ack_msec);
+    uint16_t res=(uint16_t)factor;
+    if (res<1) {
+        res=1;
+    }
+    return(res);
+}
+#endif
+
 void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     if (tune == NULL)
         return;
@@ -433,10 +464,50 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     if (tune->is_empty())
         return;
 
-    if (tune->mss_valid()) {
-        tcp_mssdflt = tune->get_mss();
-        tcp_initwnd = tcp_initwnd_factor * tcp_mssdflt;
+    if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
+        tcp_mssdflt = tune->m_tcp_mss;
+        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);   
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
+        tcp_initwnd_factor = tune->m_tcp_initwnd;
+        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor); 
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
+        tcp_rx_socket_bsize = tune->m_tcp_rxbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
+        tcp_tx_socket_bsize = tune->m_tcp_txbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rexmtthresh)) {
+        tcprexmtthresh = (int)tune->m_tcp_rexmtthresh;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_rfc1323)) {
+        tcp_do_rfc1323 = (int)tune->m_tcp_do_rfc1323;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_keepinit)) {
+        tcp_keepinit = (int)tune->m_tcp_keepinit;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_keepidle)) {
+        tcp_keepidle = (int)tune->m_tcp_keepidle;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_keepintvl)) {
+        tcp_keepintvl = (int)tune->m_tcp_keepintvl;
+    }
+
+    #ifndef TREX_SIM
+    if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
+        tcp_fast_tick_msec =  tune->m_tcp_delay_ack_msec;
+        tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_tick_msec);
+    }
+    #endif
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -444,13 +515,13 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 
     tcp_tx_socket_bsize=32*1024;
     tcp_rx_socket_bsize=32*1024 ;
-    sb_max = SB_MAX;        /* patchable */
+    sb_max = SB_MAX;        /* patchable, not used  */
     m_mbuf_socket=0;
     m_offload_flags=0;
     tcprexmtthresh = 3 ;
     tcp_mssdflt = TCP_MSS;
     tcp_initwnd_factor=TCP_INITWND_FACTOR;
-    tcp_initwnd = tcp_initwnd_factor * tcp_mssdflt;
+    tcp_initwnd = _update_initwnd(TCP_MSS,TCP_INITWND_FACTOR); 
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_do_rfc1323 = 1;
@@ -459,6 +530,8 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_keepintvl = TCPTV_KEEPINTVL;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
+    tcp_fast_tick_msec =  TCP_FAST_TICK_;
+    tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_maxidle=0;
     tcp_ttl=0;
     m_disable_new_flow=0;
@@ -499,13 +572,48 @@ void CTcpPerThreadCtx::Delete(){
     m_ft.Delete();
 }
 
+static void tcp_template_ipv6_update(IPv6Header *ipv6,
+                              CTcpPerThreadCtx * ctx){
+    if (!ctx->is_client_side()){
+        /* in case of server side learn from the network */
+        return;
+    }
+
+    if (!ctx->get_template_rw()){
+        return;
+    }
+
+    CTcpTuneables * ctx_tune=ctx->get_template_rw()->get_c_tuneables();
+
+    if (!ctx_tune){
+        return;
+    }
+
+    if (ctx_tune->is_empty()) {
+        return;
+    }
+
+    if ( ctx_tune->is_valid_field(CTcpTuneables::ipv6_src_addr) ){
+        ipv6->setSourceIpv6Raw(ctx_tune->m_ipv6_src);
+    }
+
+    if ( ctx_tune->is_valid_field(CTcpTuneables::ipv6_dst_addr) ){
+        ipv6->setDestIpv6Raw(ctx_tune->m_ipv6_dst);
+    }
+}
+
+
+
+
+
 /*
  * Create template to be used to send tcp packets on a connection.
  * Call after host entry created, allocates an mbuf and fills
  * in a skeletal tcp/ip header, minimizing the amount of work
  * necessary when the connection is used.
  */
-void tcp_template(struct tcpcb *tp){
+void tcp_template(struct tcpcb *tp,
+                  CTcpPerThreadCtx * ctx){
     /* TCPIPV6*/
 
     const uint8_t default_ipv4_header[] = {
@@ -617,6 +725,7 @@ void tcp_template(struct tcpcb *tp){
         }
         /* set default value */
         IPv6Header *ipv6=(IPv6Header *)(p+tp->offset_ip);
+        tcp_template_ipv6_update(ipv6,ctx);
         ipv6->updateLSBIpv6Dst(tp->dst_ipv4);
         ipv6->updateLSBIpv6Src(tp->src_ipv4);
         ipv6->setPayloadLen(0);  /* important for PH calculation */

@@ -432,8 +432,6 @@ int CClientServerTcp::test2(){
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
     s_tune = new CTcpTuneables();
-    s_tune->m_window = DEFAULT_WIN;
-    s_tune->m_mss = DEFAULT_MSS;
 
     utl_mbuf_buffer_create_and_fill(0,buf,2048,tx_num_bytes);
 
@@ -676,12 +674,6 @@ int CClientServerTcp::simple_http(){
     prog_s = new CTcpAppProgram();
     s_tune = new CTcpTuneables();
 
-    s_tune->m_window = DEFAULT_WIN;
-    if (m_mss) {
-        s_tune->m_mss = m_mss;
-    } else {
-        s_tune->m_mss = DEFAULT_MSS;
-    }
 
     uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
 

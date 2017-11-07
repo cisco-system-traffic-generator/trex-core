@@ -36,8 +36,6 @@ static double cps_factor(double cps){
 }
 
 void CTcpTuneables::dump(FILE *fd) {
-    if (mss_valid())
-        fprintf(fd, "mss: %d\n", m_mss);
 }
 
 CTcpServreInfo *CTcpDataAssocTranslation::get_server_info(const CTcpDataAssocParams &params) {
@@ -263,21 +261,258 @@ uint32_t CAstfDB::ip_from_str(const char *c_ip) {
     return ntohl(ip_num);
 }
 
+bool CAstfDB::read_tunable_uint8(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint8_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_BYTE, result);
+    val = (uint8_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+/* raise an Exception in case of an error */
+bool CAstfDB::read_tunable_uint16(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint16_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT16, result);
+    val = (uint16_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_uint32(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint32_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT32, result);
+    val = (uint32_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_uint64(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint64_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT64, result);
+    val = (uint64_t)parent[param].asUInt64();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_double(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  double & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_DOUBLE, result);
+    val = parent[param].asDouble();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_bool(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  double & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_BOOL, result);
+    val = parent[param].asBool();
+    tune->add_value(enum_val);
+    return true;
+}
+
+
+void CAstfDB::tunable_min_max_u32(std::string param,
+                                  uint32_t val,
+                                  uint32_t min,
+                                  uint32_t max){
+    Json::Value result;
+
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+void CAstfDB::tunable_min_max_u64(std::string param,
+                                  uint64_t val,
+                                  uint64_t min,
+                                  uint64_t max){
+    Json::Value result;
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+void CAstfDB::tunable_min_max_d(std::string param,
+                                double val,
+                                double min,
+                                double max){
+    Json::Value result;
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+
+
+bool CAstfDB::read_tunables_ipv6_field(CTcpTuneables *tune,
+                                      Json::Value json,
+                                      void *field,
+                                      uint32_t enum_val){
+    if ( json == Json::nullValue) {
+        return false;
+    }
+    Json::Value result;
+    if ((json.type() != Json::arrayValue) || (json.size() !=16) ){
+        generate_parse_err(result, "ipv6 addr should have Json::arrayValue type with size of 16");
+    }else{
+        int i;
+        uint8_t *p=(uint8_t *)field;
+        for (i=0; i<16; i++) {
+            p[i]=(uint8_t)(json[i].asUInt());
+        }
+        tune->add_value(enum_val);
+    }
+    return(true);
+}
+
+
+
 bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
+    /* TBD for now the exception is handeled only here 
+       in interactive mode should be in higher level. 
+       CAstfDB  does not handle errors 
+    */
+
     if (tune_json == Json::nullValue) {
         return true;
     }
+    try {
 
-    if (tune_json["tcp"] == Json::nullValue) {
-        return true;
-    }
+        if (tune_json["tcp"] != Json::nullValue) {
+            Json::Value json = tune_json["tcp"];
+            if (read_tunable_uint16(tune,json,"mss",CTcpTuneables::tcp_mss_bit,tune->m_tcp_mss)){
+                tunable_min_max_u32("mss",tune->m_tcp_mss,10,9*1024);
+            }
+            if (read_tunable_uint16(tune,json,"initwnd",CTcpTuneables::tcp_initwnd_bit,tune->m_tcp_initwnd)){
+                tunable_min_max_u32("initwnd",tune->m_tcp_initwnd,1,20);
+            }
 
-    Json::Value json = tune_json["tcp"];
-    if (json["mss"] != Json::nullValue) {
-        tune->m_mss = json["mss"].asInt();
-        tune->add_value(CTcpTuneables::mss_bit);
-    }
+            if (read_tunable_uint32(tune,json,"rxbufsize",CTcpTuneables::tcp_rx_buf_size,tune->m_tcp_rxbufsize)){
+                tunable_min_max_u32("rxbufsize",tune->m_tcp_rxbufsize,1*1024,1024*1024*1024);
+            }
 
+            if (read_tunable_uint32(tune,json,"txbufsize",CTcpTuneables::tcp_tx_buf_size,tune->m_tcp_txbufsize)){
+                tunable_min_max_u32("txbufsize",tune->m_tcp_txbufsize,1*1024,1024*1024*1024);
+            }
+
+            if (read_tunable_uint8(tune,json,"rexmtthresh",CTcpTuneables::tcp_rexmtthresh,tune->m_tcp_rexmtthresh)){
+                tunable_min_max_u32("rexmtthresh",tune->m_tcp_rexmtthresh,1,10);
+            }
+
+            if (read_tunable_uint8(tune,json,"do_rfc1323",CTcpTuneables::tcp_do_rfc1323,tune->m_tcp_do_rfc1323)){
+                tunable_min_max_u32("do_rfc1323",tune->m_tcp_do_rfc1323,0,1);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
+                tunable_min_max_u32("keepinit",tune->m_tcp_keepinit,2,253);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepidle",CTcpTuneables::tcp_keepidle,tune->m_tcp_keepidle)){
+                tunable_min_max_u32("keepidle",tune->m_tcp_keepidle,2,253);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepintvl",CTcpTuneables::tcp_keepintvl,tune->m_tcp_keepintvl)){
+                tunable_min_max_u32("keepintvl",tune->m_tcp_keepintvl,2,253);
+            }
+
+            if (read_tunable_uint16(tune,json,"delay_ack_msec",CTcpTuneables::tcp_delay_ack,tune->m_tcp_delay_ack_msec)){
+                tunable_min_max_u32("delay_ack_msec",tune->m_tcp_delay_ack_msec,20,500);
+            }
+
+        }
+
+        if (tune_json["ipv6"] != Json::nullValue) {
+            Json::Value json = tune_json["ipv6"];
+
+            if (json["enable"] != Json::nullValue) {
+                tune->set_ipv6_enable(json["enable"].asInt());
+            }
+
+            Json::Value src_l=json["src_msb"];
+
+            read_tunables_ipv6_field(tune,
+                                     src_l,
+                                     (void *)tune->m_ipv6_src,
+                                     CTcpTuneables::ipv6_src_addr);
+
+            Json::Value dst_l=json["dst_msb"];
+
+            read_tunables_ipv6_field(tune,
+                                     dst_l,
+                                     (void *)tune->m_ipv6_dst,
+                                     CTcpTuneables::ipv6_dst_addr);
+
+        }
+
+    } catch (TrexRpcCommandException &e) {
+        printf(" ERROR !!! '%s' \n",e.what());
+        /* TBD need to refactor the code .., should not have exit in this code  */
+        exit(1);
+    } 
+    
     return true;
 }
 

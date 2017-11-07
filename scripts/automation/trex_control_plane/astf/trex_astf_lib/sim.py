@@ -35,6 +35,19 @@ def unsigned_int(x):
     return x
 
 
+def get_valgrind():
+    valgrind_loc = os.environ.get('VALGRIND_LOC')
+    if not valgrind_loc:
+        return("valgrind");
+
+    os.environ['VALGRIND_LIB']=valgrind_loc+"/lib/valgrind"
+    valgrind_exe=valgrind_loc+"/bin/valgrind";
+    os.environ['VALGRIND_EXE']=valgrind_exe
+    return(valgrind_exe);
+
+
+
+
 def execute_bp_sim(opts):
     if opts.release:
         exe = os.path.join(opts.bp_sim_path, 'bp-sim-64')
@@ -51,7 +64,8 @@ def execute_bp_sim(opts):
 
     exe = [exe]
     if opts.valgrind:
-        valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
+        valgrind_str = get_valgrind() +' --leak-check=full --error-exitcode=1 --show-reachable=yes '
+        valgrind = valgrind_str.split();
         exe = valgrind + exe
 
     if opts.pcap:

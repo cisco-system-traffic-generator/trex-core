@@ -10,7 +10,6 @@ class Prof1():
         DEFAULT_MSS_S = 600
         OVERRIDE_MSS_C = 700
         OVERRIDE_MSS_S = 800
-        DEFAULT_WIN = 32000
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
@@ -25,7 +24,6 @@ class Prof1():
         s_glob2 = ASTFGlobalInfoPerTemplate()
         c_glob_info.tcp.mss = DEFAULT_MSS_C
         s_glob_info.tcp.mss = DEFAULT_MSS_S
-        c_glob_info.tcp.window = DEFAULT_WIN
         c_glob2.tcp.mss = OVERRIDE_MSS_C
         s_glob2.tcp.mss = OVERRIDE_MSS_S
 

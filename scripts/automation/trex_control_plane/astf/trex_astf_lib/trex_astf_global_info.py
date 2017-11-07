@@ -1,3 +1,6 @@
+import socket          
+
+
 class ASTFGlobalInfoBase(object):
     _g_params = {}
 
@@ -7,11 +10,25 @@ class ASTFGlobalInfoBase(object):
             self._params = params
             self._name = name
 
+
         def __setattr__(self, name, val):
             if name.startswith("_"):
                 return super(ASTFGlobalInfoBase.inner, self).__setattr__(name, val)
             for p in self._params:
                 if name == p["name"]:
+                    if "sub_type" in p:
+                        if p["sub_type"]=="ipv6_addr":
+                            if (type(val)!=str):
+                                raise AttributeError("{0} in {1} should have one of the following types: {2}"
+                                                     .format(name, self._name, str))
+                            b=socket.inet_pton(socket.AF_INET6, val)
+                            l = list(b);
+                            # in case of Python 2
+                            if not(type(l[0]) is int):
+                                l=[ord(i) for i in l]
+                            self._fields[name] = l;
+                            return;
+
                     if "type" in p and type(val) not in p["type"]:
                         raise AttributeError("{0} in {1} should have one of the following types: {2}"
                                              .format(name, self._name, p["type"]))
@@ -75,9 +92,23 @@ class ASTFGlobalInfoBase(object):
 
 class ASTFGlobalInfo(ASTFGlobalInfoBase):
     _g_params = {
+        "ipv6": [
+            {"name": "src_msb", "sub_type" : "ipv6_addr" },
+            {"name": "dst_msb", "sub_type" : "ipv6_addr" },
+            {"name": "enable", "type": [int]}
+        ],
+
         "tcp": [
-                {"name": "window", "type": [int]},
-                {"name": "mss", "type": [int]}
+                {"name": "mss", "type": [int]},
+                {"name": "initwnd", "type": [int]},
+                {"name": "rxbufsize", "type": [int]},
+                {"name": "txbufsize", "type": [int]},
+                {"name": "rexmtthresh", "type": [int]},
+                {"name": "do_rfc1323", "type": [int]},
+                {"name": "keepinit", "type": [int]},
+                {"name": "keepidle", "type": [int]},
+                {"name": "keepintvl", "type": [int]},
+                {"name": "delay_ack_msec", "type": [int]}
             ],
         "ip": [
             {"name": "tos", "type": [int]},

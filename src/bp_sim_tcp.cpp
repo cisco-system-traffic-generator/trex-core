@@ -217,7 +217,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 #endif
     }
 
-    bool is_ipv6 = CGlobalInfo::is_ipv6_enable();
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable);
 
     /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,

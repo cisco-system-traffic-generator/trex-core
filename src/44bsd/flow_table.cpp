@@ -464,6 +464,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                                    is_ipv6);
 
 
+
     if (lptflow == 0 ) {
         rte_pktmbuf_free(mbuf);
         return(false);
@@ -471,6 +472,11 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
 
     lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
     lptflow->server_update_mac_from_packet(pkt);
+    if (is_ipv6) {
+        /* learn the ipv6 headers */
+        lptflow->learn_ipv6_headers_from_network(parser.m_ipv6);
+    }
+
     lptflow->m_c_template_idx = server_info->get_temp_idx();
 
     /* add to flow-table */

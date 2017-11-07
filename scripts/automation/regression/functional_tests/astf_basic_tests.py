@@ -13,19 +13,42 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp(self):
         sys.path.append("../../astf")
 
-    def run_sim(self, prof, output, options=""):
+    def run_sim(self, prof, output, options=None):
         args = ["-f", prof, "-o", output, "--full", "-p", "../..", "-v", "--pcap"]
+        if options:
+            args+=options
         sim_main(args=args)
 
-    def test_caps(self):
-        files = ["astf/tcp_param_change.py"]
+
+    def run_astf_gold(self,valgrind):
+        files = [
+                 "astf/tcp_param_change.py",
+                 "astf/param_ipv6.py",
+                 "astf/param_tcp_rxbufsize.py",
+                 "astf/param_tcp_no_timestamp.py",
+                 "astf/param_tcp_keepalive.py",
+                 "astf/param_tcp_delay_ack.py",
+                 "astf/param_tcp_rxbufsize_8k.py",
+                 "astf/param_mss_initwnd.py",
+        ]
+
         for file in files:
             base_name = file.split("/")[-1].split(".")[0]
-            output = base_name + ".generated"
+            output = "../../generated/"+base_name + ".generated.pcap"
             golden = "functional_tests/golden/" + base_name + ".cap"
             print ("checking {0}".format(file))
-            self.run_sim(file, output)
+            options=None;
+            if valgrind:
+                options=["--valgrind"]
+            self.run_sim(file, output,options)
             compare_caps(golden, output, 1)
+
+
+    def test_astf_caps(self):
+        self.run_astf_gold(False)
+
+    def astf_valgrind_caps(self):
+        self.run_astf_gold(True)
 
 
 @attr('run_on_trex')

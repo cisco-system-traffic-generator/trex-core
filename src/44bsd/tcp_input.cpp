@@ -752,7 +752,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
         tcp_rcvseqinit(tp);
         tp->t_flags |= TF_ACKNOW;
         tp->t_state = TCPS_SYN_RECEIVED;
-        tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
+        tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
         INC_STAT(ctx,tcps_accepts);
         goto trimthenstep6;
         }
@@ -1575,6 +1575,36 @@ void tcp_xmit_timer(CTcpPerThreadCtx * ctx,
     tp->t_softerror = 0;
 }
 
+
+CTcpTuneables * tcp_get_parent_tunable(CTcpPerThreadCtx * ctx,
+                                      struct tcpcb *tp){
+
+        if (!(TUNE_HAS_PARENT_FLOW & tp->m_tuneable_flags)) {
+            /* not part of a bigger CFlow*/
+            return((CTcpTuneables *)NULL);
+        }
+
+        CTcpFlow temp_tcp_flow;
+        uint16_t offset =  (char *)&temp_tcp_flow.m_tcp - (char *)&temp_tcp_flow;
+        CTcpFlow *tcp_flow = (CTcpFlow *)((char *)tp - offset);
+        uint16_t temp_id = tcp_flow->m_c_template_idx;
+        CTcpTuneables *tcp_tune = NULL;
+        CAstfPerTemplateRW *temp_rw = NULL;
+        CAstfTemplatesRW *ctx_temp_rw = ctx->get_template_rw();
+        if (ctx_temp_rw)
+            temp_rw = ctx_temp_rw->get_template_by_id(temp_id);
+
+        if (temp_rw) {
+            if (ctx->m_ft.is_client_side())
+                tcp_tune = temp_rw->get_c_tune();
+            else
+                tcp_tune = temp_rw->get_s_tune();
+        }
+        return(tcp_tune);
+
+}
+
+
 /*
  * Determine a reasonable value for maxseg size.
  * If the route is known, check route for mtu.
@@ -1594,43 +1624,33 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    if (! (TUNE_MSS & tp->m_tuneable_flags)) {
+    if (! ((TUNE_INIT_WIN|TUNE_MSS|TUNE_HAS_PARENT_FLOW) & tp->m_tuneable_flags)) {
         tp->snd_cwnd = ctx->tcp_initwnd;
         return ctx->tcp_mssdflt;
     } else {
-        uint16_t init_win;
-        uint32_t mss;
-        // find the flow associated with the tcpcb object. We know tcpcb is part of CTcpFlow because
-        // of TUNE_MSS flag
-        CTcpFlow temp_tcp_flow;
-        uint16_t offset =  (char *)&temp_tcp_flow.m_tcp - (char *)&temp_tcp_flow;
-        CTcpFlow *tcp_flow = (CTcpFlow *)((char *)tp - offset);
-        uint16_t temp_id = tcp_flow->m_c_template_idx;
-        CTcpTuneables *tcp_tune = NULL;
-        CAstfPerTemplateRW *temp_rw = NULL;
-        CAstfTemplatesRW *ctx_temp_rw = ctx->get_template_rw();
-        if (ctx_temp_rw)
-            temp_rw = ctx_temp_rw->get_template_by_id(temp_id);
 
-        if (temp_rw) {
-            if (ctx->m_ft.is_client_side())
-                tcp_tune = temp_rw->get_c_tune();
-            else
-                tcp_tune = temp_rw->get_s_tune();
-        }
-        if (tcp_tune) {
-            mss = tcp_tune->get_mss();
-            if (TUNE_INIT_WIN & tp->m_tuneable_flags) {
-                init_win = tcp_tune->get_init_win();
-            } else {
-                init_win = 10;
-            }
-            tp->snd_cwnd = mss * init_win;
-        } else{
+        uint16_t init_win_factor;
+        uint16_t mss;
+
+        CTcpTuneables *tune = tcp_get_parent_tunable(ctx,tp);
+        if (!tune) {
             tp->snd_cwnd = ctx->tcp_initwnd;
+            return ctx->tcp_mssdflt;
+        }
+
+        if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)){
+            mss = tune->m_tcp_mss;
+        }else{
             mss = ctx->tcp_mssdflt;
         }
 
+        if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)){
+            init_win_factor = tune->m_tcp_initwnd;
+        }else{
+            init_win_factor = ctx->tcp_initwnd_factor;
+        }
+
+        tp->snd_cwnd = _update_initwnd(mss,init_win_factor);
         return mss;
     }
 }

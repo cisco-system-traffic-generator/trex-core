@@ -321,19 +321,19 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
 void 
 TrexRpcCommand::generate_parse_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
-    throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR));
+    throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,msg));
 }
 
 void 
 TrexRpcCommand::generate_internal_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
-    throw (TrexRpcCommandException(TREX_RPC_CMD_INTERNAL_ERR));
+    throw (TrexRpcCommandException(TREX_RPC_CMD_INTERNAL_ERR,msg));
 }
 
 void 
 TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
-    throw (TrexRpcCommandException(TREX_RPC_CMD_EXECUTE_ERR));
+    throw (TrexRpcCommandException(TREX_RPC_CMD_EXECUTE_ERR,msg));
 }
 
 /**
