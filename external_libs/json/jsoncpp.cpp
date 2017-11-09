@@ -1090,6 +1090,8 @@ OurFeatures::OurFeatures()
     , allowDroppedNullPlaceholders_(false), allowNumericKeys_(false)
     , allowSingleQuotes_(false)
     , failIfExtra_(false)
+    , rejectDupKeys_(false)
+    , stackLimit_(1000)
 {
 }
 

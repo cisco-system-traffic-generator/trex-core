@@ -5,14 +5,19 @@ namespace YAML
 	// constructors
 	RegEx::RegEx(): m_op(REGEX_EMPTY)
 	{
+        m_a = 0;
+        m_z = 0;
 	}
 	
 	RegEx::RegEx(REGEX_OP op): m_op(op)
 	{
+        m_a = 0;
+        m_z = 0;
 	}
 	
 	RegEx::RegEx(char ch): m_op(REGEX_MATCH), m_a(ch)
 	{
+        m_z = 0;
 	}
 	
 	RegEx::RegEx(char a, char z): m_op(REGEX_RANGE), m_a(a), m_z(z)
