@@ -196,7 +196,12 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_rtt_sec =0.05; /* 50msec */
     m_drop_ratio =0.0;
 
-    m_out_dir =out_dir + "/";
+    if (!out_dir.empty()) {
+        m_out_dir = out_dir + "/";
+    } else {
+        m_out_dir = "";
+    }
+    
     m_pcap_file = pcap_file;
     m_reorder_rnd  = new KxuLCRand();
 
