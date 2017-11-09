@@ -3095,14 +3095,16 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
         } else {
             /* count before handle - node might be destroyed */
             #ifdef TREX_SIM
+            uint8_t port_id = node_sl->get_port_id();
             update_stl_stats(node_sl);
             #endif
 
+            /**** WARNING - after this call the node_sl might be destroyed *****/
             node_sl->handle(thread);
 
             #ifdef TREX_SIM
             if (has_limit_reached()) {
-                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(node_sl->get_port_id(), false, 0);
+                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, false, 0);
             }
             #endif
         }
@@ -5823,8 +5825,9 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
     m_new_pkt_size=0;
     bool need_to_stop=false;
     int cnt=0;
-    CMiniVMCmdBase * cmd=cmds[cnt];
+    
     while (! need_to_stop) {
+        CMiniVMCmdBase * cmd = cmds[cnt];
         switch (cmd->m_cmd) {
         case VM_REPLACE_IP_OFFSET:
             mini_vm_replace_ip((CMiniVMReplaceIP *)cmd);
@@ -5856,7 +5859,6 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
             assert(0);
         }
         cnt++;
-        cmd=cmds[cnt];
     }
     return (0);
 }

@@ -1178,6 +1178,7 @@ TEST_F(timerwl, tw2) {
     for (i=0; i<100; i++) {
         CTestFlow * f=af[i];
         my_tw.stop_timer(&f->m_timer_handle);
+        delete f;
     }
     EXPECT_EQ(my_tw.m_st_alloc-my_tw.m_st_free,100);
 
