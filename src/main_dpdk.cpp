@@ -60,7 +60,7 @@
 #include "common/arg/SimpleOpt.h"
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
-
+#include "trex_build_info.h"
 
 
 extern "C" {
@@ -224,6 +224,7 @@ public:
         default:
             fprintf(stderr, "Internal error: Wrong rx_mem_pool");
             assert(0);
+            return nullptr;
         }
     }
 
@@ -1185,6 +1186,9 @@ static int usage(){
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
     printf(" Git SHA : %s    \n",VERSION_GIT_SHA);
+    
+    TrexBuildInfo::show();
+    
     return (0);
 }
 
@@ -6548,6 +6552,13 @@ int main_test(int argc , char * argv[]){
 
     int ret;
     unsigned lcore_id;
+    
+    if (TrexBuildInfo::is_sanitized()) {
+         printf("\n*******************************************************\n");
+         printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
+         printf("\n*******************************************************\n");
+     }
+    
     printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
     CGlobalInfo::m_options.preview.clean();

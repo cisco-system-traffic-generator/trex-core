@@ -8,16 +8,19 @@
 VERSION='0.0.1'
 APPNAME='cxx_test'
 
-import os;
-import shutil;
-import copy;
+import os
+import shutil
+import copy
+
 from distutils.version import StrictVersion
+from waflib import Logs
 
 top = '../'
 out = 'build'
 b_path ="./build/linux/"
 
 REQUIRED_CC_VERSION = "4.7.0"
+SANITIZE_CC_VERSION = "4.9.0"
 
 class SrcGroup:
     ' group of source by directory '
@@ -66,20 +69,22 @@ class SrcGroups:
     def __repr__ (self):
           return (self.file_list(''));
 
+          
 
 def options(opt):
     opt.load('compiler_cxx')
+    
+    co = opt.option_groups['configure options']
+    co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
+                   help='for GCC {0}+ use address sanitizer to catch memory errors'.format(SANITIZE_CC_VERSION))
+
+
+def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
+    ver = StrictVersion('.'.join(env['CC_VERSION']))
+
+    return (ver >= min_ver, ver, min_ver)
 
     
-def verify_cc_version (env):
-    ver = '.'.join(env['CC_VERSION'])
-
-    if StrictVersion(ver) < REQUIRED_CC_VERSION:
-        print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION))
-        print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
-        exit(-1)
-
-
 def configure(conf):
     # start from clean
     if 'RPATH' in os.environ:
@@ -88,8 +93,43 @@ def configure(conf):
         conf.env.RPATH = []
 
     conf.load('g++')
-    verify_cc_version(conf.env)
+    
+    # first verify CC version
+    rc = verify_cc_version(conf.env, REQUIRED_CC_VERSION)
+    if not rc[0]:
+        print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(rc[1], rc[2]))
+        print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
+        exit(-1)
+    
+        
+    # handle sanitized process if needed
+    configure_sanitized(conf)
+  
+            
+            
+def configure_sanitized (conf):
 
+    # first we turn off SANITIZED
+    conf.env.SANITIZED = False
+    
+    # if sanitized is required - check GCC version for sanitizing
+    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))    
+    
+    # not required
+    if not conf.options.sanitized:
+        conf.end_msg('no', 'YELLOW')
+
+    else:
+        rc = verify_cc_version(conf.env, SANITIZE_CC_VERSION)
+        if not rc[0]:
+            conf.fatal('--sanitized is supported only with GCC {0}+ - current {1}'.format(rc[2], rc[1]))
+        else:
+            conf.end_msg('yes', 'GREEN')
+            conf.env.SANITIZED = True
+
+    
+    
+        
 bp_sim_main = SrcGroup(dir='src',
         src_list=['main.cpp'])
 
@@ -159,7 +199,8 @@ main_src = SrcGroup(dir='src',
              'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
              'astf/astf_db.cpp',
-             'utl_sync_barrier.cpp'
+             'utl_sync_barrier.cpp',
+             'trex_build_info.cpp',
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -328,6 +369,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-DLINUX',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                #'-DGLIBCXX_USE_CXX11_ABI=0',
                 '-g',
                 '-Wno-deprecated-declarations',
                 '-std=c++0x',
@@ -447,8 +489,13 @@ class build_option:
     def get_target (self):
         return self.update_executable_name(self.name);
 
-    def get_flags (self):
-        return self.cxxcomp_flags(cxxflags_base);
+    def get_flags (self, is_sanitized = False):
+        flags = self.cxxcomp_flags(cxxflags_base);
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+        
+        return flags
+        
 
     def get_src (self):
         return self.src.file_list(top)
@@ -456,7 +503,8 @@ class build_option:
     def get_rpath (self):
         return self.rpath
 
-    def get_link_flags(self):
+    def get_link_flags(self, is_sanitized):
+        
         # add here basic flags
         base_flags = [];
         if self.isPIE():
@@ -473,28 +521,37 @@ class build_option:
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
+        if is_sanitized:
+            base_flags += ['-fsanitize=address', '-fsanitize=leak']
+            
         return base_flags;
 
 
 build_types = [
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False,
                             flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
-                            rpath = ['.']),
+                            rpath = ['so']),
 
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False,
                             flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
-                            rpath = ['.']),
+                            rpath = ['so']),
 
               ]
 
 
-
 def build_prog (bld, build_obj):
-
+    
+    # determine if sanitized image should be built
+    is_sanitized = bld.env.SANITIZED
+    
+    cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
+    linkflags = build_obj.get_link_flags(is_sanitized)
+    
+        
     bld.program(features='cxx cxxprogram', 
-                includes =includes_path,
-                cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
-                linkflags = build_obj.get_link_flags(),
+                includes =  includes_path,
+                cxxflags =  cxxflags,
+                linkflags = linkflags,
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs(),
                 lib = ['pthread', 'z', 'dl'],
@@ -515,7 +572,9 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
-
+    if bld.env.SANITIZED and bld.cmd == 'build':
+        Logs.warn("\n******* building sanitized binaries *******\n")
+        
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
