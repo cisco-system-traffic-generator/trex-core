@@ -22,6 +22,10 @@ b_path ="./build/linux/"
 REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
 
+GCC6_DIR = '/usr/local/gcc-6.2/bin'
+GCC7_DIR = '/usr/local/gcc-7.2/bin'
+
+
 class SrcGroup:
     ' group of source by directory '
 
@@ -72,11 +76,19 @@ class SrcGroups:
           
 
 def options(opt):
-    opt.load('compiler_cxx')
     
+    opt.load('compiler_cxx')
+
     co = opt.option_groups['configure options']
     co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
                    help='for GCC {0}+ use address sanitizer to catch memory errors'.format(SANITIZE_CC_VERSION))
+
+    co.add_option('--gcc6', dest='gcc6', default=False, action='store_true',
+                   help='use GCC 6.2 instead of the machine version')
+
+    co.add_option('--gcc7', dest='gcc7', default=False, action='store_true',
+                   help='use GCC 7.2 instead of the machine version')
+
 
 
 def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
@@ -86,13 +98,22 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     
 def configure(conf):
+    if conf.options.gcc6 and conf.options.gcc7:
+        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+
     # start from clean
     if 'RPATH' in os.environ:
         conf.env.RPATH = os.environ['RPATH'].split(':')
     else:
         conf.env.RPATH = []
 
-    conf.load('g++')
+    if conf.options.gcc6:
+        configure_gcc(conf, GCC6_DIR)
+    elif conf.options.gcc7:
+        configure_gcc(conf, GCC7_DIR)
+    else:
+        configure_gcc(conf)
+
     
     # first verify CC version
     rc = verify_cc_version(conf.env, REQUIRED_CC_VERSION)
@@ -106,7 +127,26 @@ def configure(conf):
     configure_sanitized(conf)
   
             
-            
+
+def configure_gcc (conf, explicit_path = None):
+    # use the system path
+    if explicit_path is None:
+        conf.load('g++')
+        return
+
+    if not os.path.exists(explicit_path):
+        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+
+    saved = conf.environ['PATH']
+    try:
+        conf.environ['PATH'] = explicit_path
+        conf.load('g++')
+    finally:
+        conf.environ['PATH'] = saved
+
+
+
+
 def configure_sanitized (conf):
 
     # first we turn off SANITIZED
