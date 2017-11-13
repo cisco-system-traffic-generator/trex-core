@@ -312,7 +312,7 @@ def _convert_to_html_toc_book (task,disqus=False):
     with HTMLInjector(in_file, out_file) as injector:
         injector.inject_toc(json_out_file_short)
         if disqus:
-            injector.inject_disqus(os.path.split(out_file)[1], mode = 'plain')
+            injector.inject_disqus(os.path.split(out_file)[1])
     
 
     return os.system('rm {0}'.format(tmp));
@@ -350,14 +350,12 @@ def multipage_strip_hierarchy (in_file, out_file):
     
     
 # generate an asciidoctor chunk book for a target
-def convert_to_asciidoctor_chunk_book(task):
-
+def convert_to_asciidoctor_chunk_book(task, title):
+    
     in_file          = task.inputs[0].abspath()
     out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
     target_name      = os.path.basename(out_dir)
 
-    
-    
     # build chunked with no hierarchy
     with tempfile.NamedTemporaryFile() as tmp_file:
         # strip the hierarchy to make sure all pages are generated
@@ -394,7 +392,7 @@ def convert_to_asciidoctor_chunk_book(task):
     # iterate over all files and inject DISQUS if the pattern matches
     for filename in [f for f in os.listdir(out_dir) if f.endswith('.html')]:
         with HTMLInjector(os.path.join(out_dir, filename)) as injector:
-            injector.inject_disqus(page_id = filename, mode = 'pattern')
+            injector.inject_disqus(page_id = filename)
         
     
     # add TOC and disqus to the main page
@@ -402,6 +400,8 @@ def convert_to_asciidoctor_chunk_book(task):
 
     with HTMLInjector(os.path.join(out_dir, main),
                       os.path.join(out_dir, 'index.html')) as injector:
+        injector.inject_title(title)
+        injector.clear_class('sect1')
         injector.inject_toc('toc.json', fmt = 'multi', image_path = '..')
 
     os.remove(os.path.join(out_dir, main))
@@ -700,8 +700,8 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
-    bld(rule=convert_to_asciidoctor_chunk_book,
-                    source='trex_cookbook.asciidoc waf.css', target='trex_cookbook',scan=ascii_doc_scan);
+    bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook"),
+        source='trex_cookbook.asciidoc waf.css', target='trex_cookbook',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
@@ -899,6 +899,5 @@ def test(bld):
 
     print build_disqus("my_html")
   
-
 
 

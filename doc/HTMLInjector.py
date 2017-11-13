@@ -1,4 +1,6 @@
-import re
+import lxml.html as LH
+from StringIO import StringIO
+from copy import deepcopy
 
 class HTMLInjector(object):
     TOC_BEGIN = """
@@ -504,17 +506,17 @@ class HTMLInjector(object):
 
         # read all the data from file as string
         with open(self.input_filename) as f:
-            self.contents = f.read()
+            self.xml_doc = LH.parse(StringIO(f.read()))
 
         return self
+
 
     def __exit__ (self, exc_type, exc_val, exc_tb):
         # save to file
         with open(self.output_filename, "w") as f:
-            f.write(self.contents)
+            f.write(LH.tostring(self.xml_doc))
 
 
-    
     def inject_toc (self,
                     toc_json_filename,
                     fmt = "single",
@@ -527,7 +529,7 @@ class HTMLInjector(object):
             image_path      - where can the images for the TOC be found ?
             
         """
-        
+
         toc_begin = HTMLInjector.TOC_BEGIN
         toc_end   = HTMLInjector.TOC_END
         
@@ -544,49 +546,66 @@ class HTMLInjector(object):
         # select first on multipage
         toc_end = toc_end.replace('$SELECTFIRST$', HTMLInjector.SELECT_FIRST if fmt == 'multi' else '')
         
-        # use regex to support book and article
-        if not re.search(r'<body class="(article|book)".*>', self.contents):
-            raise Exception('unable to inject TOC')
-        if not re.search(r'</body>', self.contents):
-            raise Exception('unable to inject TOC')
-            
-        self.contents = re.sub(r'<body class="(article|book)".*>', toc_begin, self.contents)
-        self.contents = re.sub(r'</body>', toc_end, self.contents)
+        # create TOC node
+        toc_node  = LH.parse(StringIO(toc_begin + toc_end)).getroot()
         
+        # find the main node in the HTML page
+        main_node = (self.xml_doc.xpath('//body[@class = "article"]') or self.xml_doc.xpath('//body[@class = "book"]'))[0]
+        
+        # find the right place to embed the data
+        toc_csi   = toc_node.xpath('//div[@id = "content-section-inner"]')[0]
+
+        # take all the children of the main node and embed them in the CSI
+        for elem in main_node.getchildren():
+            toc_csi.append(deepcopy(elem))
+
+        # final step - replace the body element with the TOC embedded element
+        main_node.getparent().replace(main_node, toc_node)
         
             
-    def inject_disqus (self, page_id, mode):
+
+    def inject_disqus (self, page_id):
         """
             Inject disqus to HTML
-            
-            mode - if 'pattern' then only pages with $DISQUS$ will be injected in place
-                   if 'plain' then inject at the end of the page
+            if the page has <disqus></disqus> it will be injected with disqus code
+
         """
-        
-        # prepare injection
-        disqus_html = self.DISQUS_HTML.replace("$ID$", page_id)
-        
-        if mode == 'pattern':
+     
+        disqus_injection_place = self.xml_doc.findall('.//disqus')
+        if len(disqus_injection_place) == 0:
+            return
+        elif len(disqus_injection_place) > 1:
+            raise Exception('Multiple disqus components in HTML page - aborting')
+
+
+        # take the first (and only) element
+        disqus_injection_place = disqus_injection_place[0]
+
+        # create the disqus node
+        disqus_node = LH.parse(StringIO(self.DISQUS_HTML.replace("$ID$", page_id))).getroot()
+
+        # inject
+        disqus_injection_place.getparent().replace(disqus_injection_place, disqus_node)
+
+
+
+    def inject_title (self, title):
+
+        title_elem = self.xml_doc.find(".//title")
+        if title_elem is None:
+            raise Exception('unable to find title')
+
+        title_elem.text = title
             
-            # if a page has $DISQUS$ marked - give it priority
-            c = self.contents.count('$DISQUS$')
-            if c > 1:
-                raise Exception("'$DISQUS$' tag is used more than once on page {0}".format(page_id))
-            elif c == 1:
-                self.contents = self.contents.replace("$DISQUS$", disqus_html)
-                return
-            
-        if mode == 'plain':
-            # inject it after the TOC
-            c = self.contents.count('<!--BODYEND-->')
-            if c > 1:
-                raise Exception('<!--BODYEND--> tag is used more than once on page {0}'.format(page_id))
-            elif c == 1:
-                self.contents = self.contents.replace('<!--BODYEND-->', disqus_html)
-                return
-                
-            
-            # no $DISQUS$ and no TOC - inject it at the body end
-            self.contents = self.contents.replace("</body>", disqus_html + "</body>")
-        
+
+    def clear_class (self, class_name):
+
+        c = self.xml_doc.find_class(class_name)
+        if not c:
+            raise Exception('unable to find class {0}'.format(class_name))
+
+        c = c[0]
+        for child in c.getchildren():
+            c.remove(child)
+
 

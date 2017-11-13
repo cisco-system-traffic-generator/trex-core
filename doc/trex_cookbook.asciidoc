@@ -77,7 +77,9 @@ finally:
     c.disconnect()
 ----
 
-$DISQUS$
+++++
+<disqus></disqus>
+++++
 
 
 
@@ -107,7 +109,10 @@ finally:
     c.disconnect()
 ----
      
-$DISQUS$
+++++
+<disqus></disqus>
+++++
+
 
 === Moving Ports To Service Mode
 
@@ -131,7 +136,9 @@ finally:
     c.disconnect()
 ----
 
-$DISQUS$
+++++
+<disqus></disqus>
+++++
 
        
 
@@ -156,3 +163,4 @@ For stateless:
 ./t-rex-64 -i --astf
 ----
 
+                                                                                                        
