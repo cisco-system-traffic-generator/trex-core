@@ -27,6 +27,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.32 ==
+
+* Advance Stateful (ASTF)
+** Tunables support. Tunables is a mechanism to tune the behavior of ASTF traffic profile see here link:trex_astf.html#tunable_tcp_mss[tunables]
+** Cisco VIC support TSO now 
+* Support gcc 7.x/6.x and sanitizer 
+* Stateless
+** Improve performance (mbuf-refcnt locality) 
 
 == Release 2.31 ==
 
