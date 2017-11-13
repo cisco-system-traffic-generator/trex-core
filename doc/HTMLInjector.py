@@ -600,7 +600,7 @@ class HTMLInjector(object):
 
     def clear_class (self, class_name):
 
-        c = self.xml_doc.find_class(class_name)
+        c = self.xml_doc.xpath('.//div[@class = "{0}"]'.format(class_name))
         if not c:
             raise Exception('unable to find class {0}'.format(class_name))
 
