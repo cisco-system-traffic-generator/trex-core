@@ -17,6 +17,8 @@ from waflib import Logs
 from waflib.Configure import conf
 from waflib import Build
 
+from distutils.version import StrictVersion
+
 # use hostname as part of cache filename
 Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
@@ -34,6 +36,13 @@ H_VER_FILE      = "version.h"
 
 BUILD_NUM_FILE  = "../VERSION"
 USERS_ALLOWED_TO_RELEASE = ['hhaim']
+
+
+REQUIRED_CC_VERSION = "4.7.0"
+SANITIZE_CC_VERSION = "4.9.0"
+
+GCC6_DIR = '/usr/local/gcc-6.2/bin'
+GCC7_DIR = '/usr/local/gcc-7.2/bin'
 
 
 #######################################
@@ -110,6 +119,16 @@ def options(opt):
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
+
+    co = opt.option_groups['configure options']
+    co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
+                   help='for GCC {0}+ use address sanitizer to catch memory errors'.format(SANITIZE_CC_VERSION))
+    
+    co.add_option('--gcc6', dest='gcc6', default=False, action='store_true',
+                   help='use GCC 6.2 instead of the machine version')
+
+    co.add_option('--gcc7', dest='gcc7', default=False, action='store_true',
+                   help='use GCC 7.2 instead of the machine version')
 
 
 def check_ibverbs_deps(bld):
@@ -194,14 +213,35 @@ def check_ntapi(ctx):
     ctx.end_msg('Found needed NTAPI library')
     return True
 
+    
+def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
+    ver = StrictVersion('.'.join(env['CC_VERSION']))
+
+    return (ver >= min_ver, ver, min_ver)
+    
+    
 def configure(conf):
-    conf.load('g++')
-    conf.load('gcc')
+
+    if conf.options.gcc6 and conf.options.gcc7:
+        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+
+    if conf.options.gcc6:
+        configure_gcc(conf, GCC6_DIR)
+    elif conf.options.gcc7:
+        configure_gcc(conf, GCC7_DIR)
+    else:
+        configure_gcc(conf)
+
+
     conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
-    no_mlx = conf.options.no_mlx
-    with_ntacc = conf.options.with_ntacc
-
+    no_mlx          = conf.options.no_mlx
+    with_ntacc      = conf.options.with_ntacc
+    with_sanitized  = conf.options.sanitized
+    
+    configure_sanitized(conf, with_sanitized)
+          
+            
     conf.env.NO_MLX = no_mlx
     if not no_mlx:
         ofed_ok = conf.check_ofed(mandatory = False)
@@ -218,6 +258,50 @@ def configure(conf):
           Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
                                   'https://www.napatech.com/downloads/')
           raise Exception("Cannot find libntapi");
+
+          
+
+def configure_gcc (conf, explicit_path = None):
+    # use the system path
+    if explicit_path is None:
+        conf.load('gcc')
+        conf.load('g++')
+        return
+
+    if not os.path.exists(explicit_path):
+        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+
+    saved = conf.environ['PATH']
+    try:
+        conf.environ['PATH'] = explicit_path
+        conf.load('gcc')
+        conf.load('g++')
+    finally:
+        conf.environ['PATH'] = saved 
+
+
+
+def configure_sanitized (conf, with_sanitized):
+
+    # first we turn off SANITIZED
+    conf.env.SANITIZED = False
+
+    # if sanitized is required - check GCC version for sanitizing
+    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))    
+
+    # not required
+    if not with_sanitized:
+        conf.end_msg('no', 'YELLOW')
+
+    else:
+        rc = verify_cc_version(conf.env, SANITIZE_CC_VERSION)
+        if not rc[0]:
+            conf.fatal('--sanitized is supported only with GCC {0}+ - current {1}'.format(rc[2], rc[1]))
+        else:
+            conf.end_msg('yes', 'GREEN')
+            conf.env.SANITIZED = True
+
+
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
@@ -288,7 +372,8 @@ main_src = SrcGroup(dir='src',
              'h_timer.cpp',
              'astf/astf_db.cpp',
              'bp_sim_stf.cpp',
-             'utl_sync_barrier.cpp'
+             'utl_sync_barrier.cpp',
+             'trex_build_info.cpp',
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -701,6 +786,8 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
+                #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
                ]
 
 common_flags_new = common_flags + [
@@ -888,7 +975,7 @@ class build_option:
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64']
       self.is_pie = is_pie
-
+      
     def __str__(self):
        s=self.mode+","+self.platform;
        return (s);
@@ -988,7 +1075,7 @@ class build_option:
 
         return (flags)
 
-    def get_cxx_flags (self):
+    def get_cxx_flags (self, is_sanitized):
         flags = self.get_common_flags()
 
         # support c++ 2011
@@ -997,20 +1084,29 @@ class build_option:
         flags += ['-Wall',
                   '-Werror',
                   '-Wno-literal-suffix',
+                  '-Wno-aligned-new',
                   '-Wno-sign-compare',
                   '-Wno-strict-aliasing']
 
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+            
         return (flags)
 
-    def get_c_flags (self):
+        
+    def get_c_flags (self, is_sanitized):
         flags = self.get_common_flags()
         if  self.isRelease () :
             flags += ['-DNDEBUG'];
 
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+            
         # for C no special flags yet
         return (flags)
 
-    def get_link_flags(self):
+        
+    def get_link_flags(self, is_sanitized):
         base_flags = ['-rdynamic'];
         if self.is64Platform():
             base_flags += ['-m64'];
@@ -1018,6 +1114,9 @@ class build_option:
         else:
             base_flags += ['-lrt'];
 
+            
+        if is_sanitized:
+            base_flags += ['-fsanitize=address', '-fsanitize=leak']
         return base_flags;
 
 
@@ -1045,11 +1144,15 @@ def build_prog (bld, build_obj):
     #if not build_obj.isRelease ():
     #    debug_file_list +=ef_src.file_list(top)
 
+    cflags    = build_obj.get_c_flags(bld.env.SANITIZED)
+    cxxflags  = build_obj.get_cxx_flags(bld.env.SANITIZED)
+    linkflags = build_obj.get_link_flags(bld.env.SANITIZED)
+    
     bld.objects(
       features='c ',
       includes = dpdk_includes_path,
 
-      cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+      cflags   = (cflags + DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target()
       );
@@ -1058,7 +1161,7 @@ def build_prog (bld, build_obj):
         bld.shlib(
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
-          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+          cflags   = (cflags + DPDK_FLAGS ),
           use =['ibverbs'],
 
           source   = mlx5_dpdk.file_list(top),
@@ -1068,7 +1171,7 @@ def build_prog (bld, build_obj):
         bld.shlib(
         features='c',
         includes = dpdk_includes_path+dpdk_includes_verb_path,
-        cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+        cflags   = (cflags + DPDK_FLAGS ),
         use =['ibverbs'],
         source   = mlx4_dpdk.file_list(top),
         target   = build_obj.get_mlx4_target()
@@ -1078,7 +1181,7 @@ def build_prog (bld, build_obj):
         bld.shlib(
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
-          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS +
+          cflags   = (cflags + DPDK_FLAGS +
             ['-I/opt/napatech3/include',
              '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"']),
           use =['ntapi'],
@@ -1090,15 +1193,15 @@ def build_prog (bld, build_obj):
     # build the BPF as a shared library
     bld.shlib(features = 'c',
               includes = bpf_includes_path,
-              cflags   = build_obj.get_c_flags() + ['-DSLJIT_CONFIG_AUTO=1'],
+              cflags   = cflags + ['-DSLJIT_CONFIG_AUTO=1'],
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
 
     bld.program(features='cxx cxxprogram',
                 includes =includes_path,
-                cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
-                linkflags = build_obj.get_link_flags() ,
+                cxxflags = ( cxxflags + ['-std=gnu++11',]),
+                linkflags = linkflags ,
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
                 source = bp.file_list(top) + debug_file_list,
@@ -1121,6 +1224,10 @@ def post_build(bld):
 
 
 def build(bld):
+    if bld.env.SANITIZED and bld.cmd == 'build':
+        Logs.warn("\n******* building sanitized binaries *******\n")
+
+        
     global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
@@ -1294,7 +1401,6 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 
 files_list=[
-            'libzmq.so.3',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',

@@ -60,7 +60,7 @@
 #include "common/arg/SimpleOpt.h"
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
-
+#include "trex_build_info.h"
 
 
 extern "C" {
@@ -116,8 +116,8 @@ extern "C" {
 #define RX_DESC_NUM_DATA_Q_VM 512
 #define TX_DESC_NUM 1024
 
-typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
-struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
+//typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
+//struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 void set_driver();
 void reorder_dpdk_ports();
 
@@ -142,6 +142,14 @@ static char g_mlx4_so_id_str[50];
 static char g_image_postfix[10];
 static CPciPorts port_map;
 #define TREX_NAME "_t-rex-64"
+
+static uint16_t all_eth_types[]  = {
+    0x0800, 0x0806, 0x0842, 0x22F3, 0x22EA, 0x6003, 0x8035, 0x809B, 0x80F3, 0x8100,
+    0x8137, 0x8204, 0x86DD, 0x8808, 0x8809, 0x8819, 0x8847, 0x8848, 0x8863, 0x8864,
+    0x886D, 0x8870, 0x887B, 0x888E, 0x8892, 0x889A, 0x88A2, 0x88A4, 0x88A8, 0x88AB,
+    0x88B8, 0x88B9, 0x88BA, 0x88CC, 0x88CD, 0x88DC, 0x88E1, 0x88E3, 0x88E5, 0x88E7,
+    0x88F7, 0x88FB, 0x8902, 0x8906, 0x8914, 0x8915, 0x891D, 0x892F, 0x9000, 0x9100,
+};
 
 class CTRexExtendedDriverBase {
 protected:
@@ -216,6 +224,7 @@ public:
         default:
             fprintf(stderr, "Internal error: Wrong rx_mem_pool");
             assert(0);
+            return nullptr;
         }
     }
 
@@ -976,6 +985,8 @@ enum {
        OPT_NTACC_SO,
        OPT_ASTF_SERVR_ONLY,
        OPT_ASTF_CLIENT_MASK,
+       OPT_NO_TERMIO,
+    
        /* no more pass this */
        OPT_MAX
 
@@ -1054,6 +1065,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
+        { OPT_NO_TERMIO,              "--no-termio", SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -1138,6 +1150,7 @@ static int usage(){
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
 
     printf("\n");
     printf(" Examples: ");
@@ -1173,6 +1186,9 @@ static int usage(){
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
     printf(" Git SHA : %s    \n",VERSION_GIT_SHA);
+    
+    TrexBuildInfo::show();
+    
     return (0);
 }
 
@@ -1469,6 +1485,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_ONLY_LATENCY :
                 po->preview.setOnlyLatency(true);
+                break;
+            case OPT_NO_TERMIO:
+                po->preview.set_termio_disabled(true);
                 break;
             case OPT_NO_WATCHDOG :
                 po->preview.setWDDisable(true);
@@ -2632,7 +2651,15 @@ void CCoreEthIF::DumpIfStats(FILE *fd){
     }
 }
 
+/**
+ * when measureing performance with perf prefer drop in case of 
+ * queue full 
+ * this will allow us actually measure the max B/W possible 
+ * without the noise of retrying 
+ */
+#ifndef TREX_PERF
 #define DELAY_IF_NEEDED
+#endif
 
 int CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
@@ -5408,7 +5435,9 @@ void CGlobalTRex::shutdown() {
     if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
         /* we should stop latency and exit to stop agents */
         Delete();
-        utl_termio_reset();
+        if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+            utl_termio_reset();
+        }
         exit(-1);
     }
 }
@@ -6521,10 +6550,15 @@ int main_test(int argc , char * argv[]){
 
     learn_image_postfix(argv[0]);
 
-    utl_termio_init();
-
     int ret;
     unsigned lcore_id;
+    
+    if (TrexBuildInfo::is_sanitized()) {
+         printf("\n*******************************************************\n");
+         printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
+         printf("\n*******************************************************\n");
+     }
+    
     printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
     CGlobalInfo::m_options.preview.clean();
@@ -6533,6 +6567,11 @@ int main_test(int argc , char * argv[]){
         exit(-1);
     }
 
+    if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+        utl_termio_init();
+    }
+    
+    
     /* enable core dump if requested */
     if (CGlobalInfo::m_options.preview.getCoreDumpEnable()) {
         utl_set_coredump_size(-1);
@@ -6756,7 +6795,10 @@ int main_test(int argc , char * argv[]){
 
     g_trex.stop_master();
     g_trex.Delete();
-    utl_termio_reset();
+    
+    if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+        utl_termio_reset();
+    }
 
     return (0);
 }
@@ -7817,7 +7859,9 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 
     enum rte_filter_op op = set_on ? RTE_ETH_FILTER_ADD : RTE_ETH_FILTER_DELETE;
 
-    add_del_eth_type_rule(repid, op, EthernetHeader::Protocol::ARP);
+    for (int i = 0; i < sizeof(all_eth_types)/sizeof(uint16_t); i++) {
+        add_del_eth_type_rule(repid, op, all_eth_types[i]);
+    }
 
     if (set_on) {
         i40e_trex_fdir_reg_init(repid, I40E_TREX_INIT_RCV_ALL);
@@ -8441,7 +8485,7 @@ void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
-
+#if 0  
 /**
  * convert chain of mbuf to one big mbuf
  *
@@ -8475,6 +8519,7 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
     rte_pktmbuf_free(old_m);
     return(r);
 }
+#endif
 
 /**
  * handle a signal for termination

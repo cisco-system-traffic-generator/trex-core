@@ -96,10 +96,10 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * One DP core per dual-ports
 * Enable client only or server only or both
 * High scale with flows/BW/PPS
-* Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc)
 * Ability to change IPv4/IPv6 configuration like default TOS etc
 * Flexible tuple generator 
-* Automation support (using STF framework)
+* Automation support (using STF batch framework)
+* Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
 
 ===== Known bugs
 
@@ -118,6 +118,14 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Fragmentation is not supported 
 * TCP statistic per template 
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
+
+===== Current high priority tasks
+
+* UDP support (for full SRF support)
+* Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
+* More than one core per dual-ports
+* More L7 emulation capability
+
 
 ==== Can we address the above requirements using existing DPDK TCP stacks?
 
@@ -242,7 +250,7 @@ The tutorials in this section demonstrate basic TRex ASTF use cases. Examples in
 Follow this chapter  link:trex_manual.html#_first_time_running[first time configuration ]
 
 
-==== Tutorial: run TRex with simple HTTP profile   
+==== Tutorial: Run TRex with simple HTTP profile   
 
 *Goal*:: 
 
@@ -599,7 +607,7 @@ class Prof1():
 
 The tuple generator ranges should not overlap 
 
-==== Tutorial: run with IPv6 traffic 
+==== Tutorial: IPv6 traffic 
 
 [source,bash]
 ----
@@ -612,6 +620,182 @@ just add `--ipv6' to the CLI. The IPv6 packets will be look like this
 ----
 ::x.x.x.x where LSB is IPv4 addrees 
 ----
+
+
+The profile includes same HTTP template for demonstration. 
+
+*File*:: 
+
+link:{github_astf_path}/param_ipv6.py[astf/param_ipv6.py]
+
+
+Another way to enable IPv6 globally and in future per template is by tunables in the profile file
+
+.IPv6 tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_glob_info = ASTFGlobalInfo()
+        # Enable IPV6 for client side and set the default SRC/DST IPv6 MSB 
+        # LSB will be taken from ip generator 
+        c_glob_info.ipv6.src_msb ="ff02::"             <1>
+        c_glob_info.ipv6.dst_msb ="ff03::"             <2>
+        c_glob_info.ipv6.enable  =1                    <3>
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+                           default_c_glob_info=c_glob_info,
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", 
+                                     cps=1)
+                                     ]
+                           )
+
+----
+<1> Set default for source IPv6 addr (32bit LSB will be set by IPv4 tuple generator)
+<2> Set default for destination IPv6 addr (32bit LSB will be set by IPv4 tuple generator)
+<3> Enable ipv6 for all templates 
+
+in this case there is *no* need for `--ipv6` in CLI 
+  
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f astf/param_ipv6.py -m 1000 -d 1000 -c 1 --astf -l 1000 
+----
+
+==== Tutorial: Change tcp.mss using tunables mechanism 
+
+anchor:tunable_tcp_mss[]
+
+Profile tunable is a mechanism to tune the behavior of ASTF traffic profile. 
+TCP layer has a set of tunables. IPv6 and IPv4 have another set of tunables. 
+
+There are two types of tunables:
+
+* Global tunable: per client/server will affect all the templates in specific side. 
+* Per-template tunable:  will affect only the associated template (per client/server). Will have higher priority relative to global tunable.
+
+
+By default, the TRex server has a default value for all the tunables and only when you set a specific tunable the server will override the value. 
+Example of a tunable is tcp.mss. You can change the tcp.mss:
+
+* Per all client side templates 
+* Per all server side templates 
+* For a specific template per client side
+* For a specific template per server side
+
+.Example global client/server tcp.mss tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_glob_info = ASTFGlobalInfo()
+        c_glob_info.tcp.mss = 1400              <1>
+        c_glob_info.tcp.initwnd = 1             
+
+        s_glob_info = ASTFGlobalInfo()
+        s_glob_info.tcp.mss = 1400              <2>
+        s_glob_info.tcp.initwnd = 1             
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+                           default_c_glob_info=c_glob_info,
+                           default_s_glob_info=s_glob_info,
+
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1)
+                                     ]
+                           )
+
+
+----
+<1> Set client side global tcp.mss/tcp.initwnd to 1400,1
+<2> Set server side global tcp.mss/tcp.initwnd to 1400,1
+
+
+.Example per template tcp.mss tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_info = ASTFGlobalInfo()
+        c_info.tcp.mss = 1200              
+        c_info.tcp.initwnd = 1             
+
+        s_info = ASTFGlobalInfo()
+        s_info.tcp.mss = 1400              
+        s_info.tcp.initwnd = 10             
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1)
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1, 
+                                     port=8080,
+                                     c_glob_info=c_info, s_glob_info=s_info), <1>
+
+                                     ]
+                           )
+
+
+----
+<1> only the second template will get the c_info/s_info
+
+
+*Examples Files*:: 
+
+* link:{github_astf_path}/param_ipv6.py[astf/param_ipv6.py]
+* link:{github_astf_path}/param_mss_err.py[astf/param_mss_err.py]
+* link:{github_astf_path}/param_mss_initwnd.py[astf/param_mss_initwnd.py]
+* link:{github_astf_path}/param_tcp_delay_ack.py[astf/param_tcp_delay_ack.py]
+* link:{github_astf_path}/param_tcp_keepalive.py[astf/param_tcp_keepalive.py]
+* link:{github_astf_path}/param_tcp_no_timestamp.py[astf/param_tcp_no_timestamp.py]
+* link:{github_astf_path}/param_tcp_rxbufsize.py[astf/param_tcp_rxbufsize.py]
+* link:{github_astf_path}/param_tcp_rxbufsize_8k.py[astf/param_tcp_rxbufsize_8k.py]
+* link:{github_astf_path}/tcp_param_change.py[astf/tcp_param_change.py]
+
+for referance of all tunables see  xref:tunables[here]
 
 ==== Tutorial: Python automation 
 
@@ -916,7 +1100,7 @@ we might change the JSON format in the future as this is a first version
 =====================================================================
 
 
-==== Tutorial: advanced simulator 
+==== Tutorial: Advanced simulator 
 
 *Goal*:: Use the TRex ASTF advanced simulator.
 
@@ -939,6 +1123,60 @@ another example that will run sfr profile in release mode and will show the coun
 [bash]>./astf-sim -f astf/sfr.py --full -o o.pcap -d 1 -r -v 
 ----
 
+==== Tutorial: Manual L7 emulation program building 
+
+*Goal*:: Build the L7 program using low level instructions 
+
+.Manual L7 emulation program 
+[source,python]
+----
+# we can send either Python bytes type as below:
+http_req = b'GET /3384 HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n'
+# or we can send Python string containing ascii chars, as below:
+http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>**********</pre></html>'
+
+class Prof1():
+    def __init__(self):
+        pass  # tunables
+
+    def create_profile(self):
+        # client commands
+        prog_c = ASTFProgram()          <1>
+        prog_c.send(http_req)           <2>
+        prog_c.recv(len(http_response)) <3>
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.send(http_response)
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        tcp_params = ASTFTCPInfo(window=32768)
+
+        # template
+        temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
+        temp_s = ASTFTCPServerTemplate(program=prog_s, tcp_info=tcp_params)  # using default association
+        template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
+
+        # profile
+        profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
+        return profile
+
+    def get_profile(self):
+        return self.create_profile()
+
+
+----
+<1> build the emulation program 
+<2> first send http request
+<3> wait for http response 
+
+We will expose in the future a capability that could take a pcap file and convert it to a Python code so you could tune it yourself.
 
 === Performance 
 
@@ -1015,6 +1253,32 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 === Traffic profile reference 
 
 link:cp_astf_docs/index.html[python index]
+
+=== Tunables reference anchor:tunables[]
+
+
+[options="header",cols="2,^2,^2,^1,^1,5"]
+|=================
+|  tunable      | min-max|default| per-template |global| Description  
+|   ipv6.src_msb    | string |0 |-|+| default IPv6.src MSB address. 
+|   ipv6.dst_msb    | string |0 |-|+| default IPv6.src MSB address. 
+|   ipv6.enable     | bool   |0 |-|+| enable IPv6 for all templates. 
+|   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
+|   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
+|   tcp.rxbufsize   | 1K-1M  |32K |-|+| socket rx buffer size in bytes. 
+|   tcp.txbufsize   | 1K-1M  |32K |-|+| socket tx buffer size in bytes.
+|   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
+|   tcp.do_rfc1323 | bool    |1|-|+| enable timestamp rfc 1323. 
+|   tcp.keepinit |1-254|5|-|+| value in second for TCP keepalive.  
+|   tcp.keepidle |1-254|5|-|+| value in second for TCP keepidle 
+|   tcp.keepintvl |1-254|5|-|+| value in second for TCP keepalive interval 
+|   tcp.delay_ack_msec | 20-500|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
+|=================
+
+
+* There would be a performance impact when per-template tunables are used. Try to use global tunables.
+* The tunables mechanism does not work with the basic simulator mode only with the advanced simulator mode.
+
 
 === Counters reference 
 
@@ -1189,7 +1453,8 @@ ASTF mode can help to solve the following requirement:
 In theory, we could have supported that, but it required much more effort because the NIC memory configuration is fundamentally different. For example, in ASTF mode, we need to configure all the Rx queues to receive the packets and to configure the RSS to split the packets to different interface queues. While in Stateful we filter most of the packets and count them in hardware.
 
 ==== Is your core TCP implementation based on prior work?    
-yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+Yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+The reasons why not to develop the tcp *core* logic from scratch can be found here link:https://news.ycombinator.com/item?id=12021195[Why do we use the Linux kernel's TCP stack?]
 
 ==== What TCP RFCs are supported?
 
@@ -1203,13 +1468,13 @@ Not implemented:
 * RFC 2018
 
 ==== Could you have a more recent TCP implementation?     
-Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work
+Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
-The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can increase the number of active flows by adding delay instruction.
+The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay instruction.
 
 ==== Will NAT64 work in ASTF mode?
-Yes. just add --ipv6 to the CLI and Server side will handle IPv4 sockets
+Yes. see IPv6 in the manual. Server side will handle IPv4 sockets
 
 client side    NAT64      server side 
 
@@ -1219,7 +1484,7 @@ client side    NAT64      server side
 example 
 
      client side IPv6
-::16.0.0.1->::48.0.0.1   
+xx::16.0.0.1->yy::48.0.0.1   
                          DUT convert it to IPv4
                          
                                                  16.0.0.1->48.0.0.1 
@@ -1227,13 +1492,13 @@ example
   
                                                  16.0.0.1<-48.0.0.1 
                                                  
-::16.0.0.1<-::48.0.0.1 
+xx::16.0.0.1<-yy::48.0.0.1 
 
 client works in IPV6                             server works on IPv4        
                                  
  
 ==== Is TSO/LRO NIC hardware optimization supported? 
-Yes
+Yes. LRO improve the performance. GRO is not there yet
 
 ==== Can I get the ASTF counters per port? 
 We plan to add it in the interactive mode with RPC API. for now it is only global per all client and per server side. 

@@ -27,7 +27,7 @@ limitations under the License.
 #include "utl_policer.h"
 #include <common/n_uniform_prob.h>
 
-
+class CTcpTuneables;
 /* template ID type */
 typedef uint16_t astf_t_id_t;
 typedef uint16_t astf_thread_id_t;
@@ -62,6 +62,12 @@ public:
     uint16_t get_dest_port(){
         return(m_dest_port);
     }
+    void set_tuneables(CTcpTuneables * c_tune, CTcpTuneables *s_tune) {
+        m_c_tune = c_tune;
+        m_s_tune = s_tune;
+    }
+    CTcpTuneables *get_c_tune() const { return m_c_tune;}
+    CTcpTuneables *get_s_tune() const { return m_s_tune;}
 
 public:
     CTupleTemplateGeneratorSmart  m_tuple_gen;
@@ -70,7 +76,9 @@ public:
     CPolicer                      m_policer;
     uint16_t                      m_dest_port;
     astf_t_id_t                   m_tid ; 
-    astf_thread_id_t              m_thread_id; 
+    astf_thread_id_t              m_thread_id;
+    CTcpTuneables               * m_c_tune;
+    CTcpTuneables               * m_s_tune;
 } __rte_cache_aligned;
 
 
@@ -93,7 +101,12 @@ public:
     uint16_t get_num_templates() {return m_cap_gen.size();}
     void init_scheduler(std::vector<double> & dist);
     uint16_t do_schedule_template();
-
+    CTcpTuneables *get_c_tuneables() {return m_c_tuneables;}
+    CTcpTuneables *get_s_tuneables() {return m_s_tuneables;}
+    void set_tuneables(CTcpTuneables *c_tune, CTcpTuneables *s_tune) {
+        m_c_tuneables = c_tune;
+        m_s_tuneables = s_tune;
+    }
 
 private:
     KxuNuRand *                       m_nru;
@@ -101,6 +114,8 @@ private:
     std::vector<CAstfPerTemplateRW *> m_cap_gen;
     astf_thread_id_t                  m_thread_id;
     astf_thread_id_t                  m_max_threads;
+    CTcpTuneables *                   m_s_tuneables;
+    CTcpTuneables *                   m_c_tuneables;
 } __rte_cache_aligned;
 
 

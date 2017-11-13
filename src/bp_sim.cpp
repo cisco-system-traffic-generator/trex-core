@@ -1117,6 +1117,7 @@ void CFlowPktInfo::alloc_const_mbuf(){
                 rte_mbuf_t        * m;
 
                 m = CGlobalInfo::pktmbuf_alloc(i,pkt_s);
+                rte_mbuf_set_as_core_const(m);
                 BP_ASSERT(m);
                 char *p=rte_pktmbuf_append(m, pkt_s);
                 rte_memcpy(p,(m_packet->raw+rw_mbuf_size),pkt_s);
@@ -1133,7 +1134,9 @@ void CFlowPktInfo::free_const_mbuf(){
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
         rte_mbuf_t   * m=m_big_mbuf[i];
         if (m) {
-            rte_pktmbuf_free(m );
+            rte_mbuf_set_as_core_multi(m);
+            assert(rte_mbuf_refcnt_read(m)==1);
+            rte_pktmbuf_free(m);
             m_big_mbuf[i]=NULL;
         }
     }
@@ -3092,14 +3095,16 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
         } else {
             /* count before handle - node might be destroyed */
             #ifdef TREX_SIM
+            uint8_t port_id = node_sl->get_port_id();
             update_stl_stats(node_sl);
             #endif
 
+            /**** WARNING - after this call the node_sl might be destroyed *****/
             node_sl->handle(thread);
 
             #ifdef TREX_SIM
             if (has_limit_reached()) {
-                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(node_sl->get_port_id(), false, 0);
+                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, false, 0);
             }
             #endif
         }
@@ -3317,9 +3322,27 @@ inline bool CNodeGenerator::do_work(CGenNode * node,
 inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
                                      CFlowGenListPerThread * thread,
                                      dsec_t n_time){
+    
+    /* if TREX_PERF flag is on - compile do_sleep as nanosleep
+       to allow perf to differntiate between user space code
+       and sleep code
+     */
+    #ifdef TREX_PERF
+    
+    dsec_t dt = n_time - now_sec();
+    if (dt > 0) {
+        thread->m_cpu_dp_u.commit1();
+        delay_sec(dt);
+        thread->m_cpu_dp_u.start_work1();
+    }
+
+    cur_time = now_sec();
+    
+    #else
+    
     thread->m_cpu_dp_u.commit1();
     dsec_t dt;
-
+    
     /* TBD make this better using calculation, minimum now_sec() */
     while ( true ) {
         cur_time = now_sec();
@@ -3333,6 +3356,7 @@ inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
     }
 
     thread->m_cpu_dp_u.start_work1();
+    #endif
 }
 
 
@@ -5801,8 +5825,9 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
     m_new_pkt_size=0;
     bool need_to_stop=false;
     int cnt=0;
-    CMiniVMCmdBase * cmd=cmds[cnt];
+    
     while (! need_to_stop) {
+        CMiniVMCmdBase * cmd = cmds[cnt];
         switch (cmd->m_cmd) {
         case VM_REPLACE_IP_OFFSET:
             mini_vm_replace_ip((CMiniVMReplaceIP *)cmd);
@@ -5834,7 +5859,6 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
             assert(0);
         }
         cnt++;
-        cmd=cmds[cnt];
     }
     return (0);
 }
@@ -6121,3 +6145,4 @@ void CGenNodeBase::free_base(){
     }
 
 }
+

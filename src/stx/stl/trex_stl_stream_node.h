@@ -566,7 +566,7 @@ public:
     inline rte_mbuf_t *get_pkt() {
         assert(m_state != PCAP_INVALID);
 
-        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc( get_socket_id(), m_raw_packet->getTotalLen());
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), m_raw_packet->getTotalLen());
         assert(m);
 
         char *p = rte_pktmbuf_append(m, m_raw_packet->getTotalLen());

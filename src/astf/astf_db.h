@@ -1,4 +1,4 @@
-#ifndef ASTF_JSON_READER_H 
+#ifndef ASTF_JSON_READER_H
 #define ASTF_JSON_READER_H
 
 /*
@@ -32,6 +32,112 @@ limitations under the License.
 #include <mutex>
 #include <trex_defs.h>
 #include "44bsd/tcp_socket.h"
+#include "rpc-server/trex_rpc_cmd_api.h"
+
+
+class CTRexDummyCommand : public  TrexRpcCommand {
+
+public:
+    CTRexDummyCommand(): TrexRpcCommand ("dummy",
+                                         (TrexRpcComponent *)NULL,
+                                         false,
+                                         false){
+    }
+
+    virtual ~CTRexDummyCommand() {}
+
+protected:
+    virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) {
+        return (TREX_RPC_CMD_OK);
+    }
+};
+
+
+class CTcpTuneables {
+ public:
+    enum {
+        tcp_mss_bit      = 0x1,
+        tcp_initwnd_bit  = 0x2,
+        ipv6_src_addr    = 0x4,
+        ipv6_dst_addr    = 0x8,
+        ipv6_enable      = 0x10,
+
+        tcp_rx_buf_size  = 0x20,
+        tcp_tx_buf_size  = 0x40,
+
+        tcp_rexmtthresh  = 0x80,
+        tcp_do_rfc1323   = 0x100,
+        tcp_keepinit     = 0x200,
+        tcp_keepidle     = 0x400,
+
+        tcp_keepintvl   =  0x800,
+        tcp_delay_ack   =  0x1000
+    };
+
+
+ public:
+    CTcpTuneables() {
+        m_bitfield = 0;
+        m_flags=0;
+        m_tcp_mss=0;
+        m_tcp_initwnd=0;
+        m_tcp_txbufsize=0;
+        m_tcp_rxbufsize=0;
+
+        m_tcp_rexmtthresh=0;
+        m_tcp_do_rfc1323=0;
+        m_tcp_keepinit=0;;
+        m_tcp_keepidle=0;
+        m_tcp_keepintvl=0;
+        m_tcp_pad=0;
+        m_tcp_delay_ack_msec=0;
+
+        memset(m_ipv6_src,0,16);
+        memset(m_ipv6_dst,0,16);
+    }
+
+
+    bool is_empty() { return m_bitfield == 0;}
+
+    void set_ipv6_enable(uint32_t val){
+        if (val) {
+            add_value(ipv6_enable);
+        }
+    }
+
+    bool is_valid_field(uint32_t val){
+        return ( ((m_bitfield & val)==val)?true:false);
+    }
+
+    void add_value(uint32_t val) {m_bitfield |= val;}
+    uint32_t get_bitfield() {return m_bitfield;}
+    void dump(FILE *fd);
+
+ public:
+    uint8_t  m_tcp_rexmtthresh; /* ACK retransmition */
+    uint8_t  m_tcp_do_rfc1323; /* 1/0 */
+    uint8_t  m_tcp_keepinit;
+    uint8_t  m_tcp_keepidle;
+
+    uint8_t  m_tcp_keepintvl;
+    uint8_t  m_tcp_pad;
+    uint16_t m_tcp_delay_ack_msec; /* 20-500msec */
+
+    uint16_t m_tcp_mss;
+    uint16_t m_tcp_initwnd; /* init window*/
+    uint32_t m_tcp_txbufsize;
+    uint32_t m_tcp_rxbufsize;
+
+
+    uint8_t  m_ipv6_src[16];
+    uint8_t  m_ipv6_dst[16];
+
+ private:
+    uint32_t m_bitfield;
+    uint32_t m_flags;
+
+};
+
 
 class CTcpDataAssocParams {
     friend class CAstfDB;
@@ -50,8 +156,28 @@ class CTcpDataAssocParams {
     uint16_t m_port;
 };
 
-typedef std::map<CTcpDataAssocParams, CTcpAppProgram*> assoc_map_t;
-typedef std::map<CTcpDataAssocParams, CTcpAppProgram*>::iterator assoc_map_it_t;
+class CTcpServreInfo {
+    friend class CTcpDataAssocTransHelp;
+
+ public:
+    CTcpServreInfo() {}
+    CTcpServreInfo(CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
+        m_prog = prog;
+        m_tune = tune;
+        m_temp_idx = temp_idx;
+    }
+    CTcpAppProgram *get_prog() {return m_prog;}
+    CTcpTuneables *get_tuneables() {return m_tune;}
+    uint16_t get_temp_idx() {return m_temp_idx;}
+
+ private:
+    CTcpAppProgram *m_prog;
+    CTcpTuneables *m_tune;
+    uint16_t m_temp_idx;
+};
+
+typedef std::map<CTcpDataAssocParams, CTcpServreInfo*> assoc_map_t;
+typedef std::map<CTcpDataAssocParams, CTcpServreInfo*>::iterator assoc_map_it_t;
 
 inline bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs) {
     if (lhs.m_port != rhs.m_port)
@@ -70,28 +196,27 @@ inline bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams
 class CTcpDataAssocTransHelp {
     friend class CTcpDataAssocTranslation;
 
-    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CTcpAppProgram *prog) {
+    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
         m_params = params;
-        m_prog = prog;
+        m_server_info.m_prog = prog;
+        m_server_info.m_tune = tune;
+        m_server_info.m_temp_idx = temp_idx;
     }
 
  private:
     CTcpDataAssocParams m_params;
-    CTcpAppProgram *m_prog;
+    CTcpServreInfo m_server_info;
 };
 
 class CTcpDataAssocTranslation {
     friend class CAstfDB;
     friend class CAstfDbRO;
 
-    CTcpAppProgram * get_prog(const CTcpDataAssocParams& params);
-    void insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog);
-    void insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog);
+    CTcpServreInfo * get_server_info(const CTcpDataAssocParams& params);
+    void insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
+    void insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
     void dump(FILE *fd);
-    void clear() {
-        m_map.clear();
-        m_vec.clear();
-    }
+    void clear();
 
  private:
     assoc_map_t m_map;
@@ -106,6 +231,10 @@ class CTcpTemplateInfo {
     friend class CAstfDB;
     friend class CAstfDbRO;
 
+ public:
+    void Delete(){
+    }
+ private:
     uint16_t            m_dport;
     CTcpAppProgram *    m_client_prog; /* client program per template */
     uint32_t m_num_bytes;
@@ -143,10 +272,12 @@ class CAstfDbRO {
     void Delete();
     bool is_init() {return (m_init == 2);}
     uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
-    CTcpAppProgram * get_client_prog(uint16_t temp_id){
+    CTcpAppProgram * get_client_prog(uint16_t temp_id) const {
         return m_templates[temp_id].m_client_prog;
     }
-    CTcpAppProgram * get_server_prog_by_port(uint16_t port);
+
+
+    CTcpServreInfo * get_server_info_by_port(uint16_t port);
     double  get_total_cps(){
         return (m_cps_sum);
     }
@@ -158,9 +289,9 @@ class CAstfDbRO {
     }
 
     // for tests in simulation
-    void set_test_assoc_table(uint16_t port, CTcpAppProgram *prog) {
+    void set_test_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *tune) {
         CTcpDataAssocParams params(port);
-        m_assoc_trans.insert_vec(params, prog);
+        m_assoc_trans.insert_vec(params, prog, tune, 0);
     }
  private:
     uint8_t                         m_init;
@@ -189,7 +320,12 @@ class CTcpLatency {
     uint32_t m_dual_mask;
 };
 
-class CAstfDB {
+typedef enum {
+    CJsonData_ipv6_addr  = 1,
+} CJsonData_read_type_t ;
+
+class CAstfDB  : public CTRexDummyCommand  {
+
     struct json_handle {
         std::string str;
         int (*func)(Json::Value val);
@@ -199,7 +335,7 @@ class CAstfDB {
     // make the class singelton
     static CAstfDB *instance() {
         if (! m_pInstance) {
-            m_pInstance = new CAstfDB;
+            m_pInstance = new CAstfDB();
             m_pInstance->m_json_initiated = false;
         }
         return m_pInstance;
@@ -212,27 +348,28 @@ class CAstfDB {
         }
     }
 
-    ~CAstfDB(){
+    virtual ~CAstfDB(){
         clear();
     }
 
     // Parsing json file called from master 
     bool parse_file(std::string file);
-
+    CTcpServreInfo * get_server_info_by_port(uint16_t port, uint8_t socket_id);
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
     CAstfDbRO *get_db_ro(uint8_t socket_id);
-
-    // called by each core *once*. Allocating memory that will be freed in clear()
+    // called by each core once. Allocating memory that will be freed in clear()
     // multi-threaded need to be protected 
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
+    CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
 
  private:
     CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
     CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
+    CTcpTuneables * get_tunables(uint16_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
@@ -244,11 +381,73 @@ class CAstfDB {
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
     uint32_t get_num_bytes(uint16_t program_index, uint16_t cmd_index);
     tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
+    bool read_tunables(CTcpTuneables *tune, Json::Value json);
+    bool convert_tcp_info(uint8_t socket_id);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
     void verify_init(uint16_t socket_id);
     uint32_t ip_from_str(const char*c_ip);
+
+private:
+    bool read_tunables_ipv6_field(CTcpTuneables *tune,
+                                  Json::Value json,
+                                  void *field,
+                                  uint32_t enum_val);
+
+    bool read_tunable_uint8(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint8_t & val);
+
+    bool read_tunable_uint16(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint16_t & val);
+
+    bool read_tunable_uint32(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint32_t & val);
+
+    bool read_tunable_uint64(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                             uint64_t & val);
+
+
+
+    bool read_tunable_double(CTcpTuneables *tune,
+                             const Json::Value &parent, 
+                             const std::string &param,
+                             uint32_t enum_val,
+                            double & val);
+
+    bool read_tunable_bool(CTcpTuneables *tune,
+                          const Json::Value &parent, 
+                          const std::string &param,
+                          uint32_t enum_val,
+                          double & val);    
+
+    void tunable_min_max_u32(std::string param,
+                             uint32_t val,
+                             uint32_t min,
+                             uint32_t max);
+
+    void tunable_min_max_u64(std::string param,
+                             uint64_t val,
+                             uint64_t min,
+                             uint64_t max);
+
+    void tunable_min_max_d(std::string param,
+                           double val,
+                           double min,
+                           double max);
+
 
  private:
     bool m_json_initiated;
@@ -256,6 +455,7 @@ class CAstfDB {
     Json::Value  m_val;
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
+    std::vector<CTcpTuneables *> m_s_tuneables;
     float m_exp_bps; // total expected bit per second for all templates
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket

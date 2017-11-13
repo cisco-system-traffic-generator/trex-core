@@ -933,6 +933,16 @@ TEST_F(gt_tcp, tst30_http_simple) {
 
 }
 
+TEST_F(gt_tcp, tst30_http_simple_pad) {
+    tcp_gen_test("tcp2_http_simple_pad",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_PAD
+                 );
+}
+
+
 TEST_F(gt_tcp, tst30_http_simple_mss) {
     tcp_gen_test("tcp2_http_simple_mss",
                  true,
@@ -2150,5 +2160,6 @@ TEST_F(gt_tcp, tst70) {
     assert(a->sync_barrier(1)==0);
     delete a;
 }
+
 
 

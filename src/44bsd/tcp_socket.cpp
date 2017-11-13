@@ -415,13 +415,17 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
                                     CMbufBuffer * buf,
                                     uint32_t blk_size,
                                     uint8_t *d,
-                                    uint32_t size){
+                                    uint32_t size,
+                                    bool mbuf_const){
     
     buf->Create(blk_size);
     while (size>0) {
         uint32_t alloc_size=bsd_umin(blk_size,size);
         rte_mbuf_t   * m=tcp_pktmbuf_alloc(socket,alloc_size);
         assert(m);
+        if (mbuf_const){
+            rte_mbuf_set_as_core_const(m);
+        }
         char *p=(char *)rte_pktmbuf_append(m, alloc_size);
         memcpy(p,d,alloc_size);
         d+=alloc_size;
@@ -439,13 +443,18 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
 int utl_mbuf_buffer_create_and_fill(uint8_t socket,
                                     CMbufBuffer * buf,
                                     uint32_t blk_size,
-                                    uint32_t size){
+                                    uint32_t size,
+                                    bool mbuf_const){
     buf->Create(blk_size);
     uint8_t cnt=0; 
     while (size>0) {
         uint32_t alloc_size=bsd_umin(blk_size,size);
         rte_mbuf_t   * m=tcp_pktmbuf_alloc(socket,alloc_size);
         assert(m);
+        if (mbuf_const){
+            rte_mbuf_set_as_core_const(m);
+        }
+
         char *p=(char *)rte_pktmbuf_append(m, alloc_size);
         int i;
         for (i=0;i<alloc_size; i++) {

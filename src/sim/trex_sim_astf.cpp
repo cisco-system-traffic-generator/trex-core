@@ -265,11 +265,11 @@ static int load_list_of_cap_files(CParserOption * op,
 }
 
 
-
 int SimAstf::run() {
      
     assert( CMsgIns::Ins()->Create(4) );
-    set_stx(new TrexAstfBatch(TrexSTXCfg(), nullptr));
+    
+    STXSimGuard guard(new TrexAstfBatch(TrexSTXCfg(), nullptr));
     
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options,args);
@@ -277,10 +277,6 @@ int SimAstf::run() {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
     }
-    
-    delete get_stx();
-    set_stx(NULL);
-    
 }
 
 
@@ -291,7 +287,7 @@ int SimAstfSimple::run(){
     assert(rc);
     CClientServerTcp *lpt = new CClientServerTcp;
     // run
-    lpt->Create("./", CGlobalInfo::m_options.out_file);
+    lpt->Create("", CGlobalInfo::m_options.out_file);
     lpt->set_debug_mode(true);
     lpt->m_dump_json_counters = args->dump_json;
     lpt->m_ipv6 = po->preview.get_ipv6_mode_enable();

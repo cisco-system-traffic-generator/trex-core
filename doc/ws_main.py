@@ -15,9 +15,9 @@ import shlex
 import subprocess
 import json
 import re
+import tempfile
 from waflib import Logs
 import string
-
 
 top = '.'
 out = 'build'
@@ -28,14 +28,22 @@ try:
 except:
     from html.parser import HTMLParser
 
+    
+# HTML injector for TOC and DISQUS
+from HTMLInjector import HTMLInjector
+
+
 class CTocNode:
-    def __init__ (self):
+    def __init__ (self, link_fmt = None):
         self.name="root"
         self.level=1; # 1,2,3,4
         self.link=None;
         self.parent=None
         self.childs=[]; # link to CTocNode
 
+        # by default, link_fmt will formatted as in-page links
+        self.link_fmt = link_fmt if link_fmt else lambda x: '#' + x
+        
     def get_link (self):
         if self.link==None:
             name=self.name
@@ -46,18 +54,21 @@ class CTocNode:
                 if c.isalpha() or c.isspace():
                     s+=c
     
-            return  '#_'+'_'.join(s.lower().split());
+            link = '_'.join(s.lower().split());
         else:
-            return '#'+self.link
+            link = self.link
+            
+        return self.link_fmt(link)
 
 
 
     def add_new_child (self,name,level,link):
         n=CTocNode();
-        n.name=name;
+        n.name=name
         n.link=link
-        n.level=level;
-        n.parent=self;
+        n.level=level
+        n.parent=self
+        n.link_fmt=n.parent.link_fmt
         self.childs.append(n);
         return n
 
@@ -89,10 +100,10 @@ class CTocNode:
 
 class TocHTMLParser(HTMLParser):
 
-    def __init__ (self):
+    def __init__ (self, link_fmt = None):
         HTMLParser.__init__(self);
-        self.state=0;
-        self.root=CTocNode()
+        self.state=0
+        self.root = CTocNode(link_fmt)
         self.root.parent=self.root
         self.level=2;
         self.attrs=None
@@ -171,12 +182,12 @@ class TocHTMLParser(HTMLParser):
 
 
 
-def create_toc_json (input_file,output_file):
+def create_toc_json (input_file, output_file, link_fmt = None):
     f = open (input_file)
     l=f.readlines()
     f.close();
     html_input = ''.join(l)
-    parser = TocHTMLParser()
+    parser = TocHTMLParser(link_fmt)
     parser.feed(html_input);
     f = open (output_file,'w')
     f.write(parser.dump_as_json());
@@ -256,13 +267,17 @@ def options(opt):
     opt.add_option('--ndr', action = 'store_true', help = 'Include build of NDR report.')
 
 def configure(conf):
-    search_path = '~/.local/bin /usr/local/bin/ /usr/bin'
+    search_path = ' ~/.local/bin /usr/local/bin/ /usr/bin ./extensions'
     conf.find_program('asciidoc', path_list=search_path, var='ASCIIDOC')
     conf.find_program('sphinx-build', path_list=search_path, var='SPHINX')
     conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
     conf.find_program('dblatex', path_list=search_path, var='DBLATEX')
     conf.find_program('a2x', path_list=search_path, var='A2X')
-    pass;
+    
+    # asciidoctor
+    conf.find_program('asciidoctor', path_list=search_path, var='ASCIIDOCTOR')
+    conf.find_file('multipage-html5-converter.rb', path_list=search_path)
+    
 
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
@@ -270,475 +285,6 @@ def convert_to_pdf(task):
     return  os.system('a2x --no-xmllint %s -f pdf  -d  article %s -D %s ' %('-v' if Log.verbose else '', task.inputs[0].abspath(),out_dir ) )
 
 
-TOC_HEAD = """
-
-<body class="book">
-<div id="toc-section">
-        <div id="toctitle">
-            <img class="trex_logo" src="images/trex_logo_toc.png"/>
-            Table of Contents
-        </div>
-
-        <div id="toggle">
-          <img src="images/icons/toggle.png" title="click to toggle table of contents"/>
-        </div>
-        
-        <div id="toc">
-          <div id="nav-tree">
-          
-          </div>
-        </div>
-</div>
-
-<div id="content-section">
-
-    <!-- load the theme CSS file -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" rel="stylesheet"/>
-    
-    <link href="https://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" rel="stylesheet" />
-    
-    <!-- include the jQuery library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.1/jquery.min.js">
-    </script>
-    
-    <!-- include the jQuery UI library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
-    </script>
-    
-    <!-- include the minified jstree source -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js">
-    </script>
-
-    <!-- Hide TOC on mobile -->
-    <script>
-    
-      // Hide TOC when it is mobile
-      checkMobile();
-    
-      // Hide TOC by default if it is mobile
-      function checkMobile(){
-        if(isMobileDevice()){
-          hideTOC();
-        }
-      }
-    
-      // Check it it it is running on mobile device
-      function isMobileDevice() {
-          if(
-              navigator.userAgent.match(/Android/i) ||
-              navigator.userAgent.match(/BlackBerry/i) ||
-              navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
-              navigator.userAgent.match(/Opera Mini/i) ||
-              navigator.userAgent.match(/IEMobile/i) ||
-              navigator.userAgent.match(/iPhone|iPad|iPod/i)
-            )
-          {
-            return true;
-          }
-          else
-          {
-            return false;
-          }
-      }
-    
-      // Hide TOC - for the first time in mobile
-      function hideTOC(){
-          $("#toc").hide();
-          $("#toctitle").hide();
-          // Show the show/hide button
-          $("#toggle").css("right", "-40px");
-          // Fil width
-          $("body").css("margin-left", "50px");
-      }
-    
-    </script>
-
-  <div id="content-section-inner">
-
-"""
-
-TOC_END = """
-
-  </div>
-  <!-- End Of Inner Content Section -->
-</div>
-<!-- End of Content Section -->
-
-</body>
-
-<style type="text/css">
-    #toc {
-      margin-bottom: 2.5em;
-    }
-    
-    #toctitle {
-      color: #527bbd;
-      font-size: 1.1em;
-      font-weight: bold;
-      margin-top: 1.0em;
-      margin-bottom: 0.1em;
-    }
-
-    @media screen {
-      body {
-        margin-left: 20em;
-      }
-    
-      #toc {
-        position: fixed;
-        top: 51px;
-        left: 0;
-        bottom: 0;
-        width: 18em;
-        padding-bottom: 1.5em;
-        margin: 0;
-        overflow-x: auto !important;
-        overflow-y: auto !important;
-        border-right: solid 2px #cfcfcf;
-        background-color: #FAFAFA;
-        white-space: nowrap;
-      }
-    
-      #toctitle {
-        font-size: 17px !important;
-        color: #4d4d4d !important;
-        margin-top: 0px;
-        height: 36px;
-        line-height: 36px;
-        background-color: #e4e2e2;
-        padding: 8px 0px 7px 45px;
-        white-space: nowrap;
-        left: 0px;
-        display: block;
-        position: fixed;
-        z-index: 100;
-        width: 245px;
-        top: 0px;
-        overflow: hidden;
-      }
-      
-      #toc .toclevel1 {
-        margin-top: 0.5em;
-      }
-    
-      #toc .toclevel2 {
-        margin-top: 0.25em;
-        display: list-item;
-        color: #aaaaaa;
-      }
-    
-    }
-
-
-  /* Custom for Nave Tree */
-  #nav-tree{
-    margin-left: 10px !important;
-  }
-  
-  #nav-tree ul > li {
-    color: #000 !important;
-  }
-  
-  .jstree-wholerow.jstree-wholerow-clicked {
-    background-image: url('images/icons/selected_tab_bg.png');
-    background-repeat: repeat-x;
-    color: #fff !important;
-    text-shadow: 0px 1px 1px rgba(0, 0, 0, 1.0);
-  }
-
-        /* For side bar */
-  .ui-resizable-e{
-    height: 100%;
-    width: 4px !important;
-    position: fixed !important;
-    top: 0px !important;
-    cursor: e-resize !important;
-    background: url('images/splitbar.png') repeat scroll right center transparent !important;
-  }
-
-  .jstree-default .jstree-themeicon{
-    display: none !important;
-  }
-
-
-  .jstree-anchor {
-    font-size: 12px !important;
-    color: #91A501 !important;
-  }
-
-
-  .jstree-clicked{
-    color: white !important;
-  }
-  
-
-  #toggle {
-    position: fixed;
-    top: 14px;
-    left: 10px;
-    z-index: 210;
-    width: 24px;
-  }
-
-  #toggle img {
-    opacity:0.3;
-  }
-
-  #toggle img:hover {
-    opacity:0.9;
-  }
-
-  .trex_logo{
-    top: 6px;
-    position: relative;
-  }
-
-   html{
-    overflow: hidden;
-  }
-
-  body{
-    margin-right: 0px !important;
-    margin-top: 0px !important;
-    margin-bottom: 0px !important;
-  }
-
-  #toc-section{
-    position: absolute;
-    z-index: 200;
-  }
-
-  #content-section{
-    overflow: auto;
-  }
-
-  #content-section-inner{
-    max-width: 50em;
-  }
-
-
- </style>
-
-
-
-<script>
-
-      $(document).ready(function(){
-          var isOpen = true;
-
-        // Initialize NavTree
-        initializeNavTree();
-        // Drag TOC left and right
-        initResizable();
-        // Toggle TOC whe clicking on the menu icon
-        toggleTOC();
-        // Handle Mobile - close TOC
-        checkMobile();
-
-        function initializeNavTree() {
-
-          // TOC tree options
-          var toc_tree = $('#nav-tree');        
-
-          var toc_tree_options = {
-            'core' : {
-              "animation" :false,
-              "themes" : { "stripes" : false },
-              'data' : {
-                "url" : "./input_replace_me.json",  
-                "dataType" : "json" // needed only if you do not supply JSON headers
-              }
-            }
-            ,
-            "plugins" : [ "wholerow" ]
-          };
-
-          $('#nav-tree').jstree(toc_tree_options) ;
-
-          toc_tree.on("changed.jstree", function (e, data) {
-            window.location.href = data.instance.get_selected(true)[0].original.link;
-          });
-        }
-        
-        function initResizable() {
-          var toc = $("#toc");
-          var body = $("body");
-
-          // On resize
-          $("#toc").resizable({
-              resize: function(e, ui) {
-                  resized();
-              },
-              handles: 'e'
-          });
-          
-        // On zoom changed
-          $(window).resize(function() {
-            if(isOpen){
-                resized();
-            }
-          });
-
-
-         // Do it for the first time
-            var tocWidth = $(toc).outerWidth();
-            var windowHeight = $(window).height();
-            $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
-            $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
-            $("#toc-section").css({"height":windowHeight + "px"});
-            $("#content-section").css({"height":windowHeight + "px"});
-       
-        }
-
-        function resized(){
-          var body = $("body");
-          var tocWidth = $(toc).outerWidth();
-          var windowHeight = $(window).height();
-
-          body.css({"marginLeft":parseInt(tocWidth)+20+"px"});
-          $(".ui-resizable-e").css({"right":$(window).width()-parseInt(tocWidth)+"px"});
-          $("#toctitle").css({"width":parseInt(tocWidth)-45+"px"});
-          $("#toc-section").css({"height":windowHeight + "px"});
-          $("#content-section").css({"height":windowHeight + "px"});
-          
-        }
-
-
-        function toggleTOC(){
-          $( "#toggle" ).click(function() {
-            if ( isOpen ) {
-              // Close it
-               closTOC();
-            } else {
-              // Open it
-              openTOC();
-            }
-            // Toggle status
-            isOpen = !isOpen;
-          });
-        }
-
-
-        // Close TOC by default if it is mobile
-        function checkMobile(){
-          if(isMobileDevice()){
-            isOpen=false;
-            $(".ui-resizable-e").hide();
-          }
-        }
-
-        // Check it it it is running on mobile device
-        function isMobileDevice() {
-            if(
-                navigator.userAgent.match(/Android/i) ||
-                navigator.userAgent.match(/BlackBerry/i) ||
-                navigator.userAgent.match(/iPhone|iPad|iPod/i) ||
-                navigator.userAgent.match(/Opera Mini/i) ||
-                navigator.userAgent.match(/IEMobile/i) || 
-                navigator.userAgent.match(/iPhone|iPad|iPod/i)
-              )
-            {
-              return true;
-            }
-            else
-            {
-              return false;
-            }
-        }
-
-        // Close TOC
-        function closTOC(){
-            $("#toc").hide("slide", 500);
-            $("#toctitle").hide("slide", 500);
-            if(!isMobileDevice()){
-                $(".ui-resizable-e").hide("slide", 500);
-            }
-            // Show the show/hide button
-            $("#toggle").css("right", "-40px");
-            // Fil width
-            $("body").animate({"margin-left": "50px"}, 500);
-        }
-
-        // Open TOC
-        function openTOC(){
-            $("#toc").show("slide", 500);
-            $("#toctitle").show("slide", 500);
-            if(!isMobileDevice()){
-              $(".ui-resizable-e").show("slide", 500);
-            }
-            // Show the show/hide button
-            $("#toggle").css("right", "15px");
-            // Minimize page width
-            $("body").animate({"margin-left": $(toc).outerWidth()+20+"px"}, 500);
-        }
-
-      });
-
-</script>
-
-
-
-"""
-
-DISQUS_HTML = """
-
-<div id="disqus_thread"></div>
-<script>
-
-/**
-*  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
-*  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables*/
-/*
-var disqus_config = function () {
-this.page.url = https://trex-tgn.cisco.com/trex/doc/<ID>;  
-this.page.identifier = <ID>; 
-};
-*/
-(function() { // DON'T EDIT BELOW THIS LINE
-var d = document, s = d.createElement('script');
-s.src = 'https://trex-tgn.disqus.com/embed.js';
-s.setAttribute('data-timestamp', +new Date());
-(d.head || d.body).appendChild(s);
-})();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-
-"""
-
-def build_disqus(page_name):
-    s=DISQUS_HTML;
-    s=s.replace('<ID>', page_name)
-    return s;
-
-def do_replace (input_file,contents,look,str_replaced):
-    if contents.count(look)!=1 :
-        raise Exception('Cannot find {0} in file {1} '.format(look,input_file))
-
-    return  contents.replace(look, str_replaced)
-
-
-
-def toc_fixup_file (input_file,
-                    out_file, 
-                    json_file_name,
-                    disqus=False
-                    ):
-
-    file = open(input_file)
-    contents = file.read()
-
-    contents = do_replace(input_file,contents,'<body class="book">', TOC_HEAD);
-    toc_end=TOC_END;
-    if disqus:
-        disqus_key=os.path.split(out_file)[1]
-        toc_end =build_disqus(disqus_key)+toc_end
-
-    contents = do_replace(input_file,contents,'</body>', toc_end)
-    contents = do_replace(input_file,contents,'input_replace_me.json', json_file_name)
-
-    file = open(out_file,'w')
-    file.write(contents)
-    file.close();
 
 
 def _convert_to_html_toc_book (task,disqus=False):
@@ -747,24 +293,32 @@ def _convert_to_html_toc_book (task,disqus=False):
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
-
     cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
             task.env['ASCIIDOC'][0],
             task.inputs[1].abspath(),
             tmp,
             task.inputs[0].abspath());
 
-    res= os.system( cmd )
-    if res !=0 :
+    res = os.system(cmd)
+    if res != 0 :
         return (1)
 
     create_toc_json(tmp,json_out_file)
 
-    toc_fixup_file(tmp,task.outputs[0].abspath(),json_out_file_short,disqus);
+    in_file  = tmp
+    out_file = task.outputs[0].abspath()
+    
+    # inject TOC and DISQUS if needed
+    with HTMLInjector(in_file, out_file) as injector:
+        injector.inject_toc(json_out_file_short)
+        if disqus:
+            injector.inject_disqus(os.path.split(out_file)[1])
+    
 
     return os.system('rm {0}'.format(tmp));
 
 
+    
 def convert_to_html_toc_book(task):
     _convert_to_html_toc_book (task,False)
 
@@ -772,6 +326,88 @@ def convert_to_html_toc_book_disqus(task):
     _convert_to_html_toc_book (task,True)
 
 
+# strip hierarchy from a multipage doc
+# used to generate equal hierarchy for generating
+# the pages
+# also a 'main' hook will be added
+def multipage_strip_hierarchy (in_file, out_file):
+    
+    with open(in_file) as f:
+        lines = f.readlines()
+    
+    for i, line in enumerate(lines):
+        if re.match("==+ [^ ].*", line):
+            prefix, name = line.split(' ', 1)
+            lines[i] = '== {0}\n'.format(name)
+            
+                
+    # add a hook                
+    lines.append('\n== main\n')
+    
+    with open(out_file, "w") as f:
+        f.write(''.join(lines))
+    
+    
+    
+# generate an asciidoctor chunk book for a target
+def convert_to_asciidoctor_chunk_book(task, title):
+    
+    in_file          = task.inputs[0].abspath()
+    out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
+    target_name      = os.path.basename(out_dir)
+
+    # build chunked with no hierarchy
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        # strip the hierarchy to make sure all pages are generated
+        multipage_strip_hierarchy(in_file, tmp_file.name)
+    
+        multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
+        cmd = '{0} -r {1} -b multipage_html5 -D {2} {3} -o trex_cookbook.html'.format(
+                task.env['ASCIIDOCTOR'][0],
+                multipage_backend,
+                out_dir,
+                tmp_file.name)
+
+        res = os.system(cmd)
+        if res != 0:
+            return (1)
+    
+    
+    # build single only to get the TOC
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        cmd = '{0} -a toc=left -b html5 -o {2} {3}'.format(
+                task.env['ASCIIDOCTOR'][0],
+                multipage_backend,
+                tmp_file.name,
+                in_file)
+    
+        res = os.system( cmd )
+        if res != 0:
+            return (1)
+        
+        # create TOC JSON in the library
+        create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format("trex_cookbook", link))
+  
+    
+    # iterate over all files and inject DISQUS if the pattern matches
+    for filename in [f for f in os.listdir(out_dir) if f.endswith('.html')]:
+        with HTMLInjector(os.path.join(out_dir, filename)) as injector:
+            injector.inject_disqus(page_id = filename)
+        
+    
+    # add TOC and disqus to the main page
+    main = '{0}_main.html'.format(target_name)
+
+    with HTMLInjector(os.path.join(out_dir, main),
+                      os.path.join(out_dir, 'index.html')) as injector:
+        injector.inject_title(title)
+        injector.clear_class('sect1')
+        injector.inject_toc('toc.json', fmt = 'multi', image_path = '..')
+
+    os.remove(os.path.join(out_dir, main))
+
+    return 0
+        
 
 
 def convert_to_pdf_book(task):
@@ -1064,6 +700,9 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
+    bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook"),
+        source='trex_cookbook.asciidoc waf.css', target='trex_cookbook',scan=ascii_doc_scan);
+
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
 
@@ -1260,6 +899,5 @@ def test(bld):
 
     print build_disqus("my_html")
   
-
 
 

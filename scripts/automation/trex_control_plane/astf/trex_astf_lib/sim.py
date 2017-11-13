@@ -35,6 +35,19 @@ def unsigned_int(x):
     return x
 
 
+def get_valgrind():
+    valgrind_loc = os.environ.get('VALGRIND_LOC')
+    if not valgrind_loc:
+        return("valgrind");
+
+    os.environ['VALGRIND_LIB']=valgrind_loc+"/lib/valgrind"
+    valgrind_exe=valgrind_loc+"/bin/valgrind";
+    os.environ['VALGRIND_EXE']=valgrind_exe
+    return(valgrind_exe);
+
+
+
+
 def execute_bp_sim(opts):
     if opts.release:
         exe = os.path.join(opts.bp_sim_path, 'bp-sim-64')
@@ -51,13 +64,17 @@ def execute_bp_sim(opts):
 
     exe = [exe]
     if opts.valgrind:
-        valgrind = 'valgrind --leak-check=full --error-exitcode=1 --show-reachable=yes '.split()
+        valgrind_str = get_valgrind() +' --leak-check=full --error-exitcode=1 --show-reachable=yes '
+        valgrind = valgrind_str.split();
         exe = valgrind + exe
+
+    if opts.pcap:
+        exe += ["--pcap"]
 
     cmd = exe + ['--tcp_cfg', DEFAULT_OUT_JSON_FILE, '-o', opts.output_file]+args
 
     if opts.full:
-        cmd = cmd + ['--full','-d',str(opts.duration)]
+        cmd = cmd + ['--full', '-d', str(opts.duration)]
 
     if opts.verbose:
         print ("executing {0}".format(' '.join(cmd)))
@@ -76,25 +93,37 @@ def print_stats(prof):
     prof.print_stats()
 
 
+# when parsing paths, return an absolute path (for chdir)
+def parse_path (p):
+    return os.path.abspath(p)
+    
+    
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="astf_sim.py")
 
     parser.add_argument("-f",
                         dest="input_file",
                         help="New statefull profile file",
+                        type=parse_path,
                         required=True)
 
     DEFAULT_PCAP_FILE_NAME = "astf_pcap"
     parser.add_argument("-o",
                         dest="output_file",
                         default=DEFAULT_PCAP_FILE_NAME,
+                        type=parse_path,
                         help="File to which pcap output will be written. Default is {0}".format(DEFAULT_PCAP_FILE_NAME))
 
     parser.add_argument('-p', '--path',
                         help="BP sim path",
                         dest='bp_sim_path',
                         default=None,
-                        type=str)
+                        type=parse_path)
+
+    parser.add_argument("--pcap",
+                        help="Create output in pcap format (if not specified, will be in erf)",
+                        action="store_true",
+                        default=False)
 
     parser.add_argument("-r", "--release",
                         help="runs on release image instead of debug [default is False]",
@@ -117,7 +146,7 @@ def setParserOptions():
                         action="store_true",
                         help="run in full simulation mode (with many clients and servers)")
 
-    parser.add_argument('-d','--duration',
+    parser.add_argument('-d', '--duration',
                         type=float,
                         default=5.0,
                         help="duration in time for full mode")
@@ -157,6 +186,7 @@ def main(args=None):
         opts = parser.parse_args(args)
 
     basedir = os.path.dirname(opts.input_file)
+    
     sys.path.insert(0, basedir)
 
     try:
@@ -185,12 +215,37 @@ def main(args=None):
     f = open(DEFAULT_OUT_JSON_FILE, 'w')
     f.write(str(profile.to_json()).replace("'", "\""))
     f.close()
-
+    
+    # if the path is not the same - handle the switch
+    if os.path.normpath(opts.bp_sim_path) == os.path.normpath(os.getcwd()):
+        execute_inplace(opts)
+    else:
+        execute_with_chdir(opts)
+        
+        
+def execute_inplace (opts):
     try:
         execute_bp_sim(opts)
     except Exception as e:
+        print(e)
+        sys.exit(1)
+        
+        
+def execute_with_chdir (opts):
+    
+    
+    cwd = os.getcwd()
+    
+    try:
+        os.chdir(opts.bp_sim_path)
+        execute_bp_sim(opts)
+    except TypeError as e:
         print (e)
         sys.exit(1)
+        
+    finally:
+        os.chdir(cwd)
 
+        
 if __name__ == '__main__':
     main()

@@ -97,6 +97,7 @@ inline  void IPv6Header::getSourceIpv6(uint16_t *argSourceAddress)
     }
 }
 
+
 inline void IPv6Header::setSourceIpv6(uint16_t *argSourceAddress)
 {
     uint8_t i;

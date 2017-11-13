@@ -306,10 +306,10 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
     if (is_const) {
         // const mbuf case
         if (rte_pktmbuf_data_len(m) > 128) {
-            m_ret = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+            m_ret = CGlobalInfo::pktmbuf_alloc_small_local(get_socket_id());
             assert(m_ret);
             // alloc mbuf just for the latency header
-            m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), fsp_head_size);
+            m_lat = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), fsp_head_size);
             assert(m_lat);
             fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
             rte_pktmbuf_attach(m_ret, m);
@@ -321,7 +321,7 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             return m_ret;
         } else {
             // Short packet. Just copy all bytes.
-            m_ret = CGlobalInfo::pktmbuf_alloc( get_socket_id(), rte_pktmbuf_data_len(m) );
+            m_ret = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), rte_pktmbuf_data_len(m) );
             assert(m_ret);
             char *p = rte_pktmbuf_mtod(m, char*);
             char *p_new = rte_pktmbuf_append(m_ret, rte_pktmbuf_data_len(m));
@@ -344,7 +344,7 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             //     (original) r/w -> (new) indirect (direct is original read_only, after trimming last bytes) -> (new) latency info
             //  In case of field engine with random packet size, we already have r/w->indirect(direct read only with packet data).
             //     Need to trim bytes from indirect, and make it point to new mbuf with latency data.
-            m_lat = CGlobalInfo::pktmbuf_alloc( get_socket_id(), fsp_head_size);
+            m_lat = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), fsp_head_size);
             assert(m_lat);
             fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
 
@@ -357,7 +357,7 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
                 // normal case.
                 rte_mbuf_t *m_read_only = m->next, *m_indirect;
 
-                m_indirect = CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+                m_indirect = CGlobalInfo::pktmbuf_alloc_small_local(get_socket_id());
                 assert(m_indirect);
                 // alloc mbuf just for the latency header
                 utl_rte_pktmbuf_chain_with_indirect(m, m_indirect, m_read_only, m_lat);
@@ -379,7 +379,7 @@ bool CGenNodeStateless::alloc_flow_stat_mbuf_test_const() {
     set_socket_id(0);
     for (int test_num = 0; test_num < sizeof(sizes)/sizeof(sizes[0]); test_num++) {
         size = sizes[test_num];
-        m = CGlobalInfo::pktmbuf_alloc(get_socket_id(), size);
+        m = CGlobalInfo::pktmbuf_alloc_local(get_socket_id(), size);
         p = rte_pktmbuf_append(m, size);
         for (int i = 0; i < size; i++) {
             p[i] = (char)i;
@@ -409,7 +409,7 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t prefix_size = prefix_header_size();
-    m = CGlobalInfo::pktmbuf_alloc( get_socket_id(), prefix_size );
+    m = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), prefix_size );
     if (m==0) {
         return (m);
     }
@@ -448,7 +448,7 @@ rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
         return (m);
     }
 
-    rte_mbuf_t * mi= CGlobalInfo::pktmbuf_alloc_small(get_socket_id());
+    rte_mbuf_t * mi= CGlobalInfo::pktmbuf_alloc_small_local(get_socket_id());
     assert(mi);
     rte_pktmbuf_attach(mi,m_const);
     utl_rte_pktmbuf_add_after2(m,mi);
@@ -981,7 +981,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         node->m_vm_program_size =0;
 
                 /* allocate const mbuf */
-        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), pkt_size);
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), pkt_size);
         assert(m);
 
         char *p = rte_pktmbuf_append(m, pkt_size);
@@ -1015,7 +1015,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
         if ( pkt_size > lpDpVm->get_prefix_size() ) {
             /* we need const packet */
             uint16_t const_pkt_size  = pkt_size - lpDpVm->get_prefix_size() ;
-            rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), const_pkt_size );
+            rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), const_pkt_size );
             assert(m);
 
             char *p = rte_pktmbuf_append(m, const_pkt_size);

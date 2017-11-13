@@ -1771,7 +1771,7 @@ image::images/stl_multiple_streams_01.png[title="Example of multiple streams",al
 
 ==== Tutorial: Loops of streams
 
-*Goal* : Demonstrate a limited loop of streams
+*Goal*: Demonstrate a limited loop of streams.
 
 *File*:: link:{github_stl_path}/burst_3st_loop_x_times.py[stl/burst_3st_loop_x_times.py]
 
@@ -1809,12 +1809,12 @@ image::images/stl_multiple_streams_01.png[title="Example of multiple streams",al
                             ]).get_streams()
 
 ----
-<1> go back to S0 but limit it to 2 loops
+<1> Go back to S0, but limit it to 2 loops.
 
 
 ==== Tutorial: IMIX with UDP packets, bi-directional 
 
-*Goal* : Demonstrate how to create an IMIX traffic profile.
+*Goal*: Demonstrate how to create an IMIX traffic profile.
 
 This profile defines 3 streams, with packets of different sizes. The rate is different for each stream/size. See the link:https://en.wikipedia.org/wiki/Internet_Mix[Wikipedia article on Internet Mix].
 
@@ -1891,20 +1891,28 @@ This profile defines 3 streams, with packets of different sizes. The rate is dif
 
 The following example demonstrates changing packet fields. The Field Engine (FE) has a limited number of instructions/operation, which support most use cases. 
 
-*The FE can*::
+*The FE can*:
+
+// this line is here to fix rendering bug
+
 * Allocate stream variables in a stream context
 * Write a stream variable to a packet offset
 * Change packet size
 * and more...
 * There is a plan to add LuaJIT to be more flexible at the cost of performance.
 
-*Examples:*::
+// this line is here to fix rendering bug
+
+*Examples*:
+
+// this line is here to fix rendering bug
+
 * Change ipv4.tos value (1 to 10)
 * Change packet size to a random value in the range 64 to 9K
 * Create a range of flows (change src_ip, dest_ip, src_port, dest_port) 
 * Update the IPv4 checksum 
 
-For more information, see link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
+For more information, see: link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
 // add link to Python API: http://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/field_engine.html
 
 The following example demonstrates creating a SYN attack from many src addresses to one server.
@@ -2118,16 +2126,27 @@ The following example demonstrates varies the packet size randomly, as follows:
 <4> Fixes udp.len to reflect the packet size.
 
 
-==== Tutorial: Field Engine, Significantly improve performance 
+==== Tutorial: Field Engine: Pre-caching to improve performance
 
 anchor:trex_cache_mbuf[]
 
-The following example demonstrates a way to significantly improve Field Engine performance in case it is needed. 
+The following example demonstrates how to significantly improve Field Engine performance, if necessary. 
 
-Field Engine has a cost of CPU instructions and CPU memory bandwidth. There is a way to significantly improve performance by caching the packets and run the Field Engine offline(before sending the packets). 
-The limitation is that you can have only a limited number of packets that can be cached (order or 10K depends how much memory you have).
-For example a program that change the src_ip to a random value can't be utilized this technique and still have random src_ip.  
-Usually this is done with small packets (64bytes) where performance is an issue. This method can improve long packets senario with a complex Field Engine program.
+The Field Engine has a cost in CPU resources: CPU cycles and CPU memory bandwidth (bandwidth available for CPU to read from or write to memory). 
+It is possible to significantly improve performance by caching the packets and running the Field Engine offline (before sending the packets). Typically, this is done with small packets (example: 64 bytes) where performance is an issue. This method can also improve a large-packet senario with a complex Field Engine program.
+
+Limitations of the pre-caching method:
+
+1. Only a limited number of packets can be cached. The total number of cached packets for all the streams on all ports is limited by the memory pool (range: approximately 10 - 40K).
+2. Pre-caching packets is not appropriate for some traffic requirements. Examples: A program that steps in prime numbers or uses a random variable.
+
+
+An example of a scenario that cannot use this method, due to the packet limitation, is a program that changes the src_ip randomly. Pre-caching a limited number of packets would not be compatible with continuously varying the src_ip randomly.
+
+// Previously said: The major limitation of pre-caching is that only a limited number of packets can be cached (order or 10K depends how much memory you have).
+// Does this mean (?): "The major limitation of pre-caching is that only a limited number of packets can be cached. This depends on the size of the memory pool."
+// Necessary to define memory pool precisely?
+
 
 *File*:: link:{github_stl_path}/udp_1pkt_src_ip_split.py[stl/udp_1pkt_src_ip_split.py]
 
@@ -2164,15 +2183,9 @@ Usually this is done with small packets (64bytes) where performance is an issue.
         return stream
         
 ----
-<1> Cache 255 packets. The range is the same as `ip_src` stream variable 
+<1> Cache 255 packets. The range is the same as the `ip_src` stream variable.
 
-This FE program will run *x2-5 faster* compared to native (without cache). 
-In this specific example the output will be *exactly* the same.
-
-Again the limitations of this method are:
-
-1. The total number of cache packets for all the streams all the ports in limited by the memory pool (range of ~10-40K)
-2. There could be cases that the cache options won't be exactly the same as the normal program, for example, in case of a program that step in prime numbers or with a random variable
+This example FE program is fully compatible with pre-caching - the traffic output is exactly the same as when running without pre-caching. Caching the packets enables the program to run *2 to 5 times faster*.
 
 
 ==== Tutorial: New Scapy header  

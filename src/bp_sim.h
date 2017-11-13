@@ -2369,7 +2369,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex(CGenNode * node,
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
-    m =  CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),len);
+    m =  CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),len);
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2394,7 +2394,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_big(CGenNode * node,
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
-    m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), len);
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), len);
     assert(m);
 
     /* append*/
@@ -2429,7 +2429,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_ex_vm(CGenNode * node,
     uint16_t len =  m_packet->pkt_len + cmds[0]->m_add_pkt_len;
 
     /* alloc big buffer to update it*/
-    m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(), len);
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), len);
     assert(m);
 
     /* append the additional bytes requested and update later */
@@ -2481,7 +2481,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
-    m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),  len);
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2505,7 +2505,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
-    m = CGlobalInfo::pktmbuf_alloc(node->get_socket_id(),  len);
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
     assert(m);
 
     /* append*/

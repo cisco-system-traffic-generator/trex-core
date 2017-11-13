@@ -33,6 +33,7 @@ limitations under the License.
 #include "stl/trex_stl.h"
 
 #include "sim/trex_sim.h"
+#include "trex_build_info.h"
 
 using namespace std;
 
@@ -151,15 +152,23 @@ static int usage(){
     printf("                                      \n");
     printf(" Copyright (C) 2015 by hhaim Cisco-System for IL dev-test \n");
     printf(" version : 1.0 beta  \n");
+    
+    
+    TrexBuildInfo::show();
     return (0);
 }
-
 
 static int parse_options(int argc,
                          char *argv[],
                          CParserOption* po,
                          std::unordered_map<std::string, int> &params) {
 
+     if (TrexBuildInfo::is_sanitized()) {
+         printf("\n*******************************************************\n");
+         printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
+         printf("\n*******************************************************\n");
+     }
+     
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;

@@ -1,0 +1,166 @@
+= TRex Python API Cookbook
+==================================
+:author: TRex team
+:email: trex.tgen@gmail.com 
+:revnumber: 1.00
+:quotes.++:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+
+:navigation:
+:source-highlighter: coderay
+:nofooter:
+
+== TRex Python API Cookbook
+
+This cookbook is intended to include short code snippets that can be easily
+copy-pasted and executed.
+
+Each example will provide a single task and the simplest way to implement it
+with TRex Python API
+ 
+
+Through out the examples we will assume:
+
+* TRex server is running locally on *127.0.0.1*
+* TRex client object will be called *'c'*
+* Default ports will be called *'tx_port'* and *'rx_port'*
+
+
+//################################################## STL ##############################################
+
+== Stateless
+
+In the following section we will provide recipies for common tasks
+done in TRex stateless mode.
+
+For more information about TRex stateless mode please refer to the manual.
+
+
+=== Launching TRex Server
+
+Execute TRex service by calling the following from the main package path or from 'scripts'
+from a developer branch.
+
+Provide *'--stl'* for stateless mode.
+
+
+[source,python]
+----
+
+For stateless: 
+./t-rex-64 -i --stl
+----
+
+*For a complete description of the command line paramters please refer to the manual*
+
+
+=== Connecting To The Server
+Connect to TRex server and then disconnect
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+
+try:
+    c.connect()
+
+except STLError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+
+++++
+<disqus></disqus>
+++++
+
+
+
+=== Configure Ports For L2 mode
+
+Configure both ports for L2 mode
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.set_service_mode(ports = [tx_port, rx_port])
+
+    c.set_l2_mode(port = tx_port, dst_mac = "6A:A7:B5:3A:4E:00")
+    c.set_l2_mode(port = rx_port, dst_mac = "6A:A7:B5:3A:4E:01")
+    
+except STLError as e:
+    print(e)
+
+finally:
+    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+
+=== Moving Ports To Service Mode
+
+Move to service mode and then exit service mode
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+
+try:
+    c.set_service_mode(ports = [tx_port, rx_port])
+    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
+    
+except STLError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+
+++++
+<disqus></disqus>
+++++
+
+       
+
+// ################################################## ASTF ##############################################
+
+
+== Advanced Stateful
+
+*TBD*
+
+=== Launching The Server
+
+Execute TRex service by calling the following from the main package path or from 'scripts'
+from a developer branch.
+
+Provide '--astf' for stateless.
+
+[source,python]
+----
+
+For stateless: 
+./t-rex-64 -i --astf
+----
+
+                                                                                                        

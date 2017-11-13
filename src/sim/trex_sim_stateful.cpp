@@ -527,8 +527,8 @@ bool CMergeCapFile::run_merge(std::string to_cap_file){
     int i=0;
     int cnt=0;
     while ( true ) {
-        int    min_index=0;
-        double min_time;
+        int    min_index = 0;
+        double min_time  = 0;
 
         fprintf(stdout," --------------\n");
         fprintf(stdout," pkt : %d \n",cnt);
@@ -620,7 +620,7 @@ SimStateful::run() {
     TrexSTXCfg cfg;
     
     assert( CMsgIns::Ins()->Create(4) );
-    set_stx(new TrexStateful(cfg, nullptr));
+    STXSimGuard guard(new TrexStateful(cfg, nullptr));
     
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options);
@@ -628,9 +628,5 @@ SimStateful::run() {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
     }
-    
-     delete get_stx();
-     set_stx(NULL);
-     
      return (0);
 }

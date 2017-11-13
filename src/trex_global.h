@@ -379,6 +379,14 @@ public:
     }
 
 
+    void set_termio_disabled(bool enable) {
+        btSetMaskBit32(m_flags1, 18, 18, (enable ? 1 : 0) );
+    }
+
+    bool get_is_termio_disabled() {
+        return (btGetMaskBit32(m_flags1, 18, 18) ? true : false);
+    }
+    
 public:
     void Dump(FILE *fd);
 
@@ -825,6 +833,25 @@ public:
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
+    
+    static inline rte_mbuf_t   * pktmbuf_alloc_small_local(socket_id_t socket){
+        rte_mbuf_t *m = pktmbuf_alloc_small(socket);
+        if (m) {
+            rte_mbuf_set_as_core_local(m);
+        }
+        return m;
+    }
+    
+      
+    static inline rte_mbuf_t   * pktmbuf_alloc_local(socket_id_t socket,uint16_t size) {
+        rte_mbuf_t *m = pktmbuf_alloc(socket, size);
+        if (m) {
+            rte_mbuf_set_as_core_local(m);
+        }
+        return m;
+    }
+    
+    
     static inline rte_mbuf_t * pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
         socket_id_t socket = m_socket.port_to_socket(port_id);
         if (size<=_64_MBUF_SIZE) {

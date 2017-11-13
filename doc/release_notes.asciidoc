@@ -27,7 +27,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Pre-Release 2.31 ==
+== Release 2.32 ==
+
+* Advance Stateful (ASTF)
+** Tunables support. Tunables is a mechanism to tune the behavior of ASTF traffic profile see here link:trex_astf.html#tunable_tcp_mss[tunables]
+** Cisco VIC support TSO now 
+* Support gcc 7.x/6.x and sanitizer 
+* Stateless
+** Improve performance (mbuf-refcnt locality) 
+
+== Release 2.31 ==
 
 * Stateless
 ** Console - added option to save loaded streams as Python profile (stream command from the Console)
@@ -37,12 +46,13 @@ endif::backend-docbook[]
 ** Add support to RFC6928 (add support for initwnd and set it by default to 10). A way to tune all the TCP parameters (including this one) will be given from the traffic profile.
 ** Protect TRex ASTF resource (e.g. overflow in active flows)
 ** General hardening  
+** Support client or server mode see link:trex_astf.html#_client_server_only_mode[client_server_only_mode]
 * Refactor the code to support ASTF in interactive mode (both STL and STF will work with the same RPC framework)
 * Increase the TX queue for all drivers by default - less probability for queue_full in high rates
 
-
 === Fixed issues: ===
 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-495[trex-495]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-491[trex-491]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-486[trex-486]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-492[trex-492]

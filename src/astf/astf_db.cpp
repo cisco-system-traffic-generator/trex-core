@@ -35,8 +35,10 @@ static double cps_factor(double cps){
 
 }
 
+void CTcpTuneables::dump(FILE *fd) {
+}
 
-CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &params) {
+CTcpServreInfo *CTcpDataAssocTranslation::get_server_info(const CTcpDataAssocParams &params) {
     if (m_vec.size() == 0) {
         assoc_map_it_t it = m_map.find(params);
 
@@ -49,7 +51,7 @@ CTcpAppProgram * CTcpDataAssocTranslation::get_prog(const CTcpDataAssocParams &p
 
     for (int i = 0; i < m_vec.size(); i++) {
         if (params == m_vec[i].m_params)
-            return m_vec[i].m_prog;
+            return &m_vec[i].m_server_info;
     }
 
     return NULL;
@@ -59,7 +61,7 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     if (m_vec.size() != 0) {
         fprintf(fd, "CTcpDataAssocTranslation - Dumping vector:\n");
         for (int i = 0; i < m_vec.size(); i++) {
-            fprintf(fd, "  port %d mapped to %p\n", m_vec[i].m_params.m_port, m_vec[i].m_prog);
+            fprintf(fd, "  port %d mapped to %p\n", m_vec[i].m_params.m_port, &m_vec[i].m_server_info);
         }
     } else {
         fprintf(fd, "CTcpDataAssocTranslation - Dumping map:\n");
@@ -71,13 +73,26 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     }
 }
 
-void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
-    CTcpDataAssocTransHelp trans_help(params, prog);
+void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+                                          , uint16_t temp_idx) {
+    CTcpDataAssocTransHelp trans_help(params, prog, tune, temp_idx);
     m_vec.push_back(trans_help);
 }
 
-void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog) {
-    m_map.insert(std::pair<CTcpDataAssocParams, CTcpAppProgram *>(params, prog));
+void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+                                           , uint16_t temp_idx) {
+    CTcpServreInfo *tcp_s_info = new CTcpServreInfo(prog, tune, temp_idx);
+    assert(tcp_s_info);
+
+    m_map.insert(std::pair<CTcpDataAssocParams, CTcpServreInfo *>(params, tcp_s_info));
+}
+
+void CTcpDataAssocTranslation::clear() {
+     for (assoc_map_it_t it = m_map.begin(); it != m_map.end(); it++) {
+        delete it->second;
+    }
+    m_map.clear();
+    m_vec.clear();
 }
 
 bool CAstfDB::parse_file(std::string file) {
@@ -246,8 +261,263 @@ uint32_t CAstfDB::ip_from_str(const char *c_ip) {
     return ntohl(ip_num);
 }
 
+bool CAstfDB::read_tunable_uint8(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint8_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_BYTE, result);
+    val = (uint8_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+/* raise an Exception in case of an error */
+bool CAstfDB::read_tunable_uint16(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint16_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT16, result);
+    val = (uint16_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_uint32(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint32_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT32, result);
+    val = (uint32_t)parent[param].asUInt();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_uint64(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  uint64_t & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_UINT64, result);
+    val = (uint64_t)parent[param].asUInt64();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_double(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  double & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_DOUBLE, result);
+    val = parent[param].asDouble();
+    tune->add_value(enum_val);
+    return true;
+}
+
+bool CAstfDB::read_tunable_bool(CTcpTuneables *tune,
+                                  const Json::Value &parent, 
+                                  const std::string &param,
+                                  uint32_t enum_val,
+                                  double & val){
+
+    if (parent[param] == Json::nullValue){
+        return false;
+    }
+    Json::Value result;
+    /* no value */
+    check_field_type(parent, param, FIELD_TYPE_BOOL, result);
+    val = parent[param].asBool();
+    tune->add_value(enum_val);
+    return true;
+}
+
+
+void CAstfDB::tunable_min_max_u32(std::string param,
+                                  uint32_t val,
+                                  uint32_t min,
+                                  uint32_t max){
+    Json::Value result;
+
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+void CAstfDB::tunable_min_max_u64(std::string param,
+                                  uint64_t val,
+                                  uint64_t min,
+                                  uint64_t max){
+    Json::Value result;
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+void CAstfDB::tunable_min_max_d(std::string param,
+                                double val,
+                                double min,
+                                double max){
+    Json::Value result;
+    if (val<min) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is smaller than " +std::to_string(min));
+    }
+    if (val>max) {
+        generate_parse_err(result, "field '" + param + "' value " + std::to_string(val)+ " is greater than " +std::to_string(max));
+    }
+}
+
+
+
+bool CAstfDB::read_tunables_ipv6_field(CTcpTuneables *tune,
+                                      Json::Value json,
+                                      void *field,
+                                      uint32_t enum_val){
+    if ( json == Json::nullValue) {
+        return false;
+    }
+    Json::Value result;
+    if ((json.type() != Json::arrayValue) || (json.size() !=16) ){
+        generate_parse_err(result, "ipv6 addr should have Json::arrayValue type with size of 16");
+    }else{
+        int i;
+        uint8_t *p=(uint8_t *)field;
+        for (i=0; i<16; i++) {
+            p[i]=(uint8_t)(json[i].asUInt());
+        }
+        tune->add_value(enum_val);
+    }
+    return(true);
+}
+
+
+
+bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
+    /* TBD for now the exception is handeled only here 
+       in interactive mode should be in higher level. 
+       CAstfDB  does not handle errors 
+    */
+
+    if (tune_json == Json::nullValue) {
+        return true;
+    }
+    try {
+
+        if (tune_json["tcp"] != Json::nullValue) {
+            Json::Value json = tune_json["tcp"];
+            if (read_tunable_uint16(tune,json,"mss",CTcpTuneables::tcp_mss_bit,tune->m_tcp_mss)){
+                tunable_min_max_u32("mss",tune->m_tcp_mss,10,9*1024);
+            }
+            if (read_tunable_uint16(tune,json,"initwnd",CTcpTuneables::tcp_initwnd_bit,tune->m_tcp_initwnd)){
+                tunable_min_max_u32("initwnd",tune->m_tcp_initwnd,1,20);
+            }
+
+            if (read_tunable_uint32(tune,json,"rxbufsize",CTcpTuneables::tcp_rx_buf_size,tune->m_tcp_rxbufsize)){
+                tunable_min_max_u32("rxbufsize",tune->m_tcp_rxbufsize,1*1024,1024*1024*1024);
+            }
+
+            if (read_tunable_uint32(tune,json,"txbufsize",CTcpTuneables::tcp_tx_buf_size,tune->m_tcp_txbufsize)){
+                tunable_min_max_u32("txbufsize",tune->m_tcp_txbufsize,1*1024,1024*1024*1024);
+            }
+
+            if (read_tunable_uint8(tune,json,"rexmtthresh",CTcpTuneables::tcp_rexmtthresh,tune->m_tcp_rexmtthresh)){
+                tunable_min_max_u32("rexmtthresh",tune->m_tcp_rexmtthresh,1,10);
+            }
+
+            if (read_tunable_uint8(tune,json,"do_rfc1323",CTcpTuneables::tcp_do_rfc1323,tune->m_tcp_do_rfc1323)){
+                tunable_min_max_u32("do_rfc1323",tune->m_tcp_do_rfc1323,0,1);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
+                tunable_min_max_u32("keepinit",tune->m_tcp_keepinit,2,253);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepidle",CTcpTuneables::tcp_keepidle,tune->m_tcp_keepidle)){
+                tunable_min_max_u32("keepidle",tune->m_tcp_keepidle,2,253);
+            }
+
+            if (read_tunable_uint8(tune,json,"keepintvl",CTcpTuneables::tcp_keepintvl,tune->m_tcp_keepintvl)){
+                tunable_min_max_u32("keepintvl",tune->m_tcp_keepintvl,2,253);
+            }
+
+            if (read_tunable_uint16(tune,json,"delay_ack_msec",CTcpTuneables::tcp_delay_ack,tune->m_tcp_delay_ack_msec)){
+                tunable_min_max_u32("delay_ack_msec",tune->m_tcp_delay_ack_msec,20,500);
+            }
+
+        }
+
+        if (tune_json["ipv6"] != Json::nullValue) {
+            Json::Value json = tune_json["ipv6"];
+
+            if (json["enable"] != Json::nullValue) {
+                tune->set_ipv6_enable(json["enable"].asInt());
+            }
+
+            Json::Value src_l=json["src_msb"];
+
+            read_tunables_ipv6_field(tune,
+                                     src_l,
+                                     (void *)tune->m_ipv6_src,
+                                     CTcpTuneables::ipv6_src_addr);
+
+            Json::Value dst_l=json["dst_msb"];
+
+            read_tunables_ipv6_field(tune,
+                                     dst_l,
+                                     (void *)tune->m_ipv6_dst,
+                                     CTcpTuneables::ipv6_dst_addr);
+
+        }
+
+    } catch (TrexRpcCommandException &e) {
+        printf(" ERROR !!! '%s' \n",e.what());
+        /* TBD need to refactor the code .., should not have exit in this code  */
+        exit(1);
+    } 
+    
+    return true;
+}
+
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
-                                                    uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
+                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
 
@@ -299,6 +569,17 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
     }
 
+    CTcpTuneables *c_tune = new CTcpTuneables();
+    assert (c_tune);
+
+    CTcpTuneables *s_tune = new CTcpTuneables();
+    assert (s_tune);
+
+    read_tunables(c_tune, m_val["c_glob_info"]);
+    read_tunables(s_tune, m_val["s_glob_info"]);
+
+    ret->set_tuneables(c_tune, s_tune);
+
     std::vector<double>  dist;
     // loop over all templates
     for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
@@ -317,7 +598,19 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_k_cps = cps;
         dist.push_back(cps);
         template_ro.m_destination_port = c_temp["port"].asInt();
+
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
+
+        CTcpTuneables *s_tuneable;
+        CTcpTuneables *c_tuneable = new CTcpTuneables();
+        assert(c_tuneable);
+        assert(CAstfDB::m_pInstance);
+        s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
+        assert(s_tuneable);
+
+        read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"]);
+        temp_rw->set_tuneables(c_tuneable, s_tuneable);
+
         ret->add_template(temp_rw);
     }
 
@@ -327,6 +620,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     m_rw_db.push_back(ret);
 
     my_lock.unlock();
+
     return ret;
 }
 /*
@@ -337,7 +631,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
  */
 CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
-    uint16_t program_index;
+    uint32_t program_index;
 
     assert(m_tcp_data[socket_id].m_init > 0);
 
@@ -355,17 +649,16 @@ CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_
     return m_tcp_data[socket_id].m_prog_list[program_index];
 }
 
-CTcpAppProgram *CAstfDB::get_server_prog_by_port(uint16_t port, uint8_t socket_id) {
+CTcpServreInfo *CAstfDB::get_server_info_by_port(uint16_t port, uint8_t socket_id) {
     CTcpDataAssocParams params(port);
 
     assert(m_tcp_data[socket_id].m_init > 0);
 
-    return m_tcp_data[socket_id].m_assoc_trans.get_prog(params);
+    return m_tcp_data[socket_id].m_assoc_trans.get_server_info(params);
 }
 
 /*
   Building association translation, and all template related info.
-
  */
 bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     bool is_hash_needed = false;
@@ -387,11 +680,16 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         CTcpAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
 
+        CTcpTuneables *s_tuneable = new CTcpTuneables();
+        assert(s_tuneable);
+        read_tunables(s_tuneable, m_val["templates"][index]["server_template"]["glob_info"]);
+
         if (is_hash_needed) {
-            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p);
+            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p, s_tuneable, index);
         } else {
-            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p);
+            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p, s_tuneable, index);
         }
+        m_s_tuneables.push_back(s_tuneable);
 
         // build template info
         template_cps = cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
@@ -428,7 +726,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
         json_buf = m_val["buf_list"][buf_index].asString();
         std::string temp_str = base64_decode(json_buf);
         buf_len = temp_str.size();
-        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len);
+        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len,true);
         m_tcp_data[socket_id].m_buf_list.push_back(tcp_buf);
     }
 
@@ -516,6 +814,10 @@ void CAstfDB::clear() {
         lp->Delete();
         delete lp;
     }
+    for (i = 0; i < m_s_tuneables.size(); i++) {
+        delete m_s_tuneables[i];
+    }
+    m_s_tuneables.clear();
 
     for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
         m_tcp_data[i].Delete();
@@ -523,17 +825,19 @@ void CAstfDB::clear() {
     m_json_initiated = false;
 }
 
-CTcpAppProgram * CAstfDbRO::get_server_prog_by_port(uint16_t port) {
+    CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port) {
     CTcpDataAssocParams params(port);
-    return m_assoc_trans.get_prog(params);
+    return m_assoc_trans.get_server_info(params);
 }
 
 void CAstfDbRO::dump(FILE *fd) {
+#if 0
     fprintf(fd, "buf list:\n");
     for (int i = 0; i < m_buf_list.size(); i++) {
-        fprintf(fd, "*******%d*******\n", i);
+        fprintf(fd, "  *******%d*******\n", i);
         m_buf_list[i]->Dump(fd);
     }
+#endif
 }
 
 void CAstfDbRO::Delete() {
@@ -548,6 +852,12 @@ void CAstfDbRO::Delete() {
         delete m_prog_list[i];
     }
     m_prog_list.clear();
+
+    for (i = 0; i < m_templates.size(); i++) {
+        m_templates[i].Delete();
+    }
+    m_templates.clear();
+
     m_assoc_trans.clear();
     m_init = false;
 }

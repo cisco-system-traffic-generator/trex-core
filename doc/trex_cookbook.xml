@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?asciidoc-toc?>
+<?asciidoc-numbered?>
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">
+<info>
+<title>TRex Stateless Python API Cookbook</title>
+<date>2017-06-19</date>
+<author>
+<personname>
+<firstname>TRex</firstname>
+
+<surname>team</surname>
+</personname>
+<email>trex.tgen@gmail.com</email>
+</author>
+
+<authorinitials>Tt</authorinitials>
+<revhistory>
+<revision>
+<revnumber>1.00</revnumber>
+
+<authorinitials>Tt</authorinitials>
+
+</revision>
+</revhistory>
+
+
+
+</info>
+<section xml:id="_overview">
+<title>Overview</title>
+<simpara>This cookbook is intended to include short code snippets that can be easily
+copy-pasted and executed.</simpara>
+<simpara>Each example will provide a single task and the simplest way to implement it
+with TRex Python API</simpara>
+<simpara>Through out the examples we will assume:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>TRex server is running locally on <emphasis role="strong">127.0.0.1</emphasis></simpara>
+</listitem>
+<listitem>
+<simpara>TRex client object will be called <emphasis role="strong"><emphasis>c</emphasis></emphasis></simpara>
+</listitem>
+<listitem>
+<simpara>Default ports will be called <emphasis role="strong"><emphasis>tx_port</emphasis></emphasis> and <emphasis role="strong"><emphasis>rx_port</emphasis></emphasis></simpara>
+</listitem>
+</itemizedlist>
+
+</section>
+<section xml:id="_getting_started">
+<title>Getting Started</title>
+<simpara>Execute TRex service by calling the following from the main package path or from <emphasis>scripts</emphasis>
+from a developer branch.</simpara>
+<programlisting language="python" linenumbering="unnumbered">./t-rex-64 -i</programlisting>
+
+</section>
+<section xml:id="_connecting_to_trex_server">
+<title>Connecting To TRex Server</title>
+<simpara>Connect to TRex server and then disconnect</simpara>
+<programlisting language="python" linenumbering="unnumbered"># get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+
+try:
+    c.connect()
+
+except STLError as e:
+    print(e)
+
+finally:
+    c.disconnect()</programlisting>
+
+</section>
+<section xml:id="_moving_to_service_mode">
+<title>Moving to service mode</title>
+<simpara>Move to service mode and then exit service mode</simpara>
+<programlisting language="python" linenumbering="unnumbered"># get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+
+try:
+    c.set_service_mode(ports = [tx_port, rx_port])
+    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
+
+except STLError as e:
+    print(e)
+
+finally:
+    c.disconnect()</programlisting>
+
+</section>
+<section xml:id="_configure_l2_mode">
+<title>Configure L2 mode</title>
+<simpara>Configure both ports for L2 mode</simpara>
+<programlisting language="python" linenumbering="unnumbered"># get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.set_service_mode(ports = [tx_port, rx_port])
+
+    c.set_l2_mode(port = tx_port, dst_mac = "6A:A7:B5:3A:4E:00")
+    c.set_l2_mode(port = rx_port, dst_mac = "6A:A7:B5:3A:4E:01")
+
+except STLError as e:
+    print(e)
+
+finally:
+    c.set_service_mode(ports = [tx_port, rx_port], enabled = False)
+    c.disconnect()</programlisting>
+
+</section>
+</article>

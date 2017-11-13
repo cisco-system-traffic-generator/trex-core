@@ -164,7 +164,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         ret = self.trex.start_trex(
             c = core,
             m = mult,
-            d = 30,
+            d = 120,
             f = 'astf/sfr.py',
             l = 1000,
             k = 10,
@@ -205,7 +205,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         ret = self.trex.start_trex(
             c = core,
             m = mult,
-            d = 30,
+            d = 120,
             nc = True,
             f = 'astf/http_simple.py',
             l = 1000,

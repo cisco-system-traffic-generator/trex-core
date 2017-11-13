@@ -9,8 +9,14 @@ include::trex_ga.asciidoc[]
 
 
 // Cisco Live 2018 
-*Free Learning Session*, Cisco Live! 2018, Barcelona
+*Free Learning Sessions*
 
+DevNet webinar Webex 
+image:images/webinar.png[width=250,title=""]  
+
+* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e6fb167e743cde8cb5c02a6541b7fa98a[REGISTER NOW] 
+
+Cisco Live! 2018, Barcelona
 image:images/cl1028.png[width=250,title=""]  
 
 * Thursday, Feb 01,   Learning Session    link:https://www.ciscolive.com/emea/learn/sessions/content-catalog/?search=DEVNET-1120[REGISTER NOW]
@@ -51,7 +57,7 @@ link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf]
 | Stateless Manual    | 
 link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf]
 | Advanced Stateful Manual    | 
-link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf]
+link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf] link:trex_astf_vs_nginx.html[trex_astf_performance.html]
 | Tutorial TRex on VirtualBox    | 
 link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
 | Cisco Devnet SandBox   | 

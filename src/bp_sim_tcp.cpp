@@ -186,13 +186,7 @@ static CTcpAppApiImpl     m_tcp_bh_api_impl_c;
 #ifndef TREX_SIM
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
-
 void CFlowGenListPerThread::tcp_generate_flow(bool &done){
-
-    if ( m_c_tcp->is_open_flow_enabled()==false ){
-        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
-        return;
-    }
 
     done=false;
 
@@ -214,7 +208,6 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     /* TBD this include an information on the client/vlan/destination */ 
     /*ClientCfgBase * lpc=tuple.getClientCfg(); */
 
-    
     uint16_t vlan=0;
 
     if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
@@ -224,7 +217,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 #endif
     }
 
-    bool is_ipv6 = CGlobalInfo::is_ipv6_enable();
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable);
 
     /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
@@ -267,6 +260,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(m_c_tcp,c_flow);
     c_flow->set_app(app_c);
+    c_flow->set_c_tcp_info(cur, template_id);
 
     /* start connect */
     app_c->start(true);
@@ -320,7 +314,6 @@ void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
     bool any_event=false;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
-        ctx->maintain_resouce();
         ctx->timer_w_on_tick();
         if(ctx->timer_w_any_events()){
             any_event=true;
@@ -357,11 +350,6 @@ bool CFlowGenListPerThread::Create_tcp(){
 
     m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
 
-    #if 0
-    printf("socket id:%d pointer:%p\n", mem_socket_id, template_db); //??? remove
-    template_db->dump(stdout);
-    #endif
-
     c_tcp_io->m_dir =0;
     c_tcp_io->m_p   = this;
     s_tcp_io->m_dir =1;
@@ -375,17 +363,20 @@ bool CFlowGenListPerThread::Create_tcp(){
         active_flows=100000;
     }
     m_c_tcp->Create(active_flows,true);
+    m_s_tcp->Create(active_flows,false);
     m_c_tcp->set_cb(m_c_tcp_io);
+    m_s_tcp->set_cb(m_s_tcp_io);
 
     m_c_tcp->set_template_ro(template_db);
+    m_s_tcp->set_template_ro(template_db);
     CAstfTemplatesRW * rw= CAstfDB::instance()->get_db_template_rw(mem_socket_id, &m_smart_gen
                                                                            , m_thread_id, m_max_threads
                                                                            , getDualPortId());
     m_c_tcp->set_template_rw(rw);
- 
-    m_s_tcp->Create(active_flows,false);
-    m_s_tcp->set_cb(m_s_tcp_io);
-    m_s_tcp->set_template_ro(template_db);
+    m_s_tcp->set_template_rw(rw);
+
+    m_c_tcp->update_tuneables(rw->get_c_tuneables());
+    m_s_tcp->update_tuneables(rw->get_s_tuneables());
 
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);

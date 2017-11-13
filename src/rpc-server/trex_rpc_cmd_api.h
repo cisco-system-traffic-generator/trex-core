@@ -236,11 +236,17 @@ typedef enum trex_rpc_cmd_rc_ {
  * 
  * @author imarom (23-Aug-15)
  */
-class TrexRpcCommandException : TrexRpcException {
+class TrexRpcCommandException : public TrexRpcException {
 public:
     TrexRpcCommandException(trex_rpc_cmd_rc_e rc) : m_rc(rc) {
 
     }
+
+    TrexRpcCommandException(trex_rpc_cmd_rc_e rc,
+                            const std::string &what) : TrexRpcException (what),  m_rc(rc) {
+
+    }
+
 
     trex_rpc_cmd_rc_e get_rc() {
         return m_rc;
@@ -536,6 +542,8 @@ protected:
         return (*choices.begin());
     }
 
+
+
     /**
      * check field type
      * 
@@ -543,6 +551,8 @@ protected:
     void check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result);
     void check_field_type(const Json::Value &parent, int index, field_type_e type, Json::Value &result);
     void check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result);
+
+  protected:
 
     /**
      * error generating functions

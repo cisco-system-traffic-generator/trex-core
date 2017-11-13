@@ -45,6 +45,8 @@
 #include "tcp_debug.h"
 #include "tcp_socket.h"
 #include "utl_mbuf.h"
+#include "astf/astf_db.h"
+#include "astf/astf_template_db.h"
 
 
 #define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
@@ -76,16 +78,45 @@ void CTcpReassBlock::Dump(FILE *fd){
     fprintf(fd,"seq : %lu(%lu)(%s) \n",(ulong)m_seq,(ulong)m_len,m_flags?"FIN":"");
 }
 
-inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
+static inline void tcp_pktmbuf_adj(struct rte_mbuf * & m, uint16_t len){
     assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_adj_ex(m, len)!=NULL);
 }
 
-inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
+static inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
     assert(m->pkt_len>=len);
     assert(utl_rte_pktmbuf_trim_ex(m, len)==0);
 }
 
+/*
+ * Drop TCP, IP headers and TCP options. go to L7 
+   remove pad if exists
+ */
+static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m, 
+                                        uint16_t adj_len,
+                                        uint16_t l7_len){
+
+    /*
+     * Drop TCP, IP headers and TCP options. go to L7 
+     */
+    tcp_pktmbuf_adj(m, adj_len);
+
+    /*
+     * remove padding if exists. 
+     */
+    if (unlikely(m->pkt_len > l7_len)) {
+        uint32_t pad_size = m->pkt_len-(uint32_t)l7_len;
+        assert(pad_size<0xffff);
+        tcp_pktmbuf_trim(m, (uint16_t)pad_size);
+    }
+
+     #ifdef _DEBUG
+         assert(m->pkt_len == l7_len);
+         if (l7_len>0) {
+             assert(utl_rte_pktmbuf_verify(m)==0);
+         }
+     #endif
+}
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
     int i; 
@@ -462,6 +493,7 @@ struct tcpcb *debug_flow;
 
 #endif
 
+
 /* assuming we found the flow */
 int tcp_flow_input(CTcpPerThreadCtx * ctx,
                     struct tcpcb *tp, 
@@ -646,9 +678,10 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
             INC_STAT_CNT(ctx,tcps_rcvbyte, ti->ti_len);
             /*
              * Drop TCP, IP headers and TCP options then add data
-             * to socket buffer.
+             * to socket buffer. remove padding 
              */
-            tcp_pktmbuf_adj(m, off);
+            tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
+
             sbappend(so,
                      &so->so_rcv, m,ti->ti_len);
             sorwakeup(so);
@@ -671,10 +704,11 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
 
     /*
      * Drop TCP, IP headers and TCP options. go to L7 
+       remove padding
      */
-    tcp_pktmbuf_adj(m, off);
+    tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
 
-        /*
+    /*
      * Calculate amount of space in receive window,
      * and then do TCP input processing.
      * Receive window is amount of space in rcv queue,
@@ -718,7 +752,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
         tcp_rcvseqinit(tp);
         tp->t_flags |= TF_ACKNOW;
         tp->t_state = TCPS_SYN_RECEIVED;
-        tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
+        tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
         INC_STAT(ctx,tcps_accepts);
         goto trimthenstep6;
         }
@@ -1541,6 +1575,36 @@ void tcp_xmit_timer(CTcpPerThreadCtx * ctx,
     tp->t_softerror = 0;
 }
 
+
+CTcpTuneables * tcp_get_parent_tunable(CTcpPerThreadCtx * ctx,
+                                      struct tcpcb *tp){
+
+        if (!(TUNE_HAS_PARENT_FLOW & tp->m_tuneable_flags)) {
+            /* not part of a bigger CFlow*/
+            return((CTcpTuneables *)NULL);
+        }
+
+        CTcpFlow temp_tcp_flow;
+        uint16_t offset =  (char *)&temp_tcp_flow.m_tcp - (char *)&temp_tcp_flow;
+        CTcpFlow *tcp_flow = (CTcpFlow *)((char *)tp - offset);
+        uint16_t temp_id = tcp_flow->m_c_template_idx;
+        CTcpTuneables *tcp_tune = NULL;
+        CAstfPerTemplateRW *temp_rw = NULL;
+        CAstfTemplatesRW *ctx_temp_rw = ctx->get_template_rw();
+        if (ctx_temp_rw)
+            temp_rw = ctx_temp_rw->get_template_by_id(temp_id);
+
+        if (temp_rw) {
+            if (ctx->m_ft.is_client_side())
+                tcp_tune = temp_rw->get_c_tune();
+            else
+                tcp_tune = temp_rw->get_s_tune();
+        }
+        return(tcp_tune);
+
+}
+
+
 /*
  * Determine a reasonable value for maxseg size.
  * If the route is known, check route for mtu.
@@ -1560,9 +1624,33 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    tp->snd_cwnd = ctx->tcp_initwnd;
+    if (! ((TUNE_INIT_WIN|TUNE_MSS|TUNE_HAS_PARENT_FLOW) & tp->m_tuneable_flags)) {
+        tp->snd_cwnd = ctx->tcp_initwnd;
+        return ctx->tcp_mssdflt;
+    } else {
 
-    return (ctx->tcp_mssdflt);
+        uint16_t init_win_factor;
+        uint16_t mss;
+
+        CTcpTuneables *tune = tcp_get_parent_tunable(ctx,tp);
+        if (!tune) {
+            tp->snd_cwnd = ctx->tcp_initwnd;
+            return ctx->tcp_mssdflt;
+        }
+
+        if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)){
+            mss = tune->m_tcp_mss;
+        }else{
+            mss = ctx->tcp_mssdflt;
+        }
+
+        if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)){
+            init_win_factor = tune->m_tcp_initwnd;
+        }else{
+            init_win_factor = ctx->tcp_initwnd_factor;
+        }
+
+        tp->snd_cwnd = _update_initwnd(mss,init_win_factor);
+        return mss;
+    }
 }
-
-

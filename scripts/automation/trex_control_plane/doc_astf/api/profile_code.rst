@@ -155,13 +155,6 @@ ASTFAssociationRule class
     :members: 
     :member-order: bysource
 
-ASTFGlobal class
-----------------
-
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFGlobal
-    :members: 
-    :member-order: bysource
-
 ASTFTCPInfo class
 -----------------
 

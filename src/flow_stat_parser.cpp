@@ -395,7 +395,7 @@ int CFlowStatParserTest::test_one_pkt(const char *name, uint16_t ether_type, uin
     CTestPktGen gen;
     uint8_t *p;
     int pkt_size;
-    uint16_t payload_len = 16;
+    uint16_t payload_len = 18;
     uint16_t pkt_flags;
     int ret = 0;
 
