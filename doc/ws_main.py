@@ -911,7 +911,7 @@ def run (bld):
         os.chdir('./build')
         print('Starting local HTTPS server at {0}:{1}'.format(os.uname()[1], 8080))
         httpd = BaseHTTPServer.HTTPServer(('0.0.0.0', 8080), SimpleHTTPServer.SimpleHTTPRequestHandler)
-        httpd.socket = ssl.wrap_socket (httpd.socket, certfile='./server.pem', server_side=True)
+        httpd.socket = ssl.wrap_socket (httpd.socket, certfile='../server.pem', server_side=True)
         httpd.serve_forever()
 
     finally:
