@@ -362,8 +362,10 @@ def convert_to_asciidoctor_chunk_book(task, title):
         multipage_strip_hierarchy(in_file, tmp_file.name)
     
         multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
-        cmd = '{0} -r {1} -b multipage_html5 -D {2} {3} -o trex_cookbook.html'.format(
+        stylesheet = os.path.abspath(os.path.join('./css', 'asciidoctor-default.css'))
+        cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o trex_cookbook.html'.format(
                 task.env['ASCIIDOCTOR'][0],
+                stylesheet,
                 multipage_backend,
                 out_dir,
                 tmp_file.name)
@@ -900,4 +902,18 @@ def test(bld):
     print build_disqus("my_html")
   
 
+def run (bld):
+    import BaseHTTPServer, SimpleHTTPServer
+    import ssl
+
+    cwd = os.getcwd()
+    try:
+        os.chdir('./build')
+        print('Starting local HTTPS server at {0}:{1}'.format(os.uname()[1], 8080))
+        httpd = BaseHTTPServer.HTTPServer(('0.0.0.0', 8080), SimpleHTTPServer.SimpleHTTPRequestHandler)
+        httpd.socket = ssl.wrap_socket (httpd.socket, certfile='./server.pem', server_side=True)
+        httpd.serve_forever()
+
+    finally:
+        os.chdir(cwd)
 

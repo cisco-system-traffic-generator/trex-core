@@ -67,5 +67,7 @@ def show(bld):
 def publish_both(bld):
     ws_main.publish_both(bld)
 
+def run(bld):
+    ws_main.run(bld)
 
 
