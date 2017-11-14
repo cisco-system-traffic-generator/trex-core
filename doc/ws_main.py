@@ -703,7 +703,7 @@ def build(bld):
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
     bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook"),
-        source='trex_cookbook.asciidoc waf.css', target='trex_cookbook',scan=ascii_doc_scan);
+        source='trex_cookbook.asciidoc', target='trex_cookbook',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);

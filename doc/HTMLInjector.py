@@ -486,6 +486,7 @@ class HTMLInjector(object):
           // on loaded event  
           $('#nav-tree').on('loaded.jstree', function() {
               $('#nav-tree').jstree('select_node', 'j1_1');
+              $("#nav-tree").jstree('open_all');
           });
     """
     

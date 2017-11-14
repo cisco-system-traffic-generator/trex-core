@@ -28,18 +28,23 @@ Through out the examples we will assume:
 * TRex server is running locally on *127.0.0.1*
 * TRex client object will be called *'c'*
 * Default ports will be called *'port_0'* and *'port_1'*
-* Setting 'verbose' level to VERBOSE_HIGH will produce the outputs*
+* Assume loopback connection (port_0 <--> port_1)
+* Most outputs are visible under `c.set_verbose('normal')`
+
+[NOTE]
+====
+This cookbook is *not* intented to replace the documentation but to simply
+provide a quick way to copy-paste a working example.
+
+Please refer to the documentation for many more details
+====
 
 //################################################## STL ##############################################
 
-== Stateless Mode
+== Getting Started
 
-In the following section we will provide recipies for common tasks
-done in *TRex stateless mode*.
-
-For more information about TRex stateless mode please refer to the manual.
-
-all the examples should be executed from the directory *'automation/trex_control_plane/stl'*
+The following section describes control operations such as configuring ports,
+pinging, capturing and etc.
 
 === Launching TRex Server
 
@@ -48,19 +53,25 @@ from a developer branch.
 
 Provide *'--stl'* for stateless mode.
 
+Provide *'--astf'* for advanced stateful mode.
 
 [source,python]
 ----
 
 For stateless: 
 ./t-rex-64 -i --stl
+
+For advanced stateful: 
+./t-rex-64 -i --astf
+
+
 ----
 
 *For a complete description of the command line paramters please refer to the manual*
 
 
 === Connecting To The Server
-Connect to TRex server and then disconnect
+Connect to TRex server, print the server version and then disconnect
 
 [source,python]
 ----
@@ -71,7 +82,13 @@ from trex_stl_lib.api import *
 c = STLClient(server = '127.0.0.1')
 
 try:
+    # connect to the server
     c.connect()
+
+    # fetch the TRex server version
+    ver = c.get_server_version()
+
+    print(ver)
 
 except STLError as e:
     print(e)
@@ -143,6 +160,8 @@ finally:
 === Moving Ports To Service Mode
 
 Move to service mode and then exit service mode
+
+Documentation: link:/trex_stateless.html#_port_service_mode[Service Mode]
 
 [source,python]
 ----
@@ -298,10 +317,16 @@ try:
     c.set_service_mode(ports = port_0)
 
     # single VLAN
-    c.set_l3_mode(port = port_0, src_ipv4 = '1.1.1.1', dst_ipv4 = '2.2.2.2', vlan = 100)
+    c.set_l3_mode(port = port_0,
+		  src_ipv4 = '1.1.1.1',
+		  dst_ipv4 = '2.2.2.2',
+		  vlan = 100)
 
     # Stacked VLANs (QinQ) outer:100, inner: 200
-    c.set_l3_mode(port = port_0, src_ipv4 = '1.1.1.1', dst_ipv4 = '2.2.2.2', vlan = [100, 200])
+    c.set_l3_mode(port = port_0,
+                  src_ipv4 = '1.1.1.1',
+		  dst_ipv4 = '2.2.2.2',
+		  vlan = [100, 200])
 
 except STLError as e:
     print(e)
@@ -414,24 +439,747 @@ Port 1 - Recieved ARP reply from: 3.3.3.3, hw: 90:e2:ba:af:13:88
 ++++
 
 
+=== Packet Capturing
+
+Allocate packet capture queue and save it to a PCAP file
+
+In this example we will record __port_0__ on the TX side, __port_1__ on the RX side
+using a BPF filter: 'icmp and len >= 200'.
+
+This filter will capture only ICMP packets with length of 200 or more.
+
+Documentation: link:/trex_stateless.html#_packet_capturing[Packet Capturing]
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.set_service_mode(ports = [port_0, port_1])
+
+    # start a capture
+    id = c.start_capture(tx_ports = [port_0], rx_ports = [port_1],
+	   	         limit = 100, bpf_filter = 'icmp and len >= 200')
+    
+    # generate some ping packets from port 0 to port 1 with 200 bytes
+    c.ping_ip(src_port = port_0, dst_ip = '4.4.4.4', pkt_size = 200, count = 5)
+
+    # print the capture status so far
+    status = c.get_capture_status()[id['id']
+    print("Packet Capture Status:\n{0}".format(status))
+
+    # save the packets to PCAP
+    c.stop_capture(capture_id = id['id'], output = '/tmp/pings.pcap')
+    
+except STLError as e:
+    print(e)
+
+finally:
+    c.set_service_mode(ports = [port_0, port_1], enabled = False)
+    c.disconnect()
+----
+
+*Output*:
+[source,python]
+----
+
+Packet Capture Status:
+{u'bytes': 1000,
+ u'count': 5,
+ u'filter': {u'bpf': u'icmp and len >= 200', u'rx': 2, u'tx': 1},
+ u'id': 41,
+ u'limit': 100,
+ u'matched': 5,
+ u'mode': u'fixed',
+ u'state': u'ACTIVE'}
+
+Stopping packet capture 41                                   [SUCCESS]
+
+
+Writing up to 5 packets to '/tmp/pings.pcap'                 [SUCCESS]
+
+
+Removing PCAP capture 41 from server                         [SUCCESS]
+
+
+----
+
+++++
+<disqus></disqus>
+++++
+
+
+== Stateless Mode
+
+Documentation: link:/trex_stateless.html[Stateless Mode]
+
+In the following section we will provide recipies for common tasks
+done in *TRex stateless mode*.
+
+For more information about TRex stateless mode please refer to the manual.
+
+all the examples should be executed from the directory *'automation/trex_control_plane/stl'*
+
+
+TRex traffic is defined by a *profile* which is a list of *streams*.
+
+Each stream contains:
+
+* A base packet generated by scapy
+* Injection mode
+* Field engine or VM
+
+For a full explanation on each of the above refer to the documentation
+
+
+=== Injecting a PCAP
+
+The simplest way to inject traffic in stateless mode is a PCAP.
+
+documentation: link:/trex_stateless.html#_pcap_based_traffic_tutorials[PCAP Support]
+
+In the following example we will inject a PCAP over port_0
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.reset(ports = [port_0, port_1])
+
+    # push local PCAP file 'http.pcap' over port_0 with IPG of 1 ms
+    c.push_pcap('http.pcap', ports = port_0, ipg_usec = 1000)
+    
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    # check out the stats
+    stats = c.get_stats()
+
+    # examine stats for port_0
+    print("port_0 stats:")
+    print(stats[port_0])
+
+    # examine stats for port_1
+    print("port_1 stats:")
+    print(stats[port_1])
+
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+*Output*:
+[source,python]
+----
+
+port_0 stats:
+
+{'ibytes': 0,
+ 'ierrors': 0,
+ 'ipackets': 0,
+ 'obytes': 660,
+ 'oerrors': 0,
+ 'opackets': 10, <1>
+ 'rx_bps': 0.0,
+ 'rx_bps_L1': 0,
+ 'rx_pps': 0.0,
+ 'rx_util': 0.0,
+ 'tx_bps': 20.1,
+ 'tx_bps_L1': 26.1912,
+ 'tx_pps': 0.03807,
+ 'tx_util': 2.61912e-07}
+
+
+port_1 stats:
+
+{'ibytes': 660,
+ 'ierrors': 0,
+ 'ipackets': 10,   <1>
+ 'obytes': 0,
+ 'oerrors': 0,
+ 'opackets': 0,
+ 'rx_bps': 20.1,
+ 'rx_bps_L1': 26.1912,
+ 'rx_pps': 0.03807,
+ 'rx_util': 2.61912e-07,
+ 'tx_bps': 0.0,
+ 'tx_bps_L1': 0,
+ 'tx_pps': 0.0,
+ 'tx_util': 0.0}
+
+----
+<1> opackets on the TX port equals ipackets on the RX port
+     
+++++
+<disqus></disqus>
+++++
+
+
+
+=== Injecting A Huge PCAP
+
+Sometimes we might want to inject a fairly large PCAP (1MB - TBs).
+
+The previous method can handle small PCAPs (up to 1MB) by simply serializing them
+over the network.
+
+However, this is not possible for a very large PCAP.
+
+For that, TRex supports pushing a *remote* PCAP files (using a server path instead of a local one).
+
+The file path *must* be accessible from the server.
+
+
+[source,python]
+----
+get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.reset(ports = [port_0, port_1])
+
+    # push a remote PCAP file (path accessible from the server
+    c.push_remote('/server_path/http.pcap', ports = port_0, ipg_usec = 1000)
+    
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    # check out the stats
+    stats = c.get_stats()
+
+    # examine stats for port_0
+    print("port_0 stats:")
+    print(stats[port_0])
+
+    # examine stats for port_1
+    print("port_1 stats:")
+    print(stats[port_1])
+
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+*Output*:
+[source,python]
+----
+
+port_0 stats:
+
+{'ibytes': 0,
+ 'ierrors': 0,
+ 'ipackets': 0,
+ 'obytes': 660,
+ 'oerrors': 0,
+ 'opackets': 10, <1>
+ 'rx_bps': 0.0,
+ 'rx_bps_L1': 0,
+ 'rx_pps': 0.0,
+ 'rx_util': 0.0,
+ 'tx_bps': 20.1,
+ 'tx_bps_L1': 26.1912,
+ 'tx_pps': 0.03807,
+ 'tx_util': 2.61912e-07}
+
+
+port_1 stats:
+
+{'ibytes': 660,
+ 'ierrors': 0,
+ 'ipackets': 10,   <1>
+ 'obytes': 0,
+ 'oerrors': 0,
+ 'opackets': 0,
+ 'rx_bps': 20.1,
+ 'rx_bps_L1': 26.1912,
+ 'rx_pps': 0.03807,
+ 'rx_util': 2.61912e-07,
+ 'tx_bps': 0.0,
+ 'tx_bps_L1': 0,
+ 'tx_pps': 0.0,
+ 'tx_util': 0.0}
+
+----
+<1> opackets on the TX port equals ipackets on the RX port
+  
+++++
+<disqus></disqus>
+++++
+
+
+=== Injecting A PCAP with VLAN
+
+Suppose you need to inject a PCAP file under VLAN(s).
+
+One way will be to edit the PCAP offline and add VLAN,
+but the VLAN configuration might be dynamic and will require the test
+to adapt to the VLAN configuration each time.
+
+For solving this case we will use a `dynamic packet hook`.
+
+A packet hook is a function that will be called with a packet and
+will expect a (possibily) modified packet.
+
+
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+
+# generate a packet hook function with a VLAN ID
+def packet_hook_generator (vlan_id):
+
+    # this function will be called for each packet and will expect
+    # the new packet as a return value
+    def packet_hook (packet):
+        packet = Ether(packet)
+
+        if vlan_id >= 0 and vlan_id <= 4096:
+            packet_l3 = packet.payload
+            packet = Ether() / Dot1Q(vlan = vlan_id) / packet_l3
+
+        return str(packet)
+
+    return packet_hook
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    c.reset(ports = [port_0, port_1])
+
+    # each time a packet will be parsed, the hook will be called to modify it if needed
+    c.push_pcap('http.pcap', ports = port_0, ipg_usec = 1000,
+                 packet_hook = packet_hook_generator(vlan_id = 100))
+    
+    # hold until traffic ends
+    c.wait_on_traffic()
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Pushing Your Own Packets
+
+Moving forward from PCAP based traffic, the next stage is to build your own
+packets and inject them.
+
+TRex uses link:http://www.secdev.org/projects/scapy/[scapy] to generate packets.
+
+We'll build a list of 100 UDP packets with different destination ports.
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    # create a base packet with scapy
+    base_pkt = Ether()/IP(src='5.6.7.8', dst='10.10.10.1')/UDP(sport=5050)
+
+    # create a list of 100 packets
+    pkts = [base_pkt['UDP'].dport = p for p in range(1024, 1124)]
+
+    # inject the packets
+    c.push_packets(pkts, ports = [port_0])
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+
+=== Single Continuous Stream
+
+Having a custom packet built using scapy is fine, however we would
+like to also provide details on how the traffic will be transmitted.
+
+TRex generate traffic using *streams*.
+
+As mentioned above, a stream is composed of:
+
+* Packet
+* TX mode
+* `(optionally)` Field engine
+
+
+In the following example, we will add to the custom built packet a TX mode.
+
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    # create a base pkt
+    base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+    # later on we will use the packet builder to provide more properties
+    pkt = STLPktBuilder(base_pkt)
+       
+    # create a stream with a rate of 1000 PPS and continuous
+    s1 = STLStream(packet = pkt, mode = STLTXCont(pps = 1000))
+
+    # prepare the ports
+    c.reset(ports = [port_0, port_1])
+
+    # add the streams
+    c.add_streams(s1, ports = port_0)
+
+    # start traffic with limit of 3 seconds (otherwise it will continue forever)
+    c.start(ports = port_0, duration = 3)
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+
+=== Multiple Independent Streams
+
+For some cases, more than one stream is needed.
+
+TRex allows you to create multiple streams.
+
+In this example we will create the link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX] traffic profile
+
+
+for IMIX we need 3 streams:
+
+* 60    bytes with rate of 28 pps
+* 590   bytes with rate of 20 pps
+* 1514  bytes with rate of 4 pps
+
+All will be UDP based and continuous
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    imix_table = [ {'size': 60,   'pps': 28},
+                   {'size': 590,  'pps': 20},
+                   {'size': 1514, 'pps': 4} ]
+
+    # create a base pkt
+    base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+    
+    # stream list
+    streams = []
+
+    # iterate over the IMIX table entries
+    for entry in imix_table:
+	# create some padding data to complement the size
+	pad = (entry['size'] - len(base_pkt)) * 'x'
+        
+	# create the stream and append it
+	streams.append(STLStream(packet = STLPktBuilder(base_pkt/pad),
+				 mode = STLTXCont(pps = entry['pps'])))
+
+
+    # prepare the ports
+    c.reset(ports = [port_0, port_1])
+
+    # add the streams
+    c.add_streams(streams, ports = port_0)
+
+    # start traffic with limit of 3 seconds (otherwise it will continue forever)
+    c.start(ports = port_0, duration = 3)
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+
+=== Multiple Dependent Streams
+
+TRex can define relationships between streams.
+
+In the following example we will create 3 streams that will be injected
+one after another.
+
+[NOTE]
+====
+Obviously, one-after-another relationship implies that the streams should
+not be continuous streams.
+
+Instead we will use `burst-based` streams
+====
+
+To accomplish that we need that:
+
+* Each stream will have a name
+* Each stream will define the next stream
+* Only the first one will start immediately
+
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+    # first stream 's1' has its next set to 's2'
+    s1 = STLStream(name    = 's1',
+		   packet  = STLPktBuilder(pkt = base_pkt/pad),
+                   mode    = STLTXSingleBurst(total_pkts = 100, pps = 100),
+                   next    = 's2')
+
+    # second stream 's2' is marked as not self_start and points to 's3'
+    s2 = STLStream(name        = 's2',
+                   self_start  = False,      <1>
+		   packet      = STLPktBuilder(pkt = base_pkt/pad),
+                   mode        = STLTXSingleBurst(total_pkts = 100, pps = 100),
+                   next        = 's3')
+
+
+    # third stream 's3' marked as not self_start and does not point to anything
+    s3 = STLStream(name        = 's3',
+                   self_start  = False,      <1>
+		   packet      = STLPktBuilder(pkt = base_pkt/pad),
+                   mode        = STLTXSingleBurst(total_pkts = 100, pps = 100))
+
+
+    # prepare the ports
+    c.reset(ports = [port_0, port_1])
+
+    # add the streams
+    c.add_streams([s1, s2, s3], ports = port_0)
+
+    # start traffic
+    c.start(ports = port_0)
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+    
+<1> mark s2 and s3 with self_start = False to trigger them by events
+ 
+++++
+<disqus></disqus>
+++++
+
+
+=== Bidirectional Traffic
+
+We can easily enhance any of the examples for bi-directional traffic.
+
+Simply provide each port a different base packet.
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    # create a base pkts
+    base_pkt_dir_a = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+    base_pkt_dir_b = Ether()/IP(src="48.0.0.1",dst="16.0.0.1")/UDP(dport=1025,sport=12)
+
+    # let's pad to 300 bytes
+    pad = (300 - len(base_pkt_dir_a)) * 'x'
+    
+    # create a stream with a rate of 1000 PPS and continuous
+    s1 = STLStream(packet = STLPktBuilder(base_pkt_dir_a/pad),
+                   mode   = STLTXCont(pps = 1000))
+
+    # create a stream with a rate of 1000 PPS and continuous
+    s2 = STLStream(packet = STLPktBuilder(base_pkt_dir_b/pad),
+                   mode   = STLTXCont(pps = 1000))
+
+    # prepare the ports
+    c.reset(ports = [port_0, port_1])
+
+    # add the streams
+    c.add_streams(s1, ports = port_0)
+    c.add_streams(s2, ports = port_1)
+
+    # start traffic with limit of 3 seconds (otherwise it will continue forever)
+    c.start(ports = port_0, duration = 3)
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Scaling IP Addresses
+
+As we saw, we can generate multiple streams.
+
+However, each of them had a *static* packet being injected again and again.
+
+In the following example we will expand our stream with `Field Engine`.
+
+Field engine allows multiple fields to be manipulated dynamically on the server side.
+
+It is defined as a serialized commands performed per packet.
+
+[NOTE]
+====
+Field engine write commands can be provided with an numeric offset or
+a 'scapy path' such as IP.src
+====
+
+Our goal will be to generate multiple flows using IPv4 source address:
+
+
+[source,python]
+----
+# get TRex APIs
+from trex_stl_lib.api import *
+
+c = STLClient(server = '127.0.0.1')
+c.connect()
+
+try:
+    # create a base pkt
+    base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+    # create an empty VM object
+    vm = STLVM()
+
+    # add a var field matching the src IPv4 field
+    vm.var(name = 'src_ipv4', min_value = '16.0.0.1',
+           max_value = '16.0.0.255', size = 4,
+	   step = 1, op = 'inc')
+
+    # add a command to write the packet to IPv4 src field offset
+    vm.write(fv_name = 'src_ipv4', pkt_offset = 'IP.src')
+
+    # provide both the base packet and the VM object
+    pkt = STLPktBuilder(base_pkt, vm = vm)
+       
+    # create a stream with a rate of 1000 PPS and continuous
+    s1 = STLStream(packet = pkt, mode = STLTXCont(pps = 1000))
+
+    # prepare the ports
+    c.reset(ports = [port_0, port_1])
+
+    # add the streams
+    c.add_streams(s1, ports = port_0)
+
+    # start traffic with limit of 3 seconds (otherwise it will continue forever)
+    c.start(ports = port_0, duration = 3)
+
+    # hold until traffic ends
+    c.wait_on_traffic()
+
+    
+except STLError as e:
+    print(e)
+
+finally:
+    
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+
 // ################################################## ASTF ##############################################
 
 
 == Advanced Stateful
 
 *TBD*
-
-=== Launching The Server
-
-Execute TRex service by calling the following from the main package path or from 'scripts'
-from a developer branch.
-
-Provide '--astf' for stateless.
-
-[source,python]
-----
-
-For stateless: 
-./t-rex-64 -i --astf
-----
- 
