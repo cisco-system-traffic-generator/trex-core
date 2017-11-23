@@ -130,6 +130,7 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
                                                unsigned elt_size,
                                                unsigned cache_size,
-                                               int socket_id);
+                                               int socket_id,
+                                               bool share);
 
 #endif

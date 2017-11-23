@@ -313,6 +313,9 @@ class STLRX_Test(CStlGeneral_Test):
             pprint.pprint(err_latency)
             return ERROR_CNTR_NOT_0
 
+        tmp = 'Latency results, Average {0} usec, ,Max {1} usec. '.format(int(latency['average']), int(latency['total_max']))
+        print(tmp)
+
         if latency['average']> max_average:
             pprint.pprint(latency_stats)
             tmp = 'Average latency is too high {0} {1} '.format(latency['average'], max_average)

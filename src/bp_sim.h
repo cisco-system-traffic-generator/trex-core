@@ -3097,8 +3097,8 @@ private:
 } __rte_cache_aligned ;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
-    CGenNode * res;
-    if ( unlikely (rte_mempool_sc_get(m_node_pool, (void **)&res) <0) ){
+    CGenNode * res=(CGenNode *)0;
+    if ( unlikely (rte_mempool_get(m_node_pool, (void **)&res) <0) ){
         no_memory_error();
         return (0);
     }
@@ -3109,7 +3109,7 @@ inline CGenNode * CFlowGenListPerThread::create_node(void){
 
 inline void CFlowGenListPerThread::free_node(CGenNode *p){
     p->free_base();
-    rte_mempool_sp_put(m_node_pool, p);
+    rte_mempool_put(m_node_pool, p);
 }
 
 inline void CFlowGenListPerThread::free_last_flow_node(CGenNode *p){

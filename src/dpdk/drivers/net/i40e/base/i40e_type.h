@@ -92,7 +92,9 @@ POSSIBILITY OF SUCH DAMAGE.
 struct i40e_hw;
 typedef void (*I40E_ADMINQ_CALLBACK)(struct i40e_hw *, struct i40e_aq_desc *);
 
-#define I40E_ETH_LENGTH_OF_ADDRESS	6
+#ifndef ETH_ALEN
+#define ETH_ALEN	6
+#endif
 /* Data type manipulation macros. */
 #define I40E_HI_DWORD(x)	((u32)((((x) >> 16) >> 16) & 0xFFFFFFFF))
 #define I40E_LO_DWORD(x)	((u32)((x) & 0xFFFFFFFF))
@@ -133,6 +135,7 @@ enum i40e_debug_mask {
 	I40E_DEBUG_DCB			= 0x00000400,
 	I40E_DEBUG_DIAG			= 0x00000800,
 	I40E_DEBUG_FD			= 0x00001000,
+	I40E_DEBUG_PACKAGE		= 0x00002000,
 
 	I40E_DEBUG_AQ_MESSAGE		= 0x01000000,
 	I40E_DEBUG_AQ_DESCRIPTOR	= 0x02000000,
@@ -195,10 +198,6 @@ enum i40e_memcpy_type {
 	I40E_DMA_TO_DMA,
 	I40E_DMA_TO_NONDMA
 };
-
-#define I40E_FW_API_VERSION_MINOR_X722	0x0005
-#define I40E_FW_API_VERSION_MINOR_X710	0x0005
-
 
 /* These are structs for managing the hardware information and the operations.
  * The structures of function pointers are filled out at init time when we
@@ -268,6 +267,7 @@ struct i40e_link_status {
 	enum i40e_aq_link_speed link_speed;
 	u8 link_info;
 	u8 an_info;
+	u8 req_fec_info;
 	u8 fec_info;
 	u8 ext_info;
 	u8 loopback;
@@ -438,10 +438,10 @@ struct i40e_hw_capabilities {
 
 struct i40e_mac_info {
 	enum i40e_mac_type type;
-	u8 addr[I40E_ETH_LENGTH_OF_ADDRESS];
-	u8 perm_addr[I40E_ETH_LENGTH_OF_ADDRESS];
-	u8 san_addr[I40E_ETH_LENGTH_OF_ADDRESS];
-	u8 port_addr[I40E_ETH_LENGTH_OF_ADDRESS];
+	u8 addr[ETH_ALEN];
+	u8 perm_addr[ETH_ALEN];
+	u8 san_addr[ETH_ALEN];
+	u8 port_addr[ETH_ALEN];
 	u16 max_fcoeq;
 };
 
@@ -700,7 +700,14 @@ struct i40e_hw {
 	u16 wol_proxy_vsi_seid;
 
 #define I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE BIT_ULL(0)
+#define I40E_HW_FLAG_802_1AD_CAPABLE        BIT_ULL(1)
+#define I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE  BIT_ULL(2)
 	u64 flags;
+
+	/* Used in set switch config AQ command */
+	u16 switch_tag;
+	u16 first_tag;
+	u16 second_tag;
 
 	/* debug mask */
 	u32 debug_mask;
@@ -1878,4 +1885,106 @@ struct i40e_lldp_variables {
 #define I40E_FLEX_56_MASK		(0x1ULL << I40E_FLEX_56_SHIFT)
 #define I40E_FLEX_57_SHIFT		6
 #define I40E_FLEX_57_MASK		(0x1ULL << I40E_FLEX_57_SHIFT)
+
+/* Version format for Dynamic Device Personalization(DDP) */
+struct i40e_ddp_version {
+	u8 major;
+	u8 minor;
+	u8 update;
+	u8 draft;
+};
+
+#define I40E_DDP_NAME_SIZE	32
+
+/* Package header */
+struct i40e_package_header {
+	struct i40e_ddp_version version;
+	u32 segment_count;
+	u32 segment_offset[1];
+};
+
+/* Generic segment header */
+struct i40e_generic_seg_header {
+#define SEGMENT_TYPE_METADATA	0x00000001
+#define SEGMENT_TYPE_NOTES	0x00000002
+#define SEGMENT_TYPE_I40E	0x00000011
+#define SEGMENT_TYPE_X722	0x00000012
+	u32 type;
+	struct i40e_ddp_version version;
+	u32 size;
+	char name[I40E_DDP_NAME_SIZE];
+};
+
+struct i40e_metadata_segment {
+	struct i40e_generic_seg_header header;
+	struct i40e_ddp_version version;
+#define I40E_DDP_TRACKID_RDONLY		0
+#define I40E_DDP_TRACKID_INVALID	0xFFFFFFFF
+	u32 track_id;
+	char name[I40E_DDP_NAME_SIZE];
+};
+
+struct i40e_device_id_entry {
+	u32 vendor_dev_id;
+	u32 sub_vendor_dev_id;
+};
+
+struct i40e_profile_segment {
+	struct i40e_generic_seg_header header;
+	struct i40e_ddp_version version;
+	char name[I40E_DDP_NAME_SIZE];
+	u32 device_table_count;
+	struct i40e_device_id_entry device_table[1];
+};
+
+struct i40e_section_table {
+	u32 section_count;
+	u32 section_offset[1];
+};
+
+struct i40e_profile_section_header {
+	u16 tbl_size;
+	u16 data_end;
+	struct {
+#define SECTION_TYPE_INFO	0x00000010
+#define SECTION_TYPE_MMIO	0x00000800
+#define SECTION_TYPE_RB_MMIO	0x00001800
+#define SECTION_TYPE_AQ		0x00000801
+#define SECTION_TYPE_RB_AQ	0x00001801
+#define SECTION_TYPE_NOTE	0x80000000
+#define SECTION_TYPE_NAME	0x80000001
+#define SECTION_TYPE_PROTO	0x80000002
+#define SECTION_TYPE_PCTYPE	0x80000003
+#define SECTION_TYPE_PTYPE	0x80000004
+		u32 type;
+		u32 offset;
+		u32 size;
+	} section;
+};
+
+struct i40e_profile_tlv_section_record {
+	u8 rtype;
+	u8 type;
+	u16 len;
+	u8 data[12];
+};
+
+/* Generic AQ section in proflie */
+struct i40e_profile_aq_section {
+	u16 opcode;
+	u16 flags;
+	u8  param[16];
+	u16 datalen;
+	u8  data[1];
+};
+
+struct i40e_profile_info {
+	u32 track_id;
+	struct i40e_ddp_version version;
+	u8 op;
+#define I40E_DDP_ADD_TRACKID		0x01
+#define I40E_DDP_REMOVE_TRACKID	0x02
+	u8 reserved[7];
+	u8 name[I40E_DDP_NAME_SIZE];
+};
 #endif /* _I40E_TYPE_H_ */

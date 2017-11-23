@@ -51,10 +51,9 @@ extern "C" {
 struct rte_intr_handle;
 
 /** Function to be registered for the specific interrupt */
-typedef void (*rte_intr_callback_fn)(struct rte_intr_handle *intr_handle,
-							void *cb_arg);
+typedef void (*rte_intr_callback_fn)(void *cb_arg);
 
-#include <exec-env/rte_interrupts.h>
+#include "rte_eal_interrupts.h"
 
 /**
  * It registers the callback for the specific interrupt. Multiple

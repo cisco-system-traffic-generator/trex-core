@@ -384,13 +384,13 @@ Other network devices
         return (out.strip());
 
     def tune_mlx5_device (self,pci_id):
-        # set PCIe Read to 1024 and not 512 ... need to add it to startup s
+        # set PCIe Read to 4K and not 512 ... need to add it to startup s
         val=self.read_pci (pci_id,68)
         if val[0]=='0':
             #hypervisor does not give the right to write to this register
             return;
-        if val[0]!='3':
-            val='3'+val[1:]
+        if val[0]!='5':
+            val='5'+val[1:]
             self.write_pci (pci_id,68,val)
             assert(self.read_pci (pci_id,68)==val);
 
@@ -441,8 +441,8 @@ Other network devices
 
         ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
 
-        ofed_ver= 40
-        ofed_ver_show= '4.0'
+        ofed_ver= 42
+        ofed_ver_show= '4.2'
 
 
         if not os.path.isfile(ofed_info):
@@ -470,11 +470,11 @@ Other network devices
 
 
     def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.3\n'
+        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.4\n'
         err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
         try:
             dist = platform.dist()
-            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.3'):
+            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.4'):
                 print(err_msg)
         except Exception as e:
             print('Error while determining OS type: %s' % e)

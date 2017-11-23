@@ -36,6 +36,9 @@ general trex core always works in virtual ports id
 #include <string>
 #include <vector>
 #include <map>
+#ifndef TREX_SIM
+#include <rte_config.h>
+#endif
 #include "rte_pci.h"
                                   
 

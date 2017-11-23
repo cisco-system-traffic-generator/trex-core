@@ -40,8 +40,8 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <errno.h>
-#include <infiniband/ofa_verbs.h>
 #include <string.h>
+#include <linux/types.h>
 
 #ifdef __cplusplus
 #  define BEGIN_C_DECLS extern "C" {
@@ -62,8 +62,8 @@ BEGIN_C_DECLS
 union ibv_gid {
 	uint8_t			raw[16];
 	struct {
-		uint64_t	subnet_prefix;
-		uint64_t	interface_id;
+		__be64	subnet_prefix;
+		__be64	interface_id;
 	} global;
 };
 
@@ -81,7 +81,7 @@ union ibv_gid {
 
 #define vext_field_avail(type, fld, sz) (offsetof(type, fld) < (sz))
 
-static void *__VERBS_ABI_IS_EXTENDED = ((uint8_t *)NULL) - 1;
+static void *__VERBS_ABI_IS_EXTENDED = ((uint8_t *) NULL) - 1;
 
 enum ibv_node_type {
 	IBV_NODE_UNKNOWN	= -1,
@@ -89,24 +89,16 @@ enum ibv_node_type {
 	IBV_NODE_SWITCH,
 	IBV_NODE_ROUTER,
 	IBV_NODE_RNIC,
-
-	/* Leave a gap for future node types before starting with
-	 * experimental node types.
-	 */
-	IBV_EXP_NODE_TYPE_START	= 32,
-	IBV_EXP_NODE_MIC	= IBV_EXP_NODE_TYPE_START
+	IBV_NODE_USNIC,
+	IBV_NODE_USNIC_UDP,
 };
 
 enum ibv_transport_type {
 	IBV_TRANSPORT_UNKNOWN	= -1,
 	IBV_TRANSPORT_IB	= 0,
 	IBV_TRANSPORT_IWARP,
-
-	/* Leave a gap for future transport types before starting with
-	 * experimental transport types.
-	 */
-	IBV_EXP_TRANSPORT_TYPE_START	= 32,
-	IBV_EXP_TRANSPORT_SCIF		= IBV_EXP_TRANSPORT_TYPE_START
+	IBV_TRANSPORT_USNIC,
+	IBV_TRANSPORT_USNIC_UDP,
 };
 
 enum ibv_device_cap_flags {
@@ -125,13 +117,23 @@ enum ibv_device_cap_flags {
 	IBV_DEVICE_RC_RNR_NAK_GEN	= 1 << 12,
 	IBV_DEVICE_SRQ_RESIZE		= 1 << 13,
 	IBV_DEVICE_N_NOTIFY_CQ		= 1 << 14,
-	IBV_DEVICE_MEM_WINDOW		= 1 << 17,
+	IBV_DEVICE_MEM_WINDOW           = 1 << 17,
+	IBV_DEVICE_UD_IP_CSUM		= 1 << 18,
 	IBV_DEVICE_XRC			= 1 << 20,
 	IBV_DEVICE_MEM_MGT_EXTENSIONS	= 1 << 21,
 	IBV_DEVICE_MEM_WINDOW_TYPE_2A	= 1 << 23,
 	IBV_DEVICE_MEM_WINDOW_TYPE_2B	= 1 << 24,
+	IBV_DEVICE_RC_IP_CSUM		= 1 << 25,
+	IBV_DEVICE_RAW_IP_CSUM		= 1 << 26,
 	IBV_DEVICE_MANAGED_FLOW_STEERING = 1 << 29
 };
+
+/*
+ * Can't extended above ibv_device_cap_flags enum as in some systems/compilers
+ * enum range is limited to 4 bytes.
+ */
+#define IBV_DEVICE_RAW_SCATTER_FCS (1ULL << 34)
+#define IBV_DEVICE_SCATTER_END_PADDING (1ULL << 36) /* EXP, might be changed */
 
 enum ibv_atomic_cap {
 	IBV_ATOMIC_NONE,
@@ -141,8 +143,8 @@ enum ibv_atomic_cap {
 
 struct ibv_device_attr {
 	char			fw_ver[64];
-	uint64_t		node_guid;
-	uint64_t		sys_image_guid;
+	__be64			node_guid;
+	__be64			sys_image_guid;
 	uint64_t		max_mr_size;
 	uint64_t		page_size_cap;
 	uint32_t		vendor_id;
@@ -150,7 +152,7 @@ struct ibv_device_attr {
 	uint32_t		hw_ver;
 	int			max_qp;
 	int			max_qp_wr;
-	uint32_t		device_cap_flags;
+	int			device_cap_flags;
 	int			max_sge;
 	int			max_sge_rd;
 	int			max_cq;
@@ -209,10 +211,70 @@ enum ibv_odp_general_caps {
 	IBV_ODP_SUPPORT = 1 << 0,
 };
 
+struct ibv_tso_caps {
+	uint32_t max_tso;
+	uint32_t supported_qpts;
+};
+
+/* RX Hash function flags */
+enum ibv_rx_hash_function_flags {
+	IBV_RX_HASH_FUNC_TOEPLITZ	= 1 << 0,
+};
+
+/*
+ * RX Hash fields enable to set which incoming packet's field should
+ * participates in RX Hash. Each flag represent certain packet's field,
+ * when the flag is set the field that is represented by the flag will
+ * participate in RX Hash calculation.
+ * Note: *IPV4 and *IPV6 flags can't be enabled together on the same QP
+ * and *TCP and *UDP flags can't be enabled together on the same QP.
+*/
+enum ibv_rx_hash_fields {
+	IBV_RX_HASH_SRC_IPV4	= 1 << 0,
+	IBV_RX_HASH_DST_IPV4	= 1 << 1,
+	IBV_RX_HASH_SRC_IPV6	= 1 << 2,
+	IBV_RX_HASH_DST_IPV6	= 1 << 3,
+	IBV_RX_HASH_SRC_PORT_TCP	= 1 << 4,
+	IBV_RX_HASH_DST_PORT_TCP	= 1 << 5,
+	IBV_RX_HASH_SRC_PORT_UDP	= 1 << 6,
+	IBV_RX_HASH_DST_PORT_UDP	= 1 << 7
+};
+
+struct ibv_rss_caps {
+	uint32_t supported_qpts;
+	uint32_t max_rwq_indirection_tables;
+	uint32_t max_rwq_indirection_table_size;
+	uint64_t rx_hash_fields_mask; /* enum ibv_rx_hash_fields */
+	uint8_t  rx_hash_function; /* enum ibv_rx_hash_function_flags */
+};
+
+struct ibv_packet_pacing_caps {
+	uint32_t qp_rate_limit_min;
+	uint32_t qp_rate_limit_max; /* In kbps */
+	uint32_t supported_qpts;
+};
+
+enum ibv_raw_packet_caps {
+	IBV_RAW_PACKET_CAP_CVLAN_STRIPPING	= 1 << 0,
+	IBV_RAW_PACKET_CAP_SCATTER_FCS		= 1 << 1,
+	IBV_RAW_PACKET_CAP_IP_CSUM		= 1 << 2,
+	IBV_RAW_PACKET_CAP_DELAY_DROP		= 1 << 3,
+};
+
 struct ibv_device_attr_ex {
 	struct ibv_device_attr	orig_attr;
 	uint32_t		comp_mask;
 	struct ibv_odp_caps	odp_caps;
+	uint64_t		completion_timestamp_mask;
+	uint64_t		hca_core_clock;
+	uint64_t		device_cap_flags_ex;
+	struct ibv_tso_caps	tso_caps;
+	struct ibv_rss_caps     rss_caps;
+	uint32_t		max_wq_type_rq;
+	struct ibv_packet_pacing_caps packet_pacing_caps;
+	uint32_t		raw_packet_caps; /* Use ibv_raw_packet_caps */
+	uint8_t			reserved[20]; /* Place holder for struct ibv_tm_caps */
+	uint16_t		max_counter_sets;
 };
 
 enum ibv_mtu {
@@ -236,12 +298,6 @@ enum {
 	IBV_LINK_LAYER_UNSPECIFIED,
 	IBV_LINK_LAYER_INFINIBAND,
 	IBV_LINK_LAYER_ETHERNET,
-
-	/* Leave a gap for future link layer types before starting with
-	 * experimental link layer.
-	 */
-	IBV_EXP_LINK_LAYER_START	= 32,
-	IBV_EXP_LINK_LAYER_SCIF		= IBV_EXP_LINK_LAYER_START
 };
 
 enum ibv_port_cap_flags {
@@ -261,9 +317,13 @@ enum ibv_port_cap_flags {
 	IBV_PORT_SNMP_TUNNEL_SUP		= 1 << 17,
 	IBV_PORT_REINIT_SUP			= 1 << 18,
 	IBV_PORT_DEVICE_MGMT_SUP		= 1 << 19,
-	IBV_PORT_VENDOR_CLASS			= 1 << 24,
+	IBV_PORT_VENDOR_CLASS_SUP		= 1 << 20,
+	IBV_PORT_DR_NOTICE_SUP			= 1 << 21,
+	IBV_PORT_CAP_MASK_NOTICE_SUP		= 1 << 22,
+	IBV_PORT_BOOT_MGMT_SUP			= 1 << 23,
+	IBV_PORT_LINK_LATENCY_SUP		= 1 << 24,
 	IBV_PORT_CLIENT_REG_SUP			= 1 << 25,
-	IBV_PORT_IP_BASED_GIDS			= 1 << 26,
+	IBV_PORT_IP_BASED_GIDS			= 1 << 26
 };
 
 struct ibv_port_attr {
@@ -310,13 +370,7 @@ enum ibv_event_type {
 	IBV_EVENT_QP_LAST_WQE_REACHED,
 	IBV_EVENT_CLIENT_REREGISTER,
 	IBV_EVENT_GID_CHANGE,
-
-	/* new experimental events start here leaving enough
-	 * room for 14 events which should be enough
-	 */
-	IBV_EXP_EVENT_DCT_KEY_VIOLATION = 32,
-	IBV_EXP_EVENT_DCT_ACCESS_ERR,
-	IBV_EXP_EVENT_DCT_REQ_ERR,
+	IBV_EVENT_WQ_FATAL,
 };
 
 struct ibv_async_event {
@@ -324,10 +378,8 @@ struct ibv_async_event {
 		struct ibv_cq  *cq;
 		struct ibv_qp  *qp;
 		struct ibv_srq *srq;
-		struct ibv_exp_dct *dct;
+		struct ibv_wq  *wq;
 		int		port_num;
-		/* For source compatible with Legacy API */
-		uint32_t	xrc_qp_num;
 	} element;
 	enum ibv_event_type	event_type;
 };
@@ -366,6 +418,7 @@ enum ibv_wc_opcode {
 	IBV_WC_FETCH_ADD,
 	IBV_WC_BIND_MW,
 	IBV_WC_LOCAL_INV,
+	IBV_WC_TSO,
 /*
  * Set value of IBV_WC_RECV so consumers can test if a completion is a
  * receive by testing (opcode & IBV_WC_RECV).
@@ -374,10 +427,45 @@ enum ibv_wc_opcode {
 	IBV_WC_RECV_RDMA_WITH_IMM
 };
 
+enum {
+	IBV_WC_IP_CSUM_OK_SHIFT	= 2
+};
+
+enum ibv_create_cq_wc_flags {
+	IBV_WC_EX_WITH_BYTE_LEN		= 1 << 0,
+	IBV_WC_EX_WITH_IMM		= 1 << 1,
+	IBV_WC_EX_WITH_QP_NUM		= 1 << 2,
+	IBV_WC_EX_WITH_SRC_QP		= 1 << 3,
+	IBV_WC_EX_WITH_SLID		= 1 << 4,
+	IBV_WC_EX_WITH_SL		= 1 << 5,
+	IBV_WC_EX_WITH_DLID_PATH_BITS	= 1 << 6,
+	IBV_WC_EX_WITH_COMPLETION_TIMESTAMP	= 1 << 7,
+	IBV_WC_EX_WITH_CVLAN		= 1 << 8,
+	IBV_WC_EX_WITH_FLOW_TAG		= 1 << 9,
+};
+
+enum {
+	IBV_WC_STANDARD_FLAGS = IBV_WC_EX_WITH_BYTE_LEN		|
+				 IBV_WC_EX_WITH_IMM		|
+				 IBV_WC_EX_WITH_QP_NUM		|
+				 IBV_WC_EX_WITH_SRC_QP		|
+				 IBV_WC_EX_WITH_SLID		|
+				 IBV_WC_EX_WITH_SL		|
+				 IBV_WC_EX_WITH_DLID_PATH_BITS
+};
+
+enum {
+	IBV_CREATE_CQ_SUP_WC_FLAGS = IBV_WC_STANDARD_FLAGS |
+				IBV_WC_EX_WITH_COMPLETION_TIMESTAMP |
+				IBV_WC_EX_WITH_CVLAN |
+				IBV_WC_EX_WITH_FLOW_TAG
+};
+
 enum ibv_wc_flags {
 	IBV_WC_GRH		= 1 << 0,
 	IBV_WC_WITH_IMM		= 1 << 1,
-	IBV_WC_WITH_INV		= 1 << 3
+	IBV_WC_IP_CSUM_OK	= 1 << IBV_WC_IP_CSUM_OK_SHIFT,
+	IBV_WC_WITH_INV         = 1 << 3
 };
 
 struct ibv_wc {
@@ -389,7 +477,10 @@ struct ibv_wc {
 	/* When (wc_flags & IBV_WC_WITH_IMM): Immediate data in network byte order.
 	 * When (wc_flags & IBV_WC_WITH_INV): Stores the invalidated rkey.
 	 */
-	uint32_t		imm_data;
+	union {
+		__be32		imm_data;
+		uint32_t	invalidated_rkey;
+	};
 	uint32_t		qp_num;
 	uint32_t		src_qp;
 	int			wc_flags;
@@ -477,8 +568,8 @@ struct ibv_global_route {
 };
 
 struct ibv_grh {
-	uint32_t		version_tclass_flow;
-	uint16_t		paylen;
+	__be32			version_tclass_flow;
+	__be16			paylen;
 	uint8_t			next_hdr;
 	uint8_t			hop_limit;
 	union ibv_gid		sgid;
@@ -512,26 +603,26 @@ enum ibv_rate {
  * converted to 2, since 5 Gbit/sec is 2 * 2.5 Gbit/sec.
  * @rate: rate to convert.
  */
-int ibv_rate_to_mult(enum ibv_rate rate) __attribute_const;
+int  __attribute_const ibv_rate_to_mult(enum ibv_rate rate);
 
 /**
  * mult_to_ibv_rate - Convert a multiple of 2.5 Gbit/sec to an IB rate enum.
  * @mult: multiple to convert.
  */
-enum ibv_rate mult_to_ibv_rate(int mult) __attribute_const;
+enum ibv_rate __attribute_const mult_to_ibv_rate(int mult);
 
 /**
  * ibv_rate_to_mbps - Convert the IB rate enum to Mbit/sec.
  * For example, IBV_RATE_5_GBPS will return the value 5000.
  * @rate: rate to convert.
  */
-int ibv_rate_to_mbps(enum ibv_rate rate) __attribute_const;
+int __attribute_const ibv_rate_to_mbps(enum ibv_rate rate);
 
 /**
  * mbps_to_ibv_rate - Convert a Mbit/sec value to an IB rate enum.
  * @mbps: value to convert.
  */
-enum ibv_rate mbps_to_ibv_rate(int mbps) __attribute_const;
+enum ibv_rate __attribute_const mbps_to_ibv_rate(int mbps) __attribute_const;
 
 struct ibv_ah_attr {
 	struct ibv_global_route	grh;
@@ -583,22 +674,94 @@ struct ibv_srq_init_attr_ex {
 	struct ibv_cq	       *cq;
 };
 
+enum ibv_wq_type {
+	IBV_WQT_RQ
+};
+
+enum ibv_wq_init_attr_mask {
+	IBV_WQ_INIT_ATTR_FLAGS		= 1 << 0,
+	IBV_WQ_INIT_ATTR_RESERVED	= 1 << 1,
+};
+
+enum ibv_wq_flags {
+	IBV_WQ_FLAGS_CVLAN_STRIPPING		= 1 << 0,
+	IBV_WQ_FLAGS_SCATTER_FCS		= 1 << 1,
+	IBV_WQ_FLAGS_DELAY_DROP			= 1 << 2,
+	IBV_WQ_FLAGS_SCATTER_END_PADDING	= 1 << 3, /* EXP, might be changed */
+	IBV_WQ_FLAGS_RESERVED			= 1 << 4,
+};
+
+struct ibv_wq_init_attr {
+	void		       *wq_context;
+	enum ibv_wq_type	wq_type;
+	uint32_t		max_wr;
+	uint32_t		max_sge;
+	struct	ibv_pd	       *pd;
+	struct	ibv_cq	       *cq;
+	uint32_t		comp_mask; /* Use ibv_wq_init_attr_mask */
+	uint32_t		create_flags; /* use ibv_wq_flags */
+};
+
+enum ibv_wq_state {
+	IBV_WQS_RESET,
+	IBV_WQS_RDY,
+	IBV_WQS_ERR,
+	IBV_WQS_UNKNOWN
+};
+
+enum ibv_wq_attr_mask {
+	IBV_WQ_ATTR_STATE	= 1 << 0,
+	IBV_WQ_ATTR_CURR_STATE	= 1 << 1,
+	IBV_WQ_ATTR_FLAGS	= 1 << 2,
+	IBV_WQ_ATTR_RESERVED	= 1 << 3,
+};
+
+struct ibv_wq_attr {
+	/* enum ibv_wq_attr_mask */
+	uint32_t		attr_mask;
+	/* Move the WQ to this state */
+	enum	ibv_wq_state	wq_state;
+	/* Assume this is the current WQ state */
+	enum	ibv_wq_state	curr_wq_state;
+	uint32_t		flags; /* Use ibv_wq_flags */
+	uint32_t		flags_mask; /* Use ibv_wq_flags */
+};
+
+/*
+ * Receive Work Queue Indirection Table.
+ * It's used in order to distribute incoming packets between different
+ * Receive Work Queues. Associating Receive WQs with different CPU cores
+ * allows to workload the traffic between different CPU cores.
+ * The Indirection Table can contain only WQs of type IBV_WQT_RQ.
+*/
+struct ibv_rwq_ind_table {
+	struct ibv_context *context;
+	int ind_tbl_handle;
+	int ind_tbl_num;
+	uint32_t comp_mask;
+};
+
+enum ibv_ind_table_init_attr_mask {
+	IBV_CREATE_IND_TABLE_RESERVED = (1 << 0)
+};
+
+/*
+ * Receive Work Queue Indirection Table attributes
+ */
+struct ibv_rwq_ind_table_init_attr {
+	uint32_t log_ind_tbl_size;
+	/* Each entry is a pointer to a Receive Work Queue */
+	struct ibv_wq **ind_tbl;
+	uint32_t comp_mask;
+};
+
 enum ibv_qp_type {
 	IBV_QPT_RC = 2,
 	IBV_QPT_UC,
 	IBV_QPT_UD,
-	/* XRC compatible code */
-	IBV_QPT_XRC,
 	IBV_QPT_RAW_PACKET = 8,
-	IBV_QPT_RAW_ETH = 8,
 	IBV_QPT_XRC_SEND = 9,
-	IBV_QPT_XRC_RECV,
-
-	/* Leave a gap for future qp types before starting with
-	 * experimental qp types.
-	 */
-	IBV_EXP_QP_TYPE_START	= 32,
-	IBV_EXP_QPT_DC_INI	= IBV_EXP_QP_TYPE_START
+	IBV_QPT_XRC_RECV
 };
 
 struct ibv_qp_cap {
@@ -617,14 +780,33 @@ struct ibv_qp_init_attr {
 	struct ibv_qp_cap	cap;
 	enum ibv_qp_type	qp_type;
 	int			sq_sig_all;
-	/* Below is needed for backwards compatabile */
-	struct ibv_xrc_domain  *xrc_domain;
 };
 
 enum ibv_qp_init_attr_mask {
 	IBV_QP_INIT_ATTR_PD		= 1 << 0,
 	IBV_QP_INIT_ATTR_XRCD		= 1 << 1,
-	IBV_QP_INIT_ATTR_RESERVED	= 1 << 2
+	IBV_QP_INIT_ATTR_CREATE_FLAGS	= 1 << 2,
+	IBV_QP_INIT_ATTR_MAX_TSO_HEADER = 1 << 3,
+	IBV_QP_INIT_ATTR_IND_TABLE	= 1 << 4,
+	IBV_QP_INIT_ATTR_RX_HASH	= 1 << 5,
+	IBV_QP_INIT_ATTR_RESERVED	= 1 << 6
+};
+
+enum ibv_qp_create_flags {
+	IBV_QP_CREATE_BLOCK_SELF_MCAST_LB	= 1 << 1,
+	IBV_QP_CREATE_SCATTER_FCS		= 1 << 8,
+	IBV_QP_CREATE_CVLAN_STRIPPING		= 1 << 9,
+	IBV_QP_CREATE_SOURCE_QPN		= 1 << 10,
+	IBV_QP_CREATE_SCATTER_END_PADDING	= 1 << 11, /* EXP, might be changed */
+};
+
+struct ibv_rx_hash_conf {
+	/* enum ibv_rx_hash_function_flags */
+	uint8_t	rx_hash_function;
+	uint8_t	rx_hash_key_len;
+	uint8_t	*rx_hash_key;
+	/* enum ibv_rx_hash_fields */
+	uint64_t	rx_hash_fields_mask;
 };
 
 struct ibv_qp_init_attr_ex {
@@ -639,11 +821,16 @@ struct ibv_qp_init_attr_ex {
 	uint32_t		comp_mask;
 	struct ibv_pd	       *pd;
 	struct ibv_xrcd	       *xrcd;
+	uint32_t                create_flags;
+	uint16_t		max_tso_header;
+	struct ibv_rwq_ind_table       *rwq_ind_tbl;
+	struct ibv_rx_hash_conf	rx_hash_conf;
+	uint32_t		source_qpn;
 };
 
 enum ibv_qp_open_attr_mask {
 	IBV_QP_OPEN_ATTR_NUM		= 1 << 0,
-	IBV_QP_OPEN_ATTR_XRCD		= 1 << 1,
+	IBV_QP_OPEN_ATTR_XRCD	        = 1 << 1,
 	IBV_QP_OPEN_ATTR_CONTEXT	= 1 << 2,
 	IBV_QP_OPEN_ATTR_TYPE		= 1 << 3,
 	IBV_QP_OPEN_ATTR_RESERVED	= 1 << 4
@@ -678,7 +865,8 @@ enum ibv_qp_attr_mask {
 	IBV_QP_MAX_DEST_RD_ATOMIC	= 1 << 17,
 	IBV_QP_PATH_MIG_STATE		= 1 << 18,
 	IBV_QP_CAP			= 1 << 19,
-	IBV_QP_DEST_QPN			= 1 << 20
+	IBV_QP_DEST_QPN			= 1 << 20,
+	IBV_QP_RATE_LIMIT		= 1 << 25,
 };
 
 enum ibv_qp_state {
@@ -724,6 +912,7 @@ struct ibv_qp_attr {
 	uint8_t			rnr_retry;
 	uint8_t			alt_port_num;
 	uint8_t			alt_timeout;
+	uint32_t		rate_limit;
 };
 
 enum ibv_wr_opcode {
@@ -737,13 +926,15 @@ enum ibv_wr_opcode {
 	IBV_WR_LOCAL_INV,
 	IBV_WR_BIND_MW,
 	IBV_WR_SEND_WITH_INV,
+	IBV_WR_TSO,
 };
 
 enum ibv_send_flags {
 	IBV_SEND_FENCE		= 1 << 0,
 	IBV_SEND_SIGNALED	= 1 << 1,
 	IBV_SEND_SOLICITED	= 1 << 2,
-	IBV_SEND_INLINE		= 1 << 3
+	IBV_SEND_INLINE		= 1 << 3,
+	IBV_SEND_IP_CSUM	= 1 << 4
 };
 
 struct ibv_sge {
@@ -759,7 +950,13 @@ struct ibv_send_wr {
 	int			num_sge;
 	enum ibv_wr_opcode	opcode;
 	int			send_flags;
-	uint32_t		imm_data;	/* in network byte order */
+	/* When opcode is *_WITH_IMM: Immediate data in network byte order.
+	 * When opcode is *_INV: Stores the rkey to invalidate
+	 */
+	union {
+		__be32			imm_data;
+		uint32_t		invalidate_rkey;
+	};
 	union {
 		struct {
 			uint64_t	remote_addr;
@@ -778,19 +975,22 @@ struct ibv_send_wr {
 		} ud;
 	} wr;
 	union {
-		union {
-			struct {
-				uint32_t    remote_srqn;
-			} xrc;
-		} qp_type;
-
-		uint32_t		xrc_remote_srq_num;
+		struct {
+			uint32_t    remote_srqn;
+		} xrc;
+	} qp_type;
+	union {
+		struct {
+			struct ibv_mw	*mw;
+			uint32_t		rkey;
+			struct ibv_mw_bind_info	bind_info;
+		} bind_mw;
+		struct {
+			void		       *hdr;
+			uint16_t		hdr_sz;
+			uint16_t		mss;
+		} tso;
 	};
-	struct {
-		struct ibv_mw	*mw;
-		uint32_t		rkey;
-		struct ibv_mw_bind_info	bind_info;
-	} bind_mw;
 };
 
 struct ibv_recv_wr {
@@ -815,27 +1015,36 @@ struct ibv_srq {
 	pthread_mutex_t		mutex;
 	pthread_cond_t		cond;
 	uint32_t		events_completed;
-
-	/* below are for source compatabilty with legacy XRC,
-	*   padding based on ibv_srq_legacy.
-	*/
-	uint32_t		xrc_srq_num_bin_compat_padding;
-	struct ibv_xrc_domain	*xrc_domain_bin_compat_padding;
-	struct ibv_cq	*xrc_cq_bin_compat_padding;
-	void		*ibv_srq_padding;
-
-	/* legacy fields */
-	uint32_t		xrc_srq_num;
-	struct ibv_xrc_domain	*xrc_domain;
-	struct ibv_cq		*xrc_cq;
 };
 
-/* Not in use in new API, needed for compilation as part of source compat layer */
-enum ibv_event_flags {
-	IBV_XRC_QP_EVENT_FLAG = 0x80000000,
+/*
+ * Work Queue. QP can be created without internal WQs "packaged" inside it,
+ * this QP can be configured to use "external" WQ object as its
+ * receive/send queue.
+ * WQ associated (many to one) with Completion Queue it owns WQ properties
+ * (PD, WQ size etc).
+ * WQ of type IBV_WQT_RQ:
+ * - Contains receive WQEs, in this case its PD serves as scatter as well.
+ * - Exposes post receive function to be used to post a list of work
+ *   requests (WRs) to its receive queue.
+ */
+struct ibv_wq {
+	struct ibv_context     *context;
+	void		       *wq_context;
+	struct	ibv_pd	       *pd;
+	struct	ibv_cq	       *cq;
+	uint32_t		wq_num;
+	uint32_t		handle;
+	enum ibv_wq_state       state;
+	enum ibv_wq_type	wq_type;
+	int (*post_recv)(struct ibv_wq *current,
+			 struct ibv_recv_wr *recv_wr,
+			 struct ibv_recv_wr **bad_recv_wr);
+	pthread_mutex_t		mutex;
+	pthread_cond_t		cond;
+	uint32_t		events_completed;
+	uint32_t		comp_mask;
 };
-
-
 
 struct ibv_qp {
 	struct ibv_context     *context;
@@ -873,6 +1082,146 @@ struct ibv_cq {
 	uint32_t		async_events_completed;
 };
 
+struct ibv_poll_cq_attr {
+	uint32_t comp_mask;
+};
+
+struct ibv_cq_ex {
+	struct ibv_context     *context;
+	struct ibv_comp_channel *channel;
+	void		       *cq_context;
+	uint32_t		handle;
+	int			cqe;
+
+	pthread_mutex_t		mutex;
+	pthread_cond_t		cond;
+	uint32_t		comp_events_completed;
+	uint32_t		async_events_completed;
+
+	uint32_t		comp_mask;
+	enum ibv_wc_status status;
+	uint64_t wr_id;
+	int (*start_poll)(struct ibv_cq_ex *current,
+			     struct ibv_poll_cq_attr *attr);
+	int (*next_poll)(struct ibv_cq_ex *current);
+	void (*end_poll)(struct ibv_cq_ex *current);
+	enum ibv_wc_opcode (*read_opcode)(struct ibv_cq_ex *current);
+	uint32_t (*read_vendor_err)(struct ibv_cq_ex *current);
+	uint32_t (*read_byte_len)(struct ibv_cq_ex *current);
+	__be32 (*read_imm_data)(struct ibv_cq_ex *current);
+	uint32_t (*read_qp_num)(struct ibv_cq_ex *current);
+	uint32_t (*read_src_qp)(struct ibv_cq_ex *current);
+	int (*read_wc_flags)(struct ibv_cq_ex *current);
+	uint32_t (*read_slid)(struct ibv_cq_ex *current);
+	uint8_t (*read_sl)(struct ibv_cq_ex *current);
+	uint8_t (*read_dlid_path_bits)(struct ibv_cq_ex *current);
+	uint64_t (*read_completion_ts)(struct ibv_cq_ex *current);
+	uint16_t (*read_cvlan)(struct ibv_cq_ex *current);
+	uint32_t (*read_flow_tag)(struct ibv_cq_ex *current);
+};
+
+static inline struct ibv_cq *ibv_cq_ex_to_cq(struct ibv_cq_ex *cq)
+{
+	return (struct ibv_cq *)cq;
+}
+
+static inline int ibv_start_poll(struct ibv_cq_ex *cq,
+				    struct ibv_poll_cq_attr *attr)
+{
+	return cq->start_poll(cq, attr);
+}
+
+static inline int ibv_next_poll(struct ibv_cq_ex *cq)
+{
+	return cq->next_poll(cq);
+}
+
+static inline void ibv_end_poll(struct ibv_cq_ex *cq)
+{
+	cq->end_poll(cq);
+}
+
+static inline enum ibv_wc_opcode ibv_wc_read_opcode(struct ibv_cq_ex *cq)
+{
+	return cq->read_opcode(cq);
+}
+
+static inline uint32_t ibv_wc_read_vendor_err(struct ibv_cq_ex *cq)
+{
+	return cq->read_vendor_err(cq);
+}
+
+static inline uint32_t ibv_wc_read_byte_len(struct ibv_cq_ex *cq)
+{
+	return cq->read_byte_len(cq);
+}
+
+static inline __be32 ibv_wc_read_imm_data(struct ibv_cq_ex *cq)
+{
+	return cq->read_imm_data(cq);
+}
+
+static inline uint32_t ibv_wc_read_invalidated_rkey(struct ibv_cq_ex *cq)
+{
+#ifdef __CHECKER__
+	return (__attribute__((force)) uint32_t)cq->read_imm_data(cq);
+#else
+	return cq->read_imm_data(cq);
+#endif
+}
+
+static inline uint32_t ibv_wc_read_qp_num(struct ibv_cq_ex *cq)
+{
+	return cq->read_qp_num(cq);
+}
+
+static inline uint32_t ibv_wc_read_src_qp(struct ibv_cq_ex *cq)
+{
+	return cq->read_src_qp(cq);
+}
+
+static inline int ibv_wc_read_wc_flags(struct ibv_cq_ex *cq)
+{
+	return cq->read_wc_flags(cq);
+}
+
+static inline uint32_t ibv_wc_read_slid(struct ibv_cq_ex *cq)
+{
+	return cq->read_slid(cq);
+}
+
+static inline uint8_t ibv_wc_read_sl(struct ibv_cq_ex *cq)
+{
+	return cq->read_sl(cq);
+}
+
+static inline uint8_t ibv_wc_read_dlid_path_bits(struct ibv_cq_ex *cq)
+{
+	return cq->read_dlid_path_bits(cq);
+}
+
+static inline uint64_t ibv_wc_read_completion_ts(struct ibv_cq_ex *cq)
+{
+	return cq->read_completion_ts(cq);
+}
+
+static inline uint16_t ibv_wc_read_cvlan(struct ibv_cq_ex *cq)
+{
+	return cq->read_cvlan(cq);
+}
+
+static inline uint32_t ibv_wc_read_flow_tag(struct ibv_cq_ex *cq)
+{
+	return cq->read_flow_tag(cq);
+}
+
+static inline int ibv_post_wq_recv(struct ibv_wq *wq,
+				   struct ibv_recv_wr *recv_wr,
+				   struct ibv_recv_wr **bad_recv_wr)
+{
+	return wq->post_recv(wq, recv_wr, bad_recv_wr);
+}
+
 struct ibv_ah {
 	struct ibv_context     *context;
 	struct ibv_pd	       *pd;
@@ -880,7 +1229,7 @@ struct ibv_ah {
 };
 
 enum ibv_flow_flags {
-	IBV_FLOW_ATTR_FLAGS_ALLOW_LOOP_BACK = 1,
+	IBV_FLOW_ATTR_FLAGS_ALLOW_LOOP_BACK = 1 << 0,
 	IBV_FLOW_ATTR_FLAGS_DONT_TRAP = 1 << 1,
 };
 
@@ -895,13 +1244,22 @@ enum ibv_flow_attr_type {
 	 * receive all Eth multicast traffic which isn't steered to any QP
 	 */
 	IBV_FLOW_ATTR_MC_DEFAULT	= 0x2,
+	/* sniffer rule - receive all port traffic */
+	IBV_FLOW_ATTR_SNIFFER		= 0x3,
 };
 
 enum ibv_flow_spec_type {
-	IBV_FLOW_SPEC_ETH	= 0x20,
-	IBV_FLOW_SPEC_IPV4	= 0x30,
-	IBV_FLOW_SPEC_TCP	= 0x40,
-	IBV_FLOW_SPEC_UDP	= 0x41,
+	IBV_FLOW_SPEC_ETH		= 0x20,
+	IBV_FLOW_SPEC_IPV4		= 0x30,
+	IBV_FLOW_SPEC_IPV6		= 0x31,
+	IBV_FLOW_SPEC_IPV4_EXT		= 0x32,
+	IBV_FLOW_SPEC_TCP		= 0x40,
+	IBV_FLOW_SPEC_UDP		= 0x41,
+	IBV_FLOW_SPEC_VXLAN_TUNNEL	= 0x50,
+	IBV_FLOW_SPEC_INNER		= 0x100,
+	IBV_FLOW_SPEC_ACTION_TAG	= 0x1000,
+	IBV_FLOW_SPEC_ACTION_DROP	= 0x1001,
+	IBV_FLOW_SPEC_ACTION_COUNT	= 0x1003, /* EXP, might be changed */
 };
 
 struct ibv_flow_eth_filter {
@@ -933,6 +1291,38 @@ struct ibv_flow_spec_ipv4 {
 	struct ibv_flow_ipv4_filter mask;
 };
 
+struct ibv_flow_ipv4_ext_filter {
+	uint32_t src_ip;
+	uint32_t dst_ip;
+	uint8_t  proto;
+	uint8_t  tos;
+	uint8_t  ttl;
+	uint8_t  flags;
+};
+
+struct ibv_flow_spec_ipv4_ext {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_flow_ipv4_ext_filter val;
+	struct ibv_flow_ipv4_ext_filter mask;
+};
+
+struct ibv_flow_ipv6_filter {
+	uint8_t  src_ip[16];
+	uint8_t  dst_ip[16];
+	uint32_t flow_label;
+	uint8_t  next_hdr;
+	uint8_t  traffic_class;
+	uint8_t  hop_limit;
+};
+
+struct ibv_flow_spec_ipv6 {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_flow_ipv6_filter val;
+	struct ibv_flow_ipv6_filter mask;
+};
+
 struct ibv_flow_tcp_udp_filter {
 	uint16_t dst_port;
 	uint16_t src_port;
@@ -945,6 +1335,35 @@ struct ibv_flow_spec_tcp_udp {
 	struct ibv_flow_tcp_udp_filter mask;
 };
 
+struct ibv_flow_tunnel_filter {
+	uint32_t tunnel_id;
+};
+
+struct ibv_flow_spec_tunnel {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_flow_tunnel_filter val;
+	struct ibv_flow_tunnel_filter mask;
+};
+
+struct ibv_flow_spec_action_tag {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+	uint32_t  tag_id;
+};
+
+struct ibv_flow_spec_action_drop {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+};
+
+struct ibv_flow_spec_counter_action {
+	enum ibv_flow_spec_type  type;
+	uint16_t  size;
+	uint16_t  reserved;
+	uint32_t  counter_set_handle;
+};
+
 struct ibv_flow_spec {
 	union {
 		struct {
@@ -954,6 +1373,12 @@ struct ibv_flow_spec {
 		struct ibv_flow_spec_eth eth;
 		struct ibv_flow_spec_ipv4 ipv4;
 		struct ibv_flow_spec_tcp_udp tcp_udp;
+		struct ibv_flow_spec_ipv4_ext ipv4_ext;
+		struct ibv_flow_spec_ipv6 ipv6;
+		struct ibv_flow_spec_tunnel tunnel;
+		struct ibv_flow_spec_action_tag flow_tag;
+		struct ibv_flow_spec_action_drop drop;
+		struct ibv_flow_spec_counter_action flow_count;
 	};
 };
 
@@ -980,9 +1405,10 @@ struct ibv_flow {
 struct ibv_device;
 struct ibv_context;
 
-struct ibv_device_ops {
-	struct ibv_context *	(*alloc_context)(struct ibv_device *device, int cmd_fd);
-	void			(*free_context)(struct ibv_context *context);
+/* Obsolete, never used, do not touch */
+struct _ibv_device_ops {
+	struct ibv_context *	(*_dummy1)(struct ibv_device *device, int cmd_fd);
+	void			(*_dummy2)(struct ibv_context *context);
 };
 
 enum {
@@ -991,7 +1417,7 @@ enum {
 };
 
 struct ibv_device {
-	struct ibv_device_ops	ops;
+	struct _ibv_device_ops	_ops;
 	enum ibv_node_type	node_type;
 	enum ibv_transport_type	transport_type;
 	/* Name of underlying kernel IB device, eg "mthca0" */
@@ -1002,17 +1428,6 @@ struct ibv_device {
 	char			dev_path[IBV_SYSFS_PATH_MAX];
 	/* Path to infiniband class device in sysfs */
 	char			ibdev_path[IBV_SYSFS_PATH_MAX];
-};
-
-struct verbs_device {
-	struct ibv_device device; /* Must be first */
-	size_t	sz;
-	size_t	size_of_context;
-	int	(*init_context)(struct verbs_device *device,
-				struct ibv_context *ctx, int cmd_fd);
-	void	(*uninit_context)(struct verbs_device *device,
-				struct ibv_context *ctx);
-	/* future fields added here */
 };
 
 struct ibv_context_ops {
@@ -1083,61 +1498,183 @@ struct ibv_context {
 	void		       *abi_compat;
 };
 
+enum ibv_cq_init_attr_mask {
+	IBV_CQ_INIT_ATTR_MASK_FLAGS	= 1 << 0,
+	IBV_CQ_INIT_ATTR_MASK_RESERVED	= 1 << 1
+};
+
+enum ibv_create_cq_attr_flags {
+	IBV_CREATE_CQ_ATTR_SINGLE_THREADED = 1 << 0,
+	IBV_CREATE_CQ_ATTR_RESERVED = 1 << 1,
+};
+
+struct ibv_cq_init_attr_ex {
+	/* Minimum number of entries required for CQ */
+	uint32_t			cqe;
+	/* Consumer-supplied context returned for completion events */
+	void			*cq_context;
+	/* Completion channel where completion events will be queued.
+	 * May be NULL if completion events will not be used.
+	 */
+	struct ibv_comp_channel *channel;
+	/* Completion vector used to signal completion events.
+	 *  Must be < context->num_comp_vectors.
+	 */
+	uint32_t			comp_vector;
+	 /* Or'ed bit of enum ibv_create_cq_wc_flags. */
+	uint64_t		wc_flags;
+	/* compatibility mask (extended verb). Or'd flags of
+	 * enum ibv_cq_init_attr_mask
+	 */
+	uint32_t		comp_mask;
+	/* create cq attr flags - one or more flags from
+	 * enum ibv_create_cq_attr_flags
+	 */
+	uint32_t		flags;
+};
+
+enum ibv_values_mask {
+	IBV_VALUES_MASK_RAW_CLOCK	= 1 << 0,
+	IBV_VALUES_MASK_RESERVED	= 1 << 1
+};
+
+struct ibv_values_ex {
+	uint32_t	comp_mask;
+	struct timespec raw_clock;
+};
+
+enum ibv_counter_set_type {
+	IBV_COUNTER_SET_FLOW = 0, /* Counter set can be bound to FLOW object */
+};
+
+enum ibv_counter_set_attributes {
+	IBV_COUNTER_SET_ATTR_CACHED = 1 << 0, /* Counter-set is cached by default */
+};
+
+struct ibv_counter_set_description {
+	/* Type that this set refers to, use enum ibv_counter_set_type */
+	uint8_t	counter_type;
+	/* Number of instances of this counter set available in the hardware */
+	uint64_t	num_of_cs;
+	/* Attributes of the set, use enum ibv_counter_set_attributes */
+	uint32_t	attributes;
+	/* Number of counters in this set */
+	uint8_t	entries_count;
+	/* Names buffer length */
+	uint16_t	names_size;
+	char	*names;
+	uint32_t	comp_mask;
+};
+
+enum ibv_counter_set_init_attr_mask {
+	IBV_CREATE_COUNTER_SET_RESERVED = (1 << 0),
+};
+
+struct ibv_counter_set_init_attr {
+	uint16_t	counter_set_id;
+	uint32_t	comp_mask;
+};
+
+struct ibv_counter_set {
+	struct ibv_context	*context;
+	uint32_t	cs_id;
+	uint32_t	handle;
+	uint32_t	comp_mask;
+};
+
+enum ibv_query_counter_set_attr_mask {
+	IBV_QUERY_COUNTER_SET_RESERVED = (1 << 0),
+};
+
+enum ibv_query_counter_set_flags {
+	IBV_COUNTER_SET_FORCE_UPDATE = 1 << 0,
+};
+
+struct ibv_query_counter_set_attr {
+	struct ibv_counter_set	*cs;
+	uint32_t	query_flags; /* use enum ibv_query_counter_set_flags */
+	uint32_t	comp_mask;
+};
+
+struct ibv_counter_set_data {
+	uint64_t	*out;
+	uint32_t	outlen;
+	uint32_t	comp_mask;
+};
+
 enum verbs_context_mask {
-	VERBS_CONTEXT_XRCD         = (uint64_t)1 << 0,
-	VERBS_CONTEXT_SRQ          = (uint64_t)1 << 1,
-	VERBS_CONTEXT_QP           = (uint64_t)1 << 2,
-	VERBS_CONTEXT_RESERVED     = (uint64_t)1 << 3,
-	VERBS_CONTEXT_EXP	   = (uint64_t)1 << 62
+	VERBS_CONTEXT_XRCD	= 1 << 0,
+	VERBS_CONTEXT_SRQ	= 1 << 1,
+	VERBS_CONTEXT_QP	= 1 << 2,
+	VERBS_CONTEXT_CREATE_FLOW = 1 << 3,
+	VERBS_CONTEXT_DESTROY_FLOW = 1 << 4,
+	VERBS_CONTEXT_RESERVED	= 1 << 5
 };
 
 struct verbs_context {
-	int (*query_device_ex)(struct ibv_context *context,
-		       const struct ibv_query_device_ex_input *input,
-		       struct ibv_device_attr_ex *attr,
-		       size_t attr_size);
 	/*  "grows up" - new fields go here */
-	int (*_reserved_2) (void);
-	int (*destroy_flow) (struct ibv_flow *flow);
-	int (*_reserved_1) (void);
-	struct ibv_flow * (*create_flow) (struct ibv_qp *qp,
-					  struct ibv_flow_attr *flow_attr);
-	struct ibv_qp * (*open_qp)(struct ibv_context *context,
+	int (*query_counter_set)(struct ibv_query_counter_set_attr *query_attr,
+				 struct ibv_counter_set_data *cs_data,
+				 size_t cs_data_size);
+	int (*destroy_counter_set)(struct ibv_counter_set *cs);
+	struct ibv_counter_set* (*create_counter_set)(
+						    struct ibv_context *context,
+						    struct ibv_counter_set_init_attr *init_attr);
+	int (*describe_counter_set)(struct ibv_context *context,
+				    uint16_t counter_set_id,
+				    struct ibv_counter_set_description *cs_desc,
+				    size_t cs_desc_size);
+	int (*destroy_rwq_ind_table)(struct ibv_rwq_ind_table *rwq_ind_table);
+	struct ibv_rwq_ind_table *(*create_rwq_ind_table)(struct ibv_context *context,
+							  struct ibv_rwq_ind_table_init_attr *init_attr);
+	int (*destroy_wq)(struct ibv_wq *wq);
+	int (*modify_wq)(struct ibv_wq *wq, struct ibv_wq_attr *wq_attr);
+	struct ibv_wq * (*create_wq)(struct ibv_context *context,
+				     struct ibv_wq_init_attr *wq_init_attr);
+	int (*query_rt_values)(struct ibv_context *context,
+			       struct ibv_values_ex *values);
+	struct ibv_cq_ex *(*create_cq_ex)(struct ibv_context *context,
+					  struct ibv_cq_init_attr_ex *init_attr);
+	struct verbs_ex_private *priv;
+	int (*query_device_ex)(struct ibv_context *context,
+			       const struct ibv_query_device_ex_input *input,
+			       struct ibv_device_attr_ex *attr,
+			       size_t attr_size);
+	int (*ibv_destroy_flow) (struct ibv_flow *flow);
+	void (*ABI_placeholder2) (void); /* DO NOT COPY THIS GARBAGE */
+	struct ibv_flow * (*ibv_create_flow) (struct ibv_qp *qp,
+					      struct ibv_flow_attr *flow_attr);
+	void (*ABI_placeholder1) (void); /* DO NOT COPY THIS GARBAGE */
+	struct ibv_qp *(*open_qp)(struct ibv_context *context,
 			struct ibv_qp_open_attr *attr);
-	struct ibv_qp * (*create_qp_ex)(struct ibv_context *context,
+	struct ibv_qp *(*create_qp_ex)(struct ibv_context *context,
 			struct ibv_qp_init_attr_ex *qp_init_attr_ex);
 	int (*get_srq_num)(struct ibv_srq *srq, uint32_t *srq_num);
-	struct ibv_srq * (*create_srq_ex)(struct ibv_context *context,
-			struct ibv_srq_init_attr_ex *srq_init_attr_ex);
-	struct ibv_xrcd * (*open_xrcd)(struct ibv_context *context,
-			struct ibv_xrcd_init_attr *xrcd_init_attr);
-	int  (*close_xrcd)(struct ibv_xrcd *xrcd);
+	struct ibv_srq *	(*create_srq_ex)(struct ibv_context *context,
+						 struct ibv_srq_init_attr_ex *srq_init_attr_ex);
+	struct ibv_xrcd *	(*open_xrcd)(struct ibv_context *context,
+					     struct ibv_xrcd_init_attr *xrcd_init_attr);
+	int			(*close_xrcd)(struct ibv_xrcd *xrcd);
 	uint64_t has_comp_mask;
-	size_t   sz;	/* Must be immediately before struct ibv_context */
-	struct ibv_context context;/* Must be last field in the struct */
+	size_t   sz;			/* Must be immediately before struct ibv_context */
+	struct ibv_context context;	/* Must be last field in the struct */
 };
 
 static inline struct verbs_context *verbs_get_ctx(struct ibv_context *ctx)
 {
-	return (!ctx || (ctx->abi_compat != __VERBS_ABI_IS_EXTENDED)) ?
+	return (ctx->abi_compat != __VERBS_ABI_IS_EXTENDED) ?
 		NULL : container_of(ctx, struct verbs_context, context);
 }
 
 #define verbs_get_ctx_op(ctx, op) ({ \
-	struct verbs_context *_vctx = verbs_get_ctx(ctx); \
-	(!_vctx || (_vctx->sz < sizeof(*_vctx) - offsetof(struct verbs_context, op)) || \
-	!_vctx->op) ? NULL : _vctx; })
+	struct verbs_context *__vctx = verbs_get_ctx(ctx); \
+	(!__vctx || (__vctx->sz < sizeof(*__vctx) - offsetof(struct verbs_context, op)) || \
+	 !__vctx->op) ? NULL : __vctx; })
 
 #define verbs_set_ctx_op(_vctx, op, ptr) ({ \
 	struct verbs_context *vctx = _vctx; \
 	if (vctx && (vctx->sz >= sizeof(*vctx) - offsetof(struct verbs_context, op))) \
 		vctx->op = ptr; })
-
-static inline struct verbs_device *verbs_get_device(struct ibv_device *dev)
-{
-	return (dev->ops.alloc_context) ?
-		NULL : container_of(dev, struct verbs_device, device);
-}
 
 /**
  * ibv_get_device_list - Get list of IB devices currently available
@@ -1167,7 +1704,7 @@ const char *ibv_get_device_name(struct ibv_device *device);
 /**
  * ibv_get_device_guid - Return device's node GUID
  */
-uint64_t ibv_get_device_guid(struct ibv_device *device);
+__be64 ibv_get_device_guid(struct ibv_device *device);
 
 /**
  * ibv_open_device - Initialize device for use
@@ -1237,7 +1774,7 @@ int ibv_query_gid(struct ibv_context *context, uint8_t port_num,
  * ibv_query_pkey - Get a P_Key table entry
  */
 int ibv_query_pkey(struct ibv_context *context, uint8_t port_num,
-		   int index, uint16_t *pkey);
+		   int index, __be16 *pkey);
 
 /**
  * ibv_alloc_pd - Allocate a protection domain
@@ -1253,20 +1790,22 @@ static inline struct ibv_flow *ibv_create_flow(struct ibv_qp *qp,
 					       struct ibv_flow_attr *flow)
 {
 	struct verbs_context *vctx = verbs_get_ctx_op(qp->context,
-						      create_flow);
-	if (!vctx)
+						      ibv_create_flow);
+	if (!vctx || !vctx->ibv_create_flow) {
+		errno = ENOSYS;
 		return NULL;
+	}
 
-	return vctx->create_flow(qp, flow);
+	return vctx->ibv_create_flow(qp, flow);
 }
 
 static inline int ibv_destroy_flow(struct ibv_flow *flow_id)
 {
 	struct verbs_context *vctx = verbs_get_ctx_op(flow_id->context,
-						      destroy_flow);
-	if (!vctx)
+						      ibv_destroy_flow);
+	if (!vctx || !vctx->ibv_destroy_flow)
 		return -ENOSYS;
-	return vctx->destroy_flow(flow_id);
+	return vctx->ibv_destroy_flow(flow_id);
 }
 
 /**
@@ -1302,7 +1841,7 @@ struct ibv_mr *ibv_reg_mr(struct ibv_pd *pd, void *addr,
 enum ibv_rereg_mr_err_code {
 	/* Old MR is valid, invalid input */
 	IBV_REREG_MR_ERR_INPUT = -1,
-	/* Old MR is valid, failed via dont fork on new address range */
+	/* Old MR is valid, failed via don't fork on new address range */
 	IBV_REREG_MR_ERR_DONT_FORK_NEW = -2,
 	/* New MR is valid, failed via do fork on old address range */
 	IBV_REREG_MR_ERR_DO_FORK_OLD = -3,
@@ -1395,6 +1934,30 @@ struct ibv_cq *ibv_create_cq(struct ibv_context *context, int cqe,
 			     void *cq_context,
 			     struct ibv_comp_channel *channel,
 			     int comp_vector);
+
+/**
+ * ibv_create_cq_ex - Create a completion queue
+ * @context - Context CQ will be attached to
+ * @cq_attr - Attributes to create the CQ with
+ */
+static inline
+struct ibv_cq_ex *ibv_create_cq_ex(struct ibv_context *context,
+				   struct ibv_cq_init_attr_ex *cq_attr)
+{
+	struct verbs_context *vctx = verbs_get_ctx_op(context, create_cq_ex);
+
+	if (!vctx) {
+		errno = ENOSYS;
+		return NULL;
+	}
+
+	if (cq_attr->comp_mask & ~(IBV_CQ_INIT_ATTR_MASK_RESERVED - 1)) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	return vctx->create_cq_ex(context, cq_attr);
+}
 
 /**
  * ibv_resize_cq - Modifies the capacity of the CQ.
@@ -1495,7 +2058,7 @@ ibv_create_srq_ex(struct ibv_context *context,
 	    (!(mask & IBV_SRQ_INIT_ATTR_TYPE) ||
 	     (srq_init_attr_ex->srq_type == IBV_SRQT_BASIC)))
 		return ibv_create_srq(srq_init_attr_ex->pd,
-				      (struct ibv_srq_init_attr *) srq_init_attr_ex);
+				      (struct ibv_srq_init_attr *)srq_init_attr_ex);
 
 	vctx = verbs_get_ctx_op(context, create_srq_ex);
 	if (!vctx) {
@@ -1573,7 +2136,7 @@ ibv_create_qp_ex(struct ibv_context *context, struct ibv_qp_init_attr_ex *qp_ini
 
 	if (mask == IBV_QP_INIT_ATTR_PD)
 		return ibv_create_qp(qp_init_attr_ex->pd,
-				     (struct ibv_qp_init_attr *) qp_init_attr_ex);
+				     (struct ibv_qp_init_attr *)qp_init_attr_ex);
 
 	vctx = verbs_get_ctx_op(context, create_qp_ex);
 	if (!vctx) {
@@ -1581,6 +2144,27 @@ ibv_create_qp_ex(struct ibv_context *context, struct ibv_qp_init_attr_ex *qp_ini
 		return NULL;
 	}
 	return vctx->create_qp_ex(context, qp_init_attr_ex);
+}
+
+/**
+ * ibv_query_rt_values_ex - Get current real time @values of a device.
+ * @values - in/out - defines the attributes we need to query/queried.
+ * (Or's bits of enum ibv_values_mask on values->comp_mask field)
+ */
+static inline int
+ibv_query_rt_values_ex(struct ibv_context *context,
+		       struct ibv_values_ex *values)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(context, query_rt_values);
+	if (!vctx)
+		return ENOSYS;
+
+	if (values->comp_mask & ~(IBV_VALUES_MASK_RESERVED - 1))
+		return EINVAL;
+
+	return vctx->query_rt_values(context, values);
 }
 
 /**
@@ -1607,6 +2191,7 @@ ibv_query_device_ex(struct ibv_context *context,
 legacy:
 	memset(attr, 0, sizeof(*attr));
 	ret = ibv_query_device(context, &attr->orig_attr);
+
 	return ret;
 }
 
@@ -1649,6 +2234,126 @@ int ibv_query_qp(struct ibv_qp *qp, struct ibv_qp_attr *attr,
  * ibv_destroy_qp - Destroy a queue pair.
  */
 int ibv_destroy_qp(struct ibv_qp *qp);
+
+/*
+ * ibv_create_wq - Creates a WQ associated with the specified protection
+ * domain.
+ * @context: ibv_context.
+ * @wq_init_attr: A list of initial attributes required to create the
+ * WQ. If WQ creation succeeds, then the attributes are updated to
+ * the actual capabilities of the created WQ.
+ *
+ * wq_init_attr->max_wr and wq_init_attr->max_sge determine
+ * the requested size of the WQ, and set to the actual values allocated
+ * on return.
+ * If ibv_create_wq() succeeds, then max_wr and max_sge will always be
+ * at least as large as the requested values.
+ *
+ * Return Value
+ * ibv_create_wq() returns a pointer to the created WQ, or NULL if the request
+ * fails.
+ */
+static inline struct ibv_wq *ibv_create_wq(struct ibv_context *context,
+					   struct ibv_wq_init_attr *wq_init_attr)
+{
+	struct verbs_context *vctx = verbs_get_ctx_op(context, create_wq);
+	struct ibv_wq *wq;
+
+	if (!vctx) {
+		errno = ENOSYS;
+		return NULL;
+	}
+
+	wq = vctx->create_wq(context, wq_init_attr);
+	if (wq) {
+		wq->events_completed = 0;
+		pthread_mutex_init(&wq->mutex, NULL);
+		pthread_cond_init(&wq->cond, NULL);
+	}
+
+	return wq;
+}
+
+/*
+ * ibv_modify_wq - Modifies the attributes for the specified WQ.
+ * @wq: The WQ to modify.
+ * @wq_attr: On input, specifies the WQ attributes to modify.
+ *    wq_attr->attr_mask: A bit-mask used to specify which attributes of the WQ
+ *    are being modified.
+ * On output, the current values of selected WQ attributes are returned.
+ *
+ * Return Value
+ * ibv_modify_wq() returns 0 on success, or the value of errno
+ * on failure (which indicates the failure reason).
+ *
+*/
+static inline int ibv_modify_wq(struct ibv_wq *wq, struct ibv_wq_attr *wq_attr)
+{
+	struct verbs_context *vctx = verbs_get_ctx_op(wq->context, modify_wq);
+
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->modify_wq(wq, wq_attr);
+}
+
+/*
+ * ibv_destroy_wq - Destroys the specified WQ.
+ * @ibv_wq: The WQ to destroy.
+ * Return Value
+ * ibv_destroy_wq() returns 0 on success, or the value of errno
+ * on failure (which indicates the failure reason).
+*/
+static inline int ibv_destroy_wq(struct ibv_wq *wq)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(wq->context, destroy_wq);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->destroy_wq(wq);
+}
+
+/*
+ * ibv_create_rwq_ind_table - Creates a receive work queue Indirection Table
+ * @context: ibv_context.
+ * @init_attr: A list of initial attributes required to create the Indirection Table.
+ * Return Value
+ * ibv_create_rwq_ind_table returns a pointer to the created
+ * Indirection Table, or NULL if the request fails.
+ */
+static inline struct ibv_rwq_ind_table *ibv_create_rwq_ind_table(struct ibv_context *context,
+								 struct ibv_rwq_ind_table_init_attr *init_attr)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(context, create_rwq_ind_table);
+	if (!vctx) {
+		errno = ENOSYS;
+		return NULL;
+	}
+
+	return vctx->create_rwq_ind_table(context, init_attr);
+}
+
+/*
+ * ibv_destroy_rwq_ind_table - Destroys the specified Indirection Table.
+ * @rwq_ind_table: The Indirection Table to destroy.
+ * Return Value
+ * ibv_destroy_rwq_ind_table() returns 0 on success, or the value of errno
+ * on failure (which indicates the failure reason).
+*/
+static inline int ibv_destroy_rwq_ind_table(struct ibv_rwq_ind_table *rwq_ind_table)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(rwq_ind_table->context, destroy_rwq_ind_table);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->destroy_rwq_ind_table(rwq_ind_table);
+}
 
 /**
  * ibv_post_send - Post a list of work requests to a send queue.
@@ -1755,10 +2460,76 @@ const char *ibv_port_state_str(enum ibv_port_state port_state);
  */
 const char *ibv_event_type_str(enum ibv_event_type event);
 
+#define ETHERNET_LL_SIZE 6
+int ibv_resolve_eth_l2_from_gid(struct ibv_context *context,
+				struct ibv_ah_attr *attr,
+				uint8_t eth_mac[ETHERNET_LL_SIZE],
+				uint16_t *vid);
+
+static inline int ibv_is_qpt_supported(uint32_t caps, enum ibv_qp_type qpt)
+{
+	return !!(caps & (1 << qpt));
+}
+
+/* EXP, might be changed */
+static inline int ibv_describe_counter_set(struct ibv_context *context,
+					   uint16_t counter_set_id,
+					   struct ibv_counter_set_description *cs_desc)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(context, describe_counter_set);
+	if (!vctx || !vctx->describe_counter_set)
+		return ENOSYS;
+
+	return vctx->describe_counter_set(context, counter_set_id, cs_desc,
+					  sizeof(*cs_desc));
+}
+
+/* EXP, might be changed */
+static inline struct ibv_counter_set *ibv_create_counter_set(struct ibv_context *context,
+							     struct ibv_counter_set_init_attr *init_attr)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(context, create_counter_set);
+	if (!vctx || !vctx->create_counter_set) {
+		errno = ENOSYS;
+		return NULL;
+	}
+
+	return vctx->create_counter_set(context, init_attr);
+}
+
+/* EXP, might be changed */
+static inline int ibv_destroy_counter_set(struct ibv_counter_set *cs)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(cs->context, destroy_counter_set);
+	if (!vctx || !vctx->destroy_counter_set)
+		return ENOSYS;
+
+	return vctx->destroy_counter_set(cs);
+}
+
+/* EXP, might be changed */
+static inline int ibv_query_counter_set(struct ibv_query_counter_set_attr *query_attr,
+					struct ibv_counter_set_data *cs_data)
+{
+	struct verbs_context *vctx;
+
+	vctx = verbs_get_ctx_op(query_attr->cs->context,
+				query_counter_set);
+	if (!vctx || !vctx->query_counter_set)
+		return ENOSYS;
+
+	return vctx->query_counter_set(query_attr, cs_data, sizeof(*cs_data));
+}
+
 END_C_DECLS
 
 #  undef __attribute_const
 
-#include <infiniband/verbs_exp.h>
 
 #endif /* INFINIBAND_VERBS_H */

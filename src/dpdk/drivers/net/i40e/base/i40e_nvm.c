@@ -749,12 +749,18 @@ enum i40e_status_code i40e_validate_nvm_checksum(struct i40e_hw *hw,
 
 	DEBUGFUNC("i40e_validate_nvm_checksum");
 
-	if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
-		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
+	/* acquire_nvm provides exclusive NVM lock to synchronize access across
+	 * PFs. X710 uses i40e_read_nvm_word_srctl which polls for done bit
+	 * twice (first time to be able to write address to I40E_GLNVM_SRCTL
+	 * register, second to read data from I40E_GLNVM_SRDATA. One PF can see
+	 * done bit and try to write address, while another one will interpret
+	 * it as a good time to read data. It will cause invalid data to be
+	 * read.
+	 */
+	ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
 	if (!ret_code) {
 		ret_code = i40e_calc_nvm_checksum(hw, &checksum_local);
-		if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
-			i40e_release_nvm(hw);
+	i40e_release_nvm(hw);
 		if (ret_code != I40E_SUCCESS)
 			goto i40e_validate_nvm_checksum_exit;
 	} else {
@@ -899,6 +905,11 @@ enum i40e_status_code i40e_nvmupd_command(struct i40e_hw *hw,
 		hw->nvmupd_state = I40E_NVMUPD_STATE_INIT;
 	}
 
+	/* Acquire lock to prevent race condition where adminq_task
+	 * can execute after i40e_nvmupd_nvm_read/write but before state
+	 * variables (nvm_wait_opcode, nvm_release_on_done) are updated
+	 */
+	i40e_acquire_spinlock(&hw->aq.arq_spinlock);
 	switch (hw->nvmupd_state) {
 	case I40E_NVMUPD_STATE_INIT:
 		status = i40e_nvmupd_state_init(hw, cmd, bytes, perrno);
@@ -934,6 +945,7 @@ enum i40e_status_code i40e_nvmupd_command(struct i40e_hw *hw,
 		*perrno = -ESRCH;
 		break;
 	}
+	i40e_release_spinlock(&hw->aq.arq_spinlock);
 	return status;
 }
 

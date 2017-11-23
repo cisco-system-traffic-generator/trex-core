@@ -70,6 +70,19 @@ rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
 	rte_log(RTE_LOG_ERR, RTE_LOGTYPE_PMD, "%s: %s", func_name, buffer);
 }
 
+/*
+ * Enable RTE_PMD_DEBUG_TRACE() when at least one component relying on the
+ * RTE_*_RET() macros defined below is compiled in debug mode.
+ */
+#if defined(RTE_LIBRTE_ETHDEV_DEBUG) || \
+	defined(RTE_LIBRTE_CRYPTODEV_DEBUG) || \
+	defined(RTE_LIBRTE_EVENTDEV_DEBUG)
+#define RTE_PMD_DEBUG_TRACE(...) \
+	rte_pmd_debug_trace(__func__, __VA_ARGS__)
+#else
+#define RTE_PMD_DEBUG_TRACE(...) (void)0
+#endif
+
 /* Macros for checking for restricting functions to primary instance only */
 #define RTE_PROC_PRIMARY_OR_ERR_RET(retval) do { \
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY) { \
@@ -101,6 +114,26 @@ rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
 } while (0)
 
 /**
+ * Device driver.
+ */
+enum rte_kernel_driver {
+	RTE_KDRV_UNKNOWN = 0,
+	RTE_KDRV_IGB_UIO,
+	RTE_KDRV_VFIO,
+	RTE_KDRV_UIO_GENERIC,
+	RTE_KDRV_NIC_UIO,
+	RTE_KDRV_NONE,
+};
+
+/**
+ * Device policies.
+ */
+enum rte_dev_policy {
+	RTE_DEV_WHITELISTED,
+	RTE_DEV_BLACKLISTED,
+};
+
+/**
  * A generic memory resource representation.
  */
 struct rte_mem_resource {
@@ -108,40 +141,6 @@ struct rte_mem_resource {
 	uint64_t len;       /**< Length of the resource. */
 	void *addr;         /**< Virtual address, NULL when not mapped. */
 };
-
-/** Double linked list of device drivers. */
-TAILQ_HEAD(rte_driver_list, rte_driver);
-/** Double linked list of devices. */
-TAILQ_HEAD(rte_device_list, rte_device);
-
-/* Forward declaration */
-struct rte_driver;
-
-/**
- * A structure describing a generic device.
- */
-struct rte_device {
-	TAILQ_ENTRY(rte_device) next; /**< Next device */
-	const struct rte_driver *driver;/**< Associated driver */
-	int numa_node;                /**< NUMA node connection */
-	struct rte_devargs *devargs;  /**< Device user arguments */
-};
-
-/**
- * Insert a device detected by a bus scanning.
- *
- * @param dev
- *   A pointer to a rte_device structure describing the detected device.
- */
-void rte_eal_device_insert(struct rte_device *dev);
-
-/**
- * Remove a device (e.g. when being unplugged).
- *
- * @param dev
- *   A pointer to a rte_device structure describing the device to be removed.
- */
-void rte_eal_device_remove(struct rte_device *dev);
 
 /**
  * A structure describing a device driver.
@@ -152,50 +151,22 @@ struct rte_driver {
 	const char *alias;              /**< Driver alias. */
 };
 
-/**
- * Register a device driver.
- *
- * @param driver
- *   A pointer to a rte_dev structure describing the driver
- *   to be registered.
+/*
+ * Internal identifier length
+ * Sufficiently large to allow for UUID or PCI address
  */
-void rte_eal_driver_register(struct rte_driver *driver);
+#define RTE_DEV_NAME_MAX_LEN 64
 
 /**
- * Unregister a device driver.
- *
- * @param driver
- *   A pointer to a rte_dev structure describing the driver
- *   to be unregistered.
+ * A structure describing a generic device.
  */
-void rte_eal_driver_unregister(struct rte_driver *driver);
-
-/**
- * Initalize all the registered drivers in this process
- */
-int rte_eal_dev_init(void);
-
-/**
- * Initialize a driver specified by name.
- *
- * @param name
- *   The pointer to a driver name to be initialized.
- * @param args
- *   The pointer to arguments used by driver initialization.
- * @return
- *  0 on success, negative on error
- */
-int rte_eal_vdev_init(const char *name, const char *args);
-
-/**
- * Uninitalize a driver specified by name.
- *
- * @param name
- *   The pointer to a driver name to be initialized.
- * @return
- *  0 on success, negative on error
- */
-int rte_eal_vdev_uninit(const char *name);
+struct rte_device {
+	TAILQ_ENTRY(rte_device) next; /**< Next device */
+	const char *name;             /**< Device name */
+	const struct rte_driver *driver;/**< Associated driver */
+	int numa_node;                /**< NUMA node connection */
+	struct rte_devargs *devargs;  /**< Device user arguments */
+};
 
 /**
  * Attach a device to a registered driver.
@@ -215,13 +186,67 @@ int rte_eal_dev_attach(const char *name, const char *devargs);
 /**
  * Detach a device from its driver.
  *
- * @param name
- *   Same description as for rte_eal_dev_attach().
- *   Here, eal will call the driver detaching function.
+ * @param dev
+ *   A pointer to a rte_device structure.
  * @return
  *   0 on success, negative on error.
  */
-int rte_eal_dev_detach(const char *name);
+int rte_eal_dev_detach(struct rte_device *dev);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Hotplug add a given device to a specific bus.
+ *
+ * @param busname
+ *   The bus name the device is added to.
+ * @param devname
+ *   The device name. Based on this device name, eal will identify a driver
+ *   capable of handling it and pass it to the driver probing function.
+ * @param devargs
+ *   Device arguments to be passed to the driver.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_eal_hotplug_add(const char *busname, const char *devname,
+			const char *devargs);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Hotplug remove a given device from a specific bus.
+ *
+ * @param busname
+ *   The bus name the device is removed from.
+ * @param devname
+ *   The device name being removed.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_eal_hotplug_remove(const char *busname, const char *devname);
+
+/**
+ * Device comparison function.
+ *
+ * This type of function is used to compare an rte_device with arbitrary
+ * data.
+ *
+ * @param dev
+ *   Device handle.
+ *
+ * @param data
+ *   Data to compare against. The type of this parameter is determined by
+ *   the kind of comparison performed by the function.
+ *
+ * @return
+ *   0 if the device matches the data.
+ *   !0 if the device does not match.
+ *   <0 if ordering is possible and the device is lower than the data.
+ *   >0 if ordering is possible and the device is greater than the data.
+ */
+typedef int (*rte_dev_cmp_t)(const struct rte_device *dev, const void *data);
 
 #define RTE_PMD_EXPORT_NAME_ARRAY(n, idx) n##idx[]
 
@@ -268,4 +293,4 @@ __attribute__((used)) = str
 }
 #endif
 
-#endif /* _RTE_VDEV_H_ */
+#endif /* _RTE_DEV_H_ */

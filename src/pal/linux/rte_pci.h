@@ -193,7 +193,7 @@ eal_parse_pci_DomBDF(const char *input, struct rte_pci_addr *dev_addr)
  *	The output buffer size
  */
 static inline void
-rte_eal_pci_device_name(const struct rte_pci_addr *addr,
+rte_pci_device_name(const struct rte_pci_addr *addr,
 		    char *output, size_t size)
 {
 	RTE_VERIFY(size >= PCI_PRI_STR_SIZE);

@@ -51,7 +51,7 @@
 #define VIRTIO_MAX_TX_QUEUES 128U
 #define VIRTIO_MAX_MAC_ADDRS 64
 #define VIRTIO_MIN_RX_BUFSIZE 64
-#define VIRTIO_MAX_RX_PKTLEN  9728
+#define VIRTIO_MAX_RX_PKTLEN  9728U
 
 /* Features desired/implemented by this driver. */
 #define VIRTIO_PMD_DEFAULT_GUEST_FEATURES	\
@@ -66,6 +66,7 @@
 	 1u << VIRTIO_NET_F_HOST_TSO4	  |	\
 	 1u << VIRTIO_NET_F_HOST_TSO6	  |	\
 	 1u << VIRTIO_NET_F_MRG_RXBUF	  |	\
+	 1u << VIRTIO_NET_F_MTU	| \
 	 1u << VIRTIO_RING_F_INDIRECT_DESC |    \
 	 1ULL << VIRTIO_F_VERSION_1       |	\
 	 1ULL << VIRTIO_F_IOMMU_PLATFORM)
@@ -91,9 +92,15 @@ int  virtio_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t rx_queue_id,
 		const struct rte_eth_rxconf *rx_conf,
 		struct rte_mempool *mb_pool);
 
+int virtio_dev_rx_queue_setup_finish(struct rte_eth_dev *dev,
+				uint16_t rx_queue_id);
+
 int  virtio_dev_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
 		uint16_t nb_tx_desc, unsigned int socket_id,
 		const struct rte_eth_txconf *tx_conf);
+
+int virtio_dev_tx_queue_setup_finish(struct rte_eth_dev *dev,
+				uint16_t tx_queue_id);
 
 uint16_t virtio_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		uint16_t nb_pkts);
@@ -111,5 +118,7 @@ uint16_t virtio_xmit_pkts_simple(void *tx_queue, struct rte_mbuf **tx_pkts,
 		uint16_t nb_pkts);
 
 int eth_virtio_dev_init(struct rte_eth_dev *eth_dev);
+
+void virtio_interrupt_handler(void *param);
 
 #endif /* _VIRTIO_ETHDEV_H_ */

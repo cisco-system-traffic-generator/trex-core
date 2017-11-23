@@ -236,7 +236,8 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
                                                          lp->m_mbuf[MBUF_GLOBAL_FLOWS],
                                                          sizeof(CGenNode),
                                                          128,
-                                                         SOCKET_ID_ANY);
+                                                         SOCKET_ID_ANY,
+                                                         true);
     assert(m_mem_pool[0].m_mbuf_global_nodes);
 }
 
