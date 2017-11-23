@@ -685,9 +685,9 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
 
-    bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
+    #bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
 
-    bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
+    #bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
 
