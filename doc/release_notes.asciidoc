@@ -27,6 +27,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== pre-release (Release 2.33) ==
+
+* DPDK 17.11 support 
+** Mellanox CX-5 support Tx=149MPPS/Rx=120MPPS@64B thank to the great Mellanox team. 
+** XXV710 is support 
+
+
+WARNING: For Mellanox CX-5/4 there is a need to upgrade the distro to CentOs 7.4 and OFED to 4.2.1. for CX-5 there is new FW. New OFED does not work with old TRex
+
+
 == Release 2.32 ==
 
 * Advance Stateful (ASTF)
