@@ -237,7 +237,7 @@ rte_raw_cksum(const void *buf, size_t len)
  * @param off
  *   The offset in bytes to start the checksum.
  * @param len
- *   The length in bytes of the data to ckecksum.
+ *   The length in bytes of the data to checksum.
  * @param cksum
  *   A pointer to the checksum, filled on success.
  * @return
@@ -322,6 +322,7 @@ rte_ipv4_cksum(const struct ipv4_hdr *ipv4_hdr)
 static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
    return((ipv4_hdr->version_ihl &0xf)<<2);
 }
+
 
 
 /**

@@ -41,7 +41,7 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
-#include <infiniband/mlx5_hw.h>
+#include <infiniband/mlx5dv.h>
 #ifdef PEDANTIC
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
@@ -73,6 +73,9 @@
 /* WQE size */
 #define MLX5_WQE_SIZE (4 * MLX5_WQE_DWORD_SIZE)
 
+/* Max size of a WQE session. */
+#define MLX5_WQE_SIZE_MAX 960U
+
 /* Compute the number of DS. */
 #define MLX5_WQE_DS(n) \
 	(((n) + MLX5_WQE_DWORD_SIZE - 1) / MLX5_WQE_DWORD_SIZE)
@@ -80,10 +83,15 @@
 /* Room for inline data in multi-packet WQE. */
 #define MLX5_MWQE64_INL_DATA 28
 
-#define HAVE_VERBS_MLX5_OPCODE_TSO
-#ifndef HAVE_VERBS_MLX5_OPCODE_TSO
-#define MLX5_OPCODE_TSO MLX5_OPCODE_LSO_MPW /* Compat with OFED 3.3. */
-#endif
+/* Default minimum number of Tx queues for inlining packets. */
+#define MLX5_EMPW_MIN_TXQS 8
+
+/* Default max packet length to be inlined. */
+#define MLX5_EMPW_MAX_INLINE_LEN (4U * MLX5_WQE_SIZE)
+
+
+#define MLX5_OPC_MOD_ENHANCED_MPSW 0
+#define MLX5_OPCODE_ENHANCED_MPSW 0x29
 
 /* CQE value to inform that VLAN is stripped. */
 #define MLX5_CQE_VLAN_STRIPPED (1u << 0)
@@ -121,6 +129,19 @@
 /* Tunnel packet bit in the CQE. */
 #define MLX5_CQE_RX_TUNNEL_PACKET (1u << 0)
 
+/* Inner L3 checksum offload (Tunneled packets only). */
+#define MLX5_ETH_WQE_L3_INNER_CSUM (1u << 4)
+
+/* Inner L4 checksum offload (Tunneled packets only). */
+#define MLX5_ETH_WQE_L4_INNER_CSUM (1u << 5)
+
+/* Is flow mark valid. */
+#if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
+#define MLX5_FLOW_MARK_IS_VALID(val) ((val) & 0xffffff00)
+#else
+#define MLX5_FLOW_MARK_IS_VALID(val) ((val) & 0xffffff)
+#endif
+
 /* INVALID is used by packets matching no flow rules. */
 #define MLX5_FLOW_MARK_INVALID 0
 
@@ -129,6 +150,9 @@
 
 /* Default mark value used when none is provided. */
 #define MLX5_FLOW_MARK_DEFAULT 0xffffff
+
+/* Maximum number of DS in WQE. */
+#define MLX5_DSEG_MAX 63
 
 /* Subset of struct mlx5_wqe_eth_seg. */
 struct mlx5_wqe_eth_seg_small {
@@ -171,10 +195,18 @@ struct mlx5_wqe64 {
 	uint8_t raw[32];
 } __rte_aligned(MLX5_WQE_SIZE);
 
+/* MPW mode. */
+enum mlx5_mpw_mode {
+	MLX5_MPW_DISABLED,
+	MLX5_MPW,
+	MLX5_MPW_ENHANCED, /* Enhanced Multi-Packet Send WQE, a.k.a MPWv2. */
+};
+
 /* MPW session status. */
 enum mlx5_mpw_state {
 	MLX5_MPW_STATE_OPENED,
 	MLX5_MPW_INL_STATE_OPENED,
+	MLX5_MPW_ENHANCED_STATE_OPENED,
 	MLX5_MPW_STATE_CLOSED,
 };
 
@@ -212,6 +244,46 @@ struct mlx5_cqe {
 	uint8_t op_own;
 };
 
+/* Adding direct verbs to data-path. */
+
+/* CQ sequence number mask. */
+#define MLX5_CQ_SQN_MASK 0x3
+
+/* CQ sequence number index. */
+#define MLX5_CQ_SQN_OFFSET 28
+
+/* CQ doorbell index mask. */
+#define MLX5_CI_MASK 0xffffff
+
+/* CQ doorbell offset. */
+#define MLX5_CQ_ARM_DB 1
+
+/* CQ doorbell offset*/
+#define MLX5_CQ_DOORBELL 0x20
+
+/* CQE format value. */
+#define MLX5_COMPRESSED 0x3
+
+/* CQE format mask. */
+#define MLX5E_CQE_FORMAT_MASK 0xc
+
+/* MPW opcode. */
+#define MLX5_OPC_MOD_MPW 0x01
+
+/* Compressed Rx CQE structure. */
+struct mlx5_mini_cqe8 {
+	union {
+		uint32_t rx_hash_result;
+		uint32_t checksum;
+		struct {
+			uint16_t wqe_counter;
+			uint8_t  s_wqe_opcode;
+			uint8_t  reserved;
+		} s_wqe_info;
+	};
+	uint32_t byte_cnt;
+};
+
 /**
  * Convert a user mark to flow mark.
  *
@@ -228,9 +300,11 @@ mlx5_flow_mark_set(uint32_t val)
 
 	/*
 	 * Add one to the user value to differentiate un-marked flows from
-	 * marked flows.
+	 * marked flows, if the ID is equal to MLX5_FLOW_MARK_DEFAULT it
+	 * remains untouched.
 	 */
-	++val;
+	if (val != MLX5_FLOW_MARK_DEFAULT)
+		++val;
 #if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
 	/*
 	 * Mark is 24 bits (minus reserved values) but is stored on a 32 bit
@@ -242,7 +316,6 @@ mlx5_flow_mark_set(uint32_t val)
 #else
 	ret = val;
 #endif
-	assert(ret <= MLX5_FLOW_MARK_MAX);
 	return ret;
 }
 

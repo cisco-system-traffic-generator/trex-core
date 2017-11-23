@@ -49,8 +49,8 @@ struct virtio_user_dev {
 	int		*tapfds;
 
 	/* for both vhost_user and vhost_kernel */
-	int		callfds[VIRTIO_MAX_VIRTQUEUES * 2 + 1];
-	int		kickfds[VIRTIO_MAX_VIRTQUEUES * 2 + 1];
+	int		callfds[VIRTIO_MAX_VIRTQUEUES];
+	int		kickfds[VIRTIO_MAX_VIRTQUEUES];
 	int		mac_specified;
 	uint32_t	max_queue_pairs;
 	uint32_t	queue_pairs;
@@ -60,16 +60,18 @@ struct virtio_user_dev {
 				   */
 	uint64_t	device_features; /* supported features by device */
 	uint8_t		status;
+	uint8_t		port_id;
 	uint8_t		mac_addr[ETHER_ADDR_LEN];
 	char		path[PATH_MAX];
-	struct vring	vrings[VIRTIO_MAX_VIRTQUEUES * 2 + 1];
+	struct vring	vrings[VIRTIO_MAX_VIRTQUEUES];
 	struct virtio_user_backend_ops *ops;
 };
 
+int is_vhost_user_by_type(const char *path);
 int virtio_user_start_device(struct virtio_user_dev *dev);
 int virtio_user_stop_device(struct virtio_user_dev *dev);
 int virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
-			 int cq, int queue_size, const char *mac);
+			 int cq, int queue_size, const char *mac, char **ifname);
 void virtio_user_dev_uninit(struct virtio_user_dev *dev);
 void virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx);
 #endif

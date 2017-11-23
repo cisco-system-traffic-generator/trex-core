@@ -86,6 +86,10 @@ s32 ixgbe_init_ops_X550(struct ixgbe_hw *hw)
 	/* Manageability interface */
 	mac->ops.set_fw_drv_ver = ixgbe_set_fw_drv_ver_x550;
 	switch (hw->device_id) {
+	case IXGBE_DEV_ID_X550EM_X_1G_T:
+		hw->mac.ops.led_on = NULL;
+		hw->mac.ops.led_off = NULL;
+		break;
 	case IXGBE_DEV_ID_X550EM_X_10G_T:
 	case IXGBE_DEV_ID_X550EM_A_10G_T:
 		hw->mac.ops.led_on = ixgbe_led_on_t_X550em;
@@ -459,9 +463,13 @@ STATIC s32 ixgbe_identify_phy_x550em(struct ixgbe_hw *hw)
 		hw->phy.type = ixgbe_phy_x550em_kr;
 		break;
 	case IXGBE_DEV_ID_X550EM_A_10G_T:
-	case IXGBE_DEV_ID_X550EM_X_1G_T:
 	case IXGBE_DEV_ID_X550EM_X_10G_T:
 		return ixgbe_identify_phy_generic(hw);
+	case IXGBE_DEV_ID_X550EM_X_1G_T:
+		hw->phy.type = ixgbe_phy_ext_1g_t;
+		hw->phy.ops.read_reg = NULL;
+		hw->phy.ops.write_reg = NULL;
+		break;
 	case IXGBE_DEV_ID_X550EM_A_1G_T:
 	case IXGBE_DEV_ID_X550EM_A_1G_T_L:
 		hw->phy.type = ixgbe_phy_fw;
@@ -751,6 +759,11 @@ s32 ixgbe_init_ops_X550EM(struct ixgbe_hw *hw)
 		phy->ops.set_phy_power = NULL;
 		phy->ops.get_firmware_version = NULL;
 		break;
+	case IXGBE_DEV_ID_X550EM_X_1G_T:
+		mac->ops.setup_fc = NULL;
+		phy->ops.identify = ixgbe_identify_phy_x550em;
+		phy->ops.set_phy_power = NULL;
+		break;
 	default:
 		phy->ops.identify = ixgbe_identify_phy_x550em;
 	}
@@ -945,6 +958,11 @@ s32 ixgbe_init_ops_X550EM_x(struct ixgbe_hw *hw)
 				      ixgbe_write_i2c_combined_generic_unlocked;
 	link->addr = IXGBE_CS4227;
 
+	if (hw->device_id == IXGBE_DEV_ID_X550EM_X_1G_T) {
+		mac->ops.setup_fc = NULL;
+		mac->ops.setup_eee = NULL;
+		mac->ops.init_led_link_act = NULL;
+	}
 
 	return ret_val;
 }
@@ -1915,6 +1933,8 @@ void ixgbe_init_mac_link_ops_X550em(struct ixgbe_hw *hw)
 						ixgbe_setup_mac_link_sfp_x550em;
 		break;
 	case ixgbe_media_type_copper:
+		if (hw->device_id == IXGBE_DEV_ID_X550EM_X_1G_T)
+			break;
 		if (hw->mac.type == ixgbe_mac_X550EM_a) {
 			if (hw->device_id == IXGBE_DEV_ID_X550EM_A_1G_T ||
 			    hw->device_id == IXGBE_DEV_ID_X550EM_A_1G_T_L) {
@@ -2380,10 +2400,6 @@ s32 ixgbe_init_phy_ops_X550em(struct ixgbe_hw *hw)
 		/* set up for CS4227 usage */
 		hw->phy.phy_semaphore_mask = IXGBE_GSSR_SHARED_I2C_SM;
 		break;
-	case IXGBE_DEV_ID_X550EM_X_1G_T:
-		phy->ops.read_reg_mdi = ixgbe_read_phy_reg_mdi_22;
-		phy->ops.write_reg_mdi = ixgbe_write_phy_reg_mdi_22;
-		break;
 	default:
 		break;
 	}
@@ -2414,6 +2430,7 @@ s32 ixgbe_init_phy_ops_X550em(struct ixgbe_hw *hw)
 	case ixgbe_phy_ext_1g_t:
 		/* link is managed by FW */
 		phy->ops.setup_link = NULL;
+		phy->ops.reset = NULL;
 		break;
 	case ixgbe_phy_x550em_xfi:
 		/* link is managed by HW */
@@ -2497,6 +2514,7 @@ s32 ixgbe_reset_hw_X550em(struct ixgbe_hw *hw)
 	u32 ctrl = 0;
 	u32 i;
 	bool link_up = false;
+	u32 swfw_mask = hw->phy.phy_semaphore_mask;
 
 	DEBUGFUNC("ixgbe_reset_hw_X550em");
 
@@ -2519,7 +2537,7 @@ s32 ixgbe_reset_hw_X550em(struct ixgbe_hw *hw)
 			  status);
 
 	if (status == IXGBE_ERR_SFP_NOT_SUPPORTED) {
-		DEBUGOUT("Returning from reset HW since PHY ops init returned IXGBE_ERR_SFP_NOT_SUPPORTED\n");
+		DEBUGOUT("Returning from reset HW due to PHY init failure\n");
 		return status;
 	}
 
@@ -2561,9 +2579,16 @@ mac_reset_top:
 			ctrl = IXGBE_CTRL_RST;
 	}
 
+	status = hw->mac.ops.acquire_swfw_sync(hw, swfw_mask);
+	if (status != IXGBE_SUCCESS) {
+		ERROR_REPORT2(IXGBE_ERROR_CAUTION,
+			"semaphore failed with %d", status);
+		return IXGBE_ERR_SWFW_SYNC;
+	}
 	ctrl |= IXGBE_READ_REG(hw, IXGBE_CTRL);
 	IXGBE_WRITE_REG(hw, IXGBE_CTRL, ctrl);
 	IXGBE_WRITE_FLUSH(hw);
+	hw->mac.ops.release_swfw_sync(hw, swfw_mask);
 
 	/* Poll for reset bit to self-clear meaning reset is complete */
 	for (i = 0; i < 10; i++) {
@@ -2663,6 +2688,9 @@ s32 ixgbe_setup_kr_x550em(struct ixgbe_hw *hw)
 	if (hw->phy.autoneg_advertised & IXGBE_LINK_SPEED_2_5GB_FULL)
 		return IXGBE_SUCCESS;
 
+	if (ixgbe_check_reset_blocked(hw))
+		return 0;
+
 	return ixgbe_setup_kr_speed_x550em(hw, hw->phy.autoneg_advertised);
 }
 
@@ -2694,53 +2722,18 @@ s32 ixgbe_setup_mac_link_sfp_x550em(struct ixgbe_hw *hw,
 	if (ret_val != IXGBE_SUCCESS)
 		return ret_val;
 
-	if (!(hw->phy.nw_mng_if_sel & IXGBE_NW_MNG_IF_SEL_INT_PHY_MODE)) {
-		/* Configure CS4227 LINE side to 10G SR. */
-		reg_slice = IXGBE_CS4227_LINE_SPARE22_MSB +
-			    (hw->bus.lan_id << 12);
-		reg_val = IXGBE_CS4227_SPEED_10G;
-		ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
-						  reg_val);
+	/* Configure internal PHY for KR/KX. */
+	ixgbe_setup_kr_speed_x550em(hw, speed);
 
-		reg_slice = IXGBE_CS4227_LINE_SPARE24_LSB +
-			    (hw->bus.lan_id << 12);
+	/* Configure CS4227 LINE side to proper mode. */
+	reg_slice = IXGBE_CS4227_LINE_SPARE24_LSB +
+		    (hw->bus.lan_id << 12);
+	if (setup_linear)
+		reg_val = (IXGBE_CS4227_EDC_MODE_CX1 << 1) | 0x1;
+	else
 		reg_val = (IXGBE_CS4227_EDC_MODE_SR << 1) | 0x1;
-		ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
-						  reg_val);
-
-		/* Configure CS4227 for HOST connection rate then type. */
-		reg_slice = IXGBE_CS4227_HOST_SPARE22_MSB +
-			    (hw->bus.lan_id << 12);
-		reg_val = (speed & IXGBE_LINK_SPEED_10GB_FULL) ?
-		IXGBE_CS4227_SPEED_10G : IXGBE_CS4227_SPEED_1G;
-		ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
-						  reg_val);
-
-		reg_slice = IXGBE_CS4227_HOST_SPARE24_LSB +
-			    (hw->bus.lan_id << 12);
-		if (setup_linear)
-			reg_val = (IXGBE_CS4227_EDC_MODE_CX1 << 1) | 0x1;
-		else
-			reg_val = (IXGBE_CS4227_EDC_MODE_SR << 1) | 0x1;
-		ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
-						  reg_val);
-
-		/* Setup XFI internal link. */
-		ret_val = ixgbe_setup_ixfi_x550em(hw, &speed);
-	} else {
-		/* Configure internal PHY for KR/KX. */
-		ixgbe_setup_kr_speed_x550em(hw, speed);
-
-		/* Configure CS4227 LINE side to proper mode. */
-		reg_slice = IXGBE_CS4227_LINE_SPARE24_LSB +
-			    (hw->bus.lan_id << 12);
-		if (setup_linear)
-			reg_val = (IXGBE_CS4227_EDC_MODE_CX1 << 1) | 0x1;
-		else
-			reg_val = (IXGBE_CS4227_EDC_MODE_SR << 1) | 0x1;
-		ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
-						  reg_val);
-	}
+	ret_val = hw->link.ops.write_link(hw, hw->link.addr, reg_slice,
+					  reg_val);
 	return ret_val;
 }
 
@@ -3696,9 +3689,9 @@ s32 ixgbe_update_flash_X550(struct ixgbe_hw *hw)
  *
  *  Determines physical layer capabilities of the current configuration.
  **/
-u32 ixgbe_get_supported_physical_layer_X550em(struct ixgbe_hw *hw)
+u64 ixgbe_get_supported_physical_layer_X550em(struct ixgbe_hw *hw)
 {
-	u32 physical_layer = IXGBE_PHYSICAL_LAYER_UNKNOWN;
+	u64 physical_layer = IXGBE_PHYSICAL_LAYER_UNKNOWN;
 	u16 ext_ability = 0;
 
 	DEBUGFUNC("ixgbe_get_supported_physical_layer_X550em");
@@ -3707,6 +3700,20 @@ u32 ixgbe_get_supported_physical_layer_X550em(struct ixgbe_hw *hw)
 
 	switch (hw->phy.type) {
 	case ixgbe_phy_x550em_kr:
+		if (hw->mac.type == ixgbe_mac_X550EM_a) {
+			if (hw->phy.nw_mng_if_sel &
+			    IXGBE_NW_MNG_IF_SEL_PHY_SPEED_2_5G) {
+				physical_layer =
+					IXGBE_PHYSICAL_LAYER_2500BASE_KX;
+				break;
+			} else if (hw->device_id ==
+				   IXGBE_DEV_ID_X550EM_A_KR_L) {
+				physical_layer =
+					IXGBE_PHYSICAL_LAYER_1000BASE_KX;
+				break;
+			}
+		}
+		/* fall through */
 	case ixgbe_phy_x550em_xfi:
 		physical_layer = IXGBE_PHYSICAL_LAYER_10GBASE_KR |
 				 IXGBE_PHYSICAL_LAYER_1000BASE_KX;
@@ -4035,6 +4042,9 @@ s32 ixgbe_setup_fc_X550em(struct ixgbe_hw *hw)
 					IXGBE_SB_IOSF_TARGET_KR_PHY, reg_val);
 
 		/* This device does not fully support AN. */
+		hw->fc.disable_fc_autoneg = true;
+		break;
+	case IXGBE_DEV_ID_X550EM_X_XFI:
 		hw->fc.disable_fc_autoneg = true;
 		break;
 	default:
@@ -4616,7 +4626,8 @@ s32 ixgbe_led_on_t_X550em(struct ixgbe_hw *hw, u32 led_idx)
 	ixgbe_write_phy_reg(hw, IXGBE_X557_LED_PROVISIONING + led_idx,
 			    IXGBE_MDIO_VENDOR_SPECIFIC_1_DEV_TYPE, phy_data);
 
-	return IXGBE_SUCCESS;
+	/* Some designs have the LEDs wired to the MAC */
+	return ixgbe_led_on_generic(hw, led_idx);
 }
 
 /**
@@ -4640,7 +4651,8 @@ s32 ixgbe_led_off_t_X550em(struct ixgbe_hw *hw, u32 led_idx)
 	ixgbe_write_phy_reg(hw, IXGBE_X557_LED_PROVISIONING + led_idx,
 			    IXGBE_MDIO_VENDOR_SPECIFIC_1_DEV_TYPE, phy_data);
 
-	return IXGBE_SUCCESS;
+	/* Some designs have the LEDs wired to the MAC */
+	return ixgbe_led_off_generic(hw, led_idx);
 }
 
 /**

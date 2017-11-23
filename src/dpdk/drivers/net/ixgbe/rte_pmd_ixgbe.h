@@ -42,6 +42,20 @@
 #include <rte_ethdev.h>
 
 /**
+ * Notify VF when PF link status changes.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param vf
+ *   VF id.
+ * @return
+ *   - (0) if successful.
+ *   - (-ENODEV) if *port* invalid.
+ *   - (-EINVAL) if *vf* invalid.
+ */
+int rte_pmd_ixgbe_ping_vf(uint16_t port, uint16_t vf);
+
+/**
  * Set the VF MAC address.
  *
  * @param port
@@ -55,7 +69,7 @@
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if *vf* or *mac_addr* is invalid.
  */
-int rte_pmd_ixgbe_set_vf_mac_addr(uint8_t port, uint16_t vf,
+int rte_pmd_ixgbe_set_vf_mac_addr(uint16_t port, uint16_t vf,
 		struct ether_addr *mac_addr);
 
 /**
@@ -73,7 +87,8 @@ int rte_pmd_ixgbe_set_vf_mac_addr(uint8_t port, uint16_t vf,
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_vf_vlan_anti_spoof(uint8_t port, uint16_t vf, uint8_t on);
+int rte_pmd_ixgbe_set_vf_vlan_anti_spoof(uint16_t port, uint16_t vf,
+					 uint8_t on);
 
 /**
  * Enable/Disable VF MAC anti spoofing.
@@ -90,7 +105,7 @@ int rte_pmd_ixgbe_set_vf_vlan_anti_spoof(uint8_t port, uint16_t vf, uint8_t on);
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_vf_mac_anti_spoof(uint8_t port, uint16_t vf, uint8_t on);
+int rte_pmd_ixgbe_set_vf_mac_anti_spoof(uint16_t port, uint16_t vf, uint8_t on);
 
 /**
  * Enable/Disable vf vlan insert
@@ -108,7 +123,7 @@ int rte_pmd_ixgbe_set_vf_mac_anti_spoof(uint8_t port, uint16_t vf, uint8_t on);
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_vf_vlan_insert(uint8_t port, uint16_t vf,
+int rte_pmd_ixgbe_set_vf_vlan_insert(uint16_t port, uint16_t vf,
 		uint16_t vlan_id);
 
 /**
@@ -125,7 +140,7 @@ int rte_pmd_ixgbe_set_vf_vlan_insert(uint8_t port, uint16_t vf,
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_tx_loopback(uint8_t port, uint8_t on);
+int rte_pmd_ixgbe_set_tx_loopback(uint16_t port, uint8_t on);
 
 /**
  * set all queues drop enable bit
@@ -141,7 +156,7 @@ int rte_pmd_ixgbe_set_tx_loopback(uint8_t port, uint8_t on);
  *   - (-ENODEV) if *port* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_all_queues_drop_en(uint8_t port, uint8_t on);
+int rte_pmd_ixgbe_set_all_queues_drop_en(uint16_t port, uint8_t on);
 
 /**
  * set drop enable bit in the VF split rx control register
@@ -160,7 +175,7 @@ int rte_pmd_ixgbe_set_all_queues_drop_en(uint8_t port, uint8_t on);
  *   - (-EINVAL) if bad parameter.
  */
 
-int rte_pmd_ixgbe_set_vf_split_drop_en(uint8_t port, uint16_t vf, uint8_t on);
+int rte_pmd_ixgbe_set_vf_split_drop_en(uint16_t port, uint16_t vf, uint8_t on);
 
 /**
  * Enable/Disable vf vlan strip for all queues in a pool
@@ -180,7 +195,7 @@ int rte_pmd_ixgbe_set_vf_split_drop_en(uint8_t port, uint16_t vf, uint8_t on);
  *   - (-EINVAL) if bad parameter.
  */
 int
-rte_pmd_ixgbe_set_vf_vlan_stripq(uint8_t port, uint16_t vf, uint8_t on);
+rte_pmd_ixgbe_set_vf_vlan_stripq(uint16_t port, uint16_t vf, uint8_t on);
 
 /**
  * Enable MACsec offload.
@@ -198,7 +213,7 @@ rte_pmd_ixgbe_set_vf_vlan_stripq(uint8_t port, uint16_t vf, uint8_t on);
  *   - (-ENODEV) if *port* invalid.
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  */
-int rte_pmd_ixgbe_macsec_enable(uint8_t port, uint8_t en, uint8_t rp);
+int rte_pmd_ixgbe_macsec_enable(uint16_t port, uint8_t en, uint8_t rp);
 
 /**
  * Disable MACsec offload.
@@ -210,7 +225,7 @@ int rte_pmd_ixgbe_macsec_enable(uint8_t port, uint8_t en, uint8_t rp);
  *   - (-ENODEV) if *port* invalid.
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  */
-int rte_pmd_ixgbe_macsec_disable(uint8_t port);
+int rte_pmd_ixgbe_macsec_disable(uint16_t port);
 
 /**
  * Configure Tx SC (Secure Connection).
@@ -224,7 +239,7 @@ int rte_pmd_ixgbe_macsec_disable(uint8_t port);
  *   - (-ENODEV) if *port* invalid.
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  */
-int rte_pmd_ixgbe_macsec_config_txsc(uint8_t port, uint8_t *mac);
+int rte_pmd_ixgbe_macsec_config_txsc(uint16_t port, uint8_t *mac);
 
 /**
  * Configure Rx SC (Secure Connection).
@@ -240,7 +255,7 @@ int rte_pmd_ixgbe_macsec_config_txsc(uint8_t port, uint8_t *mac);
  *   - (-ENODEV) if *port* invalid.
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  */
-int rte_pmd_ixgbe_macsec_config_rxsc(uint8_t port, uint8_t *mac, uint16_t pi);
+int rte_pmd_ixgbe_macsec_config_rxsc(uint16_t port, uint8_t *mac, uint16_t pi);
 
 /**
  * Enable Tx SA (Secure Association).
@@ -261,7 +276,7 @@ int rte_pmd_ixgbe_macsec_config_rxsc(uint8_t port, uint8_t *mac, uint16_t pi);
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_macsec_select_txsa(uint8_t port, uint8_t idx, uint8_t an,
+int rte_pmd_ixgbe_macsec_select_txsa(uint16_t port, uint8_t idx, uint8_t an,
 		uint32_t pn, uint8_t *key);
 
 /**
@@ -283,7 +298,7 @@ int rte_pmd_ixgbe_macsec_select_txsa(uint8_t port, uint8_t idx, uint8_t an,
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_macsec_select_rxsa(uint8_t port, uint8_t idx, uint8_t an,
+int rte_pmd_ixgbe_macsec_select_rxsa(uint16_t port, uint8_t idx, uint8_t an,
 		uint32_t pn, uint8_t *key);
 
 /**
@@ -309,7 +324,8 @@ int rte_pmd_ixgbe_macsec_select_rxsa(uint8_t port, uint8_t idx, uint8_t an,
 *   - (-EINVAL) if bad parameter.
 */
 int
-rte_pmd_ixgbe_set_vf_rxmode(uint8_t port, uint16_t vf, uint16_t rx_mask, uint8_t on);
+rte_pmd_ixgbe_set_vf_rxmode(uint16_t port, uint16_t vf, uint16_t rx_mask,
+			     uint8_t on);
 
 /**
 * Enable or disable a VF traffic receive of an Ethernet device.
@@ -328,7 +344,7 @@ rte_pmd_ixgbe_set_vf_rxmode(uint8_t port, uint16_t vf, uint16_t rx_mask, uint8_t
 *   - (-EINVAL) if bad parameter.
 */
 int
-rte_pmd_ixgbe_set_vf_rx(uint8_t port, uint16_t vf, uint8_t on);
+rte_pmd_ixgbe_set_vf_rx(uint16_t port, uint16_t vf, uint8_t on);
 
 /**
 * Enable or disable a VF traffic transmit of the Ethernet device.
@@ -347,7 +363,7 @@ rte_pmd_ixgbe_set_vf_rx(uint8_t port, uint16_t vf, uint8_t on);
 *   - (-EINVAL) if bad parameter.
 */
 int
-rte_pmd_ixgbe_set_vf_tx(uint8_t port, uint16_t vf, uint8_t on);
+rte_pmd_ixgbe_set_vf_tx(uint16_t port, uint16_t vf, uint8_t on);
 
 /**
 * Enable/Disable hardware VF VLAN filtering by an Ethernet device of
@@ -369,7 +385,8 @@ rte_pmd_ixgbe_set_vf_tx(uint8_t port, uint16_t vf, uint8_t on);
 *   - (-EINVAL) if bad parameter.
 */
 int
-rte_pmd_ixgbe_set_vf_vlan_filter(uint8_t port, uint16_t vlan, uint64_t vf_mask, uint8_t vlan_on);
+rte_pmd_ixgbe_set_vf_vlan_filter(uint16_t port, uint16_t vlan,
+				 uint64_t vf_mask, uint8_t vlan_on);
 
 /**
  * Set the rate limitation for a vf on an Ethernet device.
@@ -388,7 +405,202 @@ rte_pmd_ixgbe_set_vf_vlan_filter(uint8_t port, uint16_t vlan, uint64_t vf_mask, 
  *   - (-ENODEV) if *port_id* invalid.
  *   - (-EINVAL) if bad parameter.
  */
-int rte_pmd_ixgbe_set_vf_rate_limit(uint8_t port, uint16_t vf, uint16_t tx_rate, uint64_t q_msk);
+int rte_pmd_ixgbe_set_vf_rate_limit(uint16_t port, uint16_t vf,
+				     uint16_t tx_rate, uint64_t q_msk);
+
+/**
+ * Set all the TCs' bandwidth weight.
+ *
+ * The bw_weight means the percentage occupied by the TC.
+ * It can be taken as the relative min bandwidth setting.
+ *
+ * @param port
+ *    The port identifier of the Ethernet device.
+ * @param tc_num
+ *    Number of TCs.
+ * @param bw_weight
+ *    An array of relative bandwidth weight for all the TCs.
+ *    The summary of the bw_weight should be 100.
+ * @return
+ *   - (0) if successful.
+ *   - (-ENODEV) if *port* invalid.
+ *   - (-EINVAL) if bad parameter.
+ *   - (-ENOTSUP) not supported by firmware.
+ */
+int rte_pmd_ixgbe_set_tc_bw_alloc(uint16_t port,
+				  uint8_t tc_num,
+				  uint8_t *bw_weight);
+
+
+/**
+ * Initialize bypass logic. This function needs to be called before
+ * executing any other bypass API.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_init(uint16_t port);
+
+/**
+ * Return bypass state.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param state
+ *   The return bypass state.
+ *   - (1) Normal mode
+ *   - (2) Bypass mode
+ *   - (3) Isolate mode
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_state_show(uint16_t port, uint32_t *state);
+
+/**
+ * Set bypass state
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param new_state
+ *   The current bypass state.
+ *   - (1) Normal mode
+ *   - (2) Bypass mode
+ *   - (3) Isolate mode
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_state_set(uint16_t port, uint32_t *new_state);
+
+/**
+ * Return bypass state when given event occurs.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param event
+ *   The bypass event
+ *   - (1) Main power on (power button is pushed)
+ *   - (2) Auxiliary power on (power supply is being plugged)
+ *   - (3) Main power off (system shutdown and power supply is left plugged in)
+ *   - (4) Auxiliary power off (power supply is being unplugged)
+ *   - (5) Display or set the watchdog timer
+ * @param state
+ *   The bypass state when given event occurred.
+ *   - (1) Normal mode
+ *   - (2) Bypass mode
+ *   - (3) Isolate mode
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_event_show(uint16_t port,
+				    uint32_t event,
+				    uint32_t *state);
+
+/**
+ * Set bypass state when given event occurs.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param event
+ *   The bypass event
+ *   - (1) Main power on (power button is pushed)
+ *   - (2) Auxiliary power on (power supply is being plugged)
+ *   - (3) Main power off (system shutdown and power supply is left plugged in)
+ *   - (4) Auxiliary power off (power supply is being unplugged)
+ *   - (5) Display or set the watchdog timer
+ * @param state
+ *   The assigned state when given event occurs.
+ *   - (1) Normal mode
+ *   - (2) Bypass mode
+ *   - (3) Isolate mode
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_event_store(uint16_t port,
+				     uint32_t event,
+				     uint32_t state);
+
+/**
+ * Set bypass watchdog timeout count.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param timeout
+ *   The timeout to be set.
+ *   - (0) 0 seconds (timer is off)
+ *   - (1) 1.5 seconds
+ *   - (2) 2 seconds
+ *   - (3) 3 seconds
+ *   - (4) 4 seconds
+ *   - (5) 8 seconds
+ *   - (6) 16 seconds
+ *   - (7) 32 seconds
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_wd_timeout_store(uint16_t port, uint32_t timeout);
+
+/**
+ * Get bypass firmware version.
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param ver
+ *   The firmware version
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_ver_show(uint16_t port, uint32_t *ver);
+
+/**
+ * Return bypass watchdog timeout in seconds
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @param wd_timeout
+ *   The return watchdog timeout. "0" represents timer expired
+ *   - (0) 0 seconds (timer is off)
+ *   - (1) 1.5 seconds
+ *   - (2) 2 seconds
+ *   - (3) 3 seconds
+ *   - (4) 4 seconds
+ *   - (5) 8 seconds
+ *   - (6) 16 seconds
+ *   - (7) 32 seconds
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_wd_timeout_show(uint16_t port, uint32_t *wd_timeout);
+
+/**
+ * Reset bypass watchdog timer
+ *
+ * @param port
+ *   The port identifier of the Ethernet device.
+ * @return
+ *   - (0) if successful.
+ *   - (-ENOTSUP) if hardware doesn't support.
+ *   - (-EINVAL) if bad parameter.
+ */
+int rte_pmd_ixgbe_bypass_wd_reset(uint16_t port);
+
 
 /**
  * Response sent back to ixgbe driver from user app after callback
@@ -409,4 +621,48 @@ struct rte_pmd_ixgbe_mb_event_param {
 	uint16_t retval;   /**< return value */
 	void *msg;         /**< pointer to message */
 };
+enum {
+	RTE_PMD_IXGBE_BYPASS_MODE_NONE,
+	RTE_PMD_IXGBE_BYPASS_MODE_NORMAL,
+	RTE_PMD_IXGBE_BYPASS_MODE_BYPASS,
+	RTE_PMD_IXGBE_BYPASS_MODE_ISOLATE,
+	RTE_PMD_IXGBE_BYPASS_MODE_NUM,
+};
+
+#define RTE_PMD_IXGBE_BYPASS_MODE_VALID(x)        \
+	((x) > RTE_PMD_IXGBE_BYPASS_MODE_NONE &&  \
+	(x) < RTE_PMD_IXGBE_BYPASS_MODE_NUM)
+
+enum {
+	RTE_PMD_IXGBE_BYPASS_EVENT_NONE,
+	RTE_PMD_IXGBE_BYPASS_EVENT_START,
+	RTE_PMD_IXGBE_BYPASS_EVENT_OS_ON = RTE_PMD_IXGBE_BYPASS_EVENT_START,
+	RTE_PMD_IXGBE_BYPASS_EVENT_POWER_ON,
+	RTE_PMD_IXGBE_BYPASS_EVENT_OS_OFF,
+	RTE_PMD_IXGBE_BYPASS_EVENT_POWER_OFF,
+	RTE_PMD_IXGBE_BYPASS_EVENT_TIMEOUT,
+	RTE_PMD_IXGBE_BYPASS_EVENT_NUM
+};
+
+#define RTE_PMD_IXGBE_BYPASS_EVENT_VALID(x)       \
+	((x) > RTE_PMD_IXGBE_BYPASS_EVENT_NONE && \
+	(x) < RTE_PMD_IXGBE_BYPASS_MODE_NUM)
+
+enum {
+	RTE_PMD_IXGBE_BYPASS_TMT_OFF,     /* timeout disabled. */
+	RTE_PMD_IXGBE_BYPASS_TMT_1_5_SEC, /* timeout for 1.5 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_2_SEC,   /* timeout for 2 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_3_SEC,   /* timeout for 3 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_4_SEC,   /* timeout for 4 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_8_SEC,   /* timeout for 8 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_16_SEC,  /* timeout for 16 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_32_SEC,  /* timeout for 32 seconds */
+	RTE_PMD_IXGBE_BYPASS_TMT_NUM
+};
+
+#define RTE_PMD_IXGBE_BYPASS_TMT_VALID(x)       \
+	((x) == RTE_PMD_IXGBE_BYPASS_TMT_OFF || \
+	((x) > RTE_PMD_IXGBE_BYPASS_TMT_OFF &&  \
+	(x) < RTE_PMD_IXGBE_BYPASS_TMT_NUM))
+
 #endif /* _PMD_IXGBE_H_ */

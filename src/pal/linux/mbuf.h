@@ -211,16 +211,16 @@ uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value);
 void rte_pktmbuf_dump(const struct rte_mbuf *m, unsigned dump_len);
 
 
-int rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p);
+int _rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p);
 
-void rte_mempool_sp_put(struct rte_mempool *mp, void *obj);
+void _rte_mempool_sp_put(struct rte_mempool *mp, void *obj);
 
 inline int rte_mempool_get(struct rte_mempool *mp, void **obj_p){
-    return (rte_mempool_sc_get(mp, obj_p));
+    return (_rte_mempool_sc_get(mp, obj_p));
 }
 
 inline void rte_mempool_put(struct rte_mempool *mp, void *obj){
-    rte_mempool_sp_put(mp, obj);
+    _rte_mempool_sp_put(mp, obj);
 }
 
 

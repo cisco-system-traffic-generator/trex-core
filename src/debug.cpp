@@ -23,9 +23,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <rte_config.h>
 #include <rte_mbuf.h>
 #include <rte_pci.h>
 #include <rte_ethdev.h>
+#include <rte_bus_pci.h>
+
 #include <common/basic_utils.h>
 #include "pkt_gen.h"
 #include "main_dpdk.h"

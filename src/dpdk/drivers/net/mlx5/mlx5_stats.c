@@ -34,16 +34,9 @@
 #include <linux/sockios.h>
 #include <linux/ethtool.h>
 
-/* DPDK headers don't like -pedantic. */
-#ifdef PEDANTIC
-#pragma GCC diagnostic ignored "-Wpedantic"
-#endif
 #include <rte_ethdev.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
-#ifdef PEDANTIC
-#pragma GCC diagnostic error "-Wpedantic"
-#endif
 
 #include "mlx5.h"
 #include "mlx5_rxtx.h"
@@ -125,6 +118,10 @@ static const struct mlx5_counter_ctrl mlx5_counters_init[] = {
 		.dpdk_name = "tx_errors_phy",
 		.ctr_name = "tx_errors_phy",
 	},
+	{
+		.dpdk_name = "rx_out_of_buffer",
+		.ctr_name = "out_of_buffer",
+	},
 };
 
 static const unsigned int xstats_n = RTE_DIM(mlx5_counters_init);
@@ -159,10 +156,39 @@ priv_read_dev_counters(struct priv *priv, uint64_t *stats)
 		WARN("unable to read statistic values from device");
 		return -1;
 	}
-	for (i = 0; i != xstats_n; ++i)
-		stats[i] = (uint64_t)
-			   et_stats->data[xstats_ctrl->dev_table_idx[i]];
+	for (i = 0; i != xstats_n; ++i) {
+		if (priv_is_ib_cntr(mlx5_counters_init[i].ctr_name))
+			priv_get_cntr_sysfs(priv,
+					    mlx5_counters_init[i].ctr_name,
+					    &stats[i]);
+		else
+			stats[i] = (uint64_t)
+				et_stats->data[xstats_ctrl->dev_table_idx[i]];
+	}
 	return 0;
+}
+
+/**
+ * Query the number of statistics provided by ETHTOOL.
+ *
+ * @param priv
+ *   Pointer to private structure.
+ *
+ * @return
+ *   Number of statistics on success, -1 on error.
+ */
+static int
+priv_ethtool_get_stats_n(struct priv *priv) {
+	struct ethtool_drvinfo drvinfo;
+	struct ifreq ifr;
+
+	drvinfo.cmd = ETHTOOL_GDRVINFO;
+	ifr.ifr_data = (caddr_t)&drvinfo;
+	if (priv_ifreq(priv, SIOCETHTOOL, &ifr) != 0) {
+		WARN("unable to query number of statistics");
+		return -1;
+	}
+	return drvinfo.n_stats;
 }
 
 /**
@@ -177,25 +203,12 @@ priv_xstats_init(struct priv *priv)
 	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
 	unsigned int i;
 	unsigned int j;
-	char ifname[IF_NAMESIZE];
 	struct ifreq ifr;
-	struct ethtool_drvinfo drvinfo;
 	struct ethtool_gstrings *strings = NULL;
 	unsigned int dev_stats_n;
 	unsigned int str_sz;
 
-	if (priv_get_ifname(priv, &ifname)) {
-		WARN("unable to get interface name");
-		return;
-	}
-	/* How many statistics are available. */
-	drvinfo.cmd = ETHTOOL_GDRVINFO;
-	ifr.ifr_data = (caddr_t)&drvinfo;
-	if (priv_ifreq(priv, SIOCETHTOOL, &ifr) != 0) {
-		WARN("unable to get driver info");
-		return;
-	}
-	dev_stats_n = drvinfo.n_stats;
+	dev_stats_n = priv_ethtool_get_stats_n(priv);
 	if (dev_stats_n < 1) {
 		WARN("no extended statistics available");
 		return;
@@ -233,6 +246,8 @@ priv_xstats_init(struct priv *priv)
 		}
 	}
 	for (j = 0; j != xstats_n; ++j) {
+		if (priv_is_ib_cntr(mlx5_counters_init[j].ctr_name))
+			continue;
 		if (xstats_ctrl->dev_table_idx[j] >= dev_stats_n) {
 			WARN("counter \"%s\" is not recognized",
 			     mlx5_counters_init[j].dpdk_name);
@@ -246,7 +261,160 @@ free:
 	rte_free(strings);
 }
 
+/**
+ * Get device extended statistics.
+ *
+ * @param priv
+ *   Pointer to private structure.
+ * @param[out] stats
+ *   Pointer to rte extended stats table.
+ *
+ * @return
+ *   Number of extended stats on success and stats is filled,
+ *   negative on error.
+ */
+static int
+priv_xstats_get(struct priv *priv, struct rte_eth_xstat *stats)
+{
+	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
+	unsigned int i;
+	unsigned int n = xstats_n;
+	uint64_t counters[n];
 
+	if (priv_read_dev_counters(priv, counters) < 0)
+		return -1;
+	for (i = 0; i != xstats_n; ++i) {
+		stats[i].id = i;
+		stats[i].value = (counters[i] - xstats_ctrl->base[i]);
+	}
+	return n;
+}
+
+/**
+ * Reset device extended statistics.
+ *
+ * @param priv
+ *   Pointer to private structure.
+ */
+static void
+priv_xstats_reset(struct priv *priv)
+{
+	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
+	unsigned int i;
+	unsigned int n = xstats_n;
+	uint64_t counters[n];
+
+	if (priv_read_dev_counters(priv, counters) < 0)
+		return;
+	for (i = 0; i != n; ++i)
+		xstats_ctrl->base[i] = counters[i];
+}
+
+#ifndef TREX_PATCH
+/**
+ * DPDK callback to get device statistics.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param[out] stats
+ *   Stats structure output buffer.
+ */
+int
+mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
+{
+	struct priv *priv = mlx5_get_priv(dev);
+	struct rte_eth_stats tmp = {0};
+	unsigned int i;
+	unsigned int idx;
+
+	priv_lock(priv);
+	/* Add software counters. */
+	for (i = 0; (i != priv->rxqs_n); ++i) {
+		struct mlx5_rxq_data *rxq = (*priv->rxqs)[i];
+
+		if (rxq == NULL)
+			continue;
+		idx = rxq->stats.idx;
+		if (idx < RTE_ETHDEV_QUEUE_STAT_CNTRS) {
+#ifdef MLX5_PMD_SOFT_COUNTERS
+			tmp.q_ipackets[idx] += rxq->stats.ipackets;
+			tmp.q_ibytes[idx] += rxq->stats.ibytes;
+#endif
+			tmp.q_errors[idx] += (rxq->stats.idropped +
+					      rxq->stats.rx_nombuf);
+		}
+#ifdef MLX5_PMD_SOFT_COUNTERS
+		tmp.ipackets += rxq->stats.ipackets;
+		tmp.ibytes += rxq->stats.ibytes;
+#endif
+		tmp.ierrors += rxq->stats.idropped;
+		tmp.rx_nombuf += rxq->stats.rx_nombuf;
+	}
+	for (i = 0; (i != priv->txqs_n); ++i) {
+		struct mlx5_txq_data *txq = (*priv->txqs)[i];
+
+		if (txq == NULL)
+			continue;
+		idx = txq->stats.idx;
+		if (idx < RTE_ETHDEV_QUEUE_STAT_CNTRS) {
+#ifdef MLX5_PMD_SOFT_COUNTERS
+			tmp.q_opackets[idx] += txq->stats.opackets;
+			tmp.q_obytes[idx] += txq->stats.obytes;
+#endif
+			tmp.q_errors[idx] += txq->stats.oerrors;
+		}
+#ifdef MLX5_PMD_SOFT_COUNTERS
+		tmp.opackets += txq->stats.opackets;
+		tmp.obytes += txq->stats.obytes;
+#endif
+		tmp.oerrors += txq->stats.oerrors;
+	}
+#ifndef MLX5_PMD_SOFT_COUNTERS
+	/* FIXME: retrieve and add hardware counters. */
+#endif
+	*stats = tmp;
+	priv_unlock(priv);
+	return 0;
+}
+
+
+/**
+ * DPDK callback to clear device statistics.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ */
+void
+mlx5_stats_reset(struct rte_eth_dev *dev)
+{
+	struct priv *priv = dev->data->dev_private;
+	unsigned int i;
+	unsigned int idx;
+
+	priv_lock(priv);
+	for (i = 0; (i != priv->rxqs_n); ++i) {
+		if ((*priv->rxqs)[i] == NULL)
+			continue;
+		idx = (*priv->rxqs)[i]->stats.idx;
+		(*priv->rxqs)[i]->stats =
+			(struct mlx5_rxq_stats){ .idx = idx };
+	}
+	for (i = 0; (i != priv->txqs_n); ++i) {
+		if ((*priv->txqs)[i] == NULL)
+			continue;
+		idx = (*priv->txqs)[i]->stats.idx;
+		(*priv->txqs)[i]->stats =
+			(struct mlx5_txq_stats){ .idx = idx };
+	}
+#ifndef MLX5_PMD_SOFT_COUNTERS
+	/* FIXME: reset hardware counters. */
+#endif
+	priv_unlock(priv);
+}
+
+#endif
+
+#ifdef TREX_PATCH
 
 static void
 mlx5_stats_read_hw(struct rte_eth_dev *dev,
@@ -349,7 +517,7 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
 
     /* SW Rx */
     for (i = 0; (i != priv->rxqs_n); ++i) {
-        struct rxq *rxq = (*priv->rxqs)[i];
+        struct mlx5_rxq_data *rxq = (*priv->rxqs)[i];
         if (rxq) {
             tmp.imissed += rxq->stats.idropped;
             tmp.rx_nombuf += rxq->stats.rx_nombuf;
@@ -358,7 +526,7 @@ mlx5_stats_read_hw(struct rte_eth_dev *dev,
 
     /*SW Tx */
     for (i = 0; (i != priv->txqs_n); ++i) {
-        struct txq *txq = (*priv->txqs)[i];
+        struct mlx5_txq_data *txq = (*priv->txqs)[i];
         if (txq) {
             tmp.oerrors += txq->stats.odropped;
         }
@@ -526,58 +694,7 @@ mlx5_stats_diff(struct rte_eth_stats *a,
 }
 
 
-
-/**
- * Get device extended statistics.
- *
- * @param priv
- *   Pointer to private structure.
- * @param[out] stats
- *   Pointer to rte extended stats table.
- *
- * @return
- *   Number of extended stats on success and stats is filled,
- *   negative on error.
- */
-static int
-priv_xstats_get(struct priv *priv, struct rte_eth_xstat *stats)
-{
-	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
-	unsigned int i;
-	unsigned int n = xstats_n;
-	uint64_t counters[n];
-
-	if (priv_read_dev_counters(priv, counters) < 0)
-		return -1;
-	for (i = 0; i != xstats_n; ++i) {
-		stats[i].id = i;
-		stats[i].value = (counters[i] - xstats_ctrl->base[i]);
-	}
-	return n;
-}
-
-/**
- * Reset device extended statistics.
- *
- * @param priv
- *   Pointer to private structure.
- */
-static void
-priv_xstats_reset(struct priv *priv)
-{
-	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
-	unsigned int i;
-	unsigned int n = xstats_n;
-	uint64_t counters[n];
-
-	if (priv_read_dev_counters(priv, counters) < 0)
-		return;
-	for (i = 0; i != n; ++i)
-		xstats_ctrl->base[i] = counters[i];
-}
-
-void
-mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
+int mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 {
 	struct priv *priv = mlx5_get_priv(dev);
 
@@ -596,6 +713,7 @@ mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
                     &lps->m_shadow);
 
 	priv_unlock(priv);
+    return(0);
 }
 
 /**
@@ -627,6 +745,9 @@ mlx5_stats_reset(struct rte_eth_dev *dev)
 }
 
 
+
+#endif
+
 /**
  * DPDK callback to get extended device statistics.
  *
@@ -648,7 +769,17 @@ mlx5_xstats_get(struct rte_eth_dev *dev,
 	int ret = xstats_n;
 
 	if (n >= xstats_n && stats) {
+		struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
+		int stats_n;
+
 		priv_lock(priv);
+		stats_n = priv_ethtool_get_stats_n(priv);
+		if (stats_n < 0) {
+			priv_unlock(priv);
+			return -1;
+		}
+		if (xstats_ctrl->stats_n != stats_n)
+			priv_xstats_init(priv);
 		ret = priv_xstats_get(priv, stats);
 		priv_unlock(priv);
 	}
@@ -665,9 +796,17 @@ void
 mlx5_xstats_reset(struct rte_eth_dev *dev)
 {
 	struct priv *priv = mlx5_get_priv(dev);
+	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
+	int stats_n;
 
 	priv_lock(priv);
+	stats_n = priv_ethtool_get_stats_n(priv);
+	if (stats_n < 0)
+		goto unlock;
+	if (xstats_ctrl->stats_n != stats_n)
+		priv_xstats_init(priv);
 	priv_xstats_reset(priv);
+unlock:
 	priv_unlock(priv);
 }
 

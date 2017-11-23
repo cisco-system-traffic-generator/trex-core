@@ -25,9 +25,8 @@ limitations under the License.
 #include <assert.h>
 #include <stdint.h>
 #include <string>
+#include <rte_config.h>
 #include <rte_ring.h>
-
-
 
 class CRingSp {
 public:

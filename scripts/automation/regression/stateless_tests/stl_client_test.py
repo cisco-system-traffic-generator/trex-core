@@ -53,9 +53,9 @@ class STLClient_Test(CStlGeneral_Test):
         self.drv_name = drv_name
 
         # due to defect trex-325 
-        if  self.drv_name == 'net_mlx5':
-            print("WARNING disable strict due to trex-325 on mlx5")
-            self.strict = False
+        #if  self.drv_name == 'net_mlx5':
+        #    print("WARNING disable strict due to trex-325 on mlx5")
+        #    self.strict = False
 
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
@@ -264,7 +264,6 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
-
         #Work around for trex-405. Remove when it is resolved
         if  self.drv_name == 'net_mlx5' and 'VM' in self.modes:
             self.skip('Can not run on mlx VM currently - see trex-405 for details')
@@ -428,7 +427,7 @@ class STLClient_Test(CStlGeneral_Test):
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp')['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
             
-            pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
+            pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x,dport=1000)/('x' * 100)) for x in range(50000,50500)]
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
@@ -441,8 +440,7 @@ class STLClient_Test(CStlGeneral_Test):
                     break
                     
                 time.sleep(0.1)
-            
-            
+
             assert(caps[tx_capture_id]['count'] == len(pkts))
             self.verify(len(pkts), caps[rx_capture_id]['count'])
             

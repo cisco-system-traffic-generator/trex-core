@@ -85,18 +85,15 @@ ixgbe_rxq_rearm(struct ixgbe_rx_queue *rxq)
 		/*
 		 * Flush mbuf with pkt template.
 		 * Data to be rearmed is 6 bytes long.
-		 * Though, RX will overwrite ol_flags that are coming next
-		 * anyway. So overwrite whole 8 bytes with one load:
-		 * 6 bytes of rearm_data plus first 2 bytes of ol_flags.
 		 */
 		vst1_u8((uint8_t *)&mb0->rearm_data, p);
-		paddr = mb0->buf_physaddr + RTE_PKTMBUF_HEADROOM;
+		paddr = mb0->buf_iova + RTE_PKTMBUF_HEADROOM;
 		dma_addr0 = vsetq_lane_u64(paddr, zero, 0);
 		/* flush desc with pa dma_addr */
 		vst1q_u64((uint64_t *)&rxdp++->read, dma_addr0);
 
 		vst1_u8((uint8_t *)&mb1->rearm_data, p);
-		paddr = mb1->buf_physaddr + RTE_PKTMBUF_HEADROOM;
+		paddr = mb1->buf_iova + RTE_PKTMBUF_HEADROOM;
 		dma_addr1 = vsetq_lane_u64(paddr, zero, 0);
 		vst1q_u64((uint64_t *)&rxdp++->read, dma_addr1);
 	}
@@ -114,14 +111,6 @@ ixgbe_rxq_rearm(struct ixgbe_rx_queue *rxq)
 	IXGBE_PCI_REG_WRITE(rxq->rdt_reg_addr, rx_id);
 }
 
-/* Handling the offload flags (olflags) field takes computation
- * time when receiving packets. Therefore we provide a flag to disable
- * the processing of the olflags field when they are not needed. This
- * gives improved performance, at the cost of losing the offload info
- * in the received packet
- */
-#ifdef RTE_IXGBE_RX_OLFLAGS_ENABLE
-
 #define VTAG_SHIFT     (3)
 
 static inline void
@@ -137,8 +126,8 @@ desc_to_olflags_v(uint8x16x2_t sterr_tmp1, uint8x16x2_t sterr_tmp2,
 	} vol;
 
 	const uint8x16_t pkttype_msk = {
-			PKT_RX_VLAN_PKT, PKT_RX_VLAN_PKT,
-			PKT_RX_VLAN_PKT, PKT_RX_VLAN_PKT,
+			PKT_RX_VLAN, PKT_RX_VLAN,
+			PKT_RX_VLAN, PKT_RX_VLAN,
 			0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00};
@@ -170,9 +159,6 @@ desc_to_olflags_v(uint8x16x2_t sterr_tmp1, uint8x16x2_t sterr_tmp2,
 	rx_pkts[2]->ol_flags = vol.e[2];
 	rx_pkts[3]->ol_flags = vol.e[3];
 }
-#else
-#define desc_to_olflags_v(sterr_tmp1, sterr_tmp2, staterr, rx_pkts)
-#endif
 
 /*
  * vPMD raw receive routine, only accept(nb_pkts >= RTE_IXGBE_DESCS_PER_LOOP)
@@ -330,12 +316,6 @@ _recv_raw_pkts_vec(struct ixgbe_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 			*(int *)split_packet = ~stat & IXGBE_VPMD_DESC_EOP_MASK;
 
 			split_packet += RTE_IXGBE_DESCS_PER_LOOP;
-
-			/* zero-out next pointers */
-			rx_pkts[pos]->next = NULL;
-			rx_pkts[pos + 1]->next = NULL;
-			rx_pkts[pos + 2]->next = NULL;
-			rx_pkts[pos + 3]->next = NULL;
 		}
 
 		rte_prefetch_non_temporal(rxdp + RTE_IXGBE_DESCS_PER_LOOP);
@@ -434,7 +414,7 @@ vtx1(volatile union ixgbe_adv_tx_desc *txdp,
 		struct rte_mbuf *pkt, uint64_t flags)
 {
 	uint64x2_t descriptor = {
-			pkt->buf_physaddr + pkt->data_off,
+			pkt->buf_iova + pkt->data_off,
 			(uint64_t)pkt->pkt_len << 46 | flags | pkt->data_len};
 
 	vst1q_u64((uint64_t *)&txdp->read, descriptor);
@@ -451,8 +431,8 @@ vtx(volatile union ixgbe_adv_tx_desc *txdp,
 }
 
 uint16_t
-ixgbe_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
-		       uint16_t nb_pkts)
+ixgbe_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
+			   uint16_t nb_pkts)
 {
 	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)tx_queue;
 	volatile union ixgbe_adv_tx_desc *txdp;

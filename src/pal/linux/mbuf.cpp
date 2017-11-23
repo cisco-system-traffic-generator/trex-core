@@ -37,7 +37,8 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
                                                unsigned elt_size,
                                                unsigned cache_size,
-                                               int socket_id){
+                                               int socket_id,
+                                               bool share){
     rte_mempool_t * p=new rte_mempool_t();
     assert(p);
     p->elt_size =elt_size;
@@ -277,7 +278,7 @@ rte_pktmbuf_hexdump(const void *buf, unsigned int len)
 }
 
 
-int rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
+int _rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
     utl_rte_check(mp);
     uint16_t buf_len;
     buf_len = mp->elt_size ;
@@ -285,7 +286,7 @@ int rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
     return (0);
 }
 
-void rte_mempool_sp_put(struct rte_mempool *mp, void *obj){
+void _rte_mempool_sp_put(struct rte_mempool *mp, void *obj){
     free(obj);
 }
 

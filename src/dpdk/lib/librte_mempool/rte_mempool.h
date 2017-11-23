@@ -51,13 +51,15 @@
  * meta-data in the object data and retrieve them when allocating a
  * new object.
  *
- * Note: the mempool implementation is not preemptable. A lcore must
- * not be interrupted by another task that uses the same mempool
- * (because it uses a ring which is not preemptable). Also, mempool
- * functions must not be used outside the DPDK environment: for
- * example, in linuxapp environment, a thread that is not created by
- * the EAL must not use mempools. This is due to the per-lcore cache
- * that won't work as rte_lcore_id() will not return a correct value.
+ * Note: the mempool implementation is not preemptible. An lcore must not be
+ * interrupted by another task that uses the same mempool (because it uses a
+ * ring which is not preemptible). Also, usual mempool functions like
+ * rte_mempool_get() or rte_mempool_put() are designed to be called from an EAL
+ * thread due to the internal per-lcore cache. Due to the lack of caching,
+ * rte_mempool_get() or rte_mempool_put() performance will suffer when called
+ * by non-EAL threads. Instead, non-EAL threads should call
+ * rte_mempool_generic_get() or rte_mempool_generic_put() with a user cache
+ * created with rte_mempool_cache_create().
  */
 
 #include <stdio.h>
@@ -155,7 +157,11 @@ struct rte_mempool_objsz {
 struct rte_mempool_objhdr {
 	STAILQ_ENTRY(rte_mempool_objhdr) next; /**< Next in list. */
 	struct rte_mempool *mp;          /**< The mempool owning the object. */
-	phys_addr_t physaddr;            /**< Physical address of the object. */
+	RTE_STD_C11
+	union {
+		rte_iova_t iova;         /**< IO address of the object. */
+		phys_addr_t physaddr;    /**< deprecated - Physical address of the object. */
+	};
 #ifdef RTE_LIBRTE_MEMPOOL_DEBUG
 	uint64_t cookie;                 /**< Debug cookie. */
 #endif
@@ -201,7 +207,11 @@ struct rte_mempool_memhdr {
 	STAILQ_ENTRY(rte_mempool_memhdr) next; /**< Next in list. */
 	struct rte_mempool *mp;  /**< The mempool owning the chunk */
 	void *addr;              /**< Virtual address of the chunk */
-	phys_addr_t phys_addr;   /**< Physical address of the chunk */
+	RTE_STD_C11
+	union {
+		rte_iova_t iova;       /**< IO address of the chunk */
+		phys_addr_t phys_addr; /**< Physical address of the chunk */
+	};
 	size_t len;              /**< length of the chunk */
 	rte_mempool_memchunk_free_cb_t *free_cb; /**< Free callback */
 	void *opaque;            /**< Argument passed to the free callback */
@@ -224,7 +234,7 @@ struct rte_mempool {
 	};
 	void *pool_config;               /**< optional args for ops alloc. */
 	const struct rte_memzone *mz;    /**< Memzone where pool is alloc'd. */
-	int flags;                       /**< Flags of the mempool. */
+	unsigned int flags;              /**< Flags of the mempool. */
 	int socket_id;                   /**< Socket id passed at create. */
 	uint32_t size;                   /**< Max size of the mempool. */
 	uint32_t cache_size;
@@ -263,6 +273,24 @@ struct rte_mempool {
 #define MEMPOOL_F_SC_GET         0x0008 /**< Default get is "single-consumer".*/
 #define MEMPOOL_F_POOL_CREATED   0x0010 /**< Internal: pool is created. */
 #define MEMPOOL_F_NO_PHYS_CONTIG 0x0020 /**< Don't need physically contiguous objs. */
+/**
+ * This capability flag is advertised by a mempool handler, if the whole
+ * memory area containing the objects must be physically contiguous.
+ * Note: This flag should not be passed by application.
+ */
+#define MEMPOOL_F_CAPA_PHYS_CONTIG 0x0040
+/**
+ * This capability flag is advertised by a mempool handler. Used for a case
+ * where mempool driver wants object start address(vaddr) aligned to block
+ * size(/ total element size).
+ *
+ * Note:
+ * - This flag should not be passed by application.
+ *   Flag used for mempool driver only.
+ * - Mempool driver must also set MEMPOOL_F_CAPA_PHYS_CONTIG flag along with
+ *   MEMPOOL_F_CAPA_BLK_ALIGNED_OBJECTS.
+ */
+#define MEMPOOL_F_CAPA_BLK_ALIGNED_OBJECTS 0x0080
 
 /**
  * @internal When debug is enabled, store some statistics.
@@ -387,6 +415,18 @@ typedef int (*rte_mempool_dequeue_t)(struct rte_mempool *mp,
  */
 typedef unsigned (*rte_mempool_get_count)(const struct rte_mempool *mp);
 
+/**
+ * Get the mempool capabilities.
+ */
+typedef int (*rte_mempool_get_capabilities_t)(const struct rte_mempool *mp,
+		unsigned int *flags);
+
+/**
+ * Notify new memory area to mempool.
+ */
+typedef int (*rte_mempool_ops_register_memory_area_t)
+(const struct rte_mempool *mp, char *vaddr, rte_iova_t iova, size_t len);
+
 /** Structure defining mempool operations structure */
 struct rte_mempool_ops {
 	char name[RTE_MEMPOOL_OPS_NAMESIZE]; /**< Name of mempool ops struct. */
@@ -395,6 +435,14 @@ struct rte_mempool_ops {
 	rte_mempool_enqueue_t enqueue;   /**< Enqueue an object. */
 	rte_mempool_dequeue_t dequeue;   /**< Dequeue an object. */
 	rte_mempool_get_count get_count; /**< Get qty of available objs. */
+	/**
+	 * Get the mempool capabilities
+	 */
+	rte_mempool_get_capabilities_t get_capabilities;
+	/**
+	 * Notify new memory area to mempool
+	 */
+	rte_mempool_ops_register_memory_area_t register_memory_area;
 } __rte_cache_aligned;
 
 #define RTE_MEMPOOL_MAX_OPS_IDX 16  /**< Max registered ops structs */
@@ -505,6 +553,43 @@ rte_mempool_ops_enqueue_bulk(struct rte_mempool *mp, void * const *obj_table,
  */
 unsigned
 rte_mempool_ops_get_count(const struct rte_mempool *mp);
+
+/**
+ * @internal wrapper for mempool_ops get_capabilities callback.
+ *
+ * @param mp [in]
+ *   Pointer to the memory pool.
+ * @param flags [out]
+ *   Pointer to the mempool flags.
+ * @return
+ *   - 0: Success; The mempool driver has advertised his pool capabilities in
+ *   flags param.
+ *   - -ENOTSUP - doesn't support get_capabilities ops (valid case).
+ *   - Otherwise, pool create fails.
+ */
+int
+rte_mempool_ops_get_capabilities(const struct rte_mempool *mp,
+					unsigned int *flags);
+/**
+ * @internal wrapper for mempool_ops register_memory_area callback.
+ * API to notify the mempool handler when a new memory area is added to pool.
+ *
+ * @param mp
+ *   Pointer to the memory pool.
+ * @param vaddr
+ *   Pointer to the buffer virtual address.
+ * @param iova
+ *   Pointer to the buffer IO address.
+ * @param len
+ *   Pool size.
+ * @return
+ *   - 0: Success;
+ *   - -ENOTSUP - doesn't support register_memory_area ops (valid error case).
+ *   - Otherwise, rte_mempool_populate_phys fails thus pool create fails.
+ */
+int
+rte_mempool_ops_register_memory_area(const struct rte_mempool *mp,
+				char *vaddr, rte_iova_t iova, size_t len);
 
 /**
  * @internal wrapper for mempool_ops free callback.
@@ -654,7 +739,7 @@ typedef void (rte_mempool_ctor_t)(struct rte_mempool *, void *);
  *     when using rte_mempool_get() or rte_mempool_get_bulk() is
  *     "single-consumer". Otherwise, it is "multi-consumers".
  *   - MEMPOOL_F_NO_PHYS_CONTIG: If set, allocated objects won't
- *     necessarilly be contiguous in physical memory.
+ *     necessarily be contiguous in physical memory.
  * @return
  *   The pointer to the new allocated mempool, on success. NULL on error
  *   with rte_errno set appropriately. Possible rte_errno values include:
@@ -720,11 +805,10 @@ rte_mempool_create(const char *name, unsigned n, unsigned elt_size,
  * @param vaddr
  *   Virtual address of the externally allocated memory buffer.
  *   Will be used to store mempool objects.
- * @param paddr
- *   Array of physical addresses of the pages that comprises given memory
- *   buffer.
+ * @param iova
+ *   Array of IO addresses of the pages that comprises given memory buffer.
  * @param pg_num
- *   Number of elements in the paddr array.
+ *   Number of elements in the iova array.
  * @param pg_shift
  *   LOG2 of the physical pages size.
  * @return
@@ -737,7 +821,7 @@ rte_mempool_xmem_create(const char *name, unsigned n, unsigned elt_size,
 		rte_mempool_ctor_t *mp_init, void *mp_init_arg,
 		rte_mempool_obj_cb_t *obj_init, void *obj_init_arg,
 		int socket_id, unsigned flags, void *vaddr,
-		const phys_addr_t paddr[], uint32_t pg_num, uint32_t pg_shift);
+		const rte_iova_t iova[], uint32_t pg_num, uint32_t pg_shift);
 
 /**
  * Create an empty mempool
@@ -794,9 +878,9 @@ rte_mempool_free(struct rte_mempool *mp);
  * Add physically contiguous memory for objects in the pool at init
  *
  * Add a virtually and physically contiguous memory chunk in the pool
- * where objects can be instanciated.
+ * where objects can be instantiated.
  *
- * If the given physical address is unknown (paddr = RTE_BAD_PHYS_ADDR),
+ * If the given IO address is unknown (iova = RTE_BAD_IOVA),
  * the chunk doesn't need to be physically contiguous (only virtually),
  * and allocated objects may span two pages.
  *
@@ -804,8 +888,8 @@ rte_mempool_free(struct rte_mempool *mp);
  *   A pointer to the mempool structure.
  * @param vaddr
  *   The virtual address of memory that should be used to store objects.
- * @param paddr
- *   The physical address
+ * @param iova
+ *   The IO address
  * @param len
  *   The length of memory in bytes.
  * @param free_cb
@@ -817,6 +901,11 @@ rte_mempool_free(struct rte_mempool *mp);
  *   On error, the chunk is not added in the memory list of the
  *   mempool and a negative errno is returned.
  */
+int rte_mempool_populate_iova(struct rte_mempool *mp, char *vaddr,
+	rte_iova_t iova, size_t len, rte_mempool_memchunk_free_cb_t *free_cb,
+	void *opaque);
+
+__rte_deprecated
 int rte_mempool_populate_phys(struct rte_mempool *mp, char *vaddr,
 	phys_addr_t paddr, size_t len, rte_mempool_memchunk_free_cb_t *free_cb,
 	void *opaque);
@@ -825,18 +914,17 @@ int rte_mempool_populate_phys(struct rte_mempool *mp, char *vaddr,
  * Add physical memory for objects in the pool at init
  *
  * Add a virtually contiguous memory chunk in the pool where objects can
- * be instanciated. The physical addresses corresponding to the virtual
- * area are described in paddr[], pg_num, pg_shift.
+ * be instantiated. The IO addresses corresponding to the virtual
+ * area are described in iova[], pg_num, pg_shift.
  *
  * @param mp
  *   A pointer to the mempool structure.
  * @param vaddr
  *   The virtual address of memory that should be used to store objects.
- * @param paddr
- *   An array of physical addresses of each page composing the virtual
- *   area.
+ * @param iova
+ *   An array of IO addresses of each page composing the virtual area.
  * @param pg_num
- *   Number of elements in the paddr array.
+ *   Number of elements in the iova array.
  * @param pg_shift
  *   LOG2 of the physical pages size.
  * @param free_cb
@@ -848,6 +936,11 @@ int rte_mempool_populate_phys(struct rte_mempool *mp, char *vaddr,
  *   On error, the chunks are not added in the memory list of the
  *   mempool and a negative errno is returned.
  */
+int rte_mempool_populate_iova_tab(struct rte_mempool *mp, char *vaddr,
+	const rte_iova_t iova[], uint32_t pg_num, uint32_t pg_shift,
+	rte_mempool_memchunk_free_cb_t *free_cb, void *opaque);
+
+__rte_deprecated
 int rte_mempool_populate_phys_tab(struct rte_mempool *mp, char *vaddr,
 	const phys_addr_t paddr[], uint32_t pg_num, uint32_t pg_shift,
 	rte_mempool_memchunk_free_cb_t *free_cb, void *opaque);
@@ -856,7 +949,7 @@ int rte_mempool_populate_phys_tab(struct rte_mempool *mp, char *vaddr,
  * Add virtually contiguous memory for objects in the pool at init
  *
  * Add a virtually contiguous memory chunk in the pool where objects can
- * be instanciated.
+ * be instantiated.
  *
  * @param mp
  *   A pointer to the mempool structure.
@@ -991,7 +1084,7 @@ rte_mempool_cache_free(struct rte_mempool_cache *cache);
  * @param mp
  *   A pointer to the mempool.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_mempool_cache_flush(struct rte_mempool_cache *cache,
 			struct rte_mempool *mp)
 {
@@ -1009,7 +1102,7 @@ rte_mempool_cache_flush(struct rte_mempool_cache *cache,
  * @return
  *   A pointer to the mempool cache or NULL if disabled or non-EAL thread.
  */
-static inline struct rte_mempool_cache *__attribute__((always_inline))
+static __rte_always_inline struct rte_mempool_cache *
 rte_mempool_default_cache(struct rte_mempool *mp, unsigned lcore_id)
 {
 	if (mp->cache_size == 0)
@@ -1032,13 +1125,10 @@ rte_mempool_default_cache(struct rte_mempool *mp, unsigned lcore_id)
  *   positive.
  * @param cache
  *   A pointer to a mempool cache structure. May be NULL if not needed.
- * @param flags
- *   The flags used for the mempool creation.
- *   Single-producer (MEMPOOL_F_SP_PUT flag) or multi-producers.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 __mempool_generic_put(struct rte_mempool *mp, void * const *obj_table,
-		      unsigned n, struct rte_mempool_cache *cache)
+		      unsigned int n, struct rte_mempool_cache *cache)
 {
 	void **cache_objs;
 
@@ -1094,57 +1184,13 @@ ring_enqueue:
  *   The number of objects to add in the mempool from the obj_table.
  * @param cache
  *   A pointer to a mempool cache structure. May be NULL if not needed.
- * @param flags
- *   The flags used for the mempool creation.
- *   Single-producer (MEMPOOL_F_SP_PUT flag) or multi-producers.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_mempool_generic_put(struct rte_mempool *mp, void * const *obj_table,
-			unsigned n, struct rte_mempool_cache *cache,
-			__rte_unused int flags)
+			unsigned int n, struct rte_mempool_cache *cache)
 {
 	__mempool_check_cookies(mp, obj_table, n, 0);
 	__mempool_generic_put(mp, obj_table, n, cache);
-}
-
-/**
- * @deprecated
- * Put several objects back in the mempool (multi-producers safe).
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_table
- *   A pointer to a table of void * pointers (objects).
- * @param n
- *   The number of objects to add in the mempool from the obj_table.
- */
-__rte_deprecated
-static inline void __attribute__((always_inline))
-rte_mempool_mp_put_bulk(struct rte_mempool *mp, void * const *obj_table,
-			unsigned n)
-{
-	struct rte_mempool_cache *cache;
-	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	rte_mempool_generic_put(mp, obj_table, n, cache, 0);
-}
-
-/**
- * @deprecated
- * Put several objects back in the mempool (NOT multi-producers safe).
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_table
- *   A pointer to a table of void * pointers (objects).
- * @param n
- *   The number of objects to add in the mempool from obj_table.
- */
-__rte_deprecated
-static inline void __attribute__((always_inline))
-rte_mempool_sp_put_bulk(struct rte_mempool *mp, void * const *obj_table,
-			unsigned n)
-{
-	rte_mempool_generic_put(mp, obj_table, n, NULL, MEMPOOL_F_SP_PUT);
 }
 
 /**
@@ -1161,47 +1207,13 @@ rte_mempool_sp_put_bulk(struct rte_mempool *mp, void * const *obj_table,
  * @param n
  *   The number of objects to add in the mempool from obj_table.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_mempool_put_bulk(struct rte_mempool *mp, void * const *obj_table,
-		     unsigned n)
+		     unsigned int n)
 {
 	struct rte_mempool_cache *cache;
 	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	rte_mempool_generic_put(mp, obj_table, n, cache, mp->flags);
-}
-
-/**
- * @deprecated
- * Put one object in the mempool (multi-producers safe).
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj
- *   A pointer to the object to be added.
- */
-__rte_deprecated
-static inline void __attribute__((always_inline))
-rte_mempool_mp_put(struct rte_mempool *mp, void *obj)
-{
-	struct rte_mempool_cache *cache;
-	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	rte_mempool_generic_put(mp, &obj, 1, cache, 0);
-}
-
-/**
- * @deprecated
- * Put one object back in the mempool (NOT multi-producers safe).
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj
- *   A pointer to the object to be added.
- */
-__rte_deprecated
-static inline void __attribute__((always_inline))
-rte_mempool_sp_put(struct rte_mempool *mp, void *obj)
-{
-	rte_mempool_generic_put(mp, &obj, 1, NULL, MEMPOOL_F_SP_PUT);
+	rte_mempool_generic_put(mp, obj_table, n, cache);
 }
 
 /**
@@ -1216,7 +1228,7 @@ rte_mempool_sp_put(struct rte_mempool *mp, void *obj)
  * @param obj
  *   A pointer to the object to be added.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_mempool_put(struct rte_mempool *mp, void *obj)
 {
 	rte_mempool_put_bulk(mp, &obj, 1);
@@ -1232,16 +1244,13 @@ rte_mempool_put(struct rte_mempool *mp, void *obj)
  *   The number of objects to get, must be strictly positive.
  * @param cache
  *   A pointer to a mempool cache structure. May be NULL if not needed.
- * @param flags
- *   The flags used for the mempool creation.
- *   Single-consumer (MEMPOOL_F_SC_GET flag) or multi-consumers.
  * @return
  *   - >=0: Success; number of objects supplied.
  *   - <0: Error; code of ring dequeue function.
  */
-static inline int __attribute__((always_inline))
+static __rte_always_inline int
 __mempool_generic_get(struct rte_mempool *mp, void **obj_table,
-		      unsigned n, struct rte_mempool_cache *cache)
+		      unsigned int n, struct rte_mempool_cache *cache)
 {
 	int ret;
 	uint32_t index, len;
@@ -1313,78 +1322,19 @@ ring_dequeue:
  *   The number of objects to get from mempool to obj_table.
  * @param cache
  *   A pointer to a mempool cache structure. May be NULL if not needed.
- * @param flags
- *   The flags used for the mempool creation.
- *   Single-consumer (MEMPOOL_F_SC_GET flag) or multi-consumers.
  * @return
  *   - 0: Success; objects taken.
  *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
  */
-static inline int __attribute__((always_inline))
-rte_mempool_generic_get(struct rte_mempool *mp, void **obj_table, unsigned n,
-			struct rte_mempool_cache *cache, __rte_unused int flags)
+static __rte_always_inline int
+rte_mempool_generic_get(struct rte_mempool *mp, void **obj_table,
+			unsigned int n, struct rte_mempool_cache *cache)
 {
 	int ret;
 	ret = __mempool_generic_get(mp, obj_table, n, cache);
 	if (ret == 0)
 		__mempool_check_cookies(mp, obj_table, n, 1);
 	return ret;
-}
-
-/**
- * @deprecated
- * Get several objects from the mempool (multi-consumers safe).
- *
- * If cache is enabled, objects will be retrieved first from cache,
- * subsequently from the common pool. Note that it can return -ENOENT when
- * the local cache and common pool are empty, even if cache from other
- * lcores are full.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_table
- *   A pointer to a table of void * pointers (objects) that will be filled.
- * @param n
- *   The number of objects to get from mempool to obj_table.
- * @return
- *   - 0: Success; objects taken.
- *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
- */
-__rte_deprecated
-static inline int __attribute__((always_inline))
-rte_mempool_mc_get_bulk(struct rte_mempool *mp, void **obj_table, unsigned n)
-{
-	struct rte_mempool_cache *cache;
-	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	return rte_mempool_generic_get(mp, obj_table, n, cache, 0);
-}
-
-/**
- * @deprecated
- * Get several objects from the mempool (NOT multi-consumers safe).
- *
- * If cache is enabled, objects will be retrieved first from cache,
- * subsequently from the common pool. Note that it can return -ENOENT when
- * the local cache and common pool are empty, even if cache from other
- * lcores are full.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_table
- *   A pointer to a table of void * pointers (objects) that will be filled.
- * @param n
- *   The number of objects to get from the mempool to obj_table.
- * @return
- *   - 0: Success; objects taken.
- *   - -ENOENT: Not enough entries in the mempool; no object is
- *     retrieved.
- */
-__rte_deprecated
-static inline int __attribute__((always_inline))
-rte_mempool_sc_get_bulk(struct rte_mempool *mp, void **obj_table, unsigned n)
-{
-	return rte_mempool_generic_get(mp, obj_table, n, NULL,
-				       MEMPOOL_F_SC_GET);
 }
 
 /**
@@ -1409,62 +1359,12 @@ rte_mempool_sc_get_bulk(struct rte_mempool *mp, void **obj_table, unsigned n)
  *   - 0: Success; objects taken
  *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
  */
-static inline int __attribute__((always_inline))
-rte_mempool_get_bulk(struct rte_mempool *mp, void **obj_table, unsigned n)
+static __rte_always_inline int
+rte_mempool_get_bulk(struct rte_mempool *mp, void **obj_table, unsigned int n)
 {
 	struct rte_mempool_cache *cache;
 	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	return rte_mempool_generic_get(mp, obj_table, n, cache, mp->flags);
-}
-
-/**
- * @deprecated
- * Get one object from the mempool (multi-consumers safe).
- *
- * If cache is enabled, objects will be retrieved first from cache,
- * subsequently from the common pool. Note that it can return -ENOENT when
- * the local cache and common pool are empty, even if cache from other
- * lcores are full.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_p
- *   A pointer to a void * pointer (object) that will be filled.
- * @return
- *   - 0: Success; objects taken.
- *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
- */
-__rte_deprecated
-static inline int __attribute__((always_inline))
-rte_mempool_mc_get(struct rte_mempool *mp, void **obj_p)
-{
-	struct rte_mempool_cache *cache;
-	cache = rte_mempool_default_cache(mp, rte_lcore_id());
-	return rte_mempool_generic_get(mp, obj_p, 1, cache, 0);
-}
-
-/**
- * @deprecated
- * Get one object from the mempool (NOT multi-consumers safe).
- *
- * If cache is enabled, objects will be retrieved first from cache,
- * subsequently from the common pool. Note that it can return -ENOENT when
- * the local cache and common pool are empty, even if cache from other
- * lcores are full.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @param obj_p
- *   A pointer to a void * pointer (object) that will be filled.
- * @return
- *   - 0: Success; objects taken.
- *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
- */
-__rte_deprecated
-static inline int __attribute__((always_inline))
-rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p)
-{
-	return rte_mempool_generic_get(mp, obj_p, 1, NULL, MEMPOOL_F_SC_GET);
+	return rte_mempool_generic_get(mp, obj_table, n, cache);
 }
 
 /**
@@ -1487,7 +1387,7 @@ rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p)
  *   - 0: Success; objects taken.
  *   - -ENOENT: Not enough entries in the mempool; no object is retrieved.
  */
-static inline int __attribute__((always_inline))
+static __rte_always_inline int
 rte_mempool_get(struct rte_mempool *mp, void **obj_p)
 {
 	return rte_mempool_get_bulk(mp, obj_p, 1);
@@ -1508,22 +1408,6 @@ rte_mempool_get(struct rte_mempool *mp, void **obj_p)
 unsigned int rte_mempool_avail_count(const struct rte_mempool *mp);
 
 /**
- * @deprecated
- * Return the number of entries in the mempool.
- *
- * When cache is enabled, this function has to browse the length of
- * all lcores, so it should not be used in a data path, but only for
- * debug purposes.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @return
- *   The number of entries in the mempool.
- */
-__rte_deprecated
-unsigned rte_mempool_count(const struct rte_mempool *mp);
-
-/**
  * Return the number of elements which have been allocated from the mempool
  *
  * When cache is enabled, this function has to browse the length of
@@ -1537,31 +1421,6 @@ unsigned rte_mempool_count(const struct rte_mempool *mp);
  */
 unsigned int
 rte_mempool_in_use_count(const struct rte_mempool *mp);
-
-/**
- * @deprecated
- * Return the number of free entries in the mempool ring.
- * i.e. how many entries can be freed back to the mempool.
- *
- * NOTE: This corresponds to the number of elements *allocated* from the
- * memory pool, not the number of elements in the pool itself. To count
- * the number elements currently available in the pool, use "rte_mempool_count"
- *
- * When cache is enabled, this function has to browse the length of
- * all lcores, so it should not be used in a data path, but only for
- * debug purposes. User-owned mempool caches are not accounted for.
- *
- * @param mp
- *   A pointer to the mempool structure.
- * @return
- *   The number of free entries in the mempool.
- */
-__rte_deprecated
-static inline unsigned
-rte_mempool_free_count(const struct rte_mempool *mp)
-{
-	return rte_mempool_in_use_count(mp);
-}
 
 /**
  * Test if the mempool is full.
@@ -1602,24 +1461,29 @@ rte_mempool_empty(const struct rte_mempool *mp)
 }
 
 /**
- * Return the physical address of elt, which is an element of the pool mp.
+ * Return the IO address of elt, which is an element of the pool mp.
  *
- * @param mp
- *   A pointer to the mempool structure.
  * @param elt
  *   A pointer (virtual address) to the element of the pool.
  * @return
- *   The physical address of the elt element.
+ *   The IO address of the elt element.
  *   If the mempool was created with MEMPOOL_F_NO_PHYS_CONTIG, the
- *   returned value is RTE_BAD_PHYS_ADDR.
+ *   returned value is RTE_BAD_IOVA.
  */
-static inline phys_addr_t
-rte_mempool_virt2phy(__rte_unused const struct rte_mempool *mp, const void *elt)
+static inline rte_iova_t
+rte_mempool_virt2iova(const void *elt)
 {
 	const struct rte_mempool_objhdr *hdr;
 	hdr = (const struct rte_mempool_objhdr *)RTE_PTR_SUB(elt,
 		sizeof(*hdr));
-	return hdr->physaddr;
+	return hdr->iova;
+}
+
+__rte_deprecated
+static inline phys_addr_t
+rte_mempool_virt2phy(__rte_unused const struct rte_mempool *mp, const void *elt)
+{
+	return rte_mempool_virt2iova(elt);
 }
 
 /**
@@ -1708,11 +1572,13 @@ uint32_t rte_mempool_calc_obj_size(uint32_t elt_size, uint32_t flags,
  *   by rte_mempool_calc_obj_size().
  * @param pg_shift
  *   LOG2 of the physical pages size. If set to 0, ignore page boundaries.
+ * @param flags
+ *  The mempool flags.
  * @return
  *   Required memory size aligned at page boundary.
  */
 size_t rte_mempool_xmem_size(uint32_t elt_num, size_t total_elt_sz,
-	uint32_t pg_shift);
+	uint32_t pg_shift, unsigned int flags);
 
 /**
  * Get the size of memory required to store mempool elements.
@@ -1728,13 +1594,14 @@ size_t rte_mempool_xmem_size(uint32_t elt_num, size_t total_elt_sz,
  * @param total_elt_sz
  *   The size of each element, including header and trailer, as returned
  *   by rte_mempool_calc_obj_size().
- * @param paddr
- *   Array of physical addresses of the pages that comprises given memory
- *   buffer.
+ * @param iova
+ *   Array of IO addresses of the pages that comprises given memory buffer.
  * @param pg_num
- *   Number of elements in the paddr array.
+ *   Number of elements in the iova array.
  * @param pg_shift
  *   LOG2 of the physical pages size.
+ * @param flags
+ *  The mempool flags.
  * @return
  *   On success, the number of bytes needed to store given number of
  *   objects, aligned to the given page size. If the provided memory
@@ -1742,8 +1609,8 @@ size_t rte_mempool_xmem_size(uint32_t elt_num, size_t total_elt_sz,
  *   is the actual number of elements that can be stored in that buffer.
  */
 ssize_t rte_mempool_xmem_usage(void *vaddr, uint32_t elt_num,
-	size_t total_elt_sz, const phys_addr_t paddr[], uint32_t pg_num,
-	uint32_t pg_shift);
+	size_t total_elt_sz, const rte_iova_t iova[], uint32_t pg_num,
+	uint32_t pg_shift, unsigned int flags);
 
 /**
  * Walk list of all memory pools

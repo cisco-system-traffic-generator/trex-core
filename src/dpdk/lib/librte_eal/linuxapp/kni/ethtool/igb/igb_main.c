@@ -1031,8 +1031,15 @@ static void igb_set_interrupt_capability(struct igb_adapter *adapter, bool msix)
 			for (i = 0; i < numvecs; i++)
 				adapter->msix_entries[i].entry = i;
 
+#ifdef HAVE_PCI_ENABLE_MSIX
 			err = pci_enable_msix(pdev,
 			                      adapter->msix_entries, numvecs);
+#else
+			err = pci_enable_msix_range(pdev,
+					adapter->msix_entries,
+					numvecs,
+					numvecs);
+#endif
 			if (err == 0)
 				break;
 		}
@@ -1126,7 +1133,7 @@ static int igb_alloc_q_vector(struct igb_adapter *adapter,
 	/* initialize pointer to rings */
 	ring = q_vector->ring;
 
-	/* intialize ITR */
+	/* initialize ITR */
 	if (rxr_count) {
 		/* rx or rx/tx vector */
 		if (!adapter->rx_itr_setting || adapter->rx_itr_setting > 3)
@@ -1629,7 +1636,7 @@ static void igb_check_swap_media(struct igb_adapter *adapter)
  */
 static int igb_get_i2c_data(void *data)
 {
-	struct igb_adapter *adapter = (struct igb_adapter *)data;
+	struct igb_adapter *adapter = data;
 	struct e1000_hw *hw = &adapter->hw;
 	s32 i2cctl = E1000_READ_REG(hw, E1000_I2CPARAMS);
 
@@ -1644,7 +1651,7 @@ static int igb_get_i2c_data(void *data)
  */
 static void igb_set_i2c_data(void *data, int state)
 {
-	struct igb_adapter *adapter = (struct igb_adapter *)data;
+	struct igb_adapter *adapter = data;
 	struct e1000_hw *hw = &adapter->hw;
 	s32 i2cctl = E1000_READ_REG(hw, E1000_I2CPARAMS);
 
@@ -1669,7 +1676,7 @@ static void igb_set_i2c_data(void *data, int state)
  */
 static void igb_set_i2c_clk(void *data, int state)
 {
-	struct igb_adapter *adapter = (struct igb_adapter *)data;
+	struct igb_adapter *adapter = data;
 	struct e1000_hw *hw = &adapter->hw;
 	s32 i2cctl = E1000_READ_REG(hw, E1000_I2CPARAMS);
 
@@ -1691,7 +1698,7 @@ static void igb_set_i2c_clk(void *data, int state)
  */
 static int igb_get_i2c_clk(void *data)
 {
-	struct igb_adapter *adapter = (struct igb_adapter *)data;
+	struct igb_adapter *adapter = data;
 	struct e1000_hw *hw = &adapter->hw;
 	s32 i2cctl = E1000_READ_REG(hw, E1000_I2CPARAMS);
 

@@ -333,6 +333,7 @@ struct vxlan_hdr {
 #define ETHER_TYPE_1588 0x88F7 /**< IEEE 802.1AS 1588 Precise Time Protocol. */
 #define ETHER_TYPE_SLOW 0x8809 /**< Slow protocols (LACP and Marker). */
 #define ETHER_TYPE_TEB  0x6558 /**< Transparent Ethernet Bridging. */
+#define ETHER_TYPE_LLDP 0x88CC /**< LLDP Protocol. */
 
 #define ETHER_VXLAN_HLEN (sizeof(struct udp_hdr) + sizeof(struct vxlan_hdr))
 /**< VXLAN tunnel header length. */
@@ -357,7 +358,7 @@ static inline int rte_vlan_strip(struct rte_mbuf *m)
 		return -1;
 
 	struct vlan_hdr *vh = (struct vlan_hdr *)(eh + 1);
-	m->ol_flags |= PKT_RX_VLAN_PKT;
+	m->ol_flags |= PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED;
 	m->vlan_tci = rte_be_to_cpu_16(vh->vlan_tci);
 
 	/* Copy ether header over rather than moving whole packet */
@@ -406,6 +407,8 @@ static inline int rte_vlan_insert(struct rte_mbuf **m)
 
 	vh = (struct vlan_hdr *) (nh + 1);
 	vh->vlan_tci = rte_cpu_to_be_16((*m)->vlan_tci);
+
+	(*m)->ol_flags &= ~PKT_RX_VLAN_STRIPPED;
 
 	return 0;
 }

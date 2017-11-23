@@ -61,7 +61,7 @@ extern "C" {
 /**
  * Minor version/month number i.e. the mm in yy.mm.z
  */
-#define RTE_VER_MONTH 2
+#define RTE_VER_MONTH 11
 
 /**
  * Patch level number i.e. the z in yy.mm.z
@@ -71,14 +71,14 @@ extern "C" {
 /**
  * Extra string to be appended to version number
  */
-#define RTE_VER_SUFFIX "-rc"
+#define RTE_VER_SUFFIX ""
 
 /**
  * Patch release number
  *   0-15 = release candidates
  *   16   = release
  */
-#define RTE_VER_RELEASE 3
+#define RTE_VER_RELEASE 16
 
 /**
  * Macro to compute a version number usable for comparisons

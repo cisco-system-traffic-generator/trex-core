@@ -84,7 +84,8 @@ extern "C" {
 #define RTE_ETH_FLOW_GENEVE             20 /**< GENEVE protocol based flow */
 #define RTE_ETH_FLOW_NVGRE              21 /**< NVGRE protocol based flow */
 #define RTE_ETH_FLOW_MAX                22
-	/* Napatech ADD ON */
+
+/* Napatech ADD ON */
 #define RTE_ETH_FLOW_INNER_IPV4					23
 #define RTE_ETH_FLOW_INNER_IPV4_TCP     24
 #define RTE_ETH_FLOW_INNER_IPV4_UDP     25
@@ -439,7 +440,7 @@ struct rte_eth_l2_flow {
 struct rte_eth_ipv4_flow {
 	uint32_t src_ip;      /**< IPv4 source address in big endian. */
 	uint32_t dst_ip;      /**< IPv4 destination address in big endian. */
-	// TREX_PATCH (ip_id)
+    // TREX_PATCH (ip_id)
     uint16_t ip_id;       /**< IPv4 IP ID to match */
 	uint8_t  tos;         /**< Type of service to match. */
 	uint8_t  ttl;         /**< Time to live to match. */
@@ -483,8 +484,8 @@ struct rte_eth_ipv6_flow {
 	uint8_t  tc;             /**< Traffic class to match. */
 	uint8_t  proto;          /**< Protocol, next header to match. */
 	uint8_t  hop_limits;     /**< Hop limits to match. */
-	// TREX_PATCH (flow_label)
-	uint32_t flow_label;     /**<flow label to match. */
+    // TREX_PATCH (flow_label)
+    uint32_t flow_label;     /**<flow label to match. */
 };
 
 /**

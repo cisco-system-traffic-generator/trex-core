@@ -1,8 +1,7 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright(c) 2016 NXP
- *   All rights reserved.
+ *   Copyright 2016 NXP.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -36,6 +35,7 @@
 #include <sys/queue.h>
 
 #include <rte_bus.h>
+#include <rte_debug.h>
 
 #include "eal_private.h"
 
@@ -50,6 +50,9 @@ rte_bus_register(struct rte_bus *bus)
 	/* A bus should mandatorily have the scan implemented */
 	RTE_VERIFY(bus->scan);
 	RTE_VERIFY(bus->probe);
+	RTE_VERIFY(bus->find_device);
+	/* Buses supporting driver plug also require unplug. */
+	RTE_VERIFY(!bus->plug || bus->unplug);
 
 	TAILQ_INSERT_TAIL(&rte_bus_list, bus, next);
 	RTE_LOG(DEBUG, EAL, "Registered [%s] bus.\n", bus->name);
@@ -71,11 +74,9 @@ rte_bus_scan(void)
 
 	TAILQ_FOREACH(bus, &rte_bus_list, next) {
 		ret = bus->scan();
-		if (ret) {
+		if (ret)
 			RTE_LOG(ERR, EAL, "Scan for (%s) bus failed.\n",
 				bus->name);
-			return ret;
-		}
 	}
 
 	return 0;
@@ -86,15 +87,25 @@ int
 rte_bus_probe(void)
 {
 	int ret;
-	struct rte_bus *bus;
+	struct rte_bus *bus, *vbus = NULL;
 
 	TAILQ_FOREACH(bus, &rte_bus_list, next) {
+		if (!strcmp(bus->name, "vdev")) {
+			vbus = bus;
+			continue;
+		}
+
 		ret = bus->probe();
-		if (ret) {
+		if (ret)
 			RTE_LOG(ERR, EAL, "Bus (%s) probe failed.\n",
 				bus->name);
-			return ret;
-		}
+	}
+
+	if (vbus) {
+		ret = vbus->probe();
+		if (ret)
+			RTE_LOG(ERR, EAL, "Bus (%s) probe failed.\n",
+				vbus->name);
 	}
 
 	return 0;
@@ -130,4 +141,103 @@ rte_bus_dump(FILE *f)
 			break;
 		}
 	}
+}
+
+struct rte_bus *
+rte_bus_find(const struct rte_bus *start, rte_bus_cmp_t cmp,
+	     const void *data)
+{
+	struct rte_bus *bus;
+
+	if (start != NULL)
+		bus = TAILQ_NEXT(start, next);
+	else
+		bus = TAILQ_FIRST(&rte_bus_list);
+	while (bus != NULL) {
+		if (cmp(bus, data) == 0)
+			break;
+		bus = TAILQ_NEXT(bus, next);
+	}
+	return bus;
+}
+
+static int
+cmp_rte_device(const struct rte_device *dev1, const void *_dev2)
+{
+	const struct rte_device *dev2 = _dev2;
+
+	return dev1 != dev2;
+}
+
+static int
+bus_find_device(const struct rte_bus *bus, const void *_dev)
+{
+	struct rte_device *dev;
+
+	dev = bus->find_device(NULL, cmp_rte_device, _dev);
+	return dev == NULL;
+}
+
+struct rte_bus *
+rte_bus_find_by_device(const struct rte_device *dev)
+{
+	return rte_bus_find(NULL, bus_find_device, (const void *)dev);
+}
+
+static int
+cmp_bus_name(const struct rte_bus *bus, const void *_name)
+{
+	const char *name = _name;
+
+	return strcmp(bus->name, name);
+}
+
+struct rte_bus *
+rte_bus_find_by_name(const char *busname)
+{
+	return rte_bus_find(NULL, cmp_bus_name, (const void *)busname);
+}
+
+static int
+bus_can_parse(const struct rte_bus *bus, const void *_name)
+{
+	const char *name = _name;
+
+	return !(bus->parse && bus->parse(name, NULL) == 0);
+}
+
+struct rte_bus *
+rte_bus_find_by_device_name(const char *str)
+{
+	char name[RTE_DEV_NAME_MAX_LEN];
+	char *c;
+
+	snprintf(name, sizeof(name), "%s", str);
+	c = strchr(name, ',');
+	if (c != NULL)
+		c[0] = '\0';
+	return rte_bus_find(NULL, bus_can_parse, name);
+}
+
+
+/*
+ * Get iommu class of devices on the bus.
+ */
+enum rte_iova_mode
+rte_bus_get_iommu_class(void)
+{
+	int mode = RTE_IOVA_DC;
+	struct rte_bus *bus;
+
+	TAILQ_FOREACH(bus, &rte_bus_list, next) {
+
+		if (bus->get_iommu_class)
+			mode |= bus->get_iommu_class();
+	}
+
+	if (mode != RTE_IOVA_VA) {
+		/* Use default IOVA mode */
+		mode = RTE_IOVA_PA;
+	}
+	return mode;
 }

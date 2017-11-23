@@ -48,9 +48,15 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n, 
                                                unsigned elt_size,
                                                unsigned cache_size,
-                                               int socket_id){
+                                               int socket_id,
+                                               bool share){
     char buffer[100];
     sprintf(buffer,"%s-%d",name,socket_id);
+
+    unsigned flags=0; /* shared by default */
+    if (!share) {
+        flags = (MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET);
+    }
 
     rte_mempool_t *  res=
         rte_mempool_create(buffer, n,
@@ -59,7 +65,7 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                            0,
                            NULL, NULL,
                            NULL, NULL,
-                           socket_id, 0);
+                           socket_id, flags);
     if (res == NULL) {
         printf(" ERROR there is not enough huge-pages memory in your system \n");
         rte_exit(EXIT_FAILURE, "Cannot init nodes mbuf pool %s\n",name);

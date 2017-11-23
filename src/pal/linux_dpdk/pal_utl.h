@@ -25,6 +25,7 @@ limitations under the License.
 #include <rte_byteorder.h>
 #include <rte_memcpy.h>
 #include <rte_branch_prediction.h>
+#include <rte_pause.h>
 
 
 #define PAL_WORDSWAP(x) rte_bswap16(x)

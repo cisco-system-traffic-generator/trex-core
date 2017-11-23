@@ -19,7 +19,9 @@
   limitations under the License.
 */
 
+#include <rte_config.h>
 #include <rte_ethdev.h>
+#include <rte_bus_pci.h>
 #include <arpa/inet.h>
 #include <common/Network/Packet/EthernetHeader.h>
 #include <common/Network/Packet/Arp.h>

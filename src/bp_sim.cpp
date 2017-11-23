@@ -2832,7 +2832,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  flow_nodes,
                                                  sizeof(CGenNode),
                                                  128,
-                                                 socket_id);
+                                                 socket_id,
+                                                 false);
 
      RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV); 
      if (tw_res != RC_HTW_OK){

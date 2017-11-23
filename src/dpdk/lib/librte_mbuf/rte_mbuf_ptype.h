@@ -91,6 +91,9 @@
  * RTE_PTYPE_INNER_L4_UDP.
  */
 
+#include <stddef.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -338,11 +341,11 @@ extern "C" {
  * Packet format:
  * <'ether type'=0x0800
  * | 'version'=4, 'protocol'=17
- * | 'destination port'=4798>
+ * | 'destination port'=4789>
  * or,
  * <'ether type'=0x86DD
  * | 'version'=6, 'next header'=17
- * | 'destination port'=4798>
+ * | 'destination port'=4789>
  */
 #define RTE_PTYPE_TUNNEL_VXLAN              0x00003000
 /**
@@ -379,6 +382,49 @@ extern "C" {
  * capability.
  */
 #define RTE_PTYPE_TUNNEL_GRENAT             0x00006000
+/**
+ * GTP-C (GPRS Tunnelling Protocol) control tunneling packet type.
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17
+ * | 'destination port'=2123>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'destination port'=2123>
+ * or,
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17
+ * | 'source port'=2123>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'source port'=2123>
+ */
+#define RTE_PTYPE_TUNNEL_GTPC               0x00007000
+/**
+ * GTP-U (GPRS Tunnelling Protocol) user data tunneling packet type.
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17
+ * | 'destination port'=2152>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'destination port'=2152>
+ */
+#define RTE_PTYPE_TUNNEL_GTPU               0x00008000
+/**
+ * ESP (IP Encapsulating Security Payload) tunneling packet type.
+ *
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=51>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=51>
+ */
+#define RTE_PTYPE_TUNNEL_ESP                0x00009000
 /**
  * Mask of tunneling packet types.
  */

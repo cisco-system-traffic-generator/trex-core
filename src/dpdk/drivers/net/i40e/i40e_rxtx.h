@@ -34,16 +34,6 @@
 #ifndef _I40E_RXTX_H_
 #define _I40E_RXTX_H_
 
-/**
- * 32 bits tx flags, high 16 bits for L2TAG1 (VLAN),
- * low 16 bits for others.
- */
-#define I40E_TX_FLAG_L2TAG1_SHIFT 16
-#define I40E_TX_FLAG_L2TAG1_MASK  0xffff0000
-#define I40E_TX_FLAG_CSUM         ((uint32_t)(1 << 0))
-#define I40E_TX_FLAG_INSERT_VLAN  ((uint32_t)(1 << 1))
-#define I40E_TX_FLAG_TSYN         ((uint32_t)(1 << 2))
-
 #define RTE_PMD_I40E_RX_MAX_BURST 32
 #define RTE_PMD_I40E_TX_MAX_BURST 32
 
@@ -119,11 +109,11 @@ struct i40e_rx_queue {
 	uint16_t nb_rx_hold; /**< number of held free RX desc */
 	struct rte_mbuf *pkt_first_seg; /**< first segment of current packet */
 	struct rte_mbuf *pkt_last_seg; /**< last segment of current packet */
+	struct rte_mbuf fake_mbuf; /**< dummy mbuf */
 #ifdef RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC
 	uint16_t rx_nb_avail; /**< number of staged packets ready */
 	uint16_t rx_next_avail; /**< index of next staged packets */
 	uint16_t rx_free_trigger; /**< triggers rx buffer allocation */
-	struct rte_mbuf fake_mbuf; /**< dummy mbuf */
 	struct rte_mbuf *rx_stage[RTE_PMD_I40E_RX_MAX_BURST * 2];
 #endif
 
@@ -131,7 +121,7 @@ struct i40e_rx_queue {
 	uint16_t rxrearm_start;	/**< the idx we start the re-arming from */
 	uint64_t mbuf_initializer; /**< value to init mbufs */
 
-	uint8_t port_id; /**< device port ID */
+	uint16_t port_id; /**< device port ID */
 	uint8_t crc_len; /**< 0 if CRC stripped, 4 otherwise */
 	uint16_t queue_id; /**< RX queue index */
 	uint16_t reg_idx; /**< RX queue register index */
@@ -177,7 +167,7 @@ struct i40e_tx_queue {
 	uint8_t pthresh; /**< Prefetch threshold register. */
 	uint8_t hthresh; /**< Host threshold register. */
 	uint8_t wthresh; /**< Write-back threshold reg. */
-	uint8_t port_id; /**< Device port identifier. */
+	uint16_t port_id; /**< Device port identifier. */
 	uint16_t queue_id; /**< TX queue index. */
 	uint16_t reg_idx;
 	uint32_t txq_flags;
@@ -246,6 +236,8 @@ void i40e_rx_queue_release_mbufs(struct i40e_rx_queue *rxq);
 uint32_t i40e_dev_rx_queue_count(struct rte_eth_dev *dev,
 				 uint16_t rx_queue_id);
 int i40e_dev_rx_descriptor_done(void *rx_queue, uint16_t offset);
+int i40e_dev_rx_descriptor_status(void *rx_queue, uint16_t offset);
+int i40e_dev_tx_descriptor_status(void *tx_queue, uint16_t offset);
 
 uint16_t i40e_recv_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,
 			    uint16_t nb_pkts);
@@ -256,19 +248,21 @@ int i40e_rx_vec_dev_conf_condition_check(struct rte_eth_dev *dev);
 int i40e_rxq_vec_setup(struct i40e_rx_queue *rxq);
 int i40e_txq_vec_setup(struct i40e_tx_queue *txq);
 void i40e_rx_queue_release_mbufs_vec(struct i40e_rx_queue *rxq);
-uint16_t i40e_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
-			    uint16_t nb_pkts);
+uint16_t i40e_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
+				   uint16_t nb_pkts);
 void i40e_set_rx_function(struct rte_eth_dev *dev);
 void i40e_set_tx_function_flag(struct rte_eth_dev *dev,
 			       struct i40e_tx_queue *txq);
 void i40e_set_tx_function(struct rte_eth_dev *dev);
+void i40e_set_default_ptype_table(struct rte_eth_dev *dev);
+void i40e_set_default_pctype_table(struct rte_eth_dev *dev);
 
 /* For each value it means, datasheet of hardware can tell more details
  *
  * @note: fix i40e_dev_supported_ptypes_get() if any change here.
  */
 static inline uint32_t
-i40e_rxd_pkt_type_mapping(uint8_t ptype)
+i40e_get_default_pkt_type(uint8_t ptype)
 {
 	static const uint32_t type_table[UINT8_MAX + 1] __rte_cache_aligned = {
 		/* L2 types */

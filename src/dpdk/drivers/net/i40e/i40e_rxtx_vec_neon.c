@@ -57,7 +57,6 @@ i40e_rxq_rearm(struct i40e_rx_queue *rxq)
 	uint64x2_t dma_addr0, dma_addr1;
 	uint64x2_t zero = vdupq_n_u64(0);
 	uint64_t paddr;
-	uint8x8_t p;
 
 	rxdp = rxq->rx_ring + rxq->rxrearm_start;
 
@@ -77,28 +76,18 @@ i40e_rxq_rearm(struct i40e_rx_queue *rxq)
 		return;
 	}
 
-	p = vld1_u8((uint8_t *)&rxq->mbuf_initializer);
-
 	/* Initialize the mbufs in vector, process 2 mbufs in one loop */
 	for (i = 0; i < RTE_I40E_RXQ_REARM_THRESH; i += 2, rxep += 2) {
 		mb0 = rxep[0].mbuf;
 		mb1 = rxep[1].mbuf;
 
-		 /* Flush mbuf with pkt template.
-		 * Data to be rearmed is 6 bytes long.
-		 * Though, RX will overwrite ol_flags that are coming next
-		 * anyway. So overwrite whole 8 bytes with one load:
-		 * 6 bytes of rearm_data plus first 2 bytes of ol_flags.
-		 */
-		vst1_u8((uint8_t *)&mb0->rearm_data, p);
-		paddr = mb0->buf_physaddr + RTE_PKTMBUF_HEADROOM;
+		paddr = mb0->buf_iova + RTE_PKTMBUF_HEADROOM;
 		dma_addr0 = vdupq_n_u64(paddr);
 
 		/* flush desc with pa dma_addr */
 		vst1q_u64((uint64_t *)&rxdp++->read, dma_addr0);
 
-		vst1_u8((uint8_t *)&mb1->rearm_data, p);
-		paddr = mb1->buf_physaddr + RTE_PKTMBUF_HEADROOM;
+		paddr = mb1->buf_iova + RTE_PKTMBUF_HEADROOM;
 		dma_addr1 = vdupq_n_u64(paddr);
 		vst1q_u64((uint64_t *)&rxdp++->read, dma_addr1);
 	}
@@ -116,18 +105,13 @@ i40e_rxq_rearm(struct i40e_rx_queue *rxq)
 	I40E_PCI_REG_WRITE(rxq->qrx_tail, rx_id);
 }
 
-/* Handling the offload flags (olflags) field takes computation
- * time when receiving packets. Therefore we provide a flag to disable
- * the processing of the olflags field when they are not needed. This
- * gives improved performance, at the cost of losing the offload info
- * in the received packet
- */
-#ifdef RTE_LIBRTE_I40E_RX_OLFLAGS_ENABLE
-
 static inline void
-desc_to_olflags_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
+desc_to_olflags_v(struct i40e_rx_queue *rxq, uint64x2_t descs[4],
+		  struct rte_mbuf **rx_pkts)
 {
 	uint32x4_t vlan0, vlan1, rss, l3_l4e;
+	const uint64x2_t mbuf_init = {rxq->mbuf_initializer, 0};
+	uint64x2_t rearm0, rearm1, rearm2, rearm3;
 
 	/* mask everything except RSS, flow director and VLAN flags
 	 * bit2 is for VLAN tag, bit11 for flow director indication
@@ -136,10 +120,24 @@ desc_to_olflags_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
 	const uint32x4_t rss_vlan_msk = {
 			0x1c03804, 0x1c03804, 0x1c03804, 0x1c03804};
 
+	const uint32x4_t cksum_mask = {
+			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
+			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
+			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
+			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
+			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
+			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
+			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
+			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
+			PKT_RX_EIP_CKSUM_BAD};
+
 	/* map rss and vlan type to rss hash and vlan flag */
 	const uint8x16_t vlan_flags = {
 			0, 0, 0, 0,
-			PKT_RX_VLAN_PKT | PKT_RX_VLAN_STRIPPED, 0, 0, 0,
+			PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED, 0, 0, 0,
 			0, 0, 0, 0,
 			0, 0, 0, 0};
 
@@ -150,14 +148,16 @@ desc_to_olflags_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
 			0, 0, 0, 0};
 
 	const uint8x16_t l3_l4e_flags = {
-			0,
-			PKT_RX_IP_CKSUM_BAD,
-			PKT_RX_L4_CKSUM_BAD,
-			PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD,
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_EIP_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD,
-			PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD,
-			PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_GOOD) >> 1,
+			PKT_RX_IP_CKSUM_BAD >> 1,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD) >> 1,
+			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD) >> 1,
+			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD |
+			 PKT_RX_L4_CKSUM_BAD) >> 1,
+			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
+			 PKT_RX_IP_CKSUM_BAD) >> 1,
 			0, 0, 0, 0, 0, 0, 0, 0};
 
 	vlan0 = vzipq_u32(vreinterpretq_u32_u64(descs[0]),
@@ -177,26 +177,31 @@ desc_to_olflags_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
 	l3_l4e = vshrq_n_u32(vlan1, 22);
 	l3_l4e = vreinterpretq_u32_u8(vqtbl1q_u8(l3_l4e_flags,
 					      vreinterpretq_u8_u32(l3_l4e)));
-
+	/* then we shift left 1 bit */
+	l3_l4e = vshlq_n_u32(l3_l4e, 1);
+	/* we need to mask out the reduntant bits */
+	l3_l4e = vandq_u32(l3_l4e, cksum_mask);
 
 	vlan0 = vorrq_u32(vlan0, rss);
 	vlan0 = vorrq_u32(vlan0, l3_l4e);
 
-	rx_pkts[0]->ol_flags = vgetq_lane_u32(vlan0, 0);
-	rx_pkts[1]->ol_flags = vgetq_lane_u32(vlan0, 1);
-	rx_pkts[2]->ol_flags = vgetq_lane_u32(vlan0, 2);
-	rx_pkts[3]->ol_flags = vgetq_lane_u32(vlan0, 3);
+	rearm0 = vsetq_lane_u64(vgetq_lane_u32(vlan0, 0), mbuf_init, 1);
+	rearm1 = vsetq_lane_u64(vgetq_lane_u32(vlan0, 1), mbuf_init, 1);
+	rearm2 = vsetq_lane_u64(vgetq_lane_u32(vlan0, 2), mbuf_init, 1);
+	rearm3 = vsetq_lane_u64(vgetq_lane_u32(vlan0, 3), mbuf_init, 1);
+
+	vst1q_u64((uint64_t *)&rx_pkts[0]->rearm_data, rearm0);
+	vst1q_u64((uint64_t *)&rx_pkts[1]->rearm_data, rearm1);
+	vst1q_u64((uint64_t *)&rx_pkts[2]->rearm_data, rearm2);
+	vst1q_u64((uint64_t *)&rx_pkts[3]->rearm_data, rearm3);
 }
-#else
-#define desc_to_olflags_v(descs, rx_pkts) do {} while (0)
-#endif
 
 #define PKTLEN_SHIFT     10
-
-#define I40E_VPMD_DESC_DD_MASK	0x0001000100010001ULL
+#define I40E_UINT16_BIT (CHAR_BIT * sizeof(uint16_t))
 
 static inline void
-desc_to_ptype_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
+desc_to_ptype_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts,
+		uint32_t *ptype_tbl)
 {
 	int i;
 	uint8_t ptype;
@@ -205,7 +210,7 @@ desc_to_ptype_v(uint64x2_t descs[4], struct rte_mbuf **rx_pkts)
 	for (i = 0; i < 4; i++) {
 		tmp = vreinterpretq_u8_u64(vshrq_n_u64(descs[i], 30));
 		ptype = vgetq_lane_u8(tmp, 8);
-		rx_pkts[0]->packet_type = i40e_rxd_pkt_type_mapping(ptype);
+		rx_pkts[i]->packet_type = ptype_tbl[ptype];
 	}
 
 }
@@ -224,7 +229,7 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 	struct i40e_rx_entry *sw_ring;
 	uint16_t nb_pkts_recd;
 	int pos;
-	uint64_t var;
+	uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
 
 	/* mask to shuffle from desc. to mbuf */
 	uint8x16_t shuf_msk = {
@@ -357,9 +362,8 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		/* C.2 get 4 pkts staterr value  */
 		staterr = vzipq_u16(sterr_tmp1.val[1],
 				    sterr_tmp2.val[1]).val[0];
-		stat = vgetq_lane_u64(vreinterpretq_u64_u16(staterr), 0);
 
-		desc_to_olflags_v(descs, &rx_pkts[pos]);
+		desc_to_olflags_v(rxq, descs, &rx_pkts[pos]);
 
 		/* D.2 pkt 3,4 set in_port/nb_seg and remove crc */
 		tmp = vsubq_u16(vreinterpretq_u16_u8(pkt_mb4), crc_adjust);
@@ -422,6 +426,12 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 			rx_pkts[pos + 3]->next = NULL;
 		}
 
+		staterr = vshlq_n_u16(staterr, I40E_UINT16_BIT - 1);
+		staterr = vreinterpretq_u16_s16(
+				vshrq_n_s16(vreinterpretq_s16_u16(staterr),
+					    I40E_UINT16_BIT - 1));
+		stat = ~vgetq_lane_u64(vreinterpretq_u64_u16(staterr), 0);
+
 		rte_prefetch_non_temporal(rxdp + RTE_I40E_DESCS_PER_LOOP);
 
 		/* D.3 copy final 1,2 data to rx_pkts */
@@ -429,12 +439,14 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 			 pkt_mb2);
 		vst1q_u8((void *)&rx_pkts[pos]->rx_descriptor_fields1,
 			 pkt_mb1);
-		desc_to_ptype_v(descs, &rx_pkts[pos]);
+		desc_to_ptype_v(descs, &rx_pkts[pos], ptype_tbl);
 		/* C.4 calc avaialbe number of desc */
-		var = __builtin_popcountll(stat & I40E_VPMD_DESC_DD_MASK);
-		nb_pkts_recd += var;
-		if (likely(var != RTE_I40E_DESCS_PER_LOOP))
+		if (unlikely(stat == 0)) {
+			nb_pkts_recd += RTE_I40E_DESCS_PER_LOOP;
+		} else {
+			nb_pkts_recd += __builtin_ctzl(stat) / I40E_UINT16_BIT;
 			break;
+		}
 	}
 
 	/* Update our internal tail pointer */
@@ -508,7 +520,7 @@ vtx1(volatile struct i40e_tx_desc *txdp,
 			((uint64_t)flags  << I40E_TXD_QW1_CMD_SHIFT) |
 			((uint64_t)pkt->data_len << I40E_TXD_QW1_TX_BUF_SZ_SHIFT));
 
-	uint64x2_t descriptor = {pkt->buf_physaddr + pkt->data_off, high_qw};
+	uint64x2_t descriptor = {pkt->buf_iova + pkt->data_off, high_qw};
 	vst1q_u64((uint64_t *)txdp, descriptor);
 }
 
@@ -523,8 +535,8 @@ vtx(volatile struct i40e_tx_desc *txdp,
 }
 
 uint16_t
-i40e_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
-		   uint16_t nb_pkts)
+i40e_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
+			  uint16_t nb_pkts)
 {
 	struct i40e_tx_queue *txq = (struct i40e_tx_queue *)tx_queue;
 	volatile struct i40e_tx_desc *txdp;
