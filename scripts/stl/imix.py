@@ -13,7 +13,7 @@ class STLImix(object):
 
         # default IMIX properties
         self.imix_table = [ {'size': 60,   'pps': 28,  'isg':0 },
-                            {'size': 590,  'pps': 16,  'isg':0.1 },
+                            {'size': 590,  'pps': 20,  'isg':0.1 },
                             {'size': 1514, 'pps': 4,   'isg':0.2 } ]
 
 
