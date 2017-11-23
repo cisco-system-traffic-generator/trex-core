@@ -51,7 +51,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 * Profile can support multiple streams, scalable to 10K parallel streams 
 * Supported for each stream:
 ** Packet template - ability to build any packet (including malformed) using link:https://en.wikipedia.org/wiki/Scapy[Scapy] (example: MPLS/IPv4/Ipv6/GRE/VXLAN/NSH) 
-** Field engine program
+** Field Engine program
 *** Ability to change any field inside the packet (example: src_ip = 10.0.0.1-10.0.0.255)
 *** Ability to change the packet size (example: random packet size 64-9K)
 ** Mode - Continuous/Burst/Multi-burst support
@@ -95,8 +95,8 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Feature       |  IXExplorer  |TRex | Description 
 | Line rate       | Yes | 10-24MPPS/core, depends on the use case |
 | Multi stream    | 255 | [green]*Software limited to ~20K* |
-| Packet build flexibility | Limited | [green]*Scapy - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols.
-| Packet Field engine      | Limited | [green]*Unlimited* |
+| Packet build flexibility | Limited | [green]*link:https://en.wikipedia.org/wiki/Scapy[Scapy] - Unlimited* | Example: GRE/VXLAN/NSH is supported. Can be extended to future protocols.
+| Packet Field Engine      | Limited | [green]*Unlimited* |
 | Tx Mode | Continuous/Burst/Multi-burst | Continuous/Burst/Multi-burst|
 | ARP/IPv6 ND Emulation | Yes | Yes  |
 | DHCP Client Emulation | Yes | Yes  |
@@ -107,7 +107,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Per Stream statistics | 255  streams with 4 global masks | 128 rules for XL710/X710 hardware and software impl for 82599/I350/X550| Some packet type restrictions apply to XL710/X710. Software mode can be extended to 32K rules. 
 | Latency Jitter |  Yes. Nanosecond resolution (hardware-based) | Yes. Microsecond resolution (software-based)  |
 | Multi-user support | Yes | Yes |
-| GUI  | Very good | WIP, packet builder, field engine, global port statistics, latency, per stream statistics. Differs from IXIA GUI - for details, see: link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
+| GUI  | Very good | WIP, packet builder, Field Engine, global port statistics, latency, per stream statistics. Differs from IXIA GUI - for details, see: link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
 | Cisco pyATS support | Yes | Yes - Python 2.7/Python 3.4 |    
 | Routing Emulation | Yes | WIP. Will integrate Cisco Proprietary tool on top of TRex |
 | Port IDs  | Based on IXIA numebrs  | Depends on PCI enumeration  
@@ -162,7 +162,7 @@ For details about the TRex RPC server, see the link:trex_rpc_server_spec.html[RP
 The RPC architecture provides the following advantages:
 
 * Fast interaction with TRex server. Loading, starting, and stopping a profile for an interface is very fast - about 2000 cycles/sec.
-* Leverages Python/Scapy for building a packet/field engine.
+* Leverages Python/link:https://en.wikipedia.org/wiki/Scapy[Scapy] for building a packet/Field Engine.
 * HLTAPI compiler complexity is handled in Python.
 
 === TRex Objects 
@@ -212,7 +212,7 @@ Stateless mode does *not* support learning NAT translation, as there is no conte
 ==== Using Stateless mode to mimic Stateful mode
 
 Stateless mode can mimic some, but not all functionality of Stateful mode. 
-For example, you can load a pcap with the number of packets as a link of streams: +
+For example, you can load a PCAP with the number of packets as a link of streams: +
 *a->b->c->d-> back to a* +
 You can then create a program for each stream to change: +
 *src_ip=10.0.0.1-10.0.0.254* +
@@ -231,7 +231,7 @@ If you are confused you probably need Stateless. :-)
 | /stl/hlt        | Stateless HLT profiles 
 | /ko             | Kernel modules for DPDK
 | /external_libs  | Python external libs used by server/clients
-| /exp            | Golden pcap file for unit-tests
+| /exp            | Golden PCAP file for unit-tests
 | /cfg            | Examples of config files
 | /cap2           | Stateful profiles 
 | /avl            | Stateful profiles - SFR profile
@@ -244,7 +244,7 @@ If you are confused you probably need Stateless. :-)
 |=============================
 
 
-=== Getting started Tutorials
+=== Getting Started Tutorials
 
 The tutorials in this section demonstrate basic TRex *stateless* use cases. Examples include common and moderately advanced TRex concepts.
 
@@ -264,7 +264,7 @@ Send simple UDP packets from all ports of a TRex server.
 
 *Traffic profile*::  
 
-The following profile defines one stream, with an IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. For more examples of defining packets using Scapy, see the link:http://www.secdev.org/projects/scapy/doc/[Scapy documentation].
+The following profile defines one stream, with an IP/UDP packet template with 10 bytes of 'x'(0x78) of payload. For more examples of defining packets using link:https://en.wikipedia.org/wiki/Scapy[Scapy], see the link:http://www.secdev.org/projects/scapy/doc/[Scapy documentation].
 
 *File*:: 
 
@@ -311,7 +311,7 @@ The SRC/DST MAC addresses are taken from /etc/trex_cfg.yaml. To change them, add
 
 [NOTE] 
 =====================================================================
-The TRex package includes all required packages. It is not necessary to install any Python packages (including Scapy). 
+The TRex package includes all required packages. It is not necessary to install any Python packages (including link:https://en.wikipedia.org/wiki/Scapy[Scapy]). 
 =====================================================================
 
 [source,bash]
@@ -547,6 +547,8 @@ From a remote machine, use `trex-console` to connect. Include the `-s` flag, as 
 
 The TRex client requires Python versions 2.7.x or 3.4.x. To change the Python version, set the *PYTHON* environment variable as follows:
 
+// Still correct? what about Python 3.6?
+
 .tcsh shell
 [source,bash]
 ----
@@ -563,6 +565,8 @@ The TRex client requires Python versions 2.7.x or 3.4.x. To change the Python ve
 =====================================================================
 The client machine should run Python 2.7.x or 3.4.x. Cisco CEL/ADS is supported. The TRex package includes the required link:cp_stl_docs/[client archive].
 =====================================================================
+
+// What's Cisco CEL/ADS? is there a weblink providing info?
 
 ==== Tutorial: Source and Destination MAC addresses
 
@@ -962,7 +966,7 @@ if __name__ == "__main__":
 <2> Imports the HLT API.
 
                 
-==== Tutorial: Simple IPv4/UDP packet - Simulator 
+==== Tutorial: Simple IPv4/UDP packet simulator 
 
 *Goal*:: Use the TRex Stateless simulator.
 
@@ -973,10 +977,10 @@ The TRex package includes a simulator tool, `stl-sim`. The simulator operates as
 The TRex simulator can:
 
 * Test your traffic profiles before running them on TRex. 
-* Generate an output pcap file.
+* Generate an output PCAP file.
 * Simulate a number of threads.
 * Convert from one type of profile to another.
-* Convert any profile to JSON (API). For information, see: link:trex_rpc_server_spec.html#_add_stream[TRex stream specification]
+* Convert any profile to JSON (API). See: link:trex_rpc_server_spec.html#_add_stream[TRex stream specification]
 
 Example traffic profile: 
 
@@ -1012,7 +1016,7 @@ def register():                                                                 
 <2> Mode is Continuous, with a rate of 1 PPS. (Default rate: 1 PPS)
 <3> Each traffic profile module requires a `register` function.
 
-The following runs the traffic profile through the TRex simulator, limiting the number of packets to 10, and storing the output in a pcap file.
+The following runs the traffic profile through the TRex simulator, limiting the number of packets to 10, and storing the output in a PCAP file.
 
 [source,bash]
 ----
@@ -1053,9 +1057,9 @@ The following runs the traffic profile through the TRex simulator, limiting the 
   written 10 packets to 'b.pcap'
 ----
 
-Contents of the output pcap file produced by the simulator in the previous step:
+Contents of the output PCAP file produced by the simulator in the previous step:
 
-image::images/stl_tut_1.png[title="TRex simulator output stored in pcap file",align="left",width={p_width}, link="images/stl_tut_1.png"]
+image::images/stl_tut_1.png[title="TRex simulator output stored in PCAP file",align="left",width={p_width}, link="images/stl_tut_1.png"]
 
 Adding `--json` displays the details of the JSON command for adding a stream:
 
@@ -1248,7 +1252,7 @@ The following are the main traffic profile formats. Native is the preferred form
 |=================
 
 
-==== Tutorial: Port Layer Mode Configuration 
+==== Tutorial: Port layer mode configuration 
 
 *Goal*:: Configure TRex port with either IPv4 or MAC address.
 
@@ -1352,26 +1356,26 @@ client.set_service_mode(port = 0, enabled = False)
 ----
 
 
-=== Port Service Mode
+=== Port service mode
 include::trex_port_service_mode.asciidoc[]
 
 
-=== Packet Capturing
+=== Packet capturing
 include::trex_packet_capture.asciidoc[]
 
 
-=== Neighboring Protocols
+=== Neighboring protocols
 
-As mentioned, to preserve high speed traffic generation, TRex handles neighboring protocols in the pre-test phase.
+To preserve high speed traffic generation, TRex handles neighboring protocols in the pre-test phase.
 
 // TBD: not sure what "As mentioned" refers to, or what "neighboring protocols" means.
 
-A test that requires running a neighboring protocol should first move to 'service mode', execute the required steps in Python, switch back to 'normal mode' and start the actual test.
+A test that requires running a neighboring protocol should first move to 'service mode', execute the required steps in Python, switch back to 'normal mode', and start the actual test.
 
 ==== ARP
 A basic neighboring protocol that is provided as part of TRex is ARP.
 
-For example, let's take a look at the following setup:
+Example setup:
 
 image::images/router_arp.png[title="Router ARP",align="left",width={p_width}, link="images/router_arp.png"]
 
@@ -1546,7 +1550,7 @@ client.set_service_mode(enabled = False)
 ==== IPv6 ND client
 
 *Current*: TRex supports scanning of network for IPv6-enabled neighbors, and pinging nearby devices from the console. +
-*Plans for next phase*: Add support at the CPP server. +
+*Plans for future phase*: Add support at the CPP server. +
 The advantage of those methods is that they can be easily extended to simulate a large number of clients in automation.
 
 // TBD: clarify
@@ -1579,9 +1583,9 @@ Example of using IPv6 methods in automation:
 
 
 
-=== Traffic Profile Tutorials
+=== Traffic profile tutorials
 
-==== Tutorial: Simple Interleaving streams
+==== Tutorial: Simple interleaving streams
 
 *Goal*:: Demonstrate interleaving of multiple streams.
 
@@ -1644,7 +1648,7 @@ image::images/stl_interleaving_01.png[title="Interleaving of streams",align="lef
 ** Schedules a packet each 25 msec
 ** Starts 50 msec after stream #1
 
-You can run the traffic profile in the TRex simulator and view the details in the pcap file containing the simulation output.
+You can run the traffic profile in the TRex simulator and view the details in the PCAP file containing the simulation output.
 
 [source,bash]
 ----
@@ -1714,7 +1718,7 @@ To run the simulation, use this command.
 [bash]>./stl-sim -f stl/stl/burst_3pkt_60pkt.py -o b.pcap 
 ----
 
-The generated pcap file has 60 packets. The first 10 packets have src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3.
+The generated PCAP file has 60 packets. The first 10 packets have src_ip=16.0.0.1. The next 20 packets has src_ip=16.0.0.2. The next 30 packets has src_ip=16.0.0.3.
 
 This run the profile from console use this command.
 
@@ -1887,7 +1891,7 @@ This profile defines 3 streams, with packets of different sizes. The rate is dif
 <3> Field Engine program to change fields within the packets.
 // we can link "Field Engine" to an appropriate location for for more info.
 
-==== Tutorial: Field Engine, Syn attack  
+==== Tutorial: Field Engine, syn attack  
 
 The following example demonstrates changing packet fields. The Field Engine (FE) has a limited number of instructions/operation, which support most use cases. 
 
@@ -1899,7 +1903,7 @@ The following example demonstrates changing packet fields. The Field Engine (FE)
 * Write a stream variable to a packet offset
 * Change packet size
 * and more...
-* There is a plan to add LuaJIT to be more flexible at the cost of performance.
+* *Plan for future version*: Add LuaJIT to be more flexible at the cost of performance.
 
 // this line is here to fix rendering bug
 
@@ -1912,7 +1916,8 @@ The following example demonstrates changing packet fields. The Field Engine (FE)
 * Create a range of flows (change src_ip, dest_ip, src_port, dest_port) 
 * Update the IPv4 checksum 
 
-For more information, see: link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
+For more information, see: link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[TRex RPC Server]
+
 // add link to Python API: http://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/field_engine.html
 
 The following example demonstrates creating a SYN attack from many src addresses to one server.
@@ -1964,9 +1969,9 @@ The following example demonstrates creating a SYN attack from many src addresses
 
 WARNING: Original Scapy cannot calculate offset for a header/field by name. This offset capability will not work for all cases. In some complex cases, Scapy may rebuild the header. In such cases, specify the offset as a number.
 
-Output pcap file: 
+Output PCAP file: 
 
-.Output - pcap file 
+.Output - PCAP file 
 [format="csv",cols="1^,2<,2<", options="header",width="40%"]
 |=================
 pkt,Client IPv4,Client Port
@@ -1979,9 +1984,9 @@ pkt,Client IPv4,Client Port
 |=================
 
 
-==== Tutorial: Field Engine, Tuple Generator 
+==== Tutorial: Field Engine, tuple generator 
 
-The following example creates multiple flows from the same packet template. The Tuple Generator instructions are used to create two stream variables for IP and port. See link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[here]
+The following example creates multiple flows from the same packet template. The Tuple Generator instructions are used to create two stream variables for IP and port. See: link:trex_rpc_server_spec.html#_object_type_em_vm_em_a_id_vm_obj_a[TRex RPC Server]
 // clarify link
 
 *File*:: link:{github_stl_path}/udp_1pkt_tuple_gen.py[stl/udp_1pkt_tuple_gen.py]
@@ -2013,7 +2018,7 @@ The following example creates multiple flows from the same packet template. The 
 // Hanoch: add how to set UDP.checksum to 0
 
 
-.Output - pcap file 
+.Output - PCAP file 
 [format="csv",cols="1^,2^,1^", options="header",width="40%"]
 |=================
 pkt,Client IPv4,Client Port
@@ -2074,7 +2079,7 @@ The following example writes a stream variable to a bit field packet variable. I
 <3> Change the second MPLS header.
 
 
-==== Tutorial: Field Engine, Random packet size 
+==== Tutorial: Field Engine, random packet size 
 
 The following example demonstrates varies the packet size randomly, as follows:
 
@@ -2183,14 +2188,15 @@ An example of a scenario that cannot use this method, due to the packet limitati
         return stream
         
 ----
+
 <1> Cache 255 packets. The range is the same as the `ip_src` stream variable.
 
 This example FE program is fully compatible with pre-caching - the traffic output is exactly the same as when running without pre-caching. Caching the packets enables the program to run *2 to 5 times faster*.
 
 
-==== Tutorial: New Scapy header  
+==== Tutorial: New Scapy header
 
-The following example uses a header that is not supported by Scapy by default. The example demonstrates VXLAN support.
+The following example uses a header that is not supported by link:https://en.wikipedia.org/wiki/Scapy[Scapy] by default. The example demonstrates VXLAN support.
 
 *File*:: link:{github_stl_path}/udp_1pkt_vxlan.py[stl/udp_1pkt_vxlan.py]
 
@@ -2236,7 +2242,7 @@ class STLS1(object):
 
 
 ----
-<1> Downloads and adds a Scapy header from the specified location. Alternatively, write a Scapy header.
+<1> Downloads and adds a Scapy header from the specified location. An alternative is to write a Scapy header.
 <2> Apply the header. 
 
 For more information how to define headers see link:http://www.secdev.org/projects/scapy/doc/build_dissect.html[Adding new protocols] in the Scapy documentation.
@@ -2248,24 +2254,26 @@ The following example generates traffic from many clients with different IP/MAC 
 
 // Please leave this comment - helping rendition of image below.
 
-image::images/stl_multiple_clients_01b.png[title="Multiple clients to single server",align="left",width="80%", link="images/stl_multiple_clients_01b.png"]
+image::images/stl_multiple_clients_01b.png[title="Multiple clients, single server",align="left",width="80%", link="images/stl_multiple_clients_01b.png"]
 
 // OBSOLETEimage::images/stl_tut_12.png[title="client->server",align="left",width={p_width}, link="images/stl_tut_12.png"]
 
-1. Send a gratuitous ARP from B->D with server IP/MAC (58.55.1.1).
+1. Send a link:https://wiki.wireshark.org/Gratuitous_ARP[gratuitous ARP] from B->D with server IP/MAC (58.55.1.1).
 2. DUT learns the ARP of server IP/MAC (58.55.1.1).
 3. Send traffic from A->C with many client IP/MAC addresses.
 
 Example:
 
-Base source IPv4 : 55.55.1.1
-Destination IPv4:  58.55.1.1
+* Base source IPv4: 55.55.1.1 
+* Destination IPv4:  58.55.1.1
 
-Increment src ipt portion starting at 55.55.1.1 for 'n' number of clients (55.55.1.1, 55.55.1.2)
-Src MAC: start with 0000.dddd.0001, increment mac in steps of 1
-Dst MAC: Fixed  - 58.55.1.1 
+Increment src ipt portion starting at 55.55.1.1 for 'n' number of clients (55.55.1.1, 55.55.1.2) +
+Src MAC: Start with 0000.dddd.0001, increment MAC in steps of 1 +
+Dst MAC: Fixed 58.55.1.1 
 
 The following sends a link:https://wiki.wireshark.org/Gratuitous_ARP[gratuitous ARP] from the TRex server port for this server (58.0.0.1).
+
+// Please explain 58.0.0.1. I didn't see that in the code below.
 
 [source,python]
 ----
@@ -2322,7 +2330,7 @@ class STLS1(object):
 
 ==== Tutorial: Field Engine, many clients with ARP
 
-In the following example, there are two Switchs SW1 and SW2. 
+In the following example, there are two switches: SW1 and SW2. 
 TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2.
 There are 253 hosts connected to SW1 and SW2 with two network ports. 
 
@@ -2349,16 +2357,16 @@ There are 253 hosts connected to SW1 and SW2 with two network ports.
 
 image::images/stl_arp.png[title="arp/nd",align="left",width={p_width}, link="images/stl_arp.png"]
 
-In the following example, there are two Switchs SW1 and SW2. 
-TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2
-In this example, because there are many hosts connected to the same network using SW1 and not as a next hope, we would like to teach SW1 the MAC addresses of the hosts and not to send the traffic directly to the hosts MAC (as it is unknown)
-For that we would send an ARP to all the hosts (16.0.0.2-16.0.0.254) from TRex port 0 and gratuitous ARP from server side (48.0.0.1) TRex port 1 as the first stage of the test
+In the following example, there are two switches: SW1 and SW2. 
+TRex port 0 is connected to SW1 and TRex port 1 is connected to SW2.
+In this example, because there are many hosts connected to the same network using SW1 and not as a next hop, we would like to teach SW1 the MAC addresses of the hosts and not to send the traffic directly to the hosts MAC (as it is unknown).
+For that we would send an ARP to all the hosts (16.0.0.2-16.0.0.254) from TRex port 0 and gratuitous ARP from server side (48.0.0.1) TRex port 1 as the first stage of the test.
 
-So the step would be like that:
+Procedure:
 
-1. Send a gratuitous ARP from TRex port 1 with server IP/MAC (48.0.0.1) after this stage SW2 will know that 48.0.0.1 is located after this port of SW2.
-2. Send ARP request for all hosts from port 0 with a range of 16.0.0.2-16.0.0.254 after this stage all switch ports will learn the PORT/MAC locations. Without this stage the first packets from TRex port 0 will be flooded to all Switch ports. 
-3. send traffic from TRex0->clients, port 1->servers 
+1. Send a gratuitous ARP from TRex port 1 with server IP/MAC (48.0.0.1). Now SW2 will know that 48.0.0.1 is located after this port of SW2.
+2. Send ARP request for all hosts from port 0 with a range of 16.0.0.2-16.0.0.254. Now all switch ports will learn the PORT/MAC locations. Without this stage, the first packets from TRex port 0 would be flooded to all switch ports. 
+3. Send traffic from TRex0->clients, port 1->servers.
 
 
 .ARP traffic profile 
@@ -2389,18 +2397,19 @@ So the step would be like that:
                         hwdst="00:00:02:00:00:01", pdst="48.0.0.1") <1>
 
 ----
-<1> G ARP packet with TRex port 1 MAC and IP no need a VM.
+<1> Gratuitous ARP packet with TRex port 1 MAC and IP. No VM is needed.
 
 [NOTE] 
 =====================================================================
-This principal can be done for IPv6 too. ARP could be replaced with Neighbor Solicitation IPv6 packet.
+This can be also be done for IPv6. ARP could be replaced with Neighbor Solicitation IPv6 packet.
 =====================================================================
  
 ==== Tutorial: Field Engine, split to core 
 
-Post v2.08 version split to core directive was deprecated and was kept for backward compatibility.
-The new implementation is always to split as if the profile was sent from one core. 
-The user of TRex is oblivious to the number of cores. 
+Following TRex version 2.08, "split to core" functionality was deprecated, and remains only for backward compatibility.
+The new implementation is always to split as if the profile were sent from one core. It is not necessary for users to consider the actual number of cores.
+
+// Does post v2.08 mean that v2.08 still has "split to core" or does not?
 
 
 [source,python]
@@ -2426,35 +2435,38 @@ The user of TRex is oblivious to the number of cores.
                        )
 
 ----
-<1> Deprecated split by field. not used any more (post v2.08)
+<1> Deprecated split by field - not in use (post v2.08).
+
+// please clarify connection between "split to core" and "split by field" - not clear how this example relates to the "split to core" issue.
 
 
 *Some rules regarding split stream variables and burst/multi-burst*::
 
-* When using burst/multi-burst, the number of packets are split to the default number of threads specified in the YAML configuration file, without any need to explicitly split the threads.
+* When using burst/multi-burst, the packets are split to the default number of threads specified in the YAML configuration file. It is not necessary to split the threads explicitly.
 * When the number of packets in a burst is smaller than the number of threads, one thread handles the burst. 
 * In the case of a stream with a burst of *1* packet, only the first DP thread handles the stream.
 
-==== Tutorial: Field Engine, Null stream 
+==== Tutorial: Field Engine, null stream 
 
-The following example creates a stream with no packets. The example uses the inter-stream gap (ISG) of the Null stream, and then starts a new stream. Essentially, this uses one property of the stream (ISG) without actually including packets in the stream.
+The following example creates a stream with no packets. The example uses the inter-stream gap (ISG) of the null stream, and then starts a new stream. Essentially, this uses one property of the stream (ISG) without actually including packets in the stream.
 
 This method can create loops like the following:
 
 image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width_1}, link="images/stl_null_stream_02.png"]
  
 1. S1 - Sends a burst of packets, then proceed to stream NULL.
-2. NULL - Waits the inter-stream gap (ISG) time, then proceed to S1. 
+2. NULL - Waits the inter-stream gap (ISG) time, then proceeds to S1. 
 
 Null stream configuration:
 
 1. Mode: Burst 
 2. Number of packets: 0
 
+// I think that the actual example is missing.
 
-==== Tutorial: Field Engine, Stream Barrier (Split)
+==== Tutorial: Field Engine, stream barrier (split)
 
-*(Future Feature - not yet implemented)*
+*(Future feature - not yet implemented)*
 
 In some situations, it is necessary to split streams into threads in such a way that specific streams will continue only after all the threads have passed the same path. In the figure below, a barrier ensures that stream S3 starts only after all threads of S2 are complete. 
 
@@ -2462,9 +2474,9 @@ image::images/stl_barrier_03.png[title="Stream Barrier",align="left",width={p_wi
 
 ==== Tutorial: PCAP file to one stream 
 
-*Goal*:: Load a stream template packet from a pcap file instead of Scapy.
+*Goal*:: Load a stream template packet from a PCAP file instead of Scapy.
 
-Assumption: The pcap file contains only one packet. If the pcap file contains more than one packet, this procedure loads only the first packet.
+Assumption: The PCAP file contains only one packet. If the PCAP file contains more than one packet, this procedure loads only the first packet.
 
 *File*:: link:{github_stl_path}/udp_1pkt_pcap.py[stl/udp_1pkt_pcap.py]
 
@@ -2477,7 +2489,7 @@ Assumption: The pcap file contains only one packet. If the pcap file contains mo
                            mode = STLTXCont(pps=10)) ] 
 
 ----
-<1> Takes the packet from the pcap file, relative to the directory in which you are running the script.
+<1> Takes the packet from the specified PCAP file. The file location is relative to the directory in which you are running the script.
 
 
 *File*:: link:{github_stl_path}/udp_1pkt_pcap_relative_path.py[udp_1pkt_pcap_relative_path.py]
@@ -2492,7 +2504,7 @@ Assumption: The pcap file contains only one packet. If the pcap file contains mo
                          mode = STLTXCont(pps=10)) ] 
 
 ----
-<1> Takes the packet from the pcap file, relative to the directory of the *profile* file location.
+<1> Takes the packet from the PCAP file, relative to the directory of the *profile* file location.
 
 
 
@@ -2607,7 +2619,7 @@ In this example, STLVmWrMaskFlowVar shifts a variable by 8, which effectively mu
 
 *Example 3*::
 
-In this example, STLVmWrMaskFlowVar instruction to generate the values shown in the table below as offset values for `pkt_offset`.
+In this example, STLVmWrMaskFlowVar generates the values shown in the table below as offset values for `pkt_offset`.
 
 [source,python]
 ----
@@ -2626,6 +2638,9 @@ In this example, STLVmWrMaskFlowVar instruction to generate the values shown in 
 
 ----
 <1> Divides the value of `mac_src` by 2, and writes the LSB. For every two packets, the value written is changed.
+
+// logic described in the note above is not really clear 
+
 
 .Output 
 [format="csv",cols="1^", options="header",width="20%"]
@@ -2658,7 +2673,7 @@ def get_streams (self, direction = 0, **kwargs)
 
 `direction` is a mandatory field, required for any profile being loaded.
 
-A profile can be given any key-value pairs which can be used to customize this profile. These are called "tunables".
+A profile can have any key-value pairs. Key-value pairs are called "tunables" and can be used to customize the profile.
 
 The profile defines which tunables can be input to customize output.
 
@@ -2666,15 +2681,16 @@ The profile defines which tunables can be input to customize output.
 
 * All parameters require default values. 
 * A profile must be loadable with no parameters specified.
-* **kwargs (see Python documentation for information about keyworded arguments) contain all of the automatically provided values which are not tunables.
-* Every tuanble must be expressed as key-value pair with default value.
+* Every tunable must be expressed as key-value pair with a default value.
+* All automatically provided values that are not tunables are defined by link:https://docs.python.org/dev/tutorial/controlflow.html#keyword-arguments[kwargs] (Python keyword arguments).
+
 
 
 For example, for the profile below, 'pcap_with_vm.py':
 
 * The profile receives 'direction' as a tunable and mandatory field.
 * The profile defines 4 additional tunables.
-* Automatic values such as 'port_id' which are not tunables will be provided on kwargs.
+* Automatic values such as 'port_id', which are not tunables, will be provided on kwargs.
 
 
 *File*:: link:{github_stl_path}/pcap_with_vm.py[stl/pcap_with_vm.py]
@@ -2693,7 +2709,7 @@ def get_streams (self,
 *Direction*::
 `direction` is a tunable that is always provided by the API/console when loading a profile, but it can be overridden by the user. It is used to make the traffic profile more usable - for example, as a bi-directional profile. However, the profile can ignore this parameter.
 
-By default, `direction` is equal to port_id % 2, so *even* numbered ports are provided with ''0'' and the *odd* numbered ports with ''1''.
+By default, `direction` is defined as the remainder of port_id divided by 2 (0 for even port_id, 1 for odd port_id).
 
 [source,python]
 ----
@@ -2714,7 +2730,7 @@ def get_streams (self, direction = 0,**kwargs):
                          ),
            ]
 ----
-<1> Specifies different rates (100 and 200) based on direction.
+<1> Specifies different rates (100 and 200), based on direction.
 
 [source,bash]
 ----
@@ -2728,9 +2744,11 @@ For 4 interfaces:
  
 The rate changes accordingly. 
 
-*Customzing Profiles Using ''port_id''*::
+*Customizing Profiles Using ''port_id''*::
 
-Keyworded arguments (**kwargs) provide default values that are passed along to the profile.
+// This line is here to ensure proper formatting of the next line (preventing unwanted indentation in the rendition).
+
+Keyword arguments (link:https://docs.python.org/dev/tutorial/controlflow.html#keyword-arguments[kwargs]) provide default values that are passed along to the profile.
 
 In the following, 'port_id' (port ID for the profile) is a **kwarg. Using port_id, you can define a complex profile based on different ID of ports, providing a different profile for each port.
 
@@ -2790,6 +2808,8 @@ def create_streams (self, direction = 0, **args):
  
 *Full example using the TRex Console*::
 
+// This line is here to ensure proper formatting of the next line (preventing unwanted indentation in the rendition).
+
 The following command displays information about tunables for the pcap_with_vm.py traffic profile.
 
 [source,bash]
@@ -2815,7 +2835,7 @@ Tunables:         ['direction = 0', 'ip_src_range = None', 'loop_count = 5', 'ip
 trex>                                                                                                                                                        
 ----
 
-One can provide tunables on all those fields. The following command changes some:
+You can specify values for tunables. The following command changes two values (ipg_usec and loop_count):
 
 [source,bash]
 ----
@@ -2873,8 +2893,8 @@ trex>
 * Per stream statistics are implemented using hardware assist when possible (examples: Intel X710/XL710 NIC flow director rules).
 * With other NICs (examples: Intel I350, 82599), per stream statistics are implemented in software.
 * Implementation:
-** User chooses 32-bit packet group ID (pg_id) for each stream that need statistic reporting. Same pg_id can be used for more than one stream. In this case, statistics for all streams with the same pg_id will be combined.
-** The IPv4 identification  (or IPv6 flow label in case of IPv6 packet) field of the stream is changed to a value within the reserved range 0xff00 to 0xffff (0xff00 to 0xfffff in case of IPv6). Note that if a stream for which no statistics are needed has an IPv4 Id (or IPv6 flow label) in the reserved range, it is changed (the left bit becomes 0).
+** User chooses 32-bit packet group ID (pg_id) for each stream that requires statistics reporting. The same pg_id can be used for more than one stream. In this case, statistics for all streams with the same pg_id will be combined.
+** The IPv4 identification (or IPv6 flow label for IPv6 packet) field of the stream is changed to a value within the reserved range 0xff00 to 0xffff (0xff00 to 0xfffff for IPv6). Note that if a stream for which no statistics are needed has an IPv4 Id (or IPv6 flow label) in the reserved range, it is changed (the left bit becomes 0).
 ** Software implementation: Hardware rules are used to direct packets from relevant streams to rx threads, where they are counted. 
 ** Hardware implementation: Hardware rules are inserted to count packets from relevant streams.
 * Summed up statistics (per stream, per port) is sent using a link:http://zguide.zeromq.org/[ZMQ] channel to clients upon request.
@@ -2886,28 +2906,27 @@ trex>
 ** IPv4 with one VLAN tag (except 82599 which does not support this type of packet).
 ** IPv6 over Ethernet (except 82599 which does not support this type of packet).
 ** IPv6 with one VLAN tag (except 82599 which does not support this type of packet).
-** Since version 2.21, also QinQ (two vlan tags) is supported if using ``- - software'' command line argument. Details link:trex_manual.html#_command_line_options[here].
+** Beginning with version 2.21, QinQ (two vlan tags) is supported if using ``- - software'' command line argument (link:trex_manual.html#_command_line_options[details]).
 
-* Maximum number of concurrent streams (with different pg_id) on which statistics may be collected is according to following table:
+* Maximum number of concurrent streams (with different pg_id) on which statistics may be collected is described in the following table.
 
-.Maximum concurrent streams for flow statistics collecting
+.Maximum concurrent streams for collecting flow statistics 
 [cols="2^,2^,2^", options="header"]
 |=================
-| NIC type        | Max streams supported using HW filters | Using ``- - software'' (since version 2.23)
+| NIC type        | Max streams supported using HW filters | Using ``- - software'' (from version 2.23)
 | i350            | 255 | 1023
 | x710    | 127 | 1023
 | xl710 | 255 | 1023
 | 82599      | 127 | 1023
 | Mellanox      | 127 | 127
-| virtio/vmxnet/other virtual NICs (Always working implicitly in ``- - software'' mode | 1023 | 1023
+| virtio/vmxnet/other virtual NICs (Always working implicitly in ``- - software'' mode) | 1023 | 1023
 |
 |=================
 
-* On x710/xl710 cards, all rx bytes counters (rx-bps, rx-bps-L1, ...) are not supported. This is because we use hardware
+* On x710/xl710 cards, rx bytes counters (rx-bps, rx-bps-L1, ...) are not supported. This is because we use hardware
 counters which support only packets count on these cards. +
-Starting from version 2.21, you can specify ``--no-hw-flow-stat'' command line argument in order to make x710 behave like other
-cards, and count statistics in software. This will enable RX byte count support, but will limit the total rate of streams
-we can count.
+Starting from version 2.21, you can specify the ``--no-hw-flow-stat'' command line argument to make x710 behave like other
+cards, and count statistics in software. This enables RX byte count support, but limits the total rate of streams that can be counted.
 
 Two examples follow, one using the console and the other using the Python API.
 
@@ -2934,8 +2953,8 @@ class STLS1(object):
 
 
 ----
-<1> Assigned to PG ID 7
-<2> Assigned to PG ID 12
+<1> Assigned to PG ID 7.
+<2> Assigned to PG ID 12.
 
 The following command injects this to the console and uses the textual user interface (TUI) to display the TRex activity:
 
@@ -2980,9 +2999,11 @@ Streams Statistics
 <1> Tx bandwidth of the streams matches the configured values.
 <2> Rx bandwidth (999.29 pps) matches the Tx bandwidth (999.29 pps), indicating that there were no drops.
 <3> RX byte count is not supported on this platform (no hardware support for byte count), so TRex displays N/A.
-You can add ``--no-hw-flow-stat'' command line argument, in order to count everything in software, but max rate
+You can add ``--no-hw-flow-stat'' command line argument to count everything in software, but max rate
 of streams that can be tracked will be lower.
-<4> opackets/ipackets/obytes/ibytes appear twice. First time with accurate number, and second time formatted.
+<4> opackets/ipackets/obytes/ibytes appear twice, first with accurate number, and second time formatted.
+
+// Explain note #4 above.
 
 
 *Flow Stats Using The Python API*::
@@ -3037,6 +3058,8 @@ The flow_stats object is a dictionary whose keys are the configured PG IDs. The 
 
 The following shows a flow_stats object for 3 PG IDs after a specific run:
 
+// not clear what command would display the thing below. or is that not relevant?
+
 [source,bash]
 ----
 {
@@ -3057,19 +3080,17 @@ The following shows a flow_stats object for 3 PG IDs after a specific run:
 
 ==== Tutorial: Per stream latency/jitter/packet errors
 
-* Per stream latency/jitter is implemented by software. This is an extension of the per stream statistics. Meaning, whenever you choose to get latency info for a stream, the statistics described
-in the "Per stream statistics" section is also available.
+* Per stream latency/jitter is implemented by software. This is an extension of the per stream statistics. Whenever you choose to display latency info for a stream, the statistics described in the "Per stream statistics" section are also available.
 * Implementation:
-** User chooses 32-bit packet group ID (pg_id) for each stream that need latency reporting. pg_id should be unique per stream.
-** The IPv4 identification field (or IPv6 flow label in case of IPv6 packet) of the stream is changed to some defined constant value (in the reserved range described in the "per stream statistics" section), in order to signal the hardware to pass the stream to software.
-** Last 16 bytes of the packet payload is used to pass needed information. Information contains ID of the stream, packet sequence number (per stream), timestamp of packet transmission.
+** Select a 32-bit packet group ID (pg_id) for each stream that requires latency reporting. The pg_id should be unique per stream.
+** The IPv4 identification field (or IPv6 flow label in case of IPv6 packet) of the stream is changed to a defined constant value (in the reserved range described in the "per stream statistics" section), to signal to the hardware to pass the stream to the software.
+** The last 16 bytes of the packet payload are used to pass needed information: ID of the stream, packet sequence number (per stream), timestamp of packet transmission.
 
-* Gathered info (per stream) is sent using link:http://zguide.zeromq.org/[ZMQ] channel to clients upon request.
+* Gathered info (per stream) is sent to clients over a link:http://zguide.zeromq.org/[ZeroMQ] link:https://en.wikipedia.org/wiki/ZeroMQ[messaging channel] upon request.
 
 *Limitations*::
 
-* The feature supports only following packet types (Unless using ``--software'' command line arg.
-See details link:trex_manual.html#_command_line_options[here]. Using this, *all* packet types are supported):
+* The feature supports only the following packet types. (Exception: When using the link:trex_manual.html#_command_line_options[``--software'' command line arg], all packet types are supported.)
 
 ** IPv4 over Ethernet
 ** IPv4 with one VLAN tag (except 82599 which does not support this type of packet)
@@ -3077,23 +3098,15 @@ See details link:trex_manual.html#_command_line_options[here]. Using this, *all*
 ** IPv6 with one VLAN tag (except 82599 which does not support this type of packet)
 * Packets must contain at least 16 bytes of payload.
 * Each stream must have unique pg_id number. This also means that a given "latency collecting" stream can't be transmitted from two interfaces in parallel (internally it means that there are two streams). 
-* Maximum number of concurrent streams (with different pg_id) on which latency info may be collected: 128 (This is in addition to the streams which collect per stream statistics).
-* Global multiplier does not apply to this type of stream. The reason is that latency streams are processed by software, so multiplying them might accidently overwhelm the RX core.
-  This means that if you have profile with 1 latency stream, and 1 non latency stream, and you change the traffic multipler, latency stream keeps the same rate. If you want to change
-  the rate of a latency stream, you need to manually edit your profile file. Usually this is not necessary, since normally you stress the system using non latency stream, and (in parallel) measure latency 
-  using constant rate latency stream.
+* Maximum number of concurrent streams (with different pg_id) on which latency info may be collected: 128 (in addition to the streams which collect per stream statistics)
+* Global multiplier does not apply to this type of stream. Latency streams are processed by software, so multiplying them might inadvertently overwhelm the RX core. Consequently, if you have profile with 1 latency stream and 1 non-latency stream, and you change the traffic multipler, the latency stream keeps the same rate. To change the rate of a latency stream, manually edit the profile file. Usually this is not necessary because normally you stress the system using non latency stream, and (in parallel) measure latency using a constant-rate latency stream.
 
 [IMPORTANT]
 =====================================
-Latency streams are not supported in full line rate like normal streams. Both from transmit and receive point of view.
-This is a design consideration to keep the latency measurement accurate while preserving CPU resources.
-One of the reasons for doing so is that in most cases it is enough to have a latency stream in low rate. For example, if the required latency resolution is 10usec,
-there is no need to send latency stream in a speed higher than 100KPPS. Usually queues are built over time, so it is not possible that one packet will have
-latency and another packet in the same path will not have the same latency. The none latency streams could be in full line rate, to load the DUT, while the low speed latency streams will measure the latency of this path.
-Don't make the total rate of latency streams higher than 5MPPS.
+Latency streams (transmit or receive) are not supported at full line rate like normal streams. This is a design feature intended to keep latency measurement accurate while preserving CPU resources. Typically, it is sufficient to have a low-rate latency stream. For example, if the required latency resolution is 10 usec, it is not necessary to send a latency stream at a speed higher than 100 KPPS. Typically, queues are built over time, so it is not possible that one packet will have latency and another packet in the same path will not have the same latency. The non-latency streams can be at full line rate, to load the DUT, while the low speed latency streams measure the latency of this path. Do not make the total rate of latency streams higher than 5 MPPS.
 =====================================
 
-Two examples follow. One using the console and the other using the Python API.
+Two examples follow, using console and Python API.
 
 *Console*::
 
@@ -3118,8 +3131,8 @@ class STLS1(object):
 
 
 ----
-<1> Assigned to PG ID 7 , PPS would be *1000* regardless of the multplier 
-<2> Assigned to PG ID 12, PPS would be *5000* regardless of the multplier 
+<1> Assigned to PG ID 7, PPS would be *1000* regardless of the multplier.
+<2> Assigned to PG ID 12, PPS would be *5000* regardless of the multplier. 
 
 The following command injects this to the console and uses the textual user interface (TUI) to display the TRex activity:
 
@@ -3154,14 +3167,12 @@ Latency Statistics (usec)
 ----
 <1> Maximum latency measured over the stream lifetime (in usec).
 <2> Average latency over the stream lifetime (usec).
-<3> Maximum latency measured between last two data reads from server (We currently read every 0.5 second).
-    Numbers below are maximum latency for previous measuring periods, so we get latency history for last few seconds.
+<3> Maximum latency measured between last two data reads from server (currently reads every 0.5 second). Numbers below are maximum latency for previous measuring intervals, so the output displays the latency history for the last few seconds.
 <4> Jitter of latency measurements.
-<5> Indication of number of errors (it is the sum of seq_too_high and seq_too_low. You can see description in Python API doc below). In the future it will be possible to 'zoom in', to see specific counters.
-    For now, if you need to see specific counters, you can use the Python API.
+<5> Indication of number of errors (sum of seq_too_high and seq_too_low). You can see description in Python API doc below). In the future it will be possible to 'zoom in' to see specific counters. For now, if you need to see specific counters, use the link:http://trex-tgn.cisco.com/trex/doc/cp_stl_docs/index.html[Python API].
    
 
-An example of API usage is as follows
+Example using Python API:
 
 *Example File*:: link:{github_stl_examples_path}/stl_flow_latency_stats.py[stl_flow_latency_stats.py]
 
@@ -3227,22 +3238,24 @@ An example of API usage is as follows
 
    
 ----
-<1> Get the Latency dictionary
+<1> Get the Latency dictionary.
 <2> For calculating packet error events, we add sequence number to each packet's payload. We decide what went wrong only according to sequence number
     of last packet received and that of the previous packet. 'seq_too_low' and 'seq_too_high' count events we see. 'dup', 'out_of_order' and 'dropped'
     are heuristics we apply to try and understand what happened. They will be accurate in common error scenarios.
     We describe few scenarios below to help understand this. + 
+    
+// Explanation in note #2 above is not clear.
 
 *Error counters scenarios*::
-Scenario 1: Received packet with seq num 10, and another one with seq num 10. We increment 'dup' and 'seq_too_low' by 1. + 
-Scenario 2: Received pacekt with seq num 10 and then packet with seq num 15. We assume 4 packets were dropped, and increment 'dropped' by 4, and 'seq_too_high' by 1.
-  We expect next packet to arrive with sequence number 16. + 
-Scenario 2 continue: Received packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1.
-  (We assume here that one of the packets we considered as dropped before, actually arrived out of order).
+
+* Scenario 1: Receive a packet with seq num 10, and another packet with seq num 10. We increment 'dup' and 'seq_too_low' by 1. 
+* Scenario 2: Receive a packet with seq num 10 and then a packet with seq num 15. We assume 4 packets were dropped, and increment 'dropped' by 4, and 'seq_too_high' by 1.
+We expect next packet to arrive with sequence number 16.
+* Continuation of Scenario 2: Receive a packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1. (The assumption is that one of the packets that was considered as dropped before has actually arrived out of order.)
 
 ==== Tutorial: HLT traffic profile 
 
-The traffic_config API has set of arguments for specifying streams - in particular, the packet template, which field, and how to send it.
+The traffic_config API has a set of arguments for specifying streams - in particular, the packet template, which field, and how to send it.
 // clarify "which field"
 It is possible to define a traffic profile using HTTAPI arguments.
 // clarify names: "HLT traffic profile", "traffic_config API", "HTTAP"
@@ -3289,14 +3302,14 @@ class STLS1(object):
         return self.create_streams()
 ----
 
-The following command, within a bash window, runs the traffic profile with the simulator to generate pcap file.
+The following command, executed within a bash window, runs the traffic profile with the simulator to generate a PCAP file.
 
 [source,bash]
 ----
 [bash]>./stl-sim -f stl/hlt/hlt_udp_inc_dec_len_9k.py -o b.pcap -l 10 
 ----
 
-The following commands, within a bash window, convert to native JSON or YAML.
+The following commands, executed within a bash window, convert to native JSON or YAML.
 
 [source,bash]
 ----
@@ -3380,12 +3393,11 @@ such as fetching all the packets on the RX side.
 
 ==== Tutorial: Testing Dot1Q VLAN tagging
 
-*Goal*:: Generate a Dot1Q packet with a vlan tag and verify the returned packet is on the same vlan
+*Goal*:: Generate a Dot1Q packet with a vlan tag and verify the returned packet is on the same vlan.
 
 *File*:: link:{github_stl_examples_path}/stl_functional.py[stl_functional.py]
 
-The below example has been reduced to be concise, please refer to the file above for the full
-working example
+The following example is presented here in a simplified form. See the file above for the full working example.
 
 [source,python]
 ----
@@ -3429,7 +3441,7 @@ def test_dot1q (c, rx_port, tx_port):
 
 ==== Tutorial: Testing IPv4 ping - echo request / echo reply
 
-*Goal*:: Generate a ICMP echo request from one interface to another one and validate the response
+*Goal*:: Generate a ICMP echo request from one interface to another one and validate the response.
 
 *File*:: link:{github_stl_examples_path}/stl_functional.py[stl_functional.py]
 
@@ -3485,67 +3497,56 @@ include::trex_services.asciidoc[]
 
 ==== PCAP Based Traffic
 
-TRex provides a method of using a pre-recorded traffic as a profile template.
-
-There are two main distinct ways of creating a profile or a test based on a PCAP.
+TRex provides a method for using pre-recorded traffic as a profile template. Typically, there are two ways to create a profile or a test based on a PCAP:
 
 * Local PCAP push 
-* Server based push
+* Server-based push
+
+// This is a nice, clear dichotomy - 2 simple options. But in the multiple examples below, I don't think that it is clear which of these 2 methods applies to each example, and the examples introduce additional terms, such as calling it "remote push API," which is not described here. It would be great to keep the dichotomy clear. So if there is more than 1 example for each method, perhaps the titles should be something like "Local PCAP push method: Simple" and "Local PCAP push method: Iterating" or whatever.
 
 ===== Local PCAP push
 
-On this mode, the PCAP file is loaded locally by the Python client,
-transformed to a list of streams which each one contains a single packet
-and points to the next one.
+In this method, the PCAP file is loaded locally by the Python client, transformed to a list of streams, each one with a single packet carrying a payload and pointing to the next packet.  +
 
-This allows of a very flexible structure which can basically provide every
-functionality that a regular list of streams allow.
-
-However, due to the overhead of processing and 
-sending a list of streams this method is limited to a file size (on default 1MB)
+This method can provide every type of functionality that a regular list of streams might have. However, due to the overhead of processing and sending a list of streams, the file size is limited (default: 1 MB).
 
 
-*Pros:*
+*Pro:*
 
-* supports most CAP file formats
-* supports field engine
-* provides a way of locally manipulating packets as streams
-* supports same rate as regular streams
+* Supports most CAP file formats
+* Supports Field Engine
+* Provides a way of locally manipulating packets as streams
+* Supports the same rate as regular streams
 
-*Cons:*
+*Con:*
 
-* limited in file size
-* high configuration time due to transmitting the CAP file as streams
-
-
-===== Server based push
-
-To provide also a way of injecting a much larger PCAP files, TRex also provides
-a server based push.
-
-The mechansim is much different and it simply providing a server a PCAP file which
-in turn is loaded to the server and injected packet after packet.
-
-This method provides an unlimited file size to be injected, and the overhead of
-setting up the server with the required configuration is much lower.
+* Limited file size
+* High configuration time due to transmitting the CAP file as streams
 
 
-*Pros:*
+===== Server-based push
 
-* no limitation of PCAP file size
-* no overhead in sending any size of PCAP to the server
+The server-based push method enables TRex to inject larger PCAP files. The mechansim is quite different from the local PCAP push method, with distinct advantages and limitations. +
 
-*Cons:*
+In this method, you provide a server with a PCAP file. The server loads the file and injects the packets, one after another. The file size is unlimted, enabling any number of packets to be injected. Setting up the server with the required configuration involves less overhead than the local PCAP push method.
 
-* does not support field engine
-* support only PCAP and ERF formats
-* requires the file path to be accessible from the server
-* rate of transmition is usually limited by I/O performance and buffering (HDD)
+
+*Pro:*
+
+* Unlimited PCAP file size
+* No overhead in sending any size of PCAP to the server
+
+*Con:*
+
+* Does not support Field Engine
+* Supports only PCAP and ERF formats
+* File path must be accessible from the server
+* Rate of transmition is usually limited by I/O performance and buffering (HDD)
 
 
 ==== Tutorial: Simple PCAP file - Profile
 
-*Goal*:: Load a pcap file with a *number* of packets, creating a stream with a burst value of 1 for each packet. The inter-stream gap (ISG) for each stream is equal to the inter-packet gap (IPG).
+*Goal*:: Load a PCAP file with a *number* of packets, creating a stream with a burst value of 1 for each packet. The inter-stream gap (ISG) for each stream is equal to the inter-packet gap (IPG).
 
 *File*:: link:{github_stl_path}/pcap.py[pcap.py]
 
@@ -3561,7 +3562,7 @@ setting up the server with the required configuration is much lower.
 ----
 <1> The inter-stream gap in microseconds.
 <2> Loop count.
-<3> Input pcap file. 
+<3> Input PCAP file. 
 
 // Please leave this comment - helping rendition.
 
@@ -3569,13 +3570,13 @@ image::images/stl_loop_count_01b.png[title="Example of multiple streams",align="
 
 // OBSOLETE: image::images/stl_loop_count_01b.png[title="Streams, loop_count",align="left",width={p_width_1a}, link="images/stl_loop_count_01b.png"]
 
-The figure shows the streams for a pcap file with 3 packets, with a loop configured.
+The figure shows the streams for a PCAP file with 3 packets, with a loop configured.
 
 * Each stream is configured to Burst mode with 1 packet.
 * Each stream triggers the next stream. 
 * The last stream triggers the first with `action_loop=loop_count` if `loop_count` > 1.
 
-The profile runs on one DP thread because it has a burst with 1 packet. (Split cannot work in this case).
+The profile runs on one DP thread because it has a burst with 1 packet. (Cannot split in this case.)
 
 To run this example, enter:
 
@@ -3693,7 +3694,7 @@ $./stl-sim -f stl/pcap.py --yaml
 
 ==== Tutorial: Simple PCAP file - API
 
-For this case we can use the local push:
+For this case we can use the local push method:
 
 [source,bash]
 ----
@@ -3727,7 +3728,7 @@ try:
 
 ==== Tutorial: PCAP file iterating over dest IP 
 
-For this case we can use the local push:
+For this case we can use the local push method:
 
 [source,bash]
 ----
@@ -3765,8 +3766,7 @@ try:
 
 ==== Tutorial: PCAP file with VLAN 
 
-This is a more intresting case where we can provide the push API a function hook.
-The hook will be called for each packet that is loaded from the PCAP file.
+This is an interesting case where we can provide the push API with a function hook. The hook is called for each packet that is loaded from the PCAP file.
 
 [source,bash]
 ----
@@ -3820,7 +3820,7 @@ try:
 
 ==== Tutorial: PCAP file and Field Engine - Profile
 
-The following example loads a pcap file to many streams, and attaches Field Engine program to each stream. For example, the Field Engine can change the `IP.src` of all the streams to a random IP address.
+The following example loads a PCAP file to many streams, and attaches the Field Engine program to each stream. For example, the Field Engine can change the `IP.src` of all the streams to a random IP address.
  
 *File*:: link:{github_stl_path}/pcap_with_vm.py[stl/pcap_with_vm.py]
 
@@ -3898,10 +3898,9 @@ pkt, IPv4 , flow
 |=================
 
 
-==== Tutorial: Huge server side PCAP file
+==== Tutorial: Server-side method with large PCAP file
 
-Now we would like to use the remote push API.
-This will require the file path to be visible to the server.
+The example below uses the remote push API method, providing a PCAP file to a remote server. *Note*: The file path to the PCAP file must be visible to the server.
 
 [source,bash]
 ----
@@ -3938,9 +3937,9 @@ try:
 
 ==== Tutorial: A long list of PCAP files of varied sizes
 
-This is also a good candidate for the remote push API.
-The total overhead for sending the PCAP files will be high if the list is long,
-so we would prefer to inject them with remote API and to save the transmition of the packets.
+A scenario with several PCAP files is a good candidate for the remote push API. The total overhead for sending the PCAP files will be high if there is a long list of separate PCAP files. So in this case, it is preferable to inject them with a remote API and to save the transmission of the packets.
+
+// Clarify intro above
 
 [source,bash]
 ----
@@ -3979,10 +3978,7 @@ try:
 
 
 === Performance Tweaking
-In this section we provide some advanced features to help get the most of TRex performance.
-The reason that those features are not active out of the box because they might have
-some impact on other areas and in general, might sacrafice one or more properties
-that requires the user to explicitly give up on those.
+This section describes some advanced features that can help to optimize TRex performance. These features are not active "out of the box" because they might have some impact on other functionality, and in general, might sacrafice one or more properties. Users can decide on any trade-offs individually before employing these optimizations.
 
 ==== Caching MBUFs
 
@@ -3990,36 +3986,28 @@ see xref:trex_cache_mbuf[here]
 
 
 ==== Core masking per interface
-By default, TRex will regard any TX command with a **greedy approach**:
-All the DP cores associated with this port will be assigned in order to produce the maximum
+By default, TRex will regard any TX command with a **greedy approach**: All DP cores associated with this port will be assigned in order to produce the maximum
 throughput.
 
 image::images/core_mask_split.png[title="Greedy Approach - Splitting",align="left",width={p_width}, link="images/core_mask_split.png"]
 
-However, in some cases it might be beneficial to provide a port with a subset of the cores to use.
+However, in some cases it might be beneficial to provide a port with a subset of the cores to use, such as when injecting traffic on two ports, when the following conditions are met:
 
+* The two ports are adjacent.
+* The profile is symmetric.
 
-For example, when injecting traffic on two ports and the following conditions are met:
+Due to TRex architecture, adjacent ports (example: port 0 and port 1) share the same cores, and using the greedy approach will cause all the cores to transmit on both port 0 and port 1.
 
-* the two ports are adjacent
-* the profile is symmetric
-
-Due to TRex architecture, adjacent ports (e.g. port 0 & port 1) shares the same cores,
-and using the greedy approach will cause all the cores to transmit on both port 0 and port 1.
-
-When the profile is *symmetric* it will be wiser to pin half the cores to port 0 and half
-the cores to port 1 and thus avoid cache trashing and bouncing.
-If the profile is not symmetric, the static pinning may deny CPU cycles from the more congested port.
+When the profile is *symmetric*, performance can be improved by pinning half of the cores to port 0, and half of the cores to port 1, thus avoiding cache trashing and bouncing. If the profile is *not symmetric*, the static pinning may deny CPU cycles from the more congested port.
 
 image::images/core_mask_pin.png[title="Pinning Cores To Ports",align="left",width={p_width}, link="images/core_mask_pin.png"]
 
-TRex provides this in two ways:
+TRex provides this in two ways, described below.
 
 
 ==== Predefind modes
 
-As said above, the default mode is 'split' mode, but you can provide a predefined mode called 'pin'.
-This can be done by both API and from the console:
+As described above, the default mode is 'split' mode, but you can configure a predefined mode called 'pin'. This can be done by API or from the console.
 
 [source,bash]
 ----
@@ -4056,21 +4044,21 @@ trex>
 ----
  c.start(ports = [port_a, port_b], mult = rate, core_mask=[0x1,0x2])<1>
 ----       
-<1> DP Core 0 (mask==1) is assign to port 1 and DP core 1 (mask==2) is for port 2
+<1> DP Core 0 (mask==1) is assigned to port 1, and DP core 1 (mask==2) assigned to port 2.
 
+
+
+The CPU Util table, available in the TUI window, shows that each core was reserved for an interface:
 
 [source,bash]
 ----
-
-We can see in the CPU util. available from the TUI window,
-that each core was reserverd for an interface:
 
 Global Stats:
 
 Total Tx L2  : 20.49 Gb/sec
 Total Tx L1  : 26.89 Gb/sec
 Total Rx     : 20.49 Gb/sec
-Total Pps    : 40.01 Mpkt/sec       <-- performance meets the requested rate
+Total Pps    : 40.01 Mpkt/sec       <-- Performance meets the requested rate
 Drop Rate    : 0.00 b/sec
 Queue Full   : 0 pkts
 
@@ -4091,8 +4079,7 @@ Cpu Util(%)
 ----
 
 
-If we had used the *default mode*, the table should have looked like this, and yield
-much worse performance:
+If we had used the *default mode*, the table would have looked like the following, with significantly worse performance:
 
 [source,bash]
 ----
@@ -4102,7 +4089,7 @@ Global Stats:
 Total Tx L2  : 12.34 Gb/sec
 Total Tx L1  : 16.19 Gb/sec
 Total Rx     : 12.34 Gb/sec
-Total Pps    : 24.09 Mpkt/sec       <-- performance is quite low than requested
+Total Pps    : 24.09 Mpkt/sec       <-- Performance is much lower than requested
 Drop Rate    : 0.00 b/sec
 Queue Full   : 0 pkts
 
@@ -4126,17 +4113,16 @@ This feature is also available from the Python API by providing:
 
 
 ==== Manual mask
-Sometimes for debug purposes or for a more advanced core scheduling you might want
-to provide a manual masking that will guide the server on which cores to use.
 
-For example, let's assume we have a profile that utilize 95% of the traffic on one side,
-and in the other direction it provides 5% of the traffic.
-Let's assume also we have 8 cores assigned to the two interfaces.
+For debugging or advanced core scheduling you might choose to provide a manual masking to specify to the server which cores to use.
 
-We want to assign 3 cores to interface 0 and 1 core only to interface 1.
+Example: 
 
-We can provide this line to the console (or for the API by providing a list of masks to the start
-command):
+* 2 interfaces: interface 0 and interface 1
+* A profile that utilizes 95% of the traffic on one side, and provides 5% of the traffic in the other direction.
+* 8 cores assigned to the two interfaces.
+
+To assign 3 cores to interface 0 and 1 core to interface 1, execute the following in the console (or if using the API, provide a list of masks to the start command):
 
 [source,bash]
 ----
@@ -4162,11 +4148,11 @@ trex>
 ----
  c.start(ports = [port_a, port_b], mult = rate,core_mask=[0x0xe,0x1]) <1>
 ----       
-<1> mask of cores per port
+<1> Mask of cores per port.
 
 
 
-The following output is received on the TUI CPU util window:
+The following output is appears in the TUI CPU Util window:
 
 [source,bash]
 ----
@@ -4203,9 +4189,9 @@ For information about the Python client API, see the link:cp_stl_docs/index.html
 
 ==== Overview 
 
-The console uses TRex client API to control TRex.
+The console uses the TRex client API to control TRex.
 
-*Important information about console usage*::
+*Important information about console usage*:
 
 // it seems that all of these provide background info, not guidelines for use. the use of "should" is unclear.
 
@@ -4213,16 +4199,16 @@ The console uses TRex client API to control TRex.
 * Many read-only clients can exist for the same user interface. 
 * The console syncs with the server to get the state during connection stage, and caches the server information locally.
 * In case of crash or exit of the console, it will sync again at startup.
-* Command line parameters order is not important.
+* The order of command line parameters is not important.
 * The console can display TRex stats in real time. You can open two consoles simultaneously - one for commands (R/W) and one for displaying statistics (read only).
 
 ==== Ports State
 
 [options="header",cols="^1,3a"]
 |=================
-| state   |    meaning
+| State   |    Meaning
 | IDLE    | No streams
-| STREAMS | Has streams. Not transmitting (did not start transmission, or it was stopped).
+| STREAMS | Has streams. Not transmitting (did not start transmission, or transmission was stopped).
 | WORK    | Has streams. Transmitting.
 | PAUSE   | Has streams. Transmission paused. 
 |=================
@@ -4231,19 +4217,19 @@ The console uses TRex client API to control TRex.
 [source,bash]
 ----
 
-  IDLE -> (add streams) -> STREAMS (start) -> WORK (stop) -> STREAMS (start) 
-                                           |   WORK (pause) -> PAUSE (resume )---
-                                           |                                     | 
-                                           |                                     |
-                                           --------------------------------------    
+  IDLE -> (add streams) -> STREAMS (start) -> WORK (stop) ->  STREAMS (start) 
+                                           |  WORK (pause) -> PAUSE (resume)----
+                                           |                                    | 
+                                           |                                    |
+                                           -------------------------------------    
 ----
 
 ==== Common Arguments 
 
-Following command line arguments are common to many commands.
+The following command line arguments are common to many commands.
 
 ===== Help
-You can specify -h or --help after each command to get full description of its purpose and arguments.
+You can specify -h or --help after each command to display full description of its purpose and arguments.
 
 *Example*::
 
@@ -4287,7 +4273,9 @@ trex><command> [-d 100] [-d 10m] [-d 1h]
 
 ===== Multiplier 
 
-The traffic profile defines default bandwidth for each stream. Using the multiplier command line argument, it is possible to set different bandwidth. It is possible to specify either packets or bytes per second, percentage of total port rate, or just factor to multiply the original rate by.
+The traffic profile defines the default bandwidth for each stream. Using the multiplier command line argument, you can set a different bandwidth. You can specify either packets or bytes per second, percentage of total port rate, or simply a factor by which to multiply the original rate.
+
+// not entirely clear how to use multiplier option. need to define "original rate" precisely. in a section below it says "multiply the bandwidth specified in the traffic profile"
 
 *Example*::
 
@@ -4298,9 +4286,9 @@ trex><command> [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
   multiplier :
   
   -m 100    : Multiply original rate by given factor.
-  -m 10gbps : From graph calculate the maximum rate as this bandwidth for all streams( for each port )
-  -m 10kpps : From graph calculate the maximum rate as this pps for all streams      ( for each port )
-  -m 40%    : From graph calculate the maximum rate as this precent from total port rate ( for each port )
+  -m 10gbps : From graph calculate the maximum rate as this bandwidth for all streams (for each port)
+  -m 10kpps : From graph calculate the maximum rate as this pps for all streams (for each port)
+  -m 40%    : From graph calculate the maximum rate as this precent from total port rate (for each port)
 ----
 // What does it mean from graph???
 
@@ -4309,8 +4297,9 @@ trex><command> [-m 100] [-m 10gb] [-m 10kpps] [-m 40%]
 
 ===== connect 
 
-Attempts to connet to the server you were connected to. Can be used in case server was restarted. Can not be used
-in order to connect to different server. In addition:
+Attempts to connect to the server you were connected to. Can be used after a server restart. Cannot be used to connect to a different server. +
+
+Also:
 
 * Syncs the port info and stream info state.
 * Reads all counter statistics for reference.
@@ -4328,9 +4317,11 @@ $connect
 
 Resets the server and client to a known state. Not used in normal scenarios.
 
-- Forces acquire on all ports
-- Stops all traffic on all ports
-- Removes all streams from all ports
+// in what scenarios is it used?
+
+* Forces acquire on all ports.
+* Stops all traffic on all ports.
+* Removes all streams from all ports.
 
 
 *Example*::
@@ -4386,8 +4377,7 @@ trex>clear -a
 
 ===== stats 
 
-Can be used to show global/port/stream statistics. +
-Also, can be used to retrieve extended stats from port (xstats)
+Can be used to show global/port/stream statistics. Can also be used to retrieve extended stats from port (xstats).
 
 *Example*::
 
@@ -4420,14 +4410,13 @@ tx_size_64_packets             |       154612595 |       153744902
 
 ----
 
-<1> Error that can be seen only with this command
+<1> Error that can be seen only with this command.
 
 // IGNORE - this line helps rendering
 
 ===== streams
 
-Shows info about loaded streams on TRex port(s). +
-By default, streams are printed as brief summary table:
+Shows info about loaded streams on TRex port(s). By default, streams are displayed in a brief summary table:
 
 [source,bash]
 ----
@@ -4461,9 +4450,9 @@ trex>streams --port 0 1 --id 0
 
 ----
 
-Argument --code can be used either:
+The `--code` argument is used as follows:
 
-* Without argument to print generated Python code that produces the streams.
+* `--code` can be used without argument to display generated Python code that produces the streams.
 +
 [source,bash]
 ----
@@ -4488,7 +4477,7 @@ Stream ID: 2
                        mode = STLTXCont(pps = 20))
 ----
 
-* With filename argument to save the streams as Python profile.
+* `--code` can be used with a filename argument to save the streams as a Python profile. In the following example, the specified filename is: */tmp/my_imix.py*
 +
 [source,bash]
 ----
@@ -4563,19 +4552,21 @@ def register():
 
 ===== start 
 
-Start transmitting traffic on set of ports
+Start transmitting traffic on set of ports.
 
-* Removes all streams
-* Loads new streams
-* Starts traffic (can set multiplier, duration and other parameters)
+* Removes all streams.
+* Loads new streams.
+* Starts traffic (can set multiplier, duration, and other parameters).
 * Acts only on ports in "stopped: mode. If `--force` is specified, port(s) are first stopped.
-* Note: If any ports are not in "stopped" mode, and `--force` is not used the command fails.
+* Note: If any ports are not in "stopped" mode, and `--force` is not used, the command fails.
+
+// Clarify the note above: If any ports are not...
 
 // IGNORE: this line helps rendering of next line
 
 *Example*::
 
-Use this command to start a profile on all ports, with a maximum bandwidth of 10 GB.
+Start a profile on all ports, with a maximum bandwidth of 10 GB.
 
 [source,bash]
 ----
@@ -4584,7 +4575,7 @@ trex>start -a -f stl/imix.py  -m 10gb
 
 *Example*::
 
-Use this command to start a profile on ports 1 and 2, and multiply the bandwidth specified in the traffic profile by 100.
+Start a profile on ports 1 and 2, and multiply the bandwidth specified in the traffic profile by 100.
    
 [source,bash]
 ----
@@ -4594,9 +4585,9 @@ trex>start -port 1 2 -f stl/imix.py  -m 100
 
 ===== stop
 
-* Operates on a set of ports 
-* Changes the mode of the port(s) to "stopped"
-* Does not remove streams
+* Operates on a set of ports.
+* Changes the mode of the port(s) to "stopped".
+* Does not remove streams.
 
 // IGNORE: this line helps rendering of next line
 
@@ -4613,7 +4604,7 @@ trex>stop --port 0
 
 ===== pause 
 
-* Operates on a set of ports 
+* Operates on a set of ports.
 * Changes a working set of ports to "pause" (no traffic transmission) state.
 
 *Example*::
@@ -4626,9 +4617,11 @@ trex>pause --port 0
 
 ===== resume 
 
-* Operates on a set of ports 
+* Operates on a set of ports.
 * Changes a working set of port(s) to "resume" state (transmitting traffic again).
 * All ports should be in "paused" status. If any of the ports is not paused, the command fails.
+
+// Clarify the bullet above: If any of the ports...
 
 // IGNORE: this line helps rendering of next line
 
@@ -4644,13 +4637,13 @@ trex>resume --port 0
 
 Update the bandwidth multiplier for a set of ports.
 
-* All ports must be in "work" state. If any ports are not in "work" state, the command fails
+* All ports must be in "work" state. If any ports are not in "work" state, the command fails.
 
 // IGNORE: this line helps rendering of next line
 
 *Example*::
 
-Multiplly traffic on all ports by a factor of 5.
+Multiply traffic on all ports by a factor of 5.
 
 [source,bash]
 ----
@@ -4660,14 +4653,14 @@ trex>update -a -m 5
 
 [NOTE]
 =====================================
- We might add in the future the ability to disable/enable specific stream, load a new stream dynamically, and so on.
+ Possible future feature: Ability to disable/enable specific stream, load a new stream dynamically, and so on.
 =====================================
 
 // clarify note above
 
 ===== TUI
 
-The textual user interface (TUI) displays constantly updated TRex statistics in a textual window.
+The textual user interface (TUI) displays constantly updated TRex statistics in a text window.
 
 *Example*::
         
@@ -4677,15 +4670,22 @@ trex>tui
 ----
 
 Enters a Stats mode and displays three types of TRex statistics:
-* Global/port stats/version/connected etc 
+
+* Global/port stats/version/connected, etc.
 * Per port
 * Per port stream 
 
 
-The followig keyboard commands operate in the TUI window: +
- q - Quit the TUI window (get back to console) +
- c - Clear all counters +
- d, s, l - change display between dashboard (d), streams (s) and l (latency) info. +
+Keyboard commands in the TUI window:
+
+[cols="5,5", options="header"]
+|=============================
+| Command         | Description   
+| q               | Quit the TUI window (return to console)
+| c               | Clear all counters
+| d, s, l         | Change display between dashboard (d), streams (s) and l (latency) info
+|=============================
+
 
 === Benchmarks of 40G NICs
 
@@ -4740,25 +4740,27 @@ Thus, you can use Stateless TRex *from any language* supporting JSON-RPC.
 
 ===== How to run TRex side:
 
+// what does "side" mean in the heading?
+
 * Run the Stateless TRex server in one of 2 ways:
 
-** Either run TRex directly in shell:
+** Run TRex directly in shell:
 +
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -i
 ----
 
-** Or run it via JSON-RPC command to trex_daemon_server:
+** Run TRex via JSON-RPC command to trex_daemon_server:
 +
 [source,python]
 ----
 start_trex(trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = True)
 ----
 
-* Run the RPC "proxy" to stateless, here are also 2 ways:
+* Run the RPC "proxy" to stateless in one of 2 ways:
 
-** run directly:
+** Run directly:
 +
 [source,bash]
 ----
@@ -4776,12 +4778,12 @@ if not master_daemon.is_stl_rpc_proxy_running():
 
 Done :)
 
-Now you can send requests to the rpc_proxy_server and get results as array of 2 values:
+Now you can send requests to the rpc_proxy_server and get results as an array of 2 values:
 
 * If fail, result will be: [False, <traceback log with error>]
 * If success, result will be: [True, <return value of called function>]
 
-In same directory of rpc_proxy_server.py, there is python example of usage: using_rpc_proxy.py
+In the same directory of rpc_proxy_server.py, there is Python example of usage: *using_rpc_proxy.py*
 
 ===== Native Stateless API functions:
 
@@ -4794,8 +4796,7 @@ In same directory of rpc_proxy_server.py, there is python example of usage: usin
 * reset
 * wait_on_traffic
 
-...can be called directly as server.push_remote(\'udp_traffic.pcap'). +
-If you need any other function of stateless client, you can either add it to rpc_proxy_server.py, or use this method: +
+These functions can be called directly as server.push_remote(\'udp_traffic.pcap'). If you need any other function of a stateless client, you can either add it to rpc_proxy_server.py, or use this method: +
 server.*native_method*(<string of function name>, <args of the function>) +
 
 ===== HLTAPI Methods can be called here as well:
@@ -4809,7 +4810,7 @@ server.*native_method*(<string of function name>, <args of the function>) +
 
 [NOTE]
 =====================================================================
-In case of names collision with native functions (such as connect), for HLTAPI, function will change to have "hlt_" prefix.
+In case of name collision with native functions (such as connect), for HLTAPI, function will change to have "hlt_" prefix.
 =====================================================================
 
 ===== Example of running from Java:
