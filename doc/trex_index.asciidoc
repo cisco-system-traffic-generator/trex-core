@@ -11,10 +11,9 @@ include::trex_ga.asciidoc[]
 // Cisco Live 2018 
 *Free Learning Sessions*
 
-DevNet webinar Webex 
-image:images/webinar.png[width=250,title=""]  
-
-* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e6fb167e743cde8cb5c02a6541b7fa98a[REGISTER NOW] 
+//DevNet webinar Webex 
+//image:images/webinar.png[width=250,title=""]  
+//* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e6fb167e743cde8cb5c02a6541b7fa98a[REGISTER NOW] 
 
 Cisco Live! 2018, Barcelona
 image:images/cl1028.png[width=250,title=""]  
@@ -52,6 +51,8 @@ link:trex_faq.html[FAQ]
 link:trex_manual.html#_download_and_installation[Installation] 
 | Release Notes     |  
 link:release_notes.html[Release_notes.html] 
+| Cookbook     |  
+link:trex_cookbook.html[cookbook] 
 | Stateful  Manual and Getting Started     |  
 link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
 | Stateless Manual    | 
