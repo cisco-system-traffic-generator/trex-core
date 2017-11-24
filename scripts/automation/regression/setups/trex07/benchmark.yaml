@@ -47,10 +47,10 @@ test_static_routing_imix_asymmetric:
 
 
 # disable due to trex-504
-#test_ipv6_simple:
-#    multiplier          : 50
-#    cores               : 7
-#    bw_per_core         : 19.5
+test_ipv6_simple:
+    multiplier          : 50
+    cores               : 7
+    bw_per_core         : 19.5
 
 
 test_rx_check_http: &rx_http
@@ -72,9 +72,9 @@ test_rx_check_sfr: &rx_sfr
     error_tolerance     : 5
 
 # disable due to trex-504
-#test_rx_check_sfr_ipv6:
-#    <<                  : *rx_sfr
-#    bw_per_core         : 19.198
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 19.198
 
 
 ### stateless ###
