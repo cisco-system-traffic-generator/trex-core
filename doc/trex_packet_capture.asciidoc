@@ -26,15 +26,12 @@ For example, a queue of 1 million packets can be allocated as a cyclic queue and
 
 Before demonstrating how to use *Packet Capturing*, it is helpful to review how *filtering* is done.
 
-{empty} +
 
 Each packet capture is assigned a filter (by default, a filter that matches any packet). Any filter that follows the syntax rules of *The Berekely Packet Filter (BPF)* can be assigned.
 
-{empty} +
 
 BPF filters are widely used by the Linux kernel, TCP dump and others. Basically any 'tcpdump' filtering tutorial can be used to define a filter for TRex.
 
-{empty} +
 
 Some simple examples using *BPF*:
 
@@ -59,8 +56,6 @@ Some simple examples using *BPF*:
 
 For more examples, refer to BPF and tcpdump examples available online.
 
-{empty} +
-
 ==== BPFJIT
 
 TRex server uses *BPF JIT*, a compiled version of BPF to native code, to allow very fast filtering. So 'high speed filtering' is very much possible in TRex.
@@ -82,11 +77,9 @@ async_util.  : 0.19% / 1.76 KB/sec                   drop_rate    : 0.00 b/sec
                                                      queue_full   : 0 pkts
 
 ----
-<1> Rx core utilization
 
-{empty} +
 
-*After* +
+*After* 
 
 With a 'non-hitting' filter to measure the effect of using the BPF filter:
 
@@ -103,15 +96,12 @@ async_util.  : 0.21% / 1.64 KB/sec                   drop_rate    : 0.00 b/sec
                                                      queue_full   : 0 pkts
 
 ----
-<1> Rx core utilization
 
-{empty} +
 
 There is almost zero impact (<5%) on CPU utilization for negative filtering.
 
 Of course, a hitting filter will have impact but usually on a very small portion of the traffic.
 
-{empty} +
 
 ==== API usage
 
@@ -314,7 +304,6 @@ Removing PCAP capture 4 from server                          [SUCCESS]
 trex(service)>
 
 ----
-
 <1> Start a packet record on port *3* Rx side with a limit of *200* packets.
 <2> A new capture is created with an ID *4*.
 <3> Show the capture status - currently empty.
