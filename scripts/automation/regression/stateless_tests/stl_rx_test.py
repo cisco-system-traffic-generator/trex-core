@@ -85,8 +85,8 @@ class STLRX_Test(CStlGeneral_Test):
                 'total_pkts': 1000,
                 'rate_latency': 0.01 if self.is_vf_nics else 1,
                 'latency_9k_enable': False if self.is_vf_nics else True,
-                'latency_9k_max_average': 1000,
-                'latency_9k_max_latency': 1000,    #see latency issue trex-261
+                'latency_9k_max_average': 200,
+                'latency_9k_max_latency': 200,    
             },
 
             'net_enic': {
