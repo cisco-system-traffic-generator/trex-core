@@ -4,7 +4,7 @@ class STLImix(object):
 
     imix_table = [
         {'size': 60,   'pps': 7,  'isg':0 },
-        {'size': 590,  'pps': 5,  'isg':0.1 },
+        {'size': 590,  'pps': 4,  'isg':0.1 },
         {'size': 1414, 'pps': 1,  'isg':0.2 } # originally 1514, gladius has limitation on 1500 mtu
         ]
 
