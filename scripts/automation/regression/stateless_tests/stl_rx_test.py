@@ -242,6 +242,9 @@ class STLRX_Test(CStlGeneral_Test):
         # This test that latency code can handle the situation where latency data is not contiguous in memory
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
                                        ,vm = vm)
+
+        # trex-505
+        self.mlx5_defect_dpdk1711 = CTRexScenario.setup_name in ['trex19']
         self.errs = []
 
 
@@ -443,6 +446,8 @@ class STLRX_Test(CStlGeneral_Test):
     # one stream on TX --> RX
     @try_few_times_on_vm
     def test_one_stream(self):
+        if self.mlx5_defect_dpdk1711:
+            self.skip('not running due to defect trex-505')
         total_pkts = self.total_pkts
         s1 = STLStream(name = 'rx',
                        packet = self.pkt,
@@ -462,6 +467,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams(self):
+        if self.mlx5_defect_dpdk1711:
+            self.skip('not running due to defect trex-505')
         self._test_multiple_streams(False)
 
     @try_few_times_on_vm
