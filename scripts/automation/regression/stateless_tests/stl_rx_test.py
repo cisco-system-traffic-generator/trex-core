@@ -245,6 +245,10 @@ class STLRX_Test(CStlGeneral_Test):
 
         # trex-505
         self.mlx5_defect_dpdk1711 = CTRexScenario.setup_name in ['trex19']
+        self.mlx5_defect_dpdk1711_2 = False
+        if self.drv_name == 'net_mlx5':
+            self.mlx5_defect_dpdk1711_2 =True
+            
         self.errs = []
 
 
@@ -473,6 +477,9 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
+        if self.mlx5_defect_dpdk1711_2:
+            self.skip('defect dpdk17_11 mlx5')
+
         if self.drv_name == 'net_i40e_vf':
             self.skip('Not running on i40 vf currently')
         self._test_multiple_streams(True)
@@ -592,6 +599,9 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
+        if self.mlx5_defect_dpdk1711_2:
+            self.skip('defect dpdk17_11 mlx5')
+
         total_pkts = self.total_pkts
         streams_data = [
             {'name': 'Latency, with field engine of random packet size', 'pkt': self.vm_rand_size_pkt, 'lat': True},
