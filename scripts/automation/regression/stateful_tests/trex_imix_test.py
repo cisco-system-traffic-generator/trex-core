@@ -142,29 +142,12 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_CPU_benchmark(trex_res)
 
 
-
-    # the name intentionally not matches nose default pattern, including the test should be specified explicitly
-    def dummy(self):
-        ret = self.trex.start_trex(
-            c = 1,
-            m = 1,
-            p  = True,
-            nc = True,
-            d = 5,
-            f = 'cap2/imix_fast_1g.yaml',
-            l = 1000,
-            trex_development = True)
-
-        trex_res = self.trex.sample_to_run_finish()
-        print(trex_res)
-
     def test_routing_imix (self):
         # test initializtion
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = "config")
 
-#       self.trex.set_yaml_file('cap2/imix_fast_1g.yaml')
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
 
@@ -174,7 +157,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             p  = True,
             nc = True,
             d = 60,   
-            f = 'cap2/imix_fast_1g.yaml',
+            f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
@@ -210,7 +193,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             e  = True,
             nc = True,
             d = 60,   
-            f = 'cap2/imix_fast_1g.yaml',
+            f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()
@@ -244,7 +227,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             nc = True,
             d = 100,   
-            f = 'cap2/imix_fast_1g.yaml',
+            f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
         trex_res = self.trex.sample_to_run_finish()

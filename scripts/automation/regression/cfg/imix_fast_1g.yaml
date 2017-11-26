@@ -1,6 +1,8 @@
-#
-# Simple IMIX faster test (7x64B, 5x594B, 1x1518B)
-# we duplicate the template to utilize the memory better 
+# Simple IMIX test (7x64B, 4x594B, 1x1518B)
+
+# We duplicate the template to utilize the memory better
+# Performance of this profile is bad, please use stateless to test IMIX
+
 - duration : 3
   generator :  
           distribution : "seq"
@@ -15,38 +17,38 @@
           udp_aging      : 0
   cap_info : 
      - name: cap2/udp_64B.pcap
-       cps   : 90615
+       cps   : 100760
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16666
+       limit : 199
      - name: cap2/udp_594B.pcap
-       cps   : 64725
+       cps   : 57577
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16666
+       limit : 199
      - name: cap2/udp_1518B.pcap
-       cps   : 12945
+       cps   : 14394
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16667
+       limit : 199
      - name: cap2/udp_64B.pcap
-       cps   : 90615
+       cps   : 100760
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16667
+       limit : 199
      - name: cap2/udp_594B.pcap
-       cps   : 64725
+       cps   : 57577
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16667
+       limit : 199
      - name: cap2/udp_1518B.pcap
-       cps   : 12945
+       cps   : 14394
        ipg   : 10000
        rtt   : 10000
        w     : 1
-       limit : 16667       
+       limit : 199
