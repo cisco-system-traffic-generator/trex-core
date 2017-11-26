@@ -249,6 +249,11 @@ class STLRX_Test(CStlGeneral_Test):
         if self.drv_name == 'net_mlx5':
             self.mlx5_defect_dpdk1711_2 =True
 
+        # skip mlx5 VF
+        self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
+
+            
+
         # the setup is like that 
         #
         #  p0(VF) p1(VF) p2(VF)     p3 (VF)
@@ -859,6 +864,9 @@ class STLRX_Test(CStlGeneral_Test):
     # this test adds more and more latency streams and re-test with incremental
     @try_few_times_on_vm
     def test_incremental_latency_streams (self):
+        if self.mlx5_defect_dpdk1711_3:
+            self.skip('Skip for mlx5_defect_dpdk1711_3')
+
         if self.i40e_vf_setup_disable:
             self.skip('Skip for vf_setup')
 
