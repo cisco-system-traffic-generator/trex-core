@@ -149,7 +149,7 @@ TEST_F(basic, imix) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/imix.yaml";
+     po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="exp/imix";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -425,7 +425,7 @@ TEST_F(basic, ipv6_convert) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/imix.yaml";
+     po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="exp/imix_v6";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";

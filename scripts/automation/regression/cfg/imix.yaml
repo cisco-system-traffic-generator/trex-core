@@ -1,0 +1,35 @@
+#
+# Incorrect IMIX rates test (7x64B, 5x594B, 1x1518B)
+#
+
+- duration : 3
+  generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 0
+          udp_aging      : 0
+  cap_info : 
+     - name: cap2/udp_64B.pcap
+       cps   : 28.0
+       ipg   : 10000
+       rtt   : 10000
+       w     : 4
+       limit : 7
+     - name: cap2/udp_594B.pcap
+       cps   : 20.0
+       ipg   : 10000
+       rtt   : 10000
+       w     : 4
+       limit : 5
+     - name: cap2/udp_1518B.pcap
+       cps   : 4.0
+       ipg   : 10000
+       rtt   : 10000
+       w     : 4
+       limit : 1
