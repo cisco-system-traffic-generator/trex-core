@@ -287,14 +287,24 @@ def convert_to_pdf(task):
 
 
 
-def _convert_to_html_toc_book (task,disqus=False):
+def convert_to_html_toc_book (task, disqus=False, generator='asciidoc'):
+    """
+        generate HTML output with TOC
+
+        disqus     - add disqus (only if document contains <disqus></disqus> at the apropriate place)
+        generator  - can be either 'asciidoc' or 'asciidoctor'
+    """
+
+    tools = {'asciidoc':    task.env['ASCIIDOC'][0],
+             'asciidoctor': task.env['ASCIIDOCTOR'][0]}
+
     input_file = task.inputs[0].abspath()
 
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
     cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
-            task.env['ASCIIDOC'][0],
+            tools[generator],
             task.inputs[1].abspath(),
             tmp,
             task.inputs[0].abspath());
@@ -318,12 +328,6 @@ def _convert_to_html_toc_book (task,disqus=False):
     return os.system('rm {0}'.format(tmp));
 
 
-    
-def convert_to_html_toc_book(task):
-    _convert_to_html_toc_book (task,False)
-
-def convert_to_html_toc_book_disqus(task):
-    _convert_to_html_toc_book (task,True)
 
 
 # strip hierarchy from a multipage doc
@@ -350,11 +354,13 @@ def multipage_strip_hierarchy (in_file, out_file):
     
     
 # generate an asciidoctor chunk book for a target
-def convert_to_asciidoctor_chunk_book(task, title):
+def convert_to_asciidoctor_chunk_book(task, title, css):
     
     in_file          = task.inputs[0].abspath()
     out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
     target_name      = os.path.basename(out_dir)
+
+    css = os.path.abspath(css)
 
     # build chunked with no hierarchy
     with tempfile.NamedTemporaryFile() as tmp_file:
@@ -362,13 +368,13 @@ def convert_to_asciidoctor_chunk_book(task, title):
         multipage_strip_hierarchy(in_file, tmp_file.name)
     
         multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
-        stylesheet = os.path.abspath(os.path.join('./css', 'asciidoctor-default.css'))
-        cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o trex_cookbook.html'.format(
+        cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o {5}.html'.format(
                 task.env['ASCIIDOCTOR'][0],
-                stylesheet,
+                css,
                 multipage_backend,
                 out_dir,
-                tmp_file.name)
+                tmp_file.name,
+                target_name)
 
         res = os.system(cmd)
         if res != 0:
@@ -388,7 +394,7 @@ def convert_to_asciidoctor_chunk_book(task, title):
             return (1)
         
         # create TOC JSON in the library
-        create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format("trex_cookbook", link))
+        create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format(target_name, link))
   
     
     # iterate over all files and inject DISQUS if the pattern matches
@@ -702,16 +708,20 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
-    bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook"),
+    bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook", css = "css/trex_cookbook.css"),
         source='trex_cookbook.asciidoc', target='trex_cookbook',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
 
+    # use below rule to build with asciidoctor and the default asciidoctor CSS
+    #bld(rule=lambda task : convert_to_html_toc_book(task, generator='asciidoctor'),
+    #    source='trex_stateless.asciidoc css/asciidoctor-default.css', target='trex_stateless.html',scan=ascii_doc_scan);
+
     bld(rule=convert_to_html_toc_book,
         source='trex_astf.asciidoc waf.css', target='trex_astf.html',scan=ascii_doc_scan);
 
-    bld(rule=convert_to_html_toc_book_disqus,
+    bld(rule=lambda task : convert_to_html_toc_book(task, disqus = True),
         source='trex_astf_vs_nginx.asciidoc waf.css', target='trex_astf_vs_nginx.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
