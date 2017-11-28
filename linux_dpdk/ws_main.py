@@ -1024,6 +1024,15 @@ class build_option:
     def get_bpfso_target (self):
         return self.update_executable_name("libbpf") + '.so';
 
+     
+    def get_mlx5_flags(self):
+        flags=[]
+        if self.isRelease () :
+            flags += ['-DNDEBUG'];
+        else:
+            flags += ['-UNDEBUG'];
+        return (flags)
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -1128,7 +1137,7 @@ def build_prog (bld, build_obj):
         bld.shlib(
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
-          cflags   = (cflags + DPDK_FLAGS ),
+          cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
           use =['ibverbs','mlx5'],
           source   = mlx5_dpdk.file_list(top),
           target   = build_obj.get_mlx5_target()
