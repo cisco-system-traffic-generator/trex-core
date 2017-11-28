@@ -51,8 +51,6 @@ link:trex_faq.html[FAQ]
 link:trex_manual.html#_download_and_installation[Installation] 
 | Release Notes     |  
 link:release_notes.html[Release_notes.html] 
-| Cookbook     |  
-link:trex_cookbook/index.html[cookbook] 
 | Stateful  Manual and Getting Started     |  
 link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
 | Stateless Manual    | 
