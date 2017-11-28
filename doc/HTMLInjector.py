@@ -287,14 +287,14 @@ class HTMLInjector(object):
                 ,
                 "plugins" : [ "wholerow" ]
               };
-    
+
               $('#nav-tree').jstree(toc_tree_options) ;
     
               toc_tree.on("changed.jstree", function (e, data) {
               
                 // filename
                 var filename = data.instance.get_selected(true)[0].original.link
-              
+
                 $ONCLICK$
               });
               }
@@ -425,11 +425,20 @@ class HTMLInjector(object):
     
     ONCLICK_MULTIPAGE = """
     $.get(filename, function(r) {
-       
+
+    
+    $("body").css("cursor", "progress");
+
     // replace content
     var els = $(r).find('.sect1');
     $('#content').html(els);
+    
+    $("body").css("cursor", "default");
+    
+    document.location.hash = data.node.id
+
     });
+
     """
     
     ONCLICK_SINGLEPAGE = "window.location.href = filename"
@@ -484,9 +493,16 @@ class HTMLInjector(object):
     
     SELECT_FIRST = """
           // on loaded event  
-          $('#nav-tree').on('loaded.jstree', function() {
-              $('#nav-tree').jstree('select_node', 'j1_1');
-              $("#nav-tree").jstree('open_all');
+          $('#nav-tree').on('loaded.jstree', function() {\
+
+          $("#nav-tree").jstree('open_all');
+
+            if (!document.location.hash) {
+                $('#nav-tree').jstree('select_node', 'j1_1');
+            } else {
+                hash = window.location.hash.substring(1)
+                $('#nav-tree').jstree('select_node', hash);
+            }
           });
     """
     
