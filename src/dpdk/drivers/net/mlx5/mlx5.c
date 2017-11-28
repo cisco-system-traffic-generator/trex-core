@@ -805,11 +805,6 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			goto port_error;
 		}
 
-        /* TREX PATCH */
-        /* set for maximum performance default */
-        priv->txq_inline  =512;
-
-
 		priv->hw_csum =
 			!!(device_attr_ex.device_cap_flags_ex &
 			   IBV_DEVICE_RAW_IP_CSUM);
