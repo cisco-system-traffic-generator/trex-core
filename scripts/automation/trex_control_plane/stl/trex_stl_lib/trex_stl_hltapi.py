@@ -18,6 +18,23 @@ cleanup_session_kwargs = {
     'port_handle': None,
 }
 
+interface_config_kwargs = {
+    'mode': None,          # ( config | destroy | modify )
+    'port_handle': [],
+
+    'arp': True,
+    'arp_send_req': False,
+    'arp_req_retries': 1,
+
+    'gateway': [],
+    'intf_ip_addr': [],
+
+    'vlan': [],
+    'vlan_id': [],
+    'vlan_id_list': [],
+    'vlan_id_inner': [],
+}
+
 traffic_config_kwargs = {
     'mode': None,                           # ( create | modify | remove | reset )
     'split_by_cores': 'split',              # ( split | duplicate | single ) TRex extention: split = split traffic by cores, duplicate = duplicate traffic for all cores, single = run only with sinle core (not implemented yet)
@@ -424,15 +441,84 @@ class CTRexHltApi(object):
         self.trex_client = None
         return HLT_OK()
 
-    def interface_config(self, port_handle, mode='config'):
+    def interface_config(self, **user_kwargs):
         if not self.trex_client:
             return HLT_ERR('Connect first')
+
+        kwargs = merge_kwargs(interface_config_kwargs, user_kwargs)
+        is_array_based = not isinstance(kwargs['port_handle'], int)
+
+        mode = kwargs['mode']
         ALLOWED_MODES = ['config', 'modify', 'destroy']
         if mode not in ALLOWED_MODES:
             return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
-        # pass this function for now...
-        return HLT_ERR('interface_config not implemented yet')
 
+        if is_array_based and not kwargs['port_handle']:
+            return HLT_ERR('Invalid port_handle parameter')
+
+        if not is_array_based:
+            kwargs['port_handle'] = [kwargs['port_handle']]
+            kwargs['intf_ip_addr'] = kwargs['intf_ip_addr'] and [kwargs['intf_ip_addr']]
+            kwargs['gateway'] = kwargs['gateway'] and [kwargs['gateway']]
+            kwargs['vlan'] = kwargs['vlan'] and [kwargs['vlan']]
+            kwargs['vlan_id'] = kwargs['vlan_id'] and [kwargs['vlan_id']]
+            kwargs['vlan_id_list'] = kwargs['vlan_id_list'] and [kwargs['vlan_id_list']]
+            kwargs['vlan_id_inner'] = kwargs['vlan_id_inner'] and [kwargs['vlan_id_inner']]
+
+        try:
+            self.trex_client.set_service_mode(kwargs['port_handle'], True)
+        except Exception as e:
+            return HLT_ERR('Error enabling service mode: %s' % e)
+
+        try:
+            if mode == 'destroy':
+                self.trex_client.clear_vlan(kwargs['port_handle'])
+                self.trex_client.reset()
+
+                self.trex_client.set_service_mode(kwargs['port_handle'], True)
+
+            for i, port_id in enumerate(kwargs['port_handle']):
+                port = self.trex_client.get_port(port_id)
+                if kwargs['vlan'] and kwargs['vlan'][i]:
+                    vlan_id = (kwargs['vlan_id_list'] and kwargs['vlan_id_list'][i]) or kwargs['vlan_id'][i]
+                    vlan_id = [vlan_id, kwargs['vlan_id_inner'][i]] if kwargs['vlan_id_inner'] else vlan_id
+
+                    self.trex_client.set_vlan([port_id], vlan_id)
+
+                if kwargs['intf_ip_addr'] or kwargs['gateway']:
+                    config = port.get_layer_cfg()
+                    src = (kwargs['intf_ip_addr'] and kwargs['intf_ip_addr'][i]) or config['ipv4']['src']
+                    dst = (kwargs['gateway'] and kwargs['gateway'][i]) or config['ipv4']['dst']
+
+                    port.set_l3_mode(src, dst)
+
+            if (is_true(kwargs['arp']) and is_true(kwargs['arp_send_req'])) or kwargs['intf_ip_addr'] or kwargs['gateway']:
+                for i, port_id in enumerate(kwargs['port_handle']):
+                    print(port_id)
+                    vlan_id = None
+
+                    if kwargs['vlan'] and is_true(kwargs['vlan'][i]):
+                        vlan_id = (kwargs['vlan_id_list'] and kwargs['vlan_id_list'][i]) or kwargs['vlan_id'][i]
+                        vlan_id = [vlan_id, kwargs['vlan_id_inner'][i]] if kwargs['vlan_id_inner'] else vlan_id
+
+                    self.trex_client.resolve(ports=[port_id],
+                                             retries=kwargs['arp_req_retries'],
+                                             vlan=vlan_id)
+
+            config = {'layer_config': {}, 'vlan_config': {}}
+            for port_id in kwargs['port_handle']:
+                port = self.trex_client.get_port(port_id)
+                config['layer_config'][port_id] = port.get_layer_cfg()
+                config['vlan_config'][port_id] = port.get_vlan_cfg()
+
+            return HLT_OK(config=config)
+        except Exception as e:
+            return HLT_ERR(e)
+        finally:
+            try:
+                self.trex_client.set_service_mode(ports=kwargs['port_handle'], enabled=False)
+            except:
+                pass # Errors are not critical on finalizing step
 
 ###########################
 #    Traffic functions    #
