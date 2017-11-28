@@ -7615,7 +7615,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
     //todo: fix
     if ( ret != 0 ) {
         rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_ctrl: err=%d, port=%u\n",
-                 ret, port_id);
+                 ret, repid);
     }
 #endif
 }
@@ -7875,9 +7875,11 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     // In order to receive packets, we also need to configure rules for each type.
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_SCTP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
 
     if (! set_on) {
