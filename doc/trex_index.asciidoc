@@ -70,6 +70,8 @@ link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c2
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
+| Python API Cookbook (beta)    | 
+link:trex_cookbook/index.html[TRex API Cookbook]
 | Stateless Python automation API    | 
 link:cp_stl_docs/index.html[stateless_sdk] 
 | Stateful  Python automation API    | 
