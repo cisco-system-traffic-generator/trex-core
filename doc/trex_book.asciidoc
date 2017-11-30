@@ -3119,9 +3119,7 @@ Installing the full OFED package is the simplest way to make it work (trying to 
 The advantage of this model is that you can control it using standard Linux tools (ethtool and ifconfig will work).
 The disadvantage is the OFED dependency.
 
-==== Installation
-
-==== Install Linux
+==== Distro Installation 
 
 We tested the following distro with TRex and OFED. Others might work too.
 
@@ -3132,7 +3130,7 @@ Following distro was tested and did *not* work for us.
 * Fedora 21 (3.17.4-301.fc21.x86_64)
 * Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64)  -- crash when RSS was enabled link:https://trex-tgn.cisco.com/youtrack/issue/trex-294[MLX RSS issue]
 
-==== Install OFED
+==== OFED Installation  
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
@@ -3295,35 +3293,6 @@ mlx5_0 port 1 ==> eth6 (Down)
 mlx5_1 port 1 ==> eth7 (Down)
 ----
 
-==== How to upgrade from older TRex <v2.32
-
-
-TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
-
-.TRex OFED matirx
-[options="header",cols="1^,1^,1^",width="60%"]
-|=================
-| TRex version  | OFED | Disto
-| 2.32  |  *only* 4.1  | CentOs 7.3
-| 2.33 or higer |  *only* 4.2  | CentOs 7.4
-|=================
-
-WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
-
-==== Connect-5x maximum throughput
-
-.TRex OFED matirx
-[options="header",cols="1^,1^,1^",width="60%"]
-|=================
-| Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
-| 64  |  100%  | 94%
-| 128 |  100%  | 100%
-| 256 |  90%   | 90%      
-| 512 |  100%  | 100%
-| 1024 |  100% | 100%
-| 1500 |  100% | 100%
-|=================
-
 
 //to upgrade the FW you need to try to download the tool and build for you system link:http://www.mellanox.com/page/management_tools[management_tools]
 //
@@ -3394,6 +3363,36 @@ WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update`
 ----
 
 
+==== Connect-5x maximum throughput
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
+| 64  |  100%  | 94%
+| 128 |  100%  | 100%
+| 256 |  90%   | 90%      
+| 512 |  100%  | 100%
+| 1024 |  100% | 100%
+| 1500 |  100% | 100%
+|=================
+
+==== Upgrade procedure
+
+anchor:ofed_upgrade[]
+
+TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| TRex version  | OFED | Disto
+| 2.32  |  *only* 4.1  | CentOs 7.3
+| 2.33 or higer |  *only* 4.2  | CentOs 7.4
+|=================
+
+WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
+
 ==== TRex specific implementation details
 
 TRex uses flow director filter to steer specific packets to specific queues.
@@ -3407,9 +3406,9 @@ NIC with two ports will work better from performance prospective, so it is bette
 ==== Limitation/Issues
 
 Many issues were solved in new DPDK 17.11 the current list of issues are:
+
 * a special FW to drop and count packets in high rate
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
-
 
 ==== Troubleshooting
 
@@ -3607,8 +3606,6 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
         Kernel driver in use: pcieport
 
 
-
-
 ----
 <1>  look for the PCI id
 <2>  run the lspci -vv to find out the Part number
@@ -3617,10 +3614,6 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 <5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
 
-
-==== Limitations/Issues
-
-* CX5 require the latest OFED (4.1>)
 
 ==== Build with native OFED
 
