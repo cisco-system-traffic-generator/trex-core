@@ -435,7 +435,10 @@ class HTMLInjector(object):
     
     $("body").css("cursor", "default");
     
-    document.location.hash = data.node.id
+    // action could be "select_node" or "ready"
+    if (data.action == "select_node") {
+        document.location.hash = data.node.id
+    }
 
     });
 
@@ -452,7 +455,7 @@ class HTMLInjector(object):
     *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
     *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables*/
     
-    if (typeof(disqus_config) == "undefined") {
+    if (typeof(DISQUS) == "undefined") {
         var disqus_config = function () {
         this.page.url = window.location.href + "$ID$"
         this.page.identifier = "$ID$";
@@ -466,7 +469,6 @@ class HTMLInjector(object):
         (d.head || d.body).appendChild(s);
         })();
     } else {
-    
         /* * * Disqus Reset Function * * */
         var disqus_reset = function (newIdentifier, newUrl, newTitle, newLanguage) {
          DISQUS.reset({
@@ -506,6 +508,19 @@ class HTMLInjector(object):
           });
     """
     
+
+    GA = """
+    <script>
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+        ga('create', 'UA-75220362-1', 'auto');
+        ga('send', 'pageview');
+
+    </script>
+    """
     
     def __init__ (self, input_filename, output_filename = None):
         """
@@ -565,7 +580,7 @@ class HTMLInjector(object):
         
         # create TOC node
         toc_node  = LH.parse(StringIO(toc_begin + toc_end)).getroot()
-        
+
         # find the main node in the HTML page
         main_node = (self.xml_doc.xpath('//body[@class = "article"]') or self.xml_doc.xpath('//body[@class = "book"]'))[0]
         
@@ -576,8 +591,13 @@ class HTMLInjector(object):
         for elem in main_node.getchildren():
             toc_csi.append(deepcopy(elem))
 
-        # final step - replace the body element with the TOC embedded element
-        main_node.getparent().replace(main_node, toc_node)
+        # final step - replace all the elements with the TOC elements (body, style and etc.)
+        parent = main_node.getparent()
+        parent.remove(main_node)
+
+        for c in toc_node.getchildren():
+            parent.append(c)
+
         
             
 
@@ -624,5 +644,17 @@ class HTMLInjector(object):
         c = c[0]
         for child in c.getchildren():
             c.remove(child)
+
+
+    def inject_ga (self):
+
+        # generate node
+        ga_node = LH.parse(StringIO(self.GA)).getroot()
+
+        # fetch the script
+        script = ga_node.xpath('//script')[0]
+
+        # append
+        self.xml_doc.getroot().append(script)
 
 

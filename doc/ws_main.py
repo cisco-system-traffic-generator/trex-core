@@ -357,9 +357,11 @@ def multipage_strip_hierarchy (in_file, out_file):
 def convert_to_asciidoctor_chunk_book(task, title, css):
     
     in_file          = task.inputs[0].abspath()
+    src_dir          = os.path.dirname(in_file)
     out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
     target_name      = os.path.basename(out_dir)
 
+    
     css = os.path.abspath(css)
 
     # build chunked with no hierarchy
@@ -368,13 +370,14 @@ def convert_to_asciidoctor_chunk_book(task, title, css):
         multipage_strip_hierarchy(in_file, tmp_file.name)
     
         multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
-        cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o {5}.html'.format(
+        cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o {5}.html -B {6}'.format(
                 task.env['ASCIIDOCTOR'][0],
                 css,
                 multipage_backend,
                 out_dir,
                 tmp_file.name,
-                target_name)
+                target_name,
+                src_dir)
 
         res = os.system(cmd)
         if res != 0:
@@ -411,6 +414,7 @@ def convert_to_asciidoctor_chunk_book(task, title, css):
         injector.inject_title(title)
         injector.clear_class('sect1')
         injector.inject_toc('toc.json', fmt = 'multi', image_path = '..')
+        injector.inject_ga()
 
     os.remove(os.path.join(out_dir, main))
 
