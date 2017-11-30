@@ -3125,7 +3125,7 @@ The disadvantage is the OFED dependency.
 
 We tested the following distro with TRex and OFED. Others might work too.
 
-* CentOS 7.4
+* CentOS 7.4 (This is the only tested distro)
 
 Following distro was tested and did *not* work for us.
 
@@ -3152,7 +3152,7 @@ Make sure you have an internet connection without firewalls for HTTPS/HTTP - req
 [source,bash]
 ----
 [bash]>md5sum md5sum MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
-58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-4.0-xx.0.0.0-rhel7.2-x86_64.tgz
+hash_from_mellanox  MLNX_OFED_LINUX-4.2-1-.0.0.0-rhel7.4-x86_64.tgz
 ----
 
 .Open the tar
@@ -3247,7 +3247,7 @@ To load the new driver, run:
 [bash]>ibv_devinfo
 hca_id: mlx5_1
         transport:                      InfiniBand (0)
-        fw_ver:                         12.22.0051             << 12.22.0051
+        fw_ver:                         12.21.1000             << 12.21.1000
         node_guid:                      248a:0703:0014:fc61
         sys_image_guid:                 248a:0703:0014:fc60
         vendor_id:                      0x02c9
@@ -3267,7 +3267,7 @@ hca_id: mlx5_1
 
 hca_id: mlx5_0
         transport:                      InfiniBand (0)
-        fw_ver:                         12.22.0051
+        fw_ver:                         12.21.1000
         node_guid:                      248a:0703:0014:fc60
         sys_image_guid:                 248a:0703:0014:fc60
         vendor_id:                      0x02c9
@@ -3295,17 +3295,45 @@ mlx5_0 port 1 ==> eth6 (Down)
 mlx5_1 port 1 ==> eth7 (Down)
 ----
 
+==== How to upgrade from older TRex <v2.32
 
-to upgrade the FW you need to try to download the tool and build for you system link:http://www.mellanox.com/page/management_tools[management_tools]
 
-.upgrade FW for CX-5 device to support full-line rate with DROP
-[source,bash]
-----
-$sudo mst start
-$sudo mst status
-$sudo mlxburn -d /dev/mst/mt4121_pciconf0 -fw fw-ConnectX5.mlx -conf_dir .
-----
+TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
 
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| TRex version  | OFED | Disto
+| 2.32  |  *only* 4.1  | CentOs 7.3
+| 2.33 or higer |  *only* 4.2  | CentOs 7.4
+|=================
+
+WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
+
+==== Connect-5x maximum throughput
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
+| 64  |  100%  | 94%
+| 128 |  100%  | 100%
+| 256 |  90%   | 90%      
+| 512 |  100%  | 100%
+| 1024 |  100% | 100%
+| 1500 |  100% | 100%
+|=================
+
+
+//to upgrade the FW you need to try to download the tool and build for you system link:http://www.mellanox.com/page/management_tools[management_tools]
+//
+//.upgrade FW for CX-5 device to support full-line rate with DROP
+//[source,bash]
+//----
+//$sudo mst start
+//$sudo mst status
+//$sudo mlxburn -d /dev/mst/mt4121_pciconf0 -fw fw-ConnectX5.mlx -conf_dir .
+//----
 
 .find the ports
 [source,bash]
@@ -3378,37 +3406,10 @@ NIC with two ports will work better from performance prospective, so it is bette
 
 ==== Limitation/Issues
 
-For some reason the mlx5 driver is special and while working, integrating and running regression 24/7 we found  a few issues with how TRex utilized it. TRex uses special RSS configurations and filters and this might bring up the issues that otherwise were not observed (e.g. Simple DPDK l3 application). The list of the issues can be seen here link:https://trex-tgn.cisco.com/youtrack/issues/trex?q=%23MLX%20state:Submitted%20[open issues]
-Mellanox is aware of those issues.
-
-for example:
-* In ASTF mode there is an out of order of TCP packets see link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[out-of-order]
+Many issues were solved in new DPDK 17.11 the current list of issues are:
+* a special FW to drop and count packets in high rate
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
 
-==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
-
-For TRex version v2.11, these are the comparison results between XL710 and ConnectX-4 for various scenarios.
-
-.Stateless MPPS/Core [Preliminary]
-image:images/xl710_vs_mlx5_64b.png[title="Stateless 64B"]
-
-.Stateless Gb/Core [Preliminary]
-image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
-
-*Comments*::
-
-1. CX-5 can reach TX=~145MPPS/Rx=120MPPS while XL710 is limited to 35MPPS. (With potential future fix it will be ~65MPPS)
-2. with IMIX you should reach ~100Gb/sec (not 100Gb/sec) with one port (Total bandwidth for both ports is 100Gb/Sec)
-3. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
-4. In the average stateful scenario, ConnectX-4 is the same as XL710.
-5. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
-
-
-
-[NOTE]
-=====================================
-There is a task to automate the production of thess reports
-=====================================
 
 ==== Troubleshooting
 
@@ -3615,8 +3616,6 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 <4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configucation (raiser)
 <5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
-
-
 
 
 ==== Limitations/Issues
