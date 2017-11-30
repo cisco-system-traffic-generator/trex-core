@@ -41,7 +41,7 @@ test_routing_imix_64:
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 50
+    multiplier          : 10
     cores               : 13
     bw_per_core         : 50.561
 
