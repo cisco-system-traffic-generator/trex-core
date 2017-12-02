@@ -643,10 +643,10 @@ public:
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
         p.tx_desc_num = TX_DESC_NUM;
         p.rx_mbuf_type = MBUF_9k;
-        //if (CGlobalInfo::get_queues_mode() ==CGlobalInfo::Q_MODE_NORMAL){
-        //    p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q/4;
-        //    p.rx_mbuf_type = MBUF_2048;
-        //}
+        if (CGlobalInfo::get_queues_mode() ==CGlobalInfo::Q_MODE_NORMAL){
+            //p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q/4;
+            p.rx_mbuf_type = MBUF_2048;
+        }
 
     }
     virtual void update_configuration(port_cfg_t * cfg);
