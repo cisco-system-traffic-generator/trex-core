@@ -243,16 +243,12 @@ class STLRX_Test(CStlGeneral_Test):
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
                                        ,vm = vm)
 
-        # trex-505
-        #self.mlx5_defect_dpdk1711 = CTRexScenario.setup_name in ['trex19']
         self.mlx5_defect_dpdk1711 = False
         self.mlx5_defect_dpdk1711_2 = False
-        #if self.drv_name == 'net_mlx5':
-        #    self.mlx5_defect_dpdk1711_2 =True
 
         # skip mlx5 VF
-        #self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
-        self.mlx5_defect_dpdk1711_3 =False
+        self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
+        #self.mlx5_defect_dpdk1711_3 =False
 
             
 
@@ -615,8 +611,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
-        if self.mlx5_defect_dpdk1711_2:
-            self.skip('defect dpdk17_11 mlx5')
+        if self.mlx5_defect_dpdk1711_3:
+            self.skip('mlx5_defect_dpdk1711_3')
 
         total_pkts = self.total_pkts
         streams_data = [
