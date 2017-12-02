@@ -883,7 +883,13 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			if (args.txq_inline == MLX5_ARG_UNSET)
 				priv->txq_inline = MLX5_WQE_SIZE_MAX -
 						   MLX5_WQE_SIZE;
-		}
+		}else{
+         /* TREX PATCH */
+        /* set for maximum performance default CX-4*/
+            if (args.txq_inline == MLX5_ARG_UNSET)
+                priv->txq_inline  =256;
+        }
+
 		if (priv->cqe_comp && !cqe_comp) {
 			WARN("Rx CQE compression isn't supported");
 			priv->cqe_comp = 0;
