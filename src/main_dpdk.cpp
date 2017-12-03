@@ -621,34 +621,8 @@ public:
     virtual int get_min_sample_rate(void){
         return (RX_CHECK_MIX_SAMPLE_RATE);
     }
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
-        p.rx_data_q_num = 1;
-        /* Mellanox ConnectX-4 can drop only 35MPPS per Rx queue.
-         * to workaround this issue we will create multi rx queue and enable RSS. for Queue1 we will disable RSS
-         * return zero for disable patch and rx queues number for enable.
-        */
-        switch (CGlobalInfo::get_queues_mode()) {
-        case CGlobalInfo::Q_MODE_ONE_QUEUE:
-        case CGlobalInfo::Q_MODE_RSS:
-            p.rx_drop_q_num = 0;
-            break;
-        case CGlobalInfo::Q_MODE_MANY_DROP_Q:
-            p.rx_drop_q_num = 4;
-            break;
-        case CGlobalInfo::Q_MODE_NORMAL:
-            p.rx_drop_q_num = 1; /* TCP mode */
-            break;
-        }
-        p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
-        p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q_MLX;
-        p.tx_desc_num = TX_DESC_NUM;
-        p.rx_mbuf_type = MBUF_9k;
-        if (CGlobalInfo::get_queues_mode() ==CGlobalInfo::Q_MODE_NORMAL){
-            //p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q/4;
-            p.rx_mbuf_type = MBUF_2048;
-        }
 
-    }
+
     virtual void update_configuration(port_cfg_t * cfg);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
