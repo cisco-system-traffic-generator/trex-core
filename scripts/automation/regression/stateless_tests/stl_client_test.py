@@ -85,7 +85,11 @@ class STLClient_Test(CStlGeneral_Test):
             if expected==0:
                 return;
             else:
-               assert get_error_in_percentage(expected, got) < 0.05
+                if get_error_in_percentage(expected, got) < 0.05 :
+                    return
+                print(' ERROR verify expected: %d  got:%d ' % (expected,got) )
+                assert(0);
+
 
 
     def test_basic_connect_disconnect (self):
