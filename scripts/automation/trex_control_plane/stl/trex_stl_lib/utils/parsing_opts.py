@@ -716,7 +716,7 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           'dest':'ids',
                                           'metavar': 'ID',
                                           'type': int,
-                                          'help': "A list of stream IDs to query about. Default: analyze all streams",
+                                          'help': 'Filter by those stream IDs (default is all streams).',
                                           'default': []}),
 
               STREAMS_CODE: ArgumentPack(['--code'],

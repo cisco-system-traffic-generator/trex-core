@@ -69,10 +69,13 @@ public:
     void create(CFlowGenListPerThread   *  core);
 
     bool pause_traffic(uint8_t port_id);
+    bool pause_streams(uint8_t port_id, stream_ids_t &stream_ids); // filter by stream IDs, slower
 
     bool resume_traffic(uint8_t port_id);
+    bool resume_streams(uint8_t port_id, stream_ids_t &stream_ids); // filter by stream IDs, slower
 
     bool update_traffic(uint8_t port_id, double factor);
+    bool update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream); // filter by stream IDs, slower
 
     bool push_pcap(uint8_t port_id,
                    const std::string &pcap_filename,
@@ -147,10 +150,12 @@ public:
 
     /* pause the streams, work only if all are continues  */
     void pause_traffic(uint8_t port_id);
+    void pause_streams(uint8_t port_id, stream_ids_t &stream_ids);
 
 
 
     void resume_traffic(uint8_t port_id);
+    void resume_streams(uint8_t port_id, stream_ids_t &stream_ids);
 
 
     /**
@@ -174,7 +179,8 @@ public:
      * @author imarom (25-Nov-15)
      * 
      */
-    void update_traffic(uint8_t port_id, double mul);
+    void update_traffic(uint8_t port_id, double factor);
+    void update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream);
 
     /**
      * 

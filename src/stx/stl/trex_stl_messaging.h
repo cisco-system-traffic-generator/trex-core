@@ -23,6 +23,7 @@ limitations under the License.
 #define __TREX_STL_MESSAGING_H__
 
 #include "trex_messaging.h"
+#include "trex_defs.h"
 
 class TrexDpCore;
 class TrexStreamsCompiledObj;
@@ -73,6 +74,25 @@ private:
     uint8_t m_port_id;
 };
 
+class TrexStatelessDpPauseStreams : public TrexCpToDpMsgBase {
+public:
+
+    TrexStatelessDpPauseStreams(uint8_t port_id, stream_ids_t &stream_ids) : m_port_id(port_id),
+                                                                             m_stream_ids(stream_ids) {
+    }
+
+
+    virtual TrexCpToDpMsgBase * clone();
+
+
+    virtual bool handle(TrexDpCore *dp_core);
+
+
+private:
+    uint8_t m_port_id;
+    stream_ids_t m_stream_ids;
+};
+
 
 class TrexStatelessDpResume : public TrexCpToDpMsgBase {
 public:
@@ -91,6 +111,24 @@ private:
     uint8_t m_port_id;
 };
 
+class TrexStatelessDpResumeStreams : public TrexCpToDpMsgBase {
+public:
+
+    TrexStatelessDpResumeStreams(uint8_t port_id, stream_ids_t &stream_ids) : m_port_id(port_id),
+                                                                              m_stream_ids(stream_ids) {
+    }
+
+
+    virtual TrexCpToDpMsgBase * clone();
+
+
+    virtual bool handle(TrexDpCore *dp_core);
+
+
+private:
+    uint8_t m_port_id;
+    stream_ids_t m_stream_ids;
+};
 
 /**
  * a message to stop traffic
@@ -167,6 +205,23 @@ public:
 private:
     uint8_t  m_port_id;
     double   m_factor;
+};
+
+class TrexStatelessDpUpdateStreams : public TrexCpToDpMsgBase {
+public:
+
+    TrexStatelessDpUpdateStreams(uint8_t port_id, stream_rates_map_t &factor_per_stream) {
+        m_port_id = port_id;
+        m_factor_per_stream = factor_per_stream;
+    }
+
+    virtual bool handle(TrexDpCore *dp_core);
+
+    virtual TrexCpToDpMsgBase * clone();
+
+private:
+    uint8_t  m_port_id;
+    stream_rates_map_t m_factor_per_stream;
 };
 
 

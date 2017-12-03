@@ -358,7 +358,8 @@ class STLStream(object):
                   random_seed =0,
                   mac_src_override_by_pkt = None,
                   mac_dst_override_mode = None,    #see  STLStreamDstMAC_xx
-                  dummy_stream = False
+                  dummy_stream = False,
+                  start_paused = False,
                   ):
         """ 
         Stream object 
@@ -405,6 +406,10 @@ class STLStream(object):
 
                   dummy_stream : bool
                         For delay purposes, will not be sent.
+
+                  start_paused : bool
+                        Experimental flag, might be removed in future!
+                        Stream will not be transmitted until un-paused.
         """
 
 
@@ -420,6 +425,7 @@ class STLStream(object):
         validate_type('stream_id', stream_id, (type(None), int))
         validate_type('random_seed',random_seed,int);
         validate_type('dummy_stream', dummy_stream, bool);
+        validate_type('start_paused', dummy_stream, bool);
 
         if (type(mode) == STLTXCont) and (next != None):
             raise STLError("Continuous stream cannot have a next stream ID")
@@ -466,6 +472,7 @@ class STLStream(object):
         # basic fields
         self.fields['enabled'] = enabled
         self.fields['self_start'] = self_start
+        self.fields['start_paused'] = start_paused
         self.fields['isg'] = isg
 
         if random_seed !=0 :
@@ -692,6 +699,8 @@ class STLStream(object):
             stream_params_list.append('enabled = %s' % self.fields['enabled'])
         if default_STLStream.fields['self_start'] != self.fields['self_start']:
             stream_params_list.append('self_start = %s' % self.fields['self_start'])
+        if default_STLStream.fields['start_paused'] != self.fields['start_paused']:
+            stream_params_list.append('start_paused = %s' % self.fields['start_paused'])
         if default_STLStream.fields['isg'] != self.fields['isg']:
             stream_params_list.append('isg = %s' % self.fields['isg'])
         if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
@@ -824,7 +833,8 @@ class STLStream(object):
                              
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
-                             dummy_stream             = (json_data['flags'] & 0x8) == 0x8)
+                             dummy_stream             = (json_data['flags'] & 0x8) == 0x8,
+                             start_paused             = json_data['start_paused'])
             
         except KeyError as e:
             raise STLError("from_json: missing field {0} from JSON".format(e))

@@ -115,6 +115,7 @@ private:
     uint32_t            m_single_burst_refill; 
 
     uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
+    double              m_next_time_offset_backup; /* paused nodes will be given slower ipg, backup value */
 
     /******************************/
     /* cache line 1  
@@ -138,7 +139,7 @@ private:
     /* End Fast Field VM Section */
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[20];
+    uint8_t             m_pad_end[12];
 
     /* CACHE_LINE */
     uint64_t            m_pad3[8];
@@ -158,7 +159,10 @@ public:
      */
     void update_rate(double factor) {
         /* update the inter packet gap */
-        m_next_time_offset         =  m_next_time_offset / factor;
+        m_next_time_offset_backup /= factor;
+        if ( likely(!m_pause) ) {
+            m_next_time_offset = m_next_time_offset_backup;
+        }
     }
 
     /* we restart the stream, schedule it using stream isg */
@@ -187,8 +191,10 @@ public:
 
     void set_pause(bool enable){
         if ( enable ){
+            m_next_time_offset = 0.1; // we don't want paused nodes to interfere too much in scheduler with non-paused
             m_pause=1;
         }else{
+            m_next_time_offset = m_next_time_offset_backup;
             m_pause=0;
         }
     }
@@ -439,6 +445,10 @@ public:
             }
             return m;
      }
+
+    inline uint32_t get_user_stream_id(void) {
+        return m_ref_stream_info->m_user_stream_id;
+    }
 
 public:
     /* debug functions */

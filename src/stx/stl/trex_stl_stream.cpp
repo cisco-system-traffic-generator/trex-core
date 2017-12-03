@@ -82,6 +82,7 @@ void TrexStream::Dump(FILE *fd){
     fprintf(fd,"==> Stream_id    : %lu \n",(ulong)m_stream_id);
     fprintf(fd," Enabled      : %lu \n",(ulong)(m_enabled?1:0));
     fprintf(fd," Self_start   : %lu \n",(ulong)(m_self_start?1:0));
+    fprintf(fd," Start_paused   : %lu \n",(ulong)(m_start_paused?1:0));
 
     if (m_next_stream_id>=0) {
         fprintf(fd," Nex_stream_id  : %lu \n",(ulong)m_next_stream_id);
@@ -127,9 +128,8 @@ void TrexStream::Dump(FILE *fd){
     fprintf(fd," cache_size  : %lu\n", (ulong)m_cache_size);
 }
 
- 
-TrexStream::TrexStream(uint8_t type,
-                       uint8_t port_id, uint32_t stream_id) : m_port_id(port_id), m_stream_id(stream_id) , m_rate(*this) {
+TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32_t user_stream_id) :
+                       m_port_id(port_id), m_stream_id(stream_id), m_user_stream_id(user_stream_id), m_rate(*this) {
 
     /* default values */
     m_type              = type;
@@ -137,6 +137,7 @@ TrexStream::TrexStream(uint8_t type,
     m_next_stream_id    = -1;
     m_enabled           = false;
     m_self_start        = false;
+    m_start_paused      = false;
     m_cache_size        = 0;
 
     m_mc_phase_pre_sec           = 0;

@@ -2786,6 +2786,56 @@ class STLClient(object):
             raise STLError(rc)
 
 
+    @__api_check(True)
+    def update_streams(self, port, mult = "1", force = False, stream_ids = None):
+        """
+            Temporary hack to update specific streams.
+            Do not rely on this function, might be removed in future!
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+
+                mult : str
+                    Multiplier in a form of pps, bps, or line util in %
+                    Can also specify +/-
+                    Examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
+
+                force : bool
+                    If the port are not in stopped mode or do not have sufficient bandwidth for the traffic, determines whether to stop the current traffic and force start.
+                    True: Force start
+                    False: Do not force start
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('mult', mult, basestring)
+        validate_type('force', force, bool)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to update')
+
+        # verify multiplier
+        mult_obj = parsing_opts.decode_multiplier(mult, allow_update = True)
+        if not mult_obj:
+            raise STLArgumentError('mult', mult)
+
+
+        # call low level functions
+        self.logger.pre_cmd('Updating streams %s on port %s:' % (stream_ids, port))
+
+        rc = self.ports[port].update_streams(mult_obj, force, stream_ids)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
 
     @__api_check(True)
     def pause (self, ports = None):
@@ -2812,6 +2862,40 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+
+    @__api_check(True)
+    def pause_streams(self, port, stream_ids):
+        """
+            Temporary hack to pause specific streams.
+            Do not rely on this function, might be removed in future!
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+                stream_ids : list
+                    Stream IDs to pause
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to pause')
+
+        self.logger.pre_cmd('Pause streams %s on port %s:' % (stream_ids, port))
+        rc = self.ports[port].pause_streams(stream_ids)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
     @__api_check(True)
     def resume (self, ports = None):
         """
@@ -2833,6 +2917,39 @@ class STLClient(object):
 
         self.logger.pre_cmd("Resume traffic on port(s) {0}:".format(ports))
         rc = self.__resume(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+    @__api_check(True)
+    def resume_streams(self, port, stream_ids):
+        """
+            Temporary hack to resume specific streams.
+            Do not rely on this function, might be removed in future!
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+                stream_ids : list
+                    Stream IDs to resume
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to resume')
+
+        self.logger.pre_cmd('Resume streams %s on port %s:' % (stream_ids, port))
+        rc = self.ports[port].resume_streams(stream_ids)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -4263,12 +4380,20 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.MULTIPLIER,
                                          parsing_opts.TOTAL,
-                                         parsing_opts.FORCE)
+                                         parsing_opts.FORCE,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if not opts:
             return opts
 
+        if opts.ids:
+            if len(opts.ports) > 1:
+                msg = 'update - must be single port when providing stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.update_streams(opts.ports[0], opts.mult, opts.force, opts.ids)
+            return RC_OK()
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
@@ -4292,11 +4417,20 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "pause",
                                          self.pause_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
         if not opts:
             return opts
+
+        if opts.ids:
+            if len(opts.ports) > 1:
+                msg = 'pause - must be single port when providing stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.pause_streams(opts.ports[0], opts.ids)
+            return RC_OK()
 
         # check for already paused case
         if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
@@ -4326,11 +4460,20 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "resume",
                                          self.resume_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
         if not opts:
             return opts
+
+        if opts.ids:
+            if len(opts.ports) > 1:
+                msg = 'resume - must be single port when providing stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.resume_streams(opts.ports[0], opts.ids)
+            return RC_OK()
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_paused_ports())
