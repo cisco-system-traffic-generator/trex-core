@@ -243,11 +243,11 @@ class STLRX_Test(CStlGeneral_Test):
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
                                        ,vm = vm)
 
-        self.mlx5_defect_dpdk1711 = False
-        self.mlx5_defect_dpdk1711_2 = False
+        self.mlx5_defect_dpdk1711 = CTRexScenario.setup_name in ['trex07'] 
+        self.mlx5_defect_dpdk1711_2 = CTRexScenario.setup_name in ['trex07'] 
 
         # skip mlx5 VF
-        self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
+        self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23','trex07']
         #self.mlx5_defect_dpdk1711_3 =False
 
             
