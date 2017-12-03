@@ -597,7 +597,7 @@ class Port(object):
         
         
     @owned
-    def pause (self):
+    def pause(self):
 
         if (self.state == self.STATE_PCAP_TX) :
             return self.err("pause is not supported during PCAP TX")
@@ -617,9 +617,28 @@ class Port(object):
         return self.ok()
 
     @owned
-    def resume (self):
+    def pause_streams(self, stream_ids):
 
-        if (self.state != self.STATE_PAUSE) :
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('pause is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'stream_ids': stream_ids or []}
+
+        rc  = self.transmit('pause_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    @owned
+    def resume(self):
+
+        if self.state != self.STATE_PAUSE:
             return self.err("port is not in pause mode")
 
         params = {"handler": self.handler,
@@ -632,6 +651,25 @@ class Port(object):
             return self.err(rc.err())
 
         self.state = self.STATE_TX
+
+        return self.ok()
+
+    @owned
+    def resume_streams(self, stream_ids):
+
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('resume is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'stream_ids': stream_ids or []}
+
+        rc = self.transmit('resume_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 
@@ -655,6 +693,27 @@ class Port(object):
 
         # save this for TUI
         self.last_factor_type = mul['type']
+
+        return self.ok()
+
+    @owned
+    def update_streams(self, mul, force, stream_ids):
+
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('update is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'mul':        mul,
+                  'force':      force,
+                  'stream_ids': stream_ids or []}
+
+        rc = self.transmit('update_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 

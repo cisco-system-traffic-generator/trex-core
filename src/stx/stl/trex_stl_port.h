@@ -94,18 +94,21 @@ public:
      * throws TrexException in case of an error
      */
     void pause_traffic(void);
+    void pause_streams(stream_ids_t &stream_ids);
 
     /**
      * resume traffic
      * throws TrexException in case of an error
      */
     void resume_traffic(void);
+    void resume_streams(stream_ids_t &stream_ids);
 
     /**
      * update current traffic on port
      *
      */
     void update_traffic(const TrexPortMultiplier &mul, bool force);
+    void update_streams(const TrexPortMultiplier &mul, bool force, std::vector<TrexStream *> &streams);
 
     /**
      * push a PCAP file onto the port
@@ -201,8 +204,8 @@ private:
      * calculate effective M per core
      *
      */
-    double calculate_effective_factor(const TrexPortMultiplier &mul, bool force = false);
-    double calculate_effective_factor_internal(const TrexPortMultiplier &mul);
+    double calculate_effective_factor(const TrexPortMultiplier &mul, bool force, const TrexStreamsGraphObj *graph_obj);
+    double calculate_effective_factor_internal(const TrexPortMultiplier &mul, const TrexStreamsGraphObj *graph_obj);
 
 
     /**

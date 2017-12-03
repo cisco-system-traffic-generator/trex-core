@@ -518,10 +518,36 @@ bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
-        assert(node->is_pause() == true);
+        //assert(node->is_pause() == true); <- we can't be sure of this with ability to pause specific streams.
         node->set_pause(false);
     }
     m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    return (true);
+}
+
+bool TrexStatelessDpPerPort::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    printf("Resume streams\n");
+
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+
+    uint32_t done_count = 0;
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node = dp_stream.m_node;
+        assert(node->get_port_id() == port_id);
+        if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
+            printf("Slow path: resuming stream ID: %u, DP ID: %u\n", node->get_user_stream_id(), node->get_stream_id());
+            node->set_pause(false);
+            done_count++;
+            if ( done_count == stream_ids.size() ) {
+                break;
+            }
+        } else {
+            printf("Slow path: NOT touching stream ID: %u, DP ID: %u\n", node->get_user_stream_id(), node->get_stream_id());
+        }
+    }
+    // TODO: return feedback if done_count != stream_ids.size()
     return (true);
 }
 
@@ -542,6 +568,38 @@ bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
     return (true);
 }
 
+bool TrexStatelessDpPerPort::update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream) {
+
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+
+    printf("Updating streams\n");
+
+    uint32_t done_count = 0;
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node = dp_stream.m_node;
+        assert(node->get_port_id() == port_id);
+
+        if ( !node->is_latency_stream() ) {
+            stream_rates_map_it_t it = factor_per_stream.find(node->get_user_stream_id());
+
+            if ( it != factor_per_stream.end() ) {
+                printf("Slow path: updating stream ID: %u, DP ID: %u, factor: %lf\n", node->get_user_stream_id(), node->get_stream_id(), it->second);
+                node->update_rate(it->second);
+                done_count++;
+                if ( done_count == factor_per_stream.size() ) {
+                    break;
+                }
+            } else {
+                printf("Slow path: NOT touching stream ID: %u, DP ID: %u\n", node->get_user_stream_id(), node->get_stream_id());
+            }
+        }
+    }
+
+    // TODO: return feedback if done_count != factor_per_stream.size()
+    return (true);
+}
+
 bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
 
     /* we are working with continues streams so we must be in transmit mode */
@@ -550,10 +608,35 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
-        assert(node->is_pause() == false);
+        //assert(node->is_pause() == false); <- we can't be sure of this with ability to pause specific streams.
         node->set_pause(true);
     }
     m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
+    return (true);
+}
+
+bool TrexStatelessDpPerPort::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    printf("Pause streams\n");
+
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+
+    uint32_t done_count = 0;
+    for (auto dp_stream : m_active_nodes) {
+        CGenNodeStateless * node = dp_stream.m_node;
+        assert(node->get_port_id() == port_id);
+        if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
+            printf("Slow path: pausing stream ID: %u, DP ID: %u\n", node->get_user_stream_id(), node->get_stream_id());
+            node->set_pause(true);
+            done_count++;
+            if ( done_count == stream_ids.size() ) {
+                break;
+            }
+        } else {
+            printf("Slow path: NOT touching stream ID: %u, DP ID: %u\n", node->get_user_stream_id(), node->get_stream_id());
+        }
+    }
     return (true);
 }
 
@@ -936,10 +1019,11 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     uint16_t pkt_size = stream->m_pkt.len;
     const uint8_t *stream_pkt = stream->m_pkt.binary;
 
-    node->m_pause =0;
     node->m_stream_type = stream->m_type;
-    node->m_next_time_offset = 1.0 / stream->get_pps();
+    node->m_next_time_offset_backup = 1.0 / stream->get_pps();
     node->m_null_stream = (stream->m_null_stream ? 1 : 0);
+    printf("start paused? %u\n", stream->m_start_paused);
+    node->set_pause(stream->m_start_paused);
 
     /* stateless specific fields */
     switch ( stream->m_type ) {
@@ -1140,8 +1224,17 @@ void
 TrexStatelessDpCore::resume_traffic(uint8_t port_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-
     lp_port->resume_traffic(port_id);
+
+}
+
+
+void
+TrexStatelessDpCore::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+    lp_port->resume_streams(port_id, stream_ids);
+
 }
 
 
@@ -1149,8 +1242,16 @@ void
 TrexStatelessDpCore::pause_traffic(uint8_t port_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-
     lp_port->pause_traffic(port_id);
+
+}
+
+void
+TrexStatelessDpCore::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+    lp_port->pause_streams(port_id, stream_ids);
+
 }
 
 void 
@@ -1193,10 +1294,17 @@ void
 TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-
     lp_port->update_traffic(port_id, factor);
+
 }
 
+void
+TrexStatelessDpCore::update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream) {
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+    lp_port->update_streams(port_id, factor_per_stream);
+
+}
 
 void
 TrexStatelessDpCore::stop_traffic(uint8_t  port_id,

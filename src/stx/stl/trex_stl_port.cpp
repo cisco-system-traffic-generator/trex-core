@@ -203,7 +203,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     }
 
     /* caclulate the effective factor for DP */
-    double factor = calculate_effective_factor(mul, force);
+    double factor = calculate_effective_factor(mul, force, m_graph_obj);
 
     StreamsFeeder feeder(this);
     feeder.feed();
@@ -379,6 +379,29 @@ TrexStatelessPort::pause_traffic(void) {
     get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_PAUSED, data);
 }
 
+void
+TrexStatelessPort::pause_streams(stream_ids_t &stream_ids) {
+
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE, "pause");
+
+    if (m_last_all_streams_continues == false) {
+        throw TrexException(" pause is supported when all streams are in continues mode ");
+    }
+
+    if ( m_last_duration>0.0 ) {
+        throw TrexException(" pause is supported when duration is not enable is start command ");
+    }
+
+    /* send a pause message */
+    TrexCpToDpMsgBase *pause_msg = new TrexStatelessDpPauseStreams(m_port_id, stream_ids);
+
+    /* send message to all cores */
+    send_message_to_all_dp(pause_msg, true);
+
+    /* make sure all DP cores paused */
+    m_dp_events.barrier();
+
+}
 
 void
 TrexStatelessPort::resume_traffic(void) {
@@ -396,6 +419,17 @@ TrexStatelessPort::resume_traffic(void) {
     get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RESUMED, data);
 }
 
+void
+TrexStatelessPort::resume_streams(stream_ids_t &stream_ids) {
+
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE, "resume");
+
+    /* generate a message to all the relevant DP cores to start transmitting */
+    TrexCpToDpMsgBase *resume_msg = new TrexStatelessDpResumeStreams(m_port_id, stream_ids);
+
+    send_message_to_all_dp(resume_msg, true);
+}
+
 
 void
 TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
@@ -405,7 +439,7 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
     verify_state(PORT_STATE_TX | PORT_STATE_PAUSE, "update");
 
     /* generate a message to all the relevant DP cores to start transmitting */
-    double new_factor = calculate_effective_factor(mul, force);
+    double new_factor = calculate_effective_factor(mul, force, m_graph_obj);
 
     switch (mul.m_op) {
     case TrexPortMultiplier::OP_ABS:
@@ -433,6 +467,42 @@ TrexStatelessPort::update_traffic(const TrexPortMultiplier &mul, bool force) {
 
     m_factor *= factor;
 
+}
+
+
+void
+TrexStatelessPort::update_streams(const TrexPortMultiplier &mul, bool force, std::vector<TrexStream *> &streams) {
+
+    verify_state(PORT_STATE_TX | PORT_STATE_PAUSE, "update");
+
+    /* on update stream - we can only provide absolute values */
+    if (mul.m_op != TrexPortMultiplier::OP_ABS) {
+        throw TrexException("Must use absolute multiplier for updating stream");
+    }
+
+    stream_rates_map_t factor_per_stream;
+    std::vector<TrexStream *> stream_list;
+    TrexStreamsGraph graph;
+    double new_factor;
+
+    for (TrexStream* stream:streams) {
+        stream_list.clear();
+        stream_list.push_back(stream);
+        const TrexStreamsGraphObj *graph_obj = graph.generate(stream_list);
+
+        try {
+            new_factor = calculate_effective_factor(mul, force, graph_obj);
+            delete graph_obj;
+        } catch (const TrexException &ex) {
+            delete graph_obj;
+            throw(ex);
+        }
+
+        factor_per_stream[stream->m_stream_id] = new_factor;
+    }
+
+    TrexCpToDpMsgBase *update_msg = new TrexStatelessDpUpdateStreams(m_port_id, factor_per_stream);
+    send_message_to_all_dp(update_msg, true);
 }
 
 
@@ -512,12 +582,18 @@ bps_to_gbps(double bps) {
 
 
 double
-TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, bool force) {
+TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, bool force, const TrexStreamsGraphObj *graph_obj) {
 
-    double factor = calculate_effective_factor_internal(mul);
+    /* we now need the graph - generate it if we don't have it (happens once) */
+    if (!graph_obj) {
+        generate_streams_graph();
+        graph_obj = m_graph_obj;
+    }
+
+    double factor = calculate_effective_factor_internal(mul, graph_obj);
 
     /* did we exceeded the max L1 line rate ? */
-    double expected_l1_rate = m_graph_obj->get_max_bps_l1(factor);
+    double expected_l1_rate = graph_obj->get_max_bps_l1(factor);
 
 
     /* L1 BW must be positive */
@@ -547,19 +623,14 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
         }
         
         /* in any case, without force, do not return any value higher than the max factor */
-        double max_factor = m_graph_obj->get_factor_bps_l1(get_port_speed_bps());
+        double max_factor = graph_obj->get_factor_bps_l1(get_port_speed_bps());
         return std::min(max_factor, factor);
     }
     
 }
 
 double
-TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier &mul) {
-
-    /* we now need the graph - generate it if we don't have it (happens once) */
-    if (!m_graph_obj) {
-        generate_streams_graph();
-    }
+TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier &mul, const TrexStreamsGraphObj *graph_obj) {
 
     switch (mul.m_type) {
 
@@ -567,20 +638,20 @@ TrexStatelessPort::calculate_effective_factor_internal(const TrexPortMultiplier 
         return (mul.m_value);
 
     case TrexPortMultiplier::MUL_BPS:
-        return m_graph_obj->get_factor_bps_l2(mul.m_value);
+        return graph_obj->get_factor_bps_l2(mul.m_value);
 
     case TrexPortMultiplier::MUL_BPSL1:
-        return m_graph_obj->get_factor_bps_l1(mul.m_value);
+        return graph_obj->get_factor_bps_l1(mul.m_value);
 
     case TrexPortMultiplier::MUL_PPS:
-        return m_graph_obj->get_factor_pps(mul.m_value);
+        return graph_obj->get_factor_pps(mul.m_value);
 
     case TrexPortMultiplier::MUL_PERCENTAGE:
         /* if abs percentage is from the line speed - otherwise its from the current speed */
 
         if (mul.m_op == TrexPortMultiplier::OP_ABS) {
             double required = (mul.m_value / 100.0) * get_port_speed_bps();
-            return m_graph_obj->get_factor_bps_l1(required);
+            return graph_obj->get_factor_bps_l1(required);
         } else {
             return (m_factor * (mul.m_value / 100.0));
         }
