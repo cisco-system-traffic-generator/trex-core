@@ -117,16 +117,16 @@ class CTRexClient(object):
     # internal method which polls for TRex state until it's running or timeout happens
     def _block_to_success(self, timeout, poll_interval = 1):
         if not timeout:
-            raise Exception("'timeout' should be positive integer in case of 'block_to_success'")
+            raise ValueError("'timeout' should be positive integer in case of 'block_to_success'")
         start_time = time.time()
         while time.time() < start_time + timeout:
             status = self.get_running_status()
             if status['state'] == TRexStatus.Running:
                 return
             if status['state'] == TRexStatus.Idle:
-                raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
+                raise TRexError('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
-        raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
+        raise TimeoutError("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
         """
@@ -778,7 +778,7 @@ class CTRexClient(object):
         :raises:
             + :exc:`trex_exceptions.TRexRequestDenied`, in case TRex version could not be determined.
             + ProtocolError, in case of error in JSON-RPC protocol.
-            + General Exception is case one of the keys is missing in response
+            + KeyError is case one of the keys is missing in response
         """
 
         try:
@@ -794,7 +794,7 @@ class CTRexClient(object):
                 version_dict[key.strip()] = value.strip()
             for key in ('Version', 'User', 'Date', 'Uuid', 'Git SHA'):
                 if key not in version_dict:
-                    raise Exception('get_trex_version: got server response without key: {0}'.format(key))
+                    raise KeyError('get_trex_version: got server response without key: {0}'.format(key))
             return version_dict
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
@@ -1647,7 +1647,7 @@ class CTRexResult(object):
     # history iterator after warmup period
     def _get_steady_state_history_iterator(self):
         if not self.is_done_warmup():
-            raise Exception('Warm-up period not finished')
+            raise TRexWarning('Warm-up period not finished')
         for index, res in enumerate(self._history):
             if 'warmup_barrier' in res:
                 for steady_state_index in range(index, max(index, len(self._history) - 1)):
@@ -1671,12 +1671,12 @@ class CTRexResult(object):
             average value at steady state
 
         :raises:
-            Exception in case steady state period was not reached or tree_path_to_key was not found in result.
+            KeyError in case steady state period was not reached or tree_path_to_key was not found in result.
         '''
         values_arr = [self.__get_value_by_path(res, tree_path_to_key) for res in self._get_steady_state_history_iterator()]
         values_arr = list(filter(lambda x: x is not None, values_arr))
         if not values_arr:
-            raise Exception('All the keys are None, probably wrong tree_path_to_key: %s' % tree_path_to_key)
+            raise KeyError('All the keys are None, probably wrong tree_path_to_key: %s' % tree_path_to_key)
         return sum(values_arr) / float(len(values_arr))
 
 
