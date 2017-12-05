@@ -272,10 +272,8 @@ mlx5_mp2mr_iter(struct rte_mempool *mp, void *arg)
 struct mlx5_mr*
 priv_mr_new(struct priv *priv, struct rte_mempool *mp)
 {
-	const struct rte_memseg *ms = rte_eal_get_physmem_layout();
 	uintptr_t start;
 	uintptr_t end;
-	unsigned int i;
 	struct mlx5_mr *mr;
 
 	mr = rte_zmalloc_socket(__func__, sizeof(*mr), 0, mp->socket_id);
@@ -288,21 +286,7 @@ priv_mr_new(struct priv *priv, struct rte_mempool *mp)
 		      (void *)mp);
 		return NULL;
 	}
-	DEBUG("mempool %p area start=%p end=%p size=%zu",
-	      (void *)mp, (void *)start, (void *)end,
-	      (size_t)(end - start));
-	/* Round start and end to page boundary if found in memory segments. */
-	for (i = 0; (i < RTE_MAX_MEMSEG) && (ms[i].addr != NULL); ++i) {
-		uintptr_t addr = (uintptr_t)ms[i].addr;
-		size_t len = ms[i].len;
-		unsigned int align = ms[i].hugepage_sz;
-
-		if ((start > addr) && (start < addr + len))
-			start = RTE_ALIGN_FLOOR(start, align);
-		if ((end > addr) && (end < addr + len))
-			end = RTE_ALIGN_CEIL(end, align);
-	}
-	DEBUG("mempool %p using start=%p end=%p size=%zu for MR",
+	DEBUG("mempool %p area start=%p end=%p size=%zu for MR",
 	      (void *)mp, (void *)start, (void *)end,
 	      (size_t)(end - start));
 	mr->mr = ibv_reg_mr(priv->pd, (void *)start, end - start,
