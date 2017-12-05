@@ -27,7 +27,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== pre-release (Release 2.33) ==
+== Release 2.33 ==
 
 * Upgrade to DPDK 17.11 
 ** Better XXV710 support 
@@ -35,6 +35,11 @@ endif::backend-docbook[]
 ** A small degradation in XL710 Stateless performance 
 
 WARNING: For Mellanox CX-5/4 there is a need to upgrade the distro to CentOs 7.4 and OFED to 4.2.1. This new OFED version does *not* work with older TRex versions see link:trex_manual.html#ofed_upgrade[ofed upgrade procedure]
+
+=== Known issues: ===
+
+* Mellanox CX-4/CX-5 stability issues see link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507]
+
 
 == Release 2.32 ==
 
