@@ -165,6 +165,14 @@ public:
         }
     }
 
+    void set_ipg(double ipg) {
+        /* set inter packet gap */
+        m_next_time_offset_backup = ipg;
+        if ( likely(!m_pause) ) {
+            m_next_time_offset = m_next_time_offset_backup;
+        }
+    }
+
     /* we restart the stream, schedule it using stream isg */
     inline void update_refresh_time(double cur_time){
         m_time = cur_time + usec_to_sec(m_ref_stream_info->m_isg_usec) + m_ref_stream_info->m_mc_phase_pre_sec;

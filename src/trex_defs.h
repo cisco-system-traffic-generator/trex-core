@@ -78,7 +78,7 @@ typedef std::vector<std::string> xstats_names_t;
 typedef std::vector<uint64_t> xstats_values_t;
 typedef std::vector<uint32_t> supp_speeds_t;
 typedef std::set<uint32_t> stream_ids_t;
-typedef std::unordered_map<uint32_t,double> stream_rates_map_t;
-typedef std::unordered_map<uint32_t,double>::const_iterator stream_rates_map_it_t;
+typedef std::unordered_map<uint32_t,double> stream_ipgs_map_t;
+typedef std::unordered_map<uint32_t,double>::const_iterator stream_ipgs_map_it_t;
 
 #endif

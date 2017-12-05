@@ -425,7 +425,7 @@ class STLStream(object):
         validate_type('stream_id', stream_id, (type(None), int))
         validate_type('random_seed',random_seed,int);
         validate_type('dummy_stream', dummy_stream, bool);
-        validate_type('start_paused', dummy_stream, bool);
+        validate_type('start_paused', start_paused, bool);
 
         if (type(mode) == STLTXCont) and (next != None):
             raise STLError("Continuous stream cannot have a next stream ID")

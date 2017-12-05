@@ -210,9 +210,9 @@ private:
 class TrexStatelessDpUpdateStreams : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpUpdateStreams(uint8_t port_id, stream_rates_map_t &factor_per_stream) {
+    TrexStatelessDpUpdateStreams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream) {
         m_port_id = port_id;
-        m_factor_per_stream = factor_per_stream;
+        m_ipg_per_stream = ipg_per_stream;
     }
 
     virtual bool handle(TrexDpCore *dp_core);
@@ -221,7 +221,7 @@ public:
 
 private:
     uint8_t  m_port_id;
-    stream_rates_map_t m_factor_per_stream;
+    stream_ipgs_map_t m_ipg_per_stream;
 };
 
 

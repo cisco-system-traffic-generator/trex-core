@@ -2563,8 +2563,8 @@ void CBBStartPause0::call_after_init(CBasicStl * m_obj){
     TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
     TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
 
-    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 5.0); /* command in delay of 5 sec */
-    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 7.0);/* command in delay of 7 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 4.99); /* command in delay of 4.99 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 6.99);/* command in delay of 6.99 sec */
 
 }
 
@@ -2605,7 +2605,7 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      std::vector<TrexStreamsCompiledObj *> objs;
      assert(compile.compile(port_id, streams, objs));
-     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 9.99 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 

@@ -4388,8 +4388,8 @@ class STLClient(object):
             return opts
 
         if opts.ids:
-            if len(opts.ports) > 1:
-                msg = 'update - must be single port when providing stream_ids, got: %s' % opts.ports
+            if len(opts.ports) != 1:
+                msg = 'update - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
                 self.logger.log(msg)
                 return RC_ERR(msg)
             self.update_streams(opts.ports[0], opts.mult, opts.force, opts.ids)
@@ -4425,8 +4425,8 @@ class STLClient(object):
             return opts
 
         if opts.ids:
-            if len(opts.ports) > 1:
-                msg = 'pause - must be single port when providing stream_ids, got: %s' % opts.ports
+            if len(opts.ports) != 1:
+                msg = 'pause - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
                 self.logger.log(msg)
                 return RC_ERR(msg)
             self.pause_streams(opts.ports[0], opts.ids)
@@ -4468,8 +4468,8 @@ class STLClient(object):
             return opts
 
         if opts.ids:
-            if len(opts.ports) > 1:
-                msg = 'resume - must be single port when providing stream_ids, got: %s' % opts.ports
+            if len(opts.ports) != 1:
+                msg = 'resume - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
                 self.logger.log(msg)
                 return RC_ERR(msg)
             self.resume_streams(opts.ports[0], opts.ids)

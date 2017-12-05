@@ -197,14 +197,14 @@ TrexStatelessDpUpdateStreams::handle(TrexDpCore *dp_core) {
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
-    stl_core->update_streams(m_port_id, m_factor_per_stream);
+    stl_core->update_streams(m_port_id, m_ipg_per_stream);
 
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexStatelessDpUpdateStreams::clone() {
-    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdateStreams(m_port_id, m_factor_per_stream);
+    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdateStreams(m_port_id, m_ipg_per_stream);
 
     return new_msg;
 }
