@@ -3,7 +3,7 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 import glob
-
+from nose.tools import nottest
 
 def get_error_in_percentage (golden, value):
     if (golden==0):
@@ -232,6 +232,7 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
+    @nottest
     def test_pause_resume_update_streams(self):
         self.c.reset()
         s1 = STLStream(mode = STLTXSingleBurst(pps = 100, total_pkts = 9999))
