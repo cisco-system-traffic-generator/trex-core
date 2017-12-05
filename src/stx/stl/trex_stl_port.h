@@ -204,8 +204,8 @@ private:
      * calculate effective M per core
      *
      */
-    double calculate_effective_factor(const TrexPortMultiplier &mul, bool force, const TrexStreamsGraphObj *graph_obj);
-    double calculate_effective_factor_internal(const TrexPortMultiplier &mul, const TrexStreamsGraphObj *graph_obj);
+    double calculate_effective_factor(const TrexPortMultiplier &mul, bool force, const TrexStreamsGraphObj &graph_obj);
+    double calculate_effective_factor_internal(const TrexPortMultiplier &mul, const TrexStreamsGraphObj &graph_obj);
 
 
     /**

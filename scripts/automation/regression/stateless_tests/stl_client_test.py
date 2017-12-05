@@ -232,6 +232,49 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
+    def test_pause_resume_update_streams(self):
+        self.c.reset()
+        s1 = STLStream(mode = STLTXSingleBurst(pps = 100, total_pkts = 9999))
+        s2 = STLStream(mode = STLTXCont(pps = 100))
+        s3 = STLStream(mode = STLTXCont(pps = 100))
+        s4 = STLStream(mode = STLTXCont(pps = 100), flow_stats = STLFlowLatencyStats(pg_id = 1))
+
+        s1_id, s2_id, s3_id, s4_id = self.c.add_streams([s1, s2, s3, s4], ports = [0])
+        self.c.start(ports = [0])
+
+        with self.assertRaises(STLError): # burst present => error
+            self.c.pause_streams(port = 0, stream_ids = [s3_id])
+
+        with self.assertRaises(STLError): # several ports => error
+            self.c.pause_streams(port = [0, 1], stream_ids = [s3_id])
+
+        self.c.stop(ports = [0])
+        self.c.remove_streams([s1_id], ports = [0]) # get rid of burst
+        self.c.start(ports = [0])
+
+        time.sleep(10)
+        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
+        assert (270 < tx_pps < 330), 'expected TX ~300pps, got: %s' % tx_pps
+
+        self.c.update_streams(port = 0, mult = '10kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
+
+        time.sleep(10)
+        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
+        assert (9000 < tx_pps < 11000), 'expected TX ~10kpps, got: %s' % tx_pps
+
+        self.c.update_streams(port = 0, mult = '100pps', stream_ids = [s3_id])
+        self.c.pause_streams(port = 0, stream_ids = [s3_id])
+
+        time.sleep(10)
+        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
+        assert (180 < tx_pps < 220), 'expected TX ~200pps, got: %s' % tx_pps
+
+        self.c.resume_streams(port = 0, stream_ids = [s3_id])
+
+        time.sleep(10)
+        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
+        assert (270 < tx_pps < 330), 'expected TX ~300pps, got: %s' % tx_pps
+
 
     def test_stress_tx (self):
         try:

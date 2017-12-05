@@ -75,7 +75,7 @@ public:
     bool resume_streams(uint8_t port_id, stream_ids_t &stream_ids); // filter by stream IDs, slower
 
     bool update_traffic(uint8_t port_id, double factor);
-    bool update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream); // filter by stream IDs, slower
+    bool update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream); // filter by stream IDs, slower
 
     bool push_pcap(uint8_t port_id,
                    const std::string &pcap_filename,
@@ -180,7 +180,7 @@ public:
      * 
      */
     void update_traffic(uint8_t port_id, double factor);
-    void update_streams(uint8_t port_id, stream_rates_map_t &factor_per_stream);
+    void update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream);
 
     /**
      * 
