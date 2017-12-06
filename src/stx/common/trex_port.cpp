@@ -250,6 +250,18 @@ TrexPort::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool send_to_active_onl
     delete msg;
 }
 
+uint8_t
+TrexPort::get_active_cores_count(void) {
+
+    uint8_t active_count = 0;
+    for (uint8_t &core_id : m_cores_id_list) {
+        if ( is_core_active(core_id) ) {
+            active_count++;
+        }
+    }
+    return active_count;
+}
+
 
 void 
 TrexPort::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {

@@ -489,6 +489,7 @@ TrexStatelessPort::update_streams(const TrexPortMultiplier &mul, bool force, std
     std::vector<TrexStream *> stream_list;
     TrexStreamsGraph graph;
     double new_factor;
+    uint8_t active_core_count = get_active_cores_count();
 
     for (TrexStream* stream:streams) {
         stream_list.clear();
@@ -503,7 +504,7 @@ TrexStatelessPort::update_streams(const TrexPortMultiplier &mul, bool force, std
             throw(ex);
         }
 
-        ipg_per_stream[stream->m_stream_id] = 1.0 / (new_factor * stream->get_pps());
+        ipg_per_stream[stream->m_stream_id] = (double) active_core_count / (new_factor * stream->get_pps());
     }
 
     TrexCpToDpMsgBase *update_msg = new TrexStatelessDpUpdateStreams(m_port_id, ipg_per_stream);
