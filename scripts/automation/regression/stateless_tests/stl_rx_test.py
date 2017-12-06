@@ -610,8 +610,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
-        if self.mlx5_defect_dpdk1711_3:
-            self.skip('mlx5_defect_dpdk1711_3')
+        if self.i40e_vf_setup_disable:
+            self.skip('i40e_vf_setup_disable')
 
         total_pkts = self.total_pkts
         streams_data = [
