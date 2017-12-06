@@ -232,7 +232,12 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-    @nottest
+    def pause_resume_update_streams_iteration(self, delay, expected_pps):
+        self.c.clear_stats(clear_flow_stats = False, clear_latency_stats = False, clear_xstats = False)
+        time.sleep(delay)
+        tx_pps = self.c.get_stats(ports = [0])[0]['opackets'] / delay
+        assert (expected_pps * 0.9 < tx_pps < expected_pps * 1.1), 'expected TX ~%spps, got: %s' % (expected_pps, tx_pps)
+
     def test_pause_resume_update_streams(self):
         self.c.reset()
         s1 = STLStream(mode = STLTXSingleBurst(pps = 100, total_pkts = 9999))
@@ -253,28 +258,15 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.remove_streams([s1_id], ports = [0]) # get rid of burst
         self.c.start(ports = [0])
 
-        time.sleep(10)
-        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
-        assert (270 < tx_pps < 330), 'expected TX ~300pps, got: %s' % tx_pps
-
         self.c.update_streams(port = 0, mult = '10kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
-
-        time.sleep(10)
-        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
-        assert (9000 < tx_pps < 11000), 'expected TX ~10kpps, got: %s' % tx_pps
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10200)
 
         self.c.update_streams(port = 0, mult = '100pps', stream_ids = [s3_id])
         self.c.pause_streams(port = 0, stream_ids = [s3_id])
-
-        time.sleep(10)
-        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
-        assert (180 < tx_pps < 220), 'expected TX ~200pps, got: %s' % tx_pps
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 200) # paused stream not transmitting
 
         self.c.resume_streams(port = 0, stream_ids = [s3_id])
-
-        time.sleep(10)
-        tx_pps = self.c.get_stats(ports = [0])[0]['tx_pps']
-        assert (270 < tx_pps < 330), 'expected TX ~300pps, got: %s' % tx_pps
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 300) # resume the paused
 
 
     def test_stress_tx (self):
