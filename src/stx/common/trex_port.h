@@ -330,6 +330,11 @@ protected:
      */
     bool is_core_active(int core_id);
 
+    /**
+     * counts active cores
+     */
+    uint8_t get_active_cores_count(void);
+
     
     const std::vector<uint8_t> get_core_id_list () {
         return m_cores_id_list;
