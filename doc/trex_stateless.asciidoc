@@ -3253,13 +3253,10 @@ Example using Python API:
 We expect next packet to arrive with sequence number 16.
 * Continuation of Scenario 2: Receive a packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1. (The assumption is that one of the packets that was considered as dropped before has actually arrived out of order.)
 
-==== Tutorial: HLT traffic profile 
+==== Tutorial: HLT profiles
 
-The traffic_config API has a set of arguments for specifying streams - in particular, the packet template, which field, and how to send it.
-// clarify "which field"
-It is possible to define a traffic profile using HTTAPI arguments.
-// clarify names: "HLT traffic profile", "traffic_config API", "HTTAP"
-The API creates native Scapy/Field Engine instructions.
+HLTAPI traffic_config() function has a set of arguments for creating streams. +
+It is possible to define TRex traffic profile using those arguments, which are converted under the hood to native Scapy/Field Engine instructions. +
 For limitations see xref:altapi-support[here].
 
 *File*:: link:{github_stl_path}/hlt/hlt_udp_inc_dec_len_9k.py[stl/hlt/hlt_udp_inc_dec_len_9k.py]
@@ -4650,13 +4647,31 @@ Multiply traffic on all ports by a factor of 5.
 trex>update -a -m 5
 ----
 
+===== per stream operations
 
-[NOTE]
-=====================================
- Possible future feature: Ability to disable/enable specific stream, load a new stream dynamically, and so on.
-=====================================
+In version v2.34 was added option to pause/resume/update specific stream(s). +
+In future this functionality might be altered/removed. +
+Internally uses API commands:
 
-// clarify note above
+* pause_streams
+* resume_streams
+* update_streams
+
+In the console, stream ids can be specified via --id argument. +
+(Stream IDs are shown in output of "streams" command) +
+For example, one could use following: +
+ +
+> start -f stl/imix.py -p 0 +
+> pause -p 0 --id 1 2 +
+> resume -p 0 --id 1 +
+> update -p 0 --id 1 -m 1kpps
+
+[WARNING]
+=====================================================================
+* Pausing/resuming specific stream(s) does *not* change state of port. +
+* Changing rates of specific streams causes out of sync between CP and DP regarding streams rate. +
+Prior to updating rate of whole port, need to revert changes made to rates of specific streams.
+=====================================================================
 
 ===== TUI
 
