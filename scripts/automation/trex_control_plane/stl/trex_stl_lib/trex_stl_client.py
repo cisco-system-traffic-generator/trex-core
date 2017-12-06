@@ -2789,8 +2789,10 @@ class STLClient(object):
     @__api_check(True)
     def update_streams(self, port, mult = "1", force = False, stream_ids = None):
         """
-            Temporary hack to update specific streams.
-            Do not rely on this function, might be removed in future!
+            | Temporary hack to update specific streams.
+            | Do not rely on this function, might be removed in future!
+            | Warning: Changing rates of specific streams causes out of sync between CP and DP regarding streams rate.
+            | In order to update rate of whole port, need to revert changes made to rates of those streams.
 
             :parameters:
                 port : int
@@ -2798,8 +2800,7 @@ class STLClient(object):
 
                 mult : str
                     Multiplier in a form of pps, bps, or line util in %
-                    Can also specify +/-
-                    Examples: "5kpps+", "10gbps-", "85%", "32mbps", "20%+"
+                    Examples: "5kpps", "10gbps", "85%", "32mbps"
 
                 force : bool
                     If the port are not in stopped mode or do not have sufficient bandwidth for the traffic, determines whether to stop the current traffic and force start.
@@ -2822,7 +2823,7 @@ class STLClient(object):
             raise STLError('Please specify stream IDs to update')
 
         # verify multiplier
-        mult_obj = parsing_opts.decode_multiplier(mult, allow_update = True)
+        mult_obj = parsing_opts.decode_multiplier(mult, allow_update = False)
         if not mult_obj:
             raise STLArgumentError('mult', mult)
 
@@ -2867,6 +2868,7 @@ class STLClient(object):
     def pause_streams(self, port, stream_ids):
         """
             Temporary hack to pause specific streams.
+            Does not change state of port.
             Do not rely on this function, might be removed in future!
 
             :parameters:
@@ -2927,6 +2929,7 @@ class STLClient(object):
     def resume_streams(self, port, stream_ids):
         """
             Temporary hack to resume specific streams.
+            Does not change state of port.
             Do not rely on this function, might be removed in future!
 
             :parameters:
