@@ -25,4 +25,5 @@
 
   memory    :                                          
         dp_flows    : 4048576
+        traffic_mbuf_2048   : 8000
 
