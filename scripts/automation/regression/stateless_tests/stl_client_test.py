@@ -582,3 +582,113 @@ class STLClient_Test(CStlGeneral_Test):
                 
             self.cleanup()
 
+
+    # tests core pinning with latency
+    def show_cpu_usage (self):
+        cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu']]
+
+        print('')
+        for i, cpu in enumerate(cpu_stats):
+            cpu = [x for x in cpu if x != -1]
+            if cpu:
+                print('core {0}: {1}'.format(i, cpu))
+
+        print('')
+
+    def get_cpu_usage (self):
+        cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu'] if x['ports'] != [-1, -1]]
+        return cpu_stats
+
+
+    def test_core_pinning (self):
+
+        if self.c.system_info.get('dp_core_count_per_port') < 2:
+            self.skip('pinning test requires at least 2 cores per interface')
+
+        s1 = STLStream(packet = self.pkt, mode = STLTXCont())
+        self.c.reset([0, 1])
+
+        try:
+            self.c.add_streams(ports = [0, 1], streams = s1)
+
+            # split mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_SPLIT)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure all cores operate on both ports
+            assert all([stat == [0, 1] for stat in cpu_stats])
+
+            self.c.stop(ports = [0, 1])
+
+            # pin mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_PIN)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure cores were splitted equally
+            if ( (len(cpu_stats) % 2) == 0):
+                assert cpu_stats.count([0, -1]) == cpu_stats.count([-1, 1])
+            else:
+                assert abs(cpu_stats.count([0, -1]) - cpu_stats.count([-1, 1])) == 1
+
+            self.c.stop(ports = [0, 1])
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+    # check pinning with latency
+    def test_core_pinning_latency (self):
+
+        if self.c.system_info.get('dp_core_count_per_port') < 2:
+            self.skip('pinning test requires at least 2 cores per interface')
+
+        s1 = STLStream(packet = self.pkt, mode = STLTXCont())
+
+        l1 = STLStream(packet = self.pkt, mode = STLTXCont(), flow_stats = STLFlowLatencyStats(pg_id = 3))
+        l2 = STLStream(packet = self.pkt, mode = STLTXCont(), flow_stats = STLFlowLatencyStats(pg_id = 4))
+
+        self.c.reset([0, 1])
+
+        try:
+            self.c.add_streams(ports = 0, streams = [s1, l1])
+            self.c.add_streams(ports = 1, streams = [s1, l2])
+
+            # split mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_SPLIT)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure all cores operate on both ports
+            assert all([stat == [0, 1] for stat in cpu_stats])
+
+            self.c.stop(ports = [0, 1])
+
+            # pin mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_PIN)
+            time.sleep(0.1)
+
+            # for pin mode with latency core 0 should opreate on both 
+            cpu_stats = self.get_cpu_usage()
+
+            # core 0 should be associated with both
+            core_0 = cpu_stats.pop(0)
+            assert (core_0 == [0, 1])
+
+            # make sure cores were splitted equally
+            if ( (len(cpu_stats) % 2) == 0):
+                assert cpu_stats.count([0, -1]) == cpu_stats.count([-1, 1])
+            else:
+                assert abs(cpu_stats.count([0, -1]) - cpu_stats.count([-1, 1])) == 1
+
+            self.c.stop(ports = [0, 1])
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+

@@ -363,6 +363,10 @@ public:
         m_null_stream = enable;
     }
 
+    bool is_null_stream() const {
+        return m_null_stream;
+    }
+
     uint8_t get_type(void) const {
         return ( m_type );
     }

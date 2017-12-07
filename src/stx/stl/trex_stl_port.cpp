@@ -218,6 +218,7 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     std::string fail_msg;
 
     TrexStreamsCompiler compiler;
+
     TrexDPCoreMask mask(get_dp_core_count(), core_mask);
 
     bool rc = compiler.compile(m_port_id,
