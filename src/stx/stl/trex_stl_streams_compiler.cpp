@@ -414,8 +414,9 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
     /* prepare the result */
     objs.resize(core_mask.get_total_count());
     for (int i = 0; i < core_mask.get_total_count(); i++) {
-        objs.push_back(NULL);
+        objs[i] = nullptr;
     }
+
 
     uint8_t index = 0;
     for (uint8_t active_core_id : core_mask.get_active_cores()) {
@@ -426,11 +427,53 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
         if (indirect_objs[index] == NULL) {
             break;
         }
+
         objs[active_core_id] = indirect_objs[index++];
     }
 
+
+    /* migrate any latency compiled objects to the first core */
+    migrate_latency(objs, port_id);
+
     return true;
 }
+
+
+/**
+ * due to an architecture limitation, latency streams must be 
+ * injected from the first core in any port. 
+ *  
+ * migrate any latency objects to the first core regardless 
+ * of a mask 
+ */
+void
+TrexStreamsCompiler::migrate_latency(std::vector<TrexStreamsCompiledObj *> &objs, uint8_t port_id) {
+
+    /* migrate any latency compiled objects to the first core */
+    for (int core_id = 1; core_id < objs.size(); core_id++) {
+
+        if (objs[core_id] == nullptr) {
+            continue;
+        }
+
+        /* pop out any latency compiled objects */
+        std::vector<TrexStreamsCompiledObj::obj_st> latency_objs = objs[core_id]->migrate_latency();
+
+        for (const TrexStreamsCompiledObj::obj_st &latency_obj : latency_objs) {
+
+            /* generate object if does not exists */
+            if (objs[0] == nullptr) {
+                objs[0] = new TrexStreamsCompiledObj(port_id);
+            }
+
+            /* add it to core 0 */
+            objs[0]->add_compiled_stream(latency_obj.m_stream);
+        }
+    }
+
+}
+
+
 
 bool 
 TrexStreamsCompiler::compile_internal(uint8_t                                port_id,

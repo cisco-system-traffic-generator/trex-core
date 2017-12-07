@@ -112,8 +112,7 @@ public:
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
-
-        TrexStream * m_stream;
+        TrexStream *m_stream;
     };
 
     const std::vector<obj_st> & get_objects() {
@@ -127,6 +126,30 @@ public:
     bool get_all_streams_continues(){
         return (m_all_continues);
     }
+
+    std::vector<obj_st> migrate_latency() {
+        std::vector<obj_st> latency_objs;
+
+        /* define a predicate that will hit only non-null latency streams */
+        auto predicate = [](const obj_st &obj) { return (obj.m_stream->is_latency_stream() && !obj.m_stream->is_null_stream()); };
+
+        /* first filter all latency objects */
+        for (obj_st &obj : m_objs) {
+            if (predicate(obj)) {
+                latency_objs.push_back(obj);
+                /* mark those objects to be removed (safer than calling the predicate again) */
+                obj.m_stream = nullptr;
+            }
+        }
+
+        /* now remove them from this object */
+        m_objs.erase(std::remove_if(m_objs.begin(), m_objs.end(), [](const obj_st &obj) {return obj.m_stream == nullptr;}), m_objs.end());
+
+        /* RVO */
+        return latency_objs;
+
+    }
+
 
     void Dump(FILE *fd);
 
@@ -224,6 +247,10 @@ private:
                                      std::vector<TrexStreamsCompiledObj *> &objs,
                                      int new_id,
                                      int new_next_id);
+
+
+    void migrate_latency(std::vector<TrexStreamsCompiledObj *> &objs, uint8_t port_id);
+
 
     std::vector<std::string> m_warnings;
 };

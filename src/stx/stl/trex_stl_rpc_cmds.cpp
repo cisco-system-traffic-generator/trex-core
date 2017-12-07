@@ -918,8 +918,11 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint64_t  core_mask   = parse_uint64(params, "core_mask", result, TrexDPCoreMask::MASK_ALL);
     double    start_at_ts = parse_double(params, "start_at_ts", result, 0);
 
-    if (!TrexDPCoreMask::is_valid_mask(get_platform_api().get_dp_core_count(), core_mask)) {
-        generate_parse_err(result, "invalid core mask provided");
+    /* check for a valid core mask */
+    if (!TrexDPCoreMask::is_valid_mask(port->get_dp_core_count(), core_mask)) {
+        std::stringstream ss;
+        ss << "core_mask: '0x" << std::hex << core_mask << "' for " << std::to_string(port->get_dp_core_count()) << " cores generates an empty set"; 
+        generate_parse_err(result, ss.str());
     }
 
     /* multiplier */
