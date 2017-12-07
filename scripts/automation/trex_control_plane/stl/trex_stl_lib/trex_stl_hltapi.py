@@ -446,24 +446,24 @@ class CTRexHltApi(object):
             return HLT_ERR('Connect first')
 
         kwargs = merge_kwargs(interface_config_kwargs, user_kwargs)
-        is_array_based = not isinstance(kwargs['port_handle'], int)
 
-        mode = kwargs['mode']
-        ALLOWED_MODES = ['config', 'modify', 'destroy']
-        if mode not in ALLOWED_MODES:
-            return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
+        modes = self._parse_string_list(kwargs['mode'])
+        ALLOWED_MODES = ['config']
 
-        if is_array_based and not kwargs['port_handle']:
+        for mode in modes:
+            if mode not in ALLOWED_MODES:
+                return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
+
+        if not kwargs['port_handle']:
             return HLT_ERR('Invalid port_handle parameter')
 
-        if not is_array_based:
-            kwargs['port_handle'] = [kwargs['port_handle']]
-            kwargs['intf_ip_addr'] = kwargs['intf_ip_addr'] and [kwargs['intf_ip_addr']]
-            kwargs['gateway'] = kwargs['gateway'] and [kwargs['gateway']]
-            kwargs['vlan'] = kwargs['vlan'] and [kwargs['vlan']]
-            kwargs['vlan_id'] = kwargs['vlan_id'] and [kwargs['vlan_id']]
-            kwargs['vlan_id_list'] = kwargs['vlan_id_list'] and [kwargs['vlan_id_list']]
-            kwargs['vlan_id_inner'] = kwargs['vlan_id_inner'] and [kwargs['vlan_id_inner']]
+        kwargs['port_handle'] = self._parse_port_list(kwargs['port_handle'])
+        kwargs['intf_ip_addr'] = self._parse_string_list(kwargs['intf_ip_addr'])
+        kwargs['gateway'] = self._parse_string_list(kwargs['gateway'])
+        kwargs['vlan'] = self._parse_string_list(kwargs['vlan'], is_true)
+        kwargs['vlan_id'] = self._parse_string_list(kwargs['vlan_id'], lambda x: int(x))
+        kwargs['vlan_id_list'] = self._parse_string_list(kwargs['vlan_id_list'], lambda x: int(x))
+        kwargs['vlan_id_inner'] = self._parse_string_list(kwargs['vlan_id_inner'], lambda x: int(x))
 
         try:
             self.trex_client.set_service_mode(kwargs['port_handle'], True)
@@ -471,11 +471,6 @@ class CTRexHltApi(object):
             return HLT_ERR('Error enabling service mode: %s' % e)
 
         try:
-            if mode == 'destroy':
-                self.trex_client.clear_vlan(kwargs['port_handle'])
-                self.trex_client.reset()
-
-                self.trex_client.set_service_mode(kwargs['port_handle'], True)
 
             for i, port_id in enumerate(kwargs['port_handle']):
                 port = self.trex_client.get_port(port_id)
@@ -494,7 +489,6 @@ class CTRexHltApi(object):
 
             if (is_true(kwargs['arp']) and is_true(kwargs['arp_send_req'])) or kwargs['intf_ip_addr'] or kwargs['gateway']:
                 for i, port_id in enumerate(kwargs['port_handle']):
-                    print(port_id)
                     vlan_id = None
 
                     if kwargs['vlan'] and is_true(kwargs['vlan'][i]):
@@ -513,7 +507,7 @@ class CTRexHltApi(object):
 
             return HLT_OK(config=config)
         except Exception as e:
-            return HLT_ERR(e)
+            return HLT_ERR(str(e))
         finally:
             try:
                 self.trex_client.set_service_mode(ports=kwargs['port_handle'], enabled=False)
@@ -872,6 +866,15 @@ class CTRexHltApi(object):
         elif is_integer(port_list):
             return [int(port_list)]
         raise STLError('port_list should be string with ports, list, or single number')
+
+    @staticmethod
+    def _parse_string_list(strs, modifier=lambda x: x):
+        if type(strs) is list:
+            return list(map(modifier, strs))
+        if type(strs) is str:
+            return list(map(modifier, strs.replace('{', '').replace('}', '').strip().split()))
+
+        return strs
 
 def STLHltStream(**user_kwargs):
     kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
