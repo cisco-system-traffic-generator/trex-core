@@ -256,7 +256,9 @@ public:
                                  uint16_t dst_port,
                                  uint16_t vlan,
                                  bool is_ipv6,
-                                 TCPHeader    * lpTcp);
+                                 TCPHeader    * lpTcp,
+                                 uint8_t *   pkt,
+                                 IPv6Header *    ipv6);
 
 
       CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,

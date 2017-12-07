@@ -206,8 +206,6 @@ static int load_list_of_cap_files(CParserOption * op,
     fl.load_astf();
     
     if (op->client_cfg_file != "") {
-        printf("ERROR not supported yet \n");
-        assert(0);
         try {
             fl.load_client_config_file(op->client_cfg_file);
             // The simulator only test MAC address configs, so this parameter is not used
@@ -234,6 +232,8 @@ static int load_list_of_cap_files(CParserOption * op,
     if (! CAstfDB::instance()->parse_file(json_file_name) ) {
        exit(-1);
     }
+
+    CAstfDB::instance()->set_client_cfg_db(&fl.m_client_config_info);
 
     uint32_t start=    os_get_time_msec();
 

@@ -33,8 +33,10 @@ limitations under the License.
 #include <trex_defs.h>
 #include "44bsd/tcp_socket.h"
 #include "rpc-server/trex_rpc_cmd_api.h"
+#include "tuple_gen.h"
 
 
+    
 class CTRexDummyCommand : public  TrexRpcCommand {
 
 public:
@@ -305,6 +307,7 @@ class CAstfDbRO {
 
 class CAstfTemplatesRW;
 class CTupleGeneratorSmart;
+class ClientCfgDB;
 
 class CTcpLatency {
     friend class CAstfDB;
@@ -323,6 +326,7 @@ class CTcpLatency {
 typedef enum {
     CJsonData_ipv6_addr  = 1,
 } CJsonData_read_type_t ;
+
 
 class CAstfDB  : public CTRexDummyCommand  {
 
@@ -347,6 +351,10 @@ class CAstfDB  : public CTRexDummyCommand  {
             m_pInstance=0;
         }
     }
+    CAstfDB() : CTRexDummyCommand() {
+        m_client_config_info=0;
+    }
+
 
     virtual ~CAstfDB(){
         clear();
@@ -354,6 +362,9 @@ class CAstfDB  : public CTRexDummyCommand  {
 
     // Parsing json file called from master 
     bool parse_file(std::string file);
+    void set_client_cfg_db(ClientCfgDB * client_config_info){
+        m_client_config_info = client_config_info;
+    }
     CTcpServreInfo * get_server_info_by_port(uint16_t port, uint8_t socket_id);
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
@@ -366,6 +377,9 @@ class CAstfDB  : public CTRexDummyCommand  {
     CJsonData_err verify_data(uint16_t max_threads);
     CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
 
+    /* Update for client cluster mode. Should be deprecated */
+    void get_tuple_info(CTupleGenYamlInfo & tuple_info);
+
  private:
     CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
     CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
@@ -375,7 +389,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     bool is_initiated() {return m_json_initiated;}
     void clear();
     void dump();
-
+    ClientCfgDB  *get_client_db();
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
     void convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
@@ -460,6 +474,8 @@ private:
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket
     CAstfDbRO            m_tcp_data[MAX_SOCKETS_SUPPORTED];
+
+    ClientCfgDB   *      m_client_config_info;
 };
 
 #endif

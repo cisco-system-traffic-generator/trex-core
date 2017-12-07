@@ -231,7 +231,9 @@ void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
                                          uint16_t dst_port,
                                          uint16_t vlan,
                                          bool is_ipv6,
-                                        TCPHeader    * lpTcp){
+                                        TCPHeader    * lpTcp,
+                                        uint8_t *   pkt,
+                                        IPv6Header *    ipv6){
    /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
       allocate flow, 
       fill information
@@ -247,6 +249,12 @@ void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
                                  is_ipv6);
     if (flow==0) {
         return;
+    }
+
+    flow->server_update_mac_from_packet(pkt);
+    if (is_ipv6) {
+        /* learn the ipv6 headers */
+        flow->learn_ipv6_headers_from_network(ipv6);
     }
 
     tcp_respond(ctx,
@@ -421,7 +429,8 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                          tuple.get_port(),
                          vlan,
                          is_ipv6,
-                         lpTcp);
+                         lpTcp,
+                         pkt,parser.m_ipv6);
 
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_syn);
@@ -439,7 +448,8 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                          tuple.get_port(),
                          vlan,
                          is_ipv6,
-                         lpTcp);
+                         lpTcp,
+                         pkt,parser.m_ipv6);
 
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);

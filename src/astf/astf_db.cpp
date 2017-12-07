@@ -516,6 +516,52 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
     return true;
 }
 
+ClientCfgDB  *CAstfDB::get_client_db() {
+    static ClientCfgDB g_dummy;
+    if (m_client_config_info==0) {
+        return  &g_dummy;
+    }else{
+        return m_client_config_info;
+    }
+}
+
+
+void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+
+    struct CTupleGenPoolYaml pool;
+    pool.m_dist = cdSEQ_DIST;
+    pool.m_name = "";
+    pool.m_number_of_clients_per_gb=0;
+    pool.m_min_clients=0;
+    pool.m_dual_interface_mask=0;
+    pool.m_tcp_aging_sec=0;
+    pool.m_udp_aging_sec=0;
+    pool.m_is_bundling=false;
+
+    for (int i = 0; i < ip_gen_list.size(); i++) {
+        Json::Value g=ip_gen_list[i];
+        uint32_t ip_start = ip_from_str(g["ip_start"].asString().c_str());
+        uint32_t ip_end = ip_from_str(g["ip_end"].asString().c_str());
+        uint32_t mask = ip_from_str(g["ip_offset"].asString().c_str());
+
+        pool.m_ip_start = ip_start;
+        pool.m_ip_end = ip_end;
+        pool.m_dual_interface_mask =  mask ;
+
+        std::vector<CTupleGenPoolYaml> *lp;
+        if (g["dir"] == "c") {
+            lp =&tuple_info.m_client_pool;
+            /* client */
+        }else{
+            /* server */
+            lp =&tuple_info.m_server_pool;
+        }
+        lp->push_back(pool);
+    }
+}
+
+
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                               uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
@@ -524,7 +570,6 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     // json data should not be accessed by multiple threads in parallel
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
 
-    ClientCfgDB g_dummy;
     g_gen->Create(0, thread_id);
     uint32_t active_flows_per_core;
     CIpPortion  portion;
@@ -555,7 +600,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         if (ip_gen_list[i]["dir"] == "c") {
             gen_idx_trans.push_back(last_c_idx);
             last_c_idx++;
-            g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, g_dummy, 0, 0);
+            ClientCfgDB  * cdb=get_client_db();
+            g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, *cdb, 0, 0);
         } else {
             gen_idx_trans.push_back(last_s_idx);
             last_s_idx++;

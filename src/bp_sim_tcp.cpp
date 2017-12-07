@@ -205,21 +205,25 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
-    /* TBD this include an information on the client/vlan/destination */ 
-    /*ClientCfgBase * lpc=tuple.getClientCfg(); */
+    ClientCfgBase * lpc=tuple.getClientCfg(); 
 
     uint16_t vlan=0;
 
-    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
- /* TBD need to fix , should be taken from right port */
-#ifndef TREX_SIM
-        vlan= get_client_side_vlan(m_node_gen.m_v_if);
-#endif
+    if (lpc) {
+        if (lpc->m_initiator.has_vlan()){
+            vlan=lpc->m_initiator.get_vlan();
+        }
+    }else{
+        if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
+     /* TBD need to fix , should be taken from right port */
+    #ifndef TREX_SIM
+            vlan= get_client_side_vlan(m_node_gen.m_v_if);
+    #endif
+        }
     }
 
     bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable);
 
-    /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
                                                  tuple.getClient(),
                                                  tuple.getServer(),
@@ -239,6 +243,17 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
     /* update default mac addrees, dir is zero client side  */
     m_node_gen.m_v_if->update_mac_addr_from_global_cfg(CLIENT_SIDE,c_flow->m_tcp.template_pkt);
+    /* override by client config, if exists */
+    if (lpc) {
+        ClientCfgDirBase *b=&lpc->m_initiator;
+        char * p =(char *)c_flow->m_tcp.template_pkt;
+        if (b->has_src_mac_addr()){
+            memcpy(p+6,b->get_src_mac_addr(),6);
+        }
+        if (b->has_dst_mac_addr()){
+            memcpy(p,b->get_dst_mac_addr(),6);
+        }
+    }
 
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(tuple.getClient());
