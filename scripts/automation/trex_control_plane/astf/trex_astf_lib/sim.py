@@ -76,6 +76,9 @@ def execute_bp_sim(opts):
     if opts.full:
         cmd = cmd + ['--full', '-d', str(opts.duration)]
 
+    if opts.input_client_file:
+        cmd = cmd + ['--client-cfg', str(opts.input_client_file)]
+
     if opts.verbose:
         print ("executing {0}".format(' '.join(cmd)))
 
@@ -119,6 +122,13 @@ def setParserOptions():
                         dest='bp_sim_path',
                         default=None,
                         type=parse_path)
+
+    parser.add_argument("--cc",
+                        dest="input_client_file",
+                        default=None,
+                        help="input client cluster file YAML",
+                        type=parse_path,
+                        required=False)
 
     parser.add_argument("--pcap",
                         help="Create output in pcap format (if not specified, will be in erf)",

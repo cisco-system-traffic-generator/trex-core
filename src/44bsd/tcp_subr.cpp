@@ -662,6 +662,7 @@ void tcp_template(struct tcpcb *tp,
         0x00, 0x00, 0x00, 0x00 // checksum ,urgent pointer
     };
 
+
     if (!tp->is_ipv6) {
         uint8_t vlan_offset=0;
         if (tp->vlan){

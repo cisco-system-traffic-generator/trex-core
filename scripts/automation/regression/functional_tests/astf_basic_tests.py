@@ -13,10 +13,13 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
     def setUp(self):
         sys.path.append("../../astf")
 
-    def run_sim(self, prof, output, options=None):
+    def run_sim(self, prof, output, options=None,cc=None):
         args = ["-f", prof, "-o", output, "--full", "-p", "../..", "-v", "--pcap"]
         if options:
             args+=options
+        if cc:
+            args +=['--cc',cc]
+
         sim_main(args=args)
 
 
@@ -43,6 +46,31 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
             self.run_sim(file, output,options)
             compare_caps(golden, output, 1)
 
+
+    def run_client_config(self,valgrind):
+
+        cc = [
+                 "../../astf/cc_http_simple.yaml",
+                 "../../astf/cc_http_simple2.yaml"
+        ]
+
+        file = "astf/http_simple.py"
+
+        for cc_obj in cc:
+            base_name = file.split("/")[-1].split(".")[0]
+            cc_base_name = cc_obj.split("/")[-1].split(".")[0]
+            output = "../../generated/"+base_name + "_"+ cc_base_name + ".generated.pcap"
+            golden = "functional_tests/golden/" + base_name +"_"+cc_base_name+ ".pcap"
+            print ("checking {0} --cc {0}".format(file,cc_obj))
+            options=None;
+            if valgrind:
+                options=["--valgrind"]
+            self.run_sim(file, output,options,cc_obj)
+            compare_caps(golden, output, 1)
+
+        
+    def test_astf_cc_caps(self):
+        self.run_client_config(False);
 
     def test_astf_caps(self):
         self.run_astf_gold(False)

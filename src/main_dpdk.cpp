@@ -5661,13 +5661,6 @@ int CGlobalTRex::start_master_astf() {
     }
     m_fl.Create();
     m_fl.load_astf();
-    /* verify options */
-    try {
-        CGlobalInfo::m_options.verify();
-    } catch (const std::runtime_error &e) {
-        std::cout << "\n*** " << e.what() << "\n\n";
-        exit(-1);
-    }
 
     std::string json_file_name = "/tmp/astf";
     if (CGlobalInfo::m_options.prefix.size() != 0) {
@@ -5677,13 +5670,42 @@ int CGlobalTRex::start_master_astf() {
 
     fprintf(stdout, "Using json file %s\n", json_file_name.c_str());
 
+    CAstfDB * db=CAstfDB::instance();
     /* load json */
-    if (! CAstfDB::instance()->parse_file(json_file_name) ) {
+    if (! db->parse_file(json_file_name) ) {
        exit(-1);
     }
 
+    CTupleGenYamlInfo  tuple_info;
+    db->get_tuple_info(tuple_info);
+
+    /* client config for ASTF this is a patch.. we would need to remove this in interactive mode */
+    if (CGlobalInfo::m_options.client_cfg_file != "") {
+        try {
+            m_fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
+        } catch (const std::runtime_error &e) {
+            std::cout << "\n*** " << e.what() << "\n\n";
+            exit(-1);
+        }
+        CGlobalInfo::m_options.preview.set_client_cfg_enable(true);
+        m_fl.set_client_config_tuple_gen_info(&tuple_info); // build TBD YAML
+        pre_test();
+
+        /* set the ASTF db with the client information */
+        db->set_client_cfg_db(&m_fl.m_client_config_info);
+    }
+
+    /* verify options */
+    try {
+        CGlobalInfo::m_options.verify();
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        exit(-1);
+    }
+
+
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
-    CJsonData_err err_obj = CAstfDB::instance()->verify_data(num_dp_cores);
+    CJsonData_err err_obj = db->verify_data(num_dp_cores);
 
     if (err_obj.is_error()) {
         std::cerr << "Error: " << err_obj.description() << std::endl;
@@ -5696,11 +5718,20 @@ int CGlobalTRex::start_master_astf() {
     m_expected_bps = 0;
 
     CTcpLatency lat;
-    CAstfDB::instance()->get_latency_params(lat);
+    db->get_latency_params(lat);
 
-    m_mg.set_ip( lat.get_c_ip() ,
-                 lat.get_s_ip(),
-                 lat.get_mask());
+   if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+
+       m_mg.set_ip( lat.get_c_ip() ,
+                   lat.get_s_ip(),
+                   lat.get_mask(),
+                   m_fl.m_client_config_info);
+
+   } else {
+        m_mg.set_ip( lat.get_c_ip() ,
+                    lat.get_s_ip(),
+                    lat.get_mask());
+    }
 
     m_fl.generate_p_thread_info(get_cores_tx());
     CFlowGenListPerThread   * lpt;

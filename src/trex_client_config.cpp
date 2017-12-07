@@ -216,10 +216,10 @@ void ClientCfgDB::get_entry_list(std::vector<ClientCfgCompactEntry *> &ret) {
     uint8_t port;
     bool result;
 
-    assert(m_tg != NULL);
     for (std::map<uint32_t, ClientCfgEntry>::iterator it = m_groups.begin(); it != m_groups.end(); ++it) {
         ClientCfgEntry &cfg = it->second;
         if (cfg.m_cfg.m_initiator.need_resolve() || cfg.m_cfg.m_initiator.need_resolve()) {
+            assert(m_tg != NULL);
             result = m_tg->find_port(cfg.m_ip_start, cfg.m_ip_end, port);
             if (! result) {
                 fprintf(stderr, "Error in clinet config range %s - %s.\n"

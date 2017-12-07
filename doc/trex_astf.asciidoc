@@ -1250,6 +1250,41 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 * Latency (`-l` switch) should be disabled when working in this mode because both Client and Server will send ICMP packets to all the ports
 * It is not possible to configure TRex with all ports acting as client side or all ports acting as server side. 
 
+=== Client clustering configuration
+
+TRex ASTF supports testing complex topologies with more than one DUT, using a feature called "client clustering". This feature allows specifying the distribution of clients that TRex emulates.
+
+For more information about this feature have a look here link:trex_manual.html#_client_clustering_configuration[Client clustering configuration]
+
+The format of the client cluster file is YAML the same as STF mode and it will be changed in interactive model.
+
+To run simulation with this mode add `--cc` to the CLI: 
+
+.Simulation 255 destination DUT
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap --cc astf/cc_http_simple2.yaml
+----
+
+.Simulation,Two virtual interfaces per one physical interface
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap --cc astf/cc_http_simple.yaml
+----
+
+To run TRex add `--client_cfg` CLI :
+
+.Running TRex with client cluster file
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f astf/http_simple.py -m 1000 -d 1000 -c 1 --astf -l 1000 -k 10 --client_cfg astf/cc_http_simple.yaml  
+----
+
+[NOTE]
+=====================================================================
+The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT
+=====================================================================
+
 === Traffic profile reference 
 
 link:cp_astf_docs/index.html[python index]
