@@ -6946,15 +6946,13 @@ CFlowStatParser *CTRexExtendedDriverBase::get_flow_stat_parser() {
 bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
     struct rte_eth_stats stats1;
     struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
-    
-    /* clear the error flag */
-    stats1.err_flag = 0;
+    int res;
     
     /* fetch stats */
-    rte_eth_stats_get(_if->get_repid(), &stats1);
+    res=rte_eth_stats_get(_if->get_repid(), &stats1);
     
     /* check the error flag */
-    if (stats1.err_flag) {
+    if (res!=0) {
         /* error (might happen on i40e_vf ) */
         return false;
     }
