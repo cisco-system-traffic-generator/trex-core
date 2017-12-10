@@ -2291,13 +2291,8 @@ i40evf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->oerrors = pstats->tx_errors + pstats->tx_discards;
 		stats->ibytes = pstats->rx_bytes;
 		stats->obytes = pstats->tx_bytes;
-	} else {
-        #ifdef TREX_PATCH
-            stats->err_flag = 1;
-        #endif
-		//PMD_DRV_LOG(ERR, "Get statistics failed");
-	}
-	return ret;
+    } 	
+    return ret;
 }
 
 static void

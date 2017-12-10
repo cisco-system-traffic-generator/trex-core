@@ -216,11 +216,6 @@ struct rte_eth_stats {
 	/**< Total number of successfully transmitted queue bytes. */
 	uint64_t q_errors[RTE_ETHDEV_QUEUE_STAT_CNTRS];
 	/**< Total number of queue packets received that are dropped. */
-
-    // imarom: i40e_vf might return error so place holder to mark it
-    #ifdef TREX_PATCH
-        uint8_t err_flag;
-    #endif
 };
 
 /**
