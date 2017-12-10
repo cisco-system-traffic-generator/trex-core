@@ -241,6 +241,9 @@ public:
         }
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
+        if (get_is_tcp_mode()) {
+            p.rx_desc_num_drop_q = RX_DESC_NUM_DATA_Q;
+        }
         p.tx_desc_num = TX_DESC_NUM;
         p.rx_mbuf_type = MBUF_2048;
     }
@@ -595,15 +598,7 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-
-        if (get_is_tcp_mode()) { 
-            /* PATCH for trex-481, move the device to software mode in case of TCP, 
-              better to have less accurate latency than errors of out-of-order  */
-            CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
-            m_cap = 0 /* TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES*/ ;
-        }else{
-            m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
-        }
+         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
     TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -618,7 +613,7 @@ public:
     virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
         CTRexExtendedDriverBase::get_dpdk_drv_params(p);
         if (get_is_tcp_mode()){
-            p.rx_mbuf_type = MBUF_9k;
+            p.rx_mbuf_type = MBUF_9k; /* due to trex-481*/
         }
     }
 
@@ -5846,11 +5841,6 @@ void CPhyEthIF::conf_queues() {
     CTrexDpdkParams dpdk_p;
     get_ex_drv()->get_dpdk_drv_params(dpdk_p);
 
-    /* for now we support one core, so let's give both the same size hhaim */
-    if ( get_is_tcp_mode() ) {
-        dpdk_p.rx_desc_num_drop_q = dpdk_p.rx_desc_num_data_q ;
-    }
-
     uint16_t num_tx_q = (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) ?
         1 : g_trex.m_max_queues_per_port;
     socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)m_tvpid);
@@ -5887,11 +5877,7 @@ void CPhyEthIF::conf_queues() {
         // rx core will use largest tx q
         g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
         // configure drop q
-
-        drop_p = CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
-        if ( get_is_tcp_mode() ) {
-            drop_p = get_ex_drv()->get_rx_mem_pool(socket_id);
-        }
+        drop_p = get_ex_drv()->get_rx_mem_pool(socket_id);
 
         rx_queue_setup(MAIN_DPDK_DROP_Q,
                        dpdk_p.rx_desc_num_drop_q,
