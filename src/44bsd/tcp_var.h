@@ -385,8 +385,17 @@ public:
 
 #ifdef TREX_SIM
 
+/*The tick is 50msec , resolotion */
+
+/* only one level (0) is used */
+#define TCP_TIMER_LEVEL1_DIV   1
+
+
 #define TCP_TIMER_TICK_BASE_MS 200 
+
+/* tick is 50 msec */
 #define TCP_TIMER_W_TICK       50
+
 #define TCP_TIMER_W_DIV        1
 
 #define TCP_FAST_TICK_ (TCP_TIMER_TICK_BASE_MS/TCP_TIMER_W_TICK)
@@ -395,13 +404,23 @@ public:
 #define TCP_SLOW_FAST_RATIO_ 1
 
 
+/* main tick in sec */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+
+#define TCP_TIMER_W_1_TICK_US    (TCP_TIMER_W_TICK*1000) 
 
 #else 
 
+/* 2 levels (0,1) of the tw are used */
+#define TCP_TIMER_LEVEL1_DIV   16
+
 // base tick in msec
 
-/* base tick of timer in msec */
-#define TCP_TIMER_W_TICK       1  
+/* base tick of timer in 20usec */
+#define TCP_TIMER_W_1_TICK_US     20  
+
+#define TCP_TIMER_W_1_MS (1000/TCP_TIMER_W_1_TICK_US)
+
 
 /* fast tick msec */
 #define TCP_TIMER_TICK_FAST_MS 100
@@ -410,23 +429,28 @@ public:
 #define TCP_TIMER_TICK_SLOW_MS 500
 
 
-/* to how many micro tick to div the TCP_TIMER_W_TICK */
-#define TCP_TIMER_W_DIV        50
-
-
 /* ticks of FAST */
-#define TCP_FAST_TICK_       (TCP_TIMER_TICK_FAST_MS/TCP_TIMER_W_TICK)
+#define TCP_FAST_TICK_       (TCP_TIMER_TICK_FAST_MS * TCP_TIMER_W_1_MS)
 
-#define TCP_SLOW_RATIO_MASTER ((TCP_TIMER_TICK_SLOW_MS*TCP_TIMER_W_DIV)/TCP_TIMER_W_TICK)
+/* how many ticks of TCP_TIMER_W_1_TICK_US */
+#define TCP_SLOW_RATIO_MASTER (TCP_TIMER_TICK_SLOW_MS * TCP_TIMER_W_1_MS)
 
 /* how many fast ticks need to get */
 #define TCP_SLOW_FAST_RATIO_   (TCP_TIMER_TICK_SLOW_MS/TCP_TIMER_TICK_FAST_MS)
 
+/* one tick that derive the TW in sec  */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_1_TICK_US/((double)1000000.0))
+
 
 #endif
 
-/* main tick in sec */
-#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+static inline uint32_t tw_time_usec_to_ticks(uint32_t usec){
+    return (usec/TCP_TIMER_W_1_TICK_US);
+}
+
+static inline uint32_t tw_time_msec_to_ticks(uint32_t msec){
+    return (tw_time_usec_to_ticks(1000*msec));
+}
 
 
 #include "h_timer.h"

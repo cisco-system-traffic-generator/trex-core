@@ -426,8 +426,10 @@ bool CTcpPerThreadCtx::is_open_flow_enabled(){
 /* tick every 50msec TCP_TIMER_W_TICK */
 void CTcpPerThreadCtx::timer_w_on_tick(){
 #ifndef TREX_SIM
+    /* we have two levels on non-sim */
     uint32_t left;
-    m_timer_w.on_tick_level_count(0,(void*)this,tcp_timer,16,left);
+    m_timer_w.on_tick_level0((void*)this,tcp_timer);
+    m_timer_w.on_tick_level_count(1,(void*)this,tcp_timer,16,left);
 #else
     m_timer_w.on_tick_level0((void*)this,tcp_timer);
 #endif
@@ -546,7 +548,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
-    tw_res = m_timer_w.Create(1024,1);
+    tw_res = m_timer_w.Create(1024,TCP_TIMER_LEVEL1_DIV);
 
     if (tw_res != RC_HTW_OK ){
         CHTimerWheelErrorStr err(tw_res);
@@ -554,9 +556,10 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
         printf("ERROR  %-30s  - %s \n",err.get_str(),err.get_help_str());
         return(false);
     }
-#ifndef TREX_SIM
-    m_timer_w.set_level1_cnt_div(TCP_TIMER_W_DIV);
-#endif
+    if (TCP_TIMER_LEVEL1_DIV>1){
+        /* on non-simulation we have two level active*/
+        m_timer_w.set_level1_cnt_div();
+    }
 
     if (!m_ft.Create(size,is_client)){
         printf("ERROR  can't create flow table \n");
