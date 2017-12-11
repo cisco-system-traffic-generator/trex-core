@@ -463,6 +463,13 @@ public:
         m_cnt_div=div;
     }
 
+    /* set the default div to the second layer */
+    void set_level1_cnt_div();
+
+    htw_ticks_t get_ticks(int level){
+        return(m_ticks[level]);
+    }
+
 
 private:
     void reset(void);
@@ -472,6 +479,7 @@ private:
 
     RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
                               htw_ticks_t  ticks);
+
 
 private:
     htw_ticks_t         m_ticks[HNA_TIMER_LEVELS];               
