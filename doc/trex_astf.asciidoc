@@ -100,6 +100,7 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Flexible tuple generator 
 * Automation support (using STF batch framework)
 * Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
+* Client Cluster  
 
 ===== Known bugs
 
@@ -1282,7 +1283,8 @@ To run TRex add `--client_cfg` CLI :
 
 [NOTE]
 =====================================================================
-The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT
+The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT. 
+Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
 =====================================================================
 
 === Traffic profile reference 
