@@ -1,0 +1,42 @@
+
+vlan: true
+
+groups:
+
+-    ip_start  : 16.0.0.1
+     ip_end    : 16.0.0.1
+     initiator :
+                 vlan     : 3324
+                 src_ip   : 1.1.1.1
+                 next_hop : 1.1.1.2
+     responder :  
+                 vlan     : 3324
+                 src_ip   : 1.1.1.2
+                 next_hop : 1.1.1.1
+     count     : 1
+
+-    ip_start  : 16.0.0.2
+     ip_end    : 16.0.0.2
+     initiator :
+                 vlan     : 3324
+                 src_ip   : 1.1.1.1
+                 next_hop : 1.1.1.2
+     responder :  
+                 vlan     : 3324
+                 src_ip   : 1.1.1.2
+                 next_hop : 1.1.1.1
+     count     : 1
+
+-    ip_start  : 16.0.0.3
+     ip_end    : 16.0.0.4
+     initiator :
+                 vlan     : 3325
+                 src_ip   : 1.1.1.1
+                 next_hop : 1.1.1.2
+     responder : 
+                 vlan     : 3325
+                 src_ip   : 1.1.1.2
+                 next_hop : 1.1.1.1
+     count     : 1
+
+
