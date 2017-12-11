@@ -27,6 +27,18 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.34 ==
+
+* Fix mlx5 stability issue and add workaround to link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
+* Stateless 
+** Add support for update/pause/resume per stream-id see link:trex_stateless.html#_per_stream_operations[per stream operation]
+** Fix core pinning with latency stream. link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507] thanks to Mellanox DPDK team 
+
 == Release 2.33 ==
 
 * Upgrade to DPDK 17.11 
