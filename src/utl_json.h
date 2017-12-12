@@ -20,18 +20,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdint.h>
 #include <string>
+#include <type_traits>
 
-std::string add_json(std::string name, uint32_t counter,bool last=false);
+namespace details {
+inline std::string add_json_val(std::string const& name, std::string const& val, bool last){
+    std::string s = "\"" + name + "\":" + val;
+    if (!last)
+        s += ",";
+    return s;
+}
+}
 
-std::string add_json(std::string name, uint64_t counter,bool last=false);
+inline std::string add_json(std::string const& name, std::string const& val, bool last=false){
+    return details::add_json_val(name, "\"" + val + "\"", last);
+}
 
-std::string add_json(std::string name, double counter,bool last=false);
-
-std::string add_json(std::string name, std::string val,bool last=false);
-
+template <typename N, typename = typename std::enable_if<std::is_integral<N>::value || std::is_floating_point<N>::value>::type>
+inline std::string add_json(std::string const& name, N counter, bool last=false){
+    return details::add_json_val(name, std::to_string(counter), last);
+}
 
 #endif
-
 
