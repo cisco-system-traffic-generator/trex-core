@@ -4587,6 +4587,11 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         m_port_cfg.update_global_config_fdir();
     }
 
+    if ( ps->preview.getCores() ==0 ) {
+        printf("Error: the number of cores can't be set to 0. Please use -c 1 \n \n");
+        exit(1);
+    }
+
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* verify that we have only one thread/core per dual- interface */
         if ( ps->preview.getCores()>1 ) {
@@ -4607,6 +4612,9 @@ int  CGlobalTRex::queues_prob_init(){
 
     if (m_max_cores < 2) {
         rte_exit(EXIT_FAILURE, "number of cores should be at least 2 \n");
+    }
+    if ( (m_max_ports>>1) > get_cores_tx() ) {
+        rte_exit(EXIT_FAILURE, "You don't have enough physical cores for this configuration dual_ports:%lu physical_cores:%lu dp_cores:%lu check lscpu \n",(m_max_ports>>1),m_max_cores,get_cores_tx());
     }
 
     assert((m_max_ports>>1) <= get_cores_tx() );
