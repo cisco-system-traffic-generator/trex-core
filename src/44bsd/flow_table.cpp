@@ -35,6 +35,7 @@ void CSttFlowTableStats::Clear(){
 void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_err_no_syn);                  
     MYC(m_err_len_err);                 
+    MYC(m_err_fragments_ipv4_drop);
     MYC(m_err_no_tcp);                  
     MYC(m_err_client_pkt_without_flow); 
     MYC(m_err_no_template);             
@@ -149,7 +150,11 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
             FT_INC_SCNT(m_err_len_err);
             return;
         }
-
+        /* fragments is supported right now */
+        if (ipv4->isFragmented()){
+            FT_INC_SCNT(m_err_fragments_ipv4_drop);
+            return;
+        }
         pkt_len = ipv4->getTotalLength() + lpf->m_l3_offset;
     }else{
         lpf->m_ipv4      =false;

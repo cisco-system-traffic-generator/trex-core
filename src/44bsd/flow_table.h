@@ -154,6 +154,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_client_pkt_without_flow;
     uint32_t        m_err_no_syn;
     uint32_t        m_err_len_err;
+    uint32_t        m_err_fragments_ipv4_drop;
     uint32_t        m_err_no_tcp;  
     uint32_t        m_err_no_template;  
     uint32_t        m_err_no_memory; 
