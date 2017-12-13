@@ -543,7 +543,8 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
     ti->ti_flags = tiflags;
     ti->ti_len   = total_l7_len; /* L7 len */
 
-        /* Unscale the window into a 32-bit value. */
+
+    /* Unscale the window into a 32-bit value. */
     if ((tiflags & TH_SYN) == 0)
         tiwin = ti->ti_win << tp->snd_scale;
     else
@@ -552,6 +553,13 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
     so = &tp->m_socket;
 
     ostate = tp->t_state;
+
+    /* sanity check */
+    if (off + ti->ti_len > m->pkt_len || (optlen<0)){
+        /* somthing wrong here drop the packet */
+        goto drop;
+    }
+
 
     if (tp->t_state == TCPS_LISTEN) {
 
@@ -680,7 +688,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
              * Drop TCP, IP headers and TCP options then add data
              * to socket buffer. remove padding 
              */
-            tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
+            tcp_pktmbuf_fix_mbuf(m, off,ti->ti_len);
 
             sbappend(so,
                      &so->so_rcv, m,ti->ti_len);
@@ -706,7 +714,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
      * Drop TCP, IP headers and TCP options. go to L7 
        remove padding
      */
-    tcp_pktmbuf_fix_mbuf(m, off,total_l7_len);
+    tcp_pktmbuf_fix_mbuf(m, off,ti->ti_len);
 
     /*
      * Calculate amount of space in receive window,

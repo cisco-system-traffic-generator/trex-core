@@ -111,7 +111,7 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         action=tREDIRECT_RX_CORE;
         return;
     }
-    uint16_t l3_pkt_len=0;
+    uint32_t pkt_len=0;
 
     /* TBD fix, should support UDP/IPv6 */
 
@@ -127,6 +127,7 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     /* it is TCP, only supported right now */
 
     uint8_t *p=rte_pktmbuf_mtod(mbuf, uint8_t*);
+    uint32_t mbuf_pkt_len=rte_pktmbuf_pkt_len(mbuf);
     /* check packet length and checksum in case of TCP */
 
     CFlowKeyFullTuple *lpf= &ftuple;
@@ -144,8 +145,12 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
             tuple.set_ip(ipv4->getSourceIp());
             tuple.set_port(lpTcp->getSourcePort());
         }
+        if (ipv4->getTotalLength()<IPV4_HDR_LEN) {
+            FT_INC_SCNT(m_err_len_err);
+            return;
+        }
 
-        l3_pkt_len = ipv4->getTotalLength() + lpf->m_l3_offset;
+        pkt_len = ipv4->getTotalLength() + lpf->m_l3_offset;
     }else{
         lpf->m_ipv4      =false;
         lpf->m_l3_offset = (uintptr_t)parser.m_ipv6 - (uintptr_t)p;
@@ -161,8 +166,14 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
             tuple.set_ip(ipv6->getSourceIpv6LSB());
             tuple.set_port(lpTcp->getSourcePort());
         }
-        /* TBD need to find the last IPv6 header here */
-        l3_pkt_len = ipv6->getPayloadLen()+ lpf->m_l3_offset + IPV6_HDR_LEN;
+        /* TBD need to find the last IPv6 header and skip  */
+        pkt_len = ipv6->getPayloadLen()+ lpf->m_l3_offset + IPV6_HDR_LEN;
+    }
+
+    /* the reported packet (from headers) is bigger than real one */
+    if (pkt_len > mbuf_pkt_len){
+        FT_INC_SCNT(m_err_len_err);
+        return;
     }
 
     lpf->m_proto     =   parser.m_protocol;
@@ -170,13 +181,21 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
 
     TCPHeader    * lpTcp = (TCPHeader *)parser.m_l4;
 
-    lpf->m_l7_offset = lpf->m_l4_offset + lpTcp->getHeaderLength();
+    uint8_t tcp_header_len = lpTcp->getHeaderLength();
 
-    if (l3_pkt_len < lpf->m_l7_offset ) {
+    if ( tcp_header_len < TCP_HEADER_LEN ) {
         FT_INC_SCNT(m_err_len_err);
         return;
     }
-    lpf->m_l7_total_len  =  l3_pkt_len - lpf->m_l7_offset;
+
+    lpf->m_l7_offset = lpf->m_l4_offset + tcp_header_len;
+
+    /* check TCP header size */
+    if (pkt_len < lpf->m_l7_offset ) {
+        FT_INC_SCNT(m_err_len_err);
+        return;
+    }
+    lpf->m_l7_total_len  =  pkt_len - lpf->m_l7_offset;
 
     if ( (mbuf->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
         FT_INC_SCNT(m_err_l3_cs);
