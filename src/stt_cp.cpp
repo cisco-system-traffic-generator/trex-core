@@ -256,6 +256,7 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
     FT_S_ADD_CNT_E(err_len_err,"pkt with length error"); 
+    FT_S_ADD_CNT_E(err_fragments_ipv4_drop,"fragments_ipv4_drop"); /* frag is not supported */
     FT_S_ADD_CNT_E(err_no_tcp,"no tcp packet");
     FT_S_ADD_CNT_E(err_no_template,"server can't match L7 template");
     FT_S_ADD_CNT_E(err_no_memory,"No heap memory for allocating flows");
