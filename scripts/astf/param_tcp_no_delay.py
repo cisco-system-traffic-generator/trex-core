@@ -1,11 +1,7 @@
 from trex_astf_lib.api import *
 
-# IPV6 tunable example 
-#
-# ipv6.src_msb
-# ipv6.dst_msb 
-# ipv6.enable
-# 
+# disable nagle. will push any packet with PUSH (*NOT* standard it just to simulate Spirent) and will response with ACK imidiatly (standard)
+
 
 class Prof1():
     def __init__(self):
@@ -38,7 +34,7 @@ class Prof1():
                            default_s_glob_info=s_glob_info,
 
                            cap_list=[
-                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1)
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=2.776)
                                      ]
                            )
 
