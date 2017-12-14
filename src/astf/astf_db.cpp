@@ -466,6 +466,10 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
                 tunable_min_max_u32("do_rfc1323",tune->m_tcp_do_rfc1323,0,1);
             }
 
+            if (read_tunable_uint8(tune,json,"no_delay",CTcpTuneables::tcp_no_delay,tune->m_tcp_no_delay)){
+                tunable_min_max_u32("no_delay",tune->m_tcp_no_delay,0,1);
+            }
+
             if (read_tunable_uint8(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
                 tunable_min_max_u32("keepinit",tune->m_tcp_keepinit,2,253);
             }

@@ -301,6 +301,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
     tp->mbuf_socket = ctx->m_mbuf_socket;
 
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
+    tp->t_flags |= ctx->tcp_no_delay?(TF_NODELAY):0;
 
     /*
      * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
@@ -338,12 +339,16 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit) ) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
+        m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+    }
 }
 
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     m_tcp.m_tuneable_flags = 0;
 
-    if (! tune)
+    if (!tune)
         return;
 
     if (tune->is_empty())
@@ -360,6 +365,11 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
+        m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+    }
+
 }
 
 
@@ -492,6 +502,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_do_rfc1323 = (int)tune->m_tcp_do_rfc1323;
     }
 
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay)) {
+        tcp_no_delay = (int)tune->m_tcp_no_delay;
+    }
+
     if (tune->is_valid_field(CTcpTuneables::tcp_keepinit)) {
         tcp_keepinit = (int)tune->m_tcp_keepinit;
     }
@@ -527,6 +541,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_do_rfc1323 = 1;
+    tcp_no_delay = 0;
     tcp_keepinit = TCPTV_KEEP_INIT;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepintvl = TCPTV_KEEPINTVL;

@@ -102,6 +102,8 @@ struct tcpcb {
 #define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
 #define TUNE_MSS                     0x02
 #define TUNE_INIT_WIN                0x04
+#define TUNE_NO_DELAY                0x08
+
     uint8_t m_tuneable_flags;
     /*====== end =============*/
 
@@ -652,6 +654,7 @@ public:
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
     int tcp_do_rfc1323;
+    int tcp_no_delay;
     int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */
