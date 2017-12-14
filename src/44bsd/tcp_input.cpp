@@ -1632,7 +1632,7 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    if (tp->m_tuneable_flags>1) {
+    if (tp->m_tuneable_flags<2) {
         tp->snd_cwnd = ctx->tcp_initwnd;
         return ctx->tcp_mssdflt;
     } else {
