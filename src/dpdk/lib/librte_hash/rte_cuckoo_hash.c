@@ -44,7 +44,6 @@
 #include <rte_memcpy.h>
 #include <rte_prefetch.h>
 #include <rte_branch_prediction.h>
-#include <rte_memzone.h>
 #include <rte_malloc.h>
 #include <rte_eal.h>
 #include <rte_eal_memconfig.h>
@@ -52,11 +51,11 @@
 #include <rte_errno.h>
 #include <rte_string_fns.h>
 #include <rte_cpuflags.h>
-#include <rte_log.h>
 #include <rte_rwlock.h>
 #include <rte_spinlock.h>
 #include <rte_ring.h>
 #include <rte_compat.h>
+#include <rte_pause.h>
 
 #include "rte_hash.h"
 #include "rte_cuckoo_hash.h"
@@ -417,9 +416,9 @@ rte_hash_reset(struct rte_hash *h)
 
 /* Search for an entry that can be pushed to its alternative location */
 static inline int
-make_space_bucket(const struct rte_hash *h, struct rte_hash_bucket *bkt)
+make_space_bucket(const struct rte_hash *h, struct rte_hash_bucket *bkt,
+		unsigned int *nr_pushes)
 {
-	static unsigned int nr_pushes;
 	unsigned i, j;
 	int ret;
 	uint32_t next_bucket_idx;
@@ -456,15 +455,14 @@ make_space_bucket(const struct rte_hash *h, struct rte_hash_bucket *bkt)
 			break;
 
 	/* All entries have been pushed, so entry cannot be added */
-	if (i == RTE_HASH_BUCKET_ENTRIES || nr_pushes > RTE_HASH_MAX_PUSHES)
+	if (i == RTE_HASH_BUCKET_ENTRIES || ++(*nr_pushes) > RTE_HASH_MAX_PUSHES)
 		return -ENOSPC;
 
 	/* Set flag to indicate that this entry is going to be pushed */
 	bkt->flag[i] = 1;
 
-	nr_pushes++;
 	/* Need room in alternative bucket to insert the pushed entry */
-	ret = make_space_bucket(h, next_bkt[i]);
+	ret = make_space_bucket(h, next_bkt[i], nr_pushes);
 	/*
 	 * After recursive function.
 	 * Clear flags and insert the pushed entry
@@ -472,7 +470,6 @@ make_space_bucket(const struct rte_hash *h, struct rte_hash_bucket *bkt)
 	 * or return error
 	 */
 	bkt->flag[i] = 0;
-	nr_pushes = 0;
 	if (ret >= 0) {
 		next_bkt[i]->sig_alt[ret] = bkt->sig_current[i];
 		next_bkt[i]->sig_current[ret] = bkt->sig_alt[i];
@@ -515,6 +512,7 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 	unsigned n_slots;
 	unsigned lcore_id;
 	struct lcore_cache *cached_free_slots = NULL;
+	unsigned int nr_pushes = 0;
 
 	if (h->add_key == ADD_KEY_MULTIWRITER)
 		rte_spinlock_lock(h->multiwriter_lock);
@@ -536,9 +534,12 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 		if (cached_free_slots->len == 0) {
 			/* Need to get another burst of free slots from global ring */
 			n_slots = rte_ring_mc_dequeue_burst(h->free_slots,
-					cached_free_slots->objs, LCORE_CACHE_SIZE);
-			if (n_slots == 0)
-				return -ENOSPC;
+					cached_free_slots->objs,
+					LCORE_CACHE_SIZE, NULL);
+			if (n_slots == 0) {
+				ret = -ENOSPC;
+				goto failure;
+			}
 
 			cached_free_slots->len += n_slots;
 		}
@@ -547,8 +548,10 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 		cached_free_slots->len--;
 		slot_id = cached_free_slots->objs[cached_free_slots->len];
 	} else {
-		if (rte_ring_sc_dequeue(h->free_slots, &slot_id) != 0)
-			return -ENOSPC;
+		if (rte_ring_sc_dequeue(h->free_slots, &slot_id) != 0) {
+			ret = -ENOSPC;
+			goto failure;
+		}
 	}
 
 	new_k = RTE_PTR_ADD(keys, (uintptr_t)slot_id * h->key_entry_size);
@@ -568,7 +571,7 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 				k->pdata = data;
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				return prim_bkt->key_idx[i] - 1;
 			}
@@ -588,7 +591,7 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 				k->pdata = data;
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				return sec_bkt->key_idx[i] - 1;
 			}
@@ -643,7 +646,7 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 		 * if successful or return error and
 		 * store the new slot back in the ring
 		 */
-		ret = make_space_bucket(h, prim_bkt);
+		ret = make_space_bucket(h, prim_bkt, &nr_pushes);
 		if (ret >= 0) {
 			prim_bkt->sig_current[ret] = sig;
 			prim_bkt->sig_alt[ret] = alt_hash;
@@ -658,6 +661,7 @@ __rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key,
 	/* Error in addition, store new slot back in the ring and return error */
 	enqueue_slot_back(h, cached_free_slots, (void *)((uintptr_t) new_idx));
 
+failure:
 	if (h->add_key == ADD_KEY_MULTIWRITER)
 		rte_spinlock_unlock(h->multiwriter_lock);
 	return ret;
@@ -729,7 +733,7 @@ __rte_hash_lookup_with_hash(const struct rte_hash *h, const void *key,
 					*data = k->pdata;
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				return bkt->key_idx[i] - 1;
 			}
@@ -752,7 +756,7 @@ __rte_hash_lookup_with_hash(const struct rte_hash *h, const void *key,
 					*data = k->pdata;
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				return bkt->key_idx[i] - 1;
 			}
@@ -808,7 +812,7 @@ remove_entry(const struct rte_hash *h, struct rte_hash_bucket *bkt, unsigned i)
 			/* Need to enqueue the free slots in global ring. */
 			n_slots = rte_ring_mp_enqueue_burst(h->free_slots,
 						cached_free_slots->objs,
-						LCORE_CACHE_SIZE);
+						LCORE_CACHE_SIZE, NULL);
 			cached_free_slots->len -= n_slots;
 		}
 		/* Put index of new free slot in cache. */
@@ -846,7 +850,7 @@ __rte_hash_del_key_with_hash(const struct rte_hash *h, const void *key,
 
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				ret = bkt->key_idx[i] - 1;
 				bkt->key_idx[i] = EMPTY_SLOT;
@@ -871,7 +875,7 @@ __rte_hash_del_key_with_hash(const struct rte_hash *h, const void *key,
 
 				/*
 				 * Return index where key is stored,
-				 * substracting the first dummy index
+				 * subtracting the first dummy index
 				 */
 				ret = bkt->key_idx[i] - 1;
 				bkt->key_idx[i] = EMPTY_SLOT;

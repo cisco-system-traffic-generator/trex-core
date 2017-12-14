@@ -1,0 +1,20 @@
+################################################################
+####         TRex test configuration file          ####
+################################################################
+
+
+trex:
+  hostname       : trex-nbar02
+  cores          : 1
+  modes          : [virt_nics, VM, wlc, loopback]
+
+base:
+    ap_name    : test-ap-1
+    ap_ip      : 8.8.12.1
+    ap_mac     : '94:12:12:12:12:01'
+    ap_radio   : '94:14:14:14:01:00'
+    ap_udp     : 10001
+    client_ip  : 8.8.100.1
+    client_mac : '94:13:13:13:13:01'
+
+

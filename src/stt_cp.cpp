@@ -53,10 +53,19 @@ void CSTTCpPerDir::update_counters(){
                      lpt->tcps_accepts  - 
                      lpt->tcps_closed;
 
-    m_est_flows = lpt->tcps_connects - 
-                  lpt->tcps_closed;
+    if (lpt->tcps_connects>lpt->tcps_closed) {
+        m_est_flows = lpt->tcps_connects - 
+                      lpt->tcps_closed;
+    }else{
+        m_est_flows=0;
+    }
 
-    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_sndbyte)*_1Mb_DOUBLE;
+    /* total bytes sent */
+    uint64_t total_tx_bytes = lpt->tcps_sndbyte_ok+lpt->tcps_sndrexmitbyte+lpt->tcps_sndprobe;
+
+
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte)*_1Mb_DOUBLE; /* better to add the acked tx bytes than tcps_sndbyte */
+    m_tx_bw_l7_total_r = m_tx_bw_l7_total.add(total_tx_bytes)*_1Mb_DOUBLE; /* how many L7 bytes sent */
     
     m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte)*_1Mb_DOUBLE;
 
@@ -67,6 +76,11 @@ void CSTTCpPerDir::update_counters(){
         m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
     }else{
         m_avg_size=0.0;
+    }
+
+    m_tx_ratio=0.0;
+    if (m_tx_bw_l7_total_r>0.0) {
+        m_tx_ratio = m_tx_bw_l7_r*100.0/m_tx_bw_l7_total_r;
     }
 }
 
@@ -153,13 +167,15 @@ static void create_bar(CGTblClmCounters  * clm,
 
 void CSTTCpPerDir::create_clm_counters(){
 
-    CMN_S_ADD_CNT(m_active_flows,"active flows",true);
-    CMN_S_ADD_CNT(m_est_flows,"active est flows",true);
-    CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx bw",true,"bps");
-    CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx bw",true,"bps");
+    CMN_S_ADD_CNT(m_active_flows,"active open flows",true);
+    CMN_S_ADD_CNT(m_est_flows,"active established flows",true);
+    CMN_S_ADD_CNT_d(m_tx_bw_l7_r,"tx L7 bw acked",true,"bps");
+    CMN_S_ADD_CNT_d(m_tx_bw_l7_total_r,"tx L7 bw total",true,"bps");
+    CMN_S_ADD_CNT_d(m_rx_bw_l7_r,"rx L7 bw acked",true,"bps");
     CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"B");
+    CMN_S_ADD_CNT_d(m_tx_ratio,"Tx acked/sent ratio",true,"%%");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");
@@ -174,20 +190,24 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_delack,"delayed acks sent");
     TCP_S_ADD_CNT(tcps_sndtotal,"total packets sent");
     TCP_S_ADD_CNT(tcps_sndpack,"data packets sent");
-    TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent");
+    TCP_S_ADD_CNT(tcps_sndbyte,"data bytes sent by application");
+    TCP_S_ADD_CNT(tcps_sndbyte_ok,"data bytes sent by tcp");
     TCP_S_ADD_CNT(tcps_sndctrl,"control (SYN|FIN|RST) packets sent");
     TCP_S_ADD_CNT(tcps_sndacks,"ack-only packets sent ");
     TCP_S_ADD_CNT(tcps_rcvtotal,"total packets received ");
     TCP_S_ADD_CNT(tcps_rcvpack,"packets received in sequence");
     TCP_S_ADD_CNT(tcps_rcvbyte,"bytes received in sequence");
     TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
-    TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks");
+    TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks ");
+    TCP_S_ADD_CNT(tcps_rcvackbyte_of,"tx bytes acked by rcvd acks - overflow acked");
+
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
     TCP_S_ADD_CNT_E(tcps_drops,"connections dropped");
     TCP_S_ADD_CNT_E(tcps_conndrops,"embryonic connections dropped");
     TCP_S_ADD_CNT_E(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
     TCP_S_ADD_CNT_E(tcps_rexmttimeo,"retransmit timeouts");
+    TCP_S_ADD_CNT_E(tcps_rexmttimeo_syn,"retransmit SYN timeouts");
     TCP_S_ADD_CNT_E(tcps_persisttimeo,"persist timeouts");
     TCP_S_ADD_CNT_E(tcps_keeptimeo,"keepalive timeouts");
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
@@ -197,7 +217,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndprobe,"window probes sent");
     TCP_S_ADD_CNT_E(tcps_sndurg,"packets sent with URG only");
-    TCP_S_ADD_CNT_E(tcps_sndwinup,"window update-only packets sent");
+    TCP_S_ADD_CNT(tcps_sndwinup,"window update-only packets sent");
     
     TCP_S_ADD_CNT_E(tcps_rcvbadsum,"packets received with ccksum errs");
     TCP_S_ADD_CNT_E(tcps_rcvbadoff,"packets received with bad offset");
@@ -221,7 +241,7 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_rcvacktoomuch,"rcvd acks for unsent data");
     TCP_S_ADD_CNT_E(tcps_rcvwinupd,"rcvd window update packets");
     TCP_S_ADD_CNT_E(tcps_pawsdrop,"segments dropped due to PAWS");
-    TCP_S_ADD_CNT_E(tcps_predack,"times hdr predict ok for acks");
+    TCP_S_ADD_CNT(tcps_predack,"times hdr predict ok for acks");
     TCP_S_ADD_CNT_E(tcps_persistdrop,"timeout in persist state");
     TCP_S_ADD_CNT_E(tcps_badsyn,"bogus SYN, e.g. premature ACK");
     
@@ -236,6 +256,7 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
     FT_S_ADD_CNT_E(err_len_err,"pkt with length error"); 
+    FT_S_ADD_CNT_E(err_fragments_ipv4_drop,"fragments_ipv4_drop"); /* frag is not supported */
     FT_S_ADD_CNT_E(err_no_tcp,"no tcp packet");
     FT_S_ADD_CNT_E(err_no_template,"server can't match L7 template");
     FT_S_ADD_CNT_E(err_no_memory,"No heap memory for allocating flows");
@@ -245,6 +266,10 @@ void CSTTCpPerDir::create_clm_counters(){
 
     FT_S_ADD_CNT_E(err_redirect_rx,"redirect to rx error");
     FT_S_ADD_CNT_OK(redirect_rx_ok,"redirect to rx OK");
+    FT_S_ADD_CNT_OK(err_rx_throttled,"rx thread was throttled");
+    FT_S_ADD_CNT_E(err_c_nf_throttled,"client new flow throttled");
+    FT_S_ADD_CNT_E(err_s_nf_throttled,"server new flow throttled");
+    FT_S_ADD_CNT_E(err_flow_overflow,"too many flows errors");
 }
 
 
@@ -293,6 +318,11 @@ bool CSTTCp::dump_json(std::string &json){
 
 void CSTTCp::Delete(){
 
+    int i;
+    for (i=0; i<TCP_CS_NUM;i++) {
+        m_sts[i].m_clm.set_free_objects_own(true);
+        m_sts[i].Delete();
+    }
 }
 
 

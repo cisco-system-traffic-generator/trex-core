@@ -242,16 +242,13 @@ class STLScVmRaw(CTRexScriptsBase):
     """
     Raw instructions
     """
-    def __init__(self,list_of_commands=None,split_by_field=None,cache_size=None):
+    def __init__(self,list_of_commands=None, cache_size=None):
         """
         Include a list of a basic instructions objects.
 
         :parameters:
              list_of_commands : list
                 list of instructions 
-
-             split_by_field : string 
-                by which field to split to threads
 
              cache_size     : uint16_t 
                 In case it is bigger than zero, FE results will be cached - this will speedup of the program at the cost of limiting the number of possible packets to the number of cache. The cache size is limited to the pool size
@@ -277,14 +274,12 @@ class STLScVmRaw(CTRexScriptsBase):
     
                                STLVmFixIpv4(offset = "IP"), # fix checksum              
                               ]
-                             ,split_by_field = "ip_src",
                              cache_size = 1000
                            )
 
         """
 
         super(STLScVmRaw, self).__init__()
-        self.split_by_field = split_by_field
         self.cache_size = cache_size
 
         if list_of_commands==None:
@@ -307,7 +302,7 @@ class CTRexVmInsBase(object):
     """
     def __init__(self, ins_type):
         self.type = ins_type
-        validate_type('ins_type', ins_type, str)
+        validate_type('ins_type', ins_type, basestring)
 
 class CTRexVmInsFixIpv4(CTRexVmInsBase):
     def __init__(self, offset):
@@ -340,7 +335,7 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, size, op, init_value, min_value, max_value,step):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
         self.name = fv_name;
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.op = op
         self.init_value = init_value
@@ -364,7 +359,7 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
     def __init__(self, fv_name, size, limit, seed, min_value, max_value):
         super(CTRexVmInsFlowVarRandLimit, self).__init__("flow_var_rand_limit")
         self.name = fv_name;
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.limit=limit
         validate_type('limit', limit, int)
@@ -383,7 +378,7 @@ class CTRexVmInsWrFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset, add_value=0, is_big_endian=True):
         super(CTRexVmInsWrFlowVar, self).__init__("write_flow_var")
         self.name = fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.pkt_offset = pkt_offset
         validate_type('pkt_offset', pkt_offset, int)
         self.add_value = add_value
@@ -395,7 +390,7 @@ class CTRexVmInsWrMaskFlowVar(CTRexVmInsBase):
     def __init__(self, fv_name, pkt_offset,pkt_cast_size,mask,shift,add_value, is_big_endian=True):
         super(CTRexVmInsWrMaskFlowVar, self).__init__("write_mask_flow_var")
         self.name = fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.pkt_offset = pkt_offset
         validate_type('pkt_offset', pkt_offset, int)
         self.pkt_cast_size = pkt_cast_size
@@ -413,13 +408,13 @@ class CTRexVmInsTrimPktSize(CTRexVmInsBase):
     def __init__(self,fv_name):
         super(CTRexVmInsTrimPktSize, self).__init__("trim_pkt_size")
         self.name = fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
 
 class CTRexVmInsTupleGen(CTRexVmInsBase):
     def __init__(self, fv_name, ip_min, ip_max, port_min, port_max, limit_flows, flags=0):
         super(CTRexVmInsTupleGen, self).__init__("tuple_flow_var")
         self.name =fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.ip_min = ip_min;
         self.ip_max = ip_max;
         self.port_min = port_min;
@@ -432,44 +427,43 @@ class CTRexVmInsTupleGen(CTRexVmInsBase):
 #
 class CTRexVmEngine(object):
 
-       def __init__(self):
-            """
-            Inlcude list of instructions.
-            """
-            super(CTRexVmEngine, self).__init__()
-            self.ins=[]
-            self.split_by_var = ''
-            self.cache_size = 0
+    def __init__(self):
+        """
+        Inlcude list of instructions.
+        """
+        super(CTRexVmEngine, self).__init__()
+        self.ins=[]
+        self.cache_size = 0
 
 
-       # return as json
-       def get_json (self):
-           inst_array = [];
-           # dump it as dict
-           for obj in self.ins:
-               inst_array.append(obj.__dict__);
+    # return as json
+    def get_json (self):
+        inst_array = [];
+        # dump it as dict
+        for obj in self.ins:
+            inst_array.append(obj.__dict__);
 
-           d={'instructions': inst_array, 'split_by_var': self.split_by_var};
-           if self.cache_size >0 :
-               d['cache']=self.cache_size
-           return d
+        d={'instructions': inst_array};
+        if self.cache_size >0 :
+            d['cache']=self.cache_size
+        return d
 
-       def add_ins (self,ins):
-           #assert issubclass(ins, CTRexVmInsBase)
-           self.ins.append(ins);
+    def add_ins (self,ins):
+        #assert issubclass(ins, CTRexVmInsBase)
+        self.ins.append(ins);
 
-       def dump (self):
-           cnt=0;
-           for obj in self.ins:
-               print("ins",cnt)
-               cnt = cnt +1
-               print(obj.__dict__)
+    def dump (self):
+        cnt=0;
+        for obj in self.ins:
+            print("ins",cnt)
+            cnt = cnt +1
+            print(obj.__dict__)
 
-       def dump_bjson (self):
-          print(json.dumps(self.get_json(), sort_keys=True, indent=4))
+    def dump_bjson (self):
+        print(json.dumps(self.get_json(), sort_keys=True, indent=4))
 
-       def dump_as_yaml (self):
-          print(yaml.dump(self.get_json(), default_flow_style=False))
+    def dump_as_yaml (self):
+        print(yaml.dump(self.get_json(), default_flow_style=False))
 
 
 
@@ -478,6 +472,7 @@ class CTRexVmEngine(object):
 class CTRexScapyPktUtl(object):
 
     def __init__(self, scapy_pkt):
+        assert isinstance(scapy_pkt, Packet)
         self.pkt = scapy_pkt
 
     def pkt_iter (self):
@@ -544,6 +539,37 @@ class CTRexScapyPktUtl(object):
                 return (l_offset+f._offset,f.get_size_bytes ());
 
         raise CTRexPacketBuildException(-11, "No layer %s-%d." % (field_name, layer_cnt))
+
+
+    def get_field_by_offset(self, offset):
+        '''
+        Try to convert numeric offset to layer name, layer index, field name.
+        The opposite of get_field_offet()
+        Return None if not successful.
+        '''
+        offset_int = int(offset)
+        assert offset_int == offset
+        assert offset_int >= 0
+
+        # look for layer
+        layer_cnt = {}
+        for pkt in self.pkt_iter():
+            layer_name = pkt.__class__.__name__
+            if pkt._offset > offset_int:
+                break
+            if layer_name in layer_cnt:
+                layer_cnt[layer_name] += 1
+            else:
+                layer_cnt[layer_name] = 0
+            last_name = layer_name
+            last_count = layer_cnt[layer_name]
+            last_layer = pkt
+
+        # look for field inside layer
+        for f in last_layer.fields_desc:
+            if last_layer._offset + f._offset == offset_int:
+                return (last_name, last_count, f.name)
+
 
     def get_layer_offet_by_str(self, layer_des):
         """
@@ -743,7 +769,7 @@ class STLVmFlowVar(CTRexVmDescBase):
         """
         super(STLVmFlowVar, self).__init__()
         self.name = name;
-        validate_type('name', name, str)
+        validate_type('name', name, basestring)
         self.size =size
         valid_fv_size(size)
         self.op =op
@@ -812,7 +838,7 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         """
         super(STLVmFlowVarRepeatableRandom, self).__init__()
         self.name = name;
-        validate_type('name', name, str)
+        validate_type('name', name, basestring)
         self.size =size
         valid_fv_size(size)
         self.limit =limit
@@ -822,13 +848,19 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         else:
             self.seed = seed
 
-        self.min_value  = convert_val (min_value);
+            
+        if min_value == None:
+            self.min_value  = convert_val (0);
+        else:
+            self.min_value  = convert_val (min_value);
 
+            
         if max_value == None :
             self.max_value = get_max_by_size (self.size) 
         else:
             self.max_value = convert_val (max_value)
 
+            
         if self.min_value > self.max_value :
             raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
 
@@ -910,6 +942,8 @@ class STLVmFixChecksumHw(CTRexVmDescBase):
     def compile(self,parent):
         if type(self.l3_offset)==str:
             self.l2_len = parent._pkt_layer_offset(self.l3_offset);
+        else:
+            self.l2_len = self.l3_offset
         if type(self.l4_offset)==str:
             self.l4_offset = parent._pkt_layer_offset(self.l4_offset);
 
@@ -1009,7 +1043,7 @@ class STLVmWrFlowVar(CTRexVmDescBase):
 
         super(STLVmWrFlowVar, self).__init__()
         self.name =fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
         self.pkt_offset =pkt_offset
@@ -1135,7 +1169,7 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
 
         super(STLVmWrMaskFlowVar, self).__init__()
         self.name =fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
         self.pkt_offset =pkt_offset
@@ -1221,7 +1255,7 @@ class STLVmTrimPktSize(CTRexVmDescBase):
 
         super(STLVmTrimPktSize, self).__init__()
         self.name = fv_name
-        validate_type('fv_name', fv_name, str)
+        validate_type('fv_name', fv_name, basestring)
 
     def get_var_ref (self):
         return self.name
@@ -1293,9 +1327,9 @@ class STLVmTupleGen(CTRexVmDescBase):
             limit_flows : int 
                 Limit of number of flows. 
 
-            flags       : 0
-
-            ="0.0.0.10", port_min=1025, port_max=65535, limit_flows=100000, flags=0
+            flags : int
+                0 - noop
+                1 - ignore port min and max.
 
         .. code-block:: python
 
@@ -1343,7 +1377,7 @@ class STLVmTupleGen(CTRexVmDescBase):
 
         super(STLVmTupleGen, self).__init__()
         self.name = name
-        validate_type('name', name, str)
+        validate_type('name', name, basestring)
         self.ip_min = convert_val(ip_min);
         self.ip_max = convert_val(ip_max);
         self.port_min = port_min;
@@ -1642,6 +1676,122 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         else:
             raise CTRexPacketBuildException(-14, "Packet is empty")
 
+            
+    def to_json (self):
+        ''' write packet builder to JSON format '''
+        return {'packet': self.dump_pkt(), 'vm': self.get_vm_data()}
+        
+    
+    @staticmethod
+    def from_json (json_data):
+        ''' given a JSON, construct a valid packet builder object '''
+        
+        try:
+            # packet
+            pkt_buffer = base64.b64decode(json_data['packet']['binary'])
+            
+            # VM
+            vm = json_data['vm']
+        
+            # create VM object    
+            vm_obj = STLVM()
+            
+            # set cache size
+            if 'cache' in vm:
+                vm_obj.set_cached(vm['cache'])
+                
+                
+            # fetch instructions    
+            vm_instr = json_data['vm']['instructions']
+            if not type(vm_instr) == list:
+                raise STLError("from_json: bad type {0} for 'VM' field".format(type(vm_instr)))
+                
+            
+            # iterate over instructions
+            for instr in vm_instr:
+                
+                # flow var
+                if instr['type'] == 'flow_var':
+                    vm_obj.var(name      = instr['name'],
+                               op        = instr['op'],
+                               min_value = instr['min_value'],
+                               max_value = instr['max_value'],
+                               size      = instr['size'],
+                               step      = instr['step'])
+                    
+                    
+                # write flow var
+                elif instr['type'] == 'write_flow_var':
+                    vm_obj.write(fv_name         = instr['name'],
+                                 pkt_offset      = instr['pkt_offset'],
+                                 add_val         = instr['add_value'],
+                                 byte_order      = 'big' if instr['is_big_endian'] else 'little')
+                    
+                    
+                # IPv4 checksum fix
+                elif instr['type'] == 'fix_checksum_ipv4':
+                    vm_obj.fix_chksum(offset = instr['pkt_offset'])
+                
+                
+                # HW checksum fix
+                elif instr['type'] == 'fix_checksum_hw':
+                    vm_obj.fix_chksum_hw(l3_offset  = instr['l2_len'],
+                                         l4_offset  = instr['l2_len'] + instr['l3_len'],
+                                         l4_type    = instr['l4_type'])
+                    
+                    
+                # tuple flow var
+                elif instr['type'] == 'tuple_flow_var':
+                    vm_obj.tuple_var(name         = instr['name'],
+                                     ip_min       = instr['ip_min'],
+                                     ip_max       = instr['ip_max'],
+                                     port_min     = instr['port_min'],
+                                     port_max     = instr['port_max'],
+                                     limit_flows  = instr['limit_flows'])
+                    
+                    
+                # trim
+                elif instr['type'] == 'trim_pkt_size':
+                    vm_obj.trim(fv_name = instr['name'])
+                    
+                    
+                # write masked flow var
+                elif instr['type'] == 'write_mask_flow_var':
+                    vm_obj.write_mask(fv_name       = instr['name'],
+                                      pkt_offset    = instr['pkt_offset'],
+                                      pkt_cast_size = instr['pkt_cast_size'],
+                                      mask          = instr['mask'],
+                                      shift         = instr['shift'],
+                                      add_val       = instr['add_value'],
+                                      byte_order    = 'big' if instr['is_big_endian'] else 'little')
+                    
+                    
+                elif instr['type'] == 'flow_var_rand_limit':
+                    vm_obj.repeatable_random_var(fv_name       = instr['name'],
+                                                 size          = instr['size'],
+                                                 limit         = instr['limit'],
+                                                 seed          = instr['seed'],
+                                                 min_value     = instr['min_value'],
+                                                 max_value     = instr['max_value'])
+                        
+                    
+                else:
+                    print(instr)
+                    raise STLError("from_json: unknown VM instruction type '{0}'".format(instr['type']))
+            
+                    
+        except binascii.Error:
+            raise STLError("from_json: bad packet format")
+            
+        except KeyError as e:
+            raise STLError("from_json: missing field {0} from JSON".format(e))
+        
+                
+        return STLPktBuilder(pkt_buffer = pkt_buffer, vm = vm_obj)
+                                                                   
+                                                                   
+                                                                
+        
     ####################################################
     # private
 
@@ -1692,11 +1842,6 @@ class STLPktBuilder(CTrexPktBuilderInterface):
 
         for desc in obj.commands:
             self.vm_low_level.add_ins(desc.get_obj());
-
-        # set split_by_var
-        if obj.split_by_field :
-            validate_type('obj.split_by_field', obj.split_by_field, str)
-            self.vm_low_level.split_by_var = obj.split_by_field
 
         #set cache size 
         if obj.cache_size :
@@ -1800,7 +1945,7 @@ class STLVM(STLScVmRaw):
         self.cache_size = cache_size
         
         
-    def var (self, name, min_value, max_value, size, op, step = 1):
+    def var (self, name, min_value, max_value, size, op, step = 1, **k):
         """
         Defines a flow variable.
         Allocates a variable on a stream context. The size argument determines the variable size.
@@ -1827,7 +1972,7 @@ class STLVM(STLScVmRaw):
              op    : string 
                 Possible values: "inc", "dec", "random"
         """
-        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step))
+        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step, **k))
         
         
     def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
@@ -1864,7 +2009,7 @@ class STLVM(STLScVmRaw):
                                     is_big = (byte_order == 'big')))
         
 
-    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows = 0):
+    def tuple_var (self, name, ip_min, ip_max, port_min, port_max, limit_flows = 0, **k):
         """
         Generate a struct with two variables: ``var_name.ip`` as uint32_t and ``var_name.port`` as uint16_t 
         The variables are dependent. When the ip variable value reaches its maximum, the port is incremented. 
@@ -1932,7 +2077,7 @@ class STLVM(STLScVmRaw):
                                    ip_max = ip_max,
                                    port_min = port_min,
                                    port_max = port_max,
-                                   limit_flows = limit_flows))
+                                   limit_flows = limit_flows, **k))
         
         
     def fix_chksum (self, offset = "IP"):
@@ -1946,7 +2091,31 @@ class STLVM(STLScVmRaw):
         """
         self.add_cmd(STLVmFixIpv4(offset))
 
+    
+    def fix_chksum_hw (self, l3_offset, l4_offset, l4_type):
+        """
+        Fix IPv4 header checksum and/or TCP/UDP checksum using hardware assist. 
+        Use this if the packet header has changed or data payload has changed as it is necessary to fix the checksums.
+        This instruction works on NICS that support this hardware offload.
+
+        For fixing only IPv4 header checksum use STLVmFixIpv4. This instruction should be used if both L4 and L3 need to be fixed. 
         
+        :parameters:
+             l3_offset : offset in bytes 
+                **IPv4/IPv6 header** offset from packet start. It is **not** the offset of the checksum field itself.
+                in could be string in case of scapy packet. format IP[:[id]]
+
+             l4_offset : offset in bytes to UDP/TCP header or IPv4 payload. in case of IPv4 checksum CTRexVmInsFixHwCs.L4_TYPE_IP could be set to zero to be auto calculated by the server
+
+             l4_type   : [CTRexVmInsFixHwCs.L4_TYPE_UDP or CTRexVmInsFixHwCs.L4_TYPE_TCP or CTRexVmInsFixHwCs.L4_TYPE_IP]
+
+             see full example stl/syn_attack_fix_cs_hw.py
+        """
+        self.add_cmd(STLVmFixChecksumHw(l3_offset = l3_offset,
+                                        l4_offset = l4_offset,
+                                        l4_type   = l4_type))
+        
+                     
     def trim (self, fv_name):
         """
         Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
@@ -1960,6 +2129,88 @@ class STLVM(STLScVmRaw):
         self.add_cmd(STLVmTrimPktSize(fv_name = fv_name))
 
 
+        
+    def write_mask (self, fv_name, pkt_offset, pkt_cast_size, mask, shift = 0, offset_fixup = 0, add_val = 0, byte_order = 'big'):
+        """
+        Write a stream variable into a packet field with some operations. 
+        Using this instruction, the variable size and the field can have different sizes. 
+
+
+        :parameters:
+            fv_name : string 
+                The stream variable name to write to a packet field
+
+            pkt_offset : string or in
+                the name of the field or offset in byte from packet start.
+                
+            pkt_cast_size : uint8_t 
+                The size in bytes of the packet field
+
+            mask          : uint32_t 
+                The mask of the field. 1 means to write. 0 don't care
+
+            shift          : uint8_t 
+                How many bits to shift 
+
+
+            offset_fixup : int 
+                how many bytes to go forward. In case of a negative value go backward 
+
+             add_val     : int
+                value to add to stream variable before writing it to packet field. can be used as a constant offset 
+
+             is_big      : bool 
+                how to write the variable to the the packet. is it big-edian or little edian 
+        """
+        self.add_cmd(STLVmWrMaskFlowVar(fv_name           = fv_name,
+                                        pkt_offset        = pkt_offset,
+                                        pkt_cast_size     = pkt_cast_size,
+                                        mask              = mask,
+                                        shift             = shift,
+                                        add_value         = add_val,
+                                        offset_fixup      = offset_fixup,
+                                        is_big            = (byte_order == 'big')))
+        
+        
+        
+    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None):
+        """
+        Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
+        The size argument determines the variable size. Could be 1,2,4 or 8
+
+        1. The maximum number of distinct values will  'limit'. There could be a case of repetition
+        2. The values will be repeated  after 'limit' number of values.
+
+        :parameters:
+             name : string 
+                Name of the stream variable 
+
+             size  : int
+                Number of bytes of the variable. Possible values: 1,2,4,8 for uint8_t, uint16_t, uint32_t, uint64_t
+
+             limit  : int 
+                The number of distinct repetable random number 
+
+             seed   : int 
+                For deterministic result, you can set this to a uint16_t number
+
+             min_value  : int
+                Min value 
+
+             max_value  : int
+                Max value 
+
+        """
+        
+        self.add_cmd(STLVmFlowVarRepeatableRandom(name       =  fv_name,
+                                                  size       =  size,
+                                                  limit      =  limit,
+                                                  seed       =  seed,
+                                                  min_value  =  min_value,
+                                                  max_value  =  max_value))
+        
+        
+        
 class PacketBuffer:
     '''
     Class to be used when sending packets via push_packets.

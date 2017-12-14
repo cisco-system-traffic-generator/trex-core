@@ -54,7 +54,7 @@ struct virtnet_rx {
 	struct rte_mempool *mpool; /**< mempool for mbuf allocation */
 
 	uint16_t queue_id;   /**< DPDK queue index. */
-	uint8_t port_id;     /**< Device port identifier. */
+	uint16_t port_id;     /**< Device port identifier. */
 
 	/* Statistics */
 	struct virtnet_stats stats;
@@ -66,10 +66,10 @@ struct virtnet_tx {
 	struct virtqueue *vq;
 	/**< memzone to populate hdr. */
 	const struct rte_memzone *virtio_net_hdr_mz;
-	phys_addr_t virtio_net_hdr_mem;  /**< hdr for each xmit packet */
+	rte_iova_t virtio_net_hdr_mem;   /**< hdr for each xmit packet */
 
 	uint16_t    queue_id;            /**< DPDK queue index. */
-	uint8_t     port_id;             /**< Device port identifier. */
+	uint16_t    port_id;             /**< Device port identifier. */
 
 	/* Statistics */
 	struct virtnet_stats stats;
@@ -81,9 +81,9 @@ struct virtnet_ctl {
 	struct virtqueue *vq;
 	/**< memzone to populate hdr. */
 	const struct rte_memzone *virtio_net_hdr_mz;
-	phys_addr_t virtio_net_hdr_mem; /**< hdr for each xmit packet */
-	uint8_t port_id;                /**< Device port identifier. */
-	const struct rte_memzone *mz;   /**< mem zone to populate RX ring. */
+	rte_iova_t virtio_net_hdr_mem;  /**< hdr for each xmit packet */
+	uint16_t port_id;               /**< Device port identifier. */
+	const struct rte_memzone *mz;   /**< mem zone to populate CTL ring. */
 };
 
 int virtio_rxq_vec_setup(struct virtnet_rx *rxvq);

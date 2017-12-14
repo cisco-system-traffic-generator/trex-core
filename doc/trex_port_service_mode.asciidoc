@@ -1,29 +1,23 @@
 
-In 'normal operation mode', to preserve high speed processing of packets,
-TRex ignores most of the RX traffic, with the exception of counting/statistic and handling
-latency flows.
+In 'normal operation mode', to preserve high speed processing of packets, TRex ignores most of the Rx traffic, with the exception of counting/statistic and handling latency flows.
 
 
-In the following diagram it is illustrated how RX packets are handled.
-Only a portion is forwarded to the RX handling module and none of forward back
-to the Python client.
+The following illustrates how Rx packets are handled. Only a portion are forwarded to the Rx handling module and none are forwarded back to the Python client.
 
 image::images/port_normal_mode.png[title="Port Under Normal Mode",align="left",width={p_width}, link="images/port_normal_mode.png"]
 
 
 
-We provide another mode called 'service mode' in which a port will respond to ping, ARP requests
-and also provide a capabality in this mode to forward packets to the Python control plane for
-applying full duplex protocols (DCHP, IPv6 neighboring and etc.)
+In *service mode*, a port responds to ping and ARP requests, and also enables forwarding packets to the Python control plane for applying full duplex protocols (DCHP, IPv6 neighboring, and so on).
 
-The following diagram illustrates of packets can be forwarded back to the Python client
+The following illustrates how packets can be forwarded back to the Python client.
 
 image::images/port_service_mode.png[title="Port Under Service Mode",align="left",width={p_width}, link="images/port_service_mode.png"]
 
-In this mode, it is possible to write python plugins for emulation (e.g. IPV6 ND/DHCP) to prepare the setup and then move to normal mode for high speed testing 
+Service mode can be useful when writing Python plugins for emulation (example: IPV6 ND/DHCP) to prepare the setup. Then you can move to normal mode for high speed testing.
 
 
-*Example Of Switcing Between 'Service' And 'Normal' Mode*
+.*Example of switching between Service and Normal modes*
 [source,bash]
 ----
 
@@ -52,7 +46,7 @@ Disabling service mode on port(s) [0, 1]:                    [SUCCESS]
 
 ----
 
-.*Example Of Switcing Between 'Service' And 'Normal' Mode-API*
+.*Example Of switching between Service and Normal modes: API*
 [source,Python]
 ----
 
@@ -64,5 +58,5 @@ Disabling service mode on port(s) [0, 1]:                    [SUCCESS]
 
 ==== ARP / ICMP response
 [IMPORTANT]
-Only while in service mode, ports will reply to ICMP echo requests and ARP requests.
+Only when in service mode, ports will reply to ICMP echo requests and ARP requests.
 

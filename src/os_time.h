@@ -165,6 +165,15 @@ void delay(int msec){
     nanosleep(&time1,&remain);
 }
 
+static inline
+void delay_sec(dsec_t sec) {
+    struct timespec time1, remain; // 2 sec max delay
+    time1.tv_sec = int(sec);
+    time1.tv_nsec = int((sec - int(sec)) * 1.0e9);
+
+    nanosleep(&time1, &remain);
+}
+
 /**
  * more accurate sleep by doing spin
  * 

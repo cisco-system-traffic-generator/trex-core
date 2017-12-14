@@ -17,6 +17,7 @@ from collections import defaultdict, OrderedDict
 from distutils.util import strtobool
 import subprocess
 import platform
+import stat
 
 # exit code is Important should be
 # -1 : don't continue
@@ -383,13 +384,13 @@ Other network devices
         return (out.strip());
 
     def tune_mlx5_device (self,pci_id):
-        # set PCIe Read to 1024 and not 512 ... need to add it to startup s
+        # set PCIe Read to 4K and not 512 ... need to add it to startup s
         val=self.read_pci (pci_id,68)
         if val[0]=='0':
             #hypervisor does not give the right to write to this register
             return;
-        if val[0]!='3':
-            val='3'+val[1:]
+        if val[0]!='5':
+            val='5'+val[1:]
             self.write_pci (pci_id,68,val)
             assert(self.read_pci (pci_id,68)==val);
 
@@ -440,8 +441,8 @@ Other network devices
 
         ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
 
-        ofed_ver= 40
-        ofed_ver_show= '4.0'
+        ofed_ver= 42
+        ofed_ver_show= '4.2'
 
 
         if not os.path.isfile(ofed_info):
@@ -469,11 +470,11 @@ Other network devices
 
 
     def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.3\n'
+        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.4\n'
         err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
         try:
             dist = platform.dist()
-            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.3'):
+            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.4'):
                 print(err_msg)
         except Exception as e:
             print('Error while determining OS type: %s' % e)
@@ -566,28 +567,38 @@ Other network devices
 
     def preprocess_astf_file_is_needed(self):
         """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
-        is_asrf_mode = map_driver.parent_args.astf
-        if is_asrf_mode:
+        is_astf_mode = map_driver.parent_args and map_driver.parent_args.astf
+        if is_astf_mode:
             input_file = map_driver.parent_args.file
+            if not input_file:
+                return
+                
             extension = os.path.splitext(input_file)[1]
-            if extension !=".py":
-                raise DpdkSetup(' ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML ')
+            if extension != '.py':
+                raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
 
-            msg="converting astf profile {file} to json {out}".format(file = input_file,out="/tmp/astf.json")
+            instance_name = ""
+            if map_driver.parent_args.prefix is not '':
+                instance_name = "-" + map_driver.parent_args.prefix
+            elif 'prefix' in self.m_cfg_dict[0]:
+                instance_name = '-' + self.m_cfg_dict[0]['prefix']
+
+            json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
+
+            msg="converting astf profile {file} to json {out}".format(file = input_file, out=json_file)
             print(msg);
-            cmd = './astf-sim -f {file} --json > /tmp/astf.json'.format(
-                file = input_file)
+            cmd = './astf-sim -f {file} --json > {json_file}'.format(file=input_file, json_file=json_file)
             print(cmd)
             if os.system(cmd)!=0:
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
-
+            os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
 
-        self.preprocess_astf_file_is_needed()
         self.run_dpdk_lspci ()
         self.load_config_file()
+        self.preprocess_astf_file_is_needed()
         if (map_driver.parent_args is None or
                 map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
@@ -1043,6 +1054,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser = argparse.ArgumentParser(add_help = False)
     parent_parser.add_argument('-?', '-h', '--help', dest = 'help', action = 'store_true')
     parent_parser.add_argument('--cfg', default='')
+    parent_parser.add_argument('--prefix', default='')
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
@@ -1166,6 +1178,8 @@ To see more detailed info on interfaces (table):
         parse_parent_cfg (map_driver.args.parent)
         if map_driver.parent_args.cfg:
             map_driver.cfg_file = map_driver.parent_args.cfg;
+        if map_driver.parent_args.prefix:
+            map_driver.prefix = map_driver.parent_args.prefix
     if  map_driver.args.cfg :
         map_driver.cfg_file = map_driver.args.cfg;
 
@@ -1196,7 +1210,7 @@ def main ():
             obj.do_interactive_create();
         elif map_driver.args.linux:
             obj.do_return_to_linux();
-        else:
+        elif not (map_driver.parent_args and map_driver.parent_args.dump_interfaces is not None):
             ret = obj.do_run()
             print('The ports are bound/configured.')
             sys.exit(ret)

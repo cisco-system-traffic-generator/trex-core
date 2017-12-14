@@ -27,6 +27,90 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.34 ==
+
+* Mellanox Cx-4/5
+** Fix stability issue link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507]
+** Workaround to link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
+* Stateless 
+** Add support for update/pause/resume per stream-id see link:trex_stateless.html#_per_stream_operations[per stream operation]
+** Fix core pinning with latency stream. link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
+* Advance Stateful - add client cluster mode support 
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507] thanks to Mellanox DPDK team 
+
+== Release 2.33 ==
+
+* Upgrade to DPDK 17.11 
+** Better XXV710 support 
+** Mellanox CX-4/CX-5 big performance improvement (CX-5, Tx=149MPPS/Rx=120MPPS at 64B).
+** A small degradation in XL710 Stateless performance 
+
+WARNING: For Mellanox CX-5/4 there is a need to upgrade the distro to CentOs 7.4 and OFED to 4.2.1. This new OFED version does *not* work with older TRex versions see link:trex_manual.html#ofed_upgrade[ofed upgrade procedure]
+
+=== Known issues: ===
+
+* Mellanox CX-4/CX-5 stability issues see link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507]
+
+
+== Release 2.32 ==
+
+* Advance Stateful (ASTF)
+** Tunables support. Tunables is a mechanism to tune the behavior of ASTF traffic profile see here link:trex_astf.html#tunable_tcp_mss[tunables]
+** Cisco VIC support TSO now 
+* Support gcc 7.x/6.x and sanitizer 
+* Stateless
+** Improve performance (mbuf-refcnt locality) 
+
+== Release 2.31 ==
+
+* Stateless
+** Console - added option to save loaded streams as Python profile (stream command from the Console)
+** Console - ability to load JSON/YAML from start command (e.g. `start -f stl/gui_example.yaml -m 100kpps --port 0`)
+* TCP some performance improvements (up to 5MPPS/core)
+** Tune TCP timers for traffic generation case (e.g. 2MSL/keepalive is shorter)
+** Add support to RFC6928 (add support for initwnd and set it by default to 10). A way to tune all the TCP parameters (including this one) will be given from the traffic profile.
+** Protect TRex ASTF resource (e.g. overflow in active flows)
+** General hardening  
+** Support client or server mode see link:trex_astf.html#_client_server_only_mode[client_server_only_mode]
+* Refactor the code to support ASTF in interactive mode (both STL and STF will work with the same RPC framework)
+* Increase the TX queue for all drivers by default - less probability for queue_full in high rates
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-495[trex-495]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-491[trex-491]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-486[trex-486]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-492[trex-492]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-485[trex-485]
+
+== Release 2.30 ==
+
+* Advance Stateful (ASTF) with scalable TCP support 
+** Support all SFR profile with TCP flows 
+** Mellanox driver issue workaround see here link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
+** Hardening
+** Add full simulation support using `./astf-sim --full`  see here link:trex_astf.html[ASTF mode] 
+* Wireless AP/Station emulation plugin for WLC testing. 
+** Improve performance considerably
+** Update documentation link:trex_stateless_wlc_bench.html[WLC] 
+* Support Napatech NIC (100Gb@64B line-rate)
+* Stateless 
+** Full Stream object are return from the client
+** Old YAML profile support was removed
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-483[trex-483]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-480[trex-480]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-472[trex-472]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-475[trex-475]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-461[trex-461]
+
+
 == Release 2.29 ==
 
 * Preliminary version with Advance Stateful (ASTF) with scalable TCP support see here link:trex_astf.html[ASTF mode]

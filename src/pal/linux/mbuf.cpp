@@ -37,7 +37,8 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
                                                unsigned elt_size,
                                                unsigned cache_size,
-                                               int socket_id){
+                                               int socket_id,
+                                               bool share){
     rte_mempool_t * p=new rte_mempool_t();
     assert(p);
     p->elt_size =elt_size;
@@ -72,16 +73,35 @@ void utl_rte_mempool_delete(rte_mempool_t * & pool){
     }
 }
 
-
-uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
-{
+static inline uint16_t _rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value){
     utl_rte_pktmbuf_check(m);
     m->refcnt_reserved = (uint16_t)(m->refcnt_reserved + value);
     assert(m->refcnt_reserved >= 0);
-	return m->refcnt_reserved;
+    return m->refcnt_reserved;
 }
 
 
+#ifdef TREX_MBUF_SIM_LOCAL
+
+uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
+{
+    if (m->m_core_locality==RTE_MBUF_CORE_LOCALITY_CONST) {
+        assert(m->refcnt_reserved==1);
+        return(m->refcnt_reserved);
+    }else{
+        return(_rte_mbuf_refcnt_update(m,value));
+    }
+}
+
+#else
+
+
+uint16_t rte_mbuf_refcnt_update(rte_mbuf_t *m, int16_t value)
+{
+    return (_rte_mbuf_refcnt_update(m,value));
+}
+
+#endif
 
 
 void rte_pktmbuf_reset(struct rte_mbuf *m)
@@ -106,6 +126,7 @@ void rte_pktmbuf_reset(struct rte_mbuf *m)
     #endif
 
     m->data_len = 0;
+    m->m_core_locality=0;
 }
 
 
@@ -257,7 +278,7 @@ rte_pktmbuf_hexdump(const void *buf, unsigned int len)
 }
 
 
-int rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
+int _rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
     utl_rte_check(mp);
     uint16_t buf_len;
     buf_len = mp->elt_size ;
@@ -265,7 +286,7 @@ int rte_mempool_sc_get(struct rte_mempool *mp, void **obj_p){
     return (0);
 }
 
-void rte_mempool_sp_put(struct rte_mempool *mp, void *obj){
+void _rte_mempool_sp_put(struct rte_mempool *mp, void *obj){
     free(obj);
 }
 

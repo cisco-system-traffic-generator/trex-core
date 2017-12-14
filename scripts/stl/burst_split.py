@@ -21,7 +21,6 @@ class STLS1(object):
 
                            STLVmFixIpv4(offset = "IP"), # fix checksum
                           ]
-                         ,split_by_field = "ip_src"                                
                        )
 
         pkt = STLPktBuilder(pkt = base_pkt,

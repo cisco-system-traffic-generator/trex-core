@@ -24,7 +24,6 @@ class STLS1(object):
                              STLVmFixIpv4(offset = "IP"),                                # fix checksum
                              STLVmWrFlowVar (fv_name="tuple.port", pkt_offset= "UDP.sport" )  #write udp.port
                                   ]
-                              ,split_by_field = "tuple"  # split to cores base on the tuple generator 
                               );
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,

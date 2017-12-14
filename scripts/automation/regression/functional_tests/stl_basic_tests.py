@@ -11,8 +11,10 @@ from trex_stl_lib import trex_stl_sim
 from trex_stl_lib.trex_stl_streams import STLProfile
 from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, Ether
 from trex_stl_lib.utils.text_opts import *
+from pprint import pprint
 
 import sys
+import json
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -33,6 +35,11 @@ def scapy_pkt_show_to_str (scapy_pkt):
     scapy_pkt.show()
     sys.stdout = save_stdout
     return capture.getvalue()
+
+
+def compare_dicts_round(d1, d2, precision = 4):
+    ''' Eliminates precision of floats in dicts '''
+    return json.loads(json.dumps(d1), parse_float = lambda x:round(float(x), precision)) == json.loads(json.dumps(d2), parse_float = lambda x:round(float(x), precision))
 
 
 def compare_caps (output, golden, max_diff_sec = 0.000005):
@@ -102,20 +109,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "stl/yaml/")
+        self.profiles_path = os.path.join(self.scripts_path, "stl/")
 
         self.profiles = {}
-        self.profiles['imix_3pkt'] = os.path.join(self.profiles_path, "imix_3pkt.yaml")
-        self.profiles['imix_3pkt_vm'] = os.path.join(self.profiles_path, "imix_3pkt_vm.yaml")
-        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "../udp_rand_len_9k.py")
-        self.profiles['imix_tuple_gen'] = os.path.join(self.profiles_path, "imix_1pkt_tuple_gen.yaml")
+        self.profiles['imix'] = os.path.join(self.profiles_path, "imix.py")
+        self.profiles['syn_attack'] = os.path.join(self.profiles_path, "syn_attack.py")
+        self.profiles['random_size_9k'] = os.path.join(self.profiles_path, "udp_rand_len_9k.py")
+        self.profiles['udp_tuple_gen'] = os.path.join(self.profiles_path, "udp_1pkt_tuple_gen.py")
 
         for k, v in self.profiles.items():
             self.verify_exists(v)
 
-        self.valgrind_profiles = [ self.profiles['imix_3pkt_vm'],
+        self.valgrind_profiles = [ self.profiles['syn_attack'],
                                    self.profiles['random_size_9k'],
-                                   self.profiles['imix_tuple_gen'] ]
+                                   self.profiles['udp_tuple_gen'] ]
 
         self.golden_path = os.path.join(self.test_path,"stl/golden/")
 
@@ -204,25 +211,24 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                 
                 profile.dump_to_code(generated_filename)
 
-                print('Run simulation on generated file')
-                rc = self.run_sim(yaml     = generated_filename,
-                                  output   = output_cap,
-                                  options  = options,
-                                  silent   = silent)
-                assert_equal(rc, True, 'Simulation on profile %s (generated) failed.' % profile)
-
                 if compare:
-                    compare_caps(output_cap, golden_file)
+                    orig_json = profile.to_json()
+                    gen_json  = STLProfile.load_py(generated_filename).to_json()
+                    if not compare_dicts_round(orig_json, gen_json):
+                        print('Original JSON:')
+                        pprint(orig_json)
+                        print('Generated JSON:')
+                        pprint(gen_json)
+                        raise Exception('Generated file differs from original in JSON.')
 
 
             finally:
                 if not do_no_remove_generated:
-                    os.unlink(generated_filename)
+                    if os.path.exists(generated_filename):
+                        os.unlink(generated_filename)
                     # python 3 does not generate PYC under the same dir
                     if os.path.exists(generated_filename + 'c'):
                         os.unlink(generated_filename + 'c')
-                if not do_no_remove:
-                    os.unlink(output_cap)
 
 
     def test_stl_profiles (self):
@@ -240,29 +246,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_inc_len_9k.py","-m 1 -l 100",True],
              ["udp_1pkt_range_clients.py","-m 1 -l 100",True],
              ["multi_burst_2st_1000pkt.py","-m 1 -l 100",True],
-             ["pcap.py", "-m 1", True, False],
-             ["pcap_with_vm.py", "-m 1", True, False],
+             ["pcap.py", "-m 1", True],
+             ["pcap_with_vm.py", "-m 1", True],
              ["flow_stats.py", "-m 1 -l 1", True],
              ["flow_stats_latency.py", "-m 1 -l 1", True],
 
-            # YAML test
-             ["yaml/burst_1000_pkt.yaml","-m 1 -l 100",True],
-             ["yaml/burst_1pkt_1burst.yaml","-m 1 -l 100",True],
-             ["yaml/burst_1pkt_vm.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_2.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_tuple_gen.yaml","-m 1 -l 100",True],
-             ["yaml/imix_1pkt_vm.yaml","-m 1 -l 100",True],
-             ["udp_1pkt_pcap.py","-m 1 -l 10",True, False],
-             ["udp_3pkt_pcap.py","-m 1 -l 10",True, False],
+             
+             ["udp_1pkt_pcap.py","-m 1 -l 10",True],
+             ["udp_3pkt_pcap.py","-m 1 -l 10",True],
              #["udp_1pkt_simple.py","-m 1 -l 3",True],
-             ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True, False],
+             ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
              ["udp_1pkt_tuple_gen_split.py","-m 1 -l 100",True],
              ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
              ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
              ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
-             ["yaml/imix_3pkt.yaml","-m 50kpps --limit 20",True],
-             ["yaml/imix_3pkt_vm.yaml","-m 50kpps --limit 20",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_dst_src.py","-m 1 -l 1 ",True],
@@ -271,12 +268,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_mac_mask1.py","-m 1 -l 20 ",True] ,
              ["udp_1pkt_mac_mask2.py","-m 1 -l 20 ",True],
              ["udp_1pkt_mac_mask3.py","-m 1 -l 20 ",True],
-             ["udp_1pkt_simple_test2.py","-m 1 -l 10 ",True, False], # test split of packet with ip option
-             ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True, False],
+             ["udp_1pkt_simple_test2.py","-m 1 -l 10 ",True], # test split of packet with ip option
+             ["udp_1pkt_simple_test.py","-m 1 -l 10 ",True],
              ["udp_1pkt_mac_mask5.py","-m 1 -l 30 ",True],
              ["udp_1pkt_range_clients_split_garp.py","-m 1 -l 50",True],
              ["udp_1pkt_src_ip_split.py","-m 1 -l 50",True],
              ["udp_1pkt_repeat_random.py","-m 1 -l 50",True],
+             ["syn_attack_fix_cs_hw.py", "-m 1 -l 50", True]
           ];
 
         p1 = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];

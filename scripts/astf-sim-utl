@@ -1,0 +1,20 @@
+#!/bin/bash
+
+INPUT_ARGS=$@
+
+if [[ $@ =~ '--python2' ]]; then
+    INPUT_ARGS=${@//--python2/}
+    source find_python.sh --python2
+fi
+
+if [[ $@ =~ '--python3' ]]; then
+    INPUT_ARGS=${@//--python3/}
+    source find_python.sh --python3
+fi
+
+if [ -z "$PYTHON" ]; then
+    source find_python.sh
+fi
+
+export PYTHONPATH=automation/trex_control_plane/astf:automation/trex_control_plane/astf/trex_astf_lib
+$PYTHON -m trex_astf_lib.sim_utl -p $PWD $INPUT_ARGS

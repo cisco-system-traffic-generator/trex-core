@@ -8,12 +8,20 @@ TRex Documentation
 include::trex_ga.asciidoc[]
 
 
-// Cisco Live 2017 
-// image:images/clus1.png[width=150,title=""]  *Learning Sessions*, Cisco Live! 2017, Las Vegas 
+// Cisco Live 2018 
+*Free Learning Sessions*
 
-// * Monday,    Jun 26  Learning Session                link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-1120[REGISTER NOW]
+//DevNet webinar Webex 
+//image:images/webinar.png[width=250,title=""]  
+//* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e6fb167e743cde8cb5c02a6541b7fa98a[REGISTER NOW] 
+
+Cisco Live! 2018, Barcelona
+image:images/cl1028.png[width=250,title=""]  
+
+* Thursday, Feb 01,   Learning Session    link:https://www.ciscolive.com/emea/learn/sessions/content-catalog/?search=DEVNET-1120[REGISTER NOW]
 // * Tuesday,   Jun 27  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
 // * Wednesday, Jun 28  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
+
 
 
 == Presentations
@@ -46,9 +54,9 @@ link:release_notes.html[Release_notes.html]
 | Stateful  Manual and Getting Started     |  
 link:trex_manual.html[trex_manual.html] link:trex_book.pdf[trex_manual.pdf] 
 | Stateless Manual    | 
-link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf]
+link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_stateless.pdf] 
 | Advanced Stateful Manual    | 
-link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf]
+link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf] link:trex_astf_vs_nginx.html[trex_astf_performance.html]
 | Tutorial TRex on VirtualBox    | 
 link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
 | Cisco Devnet SandBox   | 
@@ -60,6 +68,8 @@ link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c2
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
+| Python API Cookbook (beta)    | 
+link:trex_cookbook/index.html[TRex API Cookbook]
 | Stateless Python automation API    | 
 link:cp_stl_docs/index.html[stateless_sdk] 
 | Stateful  Python automation API    | 
@@ -85,7 +95,7 @@ link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 | Release pkgs    | 
 link:../release/[pkgs]
-| Windows Stateful GUI    | 
+| Windows Stateful GUI v0.6   | 
 link:../client_gui/[stateful GUI]
 | XL710 Statless performance    | 
 link:trex_stateless_bench.html[xl710_benchmark.html] 

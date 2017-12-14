@@ -85,9 +85,10 @@ class CPhyEthIFStats {
 class CPhyEthIF  {
  public:
     CPhyEthIF (){
-        m_tvpid = DPDK_MAP_IVALID_REPID;
-        m_repid = DPDK_MAP_IVALID_REPID;
-        m_rx_queue=0;
+        m_tvpid          = DPDK_MAP_IVALID_REPID;
+        m_repid          = DPDK_MAP_IVALID_REPID;
+        m_rx_queue       = 0;
+        m_stats_err_cnt  = 0;
     }
     bool Create(tvpid_t  tvpid,
                 repid_t  repid);
@@ -123,6 +124,7 @@ class CPhyEthIF  {
     void disable_flow_control();
     void dump_stats(FILE *fd);
     void set_ignore_stats_base(CPreTestStats &pre_stats);
+    bool get_extended_stats();
     void update_counters();
     int configure_rss_redirect_table(uint16_t numer_of_queues,
                                      uint16_t skip_queue);
@@ -202,6 +204,7 @@ class CPhyEthIF  {
     uint8_t                  m_rx_queue;
     uint64_t                 m_sw_try_tx_pkt;
     uint64_t                 m_sw_tx_drop_pkt;
+    uint32_t                 m_stats_err_cnt;
     CBwMeasure               m_bw_tx;
     CBwMeasure               m_bw_rx;
     CPPSMeasure              m_pps_tx;

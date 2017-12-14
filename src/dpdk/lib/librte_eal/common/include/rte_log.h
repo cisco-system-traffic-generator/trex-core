@@ -50,46 +50,57 @@ extern "C" {
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <rte_common.h>
+
+struct rte_log_dynamic_type;
+
 /** The rte_log structure. */
 struct rte_logs {
 	uint32_t type;  /**< Bitfield with enabled logs. */
 	uint32_t level; /**< Log level. */
 	FILE *file;     /**< Output file set by rte_openlog_stream, or NULL. */
+	size_t dynamic_types_len;
+	struct rte_log_dynamic_type *dynamic_types;
 };
 
 /** Global log informations */
 extern struct rte_logs rte_logs;
 
 /* SDK log type */
-#define RTE_LOGTYPE_EAL     0x00000001 /**< Log related to eal. */
-#define RTE_LOGTYPE_MALLOC  0x00000002 /**< Log related to malloc. */
-#define RTE_LOGTYPE_RING    0x00000004 /**< Log related to ring. */
-#define RTE_LOGTYPE_MEMPOOL 0x00000008 /**< Log related to mempool. */
-#define RTE_LOGTYPE_TIMER   0x00000010 /**< Log related to timers. */
-#define RTE_LOGTYPE_PMD     0x00000020 /**< Log related to poll mode driver. */
-#define RTE_LOGTYPE_HASH    0x00000040 /**< Log related to hash table. */
-#define RTE_LOGTYPE_LPM     0x00000080 /**< Log related to LPM. */
-#define RTE_LOGTYPE_KNI     0x00000100 /**< Log related to KNI. */
-#define RTE_LOGTYPE_ACL     0x00000200 /**< Log related to ACL. */
-#define RTE_LOGTYPE_POWER   0x00000400 /**< Log related to power. */
-#define RTE_LOGTYPE_METER   0x00000800 /**< Log related to QoS meter. */
-#define RTE_LOGTYPE_SCHED   0x00001000 /**< Log related to QoS port scheduler. */
-#define RTE_LOGTYPE_PORT    0x00002000 /**< Log related to port. */
-#define RTE_LOGTYPE_TABLE   0x00004000 /**< Log related to table. */
-#define RTE_LOGTYPE_PIPELINE 0x00008000 /**< Log related to pipeline. */
-#define RTE_LOGTYPE_MBUF    0x00010000 /**< Log related to mbuf. */
-#define RTE_LOGTYPE_CRYPTODEV 0x00020000 /**< Log related to cryptodev. */
-#define RTE_LOGTYPE_EFD     0x00040000 /**< Log related to EFD. */
+#define RTE_LOGTYPE_EAL        0 /**< Log related to eal. */
+#define RTE_LOGTYPE_MALLOC     1 /**< Log related to malloc. */
+#define RTE_LOGTYPE_RING       2 /**< Log related to ring. */
+#define RTE_LOGTYPE_MEMPOOL    3 /**< Log related to mempool. */
+#define RTE_LOGTYPE_TIMER      4 /**< Log related to timers. */
+#define RTE_LOGTYPE_PMD        5 /**< Log related to poll mode driver. */
+#define RTE_LOGTYPE_HASH       6 /**< Log related to hash table. */
+#define RTE_LOGTYPE_LPM        7 /**< Log related to LPM. */
+#define RTE_LOGTYPE_KNI        8 /**< Log related to KNI. */
+#define RTE_LOGTYPE_ACL        9 /**< Log related to ACL. */
+#define RTE_LOGTYPE_POWER     10 /**< Log related to power. */
+#define RTE_LOGTYPE_METER     11 /**< Log related to QoS meter. */
+#define RTE_LOGTYPE_SCHED     12 /**< Log related to QoS port scheduler. */
+#define RTE_LOGTYPE_PORT      13 /**< Log related to port. */
+#define RTE_LOGTYPE_TABLE     14 /**< Log related to table. */
+#define RTE_LOGTYPE_PIPELINE  15 /**< Log related to pipeline. */
+#define RTE_LOGTYPE_MBUF      16 /**< Log related to mbuf. */
+#define RTE_LOGTYPE_CRYPTODEV 17 /**< Log related to cryptodev. */
+#define RTE_LOGTYPE_EFD       18 /**< Log related to EFD. */
+#define RTE_LOGTYPE_EVENTDEV  19 /**< Log related to eventdev. */
+#define RTE_LOGTYPE_GSO       20 /**< Log related to GSO. */
 
 /* these log types can be used in an application */
-#define RTE_LOGTYPE_USER1   0x01000000 /**< User-defined log type 1. */
-#define RTE_LOGTYPE_USER2   0x02000000 /**< User-defined log type 2. */
-#define RTE_LOGTYPE_USER3   0x04000000 /**< User-defined log type 3. */
-#define RTE_LOGTYPE_USER4   0x08000000 /**< User-defined log type 4. */
-#define RTE_LOGTYPE_USER5   0x10000000 /**< User-defined log type 5. */
-#define RTE_LOGTYPE_USER6   0x20000000 /**< User-defined log type 6. */
-#define RTE_LOGTYPE_USER7   0x40000000 /**< User-defined log type 7. */
-#define RTE_LOGTYPE_USER8   0x80000000 /**< User-defined log type 8. */
+#define RTE_LOGTYPE_USER1     24 /**< User-defined log type 1. */
+#define RTE_LOGTYPE_USER2     25 /**< User-defined log type 2. */
+#define RTE_LOGTYPE_USER3     26 /**< User-defined log type 3. */
+#define RTE_LOGTYPE_USER4     27 /**< User-defined log type 4. */
+#define RTE_LOGTYPE_USER5     28 /**< User-defined log type 5. */
+#define RTE_LOGTYPE_USER6     29 /**< User-defined log type 6. */
+#define RTE_LOGTYPE_USER7     30 /**< User-defined log type 7. */
+#define RTE_LOGTYPE_USER8     31 /**< User-defined log type 8. */
+
+/** First identifier for extended logs */
+#define RTE_LOGTYPE_FIRST_EXT_ID 32
 
 /* Can't use 0, as it gives compiler warnings */
 #define RTE_LOG_EMERG    1U  /**< System is unusable.               */
@@ -125,27 +136,49 @@ int rte_openlog_stream(FILE *f);
  * @param level
  *   Log level. A value between RTE_LOG_EMERG (1) and RTE_LOG_DEBUG (8).
  */
-void rte_set_log_level(uint32_t level);
+void rte_log_set_global_level(uint32_t level);
 
 /**
  * Get the global log level.
- */
-uint32_t rte_get_log_level(void);
-
-/**
- * Enable or disable the log type.
  *
- * @param type
- *   Log type, for example, RTE_LOGTYPE_EAL.
- * @param enable
- *   True for enable; false for disable.
+ * @return
+ *   The current global log level.
  */
-void rte_set_log_type(uint32_t type, int enable);
+uint32_t rte_log_get_global_level(void);
 
 /**
- * Get the global log type.
+ * Get the log level for a given type.
+ *
+ * @param logtype
+ *   The log type identifier.
+ * @return
+ *   0 on success, a negative value if logtype is invalid.
  */
-uint32_t rte_get_log_type(void);
+int rte_log_get_level(uint32_t logtype);
+
+/**
+ * Set the log level for a given type.
+ *
+ * @param pattern
+ *   The regexp identifying the log type.
+ * @param level
+ *   The level to be set.
+ * @return
+ *   0 on success, a negative value if level is invalid.
+ */
+int rte_log_set_level_regexp(const char *pattern, uint32_t level);
+
+/**
+ * Set the log level for a given type.
+ *
+ * @param logtype
+ *   The log type identifier.
+ * @param level
+ *   The level to be set.
+ * @return
+ *   0 on success, a negative value if logtype or level is invalid.
+ */
+int rte_log_set_level(uint32_t logtype, uint32_t level);
 
 /**
  * Get the current loglevel for the message being processed.
@@ -174,6 +207,30 @@ int rte_log_cur_msg_loglevel(void);
  *   The logtype of the message being processed.
  */
 int rte_log_cur_msg_logtype(void);
+
+/**
+ * Register a dynamic log type
+ *
+ * If a log is already registered with the same type, the returned value
+ * is the same than the previous one.
+ *
+ * @param name
+ *   The string identifying the log type.
+ * @return
+ *   - >0: success, the returned value is the log type identifier.
+ *   - (-ENOMEM): cannot allocate memory.
+ */
+int rte_log_register(const char *name);
+
+/**
+ * Dump log information.
+ *
+ * Dump the global level and the registered log types.
+ *
+ * @param f
+ *   The output stream where the dump should be sent.
+ */
+void rte_log_dump(FILE *f);
 
 /**
  * Generates a log message.

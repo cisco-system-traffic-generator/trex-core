@@ -23,7 +23,6 @@ limitations under the License.
 #define __STATEFUL_RX_CORE_H__
 
 #include "bp_sim.h"
-#include "flow_stat.h"
 #include "utl_ip.h"
 
 #define L_PKT_SUBMODE_NO_REPLY 1
@@ -336,12 +335,13 @@ class CLatencyPktModeSCTP: public CLatencyPktMode {
     uint8_t getProtocol() {return 0x84;}
 };
 
-class CLatencyManager {
+class CLatencyManager : public TrexRxCore {
 public:
     bool Create(CLatencyManagerCfg * cfg);
     void Delete();
     void  reset();
     void  start(int iter, bool activate_watchdog);
+
     void  stop();
     bool  is_active();
 
@@ -374,7 +374,8 @@ public:
         return ( m_pkt_gen.get_payload_offset() );
     }
     void update();
-    void update_fast();
+    void update_cpu_util();
+    double get_cpu_util();
 
     void dump_json(std::string & json ); // dump to json
     void dump_json_v2(std::string & json );
@@ -394,6 +395,19 @@ public:
     CLatencyPktMode *c_l_pkt_mode;
     void add_grat_arp_src(COneIPv4Info &ip);
 
+    
+    /* TrexRxCore interface */
+
+    void start() {
+        start(0, true);
+    }
+
+    float get_pps_rate() {
+        /* not supported */
+        return -1;
+    }
+    
+    
 private:
     void handle_rx_msgs();
     void handle_rx_one_queue(uint8_t ti,CNodeRing * r);
@@ -410,7 +424,7 @@ private:
 
  private:
      pqueue_t                m_p_queue; /* priorty queue */
-     bool                    m_is_active;
+     volatile bool           m_is_active;
      CLatencyPktInfo         m_pkt_gen;
      CLatencyManagerPerPort  m_ports[TREX_MAX_PORTS];
      double                  m_cps;

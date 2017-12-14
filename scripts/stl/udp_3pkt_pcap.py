@@ -11,19 +11,19 @@ class STLS1(object):
 
         return STLProfile( [ STLStream( isg = 10.0, # start in delay 
                                         name    ='S0',
-                                        packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_64B_no_crc.pcap")),
+                                        packet = STLPktBuilder(pkt = os.path.join(CP, "udp_64B_no_crc.pcap")),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 10),
                                         next = 'S1'), # point to next stream 
 
                              STLStream( self_start = False, # Stream is disabled. Will run because it is pointed from S0
                                         name    ='S1',
-                                        packet  = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_594B_no_crc.pcap")),
+                                        packet  = STLPktBuilder(pkt = os.path.join(CP, "udp_594B_no_crc.pcap")),
                                         mode    = STLTXSingleBurst( pps = 10, total_pkts = 20),
                                         next    = 'S2' ),
 
                              STLStream(  self_start = False, # Stream is disabled. Will run because it is pointed from S1
                                          name   ='S2',
-                                         packet = STLPktBuilder(pkt = os.path.join(CP, "yaml/udp_1518B_no_crc.pcap")),
+                                         packet = STLPktBuilder(pkt = os.path.join(CP, "udp_1518B_no_crc.pcap")),
                                          mode = STLTXSingleBurst( pps = 10, total_pkts = 30 )
                                         )
                             ]).get_streams()

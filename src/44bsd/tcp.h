@@ -93,7 +93,7 @@ struct tcphdr {
  */
 #define TCP_MSS (1500-20-20)
 #define TCP_TSO_MAX_DEFAULT (56*1024) /* maximum packet size to TSO */
-
+#define TCP_INITWND_FACTOR (10)
 
 #define TCP_MAXWIN  65535   /* largest value for (unscaled) window */
 

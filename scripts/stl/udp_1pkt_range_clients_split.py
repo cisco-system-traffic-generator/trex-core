@@ -26,7 +26,6 @@ class STLS1(object):
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="IP.src",offset_fixup=2),       # it is 2 byte so there is a need to fixup in 2 bytes
                            STLVmFixIpv4(offset = "IP")
                           ]
-                         ,split_by_field = "mac_src"  # split 
                        )
 
         return STLStream(packet = STLPktBuilder(pkt = base_pkt/pad,vm = vm),

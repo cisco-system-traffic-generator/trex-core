@@ -51,6 +51,7 @@ import time
 from distutils.dir_util import mkpath
 import re
 from io import StringIO
+from argparse import ArgumentParser
 
 
 
@@ -330,8 +331,8 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help="Warm up the system for stateful: run 30 seconds 9k imix test without check of results.")
         parser.add_option('--test-client-package', '--test_client_package', action="store_true", default = False,
                             help="Includes tests of client package.")
-        parser.add_option('--long', action="store_true", default = False,
-                            help="Flag of long tests (stability).")
+        parser.add_option('--long', '--nightly', action="store_true", default = False,
+                            help='Flag to enable longer (nightly) tests.')
         parser.add_option('--ga', action="store_true", default = False,
                             help="Flag to send benchmarks to GA.")
         parser.add_option('--no-daemon', action="store_true", default = False,
@@ -364,19 +365,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             fatal("Can't run stateful without daemon.")
         if self.collect_only or self.functional:
             return
-        if CTRexScenario.setup_dir and options.config_path:
-            fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
-        if not options.config_path and CTRexScenario.setup_dir:
-            options.config_path = CTRexScenario.setup_dir
-        if not options.config_path:
-            fatal('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
-        options.config_path = options.config_path.rstrip('/')
-        CTRexScenario.setup_name = os.path.basename(options.config_path)
-        self.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
-        self.configuration.trex['trex_name'] = address_to_ip(self.configuration.trex['trex_name']) # translate hostname to ip
-        self.benchmark     = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
         self.enabled       = True
-        self.modes         = self.configuration.trex.get('modes', [])
         self.kill_running  = options.kill_running
         self.load_image    = options.load_image
         self.clean_config  = False if options.skip_clean_config else True
@@ -387,16 +376,13 @@ class CTRexTestConfiguringPlugin(Plugin):
         if options.log_path:
             self.loggerPath = options.log_path
         # initialize CTRexScenario global testing class, to be used by all tests
-        CTRexScenario.configuration = self.configuration
         CTRexScenario.no_daemon     = options.no_daemon
-        CTRexScenario.benchmark     = self.benchmark
-        CTRexScenario.modes         = set(self.modes)
         CTRexScenario.server_logs   = self.server_logs
         CTRexScenario.debug_image   = options.debug_image
         CTRexScenario.json_verbose  = self.json_verbose
-        additional_args             = self.configuration.trex.get('trex_add_args', '')
+        additional_args             = CTRexScenario.configuration.trex.get('trex_add_args', '')
         if not self.no_daemon:
-            CTRexScenario.trex      = CTRexClient(trex_host   = self.configuration.trex['trex_name'],
+            CTRexScenario.trex      = CTRexClient(trex_host   = CTRexScenario.configuration.trex['trex_name'],
                                                   verbose     = self.json_verbose,
                                                   debug_image = options.debug_image,
                                                   trex_args   = options.trex_args + ' ' + additional_args)
@@ -524,13 +510,13 @@ class CTRexTestConfiguringPlugin(Plugin):
                 fatal(e)
 
 
-        if 'loopback' not in self.modes:
-            CTRexScenario.router_cfg = dict(config_dict      = self.configuration.router,
+        if 'loopback' not in CTRexScenario.modes:
+            CTRexScenario.router_cfg = dict(config_dict      = CTRexScenario.configuration.router,
                                             forceImageReload = self.load_image,
                                             silent_mode      = not self.telnet_verbose,
                                             forceCleanConfig = self.clean_config,
                                             no_dut_config    = self.no_dut_config,
-                                            tftp_config_dict = self.configuration.tftp)
+                                            tftp_config_dict = CTRexScenario.configuration.tftp)
         try:
             CustomLogger.setup_custom_logger('TRexLogger', self.loggerPath)
         except AttributeError:
@@ -589,9 +575,6 @@ if __name__ == "__main__":
 
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--nologcapture']
-    test_client_package = False
-    if '--test-client-package' in sys.argv:
-        test_client_package = True
 
     if '--collect' in sys.argv:
         sys.argv.append('--collect-only')
@@ -637,28 +620,63 @@ if __name__ == "__main__":
 
     nose_argv += sys_args
 
-    addplugins = [RedNose(), CTRexTestConfiguringPlugin()]
+    cfg_plugin = CTRexTestConfiguringPlugin()
+    parser = ArgumentParser(add_help = False)
+    parser.add_option = parser.add_argument
+    cfg_plugin.options(parser)
+    options, _ = parser.parse_known_args(sys.argv)
+    if not CTRexScenario.is_test_list and (options.stateless or options.stateful or not (options.stateful or options.stateless or options.functional)):
+        if CTRexScenario.setup_dir and options.config_path:
+            fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
+        if not options.config_path and CTRexScenario.setup_dir:
+            options.config_path = CTRexScenario.setup_dir
+        if not options.config_path:
+            fatal('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
+        options.config_path = options.config_path.rstrip('/')
+        CTRexScenario.setup_name = os.path.basename(options.config_path)
+        CTRexScenario.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
+        CTRexScenario.config_dict = misc_methods.load_object_config_file(os.path.join(options.config_path, 'config.yaml'))
+        CTRexScenario.configuration.trex['trex_name'] = address_to_ip(CTRexScenario.configuration.trex['trex_name']) # translate hostname to ip
+        CTRexScenario.benchmark     = misc_methods.load_benchmark_config_file(os.path.join(options.config_path, 'benchmark.yaml'))
+        CTRexScenario.modes         = set(CTRexScenario.configuration.trex.get('modes', []))
+
+    is_wlc = 'wlc' in CTRexScenario.modes
+    addplugins = [RedNose(), cfg_plugin]
     result = True
     try:
-        if len(CTRexScenario.test_types['functional_tests']):
+        attr_arr = []
+        if not is_wlc:
+            attr_arr.append('!wlc')
+        if not options.test_client_package:
+            attr_arr.append('!client_package')
+        if not options.long:
+            attr_arr.append('!nightly')
+            attr_arr.append('!long')
+        attrs = ','.join(attr_arr)
+        if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins)
-        if len(CTRexScenario.test_types['stateless_tests']):
-            additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
-            if not test_client_package:
-                additional_args.extend(['-a', '!client_package'])
+        if CTRexScenario.test_types['stateless_tests']:
+            if is_wlc:
+                additional_args = ['--stl', '-a', 'wlc'] + CTRexScenario.test_types['stateless_tests']
+            else:
+                additional_args = ['--stl', 'stateless_tests/stl_general_test.py:STLBasic_Test.test_connectivity'] + CTRexScenario.test_types['stateless_tests']
+                if attrs:
+                    additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
-        if len(CTRexScenario.test_types['stateful_tests']):
+        if CTRexScenario.test_types['stateful_tests'] and not is_wlc:
             additional_args = ['--stf']
             if '--warmup' in sys.argv:
                 additional_args.append('stateful_tests/trex_imix_test.py:CTRexIMIX_Test.test_warm_up')
             additional_args += CTRexScenario.test_types['stateful_tests']
-            if not test_client_package:
-                additional_args.extend(['-a', '!client_package'])
+            if attrs:
+                additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result

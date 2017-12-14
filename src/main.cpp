@@ -27,12 +27,13 @@ limitations under the License.
 #include <unordered_map>
 #include <string>
 
-#include <common/arg/SimpleGlob.h>
-#include <common/arg/SimpleOpt.h>
-#include <stateless/cp/trex_stateless.h>
-#include <sim/trex_sim.h>
-#include "astf/json_reader.h"
-#include "44bsd/sim_cs_tcp.h"
+#include "common/arg/SimpleGlob.h"
+#include "common/arg/SimpleOpt.h"
+
+#include "stl/trex_stl.h"
+
+#include "sim/trex_sim.h"
+#include "trex_build_info.h"
 
 using namespace std;
 
@@ -40,7 +41,11 @@ using namespace std;
 enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_FILE_OUT, OPT_UT, OPT_PCAP, OPT_IPV6, OPT_CLIENT_CFG_FILE,
        OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
-       OPT_DRY_RUN, OPT_DURATION};
+       OPT_ASTF_SIM_MODE,OPT_ASTF_FULL,
+       OPT_ASTF_SIM_ARG,
+
+       OPT_DRY_RUN, OPT_DURATION,
+       OPT_DUMP_JSON};
 
 
 
@@ -80,9 +85,13 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
     { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
+    { OPT_ASTF_FULL,          "--full",       SO_NONE    },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
+    { OPT_DUMP_JSON,          "--sim-json", SO_NONE },
+    { OPT_ASTF_SIM_MODE,      "--sim-mode", SO_REQ_SEP },
+    { OPT_ASTF_SIM_ARG,       "--sim-arg",  SO_REQ_SEP },
     { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
     
@@ -90,8 +99,10 @@ static CSimpleOpt::SOption parser_options[] =
 };
 
 
-static TrexStateless *m_sim_statelss_obj;
+static TrexSTX *m_sim_stx;
 static char *g_exe_name;
+
+static asrtf_args_t  asrtf_args;
 
 const char *get_exe_name() {
     return g_exe_name;
@@ -127,17 +138,37 @@ static int usage(){
     printf("  #>bp_sim -f cfg.yaml -o outfile.erf \n");
     printf("\n");
     printf("\n");
+    printf(" ASTF modes :\n");
+    printf("                                     \n");
+    printf("                                     \n");
+    printf("            csSIM_RST_SYN       0x17 23 \n");
+    printf("            csSIM_RST_SYN1      0x18 24 \n");
+    printf("            csSIM_WRONG_PORT    0x19 25 \n");
+    printf("            csSIM_RST_MIDDLE    0x1a 26 \n");
+    printf("            csSIM_RST_MIDDLE2   0x1b 27 \n");
+    printf("            csSIM_DROP,         0x1c 28 \n");
+    printf("            csSIM_REORDER,      0x1d 29  \n");
+    printf("            csSIM_REORDER_DROP  0x1e 30  \n");
+    printf("                                      \n");
     printf(" Copyright (C) 2015 by hhaim Cisco-System for IL dev-test \n");
     printf(" version : 1.0 beta  \n");
+    
+    
+    TrexBuildInfo::show();
     return (0);
 }
-
 
 static int parse_options(int argc,
                          char *argv[],
                          CParserOption* po,
                          std::unordered_map<std::string, int> &params) {
 
+     if (TrexBuildInfo::is_sanitized()) {
+         printf("\n*******************************************************\n");
+         printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
+         printf("\n*******************************************************\n");
+     }
+     
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;
@@ -191,10 +222,26 @@ static int parse_options(int argc,
                 po->preview.setFileWrite(false);
                 break;
 
+            case OPT_DUMP_JSON:
+                asrtf_args.dump_json =true;
+                break;
+            case OPT_ASTF_SIM_MODE:
+                asrtf_args.sim_mode = atoi(args.OptionArg());
+                break;
+            case OPT_ASTF_SIM_ARG:
+                float a;
+                sscanf(args.OptionArg(),"%f", &a);
+                asrtf_args.sim_arg=(double)a;
+                break;
+
+                break;
             case OPT_PCAP:
                 po->preview.set_pcap_mode_enable(true);
                 break;
 
+            case OPT_ASTF_FULL :
+                asrtf_args.full_sim=true;
+                break;
             case OPT_DP_CORE_COUNT:
                 params["dp_core_count"] = atoi(args.OptionArg());
                 break;
@@ -278,9 +325,15 @@ void set_default_mac_addr(){
     }
 }
 
-TrexStateless * get_stateless_obj() {
-    return m_sim_statelss_obj;
+TrexSTX * get_stx() {
+    return m_sim_stx;
 }
+
+
+void set_stx(TrexSTX *obj) {
+    m_sim_stx = obj;
+}
+
 
 void abort_gracefully(const std::string &on_stdout,
                       const std::string &on_publisher) {
@@ -290,14 +343,12 @@ void abort_gracefully(const std::string &on_stdout,
 }
 
 
-CRxCoreStateless * get_rx_sl_core_obj() {
-    return NULL;
+int astf_full_sim(void){
+
+    return(0);
 }
 
 
-void set_stateless_obj(TrexStateless *obj) {
-    m_sim_statelss_obj = obj;
-}
 
 int main(int argc , char * argv[]){
     g_exe_name = argv[0];
@@ -321,40 +372,29 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
-            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
             return sf.run();
         }
 
     case OPT_TYPE_ASF:
         {
-            // init
-            time_init();
-            CGlobalInfo::m_socket.Create(0);
-            CGlobalInfo::init_pools(1000, MBUF_2048);
-            bool rc = CJsonData::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
-            assert(rc);
-            CClientServerTcp *lpt1 = new CClientServerTcp;
+            CGlobalInfo::m_options.preview.setFileWrite(true);
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
 
-            // run
-            lpt1->Create("./", CGlobalInfo::m_options.out_file);
-            lpt1->set_debug_mode(true);
-            lpt1->fill_from_file();
-
-            // free stuff
-            lpt1->close_file();
-            lpt1->Delete();
-            delete lpt1;
-            CJsonData::free_instance();
-            CMsgIns::Ins()->Free();
-            CGlobalInfo::free_pools();
-            CGlobalInfo::m_socket.Delete();
-
-            return 0;
+            if (asrtf_args.full_sim){
+                SimAstf sf;
+                sf.args=&asrtf_args;
+                return sf.run();
+            }else{
+                SimAstfSimple sf;
+                sf.args=&asrtf_args;
+                return sf.run();
+            }
         }
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_INTERACTIVE;
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;
@@ -383,3 +423,14 @@ int main(int argc , char * argv[]){
         }
     }
 }
+
+
+/**
+ * SIM API target
+ */
+TrexPlatformApi &get_platform_api() {
+    static SimPlatformApi api(1);
+    
+    return api;
+}
+

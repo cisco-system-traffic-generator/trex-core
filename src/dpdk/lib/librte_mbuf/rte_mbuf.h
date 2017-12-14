@@ -44,6 +44,13 @@
  * buffers. The message buffers are stored in a mempool, using the
  * RTE mempool library.
  *
+ * The preferred way to create a mbuf pool is to use
+ * rte_pktmbuf_pool_create(). However, in some situations, an
+ * application may want to have more control (ex: populate the pool with
+ * specific memory), in this case it is possible to use functions from
+ * rte_mempool. See how rte_pktmbuf_pool_create() is implemented for
+ * details.
+ *
  * This library provides an API to allocate/free packet mbufs, which are
  * used to carry network packets.
  *
@@ -82,12 +89,13 @@ extern "C" {
  */
 
 /**
- * RX packet is a 802.1q VLAN packet. This flag was set by PMDs when
- * the packet is recognized as a VLAN, but the behavior between PMDs
- * was not the same. This flag is kept for some time to avoid breaking
- * applications and should be replaced by PKT_RX_VLAN_STRIPPED.
+ * The RX packet is a 802.1q VLAN packet, and the tci has been
+ * saved in in mbuf->vlan_tci.
+ * If the flag PKT_RX_VLAN_STRIPPED is also present, the VLAN
+ * header has been stripped from mbuf data, else it is still
+ * present.
  */
-#define PKT_RX_VLAN_PKT      (1ULL << 0)
+#define PKT_RX_VLAN          (1ULL << 0)
 
 #define PKT_RX_RSS_HASH      (1ULL << 1)  /**< RX packet with RSS hash result. */
 #define PKT_RX_FDIR          (1ULL << 2)  /**< RX packet with FDIR match indicate. */
@@ -116,6 +124,7 @@ extern "C" {
  * A vlan has been stripped by the hardware and its tci is saved in
  * mbuf->vlan_tci. This can only happen if vlan stripping is enabled
  * in the RX configuration of the PMD.
+ * When PKT_RX_VLAN_STRIPPED is set, PKT_RX_VLAN must also be set.
  */
 #define PKT_RX_VLAN_STRIPPED (1ULL << 6)
 
@@ -158,17 +167,11 @@ extern "C" {
  * The 2 vlans have been stripped by the hardware and their tci are
  * saved in mbuf->vlan_tci (inner) and mbuf->vlan_tci_outer (outer).
  * This can only happen if vlan stripping is enabled in the RX
- * configuration of the PMD. If this flag is set, PKT_RX_VLAN_STRIPPED
- * must also be set.
+ * configuration of the PMD. If this flag is set,
+ * When PKT_RX_QINQ_STRIPPED is set, the flags (PKT_RX_VLAN |
+ * PKT_RX_VLAN_STRIPPED | PKT_RX_QINQ) must also be set.
  */
 #define PKT_RX_QINQ_STRIPPED (1ULL << 15)
-
-/**
- * Deprecated.
- * RX packet with double VLAN stripped.
- * This flag is replaced by PKT_RX_QINQ_STRIPPED.
- */
-#define PKT_RX_QINQ_PKT      PKT_RX_QINQ_STRIPPED
 
 /**
  * When packets are coalesced by a hardware or virtual driver, this flag
@@ -177,9 +180,38 @@ extern "C" {
  */
 #define PKT_RX_LRO           (1ULL << 16)
 
+/**
+ * Indicate that the timestamp field in the mbuf is valid.
+ */
+#define PKT_RX_TIMESTAMP     (1ULL << 17)
+
+/**
+ * Indicate that security offload processing was applied on the RX packet.
+ */
+#define PKT_RX_SEC_OFFLOAD		(1ULL << 18)
+
+/**
+ * Indicate that security offload processing failed on the RX packet.
+ */
+#define PKT_RX_SEC_OFFLOAD_FAILED  	(1ULL << 19)
+
+/**
+ * The RX packet is a double VLAN, and the outer tci has been
+ * saved in in mbuf->vlan_tci_outer.
+ * If the flag PKT_RX_QINQ_STRIPPED is also present, both VLANs
+ * headers have been stripped from mbuf data, else they are still
+ * present.
+ */
+#define PKT_RX_QINQ          (1ULL << 20)
+
 /* add new RX flags here */
 
 /* add new TX flags here */
+
+/**
+ * Request security offload processing on the TX packet.
+ */
+#define PKT_TX_SEC_OFFLOAD 		(1ULL << 43)
 
 /**
  * Offload the MACsec. This flag must be set by the application to enable
@@ -196,6 +228,8 @@ extern "C" {
 #define PKT_TX_TUNNEL_GRE     (0x2ULL << 45)
 #define PKT_TX_TUNNEL_IPIP    (0x3ULL << 45)
 #define PKT_TX_TUNNEL_GENEVE  (0x4ULL << 45)
+/**< TX packet with MPLS-in-UDP RFC 7510 header. */
+#define PKT_TX_TUNNEL_MPLSINUDP (0x5ULL << 45)
 /* add new TX TUNNEL type here */
 #define PKT_TX_TUNNEL_MASK    (0xFULL << 45)
 
@@ -302,7 +336,8 @@ extern "C" {
 		PKT_TX_QINQ_PKT |        \
 		PKT_TX_VLAN_PKT |        \
 		PKT_TX_TUNNEL_MASK |	 \
-		PKT_TX_MACSEC)
+		PKT_TX_MACSEC |		 \
+		PKT_TX_SEC_OFFLOAD)
 
 #define __RESERVED           (1ULL << 61) /**< reserved for future mbuf use */
 
@@ -391,16 +426,25 @@ struct rte_mbuf {
 	MARKER cacheline0;
 
 	void *buf_addr;           /**< Virtual address of segment buffer. */
-	phys_addr_t buf_physaddr; /**< Physical address of segment buffer. */
+	/**
+	 * Physical address of segment buffer.
+	 * Force alignment to 8-bytes, so as to ensure we have the exact
+	 * same mbuf cacheline0 layout for 32-bit and 64-bit. This makes
+	 * working on vector drivers easier.
+	 */
+	RTE_STD_C11
+	union {
+		rte_iova_t buf_iova;
+		rte_iova_t buf_physaddr; /**< deprecated */
+	} __rte_aligned(sizeof(rte_iova_t));
 
-	uint16_t buf_len;         /**< Length of segment buffer. */
-
-	/* next 6 bytes are initialised on RX descriptor rearm */
-	MARKER8 rearm_data;
+	/* next 8 bytes are initialised on RX descriptor rearm */
+	MARKER64 rearm_data;
 	uint16_t data_off;
 
 	/**
-	 * 16-bit Reference counter.
+	 * Reference counter. Its size should at least equal to the size
+	 * of port field (16 bits), to support zero-copy broadcast.
 	 * It should only be accessed using the following functions:
 	 * rte_mbuf_refcnt_update(), rte_mbuf_refcnt_read(), and
 	 * rte_mbuf_refcnt_set(). The functionality of these functions (atomic,
@@ -412,8 +456,10 @@ struct rte_mbuf {
 		rte_atomic16_t refcnt_atomic; /**< Atomically accessed refcnt */
 		uint16_t refcnt;              /**< Non-atomically accessed refcnt */
 	};
-	uint8_t nb_segs;          /**< Number of segments. */
-	uint8_t port;             /**< Input port. */
+	uint16_t nb_segs;         /**< Number of segments. */
+
+	/** Input port (16 bits to support more than 256 virtual ports). */
+	uint16_t port;
 
 	uint64_t ol_flags;        /**< Offload features. */
 
@@ -435,8 +481,21 @@ struct rte_mbuf {
 			uint32_t l3_type:4; /**< (Outer) L3 type. */
 			uint32_t l4_type:4; /**< (Outer) L4 type. */
 			uint32_t tun_type:4; /**< Tunnel type. */
-			uint32_t inner_l2_type:4; /**< Inner L2 type. */
-			uint32_t inner_l3_type:4; /**< Inner L3 type. */
+			RTE_STD_C11
+			union {
+				uint8_t inner_esp_next_proto;
+				/**< ESP next protocol type, valid if
+				 * RTE_PTYPE_TUNNEL_ESP tunnel type is set
+				 * on both Tx and Rx.
+				 */
+				__extension__
+				struct {
+					uint8_t inner_l2_type:4;
+					/**< Inner L2 type. */
+					uint8_t inner_l3_type:4;
+					/**< Inner L3 type. */
+				};
+			};
 			uint32_t inner_l4_type:4; /**< Inner L4 type. */
 		};
 	};
@@ -469,10 +528,15 @@ struct rte_mbuf {
 		uint32_t usr;	  /**< User defined tags. See rte_distributor_process() */
 	} hash;                   /**< hash information */
 
-	uint32_t seqn; /**< Sequence number. See also rte_reorder_insert() */
-
 	/** Outer VLAN TCI (CPU order), valid if PKT_RX_QINQ_STRIPPED is set. */
 	uint16_t vlan_tci_outer;
+
+	uint16_t buf_len;         /**< Length of segment buffer. */
+
+	/** Valid if PKT_RX_TIMESTAMP is set. The unit and time reference
+	 * are not normalized but are always the same for a given port.
+	 */
+	uint64_t timestamp;
 
 	/* second cache line - fields only used in slow path or on TX */
 	MARKER cacheline1 __rte_cache_min_aligned;
@@ -514,7 +578,73 @@ struct rte_mbuf {
 
 	/** Timesync flags for use with IEEE1588. */
 	uint16_t timesync;
+
+	/** Sequence number. See also rte_reorder_insert(). */
+	uint32_t seqn;
+
+    #ifdef TREX_PATCH
+    uint8_t m_core_locality;
+    #endif
+
 } __rte_cache_aligned;
+
+
+#ifdef TREX_PATCH
+
+/**
+ * MBUF core locality type 
+ *  
+ * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with 
+ * the allocating core only.
+ *  
+ * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count 
+ * 
+ * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be 
+ * used with multiple cores 
+ *  
+ * having an MBUF set as core-local will allow us to skip 
+ * atomic checks 
+ * 
+ * WARNING don't change the NUMBERS orders 0,1,2
+ */
+typedef enum {
+    RTE_MBUF_CORE_LOCALITY_MULTI = 0,
+    RTE_MBUF_CORE_LOCALITY_LOCAL = 1,
+    RTE_MBUF_CORE_LOCALITY_CONST = 2,
+} mbuf_type_e;
+
+static inline void
+rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_LOCAL;
+}
+
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_CONST;
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
+}
+
+#else
+
+static inline void
+rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
+}
+
+static inline void
+rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
+}
+
+static inline void
+rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
+}
+
+
+#endif
+
 
 /**
  * Prefetch the first part of the mbuf
@@ -557,21 +687,28 @@ rte_mbuf_prefetch_part2(struct rte_mbuf *m)
 static inline uint16_t rte_pktmbuf_priv_size(struct rte_mempool *mp);
 
 /**
- * Return the DMA address of the beginning of the mbuf data
+ * Return the IO address of the beginning of the mbuf data
  *
  * @param mb
  *   The pointer to the mbuf.
  * @return
- *   The physical address of the beginning of the mbuf data
+ *   The IO address of the beginning of the mbuf data
  */
+static inline rte_iova_t
+rte_mbuf_data_iova(const struct rte_mbuf *mb)
+{
+	return mb->buf_iova + mb->data_off;
+}
+
+__rte_deprecated
 static inline phys_addr_t
 rte_mbuf_data_dma_addr(const struct rte_mbuf *mb)
 {
-	return mb->buf_physaddr + mb->data_off;
+	return rte_mbuf_data_iova(mb);
 }
 
 /**
- * Return the default DMA address of the beginning of the mbuf data
+ * Return the default IO address of the beginning of the mbuf data
  *
  * This function is used by drivers in their receive function, as it
  * returns the location where data should be written by the NIC, taking
@@ -580,12 +717,19 @@ rte_mbuf_data_dma_addr(const struct rte_mbuf *mb)
  * @param mb
  *   The pointer to the mbuf.
  * @return
- *   The physical address of the beginning of the mbuf data
+ *   The IO address of the beginning of the mbuf data
  */
+static inline rte_iova_t
+rte_mbuf_data_iova_default(const struct rte_mbuf *mb)
+{
+	return mb->buf_iova + RTE_PKTMBUF_HEADROOM;
+}
+
+__rte_deprecated
 static inline phys_addr_t
 rte_mbuf_data_dma_addr_default(const struct rte_mbuf *mb)
 {
-	return mb->buf_physaddr + RTE_PKTMBUF_HEADROOM;
+	return rte_mbuf_data_iova_default(mb);
 }
 
 /**
@@ -653,6 +797,7 @@ struct rte_pktmbuf_pool_private {
 
 #ifdef RTE_MBUF_REFCNT_ATOMIC
 
+
 /**
  * Reads the value of an mbuf's refcnt.
  * @param m
@@ -663,7 +808,25 @@ struct rte_pktmbuf_pool_private {
 static inline uint16_t
 rte_mbuf_refcnt_read(const struct rte_mbuf *m)
 {
-	return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+    #ifdef TREX_PATCH
+     uint16_t res;
+      switch (m->m_core_locality) {
+      case     RTE_MBUF_CORE_LOCALITY_MULTI :
+          res=(uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+          break;
+      case     RTE_MBUF_CORE_LOCALITY_LOCAL :
+          res=m->refcnt;
+          break;
+      case     RTE_MBUF_CORE_LOCALITY_CONST :
+          res=7;
+          break;
+      default:
+          res=(uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+      };
+      return (res);
+    #else
+        return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+    #endif
 }
 
 /**
@@ -676,7 +839,16 @@ rte_mbuf_refcnt_read(const struct rte_mbuf *m)
 static inline void
 rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 {
-	rte_atomic16_set(&m->refcnt_atomic, new_value);
+    #ifdef TREX_PATCH
+        if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
+            m->refcnt = new_value;
+        } else {
+            rte_atomic16_set(&m->refcnt_atomic, new_value);
+        }
+    #else
+        rte_atomic16_set(&m->refcnt_atomic, new_value);
+    #endif
+    
 }
 
 /**
@@ -691,9 +863,8 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
-    // TREX_PATCH - The code in #if 0 caused tx queue to hang when running:
-    // sudo ./t-rex-64-o -f avl/sfr_delay_10_1g_no_bundeling.yaml -m 35 -p -d 100
 #if 0
+    /* ORIGINAL DPDK code */
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
 	 * call it in the case where we know we are the uniq holder of
@@ -706,8 +877,25 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 		return 1 + value;
 	}
 #endif
-	return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+
+    #ifdef TREX_PATCH
+        if (likely(m->m_core_locality == RTE_MBUF_CORE_LOCALITY_LOCAL)) {
+            m->refcnt = (uint16_t)(m->refcnt + value);
+            return m->refcnt;
+        } else {
+            if ( m->m_core_locality == RTE_MBUF_CORE_LOCALITY_CONST ){
+                /* no ref count */
+                return m->refcnt;
+            }else{
+                return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+            }
+        }
+    #else
+        return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+    #endif
+    
 }
+
 
 #else /* ! RTE_MBUF_REFCNT_ATOMIC */
 
@@ -763,13 +951,25 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 void
 rte_mbuf_sanity_check(const struct rte_mbuf *m, int is_header);
 
+#define MBUF_RAW_ALLOC_CHECK(m) do {				\
+	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 1);		\
+	RTE_ASSERT((m)->next == NULL);				\
+	RTE_ASSERT((m)->nb_segs == 1);				\
+	__rte_mbuf_sanity_check(m, 0);				\
+} while (0)
+
 /**
- * Allocate an unitialized mbuf from mempool *mp*.
+ * Allocate an uninitialized mbuf from mempool *mp*.
  *
  * This function can be used by PMDs (especially in RX functions) to
- * allocate an unitialized mbuf. The driver is responsible of
+ * allocate an uninitialized mbuf. The driver is responsible of
  * initializing all the required fields. See rte_pktmbuf_reset().
  * For standard needs, prefer rte_pktmbuf_alloc().
+ *
+ * The caller can expect that the following fields of the mbuf structure
+ * are initialized: buf_addr, buf_iova, buf_len, refcnt=1, nb_segs=1,
+ * next=NULL, pool, priv_size. The other fields must be initialized
+ * by the caller.
  *
  * @param mp
  *   The mempool from which mbuf is allocated.
@@ -785,26 +985,48 @@ static inline struct rte_mbuf *rte_mbuf_raw_alloc(struct rte_mempool *mp)
 	if (rte_mempool_get(mp, &mb) < 0)
 		return NULL;
 	m = (struct rte_mbuf *)mb;
-	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 0);
-	rte_mbuf_refcnt_set(m, 1);
-	__rte_mbuf_sanity_check(m, 0);
-
+	MBUF_RAW_ALLOC_CHECK(m);
 	return m;
 }
 
 /**
- * @internal Put mbuf back into its original mempool.
- * The use of that function is reserved for RTE internal needs.
- * Please use rte_pktmbuf_free().
+ * Put mbuf back into its original mempool.
+ *
+ * The caller must ensure that the mbuf is direct and properly
+ * reinitialized (refcnt=1, next=NULL, nb_segs=1), as done by
+ * rte_pktmbuf_prefree_seg().
+ *
+ * This function should be used with care, when optimization is
+ * required. For standard needs, prefer rte_pktmbuf_free() or
+ * rte_pktmbuf_free_seg().
  *
  * @param m
  *   The mbuf to be freed.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
+rte_mbuf_raw_free(struct rte_mbuf *m)
+{
+	RTE_ASSERT(RTE_MBUF_DIRECT(m));
+	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 1);
+	RTE_ASSERT(m->next == NULL);
+	RTE_ASSERT(m->nb_segs == 1);
+    RTE_ASSERT(m->m_core_locality!=RTE_MBUF_CORE_LOCALITY_CONST);
+
+    #ifdef TREX_PATCH
+    if (m->m_core_locality != RTE_MBUF_CORE_LOCALITY_MULTI) {
+        m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
+    }
+    #endif
+	__rte_mbuf_sanity_check(m, 0);
+	rte_mempool_put(m->pool, m);
+}
+
+/* compat with older versions */
+__rte_deprecated
+static inline void
 __rte_mbuf_raw_free(struct rte_mbuf *m)
 {
-	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 0);
-	rte_mempool_put(m->pool, m);
+	rte_mbuf_raw_free(m);
 }
 
 /* Operations on ctrl mbuf */
@@ -815,14 +1037,14 @@ __rte_mbuf_raw_free(struct rte_mbuf *m)
  * This function initializes some fields in an mbuf structure that are
  * not modified by the user once created (mbuf type, origin pool, buffer
  * start address, and so on). This function is given as a callback function
- * to rte_mempool_create() at pool creation time.
+ * to rte_mempool_obj_iter() or rte_mempool_create() at pool creation time.
  *
  * @param mp
  *   The mempool from which the mbuf is allocated.
  * @param opaque_arg
  *   A pointer that can be used by the user to retrieve useful information
- *   for mbuf initialization. This pointer comes from the ``init_arg``
- *   parameter of rte_mempool_create().
+ *   for mbuf initialization. This pointer is the opaque argument passed to
+ *   rte_mempool_obj_iter() or rte_mempool_create().
  * @param m
  *   The mbuf to initialize.
  * @param i
@@ -896,14 +1118,14 @@ rte_is_ctrlmbuf(struct rte_mbuf *m)
  * This function initializes some fields in the mbuf structure that are
  * not modified by the user once created (origin pool, buffer start
  * address, and so on). This function is given as a callback function to
- * rte_mempool_create() at pool creation time.
+ * rte_mempool_obj_iter() or rte_mempool_create() at pool creation time.
  *
  * @param mp
  *   The mempool from which mbufs originate.
  * @param opaque_arg
  *   A pointer that can be used by the user to retrieve useful information
- *   for mbuf initialization. This pointer comes from the ``init_arg``
- *   parameter of rte_mempool_create().
+ *   for mbuf initialization. This pointer is the opaque argument passed to
+ *   rte_mempool_obj_iter() or rte_mempool_create().
  * @param m
  *   The mbuf to initialize.
  * @param i
@@ -918,7 +1140,8 @@ void rte_pktmbuf_init(struct rte_mempool *mp, void *opaque_arg,
  *
  * This function initializes the mempool private data in the case of a
  * pktmbuf pool. This private data is needed by the driver. The
- * function is given as a callback function to rte_mempool_create() at
+ * function must be called on the mempool before it is used, or it
+ * can be given as a callback function to rte_mempool_create() at
  * pool creation. It can be extended by the user, for example, to
  * provide another packet size.
  *
@@ -926,8 +1149,8 @@ void rte_pktmbuf_init(struct rte_mempool *mp, void *opaque_arg,
  *   The mempool from which mbufs originate.
  * @param opaque_arg
  *   A pointer that can be used by the user to retrieve useful information
- *   for mbuf initialization. This pointer comes from the ``init_arg``
- *   parameter of rte_mempool_create().
+ *   for mbuf initialization. This pointer is the opaque argument passed to
+ *   rte_mempool_create().
  */
 void rte_pktmbuf_pool_init(struct rte_mempool *mp, void *opaque_arg);
 
@@ -935,8 +1158,7 @@ void rte_pktmbuf_pool_init(struct rte_mempool *mp, void *opaque_arg);
  * Create a mbuf pool.
  *
  * This function creates and initializes a packet mbuf pool. It is
- * a wrapper to rte_mempool_create() with the proper packet constructor
- * and mempool constructor.
+ * a wrapper to rte_mempool functions.
  *
  * @param name
  *   The name of the mbuf pool.
@@ -1033,6 +1255,8 @@ static inline void rte_pktmbuf_reset_headroom(struct rte_mbuf *m)
  * @param m
  *   The packet mbuf to be resetted.
  */
+#define MBUF_INVALID_PORT UINT16_MAX
+
 static inline void rte_pktmbuf_reset(struct rte_mbuf *m)
 {
 	m->next = NULL;
@@ -1041,10 +1265,14 @@ static inline void rte_pktmbuf_reset(struct rte_mbuf *m)
 	m->vlan_tci = 0;
 	m->vlan_tci_outer = 0;
 	m->nb_segs = 1;
-	m->port = 0xff;
+	m->port = MBUF_INVALID_PORT;
 
 	m->ol_flags = 0;
 	m->packet_type = 0;
+    #ifdef TREX_PATCH
+    m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
+    #endif
+
 	rte_pktmbuf_reset_headroom(m);
 
 	m->data_len = 0;
@@ -1084,6 +1312,7 @@ static inline struct rte_mbuf *rte_pktmbuf_alloc(struct rte_mempool *mp)
  *    Array size
  *  @return
  *   - 0: Success
+ *   - -ENOENT: Not enough entries in the mempool; no mbufs are retrieved.
  */
 static inline int rte_pktmbuf_alloc_bulk(struct rte_mempool *pool,
 	 struct rte_mbuf **mbufs, unsigned count)
@@ -1103,25 +1332,25 @@ static inline int rte_pktmbuf_alloc_bulk(struct rte_mempool *pool,
 	switch (count % 4) {
 	case 0:
 		while (idx != count) {
-			RTE_ASSERT(rte_mbuf_refcnt_read(mbufs[idx]) == 0);
-			rte_mbuf_refcnt_set(mbufs[idx], 1);
+			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
+			/* fall-through */
 	case 3:
-			RTE_ASSERT(rte_mbuf_refcnt_read(mbufs[idx]) == 0);
-			rte_mbuf_refcnt_set(mbufs[idx], 1);
+			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
+			/* fall-through */
 	case 2:
-			RTE_ASSERT(rte_mbuf_refcnt_read(mbufs[idx]) == 0);
-			rte_mbuf_refcnt_set(mbufs[idx], 1);
+			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
+			/* fall-through */
 	case 1:
-			RTE_ASSERT(rte_mbuf_refcnt_read(mbufs[idx]) == 0);
-			rte_mbuf_refcnt_set(mbufs[idx], 1);
+			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
+			/* fall-through */
 		}
 	}
 	return 0;
@@ -1159,7 +1388,7 @@ static inline void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *m)
 
 	rte_mbuf_refcnt_update(md, 1);
 	mi->priv_size = m->priv_size;
-	mi->buf_physaddr = m->buf_physaddr;
+	mi->buf_iova = m->buf_iova;
 	mi->buf_addr = m->buf_addr;
 	mi->buf_len = m->buf_len;
 
@@ -1176,6 +1405,7 @@ static inline void rte_pktmbuf_attach(struct rte_mbuf *mi, struct rte_mbuf *m)
 	mi->nb_segs = 1;
 	mi->ol_flags = m->ol_flags | IND_ATTACHED_MBUF;
 	mi->packet_type = m->packet_type;
+	mi->timestamp = m->timestamp;
 
 	__rte_mbuf_sanity_check(mi, 1);
 	__rte_mbuf_sanity_check(m, 0);
@@ -1206,28 +1436,77 @@ static inline void rte_pktmbuf_detach(struct rte_mbuf *m)
 
 	m->priv_size = priv_size;
 	m->buf_addr = (char *)m + mbuf_size;
-	m->buf_physaddr = rte_mempool_virt2phy(mp, m) + mbuf_size;
+	m->buf_iova = rte_mempool_virt2iova(m) + mbuf_size;
 	m->buf_len = (uint16_t)buf_len;
 	rte_pktmbuf_reset_headroom(m);
 	m->data_len = 0;
 	m->ol_flags = 0;
 
-	if (rte_mbuf_refcnt_update(md, -1) == 0)
-		__rte_mbuf_raw_free(md);
+	if (rte_mbuf_refcnt_update(md, -1) == 0) {
+		md->next = NULL;
+		md->nb_segs = 1;
+		rte_mbuf_refcnt_set(md, 1);
+		rte_mbuf_raw_free(md);
+	}
 }
 
-static inline struct rte_mbuf* __attribute__((always_inline))
-__rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
+/**
+ * Decrease reference counter and unlink a mbuf segment
+ *
+ * This function does the same than a free, except that it does not
+ * return the segment to its pool.
+ * It decreases the reference counter, and if it reaches 0, it is
+ * detached from its parent for an indirect mbuf.
+ *
+ * @param m
+ *   The mbuf to be unlinked
+ * @return
+ *   - (m) if it is the last reference. It can be recycled or freed.
+ *   - (NULL) if the mbuf still has remaining references on it.
+ */
+static __rte_always_inline struct rte_mbuf *
+rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 {
 	__rte_mbuf_sanity_check(m, 0);
 
-	if (likely(rte_mbuf_refcnt_update(m, -1) == 0)) {
-		/* if this is an indirect mbuf, it is detached. */
+	if (likely(rte_mbuf_refcnt_read(m) == 1)) {
+
 		if (RTE_MBUF_INDIRECT(m))
 			rte_pktmbuf_detach(m);
+
+		if (m->next != NULL) {
+			m->next = NULL;
+			m->nb_segs = 1;
+		}
+
+		return m;
+#ifdef TREX_PATCH
+    } else if (likely(rte_mbuf_refcnt_update(m, -1) == 0)) {
+#else
+    } else if (rte_atomic16_add_return(&m->refcnt_atomic, -1) == 0)  {
+#endif
+
+
+		if (RTE_MBUF_INDIRECT(m))
+			rte_pktmbuf_detach(m);
+
+		if (m->next != NULL) {
+			m->next = NULL;
+			m->nb_segs = 1;
+		}
+		rte_mbuf_refcnt_set(m, 1);
+
 		return m;
 	}
 	return NULL;
+}
+
+/* deprecated, replaced by rte_pktmbuf_prefree_seg() */
+__rte_deprecated
+static inline struct rte_mbuf *
+__rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
+{
+	return rte_pktmbuf_prefree_seg(m);
 }
 
 /**
@@ -1239,13 +1518,12 @@ __rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
  * @param m
  *   The packet mbuf segment to be freed.
  */
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_pktmbuf_free_seg(struct rte_mbuf *m)
 {
-	if (likely(NULL != (m = __rte_pktmbuf_prefree_seg(m)))) {
-		m->next = NULL;
-		__rte_mbuf_raw_free(m);
-	}
+	m = rte_pktmbuf_prefree_seg(m);
+	if (likely(m != NULL))
+		rte_mbuf_raw_free(m);
 }
 
 /**
@@ -1354,7 +1632,7 @@ static inline void rte_pktmbuf_refcnt_update(struct rte_mbuf *m, int16_t v)
  */
 static inline uint16_t rte_pktmbuf_headroom(const struct rte_mbuf *m)
 {
-	__rte_mbuf_sanity_check(m, 1);
+	__rte_mbuf_sanity_check(m, 0);
 	return m->data_off;
 }
 
@@ -1368,7 +1646,7 @@ static inline uint16_t rte_pktmbuf_headroom(const struct rte_mbuf *m)
  */
 static inline uint16_t rte_pktmbuf_tailroom(const struct rte_mbuf *m)
 {
-	__rte_mbuf_sanity_check(m, 1);
+	__rte_mbuf_sanity_check(m, 0);
 	return (uint16_t)(m->buf_len - rte_pktmbuf_headroom(m) -
 			  m->data_len);
 }
@@ -1423,7 +1701,7 @@ static inline struct rte_mbuf *rte_pktmbuf_lastseg(struct rte_mbuf *m)
 #define rte_pktmbuf_mtod(m, t) rte_pktmbuf_mtod_offset(m, t, 0)
 
 /**
- * A macro that returns the physical address that points to an offset of the
+ * A macro that returns the IO address that points to an offset of the
  * start of the data in the mbuf
  *
  * @param m
@@ -1431,17 +1709,24 @@ static inline struct rte_mbuf *rte_pktmbuf_lastseg(struct rte_mbuf *m)
  * @param o
  *   The offset into the data to calculate address from.
  */
+#define rte_pktmbuf_iova_offset(m, o) \
+	(rte_iova_t)((m)->buf_iova + (m)->data_off + (o))
+
+/* deprecated */
 #define rte_pktmbuf_mtophys_offset(m, o) \
-	(phys_addr_t)((m)->buf_physaddr + (m)->data_off + (o))
+	rte_pktmbuf_iova_offset(m, o)
 
 /**
- * A macro that returns the physical address that points to the start of the
+ * A macro that returns the IO address that points to the start of the
  * data in the mbuf
  *
  * @param m
  *   The packet mbuf.
  */
-#define rte_pktmbuf_mtophys(m) rte_pktmbuf_mtophys_offset(m, 0)
+#define rte_pktmbuf_iova(m) rte_pktmbuf_iova_offset(m, 0)
+
+/* deprecated */
+#define rte_pktmbuf_mtophys(m) rte_pktmbuf_iova(m)
 
 /**
  * A macro that returns the length of the packet.
@@ -1616,7 +1901,7 @@ const void *__rte_pktmbuf_read(const struct rte_mbuf *m, uint32_t off,
  * @param len
  *   The amount of bytes to read.
  * @param buf
- *   The buffer where data is copied if it is not contigous in mbuf
+ *   The buffer where data is copied if it is not contiguous in mbuf
  *   data. Its length should be at least equal to the len parameter.
  * @return
  *   The pointer to the data, either in the mbuf if it is contiguous,

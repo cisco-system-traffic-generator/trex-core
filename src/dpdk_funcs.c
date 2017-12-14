@@ -21,7 +21,10 @@
 #include "dpdk/drivers/net/i40e/base/i40e_status.h"
 #include "dpdk/drivers/net/i40e/base/i40e_osdep.h"
 #include "dpdk/drivers/net/i40e/base/i40e_type.h"
+#include "dpdk/drivers/net/i40e/base/virtchnl.h"
 #include "dpdk/drivers/net/i40e/i40e_ethdev.h"
+#include "dpdk/drivers/bus/pci/rte_bus_pci.h"
+
 #include "dpdk_funcs.h"
 
 typedef uint8_t repid_t; /* DPDK port id  */
@@ -137,9 +140,12 @@ i40e_trex_get_fw_ver(struct rte_eth_dev *dev, uint32_t *nvm_ver)
 int rte_eth_dev_pci_addr(repid_t repid,char *p,int size){
 
     struct rte_devargs * lp=rte_eth_devices[repid].device->devargs;
-
-    if (lp){
-        rte_eal_pci_device_name(&lp->pci.addr,p, size);
+    struct rte_pci_addr *pci_addr = NULL;
+    struct rte_eth_dev_info dev_info;
+    rte_eth_dev_info_get(repid, &dev_info);
+    pci_addr = &(dev_info.pci_dev->addr);
+    if (pci_addr) {
+        rte_pci_device_name(pci_addr,p, size);
         return (0);
     }
     return(-1);
@@ -190,3 +196,4 @@ rte_eth_get_fw_ver(repid_t repid, uint32_t *version)
     // Only xl710 support this
     return i40e_trex_get_fw_ver(dev, version);
 }
+

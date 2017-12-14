@@ -44,7 +44,13 @@
 
 
 const int   tcp_backoff[TCP_MAXRXTSHIFT + 1] =
-    { 1, 2, 4, 8, 16, 32, 64, 64, 64, 64, 64, 64, 64 };
+    { 1, 2, 4, 8, 16, 32 };
+/*64, 64, 64, 64, 64, 64, 64 };*/
+
+const int	tcp_syn_backoff[TCP_MAXRXTSHIFT + 1] =
+    { 1, 1, 1, 2, 2 , 3 };
+    /*, 4, 8, 16, 32, 64, 64, 64 };*/
+
 
 int tcp_totbackoff = 511;   /* sum of tcp_backoff[] */
 
@@ -117,8 +123,14 @@ tcp_timers(CTcpPerThreadCtx * ctx,struct tcpcb *tp, int timer){
                 tp->t_softerror : TCP_US_ETIMEDOUT);
             break;
         }
-        INC_STAT(ctx,tcps_rexmttimeo);
-        rexmt = TCP_REXMTVAL(tp) * tcp_backoff[tp->t_rxtshift];
+        if (tp->t_state < TCPS_ESTABLISHED){
+            rexmt = TCP_REXMTVAL(tp) * tcp_syn_backoff[tp->t_rxtshift];
+            INC_STAT(ctx,tcps_rexmttimeo_syn);
+        }else{
+            INC_STAT(ctx,tcps_rexmttimeo);
+            rexmt = TCP_REXMTVAL(tp) * tcp_backoff[tp->t_rxtshift];
+        }
+
         TCPT_RANGESET(tp->t_rxtcur, rexmt,
             tp->t_rttmin, TCPTV_REXMTMAX);
         tp->t_timer[TCPT_REXMT] = tp->t_rxtcur;

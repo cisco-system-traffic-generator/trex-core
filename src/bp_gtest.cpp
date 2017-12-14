@@ -149,7 +149,7 @@ TEST_F(basic, imix) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/imix.yaml";
+     po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="exp/imix";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -425,7 +425,7 @@ TEST_F(basic, ipv6_convert) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->cfg_file ="cap2/imix.yaml";
+     po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="exp/imix_v6";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -1178,6 +1178,7 @@ TEST_F(timerwl, tw2) {
     for (i=0; i<100; i++) {
         CTestFlow * f=af[i];
         my_tw.stop_timer(&f->m_timer_handle);
+        delete f;
     }
     EXPECT_EQ(my_tw.m_st_alloc-my_tw.m_st_free,100);
 
@@ -1890,9 +1891,12 @@ public:
     }
 
     virtual int close_file(void){
-        assert(m_raw);
-        m_raw->raw=0;
-        delete m_raw;
+        if (m_raw) {
+            m_raw->raw=0;
+            delete m_raw;
+            m_raw = nullptr;
+        }
+        
         return (0);
     }
 
@@ -1985,7 +1989,7 @@ public:
         int i;
         for (i=0; i<m_threads; i++) {
             lpt=fl.m_threads_info[i];
-            lpt->start_generate_stateful("t1",CGlobalInfo::m_options.preview);
+            lpt->start_sim("t1",CGlobalInfo::m_options.preview);
         }
         fl.Delete();
         return (true);
@@ -2023,7 +2027,7 @@ class rx_check_system  : public trexTest {
       po->preview.setVMode(0);
       po->preview.setFileWrite(true);
       po->preview.set_rx_check_enable(true);
-      po->m_run_mode = CParserOption::RUN_MODE_BATCH;
+      po->m_op_mode = CParserOption::OP_MODE_STF;
   }
 
   virtual void TearDown() {

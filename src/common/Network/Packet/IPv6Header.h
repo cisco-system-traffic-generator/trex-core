@@ -76,6 +76,11 @@ public:
     inline void     setNextHdr(uint8_t);
     inline uint8_t  getHopLimit();
     inline void     setHopLimit(uint8_t);
+
+    void     setSourceIpv6Raw(uint8_t *);
+    void     setDestIpv6Raw(uint8_t *);
+
+
     inline void     getSourceIpv6(uint16_t *);
     inline void     setSourceIpv6(uint16_t *);
     inline void     getDestIpv6(uint16_t *);

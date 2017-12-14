@@ -19,24 +19,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "bp_sim.h"
-#include "flow_stat_parser.h"
-#include <common/gtest.h>
-#include <common/basic_utils.h>
-#include <trex_stateless.h>
-#include <trex_stateless_dp_core.h>
-#include <trex_stateless_messaging.h>
-#include <trex_streams_compiler.h>
-#include <trex_stream_node.h>
-#include <trex_stream.h>
-#include <trex_stateless_port.h>
-#include <trex_rpc_server_api.h>
 #include <iostream>
 #include <vector>
 #include <inttypes.h>
 
+#include <common/gtest.h>
+#include <common/basic_utils.h>
+
+#include "bp_sim.h"
+#include "bp_gtest.h"
+
+#include "flow_stat_parser.h"
+#include "trex_rpc_server_api.h"
 
 
+#include "stl/trex_stl.h"
+#include "stl/trex_stl_dp_core.h"
+#include "stl/trex_stl_messaging.h"
+#include "stl/trex_stl_streams_compiler.h"
+#include "stl/trex_stl_stream_node.h"
+#include "stl/trex_stl_stream.h"
+#include "stl/trex_stl_port.h"
+
+ 
 
 class CPcapLoader {
 public:
@@ -131,7 +136,7 @@ void CPcapLoader::dump_packet(){
 
 
 
-class basic_vm  : public testing::Test {
+class basic_vm  : public trexStlTest {
     protected:
      virtual void SetUp() {
      }
@@ -2050,7 +2055,7 @@ TEST_F(basic_vm, vm_syn_attack) {
     vm.Dump(stdout);
 
     CPcapLoader pcap;
-    pcap.load_pcap_file("stl/yaml/syn_packet.pcap",0);
+    pcap.load_pcap_file("stl/syn_packet.pcap",0);
 
 
 
@@ -2176,7 +2181,7 @@ TEST_F(basic_vm, vm_inc_size_64_128) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
                         );
 
-    run_vm_program(vm,"stl/yaml/udp_1518B_no_crc.pcap","stl_vm_inc_size_64_128",20);
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_inc_size_64_128",20);
 }
 
 TEST_F(basic_vm, vm_random_size_64_128) {
@@ -2206,7 +2211,7 @@ TEST_F(basic_vm, vm_random_size_64_128) {
                         );
 
 
-    run_vm_program(vm,"stl/yaml/udp_1518B_no_crc.pcap","stl_vm_rand_size_64_128",20);
+    run_vm_program(vm,"stl/udp_1518B_no_crc.pcap","stl_vm_rand_size_64_128",20);
 
 }
 
@@ -2242,7 +2247,7 @@ TEST_F(basic_vm, vm_random_size_64_127_128) {
     bool fail=false;
 
     try {
-       run_vm_program(vm,"stl/yaml/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
+       run_vm_program(vm,"stl/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
      } catch (const TrexException &ex) {
         fail=true;
     }
@@ -2278,7 +2283,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
     vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
                         );
 
-    run_vm_program(vm,"stl/yaml/udp_594B_no_crc.pcap","stl_vm_rand_size_512B_64_128",10);
+    run_vm_program(vm,"stl/udp_594B_no_crc.pcap","stl_vm_rand_size_512B_64_128",10);
 
 }
 
@@ -2292,7 +2297,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 
 
 /* basic stateless test */
-class basic_stl  : public testing::Test {
+class basic_stl  : public trexStlTest {
  protected:
   virtual void SetUp() {
   }
@@ -2330,7 +2335,7 @@ public:
     }
 
     /* user will allocate the message,  no need to free it by this module */
-    void add_msg(TrexStatelessCpToDpMsgBase * msg){
+    void add_msg(TrexCpToDpMsgBase * msg){
         m_msgs.push_back(msg);
     }
 
@@ -2340,7 +2345,7 @@ public:
 
         /* only if both port are idle we can exit */
     void add_command(CFlowGenListPerThread   * core,
-                     TrexStatelessCpToDpMsgBase * msg,
+                     TrexCpToDpMsgBase       * msg,
                      double time){
 
         CGenNodeCommand *node = (CGenNodeCommand *)core->create_node() ;
@@ -2366,7 +2371,7 @@ public:
 
 
 protected:
-    std::vector<TrexStatelessCpToDpMsgBase *> m_msgs;
+    std::vector<TrexCpToDpMsgBase *> m_msgs;
 
     std::vector<CBasicStlDelayCommand> m_commands;
 };
@@ -2393,7 +2398,7 @@ public:
  */
 class DpToCpHandler {
 public:
-    virtual void handle(TrexStatelessDpToCpMsgBase *msg) = 0;
+    virtual void handle(TrexDpToCpMsgBase *msg) = 0;
 };
 
 class CBasicStl {
@@ -2422,7 +2427,7 @@ public:
             }
             assert(node);
 
-            TrexStatelessDpToCpMsgBase * msg = (TrexStatelessDpToCpMsgBase *)node;
+            TrexDpToCpMsgBase * msg = (TrexDpToCpMsgBase *)node;
             if (m_dp_to_cp_handler) {
                 m_dp_to_cp_handler->handle(msg);
             }
@@ -2463,7 +2468,6 @@ public:
         sprintf(buf,"%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),0);
         sprintf(buf_ex,"%s-%d-ex.erf",CGlobalInfo::m_options.out_file.c_str(),0);
 
-        lpt->start_stateless_simulation_file(buf,CGlobalInfo::m_options.preview);
 
         /* add stream to the queue */
         if ( m_msg ) {
@@ -2487,10 +2491,7 @@ public:
             }
         }
 
-        lpt->start_stateless_daemon_simulation();
-        lpt->stop_stateless_simulation_file();
-
-        //lpt->m_node_gen.DumpHist(stdout);
+        lpt->start_sim(buf, CGlobalInfo::m_options.preview);
 
         cmp.d_sec = m_time_diff;
 
@@ -2524,7 +2525,7 @@ public:
     DpToCpHandler     *m_dp_to_cp_handler;
     CBasicStlSink     * m_sink;
 
-    TrexStatelessCpToDpMsgBase * m_msg;
+    TrexCpToDpMsgBase   *m_msg;
     CNodeRing           *m_ring_from_cp;
     CBasicStlMsgQueue    m_msg_queue;
     CFlowGenList  fl;
@@ -2562,8 +2563,8 @@ void CBBStartPause0::call_after_init(CBasicStl * m_obj){
     TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
     TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
 
-    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 5.0); /* command in delay of 5 sec */
-    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 7.0);/* command in delay of 7 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 4.99); /* command in delay of 4.99 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 6.99);/* command in delay of 6.99 sec */
 
 }
 
@@ -2604,7 +2605,7 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      std::vector<TrexStreamsCompiledObj *> objs;
      assert(compile.compile(port_id, streams, objs));
-     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 10.0 /*sec */ );
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 9.99 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
@@ -3553,7 +3554,7 @@ TEST_F(basic_stl, vm_enable_cache_500) {
     /* multi mbuf cache */
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1_cache_500";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false,20.0,19);
 }
 
@@ -3582,7 +3583,7 @@ TEST_F(basic_stl, vm_enable1) {
 
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false);
 }
 
@@ -3592,7 +3593,7 @@ TEST_F(basic_stl, vm_enable1_flow_stat) {
 
     CEnableVm vm_test;
     vm_test.m_out_file = "exp/stl_vm_enable1_flow_stat";
-    vm_test.m_input_packet = "stl/yaml/udp_594B_no_crc.pcap";
+    vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.m_pg_id = 5;
     vm_test.run(false);
 }
@@ -3964,7 +3965,7 @@ public:
         m_event_id = event_id;
     }
 
-    virtual void handle(TrexStatelessDpToCpMsgBase *msg) {
+    virtual void handle(TrexDpToCpMsgBase *msg) {
         /* first the message must be an event */
         TrexDpPortEventMsg *event = dynamic_cast<TrexDpPortEventMsg *>(msg);
         EXPECT_TRUE(event != NULL);
@@ -4335,15 +4336,15 @@ TEST_F(basic_stl, pcap_remote_basic) {
     po->preview.setFileWrite(true);
     po->out_file ="exp/pcap_remote_basic";
 
-    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
-                                                                       0,
-                                                                       "exp/remote_test.cap",
-                                                                       10,
-                                                                       0,
-                                                                       1,
-                                                                       1,
-                                                                       -1,
-                                                                       false);
+    TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                              0,
+                                                              "exp/remote_test.cap",
+                                                              10,
+                                                              0,
+                                                              1,
+                                                              1,
+                                                              -1,
+                                                              false);
     t1.m_msg = push_msg;
 
 
@@ -4359,15 +4360,15 @@ TEST_F(basic_stl, pcap_remote_loop) {
     po->preview.setFileWrite(true);
     po->out_file ="exp/pcap_remote_loop";
 
-    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
-                                                                       0,
-                                                                       "exp/remote_test.cap",
-                                                                       1,
-                                                                       0,
-                                                                       1,
-                                                                       3,
-                                                                       -1,
-                                                                       false);
+    TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                              0,
+                                                              "exp/remote_test.cap",
+                                                              1,
+                                                              0,
+                                                              1,
+                                                              3,
+                                                              -1,
+                                                              false);
     t1.m_msg = push_msg;
 
     bool res = t1.init();
@@ -4382,15 +4383,15 @@ TEST_F(basic_stl, pcap_remote_duration) {
     po->preview.setFileWrite(true);
     po->out_file ="exp/pcap_remote_duration";
 
-    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
-                                                                       0,
-                                                                       "exp/remote_test.cap",
-                                                                       100000,
-                                                                       0,
-                                                                       1,
-                                                                       0,
-                                                                       0.5,
-                                                                       false);
+    TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                              0,
+                                                              "exp/remote_test.cap",
+                                                              100000,
+                                                              0,
+                                                              1,
+                                                              0,
+                                                              0.5,
+                                                              false);
     t1.m_msg = push_msg;
 
     bool res = t1.init();
@@ -4405,15 +4406,15 @@ TEST_F(basic_stl, pcap_remote_dual) {
     po->preview.setFileWrite(true);
     po->out_file ="exp/pcap_remote_dual";
 
-    TrexStatelessCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
-                                                                       0,
-                                                                       "exp/remote_test_dual.erf",
-                                                                       10000,
-                                                                       0,
-                                                                       1,
-                                                                       0,
-                                                                       0.5,
-                                                                       true);
+    TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
+                                                              0,
+                                                              "exp/remote_test_dual.erf",
+                                                              10000,
+                                                              0,
+                                                              1,
+                                                              0,
+                                                              0.5,
+                                                              true);
     t1.m_msg = push_msg;
 
     bool res = t1.init();
@@ -4421,7 +4422,7 @@ TEST_F(basic_stl, pcap_remote_dual) {
 }
 
 /********************************************* Itay Tests End *************************************/
-class flow_stat_pkt_parse  : public testing::Test {
+class flow_stat_pkt_parse  : public trexStlTest {
     protected:
      virtual void SetUp() {
      }
@@ -4437,7 +4438,7 @@ TEST_F(flow_stat_pkt_parse, parser) {
     parser.test();
 }
 
-class flow_stat  : public testing::Test {
+class flow_stat  : public trexStlTest {
     protected:
      virtual void SetUp() {
      }
@@ -4550,7 +4551,7 @@ TEST_F(flow_stat, alloc_mbuf_const) {
      cg.alloc_flow_stat_mbuf_test_const();
 }
 
-class flow_stat_lat  : public testing::Test {
+class flow_stat_lat  : public trexStlTest {
     protected:
      virtual void SetUp() {
      }

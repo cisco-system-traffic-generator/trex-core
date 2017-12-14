@@ -23,9 +23,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <rte_config.h>
 #include <rte_mbuf.h>
 #include <rte_pci.h>
 #include <rte_ethdev.h>
+#include <rte_bus_pci.h>
+
 #include <common/basic_utils.h>
 #include "pkt_gen.h"
 #include "main_dpdk.h"
@@ -368,7 +371,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                 exp_q = MAIN_DPDK_RX_Q;
                 break;
             case STL:
-                if ( CGlobalInfo::m_options.is_stateless() ) {
+                if ( get_is_stateless() ) {
                     exp_q = MAIN_DPDK_RX_Q;
                     pkt_flags |= DPF_TOS_1;
                 } else {
@@ -376,7 +379,7 @@ int CTrexDebug::verify_hw_rules(bool recv_all) {
                 }
                 break;
             case STF:
-                if ( CGlobalInfo::m_options.is_stateless() ) {
+                if ( get_is_stateless() ) {
                     exp_q = MAIN_DPDK_DROP_Q;
                 } else {
                     exp_q = MAIN_DPDK_RX_Q;

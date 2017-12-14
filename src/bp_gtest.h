@@ -16,13 +16,66 @@ limitations under the License.
 
 #ifndef _BP_GTEST_H_
 #define _BP_GTEST_H_
-
+#include "sim/trex_sim.h"
 #define EXPECT_EQ_UINT32(a,b) EXPECT_EQ((uint32_t)(a),(uint32_t)(b))
 
-class trexTest  : public testing::Test {
+
+/**
+ * stateful test
+ * 
+ */
+class trexStfTest  : public testing::Test {
+public:
+    trexStfTest() {
+        TrexSTXCfg cfg;
+        set_stx(new TrexStateful(cfg, nullptr));  
+    }
+    ~trexStfTest() {
+         delete get_stx();
+         set_stx(NULL);
+    }
+};
+
+
+/**
+ * stateless test
+ * 
+ */
+class trexStlTest  : public testing::Test {
+public:
+    trexStlTest() {
+        TrexSTXCfg cfg;
+        set_stx(new TrexStateless(cfg));
+    }
+    ~trexStlTest() {
+        delete get_stx();
+        set_stx(NULL);
+    }
+};
+
+
+/**
+ * ASTF batch test
+ * 
+ */
+class trexAstfBatchTest  : public testing::Test {
+public:
+    trexAstfBatchTest() {
+        TrexSTXCfg cfg;
+        set_stx(new TrexAstfBatch(cfg, nullptr));
+    }
+    ~trexAstfBatchTest() {
+        delete get_stx();
+        set_stx(NULL);
+    }
+};
+
+
+
+class trexTest  : public trexStfTest {
  protected:
   virtual void SetUp() {
-        CGlobalInfo::m_options.reset();
+      CGlobalInfo::m_options.reset();
   }
   virtual void TearDown() {
   }
@@ -90,8 +143,8 @@ public:
                     ports[i]=lpg->GenerateOneSourcePort();
                 }
             }
-            CGlobalInfo::m_options.m_run_mode = CParserOption::RUN_MODE_BATCH;
-            lpt->start_generate_stateful(buf,CGlobalInfo::m_options.preview);
+            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
+            lpt->start_sim(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
             cmp.d_sec = m_time_diff;
             //compare generated file to expected file

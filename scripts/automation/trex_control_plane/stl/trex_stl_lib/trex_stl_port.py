@@ -10,8 +10,10 @@ from .rx_services.trex_stl_rx_service_ipv6 import *
 from . import trex_stl_stats
 from .utils.constants import FLOW_CTRL_DICT_REVERSED
 
+from .utils.common import list_difference, list_intersect
+
 import base64
-import copy
+from copy import deepcopy
 from datetime import datetime, timedelta
 import threading
 
@@ -199,11 +201,8 @@ class Port(object):
             return self.err(rc.err())
 
         for k, v in rc.data()['streams'].items():
-            self.streams[k] = {'next_id': v['next_stream_id'],
-                               'pkt'    : base64.b64decode(v['packet']['binary']),
-                               'mode'   : v['mode']['type'],
-                               'dummy'  : bool(v['flags'] & 8),
-                               'rate'   : STLStream.get_rate_from_field(v['mode']['rate'])}
+            self.streams[int(k)] = STLStream.from_json(v)
+            
         return self.ok()
 
     # release the port
@@ -319,13 +318,8 @@ class Port(object):
         for i, single_rc in enumerate(rc):
             if single_rc.rc:
                 stream_id = batch[i].params['stream_id']
-                next_id   = batch[i].params['stream']['next_stream_id']
-                self.streams[stream_id] = {'next_id'        : next_id,
-                                           'pkt'            : streams_list[i].get_pkt(),
-                                           'mode'           : streams_list[i].get_mode(),
-                                           'rate'           : streams_list[i].get_rate(),
-                                           'has_flow_stats' : streams_list[i].has_flow_stats()}
-
+                self.streams[stream_id] = streams_list[i].clone()
+                
                 ret.add(RC_OK(data = stream_id))
 
                 self.has_rx_streams = self.has_rx_streams or streams_list[i].has_flow_stats()
@@ -347,12 +341,12 @@ class Port(object):
         stream_id_list = listify(stream_id_list)
 
         # verify existance
-        if not all([stream_id in self.streams for stream_id in stream_id_list]):
-            return self.err("stream {0} does not exists".format(stream_id))
+        not_found = list_difference(stream_id_list, self.streams)
+        found     = list_intersect(stream_id_list, self.streams)
 
         batch = []
-
-        for stream_id in stream_id_list:
+        
+        for stream_id in found:
             params = {"handler": self.handler,
                       "port_id": self.port_id,
                       "stream_id": stream_id}
@@ -361,18 +355,25 @@ class Port(object):
             batch.append(cmd)
 
 
-        rc = self.transmit_batch(batch)
-        for i, single_rc in enumerate(rc):
-            if single_rc:
-                id = batch[i].params['stream_id']
-                del self.streams[id]
+        if batch:
+            rc = self.transmit_batch(batch)
+            for i, single_rc in enumerate(rc):
+                if single_rc:
+                    id = batch[i].params['stream_id']
+                    del self.streams[id]
+    
+            self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
+    
+            # recheck if any RX stats streams present on the port
+            self.has_rx_streams = any([stream.has_flow_stats() for stream in self.streams.values()])
 
-        self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
-
-        # recheck if any RX stats streams present on the port
-        self.has_rx_streams = any([stream['has_flow_stats'] for stream in self.streams.values()])
-
-        return self.ok() if rc else self.err(rc.err())
+            # did the batch send fail ?
+            if not rc:
+                return self.err(rc.err())
+            
+                
+        # partially succeeded ?
+        return self.err("stream(s) {0} do not exist".format(not_found)) if not_found else self.ok()
 
 
     # remove all the streams
@@ -596,7 +597,7 @@ class Port(object):
         
         
     @owned
-    def pause (self):
+    def pause(self):
 
         if (self.state == self.STATE_PCAP_TX) :
             return self.err("pause is not supported during PCAP TX")
@@ -616,9 +617,28 @@ class Port(object):
         return self.ok()
 
     @owned
-    def resume (self):
+    def pause_streams(self, stream_ids):
 
-        if (self.state != self.STATE_PAUSE) :
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('pause is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'stream_ids': stream_ids or []}
+
+        rc  = self.transmit('pause_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    @owned
+    def resume(self):
+
+        if self.state != self.STATE_PAUSE:
             return self.err("port is not in pause mode")
 
         params = {"handler": self.handler,
@@ -631,6 +651,25 @@ class Port(object):
             return self.err(rc.err())
 
         self.state = self.STATE_TX
+
+        return self.ok()
+
+    @owned
+    def resume_streams(self, stream_ids):
+
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('resume is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'stream_ids': stream_ids or []}
+
+        rc = self.transmit('resume_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 
@@ -654,6 +693,27 @@ class Port(object):
 
         # save this for TUI
         self.last_factor_type = mul['type']
+
+        return self.ok()
+
+    @owned
+    def update_streams(self, mul, force, stream_ids):
+
+        if self.state == self.STATE_PCAP_TX:
+            return self.err('update is not supported during PCAP TX')
+
+        if self.state != self.STATE_TX and self.state != self.STATE_PAUSE:
+            return self.err('port should be either paused or transmitting')
+
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'mul':        mul,
+                  'force':      force,
+                  'stream_ids': stream_ids or []}
+
+        rc = self.transmit('update_streams', params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 
@@ -1031,7 +1091,7 @@ class Port(object):
         return self.port_stats.invalidate()
 
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self, sync = True):
+    def generate_loaded_streams_sum(self, sync = True, table_format = True):
         if self.state == self.STATE_DOWN:
             return {}
 
@@ -1039,23 +1099,25 @@ class Port(object):
             self.sync_streams()
         
         data = OrderedDict()
-        for id in sorted(map(int, self.streams.keys())):
-            obj = self.streams[str(id)]
+        for id in sorted(self.streams.keys()):
+            stream = self.streams[id]
+            if not table_format:
+                data[id] = stream
+                continue
 
-            obj['pkt_len'] = len(obj['pkt']) + 4
-            if obj['dummy']:
-                obj['pkt_type'] = 'Dummy'
-                obj['pkt_len'] = '-'
-            if 'pkt_type' not in obj:
-                # lazy build scapy repr.
-                obj['pkt_type'] = STLPktBuilder.pkt_layers_desc_from_buffer(obj['pkt'])
+            if stream.has_flow_stats():
+                pg_id = '{0}: {1}'.format(stream.get_flow_stats_type(), stream.get_pg_id())
+            else:
+                pg_id = '-'
             
-            data[id] = OrderedDict([ ('id',  id),
-                                     ('packet_type',  obj['pkt_type']),
-                                     ('L2 len',       obj['pkt_len']),
-                                     ('mode',         obj['mode']),
-                                     ('rate',         obj['rate']),
-                                     ('next_stream',  obj['next_id'] if obj['next_id'] != '-1' else 'None')
+            data[id] = OrderedDict([ ('id',           id),
+                                     ('name',         stream.get_name() or '-'),
+                                     ('packet_type',  stream.get_pkt_type()),
+                                     ('L2 len',       len(stream.get_pkt())+ 4),
+                                     ('mode',         stream.get_mode()),
+                                     ('rate',         stream.get_rate()),
+                                     ('PG ID',        pg_id),
+                                     ('next',         stream.get_next() or '-')
                                     ])
     
         return {"streams" : data}

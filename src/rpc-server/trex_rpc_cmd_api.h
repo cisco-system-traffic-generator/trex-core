@@ -25,9 +25,201 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <json/json.h>
-#include <trex_rpc_exception_api.h>
 
-#include "trex_api_class.h"
+#include "trex_rpc_exception_api.h"
+#include "common/basic_utils.h"
+
+class TrexRpcCommand;
+class TrexRpcComponent;
+
+/**
+ * syntactic sugar for creating a simple command
+ */
+
+#define TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, needs_api, needs_ownership, ext)                                \
+    class class_name : public TrexRpcCommand {                                                                             \
+    public:                                                                                                                \
+        class_name (TrexRpcComponent *component) : TrexRpcCommand(cmd_name, component, needs_api, needs_ownership) {}      \
+    protected:                                                                                                             \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                                    \
+        ext                                                                                                                \
+    }
+
+
+/**
+ * defines an owned RPC command (requires ownership)
+ */
+#define TREX_RPC_CMD_OWNED(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, true, ;)
+#define TREX_RPC_CMD_OWNED_EXT(class_name, cmd_name, ext)  TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, true, ext)
+
+/**
+ * defins unowned commands
+ */
+#define TREX_RPC_CMD(class_name, cmd_name)                 TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, false, ;)
+#define TREX_RPC_CMD_EXT(class_name, cmd_name, ext)        TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, true, false, ext)
+
+
+/**
+ * open (no API) commands 
+ * no commands should be here besides API sync 
+ * and ping 
+ */
+#define TREX_RPC_CMD_NOAPI(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, false, false, ;)
+
+
+/**
+ * RPC API version
+ */
+class TrexRpcAPIVersion {
+public:
+
+    /**
+     * init the RPC configuration
+     * 
+     */
+    void init(const std::string &name, int major, int minor) {
+        m_name  = name;
+        m_major = major;
+        m_minor = minor;
+        
+        m_api_handler = utl_generate_random_str(8);
+    }
+    
+    
+    /**
+     * verifies RPC configuration and version 
+     *  
+     * on success, will return a special handler 
+     * on error will throw exception 
+     */
+    const std::string & verify(const std::string &name, int major, int minor) const {
+        std::stringstream ss;
+        
+        bool fail = false;
+
+        if (name != m_name) {
+            ss << "RPC configuration mismatch - server RPC configuration: '" << m_name << "', client RPC configuration: '" << name << "'";
+            throw TrexRpcException(ss.str());
+        }
+        
+        if (major < m_major) {
+            ss << "RPC version mismatch: a newer client version is required";
+            fail = true;
+            
+        } else if (major > m_major) {
+            ss << "Version mismatch: your client version is too new to be supported by the server";
+            fail = true;
+            
+        } else if (minor > m_minor) {
+            ss << "Version mismatch: your client version is too new to be supported by the server";
+            fail = true;
+            
+        }
+
+        if (fail) {
+            ss << "\n(";
+            ss <<  "API type '" << m_name << "': "" - server: '" << get_server_ver() << "', client: '" << ver(major, minor) << "'";
+            ss << ")";
+            
+            throw TrexRpcException(ss.str());
+        }
+
+        return get_api_handler();
+    }
+
+
+    const std::string & get_api_handler() const {
+        return m_api_handler;
+    }
+
+
+    const std::string & get_name() const {
+        return m_name;
+    }
+    
+private:
+
+    std::string ver(int major, int minor) const {
+        std::stringstream ss;
+        ss << major << "." << minor;
+        return ss.str();
+    }
+
+    std::string get_server_ver() const {
+        return ver(m_major, m_minor);
+    }
+
+    std::string    m_name;
+    int            m_major;
+    int            m_minor;
+    
+    /* a unique API handler */
+    std::string    m_api_handler;
+};
+
+/********************************* RPC Component *********************************/
+
+/**
+ * an interface for creating a 
+ * group of cmds 
+ * 
+ * @author imarom (8/23/2017)
+ */
+class TrexRpcComponent {
+public:
+    
+    TrexRpcComponent(const std::string &name) {
+        m_name         = name;
+        m_rpc_api_ver  = NULL;
+    }
+    
+    
+    ~TrexRpcComponent();
+    
+    /**
+     * called the RPC table to set the API handler
+     * 
+     */
+    void set_rpc_api_ver(const TrexRpcAPIVersion *rpc_api_ver) {
+        m_rpc_api_ver = rpc_api_ver;
+    }
+
+    
+    /**
+     * returns the API version/config related to this component
+     * 
+     */
+    const TrexRpcAPIVersion *get_rpc_api_ver() const {
+        return m_rpc_api_ver;
+    }
+    
+        
+    /**
+     * returns the name of the component
+     * 
+     */
+    const std::string &get_name() const {
+        return m_name;
+    }
+
+    
+    /**
+     * returns a vector of all the RPC commands 
+     * under the component 
+     *  
+     */
+    const std::vector<TrexRpcCommand *> &get_rpc_cmds() {
+        return m_cmds;
+    }
+    
+    
+protected:
+    std::string                      m_name;
+    std::vector<TrexRpcCommand *>    m_cmds;
+    const TrexRpcAPIVersion         *m_rpc_api_ver;
+    
+};
+
 
 /**
  * describe different types of rc for run()
@@ -44,11 +236,17 @@ typedef enum trex_rpc_cmd_rc_ {
  * 
  * @author imarom (23-Aug-15)
  */
-class TrexRpcCommandException : TrexRpcException {
+class TrexRpcCommandException : public TrexRpcException {
 public:
     TrexRpcCommandException(trex_rpc_cmd_rc_e rc) : m_rc(rc) {
 
     }
+
+    TrexRpcCommandException(trex_rpc_cmd_rc_e rc,
+                            const std::string &what) : TrexRpcException (what),  m_rc(rc) {
+
+    }
+
 
     trex_rpc_cmd_rc_e get_rc() {
         return m_rc;
@@ -58,6 +256,9 @@ public:
 protected:
     trex_rpc_cmd_rc_e m_rc;
 };
+
+
+/********************************* RPC Command *********************************/
 
 /**
  * interface for RPC command
@@ -71,9 +272,9 @@ public:
      * method name and params
      */
     TrexRpcCommand(const std::string &method_name,
-                   int param_count,
-                   bool needs_ownership,
-                   APIClass::type_e type);
+                   TrexRpcComponent *component,
+                   bool needs_api,
+                   bool needs_ownership);
 
     /**
      * entry point for executing RPC command
@@ -102,7 +303,6 @@ public:
     virtual ~TrexRpcCommand() {}
 
 protected:
-    static const int PARAM_COUNT_IGNORE = -1;
 
     /**
      * different types of fields
@@ -126,11 +326,6 @@ protected:
      * 
      */
     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) = 0;
-
-    /**
-     * check param count
-     */
-    void check_param_count(const Json::Value &params, int expected, Json::Value &result);
 
     /**
      * verify API handler
@@ -347,6 +542,8 @@ protected:
         return (*choices.begin());
     }
 
+
+
     /**
      * check field type
      * 
@@ -354,6 +551,8 @@ protected:
     void check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result);
     void check_field_type(const Json::Value &parent, int index, field_type_e type, Json::Value &result);
     void check_field_type_common(const Json::Value &field, const std::string &name, field_type_e type, Json::Value &result);
+
+  protected:
 
     /**
      * error generating functions
@@ -389,13 +588,18 @@ protected:
 
     /* RPC command name */
     std::string        m_name;
-    int                m_param_count;
     bool               m_needs_ownership;
-    std::string        m_api_handler;
-    APIClass::type_e   m_api_type; 
+    bool               m_needs_api;
+    
+    /* back pointer to the component */
+    TrexRpcComponent  *m_component;
+    
+    /* for debug */
     static bool        g_test_override_ownership;
     static bool        g_test_override_api;
 };
+
+
 
 #endif /* __TREX_RPC_CMD_API_H__ */
 

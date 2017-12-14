@@ -19,10 +19,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <trex_rpc_exception_api.h>
-#include <trex_rpc_jsonrpc_v2_parser.h>
-#include <trex_rpc_cmd_api.h>
-#include <trex_rpc_cmds_table.h>
+#include "trex_rpc_exception_api.h"
+#include "trex_rpc_jsonrpc_v2_parser.h"
+#include "trex_rpc_cmd_api.h"
+#include "trex_rpc_cmds_table.h"
 
 #include <json/json.h>
 

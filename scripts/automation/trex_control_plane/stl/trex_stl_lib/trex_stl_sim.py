@@ -27,10 +27,9 @@ from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWri
 from random import randint
 from random import choice as rand_choice
 
-from yaml import YAMLError
-
 import re
 import json
+import yaml
 import argparse
 import tempfile
 import subprocess
@@ -73,14 +72,14 @@ class STLSim(object):
 
 
     # run command
-    # input_list - a list of streams or YAML files
+    # input_list - a list of streams or JSON files
     # outfile - pcap file to save output, if None its a dry run
     # dp_core_count - how many DP cores to use
     # dp_core_index - simulate only specific dp core without merging
     # is_debug - debug or release image
     # pkt_limit - how many packets to simulate
     # mult - multiplier
-    # mode - can be 'valgrind, 'gdb', 'json' or 'none'
+    # mode - can be 'valgrind, 'gdb', 'json', 'yaml' or 'none'
     def run (self,
              input_list,
              outfile = None,
@@ -94,7 +93,7 @@ class STLSim(object):
              silent = False,
              tunables = None):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml','pkt','native']:
+        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml', 'pkt', 'native']:
             raise STLArgumentError('mode', mode)
 
         # listify
@@ -108,7 +107,6 @@ class STLSim(object):
         input_files  = [x for x in input_list if isinstance(x, str)]
         stream_list = [x for x in input_list if isinstance(x, STLStream)]
 
-        # handle YAMLs
         if tunables == None:
             tunables = {}
 
@@ -128,12 +126,14 @@ class STLSim(object):
 
 
         # load streams
-        cmds_json = []
-
+        cmds_json    = []
+        
         id_counter = 1
 
         lookup = {}
 
+        
+        
         # allocate IDs
         for stream in stream_list:
             if stream.get_id() is not None:
@@ -161,9 +161,10 @@ class STLSim(object):
                 next_id = lookup[next]
 
 
+            
             stream_json = stream.to_json()
             stream_json['next_stream_id'] = next_id
-
+            
             cmd = {"id":1,
                    "jsonrpc": "2.0",
                    "method": "add_stream",
@@ -181,20 +182,27 @@ class STLSim(object):
                                                  force = True,
                                                  duration = duration))
 
+        # verify from_json
+        self.verify_json(stream_list)
+        
         if mode == 'json':
-            print(json.dumps(cmds_json, indent = 4, separators=(',', ': '), sort_keys = True))
+            print(json.dumps(STLProfile(stream_list).to_json(), indent = 4))
             return
+            
         elif mode == 'yaml':
-            print(STLProfile(stream_list).dump_to_yaml())
+            json_data = STLProfile(stream_list).to_json()
+            print(yaml.dump(json_data, default_flow_style = False))
             return
+            
         elif mode == 'pkt':
             print(STLProfile(stream_list).dump_as_pkt())
             return
+            
         elif mode == 'native':
             print(STLProfile(stream_list).dump_to_code())
             return
 
-
+        
         # start simulation
         self.outfile = outfile
         self.dp_core_count = dp_core_count
@@ -295,6 +303,18 @@ class STLSim(object):
         pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
 
 
+        
+    def verify_json (self, stream_list):
+        " make sure to/from conversion works "
+        to_json_streams   = STLProfile(stream_list).to_json()
+        from_json_streams = STLProfile.from_json(to_json_streams).to_json()
+        if from_json_streams != to_json_streams:
+            print('to_json result:')
+            pprint.pprint(to_json_streams)
+            print('from_json result:')
+            pprint.pprint(from_json_streams)
+            raise STLError('Generated JSON does not match')
+
 
 def is_valid_file(filename):
     if not os.path.isfile(filename):
@@ -315,7 +335,7 @@ def setParserOptions():
 
     parser.add_argument("-f",
                         dest ="input_file",
-                        help = "input file in YAML or Python format",
+                        help = "input file (Python or JSON)",
                         type = is_valid_file,
                         required=True)
 
@@ -404,13 +424,13 @@ def setParserOptions():
                        action = "store_true",
                        default = False)
 
-    group.add_argument("--pkt",
-                       help = "Parse the packet and show it as hex",
-                       action = "store_true",
-                       default = False)
-
     group.add_argument("--yaml",
                        help = "generate YAML from input file [default is False]",
+                       action = "store_true",
+                       default = False)
+     
+    group.add_argument("--pkt",
+                       help = "Parse the packet and show it as hex",
                        action = "store_true",
                        default = False)
 

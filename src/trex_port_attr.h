@@ -26,7 +26,7 @@ limitations under the License.
 #include "trex_defs.h"
 #include "common/basic_utils.h"
 
-#include "trex_stateless_rx_defs.h"
+#include "trex_rx_defs.h"
 #include "trex_vlan.h"
 
 
@@ -221,7 +221,7 @@ public:
     virtual bool is_fc_change_supported() { return flag_is_fc_change_supported; }
     virtual bool is_led_change_supported() { return flag_is_led_change_supported; }
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
-    virtual void get_description(std::string &description) { description = intf_info_st.description; }
+    virtual const std::string &get_description() { return intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
     virtual bool is_loopback() const = 0;
     
@@ -408,6 +408,7 @@ public:
         flag_is_fc_change_supported = false;
         flag_is_led_change_supported = false;
         flag_is_link_change_supported = false;
+        
     }
 
     /* DUMMY */
@@ -422,7 +423,6 @@ public:
     int get_xstats_values(xstats_values_t &xstats_values) { return -ENOTSUP; }
     int get_xstats_names(xstats_names_t &xstats_names) { return -ENOTSUP; }
     int get_flow_ctrl(int &mode) { return -ENOTSUP; }
-    void get_description(std::string &description) {}
     void get_supported_speeds(supp_speeds_t &supp_speeds) {}
     int set_promiscuous(bool enabled) { return -ENOTSUP; }
     int set_multicast(bool enabled) { return -ENOTSUP; }

@@ -86,6 +86,8 @@ GLOBAL_STATS
 PORT_STATS
 PORT_STATUS
 STREAMS_STATS
+LATENCY_STATS
+LATENCY_HISTOGRAM
 STATS_MASK
 CPU_STATS
 MBUF_STATS
@@ -93,6 +95,7 @@ EXTENDED_STATS
 EXTENDED_INC_ZERO_STATS
 
 STREAMS_MASK
+STREAMS_CODE
 CORE_MASK_GROUP
 CAPTURE_PORTS_GROUP
 
@@ -684,6 +687,14 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                           {'action': 'store_true',
                                            'help': "Fetch only streams stats"}),
 
+              LATENCY_STATS: ArgumentPack(['-l'],
+                                          {'action': 'store_true',
+                                           'help': "Fetch only latency stats"}),
+
+              LATENCY_HISTOGRAM: ArgumentPack(['--lh'],
+                                          {'action': 'store_true',
+                                           'help': "Fetch only latency histogram"}),
+
               CPU_STATS: ArgumentPack(['-c'],
                                       {'action': 'store_true',
                                        'help': "Fetch only CPU utilization stats"}),
@@ -700,13 +711,20 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                        {'action': 'store_true',
                                         'help': "Fetch xstats of port, including lines with zero values"}),
 
-              STREAMS_MASK: ArgumentPack(['--streams'],
+              STREAMS_MASK: ArgumentPack(['-i', '--id'],
                                          {"nargs": '+',
-                                          'dest':'streams',
-                                          'metavar': 'STREAMS',
+                                          'dest':'ids',
+                                          'metavar': 'ID',
                                           'type': int,
-                                          'help': "A list of stream IDs to query about. Default: analyze all streams",
+                                          'help': 'Filter by those stream IDs (default is all streams).',
                                           'default': []}),
+
+              STREAMS_CODE: ArgumentPack(['--code'],
+                                      {'type': str,
+                                       'nargs': '?',
+                                       'const': '',
+                                       'metavar': 'FILE',
+                                       'help': 'Get Python code that creates the stream(s). Provided argument is filename to save, or by default prints to stdout.'}),
 
 
               PIN_CORES: ArgumentPack(['--pin'],
@@ -831,6 +849,8 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
                                                 PORT_STATS,
                                                 PORT_STATUS,
                                                 STREAMS_STATS,
+                                                LATENCY_STATS,
+                                                LATENCY_HISTOGRAM,
                                                 CPU_STATS,
                                                 MBUF_STATS,
                                                 EXTENDED_STATS,
@@ -934,12 +954,13 @@ class CCmdArgParser(argparse.ArgumentParser):
                 return opts
             opts.ports = listify(opts.ports)
             
-            # if all ports are marked or 
-            if (getattr(opts, "all_ports", None) == True) or (getattr(opts, "ports", None) == []):
-                if default_ports is None:
-                    opts.ports = self.stateless_client.get_acquired_ports()
-                else:
-                    opts.ports = default_ports
+            # explicit -a means ALL ports
+            if (getattr(opts, "all_ports", None) == True):
+                opts.ports = self.stateless_client.get_all_ports()
+                
+            # default ports
+            elif (getattr(opts, "ports", None) == []):
+                opts.ports = self.stateless_client.get_acquired_ports() if default_ports is None else default_ports
 
             opts.ports = list_remove_dup(opts.ports)
             

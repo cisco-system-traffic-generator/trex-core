@@ -20,7 +20,6 @@ class STLS1(object):
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="ARP.pdst",offset_fixup=2),                
                            STLVmWrFlowVar(fv_name="mac_src" ,pkt_offset="ARP.hwdst",offset_fixup=4),
                           ]
-                         ,split_by_field = "mac_src"  # split 
                         )
 
         return STLStream(packet = STLPktBuilder(pkt = base_pkt,vm = vm),

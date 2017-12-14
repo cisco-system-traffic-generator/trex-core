@@ -49,7 +49,7 @@ void CPciPortCfgDesc::dump(FILE *fd){
         err=std::string(buf);
         return(0);
     }
-    rte_eal_pci_device_name(&addr,
+    rte_pci_device_name(&addr,
                             buf, BUF_MAX);
     out =std::string(buf);
     return(0);

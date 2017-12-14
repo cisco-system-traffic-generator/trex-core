@@ -135,18 +135,18 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Intel 82599          | 10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
 | Intel 82599 VF       | x   | + | + |
 | Intel X710           | 10  | + | - |Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
-| Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical)
-| Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710]
+| Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical) *Preferred* support per stream stats in hardware
+| Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710] *Preferred* support per stream stats in hardware
 | Intel XL710/X710 VF  | x  | + | - |
-| Napatech SmartNICs NT40E3-4 | 10 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
-| Napatech SmartNICs NT80E3-2 | 40 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT40E3-4 | 10 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
+| Napatech SmartNICs NT80E3-2 | 40 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
   *Note:* This NIC require a BIOS with PCIe bifurcation support.
   link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
-| Napatech SmartNICs NT200A01 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT200A01 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
   *Note:* This NIC require a BIOS with PCIe bifurcation support.
   link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
-| Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details xref:connectx_support[TRex Support]
-| Mellanox ConnectX-5  | 25/40/50/56/100 | + | + |Supported
+| Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details and issues xref:connectx_support[TRex Support]
+| Mellanox ConnectX-5  | 25/40/50/56/100 | + | + | Supported, see issues xref:connectx_support[TRex Support]
 | Cisco 1300 series    | 40              | + | - |QSFP+, VIC 1380,  VIC 1385, VIC 1387 see more xref:ciscovic_support[TRex Support]
 | VMXNET3  | VMware paravirtualized  | + | - |  Connect using VMware vSwitch
 | E1000    | paravirtualized  | + | - | VMware/KVM/VirtualBox
@@ -3119,28 +3119,26 @@ Installing the full OFED package is the simplest way to make it work (trying to 
 The advantage of this model is that you can control it using standard Linux tools (ethtool and ifconfig will work).
 The disadvantage is the OFED dependency.
 
-==== Installation
-
-==== Install Linux
+==== Distro Installation 
 
 We tested the following distro with TRex and OFED. Others might work too.
 
-* CentOS 7.3
+* CentOS 7.4 (This is the only tested distro)
 
 Following distro was tested and did *not* work for us.
 
 * Fedora 21 (3.17.4-301.fc21.x86_64)
 * Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64)  -- crash when RSS was enabled link:https://trex-tgn.cisco.com/youtrack/issue/trex-294[MLX RSS issue]
 
-==== Install OFED
+==== OFED Installation  
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download latest OFED 4.x OFED tar for your distro. this example shows an old OFED installation
+* Download latest OFED 4.2.1 OFED tar for RedHat 7.4 distro. 
 
 [IMPORTANT]
 =====================================
-The version must be *MLNX_OFED_LINUX-4.0* or higher (4.0.x)
+The version must be *MLNX_OFED_LINUX-4.2.1* or higher (4.2.1)
 =====================================
 
 [IMPORTANT]
@@ -3151,228 +3149,82 @@ Make sure you have an internet connection without firewalls for HTTPS/HTTP - req
 .Verify md5
 [source,bash]
 ----
-[bash]>md5sum md5sum MLNX_OFED_LINUX-4.0.0.0.0-rhel7.2-x86_64.tgz
-58b9fb369d7c62cedbc855661a89a9fd  MLNX_OFED_LINUX-4.0-xx.0.0.0-rhel7.2-x86_64.tgz
+[bash]>md5sum md5sum MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
+hash_from_mellanox  MLNX_OFED_LINUX-4.2-1-.0.0.0-rhel7.4-x86_64.tgz
 ----
 
 .Open the tar
 [source,bash]
 ----
-[bash]>tar -xvzf MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64.tgz
-[bash]>cd MLNX_OFED_LINUX-4.0-x.0.0.0-rhel7.2-x86_64
+[bash]>tar -xvzf MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
+[bash]>cd MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
 ----
 
 .Run Install script
 [source,bash]
 ----
-[bash]>sudo ./mlnxofedinstall
+[bash]>sudo ./mlnxofedinstall --with-mft --with-mstflint --dpdk --upstream-libs 
 
 
 Log: /tmp/ofed.build.log
 Logs dir: /tmp/MLNX_OFED_LINUX.10406.logs
 
-Below is the list of MLNX_OFED_LINUX packages that you have chosen
-(some may have been added by the installer due to package dependencies):
 
-ofed-scripts
-mlnx-ofed-kernel-utils
-mlnx-ofed-kernel-dkms
-iser-dkms
-srp-dkms
-mlnx-sdp-dkms
-mlnx-rds-dkms
-mlnx-nfsrdma-dkms
-libibverbs1
-ibverbs-utils
-libibverbs-dev
-libibverbs1-dbg
-libmlx4-1
-libmlx4-dev
-libmlx4-1-dbg
-libmlx5-1
-libmlx5-dev
-libmlx5-1-dbg
-libibumad
-libibumad-static
-libibumad-devel
-ibacm
-ibacm-dev
-librdmacm1
-librdmacm-utils
-librdmacm-dev
-mstflint
-ibdump
-libibmad
-libibmad-static
-libibmad-devel
-libopensm
-opensm
-opensm-doc
-libopensm-devel
-infiniband-diags
-infiniband-diags-compat
-mft
-kernel-mft-dkms
-libibcm1
-libibcm-dev
-perftest
-ibutils2
-libibdm1
-ibutils
-cc-mgr
-ar-mgr
-dump-pr
-ibsim
-ibsim-doc
-knem-dkms
-mxm
-fca
-sharp
-hcoll
-openmpi
-mpitests
-knem
-rds-tools
-libdapl2
-dapl2-utils
-libdapl-dev
-srptools
-mlnx-ethtool
-libsdp1
-libsdp-dev
-sdpnetstat
 
-This program will install the MLNX_OFED_LINUX package on your machine.
-Note that all other Mellanox, OEM, OFED, or Distribution IB packages will be removed.
 Do you want to continue?[y/N]:y
 
-Checking SW Requirements...
+Uninstalling the previous version of MLNX_OFED_LINUX
 
-One or more required packages for installing MLNX_OFED_LINUX are missing.
-Attempting to install the following missing packages:
-autotools-dev tcl debhelper dkms tk8.4 libgfortran3 graphviz chrpath automake dpatch flex bison autoconf quilt m4 tcl8.4 libltdl-dev pkg-config pytho
-bxml2 tk swig gfortran libnl1
+rpm --nosignature -e --allmatches --nodeps mft
+
+Starting MLNX_OFED_LINUX-4.2-1.0.0.0 installation ...
+
+Installing mlnx-ofa_kernel RPM
+Preparing...                          ########################################
+Updating / installing...
+mlnx-ofa_kernel-4.2-OFED.4.2.1.0.0.1.g########################################
+Installing kmod-mlnx-ofa_kernel 4.2 RPM
+Preparing...                          ########################################
+kmod-mlnx-ofa_kernel-4.2-OFED.4.2.1.0.########################################
+Installing mlnx-ofa_kernel-devel RPM
+Preparing...                          ########################################
+Updating / installing...
+mlnx-ofa_kernel-devel-4.2-OFED.4.2.1.0########################################
+Installing user level RPMs:
+Preparing...                          ########################################
+mstflint-4.8.0-1.4.g501cec1.42100     ########################################
+Preparing...                          ########################################
+ofed-scripts-4.2-OFED.4.2.1.0.0       ########################################
+Preparing...                          ########################################
+rdma-core-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+libibumad-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+libibmad-1.3.13.MLNX20170511.267a441-0########################################
+Preparing...                          ########################################
+mft-4.8.0-26                          ########################################
+Preparing...                          ########################################
+libibverbs-42mlnx2-1.42100            ########################################
+Preparing...                          ########################################
+rdma-core-devel-42mlnx2-1.42100       ########################################
+Preparing...                          ########################################
+libibverbs-utils-42mlnx2-1.42100      ########################################
+Preparing...                          ########################################
+librdmacm-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+librdmacm-utils-42mlnx2-1.42100       ########################################
+Device (87:00.0):
+        87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Device (87:00.1):
+        87:00.1 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Link Width: x16
+        PCI Link Speed: 8GT/s
 
 ..
 
-Removing old packages...
-Installing new packages
-Installing ofed-scripts-3.4...
-Installing mlnx-ofed-kernel-utils-3.4...
-Installing mlnx-ofed-kernel-dkms-3.4...
-
-Removing old packages...
-Installing new packages
-Installing ofed-scripts-3.4...
-Installing mlnx-ofed-kernel-utils-3.4...
-Installing mlnx-ofed-kernel-dkms-3.4...
-Installing iser-dkms-1.8.1...
-Installing srp-dkms-1.6.1...
-Installing mlnx-sdp-dkms-3.4...
-Installing mlnx-rds-dkms-3.4...
-Installing mlnx-nfsrdma-dkms-3.4...
-Installing libibverbs1-1.2.1mlnx1...
-Installing ibverbs-utils-1.2.1mlnx1...
-Installing libibverbs-dev-1.2.1mlnx1...
-Installing libibverbs1-dbg-1.2.1mlnx1...
-Installing libmlx4-1-1.2.1mlnx1...
-Installing libmlx4-dev-1.2.1mlnx1...
-Installing libmlx4-1-dbg-1.2.1mlnx1...
-Installing libmlx5-1-1.2.1mlnx1...
-Installing libmlx5-dev-1.2.1mlnx1...
-Installing libmlx5-1-dbg-1.2.1mlnx1...
-Installing libibumad-1.3.10.2.MLNX20150406.966500d...
-Installing libibumad-static-1.3.10.2.MLNX20150406.966500d...
-Installing libibumad-devel-1.3.10.2.MLNX20150406.966500d...
-Installing ibacm-1.2.1mlnx1...
-Installing ibacm-dev-1.2.1mlnx1...
-Installing librdmacm1-1.1.0mlnx...
-Installing librdmacm-utils-1.1.0mlnx...
-Installing librdmacm-dev-1.1.0mlnx...
-Installing mstflint-4.5.0...
-Installing ibdump-4.0.0...
-Installing libibmad-1.3.12.MLNX20160814.4f078cc...
-Installing libibmad-static-1.3.12.MLNX20160814.4f078cc...
-Installing libibmad-devel-1.3.12.MLNX20160814.4f078cc...
-Installing libopensm-4.8.0.MLNX20160906.32a95b6...
-Installing opensm-4.8.0.MLNX20160906.32a95b6...
-Installing opensm-doc-4.8.0.MLNX20160906.32a95b6...
-Installing libopensm-devel-4.8.0.MLNX20160906.32a95b6...
-Installing infiniband-diags-1.6.6.MLNX20160814.999c7b2...
-Installing infiniband-diags-compat-1.6.6.MLNX20160814.999c7b2...
-Installing mft-4.5.0...
-Installing kernel-mft-dkms-4.5.0...
-Installing libibcm1-1.0.5mlnx2...
-Installing libibcm-dev-1.0.5mlnx2...
-Installing perftest-3.0...
-Installing ibutils2-2.1.1...
-Installing libibdm1-1.5.7.1...
-Installing ibutils-1.5.7.1...
-Installing cc-mgr-1.0...
-Installing ar-mgr-1.0...
-Installing dump-pr-1.0...
-Installing ibsim-0.6...
-Installing ibsim-doc-0.6...
-Installing knem-dkms-1.1.2.90mlnx1...
-Installing mxm-3.5.220c57f...
-Installing fca-2.5.2431...
-Installing sharp-1.1.1.MLNX20160915.8763a35...
-Installing hcoll-3.6.1228...
-Installing openmpi-1.10.5a1...
-Installing mpitests-3.2.18...
-Installing knem-1.1.2.90mlnx1...
-Installing rds-tools-2.0.7...
-Installing libdapl2-2.1.9mlnx...
-Installing dapl2-utils-2.1.9mlnx...
-Installing libdapl-dev-2.1.9mlnx...
-Installing srptools-1.0.3...
-Installing mlnx-ethtool-4.2...
-Installing libsdp1-1.1.108...
-Installing libsdp-dev-1.1.108...
-Installing sdpnetstat-1.60...
-Selecting previously unselected package mlnx-fw-updater.
-(Reading database ... 70592 files and directories currently installed.)
-Preparing to unpack .../mlnx-fw-updater_3.4-1.0.0.0_amd64.deb ...
-Unpacking mlnx-fw-updater (3.4-1.0.0.0) ...
-Setting up mlnx-fw-updater (3.4-1.0.0.0) ...
-
-Added RUN_FW_UPDATER_ONBOOT=no to /etc/infiniband/openib.conf
-
-Attempting to perform Firmware update...
-Querying Mellanox devices firmware ...
-
-Device #1:
-
-  Device Type:      ConnectX4
-  Part Number:      MCX416A-CCA_Ax
-  Description:      ConnectX-4 EN network interface card; 100GbE dual-port QSFP28; PCIe3.0 x16; ROHS R6
-  PSID:             MT_2150110033
-  PCI Device Name:  03:00.0
-  Base GUID:        248a07030014fc60
-  Base MAC:         0000248a0714fc60
-  Versions:         Current        Available
-     FW             12.16.1006     12.17.1010
-     PXE            3.4.0812       3.4.0903
-
-  Status:           Update required
-
-
-Found 1 device(s) requiring firmware update...
-
-Device #1: Updating FW ... Done
-
-Restart needed for updates to take effect.
-Log File: /tmp/MLNX_OFED_LINUX.16084.logs/fw_update.log
-Please reboot your system for the changes to take effect.
-Device (03:00.0):
-        03:00.0 Ethernet controller: Mellanox Technologies MT27620 Family
-        Link Width: x16
-        PCI Link Speed: 8GT/s
-
-Device (03:00.1):
-        03:00.1 Ethernet controller: Mellanox Technologies MT27620 Family
-        Link Width: x16
-        PCI Link Speed: 8GT/s
 
 Installation passed successfully
 To load the new driver, run:
@@ -3393,7 +3245,7 @@ To load the new driver, run:
 [bash]>ibv_devinfo
 hca_id: mlx5_1
         transport:                      InfiniBand (0)
-        fw_ver:                         12.17.1010             << 12.17.00
+        fw_ver:                         12.21.1000             << 12.21.1000
         node_guid:                      248a:0703:0014:fc61
         sys_image_guid:                 248a:0703:0014:fc60
         vendor_id:                      0x02c9
@@ -3413,7 +3265,7 @@ hca_id: mlx5_1
 
 hca_id: mlx5_0
         transport:                      InfiniBand (0)
-        fw_ver:                         12.17.1010
+        fw_ver:                         12.21.1000
         node_guid:                      248a:0703:0014:fc60
         sys_image_guid:                 248a:0703:0014:fc60
         vendor_id:                      0x02c9
@@ -3440,6 +3292,17 @@ hca_id: mlx5_0
 mlx5_0 port 1 ==> eth6 (Down)
 mlx5_1 port 1 ==> eth7 (Down)
 ----
+
+
+//to upgrade the FW you need to try to download the tool and build for you system link:http://www.mellanox.com/page/management_tools[management_tools]
+//
+//.upgrade FW for CX-5 device to support full-line rate with DROP
+//[source,bash]
+//----
+//$sudo mst start
+//$sudo mst status
+//$sudo mlxburn -d /dev/mst/mt4121_pciconf0 -fw fw-ConnectX5.mlx -conf_dir .
+//----
 
 .find the ports
 [source,bash]
@@ -3500,7 +3363,35 @@ mlx5_1 port 1 ==> eth7 (Down)
 ----
 
 
+==== Connect-5x maximum throughput
 
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
+| 64  |  100%  | 94%
+| 128 |  100%  | 100%
+| 256 |  90%   | 90%      
+| 512 |  100%  | 100%
+| 1024 |  100% | 100%
+| 1500 |  100% | 100%
+|=================
+
+==== Upgrade procedure
+
+anchor:ofed_upgrade[]
+
+TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| TRex version  | OFED | Disto
+| 2.32  |  *only* 4.1  | CentOs 7.3
+| 2.33 or higer |  *only* 4.2  | CentOs 7.4
+|=================
+
+WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
 
 ==== TRex specific implementation details
 
@@ -3514,34 +3405,10 @@ NIC with two ports will work better from performance prospective, so it is bette
 
 ==== Limitation/Issues
 
+Many issues were solved in new DPDK 17.11 the current list of issues are:
+
+* a special FW to drop and count packets in high rate
 * Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-261[Latency issue]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-262[Statful RX out of order]
-
-
-==== Performance Cycles/Packet ConnectX-4 vs Intel XL710
-
-For TRex version v2.11, these are the comparison results between XL710 and ConnectX-4 for various scenarios.
-
-.Stateless MPPS/Core [Preliminary]
-image:images/xl710_vs_mlx5_64b.png[title="Stateless 64B"]
-
-.Stateless Gb/Core [Preliminary]
-image:images/xl710_vs_mlx5_var_size.png[title="Stateless variable size packet"]
-
-*Comments*::
-
-1. MLX5 can reach ~50MPPS while XL710 is limited to 35MPPS. (With potential future fix it will be ~65MPPS)
-2. with IMIX you should reach ~90Gb/sec (not 100Gb/sec) with one port (Total bandwidth for both ports is 100Gb/Sec)
-3. For Stateless/Stateful 256B profiles, ConnectX-4 uses half of the CPU cycles per packet. ConnectX-4 probably can handle in a better way chained mbufs (scatter gather).
-4. In the average stateful scenario, ConnectX-4 is the same as XL710.
-5. For Stateless 64B/IMIX profiles, ConnectX-4 uses 50-90% more CPU cycles per packet (it is actually even more because there is the TRex scheduler overhead) - it means that in worst case scenario, you will need x2 CPU for the same total MPPS.
-
-
-[NOTE]
-=====================================
-There is a task to automate the production of thess reports
-=====================================
 
 ==== Troubleshooting
 
@@ -3739,8 +3606,6 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
         Kernel driver in use: pcieport
 
 
-
-
 ----
 <1>  look for the PCI id
 <2>  run the lspci -vv to find out the Part number
@@ -3749,12 +3614,6 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 <5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
 
-
-
-
-==== Limitations/Issues
-
-* CX5 require the latest OFED (4.1>)
 
 ==== Build with native OFED
 

@@ -1,8 +1,7 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright(c) 2016 NXP
- *   All rights reserved.
+ *   Copyright 2016 NXP
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -56,9 +55,24 @@ extern "C" {
 /** Double linked list of buses */
 TAILQ_HEAD(rte_bus_list, rte_bus);
 
+
+/**
+ * IOVA mapping mode.
+ *
+ * IOVA mapping mode is iommu programming mode of a device.
+ * That device (for example: IOMMU backed DMA device) based
+ * on rte_iova_mode will generate physical or virtual address.
+ *
+ */
+enum rte_iova_mode {
+	RTE_IOVA_DC = 0,	/* Don't care mode */
+	RTE_IOVA_PA = (1 << 0), /* DMA using physical address */
+	RTE_IOVA_VA = (1 << 1)  /* DMA using virtual address */
+};
+
 /**
  * Bus specific scan for devices attached on the bus.
- * For each bus object, the scan would be reponsible for finding devices and
+ * For each bus object, the scan would be responsible for finding devices and
  * adding them to its private device list.
  *
  * A bus should mandatorily implement this method.
@@ -82,6 +96,108 @@ typedef int (*rte_bus_scan_t)(void);
 typedef int (*rte_bus_probe_t)(void);
 
 /**
+ * Device iterator to find a device on a bus.
+ *
+ * This function returns an rte_device if one of those held by the bus
+ * matches the data passed as parameter.
+ *
+ * If the comparison function returns zero this function should stop iterating
+ * over any more devices. To continue a search the device of a previous search
+ * can be passed via the start parameter.
+ *
+ * @param cmp
+ *	Comparison function.
+ *
+ * @param data
+ *	Data to compare each device against.
+ *
+ * @param start
+ *	starting point for the iteration
+ *
+ * @return
+ *	The first device matching the data, NULL if none exists.
+ */
+typedef struct rte_device *
+(*rte_bus_find_device_t)(const struct rte_device *start, rte_dev_cmp_t cmp,
+			 const void *data);
+
+/**
+ * Implementation specific probe function which is responsible for linking
+ * devices on that bus with applicable drivers.
+ *
+ * @param dev
+ *	Device pointer that was returned by a previous call to find_device.
+ *
+ * @return
+ *	0 on success.
+ *	!0 on error.
+ */
+typedef int (*rte_bus_plug_t)(struct rte_device *dev);
+
+/**
+ * Implementation specific remove function which is responsible for unlinking
+ * devices on that bus from assigned driver.
+ *
+ * @param dev
+ *	Device pointer that was returned by a previous call to find_device.
+ *
+ * @return
+ *	0 on success.
+ *	!0 on error.
+ */
+typedef int (*rte_bus_unplug_t)(struct rte_device *dev);
+
+/**
+ * Bus specific parsing function.
+ * Validates the syntax used in the textual representation of a device,
+ * If the syntax is valid and ``addr`` is not NULL, writes the bus-specific
+ * device representation to ``addr``.
+ *
+ * @param[in] name
+ *	device textual description
+ *
+ * @param[out] addr
+ *	device information location address, into which parsed info
+ *	should be written. If NULL, nothing should be written, which
+ *	is not an error.
+ *
+ * @return
+ *	0 if parsing was successful.
+ *	!0 for any error.
+ */
+typedef int (*rte_bus_parse_t)(const char *name, void *addr);
+
+/**
+ * Bus scan policies
+ */
+enum rte_bus_scan_mode {
+	RTE_BUS_SCAN_UNDEFINED,
+	RTE_BUS_SCAN_WHITELIST,
+	RTE_BUS_SCAN_BLACKLIST,
+};
+
+/**
+ * A structure used to configure bus operations.
+ */
+struct rte_bus_conf {
+	enum rte_bus_scan_mode scan_mode; /**< Scan policy. */
+};
+
+
+/**
+ * Get common iommu class of the all the devices on the bus. The bus may
+ * check that those devices are attached to iommu driver.
+ * If no devices are attached to the bus. The bus may return with don't care
+ * (_DC) value.
+ * Otherwise, The bus will return appropriate _pa or _va iova mode.
+ *
+ * @return
+ *      enum rte_iova_mode value.
+ */
+typedef enum rte_iova_mode (*rte_bus_get_iommu_class_t)(void);
+
+
+/**
  * A structure describing a generic bus.
  */
 struct rte_bus {
@@ -89,6 +205,12 @@ struct rte_bus {
 	const char *name;            /**< Name of the bus */
 	rte_bus_scan_t scan;         /**< Scan for devices attached to bus */
 	rte_bus_probe_t probe;       /**< Probe devices on bus */
+	rte_bus_find_device_t find_device; /**< Find a device on the bus */
+	rte_bus_plug_t plug;         /**< Probe single device for drivers */
+	rte_bus_unplug_t unplug;     /**< Remove single device from driver */
+	rte_bus_parse_t parse;       /**< Parse a device name */
+	struct rte_bus_conf conf;    /**< Bus configuration */
+	rte_bus_get_iommu_class_t get_iommu_class; /**< Get iommu class */
 };
 
 /**
@@ -133,19 +255,78 @@ int rte_bus_probe(void);
  *
  * @param f
  *	 A valid and open output stream handle
- *
- * @return
- *	 0 in case of success
- *	!0 in case there is error in opening the output stream
  */
 void rte_bus_dump(FILE *f);
+
+/**
+ * Bus comparison function.
+ *
+ * @param bus
+ *	Bus under test.
+ *
+ * @param data
+ *	Data to compare against.
+ *
+ * @return
+ *	0 if the bus matches the data.
+ *	!0 if the bus does not match.
+ *	<0 if ordering is possible and the bus is lower than the data.
+ *	>0 if ordering is possible and the bus is greater than the data.
+ */
+typedef int (*rte_bus_cmp_t)(const struct rte_bus *bus, const void *data);
+
+/**
+ * Bus iterator to find a particular bus.
+ *
+ * This function compares each registered bus to find one that matches
+ * the data passed as parameter.
+ *
+ * If the comparison function returns zero this function will stop iterating
+ * over any more buses. To continue a search the bus of a previous search can
+ * be passed via the start parameter.
+ *
+ * @param start
+ *	Starting point for the iteration.
+ *
+ * @param cmp
+ *	Comparison function.
+ *
+ * @param data
+ *	 Data to pass to comparison function.
+ *
+ * @return
+ *	 A pointer to a rte_bus structure or NULL in case no bus matches
+ */
+struct rte_bus *rte_bus_find(const struct rte_bus *start, rte_bus_cmp_t cmp,
+			     const void *data);
+
+/**
+ * Find the registered bus for a particular device.
+ */
+struct rte_bus *rte_bus_find_by_device(const struct rte_device *dev);
+
+/**
+ * Find the registered bus for a given name.
+ */
+struct rte_bus *rte_bus_find_by_name(const char *busname);
+
+
+/**
+ * Get the common iommu class of devices bound on to buses available in the
+ * system. The default mode is PA.
+ *
+ * @return
+ *     enum rte_iova_mode value.
+ */
+enum rte_iova_mode rte_bus_get_iommu_class(void);
 
 /**
  * Helper for Bus registration.
  * The constructor has higher priority than PMD constructors.
  */
 #define RTE_REGISTER_BUS(nm, bus) \
-static void __attribute__((constructor(101), used)) businitfn_ ##nm(void) \
+RTE_INIT_PRIO(businitfn_ ##nm, 110); \
+static void businitfn_ ##nm(void) \
 {\
 	(bus).name = RTE_STR(nm);\
 	rte_bus_register(&bus); \

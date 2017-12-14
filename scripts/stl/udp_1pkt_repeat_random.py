@@ -33,7 +33,6 @@ class STLS1(object):
 
                              STLVmFixIpv4(offset = "IP")                                # fix checksum
                                   ]
-                              ,split_by_field = "ip_src"  # split to cores base on the tuple generator 
                               ,cache_size = cache_size # the cache size
                               );
 

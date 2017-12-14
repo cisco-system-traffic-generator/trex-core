@@ -41,7 +41,6 @@
 #include <sys/eventfd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include "vhost.h"
 #include "virtio_user_dev.h"
@@ -54,21 +53,11 @@ virtio_user_create_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	 * firstly because vhost depends on this msg to allocate virtqueue
 	 * pair.
 	 */
-	int callfd;
 	struct vhost_vring_file file;
 
-	/* May use invalid flag, but some backend leverages kickfd and callfd as
-	 * criteria to judge if dev is alive. so finally we use real event_fd.
-	 */
-	callfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-	if (callfd < 0) {
-		PMD_DRV_LOG(ERR, "callfd error, %s", strerror(errno));
-		return -1;
-	}
 	file.index = queue_sel;
-	file.fd = callfd;
+	file.fd = dev->callfds[queue_sel];
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_CALL, &file);
-	dev->callfds[queue_sel] = callfd;
 
 	return 0;
 }
@@ -76,7 +65,6 @@ virtio_user_create_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 static int
 virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 {
-	int kickfd;
 	struct vhost_vring_file file;
 	struct vhost_vring_state state;
 	struct vring *vring = &dev->vrings[queue_sel];
@@ -103,15 +91,9 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	 * lastly because vhost depends on this msg to judge if
 	 * virtio is ready.
 	 */
-	kickfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-	if (kickfd < 0) {
-		PMD_DRV_LOG(ERR, "kickfd error, %s", strerror(errno));
-		return -1;
-	}
 	file.index = queue_sel;
-	file.fd = kickfd;
+	file.fd = dev->kickfds[queue_sel];
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_KICK, &file);
-	dev->kickfds[queue_sel] = kickfd;
 
 	return 0;
 }
@@ -156,6 +138,7 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 	features &= ~(1ull << VIRTIO_NET_F_MAC);
 	/* Strip VIRTIO_NET_F_CTRL_VQ, as devices do not really need to know */
 	features &= ~(1ull << VIRTIO_NET_F_CTRL_VQ);
+	features &= ~(1ull << VIRTIO_NET_F_STATUS);
 	ret = dev->ops->send_request(dev, VHOST_USER_SET_FEATURES, &features);
 	if (ret < 0)
 		goto error;
@@ -185,16 +168,8 @@ int virtio_user_stop_device(struct virtio_user_dev *dev)
 {
 	uint32_t i;
 
-	for (i = 0; i < dev->max_queue_pairs * 2; ++i) {
-		close(dev->callfds[i]);
-		close(dev->kickfds[i]);
-	}
-
 	for (i = 0; i < dev->max_queue_pairs; ++i)
 		dev->ops->enable_qp(dev, i, 0);
-
-	free(dev->ifname);
-	dev->ifname = NULL;
 
 	return 0;
 }
@@ -220,7 +195,7 @@ parse_mac(struct virtio_user_dev *dev, const char *mac)
 	}
 }
 
-static int
+int
 is_vhost_user_by_type(const char *path)
 {
 	struct stat sb;
@@ -232,16 +207,83 @@ is_vhost_user_by_type(const char *path)
 }
 
 static int
-virtio_user_dev_setup(struct virtio_user_dev *dev)
+virtio_user_dev_init_notify(struct virtio_user_dev *dev)
 {
-	uint32_t i, q;
+	uint32_t i, j;
+	int callfd;
+	int kickfd;
 
-	dev->vhostfd = -1;
-	for (i = 0; i < VIRTIO_MAX_VIRTQUEUES * 2 + 1; ++i) {
-		dev->kickfds[i] = -1;
-		dev->callfds[i] = -1;
+	for (i = 0; i < VIRTIO_MAX_VIRTQUEUES; ++i) {
+		if (i >= dev->max_queue_pairs * 2) {
+			dev->kickfds[i] = -1;
+			dev->callfds[i] = -1;
+			continue;
+		}
+
+		/* May use invalid flag, but some backend uses kickfd and
+		 * callfd as criteria to judge if dev is alive. so finally we
+		 * use real event_fd.
+		 */
+		callfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+		if (callfd < 0) {
+			PMD_DRV_LOG(ERR, "callfd error, %s", strerror(errno));
+			break;
+		}
+		kickfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+		if (kickfd < 0) {
+			PMD_DRV_LOG(ERR, "kickfd error, %s", strerror(errno));
+			break;
+		}
+		dev->callfds[i] = callfd;
+		dev->kickfds[i] = kickfd;
 	}
 
+	if (i < VIRTIO_MAX_VIRTQUEUES) {
+		for (j = 0; j <= i; ++j) {
+			close(dev->callfds[j]);
+			close(dev->kickfds[j]);
+		}
+
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+virtio_user_fill_intr_handle(struct virtio_user_dev *dev)
+{
+	uint32_t i;
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->port_id];
+
+	if (!eth_dev->intr_handle) {
+		eth_dev->intr_handle = malloc(sizeof(*eth_dev->intr_handle));
+		if (!eth_dev->intr_handle) {
+			PMD_DRV_LOG(ERR, "fail to allocate intr_handle");
+			return -1;
+		}
+		memset(eth_dev->intr_handle, 0, sizeof(*eth_dev->intr_handle));
+	}
+
+	for (i = 0; i < dev->max_queue_pairs; ++i)
+		eth_dev->intr_handle->efds[i] = dev->callfds[i];
+	eth_dev->intr_handle->nb_efd = dev->max_queue_pairs;
+	eth_dev->intr_handle->max_intr = dev->max_queue_pairs + 1;
+	eth_dev->intr_handle->type = RTE_INTR_HANDLE_VDEV;
+	/* For virtio vdev, no need to read counter for clean */
+	eth_dev->intr_handle->efd_counter_size = 0;
+	if (dev->vhostfd >= 0)
+		eth_dev->intr_handle->fd = dev->vhostfd;
+
+	return 0;
+}
+
+static int
+virtio_user_dev_setup(struct virtio_user_dev *dev)
+{
+	uint32_t q;
+
+	dev->vhostfd = -1;
 	dev->vhostfds = NULL;
 	dev->tapfds = NULL;
 
@@ -263,12 +305,40 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 		}
 	}
 
-	return dev->ops->setup(dev);
+	if (dev->ops->setup(dev) < 0)
+		return -1;
+
+	if (virtio_user_dev_init_notify(dev) < 0)
+		return -1;
+
+	if (virtio_user_fill_intr_handle(dev) < 0)
+		return -1;
+
+	return 0;
 }
+
+/* Use below macro to filter features from vhost backend */
+#define VIRTIO_USER_SUPPORTED_FEATURES			\
+	(1ULL << VIRTIO_NET_F_MAC		|	\
+	 1ULL << VIRTIO_NET_F_STATUS		|	\
+	 1ULL << VIRTIO_NET_F_MQ		|	\
+	 1ULL << VIRTIO_NET_F_CTRL_MAC_ADDR	|	\
+	 1ULL << VIRTIO_NET_F_CTRL_VQ		|	\
+	 1ULL << VIRTIO_NET_F_CTRL_RX		|	\
+	 1ULL << VIRTIO_NET_F_CTRL_VLAN		|	\
+	 1ULL << VIRTIO_NET_F_CSUM		|	\
+	 1ULL << VIRTIO_NET_F_HOST_TSO4		|	\
+	 1ULL << VIRTIO_NET_F_HOST_TSO6		|	\
+	 1ULL << VIRTIO_NET_F_MRG_RXBUF		|	\
+	 1ULL << VIRTIO_RING_F_INDIRECT_DESC	|	\
+	 1ULL << VIRTIO_NET_F_GUEST_CSUM	|	\
+	 1ULL << VIRTIO_NET_F_GUEST_TSO4	|	\
+	 1ULL << VIRTIO_NET_F_GUEST_TSO6	|	\
+	 1ULL << VIRTIO_F_VERSION_1)
 
 int
 virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
-		     int cq, int queue_size, const char *mac)
+		     int cq, int queue_size, const char *mac, char **ifname)
 {
 	snprintf(dev->path, PATH_MAX, "%s", path);
 	dev->max_queue_pairs = queues;
@@ -276,6 +346,11 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	dev->queue_size = queue_size;
 	dev->mac_specified = 0;
 	parse_mac(dev, mac);
+
+	if (*ifname) {
+		dev->ifname = *ifname;
+		*ifname = NULL;
+	}
 
 	if (virtio_user_dev_setup(dev) < 0) {
 		PMD_INIT_LOG(ERR, "backend set up fails");
@@ -309,6 +384,12 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_MAC_ADDR);
 	}
 
+	/* The backend will not report this feature, we add it explicitly */
+	if (is_vhost_user_by_type(dev->path))
+		dev->device_features |= (1ull << VIRTIO_NET_F_STATUS);
+
+	dev->device_features &= VIRTIO_USER_SUPPORTED_FEATURES;
+
 	return 0;
 }
 
@@ -319,6 +400,11 @@ virtio_user_dev_uninit(struct virtio_user_dev *dev)
 
 	virtio_user_stop_device(dev);
 
+	for (i = 0; i < dev->max_queue_pairs * 2; ++i) {
+		close(dev->callfds[i]);
+		close(dev->kickfds[i]);
+	}
+
 	close(dev->vhostfd);
 
 	if (dev->vhostfds) {
@@ -327,6 +413,8 @@ virtio_user_dev_uninit(struct virtio_user_dev *dev)
 		free(dev->vhostfds);
 		free(dev->tapfds);
 	}
+
+	free(dev->ifname);
 }
 
 static uint8_t

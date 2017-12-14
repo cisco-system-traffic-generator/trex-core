@@ -36,7 +36,6 @@ class STLS1(object):
                              STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
                              STLVmFixIpv4(offset = "IP")                                # fix checksum
                                   ]
-                              ,split_by_field = "ip_src"  # split to cores base on the tuple generator 
                               ,cache_size =255 # the cache size
                               );
 

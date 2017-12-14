@@ -1114,10 +1114,17 @@ TEST_F(gt_r_timer, timer32) {
 
 void my_test_on_tick_cb19(void *userdata,CHTimerObj *tmr){
 #if 0
+    CNATimerWheel  *  timer;
+    timer = (CNATimerWheel  *)userdata;
+
     UNSAFE_CONTAINER_OF_PUSH
     CMyTestObject *lpobj=(CMyTestObject *)((uint8_t*)tmr-offsetof (CMyTestObject,m_timer));
     UNSAFE_CONTAINER_OF_POP
-    printf ("action-id: %lu \n",(ulong)lpobj->m_id);
+    printf ("action-id: %lu ",(ulong)lpobj->m_id);
+    if (timer){
+        printf ("tick : %lu  \n",(ulong)timer->get_ticks(0));
+    }
+    printf ("\n");
 #endif
 }
 
@@ -1156,4 +1163,53 @@ TEST_F(gt_r_timer, timer33) {
         assert(m_timer.Delete()==RC_HTW_OK);
 
 }
+
+
+/* check the new API  */
+TEST_F(gt_r_timer, timer34) {
+
+        CNATimerWheel          m_timer;
+
+        /* each tick is 20usec , second level *will* be used 
+          second level is 1024/16 each 1.28 msec there would be a tick 
+         */
+        assert(m_timer.Create(1024,16)==RC_HTW_OK);
+        m_timer.set_level1_cnt_div(); /* every 20usec do tick */
+
+        /* 1000 events in the same bucket */
+        uint16_t number_of_con_event=1000;
+
+        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event]; 
+        int i;
+        for (i=0; i<number_of_con_event; i++) {
+            CMyTestObject * lp=&m_events[i];
+            lp->m_id=i+1;
+            lp->m_d_tick = 10;  /* 200usec 5 events */
+            lp->m_t_tick=lp->m_d_tick;
+            m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+        }
+
+        /* long events in the second level */
+        CMyTestObject *  m_events_long = new CMyTestObject[number_of_con_event]; 
+        for (i=0; i<number_of_con_event; i++) {
+            CMyTestObject * lp=&m_events_long[i];
+            lp->m_id=i+1;
+            lp->m_d_tick = 2000;  
+            lp->m_t_tick=lp->m_d_tick;
+            m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+        }
+
+
+        for (i=0; i<2500; i++) {
+            uint32_t left;
+            m_timer.on_tick_level0((void *)&m_timer,my_test_on_tick_cb19);     // call the callback of first level 
+            m_timer.on_tick_level_count(1,(void *)&m_timer,my_test_on_tick_cb19,32,left); // call the callback of second level 
+        }
+        delete []m_events;
+        delete []m_events_long;
+
+        assert(m_timer.Delete()==RC_HTW_OK);
+
+}
+
 

@@ -3,7 +3,7 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 import glob
-
+from nose.tools import nottest
 
 def get_error_in_percentage (golden, value):
     if (golden==0):
@@ -53,9 +53,9 @@ class STLClient_Test(CStlGeneral_Test):
         self.drv_name = drv_name
 
         # due to defect trex-325 
-        if  self.drv_name == 'net_mlx5':
-            print("WARNING disable strict due to trex-325 on mlx5")
-            self.strict = False
+        #if  self.drv_name == 'net_mlx5':
+        #    print("WARNING disable strict due to trex-325 on mlx5")
+        #    self.strict = False
 
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
@@ -85,7 +85,11 @@ class STLClient_Test(CStlGeneral_Test):
             if expected==0:
                 return;
             else:
-               assert get_error_in_percentage(expected, got) < 0.05
+                if get_error_in_percentage(expected, got) < 0.05 :
+                    return
+                print(' ERROR verify expected: %d  got:%d ' % (expected,got) )
+                assert(0);
+
 
 
     def test_basic_connect_disconnect (self):
@@ -228,6 +232,42 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
+    def pause_resume_update_streams_iteration(self, delay, expected_pps):
+        self.c.clear_stats(clear_flow_stats = False, clear_latency_stats = False, clear_xstats = False)
+        time.sleep(delay)
+        tx_pps = self.c.get_stats(ports = [0])[0]['opackets'] / delay
+        assert (expected_pps * 0.9 < tx_pps < expected_pps * 1.1), 'expected TX ~%spps, got: %s' % (expected_pps, tx_pps)
+
+    def test_pause_resume_update_streams(self):
+        self.c.reset()
+        s1 = STLStream(mode = STLTXSingleBurst(pps = 100, total_pkts = 9999))
+        s2 = STLStream(mode = STLTXCont(pps = 100))
+        s3 = STLStream(mode = STLTXCont(pps = 100))
+        s4 = STLStream(mode = STLTXCont(pps = 100), flow_stats = STLFlowLatencyStats(pg_id = 1))
+
+        s1_id, s2_id, s3_id, s4_id = self.c.add_streams([s1, s2, s3, s4], ports = [0])
+        self.c.start(ports = [0])
+
+        with self.assertRaises(STLError): # burst present => error
+            self.c.pause_streams(port = 0, stream_ids = [s3_id])
+
+        with self.assertRaises(STLError): # several ports => error
+            self.c.pause_streams(port = [0, 1], stream_ids = [s3_id])
+
+        self.c.stop(ports = [0])
+        self.c.remove_streams([s1_id], ports = [0]) # get rid of burst
+        self.c.start(ports = [0])
+
+        self.c.update_streams(port = 0, mult = '10kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10200)
+
+        self.c.update_streams(port = 0, mult = '100pps', stream_ids = [s3_id])
+        self.c.pause_streams(port = 0, stream_ids = [s3_id])
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 200) # paused stream not transmitting
+
+        self.c.resume_streams(port = 0, stream_ids = [s3_id])
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 300) # resume the paused
+
 
     def test_stress_tx (self):
         try:
@@ -264,7 +304,6 @@ class STLClient_Test(CStlGeneral_Test):
 
 
     def test_all_profiles (self):
-
         #Work around for trex-405. Remove when it is resolved
         if  self.drv_name == 'net_mlx5' and 'VM' in self.modes:
             self.skip('Can not run on mlx VM currently - see trex-405 for details')
@@ -428,7 +467,7 @@ class STLClient_Test(CStlGeneral_Test):
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp')['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
             
-            pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
+            pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x,dport=1000)/('x' * 100)) for x in range(50000,50500)]
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
             
             # check capture status with timeout
@@ -441,8 +480,7 @@ class STLClient_Test(CStlGeneral_Test):
                     break
                     
                 time.sleep(0.1)
-            
-            
+
             assert(caps[tx_capture_id]['count'] == len(pkts))
             self.verify(len(pkts), caps[rx_capture_id]['count'])
             
@@ -543,4 +581,114 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.stop_capture(rx_capture_id)
                 
             self.cleanup()
+
+
+    # tests core pinning with latency
+    def show_cpu_usage (self):
+        cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu']]
+
+        print('')
+        for i, cpu in enumerate(cpu_stats):
+            cpu = [x for x in cpu if x != -1]
+            if cpu:
+                print('core {0}: {1}'.format(i, cpu))
+
+        print('')
+
+    def get_cpu_usage (self):
+        cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu'] if x['ports'] != [-1, -1]]
+        return cpu_stats
+
+
+    def test_core_pinning (self):
+
+        if self.c.system_info.get('dp_core_count_per_port') < 2:
+            self.skip('pinning test requires at least 2 cores per interface')
+
+        s1 = STLStream(packet = self.pkt, mode = STLTXCont())
+        self.c.reset([0, 1])
+
+        try:
+            self.c.add_streams(ports = [0, 1], streams = s1)
+
+            # split mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_SPLIT)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure all cores operate on both ports
+            assert all([stat == [0, 1] for stat in cpu_stats])
+
+            self.c.stop(ports = [0, 1])
+
+            # pin mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_PIN)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure cores were splitted equally
+            if ( (len(cpu_stats) % 2) == 0):
+                assert cpu_stats.count([0, -1]) == cpu_stats.count([-1, 1])
+            else:
+                assert abs(cpu_stats.count([0, -1]) - cpu_stats.count([-1, 1])) == 1
+
+            self.c.stop(ports = [0, 1])
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+    # check pinning with latency
+    def test_core_pinning_latency (self):
+
+        if self.c.system_info.get('dp_core_count_per_port') < 2:
+            self.skip('pinning test requires at least 2 cores per interface')
+
+        s1 = STLStream(packet = self.pkt, mode = STLTXCont())
+
+        l1 = STLStream(packet = self.pkt, mode = STLTXCont(), flow_stats = STLFlowLatencyStats(pg_id = 3))
+        l2 = STLStream(packet = self.pkt, mode = STLTXCont(), flow_stats = STLFlowLatencyStats(pg_id = 4))
+
+        self.c.reset([0, 1])
+
+        try:
+            self.c.add_streams(ports = 0, streams = [s1, l1])
+            self.c.add_streams(ports = 1, streams = [s1, l2])
+
+            # split mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_SPLIT)
+            time.sleep(0.1)
+
+            cpu_stats = self.get_cpu_usage()
+
+            # make sure all cores operate on both ports
+            assert all([stat == [0, 1] for stat in cpu_stats])
+
+            self.c.stop(ports = [0, 1])
+
+            # pin mode
+            self.c.start(ports = [0, 1], core_mask = STLClient.CORE_MASK_PIN)
+            time.sleep(0.1)
+
+            # for pin mode with latency core 0 should opreate on both 
+            cpu_stats = self.get_cpu_usage()
+
+            # core 0 should be associated with both
+            core_0 = cpu_stats.pop(0)
+            assert (core_0 == [0, 1])
+
+            # make sure cores were splitted equally
+            if ( (len(cpu_stats) % 2) == 0):
+                assert cpu_stats.count([0, -1]) == cpu_stats.count([-1, 1])
+            else:
+                assert abs(cpu_stats.count([0, -1]) - cpu_stats.count([-1, 1])) == 1
+
+            self.c.stop(ports = [0, 1])
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
 

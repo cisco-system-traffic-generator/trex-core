@@ -21,6 +21,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <astf/astf_db.h>
+
 
 
 bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
@@ -58,12 +60,18 @@ bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
 
 void CAstfPerTemplateRW::Delete(){
     m_tuple_gen.Delete();
+    delete m_c_tune;
+    // m_s_tune is freed as part of m_s_tuneables in CAstfDbRO
 }
 
 void CAstfPerTemplateRW::Dump(FILE *fd){
     fprintf(fd, "  port:%d\n", m_dest_port);
     fprintf(fd, "  thread_id:%d template id:%d\n", m_thread_id, m_tid);
     fprintf(fd, "  First IPs from client pool 0:\n");
+    fprintf(fd, "  Client tuneable:\n");
+    m_c_tune->dump(fd);
+    fprintf(fd, "  Server tuneable:\n");
+    m_s_tune->dump(fd);
 
     CTupleBase tuple;
     for (uint16_t idx = 0; idx < 20; idx++) {
@@ -97,13 +105,25 @@ bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
     m_max_threads =max_threads;
     m_rnd.setSeed(thread_id);
     m_nru = 0;
+    m_c_tuneables = NULL;
+    m_s_tuneables = NULL;
     return(true);
 }
 
+
 void CAstfTemplatesRW::Delete(){ 
+    int i;
+    for (i=0; i<m_cap_gen.size(); i++) {
+        CAstfPerTemplateRW * lp=m_cap_gen[i];
+        lp->Delete();
+        delete lp;
+    }
+
     if (m_nru) {
         delete m_nru;
     }
+    delete m_c_tuneables;
+    delete m_s_tuneables;
 }
 
 

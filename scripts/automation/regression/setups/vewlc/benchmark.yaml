@@ -1,0 +1,160 @@
+################################################################
+####           TRex benchmark configuration file           ####
+################################################################
+
+### stateful ###
+
+test_jumbo:
+    multiplier          : 2.8
+    cores               : 1
+    bw_per_core         : 106.652
+
+
+test_routing_imix:
+    multiplier          : 0.5
+    cores               : 1
+    bw_per_core         : 11.577
+
+
+test_routing_imix_64:
+    multiplier          : 28
+    cores               : 1
+    bw_per_core         : 2.030
+
+
+test_static_routing_imix_asymmetric:
+    multiplier          : 0.8
+    cores               : 1
+    bw_per_core         : 13.742
+
+
+
+### stateless ###
+
+test_CPU_benchmark:
+    profiles:
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 64}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 64, stream_count: 10}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 64, stream_count: 100}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+# causes queue full
+#      - name            : stl/udp_for_benchmarks.py
+#        kwargs          : {packet_len: 64, stream_count: 1000}
+#        cpu_util        : 1
+#        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 128}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 256}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 512}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 1500}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 4000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 9000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 9000, stream_count: 10}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_for_benchmarks.py
+        kwargs          : {packet_len: 9000, stream_count: 100}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+# not enough memory + queue full if memory increase
+#      - name            : stl/udp_for_benchmarks.py
+#        kwargs          : {packet_len: 9000, stream_count: 1000}
+#        cpu_util        : 1
+#        bw_per_core     : 1
+
+      - name            : stl/imix.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 64}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 128}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 256}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 512}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 1500}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 4000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_1pkt_tuple_gen.py
+        kwargs          : {packet_len: 9000}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/pcap.py
+        kwargs          : {ipg_usec: 4, loop_count: 0}
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+      - name            : stl/hlt/hlt_udp_rand_len_9k.py
+        cpu_util        : 1
+        bw_per_core     : 1
+
+
+test_tcp_http :
+    multiplier          : 1000
+    cores               : 1
+    bw_per_core         : 20
+

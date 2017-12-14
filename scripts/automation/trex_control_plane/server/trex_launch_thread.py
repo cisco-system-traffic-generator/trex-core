@@ -21,7 +21,6 @@ class AsynchronousTRexSession(threading.Thread):
     def __init__(self, trexObj , trex_launch_path, trex_cmd_data):
         super(AsynchronousTRexSession, self).__init__()
         self.stoprequest                            = threading.Event()
-        self.terminateFlag                          = False
         self.launch_path                            = trex_launch_path
         self.cmd, self.export_path, self.duration   = trex_cmd_data
         self.session                                = None
@@ -31,9 +30,9 @@ class AsynchronousTRexSession(threading.Thread):
 
     def run (self):
         try:
-            with open(self.export_path, 'w') as output_file:
+            with open(self.export_path, 'w') as output_file, open(os.devnull, 'w') as devnull:
                 self.time_stamps['start'] = self.time_stamps['run_time'] = time.time()
-                self.session   = subprocess.Popen(shlex.split(self.cmd), cwd = self.launch_path, stdout = output_file,
+                self.session   = subprocess.Popen(shlex.split(self.cmd), cwd = self.launch_path, stdout = output_file, stdin = devnull,
                                                   stderr = subprocess.STDOUT, preexec_fn=os.setsid, close_fds = True)
                 logger.info("TRex session initialized successfully, Parent process pid is {pid}.".format( pid = self.session.pid ))
                 while self.session.poll() is None:  # subprocess is NOT finished
@@ -66,6 +65,7 @@ class AsynchronousTRexSession(threading.Thread):
                     output = self.load_trex_output(self.export_path)))
                 self.trexObj.errcode = -15
             else:
+                time.sleep(0.5)
                 logger.info("TRex run session finished.")
                 self.trexObj.set_verbose_status('TRex finished.')
                 self.trexObj.errcode = None
@@ -82,10 +82,8 @@ class AsynchronousTRexSession(threading.Thread):
         super(AsynchronousTRexSession, self).join(timeout)
 
     def load_trex_output (self, export_path):
-        output = None
-        with open(export_path, 'r') as f:
-            output = f.read()
-        return output
+        with open(export_path) as f:
+            return f.read()
 
 
 

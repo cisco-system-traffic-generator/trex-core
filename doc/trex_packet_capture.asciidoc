@@ -1,77 +1,68 @@
 
 [IMPORTANT]
-The following section is available only under service mode
+This section is relevant only for service mode.
 
-While under service mode TRex provides couple of ways to examine
-and manipulate both RX and TX packets.
-
-
-Packet capturing is implemented by allocating one more more fast in-memory queues
-on the server side that will copy-and-store the packet buffer.
+In service mode, TRex provides a few ways to examine and manipulate both Rx and Tx packets.
 
 
-Each queue can be defined with storage, which ports on either TX/RX it should capture
-and whether it should be 'cyclic' or 'fixed'
+Packet capturing is implemented by allocating one more more fast, in-memory queues on the server side that copy-and-store the packet buffer.
+
+
+Each queue can be defined with the following attributes:
+
+* Storage
+* Which ports on either Tx/Rx it should capture
+* Whether it should be 'cyclic' or 'fixed'
 
 image::images/packet_capture_arch.png[title="Packet Captruing Architecture",align="left",width={p_width}, link="images/packet_capture_arch.png"]
 
+// the image should be saved without the red squiggley underscores (for spell-check) under words like Scapy and Wireshark
+
 The above architecture implies that we can 'capture' at high speed for a short amount of time.
 
-For example,
-A queue of 1 million packets can be allocated as a cyclic queue and be active under a rate of couple of Mpps.
-It effectively provide a sampling of the last 1 million packets seen by the server with the given filters.
+For example, a queue of 1 million packets can be allocated as a cyclic queue and be active with a rate of couple of MPPS. This effectively provides a sampling of the last 1 million packets seen by the server with the given filters.
 
 ==== BPF Filtering
 
-Before we demonstrate how to use *Packet Capturing*, we should review how *filtering* is done.
+Before demonstrating how to use *Packet Capturing*, it is helpful to review how *filtering* is done.
 
-{nbsp} +
 
-Each packet capture is assigned a filter (by default a filter that matches any packet).
-Any filter that follows the syntax rules of *The Berekely Packet Filter (BPF)* can be assigned.
+Each packet capture is assigned a filter (by default, a filter that matches any packet). Any filter that follows the syntax rules of *The Berekely Packet Filter (BPF)* can be assigned.
 
-{nbsp} +
 
-BPF filters are widely used by the Linux kernel, TCP dump and others.
-Basically any 'tcpdump' filtering tutorial can be used to define a filter for TRex.
+BPF filters are widely used by the Linux kernel, TCP dump and others. Basically any 'tcpdump' filtering tutorial can be used to define a filter for TRex.
 
-{nbsp} +
 
-Let's review some simple examples using *BPF*:
+Some simple examples using *BPF*:
 
-* all 'ARP' or 'ICMP' packets
+* All 'ARP' or 'ICMP' packets:
 
 [source,bash]
 ----
 'arp or icmp'
 ----
 
-* all 'UDP' packets with destination port '53'
+* All 'UDP' packets with destination port 53:
 [source,bash]
 ----
 'udp and dst 53'
 ----
 
-* all packets 'VLAN' tagged '200' and 'TCP SYN'
+* All packets 'VLAN' tagged '200' and 'TCP SYN':
 [source,bash]
 ----
 'vlan 200 and tcp[tcpflags] == tcp-syn'
 ----
 
-For more examples, refer to BPF and tcpdump examples from the web.
-
-{nbsp} +
+For more examples, refer to BPF and tcpdump examples available online.
 
 ==== BPFJIT
 
-TRex server uses *BPF JIT* - a compiled version of BPF to native code to allow very fast filtering.
+TRex server uses *BPF JIT*, a compiled version of BPF to native code, to allow very fast filtering. So 'high speed filtering' is very much possible in TRex.
 
-This means that a 'high speed filtering' is very much possible.
+*Before* +
 
-{nbsp} +
-
-Here is a snapshot of a XL710 with Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
-handling 15.72 mpps *before* applying a BPF filter.
+The following is a snapshot of a XL710 with Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz handling 15.72 mpps *before* applying a BPF filter.
 
 
 [source,python]
@@ -86,11 +77,11 @@ async_util.  : 0.19% / 1.76 KB/sec                   drop_rate    : 0.00 b/sec
                                                      queue_full   : 0 pkts
 
 ----
-<1> RX core utilization
 
-{nbsp} +
 
-Now we apply a 'non-hitting' filter to measure the impact of the BPF filter:
+*After* 
+
+With a 'non-hitting' filter to measure the effect of using the BPF filter:
 
 
 [source,python]
@@ -105,19 +96,16 @@ async_util.  : 0.21% / 1.64 KB/sec                   drop_rate    : 0.00 b/sec
                                                      queue_full   : 0 pkts
 
 ----
-<1> RX core utilization
 
-{nbsp} +
 
-Almost zero impact (<5%) on CPU utilization for negative filtering.
+There is almost zero impact (<5%) on CPU utilization for negative filtering.
 
 Of course, a hitting filter will have impact but usually on a very small portion of the traffic.
 
-{nbsp} +
 
-==== API Usage
+==== API usage
 
-The Python API usages is fairly simple:
+Using the Python API is fairly simple:
 
 .Python API:
 [source,python]
@@ -126,7 +114,7 @@ The Python API usages is fairly simple:
 # move port 1 to service mode as we want to capture traffic on it
 client.set_service_mode(ports = 1)
 
-# start a capture on port 1 RX side with a limit, a mode and a *BPF* filter for any UDP with dst port 53
+# start a capture on port 1 Rx side with a limit, a mode and a *BPF* filter for any UDP with dst port 53
 capture = client.start_capture(rx_ports = 1, limit = 100, mode = 'fixed', bpf_filter = 'udp and dst 53')
 
 # execute your code here
@@ -139,29 +127,25 @@ client.set_service_mode(ports = 1, enabled = False)
 
 ----
 
-==== Console Usage
+==== Console usage
 
 The console provides couple of flexible ways to handle packet capturing
 
 * *Capture Monitoring*
 * *Capture Recording*
 
-===== Capture Monitoring
-Capture monitoring is a non-persistent way to capture and show packets from either TX / RX
-of one or more ports
+===== Capture monitoring
+Capture monitoring is a non-persistent method for capturing and showing packets from either Tx / Rx of one or more ports.
 
 
-Monitoring provides 3 modes:
+Monitoring has 3 modes:
 
-* *Low Verbose*    - short line per packet will be displayed
-* *High Verbose*   - a full scapy show will be displayed per packet
-* *Wireshark Pipe* - launches Wireshark with a pipe connected to the traffic being captured
+* *Low Verbose*    - A short line per packet will be displayed
+* *High Verbose*   - Full Scapy show will be displayed per packet
+* *Wireshark Pipe* - Launches Wireshark with a pipe connected to the traffic being captured
 
 
-In the first two options, packets information will be displayed *on the console*
-
-So for high amount of traffic being monitored, consider *Wireshark Pipe* or the
-*Capture Recording*
+The first two options display packet information *on the console*. This is ideal if a moderate amount of traffic is being monitored. However, if a large amount of traffic is being monitored, consider *Wireshark Pipe* or the *Capture Recording* method.
 
 .*Example of capturing traffic using the console with verbose on*
 
@@ -187,7 +171,7 @@ Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8              <4
 
 trex(service)>
 
-#1 Port: 3 -- RX
+#1 Port: 3 -- Rx
 
     Type: ARP, Size: 60 B, TS: 16.98 [sec]
 
@@ -211,11 +195,11 @@ trex(service)>
 
 trex(service)>
 ----
-<1> Move to *service mode* to allow capturing
-<2> Activate a capture monitor on port *3* RX side with *verbose* on
-<3> Send an ARP request on port *3*
-<4> The console shows the returning packet
-<5> *is-at* ARP response was captured
+<1> Move to *service mode* to allow capturing.
+<2> Activate a capture monitor on port *3* Rx side with *verbose* on.
+<3> Send an ARP request on port *3*.
+<4> The console shows the returning packet.
+<5> *is-at* ARP response was captured.
 
 
 
@@ -252,20 +236,18 @@ Port 2 - Recieved ARP reply from: 2.2.2.2, hw: 90:e2:ba:ae:88:b9
 Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8
 
 ----
-<1> Activate a monitor using a Wireshark pipe and a UDP filter (BPF)
-<2> Try to automatically launch Wireshark with connection the pipe
-<3> Console will block until connection was established
-<4> Monitor is active
-<5> Send ARP request
+<1> Activate a monitor using a Wireshark pipe and a UDP filter (BPF).
+<2> Attempts to launch Wireshark with a connection to the pipe.
+<3> Console is blocked until connection is established.
+<4> Monitor is active.
+<5> Sends ARP request.
 
 
 image::images/capture_wireshark_pipe.png[title="Wireshark Pipe",align="left",width={p_width}, link="images/capture_wireshark_pipe.png"]
 
-===== Capture Recording
-In addition to monitoring, the console allows a simple recording as well.
+===== Capture recording
 
-Recording allows the user to define a fixed size queue which then can
-be saved to a PCAP file.
+In addition to monitoring, the console allows a simple recording as well. Recording enables you to define a fixed-size queue which then can be saved to a PCAP file.
 
 .*Example of capturing a traffic to a fixed size queue*
 
@@ -322,27 +304,19 @@ Removing PCAP capture 4 from server                          [SUCCESS]
 trex(service)>
 
 ----
+<1> Start a packet record on port *3* Rx side with a limit of *200* packets.
+<2> A new capture is created with an ID *4*.
+<3> Show the capture status - currently empty.
+<4> Start traffic on port *0*, which is connected to port *3*.
+<5> Show the capture status - full.
+<6> Save 200 packets to an output file: */tmp/rx_3.pcap*
 
-<1> Start a packet record on port *3* RX side with a limit of *200* packets
-<2> A new capture was created with an ID *4*
-<3> Showing the capture status - currently empty
-<4> Start traffic on port *0* which is connected to port *3*
-<5> Showing the capture status - full
-<6> Save 200 packets to an output file called */tmp/rx_3.pcap*
 
+==== Using capture as a counter
 
-==== Using Capture As A Counter
+Another use of packet capturing is 'counting'. Instead of fetching the packets, you can simply count packets that hit the BPF filter.
 
-Another usage of packet capturing is 'counting'.
-
-Instead of fetching the packets, it is possibly to simply count packets that
-hits the BPF filter.
-
-For example,
-let's assume we want to count any packet that is 'UDP' with source port of '5000'.
-
-We can simply attach an 'empty' capture with the correct BPF filter and examine
-the 'matched' field:
+For example, to count any packet that is 'UDP' with source port of '5000', you can simply attach an 'empty' capture with the correct BPF filter and examine the 'matched' field:
 
 [source,python]
 ----
@@ -366,10 +340,10 @@ trex(service)>
 
 ----
 
-Now, using the field 'matched' we can examine how many packets matched that filter.
+The *Matched* field indicates how many packets matched the filter.
 
 
-==== Video Tutorials 
+==== Video tutorials 
 
 ifdef::backend-xhtml11[]
 ++++++++++++++++++
@@ -381,5 +355,5 @@ src="https://www.youtube.com/embed/Vsb0A4RNGz0">
 ++++++++++++++++++
 endif::backend-xhtml11[]
 
-The Tutorial shows a little bit of our new packet capture ability 
+This tutorial demonstrates the new packet capture ability.
 

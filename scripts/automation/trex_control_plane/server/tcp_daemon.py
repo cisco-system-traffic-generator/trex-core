@@ -105,9 +105,9 @@ class TCPDaemon(object):
             self.run_cmd()
             os._exit(0)
 
-        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file, open(os.devnull, 'w') as devnull:
             proc = Popen(shlex.split('%s -p %s' % (self.run_cmd, self.port)), cwd = self.dir, close_fds = True,
-                         stdout = stdout_file, stderr = stderr_file)
+                         stdout = stdout_file, stderr = stderr_file, stdin = devnull)
             if timeout > 0:
                 poll_rate = 0.1
                 for i in range(int(timeout/poll_rate)):
@@ -137,8 +137,8 @@ class TCPDaemon(object):
 # runs command
 def run_command(command, timeout = 15, cwd = None):
     # pipes might stuck, even with timeout
-    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-        proc = Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, cwd = cwd, close_fds = True)
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file, open(os.devnull, 'w') as devnull:
+        proc = Popen(shlex.split(command), stdout = stdout_file, stderr = stderr_file, stdin = devnull, cwd = cwd, close_fds = True)
         if timeout > 0:
             poll_rate = 0.1
             for i in range(int(timeout/poll_rate)):

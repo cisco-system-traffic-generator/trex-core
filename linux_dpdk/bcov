@@ -1,30 +1,18 @@
 #!/bin/bash
+INPUT_ARGS=$@
 
-# if no variable of $PYTHON is define - we try to find it
-function find_python {
-    # two candidates - machine python and cisco linux python
-    MACHINE_PYTHON=python
-    CEL_PYTHON=/router/bin/python
+if [[ $@ =~ '--python2' ]]; then
+    INPUT_ARGS=${@//--python2/}
+    source ../scripts/find_python.sh --python2
+fi
 
-    # try the machine python
-    PYTHON=$MACHINE_PYTHON
-    
-    PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)"`
-    if [ $? -ne 0 ]; then
-        PYTHON=$CEL_PYTHON
-        PCHECK=`$PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 27)"`
-    
-        if [ $? -ne 0 ]; then
-            echo "*** $PYTHON - python version is too old, 2.7 at least is required"
-            exit -1
-        fi
-    
-    fi
-    
-}
+if [[ $@ =~ '--python3' ]]; then
+    INPUT_ARGS=${@//--python3/}
+    source ../scripts/find_python.sh --python3
+fi
 
 if [ -z "$PYTHON" ]; then
-    find_python
+    source ../scripts/find_python.sh
 fi
 
 $PYTHON cov.py $@

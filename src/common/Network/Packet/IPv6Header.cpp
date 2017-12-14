@@ -52,3 +52,12 @@ uint8_t IPv6Header::getl4Proto(uint8_t *pkt, uint16_t pkt_len, uint8_t *&p_l4) {
     p_l4 = next_header;
     return next_header_type;
 }
+
+void     IPv6Header::setSourceIpv6Raw(uint8_t * in){
+    memcpy(&mySource[0],in,16);
+}
+
+void     IPv6Header::setDestIpv6Raw(uint8_t * in){
+    memcpy(&myDestination[0],in,16);
+}
+

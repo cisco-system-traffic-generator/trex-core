@@ -8,16 +8,23 @@
 VERSION='0.0.1'
 APPNAME='cxx_test'
 
-import os;
-import shutil;
-import copy;
+import os
+import shutil
+import copy
+
 from distutils.version import StrictVersion
+from waflib import Logs
 
 top = '../'
 out = 'build'
 b_path ="./build/linux/"
 
 REQUIRED_CC_VERSION = "4.7.0"
+SANITIZE_CC_VERSION = "4.9.0"
+
+GCC6_DIR = '/usr/local/gcc-6.2/bin'
+GCC7_DIR = '/usr/local/gcc-7.2/bin'
+
 
 class SrcGroup:
     ' group of source by directory '
@@ -66,30 +73,103 @@ class SrcGroups:
     def __repr__ (self):
           return (self.file_list(''));
 
+          
 
 def options(opt):
+    
     opt.load('compiler_cxx')
 
+    co = opt.option_groups['configure options']
+    co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
+                   help='for GCC {0}+ use address sanitizer to catch memory errors'.format(SANITIZE_CC_VERSION))
+
+    co.add_option('--gcc6', dest='gcc6', default=False, action='store_true',
+                   help='use GCC 6.2 instead of the machine version')
+
+    co.add_option('--gcc7', dest='gcc7', default=False, action='store_true',
+                   help='use GCC 7.2 instead of the machine version')
+
+
+
+def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
+    ver = StrictVersion('.'.join(env['CC_VERSION']))
+
+    return (ver >= min_ver, ver, min_ver)
+
     
-def verify_cc_version (env):
-    ver = '.'.join(env['CC_VERSION'])
-
-    if StrictVersion(ver) < REQUIRED_CC_VERSION:
-        print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(ver, REQUIRED_CC_VERSION))
-        print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
-        exit(-1)
-
-
 def configure(conf):
+    if conf.options.gcc6 and conf.options.gcc7:
+        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+
     # start from clean
     if 'RPATH' in os.environ:
         conf.env.RPATH = os.environ['RPATH'].split(':')
     else:
         conf.env.RPATH = []
 
-    conf.load('g++')
-    verify_cc_version(conf.env)
+    if conf.options.gcc6:
+        configure_gcc(conf, GCC6_DIR)
+    elif conf.options.gcc7:
+        configure_gcc(conf, GCC7_DIR)
+    else:
+        configure_gcc(conf)
 
+    
+    # first verify CC version
+    rc = verify_cc_version(conf.env, REQUIRED_CC_VERSION)
+    if not rc[0]:
+        print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(rc[1], rc[2]))
+        print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
+        exit(-1)
+    
+        
+    # handle sanitized process if needed
+    configure_sanitized(conf)
+  
+            
+
+def configure_gcc (conf, explicit_path = None):
+    # use the system path
+    if explicit_path is None:
+        conf.load('g++')
+        return
+
+    if not os.path.exists(explicit_path):
+        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+
+    saved = conf.environ['PATH']
+    try:
+        conf.environ['PATH'] = explicit_path
+        conf.load('g++')
+    finally:
+        conf.environ['PATH'] = saved
+
+
+
+
+def configure_sanitized (conf):
+
+    # first we turn off SANITIZED
+    conf.env.SANITIZED = False
+    
+    # if sanitized is required - check GCC version for sanitizing
+    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))    
+    
+    # not required
+    if not conf.options.sanitized:
+        conf.end_msg('no', 'YELLOW')
+
+    else:
+        rc = verify_cc_version(conf.env, SANITIZE_CC_VERSION)
+        if not rc[0]:
+            conf.fatal('--sanitized is supported only with GCC {0}+ - current {1}'.format(rc[2], rc[1]))
+        else:
+            conf.end_msg('yes', 'GREEN')
+            conf.env.SANITIZED = True
+
+    
+    
+        
 bp_sim_main = SrcGroup(dir='src',
         src_list=['main.cpp'])
 
@@ -124,7 +204,10 @@ main_src = SrcGroup(dir='src',
             'bp_sim_tcp.cpp',
             'utl_mbuf.cpp',
              'inet_pton.cpp',
+             'trex_global.cpp',
              'bp_sim.cpp',
+             'trex_platform.cpp',
+             'bp_sim_stf.cpp',
              'utl_port_map.cpp',
              'os_time.cpp',
              'rx_check.cpp',
@@ -145,7 +228,6 @@ main_src = SrcGroup(dir='src',
              'trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'stateful_rx_core.cpp',
-             'flow_stat.cpp',
              'flow_stat_parser.cpp',
              'trex_watchdog.cpp',
              'trex_client_config.cpp',
@@ -154,8 +236,11 @@ main_src = SrcGroup(dir='src',
              'pal/common/common_mbuf.cpp',
              'sim/trex_sim_stateless.cpp',
              'sim/trex_sim_stateful.cpp',
+             'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
-             'astf/json_reader.cpp'
+             'astf/astf_db.cpp',
+             'utl_sync_barrier.cpp',
+             'trex_build_info.cpp',
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -184,38 +269,72 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+
+# STX - common code
+stx_src = SrcGroup(dir='src/stx/common',
+                           src_list=['trex_stx.cpp',
+                                     'trex_pkt.cpp',
+                                     'trex_capture.cpp',
+                                     'trex_port.cpp',
+                                     'trex_dp_port_events.cpp',
+                                     'trex_dp_core.cpp',
+                                     'trex_messaging.cpp',
+
+                                     'trex_rx_core.cpp',
+                                     'trex_rx_port_mngr.cpp',
+                                     'trex_rx_tx.cpp',
+
+                                     'trex_rpc_cmds_common.cpp'
+                                     ])
+
+
+# stateful code
+stf_src = SrcGroup(dir='src/stx/stf/',
+                    src_list=['trex_stf.cpp'])
+
+
 # stateless code
-stateless_src = SrcGroup(dir='src/stateless/',
-                          src_list=['cp/trex_stream.cpp',
-                                    'cp/trex_stream_vm.cpp',
-                                    'cp/trex_stateless.cpp',
-                                    'cp/trex_stateless_port.cpp',
-                                    'cp/trex_streams_compiler.cpp',
-                                    'cp/trex_vm_splitter.cpp',
-                                    'cp/trex_dp_port_events.cpp',
-                                    'dp/trex_stateless_dp_core.cpp',
-                                    'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp',
-                                    'rx/trex_stateless_rx_port_mngr.cpp',
-                                    'rx/trex_stateless_capture.cpp',
-                                    'rx/trex_stateless_rx_tx.cpp',
-                                    'common/trex_stateless_pkt.cpp'
+stateless_src = SrcGroup(dir='src/stx/stl/',
+                          src_list=['trex_stl_stream.cpp',
+                                    'trex_stl_stream_vm.cpp',
+                                    'trex_stl.cpp',
+                                    'trex_stl_port.cpp',
+                                    'trex_stl_streams_compiler.cpp',
+                                    'trex_stl_vm_splitter.cpp',
+
+                                    'trex_stl_dp_core.cpp',
+                                    'trex_stl_fs.cpp',
+
+                                    'trex_stl_messaging.cpp',
+                                    
+                                    'trex_stl_rpc_cmds.cpp'
+
                                     ])
+
+
+
+# ASTF batch
+astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
+                           src_list=['trex_astf_batch.cpp'])
+
+# ASTF
+astf_src = SrcGroup(dir='src/stx/astf/',
+                         src_list=['trex_astf.cpp',
+                                   'trex_astf_port.cpp',
+                                   'trex_astf_rpc_cmds.cpp',
+                                   'trex_astf_dp_core.cpp'
+                         ])
+
+
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
-                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
                               'trex_rpc_zip.cpp',
-
-                              'commands/trex_rpc_cmd_test.cpp',
-                              'commands/trex_rpc_cmd_general.cpp',
-                              'commands/trex_rpc_cmd_stream.cpp',
-
                           ])
 
 
@@ -272,7 +391,13 @@ bp =SrcGroups([
                 net_src ,
                 yaml_src,
                 json_src,
+                
+                stx_src,
+                stf_src,
                 stateless_src,
+                astf_batch_src,
+                astf_src,
+                
                 rpc_server_src
                 ]);
 
@@ -284,6 +409,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-DLINUX',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                #'-DGLIBCXX_USE_CXX11_ABI=0',
                 '-g',
                 '-Wno-deprecated-declarations',
                 '-std=c++0x',
@@ -295,12 +421,13 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/pal/common/
                    ../src/
+                   
                    ../src/rpc-server/
-                   ../src/stateless/cp/
-                   ../src/stateless/dp/
-                   ../src/stateless/rx/
-                   ../src/stateless/common/
-                   ../src/stateless/messaging/
+                   
+                   ../src/stx/
+                   ../src/stx/common/
+                   ../src/stx/common/rx/
+                   
                    ../external_libs/json/
                    ../external_libs/zmq/include/
                    ../external_libs/yaml-cpp/include/
@@ -402,8 +529,13 @@ class build_option:
     def get_target (self):
         return self.update_executable_name(self.name);
 
-    def get_flags (self):
-        return self.cxxcomp_flags(cxxflags_base);
+    def get_flags (self, is_sanitized = False):
+        flags = self.cxxcomp_flags(cxxflags_base);
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+        
+        return flags
+        
 
     def get_src (self):
         return self.src.file_list(top)
@@ -411,7 +543,8 @@ class build_option:
     def get_rpath (self):
         return self.rpath
 
-    def get_link_flags(self):
+    def get_link_flags(self, is_sanitized):
+        
         # add here basic flags
         base_flags = [];
         if self.isPIE():
@@ -428,28 +561,37 @@ class build_option:
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
+        if is_sanitized:
+            base_flags += ['-fsanitize=address', '-fsanitize=leak']
+            
         return base_flags;
 
 
 build_types = [
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= DEBUG_, platform = PLATFORM_64, is_pie = False,
                             flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
-                            rpath = ['.']),
+                            rpath = ['so']),
 
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= RELEASE_,platform = PLATFORM_64, is_pie = False,
                             flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
-                            rpath = ['.']),
+                            rpath = ['so']),
 
               ]
 
 
-
 def build_prog (bld, build_obj):
-
+    
+    # determine if sanitized image should be built
+    is_sanitized = bld.env.SANITIZED
+    
+    cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
+    linkflags = build_obj.get_link_flags(is_sanitized)
+    
+        
     bld.program(features='cxx cxxprogram', 
-                includes =includes_path,
-                cxxflags =(build_obj.get_flags()+['-std=gnu++11',]),
-                linkflags = build_obj.get_link_flags(),
+                includes =  includes_path,
+                cxxflags =  cxxflags,
+                linkflags = linkflags,
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs(),
                 lib = ['pthread', 'z', 'dl'],
@@ -470,7 +612,9 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 def build(bld):
-
+    if bld.env.SANITIZED and bld.cmd == 'build':
+        Logs.warn("\n******* building sanitized binaries *******\n")
+        
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);

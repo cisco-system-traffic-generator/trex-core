@@ -140,11 +140,7 @@ kni_thread_single(void *data)
 		down_read(&knet->kni_list_lock);
 		for (j = 0; j < KNI_RX_LOOP_NUM; j++) {
 			list_for_each_entry(dev, &knet->kni_list_head, list) {
-#ifdef RTE_KNI_VHOST
-				kni_chk_vhost_rx(dev);
-#else
 				kni_net_rx(dev);
-#endif
 				kni_net_poll_resp(dev);
 			}
 		}
@@ -163,15 +159,11 @@ static int
 kni_thread_multiple(void *param)
 {
 	int j;
-	struct kni_dev *dev = (struct kni_dev *)param;
+	struct kni_dev *dev = param;
 
 	while (!kthread_should_stop()) {
 		for (j = 0; j < KNI_RX_LOOP_NUM; j++) {
-#ifdef RTE_KNI_VHOST
-			kni_chk_vhost_rx(dev);
-#else
 			kni_net_rx(dev);
-#endif
 			kni_net_poll_resp(dev);
 		}
 #ifdef RTE_KNI_PREEMPT_DEFAULT
@@ -205,7 +197,7 @@ kni_dev_remove(struct kni_dev *dev)
 	if (!dev)
 		return -ENODEV;
 
-#ifdef CONFIG_RTE_KNI_KMOD_ETHTOOL
+#ifdef RTE_KNI_KMOD_ETHTOOL
 	if (dev->pci_dev) {
 		if (pci_match_id(ixgbe_pci_tbl, dev->pci_dev))
 			ixgbe_kni_remove(dev->pci_dev);
@@ -248,9 +240,6 @@ kni_release(struct inode *inode, struct file *file)
 			dev->pthread = NULL;
 		}
 
-#ifdef RTE_KNI_VHOST
-		kni_vhost_backend_release(dev);
-#endif
 		kni_dev_remove(dev);
 		list_del(&dev->list);
 	}
@@ -330,6 +319,11 @@ kni_ioctl_create(struct net *net, uint32_t ioctl_num,
 	struct rte_kni_device_info dev_info;
 	struct net_device *net_dev = NULL;
 	struct kni_dev *kni, *dev, *n;
+#ifdef RTE_KNI_KMOD_ETHTOOL
+	struct pci_dev *found_pci = NULL;
+	struct net_device *lad_dev = NULL;
+	struct pci_dev *pci = NULL;
+#endif
 
 	pr_info("Creating kni...\n");
 	/* Check the buffer size, to avoid warning */
@@ -397,10 +391,6 @@ kni_ioctl_create(struct net *net, uint32_t ioctl_num,
 	kni->sync_va = dev_info.sync_va;
 	kni->sync_kva = phys_to_virt(dev_info.sync_phys);
 
-#ifdef RTE_KNI_VHOST
-	kni->vhost_queue = NULL;
-	kni->vq_status = BE_STOP;
-#endif
 	kni->mbuf_size = dev_info.mbuf_size;
 
 	pr_debug("tx_phys:      0x%016llx, tx_q addr:      0x%p\n",
@@ -423,12 +413,7 @@ kni_ioctl_create(struct net *net, uint32_t ioctl_num,
 					dev_info.function,
 					dev_info.vendor_id,
 					dev_info.device_id);
-
-#ifdef CONFIG_RTE_KNI_KMOD_ETHTOOL
-	struct pci_dev *found_pci = NULL;
-	struct net_device *lad_dev = NULL;
-	struct pci_dev *pci = NULL;
-
+#ifdef RTE_KNI_KMOD_ETHTOOL
 	pci = pci_get_device(dev_info.vendor_id, dev_info.device_id, NULL);
 
 	/* Support Ethtool */
@@ -490,10 +475,6 @@ kni_ioctl_create(struct net *net, uint32_t ioctl_num,
 		return -ENODEV;
 	}
 
-#ifdef RTE_KNI_VHOST
-	kni_vhost_init(kni);
-#endif
-
 	ret = kni_run_thread(knet, kni, dev_info.force_bind);
 	if (ret != 0)
 		return ret;
@@ -537,9 +518,6 @@ kni_ioctl_release(struct net *net, uint32_t ioctl_num,
 			dev->pthread = NULL;
 		}
 
-#ifdef RTE_KNI_VHOST
-		kni_vhost_backend_release(dev);
-#endif
 		kni_dev_remove(dev);
 		list_del(&dev->list);
 		ret = 0;

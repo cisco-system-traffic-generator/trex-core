@@ -10,7 +10,7 @@ The `client_interactive_example.py` extends and uses the `Cmd <https://docs.pyth
 
 The help menu of this application is:
 
-.. code-block:: json
+.. code-block:: python
 
         usage: client_interactive_example [options]
 

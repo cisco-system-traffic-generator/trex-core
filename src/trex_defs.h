@@ -1,3 +1,6 @@
+#ifndef __TREX_DEFS_H__
+#define __TREX_DEFS_H__
+
 /*
 Copyright (c) 2015-2016 Cisco Systems, Inc.
 
@@ -17,11 +20,14 @@ limitations under the License.
 #include <queue>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
-#ifndef __TREX_DEFS_H__
-#define __TREX_DEFS_H__
 
 #define TREX_MAX_PORTS 16
+
+#define MAX_SOCKETS_SUPPORTED   (4)
+#define MAX_THREADS_SUPPORTED   (120)
+
 
 // maximum number of IP ID type flow stats we support. Must be in the form 2^x - 1
 #define MAX_FLOW_STATS 1023
@@ -71,5 +77,8 @@ typedef std::vector<cpu_vct_st> cpu_util_full_t;
 typedef std::vector<std::string> xstats_names_t;
 typedef std::vector<uint64_t> xstats_values_t;
 typedef std::vector<uint32_t> supp_speeds_t;
+typedef std::set<uint32_t> stream_ids_t;
+typedef std::unordered_map<uint32_t,double> stream_ipgs_map_t;
+typedef std::unordered_map<uint32_t,double>::const_iterator stream_ipgs_map_it_t;
 
 #endif

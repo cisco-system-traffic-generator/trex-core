@@ -17,6 +17,8 @@ from waflib import Logs
 from waflib.Configure import conf
 from waflib import Build
 
+from distutils.version import StrictVersion
+
 # use hostname as part of cache filename
 Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
@@ -34,6 +36,13 @@ H_VER_FILE      = "version.h"
 
 BUILD_NUM_FILE  = "../VERSION"
 USERS_ALLOWED_TO_RELEASE = ['hhaim']
+
+
+REQUIRED_CC_VERSION = "4.7.0"
+SANITIZE_CC_VERSION = "4.9.0"
+
+GCC6_DIR = '/usr/local/gcc-6.2/bin'
+GCC7_DIR = '/usr/local/gcc-7.2/bin'
 
 
 #######################################
@@ -110,6 +119,16 @@ def options(opt):
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
+
+    co = opt.option_groups['configure options']
+    co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
+                   help='for GCC {0}+ use address sanitizer to catch memory errors'.format(SANITIZE_CC_VERSION))
+    
+    co.add_option('--gcc6', dest='gcc6', default=False, action='store_true',
+                   help='use GCC 6.2 instead of the machine version')
+
+    co.add_option('--gcc7', dest='gcc7', default=False, action='store_true',
+                   help='use GCC 7.2 instead of the machine version')
 
 
 def check_ibverbs_deps(bld):
@@ -194,14 +213,35 @@ def check_ntapi(ctx):
     ctx.end_msg('Found needed NTAPI library')
     return True
 
+    
+def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
+    ver = StrictVersion('.'.join(env['CC_VERSION']))
+
+    return (ver >= min_ver, ver, min_ver)
+    
+    
 def configure(conf):
-    conf.load('g++')
-    conf.load('gcc')
+
+    if conf.options.gcc6 and conf.options.gcc7:
+        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+
+    if conf.options.gcc6:
+        configure_gcc(conf, GCC6_DIR)
+    elif conf.options.gcc7:
+        configure_gcc(conf, GCC7_DIR)
+    else:
+        configure_gcc(conf)
+
+
     conf.find_program('ldd')
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
-    no_mlx = conf.options.no_mlx
-    with_ntacc = conf.options.with_ntacc
-
+    no_mlx          = conf.options.no_mlx
+    with_ntacc      = conf.options.with_ntacc
+    with_sanitized  = conf.options.sanitized
+    
+    configure_sanitized(conf, with_sanitized)
+          
+            
     conf.env.NO_MLX = no_mlx
     if not no_mlx:
         ofed_ok = conf.check_ofed(mandatory = False)
@@ -218,6 +258,50 @@ def configure(conf):
           Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
                                   'https://www.napatech.com/downloads/')
           raise Exception("Cannot find libntapi");
+
+          
+
+def configure_gcc (conf, explicit_path = None):
+    # use the system path
+    if explicit_path is None:
+        conf.load('gcc')
+        conf.load('g++')
+        return
+
+    if not os.path.exists(explicit_path):
+        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+
+    saved = conf.environ['PATH']
+    try:
+        conf.environ['PATH'] = explicit_path
+        conf.load('gcc')
+        conf.load('g++')
+    finally:
+        conf.environ['PATH'] = saved 
+
+
+
+def configure_sanitized (conf, with_sanitized):
+
+    # first we turn off SANITIZED
+    conf.env.SANITIZED = False
+
+    # if sanitized is required - check GCC version for sanitizing
+    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))    
+
+    # not required
+    if not with_sanitized:
+        conf.end_msg('no', 'YELLOW')
+
+    else:
+        rc = verify_cc_version(conf.env, SANITIZE_CC_VERSION)
+        if not rc[0]:
+            conf.fatal('--sanitized is supported only with GCC {0}+ - current {1}'.format(rc[2], rc[1]))
+        else:
+            conf.end_msg('yes', 'GREEN')
+            conf.env.SANITIZED = True
+
+
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
@@ -249,7 +333,10 @@ main_src = SrcGroup(dir='src',
              'utl_policer.cpp',
              'astf/astf_template_db.cpp',
              'stt_cp.cpp',
+             'trex_global.cpp',
              'bp_sim.cpp',
+             'trex_platform.cpp',
+             'flow_stat_parser.cpp',
              'utl_term_io.cpp',
              'utl_port_map.cpp',
              'global_io_mode.cpp',
@@ -258,8 +345,6 @@ main_src = SrcGroup(dir='src',
              'trex_watchdog.cpp',
              'trex_client_config.cpp',
              'debug.cpp',
-             'flow_stat.cpp',
-             'flow_stat_parser.cpp',
              'inet_pton.cpp',
              'pkt_gen.cpp',
              'tw_cfg.cpp',
@@ -274,7 +359,6 @@ main_src = SrcGroup(dir='src',
              'os_time.cpp',
              'utl_cpuu.cpp',
              'utl_ip.cpp',
-             'utl_json.cpp',
              'utl_yaml.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
@@ -285,7 +369,11 @@ main_src = SrcGroup(dir='src',
              'pal/linux_dpdk/mbuf.cpp',
              'pal/common/common_mbuf.cpp',
              'h_timer.cpp',
-             'astf/json_reader.cpp'
+             'astf/astf_db.cpp',
+             'bp_sim_stf.cpp',
+             'utl_sync_barrier.cpp',
+             'trex_build_info.cpp',
+             'dpdk_drv_filter.cpp'
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -321,16 +409,10 @@ rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
                               'trex_rpc_server.cpp',
                               'trex_rpc_req_resp_server.cpp',
-                              'trex_rpc_async_server.cpp',
                               'trex_rpc_jsonrpc_v2_parser.cpp',
                               'trex_rpc_cmds_table.cpp',
                               'trex_rpc_cmd.cpp',
                               'trex_rpc_zip.cpp',
-
-                              'commands/trex_rpc_cmd_test.cpp',
-                              'commands/trex_rpc_cmd_general.cpp',
-                              'commands/trex_rpc_cmd_stream.cpp',
-
                           ])
 
 
@@ -342,23 +424,63 @@ ef_src = SrcGroup(dir='src/common',
         ]);
 
 
+
+# common code for STL / ASTF / STF
+stx_src = SrcGroup(dir='src/stx/common/',
+                           src_list=['trex_stx.cpp',
+                                     'trex_pkt.cpp',
+                                     'trex_capture.cpp',
+                                     'trex_port.cpp',
+                                     'trex_dp_port_events.cpp',
+                                     'trex_dp_core.cpp',
+                                     'trex_messaging.cpp',
+                                     
+                                     'trex_rx_core.cpp',
+                                     'trex_rx_port_mngr.cpp',
+                                     'trex_rx_tx.cpp',
+                                     
+                                     'trex_rpc_cmds_common.cpp'
+                                     ])
+
+
+# stateful code
+stf_src = SrcGroup(dir='src/stx/stf/',
+                    src_list=['trex_stf.cpp'])
+
+
 # stateless code
-stateless_src = SrcGroup(dir='src/stateless/',
-                          src_list=['cp/trex_stream.cpp',
-                                    'cp/trex_stream_vm.cpp',
-                                    'cp/trex_stateless.cpp',
-                                    'cp/trex_stateless_port.cpp',
-                                    'cp/trex_streams_compiler.cpp',
-                                    'cp/trex_vm_splitter.cpp',
-                                    'cp/trex_dp_port_events.cpp',
-                                    'dp/trex_stateless_dp_core.cpp',
-                                    'messaging/trex_stateless_messaging.cpp',
-                                    'rx/trex_stateless_rx_core.cpp',
-                                    'rx/trex_stateless_rx_port_mngr.cpp',
-                                    'rx/trex_stateless_rx_tx.cpp',
-                                    'rx/trex_stateless_capture.cpp',
-                                    'common/trex_stateless_pkt.cpp',
+stateless_src = SrcGroup(dir='src/stx/stl/',
+                          src_list=['trex_stl_stream.cpp',
+                                    'trex_stl_stream_vm.cpp',
+                                    'trex_stl.cpp',
+                                    'trex_stl_port.cpp',
+                                    'trex_stl_streams_compiler.cpp',
+                                    'trex_stl_vm_splitter.cpp',
+                                    
+                                    'trex_stl_dp_core.cpp',
+                                    'trex_stl_fs.cpp',
+                                    
+                                    'trex_stl_messaging.cpp',
+                                    
+                                    'trex_stl_rpc_cmds.cpp'
+                                    
                                     ])
+
+
+
+# ASTF batch
+astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
+                           src_list=['trex_astf_batch.cpp'])
+
+
+# ASTF
+astf_src = SrcGroup(dir='src/stx/astf/',
+                         src_list=['trex_astf.cpp',
+                                   'trex_astf_port.cpp',
+                                   'trex_astf_rpc_cmds.cpp',
+                                   'trex_astf_dp_core.cpp'
+                         ])
+
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
                     src_list=[
@@ -421,14 +543,24 @@ version_src = SrcGroup(
     ])
 
 
+
+
 dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
                  '../dpdk_funcs.c',
-                 'drivers/net/af_packet/rte_eth_af_packet.c',
-                 'drivers/net/cxgbe/base/t4_hw.c',
-                 'drivers/net/cxgbe/cxgbe_ethdev.c',
-                 'drivers/net/cxgbe/cxgbe_main.c',
-                 'drivers/net/cxgbe/sge.c',
+                 #'drivers/net/af_packet/rte_eth_af_packet.c',
+                 'drivers/bus/pci/pci_common.c',
+                 'drivers/bus/pci/pci_common_uio.c',
+                 'drivers/bus/pci/linux/pci.c',
+                 'drivers/bus/pci/linux/pci_uio.c',
+                 'drivers/bus/pci/linux/pci_vfio.c',
+                 'drivers/bus/vdev/vdev.c',
+
+                 'drivers/mempool/ring/rte_mempool_ring.c',
+                 'drivers/mempool/stack/rte_mempool_stack.c',
+
+
+                 # drivers
                  'drivers/net/e1000/base/e1000_80003es2lan.c',
                  'drivers/net/e1000/base/e1000_82540.c',
                  'drivers/net/e1000/base/e1000_82541.c',
@@ -448,9 +580,12 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/base/e1000_vf.c',
                  'drivers/net/e1000/em_ethdev.c',
                  'drivers/net/e1000/em_rxtx.c',
+                 'drivers/net/e1000/igb_flow.c',
                  'drivers/net/e1000/igb_ethdev.c',
                  'drivers/net/e1000/igb_pf.c',
                  'drivers/net/e1000/igb_rxtx.c',
+
+                 #enic
                  'drivers/net/enic/base/vnic_cq.c',
                  'drivers/net/enic/base/vnic_dev.c',
                  'drivers/net/enic/base/vnic_intr.c',
@@ -458,19 +593,13 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/enic/base/vnic_rss.c',
                  'drivers/net/enic/base/vnic_wq.c',
                  'drivers/net/enic/enic_clsf.c',
+                 'drivers/net/enic/enic_flow.c',
                  'drivers/net/enic/enic_ethdev.c',
                  'drivers/net/enic/enic_main.c',
                  'drivers/net/enic/enic_res.c',
                  'drivers/net/enic/enic_rxtx.c',
-                 'drivers/net/fm10k/base/fm10k_api.c',
-                 'drivers/net/fm10k/base/fm10k_common.c',
-                 'drivers/net/fm10k/base/fm10k_mbx.c',
-                 'drivers/net/fm10k/base/fm10k_pf.c',
-                 'drivers/net/fm10k/base/fm10k_tlv.c',
-                 'drivers/net/fm10k/base/fm10k_vf.c',
-                 'drivers/net/fm10k/fm10k_ethdev.c',
-                 'drivers/net/fm10k/fm10k_rxtx.c',
-                 'drivers/net/fm10k/fm10k_rxtx_vec.c',
+
+                 #ixgbe
                  'drivers/net/ixgbe/base/ixgbe_82598.c',
                  'drivers/net/ixgbe/base/ixgbe_82599.c',
                  'drivers/net/ixgbe/base/ixgbe_api.c',
@@ -490,7 +619,11 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_pf.c',
                  'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
+                 #'drivers/net/ixgbe/ixgbe_ipsec.c',
+                 'drivers/net/ixgbe/ixgbe_tm.c',
+                 'drivers/net/ixgbe/rte_pmd_ixgbe.c',
 
+                 #i40e
                  'drivers/net/i40e/base/i40e_adminq.c',
                  'drivers/net/i40e/base/i40e_common.c',
                  'drivers/net/i40e/base/i40e_dcb.c',
@@ -504,9 +637,11 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/i40e_flow.c',
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
                  'drivers/net/i40e/i40e_fdir.c',
+                 'drivers/net/i40e/i40e_tm.c',      # add
+                 'drivers/net/i40e/rte_pmd_i40e.c', # add
                  'drivers/net/i40e/i40e_ethdev.c',
-                 'drivers/net/null/rte_eth_null.c',
-                 'drivers/net/ring/rte_eth_ring.c',
+
+                 #virtio
                  'drivers/net/virtio/virtio_ethdev.c',
                  'drivers/net/virtio/virtio_pci.c',
                  'drivers/net/virtio/virtio_rxtx.c',
@@ -518,11 +653,17 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
                  'drivers/net/virtio/virtio_user/vhost_user.c',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
+
+                 #vmxnet3
                  'drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  'drivers/net/vmxnet3/vmxnet3_rxtx.c',
+
+                 #libs
                  'lib/librte_cfgfile/rte_cfgfile.c',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
+                 'lib/librte_eal/common/arch/x86/rte_cycles.c',
+                 'lib/librte_eal/common/arch/x86/rte_memcpy.c',
                  'lib/librte_eal/common/eal_common_bus.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
@@ -535,17 +676,16 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_memory.c',
                  'lib/librte_eal/common/eal_common_memzone.c',
                  'lib/librte_eal/common/eal_common_options.c',
-                 'lib/librte_eal/common/eal_common_pci.c',
-                 'lib/librte_eal/common/eal_common_pci_uio.c',
                  'lib/librte_eal/common/eal_common_string_fns.c',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
-                 'lib/librte_eal/common/eal_common_vdev.c',
+
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
                  'lib/librte_eal/common/rte_keepalive.c',
                  'lib/librte_eal/common/rte_malloc.c',
+                 'lib/librte_eal/common/rte_service.c',
                  'lib/librte_eal/linuxapp/eal/eal.c',
                  'lib/librte_eal/linuxapp/eal/eal_alarm.c',
                  'lib/librte_eal/linuxapp/eal/eal_debug.c',
@@ -554,25 +694,24 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_lcore.c',
                  'lib/librte_eal/linuxapp/eal/eal_log.c',
                  'lib/librte_eal/linuxapp/eal/eal_memory.c',
-                 'lib/librte_eal/linuxapp/eal/eal_pci.c',
-                 'lib/librte_eal/linuxapp/eal/eal_pci_uio.c',
-                 'lib/librte_eal/linuxapp/eal/eal_pci_vfio.c',
                  'lib/librte_eal/linuxapp/eal/eal_thread.c',
                  'lib/librte_eal/linuxapp/eal/eal_timer.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio.c',
                  'lib/librte_ether/rte_ethdev.c',
                  'lib/librte_ether/rte_flow.c',
+                 'lib/librte_ether/ethdev_profile.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
                  'lib/librte_mbuf/rte_mbuf_ptype.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
-                 'lib/librte_mempool/rte_mempool_ring.c',
                  'lib/librte_net/rte_net.c',
-                 'lib/librte_pipeline/rte_pipeline.c',
+                 'lib/librte_net/rte_net_crc.c',
                  'lib/librte_ring/rte_ring.c',
+                 'lib/librte_pci/rte_pci.c',
+                 
             ]);
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
@@ -593,17 +732,29 @@ mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/mlx5/mlx5_stats.c',
                  'drivers/net/mlx5/mlx5_txq.c',
                  'drivers/net/mlx5/mlx5.c',
-                 'drivers/net/mlx5/mlx5_fdir.c',
+                 #'drivers/net/mlx5/mlx5_fdir.c', # remove 
                  'drivers/net/mlx5/mlx5_flow.c',
                  'drivers/net/mlx5/mlx5_rss.c',
                  'drivers/net/mlx5/mlx5_rxq.c',
                  'drivers/net/mlx5/mlx5_trigger.c',
                  'drivers/net/mlx5/mlx5_vlan.c',
+
+                 'drivers/net/mlx5/mlx5_rxtx_vec.c',
+                 'drivers/net/mlx5/mlx5_socket.c',
+
             ]);
 
 mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
                  'drivers/net/mlx4/mlx4.c',
+                 'drivers/net/mlx4/mlx4_ethdev.c',
+                 'drivers/net/mlx4/mlx4_flow.c',
+                 'drivers/net/mlx4/mlx4_intr.c',
+                 'drivers/net/mlx4/mlx4_mr.c',
+                 'drivers/net/mlx4/mlx4_rxq.c',
+                 'drivers/net/mlx4/mlx4_rxtx.c',
+                 'drivers/net/mlx4/mlx4_txq.c',
+                 'drivers/net/mlx4/mlx4_utils.c',
             ]);
 
 bp_dpdk =SrcGroups([
@@ -631,9 +782,15 @@ bp =SrcGroups([
                 cmn_src ,
                 net_src ,
                 yaml_src,
-                rpc_server_src,
                 json_src,
+                rpc_server_src,
+                
+                stx_src,
+                stf_src,
                 stateless_src,
+                astf_batch_src,
+                astf_src,
+                
                 version_src
                 ]);
 
@@ -658,6 +815,9 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
+                '-D__STDC_CONSTANT_MACROS'
+                #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
+                #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
                ]
 
 common_flags_new = common_flags + [
@@ -684,144 +844,77 @@ common_flags_old = common_flags + [
 
 
 
+dpdk_includes_path =''' ../src/
+                        ../src/pal/linux_dpdk/
+                        ../src/pal/linux_dpdk/dpdk1711/
+                        ../src/dpdk/drivers/
+                        ../src/dpdk/drivers/net/
+                        ../src/dpdk/drivers/net/e1000/
+                        ../src/dpdk/drivers/net/e1000/base/
+                        ../src/dpdk/drivers/net/enic/
+                        ../src/dpdk/drivers/net/enic/base/
+                        ../src/dpdk/drivers/net/i40e/
+                        ../src/dpdk/drivers/net/i40e/base/
+                        ../src/dpdk/drivers/net/ixgbe/
+                        ../src/dpdk/drivers/net/ixgbe/base/
+                        ../src/dpdk/drivers/net/mlx4/
+                        ../src/dpdk/drivers/net/mlx5/
+                        ../src/dpdk/drivers/net/ntacc/
+                        ../src/dpdk/drivers/net/virtio/
+                        ../src/dpdk/drivers/net/virtio/virtio_user/
+                        ../src/dpdk/drivers/net/vmxnet3/
+                        ../src/dpdk/drivers/net/vmxnet3/base
+                        ../src/dpdk/lib/
+                        ../src/dpdk/lib/librte_cfgfile/
+                        ../src/dpdk/lib/librte_compat/
+                        ../src/dpdk/lib/librte_distributor/
+                        ../src/dpdk/lib/librte_eal/
+                        ../src/dpdk/lib/librte_eal/common/
+                        ../src/dpdk/lib/librte_eal/common/include/
+                        ../src/dpdk/lib/librte_eal/common/include/arch/
+                        ../src/dpdk/lib/librte_eal/common/include/arch/x86/
+                        ../src/dpdk/lib/librte_eal/common/include/generic/
+                        ../src/dpdk/lib/librte_eal/linuxapp/
+                        ../src/dpdk/lib/librte_eal/linuxapp/eal/
+                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/
+                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
+                        ../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
+                        ../src/dpdk/lib/librte_ether/
+                        ../src/dpdk/lib/librte_hash/
+                        ../src/dpdk/lib/librte_kvargs/
+                        ../src/dpdk/lib/librte_mbuf/
+                        ../src/dpdk/lib/librte_mempool/
+                        ../src/dpdk/lib/librte_ring/
+                        ../src/dpdk/lib/librte_pci/
+                        ../src/dpdk/lib/librte_net/
+                        ../src/dpdk/lib/librte_port/
+                        ../src/dpdk/
+                        
+                        ../src/dpdk/drivers/bus/pci/
+                        ../src/dpdk/drivers/bus/vdev/
+                        ../src/dpdk/drivers/bus/pci/linux/
+                        ../src/dpdk/drivers/mempool/ring/
+                    ''';
 
-includes_path =''' ../src/pal/linux_dpdk/
-                   ../src/pal/linux_dpdk/dpdk1702/
+
+includes_path = dpdk_includes_path + ''' 
                    ../src/pal/common/
-                   ../src/
-
-                   ../src/rpc-server/
-                   ../src/stateless/cp/
-                   ../src/stateless/dp/
-                   ../src/stateless/rx/
-                   ../src/stateless/common/
-                   ../src/stateless/messaging/
-
+                   ../src/stx/
+                   ../src/stx/common/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq/include/
                    ../external_libs/json/
                    ../external_libs/bpf/
-
-
-../src/dpdk/drivers/net/af_packet/
-../src/dpdk/drivers/net/bnx2x/
-../src/dpdk/drivers/net/bonding/
-../src/dpdk/drivers/net/cxgbe/
-../src/dpdk/drivers/net/cxgbe/base/
-../src/dpdk/drivers/net/e1000/
-../src/dpdk/drivers/net/e1000/base/
-../src/dpdk/drivers/net/fm10k/
-../src/dpdk/drivers/net/fm10k/base/
-../src/dpdk/drivers/net/i40e/
-../src/dpdk/drivers/net/i40e/base/
-../src/dpdk/drivers/net/ixgbe/
-../src/dpdk/drivers/net/ixgbe/base/
-../src/dpdk/drivers/net/mlx4/
-../src/dpdk/drivers/net/mlx5/
-../src/dpdk/drivers/net/ntacc/
-../src/dpdk/drivers/net/mpipe/
-../src/dpdk/drivers/net/null/
-../src/dpdk/drivers/net/pcap/
-../src/dpdk/drivers/net/ring/
-../src/dpdk/drivers/net/szedata2/
-../src/dpdk/drivers/net/virtio/
-../src/dpdk/drivers/net/xenvirt/
-../src/dpdk/lib/librte_acl/
-../src/dpdk/lib/librte_cfgfile/
-../src/dpdk/lib/librte_compat/
-../src/dpdk/lib/librte_distributor/
-../src/dpdk/lib/librte_eal/
-../src/dpdk/lib/librte_eal/common/
-../src/dpdk/lib/librte_eal/common/include/
-../src/dpdk/lib/librte_eal/common/include/arch/
-../src/dpdk/lib/librte_eal/common/include/arch/x86/
-../src/dpdk/lib/librte_eal/common/include/generic/
-../src/dpdk/lib/librte_eal/linuxapp/
-../src/dpdk/lib/librte_eal/linuxapp/eal/
-../src/dpdk/lib/librte_eal/linuxapp/eal/include/
-../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
-../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
-../src/dpdk/lib/librte_eal/linuxapp/xen_dom0/
-../src/dpdk/lib/librte_ether/
-../src/dpdk/lib/librte_hash/
-../src/dpdk/lib/librte_kvargs/
-../src/dpdk/lib/librte_mbuf/
-../src/dpdk/lib/librte_mempool/
-../src/dpdk/lib/librte_net/
-../src/dpdk/lib/librte_pipeline/
-../src/dpdk/lib/librte_ring/
-              ''';
+                  ''';
 
 
 dpdk_includes_verb_path =''
 
-dpdk_includes_path =''' ../src/
-                        ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1702/
-../src/dpdk/drivers/
-../src/dpdk/drivers/net/
-../src/dpdk/drivers/net/af_packet/
-../src/dpdk/drivers/net/bnx2x/
-../src/dpdk/drivers/net/bonding/
-../src/dpdk/drivers/net/cxgbe/
-../src/dpdk/drivers/net/cxgbe/base/
-../src/dpdk/drivers/net/e1000/
-../src/dpdk/drivers/net/e1000/base/
-../src/dpdk/drivers/net/enic/
-../src/dpdk/drivers/net/enic/base/
-../src/dpdk/drivers/net/fm10k/
-../src/dpdk/drivers/net/fm10k/base/
-../src/dpdk/drivers/net/i40e/
-../src/dpdk/drivers/net/i40e/base/
-../src/dpdk/drivers/net/ixgbe/
-../src/dpdk/drivers/net/ixgbe/base/
-../src/dpdk/drivers/net/mlx4/
-../src/dpdk/drivers/net/mlx5/
-../src/dpdk/drivers/net/ntacc/
-../src/dpdk/drivers/net/mpipe/
-../src/dpdk/drivers/net/null/
-../src/dpdk/drivers/net/pcap/
-../src/dpdk/drivers/net/ring/
-../src/dpdk/drivers/net/virtio/
-../src/dpdk/drivers/net/virtio/virtio_user/
-../src/dpdk/drivers/net/vmxnet3/
-../src/dpdk/drivers/net/vmxnet3/base
-../src/dpdk/drivers/net/xenvirt/
-../src/dpdk/lib/
-../src/dpdk/lib/librte_acl/
-../src/dpdk/lib/librte_cfgfile/
-../src/dpdk/lib/librte_compat/
-../src/dpdk/lib/librte_distributor/
-../src/dpdk/lib/librte_eal/
-../src/dpdk/lib/librte_eal/common/
-../src/dpdk/lib/librte_eal/common/include/
-../src/dpdk/lib/librte_eal/common/include/arch/
-../src/dpdk/lib/librte_eal/common/include/arch/x86/
-../src/dpdk/lib/librte_eal/common/include/generic/
-../src/dpdk/lib/librte_eal/linuxapp/
-../src/dpdk/lib/librte_eal/linuxapp/eal/
-../src/dpdk/lib/librte_eal/linuxapp/eal/include/
-../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
-../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
-../src/dpdk/lib/librte_eal/linuxapp/xen_dom0/
-../src/dpdk/lib/librte_ether/
-../src/dpdk/lib/librte_hash/
-../src/dpdk/lib/librte_kvargs/
-../src/dpdk/lib/librte_mbuf/
-../src/dpdk/lib/librte_mempool/
-../src/dpdk/lib/librte_pipeline/
-../src/dpdk/lib/librte_ring/
-../src/dpdk/lib/librte_net/
-../src/dpdk/lib/librte_port/
-../src/dpdk/lib/librte_pipeline/
-../src/dpdk/lib/librte_table/
-../src/dpdk/
-''';
 
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
-DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1702/rte_config.h'];
+DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1711/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
@@ -848,7 +941,7 @@ class build_option:
       self.mode     = debug_mode;   ##debug,release
       self.platform = platform; #['32','64']
       self.is_pie = is_pie
-
+      
     def __str__(self):
        s=self.mode+","+self.platform;
        return (s);
@@ -930,6 +1023,15 @@ class build_option:
     def get_bpfso_target (self):
         return self.update_executable_name("libbpf") + '.so';
 
+     
+    def get_mlx5_flags(self):
+        flags=[]
+        if self.isRelease () :
+            flags += ['-DNDEBUG'];
+        else:
+            flags += ['-UNDEBUG'];
+        return (flags)
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -948,7 +1050,7 @@ class build_option:
 
         return (flags)
 
-    def get_cxx_flags (self):
+    def get_cxx_flags (self, is_sanitized):
         flags = self.get_common_flags()
 
         # support c++ 2011
@@ -957,20 +1059,29 @@ class build_option:
         flags += ['-Wall',
                   '-Werror',
                   '-Wno-literal-suffix',
+                  '-Wno-aligned-new',
                   '-Wno-sign-compare',
                   '-Wno-strict-aliasing']
 
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+            
         return (flags)
 
-    def get_c_flags (self):
+        
+    def get_c_flags (self, is_sanitized):
         flags = self.get_common_flags()
         if  self.isRelease () :
             flags += ['-DNDEBUG'];
 
+        if is_sanitized:
+            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
+            
         # for C no special flags yet
         return (flags)
 
-    def get_link_flags(self):
+        
+    def get_link_flags(self, is_sanitized):
         base_flags = ['-rdynamic'];
         if self.is64Platform():
             base_flags += ['-m64'];
@@ -978,6 +1089,9 @@ class build_option:
         else:
             base_flags += ['-lrt'];
 
+            
+        if is_sanitized:
+            base_flags += ['-fsanitize=address', '-fsanitize=leak']
         return base_flags;
 
 
@@ -1005,11 +1119,15 @@ def build_prog (bld, build_obj):
     #if not build_obj.isRelease ():
     #    debug_file_list +=ef_src.file_list(top)
 
+    cflags    = build_obj.get_c_flags(bld.env.SANITIZED)
+    cxxflags  = build_obj.get_cxx_flags(bld.env.SANITIZED)
+    linkflags = build_obj.get_link_flags(bld.env.SANITIZED)
+    
     bld.objects(
       features='c ',
       includes = dpdk_includes_path,
 
-      cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
+      cflags   = (cflags + DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target()
       );
@@ -1018,27 +1136,27 @@ def build_prog (bld, build_obj):
         bld.shlib(
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
-          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
-          use =['ibverbs'],
-
+          cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+          use =['ibverbs','mlx5'],
           source   = mlx5_dpdk.file_list(top),
           target   = build_obj.get_mlx5_target()
         )
 
-        bld.shlib(
-        features='c',
-        includes = dpdk_includes_path+dpdk_includes_verb_path,
-        cflags   = (build_obj.get_c_flags()+DPDK_FLAGS ),
-        use =['ibverbs'],
-        source   = mlx4_dpdk.file_list(top),
-        target   = build_obj.get_mlx4_target()
-       )
+        # remove the mlx4 driver for now
+        #bld.shlib(
+        #features='c',
+        #includes = dpdk_includes_path+dpdk_includes_verb_path,
+        #cflags   = (cflags + DPDK_FLAGS ),
+        #use =['ibverbs'],
+        #source   = mlx4_dpdk.file_list(top),
+        #target   = build_obj.get_mlx4_target()
+       #)
 
     if bld.env.WITH_NTACC == True:
         bld.shlib(
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
-          cflags   = (build_obj.get_c_flags()+DPDK_FLAGS +
+          cflags   = (cflags + DPDK_FLAGS +
             ['-I/opt/napatech3/include',
              '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"']),
           use =['ntapi'],
@@ -1050,15 +1168,15 @@ def build_prog (bld, build_obj):
     # build the BPF as a shared library
     bld.shlib(features = 'c',
               includes = bpf_includes_path,
-              cflags   = build_obj.get_c_flags() + ['-DSLJIT_CONFIG_AUTO=1'],
+              cflags   = cflags + ['-DSLJIT_CONFIG_AUTO=1'],
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
 
     bld.program(features='cxx cxxprogram',
                 includes =includes_path,
-                cxxflags =(build_obj.get_cxx_flags()+['-std=gnu++11',]),
-                linkflags = build_obj.get_link_flags() ,
+                cxxflags = ( cxxflags + ['-std=gnu++11',]),
+                linkflags = linkflags ,
                 lib=['pthread','dl', 'z'],
                 use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
                 source = bp.file_list(top) + debug_file_list,
@@ -1081,6 +1199,10 @@ def post_build(bld):
 
 
 def build(bld):
+    if bld.env.SANITIZED and bld.cmd == 'build':
+        Logs.warn("\n******* building sanitized binaries *******\n")
+
+        
     global dpdk_includes_verb_path;
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
@@ -1093,11 +1215,13 @@ def build(bld):
         if bld.env['LIB_IBVERBS']:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
             bld.read_shlib(name='ibverbs')
+            bld.read_shlib(name='mlx5')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/'
             dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
+            bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
     for obj in build_types:
@@ -1254,13 +1378,13 @@ def copy_single_system1 (bld, exec_p, build_obj):
 
 
 files_list=[
-            'libzmq.so.3',
             'trex-cfg',
             'bp-sim-64',
             'bp-sim-64-debug',
             't-rex-64-debug-gdb',
             'stl-sim',
             'astf-sim',
+            'astf-sim-utl',
             'find_python.sh',
             'run_regression',
             'run_functional_tests',

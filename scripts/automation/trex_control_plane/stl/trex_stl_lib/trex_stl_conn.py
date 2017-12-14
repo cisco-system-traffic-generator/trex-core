@@ -1,6 +1,6 @@
 
 from .trex_stl_types import *
-from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage
+from .trex_stl_jsonrpc_client import JsonRpcClient, BatchMessage, ErrNo as JsonRpcErrNo
 from .trex_stl_async_client import CTRexAsyncClient
 
 import time
@@ -15,18 +15,13 @@ import os
 class CCommLink(object):
     """Describes the connectivity of the stateless client method"""
     def __init__(self, server="localhost", port=5050, virtual=False, client = None):
-        self.virtual = virtual
         self.server = server
         self.port = port
         self.rpc_link = JsonRpcClient(self.server, self.port, client)
 
-    @property
-    def is_connected(self):
-        if not self.virtual:
-            return self.rpc_link.connected
-        else:
-            return True
-
+        # API handler provided by the server
+        self.api_h = None
+        
     def get_server (self):
         return self.server
 
@@ -34,38 +29,24 @@ class CCommLink(object):
         return self.port
 
     def connect(self):
-        if not self.virtual:
-            return self.rpc_link.connect()
+        return self.rpc_link.connect()
 
     def disconnect(self):
-        if not self.virtual:
-            return self.rpc_link.disconnect()
+        self.api_h = None
+        return self.rpc_link.disconnect()
 
-    def transmit(self, method_name, params = None, api_class = 'core', retry = 0):
-        if self.virtual:
-            self._prompt_virtual_tx_msg()
-            _, msg = self.rpc_link.create_jsonrpc_v2(method_name, params, api_class)
-            print(msg)
-            return
-        else:
-            return self.rpc_link.invoke_rpc_method(method_name, params, api_class, retry = retry)
+    def transmit(self, method_name, params = None, retry = 0):
+        return self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
 
     def transmit_batch(self, batch_list, retry = 0):
-        if self.virtual:
-            self._prompt_virtual_tx_msg()
-            print([msg
-                   for _, msg in [self.rpc_link.create_jsonrpc_v2(command.method, command.params, command.api_class)
-                                  for command in batch_list]])
-        else:
-            batch = self.rpc_link.create_batch()
-            for command in batch_list:
-                batch.add(command.method, command.params, command.api_class)
-            # invoke the batch
-            return batch.invoke(retry = retry)
 
-    def _prompt_virtual_tx_msg(self):
-        print("Transmitting virtually over tcp://{server}:{port}".format(server=self.server,
-                                                                         port=self.port))
+        batch = self.rpc_link.create_batch()
+
+        for command in batch_list:
+            batch.add(command.method, command.params, self.api_h)
+            
+        # invoke the batch
+        return batch.invoke(retry = retry)
 
 
 class Connection(object):
@@ -89,7 +70,7 @@ class Connection(object):
         self.sigint_on_conn_lost   = False
 
         # API classes
-        self.api_vers = [ {'type': 'core', 'major': 4, 'minor': 1 } ]
+        self.api_ver = {'name': 'STL', 'major': 4, 'minor': 1}
 
         # low level RPC layer
         self.rpc = CCommLink(self.conn_info['server'],
@@ -107,7 +88,6 @@ class Connection(object):
 
         # init state
         self.state   = (self.DISCONNECTED, None)
-        self.api_h   = {'core': None}
         
 
     def disconnect (self):
@@ -121,7 +101,6 @@ class Connection(object):
 
         finally:
             self.state = (self.DISCONNECTED, None)
-            self.api_h = {'core': None}
             
 
     def connect (self):
@@ -140,13 +119,6 @@ class Connection(object):
 
         return rc
 
-        
-    def get_api_h (self):
-        '''
-            return the API handlers for each component
-        '''
-        return self.api_h
-        
         
     def barrier (self):
         '''
@@ -237,17 +209,19 @@ class Connection(object):
             return rc
 
 
-        # API sync
-        rc = self.rpc.transmit("api_sync", params = {'api_vers': self.api_vers}, api_class = None)
+        # API sync V2
+        rc = self.rpc.transmit("api_sync_v2", params = self.api_ver)
         self.logger.post_cmd(rc)
         
         if not rc:
+            # api_sync_v2 is not present in v2.30 and older
+            if rc.errno() == JsonRpcErrNo.MethodNotSupported:
+                return RC_ERR('Mismatch between client and server versions')
             return rc
         
         
-        # get the API_H
-        for api in rc.data()['api_vers']:
-            self.api_h[ api['type'] ] = api['api_h']
+        # get the API_H and provide it to the RPC channel from now on
+        self.rpc.api_h = rc.data()['api_h']
             
 
         # connect async channel

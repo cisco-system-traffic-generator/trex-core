@@ -22,7 +22,7 @@ limitations under the License.
 #ifndef __TREX_RPC_REQ_RESP_API_H__
 #define __TREX_RPC_REQ_RESP_API_H__
 
-#include <trex_rpc_server_api.h>
+#include "trex_rpc_server_api.h"
 
 /**
  * request-response RPC server

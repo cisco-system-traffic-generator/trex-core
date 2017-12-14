@@ -25,7 +25,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 #include "bp_gtest.h"
 
-class client_cfg : public testing::Test {
+class client_cfg : public trexStfTest {
     protected:
      virtual void SetUp() {
      }
@@ -34,7 +34,7 @@ class client_cfg : public testing::Test {
    public:
 };
 
-class basic_client_cfg : public testing::Test {
+class basic_client_cfg : public trexStfTest {
     protected:
      virtual void SetUp() {
      }

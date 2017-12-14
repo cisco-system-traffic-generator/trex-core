@@ -236,6 +236,13 @@ utl_generate_random_str(unsigned int &seed, int len) {
     return (ss.str());
 }
 
+
+std::string 
+utl_generate_random_str(int len) {
+    unsigned int seed = time(NULL);
+    return utl_generate_random_str(seed, len);
+}
+
 /**
  * define the coredump size 
  * allowed when crashing 

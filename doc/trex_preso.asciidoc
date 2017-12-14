@@ -1286,13 +1286,9 @@ import trex_client
 
 * You can experience TRex on your laptop 
 
-== Roadmap 
+== More information
 
-* TCP stack 
-* Export SDK application plugins API - more application support
-* Automation (e.g ATS, Cisco HLTAPI etc) 
-* Open source 
-* Tunnel agnostic (e.g. VXLAN,QinQ,MPLS,NSH)
+* This presentation is about Stateful mode, have a look into Stateless (STL) and Advance Stateful (ASTF) models
 
 ==  Benefit 
 

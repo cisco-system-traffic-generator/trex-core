@@ -20,7 +20,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include "bp_sim.h"
-#include "flow_stat_parser.h"
 #include "utl_json.h"
 #include "trex_watchdog.h"
 #include "pkt_gen.h"
@@ -569,6 +568,10 @@ void CLatencyManager::Delete(){
         m_nat_check_manager.Delete();
     }
     m_cpu_cp_u.Delete();
+    
+    if (c_l_pkt_mode) {
+        delete c_l_pkt_mode;
+    }
 }
 
 /* 0->1
@@ -702,6 +705,7 @@ void CLatencyManager::send_one_grat_arp() {
     case COneIPInfo::IP4_VER:
         sip = ((COneIPv4Info *)ip_info)->get_ip();
         CTestPktGen::create_arp_req(p, sip, sip, src_mac, port_id, vlan);
+        m->l2_len = 14 + (vlan ? 4 : 0);
         if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
             printf("Sending gratuitous ARP on port %d vlan:%d, sip:%s\n", port_id, vlan
                    , ip_to_str(sip).c_str());
@@ -863,9 +867,9 @@ void CLatencyManager::handle_rx_msgs(){
 
 
 void  CLatencyManager::start(int iter, bool activate_watchdog) {
-    m_do_stop =false;
-    m_is_active =false;
-    int cnt=0;
+    m_do_stop   = false;
+    m_is_active = true;
+    int cnt     = 0;
 
     double n_time;
     CGenNode * node = new CGenNode();
@@ -983,11 +987,13 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
     if (activate_watchdog) {
         m_monitor.disable();
     }
+    
+    m_is_active = false;
 
 }
 
 void  CLatencyManager::stop(){
-    m_do_stop =true;
+    m_do_stop = true;
 }
 
 bool  CLatencyManager::is_active(){
@@ -1118,8 +1124,12 @@ void CLatencyManager::rx_check_dump_json(std::string & json){
 }
 
 
-void CLatencyManager::update_fast(){
+void CLatencyManager::update_cpu_util(){
     m_cpu_cp_u.Update() ;
+}
+
+double CLatencyManager::get_cpu_util() {
+    return m_cpu_cp_u.GetVal();
 }
 
 void CLatencyManager::update(){

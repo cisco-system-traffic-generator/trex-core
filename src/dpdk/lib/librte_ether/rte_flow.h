@@ -49,6 +49,8 @@
 #include <rte_sctp.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_byteorder.h>
+#include <rte_esp.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -284,31 +286,6 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_NVGRE,
 
 	/**
-	 * Matches a GREv0 header.
-	 */
-	RTE_FLOW_ITEM_TYPE_GREv0,
-
-	/**
-	 * Matches a GREv1 header.
-	 */
-	RTE_FLOW_ITEM_TYPE_GREv1,
-
-	/**
-	 * Matches a GTPV0_U header.
-	 */
-	RTE_FLOW_ITEM_TYPE_GTPv0_U,
-
-	/**
-	 * Matches a GTPV1_U header.
-	 */
-	RTE_FLOW_ITEM_TYPE_GTPv1_U,
-
-	/**
-	 * Matches a IP in IP header.
-	 */
-	RTE_FLOW_ITEM_TYPE_IPinIP,
-
-	/**
 	 * Matches a MPLS header.
 	 *
 	 * See struct rte_flow_item_mpls.
@@ -323,9 +300,50 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_GRE,
 
 	/**
-	* NAPATECH Filter expression
-	*/
-	RTE_FLOW_ITEM_TYPE_NTPL,
+	 * [META]
+	 *
+	 * Fuzzy pattern match, expect faster than default.
+	 *
+	 * This is for device that support fuzzy matching option.
+	 * Usually a fuzzy matching is fast but the cost is accuracy.
+	 *
+	 * See struct rte_flow_item_fuzzy.
+	 */
+	RTE_FLOW_ITEM_TYPE_FUZZY,
+
+	/**
+	 * Matches a GTP header.
+	 *
+	 * Configure flow for GTP packets.
+	 *
+	 * See struct rte_flow_item_gtp.
+	 */
+	RTE_FLOW_ITEM_TYPE_GTP,
+
+	/**
+	 * Matches a GTP header.
+	 *
+	 * Configure flow for GTP-C packets.
+	 *
+	 * See struct rte_flow_item_gtp.
+	 */
+	RTE_FLOW_ITEM_TYPE_GTPC,
+
+	/**
+	 * Matches a GTP header.
+	 *
+	 * Configure flow for GTP-U packets.
+	 *
+	 * See struct rte_flow_item_gtp.
+	 */
+	RTE_FLOW_ITEM_TYPE_GTPU,
+
+	/**
+	 * Matches a ESP header.
+	 *
+	 * See struct rte_flow_item_esp.
+	 */
+	RTE_FLOW_ITEM_TYPE_ESP,
 };
 
 /**
@@ -344,9 +362,11 @@ struct rte_flow_item_any {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_ANY. */
+#ifndef __cplusplus
 static const struct rte_flow_item_any rte_flow_item_any_mask = {
 	.num = 0x00000000,
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_VF
@@ -371,9 +391,11 @@ struct rte_flow_item_vf {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_VF. */
+#ifndef __cplusplus
 static const struct rte_flow_item_vf rte_flow_item_vf_mask = {
 	.id = 0x00000000,
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_PORT
@@ -400,9 +422,11 @@ struct rte_flow_item_port {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_PORT. */
+#ifndef __cplusplus
 static const struct rte_flow_item_port rte_flow_item_port_mask = {
 	.index = 0x00000000,
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_RAW
@@ -433,6 +457,7 @@ struct rte_flow_item_raw {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_RAW. */
+#ifndef __cplusplus
 static const struct rte_flow_item_raw rte_flow_item_raw_mask = {
 	.relative = 1,
 	.search = 1,
@@ -441,6 +466,7 @@ static const struct rte_flow_item_raw rte_flow_item_raw_mask = {
 	.limit = 0xffff,
 	.length = 0xffff,
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_ETH
@@ -450,15 +476,17 @@ static const struct rte_flow_item_raw rte_flow_item_raw_mask = {
 struct rte_flow_item_eth {
 	struct ether_addr dst; /**< Destination MAC. */
 	struct ether_addr src; /**< Source MAC. */
-	uint16_t type; /**< EtherType. */
+	rte_be16_t type; /**< EtherType. */
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_ETH. */
+#ifndef __cplusplus
 static const struct rte_flow_item_eth rte_flow_item_eth_mask = {
 	.dst.addr_bytes = "\xff\xff\xff\xff\xff\xff",
 	.src.addr_bytes = "\xff\xff\xff\xff\xff\xff",
-	.type = 0x0000,
+	.type = RTE_BE16(0x0000),
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_VLAN
@@ -469,15 +497,17 @@ static const struct rte_flow_item_eth rte_flow_item_eth_mask = {
  * RTE_FLOW_ITEM_TYPE_VLAN.
  */
 struct rte_flow_item_vlan {
-	uint16_t tpid; /**< Tag protocol identifier. */
-	uint16_t tci; /**< Tag control information. */
+	rte_be16_t tpid; /**< Tag protocol identifier. */
+	rte_be16_t tci; /**< Tag control information. */
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_VLAN. */
+#ifndef __cplusplus
 static const struct rte_flow_item_vlan rte_flow_item_vlan_mask = {
-	.tpid = 0x0000,
-	.tci = 0xffff,
+	.tpid = RTE_BE16(0x0000),
+	.tci = RTE_BE16(0xffff),
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_IPV4
@@ -491,12 +521,14 @@ struct rte_flow_item_ipv4 {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_IPV4. */
+#ifndef __cplusplus
 static const struct rte_flow_item_ipv4 rte_flow_item_ipv4_mask = {
 	.hdr = {
-		.src_addr = 0xffffffff,
-		.dst_addr = 0xffffffff,
+		.src_addr = RTE_BE32(0xffffffff),
+		.dst_addr = RTE_BE32(0xffffffff),
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_IPV6.
@@ -510,6 +542,7 @@ struct rte_flow_item_ipv6 {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_IPV6. */
+#ifndef __cplusplus
 static const struct rte_flow_item_ipv6 rte_flow_item_ipv6_mask = {
 	.hdr = {
 		.src_addr =
@@ -520,6 +553,7 @@ static const struct rte_flow_item_ipv6 rte_flow_item_ipv6_mask = {
 			"\xff\xff\xff\xff\xff\xff\xff\xff",
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_ICMP.
@@ -531,12 +565,14 @@ struct rte_flow_item_icmp {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_ICMP. */
+#ifndef __cplusplus
 static const struct rte_flow_item_icmp rte_flow_item_icmp_mask = {
 	.hdr = {
 		.icmp_type = 0xff,
 		.icmp_code = 0xff,
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_UDP.
@@ -548,12 +584,14 @@ struct rte_flow_item_udp {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_UDP. */
+#ifndef __cplusplus
 static const struct rte_flow_item_udp rte_flow_item_udp_mask = {
 	.hdr = {
-		.src_port = 0xffff,
-		.dst_port = 0xffff,
+		.src_port = RTE_BE16(0xffff),
+		.dst_port = RTE_BE16(0xffff),
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_TCP.
@@ -565,12 +603,14 @@ struct rte_flow_item_tcp {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_TCP. */
+#ifndef __cplusplus
 static const struct rte_flow_item_tcp rte_flow_item_tcp_mask = {
 	.hdr = {
-		.src_port = 0xffff,
-		.dst_port = 0xffff,
+		.src_port = RTE_BE16(0xffff),
+		.dst_port = RTE_BE16(0xffff),
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_SCTP.
@@ -582,12 +622,14 @@ struct rte_flow_item_sctp {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_SCTP. */
+#ifndef __cplusplus
 static const struct rte_flow_item_sctp rte_flow_item_sctp_mask = {
 	.hdr = {
-		.src_port = 0xffff,
-		.dst_port = 0xffff,
+		.src_port = RTE_BE16(0xffff),
+		.dst_port = RTE_BE16(0xffff),
 	},
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_VXLAN.
@@ -602,9 +644,11 @@ struct rte_flow_item_vxlan {
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_VXLAN. */
+#ifndef __cplusplus
 static const struct rte_flow_item_vxlan rte_flow_item_vxlan_mask = {
 	.vni = "\xff\xff\xff",
 };
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_E_TAG.
@@ -612,17 +656,24 @@ static const struct rte_flow_item_vxlan rte_flow_item_vxlan_mask = {
  * Matches a E-tag header.
  */
 struct rte_flow_item_e_tag {
-	uint16_t tpid; /**< Tag protocol identifier (0x893F). */
+	rte_be16_t tpid; /**< Tag protocol identifier (0x893F). */
 	/**
 	 * E-Tag control information (E-TCI).
 	 * E-PCP (3b), E-DEI (1b), ingress E-CID base (12b).
 	 */
-	uint16_t epcp_edei_in_ecid_b;
+	rte_be16_t epcp_edei_in_ecid_b;
 	/** Reserved (2b), GRP (2b), E-CID base (12b). */
-	uint16_t rsvd_grp_ecid_b;
+	rte_be16_t rsvd_grp_ecid_b;
 	uint8_t in_ecid_e; /**< Ingress E-CID ext. */
 	uint8_t ecid_e; /**< E-CID ext. */
 };
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_E_TAG. */
+#ifndef __cplusplus
+static const struct rte_flow_item_e_tag rte_flow_item_e_tag_mask = {
+	.rsvd_grp_ecid_b = RTE_BE16(0x3fff),
+};
+#endif
 
 /**
  * RTE_FLOW_ITEM_TYPE_NVGRE.
@@ -636,8 +687,8 @@ struct rte_flow_item_nvgre {
 	 *
 	 * c_k_s_rsvd0_ver must have value 0x2000 according to RFC 7637.
 	 */
-	uint16_t c_k_s_rsvd0_ver;
-	uint16_t protocol; /**< Protocol type (0x6558). */
+	rte_be16_t c_k_s_rsvd0_ver;
+	rte_be16_t protocol; /**< Protocol type (0x6558). */
 	uint8_t tni[3]; /**< Virtual subnet ID. */
 	uint8_t flow_id; /**< Flow ID. */
 };
@@ -679,14 +730,14 @@ struct rte_flow_item_gre {
 	 * Checksum (1b), reserved 0 (12b), version (3b).
 	 * Refer to RFC 2784.
 	 */
-	uint16_t c_rsvd0_ver;
-	uint16_t protocol; /**< Protocol type. */
+	rte_be16_t c_rsvd0_ver;
+	rte_be16_t protocol; /**< Protocol type. */
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_GRE. */
 #ifndef __cplusplus
 static const struct rte_flow_item_gre rte_flow_item_gre_mask = {
-	.protocol = 0xffff,
+	.protocol = RTE_BE16(0xffff),
 };
 #endif
 
@@ -694,6 +745,79 @@ static const struct rte_flow_item_gre rte_flow_item_gre_mask = {
 struct rte_flow_item_ntpl {
 	char *ntpl_str;
 };
+
+
+
+/**
+ * RTE_FLOW_ITEM_TYPE_FUZZY
+ *
+ * Fuzzy pattern match, expect faster than default.
+ *
+ * This is for device that support fuzzy match option.
+ * Usually a fuzzy match is fast but the cost is accuracy.
+ * i.e. Signature Match only match pattern's hash value, but it is
+ * possible two different patterns have the same hash value.
+ *
+ * Matching accuracy level can be configure by threshold.
+ * Driver can divide the range of threshold and map to different
+ * accuracy levels that device support.
+ *
+ * Threshold 0 means perfect match (no fuzziness), while threshold
+ * 0xffffffff means fuzziest match.
+ */
+struct rte_flow_item_fuzzy {
+	uint32_t thresh; /**< Accuracy threshold. */
+};
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_FUZZY. */
+#ifndef __cplusplus
+static const struct rte_flow_item_fuzzy rte_flow_item_fuzzy_mask = {
+	.thresh = 0xffffffff,
+};
+#endif
+
+/**
+ * RTE_FLOW_ITEM_TYPE_GTP.
+ *
+ * Matches a GTPv1 header.
+ */
+struct rte_flow_item_gtp {
+	/**
+	 * Version (3b), protocol type (1b), reserved (1b),
+	 * Extension header flag (1b),
+	 * Sequence number flag (1b),
+	 * N-PDU number flag (1b).
+	 */
+	uint8_t v_pt_rsv_flags;
+	uint8_t msg_type; /**< Message type. */
+	rte_be16_t msg_len; /**< Message length. */
+	rte_be32_t teid; /**< Tunnel endpoint identifier. */
+};
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_GTP. */
+#ifndef __cplusplus
+static const struct rte_flow_item_gtp rte_flow_item_gtp_mask = {
+	.teid = RTE_BE32(0xffffffff),
+};
+#endif
+
+/**
+ * RTE_FLOW_ITEM_TYPE_ESP
+ *
+ * Matches an ESP header.
+ */
+struct rte_flow_item_esp {
+	struct esp_hdr hdr; /**< ESP header definition. */
+};
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_ESP. */
+#ifndef __cplusplus
+static const struct rte_flow_item_esp rte_flow_item_esp_mask = {
+	.hdr = {
+		.spi = 0xffffffff,
+	},
+};
+#endif
 
 /**
  * Matching pattern item definition.
@@ -876,6 +1000,22 @@ enum rte_flow_action_type {
 	 * See struct rte_flow_action_vf.
 	 */
 	RTE_FLOW_ACTION_TYPE_VF,
+
+	/**
+	 * Traffic metering and policing (MTR).
+	 *
+	 * See struct rte_flow_action_meter.
+	 * See file rte_mtr.h for MTR object configuration.
+	 */
+	RTE_FLOW_ACTION_TYPE_METER,
+
+	/**
+	 * Redirects packets to security engine of current device for security
+	 * processing as specified by security session.
+	 *
+	 * See struct rte_flow_action_security.
+	 */
+	RTE_FLOW_ACTION_TYPE_SECURITY
 };
 
 /**
@@ -969,6 +1109,51 @@ struct rte_flow_action_vf {
 };
 
 /**
+ * RTE_FLOW_ACTION_TYPE_METER
+ *
+ * Traffic metering and policing (MTR).
+ *
+ * Packets matched by items of this type can be either dropped or passed to the
+ * next item with their color set by the MTR object.
+ *
+ * Non-terminating by default.
+ */
+struct rte_flow_action_meter {
+	uint32_t mtr_id; /**< MTR object ID created with rte_mtr_create(). */
+};
+
+/**
+ * RTE_FLOW_ACTION_TYPE_SECURITY
+ *
+ * Perform the security action on flows matched by the pattern items
+ * according to the configuration of the security session.
+ *
+ * This action modifies the payload of matched flows. For INLINE_CRYPTO, the
+ * security protocol headers and IV are fully provided by the application as
+ * specified in the flow pattern. The payload of matching packets is
+ * encrypted on egress, and decrypted and authenticated on ingress.
+ * For INLINE_PROTOCOL, the security protocol is fully offloaded to HW,
+ * providing full encapsulation and decapsulation of packets in security
+ * protocols. The flow pattern specifies both the outer security header fields
+ * and the inner packet fields. The security session specified in the action
+ * must match the pattern parameters.
+ *
+ * The security session specified in the action must be created on the same
+ * port as the flow action that is being specified.
+ *
+ * The ingress/egress flow attribute should match that specified in the
+ * security session if the security session supports the definition of the
+ * direction.
+ *
+ * Multiple flows can be configured to use the same security session.
+ *
+ * Non-terminating by default.
+ */
+struct rte_flow_action_security {
+	void *security_session; /**< Pointer to security session structure. */
+};
+
+/**
  * Definition of a single action.
  *
  * A list of actions is terminated by a END action.
@@ -1029,9 +1214,11 @@ struct rte_flow_error {
 /**
  * Check whether a flow rule can be created on a given port.
  *
- * While this function has no effect on the target device, the flow rule is
- * validated against its current configuration state and the returned value
- * should be considered valid by the caller for that state only.
+ * The flow rule is validated for correctness and whether it could be accepted
+ * by the device given sufficient resources. The rule is checked against the
+ * current device mode and queue configuration. The flow rule may also
+ * optionally be validated against existing flow rules and device resources.
+ * This function has no effect on the target device.
  *
  * The returned value is guaranteed to remain valid only as long as no
  * successful calls to rte_flow_create() or rte_flow_destroy() are made in
@@ -1062,16 +1249,20 @@ struct rte_flow_error {
  *   -ENOTSUP: valid but unsupported rule specification (e.g. partial
  *   bit-masks are unsupported).
  *
- *   -EEXIST: collision with an existing rule.
+ *   -EEXIST: collision with an existing rule. Only returned if device
+ *   supports flow rule collision checking and there was a flow rule
+ *   collision. Not receiving this return code is no guarantee that creating
+ *   the rule will not fail due to a collision.
  *
- *   -ENOMEM: not enough resources.
+ *   -ENOMEM: not enough memory to execute the function, or if the device
+ *   supports resource validation, resource limitation on the device.
  *
  *   -EBUSY: action cannot be performed due to busy device resources, may
  *   succeed if the affected queues or even the entire port are in a stopped
  *   state (see rte_eth_dev_rx_queue_stop() and rte_eth_dev_stop()).
  */
 int
-rte_flow_validate(uint8_t port_id,
+rte_flow_validate(uint16_t port_id,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item pattern[],
 		  const struct rte_flow_action actions[],
@@ -1098,7 +1289,7 @@ rte_flow_validate(uint8_t port_id,
  *   rte_flow_validate().
  */
 struct rte_flow *
-rte_flow_create(uint8_t port_id,
+rte_flow_create(uint16_t port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],
@@ -1125,7 +1316,7 @@ rte_flow_create(uint8_t port_id,
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-rte_flow_destroy(uint8_t port_id,
+rte_flow_destroy(uint16_t port_id,
 		 struct rte_flow *flow,
 		 struct rte_flow_error *error);
 
@@ -1146,7 +1337,7 @@ rte_flow_destroy(uint8_t port_id,
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-rte_flow_flush(uint8_t port_id,
+rte_flow_flush(uint16_t port_id,
 	       struct rte_flow_error *error);
 
 /**
@@ -1174,11 +1365,119 @@ rte_flow_flush(uint8_t port_id,
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-rte_flow_query(uint8_t port_id,
+rte_flow_query(uint16_t port_id,
 	       struct rte_flow *flow,
 	       enum rte_flow_action_type action,
 	       void *data,
 	       struct rte_flow_error *error);
+
+/**
+ * Restrict ingress traffic to the defined flow rules.
+ *
+ * Isolated mode guarantees that all ingress traffic comes from defined flow
+ * rules only (current and future).
+ *
+ * Besides making ingress more deterministic, it allows PMDs to safely reuse
+ * resources otherwise assigned to handle the remaining traffic, such as
+ * global RSS configuration settings, VLAN filters, MAC address entries,
+ * legacy filter API rules and so on in order to expand the set of possible
+ * flow rule types.
+ *
+ * Calling this function as soon as possible after device initialization,
+ * ideally before the first call to rte_eth_dev_configure(), is recommended
+ * to avoid possible failures due to conflicting settings.
+ *
+ * Once effective, leaving isolated mode may not be possible depending on
+ * PMD implementation.
+ *
+ * Additionally, the following functionality has no effect on the underlying
+ * port and may return errors such as ENOTSUP ("not supported"):
+ *
+ * - Toggling promiscuous mode.
+ * - Toggling allmulticast mode.
+ * - Configuring MAC addresses.
+ * - Configuring multicast addresses.
+ * - Configuring VLAN filters.
+ * - Configuring Rx filters through the legacy API (e.g. FDIR).
+ * - Configuring global RSS settings.
+ *
+ * @param port_id
+ *   Port identifier of Ethernet device.
+ * @param set
+ *   Nonzero to enter isolated mode, attempt to leave it otherwise.
+ * @param[out] error
+ *   Perform verbose error reporting if not NULL. PMDs initialize this
+ *   structure in case of error only.
+ *
+ * @return
+ *   0 on success, a negative errno value otherwise and rte_errno is set.
+ */
+int
+rte_flow_isolate(uint16_t port_id, int set, struct rte_flow_error *error);
+
+/**
+ * Initialize flow error structure.
+ *
+ * @param[out] error
+ *   Pointer to flow error structure (may be NULL).
+ * @param code
+ *   Related error code (rte_errno).
+ * @param type
+ *   Cause field and error types.
+ * @param cause
+ *   Object responsible for the error.
+ * @param message
+ *   Human-readable error message.
+ *
+ * @return
+ *   Negative error code (errno value) and rte_errno is set.
+ */
+int
+rte_flow_error_set(struct rte_flow_error *error,
+		   int code,
+		   enum rte_flow_error_type type,
+		   const void *cause,
+		   const char *message);
+
+/**
+ * Generic flow representation.
+ *
+ * This form is sufficient to describe an rte_flow independently from any
+ * PMD implementation and allows for replayability and identification.
+ */
+struct rte_flow_desc {
+	size_t size; /**< Allocated space including data[]. */
+	struct rte_flow_attr attr; /**< Attributes. */
+	struct rte_flow_item *items; /**< Items. */
+	struct rte_flow_action *actions; /**< Actions. */
+	uint8_t data[]; /**< Storage for items/actions. */
+};
+
+/**
+ * Copy an rte_flow rule description.
+ *
+ * @param[in] fd
+ *   Flow rule description.
+ * @param[in] len
+ *   Total size of allocated data for the flow description.
+ * @param[in] attr
+ *   Flow rule attributes.
+ * @param[in] items
+ *   Pattern specification (list terminated by the END pattern item).
+ * @param[in] actions
+ *   Associated actions (list terminated by the END action).
+ *
+ * @return
+ *   If len is greater or equal to the size of the flow, the total size of the
+ *   flow description and its data.
+ *   If len is lower than the size of the flow, the number of bytes that would
+ *   have been written to desc had it been sufficient. Nothing is written.
+ */
+size_t
+rte_flow_copy(struct rte_flow_desc *fd, size_t len,
+	      const struct rte_flow_attr *attr,
+	      const struct rte_flow_item *items,
+	      const struct rte_flow_action *actions);
 
 #ifdef __cplusplus
 }

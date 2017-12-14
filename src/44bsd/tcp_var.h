@@ -67,7 +67,7 @@
 
 
 class CTcpReass;
-
+class CAstfPerTemplateRW;
 
 struct CTcpPkt {
     rte_mbuf_t   * m_buf;
@@ -97,7 +97,12 @@ struct tcpcb {
     char    t_force;        /* 1 if forcing out a byte */
     uint8_t mbuf_socket;    /* mbuf socket */
     uint8_t t_dupacks;      /* consecutive dup acks recd */
-    uint8_t m_pad1;
+
+
+#define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
+#define TUNE_MSS                     0x02
+#define TUNE_INIT_WIN                0x04
+    uint8_t m_tuneable_flags;
     /*====== end =============*/
 
     /* ======= size 12 bytes  */
@@ -220,7 +225,9 @@ struct tcpcb {
 public:
 
     
-
+    tcpcb() {
+        m_tuneable_flags = 0;
+    }
     inline bool is_tso(){
         return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
     }
@@ -300,7 +307,10 @@ struct  tcpstat_int_t {
     uint64_t    tcps_delack;        /* delayed acks sent */
     uint64_t    tcps_sndtotal;      /* total packets sent */
     uint64_t    tcps_sndpack;       /* data packets sent */
-    uint64_t    tcps_sndbyte;       /* data bytes sent */
+
+    uint64_t    tcps_sndbyte;       /* data bytes sent by application layer  */
+    uint64_t    tcps_sndbyte_ok;    /* data bytes sent by tcp  */
+
     uint64_t    tcps_sndctrl;       /* control (SYN|FIN|RST) packets sent */
     uint64_t    tcps_sndacks;       /* ack-only packets sent */
     uint64_t    tcps_rcvtotal;      /* total packets received */
@@ -315,6 +325,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_conndrops;     /* embryonic connections dropped */
     uint64_t    tcps_timeoutdrop;   /* conn. dropped in rxmt timeout */
     uint64_t    tcps_rexmttimeo;    /* retransmit timeouts */
+    uint64_t    tcps_rexmttimeo_syn;  /* retransmit SYN timeouts */
     uint64_t    tcps_persisttimeo;  /* persist timeouts */
     uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
     uint64_t    tcps_keepprobe;     /* keepalive probes sent */
@@ -353,6 +364,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
+    uint64_t    tcps_rcvackbyte_of;    /* bytes acked by rcvd acks */
 };
 
 /*
@@ -373,23 +385,42 @@ public:
 
 #ifdef TREX_SIM
 
+/*The tick is 50msec , resolotion */
+
+/* only one level (0) is used */
+#define TCP_TIMER_LEVEL1_DIV   1
+
+
 #define TCP_TIMER_TICK_BASE_MS 200 
+
+/* tick is 50 msec */
 #define TCP_TIMER_W_TICK       50
+
 #define TCP_TIMER_W_DIV        1
 
-#define TCP_FAST_TICK (TCP_TIMER_TICK_BASE_MS/TCP_TIMER_W_TICK)
+#define TCP_FAST_TICK_ (TCP_TIMER_TICK_BASE_MS/TCP_TIMER_W_TICK)
 #define TCP_SLOW_RATIO_TICK 1
 #define TCP_SLOW_RATIO_MASTER ((500)/TCP_TIMER_W_TICK)
-#define TCP_SLOW_FAST_RATIO 1
+#define TCP_SLOW_FAST_RATIO_ 1
 
 
+/* main tick in sec */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+
+#define TCP_TIMER_W_1_TICK_US    (TCP_TIMER_W_TICK*1000) 
 
 #else 
 
+/* 2 levels (0,1) of the tw are used */
+#define TCP_TIMER_LEVEL1_DIV   16
+
 // base tick in msec
 
-/* base tick of timer in msec */
-#define TCP_TIMER_W_TICK       1  
+/* base tick of timer in 20usec */
+#define TCP_TIMER_W_1_TICK_US     20  
+
+#define TCP_TIMER_W_1_MS (1000/TCP_TIMER_W_1_TICK_US)
+
 
 /* fast tick msec */
 #define TCP_TIMER_TICK_FAST_MS 100
@@ -398,32 +429,35 @@ public:
 #define TCP_TIMER_TICK_SLOW_MS 500
 
 
-/* to how many micro tick to div the TCP_TIMER_W_TICK */
-#define TCP_TIMER_W_DIV        50
-
-
 /* ticks of FAST */
-#define TCP_FAST_TICK       (TCP_TIMER_TICK_FAST_MS/TCP_TIMER_W_TICK)
+#define TCP_FAST_TICK_       (TCP_TIMER_TICK_FAST_MS * TCP_TIMER_W_1_MS)
 
-#define TCP_SLOW_RATIO_MASTER ((TCP_TIMER_TICK_SLOW_MS*TCP_TIMER_W_DIV)/TCP_TIMER_W_TICK)
-
-#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+/* how many ticks of TCP_TIMER_W_1_TICK_US */
+#define TCP_SLOW_RATIO_MASTER (TCP_TIMER_TICK_SLOW_MS * TCP_TIMER_W_1_MS)
 
 /* how many fast ticks need to get */
-#define TCP_SLOW_FAST_RATIO   (TCP_TIMER_TICK_SLOW_MS/TCP_TIMER_TICK_FAST_MS)
+#define TCP_SLOW_FAST_RATIO_   (TCP_TIMER_TICK_SLOW_MS/TCP_TIMER_TICK_FAST_MS)
+
+/* one tick that derive the TW in sec  */
+#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_1_TICK_US/((double)1000000.0))
 
 
 #endif
 
-/* main tick in sec */
-#define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
+static inline uint32_t tw_time_usec_to_ticks(uint32_t usec){
+    return (usec/TCP_TIMER_W_1_TICK_US);
+}
+
+static inline uint32_t tw_time_msec_to_ticks(uint32_t msec){
+    return (tw_time_usec_to_ticks(1000*msec));
+}
 
 
 #include "h_timer.h"
 
 class CTcpPerThreadCtx ;
-
-
+class CAstfDbRO;
+class CTcpTuneables;
 
 
 class CTcpFlow {
@@ -447,6 +481,7 @@ public:
         m_tcp.is_ipv6  = is_ipv6;
     }
     void init();
+    void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 public:
 
     static CTcpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
@@ -460,15 +495,7 @@ public:
 
     void on_fast_tick();
 
-    void on_tick(){
-        on_fast_tick();
-        if (m_tick==TCP_SLOW_FAST_RATIO) {
-            m_tick=0;
-            on_slow_tick();
-        }else{
-            m_tick++;
-        }
-    }
+    inline void on_tick();
 
     bool is_can_close(){
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
@@ -504,6 +531,8 @@ public:
 
     /* update MAC addr from the packet in reverse */
     void server_update_mac_from_packet(uint8_t *pkt);
+    void set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id);
+    void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
 public:
     flow_hash_ent_t   m_hash; /* object   */
@@ -537,8 +566,18 @@ public:
 
 };
 
-class CTcpData;
+class CAstfDbRO;
 class CAstfTemplatesRW;
+class CTcpTuneables;
+
+static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
+    uint32_t calc =mss*initwnd;
+
+    if (calc>48*1024) {
+        calc=48*1024;
+    }
+    return((uint16_t)calc);
+}
 
 class CTcpPerThreadCtx {
 public:
@@ -546,7 +585,7 @@ public:
                 bool is_client);
     void Delete();
     RC_HTW_t timer_w_start(CTcpFlow * flow){
-        return (m_timer_w.timer_start(&flow->m_timer,TCP_FAST_TICK));
+        return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
     }
 
     RC_HTW_t timer_w_restart(CTcpFlow * flow){
@@ -555,7 +594,7 @@ public:
             m_ft.handle_close(this,flow,true);
             return(RC_HTW_OK);
         }else{
-            return (m_timer_w.timer_start(&flow->m_timer,TCP_FAST_TICK));
+            return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
         }
     }
 
@@ -565,9 +604,13 @@ public:
     }
 
     void timer_w_on_tick();
+    bool timer_w_any_events(){
+        return(m_timer_w.is_any_events_left());
+    }
 
-    CTcpData *get_template_ro() {return m_template_ro;}
-    void set_template_ro(CTcpData *t) {m_template_ro = t;}
+    CAstfDbRO *get_template_ro() {return m_template_ro;}
+    CAstfTemplatesRW *get_template_rw() {return m_template_rw;}
+    void set_template_ro(CAstfDbRO *t) {m_template_ro = t;}
     void set_template_rw(CAstfTemplatesRW *t) {m_template_rw = t;}
     void set_cb(CTcpCtxCb    * cb){
         m_cb=cb;
@@ -584,6 +627,17 @@ public:
     bool get_rx_checksum_check(){
         return( ((m_offload_flags & TCP_OFFLOAD_RX_CHKSUM) == TCP_OFFLOAD_RX_CHKSUM)?true:false);
     }
+
+    /*  this function is called every 20usec to see if we have an issue with resource */
+    void maintain_resouce();
+
+    bool is_open_flow_enabled();
+
+    void update_tuneables(CTcpTuneables *tune);
+
+    bool is_client_side(void) {
+        return (m_ft.is_client_side());
+    }
 public:
 
     /* TUNABLEs */
@@ -593,14 +647,19 @@ public:
     uint32_t  sb_max ; /* socket max char */
     int tcprexmtthresh;
     int tcp_mssdflt;
+    int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
+    int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
     int tcp_do_rfc1323;
+    int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */
     int tcp_keepcnt;
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
+    uint16_t tcp_fast_tick_msec;
+    uint16_t tcp_slow_fast_ratio;
     int tcp_ttl;            /* time to live for TCP segs */
 
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
@@ -610,10 +669,11 @@ public:
     uint32_t    m_tick;
     uint8_t     m_mbuf_socket;      /* memory socket */
     uint8_t     m_offload_flags;    /* dev offload flags, see flow def */
-    CAstfTemplatesRW * m_template_rw;
-    CTcpData    * m_template_ro;
-    uint8_t     m_pad[2];
+    uint8_t     m_disable_new_flow;
+    uint8_t     m_pad;
 
+    CAstfTemplatesRW * m_template_rw;
+    CAstfDbRO         * m_template_ro;
 
     CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
     CTcpCtxCb    * m_cb;
@@ -696,6 +756,8 @@ void  tcp_setpersist(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
 void  tcp_respond(CTcpPerThreadCtx * ctx,struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
 int  tcp_mss(CTcpPerThreadCtx * ctx,struct tcpcb *tp, u_int offer);
 
+CTcpTuneables * tcp_get_parent_tunable(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
+
 int tcp_reass(CTcpPerThreadCtx * ctx,
               struct tcpcb *tp, 
               struct tcpiphdr *ti, 
@@ -716,7 +778,7 @@ const char ** tcp_get_tcpstate();
 
 
 void tcp_quench(struct tcpcb *tp);
-void tcp_template(struct tcpcb *tp);
+void tcp_template(struct tcpcb *tp,CTcpPerThreadCtx * ctx);
 void     tcp_xmit_timer(CTcpPerThreadCtx * ctx,struct tcpcb *, int16_t rtt);
 
 void tcp_canceltimers(struct tcpcb *tp);
@@ -836,6 +898,7 @@ public:
 
     /* add bytes to tx queue */
     virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
+        INC_STAT_CNT(flow->m_ctx,tcps_sndbyte,bytes);
         flow->m_tcp.m_socket.so_snd.sbappend(bytes);
     }
 
@@ -856,6 +919,17 @@ public:
         printf("TBD \n");
     }
 };
+
+inline void CTcpFlow::on_tick(){
+        on_fast_tick();
+        if (m_tick==m_ctx->tcp_slow_fast_ratio) {
+            m_tick=0;
+            on_slow_tick();
+        }else{
+            m_tick++;
+        }
+}
+
 
 
 

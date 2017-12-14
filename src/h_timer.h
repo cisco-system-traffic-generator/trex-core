@@ -398,8 +398,85 @@ typedef enum {
 typedef uint8_t na_htw_state_num_t;
 
 
+/* 
 
-/* two levels 0,1. level 1 would be less accurate */ 
+This class is a bit complex and it is optimized for TRex use-case 
+
+it has two levels of tw and a few use-cases
+
+* 1024 buckets 
+* 2 levels 
+* level 1 div = 16 . 
+* each tick is configured to  20usec
+
+it would give:
+
+level 0: 20usec -- 20.48 msec res=20usec
+level 1: 20msec -- 1.3sec     res=1.3msec 
+
+level 1 could be disabled and in all cases the evets are processed in spread mode (there won't be a burst)
+
+
+use-case 0 - two levels 
+=========
+
+two levels, spread level #2 
+
+level_0  
+level_1  
+
+ 
+tw.Create(1024,16)
+tw.set_level1_cnt_div(); // claculate the spread factor 
+
+
+
+On tick - process the two levels 
+---
+
+tw.on_tick_level0((void *)&m_timer,cb);     << no spread 
+tw.on_tick_level_count(1,(void *)&m_timer,cb,32,left);   << spread 
+
+   
+tw.Delete();
+
+
+use-case 2 - one level *NOT* spread (simulation is using this mode)
+=========
+
+each tick is 50msec 
+
+create one level 
+ 
+tw.Create(1024,1) 
+
+ and then we only should call level0 tick 
+ 
+tw.on_tick_level0((void *)&m_timer,cb);     
+
+tw.Delete()
+
+
+
+use-case 3 - one level  *spread* 
+=========
+
+
+tw.Create(1024,1)
+tw.set_level1_cnt_div(50); // manual split of the first level , split the tick to 50 so if we have tick of 1msec every 20usec 
+
+
+
+one tick
+--------                                                                   
+tw.on_tick_level_count(0,(void *)&m_timer,cb,16,left);   << spread 
+
+
+
+tw.Delete()
+        
+*/
+
 class CNATimerWheel {
 
 public:
@@ -463,6 +540,13 @@ public:
         m_cnt_div=div;
     }
 
+    /* set the default div to the second layer */
+    void set_level1_cnt_div();
+
+    htw_ticks_t get_ticks(int level){
+        return(m_ticks[level]);
+    }
+
 
 private:
     void reset(void);
@@ -472,6 +556,7 @@ private:
 
     RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
                               htw_ticks_t  ticks);
+
 
 private:
     htw_ticks_t         m_ticks[HNA_TIMER_LEVELS];               

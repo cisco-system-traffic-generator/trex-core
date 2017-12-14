@@ -155,6 +155,7 @@ struct fm10k_dev_info {
 	struct fm10k_macvlan_filter_info    macvlan;
 	/* Flag to indicate if RX vector conditions satisfied */
 	bool rx_vec_allowed;
+	bool sm_down;
 };
 
 /*
@@ -204,7 +205,7 @@ struct fm10k_rx_queue {
 	uint16_t rxrearm_nb;     /* number of remaining to be re-armed */
 	uint16_t rxrearm_start;  /* the idx we start the re-arming from */
 	uint16_t rx_using_sse; /* indicates that vector RX is in use */
-	uint8_t port_id;
+	uint16_t port_id;
 	uint8_t drop_en;
 	uint8_t rx_deferred_start; /* don't start this queue in dev start. */
 	uint16_t rx_ftag_en; /* indicates FTAG RX supported */
@@ -241,7 +242,7 @@ struct fm10k_tx_queue {
 	volatile uint32_t *tail_ptr;
 	uint32_t txq_flags; /* Holds flags for this TXq */
 	uint16_t nb_desc;
-	uint8_t port_id;
+	uint16_t port_id;
 	uint8_t tx_deferred_start; /** don't start this queue in dev start. */
 	uint16_t queue_id;
 	uint16_t tx_ftag_en; /* indicates FTAG TX supported */
@@ -252,11 +253,11 @@ struct fm10k_txq_ops {
 };
 
 #define MBUF_DMA_ADDR(mb) \
-	((uint64_t) ((mb)->buf_physaddr + (mb)->data_off))
+	((uint64_t) ((mb)->buf_iova + (mb)->data_off))
 
 /* enforce 512B alignment on default Rx DMA addresses */
 #define MBUF_DMA_ADDR_DEFAULT(mb) \
-	((uint64_t) RTE_ALIGN(((mb)->buf_physaddr + RTE_PKTMBUF_HEADROOM),\
+	((uint64_t) RTE_ALIGN(((mb)->buf_iova + RTE_PKTMBUF_HEADROOM),\
 			FM10K_RX_DATABUF_ALIGN))
 
 static inline void fifo_reset(struct fifo *fifo, uint32_t len)
@@ -289,7 +290,7 @@ static inline uint16_t fifo_remove(struct fifo *fifo)
 }
 
 static inline void
-fm10k_pktmbuf_reset(struct rte_mbuf *mb, uint8_t in_port)
+fm10k_pktmbuf_reset(struct rte_mbuf *mb, uint16_t in_port)
 {
 	rte_mbuf_refcnt_set(mb, 1);
 	mb->next = NULL;
@@ -368,8 +369,8 @@ void fm10k_rx_queue_release_mbufs_vec(struct fm10k_rx_queue *rxq);
 uint16_t fm10k_recv_pkts_vec(void *, struct rte_mbuf **, uint16_t);
 uint16_t fm10k_recv_scattered_pkts_vec(void *, struct rte_mbuf **,
 					uint16_t);
-uint16_t fm10k_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
-		uint16_t nb_pkts);
+uint16_t fm10k_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
+				    uint16_t nb_pkts);
 void fm10k_txq_vec_setup(struct fm10k_tx_queue *txq);
 int fm10k_tx_vec_condition_check(struct fm10k_tx_queue *txq);
 

@@ -20,8 +20,12 @@ limitations under the License.
 */
 
 #include "sim_cs_tcp.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
+#include "stt_cp.h"
 
+#define CLIENT_SIDE_PORT        1025
+#define DEFAULT_WIN 32768
+#define DEFAULT_MSS 1460
 
 void  CTcpCtxPcapWrt::write_pcap_mbuf(rte_mbuf_t *m,
                                       double time){
@@ -102,15 +106,44 @@ int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct tcpcb * tp,
                         rte_mbuf_t *m){
-    int dir=0;
-    if (tp->src_port<1024) {
-        dir=1;
+    int dir=1;
+    if (tp->src_port==CLIENT_SIDE_PORT) {
+        dir=0;
     }
     rte_mbuf_t *m_rx= utl_rte_convert_tx_rx_mbuf(m);
 
     m_p->on_tx(dir,m_rx);
     return(0);
 }
+
+
+void CClientServerTcp::set_cfg_ext(CClientServerTcpCfgExt * cfg){
+    if (cfg->m_rate>0.0){
+        set_drop_rate(cfg->m_rate);
+        m_drop_rnd->setSeed(cfg->m_seed);
+    }
+
+    m_check_counters = cfg->m_check_counters;
+    m_skip_compare_file = cfg->m_skip_compare_file;
+}
+
+
+
+void CClientServerTcp::set_drop_rate(double rate){
+    assert(rate<0.99);
+    assert(rate>0.01);
+    m_drop_ratio=rate;
+    if (m_drop_rnd) {
+        delete m_drop_rnd;
+    }
+    m_drop_rnd = new KxuNuBinRand(rate);
+}
+
+bool CClientServerTcp::is_drop(){
+    assert(m_drop_rnd);
+    return(m_drop_rnd->getRandom());
+}
+
 
 
 void CClientServerTcp::set_debug_mode(bool enable){
@@ -154,12 +187,23 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_tx_diff =0.0;
     m_vlan =0;
     m_ipv6=false;
+    m_dump_json_counters=false;
+    m_check_counters=false;
+    m_skip_compare_file=false;
     m_mss=0;
+    m_drop_rnd = NULL;
 
     m_rtt_sec =0.05; /* 50msec */
+    m_drop_ratio =0.0;
 
-    m_out_dir =out_dir + "/";
+    if (!out_dir.empty()) {
+        m_out_dir = out_dir + "/";
+    } else {
+        m_out_dir = "";
+    }
+    
     m_pcap_file = pcap_file;
+    m_reorder_rnd  = new KxuLCRand();
 
     m_c_pcap.open_pcap_file(m_out_dir+pcap_file+"_c.pcap");
 
@@ -177,8 +221,8 @@ bool CClientServerTcp::Create(std::string out_dir,
 }
 
 // Set fictive association table to be used by server side in simulation
-void CClientServerTcp::set_assoc_table(uint16_t port, CTcpAppProgram *prog) {
-    m_tcp_data_ro.set_test_assoc_table(port, prog);
+void CClientServerTcp::set_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *s_tune) {
+    m_tcp_data_ro.set_test_assoc_table(port, prog, s_tune);
     m_s_ctx.set_template_ro(&m_tcp_data_ro);
 }
 
@@ -188,7 +232,6 @@ void CClientServerTcp::on_tx(int dir,
     m_tx_diff+=1/1000000.0;  /* to make sure there is no out of order */
     double t=m_sim.get_time()+m_tx_diff;
 
-
     /* write TX side */
     if (dir==0) {
         m_c_pcap.write_pcap_mbuf(m,t);
@@ -196,13 +239,42 @@ void CClientServerTcp::on_tx(int dir,
         m_s_pcap.write_pcap_mbuf(m,t);
     }
 
-
     bool drop=false;
+    bool reorder=false;
     /* simulate drop/reorder/ corruption HERE !! */
     if (m_sim_type > 0) {
         char * p=rte_pktmbuf_mtod(m,char *);
         TCPHeader * tcp=(TCPHeader *)(p+14+20);
         //IPHeader * ip=(IPHeader *)(p+14);
+
+        if ( m_sim_type == csSIM_REORDER_DROP ){
+            if (is_drop()){
+                drop=true;
+            }
+            if (is_drop()){
+                reorder=true;
+            }
+        }
+
+        if (m_sim_type == csSIM_PAD ){
+            if (m->pkt_len<1000) {
+                char *p=rte_pktmbuf_append(m, 12);
+                assert(p!=NULL);
+                memset(p,0xaa,12);
+            }
+        }
+
+        if (m_sim_type == csSIM_DROP ){
+            if (is_drop()){
+                drop=true;
+            }
+        }
+
+        if (m_sim_type == csSIM_REORDER ){
+            if (is_drop()){
+                reorder=true;
+            }
+        }
 
         if ( m_sim_type == csSIM_RST_SYN ){
             /* simulate RST */
@@ -243,7 +315,7 @@ void CClientServerTcp::on_tx(int dir,
 
         if ( m_sim_type == csSIM_RST_MIDDLE ){
             if (dir==1) {
-                if ( (t> 0.4) && (t> 0.5)){
+                if ( (t>0.4) && (t<0.6)){
                     tcp->setAckNumber(0x111111);
                     tcp->setSeqNumber(0x111111);
                 }
@@ -263,7 +335,11 @@ void CClientServerTcp::on_tx(int dir,
 
     if (drop==false){
         /* move the Tx packet to Rx side of server */
-        m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(t+(m_rtt_sec/2.0) )) );
+        double reorder_time=0.0;
+        if (reorder) {
+            reorder_time=m_reorder_rnd->getRandomInRange(0,m_rtt_sec*2);
+        }
+        m_sim.add_event( new CTcpSimEventRx(this,m,dir^1,(reorder_time+t+(m_rtt_sec/2.0) )) );
     }else{
         rte_pktmbuf_free(m);
     }
@@ -308,7 +384,12 @@ void CClientServerTcp::on_rx(int dir,
 void CClientServerTcp::Delete(){
     m_c_ctx.Delete();
     m_s_ctx.Delete();
-    m_tcp_data_ro.free();
+    m_tcp_data_ro.Delete();
+    if (m_drop_rnd){
+        delete m_drop_rnd;
+    }
+    delete m_reorder_rnd;
+
 }
 
 
@@ -318,7 +399,8 @@ int CClientServerTcp::test2(){
     CMbufBuffer * buf;
     CTcpAppProgram * prog_c;
     CTcpAppProgram * prog_s;
-    CTcpFlow          *  c_flow; 
+    CTcpFlow          *  c_flow;
+    CTcpTuneables *s_tune;
 
     CTcpApp * app_c;
     //CTcpApp * app_s;
@@ -340,11 +422,17 @@ int CClientServerTcp::test2(){
 
     app_c = &c_flow->m_app;
 
+        /* IW=1 */
+    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+
 
     /* CONST */
     buf = new CMbufBuffer();
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
+    s_tune = new CTcpTuneables();
+
     utl_mbuf_buffer_create_and_fill(0,buf,2048,tx_num_bytes);
 
 
@@ -374,7 +462,7 @@ int CClientServerTcp::test2(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
+    set_assoc_table(80, prog_s, s_tune);
 
     m_rtt_sec = 0.05;
 
@@ -415,6 +503,7 @@ int CClientServerTcp::test2(){
 
     delete prog_c;
     delete prog_s;
+    delete s_tune;
 
     buf->Delete();
     delete buf;
@@ -502,9 +591,32 @@ static void free_http_res(char *p){
 
 
 
+
+
 void CClientServerTcp::close_file(){
     m_c_pcap.close_pcap_file();
     m_s_pcap.close_pcap_file();
+}
+
+
+void CClientServerTcp::dump_counters(){
+
+    CSTTCp stt_cp;
+    stt_cp.Create();
+    stt_cp.Init();
+    stt_cp.m_init=true;
+    stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
+    stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
+    stt_cp.Update();
+    stt_cp.DumpTable();
+    std::string json;
+    stt_cp.dump_json(json);
+    if (m_dump_json_counters ){
+      fprintf(stdout,"json-start \n");
+      fprintf(stdout,"%s\n",json.c_str());
+      fprintf(stdout,"json-end \n");
+    }
+    stt_cp.Delete();
 }
 
 
@@ -515,7 +627,8 @@ int CClientServerTcp::simple_http(){
     CMbufBuffer * buf_res;
     CTcpAppProgram * prog_c;
     CTcpAppProgram * prog_s;
-    CTcpFlow          *  c_flow; 
+    CTcpFlow          *  c_flow;
+    CTcpTuneables *s_tune;
 
     CTcpApp * app_c;
     //CTcpApp * app_s;
@@ -527,6 +640,10 @@ int CClientServerTcp::simple_http(){
         m_c_ctx.tcp_mssdflt =m_mss;
         m_s_ctx.tcp_mssdflt =m_mss;
     }
+
+    /* IW=1 */
+    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
 
     c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
@@ -555,6 +672,8 @@ int CClientServerTcp::simple_http(){
 
     prog_c = new CTcpAppProgram();
     prog_s = new CTcpAppProgram();
+    s_tune = new CTcpTuneables();
+
 
     uint8_t* http_r=(uint8_t*)allocate_http_res(http_r_size);
 
@@ -595,12 +714,13 @@ int CClientServerTcp::simple_http(){
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
+
+    set_assoc_table(80, prog_s, s_tune);
 
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
-    m_sim.add_event( new CTcpSimEventStop(1000.0) );
+    m_sim.add_event( new CTcpSimEventStop(10000.0) );
 
     /* start client */
     app_c->start(true);
@@ -608,35 +728,41 @@ int CClientServerTcp::simple_http(){
 
     m_sim.run_sim();
 
-    printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
-    m_c_ctx.m_ft.dump(stdout);
-    printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
-    m_s_ctx.m_ft.dump(stdout);
+    dump_counters();
 
+    #define TX_BYTES 249
+    #define RX_BYTES 32768
 
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_connects,1);
+    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+                                         (int)m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+                                         (int)TX_BYTES,
+                                         (int)RX_BYTES );
 
+    if (m_check_counters){
+        if (m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte>0 && 
+            m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte>0) {
+            if ( (m_c_ctx.m_tcpstat.m_sts.tcps_drops ==0) && 
+                 (m_s_ctx.m_tcpstat.m_sts.tcps_drops ==0) ){
+                            /* flow wasn't initiated due to drop of SYN too many times */
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
+            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==TX_BYTES);
 
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,4024);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_accepts,1);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_preddat,m_s_ctx.m_tcpstat.m_sts.tcps_rcvpack-1);
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==RX_BYTES);
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
 
+            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+            }
+        }
+    }
 
-    //app.m_write_buf.Delete();
-    //printf (" rx %d \n",m_s_flow.m_tcp.m_socket.so_rcv.sb_cc);
-    //assert( m_s_flow.m_tcp.m_socket.so_rcv.sb_cc == 4024);
-
-
-    //delete app_c;
-    //delete app_s;
 
     free_http_res((char *)http_r);
     delete prog_c;
     delete prog_s;
+    delete s_tune;
 
     buf_req->Delete();
     delete buf_req;
@@ -649,14 +775,22 @@ int CClientServerTcp::simple_http(){
 
 int CClientServerTcp::fill_from_file() {
     CTcpAppProgram *prog_c;
-    CTcpAppProgram *prog_s;
     CTcpFlow *c_flow;
     CTcpApp *app_c;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+    CAstfDbRO * ro_db=CAstfDB::instance()->get_db_ro(0);
+    uint16_t dst_port = ro_db->get_dport(0);
+    uint16_t src_port = CLIENT_SIDE_PORT;
+    if (src_port == dst_port) {
+        printf("WARNING DEST port changed \n");
+        dst_port+=1;
+    }
+
+    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false);
+
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);
-    c_tuple.set_port(1025);
+    c_tuple.set_port(src_port);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
 
@@ -669,16 +803,19 @@ int CClientServerTcp::fill_from_file() {
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
     app_c = &c_flow->m_app;
 
-
-    uint16_t temp_index = 0; //??? need to support multiple templates
-    // client program
-    prog_c = CJsonData::instance()->get_prog(temp_index, 0, 0);
-    // server program
-    prog_s = CJsonData::instance()->get_prog(temp_index, 1, 0);
+    uint16_t temp_index = 0;
+    prog_c = ro_db->get_client_prog(temp_index);
+    // tunables setting currently does not work with this simulation.
+    // need to do something like
+    // c_flow->set_c_tcp_info(rw_db, temp_index);
+    // s_flow->set_c_tcp_info(rw_db, temp_index);
+    m_s_ctx.set_template_ro(ro_db);
 
     if (m_debug) {
-      prog_c->Dump(stdout);
-      prog_s->Dump(stdout);
+        CTcpServreInfo * s_info = ro_db->get_server_info_by_port(dst_port);
+        CTcpAppProgram *prog_s = s_info->get_prog();
+        prog_c->Dump(stdout);
+        prog_s->Dump(stdout);
     }
 
     app_c->set_program(prog_c);
@@ -688,7 +825,6 @@ int CClientServerTcp::fill_from_file() {
     c_flow->set_app(app_c);
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
-    set_assoc_table(80, prog_s);
     m_rtt_sec = 0.05;
 
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
@@ -700,12 +836,7 @@ int CClientServerTcp::fill_from_file() {
 
     m_sim.run_sim();
 
-    printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
-    m_c_ctx.m_ft.dump(stdout);
-    printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
-    m_s_ctx.m_ft.dump(stdout);
+    dump_counters();
 
     return(0);
 }

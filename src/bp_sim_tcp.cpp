@@ -38,12 +38,12 @@ limitations under the License.
 #include "mbuf.h"
 #include <stdlib.h>
 #include <common/c_common.h>
-#include <astf/json_reader.h>
+#include <astf/astf_db.h>
 #include <astf/astf_template_db.h>
 
 #undef DEBUG_TX_PACKET
 
-class CTcpDpdkCb : public CTcpCtxCb {
+class CTcpIOCb : public CTcpCtxCb {
 public:
    int on_tx(CTcpPerThreadCtx *ctx,
              struct tcpcb * tp,
@@ -62,7 +62,7 @@ public:
 };
 
 
-int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_flow_close(CTcpPerThreadCtx *ctx,
                               CTcpFlow * flow){
     uint32_t   c_idx;
     uint16_t   c_pool_idx;
@@ -89,23 +89,31 @@ int CTcpDpdkCb::on_flow_close(CTcpPerThreadCtx *ctx,
 }
 
 
-int CTcpDpdkCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
                                rte_mbuf_t *m){
     pkt_dir_t   dir = ctx->m_ft.is_client_side()?CLIENT_SIDE:SERVER_SIDE;
     return(m_p->m_node_gen.m_v_if->redirect_to_rx_core(dir,m)?0:-1);
 }
 
-int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
+int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
                       struct tcpcb * tp,
                       rte_mbuf_t *m){
     CNodeTcp node_tcp;
     node_tcp.dir  = m_dir;
     node_tcp.mbuf = m;
-
-#ifdef DEBUG_TX_PACKET
-     //fprintf(stdout,"TX---> dir %d \n",m_dir);
-     //utl_rte_pktmbuf_dump_k12(stdout,m);
+#ifdef TREX_SIM
+    node_tcp.sim_time =m_p->m_cur_time_sec;
 #endif
+
+
+#ifdef _DEBUG
+    if ( CGlobalInfo::m_options.preview.getVMode() == 6){
+        fprintf(stdout,"TX---> dir %d \n",m_dir);
+        utl_rte_pktmbuf_dump_k12(stdout,m);
+    }
+#endif
+
+
 
     m_p->m_node_gen.m_v_if->send_node((CGenNode *) &node_tcp);
     return(0);
@@ -115,12 +123,22 @@ int CTcpDpdkCb::on_tx(CTcpPerThreadCtx *ctx,
 void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                                                 bool on_terminate){
 
+#ifdef TREX_SIM
+    m_cur_time_sec =node->m_time;
+    m_node_gen.m_v_if->set_rx_burst_time(m_cur_time_sec);
+#endif
+
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ){
         node->m_time += TCP_RX_FLUSH_SEC;
         m_node_gen.m_p_queue.push(node);
     }else{
-        free_node(node);
+        if (m_tcp_terminate){
+            free_node(node);
+        }else{
+            node->m_time += TCP_RX_FLUSH_SEC;
+            m_node_gen.m_p_queue.push(node);
+        }
     }
 
     CVirtualIF * v_if=m_node_gen.m_v_if;
@@ -132,9 +150,11 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
         m_c_tcp,
         m_s_tcp
     };
-    
+
+    int sum;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
+        sum=0;
         while (true) {
             cnt=v_if->rx_burst(dir,rx_pkts,64);
             if (cnt==0) {
@@ -145,12 +165,17 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                 rte_mbuf_t * m=rx_pkts[i];
 
 #ifdef _DEBUG
-                if ( CGlobalInfo::m_options.preview.getVMode() > 6){
+                if ( CGlobalInfo::m_options.preview.getVMode() ==7 ){
                     fprintf(stdout,"RX---> dir %d \n",dir);
                     utl_rte_pktmbuf_dump_k12(stdout,m);
                 }
 #endif
                 ctx->m_ft.rx_handle_packet(ctx,m);
+            }
+            sum+=cnt;
+            if (sum>127) {
+                ctx->m_ft.inc_rx_throttled_cnt();
+                break;
             }
         }
     }
@@ -161,7 +186,6 @@ static CTcpAppApiImpl     m_tcp_bh_api_impl_c;
 #ifndef TREX_SIM
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
-
 void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
     done=false;
@@ -172,7 +196,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     uint16_t template_id = c_rw->do_schedule_template();
 
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
-    CTcpData    *   cur_tmp_ro = m_c_tcp->m_template_ro;
+    CAstfDbRO    *   cur_tmp_ro = m_c_tcp->m_template_ro;
 
 
     CTupleBase  tuple;
@@ -181,22 +205,25 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
-    /* TBD this include an information on the client/vlan/destination */ 
-    /*ClientCfgBase * lpc=tuple.getClientCfg(); */
+    ClientCfgBase * lpc=tuple.getClientCfg(); 
 
-    
     uint16_t vlan=0;
 
-    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
- /* TBD need to fix , should be taken from right port */
-#ifndef TREX_SIM
-        vlan= get_client_side_vlan(m_node_gen.m_v_if);
-#endif
+    if (lpc) {
+        if (lpc->m_initiator.has_vlan()){
+            vlan=lpc->m_initiator.get_vlan();
+        }
+    }else{
+        if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
+     /* TBD need to fix , should be taken from right port */
+    #ifndef TREX_SIM
+            vlan= get_client_side_vlan(m_node_gen.m_v_if);
+    #endif
+        }
     }
 
-    bool is_ipv6 = CGlobalInfo::is_ipv6_enable();
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable);
 
-    /* TBD set the tuple */
     CTcpFlow * c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
                                                  tuple.getClient(),
                                                  tuple.getServer(),
@@ -216,6 +243,17 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
     /* update default mac addrees, dir is zero client side  */
     m_node_gen.m_v_if->update_mac_addr_from_global_cfg(CLIENT_SIDE,c_flow->m_tcp.template_pkt);
+    /* override by client config, if exists */
+    if (lpc) {
+        ClientCfgDirBase *b=&lpc->m_initiator;
+        char * p =(char *)c_flow->m_tcp.template_pkt;
+        if (b->has_src_mac_addr()){
+            memcpy(p+6,b->get_src_mac_addr(),6);
+        }
+        if (b->has_dst_mac_addr()){
+            memcpy(p,b->get_dst_mac_addr(),6);
+        }
+    }
 
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(tuple.getClient());
@@ -237,6 +275,7 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(m_c_tcp,c_flow);
     c_flow->set_app(app_c);
+    c_flow->set_c_tcp_info(cur, template_id);
 
     /* start connect */
     app_c->start(true);
@@ -247,6 +286,10 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
 
 void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
                                               bool on_terminate){
+    #ifdef TREX_SIM
+    m_cur_time_sec =node->m_time;
+    #endif
+
     bool done;
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ) {
@@ -263,20 +306,18 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
     }else{
         free_node(node);
     }
-
-
-
 }
 
 void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
                                           bool on_terminate){
+    #ifdef TREX_SIM
+    m_cur_time_sec = node->m_time;
+    #endif
 
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ){
         node->m_time += tcp_get_tw_tick_in_sec();
         m_node_gen.m_p_queue.push(node);
-    }else{
-        free_node(node);
     }
 
     CTcpPerThreadCtx  * mctx_dir[2]={
@@ -285,10 +326,25 @@ void CFlowGenListPerThread::tcp_handle_tw(CGenNode * node,
     };
 
     int dir;
+    bool any_event=false;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
         ctx->timer_w_on_tick();
+        if(ctx->timer_w_any_events()){
+            any_event=true;
+        } 
     }
+
+    if ( on_terminate == true ){
+        if (any_event){
+            node->m_time += tcp_get_tw_tick_in_sec();
+            m_node_gen.m_p_queue.push(node);
+        }else{
+            free_node(node);
+            m_tcp_terminate=true;
+        }
+    }
+    
 }
 
 
@@ -298,20 +354,16 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 
 
 bool CFlowGenListPerThread::Create_tcp(){
+    m_tcp_terminate = false;
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 
     uint8_t mem_socket_id=get_memory_socket_id();
-    CTcpData *template_db = CJsonData::instance()->get_tcp_data_handle(mem_socket_id);
-    CTcpDpdkCb * c_tcp_io = new CTcpDpdkCb();
-    CTcpDpdkCb * s_tcp_io = new CTcpDpdkCb();
+    CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
+    CTcpIOCb * c_tcp_io = new CTcpIOCb();
+    CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
     m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
-
-    #if 0
-    printf("socket id:%d pointer:%p\n", mem_socket_id, template_db); //??? remove
-    template_db->dump(stdout);
-    #endif
 
     c_tcp_io->m_dir =0;
     c_tcp_io->m_p   = this;
@@ -326,16 +378,20 @@ bool CFlowGenListPerThread::Create_tcp(){
         active_flows=100000;
     }
     m_c_tcp->Create(active_flows,true);
+    m_s_tcp->Create(active_flows,false);
     m_c_tcp->set_cb(m_c_tcp_io);
+    m_s_tcp->set_cb(m_s_tcp_io);
 
     m_c_tcp->set_template_ro(template_db);
-    m_c_tcp->set_template_rw(CJsonData::instance()->get_tcp_data_handle_rw(mem_socket_id, &m_smart_gen
-                                                                           , m_thread_id, m_max_threads
-                                                                           , getDualPortId()));
     m_s_tcp->set_template_ro(template_db);
- 
-    m_s_tcp->Create(active_flows,false);
-    m_s_tcp->set_cb(m_s_tcp_io);
+    CAstfTemplatesRW * rw= CAstfDB::instance()->get_db_template_rw(mem_socket_id, &m_smart_gen
+                                                                           , m_thread_id, m_max_threads
+                                                                           , getDualPortId());
+    m_c_tcp->set_template_rw(rw);
+    m_s_tcp->set_template_rw(rw);
+
+    m_c_tcp->update_tuneables(rw->get_c_tuneables());
+    m_s_tcp->update_tuneables(rw->get_s_tuneables());
 
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);
@@ -366,15 +422,26 @@ bool CFlowGenListPerThread::Create_tcp(){
 }
 
 void CFlowGenListPerThread::Delete_tcp(){
-    m_c_tcp->Delete();
-    m_s_tcp->Delete();
+    if (m_c_tcp) {
+        m_c_tcp->Delete();
+        delete m_c_tcp;
+        m_c_tcp=0;
+    }
+    if (m_s_tcp) {
+        m_s_tcp->Delete();
+        delete m_s_tcp;
+        m_s_tcp=0;
+    }
 
-    delete m_c_tcp;
-    delete m_s_tcp;
-
-    CTcpDpdkCb * c_tcp_io = (CTcpDpdkCb *)m_c_tcp_io;
-    CTcpDpdkCb * s_tcp_io = (CTcpDpdkCb *)m_s_tcp_io;
-    delete c_tcp_io;
-    delete s_tcp_io;
+    CTcpIOCb * c_tcp_io = (CTcpIOCb *)m_c_tcp_io;
+    if (c_tcp_io) {
+        delete c_tcp_io;
+        m_c_tcp_io=0;
+    }
+    CTcpIOCb * s_tcp_io = (CTcpIOCb *)m_s_tcp_io;
+    if (s_tcp_io) {
+        delete s_tcp_io;
+        m_s_tcp_io=0;
+    }
 }
 

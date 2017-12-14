@@ -38,7 +38,6 @@
 
 #include <rte_atomic.h>
 #include <rte_memory.h>
-#include <rte_memzone.h>
 #include <rte_mempool.h>
 
 #include "virtio_pci.h"
@@ -71,10 +70,16 @@ struct rte_mbuf;
 /**
  * Return the physical address (or virtual address in case of
  * virtio-user) of mbuf data buffer.
+ *
+ * The address is firstly casted to the word size (sizeof(uintptr_t))
+ * before casting it to uint64_t. This is to make it work with different
+ * combination of word size (64 bit and 32 bit) and virtio device
+ * (virtio-pci and virtio-user).
  */
-#define VIRTIO_MBUF_ADDR(mb, vq) (*(uint64_t *)((uintptr_t)(mb) + (vq)->offset))
+#define VIRTIO_MBUF_ADDR(mb, vq) \
+	((uint64_t)(*(uintptr_t *)((uintptr_t)(mb) + (vq)->offset)))
 #else
-#define VIRTIO_MBUF_ADDR(mb, vq) ((mb)->buf_physaddr)
+#define VIRTIO_MBUF_ADDR(mb, vq) ((mb)->buf_iova)
 #endif
 
 /**
@@ -137,8 +142,8 @@ struct virtio_net_ctrl_mac {
 } __attribute__((__packed__));
 
 #define VIRTIO_NET_CTRL_MAC    1
- #define VIRTIO_NET_CTRL_MAC_TABLE_SET        0
- #define VIRTIO_NET_CTRL_MAC_ADDR_SET         1
+#define VIRTIO_NET_CTRL_MAC_TABLE_SET        0
+#define VIRTIO_NET_CTRL_MAC_ADDR_SET         1
 
 /**
  * Control VLAN filtering
@@ -198,8 +203,8 @@ struct virtqueue {
 		struct virtnet_ctl cq;
 	};
 
-	phys_addr_t vq_ring_mem; /**< physical address of vring,
-				  * or virtual address for virtio_user. */
+	rte_iova_t vq_ring_mem; /**< physical address of vring,
+	                         * or virtual address for virtio_user. */
 
 	/**
 	 * Head of the free chain in the descriptor table. If
@@ -298,6 +303,9 @@ void virtqueue_dump(struct virtqueue *vq);
  */
 struct rte_mbuf *virtqueue_detatch_unused(struct virtqueue *vq);
 
+/* Flush the elements in the used ring. */
+void virtqueue_flush(struct virtqueue *vq);
+
 static inline int
 virtqueue_full(const struct virtqueue *vq)
 {
@@ -305,6 +313,8 @@ virtqueue_full(const struct virtqueue *vq)
 }
 
 #define VIRTQUEUE_NUSED(vq) ((uint16_t)((vq)->vq_ring.used->idx - (vq)->vq_used_cons_idx))
+
+void vq_ring_free_chain(struct virtqueue *vq, uint16_t desc_idx);
 
 static inline void
 vq_update_avail_idx(struct virtqueue *vq)

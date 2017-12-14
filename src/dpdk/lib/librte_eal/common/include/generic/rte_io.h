@@ -1,7 +1,7 @@
 /*
  *   BSD LICENSE
  *
- *   Copyright(c) 2016 Cavium networks. All rights reserved.
+ *   Copyright(c) 2016 Cavium, Inc. All rights reserved.
  *   All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
@@ -14,7 +14,7 @@
  *       notice, this list of conditions and the following disclaimer in
  *       the documentation and/or other materials provided with the
  *       distribution.
- *     * Neither the name of Cavium networks nor the names of its
+ *     * Neither the name of Cavium, Inc nor the names of its
  *       contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
  *
@@ -33,8 +33,6 @@
 
 #ifndef _RTE_IO_H_
 #define _RTE_IO_H_
-
-#include <rte_atomic.h>
 
 /**
  * @file
@@ -264,55 +262,55 @@ rte_write64(uint64_t value, volatile void *addr);
 
 #ifndef RTE_OVERRIDE_IO_H
 
-static inline uint8_t __attribute__((always_inline))
+static __rte_always_inline uint8_t
 rte_read8_relaxed(const volatile void *addr)
 {
 	return *(const volatile uint8_t *)addr;
 }
 
-static inline uint16_t __attribute__((always_inline))
+static __rte_always_inline uint16_t
 rte_read16_relaxed(const volatile void *addr)
 {
 	return *(const volatile uint16_t *)addr;
 }
 
-static inline uint32_t __attribute__((always_inline))
+static __rte_always_inline uint32_t
 rte_read32_relaxed(const volatile void *addr)
 {
 	return *(const volatile uint32_t *)addr;
 }
 
-static inline uint64_t __attribute__((always_inline))
+static __rte_always_inline uint64_t
 rte_read64_relaxed(const volatile void *addr)
 {
 	return *(const volatile uint64_t *)addr;
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write8_relaxed(uint8_t value, volatile void *addr)
 {
 	*(volatile uint8_t *)addr = value;
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write16_relaxed(uint16_t value, volatile void *addr)
 {
 	*(volatile uint16_t *)addr = value;
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write32_relaxed(uint32_t value, volatile void *addr)
 {
 	*(volatile uint32_t *)addr = value;
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write64_relaxed(uint64_t value, volatile void *addr)
 {
 	*(volatile uint64_t *)addr = value;
 }
 
-static inline uint8_t __attribute__((always_inline))
+static __rte_always_inline uint8_t
 rte_read8(const volatile void *addr)
 {
 	uint8_t val;
@@ -321,7 +319,7 @@ rte_read8(const volatile void *addr)
 	return val;
 }
 
-static inline uint16_t __attribute__((always_inline))
+static __rte_always_inline uint16_t
 rte_read16(const volatile void *addr)
 {
 	uint16_t val;
@@ -330,7 +328,7 @@ rte_read16(const volatile void *addr)
 	return val;
 }
 
-static inline uint32_t  __attribute__((always_inline))
+static __rte_always_inline uint32_t
 rte_read32(const volatile void *addr)
 {
 	uint32_t val;
@@ -339,7 +337,7 @@ rte_read32(const volatile void *addr)
 	return val;
 }
 
-static inline uint64_t __attribute__((always_inline))
+static __rte_always_inline uint64_t
 rte_read64(const volatile void *addr)
 {
 	uint64_t val;
@@ -348,28 +346,28 @@ rte_read64(const volatile void *addr)
 	return val;
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write8(uint8_t value, volatile void *addr)
 {
 	rte_io_wmb();
 	rte_write8_relaxed(value, addr);
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write16(uint16_t value, volatile void *addr)
 {
 	rte_io_wmb();
 	rte_write16_relaxed(value, addr);
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write32(uint32_t value, volatile void *addr)
 {
 	rte_io_wmb();
 	rte_write32_relaxed(value, addr);
 }
 
-static inline void __attribute__((always_inline))
+static __rte_always_inline void
 rte_write64(uint64_t value, volatile void *addr)
 {
 	rte_io_wmb();

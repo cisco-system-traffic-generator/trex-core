@@ -127,6 +127,7 @@ class COneIPInfo {
     virtual uint32_t get_grat_arp_len() const=0;
     virtual void fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *sip)=0;
     virtual void fill_grat_arp_buf(uint8_t *p)=0;
+    virtual bool is_zero_ip()=0;
     virtual bool resolve_needed() const;
 
  protected:
@@ -165,6 +166,7 @@ class COneIPv4Info : public COneIPInfo {
     virtual uint32_t get_grat_arp_len() const {return 60;}
     virtual void fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *sip);
     virtual void fill_grat_arp_buf(uint8_t *p);
+    virtual bool is_zero_ip();
 
  private:
     virtual const void get_ip_str(char str[100]) const {
@@ -210,6 +212,7 @@ class COneIPv6Info : public COneIPInfo {
     virtual uint32_t get_grat_arp_len() const {return 100; /* ??? put correct number for ipv6*/}
     virtual void fill_arp_req_buf(uint8_t *p, uint16_t port_id, COneIPInfo *sip);
     virtual void fill_grat_arp_buf(uint8_t *p);
+    virtual bool is_zero_ip();
 
  private:
     virtual const void get_ip_str(char str[100]) {

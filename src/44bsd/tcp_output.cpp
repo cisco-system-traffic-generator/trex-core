@@ -182,7 +182,7 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
         /* drop the packet */
         return(-1);
     }
-
+    rte_mbuf_set_as_core_local(m);
     char *p=rte_pktmbuf_append(m,len);
 
     /* copy template */
@@ -279,6 +279,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
                     rte_pktmbuf_free(m);
                     return(-1);
                 }
+                rte_mbuf_set_as_core_local(mi);
                 /* inc mn ref count */
                 rte_pktmbuf_attach(mi,mn);
 
@@ -653,7 +654,7 @@ send:
             INC_STAT_CNT(ctx,tcps_sndrexmitbyte,len);
         } else {
             INC_STAT(ctx,tcps_sndpack);
-            INC_STAT_CNT(ctx,tcps_sndbyte,len);
+            INC_STAT_CNT(ctx,tcps_sndbyte_ok,len); /* better to be handle by application layer */
         }
 
         if (tcp_build_dpkt(ctx,tp,off,len,hdrlen,pkt)!=0){

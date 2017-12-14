@@ -141,6 +141,7 @@ std::string utl_macaddr_to_str(const uint8_t *macaddr);
 bool utl_str_to_macaddr(const std::string &s, uint8_t *mac);
 
 std::string utl_generate_random_str(unsigned int &seed, int len);
+std::string utl_generate_random_str(int len);
 
 /**
  * define the coredump size 

@@ -601,7 +601,7 @@ class STLClient(object):
 
         self.latency_stats = trex_stl_stats.CLatencyStats(self.ports)
 
-        self.pgid_stats = trex_stl_stats.CPgIdStats()
+        self.pgid_stats = trex_stl_stats.CPgIdStats(self)
 
         self.util_stats = trex_stl_stats.CUtilStats(self)
 
@@ -1036,14 +1036,8 @@ class STLClient(object):
 
         stats['total'] = total
 
-        if 'flow_stats' in pgid_stats:
-            stats['flow_stats'] = pgid_stats['flow_stats']
-        else:
-            stats['flow_stats'] = {}
-        if 'latency' in pgid_stats:
-            stats['latency'] = pgid_stats['latency']
-        else:
-            stats['latency'] = {}
+        stats['flow_stats'] = pgid_stats.get('flow_stats', {})
+        stats['latency'] = pgid_stats.get('latency', {})
 
         return stats
 
@@ -1083,11 +1077,6 @@ class STLClient(object):
 
 
     ############ functions used by other classes but not users ##############
-
-    # fetch the API Handlers from the connection object
-    def _get_api_h (self):
-        return self.conn.get_api_h()
-
         
     def _validate_port_list (self, port_id_list, allow_empty = False):
         # listfiy single int
@@ -1110,8 +1099,8 @@ class STLClient(object):
 
 
     # transmit request on the RPC link
-    def _transmit(self, method_name, params = None, api_class = 'core'):
-        return self.conn.rpc.transmit(method_name, params, api_class)
+    def _transmit(self, method_name, params = None):
+        return self.conn.rpc.transmit(method_name, params)
 
     # transmit batch request on the RPC link
     def _transmit_batch(self, batch_list):
@@ -1128,9 +1117,9 @@ class STLClient(object):
 
         return stats_obj
 
-    def _get_streams(self, port_id_list, streams_mask=set()):
+    def _get_streams(self, port_id_list, streams_mask=set(), table_format = True):
 
-        streams_obj = self.stats_generator.generate_streams_info(port_id_list, streams_mask)
+        streams_obj = self.stats_generator.generate_streams_info(port_id_list, streams_mask, table_format)
 
         return streams_obj
 
@@ -1896,7 +1885,7 @@ class STLClient(object):
 
         self.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.connection_info['server'],
                                                                               self.connection_info['sync_port']))
-        rc = self._transmit("ping", api_class = None)
+        rc = self._transmit("ping")
             
         self.logger.post_cmd(rc)
 
@@ -2327,153 +2316,12 @@ class STLClient(object):
         """
 
         # transform single stream
-        if not isinstance(pgid_list, list):
-            pgid_list = [pgid_list]
-
+        pgid_list = listify(pgid_list)
         if pgid_list == []:
             active_pgids = self.get_active_pgids()
             pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
 
-        # Should not exceed MAX_ALLOWED_PGID_LIST_LEN from flow_stat.cpp
-        max_pgid_in_query = 1024 + 128
-        pgid_list_len = len(pgid_list)
-        index = 0
-        ans_dict = {}
-
-        while index <= pgid_list_len:
-            curr_pgid_list = pgid_list[index : index + max_pgid_in_query]
-            index += max_pgid_in_query
-            rc = self._transmit("get_pgid_stats", params = {'pgids': curr_pgid_list})
-
-            if not rc:
-                raise STLError(rc)
-
-            for key in rc.data().keys():
-                if key in ans_dict:
-                    try:
-                        ans_dict[key].update(rc.data()[key])
-                    except:
-                        pass
-                else:
-                    ans_dict[key] = rc.data()[key]
-
-        # translation from json values to python API names
-        j_to_p_lat = {'jit': 'jitter', 'average':'average', 'total_max': 'total_max', 'last_max':'last_max'}
-        j_to_p_err = {'drp':'dropped', 'ooo':'out_of_order', 'dup':'dup', 'sth':'seq_too_high', 'stl':'seq_too_low'}
-        j_to_p_global = {'old_flow':'old_flow', 'bad_hdr':'bad_hdr'}
-        j_to_p_f_stat = {'rp': 'rx_pkts', 'rb': 'rx_bytes', 'tp': 'tx_pkts', 'tb': 'tx_bytes'
-                         , 'rbs': 'rx_bps', 'rps': 'rx_pps', 'tbs': 'tx_bps', 'tps': 'tx_pps'}
-        j_to_p_g_f_err = {'rx_err': 'rx_err', 'tx_err': 'tx_err'}
-
-        # translate json 'latency' to python API 'latency'
-        new = {}
-        if 'ver_id' in ans_dict and ans_dict['ver_id'] is not None:
-            new['ver_id'] = ans_dict['ver_id']
-        else:
-            new['ver_id'] = {}
-
-        if 'latency' in ans_dict.keys() and ans_dict['latency'] is not None:
-            new['latency'] = {}
-            new['latency']['global'] = {}
-            for key in j_to_p_global.keys():
-                new['latency']['global'][j_to_p_global[key]] = 0
-            for pg_id in ans_dict['latency']:
-                # 'g' value is not a number
-                try:
-                    int_pg_id = int(pg_id)
-                except:
-                    continue
-                new['latency'][int_pg_id] = {}
-                new['latency'][int_pg_id]['err_cntrs'] = {}
-                if 'er' in ans_dict['latency'][pg_id]:
-                    for key in j_to_p_err.keys():
-                        if key in ans_dict['latency'][pg_id]['er']:
-                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = ans_dict['latency'][pg_id]['er'][key]
-                        else:
-                            new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
-                else:
-                    for key in j_to_p_err.keys():
-                        new['latency'][int_pg_id]['err_cntrs'][j_to_p_err[key]] = 0
-
-                new['latency'][int_pg_id]['latency'] = {}
-                for field in j_to_p_lat.keys():
-                    if field in ans_dict['latency'][pg_id]['lat']:
-                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = ans_dict['latency'][pg_id]['lat'][field]
-                    else:
-                        new['latency'][int_pg_id]['latency'][j_to_p_lat[field]] = StatNotAvailable(field)
-
-                if 'histogram' in ans_dict['latency'][pg_id]['lat']:
-                    #translate histogram numbers from string to integers
-                    new['latency'][int_pg_id]['latency']['histogram'] = {
-                                        int(elem): ans_dict['latency'][pg_id]['lat']['histogram'][elem]
-                                         for elem in ans_dict['latency'][pg_id]['lat']['histogram']
-                    }
-                    min_val = min(new['latency'][int_pg_id]['latency']['histogram'])
-                    if min_val == 0:
-                        min_val = 2
-                    new['latency'][int_pg_id]['latency']['total_min'] = min_val
-                else:
-                    new['latency'][int_pg_id]['latency']['total_min'] = StatNotAvailable('total_min')
-                    new['latency'][int_pg_id]['latency']['histogram'] = {}
-
-        # translate json 'flow_stats' to python API 'flow_stats'
-        if 'flow_stats' in ans_dict.keys() and ans_dict['flow_stats'] is not None:
-            new['flow_stats'] = {}
-            new['flow_stats']['global'] = {}
-
-            all_ports = []
-            for pg_id in ans_dict['flow_stats']:
-                # 'g' value is not a number
-                try:
-                    int_pg_id = int(pg_id)
-                except:
-                    continue
-
-                # do this only once
-                if all_ports == []:
-                    # if field does not exist, we don't know which ports we have. We assume 'tp' will always exist
-                    for port in ans_dict['flow_stats'][pg_id]['tp']:
-                        all_ports.append(int(port))
-
-                new['flow_stats'][int_pg_id] = {}
-                for field in j_to_p_f_stat.keys():
-                    new['flow_stats'][int_pg_id][j_to_p_f_stat[field]] = {}
-                    #translate ports to integers
-                    total = 0
-                    if field in ans_dict['flow_stats'][pg_id]:
-                        for port in ans_dict['flow_stats'][pg_id][field]:
-                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = ans_dict['flow_stats'][pg_id][field][port]
-                            total += new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)]
-                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = total
-                    else:
-                        for port in all_ports:
-                            new['flow_stats'][int_pg_id][j_to_p_f_stat[field]][int(port)] = StatNotAvailable(j_to_p_f_stat[field])
-                        new['flow_stats'][int_pg_id][j_to_p_f_stat[field]]['total'] = StatNotAvailable('total')
-                new['flow_stats'][int_pg_id]['rx_bps_l1'] = {}
-                new['flow_stats'][int_pg_id]['tx_bps_l1'] = {}
-                for port in new['flow_stats'][int_pg_id]['rx_pkts']:
-                    # L1 overhead is 20 bytes per packet
-                    new['flow_stats'][int_pg_id]['rx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['rx_bps'][port]) + float(new['flow_stats'][int_pg_id]['rx_pps'][port]) * 20 * 8
-                    new['flow_stats'][int_pg_id]['tx_bps_l1'][port] = float(new['flow_stats'][int_pg_id]['tx_bps'][port]) + float(new['flow_stats'][int_pg_id]['tx_pps'][port]) * 20 * 8
-
-            if 'g' in ans_dict['flow_stats']:
-                for field in j_to_p_g_f_err.keys():
-                    if field in ans_dict['flow_stats']['g']:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = ans_dict['flow_stats']['g'][field]
-                    else:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
-                        for port in all_ports:
-                            new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
-            else:
-                for field in j_to_p_g_f_err.keys():
-                    new['flow_stats']['global'][j_to_p_g_f_err[field]] = {}
-                    for port in all_ports:
-                        new['flow_stats']['global'][j_to_p_g_f_err[field]][int(port)] = 0
-
-
-        self.pgid_stats.save_stats(new)
-
-        return self.pgid_stats.get_stats()
+        return self.pgid_stats.get_stats(pgid_list)
 
     @__api_check(True)
     def get_util_stats(self):
@@ -2666,18 +2514,33 @@ class STLClient(object):
             Remove a list of streams from ports
 
             :parameters:
+            
+                stream_id_list: int or list of ints
+                    Stream id list to remove
+                    
                 ports : list
                     Ports on which to execute the command
-                stream_id_list: list
-                    Stream id list to remove
+                
 
 
             :raises:
                 + :exc:`STLError`
 
         """
-
-
+        validate_type('streams_id_list', stream_id_list, (int, list))
+        
+        # transform single stream
+        stream_id_list = listify(stream_id_list)
+        
+        # check at least one exists
+        if not stream_id_list:
+            raise STLError("remove_streams - 'stream_id_list' cannot be empty")
+            
+        # check stream IDs
+        for i, stream_id in enumerate(stream_id_list):
+            validate_type('stream ID:{0}'.format(i), stream_id, int)
+            
+        
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self._validate_port_list(ports)
 
@@ -2923,6 +2786,57 @@ class STLClient(object):
             raise STLError(rc)
 
 
+    @__api_check(True)
+    def update_streams(self, port, mult = "1", force = False, stream_ids = None):
+        """
+            | Temporary hack to update specific streams.
+            | Do not rely on this function, might be removed in future!
+            | Warning: Changing rates of specific streams causes out of sync between CP and DP regarding streams rate.
+            | In order to update rate of whole port, need to revert changes made to rates of those streams.
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+
+                mult : str
+                    Multiplier in a form of pps, bps, or line util in %
+                    Examples: "5kpps", "10gbps", "85%", "32mbps"
+
+                force : bool
+                    If the port are not in stopped mode or do not have sufficient bandwidth for the traffic, determines whether to stop the current traffic and force start.
+                    True: Force start
+                    False: Do not force start
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('mult', mult, basestring)
+        validate_type('force', force, bool)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to update')
+
+        # verify multiplier
+        mult_obj = parsing_opts.decode_multiplier(mult, allow_update = False)
+        if not mult_obj:
+            raise STLArgumentError('mult', mult)
+
+
+        # call low level functions
+        self.logger.pre_cmd('Updating streams %s on port %s:' % (stream_ids, port))
+
+        rc = self.ports[port].update_streams(mult_obj, force, stream_ids)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
 
     @__api_check(True)
     def pause (self, ports = None):
@@ -2949,6 +2863,41 @@ class STLClient(object):
         if not rc:
             raise STLError(rc)
 
+
+    @__api_check(True)
+    def pause_streams(self, port, stream_ids):
+        """
+            Temporary hack to pause specific streams.
+            Does not change state of port.
+            Do not rely on this function, might be removed in future!
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+                stream_ids : list
+                    Stream IDs to pause
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to pause')
+
+        self.logger.pre_cmd('Pause streams %s on port %s:' % (stream_ids, port))
+        rc = self.ports[port].pause_streams(stream_ids)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
     @__api_check(True)
     def resume (self, ports = None):
         """
@@ -2970,6 +2919,40 @@ class STLClient(object):
 
         self.logger.pre_cmd("Resume traffic on port(s) {0}:".format(ports))
         rc = self.__resume(ports)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise STLError(rc)
+
+
+    @__api_check(True)
+    def resume_streams(self, port, stream_ids):
+        """
+            Temporary hack to resume specific streams.
+            Does not change state of port.
+            Do not rely on this function, might be removed in future!
+
+            :parameters:
+                port : int
+                    Port on which to execute the command
+                stream_ids : list
+                    Stream IDs to resume
+
+            :raises:
+                + :exc:`STLError`
+
+        """
+
+        validate_type('port', port, int)
+        validate_type('stream_ids', stream_ids, list)
+
+        if port not in self.ports:
+            raise STLError('Invalid port number: %s' % port)
+        if not stream_ids:
+            raise STLError('Please specify stream IDs to resume')
+
+        self.logger.pre_cmd('Resume streams %s on port %s:' % (stream_ids, port))
+        rc = self.ports[port].resume_streams(stream_ids)
         self.logger.post_cmd(rc)
 
         if not rc:
@@ -4400,12 +4383,20 @@ class STLClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.MULTIPLIER,
                                          parsing_opts.TOTAL,
-                                         parsing_opts.FORCE)
+                                         parsing_opts.FORCE,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
         if not opts:
             return opts
 
+        if opts.ids:
+            if len(opts.ports) != 1:
+                msg = 'update - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.update_streams(opts.ports[0], opts.mult, opts.force, opts.ids)
+            return RC_OK()
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
@@ -4429,11 +4420,20 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "pause",
                                          self.pause_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
         if not opts:
             return opts
+
+        if opts.ids:
+            if len(opts.ports) != 1:
+                msg = 'pause - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.pause_streams(opts.ports[0], opts.ids)
+            return RC_OK()
 
         # check for already paused case
         if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
@@ -4463,11 +4463,20 @@ class STLClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "resume",
                                          self.resume_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
         if not opts:
             return opts
+
+        if opts.ids:
+            if len(opts.ports) != 1:
+                msg = 'resume - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
+                self.logger.log(msg)
+                return RC_ERR(msg)
+            self.resume_streams(opts.ports[0], opts.ids)
+            return RC_OK()
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_paused_ports())
@@ -4545,25 +4554,67 @@ class STLClient(object):
                                          "streams",
                                          self.show_streams_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.STREAMS_MASK)
+                                         parsing_opts.STREAMS_MASK,
+                                         parsing_opts.STREAMS_CODE)
 
         opts = parser.parse_args(line.split())
 
         if not opts:
             return opts
 
-        streams = self._get_streams(opts.ports, set(opts.streams))
-        if not streams:
+        streams_per_port = self._get_streams(opts.ports, set(opts.ids), table_format = opts.code is None)
+        if not streams_per_port:
             self.logger.log(format_text("No streams found with desired filter.\n", "bold", "magenta"))
 
-        else:
-            # print stats to screen
-            for stream_hdr, port_streams_data in streams.items():
+        elif opts.code is None: # Just print the summary table of streams
+
+            for port_id, port_streams_data in streams_per_port.items():
                 text_tables.print_table_with_header(port_streams_data.text_table,
-                                                    header= stream_hdr.split(":")[0] + ":",
-                                                    untouched_header= stream_hdr.split(":")[1])
+                                                    header = 'Port %s:' % port_id)
 
+        elif opts.code: # Save the code that generates streams to file
 
+            if not opts.code.endswith('.py'):
+                raise STLError('Saved filename should end with .py')
+            is_several_ports = len(streams_per_port) > 1
+            if is_several_ports:
+                print(format_text('\nWarning: several ports specified, will save in separate file per port.', 'bold'))
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data['streams']:
+                    print('No streams to save at port %s, skipping.' % port_id)
+                    continue
+                filename = ('%s_port%s.py' % (opts.code[:-3], port_id)) if is_several_ports else opts.code
+                if os.path.exists(filename):
+                    sys.stdout.write('\nFilename %s already exists, overwrite? (y/N) ' % filename)
+                    history_bu = self.__push_history()
+                    try:
+                        ans = user_input().strip()
+                    finally:
+                        self.__pop_history(history_bu)
+                    if ans.lower() not in ('y', 'yes'):
+                        print('Not saving.')
+                        continue
+                self.logger.pre_cmd('Saving file as: %s' % filename)
+                try:
+                    profile = STLProfile(list(port_streams_data['streams'].values()))
+                    with open(filename, 'w') as f:
+                        f.write(profile.dump_to_code())
+                except Exception as e:
+                    self.logger.post_cmd(False)
+                    print(e.brief() if isinstance(e, STLError) else e)
+                    print('')
+                else:
+                    self.logger.post_cmd(True)
+    
+        else: # Print the code that generates streams
+
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data['streams']:
+                    continue
+                print(format_text('Port: %s' % port_id, 'cyan', 'underline') + '\n')
+                for stream_id, stream in port_streams_data['streams'].items():
+                    print(format_text('Stream ID: %s' % stream_id, 'cyan', 'underline'))
+                    print('    ' + '\n    '.join(stream.to_code().splitlines()) + '\n')
 
 
     @__console
@@ -5036,11 +5087,6 @@ class STLClient(object):
             self.logger.log(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
             return
             
-        try:
-            import readline
-        except ImportError:
-            self.logger.log(format_text("\n*** 'readline' is required for interactive debugging ***\n", 'bold'))
-            return
             
         self.logger.log(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
         

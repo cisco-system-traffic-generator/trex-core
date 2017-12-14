@@ -61,7 +61,7 @@
 static inline uint16_t
 dev_num_vf(struct rte_eth_dev *eth_dev)
 {
-	struct rte_pci_device *pci_dev = IXGBE_DEV_TO_PCI(eth_dev);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 
 	return pci_dev->max_vfs;
 }
@@ -397,15 +397,27 @@ ixgbe_vf_reset_msg(struct rte_eth_dev *dev, uint16_t vf)
 	uint32_t reg_offset, vf_shift;
 	const uint8_t VFRE_SHIFT = 5;  /* VFRE 32 bits per slot */
 	const uint8_t VFRE_MASK = (uint8_t)((1U << VFRE_SHIFT) - 1);
+	uint8_t  nb_q_per_pool;
+	int i;
 
 	vf_shift = vf & VFRE_MASK;
 	reg_offset = (vf >> VFRE_SHIFT) > 0 ? 1 : 0;
 
-	/* enable transmit and receive for vf */
+	/* enable transmit for vf */
 	reg = IXGBE_READ_REG(hw, IXGBE_VFTE(reg_offset));
 	reg |= (reg | (1 << vf_shift));
 	IXGBE_WRITE_REG(hw, IXGBE_VFTE(reg_offset), reg);
 
+	/* enable all queue drop for IOV */
+	nb_q_per_pool = RTE_ETH_DEV_SRIOV(dev).nb_q_per_pool;
+	for (i = vf * nb_q_per_pool; i < (vf + 1) * nb_q_per_pool; i++) {
+		IXGBE_WRITE_FLUSH(hw);
+		reg = IXGBE_QDE_ENABLE | IXGBE_QDE_WRITE;
+		reg |= i << IXGBE_QDE_IDX_SHIFT;
+		IXGBE_WRITE_REG(hw, IXGBE_QDE, reg);
+	}
+
+	/* enable receive for vf */
 	reg = IXGBE_READ_REG(hw, IXGBE_VFRE(reg_offset));
 	reg |= (reg | (1 << vf_shift));
 	IXGBE_WRITE_REG(hw, IXGBE_VFRE(reg_offset), reg);
@@ -499,7 +511,7 @@ ixgbe_vf_set_mac_addr(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 }
 
 static int
-ixgbe_vf_set_multicast(struct rte_eth_dev *dev, __rte_unused uint32_t vf, uint32_t *msgbuf)
+ixgbe_vf_set_multicast(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 {
 	struct ixgbe_hw *hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct ixgbe_vf_info *vfinfo =
@@ -615,6 +627,18 @@ ixgbe_get_vf_queues(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 	struct ixgbe_vf_info *vfinfo =
 		*IXGBE_DEV_PRIVATE_TO_P_VFDATA(dev->data->dev_private);
 	uint32_t default_q = vf * RTE_ETH_DEV_SRIOV(dev).nb_q_per_pool;
+	struct rte_eth_conf *eth_conf;
+	struct rte_eth_vmdq_dcb_tx_conf *vmdq_dcb_tx_conf;
+	u8 num_tcs;
+	struct ixgbe_hw *hw;
+	u32 vmvir;
+#define IXGBE_VMVIR_VLANA_MASK		0xC0000000
+#define IXGBE_VMVIR_VLAN_VID_MASK	0x00000FFF
+#define IXGBE_VMVIR_VLAN_UP_MASK	0x0000E000
+#define VLAN_PRIO_SHIFT			13
+	u32 vlana;
+	u32 vid;
+	u32 user_priority;
 
 	/* Verify if the PF supports the mbox APIs version or not */
 	switch (vfinfo[vf].api_version) {
@@ -633,10 +657,51 @@ ixgbe_get_vf_queues(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 	/* Notify VF of default queue */
 	msgbuf[IXGBE_VF_DEF_QUEUE] = default_q;
 
-	/*
-	 * FIX ME if it needs fill msgbuf[IXGBE_VF_TRANS_VLAN]
-	 * for VLAN strip or VMDQ_DCB or VMDQ_DCB_RSS
-	 */
+	/* Notify VF of number of DCB traffic classes */
+	eth_conf = &dev->data->dev_conf;
+	switch (eth_conf->txmode.mq_mode) {
+	case ETH_MQ_TX_NONE:
+	case ETH_MQ_TX_DCB:
+		RTE_LOG(ERR, PMD, "PF must work with virtualization for VF %u"
+			", but its tx mode = %d\n", vf,
+			eth_conf->txmode.mq_mode);
+		return -1;
+
+	case ETH_MQ_TX_VMDQ_DCB:
+		vmdq_dcb_tx_conf = &eth_conf->tx_adv_conf.vmdq_dcb_tx_conf;
+		switch (vmdq_dcb_tx_conf->nb_queue_pools) {
+		case ETH_16_POOLS:
+			num_tcs = ETH_8_TCS;
+			break;
+		case ETH_32_POOLS:
+			num_tcs = ETH_4_TCS;
+			break;
+		default:
+			return -1;
+		}
+		break;
+
+	/* ETH_MQ_TX_VMDQ_ONLY,  DCB not enabled */
+	case ETH_MQ_TX_VMDQ_ONLY:
+		hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+		vmvir = IXGBE_READ_REG(hw, IXGBE_VMVIR(vf));
+		vlana = vmvir & IXGBE_VMVIR_VLANA_MASK;
+		vid = vmvir & IXGBE_VMVIR_VLAN_VID_MASK;
+		user_priority =
+			(vmvir & IXGBE_VMVIR_VLAN_UP_MASK) >> VLAN_PRIO_SHIFT;
+		if ((vlana == IXGBE_VMVIR_VLANA_DEFAULT) &&
+			((vid !=  0) || (user_priority != 0)))
+			num_tcs = 1;
+		else
+			num_tcs = 0;
+		break;
+
+	default:
+		RTE_LOG(ERR, PMD, "PF work with invalid mode = %d\n",
+			eth_conf->txmode.mq_mode);
+		return -1;
+	}
+	msgbuf[IXGBE_VF_TRANS_VLAN] = num_tcs;
 
 	return 0;
 }
@@ -671,7 +736,7 @@ ixgbe_rcv_msg_from_vf(struct rte_eth_dev *dev, uint16_t vf)
 	struct ixgbe_hw *hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct ixgbe_vf_info *vfinfo =
 		*IXGBE_DEV_PRIVATE_TO_P_VFDATA(dev->data->dev_private);
-	struct rte_pmd_ixgbe_mb_event_param cb_param;
+	struct rte_pmd_ixgbe_mb_event_param ret_param;
 
 	retval = ixgbe_read_mbx(hw, msgbuf, mbx_size, vf);
 	if (retval) {
@@ -690,10 +755,10 @@ ixgbe_rcv_msg_from_vf(struct rte_eth_dev *dev, uint16_t vf)
 	 * initialise structure to send to user application
 	 * will return response from user in retval field
 	 */
-	cb_param.retval = RTE_PMD_IXGBE_MB_EVENT_PROCEED;
-	cb_param.vfid = vf;
-	cb_param.msg_type = msgbuf[0] & 0xFFFF;
-	cb_param.msg = (void *)msgbuf;
+	ret_param.retval = RTE_PMD_IXGBE_MB_EVENT_PROCEED;
+	ret_param.vfid = vf;
+	ret_param.msg_type = msgbuf[0] & 0xFFFF;
+	ret_param.msg = (void *)msgbuf;
 
 	/* perform VF reset */
 	if (msgbuf[0] == IXGBE_VF_RESET) {
@@ -702,20 +767,22 @@ ixgbe_rcv_msg_from_vf(struct rte_eth_dev *dev, uint16_t vf)
 		vfinfo[vf].clear_to_send = true;
 
 		/* notify application about VF reset */
-		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX, &cb_param);
+		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX,
+					      NULL, &ret_param);
 		return ret;
 	}
 
 	/**
 	 * ask user application if we allowed to perform those functions
-	 * if we get cb_param.retval == RTE_PMD_IXGBE_MB_EVENT_PROCEED
+	 * if we get ret_param.retval == RTE_PMD_IXGBE_MB_EVENT_PROCEED
 	 * then business as usual,
 	 * if 0, do nothing and send ACK to VF
-	 * if cb_param.retval > 1, do nothing and send NAK to VF
+	 * if ret_param.retval > 1, do nothing and send NAK to VF
 	 */
-	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX, &cb_param);
+	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX,
+				      NULL, &ret_param);
 
-	retval = cb_param.retval;
+	retval = ret_param.retval;
 
 	/* check & process VF to PF mailbox message */
 	switch ((msgbuf[0] & 0xFFFF)) {

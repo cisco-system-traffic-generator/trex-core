@@ -1,0 +1,118 @@
+
+$modinfo ixgbe
+filename:       /lib/modules/3.11.10-100.fc18.x86_64/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko
+version:        3.13.10-k
+license:        GPL
+description:    Intel(R) 10 Gigabit PCI Express Network Driver
+author:         Intel Corporation, <linux.nics@intel.com>
+srcversion:     1C9205E6E53789ABAFFAD0D
+alias:          pci:v00008086d00001560sv*sd*bc*sc*i*
+alias:          pci:v00008086d0000154Asv*sd*bc*sc*i*
+alias:          pci:v00008086d00001557sv*sd*bc*sc*i*
+alias:          pci:v00008086d0000154Fsv*sd*bc*sc*i*
+alias:          pci:v00008086d0000154Dsv*sd*bc*sc*i*
+alias:          pci:v00008086d00001528sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010F8sv*sd*bc*sc*i*
+alias:          pci:v00008086d0000151Csv*sd*bc*sc*i*
+alias:          pci:v00008086d00001529sv*sd*bc*sc*i*
+alias:          pci:v00008086d0000152Asv*sd*bc*sc*i*
+alias:          pci:v00008086d000010F9sv*sd*bc*sc*i*
+alias:          pci:v00008086d00001514sv*sd*bc*sc*i*
+alias:          pci:v00008086d00001507sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010FBsv*sd*bc*sc*i*
+alias:          pci:v00008086d00001517sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010FCsv*sd*bc*sc*i*
+alias:          pci:v00008086d000010F7sv*sd*bc*sc*i*
+alias:          pci:v00008086d00001508sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010DBsv*sd*bc*sc*i*
+alias:          pci:v00008086d000010F4sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010E1sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010F1sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010ECsv*sd*bc*sc*i*
+alias:          pci:v00008086d000010DDsv*sd*bc*sc*i*
+alias:          pci:v00008086d0000150Bsv*sd*bc*sc*i*
+alias:          pci:v00008086d000010C8sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010C7sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010C6sv*sd*bc*sc*i*
+alias:          pci:v00008086d000010B6sv*sd*bc*sc*i*
+depends:        mdio,ptp,dca
+intree:         Y
+vermagic:       3.11.10-100.fc18.x86_64 SMP mod_unload 
+parm:           max_vfs:Maximum number of virtual functions to allocate per physical function - default is zero and maximum value is 63 (uint)
+parm:           allow_unsupported_sfp:Allow unsupported and untested SFP+ modules on 82599-based adapters (uint)
+parm:           debug:Debug level (0=none,...,16=all) (int)
+
+
+$ethtool -c p2p1
+Coalesce parameters for p2p1:
+Adaptive RX: off  TX: off
+stats-block-usecs: 0
+sample-interval: 0
+pkt-rate-low: 0
+pkt-rate-high: 0
+
+rx-usecs: 1
+rx-frames: 0
+rx-usecs-irq: 0
+rx-frames-irq: 0
+
+tx-usecs: 0
+tx-frames: 0
+tx-usecs-irq: 0
+tx-frames-irq: 0
+
+rx-usecs-low: 0
+rx-frame-low: 0
+tx-usecs-low: 0
+tx-frame-low: 0
+
+rx-usecs-high: 0
+rx-frame-high: 0
+tx-usecs-high: 0
+tx-frame-high: 0
+
+
+
+$ethtool -k p2p1
+Features for p2p1:
+rx-checksumming: on
+tx-checksumming: on
+        tx-checksum-ipv4: on
+        tx-checksum-ip-generic: off [fixed]
+        tx-checksum-ipv6: on
+        tx-checksum-fcoe-crc: on [fixed]
+        tx-checksum-sctp: on
+scatter-gather: on
+        tx-scatter-gather: on
+        tx-scatter-gather-fraglist: off [fixed]
+tcp-segmentation-offload: on
+        tx-tcp-segmentation: on
+        tx-tcp-ecn-segmentation: off [fixed]
+        tx-tcp6-segmentation: on
+udp-fragmentation-offload: off [fixed]
+generic-segmentation-offload: on
+generic-receive-offload: on
+large-receive-offload: off
+rx-vlan-offload: on
+tx-vlan-offload: on
+ntuple-filters: off
+receive-hashing: on
+highdma: on [fixed]
+rx-vlan-filter: on
+vlan-challenged: off [fixed]
+tx-lockless: off [fixed]
+netns-local: off [fixed]
+tx-gso-robust: off [fixed]
+tx-fcoe-segmentation: on [fixed]
+tx-gre-segmentation: off [fixed]
+tx-udp_tnl-segmentation: off [fixed]
+tx-mpls-segmentation: off [fixed]
+fcoe-mtu: off [fixed]
+tx-nocache-copy: on
+loopback: off [fixed]
+rx-fcs: off [fixed]
+rx-all: off
+tx-vlan-stag-hw-insert: off [fixed]
+rx-vlan-stag-hw-parse: off [fixed]
+rx-vlan-stag-filter: off [fixed]
+

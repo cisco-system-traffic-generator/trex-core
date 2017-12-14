@@ -40,7 +40,8 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 #include "utl_counter.h"
-#include "astf/json_reader.h"
+#include "astf/astf_db.h"
+#include "utl_sync_barrier.h"
 
 #include <stdlib.h>
 #include <common/c_common.h>
@@ -48,6 +49,17 @@ limitations under the License.
 #include <common/sim_event_driven.h>
 #include "44bsd/sim_cs_tcp.h"
 
+
+class gt_tcp_long  : public testing::Test {
+
+protected:
+      virtual void SetUp() {
+      }
+
+      virtual void TearDown() {
+      }
+    public:
+};
 
 
 class gt_tcp  : public testing::Test {
@@ -833,7 +845,8 @@ void tcp_gen_test(std::string pcap_file,
                   int valn=0, 
                   cs_sim_mode_t sim_mode=csSIM_NONE,
                   bool is_ipv6=false,
-                  uint16_t mss=0){
+                  uint16_t mss=0,
+                  CClientServerTcpCfgExt * cfg=NULL){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
@@ -853,6 +866,10 @@ void tcp_gen_test(std::string pcap_file,
         lpt1->m_mss=mss;
     }
 
+    if (cfg){
+        lpt1->set_cfg_ext(cfg);
+    }
+
     if (sim_mode!=csSIM_NONE){
         lpt1->set_simulate_rst_error(sim_mode);
     }
@@ -865,10 +882,14 @@ void tcp_gen_test(std::string pcap_file,
         lpt1->simple_http();
         break;
     }
+    
 
     lpt1->close_file();
 
-    bool res=lpt1->compare("exp");
+    bool res=true;
+    if (lpt1->m_skip_compare_file==false){
+        res=lpt1->compare("exp");
+    }
 
     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 
@@ -911,6 +932,16 @@ TEST_F(gt_tcp, tst30_http_simple) {
                  tiHTTP);
 
 }
+
+TEST_F(gt_tcp, tst30_http_simple_pad) {
+    tcp_gen_test("tcp2_http_simple_pad",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_PAD
+                 );
+}
+
 
 TEST_F(gt_tcp, tst30_http_simple_mss) {
     tcp_gen_test("tcp2_http_simple_mss",
@@ -957,7 +988,120 @@ TEST_F(gt_tcp, tst30_http_wrong_port) {
 
 }
 
-#if 0
+
+TEST_F(gt_tcp, tst30_http_drop) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+
+    tcp_gen_test("tcp2_http_drop",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_DROP,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+
+
+}
+
+TEST_F(gt_tcp, tst30_http_drop_high) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.6;
+    cfg.m_check_counters=true;
+    cfg.m_seed = 29;
+
+    tcp_gen_test("tcp2_http_drop_high",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_DROP,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+}
+
+
+TEST_F(gt_tcp_long, tst30_http_drop_loop) {
+
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=true;
+
+    int i;
+    for (i=1; i<50; i++) {
+        cfg.m_rate=(double)rand()/(double)(0xffffffff);
+        if (cfg.m_rate>0.4) {
+            cfg.m_rate=0.4;
+        }
+        if (cfg.m_rate<0.1) {
+            cfg.m_rate=0.1;
+        }
+        cfg.m_seed=i+1;
+        printf(" itr:%d rate %f seed %d \n",i,cfg.m_rate,i);
+        tcp_gen_test("tcp2_http_drop_loop",
+                     true,
+                     tiHTTP,
+                     0,
+                     csSIM_DROP,
+                     false, /* ipv6*/
+                     0, /*mss*/
+                     &cfg
+                     );
+    }
+}
+
+TEST_F(gt_tcp, tst30_http_reorder) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=false;
+
+    tcp_gen_test("tcp2_http_reorder",
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_REORDER,
+                 false, /* ipv6*/
+                 0, /*mss*/
+                 &cfg
+                 );
+}
+
+
+TEST_F(gt_tcp_long, tst30_http_reorder_loop) {
+    CClientServerTcpCfgExt cfg;
+    cfg.m_rate=0.1;
+    cfg.m_check_counters=true;
+    cfg.m_skip_compare_file=true;
+
+    int i;
+    for (i=1; i<50; i++) {
+        cfg.m_rate=(double)rand()/(double)(0xffffffff);
+        if (cfg.m_rate>0.4) {
+            cfg.m_rate=0.4;
+        }
+        if (cfg.m_rate<0.1) {
+            cfg.m_rate=0.1;
+        }
+        cfg.m_seed=i+1;
+        tcp_gen_test("tcp2_http_reorder",
+                     true,
+                     tiHTTP,
+                     0,
+                     csSIM_REORDER,
+                     false, /* ipv6*/
+                     0, /*mss*/
+                     &cfg
+                     );
+    }
+}
+
+
 TEST_F(gt_tcp, tst30_http_rst_middle) {
 
     tcp_gen_test("tcp2_http_rst_middle",
@@ -967,7 +1111,7 @@ TEST_F(gt_tcp, tst30_http_rst_middle) {
                  csSIM_RST_MIDDLE
                  );
 }
-#endif
+
 
 TEST_F(gt_tcp, tst30_http_rst_middle1) {
 
@@ -1607,7 +1751,7 @@ int test_buffer(int pkt_size,
     return(res);
 }
 
-TEST_F(gt_tcp, tst50) {
+TEST_F(gt_tcp_long, tst50) {
     int i;
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
@@ -1651,7 +1795,7 @@ int test_buffer_adj(int pkt_size,
     return(res);
 }
 
-TEST_F(gt_tcp, tst51) {
+TEST_F(gt_tcp_long, tst51) {
     //assert(test_buffer(2048,512,1,0)==0);
     assert(test_buffer(2048,512,512,0)==0);
 
@@ -1659,6 +1803,18 @@ TEST_F(gt_tcp, tst51) {
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
         assert(test_buffer(2048,512,i,0)==0);
+    } 
+}
+
+
+TEST_F(gt_tcp_long, tst_adj) {
+    //assert(test_buffer(2048,512,1,0)==0);
+    assert(test_buffer_adj(2048,512,512,0)==0);
+
+    int i;
+    for (i=0; i<2047; i++) {
+        printf(" test : %d \n",(int)i);
+        assert(test_buffer_adj(2048,512,i,0)==0);
     } 
 }
 
@@ -1755,49 +1911,47 @@ TEST_F(gt_tcp, tst54) {
         11.0,
         498.0 ,
 
-            102,
-            102,
-            33.0,
-            179.0,
-            64.0,
-            1.2,
-            1.2,
-            1.2,
+        102,
+        102,
+        33.0,
+        179.0,
+        64.0,
+        1.2,
+        1.2,
+        1.2,
 
-            20,
-            0.7,
-            0.5,
-            1.85,
-            1.85,
-            1.85,
+        20,
+        0.7,
+        0.5,
+        1.85,
+        1.85,
+        1.85,
 
-            3.0,
-            7.4,
-            11.0,
-            498.0 ,
+        3.0,
+        7.4,
+        11.0,
+        498.0 ,
 
-            102,
-            102,
-            33.0,
-            179.0,
-            64.0,
-            1.2,
-            1.2,
-            1.2,
+        102,
+        102,
+        33.0,
+        179.0,
+        64.0,
+        1.2,
+        1.2,
+        1.2,
 
-            20,
-            0.7,
-            0.5,
-            1.85,
-            1.85,
-            1.85,
+        20,
+        0.7,
+        0.5,
+        1.85,
+        1.85,
+        1.85,
 
-            3.0,
-            7.4,
-            11.0,
-            498.0 ,
-
-
+        3.0,
+        7.4,
+        11.0,
+        498.0 ,
     };
     std::vector<double>  ndist;
     Kx_norm_prob(dist,ndist);
@@ -1930,55 +2084,82 @@ public:
          11.0,
          498.0 ,
 
-             102,
-             102,
-             33.0,
-             179.0,
-             64.0,
-             1.2,
-             1.2,
-             1.2,
+         102,
+         102,
+         33.0,
+         179.0,
+         64.0,
+         1.2,
+         1.2,
+         1.2,
 
-             20,
-             0.7,
-             0.5,
-             1.85,
-             1.85,
-             1.85,
+         20,
+         0.7,
+         0.5,
+         1.85,
+         1.85,
+         1.85,
 
-             3.0,
-             7.4,
-             11.0,
-             498.0 ,
+         3.0,
+         7.4,
+         11.0,
+         498.0 ,
 
-             102,
-             102,
-             33.0,
-             179.0,
-             64.0,
-             1.2,
-             1.2,
-             1.2,
+         102,
+         102,
+         33.0,
+         179.0,
+         64.0,
+         1.2,
+         1.2,
+         1.2,
 
-             20,
-             0.7,
-             0.5,
-             1.85,
-             1.85,
-             1.85,
+         20,
+         0.7,
+         0.5,
+         1.85,
+         1.85,
+         1.85,
 
-             3.0,
-             7.4,
-             11.0,
-             498.0 ,
-
+         3.0,
+         7.4,
+         11.0,
+         498.0 ,
      };
      std::vector<double>  ndist;
      Kx_norm_prob(dist,ndist);
      Kx_dump_prob(ndist);
      test_prob2(100000000,ndist);
- }
+}
 
+TEST_F(gt_tcp, tst60) {
+    KxuNuBinRand bin_rand(0.2);
 
+    int i;
+    for (i=0; i<100; i++) {
+        bool index=bin_rand.getRandom();
+        printf(" %d \n",index?1:0);
+    }
+}
 
+TEST_F(gt_tcp, tst61) {
+    KxuLCRand ur;
+    int i;
+    for (i=0; i<100; i++) {
+       printf(" %f \n", ur.getRandomInRange(10.0,100.0));
+    }
+}
 #endif
+
+
+
+
+TEST_F(gt_tcp, tst70) {
+    CSyncBarrier * a= new CSyncBarrier(2,0.01);
+    assert(a->sync_barrier(0)==-1);
+    assert(a->sync_barrier(1)==0);
+    delete a;
+}
+
+
+

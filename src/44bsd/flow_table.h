@@ -154,6 +154,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_client_pkt_without_flow;
     uint32_t        m_err_no_syn;
     uint32_t        m_err_len_err;
+    uint32_t        m_err_fragments_ipv4_drop;
     uint32_t        m_err_no_tcp;  
     uint32_t        m_err_no_template;  
     uint32_t        m_err_no_memory; 
@@ -162,6 +163,10 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_l4_cs;
     uint32_t        m_err_redirect_rx;
     uint32_t        m_redirect_rx_ok;
+    uint32_t        m_err_rx_throttled;
+    uint32_t        m_err_c_nf_throttled;
+    uint32_t        m_err_s_nf_throttled;
+    uint32_t        m_err_flow_overflow;
 };
 
 class  CSttFlowTableStats {
@@ -224,6 +229,25 @@ public:
 
       void dump(FILE *fd);
 
+      void inc_rx_throttled_cnt(){
+          m_sts.m_sts.m_err_rx_throttled++;
+      }
+
+      void inc_err_c_new_flow_throttled_cnt(){
+          m_sts.m_sts.m_err_c_nf_throttled++;
+      }
+
+      void inc_err_s_new_flow_throttled_cnt(){
+          m_sts.m_sts.m_err_s_nf_throttled++;
+      }
+
+      void inc_flow_overflow_cnt(){
+          m_sts.m_sts.m_err_flow_overflow++;
+      }
+
+      bool flow_table_resource_ok(){
+          return(m_ft.get_count() < m_ft.get_hash_size()?true:false);
+      }
 public:
 
     void        generate_rst_pkt(CTcpPerThreadCtx * ctx,
@@ -233,7 +257,9 @@ public:
                                  uint16_t dst_port,
                                  uint16_t vlan,
                                  bool is_ipv6,
-                                 TCPHeader    * lpTcp);
+                                 TCPHeader    * lpTcp,
+                                 uint8_t *   pkt,
+                                 IPv6Header *    ipv6);
 
 
       CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
@@ -268,7 +294,7 @@ private:
     bool            m_client_side;
     flow_hash_t     m_ft;
 
-    CTcpAppApi    *   m_tcp_api;  //????? remove these 2
+    CTcpAppApi    *   m_tcp_api;
 };
 
 

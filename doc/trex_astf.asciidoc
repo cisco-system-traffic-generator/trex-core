@@ -55,11 +55,11 @@ The following UDP/TCP related use-cases will be addressed by ASTF mode.
 
 * Ability to work when the DUT terminates the TCP stack (e.g. compress/uncompress, see figure 1). In this case there is a different TCP session on each side, but L7 data are *almost* the same.
 
-image::images/t_c2.png[title="DUT is TCP proxy",align="left",width={p_width}, link="images/t_c2.png"]
+image::images/t_c2.png[title="DUT is TCP proxy",align="center",width={p_width}, link="images/t_c2.png"]
 
 * Ability to work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another. figure 2 shows such an example
 
-image::images/t_c3.png[title="C/S mode",align="left",width={p_width}, link="images/t_c2.png"]
+image::images/t_c3.png[title="C/S mode",align="center",width={p_width}, link="images/t_c2.png"]
 
 * Performance and scale
 ** High bandwidth - ~200gb/sec with many realistic flows (not one elephant flow)
@@ -96,17 +96,15 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * One DP core per dual-ports
 * Enable client only or server only or both
 * High scale with flows/BW/PPS
-* Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc)
 * Ability to change IPv4/IPv6 configuration like default TOS etc
 * Flexible tuple generator 
-* Automation support (using STF framework)
+* Automation support (using STF batch framework)
+* Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
+* Client Cluster  
 
 ===== Known bugs
 
-* Some pcap files could create a race condition and shows *fake* TCP error counters (e.g. tcps_conndrops/tcps_reasalloc/tcps_reasfree/tcps_rcvoopack)
-* RST in the middle of the FIN/FIN-ACK keep the flow open for a long time 
-* Mellanox CX-4/5 has a performance issue  
-
+* Mellanox CX-4/5 out of order issue see link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
 
 ===== Limitation/feature that wasn't implemented/exposed yet
 
@@ -121,6 +119,14 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Fragmentation is not supported 
 * TCP statistic per template 
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
+
+===== Current high priority tasks
+
+* UDP support (for full SRF support)
+* Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
+* More than one core per dual-ports
+* More L7 emulation capability
+
 
 ==== Can we address the above requirements using existing DPDK TCP stacks?
 
@@ -151,7 +157,7 @@ And now lets proceed to our challenges, let me just repeat the objective of TRex
 
 ==== Tx Scale to millions of flows
 
-image::images/t_c5.png[title="TCP Tx side",align="left",width={p_width}, link="images/t_c5.png"]
+image::images/t_c5.png[title="TCP Tx side",align="center",width={p_width}, link="images/t_c5.png"]
 
 Most TCP stacks have an API that allow the user to provide his buffer for write (push) and the TCP module will save them until the packets are acknowledged by the remote side. Figure 4 shows how one TX queue of one TCP flow looks like on the Tx side. This could create a scale issue in worst case. Let's assume we need 1M active flows with 64K TX buffer (with reasonable buffer, let's say RTT is small). The worst case buffer in this case could be
 1M x 64K * mbuf-factor (let's assume 2) = 128GB. The mbuf resource is expensive and needs to be allocated ahead of time.
@@ -164,7 +170,7 @@ This optimization won't work with TLS since constant sessions will have new data
 
 ==== Rx Scale to millions of flows
 
-image::images/t_c6.png[title="Example of multiple streams",align="left",width={p_width}, link="images/t_c6.png"]
+image::images/t_c6.png[title="Example of multiple streams",align="center",width={p_width}, link="images/t_c6.png"]
                                             
 The same problem exists in the case of reassembly in the rx side, in worst case there is a need to store a lot of memory in reassembly queue. To fix this we can add a filter API for the application layer. Let's assume that the application layer can request only a partial portion of the data since the rest is less important, for example data in offset of 61K-64K and only in case of restransmission (simulation). In this case we can give the application layer only the filtered data that is really important to it and still allow TCP layer to work in the same way from seq/ack perspective.
 
@@ -175,7 +181,7 @@ This optimization won't work with TLS since constant sessions will have new data
             
 ==== Simulation of latency/jitter/drop in high scale
 
-image::images/t_c7.png[title="TCP Rx side",align="left",width={p_width}, link="images/t_c7.png"]
+image::images/t_c7.png[title="TCP Rx side",align="center",width={p_width}, link="images/t_c7.png"]
 
 There is a requirement to simulate latency/jitter/drop in the network layer. Simulating drop in high rate it is not a problem, but simulating latency/jitter in high rate is a challenge because there is a need to queue a high number of packets. See figure 6 on the left.
 A better solution is to queue a pointer to both the TCP flow and the TCP descriptor (with TSO information) and only when needed (i.e. when it has already left the tx queue) build the packet again (lazy). The memory footprint in this case can be reduced dramatically.
@@ -211,14 +217,14 @@ close()
 This way both Client and Server don't need to know the exact application protocol, they just need to have the same story/program. In real HTTP server, the server parses the HTTP requeset, learns the Content-Length field, waits for  the rest of the data and finally retrieves the information from disk. With our L7 emulation there is no need. Even in cases where the data length is changed (for example NAT/LB that changes the data length) we can give some flexibility within the program on the value range of the length
 In case of UDP it would be message base protocols like send_msg/wait_for_msg etc. with UDP we will have the ability to wait for a few packets. 
 
-==== Stateful vs Advance Stateless 
+==== Stateful(STF) vs Advance Stateful (ASTF)
 
 * Same Flexible tuple generator 
-* Clustering mode 
-* NAT - no need for learn mode
-* VLAN 
-* Flow order - TCP layer will take care of this
-* Latency measurement is supported
+* Same Clustering mode 
+* Same VLAN support
+* NAT - no need for complex learn mode. ASTF supports NAT64 out of the box.
+* Flow order. ASTF has inherent ordering verification using the TCP layer. It also checks IP/TCP/UDP checksum out of the box.
+* Latency measurement is supported in both.
 * In ASTF mode, you can't control the IPG, less predictable (concurrent flows is less deterministic)
 
 === ASTF package folders 
@@ -245,7 +251,7 @@ The tutorials in this section demonstrate basic TRex ASTF use cases. Examples in
 Follow this chapter  link:trex_manual.html#_first_time_running[first time configuration ]
 
 
-==== Tutorial: run TRex with simple HTTP profile   
+==== Tutorial: Run TRex with simple HTTP profile   
 
 *Goal*:: 
 
@@ -602,7 +608,7 @@ class Prof1():
 
 The tuple generator ranges should not overlap 
 
-==== Tutorial: run with IPv6 traffic 
+==== Tutorial: IPv6 traffic 
 
 [source,bash]
 ----
@@ -615,6 +621,182 @@ just add `--ipv6' to the CLI. The IPv6 packets will be look like this
 ----
 ::x.x.x.x where LSB is IPv4 addrees 
 ----
+
+
+The profile includes same HTTP template for demonstration. 
+
+*File*:: 
+
+link:{github_astf_path}/param_ipv6.py[astf/param_ipv6.py]
+
+
+Another way to enable IPv6 globally and in future per template is by tunables in the profile file
+
+.IPv6 tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_glob_info = ASTFGlobalInfo()
+        # Enable IPV6 for client side and set the default SRC/DST IPv6 MSB 
+        # LSB will be taken from ip generator 
+        c_glob_info.ipv6.src_msb ="ff02::"             <1>
+        c_glob_info.ipv6.dst_msb ="ff03::"             <2>
+        c_glob_info.ipv6.enable  =1                    <3>
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+                           default_c_glob_info=c_glob_info,
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", 
+                                     cps=1)
+                                     ]
+                           )
+
+----
+<1> Set default for source IPv6 addr (32bit LSB will be set by IPv4 tuple generator)
+<2> Set default for destination IPv6 addr (32bit LSB will be set by IPv4 tuple generator)
+<3> Enable ipv6 for all templates 
+
+in this case there is *no* need for `--ipv6` in CLI 
+  
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f astf/param_ipv6.py -m 1000 -d 1000 -c 1 --astf -l 1000 
+----
+
+==== Tutorial: Change tcp.mss using tunables mechanism 
+
+anchor:tunable_tcp_mss[]
+
+Profile tunable is a mechanism to tune the behavior of ASTF traffic profile. 
+TCP layer has a set of tunables. IPv6 and IPv4 have another set of tunables. 
+
+There are two types of tunables:
+
+* Global tunable: per client/server will affect all the templates in specific side. 
+* Per-template tunable:  will affect only the associated template (per client/server). Will have higher priority relative to global tunable.
+
+
+By default, the TRex server has a default value for all the tunables and only when you set a specific tunable the server will override the value. 
+Example of a tunable is tcp.mss. You can change the tcp.mss:
+
+* Per all client side templates 
+* Per all server side templates 
+* For a specific template per client side
+* For a specific template per server side
+
+.Example global client/server tcp.mss tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_glob_info = ASTFGlobalInfo()
+        c_glob_info.tcp.mss = 1400              <1>
+        c_glob_info.tcp.initwnd = 1             
+
+        s_glob_info = ASTFGlobalInfo()
+        s_glob_info.tcp.mss = 1400              <2>
+        s_glob_info.tcp.initwnd = 1             
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+                           default_c_glob_info=c_glob_info,
+                           default_s_glob_info=s_glob_info,
+
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1)
+                                     ]
+                           )
+
+
+----
+<1> Set client side global tcp.mss/tcp.initwnd to 1400,1
+<2> Set server side global tcp.mss/tcp.initwnd to 1400,1
+
+
+.Example per template tcp.mss tunable 
+[source,python]
+----
+
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self):
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        c_info = ASTFGlobalInfo()
+        c_info.tcp.mss = 1200              
+        c_info.tcp.initwnd = 1             
+
+        s_info = ASTFGlobalInfo()
+        s_info.tcp.mss = 1400              
+        s_info.tcp.initwnd = 10             
+
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                           #  Defaults affects all files
+
+                           cap_list=[
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1)
+                                     ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap", cps=1, 
+                                     port=8080,
+                                     c_glob_info=c_info, s_glob_info=s_info), <1>
+
+                                     ]
+                           )
+
+
+----
+<1> only the second template will get the c_info/s_info
+
+
+*Examples Files*:: 
+
+* link:{github_astf_path}/param_ipv6.py[astf/param_ipv6.py]
+* link:{github_astf_path}/param_mss_err.py[astf/param_mss_err.py]
+* link:{github_astf_path}/param_mss_initwnd.py[astf/param_mss_initwnd.py]
+* link:{github_astf_path}/param_tcp_delay_ack.py[astf/param_tcp_delay_ack.py]
+* link:{github_astf_path}/param_tcp_keepalive.py[astf/param_tcp_keepalive.py]
+* link:{github_astf_path}/param_tcp_no_timestamp.py[astf/param_tcp_no_timestamp.py]
+* link:{github_astf_path}/param_tcp_rxbufsize.py[astf/param_tcp_rxbufsize.py]
+* link:{github_astf_path}/param_tcp_rxbufsize_8k.py[astf/param_tcp_rxbufsize_8k.py]
+* link:{github_astf_path}/tcp_param_change.py[astf/tcp_param_change.py]
+
+for referance of all tunables see  xref:tunables[here]
 
 ==== Tutorial: Python automation 
 
@@ -629,7 +811,7 @@ Python API library: `automation/trex_control_plane/stf/trex_stl_lib`.
 
 We are using for the first version the same STF python API framework, we are working to move to interactive mode like the STL mode
 
-image::images/trex_control_plane_modules.png[title="RPC Server Components",align="left",width={p_width}, link="images/trex_architecture_01.png"]
+image::images/trex_control_plane_modules.png[title="RPC Server Components",align="center",width={p_width}, link="images/trex_architecture_01.png"]
 
 *File*:: link:{github_stf_examples_path}/stf_tcp.py[stl_tcp.py]
 
@@ -919,9 +1101,7 @@ we might change the JSON format in the future as this is a first version
 =====================================================================
 
 
-==== Tutorial: advanced simulator 
-
-TBD need to update information here 
+==== Tutorial: Advanced simulator 
 
 *Goal*:: Use the TRex ASTF advanced simulator.
 
@@ -932,15 +1112,210 @@ It is like the simple simulator but simulate multiple templates and flows exacly
 [bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap 
 ----
 
-those are the pcap file that generated 
 
-* b.pcap_c.pcap  client side pcap 
-* b.pcap_s.pcap  server side pcap 
+* Use `--full' initiated the full simulation mode
+* b.pcap output pcap file will be generated, it is the client side multiplex pcap
+* There is no server side pcap file in this simulation because we are not simulating latency/jitter/drop in this case so the server should be the same as client side.
 
+another example that will run sfr profile in release mode and will show the counters 
+
+[source,bash]
+----
+[bash]>./astf-sim -f astf/sfr.py --full -o o.pcap -d 1 -r -v 
+----
+
+==== Tutorial: Manual L7 emulation program building 
+
+*Goal*:: Build the L7 program using low level instructions 
+
+.Manual L7 emulation program 
+[source,python]
+----
+# we can send either Python bytes type as below:
+http_req = b'GET /3384 HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n'
+# or we can send Python string containing ascii chars, as below:
+http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>**********</pre></html>'
+
+class Prof1():
+    def __init__(self):
+        pass  # tunables
+
+    def create_profile(self):
+        # client commands
+        prog_c = ASTFProgram()          <1>
+        prog_c.send(http_req)           <2>
+        prog_c.recv(len(http_response)) <3>
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.send(http_response)
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        tcp_params = ASTFTCPInfo(window=32768)
+
+        # template
+        temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
+        temp_s = ASTFTCPServerTemplate(program=prog_s, tcp_info=tcp_params)  # using default association
+        template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
+
+        # profile
+        profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
+        return profile
+
+    def get_profile(self):
+        return self.create_profile()
+
+
+----
+<1> build the emulation program 
+<2> first send http request
+<3> wait for http response 
+
+We will expose in the future a capability that could take a pcap file and convert it to a Python code so you could tune it yourself.
+
+=== Performance 
+
+see link:trex_astf_vs_nginx.html[ASTF Performance]
+
+=== Client/Server only mode
+
+With ASTF mode, it is possible to  work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.
+
+WARNING: We are in the process to move to interactive model, so the following ways to configure the C/S modes (as batch) is changing. This is a temporary solution and it going to be more flexible in the future. the roadmap is to give a RCP command to configure each port to client or server mode.
+
+The current way to control the C/S mode is using the following CLI switch. There is only a way to disable the Client side ports for transmission, but there is no way to change the mode of each port. 
+
+.batch CLI options
+[options="header",cols="^1,5"]
+|=================
+| CLI            | Description
+| --astf-server-only | Only server side ports (1,3..) are enabled with ASTF service. Traffic won't be transmitted on clients ports. 
+| --astf-client-mask [mask] | Enable only specific client side ports with ASTF service. 0x1 means to enable only port 0. 0x2 means to enable only port 2. 0x5 to enable port 0 and port 4.
+|=================
+
+some examples 
+
+.Normal mode, 4 ports --astf
+[options="header",cols="1,5"]
+|=================
+| Port id  | Mode     
+| 0        |  C-Enabled
+| 1        |  S-Enabled
+| 2        |  C-Enabled
+| 3        |  S-Enabled
+|=================
+
+.Normal mode, 4 ports --astf-server-only
+[options="header",cols="1,5"]
+|=================
+| Port id  |Mode     
+| 0        | [green]*C-Disabled*
+| 1        | S-Enabled
+| 2        | [green]*C-Disabled*
+| 3        | S-Enabled
+|=================
+
+
+.Normal mode, 4 ports --astf-client-mask 1
+[options="header",cols="1,5"]
+|=================
+| Port id  |Mode     
+| 0        |  C-Enabled
+| 1        |  S-Enabled
+| 2        | [green]*C-Disabled*
+| 3        |  S-Enabled
+|=================
+
+.Normal mode, 4 ports --astf-client-mask 2
+[options="header",cols="1,5"]
+|=================
+| Port id  |Mode     
+| 0        | [green]*C-Disabled*
+| 1        |  S-Enabled
+| 2        |  C-Enabled
+| 3        |  S-Enabled
+|=================
+
+
+image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={p_width}, link="images/astf_cs_mode.png"]
+
+
+==== Limitation 
+
+* Latency (`-l` switch) should be disabled when working in this mode because both Client and Server will send ICMP packets to all the ports
+* It is not possible to configure TRex with all ports acting as client side or all ports acting as server side. 
+
+=== Client clustering configuration
+
+TRex ASTF supports testing complex topologies with more than one DUT, using a feature called "client clustering". This feature allows specifying the distribution of clients that TRex emulates.
+
+For more information about this feature have a look here link:trex_manual.html#_client_clustering_configuration[Client clustering configuration]
+
+The format of the client cluster file is YAML the same as STF mode and it will be changed in interactive model.
+
+To run simulation with this mode add `--cc` to the CLI: 
+
+.Simulation 255 destination DUT
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap --cc astf/cc_http_simple2.yaml
+----
+
+.Simulation,Two virtual interfaces per one physical interface
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_simple.py --full -o b.pcap --cc astf/cc_http_simple.yaml
+----
+
+To run TRex add `--client_cfg` CLI :
+
+.Running TRex with client cluster file
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f astf/http_simple.py -m 1000 -d 1000 -c 1 --astf -l 1000 -k 10 --client_cfg astf/cc_http_simple.yaml  
+----
+
+[NOTE]
+=====================================================================
+The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT. 
+Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
+=====================================================================
 
 === Traffic profile reference 
 
 link:cp_astf_docs/index.html[python index]
+
+=== Tunables reference anchor:tunables[]
+
+
+[options="header",cols="2,^2,^2,^1,^1,5"]
+|=================
+|  tunable      | min-max|default| per-template |global| Description  
+|   ipv6.src_msb    | string |0 |-|+| default IPv6.src MSB address. 
+|   ipv6.dst_msb    | string |0 |-|+| default IPv6.src MSB address. 
+|   ipv6.enable     | bool   |0 |-|+| enable IPv6 for all templates. 
+|   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
+|   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
+|   tcp.rxbufsize   | 1K-1M  |32K |-|+| socket rx buffer size in bytes. 
+|   tcp.txbufsize   | 1K-1M  |32K |-|+| socket tx buffer size in bytes.
+|   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
+|   tcp.do_rfc1323 | bool    |1|-|+| enable timestamp rfc 1323. 
+|   tcp.keepinit |1-254|5|-|+| value in second for TCP keepalive.  
+|   tcp.keepidle |1-254|5|-|+| value in second for TCP keepidle 
+|   tcp.keepintvl |1-254|5|-|+| value in second for TCP keepalive interval 
+|   tcp.delay_ack_msec | 20-500|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
+|=================
+
+
+* There would be a performance impact when per-template tunables are used. Try to use global tunables.
+* The tunables mechanism does not work with the basic simulator mode only with the advanced simulator mode.
+
 
 === Counters reference 
 
@@ -953,11 +1328,13 @@ link:cp_astf_docs/index.html[python index]
 | Counter           |Error |Description  
 |    active_flows   || active flows (established + non-established)
 |    est_flows      || active established flows 
-|    tx_bw_l7_r     || tx bandwidth in bps 
-|    rx_bw_l7_r     || rx bandwidth in bps 
+|    tx_bw_l7       || tx acked L7 bandwidth in bps 
+|    tx_bw_l7_total || tx total L7 bandwidth sent in bps 
+|    rx_bw_l7       || rx acked L7 bandwidth in bps 
 |    tx_pps_r       || tx bandwidth in pps  (TSO packets)     *1*
 |    rx_pps_r       || rx bandwidth in pps  (LRO packets)     *2*
 |    avg_size       || average pkt size (base on TSO/LRO) see *1*/*2*
+|    tx_ratio       || ratio betwean tx_bw_l7_r and tx_bw_l7_total_r 100% means no retransmition
 |=================
 
 .TCP counters 
@@ -967,20 +1344,22 @@ link:cp_astf_docs/index.html[python index]
 |   tcps_connattempt || connections initiated
 |   tcps_accepts     || connections accepted
 |   tcps_connects    || connections established
-|   tcps_closed      || conn. closed (includes drops)
+|   tcps_closed      || conn. closed (includes drops) - this counter could be higher than tcps_connects for client side as flow could be be dropped before establishment 
 |   tcps_segstimed   || segs where we tried to get rtt
 |   tcps_rttupdated  || times we succeeded
 |   tcps_delack      || delayed acks sent
 |   tcps_sndtotal    || total packets sent (TSO)
 |   tcps_sndpack     || data packets sent  (TSO)
-|   tcps_sndbyte     || data bytes sent
+|   tcps_sndbyte     || data bytes sent by application 
+|   tcps_sndbyte_ok  || data bytes sent by tcp layer could be more than tcps_sndbyte (asked by application)
 |   tcps_sndctrl     || control (SYN,FIN,RST) packets sent
 |   tcps_sndacks     || ack-only packets sent 
 |   tcps_rcvtotal    || total packets received (LRO)
 |   tcps_rcvpack     || packets received in sequence (LRO)
 |   tcps_rcvbyte     || bytes received in sequence
 |   tcps_rcvackpack  || rcvd ack packets (LRO)        *2*         
-|   tcps_rcvackbyte  || tx bytes acked by rcvd acks
+|   tcps_rcvackbyte  || tx bytes acked by rcvd acks (should be the same as tcps_sndbyte )
+|   tcps_rcvackbyte_of  || tx bytes acked by rcvd acks -overflow ack
 |   tcps_preddat     || times hdr predict ok for data pkts 
 |   tcps_drops       |*| connections dropped
 |   tcps_conndrops   |*| embryonic connections dropped
@@ -1036,6 +1415,10 @@ link:cp_astf_docs/index.html[python index]
 |    err_l4_cs|*| tcp/udp checksum error (in case NIC support it)
 |    err_redirect_rx |*| redirect to rx error 
 |    redirect_rx_ok || redirect to rx OK
+|    err_rx_throttled || rx thread was throttled due too many packets in NIC rx queue 
+|    err_c_nf_throttled || Number of client side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled || Number of server side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled || Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
 |=================
 
 *1*:: 
@@ -1046,16 +1429,46 @@ see link:https://en.wikipedia.org/wiki/Large_send_offload[TSO], we count the num
 
 see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the number of LRO packets with NIC that support that, this number could be significantly smaller than the real number of packets
 
+*Important information*:: 
+* It hard to compare the number of TCP tx (client) TSO packets to rx (server) LRO packets as it might be different. The better approach would be to compare the number of bytes 
+** client.tcps_rcvackbyte == server.tcps_rcvbyte and vice versa (updload and download)
+** tcps_sndbyte == tcps_rcvackbyte only if the flow were terminated correctly (in other words what was put in the Tx queue was transmitted and acked) 
+* Total Tx L7 bytes are tcps_sndbyte_ok+tcps_sndrexmitbyte+tcps_sndprobe
+* The Console/JSON does not show/sent zero counters
 
-[NOTE] 
-=====================================================================
-You won't be able to compare the number of TCP  tx (client) TSO packets to rx (server)LRO packets as it might be different. The better approach would be to compare the number of bytes 
-=====================================================================
+.Pseudo code tcp counters
+[source,c]
+----
+            if ( (c->tcps_drops ==0) && 
+                 (s->tcps_drops ==0) ){
+               /* flow wasn't initiated due to drop of SYN too many times */
+               
+            /* client side */    
+            assert(c->tcps_sndbyte==UPLOAD_BYTES);
+            assert(c->tcps_rcvbyte==DOWNLOAD_BYTES);
+            assert(c->tcps_rcvackbyte==UPLOAD_BYTES);
 
-[NOTE] 
-=====================================================================
-The Console does not show specific zero counters
-=====================================================================
+            /* server side */
+            assert(s->tcps_rcvackbyte==DOWNLOAD_BYTES);
+            assert(s->tcps_sndbyte==DOWNLOAD_BYTES);
+            assert(s->tcps_rcvbyte==UPLOAD_BYTES);
+            }
+----
+
+some rules for counters 
+[source,c]
+----
+/* for client side */
+  1. tcps_connects<=tcps_closed      /* Drop before socket is connected will be counted in different counter and will be counted in tcps_closed but not in tcps_connects */
+  2. tcps_connattempt==tcps_closed
+
+/* for server side */
+1. tcps_accepts=tcps_connects=tcps_closed
+  
+----
+
+
+
 
 ==== TSO/LRO NIC support 
 
@@ -1077,26 +1490,28 @@ ASTF mode can help to solve the following requirement:
 In theory, we could have supported that, but it required much more effort because the NIC memory configuration is fundamentally different. For example, in ASTF mode, we need to configure all the Rx queues to receive the packets and to configure the RSS to split the packets to different interface queues. While in Stateful we filter most of the packets and count them in hardware.
 
 ==== Is your core TCP implementation based on prior work?    
-yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+Yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+The reasons why not to develop the tcp *core* logic from scratch can be found here link:https://news.ycombinator.com/item?id=12021195[Why do we use the Linux kernel's TCP stack?]
 
 ==== What TCP RFCs are supported?
 
 * RFC 793
 * RFC 1122
 * RFC 1323
+* RFC 6928
 
 Not implemented:  
 
 * RFC 2018
 
 ==== Could you have a more recent TCP implementation?     
-Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work
+Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
-The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can increase the number of active flows by adding delay instruction.
+The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay instruction.
 
 ==== Will NAT64 work in ASTF mode?
-Yes. just add --ipv6 to the CLI and Server side will handle IPv4 sockets
+Yes. see IPv6 in the manual. Server side will handle IPv4 sockets
 
 client side    NAT64      server side 
 
@@ -1106,7 +1521,7 @@ client side    NAT64      server side
 example 
 
      client side IPv6
-::16.0.0.1->::48.0.0.1   
+xx::16.0.0.1->yy::48.0.0.1   
                          DUT convert it to IPv4
                          
                                                  16.0.0.1->48.0.0.1 
@@ -1114,13 +1529,13 @@ example
   
                                                  16.0.0.1<-48.0.0.1 
                                                  
-::16.0.0.1<-::48.0.0.1 
+xx::16.0.0.1<-yy::48.0.0.1 
 
 client works in IPV6                             server works on IPv4        
                                  
  
 ==== Is TSO/LRO NIC hardware optimization supported? 
-Yes
+Yes. LRO improve the performance. GRO is not there yet
 
 ==== Can I get the ASTF counters per port? 
 We plan to add it in the interactive mode with RPC API. for now it is only global per all client and per server side. 

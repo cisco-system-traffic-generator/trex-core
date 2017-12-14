@@ -28,9 +28,11 @@ limitations under the License.
 #include <string.h>
 #include "flow_stat_parser.h"
 #include "trex_defs.h"
-#include "trex_stateless_rx_defs.h"
+#include "trex_rx_defs.h"
 #include "trex_port_attr.h"
 #include <json/json.h>
+
+class CFlowGenList;
 
 /**
  * Global stats
@@ -124,9 +126,10 @@ public:
         int             numa_node;
     };
 
-    virtual void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
-    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
-    virtual void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const = 0;
+    virtual uint32_t  get_port_count() const = 0;
+    virtual void      port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
+    virtual void      get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
+    virtual void      get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const = 0;
 
     virtual void get_port_info(uint8_t port_id, intf_info_st &info) const = 0;
 
@@ -140,12 +143,10 @@ public:
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const = 0;
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
-    virtual void get_port_num(uint8_t &port_num) const = 0;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
-    virtual void flush_dp_messages() const = 0;
     virtual int get_active_pgids(flow_stat_active_t_new &result) const = 0;
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
@@ -156,6 +157,8 @@ public:
     virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
     virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
 
+    virtual CFlowGenList * get_fl() const = 0;
+    
     virtual ~TrexPlatformApi() {}
 };
 
@@ -167,9 +170,10 @@ public:
  */
 class TrexDpdkPlatformApi : public TrexPlatformApi {
 public:
-    void port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
-    void get_global_stats(TrexPlatformGlobalStats &stats) const;
-    void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const;
+    uint32_t  get_port_count() const;
+    void      port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
+    void      get_global_stats(TrexPlatformGlobalStats &stats) const;
+    void      get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const;
 
     void get_port_info(uint8_t port_id, intf_info_st &info) const;
 
@@ -183,12 +187,10 @@ public:
     int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const;
     int get_rx_err_cntrs(void *rx_err_cntrs) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
-    void get_port_num(uint8_t &port_num) const;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
-    void flush_dp_messages() const;
     int get_active_pgids(flow_stat_active_t_new &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
@@ -199,6 +201,8 @@ public:
 
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
+    
+    CFlowGenList * get_fl() const;
 };
 
 
@@ -223,9 +227,17 @@ public:
         return m_dp_core_count;
     }
 
+    void set_dp_core_count(int dp_core_count) {
+        m_dp_core_count = dp_core_count;
+    }
+    
     virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
     }
 
+    virtual uint32_t get_port_count() const {
+        return 2;
+    }
+    
     virtual void get_port_info(uint8_t port_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
@@ -257,14 +269,11 @@ public:
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const {return 0;};
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
-    virtual void get_port_num(uint8_t &port_num) const {port_num = 2;};
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
 
-    void flush_dp_messages() const {
-    }
     int get_active_pgids(flow_stat_active_t_new &result) const {return 0;}
     int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {return 0;}
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
@@ -277,9 +286,20 @@ public:
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {return 0;};
 
+    CFlowGenList * get_fl() const {
+        return nullptr;
+    }
+    
 private:
     int m_dp_core_count;
     SimTRexPortAttr * m_port_attr;
 };
+
+
+/**
+ * this function should be implemented by either 
+ * DPDK platform or SIM 
+ */
+TrexPlatformApi & get_platform_api();
 
 #endif /* __TREX_PLATFORM_API_H__ */
