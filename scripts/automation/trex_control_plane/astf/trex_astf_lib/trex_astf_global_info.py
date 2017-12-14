@@ -108,7 +108,8 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
                 {"name": "keepinit", "type": [int]},
                 {"name": "keepidle", "type": [int]},
                 {"name": "keepintvl", "type": [int]},
-                {"name": "delay_ack_msec", "type": [int]}
+                {"name": "delay_ack_msec", "type": [int]},
+                {"name": "no_delay", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},

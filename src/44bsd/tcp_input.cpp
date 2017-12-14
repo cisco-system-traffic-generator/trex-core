@@ -1632,7 +1632,7 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    if (! ((TUNE_INIT_WIN|TUNE_MSS|TUNE_HAS_PARENT_FLOW) & tp->m_tuneable_flags)) {
+    if (tp->m_tuneable_flags>1) {
         tp->snd_cwnd = ctx->tcp_initwnd;
         return ctx->tcp_mssdflt;
     } else {
@@ -1644,6 +1644,14 @@ int tcp_mss(CTcpPerThreadCtx * ctx,
         if (!tune) {
             tp->snd_cwnd = ctx->tcp_initwnd;
             return ctx->tcp_mssdflt;
+        }
+
+        if (tune->is_valid_field(CTcpTuneables::tcp_no_delay)){
+            if (tune->m_tcp_no_delay) {
+                tp->t_flags |= TF_NODELAY;
+            }else{
+                tp->t_flags &= ~TF_NODELAY;
+            }
         }
 
         if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)){

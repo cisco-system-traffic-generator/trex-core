@@ -668,7 +668,8 @@ send:
          * give data to the user when a buffer fills or
          * a PUSH comes in.)
          */
-        if (off + len == so->so_snd.sb_cc)
+        /* Force PUSH in case of NODELAY of client side */
+        if ((off + len == so->so_snd.sb_cc) || (tp->t_flags & TF_NODELAY))
             flags |= TH_PUSH;
     } else {
         if (tp->t_flags & TF_ACKNOW){

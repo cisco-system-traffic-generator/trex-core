@@ -73,7 +73,8 @@ class CTcpTuneables {
         tcp_keepidle     = 0x400,
 
         tcp_keepintvl   =  0x800,
-        tcp_delay_ack   =  0x1000
+        tcp_delay_ack   =  0x1000,
+        tcp_no_delay    =  0x2000
     };
 
 
@@ -93,6 +94,7 @@ class CTcpTuneables {
         m_tcp_keepintvl=0;
         m_tcp_pad=0;
         m_tcp_delay_ack_msec=0;
+        m_tcp_no_delay=0; /* disable nagel */
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -133,6 +135,8 @@ class CTcpTuneables {
 
     uint8_t  m_ipv6_src[16];
     uint8_t  m_ipv6_dst[16];
+    uint8_t  m_tcp_no_delay; /* 1/0 */
+
 
  private:
     uint32_t m_bitfield;
