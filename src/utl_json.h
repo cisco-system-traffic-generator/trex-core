@@ -36,7 +36,7 @@ inline std::string add_json(std::string const& name, std::string const& val, boo
     return details::add_json_val(name, "\"" + val + "\"", last);
 }
 
-template <typename N, typename = typename std::enable_if<std::is_integral<N>::value || std::is_floating_point<N>::value>::type>
+template <typename N, typename std::enable_if<std::is_integral<N>::value || std::is_floating_point<N>::value>::type * = nullptr>
 inline std::string add_json(std::string const& name, N counter, bool last=false){
     return details::add_json_val(name, std::to_string(counter), last);
 }
