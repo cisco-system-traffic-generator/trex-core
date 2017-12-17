@@ -1,3 +1,7 @@
+/* This file should be refactored, it is a total mess !!!!! 
+   Hanoh 
+*/
+
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -11,6 +15,7 @@
 #include "astf/astf_template_db.h"
 #include "astf_db.h"
 #include "bp_sim.h"
+#include "44bsd/tcp_var.h"
 
 
 extern int my_inet_pton4(const char *src, unsigned char *dst);
@@ -190,8 +195,96 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) 
     if (cmd["name"] == "rx")
         return tcRX_BUFFER;
 
+    if (cmd["name"] == "delay")
+        return tcDELAY;
+
+    if (cmd["name"] == "nc")
+        return tcDONT_CLOSE;
+
+    if (cmd["name"] == "reset")
+        return tcRESET;
+
+    if (cmd["name"] == "connect")
+        return tcCONNECT_WAIT;
+
+    if (cmd["name"] == "delay_rnd")
+        return tcDELAY_RAND;
+
+    if (cmd["name"] == "set_var")
+        return tcSET_VAR;
+
+    if (cmd["name"] == "jmp_nz")
+        return tcJMPNZ;
+
+    /* TBD need to check the value and put an error  !!! */
     return tcNO_CMD;
 }
+
+uint32_t CAstfDB::get_delay_ticks(uint16_t program_index, uint16_t cmd_index) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "delay");
+
+    return tw_time_usec_to_ticks(cmd["usec"].asInt());
+}
+
+void CAstfDB::fill_delay_rnd(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            CTcpAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "delay_rnd");
+
+    res.u.m_delay_rnd.m_min_ticks = tw_time_usec_to_ticks(cmd["min_usec"].asUInt());
+    res.u.m_delay_rnd.m_max_ticks = tw_time_usec_to_ticks(cmd["max_usec"].asUInt());
+}
+
+void CAstfDB::fill_set_var(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            CTcpAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "set_var");
+
+    res.u.m_var.m_var_id = cmd["id"].asUInt();
+    res.u.m_var.m_val    = cmd["val"].asUInt();
+}
+
+void CAstfDB::fill_jmpnz(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            CTcpAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "jmp_nz");
+
+    res.u.m_jmpnz.m_var_id = cmd["id"].asUInt();
+    res.u.m_jmpnz.m_offset = cmd["offset"].asInt();
+}
+
 
 uint32_t CAstfDB::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
@@ -648,8 +741,13 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_k_cps = cps;
         dist.push_back(cps);
         template_ro.m_destination_port = c_temp["port"].asInt();
-
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
+
+        if (c_temp["limit"] != Json::nullValue ){
+
+            /* there is a limit */
+            temp_rw->set_limit(c_temp["limit"].asUInt()+1);
+        }
 
         CTcpTuneables *s_tuneable;
         CTcpTuneables *c_tuneable = new CTcpTuneables();
@@ -818,16 +916,50 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 prog->add_cmd(cmd);
                 break;
             case tcDELAY:
+                cmd.m_cmd = tcDELAY;
+                cmd.u.m_delay_cmd.m_ticks =  get_delay_ticks(program_index, cmd_index);
+                prog->add_cmd(cmd);
                 break;
             case tcRESET:
+                cmd.m_cmd = tcRESET;
+                prog->add_cmd(cmd);
                 break;
+            case tcDONT_CLOSE:
+                cmd.m_cmd = tcDONT_CLOSE;
+                prog->add_cmd(cmd);
+                break;
+            case tcCONNECT_WAIT:
+                cmd.m_cmd = tcCONNECT_WAIT;
+                prog->add_cmd(cmd);
+                break;
+            case tcDELAY_RAND :
+                cmd.m_cmd = tcDELAY_RAND;
+                fill_delay_rnd(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcSET_VAR :
+                cmd.m_cmd = tcSET_VAR;
+                fill_set_var(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcJMPNZ :
+                cmd.m_cmd = tcJMPNZ;
+                fill_jmpnz(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
             default:
                 assert(0);
             }
-
             cmd_index++;
         } while (cmd_type != tcNO_CMD);
 
+        std::string err;
+        if (!prog->sanity_check(err)){
+            prog->Dump(stdout);
+            fprintf(stdout,"ERROR program is not valid '%s' \n",err.c_str());
+            return(false);
+        }
         m_tcp_data[socket_id].m_prog_list.push_back(prog);
         m_prog_lens.push_back(prog_len);
         prog_len = 0;

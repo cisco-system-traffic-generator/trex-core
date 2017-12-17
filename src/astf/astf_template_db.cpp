@@ -54,6 +54,7 @@ bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
     m_policer.set_cir(info->m_k_cps*1000.0);
     m_policer.set_level(0.0);
     m_policer.set_bucket_size(100.0);
+    m_limit=0;
     return (true);
 }
 

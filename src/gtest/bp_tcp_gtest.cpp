@@ -878,9 +878,29 @@ void tcp_gen_test(std::string pcap_file,
     case tiTEST2:
         lpt1->test2();
         break;
-    default:
+
+    case tiHTTP :
         lpt1->simple_http();
         break;
+
+    case tiHTTP_RST :
+        lpt1->simple_http_rst();
+        break;
+    case tiHTTP_FIN_ACK :
+        lpt1->simple_http_fin_ack();
+        break;
+    case tiHTTP_CONNECT:
+        lpt1->simple_http_connect();
+        break;
+    case tiHTTP_CONNECT_RST:
+        lpt1->simple_http_connect_rst();
+        break;
+    case tiHTTP_CONNECT_RST2:
+        lpt1->simple_http_connect_rst2();
+        break;
+
+    default:
+        assert(0);
     }
     
 
@@ -932,6 +952,42 @@ TEST_F(gt_tcp, tst30_http_simple) {
                  tiHTTP);
 
 }
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_rst) {
+    tcp_gen_test("tcp2_http_simple_cmd_rst",
+                 true,
+                 tiHTTP_RST);
+
+}
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_fin_ack) {
+    tcp_gen_test("tcp2_http_simple_cmd_fin_ack",
+                 true,
+                 tiHTTP_FIN_ACK);
+
+}
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_connect) {
+    tcp_gen_test("tcp2_http_simple_cmd_connect",
+                 true,
+                 tiHTTP_CONNECT);
+
+}
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_connect_rst) {
+    tcp_gen_test("tcp2_http_simple_cmd_connect_rst",
+                 true,
+                 tiHTTP_CONNECT_RST);
+
+}
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_connect_rst2) {
+    tcp_gen_test("tcp2_http_simple_cmd_connect_rst2",
+                 true,
+                 tiHTTP_CONNECT_RST2);
+
+}
+
 
 TEST_F(gt_tcp, tst30_http_simple_pad) {
     tcp_gen_test("tcp2_http_simple_pad",
@@ -1165,7 +1221,7 @@ TEST_F(gt_tcp, tst31) {
     prog->add_cmd(cmd);
 
     cmd.m_cmd = tcDELAY;
-    cmd.u.m_delay_cmd.m_usec_delay  = 1000;
+    cmd.u.m_delay_cmd.m_ticks  = 1000;
 
     prog->add_cmd(cmd);
 
@@ -2160,6 +2216,5 @@ TEST_F(gt_tcp, tst70) {
     assert(a->sync_barrier(1)==0);
     delete a;
 }
-
 
 

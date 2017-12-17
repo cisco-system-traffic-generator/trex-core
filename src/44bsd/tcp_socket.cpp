@@ -30,6 +30,11 @@ limitations under the License.
 #include "tcpip.h"
 #include "tcp_debug.h"
 #include "tcp_socket.h"
+#include "timer_types.h"
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <unistd.h>
 
 
 uint32_t sbspace(struct sockbuf *sb){
@@ -49,6 +54,12 @@ void    sbappend(struct tcp_socket *so,
     sb->sb_cc+=len;
     if (len) {
         so->m_app->on_bh_rx_bytes(len,m);
+    }else{
+        if (m) {
+            rte_pktmbuf_free(m);
+        }
+        so->m_app->on_bh_event(te_SOOTHERISDISCONNECTING);
+        /* zero mean got FIN */
     }
 }
 
@@ -59,6 +70,9 @@ void    sbappend_bytes(struct tcp_socket *so,
     sb->sb_cc+=len;
     if (len) {
         so->m_app->on_bh_rx_bytes(len,(struct rte_mbuf *) 0);
+    }else{
+        /* zero mean got FIN */
+        so->m_app->on_bh_event(te_SOOTHERISDISCONNECTING);
     }
 }
 
@@ -88,6 +102,9 @@ std::string get_tcp_app_events_name(tcp_app_events_t event){
         break;
     case te_SOISDISCONNECTED :
         return("SOISDISCONNECTED");
+        break;
+    case te_SOOTHERISDISCONNECTING:
+        return("SO_OTHER_IS_DISCONNECTING");
         break;
     default:
         return("UNKNOWN");
@@ -231,8 +248,17 @@ void CMbufBuffer::Add_mbuf(CMbufObject & obj){
     m_vec.push_back(obj);
 }
 
-void CTcpApp::tcp_close(){
 
+void CTcpApp::force_stop_timer(){
+    if (get_timer_init_done()) {
+        if (m_timer.is_running()){
+            /* must stop timer before free the memory */
+            m_ctx->m_timer_w.timer_stop(&m_timer);
+        }
+    }
+}
+
+void CTcpApp::tcp_close(){
     tcp_usrclosed(m_ctx,&m_flow->m_tcp);
     if (get_interrupt()==false) {
         m_api->tx_tcp_output(m_ctx,m_flow);
@@ -240,7 +266,45 @@ void CTcpApp::tcp_close(){
 
 }
 
+/* on tick */
+void CTcpApp::on_tick(){
+    next();
+}
 
+void CTcpApp::run_cmd_delay_rand(htw_ticks_t min_ticks,
+                                 htw_ticks_t max_ticks){
+    uint32_t rnd=m_ctx->m_rand->getRandomInRange(min_ticks,max_ticks);
+    run_cmd_delay(rnd);
+}
+
+void CTcpApp::run_cmd_delay(htw_ticks_t ticks){
+    m_state=te_NONE;
+    if (!get_timer_init_done()) {
+        /* lazey init */
+        set_timer_init_done(true);
+        m_timer.reset();
+        m_timer.m_type  = ttTCP_APP;
+    }
+    /* make sure the timer is not running*/
+    if (m_timer.is_running()) {
+        m_ctx->m_timer_w.timer_stop(&m_timer);
+    }
+    m_ctx->m_timer_w.timer_start(&m_timer,ticks);
+}
+
+
+/* state-machine without table for speed. might need to move to table in the future 
+   Interrupt means that we are inside the Rx TCP function and need to make sure it is possible to call the function 
+   It is possible to defer a function to do after we finish the interrupt see dpc functions
+   Next () -- will jump to the next state
+
+   SEND/RX could happen in parallel 
+
+   te_SEND    - while sending a big buffer 
+   te_WAIT_RX  - while waiting for buffer to be Rx
+   te_NONE    - for general commands
+
+*/
 void CTcpApp::process_cmd(CTcpAppCmd * cmd){
 
     switch (cmd->m_cmd) {
@@ -260,8 +324,7 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
         }
         break;
     case tcDELAY  :
-        m_state = te_DELAY;
-        m_api->tcp_delay(cmd->u.m_delay_cmd.m_usec_delay); /* TBD */
+        run_cmd_delay((htw_ticks_t) cmd->u.m_delay_cmd.m_ticks);
         break;
     case tcRX_BUFFER :
         {
@@ -283,8 +346,62 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
         }
         break;
     case tcRESET :
-        assert(0);
+        m_state=te_NONE;
+        if (get_interrupt()==false) {
+            do_disconnect();
+        }else{
+            set_disconnect(true); /* defect the close, NO next */
+        }
         break;
+    case tcDONT_CLOSE :
+        m_state=te_NONE;
+        m_flags|=taDO_WAIT_FOR_CLOSE;
+        /* nothing, no explict close , no next , set defer close  */
+        break;
+    case tcCONNECT_WAIT :
+        {
+            m_state=te_NONE;
+            /* if already connected defer next */
+            if (m_flags&taCONNECTED) {
+                if (get_interrupt()==false) {
+                    next();
+                }else{
+                    m_flags|=taDO_DPC_NEXT;
+                }
+            }else{
+                m_flags|=taDO_WAIT_CONNECTED; /* wait to be connected */
+            }
+        }
+        break;
+    case tcDELAY_RAND : 
+        run_cmd_delay_rand((htw_ticks_t) cmd->u.m_delay_rnd.m_min_ticks,
+                          (htw_ticks_t) cmd->u.m_delay_rnd.m_max_ticks);
+        break;
+    case tcSET_VAR : 
+        {
+        assert(cmd->u.m_var.m_var_id<apVAR_NUM_SIZE);
+        m_vars[cmd->u.m_var.m_var_id]=cmd->u.m_var.m_val;
+        next();
+        }
+        break;
+
+    case tcJMPNZ : 
+        {
+            assert(cmd->u.m_jmpnz.m_var_id<apVAR_NUM_SIZE);
+            if (--m_vars[cmd->u.m_jmpnz.m_var_id]>0){
+                /* action jump  */
+                m_cmd_index+=cmd->u.m_jmpnz.m_offset;
+                /* make sure we are not in at the end */
+                int end=m_program->get_size();
+                if (m_cmd_index>end) {
+                    m_cmd_index=end;
+                }
+            }
+            next();
+        }
+        break;
+    default:
+        assert(0);
     }
 }
 
@@ -304,6 +421,20 @@ void CTcpApp::next(){
     process_cmd(lpcmd);
 }
 
+
+void CTcpApp::run_dpc_callbacks(){
+    /* check all signals */
+    if ( get_do_disconnect() ){
+        set_disconnect(false);
+        do_disconnect();
+    }
+    if (get_do_do_close()){
+        set_do_close(false);
+        do_close();
+    }
+    check_dpc_next();
+}
+
 void CTcpApp::start(bool interrupt){
     /* there is at least one command */
     set_interrupt(interrupt);
@@ -311,6 +442,19 @@ void CTcpApp::start(bool interrupt){
     process_cmd(lpcmd);
 
     set_interrupt(false);
+}
+
+
+void CTcpApp::do_disconnect(){
+    if (!m_flow->is_close_was_called()){
+        m_api->disconnect(m_ctx,m_flow);
+    }
+}
+
+void CTcpApp::do_close(){
+    if (!m_flow->is_close_was_called()){
+        tcp_close();
+    }
 }
 
 
@@ -337,6 +481,16 @@ int CTcpApp::on_bh_tx_acked(uint32_t tx_bytes){
 
 
 void CTcpApp::on_bh_event(tcp_app_events_t event){
+    if ((m_flags&taDO_WAIT_FOR_CLOSE) && (event==te_SOOTHERISDISCONNECTING)){
+        set_do_close(true);
+    }
+    if (event==te_SOISCONNECTED){
+        m_flags|=taCONNECTED;
+        if (m_flags&taDO_WAIT_CONNECTED) {
+            m_flags|=taDO_DPC_NEXT;
+            m_flags&=(~taDO_WAIT_CONNECTED);
+        }
+    }
     //printf(" event %d %s \n",(int)m_debug_id,get_tcp_app_events_name(event).c_str());
 }
 
@@ -364,6 +518,44 @@ int CTcpApp::on_bh_rx_bytes(uint32_t rx_bytes,
 
 void CTcpAppProgram::add_cmd(CTcpAppCmd & cmd){
     m_cmds.push_back(cmd);
+}
+
+
+bool CTcpAppProgram::sanity_check(std::string & err){
+    int i;
+    for (i=0; i<m_cmds.size(); i++) {
+        CTcpAppCmd * lp=&m_cmds[i];
+        if (i>0) {
+            /* not the first */
+            if (lp->m_cmd==tcCONNECT_WAIT) {
+                err="CMD connect() could only be first";
+                return false;
+            }
+        }
+        if (i<(m_cmds.size()-1)) {
+            /* not the last */
+            if ((lp->m_cmd==tcRESET) ||(lp->m_cmd==tcDONT_CLOSE)) {
+                err="CMD tcRESET/tcDONT_CLOSE could only be the last command";
+                return false;
+            }
+        }
+        if (lp->m_cmd==tcSET_VAR||lp->m_cmd==tcJMPNZ){
+            if (lp->u.m_var.m_var_id>=CTcpApp::apVAR_NUM_SIZE) {
+                err="CMD tcSET_VAR/tcJMPNZ var_id is not valid";
+                return false;
+            }
+        }
+        if (lp->m_cmd==tcJMPNZ){
+            int new_id=lp->u.m_jmpnz.m_offset+i;
+            if ((new_id<0) || (new_id>=m_cmds.size())) {
+                std::stringstream ss;
+                ss << "CMD tcJMPNZ has not valid offset " << int(lp->u.m_jmpnz.m_offset) << " id: " << int(new_id) << " " ;
+                err=ss.str();;
+                return false;
+            }
+        }
+    }
+    return (true);
 }
 
 
@@ -402,11 +594,28 @@ void CTcpAppCmd::Dump(FILE *fd){
 
          break;
     case tcDELAY :
-        fprintf(fd," tcDELAY for %lu usec \n",u.m_delay_cmd.m_usec_delay);
+        fprintf(fd," tcDELAY for %lu usec \n",(ulong)u.m_delay_cmd.m_ticks);
         break;
     case tcRESET :
-        fprintf(fd," reset connection \n");
+        fprintf(fd," tcRESET : reset connection \n");
         break;
+    case tcDONT_CLOSE :
+        fprintf(fd," tcDONT_CLOSE : dont close, wait for RST \n");
+        break;
+    case tcCONNECT_WAIT :
+        fprintf(fd," tcCONNECT_WAIT : wait for connection \n");
+        break;
+    case tcDELAY_RAND :
+        fprintf(fd," tcDELAY_RAND : %lu-%lu\n",(ulong)u.m_delay_rnd.m_min_ticks,(ulong)u.m_delay_rnd.m_max_ticks);
+        break;
+    case tcSET_VAR :
+        fprintf(fd," tcSET_VAR id:%lu, val:%lu\n",(ulong)u.m_var.m_var_id,(ulong)u.m_var.m_val);
+        break;
+    case tcJMPNZ :
+        fprintf(fd," tcJMPNZ id:%lu, jmp:%d\n",(ulong)u.m_jmpnz.m_var_id,(int)u.m_jmpnz.m_offset);
+        break;
+    default:
+        assert(0);
     }
 }
 

@@ -203,7 +203,7 @@ void CSTTCpPerDir::create_clm_counters(){
 
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
-    TCP_S_ADD_CNT_E(tcps_drops,"connections dropped");
+    TCP_S_ADD_CNT(tcps_drops,"connections dropped");
     TCP_S_ADD_CNT_E(tcps_conndrops,"embryonic connections dropped");
     TCP_S_ADD_CNT_E(tcps_timeoutdrop,"conn. dropped in rxmt timeout");
     TCP_S_ADD_CNT_E(tcps_rexmttimeo,"retransmit timeouts");
@@ -260,7 +260,7 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT_E(err_no_tcp,"no tcp packet");
     FT_S_ADD_CNT_E(err_no_template,"server can't match L7 template");
     FT_S_ADD_CNT_E(err_no_memory,"No heap memory for allocating flows");
-    FT_S_ADD_CNT_Ex_E("err_dct",err_duplicate_client_tuple,"duplicate flow can't happen");
+    FT_S_ADD_CNT_Ex_E("err_dct",err_duplicate_client_tuple,"duplicate flow - more clients require ");
     FT_S_ADD_CNT_E(err_l3_cs,"ip checksum error");
     FT_S_ADD_CNT_E(err_l4_cs,"tcp/udp checksum error");
 

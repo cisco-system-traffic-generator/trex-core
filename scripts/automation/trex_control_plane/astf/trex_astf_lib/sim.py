@@ -181,6 +181,10 @@ def setParserOptions():
                         action="store_true",
                         help="Print output to screen")
 
+    parser.add_argument('--dev',
+                        action="store_true",
+                        help="Deveoper mode")
+
     parser.add_argument('--full',
                         action="store_true",
                         help="run in full simulation mode (with many clients and servers)")
@@ -243,11 +247,15 @@ def main(args=None):
         sys.exit(100)
 
     cl = prof.register()
-    try:
-        profile = cl.get_profile(**opts.tunables if opts.tunables else {})
-    except Exception as e:
-        print (e)
-        sys.exit(100)
+    tun=**opts.tunables if opts.tunables else {};
+    if opts.dev:
+        profile = cl.get_profile(tun)
+    else:
+        try:
+            profile = cl.get_profile(tun)
+        except Exception as e:
+            print (e)
+            sys.exit(100)
 
     if opts.json:
         print(profile.to_json())

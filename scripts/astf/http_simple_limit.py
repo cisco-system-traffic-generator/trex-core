@@ -1,3 +1,7 @@
+# limit the number of generating flows to 2 for this template. 
+# this feature is good for generating Elephant flow (which are very big) so we should limit the total flows
+
+
 from trex_astf_lib.api import *
 
 
@@ -5,7 +9,7 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self, **kwargs):
+    def get_profile(self):
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
         ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
@@ -14,9 +18,10 @@ class Prof1():
                            dist_server=ip_gen_s)
 
         return ASTFProfile(default_ip_gen=ip_gen,
-                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=1),
-                            cap_list=[ASTFCapInfo(file="../avl/delay_10_https_0.pcap",cps=1)])
+                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
+                            cps=1,limit=2)])
 
 
 def register():
     return Prof1()
+
