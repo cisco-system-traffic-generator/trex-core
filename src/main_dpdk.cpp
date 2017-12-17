@@ -4614,7 +4614,10 @@ int  CGlobalTRex::queues_prob_init(){
         rte_exit(EXIT_FAILURE, "number of cores should be at least 2 \n");
     }
     if ( (m_max_ports>>1) > get_cores_tx() ) {
-        rte_exit(EXIT_FAILURE, "You don't have enough physical cores for this configuration dual_ports:%lu physical_cores:%lu dp_cores:%lu check lscpu \n",(m_max_ports>>1),m_max_cores,get_cores_tx());
+        rte_exit(EXIT_FAILURE, "You don't have enough physical cores for this configuration dual_ports:%lu physical_cores:%lu dp_cores:%lu check lscpu \n",
+                 (ulong)(m_max_ports>>1),
+                 (ulong)m_max_cores,
+                 (ulong)get_cores_tx());
     }
 
     assert((m_max_ports>>1) <= get_cores_tx() );
