@@ -741,12 +741,6 @@ static const struct rte_flow_item_gre rte_flow_item_gre_mask = {
 };
 #endif
 
-/** RTE_FLOW_ITEM_TYPE_NTPL. */
-struct rte_flow_item_ntpl {
-	char *ntpl_str;
-};
-
-
 
 /**
  * RTE_FLOW_ITEM_TYPE_FUZZY
