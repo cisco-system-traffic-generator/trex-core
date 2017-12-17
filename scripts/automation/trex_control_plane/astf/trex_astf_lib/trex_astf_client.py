@@ -90,16 +90,48 @@ class ASTFCmdRecv(ASTFCmd):
 
 
 class ASTFCmdDelay(ASTFCmd):
-    def __init__(self, msec):
+    def __init__(self, usec):
         super(ASTFCmdDelay, self).__init__()
         self.fields['name'] = 'delay'
-        self.fields['delay'] = msec
+        self.fields['usec'] = usec
 
 
 class ASTFCmdReset(ASTFCmd):
     def __init__(self):
         super(ASTFCmdReset, self).__init__()
         self.fields['name'] = 'reset'
+
+class ASTFCmdNoClose(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdNoClose, self).__init__()
+        self.fields['name'] = 'nc'
+
+class ASTFCmdConnect(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdConnect, self).__init__()
+        self.fields['name'] = 'connect'
+
+class ASTFCmdDelayRnd(ASTFCmd):
+    def __init__(self,min_usec,max_usec):
+        super(ASTFCmdDelayRnd, self).__init__()
+        self.fields['name'] = 'delay_rnd'
+        self.fields['min_usec'] = min_usec
+        self.fields['max_usec'] = max_usec
+
+class ASTFCmdSetVal(ASTFCmd):
+    def __init__(self,id_val,val):
+        super(ASTFCmdSetVal, self).__init__()
+        self.fields['name'] = 'set_var'
+        self.fields['id'] = id_val
+        self.fields['val'] = val
+
+class ASTFCmdJMPNZ(ASTFCmd):
+    def __init__(self,id_val,offset,label):
+        super(ASTFCmdJMPNZ, self).__init__()
+        self.label=label
+        self.fields['name'] = 'jmp_nz'
+        self.fields['id'] = id_val
+        self.fields['offset'] = offset
 
 
 class ASTFProgram(object):
@@ -181,6 +213,8 @@ class ASTFProgram(object):
         if side not in side_vals:
             raise ASTFError("Side must be one of {0}".side_vals)
 
+        self.vars={};
+        self.labels={};
         self.fields = {}
         self.fields['commands'] = []
         self.total_send_bytes = 0
@@ -204,7 +238,7 @@ class ASTFProgram(object):
 
         :parameters:
                   buf : string
-                     l7 stream
+                     l7 stream as string 
 
         """
 
@@ -246,30 +280,142 @@ class ASTFProgram(object):
         self.total_rcv_bytes += bytes
         self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes))
 
-    def delay(self, msec):
+    def delay(self, usec):
         """
         delay for x usec
 
         :parameters:
-                  msec  : float
-                     delay for this time in usec
+                  usec  : uint32_t
+                   delay for this time in usec
 
         """
 
         ver_args = {"types":
-                    [{"name": "msec", 'arg': msec, "t": [int, float]}]
+                    [{"name": "usec", 'arg': usec, "t": [int, float]}]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        self.fields['commands'].append(ASTFCmdDelay(msec))
+        self.fields['commands'].append(ASTFCmdDelay(usec))
 
     def reset(self):
         """
-        for TCP connection send RST to peer
+        For TCP connection send RST to peer. Should be the last command 
 
         """
 
         self.fields['commands'].append(ASTFCmdReset())
+
+    def no_explicit_close(self):
+        """
+        For TCP connection wait for peer side to close (read==0) and only then close. Should be the last command
+        This simulates server side that waits for a requests until client retire with close().
+
+        """
+
+        self.fields['commands'].append(ASTFCmdNoClose())
+
+    def connect(self):
+        """
+        for TCP connection wait for the connection to be connected. should be the first command  
+        """
+
+        self.fields['commands'].append(ASTFCmdConnect())
+
+
+    def delay_rand(self, min_usec,max_usec):
+        """
+        delay for a random time betwean  min-max usec with uniform distribution
+
+        :parameters:
+                  min_usec  : float
+                     min delay for this time in usec
+
+                  max_usec  : float
+                     min delay for this time in usec
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "min_usec", 'arg': min_usec, "t": [int, float]},
+                     {"name": "max_usec", 'arg': min_usec, "t": [int, float]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if min_usec>max_usec:
+                raise ASTFError("min value {0} is bigger than max {1}  ".format(min_usec,max_usec))
+
+        self.fields['commands'].append(ASTFCmdDelayRnd(min_usec,max_usec))
+
+    def __add_var (self,var_name):
+        if not (var_name in self.vars):
+            var_index=len(self.vars);
+            self.vars[var_name]=var_index
+
+    def __get_var_index (self,var_name):
+        if not (var_name in self.vars):
+            raise ASTFError("var {0} wasn't defined  ".format(var_name))
+        return (self.vars[var_name]);
+
+    def set_var(self, var_id,val):
+        """
+        Set a flow variable 
+
+        :parameters:
+                  var_id  : string
+                     var-id there are limited number of variables 
+
+                  val  : uint32_t
+                     value of the variable 
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "val", 'arg': val, "t": [int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if  isinstance(var_id, str):
+            self.__add_var(var_id)
+        self.fields['commands'].append(ASTFCmdSetVal(var_id,val))
+
+    def set_label(self, label):
+        """
+        Set a location label name. used with jmp_nz command 
+        """
+        if label in self.labels:
+            raise ASTFError("label {0} was defined already ".format(label))
+
+        #print("label {0} offset {1} ".format(label,len(self.fields['commands'])))
+        self.labels[label]=len(self.fields['commands']);
+
+    def __get_label_id (self,label):
+        if not (label in self.labels):
+            raise ASTFError("label {0} wasn't defined ".format(label))
+        return(self.labels[label]);
+
+    def jmp_nz(self, var_id,label):
+        """
+        Decrement the flow variable, in case of none zero jump to label 
+
+        :parameters:
+                  var_id  : int
+                     flow var id 
+
+                  label  : string
+                     label id
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "label", 'arg': label, "t": [str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdJMPNZ(var_id,0,label))
+
+
 
     def _set_cmds(self, cmds):
         for cmd in cmds:
@@ -295,7 +441,25 @@ class ASTFProgram(object):
             new_cmds.append(new_cmd)
         self._set_cmds(new_cmds)
 
+    def __compile(self):
+        # update offsets for  ASTFCmdJMPNZ
+        # comvert var names to ids 
+        i=0;
+        for cmd in self.fields['commands']:
+            if isinstance(cmd, ASTFCmdJMPNZ):
+                #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
+                cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
+                if isinstance(cmd.fields['id'],str):
+                    cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
+            if isinstance(cmd, ASTFCmdSetVal):
+                id_name=cmd.fields['id']
+                if isinstance(id_name,str):
+                    cmd.fields['id']=self.__get_var_index(id_name)
+            i=i+1
+
+
     def to_json(self):
+        self.__compile()
         ret = {}
         ret['commands'] = []
         for cmd in self.fields['commands']:
@@ -562,7 +726,13 @@ class ASTFTCPOptions(object):
         return dict(self.fields)
 
     def __eq__(self, other):
+        if not other:
+            return False
+        if not hasattr(other, 'fields'):
+            return False
         for key in self.fields.keys():
+            if not key in other.fields:
+                return False
             if self.fields[key] != other.fields[key]:
                 return False
             return True
@@ -887,7 +1057,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
      """
 
     def __init__(self, ip_gen, cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
-                 port=80, cps=1, glob_info=None):
+                 port=80, cps=1, glob_info=None,limit=None):
         """
 
         :parameters:
@@ -907,12 +1077,16 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   cps      : float
                         New connection per second rate
 
+                  limit    : uint32_t 
+                        limit the number of flows. default is None which means zero 
+
         """
 
         ver_args = {"types":
                     [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
                      {"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
@@ -922,11 +1096,16 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
         self.fields['port'] = port
         self.fields['cps'] = cps
         self.fields['glob_info'] = glob_info
+        if limit:
+            self.fields['limit'] = limit
 
     def to_json(self):
         ret = super(ASTFTCPClientTemplate, self).to_json()
         ret['port'] = self.fields['port']
         ret['cps'] = self.fields['cps']
+        if 'limit' in self.fields:
+            ret['limit'] = self.fields['limit']
+
         if self.fields['glob_info'] is not None:
             ret['glob_info'] = self.fields['glob_info'].to_json()
         return ret
@@ -1001,7 +1180,7 @@ class ASTFCapInfo(object):
     """
 
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None,
-                 s_glob_info=None, c_glob_info=None):
+                 s_glob_info=None, c_glob_info=None,limit=None):
         """
         Define one template information based on pcap file analysis
 
@@ -1024,6 +1203,9 @@ class ASTFCapInfo(object):
                   l7_percent :  float
                         L7 stream bandwidth percent
 
+                   limit     : uint32_t 
+                        Limit the number of flows 
+
         """
 
         ver_args = {"types":
@@ -1031,6 +1213,7 @@ class ASTFCapInfo(object):
                      {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
                      {"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
                      {"name": "c_glob_info", 'arg': c_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
+                     {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False}]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -1060,6 +1243,7 @@ class ASTFCapInfo(object):
         self.ip_gen = ip_gen
         self.c_glob_info = c_glob_info
         self.s_glob_info = s_glob_info
+        self.limit=limit;
 
 
 class ASTFTemplate(object):
@@ -1233,7 +1417,7 @@ class ASTFProfile(object):
                 d_ports.append(d_port)
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
-                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc})
+                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit})
 
             # calculate cps from l7 percent
             if mode == "l7_percent":
@@ -1246,7 +1430,7 @@ class ASTFProfile(object):
 
             for c in all_cap_info:
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
-                                               cps=c["cps"])
+                                               cps=c["cps"],limit=c["limit"])
                 temp_s = ASTFTCPServerTemplate(program=c["prog_s"], glob_info=c["glob_s"], assoc=c["my_assoc"])
                 template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
                 self.templates.append(template)

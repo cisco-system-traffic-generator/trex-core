@@ -1,6 +1,7 @@
 #ifndef BSD44_BR_TCP_VAR
 #define BSD44_BR_TCP_VAR
 
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -19,6 +20,8 @@
 #include "tcp_bsd_utl.h"
 #include "flow_table.h"
 #include <common/utl_gcc_diag.h>
+#include "timer_types.h"
+#include <common/n_uniform_prob.h>
 
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
@@ -499,6 +502,10 @@ public:
 
     inline void on_tick();
 
+    void check_defer_function(){
+        check_defer_functions(&m_tcp.m_socket);
+    }
+
     bool is_can_close(){
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
     }
@@ -675,14 +682,15 @@ public:
     uint8_t     m_disable_new_flow;
     uint8_t     m_pad;
 
-    CAstfTemplatesRW * m_template_rw;
-    CAstfDbRO         * m_template_ro;
+    CAstfTemplatesRW  *  m_template_rw;
+    CAstfDbRO         *  m_template_ro;
+    KxuLCRand         *  m_rand; /* per context */       
+    CTcpCtxCb         *  m_cb;
+    CNATimerWheel        m_timer_w; /* TBD-FIXME one timer , should be pointer */
 
-    CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
-    CTcpCtxCb    * m_cb;
-
-    CFlowTable   m_ft;
+    CFlowTable           m_ft;
     struct  tcpiphdr tcp_saveti;
+         
 };
 
 
@@ -917,10 +925,12 @@ public:
         tcp_output(ctx,&flow->m_tcp);
     }
 
-    virtual void tcp_delay(uint64_t usec){
-        assert(0);
-        printf("TBD \n");
+    virtual void disconnect(CTcpPerThreadCtx * ctx,
+                            CTcpFlow *         flow){
+        tcp_disconnect(ctx,&flow->m_tcp);
     }
+
+
 };
 
 inline void CTcpFlow::on_tick(){

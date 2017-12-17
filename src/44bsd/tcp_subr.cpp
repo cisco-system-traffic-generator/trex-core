@@ -291,6 +291,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
 
     m_ctx=ctx;
     m_timer.reset();
+    m_timer.m_type = ttTCP_FLOW; 
 
     tp->m_socket.so_snd.Create(ctx->tcp_tx_socket_bsize);
     tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
@@ -400,15 +401,43 @@ void CTcpFlow::Delete(){
 #define my_unsafe_container_of(ptr, type, member)              \
     ((type *) ((uint8_t *)(ptr) - offsetof(type, member)))
 
+#define my_unsafe_container_app(ptr, type,func)              \
+    ((type *) ((uint8_t *)(ptr) - type::func()))
 
-static void tcp_timer(void *userdata,
+
+static void ctx_timer(void *userdata,
                        CHTimerObj *tmr){
     CTcpPerThreadCtx * tcp_ctx=(CTcpPerThreadCtx * )userdata;
-    UNSAFE_CONTAINER_OF_PUSH;
-    CTcpFlow * tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
-    UNSAFE_CONTAINER_OF_POP;
-    tcp_flow->on_tick();
-    tcp_ctx->timer_w_restart(tcp_flow);
+    CTcpApp * app;
+    CTcpFlow * tcp_flow;
+    if (likely(tmr->m_type==ttTCP_FLOW)) {
+        /* most common */
+        UNSAFE_CONTAINER_OF_PUSH;
+        tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
+        UNSAFE_CONTAINER_OF_POP;
+        tcp_flow->on_tick();
+        tcp_ctx->timer_w_restart(tcp_flow);
+        return;
+    }
+    switch (tmr->m_type) {
+    case ttTCP_APP:
+        UNSAFE_CONTAINER_OF_PUSH;
+        app=my_unsafe_container_app(tmr,CTcpApp,timer_offset);
+        UNSAFE_CONTAINER_OF_POP;
+        app->on_tick();
+        break;
+    case ttUDP_FLOW:
+        assert(0);
+        break;
+    case ttUDP_APP:
+        assert(0);
+        break;
+    case ttGen:
+        assert(0);
+        break;
+    default:
+        assert(0);
+    };
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */
@@ -438,10 +467,10 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
 #ifndef TREX_SIM
     /* we have two levels on non-sim */
     uint32_t left;
-    m_timer_w.on_tick_level0((void*)this,tcp_timer);
-    m_timer_w.on_tick_level_count(1,(void*)this,tcp_timer,16,left);
+    m_timer_w.on_tick_level0((void*)this,ctx_timer);
+    m_timer_w.on_tick_level_count(1,(void*)this,ctx_timer,16,left);
 #else
-    m_timer_w.on_tick_level0((void*)this,tcp_timer);
+    m_timer_w.on_tick_level0((void*)this,ctx_timer);
 #endif
 
     if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
@@ -528,7 +557,13 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
                               bool is_client){
-
+    uint32_t seed;
+    #ifdef TREX_SIM
+    seed=0x1234;
+    #else
+    seed=rand();
+    #endif
+    m_rand = new KxuLCRand(seed);
     tcp_tx_socket_bsize=32*1024;
     tcp_rx_socket_bsize=32*1024 ;
     sb_max = SB_MAX;        /* patchable, not used  */
@@ -586,6 +621,9 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 
 
 void CTcpPerThreadCtx::Delete(){
+    assert(m_rand);
+    delete m_rand;
+    m_rand=0;
     m_timer_w.Delete();
     m_ft.Delete();
 }

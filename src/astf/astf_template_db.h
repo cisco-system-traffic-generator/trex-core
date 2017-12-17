@@ -62,6 +62,22 @@ public:
     uint16_t get_dest_port(){
         return(m_dest_port);
     }
+    void set_limit(uint32_t limit){
+        m_limit=limit;
+    }
+
+    bool check_limit(){
+        if (m_limit==0){
+            return(false);
+        }
+        if (m_limit>1) {
+            --m_limit;
+            return(false);
+        }else{
+            /* stop at 1 */
+            return(true);
+        }
+    }
     void set_tuneables(CTcpTuneables * c_tune, CTcpTuneables *s_tune) {
         m_c_tune = c_tune;
         m_s_tune = s_tune;
@@ -79,6 +95,7 @@ public:
     astf_thread_id_t              m_thread_id;
     CTcpTuneables               * m_c_tune;
     CTcpTuneables               * m_s_tune;
+    uint32_t                      m_limit;
 } __rte_cache_aligned;
 
 
