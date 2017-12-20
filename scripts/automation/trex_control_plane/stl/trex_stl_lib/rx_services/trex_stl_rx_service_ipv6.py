@@ -105,8 +105,8 @@ class RXServiceIPv6Scan(RXServiceIPv6):
         elif scapy_pkt.haslayer('ICMPv6EchoReply'):
             node_mac = scapy_pkt.src
             node_ip = scapy_pkt.getlayer(IPv6).src
-            if node_ip == self.dst_ip:
-                return self.port.ok([{'ipv6': node_ip, 'mac': node_mac}])
+            if node_ip == self.dst_ip and node_ip != 'ff02::1': # for ping ipv6
+                return self.port.ok([{'type': 'N/A', 'ipv6': node_ip, 'mac': node_mac}])
             if node_ip not in self.responses:
                 self.send_intermediate(self.generate_ns_na(node_mac, node_ip))
 
