@@ -124,7 +124,7 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Running:
                 return
             if status['state'] == TRexStatus.Idle:
-                raise TRexError('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
+                raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
         raise TimeoutError("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
@@ -1647,7 +1647,7 @@ class CTRexResult(object):
     # history iterator after warmup period
     def _get_steady_state_history_iterator(self):
         if not self.is_done_warmup():
-            raise TRexWarning('Warm-up period not finished')
+            raise Exception('Warm-up period not finished')
         for index, res in enumerate(self._history):
             if 'warmup_barrier' in res:
                 for steady_state_index in range(index, max(index, len(self._history) - 1)):
