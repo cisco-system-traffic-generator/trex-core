@@ -18,7 +18,7 @@ class IPv6ND_plugin(ConsolePlugin):
         super(IPv6ND_plugin, self).__init__()
         self.requests = list()
         self.vlan = list()
-        self.vlan_encaps = ""
+        self.fmt = ""
         self.count = 1
 
     def plugin_description(self):
@@ -52,11 +52,11 @@ class IPv6ND_plugin(ConsolePlugin):
         self.add_argument("-c", "--count", type = int,
                 dest = 'count', 
                 default = 1,
-                help = 'nr of nd to perform')
+                help = 'nr of nd to perform (auto-scale src-addr to test parallel NDs)')
         self.add_argument("-d", "--dst-ip", type = str,
                 dest = 'dst_ip', 
                 required=True,
-                help = 'dst ip to use')
+                help = 'IPv6 dst ip to discover')
         self.add_argument("-m", "--src-mac", type = str,
                 dest = 'src_mac', 
                 help = 'src mac to use')
@@ -64,8 +64,8 @@ class IPv6ND_plugin(ConsolePlugin):
                 dest = 'vlan', 
                 default=None,
                 help = 'vlan(s) to use (comma separated)')
-        self.add_argument("-E", "--vlan-encapsulation", type = str,
-                dest = 'vlan_encaps', 
+        self.add_argument("-f", "--format", type = str,
+                dest = 'fmt', 
                 default=None,
                 help = 'vlan encapsulation to use (QQ: qinq, DA: 802.1AD -> 802.1q)')
         self.add_argument("-V", "--verbose", action = 'store_true',
@@ -78,7 +78,7 @@ class IPv6ND_plugin(ConsolePlugin):
                 help = 'show summary only')
 
 
-    def do_ND(self, port, src_ip, src_mac, dst_ip, vlan, vlan_encaps, timeout, verify_timeout, count, rate, retries, verbose):
+    def do_ND(self, port, src_ip, src_mac, dst_ip, vlan, format, timeout, verify_timeout, count, rate, retries, verbose):
         ''' perform IPv6 neighbor discovery '''
         print
         print "performing ND for {0} addresses.".format(count)
@@ -92,7 +92,7 @@ class IPv6ND_plugin(ConsolePlugin):
         if vlan != None:
             self.vlan = [ int(x) for x in vlan.split(',') ]
 
-        self.vlan_encaps = vlan_encaps
+        self.fmt = fmt
         self.count = count
 
         if verbose != None:
@@ -132,7 +132,7 @@ class IPv6ND_plugin(ConsolePlugin):
                                                 retries = retries,
                                                 verify_timeout = verify_timeout,
                                                 verbose_level = verbose_level,
-                                                vlan_encaps = self.vlan_encaps
+                                                fmt = self.fmt
                                             ))
         ctx.run(self.requests, rate)
 
@@ -144,7 +144,7 @@ class IPv6ND_plugin(ConsolePlugin):
         print "---------"
         print
         print "used vlan(s)...................: {0}".format(self.vlan)
-        print "used encapsulation.............: {0}".format(self.vlan_encaps)
+        print "used encapsulation.............: {0}".format(self.fmt)
         print "number of IPv6 source addresses: {0}".format(self.count)
         print
         print
@@ -171,9 +171,9 @@ class IPv6ND_plugin(ConsolePlugin):
                 unresolved += 1
 
         print
-        print "resolved..: %s " % resolved
-        print "unresolved: %s" % unresolved
-        print "verified..: %s" % verified
+        print "resolved..: {0} ".format(resolved)
+        print "unresolved: {0}".format(unresolved)
+        print "verified..: {0}".format(verified)
         print
 
     def do_clear(self):
