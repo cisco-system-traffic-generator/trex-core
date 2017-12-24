@@ -305,7 +305,7 @@ class ASTFProgram(object):
 
         self.fields['commands'].append(ASTFCmdReset())
 
-    def no_explicit_close(self):
+    def wait_for_peer_close(self):
         """
         For TCP connection wait for peer side to close (read==0) and only then close. Should be the last command
         This simulates server side that waits for a requests until client retire with close().

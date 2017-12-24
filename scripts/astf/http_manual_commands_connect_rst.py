@@ -19,7 +19,7 @@ class Prof1():
         prog_c.reset();   ## send RST from client side 
 
         prog_s = ASTFProgram()
-        prog_s.no_explicit_close(); # wait for client to close the socket 
+        prog_s.wait_for_peer_close(); # wait for client to close the socket 
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
@@ -39,7 +39,7 @@ class Prof1():
         profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
         return profile
 
-    def get_profile(self):
+    def get_profile(self,**kwargs):
         return self.create_profile()
 
 
