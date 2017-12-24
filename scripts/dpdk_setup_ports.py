@@ -587,7 +587,11 @@ Other network devices
 
             msg="converting astf profile {file} to json {out}".format(file = input_file, out=json_file)
             print(msg);
-            cmd = './astf-sim -f {file} --json > {json_file}'.format(file=input_file, json_file=json_file)
+            tunable='';
+            if map_driver.parent_args.tunable:
+                tunable="-t "+map_driver.parent_args.tunable+" "
+
+            cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable,json_file=json_file)
             print(cmd)
             if os.system(cmd)!=0:
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
@@ -1061,6 +1065,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
     parent_parser.add_argument('-f', dest = 'file')
+    parent_parser.add_argument('-t', dest = 'tunable',default=None)
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if map_driver.parent_args.help:

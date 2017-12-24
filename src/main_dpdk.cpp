@@ -964,6 +964,7 @@ enum {
        OPT_NTACC_SO,
        OPT_ASTF_SERVR_ONLY,
        OPT_ASTF_CLIENT_MASK,
+       OPT_ASTF_TUNABLE,
        OPT_NO_TERMIO,
     
        /* no more pass this */
@@ -1044,6 +1045,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
+        { OPT_ASTF_TUNABLE,           "-t",SO_REQ_SEP},
         { OPT_NO_TERMIO,              "--no-termio", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -1317,7 +1319,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_ASTF_SERVR_ONLY:
                 po->m_astf_mode = CParserOption::OP_ASTF_MODE_SERVR_ONLY;
                 break;
-
+            case OPT_ASTF_TUNABLE:
+                /* do bothing with it */
+                break;
             case OPT_ASTF_CLIENT_MASK:
                 po->m_astf_mode = CParserOption::OP_ASTF_MODE_CLIENT_MASK;
                 sscanf(args.OptionArg(),"%x", &po->m_astf_client_mask);

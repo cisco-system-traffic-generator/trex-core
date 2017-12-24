@@ -247,12 +247,12 @@ def main(args=None):
         sys.exit(100)
 
     cl = prof.register()
-    tun=**opts.tunables if opts.tunables else {};
+    tun=opts.tunables if opts.tunables else {};
     if opts.dev:
-        profile = cl.get_profile(tun)
+        profile = cl.get_profile(**tun)
     else:
         try:
-            profile = cl.get_profile(tun)
+            profile = cl.get_profile(**tun)
         except Exception as e:
             print (e)
             sys.exit(100)
