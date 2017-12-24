@@ -234,7 +234,18 @@ class ASTFProgram(object):
 
     def send(self, buf):
         """
-        send (l7_buffer)
+        send (l7_buffer) and wait for the buffer to be acked by peer. Rx side could work in parallel
+
+         example1
+          send (buffer1)
+          send (buffer2)
+
+           Will behave differently than 
+
+         example1
+         send (buffer1+ buffer2)
+
+        in the first example there would be PUSH in the last byte of the buffer and immediate ACK from peer while in the last example the buffer will be sent together (might be one segment)
 
         :parameters:
                   buf : string
@@ -268,8 +279,7 @@ class ASTFProgram(object):
 
         :parameters:
                   bytes  : uint32_t
-                     wait until we receive at least  x number of bytes
-
+                   wait until we receive at least  x number of bytes. in always works, the command just check that the watermark was reached to start the next command 
         """
 
         ver_args = {"types":

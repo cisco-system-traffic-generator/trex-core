@@ -208,7 +208,7 @@ close()
 [source,python]
 ----
 wait_for_request(len<=100)
-send_ response(data,len=1000)
+send_response(data,len=1000)
 wait_for_request(len<=200)
 send_ response(data,len=2000)
 close()
@@ -1205,19 +1205,30 @@ The profile defines which tunables can be input to customize output.
 .Example http_res_size 
 [source,python]
 ----
-def create_streams (self, direction = 0, **kwargs):
+def create_profile (self, **kwargs):
     # the size of the response size
     http_res_size = kwargs.get('size',1)
     
-    # use http_res_size later on 
-
+    # use http_res_size 
+    http_response = http_response_template.format('*'*http_res_size)
 ----
 
 .Change tunable from CLI using `-t`
 [source,bash]
 ----
-[bash]>sudo ./t-rex-64 -f astf/http_simple.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=30000
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=1
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=10000
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=1000000
 ----
+
+.Simulator 
+[source,bash]
+----
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py --json
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py -t size=1000 --json
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py -t size=1000 -o a.cap --full
+----
+
 
 ==== Tutorial: L7 emulation - fin/ack/fin/ack 
 
@@ -1237,7 +1248,7 @@ This example force the *server* side to wait for close from peer (client) and on
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
         prog_s.send(http_response)
-        prog_s.no_explicit_close(); # wait for client to close the socket the issue a close 
+        prog_s.wait_for_peer_close(); # wait for client to close the socket the issue a close 
 ----
 
 The packets trace should look like this:
@@ -1284,7 +1295,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
         prog_c.reset();   ## send RST from client side 
 
         prog_s = ASTFProgram()
-        prog_s.no_explicit_close(); # wait for client to close the socket 
+        prog_s.wait_for_peer_close(); # wait for client to close the socket 
 ----
 
 this example will wait for connect and then will send RST packet to shutdown peer and current socket 
