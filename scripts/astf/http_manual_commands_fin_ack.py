@@ -1,4 +1,4 @@
-# Example using prog_s.no_explicit_close() to let the client close the server first. 
+# Example using prog_s.wait_for_peer_close() to let the client close the server first. 
 # client -> FIN
 #                  ACK <- server 
 #                  FIN <- server 
@@ -27,7 +27,7 @@ class Prof1():
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
         prog_s.send(http_response)
-        prog_s.no_explicit_close(); # wait for client to close the socket the issue a close 
+        prog_s.wait_for_peer_close(); # wait for client to close the socket the issue a close 
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
@@ -47,7 +47,7 @@ class Prof1():
         profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
         return profile
 
-    def get_profile(self):
+    def get_profile(self,**kwargs):
         return self.create_profile()
 
 

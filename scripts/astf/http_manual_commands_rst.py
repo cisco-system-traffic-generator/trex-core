@@ -1,4 +1,4 @@
-# Example using prog_c.reset(),prog_s.no_explicit_close() to generate RST from client to server 
+# Example using prog_c.reset(),prog_s.wait_for_peer_close() to generate RST from client to server 
 
 from trex_astf_lib.api import *
 
@@ -22,7 +22,7 @@ class Prof1():
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
         prog_s.send(http_response)
-        prog_s.no_explicit_close(); # wait for client to close the socket 
+        prog_s.wait_for_peer_close(); # wait for client to close the socket 
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
@@ -42,7 +42,7 @@ class Prof1():
         profile = ASTFProfile(default_ip_gen=ip_gen, templates=template)
         return profile
 
-    def get_profile(self):
+    def get_profile(self,**kwargs):
         return self.create_profile()
 
 
