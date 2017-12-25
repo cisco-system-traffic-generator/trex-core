@@ -40,6 +40,7 @@ limitations under the License.
 #include "astf/astf_db.h"
 
 #include <stdlib.h>
+#include <functional>
 #include <common/c_common.h>
 #include <common/captureFile.h>
 #include <common/sim_event_driven.h>
