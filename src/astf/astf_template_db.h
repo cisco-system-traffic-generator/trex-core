@@ -63,7 +63,7 @@ public:
         return(m_dest_port);
     }
     void set_limit(uint32_t limit){
-        m_limit=limit;
+        m_limit=limit+1; /* need to add 1*/
     }
 
     bool check_limit(){
