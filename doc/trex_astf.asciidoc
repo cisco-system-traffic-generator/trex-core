@@ -101,6 +101,7 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Automation support (using STF batch framework)
 * Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
 * Client Cluster  
+* Basic L7 emulation capability e.g. Random delay, loops, variables, Spirent and IXIA like TCP traffic patterns, Elephant flows  
 
 ===== Known bugs
 
@@ -114,18 +115,23 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Simulation of Jitter/Latency/drop
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 * Field Engine support - ability to change a field inside the stream 
-* OpenSSL integration  
+* TLS support
 * Accurate latency for TCP session. Measure sample of the flows in EF/low latency queue. Measure the SYN=SYN-ACK and REQ-RES latency histogram 
 * Fragmentation is not supported 
 * TCP statistic per template 
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
+* Advanced L7 emulation capability
+** Add to send command the ability to signal in the middle of queue size (today is always at the end)
+** Change TCP/UDP stream fields (e.g.  user Agent)
+** Protocols specific commands (e.g. wait_for_http() will parse the header and wait for the size)
+** Commands for l7 dynamic counters (e.g. wait_for_http() will register dynamic counters)
+
 
 ===== Current high priority tasks
 
 * UDP support (for full SRF support)
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 * More than one core per dual-ports
-* More L7 emulation capability
 
 
 ==== Can we address the above requirements using existing DPDK TCP stacks?

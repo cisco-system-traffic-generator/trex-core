@@ -16,6 +16,7 @@
 #include "astf_db.h"
 #include "bp_sim.h"
 #include "44bsd/tcp_var.h"
+#include "utl_split.h"
 
 
 extern int my_inet_pton4(const char *src, unsigned char *dst);
@@ -744,9 +745,12 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
 
         if (c_temp["limit"] != Json::nullValue ){
+            uint32_t cnt= utl_split_int(c_temp["limit"].asUInt(),
+                                        thread_id, 
+                                        max_threads);
 
             /* there is a limit */
-            temp_rw->set_limit(c_temp["limit"].asUInt()+1);
+            temp_rw->set_limit(cnt);
         }
 
         CTcpTuneables *s_tuneable;
