@@ -225,6 +225,8 @@ class CTRexClient(object):
         """
         try:
             user = user or self.__default_user
+            self.result_obj.latency_checked = False
+            self.result_obj.clear_results()
             retval = self.server.start_trex(trex_cmd_options, user, False, None, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
@@ -1504,7 +1506,7 @@ class CTRexResult(object):
                     latest_dump['warmup_barrier'] = True
 
             # handle latency data
-            if self.latency_checked:
+            if self.latency_checked and 'trex-latecny-v2' in latest_dump and 'trex-latecny' in latest_dump:
                 # fix typos, by "pointer"
                 if 'trex-latecny-v2' in latest_dump and 'trex-latency-v2' not in latest_dump:
                     latest_dump['trex-latency-v2'] = latest_dump['trex-latecny-v2']
