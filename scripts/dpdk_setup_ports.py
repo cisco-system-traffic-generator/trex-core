@@ -591,11 +591,12 @@ Other network devices
             if map_driver.parent_args.tunable:
                 tunable="-t "+map_driver.parent_args.tunable+" "
 
-            cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable,json_file=json_file)
+            cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable, json_file=json_file)
             print(cmd)
-            if os.system(cmd)!=0:
-                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
+            ret = os.system(cmd)
             os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            if ret:
+                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
 
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
