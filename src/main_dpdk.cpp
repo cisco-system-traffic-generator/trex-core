@@ -1229,6 +1229,13 @@ static void check_exclusive(const OptHash &args_set,
     }
 }
 
+struct ParsingOptException : public std::exception {
+    const ESOError m_err_code;
+    const char    *m_opt_text;
+    ParsingOptException(CSimpleOpt &args):
+                    m_err_code(args.LastError()),
+                    m_opt_text(args.OptionText()) {}
+};
 
 static OptHash
 args_first_pass(int argc, char *argv[], CParserOption* po) {
@@ -1242,6 +1249,9 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
     
     /* set */
     while (args.Next()) {
+        if (args.LastError() != SO_SUCCESS) {
+            throw ParsingOptException(args);
+        }
         args_set[args.OptionId()] = true;
     }
     
@@ -1550,13 +1560,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             } // End of switch
         }// End of IF
         else {
-            if (args.LastError() == SO_OPT_INVALID) {
-                printf("Error: option %s is not recognized.\n\n", args.OptionText());
-            } else if (args.LastError() == SO_ARG_MISSING) {
-                printf("Error: option %s is expected to have argument.\n\n", args.OptionText());
-            }
-            usage();
-            return -1;
+            throw ParsingOptException(args);
         }
     } // End of while
 
@@ -1643,7 +1647,18 @@ static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool
     for(int i=0; i<argc; i++) {
         argv_copy[i] = strdup(argv[i]);
     }
-    int ret = parse_options(argc, argv_copy, po, first_time);
+    int ret = 0;
+    try {
+        ret = parse_options(argc, argv_copy, po, first_time);
+    } catch (ParsingOptException &e) {
+        if (e.m_err_code == SO_OPT_INVALID) {
+            printf("Error: option %s is not recognized.\n\n", e.m_opt_text);
+        } else if (e.m_err_code == SO_ARG_MISSING) {
+            printf("Error: option %s is expected to have argument.\n\n", e.m_opt_text);
+        }
+        usage();
+        return -1;
+    }
 
     // free
     for(int i=0; i<argc; i++) {
