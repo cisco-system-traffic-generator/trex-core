@@ -1587,8 +1587,17 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         po->preview.setVMode(a);
     }
 
+    if (po->m_platform_factor==0.0){
+        parse_err(" you must provide a non zero multipler for platform -pm 0 is not valid \n");
+    }
+
     /* if we have a platform factor we need to devided by it so we can still work with normalized yaml profile  */
     po->m_factor = po->m_factor/po->m_platform_factor;
+
+    if (po->m_factor==0.0) {
+        parse_err(" you must provide a non zero multipler -m 0 is not valid \n");
+    }
+
 
     if ( first_time ){
         /* only first time read the configuration file */
