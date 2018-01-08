@@ -243,9 +243,6 @@ class STLRX_Test(CStlGeneral_Test):
         self.vm_9k_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*8160)
                                        ,vm = vm)
 
-        self.mlx5_defect_dpdk1711 = False
-        self.mlx5_defect_dpdk1711_2 = False
-
         # skip mlx5 VF
         self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
         #self.mlx5_defect_dpdk1711_3 =False
@@ -461,8 +458,9 @@ class STLRX_Test(CStlGeneral_Test):
     # one stream on TX --> RX
     @try_few_times_on_vm
     def test_one_stream(self):
-        if self.mlx5_defect_dpdk1711:
-            self.skip('not running due to defect trex-505')
+        if self.drv_name == 'net_i40e_vf':
+            self.skip('Not running on i40 vf currently due to trex-513 ')
+
         total_pkts = self.total_pkts
         s1 = STLStream(name = 'rx',
                        packet = self.pkt,
@@ -482,15 +480,10 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams(self):
-        if self.mlx5_defect_dpdk1711:
-            self.skip('not running due to defect trex-505')
         self._test_multiple_streams(False)
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if self.mlx5_defect_dpdk1711_2:
-            self.skip('defect dpdk17_11 mlx5')
-
         if self.drv_name == 'net_i40e_vf':
             self.skip('Not running on i40 vf currently')
         self._test_multiple_streams(True)
