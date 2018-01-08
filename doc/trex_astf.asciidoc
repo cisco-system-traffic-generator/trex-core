@@ -1578,8 +1578,8 @@ link:cp_astf_docs/index.html[python index]
 |   ipv6.enable     | bool   |0 |-|+| enable IPv6 for all templates. 
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
-|   tcp.rxbufsize   | 1K-1M  |32K |-|+| socket rx buffer size in bytes. 
-|   tcp.txbufsize   | 1K-1M  |32K |-|+| socket tx buffer size in bytes.
+|   tcp.rxbufsize   | 1K-1M  |32K |+|+| socket rx buffer size in bytes. 
+|   tcp.txbufsize   | 1K-1M  |32K |+|+| socket tx buffer size in bytes.
 |   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
 |   tcp.keepinit    |1-254|5|-|+| value in second for TCP keepalive.  
