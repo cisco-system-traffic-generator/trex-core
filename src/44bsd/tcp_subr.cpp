@@ -344,6 +344,15 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
+        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
+        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
+    }
+
 }
 
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
@@ -369,6 +378,14 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
+        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
+        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
     }
 
 }

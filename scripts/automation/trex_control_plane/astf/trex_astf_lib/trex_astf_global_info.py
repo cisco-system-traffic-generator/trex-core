@@ -130,6 +130,8 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
                 {"name": "initwnd", "type": [int]},
                 {"name": "mss", "type": [int]},
                 {"name": "no_delay", "type": [int]},
+                {"name": "rxbufsize", "type": [int]},
+                {"name": "txbufsize", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},
