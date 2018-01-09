@@ -216,7 +216,7 @@ close()
 wait_for_request(len<=100)
 send_response(data,len=1000)
 wait_for_request(len<=200)
-send_ response(data,len=2000)
+send_response(data,len=2000)
 close()
 ----
  
