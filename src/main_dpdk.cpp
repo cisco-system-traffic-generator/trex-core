@@ -2946,6 +2946,7 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
     /* flag is faster than checking the node pointer (another cacheline) */
     if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
+        assert(node->m_client_cfg);
         node->m_client_cfg->apply(m, dir);
     }
 
