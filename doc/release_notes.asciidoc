@@ -27,6 +27,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== (Pre) Release 2.36 ==
+
+* ASTF  
+** Remove ASTFTCPInfo object from profile. 
+** add support for scheduler.rampup_sec tunable 
+
 == Release 2.35 ==
 
 * ASTF L7 emulation enhancements. 
