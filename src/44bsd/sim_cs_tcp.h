@@ -40,6 +40,7 @@ limitations under the License.
 #include "astf/astf_db.h"
 
 #include <stdlib.h>
+#include <functional>
 #include <common/c_common.h>
 #include <common/captureFile.h>
 #include <common/sim_event_driven.h>
@@ -167,6 +168,12 @@ typedef uint16_t cs_sim_mode_t ;
 
 typedef enum {  tiTEST2    =0,
                 tiHTTP     =1,
+                tiHTTP_RST =2, 
+                tiHTTP_FIN_ACK =3, 
+                tiHTTP_CONNECT =4, 
+                tiHTTP_CONNECT_RST =5, 
+                tiHTTP_CONNECT_RST2 =6, 
+
                } cs_sim_test_id_t_;
 
 typedef uint16_t cs_sim_test_id_t;
@@ -185,6 +192,15 @@ public:
     bool   m_skip_compare_file;
     uint32_t m_seed;
 };
+
+typedef std::function<int(CMbufBuffer * buf_req,
+                          CMbufBuffer * buf_res,
+                          CTcpAppProgram * prog_c,
+                          CTcpAppProgram * prog_s,
+                          uint32_t http_r_size)> method_program_cb_t;
+
+
+
 
 class CClientServerTcp {
 public:
@@ -207,11 +223,55 @@ public:
 public:
     int test2();
     int simple_http();
+    int simple_http_rst();
+    int simple_http_fin_ack();
+    int simple_http_connect();
+    int simple_http_connect_rst();
+    int simple_http_connect_rst2();
+
+
+
     int fill_from_file();
     bool compare(std::string exp_dir);
     void close_file();
     void set_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *s_tune);
 private: 
+    int simple_http_generic(method_program_cb_t bc);
+    int build_http(CMbufBuffer * buf_req,
+                  CMbufBuffer * buf_res,
+                  CTcpAppProgram * prog_c,
+                  CTcpAppProgram * prog_s,
+                  uint32_t http_r_size);
+    int build_http_rst(CMbufBuffer * buf_req,
+                       CMbufBuffer * buf_res,
+                       CTcpAppProgram * prog_c,
+                       CTcpAppProgram * prog_s,
+                       uint32_t http_r_size);
+    int build_http_fin_ack(CMbufBuffer * buf_req,
+                           CMbufBuffer * buf_res,
+                           CTcpAppProgram * prog_c,
+                           CTcpAppProgram * prog_s,
+                           uint32_t http_r_size);
+    int build_http_connect(CMbufBuffer * buf_req,
+                         CMbufBuffer * buf_res,
+                         CTcpAppProgram * prog_c,
+                         CTcpAppProgram * prog_s,
+                         uint32_t http_r_size);
+
+
+    int build_http_connect_rst(CMbufBuffer * buf_req,
+                         CMbufBuffer * buf_res,
+                         CTcpAppProgram * prog_c,
+                         CTcpAppProgram * prog_s,
+                         uint32_t http_r_size);
+
+    int build_http_connect_rst2(CMbufBuffer * buf_req,
+                         CMbufBuffer * buf_res,
+                         CTcpAppProgram * prog_c,
+                         CTcpAppProgram * prog_s,
+                         uint32_t http_r_size);
+
+
     void dump_counters();
     bool is_drop();
 public:

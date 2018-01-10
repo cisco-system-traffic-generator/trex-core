@@ -1,6 +1,7 @@
 #ifndef BSD44_BR_TCP_VAR
 #define BSD44_BR_TCP_VAR
 
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -19,7 +20,11 @@
 #include "tcp_bsd_utl.h"
 #include "flow_table.h"
 #include <common/utl_gcc_diag.h>
-
+#include "timer_types.h"
+#include <common/n_uniform_prob.h>
+#include <stdlib.h>
+#include <functional>
+#include "sch_rampup.h"
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
  *  The Regents of the University of California.  All rights reserved.
@@ -499,6 +504,10 @@ public:
 
     inline void on_tick();
 
+    void check_defer_function(){
+        check_defer_functions(&m_tcp.m_socket);
+    }
+
     bool is_can_close(){
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
     }
@@ -550,6 +559,56 @@ public:
     uint16_t          m_c_template_idx;
 };
 
+/* general timer object used by ASTF, 
+  speed does not matter here, so we allocate it dynamically. 
+  Callbacks and opaque data inside it */
+
+class CAstfTimerObj;
+typedef void (*astf_on_gen_tick_cb_t)(void *userdata0,
+                                      void *userdata1,
+                                      CAstfTimerObj *tmr);
+
+class CAstfTimerObj : public CHTimerObj  {
+
+public:
+    CAstfTimerObj(){
+        CHTimerObj::reset();
+        m_type=ttGen;  
+        m_cb=0;
+        m_userdata1=0;
+    }
+
+public:
+    astf_on_gen_tick_cb_t m_cb;
+    void *                m_userdata1;
+};
+
+class CAstfTimerFunctorObj;
+
+typedef std::function<void(CAstfTimerFunctorObj *tmr)> method_timer_cb_t;
+
+/* callback for object method  
+   WATCH OUT : this object is super not efficient due to the c++ standard std::function. 
+   It is very big ~80 bytes and slow to allocate however, it gives a good generic interface for object methods. Use it only in none performance oriented features.
+
+*/
+class CAstfTimerFunctorObj : public CHTimerObj  {
+
+public:
+    CAstfTimerFunctorObj(){
+        CHTimerObj::reset();
+        m_type=ttGenFunctor;  
+        m_cb=0;
+        m_userdata1=0;
+    }
+
+public:
+    method_timer_cb_t   m_cb;  
+    void *              m_userdata1;
+};
+
+
+
 
 class CTcpCtxCb {
 public:
@@ -586,6 +645,11 @@ public:
     bool Create(uint32_t size,
                 bool is_client);
     void Delete();
+
+    /* called after init */
+    void call_startup();
+
+public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
         return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
     }
@@ -640,7 +704,13 @@ public:
     bool is_client_side(void) {
         return (m_ft.is_client_side());
     }
+private:
+
+    void init_sch_rampup();
+
 public:
+    CAstfFifRampup  *    m_sch_rampup; /* rampup for CPS */
+    double               m_fif_d_time;
 
     /* TUNABLEs */
     uint32_t  tcp_tx_socket_bsize;
@@ -675,14 +745,15 @@ public:
     uint8_t     m_disable_new_flow;
     uint8_t     m_pad;
 
-    CAstfTemplatesRW * m_template_rw;
-    CAstfDbRO         * m_template_ro;
+    CAstfTemplatesRW  *  m_template_rw;
+    CAstfDbRO         *  m_template_ro;
+    KxuLCRand         *  m_rand; /* per context */       
+    CTcpCtxCb         *  m_cb;
+    CNATimerWheel        m_timer_w; /* TBD-FIXME one timer , should be pointer */
 
-    CNATimerWheel m_timer_w; /* TBD-FIXME one timer , should be pointer */
-    CTcpCtxCb    * m_cb;
-
-    CFlowTable   m_ft;
+    CFlowTable           m_ft;
     struct  tcpiphdr tcp_saveti;
+         
 };
 
 
@@ -917,10 +988,12 @@ public:
         tcp_output(ctx,&flow->m_tcp);
     }
 
-    virtual void tcp_delay(uint64_t usec){
-        assert(0);
-        printf("TBD \n");
+    virtual void disconnect(CTcpPerThreadCtx * ctx,
+                            CTcpFlow *         flow){
+        tcp_disconnect(ctx,&flow->m_tcp);
     }
+
+
 };
 
 inline void CTcpFlow::on_tick(){

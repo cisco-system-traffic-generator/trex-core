@@ -243,6 +243,8 @@ void CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                    ftuple.m_l7_total_len
                    );
 
+    flow->check_defer_function();
+
     if (flow->is_can_close()) {
         handle_close(ctx,flow,true);
     }

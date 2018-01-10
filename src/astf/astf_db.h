@@ -74,7 +74,9 @@ class CTcpTuneables {
 
         tcp_keepintvl   =  0x800,
         tcp_delay_ack   =  0x1000,
-        tcp_no_delay    =  0x2000
+        tcp_no_delay    =  0x2000,
+        sched_rampup    =  0x4000,
+
     };
 
 
@@ -95,6 +97,7 @@ class CTcpTuneables {
         m_tcp_pad=0;
         m_tcp_delay_ack_msec=0;
         m_tcp_no_delay=0; /* disable nagel */
+        m_scheduler_rampup=0;
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -136,7 +139,7 @@ class CTcpTuneables {
     uint8_t  m_ipv6_src[16];
     uint8_t  m_ipv6_dst[16];
     uint8_t  m_tcp_no_delay; /* 1/0 */
-
+    uint16_t m_scheduler_rampup; /* time in sec for rampup*/
 
  private:
     uint32_t m_bitfield;
@@ -398,9 +401,14 @@ class CAstfDB  : public CTRexDummyCommand  {
     void convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
     uint32_t get_num_bytes(uint16_t program_index, uint16_t cmd_index);
+    uint32_t get_delay_ticks(uint16_t program_index, uint16_t cmd_index);
+    void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
+    void fill_set_var(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
+    void fill_jmpnz(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
+
+
     tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
     bool read_tunables(CTcpTuneables *tune, Json::Value json);
-    bool convert_tcp_info(uint8_t socket_id);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);

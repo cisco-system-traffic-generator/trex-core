@@ -5,7 +5,7 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self):
+    def get_profile(self, **kwargs):
         DEFAULT_MSS_C = 500
         DEFAULT_MSS_S = 600
         OVERRIDE_MSS_C = 700

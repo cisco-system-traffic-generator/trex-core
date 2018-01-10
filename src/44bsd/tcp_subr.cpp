@@ -291,6 +291,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
 
     m_ctx=ctx;
     m_timer.reset();
+    m_timer.m_type = ttTCP_FLOW; 
 
     tp->m_socket.so_snd.Create(ctx->tcp_tx_socket_bsize);
     tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
@@ -343,6 +344,15 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
+        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
+        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
+    }
+
 }
 
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
@@ -368,6 +378,14 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
+        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
+        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
     }
 
 }
@@ -400,15 +418,53 @@ void CTcpFlow::Delete(){
 #define my_unsafe_container_of(ptr, type, member)              \
     ((type *) ((uint8_t *)(ptr) - offsetof(type, member)))
 
+#define my_unsafe_container_app(ptr, type,func)              \
+    ((type *) ((uint8_t *)(ptr) - type::func()))
 
-static void tcp_timer(void *userdata,
+
+static void ctx_timer(void *userdata,
                        CHTimerObj *tmr){
     CTcpPerThreadCtx * tcp_ctx=(CTcpPerThreadCtx * )userdata;
-    UNSAFE_CONTAINER_OF_PUSH;
-    CTcpFlow * tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
-    UNSAFE_CONTAINER_OF_POP;
-    tcp_flow->on_tick();
-    tcp_ctx->timer_w_restart(tcp_flow);
+    CTcpApp * app;
+    CTcpFlow * tcp_flow;
+    if (likely(tmr->m_type==ttTCP_FLOW)) {
+        /* most common */
+        UNSAFE_CONTAINER_OF_PUSH;
+        tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
+        UNSAFE_CONTAINER_OF_POP;
+        tcp_flow->on_tick();
+        tcp_ctx->timer_w_restart(tcp_flow);
+        return;
+    }
+    switch (tmr->m_type) {
+    case ttTCP_APP:
+        UNSAFE_CONTAINER_OF_PUSH;
+        app=my_unsafe_container_app(tmr,CTcpApp,timer_offset);
+        UNSAFE_CONTAINER_OF_POP;
+        app->on_tick();
+        break;
+    case ttUDP_FLOW:
+        assert(0);
+        break;
+    case ttUDP_APP:
+        assert(0);
+        break;
+    case ttGen:
+        {
+            CAstfTimerObj * tobj=(CAstfTimerObj *)tmr;
+            tobj->m_cb(userdata,tobj->m_userdata1,tobj);
+        }
+        break;
+    case ttGenFunctor:
+        {
+            CAstfTimerFunctorObj * tobj=(CAstfTimerFunctorObj *)tmr;
+            tobj->m_cb(tobj);
+        }
+        break;
+
+    default:
+        assert(0);
+    };
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */
@@ -438,10 +494,10 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
 #ifndef TREX_SIM
     /* we have two levels on non-sim */
     uint32_t left;
-    m_timer_w.on_tick_level0((void*)this,tcp_timer);
-    m_timer_w.on_tick_level_count(1,(void*)this,tcp_timer,16,left);
+    m_timer_w.on_tick_level0((void*)this,ctx_timer);
+    m_timer_w.on_tick_level_count(1,(void*)this,ctx_timer,16,left);
 #else
-    m_timer_w.on_tick_level0((void*)this,tcp_timer);
+    m_timer_w.on_tick_level0((void*)this,ctx_timer);
 #endif
 
     if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
@@ -528,7 +584,14 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
                               bool is_client){
-
+    uint32_t seed;
+    #ifdef TREX_SIM
+    seed=0x1234;
+    #else
+    seed=rand();
+    #endif
+    m_sch_rampup = 0;
+    m_rand = new KxuLCRand(seed);
     tcp_tx_socket_bsize=32*1024;
     tcp_rx_socket_bsize=32*1024 ;
     sb_max = SB_MAX;        /* patchable, not used  */
@@ -557,6 +620,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tcpstat.Clear();
     m_tick=0;
     tcp_now=0;
+    m_fif_d_time=0.0;
     m_cb = NULL;
     m_template_rw = NULL;
     m_template_ro = NULL;
@@ -584,8 +648,37 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 }
 
 
+void CTcpPerThreadCtx::init_sch_rampup(){
+        /* calc default fif rate*/
+        astf_thread_id_t max_threads=m_template_rw->get_max_threads();
+        m_fif_d_time = m_template_ro->get_delta_tick_sec_thread(max_threads);
+
+        /* get client tunables */
+        CTcpTuneables * ctx_tune = get_template_rw()->get_c_tuneables();
+
+        if ( ctx_tune->is_valid_field(CTcpTuneables::sched_rampup) ){
+            m_sch_rampup = new CAstfFifRampup(this,
+                                              ctx_tune->m_scheduler_rampup,
+                                              m_template_ro->get_total_cps_per_thread(max_threads));
+        }
+}
+
+
+
+void CTcpPerThreadCtx::call_startup(){
+    if ( is_client_side() ){
+        init_sch_rampup();
+    }
+}
 
 void CTcpPerThreadCtx::Delete(){
+    assert(m_rand);
+    if (m_sch_rampup){
+        delete  m_sch_rampup;
+        m_sch_rampup=0;
+    }
+    delete m_rand;
+    m_rand=0;
     m_timer_w.Delete();
     m_ft.Delete();
 }

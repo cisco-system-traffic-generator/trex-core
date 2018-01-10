@@ -124,7 +124,7 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Running:
                 return
             if status['state'] == TRexStatus.Idle:
-                raise TRexError('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
+                raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
         raise TimeoutError("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
@@ -225,6 +225,8 @@ class CTRexClient(object):
         """
         try:
             user = user or self.__default_user
+            self.result_obj.latency_checked = False
+            self.result_obj.clear_results()
             retval = self.server.start_trex(trex_cmd_options, user, False, None, True, self.debug_image, self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
@@ -1504,7 +1506,7 @@ class CTRexResult(object):
                     latest_dump['warmup_barrier'] = True
 
             # handle latency data
-            if self.latency_checked:
+            if self.latency_checked and 'trex-latecny-v2' in latest_dump and 'trex-latecny' in latest_dump:
                 # fix typos, by "pointer"
                 if 'trex-latecny-v2' in latest_dump and 'trex-latency-v2' not in latest_dump:
                     latest_dump['trex-latency-v2'] = latest_dump['trex-latecny-v2']
@@ -1647,7 +1649,7 @@ class CTRexResult(object):
     # history iterator after warmup period
     def _get_steady_state_history_iterator(self):
         if not self.is_done_warmup():
-            raise TRexWarning('Warm-up period not finished')
+            raise Exception('Warm-up period not finished')
         for index, res in enumerate(self._history):
             if 'warmup_barrier' in res:
                 for steady_state_index in range(index, max(index, len(self._history) - 1)):

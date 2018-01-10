@@ -182,6 +182,9 @@ class CIpInfoBase {
         virtual void generate_tuple(CTupleBase & tuple) = 0;
         virtual void set_start_port(uint16_t a)=0;
         virtual void return_all_ports() = 0;
+        virtual ClientCfgBase * get_client_cfg(){
+            return (NULL);
+        }
         uint32_t get_ip() {
             return m_ip;
         }
@@ -334,6 +337,7 @@ public:
         T::set_ip(ip);
      }
 
+
      void generate_tuple(CTupleBase &tuple) {
          tuple.setClientTuple(T::m_ip,
                               NULL,
@@ -352,6 +356,10 @@ class CConfiguredClientInfo : public T {
 public:
     CConfiguredClientInfo(uint32_t ip, const ClientCfgBase &cfg) : m_cfg(cfg) {
         T::set_ip(ip);
+    }
+
+    virtual ClientCfgBase * get_client_cfg(void){
+        return (&m_cfg);
     }
 
     void generate_tuple(CTupleBase &tuple) {
@@ -382,6 +390,12 @@ class CServerInfoL : public CIpInfoL {
 
 class CIpPool {
     public:
+        ClientCfgBase * GetClientCfg(uint32_t idx) {
+            CIpInfoBase* ip_info = m_ip_info[idx];
+            return(ip_info->get_client_cfg());
+        }
+
+
        uint16_t GenerateOnePort(uint32_t idx) {
             CIpInfoBase* ip_info = m_ip_info[idx];
             uint16_t port;
@@ -771,6 +785,7 @@ public:
                 tuple.setClientAll2(m_cache_client_idx,
                                     m_cache_client_ip,
                                     m_client_gen->GenerateOnePort(m_cache_client_idx));
+                tuple.setClientCfg(m_client_gen->GetClientCfg(m_cache_client_idx));
             }
             m_cnt++;
             if (m_cnt>=m_w) {

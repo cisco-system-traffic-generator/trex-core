@@ -198,6 +198,10 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
     CAstfDbRO    *   cur_tmp_ro = m_c_tcp->m_template_ro;
 
+    if (cur->check_limit()){
+        /* we can't generate a flow, there is a limit*/
+        return;
+    }
 
     CTupleBase  tuple;
     cur->m_tuple_gen.GenerateTuple(tuple);
@@ -298,7 +302,7 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
         tcp_generate_flow(done);
 
         if (!done) {
-            node->m_time += m_tcp_fif_d_time;
+            node->m_time += m_c_tcp->m_fif_d_time;
             m_node_gen.m_p_queue.push(node);
         }else{
             free_node(node);
@@ -363,8 +367,6 @@ bool CFlowGenListPerThread::Create_tcp(){
     CTcpIOCb * c_tcp_io = new CTcpIOCb();
     CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
-    m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
-
     c_tcp_io->m_dir =0;
     c_tcp_io->m_p   = this;
     s_tcp_io->m_dir =1;
@@ -410,13 +412,17 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_offload_dev_flags(dev_offload_flags);
     m_s_tcp->set_offload_dev_flags(dev_offload_flags);
 
-
-    if ( m_preview_mode.getVMode() >2 ){
+    uint8_t dmode= m_preview_mode.getVMode();
+    if ( (dmode > 2) && (dmode < 7) ){
         m_c_tcp->m_ft.set_debug(true);
         m_s_tcp->m_ft.set_debug(true);
     }
 
     m_s_tcp->m_ft.set_tcp_api(&m_tcp_bh_api_impl_c);
+
+    /* call startup for client side */
+    m_c_tcp->call_startup();
+    m_s_tcp->call_startup();
 
     return(true);
 }

@@ -59,6 +59,7 @@ class ASTFGlobalInfoBase(object):
         if name.startswith("_"):
             return super(ASTFGlobalInfoBase, self).__setattr__(name, val)
 
+
         if name in self._params:
             if type(self._params[name]) is dict:
                 next_level_params = self._params[name].keys()
@@ -66,8 +67,10 @@ class ASTFGlobalInfoBase(object):
                 next_level_params = []
                 for n in self._params[name]:
                     next_level_params.append(n["name"])
-
             raise AttributeError("{0} in {1} should be followed by one of {2}".format(name, self._name, next_level_params))
+        else:
+            raise AttributeError("{0} is not part of valid params".format(name))
+
 
     def __getattr__(self, name):
         if name.startswith("_"):
@@ -92,6 +95,10 @@ class ASTFGlobalInfoBase(object):
 
 class ASTFGlobalInfo(ASTFGlobalInfoBase):
     _g_params = {
+        "scheduler" : [
+         {"name": "rampup_sec", "type": [int]}
+        ],
+
         "ipv6": [
             {"name": "src_msb", "sub_type" : "ipv6_addr" },
             {"name": "dst_msb", "sub_type" : "ipv6_addr" },
@@ -124,8 +131,11 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
 class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
     _g_params = {
         "tcp": [
-                {"name": "window", "type": [int]},
-                {"name": "mss", "type": [int]}
+                {"name": "initwnd", "type": [int]},
+                {"name": "mss", "type": [int]},
+                {"name": "no_delay", "type": [int]},
+                {"name": "rxbufsize", "type": [int]},
+                {"name": "txbufsize", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},
