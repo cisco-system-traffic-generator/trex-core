@@ -617,14 +617,14 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
 
     if (max_value < min_value ) {
         std::stringstream ss;
-        ss << "VM: request flow var variable '" << max_value << "' is smaller than " << min_value;
+        ss << "VM: requested flow var max value: '" << max_value << "' is smaller than min value: " << min_value;
         generate_parse_err(result, ss.str());
     }
 
     if (flow_var_size == 1 ) {
         if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
             std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT8_MAX;
+            ss << "VM: requested value is bigger than " << UINT8_MAX;
             generate_parse_err(result, ss.str());
         }
     }
@@ -632,7 +632,7 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
     if (flow_var_size == 2 ) {
         if ( (init_value > UINT16_MAX) || (min_value > UINT16_MAX) || (max_value > UINT16_MAX) || (step > UINT16_MAX) )  {
             std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT16_MAX;
+            ss << "VM: requested value is bigger than " << UINT16_MAX;
             generate_parse_err(result, ss.str());
         }
     }
@@ -640,7 +640,7 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
     if (flow_var_size == 4 ) {
         if ( (init_value > UINT32_MAX) || (min_value > UINT32_MAX) || (max_value > UINT32_MAX) || (step > UINT32_MAX) )  {
             std::stringstream ss;
-            ss << "VM: request val is bigger than " << UINT32_MAX;
+            ss << "VM: requested value is bigger than " << UINT32_MAX;
             generate_parse_err(result, ss.str());
         }
     }
