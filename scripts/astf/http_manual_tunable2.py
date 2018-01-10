@@ -29,7 +29,6 @@ class Prof1():
                            dist_client=ip_gen_c,
                            dist_server=ip_gen_s)
 
-        tcp_params = ASTFTCPInfo(window=32768)
 
         info = ASTFGlobalInfo()
         info.tcp.mss = 1100
@@ -37,8 +36,8 @@ class Prof1():
         info.tcp.no_delay = 1
 
         # template
-        temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, glob_info=info,ip_gen=ip_gen)
-        temp_s = ASTFTCPServerTemplate(program=prog_s, tcp_info=tcp_params, glob_info=info)  # using default association
+        temp_c = ASTFTCPClientTemplate(program=prog_c,glob_info=info,ip_gen=ip_gen)
+        temp_s = ASTFTCPServerTemplate(program=prog_s,glob_info=info)  # using default association
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
         # profile
