@@ -101,6 +101,7 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Automation support (using STF batch framework)
 * Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
 * Client Cluster  
+* Basic L7 emulation capability e.g. Random delay, loops, variables, Spirent and IXIA like TCP traffic patterns, Elephant flows  
 
 ===== Known bugs
 
@@ -114,18 +115,23 @@ WARNING: The ASTF version is in pre-alpha state and it is still under developmen
 * Simulation of Jitter/Latency/drop
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 * Field Engine support - ability to change a field inside the stream 
-* OpenSSL integration  
+* TLS support
 * Accurate latency for TCP session. Measure sample of the flows in EF/low latency queue. Measure the SYN=SYN-ACK and REQ-RES latency histogram 
 * Fragmentation is not supported 
 * TCP statistic per template 
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
+* Advanced L7 emulation capability
+** Add to send command the ability to signal in the middle of queue size (today is always at the end)
+** Change TCP/UDP stream fields (e.g.  user Agent)
+** Protocols specific commands (e.g. wait_for_http() will parse the header and wait for the size)
+** Commands for l7 dynamic counters (e.g. wait_for_http() will register dynamic counters)
+
 
 ===== Current high priority tasks
 
 * UDP support (for full SRF support)
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 * More than one core per dual-ports
-* More L7 emulation capability
 
 
 ==== Can we address the above requirements using existing DPDK TCP stacks?
@@ -208,7 +214,7 @@ close()
 [source,python]
 ----
 wait_for_request(len<=100)
-send_ response(data,len=1000)
+send_response(data,len=1000)
 wait_for_request(len<=200)
 send_ response(data,len=2000)
 close()
@@ -1126,7 +1132,7 @@ another example that will run sfr profile in release mode and will show the coun
 
 ==== Tutorial: Manual L7 emulation program building 
 
-*Goal*:: Build the L7 program using low level instructions 
+*Goal*:: Build the L7 program using low level commands 
 
 .Manual L7 emulation program 
 [source,python]
@@ -1178,6 +1184,276 @@ class Prof1():
 <3> wait for http response 
 
 We will expose in the future a capability that could take a pcap file and convert it to a Python code so you could tune it yourself.
+
+
+==== Tutorial: Profile CLI tunable 
+
+*Goal*:: Tune a profile by the CLI arguments. for example change the response size by given args
+
+Every traffic profile must define the following function:
+
+[source,python]
+----
+def create_profile(self,**kwargs) 
+----
+
+A profile can have any key-value pairs. Key-value pairs are called "cli-tunables" and can be used to customize the profile (**kwargs).
+
+The profile defines which tunables can be input to customize output.
+
+*Usage notes for defining parameters*::
+
+* All parameters require default values. 
+* A profile must be loadable with no parameters specified.
+* Every tunable must be expressed as key-value pair with a default value.
+* `-t key=val,key=val` is the way to provide the key-value to the profile
+
+.Example http_res_size 
+[source,python]
+----
+def create_profile (self, **kwargs):
+    # the size of the response size
+    http_res_size = kwargs.get('size',1)
+    
+    # use http_res_size 
+    http_response = http_response_template.format('*'*http_res_size)
+----
+
+.Change tunable from CLI using `-t`
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=1
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=10000
+[bash]>sudo ./t-rex-64 -f astf/http_manual_cli_tunable.py -m 1000 -d 1000 -c 1 --astf -l 1000 -t size=1000000
+----
+
+.Simulator 
+[source,bash]
+----
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py --json
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py -t size=1000 --json
+[bash]>./astf-sim  -f astf/http_manual_cli_tunable.py -t size=1000 -o a.cap --full
+----
+
+
+==== Tutorial: L7 emulation - fin/ack/fin/ack 
+
+Bt default when the L7 emulation program is ended the socket is closed implicitly.
+
+This example force the *server* side to wait for close from peer (client) and only then will send FIN.
+
+.fin-ack example
+[source,python]
+----
+        # client commands
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+        prog_c.recv(len(http_response))
+        # implicit  close 
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.send(http_response)
+        prog_s.wait_for_peer_close(); # wait for client to close the socket the issue a close 
+----
+
+The packets trace should look like this:
+
+[source,python]
+----
+  client server 
+  -------------
+    FIN             
+         ACK
+         FIN
+   ACK
+  -------------
+----  
+        
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
+
+==== Tutorial: L7 emulation - syn-syn/ack-ack/rst
+
+By default, when the L7 emulation program is started the sending buffer waits inside the socket.
+
+This will seen as SYN/SYN-ACK/GET-ACK in the trace (piggyback ack in the GET requests)
+
+To force the client side to send ACK and only *then* send the data use the 'connect()' command
+
+[source,python]
+----
+  client server 
+  -------------
+    SYN
+          SYN-ACK
+    ACK
+    GET       
+  -------------
+----  
+
+
+.Connect() example with RST
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.connect(); ## connect 
+        prog_c.reset();   ## send RST from client side 
+
+        prog_s = ASTFProgram()
+        prog_s.wait_for_peer_close(); # wait for client to close the socket 
+----
+
+this example will wait for connect and then will send RST packet to shutdown peer and current socket 
+
+[source,python]
+----
+  client server 
+  -------------
+    SYN
+          SYN-ACK
+    ACK
+    RST       
+  -------------
+----  
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
+==== Tutorial: L7 emulation - delay server response
+
+.Constant delay 
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+        prog_c.recv(len(http_response))
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.delay(500000); # delay 500msec (500,000usec)
+        prog_s.send(http_response)
+        
+----
+
+This example will delay the server response by 500 msec.
+
+.Random delay
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+        prog_c.recv(len(http_response))
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.delay_rand(100000,500000); # delay random number betwean 100msec-500msec 
+        prog_s.send(http_response)
+        
+----
+
+This example will delay the server by random number betwean 100-500 msec 
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
+==== Tutorial: L7 emulation - delay client request
+
+This example will delay the client side.
+
+In this  example the client sends partial request (10 bytes), wait 100msec and then send the rest of the request (there would be two segments for one request)
+
+.Client delay 
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.send(http_req[:10])
+        prog_c.delay(100000); # delay 100msec 
+        prog_c.send(http_req[10:])
+        prog_c.recv(len(http_response))
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.send(http_response)
+----
+
+
+.Client delay after connect
+[source,python]
+----
+        # client commands
+        prog_c = ASTFProgram()
+        prog_c.delay(100000); # delay 100msec 
+        prog_c.send(http_req)
+        prog_c.recv(len(http_response))
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.send(http_response)
+
+----
+
+In this example the client connects first, wait for 100msec the only then send full request (there would be *one* segment for one request)
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
+a side effect of this delay is more active-flows 
+
+==== Tutorial: L7 emulation - Elefeant flows 
+
+Let say we would like to send only 50 flows with very big size (4GB)
+Loading a 4GB of buffer would be a challenge as TRex memory is limited. 
+What we can do is loop inside the client side to send 1MB buffer 4096 times and then finish with termination.
+
+.Client Delay 
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+        prog_c.recv(0xffffffff)
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        prog_s.set_var("var2",4096);   #<1>
+        prog_s.set_label("a:");        #<2> 
+        prog_s.send(http_response_1mbyte)
+        prog_s.jmp_nz("var2","a:")     #<3> dec var "var2". in case it is *not* zero jump a: 
+----
+<1> set varibale 
+<2> set label 
+<3> jump to label 4096 
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
+.Limit the number to flows
+[source,python]
+----
+
+  cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
+                            cps=1,limit=50)]) #<1>
+
+----
+<1> use `limit` field to control the total flows generated
+
+==== Tutorial: L7 emulation - http pipeline 
+
+In this example, there would be 5 parallel requests and wait for 5 responses 
+The first response could come while we are sending the first request as the Rx side and Tx side work in parallel
+
+.Pipeline
+[source,python]
+----
+        pipeline=5;
+        # client commands
+        prog_c = ASTFProgram()
+        prog_c.send(pipeline*http_req)
+        prog_c.recv(pipeline*len(http_response))
+
+        prog_s = ASTFProgram()
+        prog_s.recv(pipeline*len(http_req))
+        prog_s.send(pipeline*http_response)
+----
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+
 
 === Performance 
 
@@ -1507,7 +1783,7 @@ Not implemented:
 Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
-The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay instruction.
+The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay command.
 
 ==== Will NAT64 work in ASTF mode?
 Yes. see IPv6 in the manual. Server side will handle IPv4 sockets

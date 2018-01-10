@@ -26,7 +26,7 @@ class Prof1():
 
         return profile
 
-    def get_profile(self):
+    def get_profile(self, **kwargs):
         return self.create_profile()
 
 

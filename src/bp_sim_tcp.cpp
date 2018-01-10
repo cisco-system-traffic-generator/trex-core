@@ -198,6 +198,10 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
     CAstfDbRO    *   cur_tmp_ro = m_c_tcp->m_template_ro;
 
+    if (cur->check_limit()){
+        /* we can't generate a flow, there is a limit*/
+        return;
+    }
 
     CTupleBase  tuple;
     cur->m_tuple_gen.GenerateTuple(tuple);

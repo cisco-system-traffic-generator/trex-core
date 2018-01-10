@@ -621,6 +621,242 @@ void CClientServerTcp::dump_counters(){
 
 
 int CClientServerTcp::simple_http(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+/* end with RST from server side */
+int CClientServerTcp::simple_http_rst(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http_rst, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+/* end with RST from server side */
+int CClientServerTcp::simple_http_fin_ack(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http_fin_ack, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+int CClientServerTcp::simple_http_connect(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http_connect, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+int CClientServerTcp::simple_http_connect_rst(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http_connect_rst, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+int CClientServerTcp::simple_http_connect_rst2(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http_connect_rst2, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+
+int CClientServerTcp::build_http(CMbufBuffer * buf_req,
+                                  CMbufBuffer * buf_res,
+                                  CTcpAppProgram * prog_c,
+                                  CTcpAppProgram * prog_s,
+                                  uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_req;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcRX_BUFFER ;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
+    prog_c->add_cmd(cmd);
+
+
+    /* server program */
+
+    cmd.m_cmd =tcRX_BUFFER;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_res;
+    prog_s->add_cmd(cmd);
+    return(0);
+}
+
+int CClientServerTcp::build_http_rst(CMbufBuffer * buf_req,
+                                     CMbufBuffer * buf_res,
+                                     CTcpAppProgram * prog_c,
+                                     CTcpAppProgram * prog_s,
+                                     uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_req;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcRX_BUFFER ;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd = tcRESET;
+    prog_c->add_cmd(cmd);
+
+
+    /* server program */
+
+    cmd.m_cmd =tcRX_BUFFER;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_res;
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcDONT_CLOSE;
+    prog_s->add_cmd(cmd);
+
+    
+    return(0);
+}
+
+int CClientServerTcp::build_http_fin_ack(CMbufBuffer * buf_req,
+                                     CMbufBuffer * buf_res,
+                                     CTcpAppProgram * prog_c,
+                                     CTcpAppProgram * prog_s,
+                                     uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_req;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcRX_BUFFER ;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
+    prog_c->add_cmd(cmd);
+
+
+
+    /* server program */
+
+    cmd.m_cmd =tcRX_BUFFER;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_res;
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcDONT_CLOSE;
+    prog_s->add_cmd(cmd);
+
+    
+    return(0);
+}
+
+int CClientServerTcp::build_http_connect(CMbufBuffer * buf_req,
+                                         CMbufBuffer * buf_res,
+                                         CTcpAppProgram * prog_c,
+                                         CTcpAppProgram * prog_s,
+                                         uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcCONNECT_WAIT;
+    cmd.u.m_tx_cmd.m_buf =buf_req;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_req;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcRX_BUFFER ;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
+    prog_c->add_cmd(cmd);
+
+
+    /* server program */
+    cmd.m_cmd =tcRX_BUFFER;
+    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcTX_BUFFER;
+    cmd.u.m_tx_cmd.m_buf =buf_res;
+    prog_s->add_cmd(cmd);
+
+    cmd.m_cmd = tcDONT_CLOSE;
+    prog_s->add_cmd(cmd);
+
+    
+    return(0);
+}
+
+int CClientServerTcp::build_http_connect_rst(CMbufBuffer * buf_req,
+                                         CMbufBuffer * buf_res,
+                                         CTcpAppProgram * prog_c,
+                                         CTcpAppProgram * prog_s,
+                                         uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcCONNECT_WAIT;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd =tcRESET;
+    prog_c->add_cmd(cmd);
+
+
+    cmd.m_cmd = tcDONT_CLOSE;
+    prog_s->add_cmd(cmd);
+    
+    return(0);
+}
+
+int CClientServerTcp::build_http_connect_rst2(CMbufBuffer * buf_req,
+                                         CMbufBuffer * buf_res,
+                                         CTcpAppProgram * prog_c,
+                                         CTcpAppProgram * prog_s,
+                                         uint32_t http_r_size){
+    CTcpAppCmd cmd;
+
+    /* PER FLOW  */
+
+    /* client program */
+    cmd.m_cmd =tcRESET;
+    prog_c->add_cmd(cmd);
+
+    cmd.m_cmd = tcDONT_CLOSE;
+    prog_s->add_cmd(cmd);
+    
+    return(0);
+}
+
+
+int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
 
 
     CMbufBuffer * buf_req;
@@ -631,8 +867,6 @@ int CClientServerTcp::simple_http(){
     CTcpTuneables *s_tune;
 
     CTcpApp * app_c;
-    //CTcpApp * app_s;
-    CTcpAppCmd cmd;
     uint32_t http_r_size=32*1024;
 
     if (m_mss) {
@@ -680,30 +914,8 @@ int CClientServerTcp::simple_http(){
     utl_mbuf_buffer_create_and_copy(0,buf_req,2048,(uint8_t*)http_req,sizeof(http_req));
     utl_mbuf_buffer_create_and_copy(0,buf_res,2048,(uint8_t*)http_r,http_r_size);
 
+    cb(buf_req,buf_res,prog_c,prog_s,http_r_size);
 
-    /* PER FLOW  */
-
-    /* client program */
-    cmd.m_cmd =tcTX_BUFFER;
-    cmd.u.m_tx_cmd.m_buf =buf_req;
-    prog_c->add_cmd(cmd);
-
-    cmd.m_cmd =tcRX_BUFFER ;
-    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
-    cmd.u.m_rx_cmd.m_rx_bytes_wm  =http_r_size;
-    prog_c->add_cmd(cmd);
-
-
-    /* server program */
-
-    cmd.m_cmd =tcRX_BUFFER;
-    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
-    cmd.u.m_rx_cmd.m_rx_bytes_wm = sizeof(http_req);
-    prog_s->add_cmd(cmd);
-
-    cmd.m_cmd = tcTX_BUFFER;
-    cmd.u.m_tx_cmd.m_buf =buf_res;
-    prog_s->add_cmd(cmd);
 
 
     app_c->set_program(prog_c);

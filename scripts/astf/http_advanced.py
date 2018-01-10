@@ -43,7 +43,7 @@ class Prof1():
         profile = ASTFProfile(default_ip_gen=ip_gen, templates=[template, template2])
         return profile
 
-    def get_profile(self):
+    def get_profile(self, **kwargs):
         return self.create_profile()
 
 
