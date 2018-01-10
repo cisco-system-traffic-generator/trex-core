@@ -78,7 +78,7 @@ class IPv6ND_plugin(ConsolePlugin):
                 help = 'show summary only')
 
 
-    def do_ND(self, port, src_ip, src_mac, dst_ip, vlan, format, timeout, verify_timeout, count, rate, retries, verbose):
+    def do_ND(self, port, src_ip, src_mac, dst_ip, vlan, fmt, timeout, verify_timeout, count, rate, retries, verbose):
         ''' perform IPv6 neighbor discovery '''
         print
         print "performing ND for {0} addresses.".format(count)
