@@ -157,7 +157,7 @@ class STLServiceIPv6ND(STLService):
                 # parse record
                 response = Ether(p['pkt'])
                 if ICMPv6NDOptDstLLAddr in response:
-                    self.log("ND: received NA: {0} <- {1}, {2}" %.format(response[IPv6].dst, response[IPv6].src, response[ICMPv6NDOptDstLLAddr].lladdr))
+                    self.log("ND: received NA: {0} <- {1}, {2}".format(response[IPv6].dst, response[IPv6].src, response[ICMPv6NDOptDstLLAddr].lladdr))
                     self.record.update(response)
                 if ICMPv6ND_NS in response:
                     self.handle_ns_request(pipe, response)
