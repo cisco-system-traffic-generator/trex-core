@@ -3074,7 +3074,6 @@ public:
     CTcpCtxCb             *         m_c_tcp_io;
     CTcpPerThreadCtx      *         m_s_tcp;
     CTcpCtxCb             *         m_s_tcp_io;
-    double                          m_tcp_fif_d_time;
     bool                            m_tcp_terminate;
 
 private:

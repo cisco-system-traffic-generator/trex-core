@@ -450,8 +450,18 @@ static void ctx_timer(void *userdata,
         assert(0);
         break;
     case ttGen:
-        assert(0);
+        {
+            CAstfTimerObj * tobj=(CAstfTimerObj *)tmr;
+            tobj->m_cb(userdata,tobj->m_userdata1,tobj);
+        }
         break;
+    case ttGenFunctor:
+        {
+            CAstfTimerFunctorObj * tobj=(CAstfTimerFunctorObj *)tmr;
+            tobj->m_cb(tobj);
+        }
+        break;
+
     default:
         assert(0);
     };
@@ -580,6 +590,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     #else
     seed=rand();
     #endif
+    m_sch_rampup = 0;
     m_rand = new KxuLCRand(seed);
     tcp_tx_socket_bsize=32*1024;
     tcp_rx_socket_bsize=32*1024 ;
@@ -609,6 +620,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tcpstat.Clear();
     m_tick=0;
     tcp_now=0;
+    m_fif_d_time=0.0;
     m_cb = NULL;
     m_template_rw = NULL;
     m_template_ro = NULL;
@@ -636,9 +648,35 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 }
 
 
+void CTcpPerThreadCtx::init_sch_rampup(){
+        /* calc default fif rate*/
+        astf_thread_id_t max_threads=m_template_rw->get_max_threads();
+        m_fif_d_time = m_template_ro->get_delta_tick_sec_thread(max_threads);
+
+        /* get client tunables */
+        CTcpTuneables * ctx_tune = get_template_rw()->get_c_tuneables();
+
+        if ( ctx_tune->is_valid_field(CTcpTuneables::sched_rampup) ){
+            m_sch_rampup = new CAstfFifRampup(this,
+                                              ctx_tune->m_scheduler_rampup,
+                                              m_template_ro->get_total_cps_per_thread(max_threads));
+        }
+}
+
+
+
+void CTcpPerThreadCtx::call_startup(){
+    if ( is_client_side() ){
+        init_sch_rampup();
+    }
+}
 
 void CTcpPerThreadCtx::Delete(){
     assert(m_rand);
+    if (m_sch_rampup){
+        delete  m_sch_rampup;
+        m_sch_rampup=0;
+    }
     delete m_rand;
     m_rand=0;
     m_timer_w.Delete();

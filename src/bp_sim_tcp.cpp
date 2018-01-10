@@ -302,7 +302,7 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
         tcp_generate_flow(done);
 
         if (!done) {
-            node->m_time += m_tcp_fif_d_time;
+            node->m_time += m_c_tcp->m_fif_d_time;
             m_node_gen.m_p_queue.push(node);
         }else{
             free_node(node);
@@ -367,8 +367,6 @@ bool CFlowGenListPerThread::Create_tcp(){
     CTcpIOCb * c_tcp_io = new CTcpIOCb();
     CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
-    m_tcp_fif_d_time = template_db->get_delta_tick_sec_thread(m_max_threads);
-
     c_tcp_io->m_dir =0;
     c_tcp_io->m_p   = this;
     s_tcp_io->m_dir =1;
@@ -421,6 +419,10 @@ bool CFlowGenListPerThread::Create_tcp(){
     }
 
     m_s_tcp->m_ft.set_tcp_api(&m_tcp_bh_api_impl_c);
+
+    /* call startup for client side */
+    m_c_tcp->call_startup();
+    m_s_tcp->call_startup();
 
     return(true);
 }

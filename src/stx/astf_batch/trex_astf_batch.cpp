@@ -49,9 +49,9 @@ TrexDpCoreAstfBatch::start_astf() {
         return;
     }
 
-    d_time_flow = m_core->m_tcp_fif_d_time; /* set by Create_tcp function */
+    d_time_flow = m_core->m_c_tcp->m_fif_d_time; /* set by Create_tcp function */
 
-    double d_phase= 0.01 + (double)m_core->m_thread_id * m_core->m_tcp_fif_d_time / (double)m_core->m_max_threads;
+    double d_phase= 0.01 + (double)m_core->m_thread_id * d_time_flow / (double)m_core->m_max_threads;
 
 
     if ( CGlobalInfo::is_realtime()  ) {
@@ -67,8 +67,6 @@ TrexDpCoreAstfBatch::start_astf() {
     /* we are delaying only the generation of the traffic 
          timers/rx should Work immediately 
       */
-
-    m_core->m_tcp_fif_d_time = d_time_flow;
 
     /* sync all core to the same time */
     CSyncBarrier * b=m_core->get_sync_b();
