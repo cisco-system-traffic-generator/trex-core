@@ -22,7 +22,9 @@
 #include <common/utl_gcc_diag.h>
 #include "timer_types.h"
 #include <common/n_uniform_prob.h>
-
+#include <stdlib.h>
+#include <functional>
+#include "sch_rampup.h"
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
  *  The Regents of the University of California.  All rights reserved.
@@ -557,6 +559,56 @@ public:
     uint16_t          m_c_template_idx;
 };
 
+/* general timer object used by ASTF, 
+  speed does not matter here, so we allocate it dynamically. 
+  Callbacks and opaque data inside it */
+
+class CAstfTimerObj;
+typedef void (*astf_on_gen_tick_cb_t)(void *userdata0,
+                                      void *userdata1,
+                                      CAstfTimerObj *tmr);
+
+class CAstfTimerObj : public CHTimerObj  {
+
+public:
+    CAstfTimerObj(){
+        CHTimerObj::reset();
+        m_type=ttGen;  
+        m_cb=0;
+        m_userdata1=0;
+    }
+
+public:
+    astf_on_gen_tick_cb_t m_cb;
+    void *                m_userdata1;
+};
+
+class CAstfTimerFunctorObj;
+
+typedef std::function<void(CAstfTimerFunctorObj *tmr)> method_timer_cb_t;
+
+/* callback for object method  
+   WATCH OUT : this object is super not efficient due to the c++ standard std::function. 
+   It is very big ~80 bytes and slow to allocate however, it gives a good generic interface for object methods. Use it only in none performance oriented features.
+
+*/
+class CAstfTimerFunctorObj : public CHTimerObj  {
+
+public:
+    CAstfTimerFunctorObj(){
+        CHTimerObj::reset();
+        m_type=ttGenFunctor;  
+        m_cb=0;
+        m_userdata1=0;
+    }
+
+public:
+    method_timer_cb_t   m_cb;  
+    void *              m_userdata1;
+};
+
+
+
 
 class CTcpCtxCb {
 public:
@@ -593,6 +645,11 @@ public:
     bool Create(uint32_t size,
                 bool is_client);
     void Delete();
+
+    /* called after init */
+    void call_startup();
+
+public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
         return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
     }
@@ -647,7 +704,13 @@ public:
     bool is_client_side(void) {
         return (m_ft.is_client_side());
     }
+private:
+
+    void init_sch_rampup();
+
 public:
+    CAstfFifRampup  *    m_sch_rampup; /* rampup for CPS */
+    double               m_fif_d_time;
 
     /* TUNABLEs */
     uint32_t  tcp_tx_socket_bsize;

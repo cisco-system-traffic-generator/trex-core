@@ -104,7 +104,9 @@ bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
                               astf_thread_id_t           max_threads){
     m_thread_id = thread_id;
     m_max_threads =max_threads;
-    m_rnd.setSeed(thread_id);
+    if (thread_id!=0) {
+        m_rnd.setSeed(thread_id);
+    }
     m_nru = 0;
     m_c_tuneables = NULL;
     m_s_tuneables = NULL;

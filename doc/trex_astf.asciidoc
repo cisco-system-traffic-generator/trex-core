@@ -1587,6 +1587,7 @@ link:cp_astf_docs/index.html[python index]
 |   tcp.keepintvl   |1-254|5|-|+| value in second for TCP keepalive interval 
 |   tcp.delay_ack_msec | 20-500|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
 |   tcp.no_delay    | bool   | 0|+|+|  In case of 1 disable Nagle. Will push any packet with PUSH flag (*NOT* standard it just to simulate Spirent) and will respond with ACK immediately (standard). 
+|   scheduler.rampup_sec    | 3-60000  | disabled |-|+|  scheduler rampup in seconds. After this time the throughput would be the maximum. the throughput increases linearly every 1 sec.
 |=================
 
 * There would be a performance impact when per-template tunables are used. Try to use global tunables.

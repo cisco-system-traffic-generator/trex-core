@@ -535,6 +535,14 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
     }
     try {
 
+        if (tune_json["scheduler"] != Json::nullValue) {
+            Json::Value json = tune_json["scheduler"];
+            if (read_tunable_uint16(tune,json,"rampup_sec",CTcpTuneables::sched_rampup,tune->m_scheduler_rampup)){
+                tunable_min_max_u32("rampup_sec",tune->m_scheduler_rampup,3,60000);
+            }
+        }
+
+
         if (tune_json["tcp"] != Json::nullValue) {
             Json::Value json = tune_json["tcp"];
             if (read_tunable_uint16(tune,json,"mss",CTcpTuneables::tcp_mss_bit,tune->m_tcp_mss)){
@@ -664,6 +672,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
                                               uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
+    ret->Create(thread_id,max_threads);
 
     // json data should not be accessed by multiple threads in parallel
     std::unique_lock<std::mutex> my_lock(m_global_mtx);

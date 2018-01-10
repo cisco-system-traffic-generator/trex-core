@@ -95,6 +95,10 @@ class ASTFGlobalInfoBase(object):
 
 class ASTFGlobalInfo(ASTFGlobalInfoBase):
     _g_params = {
+        "scheduler" : [
+         {"name": "rampup_sec", "type": [int]}
+        ],
+
         "ipv6": [
             {"name": "src_msb", "sub_type" : "ipv6_addr" },
             {"name": "dst_msb", "sub_type" : "ipv6_addr" },

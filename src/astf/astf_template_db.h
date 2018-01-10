@@ -109,6 +109,14 @@ public:
                 astf_thread_id_t           max_threads);
     void Delete();
 
+    astf_thread_id_t  get_thread_id(){
+        return (m_thread_id);
+    }
+
+    astf_thread_id_t  get_max_threads(){
+        return (m_max_threads);
+    }
+
     CAstfPerTemplateRW * get_template_by_id(astf_t_id_t tid){
         BP_ASSERT(tid<m_cap_gen.size());
         return(m_cap_gen[tid]);
