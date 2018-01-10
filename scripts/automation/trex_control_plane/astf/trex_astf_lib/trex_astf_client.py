@@ -748,153 +748,6 @@ class ASTFTCPOptions(object):
             return True
 
 
-class ASTFTCPInfo(object):
-    """
-       .. code-block:: python
-
-            tcp_params = ASTFTCPInfo(window=32768)
-
-    """
-
-    in_list = []
-    DEFAULT_WIN = 32768
-    DEFAULT_PORT = 80
-
-    @staticmethod
-    def class_reset():
-        ASTFTCPInfo.in_list = []
-
-    @staticmethod
-    def class_to_json():
-        ret = []
-        for i in range(0, len(ASTFTCPInfo.in_list)):
-            ret.append(ASTFTCPInfo.in_list[i].to_json())
-
-        return ret
-
-    class Inner(object):
-        def __init__(self, window=32768, options=None):
-            self.fields = {}
-            self.fields['window'] = window
-            self.fields['options'] = options
-
-        def __eq__(self, other):
-            if other is None:
-                return False
-
-            for key in self.fields.keys():
-                if other.fields[key] is None:
-                    return False
-                if self.fields[key] != other.fields[key]:
-                    return False
-            return True
-
-        @property
-        def window(self):
-            return self.fields['window']
-
-        @property
-        def options(self):
-            return self.fields['options']
-
-        def to_json(self):
-            ret = {}
-            ret['window'] = self.fields['window']
-            if self.fields['options'] is not None:
-                ret['options'] = self.fields['options'].to_json()
-            return ret
-
-    def __init__(self, window=None, options=None, port=None, file=None, side="c"):
-        """
-
-        :parameters:
-
-                  window  : uint32_t
-                      TCP window size default 32KB.  If given together with file, overrides info from file.
-
-                  side    : string
-                        "c" or "s". If file argument is given, determines if TCP information will be taken from "client" or "server" side
-
-                  file    : string
-                        pcap file to learn the TCP information from.
-
-                  port    :  uint16_t
-                        destination port. If given together with file, overrides info from file.
-
-                  options  : uint16_t
-                        TCP options to use (ASTFTCPOptions object).  If given together with file, overrides info from file.
-
-
-        """
-
-        ver_args = {"types":
-                    [{"name": "options", 'arg': options, "t": ASTFTCPOptions, "must": False}
-                     ]}
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-
-        side_vals = ["c", "s"]
-        if side not in side_vals:
-            raise ASTFError("Side must be one of {0}".format(side_vals))
-
-        new_opt = None
-        new_port = None
-        new_win = None
-        if file is not None:
-            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
-            cap.analyze()
-            if side == "c":
-                new_win = cap.c_tcp_win
-                new_opt = ASTFTCPOptions(cap.c_tcp_opts)
-                new_port = cap.d_port
-            else:
-                new_win = cap.s_tcp_win
-                new_opt = ASTFTCPOptions(cap.s_tcp_opts)
-                # In case of server destination port is the source port received from client
-                new_port = None
-
-        # can override parameters from file
-        if window is not None:
-            new_win = window
-        else:
-            if new_win is None:
-                new_win = ASTFTCPInfo.DEFAULT_WIN
-        if options is not None:
-            new_opt = options
-        if port is not None:
-            new_port = port
-        else:
-            if new_port is None:
-                new_port = ASTFTCPInfo.DEFAULT_PORT
-
-        self.m_port = new_port
-        new_inner = self.Inner(window=new_win, options=new_opt)
-        for i in range(0, len(self.in_list)):
-            if new_inner == self.in_list[i]:
-                self.index = i
-                return
-        self.in_list.append(new_inner)
-        self.index = len(self.in_list) - 1
-
-    @property
-    def window(self):
-        return self.in_list[self.index].window
-
-    @property
-    def options(self):
-        return self.in_list[self.index].options
-
-    @property
-    def port(self):
-        return self.m_port
-
-    def to_json(self):
-        return {"index": self.index}
-
-    def dump(self, out, var_name):
-        win = self.window
-        opt = self.options
-        out.write("{0} = {1}(window={2}, options={3})\n".format(self.__class__.__name__, var_name, win, opt))
-
 
 class ASTFAssociationRule(object):
     """
@@ -1059,14 +912,12 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                                dist_client=ip_gen_c,
                                dist_server=ip_gen_s)
 
-            tcp_params = ASTFTCPInfo(window=32768)
-
             # template
-            temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
+            temp_c = ASTFTCPClientTemplate(program=prog_c, ip_gen=ip_gen)
 
      """
 
-    def __init__(self, ip_gen, cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
+    def __init__(self, ip_gen, cluster=ASTFCluster(), program=None,
                  port=80, cps=1, glob_info=None,limit=None):
         """
 
@@ -1075,8 +926,6 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                        generator
 
                   cluster :  ASTFCluster see :class:`trex_astf_lib.trex_astf_client.ASTFCluster`
-
-                  tcp_info : ASTFTCPInfo see :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
 
                   program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
                         L7 emulation program
@@ -1095,14 +944,12 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
         ver_args = {"types":
                     [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
-                     {"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         super(ASTFTCPClientTemplate, self).__init__(ip_gen=ip_gen, cluster=cluster, program=program)
-        self.fields['tcp_info'] = tcp_info
         self.fields['port'] = port
         self.fields['cps'] = cps
         self.fields['glob_info'] = glob_info
@@ -1138,11 +985,10 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
 
      """
 
-    def __init__(self, tcp_info=ASTFTCPInfo(), program=None, assoc=ASTFAssociation(), glob_info=None):
+    def __init__(self, program=None, assoc=ASTFAssociation(), glob_info=None):
         """
 
         :parameters:
-                  tcp_info : ASTFTCPInfo see :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
 
                   program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
                         L7 emulation program
@@ -1151,14 +997,14 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
 
         """
         ver_args = {"types":
-                    [{"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     [
                      {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
-                     {"name": "program", 'arg': program, "t": ASTFProgram}]
+                     {"name": "program", 'arg': program, "t": ASTFProgram}
+                     ]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         super(ASTFTCPServerTemplate, self).__init__(program=program)
-        self.fields['tcp_info'] = tcp_info
         if isinstance(assoc, ASTFAssociationRule):
             new_assoc = ASTFAssociation(rules=assoc)
             self.fields['assoc'] = new_assoc
@@ -1213,8 +1059,12 @@ class ASTFCapInfo(object):
                   l7_percent :  float
                         L7 stream bandwidth percent
 
-                   limit     : uint32_t 
+                  limit     : uint32_t 
                         Limit the number of flows 
+
+                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
+                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
 
         """
 
@@ -1278,11 +1128,10 @@ class ASTFTemplate(object):
                                dist_client=ip_gen_c,
                                dist_server=ip_gen_s)
 
-            tcp_params = ASTFTCPInfo(window=32768)
 
             # template
-            temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
-            temp_s = ASTFTCPServerTemplate(program=prog_s, tcp_info=tcp_params)  # using default association
+            temp_c = ASTFTCPClientTemplate(program=prog_c,ip_gen=ip_gen)
+            temp_s = ASTFTCPServerTemplate(program=prog_s)  # using default association
             template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
      """
@@ -1318,6 +1167,19 @@ class ASTFTemplate(object):
 
         return ret
 
+class _ASTFTCPInfo(object):
+    def __init__(self, file=None):
+        if file is not None:
+            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
+            cap.analyze()
+            new_port = cap.d_port
+
+        self.m_port = new_port
+
+    @property
+    def port(self):
+        return self.m_port
+
 
 class ASTFProfile(object):
     """ ASTF profile
@@ -1345,11 +1207,11 @@ class ASTFProfile(object):
                   default_ip_gen  : ASTFIPGen  :class:`trex_astf_lib.trex_astf_client.ASTFIPGen`
                        tuple generator object
 
-                  default_tcp_server_info  :  ASTFTCPInfo :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
+                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
                        tcp parameters to be used for server side, if cap_list is given. This is optional. If not specified,
                        TCP parameters for each flow will be taken from its cap file.
 
-                  default_tcp_client_info  :  ASTFTCPInfo :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
+                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
                        Same as default_tcp_server_info for client side.
 
                   templates  :  ASTFTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFTemplate`
@@ -1393,13 +1255,7 @@ class ASTFProfile(object):
                 prog_c = ASTFProgram(file=cap_file, side="c")
                 prog_s = ASTFProgram(file=cap_file, side="s")
 
-                #                if default_tcp_client_info is not None:
-                #                   tcp_c = default_tcp_client_info
-                #                   tcp_c_from_file = ASTFTCPInfo(file=cap_file, side="c")
-                # We want to take port from file and not from default, because it should be different for each file
-                #                   tcp_c_port = tcp_c_from_file.port
-                #               else:
-                tcp_c = ASTFTCPInfo(file=cap_file, side="c")
+                tcp_c = _ASTFTCPInfo(file=cap_file)
                 tcp_c_port = tcp_c.port
 
                 cps = cap.cps

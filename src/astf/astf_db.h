@@ -409,7 +409,6 @@ class CAstfDB  : public CTRexDummyCommand  {
 
     tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
     bool read_tunables(CTcpTuneables *tune, Json::Value json);
-    bool convert_tcp_info(uint8_t socket_id);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
