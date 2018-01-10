@@ -951,6 +951,7 @@ enum {
        OPT_CHECKSUM_OFFLOAD,
        OPT_CHECKSUM_OFFLOAD_DISABLE,
        OPT_TSO_OFFLOAD_DISABLE,
+       OPT_LRO_OFFLOAD_DISABLE,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
@@ -964,6 +965,7 @@ enum {
        OPT_NTACC_SO,
        OPT_ASTF_SERVR_ONLY,
        OPT_ASTF_CLIENT_MASK,
+       OPT_ASTF_TUNABLE,
        OPT_NO_TERMIO,
     
        /* no more pass this */
@@ -1030,7 +1032,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
         { OPT_CHECKSUM_OFFLOAD_DISABLE, "--checksum-offload-disable", SO_NONE   },
-        { OPT_TSO_OFFLOAD_DISABLE, "--tso-disable", SO_NONE   },
+        { OPT_TSO_OFFLOAD_DISABLE,  "--tso-disable", SO_NONE   },
+        { OPT_LRO_OFFLOAD_DISABLE,  "--lro-disable", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_NTACC_SO,               "--ntacc-so", SO_NONE    },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
@@ -1044,6 +1047,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
+        { OPT_ASTF_TUNABLE,           "-t",SO_REQ_SEP},
         { OPT_NO_TERMIO,              "--no-termio", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -1074,7 +1078,8 @@ static int usage(){
     printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
     printf(" --checksum-offload         : Deprecated,enable by default. Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
     printf(" --checksum-offload-disable : Disable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
-    printf(" --tso-disable              : disable TSO in case of advanced TCP mode \n");
+    printf(" --tso-disable              : disable TSO (advanced TCP mode) \n");
+    printf(" --lro-disable              : disable LRO (advanced TCP mode) \n");
     printf(" --client_cfg <file>        : YAML file describing clients configuration \n");
     printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions, \n");
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
@@ -1227,6 +1232,13 @@ static void check_exclusive(const OptHash &args_set,
     }
 }
 
+struct ParsingOptException : public std::exception {
+    const ESOError m_err_code;
+    const char    *m_opt_text;
+    ParsingOptException(CSimpleOpt &args):
+                    m_err_code(args.LastError()),
+                    m_opt_text(args.OptionText()) {}
+};
 
 static OptHash
 args_first_pass(int argc, char *argv[], CParserOption* po) {
@@ -1240,6 +1252,9 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
     
     /* set */
     while (args.Next()) {
+        if (args.LastError() != SO_SUCCESS) {
+            throw ParsingOptException(args);
+        }
         args_set[args.OptionId()] = true;
     }
     
@@ -1317,7 +1332,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_ASTF_SERVR_ONLY:
                 po->m_astf_mode = CParserOption::OP_ASTF_MODE_SERVR_ONLY;
                 break;
-
+            case OPT_ASTF_TUNABLE:
+                /* do bothing with it */
+                break;
             case OPT_ASTF_CLIENT_MASK:
                 po->m_astf_mode = CParserOption::OP_ASTF_MODE_CLIENT_MASK;
                 sscanf(args.OptionArg(),"%x", &po->m_astf_client_mask);
@@ -1526,7 +1543,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_TSO_OFFLOAD_DISABLE:
                 po->preview.setTsoOffloadDisable(true);
                 break;
-
+            case OPT_LRO_OFFLOAD_DISABLE:
+                po->preview.setLroOffloadDisable(true);
+                break;
             case OPT_CLOSE:
                 po->preview.setCloseEnable(true);
                 break;
@@ -1546,13 +1565,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             } // End of switch
         }// End of IF
         else {
-            if (args.LastError() == SO_OPT_INVALID) {
-                printf("Error: option %s is not recognized.\n\n", args.OptionText());
-            } else if (args.LastError() == SO_ARG_MISSING) {
-                printf("Error: option %s is expected to have argument.\n\n", args.OptionText());
-            }
-            usage();
-            return -1;
+            throw ParsingOptException(args);
         }
     } // End of while
 
@@ -1579,8 +1592,17 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         po->preview.setVMode(a);
     }
 
+    if (po->m_platform_factor==0.0){
+        parse_err(" you must provide a non zero multipler for platform -pm 0 is not valid \n");
+    }
+
     /* if we have a platform factor we need to devided by it so we can still work with normalized yaml profile  */
     po->m_factor = po->m_factor/po->m_platform_factor;
+
+    if (po->m_factor==0.0) {
+        parse_err(" you must provide a non zero multipler -m 0 is not valid \n");
+    }
+
 
     if ( first_time ){
         /* only first time read the configuration file */
@@ -1639,7 +1661,18 @@ static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool
     for(int i=0; i<argc; i++) {
         argv_copy[i] = strdup(argv[i]);
     }
-    int ret = parse_options(argc, argv_copy, po, first_time);
+    int ret = 0;
+    try {
+        ret = parse_options(argc, argv_copy, po, first_time);
+    } catch (ParsingOptException &e) {
+        if (e.m_err_code == SO_OPT_INVALID) {
+            printf("Error: option %s is not recognized.\n\n", e.m_opt_text);
+        } else if (e.m_err_code == SO_ARG_MISSING) {
+            printf("Error: option %s is expected to have argument.\n\n", e.m_opt_text);
+        }
+        usage();
+        return -1;
+    }
 
     // free
     for(int i=0; i<argc; i++) {
@@ -1700,6 +1733,11 @@ public:
 
     inline void update_var(void){
         get_ex_drv()->update_configuration(this);
+        if ( m_port_conf.rxmode.enable_lro && 
+            CGlobalInfo::m_options.preview.getLroOffloadDisable()  ) {
+            m_port_conf.rxmode.enable_lro=0;
+            printf("Warning LRO is supported and asked to be disabled by user \n");
+        }
     }
 
     inline void update_global_config_fdir(void){
@@ -2918,6 +2956,7 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
     /* flag is faster than checking the node pointer (another cacheline) */
     if ( unlikely(CGlobalInfo::m_options.preview.get_is_client_cfg_enable() ) ) {
+        assert(node->m_client_cfg);
         node->m_client_cfg->apply(m, dir);
     }
 

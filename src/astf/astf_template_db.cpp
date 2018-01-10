@@ -54,6 +54,7 @@ bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
     m_policer.set_cir(info->m_k_cps*1000.0);
     m_policer.set_level(0.0);
     m_policer.set_bucket_size(100.0);
+    m_limit=0;
     return (true);
 }
 
@@ -103,7 +104,9 @@ bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
                               astf_thread_id_t           max_threads){
     m_thread_id = thread_id;
     m_max_threads =max_threads;
-    m_rnd.setSeed(thread_id);
+    if (thread_id!=0) {
+        m_rnd.setSeed(thread_id);
+    }
     m_nru = 0;
     m_c_tuneables = NULL;
     m_s_tuneables = NULL;

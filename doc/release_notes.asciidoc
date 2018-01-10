@@ -27,6 +27,23 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== (Pre) Release 2.36 ==
+
+* ASTF  
+** Remove ASTFTCPInfo object from profile. 
+** add support for scheduler.rampup_sec tunable 
+
+== Release 2.35 ==
+
+* ASTF L7 emulation enhancements. 
+** Ability to control the L7 application with more commands (e.g. random delay in the server,elephant flow, syn-ack-rst flow) see link:trex_astf.html#_tutorial_l7_emulation_fin_ack_fin_ack[l7-emulation-example] and link:cp_astf_docs/api/profile_code.html#astfprogram-class[l7-program]
+** Ability to limit the total number of generated flows using `limit` directive. For example, to create a limited number of elephant flows.
+** profile-tunable: ability to tune the profile using key-val input see link: trex_astf.html#_tutorial_profile_cli_tunable[l7-cli-tunable]
+** Refactor the code for ASTF interactive support
+** Fix TCP crash in case of corrupted packet 
+* Napatech support for DPDK 17.11 
+* Stateless, Fix ipv6.scan6 crash in case of "ff02::1" addr (VPP use case)
+ 
 == Release 2.34 ==
 
 * Mellanox Cx-4/5

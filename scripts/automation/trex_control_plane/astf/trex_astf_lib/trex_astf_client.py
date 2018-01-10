@@ -90,16 +90,48 @@ class ASTFCmdRecv(ASTFCmd):
 
 
 class ASTFCmdDelay(ASTFCmd):
-    def __init__(self, msec):
+    def __init__(self, usec):
         super(ASTFCmdDelay, self).__init__()
         self.fields['name'] = 'delay'
-        self.fields['delay'] = msec
+        self.fields['usec'] = usec
 
 
 class ASTFCmdReset(ASTFCmd):
     def __init__(self):
         super(ASTFCmdReset, self).__init__()
         self.fields['name'] = 'reset'
+
+class ASTFCmdNoClose(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdNoClose, self).__init__()
+        self.fields['name'] = 'nc'
+
+class ASTFCmdConnect(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdConnect, self).__init__()
+        self.fields['name'] = 'connect'
+
+class ASTFCmdDelayRnd(ASTFCmd):
+    def __init__(self,min_usec,max_usec):
+        super(ASTFCmdDelayRnd, self).__init__()
+        self.fields['name'] = 'delay_rnd'
+        self.fields['min_usec'] = min_usec
+        self.fields['max_usec'] = max_usec
+
+class ASTFCmdSetVal(ASTFCmd):
+    def __init__(self,id_val,val):
+        super(ASTFCmdSetVal, self).__init__()
+        self.fields['name'] = 'set_var'
+        self.fields['id'] = id_val
+        self.fields['val'] = val
+
+class ASTFCmdJMPNZ(ASTFCmd):
+    def __init__(self,id_val,offset,label):
+        super(ASTFCmdJMPNZ, self).__init__()
+        self.label=label
+        self.fields['name'] = 'jmp_nz'
+        self.fields['id'] = id_val
+        self.fields['offset'] = offset
 
 
 class ASTFProgram(object):
@@ -181,6 +213,8 @@ class ASTFProgram(object):
         if side not in side_vals:
             raise ASTFError("Side must be one of {0}".side_vals)
 
+        self.vars={};
+        self.labels={};
         self.fields = {}
         self.fields['commands'] = []
         self.total_send_bytes = 0
@@ -198,13 +232,72 @@ class ASTFProgram(object):
     def calc_hash(self):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
+    def send_chunk(self, l7_buf,chunk_size,delay_usec):
+        """
+        Send l7_buffer by splitting it into small chunks and issue a delay betwean each chunk. 
+        This is a utility  command that works on top of send/delay command
+
+         example1
+          send (buffer1,100,10) will split the buffer to buffers of 100 bytes with delay of 10usec
+
+        :parameters:
+
+                  l7_buf : string
+                     l7 stream as string 
+
+                  chunk_size : uint32_t 
+                     size of each chunk 
+
+                  delay_usec : uint32_t 
+                     the delay in usec to insert betwean each write 
+        """
+        ver_args = {"types":
+                    [
+                    {"name": "l7_buf", 'arg': l7_buf, "t": [bytes, str]},
+                    {"name": "chunk_size", 'arg': chunk_size, "t": [int]},
+                    {"name": "delay_usec", 'arg': delay_usec, "t": [int]},
+                    ]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if type(l7_buf) is str:
+            try:
+                enc_buf = l7_buf.encode('ascii')
+            except UnicodeEncodeError as e:
+                print (e)
+                raise ASTFError("If buf is a string, it must contain only ascii")
+        else:
+                enc_buf = buf
+
+        size=len(enc_buf);
+        cnt=0;
+        while size>0 :
+            self.send(enc_buf[cnt:cnt+chunk_size])
+            if delay_usec:
+                self.delay(delay_usec);
+            cnt+=chunk_size;
+            size-=chunk_size;
+
+
+
     def send(self, buf):
         """
-        send (l7_buffer)
+        send (l7_buffer) and wait for the buffer to be acked by peer. Rx side could work in parallel
+
+         example1
+          send (buffer1)
+          send (buffer2)
+
+           Will behave differently than 
+
+         example1
+         send (buffer1+ buffer2)
+
+        in the first example there would be PUSH in the last byte of the buffer and immediate ACK from peer while in the last example the buffer will be sent together (might be one segment)
 
         :parameters:
                   buf : string
-                     l7 stream
+                     l7 stream as string 
 
         """
 
@@ -234,8 +327,7 @@ class ASTFProgram(object):
 
         :parameters:
                   bytes  : uint32_t
-                     wait until we receive at least  x number of bytes
-
+                   wait until we receive at least  x number of bytes. in always works, the command just check that the watermark was reached to start the next command 
         """
 
         ver_args = {"types":
@@ -246,30 +338,142 @@ class ASTFProgram(object):
         self.total_rcv_bytes += bytes
         self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes))
 
-    def delay(self, msec):
+    def delay(self, usec):
         """
         delay for x usec
 
         :parameters:
-                  msec  : float
-                     delay for this time in usec
+                  usec  : uint32_t
+                   delay for this time in usec
 
         """
 
         ver_args = {"types":
-                    [{"name": "msec", 'arg': msec, "t": [int, float]}]
+                    [{"name": "usec", 'arg': usec, "t": [int, float]}]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        self.fields['commands'].append(ASTFCmdDelay(msec))
+        self.fields['commands'].append(ASTFCmdDelay(usec))
 
     def reset(self):
         """
-        for TCP connection send RST to peer
+        For TCP connection send RST to peer. Should be the last command 
 
         """
 
         self.fields['commands'].append(ASTFCmdReset())
+
+    def wait_for_peer_close(self):
+        """
+        For TCP connection wait for peer side to close (read==0) and only then close. Should be the last command
+        This simulates server side that waits for a requests until client retire with close().
+
+        """
+
+        self.fields['commands'].append(ASTFCmdNoClose())
+
+    def connect(self):
+        """
+        for TCP connection wait for the connection to be connected. should be the first command  
+        """
+
+        self.fields['commands'].append(ASTFCmdConnect())
+
+
+    def delay_rand(self, min_usec,max_usec):
+        """
+        delay for a random time betwean  min-max usec with uniform distribution
+
+        :parameters:
+                  min_usec  : float
+                     min delay for this time in usec
+
+                  max_usec  : float
+                     min delay for this time in usec
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "min_usec", 'arg': min_usec, "t": [int, float]},
+                     {"name": "max_usec", 'arg': min_usec, "t": [int, float]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if min_usec>max_usec:
+                raise ASTFError("min value {0} is bigger than max {1}  ".format(min_usec,max_usec))
+
+        self.fields['commands'].append(ASTFCmdDelayRnd(min_usec,max_usec))
+
+    def __add_var (self,var_name):
+        if not (var_name in self.vars):
+            var_index=len(self.vars);
+            self.vars[var_name]=var_index
+
+    def __get_var_index (self,var_name):
+        if not (var_name in self.vars):
+            raise ASTFError("var {0} wasn't defined  ".format(var_name))
+        return (self.vars[var_name]);
+
+    def set_var(self, var_id,val):
+        """
+        Set a flow variable 
+
+        :parameters:
+                  var_id  : string
+                     var-id there are limited number of variables 
+
+                  val  : uint32_t
+                     value of the variable 
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "val", 'arg': val, "t": [int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if  isinstance(var_id, str):
+            self.__add_var(var_id)
+        self.fields['commands'].append(ASTFCmdSetVal(var_id,val))
+
+    def set_label(self, label):
+        """
+        Set a location label name. used with jmp_nz command 
+        """
+        if label in self.labels:
+            raise ASTFError("label {0} was defined already ".format(label))
+
+        #print("label {0} offset {1} ".format(label,len(self.fields['commands'])))
+        self.labels[label]=len(self.fields['commands']);
+
+    def __get_label_id (self,label):
+        if not (label in self.labels):
+            raise ASTFError("label {0} wasn't defined ".format(label))
+        return(self.labels[label]);
+
+    def jmp_nz(self, var_id,label):
+        """
+        Decrement the flow variable, in case of none zero jump to label 
+
+        :parameters:
+                  var_id  : int
+                     flow var id 
+
+                  label  : string
+                     label id
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "label", 'arg': label, "t": [str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdJMPNZ(var_id,0,label))
+
+
 
     def _set_cmds(self, cmds):
         for cmd in cmds:
@@ -295,7 +499,25 @@ class ASTFProgram(object):
             new_cmds.append(new_cmd)
         self._set_cmds(new_cmds)
 
+    def __compile(self):
+        # update offsets for  ASTFCmdJMPNZ
+        # comvert var names to ids 
+        i=0;
+        for cmd in self.fields['commands']:
+            if isinstance(cmd, ASTFCmdJMPNZ):
+                #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
+                cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
+                if isinstance(cmd.fields['id'],str):
+                    cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
+            if isinstance(cmd, ASTFCmdSetVal):
+                id_name=cmd.fields['id']
+                if isinstance(id_name,str):
+                    cmd.fields['id']=self.__get_var_index(id_name)
+            i=i+1
+
+
     def to_json(self):
+        self.__compile()
         ret = {}
         ret['commands'] = []
         for cmd in self.fields['commands']:
@@ -562,158 +784,17 @@ class ASTFTCPOptions(object):
         return dict(self.fields)
 
     def __eq__(self, other):
+        if not other:
+            return False
+        if not hasattr(other, 'fields'):
+            return False
         for key in self.fields.keys():
+            if not key in other.fields:
+                return False
             if self.fields[key] != other.fields[key]:
                 return False
             return True
 
-
-class ASTFTCPInfo(object):
-    """
-       .. code-block:: python
-
-            tcp_params = ASTFTCPInfo(window=32768)
-
-    """
-
-    in_list = []
-    DEFAULT_WIN = 32768
-    DEFAULT_PORT = 80
-
-    @staticmethod
-    def class_reset():
-        ASTFTCPInfo.in_list = []
-
-    @staticmethod
-    def class_to_json():
-        ret = []
-        for i in range(0, len(ASTFTCPInfo.in_list)):
-            ret.append(ASTFTCPInfo.in_list[i].to_json())
-
-        return ret
-
-    class Inner(object):
-        def __init__(self, window=32768, options=None):
-            self.fields = {}
-            self.fields['window'] = window
-            self.fields['options'] = options
-
-        def __eq__(self, other):
-            if other is None:
-                return False
-
-            for key in self.fields.keys():
-                if other.fields[key] is None:
-                    return False
-                if self.fields[key] != other.fields[key]:
-                    return False
-            return True
-
-        @property
-        def window(self):
-            return self.fields['window']
-
-        @property
-        def options(self):
-            return self.fields['options']
-
-        def to_json(self):
-            ret = {}
-            ret['window'] = self.fields['window']
-            if self.fields['options'] is not None:
-                ret['options'] = self.fields['options'].to_json()
-            return ret
-
-    def __init__(self, window=None, options=None, port=None, file=None, side="c"):
-        """
-
-        :parameters:
-
-                  window  : uint32_t
-                      TCP window size default 32KB.  If given together with file, overrides info from file.
-
-                  side    : string
-                        "c" or "s". If file argument is given, determines if TCP information will be taken from "client" or "server" side
-
-                  file    : string
-                        pcap file to learn the TCP information from.
-
-                  port    :  uint16_t
-                        destination port. If given together with file, overrides info from file.
-
-                  options  : uint16_t
-                        TCP options to use (ASTFTCPOptions object).  If given together with file, overrides info from file.
-
-
-        """
-
-        ver_args = {"types":
-                    [{"name": "options", 'arg': options, "t": ASTFTCPOptions, "must": False}
-                     ]}
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-
-        side_vals = ["c", "s"]
-        if side not in side_vals:
-            raise ASTFError("Side must be one of {0}".format(side_vals))
-
-        new_opt = None
-        new_port = None
-        new_win = None
-        if file is not None:
-            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
-            cap.analyze()
-            if side == "c":
-                new_win = cap.c_tcp_win
-                new_opt = ASTFTCPOptions(cap.c_tcp_opts)
-                new_port = cap.d_port
-            else:
-                new_win = cap.s_tcp_win
-                new_opt = ASTFTCPOptions(cap.s_tcp_opts)
-                # In case of server destination port is the source port received from client
-                new_port = None
-
-        # can override parameters from file
-        if window is not None:
-            new_win = window
-        else:
-            if new_win is None:
-                new_win = ASTFTCPInfo.DEFAULT_WIN
-        if options is not None:
-            new_opt = options
-        if port is not None:
-            new_port = port
-        else:
-            if new_port is None:
-                new_port = ASTFTCPInfo.DEFAULT_PORT
-
-        self.m_port = new_port
-        new_inner = self.Inner(window=new_win, options=new_opt)
-        for i in range(0, len(self.in_list)):
-            if new_inner == self.in_list[i]:
-                self.index = i
-                return
-        self.in_list.append(new_inner)
-        self.index = len(self.in_list) - 1
-
-    @property
-    def window(self):
-        return self.in_list[self.index].window
-
-    @property
-    def options(self):
-        return self.in_list[self.index].options
-
-    @property
-    def port(self):
-        return self.m_port
-
-    def to_json(self):
-        return {"index": self.index}
-
-    def dump(self, out, var_name):
-        win = self.window
-        opt = self.options
-        out.write("{0} = {1}(window={2}, options={3})\n".format(self.__class__.__name__, var_name, win, opt))
 
 
 class ASTFAssociationRule(object):
@@ -879,15 +960,13 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                                dist_client=ip_gen_c,
                                dist_server=ip_gen_s)
 
-            tcp_params = ASTFTCPInfo(window=32768)
-
             # template
-            temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
+            temp_c = ASTFTCPClientTemplate(program=prog_c, ip_gen=ip_gen)
 
      """
 
-    def __init__(self, ip_gen, cluster=ASTFCluster(), tcp_info=ASTFTCPInfo(), program=None,
-                 port=80, cps=1, glob_info=None):
+    def __init__(self, ip_gen, cluster=ASTFCluster(), program=None,
+                 port=80, cps=1, glob_info=None,limit=None):
         """
 
         :parameters:
@@ -895,8 +974,6 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                        generator
 
                   cluster :  ASTFCluster see :class:`trex_astf_lib.trex_astf_client.ASTFCluster`
-
-                  tcp_info : ASTFTCPInfo see :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
 
                   program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
                         L7 emulation program
@@ -907,26 +984,36 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   cps      : float
                         New connection per second rate
 
+                  limit    : uint32_t 
+                        limit the number of flows. default is None which means zero 
+
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
         """
 
         ver_args = {"types":
                     [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
-                     {"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     {"name": "limit", 'arg': limit, "t": int, "must": False},
+                     {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         super(ASTFTCPClientTemplate, self).__init__(ip_gen=ip_gen, cluster=cluster, program=program)
-        self.fields['tcp_info'] = tcp_info
         self.fields['port'] = port
         self.fields['cps'] = cps
         self.fields['glob_info'] = glob_info
+        if limit:
+            self.fields['limit'] = limit
 
     def to_json(self):
         ret = super(ASTFTCPClientTemplate, self).to_json()
         ret['port'] = self.fields['port']
         ret['cps'] = self.fields['cps']
+        if 'limit' in self.fields:
+            ret['limit'] = self.fields['limit']
+
         if self.fields['glob_info'] is not None:
             ret['glob_info'] = self.fields['glob_info'].to_json()
         return ret
@@ -949,27 +1036,29 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
 
      """
 
-    def __init__(self, tcp_info=ASTFTCPInfo(), program=None, assoc=ASTFAssociation(), glob_info=None):
+    def __init__(self, program=None, assoc=ASTFAssociation(), glob_info=None):
         """
 
         :parameters:
-                  tcp_info : ASTFTCPInfo see :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
 
                   program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
                         L7 emulation program
+
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
 
                   assoc    : ASTFAssociation see :class:`trex_astf_lib.trex_astf_client.ASTFAssociation`
 
         """
         ver_args = {"types":
-                    [{"name": "tcp_info", 'arg': tcp_info, "t": ASTFTCPInfo, "must": False},
+                     [
                      {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
-                     {"name": "program", 'arg': program, "t": ASTFProgram}]
+                     {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
+                     {"name": "program", 'arg': program, "t": ASTFProgram}
+                     ]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         super(ASTFTCPServerTemplate, self).__init__(program=program)
-        self.fields['tcp_info'] = tcp_info
         if isinstance(assoc, ASTFAssociationRule):
             new_assoc = ASTFAssociation(rules=assoc)
             self.fields['assoc'] = new_assoc
@@ -1001,7 +1090,7 @@ class ASTFCapInfo(object):
     """
 
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None,
-                 s_glob_info=None, c_glob_info=None):
+                 s_glob_info=None, c_glob_info=None,limit=None):
         """
         Define one template information based on pcap file analysis
 
@@ -1024,6 +1113,13 @@ class ASTFCapInfo(object):
                   l7_percent :  float
                         L7 stream bandwidth percent
 
+                  limit     : uint32_t 
+                        Limit the number of flows 
+
+                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
+                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
         """
 
         ver_args = {"types":
@@ -1031,6 +1127,7 @@ class ASTFCapInfo(object):
                      {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
                      {"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
                      {"name": "c_glob_info", 'arg': c_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
+                     {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False}]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -1060,6 +1157,7 @@ class ASTFCapInfo(object):
         self.ip_gen = ip_gen
         self.c_glob_info = c_glob_info
         self.s_glob_info = s_glob_info
+        self.limit=limit;
 
 
 class ASTFTemplate(object):
@@ -1084,11 +1182,10 @@ class ASTFTemplate(object):
                                dist_client=ip_gen_c,
                                dist_server=ip_gen_s)
 
-            tcp_params = ASTFTCPInfo(window=32768)
 
             # template
-            temp_c = ASTFTCPClientTemplate(program=prog_c, tcp_info=tcp_params, ip_gen=ip_gen)
-            temp_s = ASTFTCPServerTemplate(program=prog_s, tcp_info=tcp_params)  # using default association
+            temp_c = ASTFTCPClientTemplate(program=prog_c,ip_gen=ip_gen)
+            temp_s = ASTFTCPServerTemplate(program=prog_s)  # using default association
             template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
      """
@@ -1124,6 +1221,19 @@ class ASTFTemplate(object):
 
         return ret
 
+class _ASTFTCPInfo(object):
+    def __init__(self, file=None):
+        if file is not None:
+            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
+            cap.analyze()
+            new_port = cap.d_port
+
+        self.m_port = new_port
+
+    @property
+    def port(self):
+        return self.m_port
+
 
 class ASTFProfile(object):
     """ ASTF profile
@@ -1151,11 +1261,11 @@ class ASTFProfile(object):
                   default_ip_gen  : ASTFIPGen  :class:`trex_astf_lib.trex_astf_client.ASTFIPGen`
                        tuple generator object
 
-                  default_tcp_server_info  :  ASTFTCPInfo :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
+                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
                        tcp parameters to be used for server side, if cap_list is given. This is optional. If not specified,
                        TCP parameters for each flow will be taken from its cap file.
 
-                  default_tcp_client_info  :  ASTFTCPInfo :class:`trex_astf_lib.trex_astf_client.ASTFTCPInfo`
+                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
                        Same as default_tcp_server_info for client side.
 
                   templates  :  ASTFTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFTemplate`
@@ -1199,13 +1309,7 @@ class ASTFProfile(object):
                 prog_c = ASTFProgram(file=cap_file, side="c")
                 prog_s = ASTFProgram(file=cap_file, side="s")
 
-                #                if default_tcp_client_info is not None:
-                #                   tcp_c = default_tcp_client_info
-                #                   tcp_c_from_file = ASTFTCPInfo(file=cap_file, side="c")
-                # We want to take port from file and not from default, because it should be different for each file
-                #                   tcp_c_port = tcp_c_from_file.port
-                #               else:
-                tcp_c = ASTFTCPInfo(file=cap_file, side="c")
+                tcp_c = _ASTFTCPInfo(file=cap_file)
                 tcp_c_port = tcp_c.port
 
                 cps = cap.cps
@@ -1233,7 +1337,7 @@ class ASTFProfile(object):
                 d_ports.append(d_port)
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
-                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc})
+                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit})
 
             # calculate cps from l7 percent
             if mode == "l7_percent":
@@ -1246,7 +1350,7 @@ class ASTFProfile(object):
 
             for c in all_cap_info:
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
-                                               cps=c["cps"])
+                                               cps=c["cps"],limit=c["limit"])
                 temp_s = ASTFTCPServerTemplate(program=c["prog_s"], glob_info=c["glob_s"], assoc=c["my_assoc"])
                 template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
                 self.templates.append(template)

@@ -171,8 +171,8 @@ def check_ofed(ctx):
 
     ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
 
-    ofed_ver= 40
-    ofed_ver_show= '4.0'
+    ofed_ver= 42
+    ofed_ver_show= '4.2'
 
     if not os.path.isfile(ofed_info):
         ctx.end_msg('not found', 'YELLOW')
@@ -192,7 +192,7 @@ def check_ofed(ctx):
     if m:
         ver=int(m.group(1))*10+int(m.group(2))
         if ver < ofed_ver:
-          ctx.end_msg("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show),'YELLOW')
+          ctx.end_msg("installed OFED version is '%s' should be at least '%s' and up - try with ./b configure --no-mlx flag" % (lines[0],ofed_ver_show),'YELLOW')
           return False
     else:
         ctx.end_msg("not found valid  OFED version '%s' " % (lines[0]),'YELLOW')
@@ -326,6 +326,7 @@ main_src = SrcGroup(dir='src',
              '44bsd/tcp_usrreq.cpp',
              '44bsd/tcp_socket.cpp',
              '44bsd/tcp_dpdk.cpp',
+             '44bsd/sch_rampup.cpp',
              'bp_sim_tcp.cpp',
              'utl_mbuf.cpp',
              'utl_dbl_human.cpp',

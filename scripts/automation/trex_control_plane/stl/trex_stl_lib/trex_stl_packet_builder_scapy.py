@@ -1108,7 +1108,7 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
             offset_fixup : int 
                 how many bytes to go forward. In case of a negative value go backward 
 
-             add_val     : int
+             add_value     : int
                 value to add to stream variable before writing it to packet field. can be used as a constant offset 
 
              is_big      : bool 

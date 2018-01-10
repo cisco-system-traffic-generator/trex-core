@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "mbuf.h"
+#include "h_timer.h"
 
 
 struct  sockbuf {
@@ -248,6 +249,12 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcDELAY                 =2,   /* delay some time */
                tcRX_BUFFER             =3,   /* enable/disable Rx counters */
                tcRESET                 =4,   /* explicit reset */
+               tcDONT_CLOSE            =5,   /* wait for reset */
+               tcCONNECT_WAIT          =6,   /* wait for the connection, should be the first command */
+               tcDELAY_RAND            =7,   /* delay random min-max*/
+               tcSET_VAR               =8,   /* set value to var */
+               tcJMPNZ                 =9,    /* jump in case var in not zero */           
+
                tcNO_CMD                =255  /* explicit reset */
 } tcp_app_cmd_enum_t;
 
@@ -262,7 +269,6 @@ struct CTcpAppCmdTxBuffer {
 
 /* CMD == tcRX_BUFFER */
 struct CTcpAppCmdRxBuffer {
-
     enum {
             rxcmd_NONE      = 0,
             rxcmd_CLEAR     = 1,
@@ -270,13 +276,30 @@ struct CTcpAppCmdRxBuffer {
             rxcmd_DISABLE_RX   =4
 
     };
-
     uint32_t        m_flags;
     uint32_t        m_rx_bytes_wm;
 };
 
 struct CTcpAppCmdDelay {
-    uint64_t     m_usec_delay;
+    uint32_t     m_ticks;
+};
+
+//tcDELAY_RAND
+struct CTcpAppCmdDelayRnd {
+    uint32_t     m_min_ticks;
+    uint32_t     m_max_ticks;
+};
+
+//tcSET_VAR
+struct CTcpAppCmdSetVar {
+    uint8_t     m_var_id; /* 2 vars*/
+    uint32_t    m_val;
+};
+
+//tcJMPNZ
+struct CTcpAppCmdJmpNZ {
+    uint8_t     m_var_id; /* 2 vars*/
+    int         m_offset; /* command */
 };
 
 
@@ -289,6 +312,11 @@ struct CTcpAppCmd {
         CTcpAppCmdTxBuffer  m_tx_cmd;
         CTcpAppCmdRxBuffer  m_rx_cmd;
         CTcpAppCmdDelay     m_delay_cmd;
+        CTcpAppCmdDelayRnd  m_delay_rnd;
+        CTcpAppCmdSetVar    m_var;
+        CTcpAppCmdJmpNZ     m_jmpnz;
+
+
     } u;
 public:
     void Dump(FILE *fd);
@@ -318,8 +346,8 @@ public:
     virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,
                                CTcpFlow *         flow)=0;
 
-    virtual void tcp_delay(uint64_t usec)=0;
-
+    virtual void disconnect(CTcpPerThreadCtx * ctx,
+                            CTcpFlow *         flow)=0;
 };
 
 /* read-only program, many flows point to this program */
@@ -342,6 +370,8 @@ public:
         return (&m_cmds[index]);
     }
 
+    bool sanity_check(std::string & err);
+
 private:
     tcp_app_cmd_list_t     m_cmds; 
 };
@@ -355,7 +385,9 @@ typedef enum { te_SOISCONNECTING  =17,
                te_SOWWAKEUP   ,
                te_SORWAKEUP   ,
                te_SOISDISCONNECTING,
-               te_SOISDISCONNECTED 
+               te_SOISDISCONNECTED,
+               te_SOOTHERISDISCONNECTING /* other disconnected */
+
 } tcp_app_events_enum_t;
 
 typedef uint8_t tcp_app_events_t;
@@ -363,9 +395,9 @@ typedef uint8_t tcp_app_events_t;
 std::string get_tcp_app_events_name(tcp_app_events_t event);
 
 
-typedef enum { te_NONE     =0,
-               te_SEND     =17,   
-               te_WAIT_RX  =18,      
+typedef enum { te_NONE     =0,    
+               te_SEND     =17, /* sending trafic task could be long*/   
+               te_WAIT_RX  =18, /* wait for traffic to be Rx */     
                te_DELAY    =19,      
 } tcp_app_state_enum_t;
 
@@ -374,11 +406,25 @@ typedef uint8_t tcp_app_state_t;
 
 class CTcpApp  {
 public:
+    enum {
+        apVAR_NUM_SIZE =2
+    };
 
     /* flags */
     enum {
-            taINTERRUPT   = 1,
-            taRX_DISABLED = 2
+            taINTERRUPT   =         0x1,
+            taRX_DISABLED =         0x2,
+            taTIMER_INIT_WAS_DONE=  0x4,
+            taDO_DPC_DISCONNECT =   0x8,
+            taDO_WAIT_FOR_CLOSE = 0x10,
+            taDO_DPC_CLOSE =      0x20,
+            taCONNECTED         = 0x40,
+            taDO_WAIT_CONNECTED = 0x80,
+            taDO_DPC_NEXT       = 0x100,
+
+            ta_DPC_ANY          = (taDO_DPC_NEXT  |
+                                   taDO_DPC_CLOSE |
+                                   taDO_DPC_DISCONNECT)
     };
 
 
@@ -392,15 +438,23 @@ public:
         m_flags=0;
         m_state =te_NONE;
         m_debug_id=0;
-        m_pad=0;
         m_cmd_index=0;
         m_tx_offset=0;
         m_tx_residue =0;
         m_cmd_rx_bytes=0;
         m_cmd_rx_bytes_wm=0;
+        m_vars[0]=0; /* unroll*/
+        m_vars[1]=0;
+        assert(apVAR_NUM_SIZE==2);
     }
 
     virtual ~CTcpApp(){
+        force_stop_timer();
+    }
+
+    static uint32_t timer_offset(void){
+        CTcpApp *lp=0;
+        return ((uintptr_t)&lp->m_timer);
     }
 
 public:
@@ -415,6 +469,53 @@ public:
 
     bool get_interrupt(){
         return ((m_flags &taINTERRUPT)?true:false);
+    }
+
+    bool get_timer_init_done(){
+        return ((m_flags &taTIMER_INIT_WAS_DONE)?true:false);
+    }
+
+    void set_timer_init_done(bool enable){
+        if (enable){
+            m_flags|=taTIMER_INIT_WAS_DONE;
+        }else{
+            m_flags&=(~taTIMER_INIT_WAS_DONE);
+        }
+    }
+
+    bool get_any_dpc(){
+        return ((m_flags &ta_DPC_ANY)?true:false);
+    }
+
+    bool get_do_disconnect(){
+        return ((m_flags &taDO_DPC_DISCONNECT)?true:false);
+    }
+
+    void set_disconnect(bool enable){
+        if (enable) {
+            m_flags|=taDO_DPC_DISCONNECT;
+        }else{
+            m_flags&=(~taDO_DPC_DISCONNECT);
+        }
+    }
+
+    void check_dpc_next(){
+        if (m_flags &taDO_DPC_NEXT) {
+            m_flags &=(~taDO_DPC_NEXT);
+            next();
+        }
+    }
+
+    bool get_do_do_close(){
+        return ((m_flags &taDO_DPC_CLOSE)?true:false);
+    }
+
+    void set_do_close(bool enable){
+        if (enable) {
+            m_flags|=taDO_DPC_CLOSE;
+        }else{
+            m_flags&=(~taDO_DPC_CLOSE);
+        }
     }
 
     void set_rx_disabled(bool disabled){
@@ -433,7 +534,8 @@ public:
         return ((m_flags &taRX_DISABLED)?true:false);
     }
 
-    
+
+    void run_dpc_callbacks();
 
 public:
 
@@ -488,9 +590,21 @@ public:
 
     virtual void on_bh_event(tcp_app_events_t event);
 
+    virtual void do_disconnect(); 
+
+    virtual void do_close();
+
+    void on_tick();
+
+
 private:
 
     void process_cmd(CTcpAppCmd * cmd);
+
+    void run_cmd_delay_rand(htw_ticks_t min_ticks,
+                            htw_ticks_t max_ticks);
+
+    void run_cmd_delay(htw_ticks_t ticks);
 
     inline void check_rx_condition(){
         if (m_cmd_rx_bytes>= m_cmd_rx_bytes_wm) {
@@ -500,17 +614,22 @@ private:
 
     void tcp_close();
 
+    void force_stop_timer();
+
 
 private:
+    /* cache line 0 */
     CTcpFlow *             m_flow;
     CTcpPerThreadCtx *     m_ctx;
     CTcpAppApi *           m_api; 
     CMbufBuffer *          m_tx_active;
+
+    /* cache line 1 */
     CTcpAppProgram       * m_program;
-    uint8_t                m_flags;
+
+    uint16_t               m_flags;
     tcp_app_state_t        m_state;
     uint8_t                m_debug_id;
-    uint8_t                m_pad;
 
     uint32_t               m_cmd_index; /* the index of current command */
     uint32_t               m_tx_offset; /* in case of TX tcTX_BUFFER command, offset into the buffer */
@@ -519,6 +638,11 @@ private:
     uint32_t               m_cmd_rx_bytes;
     uint32_t               m_cmd_rx_bytes_wm; /* water mark to check */
 
+    /* cache line 2 */
+    CHTimerObj              m_timer;
+
+    /* cache line 3 */
+    uint32_t                m_vars[apVAR_NUM_SIZE];
 };
 
 
@@ -587,6 +711,13 @@ struct tcp_socket {
     CTcpApp  *      m_app; /* call back pointer */
 };
 
+
+inline void check_defer_functions(struct tcp_socket *so){
+    CTcpApp  *   app=so->m_app;
+    if (unlikely(app->get_any_dpc())){
+        app->run_dpc_callbacks();
+    }
+}
 
 inline void CTcpSockBuf::sbdrop(struct tcp_socket *so,
             int len){

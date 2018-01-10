@@ -62,6 +62,22 @@ public:
     uint16_t get_dest_port(){
         return(m_dest_port);
     }
+    void set_limit(uint32_t limit){
+        m_limit=limit+1; /* need to add 1*/
+    }
+
+    bool check_limit(){
+        if (m_limit==0){
+            return(false);
+        }
+        if (m_limit>1) {
+            --m_limit;
+            return(false);
+        }else{
+            /* stop at 1 */
+            return(true);
+        }
+    }
     void set_tuneables(CTcpTuneables * c_tune, CTcpTuneables *s_tune) {
         m_c_tune = c_tune;
         m_s_tune = s_tune;
@@ -79,6 +95,7 @@ public:
     astf_thread_id_t              m_thread_id;
     CTcpTuneables               * m_c_tune;
     CTcpTuneables               * m_s_tune;
+    uint32_t                      m_limit;
 } __rte_cache_aligned;
 
 
@@ -91,6 +108,14 @@ public:
     bool Create(astf_thread_id_t           thread_id,
                 astf_thread_id_t           max_threads);
     void Delete();
+
+    astf_thread_id_t  get_thread_id(){
+        return (m_thread_id);
+    }
+
+    astf_thread_id_t  get_max_threads(){
+        return (m_max_threads);
+    }
 
     CAstfPerTemplateRW * get_template_by_id(astf_t_id_t tid){
         BP_ASSERT(tid<m_cap_gen.size());

@@ -25,14 +25,39 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_astf_gold(self,valgrind):
         files = [
+                  "astf/param_ipv6.py",
                  "astf/tcp_param_change.py",
-                 "astf/param_ipv6.py",
                  "astf/param_tcp_rxbufsize.py",
                  "astf/param_tcp_no_timestamp.py",
                  "astf/param_tcp_keepalive.py",
                  "astf/param_tcp_delay_ack.py",
                  "astf/param_tcp_rxbufsize_8k.py",
                  "astf/param_mss_initwnd.py",
+                 "astf/http_manual_commands_delay.py",
+                 "astf/http_manual_commands_rst.py",
+                 "astf/http_manual_commands_fin_ack.py",
+                 "astf/http_manual_commands_delay_client.py",
+                 "astf/http_manual_commands_delay_client2.py",
+                 "astf/http_manual_commands_delay_rand.py",
+                 "astf/http_manual_commands_loop.py",
+                 "astf/http_manual_commands_pipeline.py",
+                 "astf/http_manual_commands_pipeline2.py",
+                 "astf/http_manual_commands_rst.py",
+                 "astf/http_simple_limit.py",
+                 "astf/param_tcp_rxbufsize_pt.py",
+                 "astf/param_sch_rampup.py",
+        ]
+
+        _files = [
+                "astf/param_sch_rampup.py",
+                #"astf/param_tcp_rxbufsize_pt.py",
+                #"astf/http_manual_commands_delay.py"
+                #"astf/http_simple_limit.py",
+                #"astf/http_manual_commands_rst.py"
+                #"astf/http_manual_commands_pipeline2.py"
+            
+                
+                 
         ]
 
         for file in files:
@@ -157,7 +182,7 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def test_ASTFProgram(self):
         expect_class_json = [u'YWFh', u'YmJi']
         expect_prog_json = {'commands': [{'name': 'tx', 'buf_index': 0}, {'min_bytes': 100, 'name': 'rx'},
-                                         {'delay': 3, 'name': 'delay'}, {'name': 'tx', 'buf_index': 0},
+                                         {'usec': 3, 'name': 'delay'}, {'name': 'tx', 'buf_index': 0},
                                          {'name': 'tx', 'buf_index': 1}, {'name': 'reset'}]}
 
         prog = ASTFProgram()

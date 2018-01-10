@@ -25,17 +25,12 @@ class Prof1():
                             dist_client=ip_gen_c2,
                             dist_server=ip_gen_s2)
 
-        # TCP parameters taken from client side of given file
-        tcp_c = ASTFTCPInfo(file="../cap2/http_get.pcap", side="c")
-        # TCP parameters taken from server side of given file
-        tcp_s = ASTFTCPInfo(file='../cap2/http_get.pcap', side="s")
-
         # template
-        temp_c = ASTFTCPClientTemplate(program=my_prog_c, tcp_info=tcp_c, ip_gen=ip_gen)
-        temp_c2 = ASTFTCPClientTemplate(program=my_prog_c, tcp_info=tcp_c, ip_gen=ip_gen2, port=81)
+        temp_c = ASTFTCPClientTemplate(program=my_prog_c,  ip_gen=ip_gen)
+        temp_c2 = ASTFTCPClientTemplate(program=my_prog_c, ip_gen=ip_gen2, port=81)
 
-        temp_s = ASTFTCPServerTemplate(program=my_prog_s, tcp_info=tcp_s)  # using default association
-        temp_s2 = ASTFTCPServerTemplate(program=my_prog_s, tcp_info=tcp_s, assoc=ASTFAssociationRule(port=81))
+        temp_s = ASTFTCPServerTemplate(program=my_prog_s,)  # using default association
+        temp_s2 = ASTFTCPServerTemplate(program=my_prog_s, assoc=ASTFAssociationRule(port=81))
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
         template2 = ASTFTemplate(client_template=temp_c2, server_template=temp_s2)
 
@@ -43,7 +38,7 @@ class Prof1():
         profile = ASTFProfile(default_ip_gen=ip_gen, templates=[template, template2])
         return profile
 
-    def get_profile(self):
+    def get_profile(self, **kwargs):
         return self.create_profile()
 
 
