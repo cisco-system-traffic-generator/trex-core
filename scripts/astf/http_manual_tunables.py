@@ -22,6 +22,7 @@ class Prof1():
 
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
+        prog_s.delay(10);
         prog_s.send(http_response)
         prog_s.wait_for_peer_close()
 
@@ -35,8 +36,11 @@ class Prof1():
 
         info = ASTFGlobalInfo()
         info.tcp.mss = 1100
+        info.tcp.rxbufsize = 1102  # split the buffer to MSS and ack every buffer, no need the no_delay option
+        info.tcp.txbufsize = 1100
         info.tcp.initwnd = 1
-        info.tcp.no_delay = 1
+        #info.tcp.no_delay = 1
+        info.tcp.do_rfc1323 =0
 
         # template
         temp_c = ASTFTCPClientTemplate(program=prog_c,  ip_gen=ip_gen)
