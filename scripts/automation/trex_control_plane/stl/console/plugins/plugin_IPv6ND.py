@@ -31,7 +31,7 @@ class IPv6ND_plugin(ConsolePlugin):
                 help = 'src ip to use')
         self.add_argument("-T", "--verify-timeout", type = int,
                 dest = 'verify_timeout', 
-                default=6,
+                default=0,
                 help = 'timeout to wait for neighbor verification NS')
         self.add_argument("-p", "--port", type = int,
                 dest = 'port', 
@@ -78,7 +78,7 @@ class IPv6ND_plugin(ConsolePlugin):
                 help = 'show summary only')
 
 
-    def do_ND(self, port, src_ip, src_mac, dst_ip, vlan, fmt, timeout, verify_timeout, count, rate, retries, verbose):
+    def do_resolve(self, port, src_ip, src_mac, dst_ip, vlan, fmt, timeout, verify_timeout, count, rate, retries, verbose):
         ''' perform IPv6 neighbor discovery '''
         print
         print "performing ND for {0} addresses.".format(count)
@@ -150,7 +150,7 @@ class IPv6ND_plugin(ConsolePlugin):
         print
 
         if brief == None:
-            fmt_string = "{:17s}  {:30s} | {:30s} {:17s} {:10s} {:5}"
+            fmt_string = "{:17s}  {:30s} | {:30s} {:17s} {:12s} {:5}"
             header = fmt_string.format("    SRC MAC", "      SRC IPv6", "      DST IPv6", "    DST MAC", "STATE", "VERIFIED")
             print header
             print "-" * len(header)
@@ -162,7 +162,7 @@ class IPv6ND_plugin(ConsolePlugin):
         unresolved = 0
         verified   = 0
         for r in self.requests:
-            if r.get_record().is_resolved:
+            if r.get_record().is_resolved() == True:
                 resolved += 1
 
                 if r.get_record().neighbor_verifications > 0:
