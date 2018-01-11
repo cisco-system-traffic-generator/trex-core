@@ -34,14 +34,19 @@ class STLServiceFilterIPv6NDP(STLServiceFilter):
         self.services = defaultdict(list)
 
     def add (self, service):
-        # forward packets according to the SRC/DST IP
+        # forward packets according to the SRC/DST / VLAN
+        #
         self.services[(service.src_ip, service.dst_ip, tuple(service.vlan))].append(service)
+
+        # since verification NS messages from neighbors might be sent using a different src-addr
+        # than we were resolving, add filter without dst_ip 
+        self.services[(service.src_ip, tuple(service.vlan))].append(service)
 
     def lookup (self, pkt):
         
         # use scapy to parse
         scapy_pkt = Ether(pkt)
-        
+
         # not IPv6ND
         if 'ICMPv6ND_NA' not in scapy_pkt and 'ICMPv6ND_NS' not in scapy_pkt:
             return []
@@ -161,7 +166,7 @@ class STLServiceIPv6ND(STLService):
                     self.record.update(response)
                 if ICMPv6ND_NS in response:
                     self.handle_ns_request(pipe, response)
-            if self.record.is_resolved():
+            if self.record.is_resolved() == True:
                 break
         
         if not self.record.is_resolved() == True:
