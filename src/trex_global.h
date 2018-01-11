@@ -386,7 +386,15 @@ public:
     bool get_is_termio_disabled() {
         return (btGetMaskBit32(m_flags1, 18, 18) ? true : false);
     }
-    
+
+    void setLroOffloadDisable(bool enable){
+        btSetMaskBit32(m_flags1, 19, 19, (enable ? 1 : 0) );
+    }
+
+    bool getLroOffloadDisable() {
+        return (btGetMaskBit32(m_flags1, 19, 19) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
