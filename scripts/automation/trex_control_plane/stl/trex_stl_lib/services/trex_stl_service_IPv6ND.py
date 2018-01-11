@@ -70,7 +70,7 @@ class STLServiceIPv6ND(STLService):
         IPv6ND service - generate NS requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '::0', retries=1, src_mac = None, vlan = None, fmt=None, timeout = 5, verify_timeout=6, verbose_level = STLService.INFO):
+    def __init__ (self, ctx, dst_ip, src_ip = '::0', retries=1, src_mac = None, vlan = None, fmt=None, timeout = 5, verify_timeout=0, verbose_level = STLService.INFO):
         
         # init the base object
         super(STLServiceIPv6ND, self).__init__(verbose_level)
@@ -120,7 +120,7 @@ class STLServiceIPv6ND(STLService):
         if not self.vlan.is_default():
             self.vlan.embed(na_response, fmt=self.fmt)
 
-        self.log("ND: sending NA: {0,{1} -> {2},{3}".format(packet[ICMPv6ND_NS].tgt, packet[Ether].dst,packet[IPv6].src,packet[Ether].src))
+        self.log("ND: sending NA: {0},{1} -> {2},{3}".format(packet[ICMPv6ND_NS].tgt, packet[Ether].dst,packet[IPv6].src,packet[Ether].src))
         pipe.async_tx_pkt(na_response)
         self.record.verified()
 
@@ -161,8 +161,10 @@ class STLServiceIPv6ND(STLService):
                     self.record.update(response)
                 if ICMPv6ND_NS in response:
                     self.handle_ns_request(pipe, response)
+            if self.record.is_resolved():
+                break
         
-        if not self.record.is_resolved():
+        if not self.record.is_resolved() == True:
             # ND failed
             return
 
@@ -170,6 +172,11 @@ class STLServiceIPv6ND(STLService):
         # neighbor verification - wait for incoming NS requests from 
         # neighbors to achieve a proper "REACHABLE" state on remote 
         # device
+        #
+        # Note: works reliably with Cisco Nexus and Catalyst Switches,
+        #       but not with linux DUTs, since their verification NS is
+        #       sent using the link-local address - which is not matched
+        #       by our filter. This is a known issue.
         #
         start_time = time.time()
         while (time.time() - start_time)  < self.verify_timeout:
@@ -180,8 +187,10 @@ class STLServiceIPv6ND(STLService):
                 for packet in pkts:
                     p = Ether(packet['pkt'])
                     if ICMPv6ND_NA in p:
+                        # NAs are not expected anymore...
                         self.log("ND: late arrival of NA from {0} for {1} discarded".format(p[IPv6].src,p[IPv6].dst))
                     elif ICMPv6ND_NS not in p:
+                        # everything else should be NS's
                         self.log("ND: got unexpected packet: {0}".format(p.summary()))
                     else:
                         self.handle_ns_request(pipe, p)
@@ -218,7 +227,7 @@ class IPv6Neighbor(object):
         self.state = "UNREACHABLE"
 
     def is_resolved(self):
-        return (self.state == "REACHABLE")
+        return ( self.state == "REACHABLE")
 
     def update(self, response):
         self.dst_mac = response[ICMPv6NDOptDstLLAddr].lladdr
