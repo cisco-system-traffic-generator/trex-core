@@ -951,6 +951,7 @@ enum {
        OPT_CHECKSUM_OFFLOAD,
        OPT_CHECKSUM_OFFLOAD_DISABLE,
        OPT_TSO_OFFLOAD_DISABLE,
+       OPT_LRO_OFFLOAD_DISABLE,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
@@ -1031,7 +1032,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ALLOW_COREDUMP,         "--allow-coredump",  SO_NONE    },
         { OPT_CHECKSUM_OFFLOAD,       "--checksum-offload", SO_NONE   },
         { OPT_CHECKSUM_OFFLOAD_DISABLE, "--checksum-offload-disable", SO_NONE   },
-        { OPT_TSO_OFFLOAD_DISABLE, "--tso-disable", SO_NONE   },
+        { OPT_TSO_OFFLOAD_DISABLE,  "--tso-disable", SO_NONE   },
+        { OPT_LRO_OFFLOAD_DISABLE,  "--lro-disable", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
         { OPT_NTACC_SO,               "--ntacc-so", SO_NONE    },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
@@ -1076,7 +1078,8 @@ static int usage(){
     printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
     printf(" --checksum-offload         : Deprecated,enable by default. Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
     printf(" --checksum-offload-disable : Disable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
-    printf(" --tso-disable              : disable TSO in case of advanced TCP mode \n");
+    printf(" --tso-disable              : disable TSO (advanced TCP mode) \n");
+    printf(" --lro-disable              : disable LRO (advanced TCP mode) \n");
     printf(" --client_cfg <file>        : YAML file describing clients configuration \n");
     printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions, \n");
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
@@ -1540,7 +1543,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             case OPT_TSO_OFFLOAD_DISABLE:
                 po->preview.setTsoOffloadDisable(true);
                 break;
-
+            case OPT_LRO_OFFLOAD_DISABLE:
+                po->preview.setLroOffloadDisable(true);
+                break;
             case OPT_CLOSE:
                 po->preview.setCloseEnable(true);
                 break;
@@ -1728,6 +1733,11 @@ public:
 
     inline void update_var(void){
         get_ex_drv()->update_configuration(this);
+        if ( m_port_conf.rxmode.enable_lro && 
+            CGlobalInfo::m_options.preview.getLroOffloadDisable()  ) {
+            m_port_conf.rxmode.enable_lro=0;
+            printf("Warning LRO is supported and asked to be disabled by user \n");
+        }
     }
 
     inline void update_global_config_fdir(void){

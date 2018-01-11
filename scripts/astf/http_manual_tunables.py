@@ -15,12 +15,16 @@ class Prof1():
     def create_profile(self):
         # client commands
         prog_c = ASTFProgram()
+        prog_c.connect();
         prog_c.send(http_req)
         prog_c.recv(len(http_response))
+        prog_c.delay(10);
 
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
         prog_s.send(http_response)
+        prog_s.wait_for_peer_close()
+
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
