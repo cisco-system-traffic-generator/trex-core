@@ -115,7 +115,7 @@ class STLServiceIPv6ND(STLService):
             process incoming NS request and send
             corresponding NA.
         '''
-        self.log("ND: received NS: {0} <-- {1},{2}".format(packet[ICMPv6ND_NS].tgt, packet[IPv6].src, packet[Ether].src))
+        self.log("ND: RX NS: {0} <-- {1},{2}".format(packet[ICMPv6ND_NS].tgt, packet[IPv6].src, packet[Ether].src))
         
         na_response = Ether(src=packet[Ether].dst, dst=packet[Ether].src)/ \
                        IPv6(src=packet[ICMPv6ND_NS].tgt, dst=packet[IPv6].src, hlim = 255)/ \
@@ -125,7 +125,7 @@ class STLServiceIPv6ND(STLService):
         if not self.vlan.is_default():
             self.vlan.embed(na_response, fmt=self.fmt)
 
-        self.log("ND: sending NA: {0},{1} -> {2},{3}".format(packet[ICMPv6ND_NS].tgt, packet[Ether].dst,packet[IPv6].src,packet[Ether].src))
+        self.log("ND: TX NA: {0},{1} -> {2},{3}".format(packet[ICMPv6ND_NS].tgt, packet[Ether].dst,packet[IPv6].src,packet[Ether].src))
         pipe.async_tx_pkt(na_response)
         self.record.verified()
 
@@ -150,7 +150,7 @@ class STLServiceIPv6ND(STLService):
         for retry in range(0, (self.retries+1)):
             # send neighbor solicitation
             tx_info = yield pipe.async_tx_pkt(ns_request)
-            self.log("ND: sent  NS: {0},{1} -> {2} (retry {3})".format(self.src_ip,self.src_mac,self.dst_ip, retry))
+            self.log("ND: TX  NS: {0},{1} -> {2} (retry {3})".format(self.src_ip,self.src_mac,self.dst_ip, retry))
             
             # wait for NA packet
             pkts = yield pipe.async_wait_for_pkt(time_sec = self.timeout)
@@ -162,7 +162,7 @@ class STLServiceIPv6ND(STLService):
                 # parse record
                 response = Ether(p['pkt'])
                 if ICMPv6NDOptDstLLAddr in response:
-                    self.log("ND: received NA: {0} <- {1}, {2}".format(response[IPv6].dst, response[IPv6].src, response[ICMPv6NDOptDstLLAddr].lladdr))
+                    self.log("ND: RX NA: {0} <- {1}, {2}".format(response[IPv6].dst, response[IPv6].src, response[ICMPv6NDOptDstLLAddr].lladdr))
                     self.record.update(response)
                 if ICMPv6ND_NS in response:
                     self.handle_ns_request(pipe, response)
@@ -177,11 +177,6 @@ class STLServiceIPv6ND(STLService):
         # neighbor verification - wait for incoming NS requests from 
         # neighbors to achieve a proper "REACHABLE" state on remote 
         # device
-        #
-        # Note: works reliably with Cisco Nexus and Catalyst Switches,
-        #       but not with linux DUTs, since their verification NS is
-        #       sent using the link-local address - which is not matched
-        #       by our filter. This is a known issue.
         #
         start_time = time.time()
         while (time.time() - start_time)  < self.verify_timeout:
