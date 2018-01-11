@@ -412,8 +412,8 @@ bool CFlowGenListPerThread::Create_tcp(){
     m_c_tcp->set_offload_dev_flags(dev_offload_flags);
     m_s_tcp->set_offload_dev_flags(dev_offload_flags);
 
-
-    if ( m_preview_mode.getVMode() >2 ){
+    uint8_t dmode= m_preview_mode.getVMode();
+    if ( (dmode > 2) && (dmode < 7) ){
         m_c_tcp->m_ft.set_debug(true);
         m_s_tcp->m_ft.set_debug(true);
     }
