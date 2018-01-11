@@ -232,6 +232,54 @@ class ASTFProgram(object):
     def calc_hash(self):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
 
+    def send_chunk(self, l7_buf,chunk_size,delay_usec):
+        """
+        Send l7_buffer by splitting it into small chunks and issue a delay betwean each chunk. 
+        This is a utility  command that works on top of send/delay command
+
+         example1
+          send (buffer1,100,10) will split the buffer to buffers of 100 bytes with delay of 10usec
+
+        :parameters:
+
+                  l7_buf : string
+                     l7 stream as string 
+
+                  chunk_size : uint32_t 
+                     size of each chunk 
+
+                  delay_usec : uint32_t 
+                     the delay in usec to insert betwean each write 
+        """
+        ver_args = {"types":
+                    [
+                    {"name": "l7_buf", 'arg': l7_buf, "t": [bytes, str]},
+                    {"name": "chunk_size", 'arg': chunk_size, "t": [int]},
+                    {"name": "delay_usec", 'arg': delay_usec, "t": [int]},
+                    ]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if type(l7_buf) is str:
+            try:
+                enc_buf = l7_buf.encode('ascii')
+            except UnicodeEncodeError as e:
+                print (e)
+                raise ASTFError("If buf is a string, it must contain only ascii")
+        else:
+                enc_buf = buf
+
+        size=len(enc_buf);
+        cnt=0;
+        while size>0 :
+            self.send(enc_buf[cnt:cnt+chunk_size])
+            if delay_usec:
+                self.delay(delay_usec);
+            cnt+=chunk_size;
+            size-=chunk_size;
+
+
+
     def send(self, buf):
         """
         send (l7_buffer) and wait for the buffer to be acked by peer. Rx side could work in parallel
