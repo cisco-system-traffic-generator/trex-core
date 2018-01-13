@@ -23,7 +23,6 @@
 #include "bp_sim.h"
 #include "flow_stat_parser.h"
 #include "stateful_rx_core.h"
-#include "pal/linux/sanb_atomic.h"
 #include "trex_rx_core.h"
 #include "trex_messaging.h"
 

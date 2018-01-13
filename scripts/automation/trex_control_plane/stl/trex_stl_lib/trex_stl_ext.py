@@ -18,7 +18,7 @@ if not os.path.exists(TREX_STL_EXT_PATH):
 
 # the modules required
 # py-dep requires python2/python3 directories
-# arch-dep requires ucs2/ucs4 and 32bit/64bit directories
+# arch-dep requires intel/arm, ucs2/ucs4, 32bit/64bit directories
 CLIENT_UTILS_MODULES = [ {'name': 'texttable-0.8.4'},
                          {'name': 'pyyaml-3.11', 'py-dep': True},
                          {'name': 'scapy-2.3.1', 'py-dep': True},
@@ -35,6 +35,7 @@ def generate_module_path (module, is_python3, is_64bit, is_ucs2):
         platform_path.append('python3' if is_python3 else 'python2')
 
     if module.get('arch-dep'):
+        platform_path.append('arm' if os.uname()[4] == 'aarch64' else 'intel')
         platform_path.append('ucs2' if is_ucs2 else 'ucs4')
         platform_path.append('64bit' if is_64bit else '32bit')
 

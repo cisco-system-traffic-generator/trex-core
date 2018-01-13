@@ -174,9 +174,7 @@ void TrexMonitor::create(const std::string &name, double timeout_sec) {
     m_tickled          = true;
     m_ts               = 0;
     m_io_ref_cnt       = 0;
-    
-    /* the rare case of m_active_time_sec set out of order with tickled */
-    asm volatile("mfence" ::: "memory");
+    rte_mb();
 }
 
 /**************************************

@@ -24,7 +24,6 @@
 
 #include "stateful_rx_core.h"
 #include "os_time.h"
-#include "pal/linux/sanb_atomic.h"
 #include "utl_cpuu.h"
 #include "trex_rx_port_mngr.h"
 #include "trex_capture.h"

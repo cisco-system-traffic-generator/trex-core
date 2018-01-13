@@ -29,7 +29,6 @@ limitations under the License.
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "sanb_atomic.h"
 
 void rte_pktmbuf_detach(struct rte_mbuf *m);
 

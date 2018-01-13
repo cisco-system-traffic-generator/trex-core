@@ -30,6 +30,8 @@ class CRxCore;
 #include "utl_ip.h"
 #include "trex_vlan.h"
 #include "trex_exception.h"
+#include <rte_atomic.h>
+
 
 /**
  * Generic message reply object
@@ -54,9 +56,7 @@ public:
 
     void set_reply(const T &reply) {
         m_reply = reply;
-
-        /* before marking as done make sure all stores are committed */
-        asm volatile("mfence" ::: "memory");
+        rte_mb();
         m_pending = false;
     }
 

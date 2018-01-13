@@ -19,6 +19,7 @@ def generate_module_path (module, is_python3, is_64bit, is_ucs2):
         platform_path.append('python3' if is_python3 else 'python2')
 
     if module.get('arch-dep'):
+        platform_path.append('arm' if os.uname()[4] == 'aarch64' else 'intel')
         platform_path.append('ucs2' if is_ucs2 else 'ucs4')
         platform_path.append('64bit' if is_64bit else '32bit')
 

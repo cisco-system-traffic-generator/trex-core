@@ -30,6 +30,8 @@ limitations under the License.
 
 #include "mbuf.h"
 #include "os_time.h"
+#include <rte_atomic.h>
+
 
 /**
  * every thread creates its own monitor from its own memory
@@ -151,7 +153,7 @@ private:
     void set_timeout(double timeout_sec) {
         /* before changing timeout we MUST tickle and memory fence o.w the main thread might crash */
         tickle();
-        asm volatile("mfence" ::: "memory");
+        rte_mb();
         m_timeout_sec = timeout_sec;
     }
 
