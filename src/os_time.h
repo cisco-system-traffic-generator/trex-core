@@ -70,7 +70,7 @@ static inline hr_time_t    os_get_hr_freq(void){
 
 #else
 
-
+#if defined(__x86_64__) || defined(__x86__)
 /* read the rdtsc register for ticks
    works for 64 bit aswell
 */
@@ -86,13 +86,29 @@ static inline void  platform_time_get_highres_tick_64(uint64_t* t)
     *t = (uint64_t)hi << 32 | lo;
 }
 
+#elif defined(__aarch64__)
+
+static inline void  platform_time_get_highres_tick_64(uint64_t* t)
+{
+    uint64_t tsc;
+#if defined(USE_HIGH_RES_CYCLES_COUNTER)
+    asm volatile("mrs %0, pmccntr_el0" : "=r"(tsc));
+#else
+    asm volatile("mrs %0, cntvct_el0" : "=r" (tsc));
+#endif
+    *t = tsc;
+}
+
+#else
+#error "Unknown platform, not intel or aarch64"
+#endif
+
 static inline uint32_t  platform_time_get_highres_tick_32()
 {
     uint64_t t;
     platform_time_get_highres_tick_64(&t);
     return ((uint32_t)t);
 }
-
 
 static inline hr_time_t    os_get_hr_freq(void){
 	return (3000000000ULL);

@@ -66,6 +66,7 @@ limitations under the License.
 #include "utl_policer.h"
 #include "trex_platform.h"
 #include "trex_global.h"
+#include "plat_support.h"
 
 
 /* stateless includes */
@@ -841,13 +842,7 @@ public:
 
 
 
-
-#if __x86_64__
-/* size of 64 bytes */
-    #define DEFER_CLIENTS_NUM (16)
-#else
-    #define DEFER_CLIENTS_NUM (16)
-#endif
+#define DEFER_CLIENTS_NUM (16)
 
 /* this class must be in the same size of CGenNode */
 struct CGenNodeDeferPort  {

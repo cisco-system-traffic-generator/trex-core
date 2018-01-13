@@ -238,7 +238,7 @@ rte_mbuf_refcnt_read(const struct rte_mbuf *m)
 }
 
 
-void rte_exit(int exit_code, const char *format, ...);
+extern "C" void rte_exit(int exit_code, const char *format, ...);
 
 static inline unsigned
 rte_lcore_to_socket_id(unsigned lcore_id){
@@ -330,5 +330,6 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
 
 // has to be after the definition of rte_mbuf and other utility functions
 #include "common_mbuf.h"
+
 
 #endif

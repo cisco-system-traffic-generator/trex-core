@@ -23,7 +23,7 @@ limitations under the License.
 #include <stdint.h>
 #include <string.h>
 #include "utl_json.h"
-#include "pal/linux/sanb_atomic.h"
+#include <rte_atomic.h>
 #include "time_histogram.h"
 
 void CTimeHistogram::Reset() {
@@ -108,9 +108,9 @@ void CTimeHistogram::update() {
         new_period = 0;
     }
     m_period_data[new_period].reset();
-    sanb_smp_memory_barrier();
+    rte_mb();
     m_period = new_period;
-    sanb_smp_memory_barrier();
+    rte_mb();
 
     m_max_ar[m_win_cnt] = period_elem.get_max();
     m_win_cnt++;

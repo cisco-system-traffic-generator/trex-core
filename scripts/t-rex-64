@@ -6,6 +6,7 @@ fi
 
 INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
 EXTRA_INPUT_ARGS=""
+ARCH=$(uname -m)
 
 ./trex-cfg $INPUT_ARGS
 RESULT=$?
@@ -56,7 +57,14 @@ if [ -t 0 ] && [ -t 1 ]; then
 fi
 
 # if we have a new core run optimized trex
-if  grep -q avx /proc/cpuinfo ; then
+if [[ "$ARCH" == "aarch64" ]] ; then
+    FLAG='evtstrm'
+else
+    FLAG='avx'
+fi
+
+
+if  grep -q $FLAG /proc/cpuinfo  ; then
     ./_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS
     RESULT=$?
     if [ $RESULT -eq 132 ]; then
