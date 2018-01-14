@@ -162,7 +162,7 @@ optional parameters:
 * retries: number of retries in case of timeouts (default=1)
 * src_mac: source mac address to be used in Ethernet packets (default taken from port in use) 
 * timeout: timeout in seconds to wait for neighbor advertisements in response to our neighbor solicitation packets (default 2)
-* verify_timeout: timeout in sseconds to wait for neighbor soliciation messages from a neighbor, after our NS was answered (Neighbor verification is not always performed, but depends on *our* state in the neighbors ND cache).
+* verify_timeout: timeout in seconds to wait for neighbor soliciation messages from a neighbor, after our NS was answered (Neighbor verification is not always performed, but depends on *our* state in the neighbors ND cache).
 * vlan: vlan identifiers used for dot1q/dot1ad vlan headers (e.g. [200,2] uses outer vlan 200, inner vlan 2)
 * fmt: encapsulation format used for vlan tagging ('Q': dot1q, 'D': dot1ad). Double tagging can be formatted with "QQ" (double-dot1q) or "DQ" (dot1q in dot1ad), or 'DD' or 'QD' ....
 * verbose_level: increase logging of IPv6 service instances (e.g service_level = STLServiceIPv6ND.ERROR)
@@ -388,6 +388,40 @@ commands:
     clear               clear IPv6 ND requests/entries
     resolve             perform IPv6 neighbor discovery
     status              show status of generated ND requests
+
+
+
+ trex(service)>plugins IPv6ND  resolve -h
+ usage: IPv6ND resolve [-h] -p PORT -s SRC_IP [-m SRC_MAC] -d DST_IP [-v VLAN]
+                       [-f FMT] [-t TIMEOUT] [-T VERIFY_TIMEOUT] [-c COUNT]
+                       [-r RATE] [-R RETRIES] [-V]
+ 
+ perform IPv6 neighbor discovery
+ 
+ optional arguments:
+   -h, --help            show this help message and exit
+   -p PORT, --port PORT  trex port to use
+   -s SRC_IP, --src-ip SRC_IP
+                         src ip to use
+   -m SRC_MAC, --src-mac SRC_MAC
+                         src mac to use
+   -d DST_IP, --dst-ip DST_IP
+                         IPv6 dst ip to discover
+   -v VLAN, --vlan VLAN  vlan(s) to use (comma separated)
+   -f FMT, --format FMT  vlan encapsulation to use (QQ: qinq, DA: 802.1AD ->
+                         802.1q)
+   -t TIMEOUT, --timeout TIMEOUT
+                         timeout to wait for NA
+   -T VERIFY_TIMEOUT, --verify-timeout VERIFY_TIMEOUT
+                         timeout to wait for neighbor verification NS
+   -c COUNT, --count COUNT
+                         nr of nd to perform (auto-scale src-addr to test
+                         parallel NDs)
+   -r RATE, --rate RATE  rate limiter value to pass to services framework
+   -R RETRIES, --retries RETRIES
+                         number of retries in case no answer was received
+   -V, --verbose         verbose mode
+ 
 ----
 
 Perform 3 parallel ND operations, where source IPv6 addresses are incremented automatically:
@@ -395,38 +429,34 @@ Perform 3 parallel ND operations, where source IPv6 addresses are incremented au
 
 [source,bash]
 ----
- trex(service)>plugins IPv6ND  resolve -c 3 -v 500,22 -p 0 -s 2001:db8:10:22::50 -d 2001:db8:10:22::1 -V --format QQ
  
+ trex(service)>plugins IPv6ND  resolve -c 3 -v 500,22 -p 0 -s 2001:db8:10:22::70 -d 2001:db8:10:22::1 -V --format QQ -T 6
+
  performing ND for 3 addresses.
  NA response timeout............: 2s
  Neighbor verification timeout..: 6s
  
- ND: sent  NS: 2001:db8:10:22::51,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
- ND: sent  NS: 2001:db8:10:22::50,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
- ND: sent  NS: 2001:db8:10:22::52,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
- ND: received NA: 2001:db8:10:22::50 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
- ND: waiting 6 seconds for neighbor verification...
- ND: received NA: 2001:db8:10:22::52 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
- ND: waiting 6 seconds for neighbor verification...
- ND: timeout for 2001:db8:10:22::51,74:a0:2f:b4:97:49 <-- 2001:db8:10:22::1 (retry 0)
- ND: sent  NS: 2001:db8:10:22::51,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 1)
- ND: received NA: 2001:db8:10:22::51 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
- ND: waiting 6 seconds for neighbor verification...
- ND: received NS: 2001:db8:10:22::51 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: sending NA: 2001:db8:10:22::51,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: received NS: 2001:db8:10:22::51 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: sending NA: 2001:db8:10:22::51,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: received NS: 2001:db8:10:22::50 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: sending NA: 2001:db8:10:22::50,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: received NS: 2001:db8:10:22::50 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: sending NA: 2001:db8:10:22::50,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: received NS: 2001:db8:10:22::52 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: sending NA: 2001:db8:10:22::52,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
- ND: received NS: 2001:db8:10:22::52 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: sending NA: 2001:db8:10:22::52,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
- ND: no neighbor verification received
- ND: no neighbor verification received
- ND: no neighbor verification received
+ ND: TX NS: 2001:db8:10:22::70,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
+ ND: TX NS: 2001:db8:10:22::71,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
+ ND: TX NS: 2001:db8:10:22::72,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 0)
+ ND: RX NA: 2001:db8:10:22::70 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
+ ND: RX NA: 2001:db8:10:22::72 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
+ ND: timeout for 2001:db8:10:22::71,74:a0:2f:b4:97:49 <-- 2001:db8:10:22::1 (retry 0)
+ ND: TX NS: 2001:db8:10:22::71,74:a0:2f:b4:97:49 -> 2001:db8:10:22::1 (retry 1)
+ ND: RX NA: 2001:db8:10:22::71 <- 2001:db8:10:22::1, 00:05:73:a0:00:01
+ ND: RX NS: 2001:db8:10:22::70 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: TX NA: 2001:db8:10:22::70,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: RX NS: 2001:db8:10:22::70 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
+ ND: TX NA: 2001:db8:10:22::70,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
+ ND: RX NS: 2001:db8:10:22::71 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
+ ND: TX NA: 2001:db8:10:22::71,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
+ ND: RX NS: 2001:db8:10:22::71 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: TX NA: 2001:db8:10:22::71,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: RX NS: 2001:db8:10:22::72 <-- 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: TX NA: 2001:db8:10:22::72,74:a0:2f:b4:97:49 -> 2001:db8:10:22::d,00:de:fb:1d:83:c4
+ ND: RX NS: 2001:db8:10:22::72 <-- 2001:db8:10:22::c,00:de:fb:1d:84:c5
+ ND: TX NA: 2001:db8:10:22::72,74:a0:2f:b4:97:49 -> 2001:db8:10:22::c,00:de:fb:1d:84:c5
+
  trex(service)>
 ----
 
@@ -434,7 +464,8 @@ Show status of local IPv6 neighborships:
 
 [source,bash]
 ----
- trex(service)>plugins IPv6ND status
+
+ trex(service)>plugins IPv6ND  status
  
  
  ND Status
@@ -445,17 +476,18 @@ Show status of local IPv6 neighborships:
  number of IPv6 source addresses: 3
  
  
-     SRC MAC              SRC IPv6                 |       DST IPv6                     DST MAC       STATE      VERIFIED
- ------------------------------------------------------------------------------------------------------------------------
- 74:a0:2f:b4:97:49  2001:db8:10:22::50             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE      2
- 74:a0:2f:b4:97:49  2001:db8:10:22::51             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE      2
- 74:a0:2f:b4:97:49  2001:db8:10:22::52             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE      2
+     SRC MAC              SRC IPv6                 |       DST IPv6                     DST MAC       STATE        VERIFIED
+ --------------------------------------------------------------------------------------------------------------------------
+ 74:a0:2f:b4:97:49  2001:db8:10:22::70             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE        2
+ 74:a0:2f:b4:97:49  2001:db8:10:22::71             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE        2
+ 74:a0:2f:b4:97:49  2001:db8:10:22::72             | 2001:db8:10:22::1              00:05:73:a0:00:01 REACHABLE        2
  
  resolved..: 3
  unresolved: 0
  verified..: 3
  
  trex(service)>
+ 
 ----
 
 Clear local IPv6 neighborships:
