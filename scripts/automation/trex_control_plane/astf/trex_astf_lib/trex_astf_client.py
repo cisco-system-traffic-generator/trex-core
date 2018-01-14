@@ -987,12 +987,15 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   limit    : uint32_t 
                         limit the number of flows. default is None which means zero 
 
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
         """
 
         ver_args = {"types":
                     [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
+                     {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
@@ -1041,12 +1044,15 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
                   program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
                         L7 emulation program
 
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+
                   assoc    : ASTFAssociation see :class:`trex_astf_lib.trex_astf_client.ASTFAssociation`
 
         """
         ver_args = {"types":
                      [
                      {"name": "assoc", 'arg': assoc, "t": [ASTFAssociation, ASTFAssociationRule], "must": False},
+                     {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}
                      ]
                     }

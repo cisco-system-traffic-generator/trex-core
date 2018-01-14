@@ -30,7 +30,7 @@ class Prof1():
                            dist_server=ip_gen_s)
 
 
-        info = ASTFGlobalInfo()
+        info = ASTFGlobalInfoPerTemplate()
         info.tcp.mss = 1100
         info.tcp.initwnd = 1
         info.tcp.no_delay = 1
