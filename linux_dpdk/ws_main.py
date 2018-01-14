@@ -332,6 +332,8 @@ main_src = SrcGroup(dir='src',
              '44bsd/tcp_socket.cpp',
              '44bsd/tcp_dpdk.cpp',
              '44bsd/sch_rampup.cpp',
+             '44bsd/udp.cpp',
+
              'bp_sim_tcp.cpp',
              'utl_mbuf.cpp',
              'utl_dbl_human.cpp',

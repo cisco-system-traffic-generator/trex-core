@@ -101,8 +101,14 @@ void tcp_trace(CTcpPerThreadCtx * ctx,
     const char ** tcpstates= tcp_get_tcpstate();
 
     struct tcp_debug *td = &local_td;
-
+    if (tp->m_flow==0){
+        printf(" NO TRACE info \n");
+        return;
+    }
+    CFlowTemplate * ftp=&tp->m_flow->m_template;
     printf("\n");
+    uint32_t src_ipv4=ftp->get_src_ipv4();
+    uint32_t dst_ipv4=ftp->get_dst_ipv4();
 
 	if (tcp_debx == TCP_NDEBUG)
 		tcp_debx = 0;
@@ -152,7 +158,7 @@ void tcp_trace(CTcpPerThreadCtx * ctx,
 	case TA_DROP:
 
         if (tp)
-            printf(" (%x) -> (%x) %s :", tp->src_ipv4,tp->dst_ipv4,  tcpstates[tp->t_state]);
+            printf(" (%x) -> (%x) %s :", src_ipv4,dst_ipv4,  tcpstates[tp->t_state]);
 
         if (act==TA_OUTPUT) {
             if (len)

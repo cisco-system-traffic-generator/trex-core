@@ -513,7 +513,7 @@ TEST_F(gt_tcp, tst14) {
 #if 0
 TEST_F(gt_tcp, tst15) {
 
-    CTcpApp app;
+    CEmulApp app;
 
     CTcpSockBuf  tx_sock;
     tx_sock.Create(8*1024);
@@ -597,7 +597,7 @@ TEST_F(gt_tcp, tst16) {
     m_flow.Create(&m_ctx);
 
 
-    //CTcpApp app;
+    //CEmulApp app;
     //utl_mbuf_buffer_create_and_fill(&app.m_write_buf,2048,2048*5+10);
     //app.m_write_buf.Dump(stdout);
 
@@ -653,7 +653,7 @@ TEST_F(gt_tcp, tst17) {
     m_flow.Create(&m_ctx);
 
 
-    CTcpApp app;
+    CEmulApp app;
     utl_mbuf_buffer_create_and_fill(&app.m_write_buf,2048,10);
     app.m_write_buf.Dump(stdout);
 
@@ -712,7 +712,7 @@ TEST_F(gt_tcp, tst18) {
 
 #if 0
 
-    CTcpApp app;
+    CEmulApp app;
     utl_mbuf_buffer_create_and_fill(&app.m_write_buf,2048,10);
     app.m_write_buf.Dump(stdout);
 
@@ -1197,17 +1197,17 @@ TEST_F(gt_tcp, tst30_http_ipv6) {
 TEST_F(gt_tcp, tst31) {
 
     CMbufBuffer * buf;
-    CTcpAppProgram * prog;
-    CTcpApp * app;
+    CEmulAppProgram * prog;
+    CEmulApp * app;
 
-    app = new CTcpApp();
+    app = new CEmulApp();
     buf = new CMbufBuffer();
 
     utl_mbuf_buffer_create_and_fill(0,buf,2048,100*1024);
 
-    prog = new CTcpAppProgram();
+    prog = new CEmulAppProgram();
 
-    CTcpAppCmd cmd;
+    CEmulAppCmd cmd;
     cmd.m_cmd =tcTX_BUFFER;
     cmd.u.m_tx_cmd.m_buf =buf;
 
@@ -1215,7 +1215,7 @@ TEST_F(gt_tcp, tst31) {
     prog->add_cmd(cmd);
 
     cmd.m_cmd = tcRX_BUFFER;
-    cmd.u.m_rx_cmd.m_flags = CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_flags = CEmulAppCmdRxBuffer::rxcmd_WAIT;
     cmd.u.m_rx_cmd.m_rx_bytes_wm = 1000;
 
     prog->add_cmd(cmd);
@@ -1691,24 +1691,24 @@ TEST_F(gt_tcp, tst42) {
 TEST_F(gt_tcp, tst43) {
     CTcpPerThreadCtx       ctx;  
     CTcpFlow               flow;
-    CTcpAppApiImpl         tcp_bh_api_impl_c;
+    CEmulAppApiImpl         tcp_bh_api_impl_c;
     ctx.Create(100,true);
     flow.Create(&ctx);
 
-    CTcpAppProgram * prog_s;
-    prog_s = new CTcpAppProgram();
-    CTcpAppCmd cmd;
+    CEmulAppProgram * prog_s;
+    prog_s = new CEmulAppProgram();
+    CEmulAppCmd cmd;
 
     /* server program */
 
     cmd.m_cmd =tcRX_BUFFER;
-    cmd.u.m_rx_cmd.m_flags =CTcpAppCmdRxBuffer::rxcmd_WAIT;
+    cmd.u.m_rx_cmd.m_flags =CEmulAppCmdRxBuffer::rxcmd_WAIT;
     cmd.u.m_rx_cmd.m_rx_bytes_wm = 1000;
 
     prog_s->add_cmd(cmd);
 
 
-    CTcpApp * app_c = &flow.m_app;
+    CEmulApp * app_c = &flow.m_app;
 
     app_c->set_program(prog_s);
     app_c->set_bh_api(&tcp_bh_api_impl_c);

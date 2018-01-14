@@ -108,6 +108,7 @@ struct tcpcb {
 #define TUNE_MSS                     0x02
 #define TUNE_INIT_WIN                0x04
 #define TUNE_NO_DELAY                0x08
+#define TUNE_TSO_CACHE               0x10
 
     uint8_t m_tuneable_flags;
     /*====== end =============*/
@@ -203,31 +204,10 @@ struct tcpcb {
     uint32_t  ts_recent_age;      /* when last updated */
     tcp_seq last_ack_sent;
 
-    uint32_t  src_ipv4;
-    uint32_t  dst_ipv4;
-    uint16_t  src_port;
-    uint16_t  dst_port;
-    uint16_t  vlan;
-    uint16_t  l4_pseudo_checksum;
-
-    uint8_t offset_tcp; /* offset of tcp_header, in template */
-    uint8_t offset_ip;  /* offset of ip_header in template */
-    uint8_t is_ipv6;
-    uint8_t m_offload_flags;
-    #define TCP_OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
-    #define TCP_OFFLOAD_TSO         0x0002      /* DPDK_TSO_CHECK_SUM */
-    #define TCP_OFFLOAD_RX_CHKSUM   0x0004      /* check RX checksum L4*/
-
-
-    /*====== end =============*/
-
     /*====== size 128 + 8 = 132 bytes  */
 
     CTcpReass * m_tpc_reass; /* tcp reassembley object, allocated only when needed */
-
-    uint8_t template_pkt[PACKET_TEMPLATE_SIZE];   /* template packet */
-
-    /*====== end =============*/
+    CTcpFlow  * m_flow;      /* back pointer to flow*/
 
 public:
 
@@ -235,8 +215,9 @@ public:
     tcpcb() {
         m_tuneable_flags = 0;
     }
+
     inline bool is_tso(){
-        return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
+        return( ((m_tuneable_flags & TUNE_TSO_CACHE)==TUNE_TSO_CACHE)?true:false);
     }
 
     /* in case TSO is enable return the hardware TSO maximum packet size */
@@ -466,12 +447,9 @@ class CTcpPerThreadCtx ;
 class CAstfDbRO;
 class CTcpTuneables;
 
+/* build packet template */
 
-class CTcpFlow {
-
-public:
-    void Create(CTcpPerThreadCtx *ctx);
-    void Delete();
+class CFlowTemplate {
 
 public:
     void set_tuple(uint32_t src,
@@ -479,46 +457,126 @@ public:
                    uint16_t src_port,
                    uint16_t dst_port,
                    uint16_t vlan,
-                   bool is_ipv6){
-        m_tcp.vlan = vlan;
-        m_tcp.src_ipv4 = src;
-        m_tcp.dst_ipv4 = dst;
-        m_tcp.src_port = src_port;
-        m_tcp.dst_port = dst_port;
-        m_tcp.is_ipv6  = is_ipv6;
+                   uint8_t  proto,
+                   bool     is_ipv6){
+        m_vlan = vlan;
+        m_src_ipv4 = src;
+        m_dst_ipv4 = dst;
+        m_src_port = src_port;
+        m_dst_port = dst_port;
+        m_is_ipv6  = is_ipv6;
+        m_proto    = proto;
     }
-    void init();
-    void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
-public:
 
-    static CTcpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
+    void server_update_mac_from_packet(uint8_t *pkt);
+
+    void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
+
+    void build_template(CTcpPerThreadCtx * ctx);
+
+    void set_offload_mask(uint8_t flags){
+        m_offload_flags=flags;
+    }
+    bool is_ipv6(){
+        return((m_is_ipv6?true:false));
+    }
+
+    inline bool is_tcp_tso();
+
+    uint32_t get_src_ipv4(){
+        return(m_src_ipv4);
+    }
+    uint32_t get_dst_ipv4(){
+        return(m_dst_ipv4);
+    }
+
+    uint16_t get_src_port(){
+        return(m_src_port);
+    }
+    uint16_t get_dst_port(){
+        return(m_dst_port);
+    }
+
+private:
+    /* support either UDP or TCP for now */
+    bool is_tcp(){
+        if (m_proto==IPHeader::Protocol::TCP) {
+            return(true);
+        }else{
+            assert(m_proto==IPHeader::Protocol::UDP);
+            return(false);
+        }
+    }
+
+    void build_template_ip(CTcpPerThreadCtx * ctx);
+    void build_template_tcp(CTcpPerThreadCtx * ctx);
+    void build_template_udp(CTcpPerThreadCtx * ctx);
+
+public:
+    /* cache line 0 */
+
+    uint32_t  m_src_ipv4;
+    uint32_t  m_dst_ipv4;
+    uint16_t  m_src_port;
+    uint16_t  m_dst_port;
+    uint16_t  m_vlan;
+    uint16_t  m_l4_pseudo_checksum;
+
+    uint8_t   m_offset_l4; /* offset of tcp_header, in template */
+    uint8_t   m_offset_ip;  /* offset of ip_header in template */
+    uint8_t   m_is_ipv6;
+    uint8_t   m_proto;      /* 6 - TCP ,0x11- UDP */
+
+    uint8_t   m_offload_flags;
+
+    #define OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
+    #define TCP_OFFLOAD_TSO     0x0002      /* DPDK_TSO_CHECK_SUM */
+    #define OFFLOAD_RX_CHKSUM   0x0004      /* check RX checksum L4*/
+
+    uint8_t  m_template_pkt[PACKET_TEMPLATE_SIZE];   /* template packet */
+};
+
+inline bool CFlowTemplate::is_tcp_tso(){
+   return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
+}
+
+
+class CFlowBase {
+
+public:
+    void Create(CTcpPerThreadCtx *ctx);
+    void Delete();
+
+    void set_tuple(uint32_t src,
+                   uint32_t dst,
+                   uint16_t src_port,
+                   uint16_t dst_port,
+                   uint16_t vlan,
+                   uint8_t  proto,
+                   bool is_ipv6){
+        m_template.set_tuple(src,dst,src_port,dst_port,vlan,proto,is_ipv6);
+    }
+
+    static CFlowBase * cast_from_hash_obj(flow_hash_ent_t *p){
         UNSAFE_CONTAINER_OF_PUSH
-        CTcpFlow * lp2 =(CTcpFlow *)((uint8_t*)p-offsetof (CTcpFlow,m_hash));
+        CFlowBase * lp2 =(CFlowBase *)((uint8_t*)p-offsetof (CFlowBase,m_hash));
         UNSAFE_CONTAINER_OF_POP
         return (lp2);
     }
 
-    void on_slow_tick();
 
-    void on_fast_tick();
+    bool is_udp(){
+        return(m_template.m_proto==IPHeader::Protocol::UDP);
+    }
 
-    inline void on_tick();
+    void init();
 
     void check_defer_function(){
-        check_defer_functions(&m_tcp.m_socket);
+        check_defer_functions(&m_app);
     }
 
-    bool is_can_close(){
-        return (m_tcp.t_state == TCPS_CLOSED ?true:false);
-    }
 
-    bool is_close_was_called(){
-        return ((m_tcp.t_state > TCPS_CLOSE_WAIT) ?true:false);
-    }
-
-    void set_app(CTcpApp  * app){
-        m_tcp.m_socket.m_app = app;
-    }
+    void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 
     void set_tuple_generator(uint32_t          c_idx,
                              uint16_t          c_pool_idx,
@@ -540,23 +598,158 @@ public:
         c_template_id = m_c_template_idx;
     }
 
-    /* update MAC addr from the packet in reverse */
-    void server_update_mac_from_packet(uint8_t *pkt);
-    void set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id);
-    void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
 public:
-    flow_hash_ent_t   m_hash; /* object   */
-    tcpcb             m_tcp;
-    CHTimerObj        m_timer;
-    CTcpApp           m_app;
-    CTcpPerThreadCtx *m_ctx;
-    uint8_t           m_tick;
     uint8_t           m_c_idx_enable;
-    uint8_t           m_pad[2];
+    uint8_t           m_pad[3];
     uint32_t          m_c_idx;
     uint16_t          m_c_pool_idx;
     uint16_t          m_c_template_idx;
+
+    CTcpPerThreadCtx *m_ctx;
+    flow_hash_ent_t   m_hash;  /* hash object - 64bit  */
+    CEmulApp          m_app;   
+    CFlowTemplate     m_template;  /* 128+32 bytes */
+};
+
+
+/*****************************************************/
+/* UDP */
+struct  udp_stat_int_t {
+    uint64_t    udps_sndbyte;  
+    uint64_t    udps_sndpkt; 
+    uint64_t    udps_rcvbyte;  
+    uint64_t    udps_rcvpkt;
+
+    uint64_t    udps_accepts;       /* connections accepted */
+    uint64_t    udps_connects;      /* connections established */
+    uint64_t    udps_closed;        /* conn. closed (includes drops) */
+
+    uint64_t    udps_keepdrops;     
+    uint64_t    udps_nombuf;        /* no mbuf for udp - drop the packets */
+    uint64_t    udps_pkt_toobig;    /* pkt too big */
+
+};
+
+struct  CUdpStats {
+
+    udp_stat_int_t m_sts;
+public:
+    void Clear();
+    void Dump(FILE *fd);
+};
+
+
+#define INC_UDP_STAT(ctx,p) {ctx->m_udpstat.m_sts.p++; }
+#define INC_UDP_STAT_CNT(ctx,p,cnt) {ctx->m_udpstat.m_sts.p += cnt; }
+
+class CUdpFlow : public CFlowBase {
+
+public:
+    void Create(CTcpPerThreadCtx *ctx,bool client);
+    void Delete();
+
+    static CUdpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
+        return((CUdpFlow *)CFlowBase::cast_from_hash_obj(p));
+    }
+
+    void init();
+
+    void send_pkt(CMbufBuffer * buf);
+
+    void disconnect();
+
+    void set_keepalive(uint64_t  msec);
+
+    void on_tick();
+
+    bool is_can_closed(){
+        return(m_closed);
+    }
+
+    void on_rx_packet(struct rte_mbuf *m,
+                      UDPHeader *udp,
+                      int offset_l7,
+                      int total_l7_len);
+
+
+public:
+    void set_c_udp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id){
+    }
+
+    void set_s_udp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune){
+    }
+
+private:
+
+    rte_mbuf_t   *    alloc_and_build(CMbufBuffer *      buf);
+
+    void update_checksum_and_lenght(CFlowTemplate *ftp,
+                                    rte_mbuf_t * m,
+                                    uint16_t     udp_pyld_bytes,
+                                    char *pkt);
+
+    inline rte_mbuf_t   * pktmbuf_alloc_small(void){
+        return (tcp_pktmbuf_alloc_small(m_mbuf_socket));
+    }
+
+    inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
+        return (tcp_pktmbuf_alloc(m_mbuf_socket,size));
+    }
+
+public:
+    CHTimerObj        m_keep_alive_timer; /* 32 bytes */ 
+    uint32_t          m_keepaive_ticks;
+    uint8_t           m_mbuf_socket;    /* mbuf socket */
+    uint8_t           m_keepalive;      /* 1- no-alive 0- alive */
+    bool              m_closed;
+
+};
+
+/*****************************************************/
+
+
+class CTcpFlow : public CFlowBase {
+
+public:
+    void Create(CTcpPerThreadCtx *ctx);
+    void Delete();
+
+    void init();
+
+public:
+
+    static CTcpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
+        return((CTcpFlow *)CFlowBase::cast_from_hash_obj(p));
+    }
+
+    void on_slow_tick();
+
+    void on_fast_tick();
+
+    inline void on_tick();
+
+
+    bool is_can_close(){
+        return (m_tcp.t_state == TCPS_CLOSED ?true:false);
+    }
+
+    bool is_close_was_called(){
+        return ((m_tcp.t_state > TCPS_CLOSE_WAIT) ?true:false);
+    }
+
+    void set_app(CEmulApp  * app){
+        m_tcp.m_socket.m_app = app;
+    }
+
+    void set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id);
+
+    void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
+
+public:
+    CHTimerObj        m_timer; /* 32 bytes */ 
+    tcpcb             m_tcp;
+    uint8_t           m_tick;
 };
 
 /* general timer object used by ASTF, 
@@ -619,7 +812,7 @@ public:
                       rte_mbuf_t *m)=0;
 
     virtual int on_flow_close(CTcpPerThreadCtx *ctx,
-                              CTcpFlow * flow)=0;
+                              CFlowBase * flow)=0;
 
     virtual int on_redirect_rx(CTcpPerThreadCtx *ctx,
                                rte_mbuf_t *m)=0;
@@ -652,6 +845,12 @@ public:
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
         return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
+    }
+
+    void handle_udp_timer(CUdpFlow * flow){
+        if (flow->is_can_closed()) {
+          m_ft.handle_close(this,flow,true);
+        }
     }
 
     RC_HTW_t timer_w_restart(CTcpFlow * flow){
@@ -691,7 +890,7 @@ public:
     }
 
     bool get_rx_checksum_check(){
-        return( ((m_offload_flags & TCP_OFFLOAD_RX_CHKSUM) == TCP_OFFLOAD_RX_CHKSUM)?true:false);
+        return( ((m_offload_flags & OFFLOAD_RX_CHKSUM) == OFFLOAD_RX_CHKSUM)?true:false);
     }
 
     /*  this function is called every 20usec to see if we have an issue with resource */
@@ -737,6 +936,7 @@ public:
 
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
     struct      tcpstat m_tcpstat;  /* tcp statistics */
+    struct      CUdpStats m_udpstat; /* udp statistics */
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
     uint32_t    m_tick;
@@ -852,7 +1052,6 @@ const char ** tcp_get_tcpstate();
 
 
 void tcp_quench(struct tcpcb *tp);
-void tcp_template(struct tcpcb *tp,CTcpPerThreadCtx * ctx);
 void     tcp_xmit_timer(CTcpPerThreadCtx * ctx,struct tcpcb *, int16_t rtt);
 
 void tcp_canceltimers(struct tcpcb *tp);
@@ -913,51 +1112,7 @@ inline void tcp_set_debug_flow(struct tcpcb * debug){
 
 
 
-
-
-#if 0
-int  tcp_attach __P((struct socket *));
-void     tcp_canceltimers __P((struct tcpcb *));
-struct tcpcb *
-     tcp_close __P((struct tcpcb *));
-void     tcp_ctlinput __P((int, struct sockaddr *, struct ip *));
-int  tcp_ctloutput __P((int, struct socket *, int, int, struct mbuf **));
-struct tcpcb *
-     tcp_disconnect __P((struct tcpcb *));
-struct tcpcb *
-     tcp_drop __P((struct tcpcb *, int));
-void     tcp_dooptions __P((struct tcpcb *,
-        u_char *, int, struct tcpiphdr *, int *, uint64_t *, uint64_t *));
-void     tcp_drain __P((void));
-void     tcp_fasttimo __P((void));
-void     tcp_init __P((void));
-void     tcp_input __P((struct mbuf *, int));
-int  tcp_mss __P((struct tcpcb *, u_int));
-struct tcpcb *
-     tcp_newtcpcb __P((struct inpcb *));
-void     tcp_notify __P((struct inpcb *, int));
-int  tcp_output __P((struct tcpcb *));
-void     tcp_pulloutofband __P((struct socket *,
-        struct tcpiphdr *, struct mbuf *));
-int  tcp_reass __P((struct tcpcb *, struct tcpiphdr *, struct mbuf *));
-void     tcp_respond __P((struct tcpcb *,
-        struct tcpiphdr *, struct mbuf *, uint64_t, uint64_t, int));
-void     tcp_setpersist __P((struct tcpcb *));
-void     tcp_slowtimo __P((void));
-struct tcpiphdr *
-     tcp_template __P((struct tcpcb *));
-struct tcpcb *
-     tcp_timers __P((struct tcpcb *, int));
-void     tcp_trace __P((int, int, struct tcpcb *, struct tcpiphdr *, int));
-struct tcpcb *
-     tcp_usrclosed __P((struct tcpcb *));
-int  tcp_usrreq __P((struct socket *,
-        int, struct mbuf *, struct mbuf *, struct mbuf *));
-void     tcp_xmit_timer __P((struct tcpcb *, int));
-#endif
-
-
-class CTcpAppApiImpl : public CTcpAppApi {
+class CEmulAppApiImpl : public CEmulAppApi {
 public:
 
     /* get maximum tx queue space */
@@ -993,8 +1148,74 @@ public:
         tcp_disconnect(ctx,&flow->m_tcp);
     }
 
+public:
+    /* UDP API not implemented  */
+    virtual void send_pkt(CUdpFlow *         flow,
+                          CMbufBuffer *      buf){
+        assert(0);
+    }
 
+    virtual void set_keepalive(CUdpFlow *         flow,
+                               uint64_t           msec
+                               ){
+        assert(0);
+    }
 };
+
+
+
+class CEmulAppApiUdpImpl : public CEmulAppApi {
+public:
+
+    /* get maximum tx queue space */
+    virtual uint32_t get_tx_max_space(CTcpFlow * flow){
+        assert(0);
+    }
+
+    /* get space in bytes in the tx queue */
+    virtual uint32_t get_tx_sbspace(CTcpFlow * flow){
+        assert(0);
+        return(0);
+    }
+
+    /* add bytes to tx queue */
+    virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
+        assert(0);
+    }
+
+    virtual uint32_t  rx_drain(CTcpFlow * flow){
+        assert(0);
+        return(0);
+    }
+
+
+    virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,CTcpFlow *         flow){
+        assert(0);
+    }
+
+public:
+    virtual void disconnect(CTcpPerThreadCtx * ctx,
+                            CTcpFlow *         flow){
+        CUdpFlow *         uflow=(CUdpFlow *)flow;
+        uflow->disconnect();
+
+        /* free here */
+    }
+
+    /* UDP API not implemented  */
+    virtual void send_pkt(CUdpFlow *         flow,
+                          CMbufBuffer *      buf){
+        flow->send_pkt(buf);
+    }
+
+    virtual void set_keepalive(CUdpFlow *         flow,
+                               uint64_t           msec
+                               ){
+        flow->set_keepalive(msec);
+    }
+};
+
+
 
 inline void CTcpFlow::on_tick(){
         on_fast_tick();

@@ -79,13 +79,13 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     }
 }
 
-void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
                                           , uint16_t temp_idx) {
     CTcpDataAssocTransHelp trans_help(params, prog, tune, temp_idx);
     m_vec.push_back(trans_help);
 }
 
-void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune
+void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
                                            , uint16_t temp_idx) {
     CTcpServreInfo *tcp_s_info = new CTcpServreInfo(prog, tune, temp_idx);
     assert(tcp_s_info);
@@ -181,6 +181,22 @@ std::string CAstfDB::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) 
 }
 
 
+bool CAstfDB::get_emul_stream(uint16_t program_index){
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index];
+    } catch(std::exception &e) {
+
+        return true;
+    }
+    if (cmd["stream"] == Json::nullValue){
+        return(true);
+    }
+    return(cmd["stream"].asBool());
+}
+
+
 tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) {
     Json::Value cmd;
 
@@ -217,6 +233,18 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) 
     if (cmd["name"] == "jmp_nz")
         return tcJMPNZ;
 
+    if (cmd["name"] == "tx_msg")
+        return tcTX_PKT;
+
+    if (cmd["name"] == "rx_msg")
+        return tcRX_PKT;
+
+    if (cmd["name"] == "keepalive")
+        return tcKEEPALIVE;
+
+    if (cmd["name"] == "close_msg")
+        return tcCLOSE_PKT;
+
     /* TBD need to check the value and put an error  !!! */
     return tcNO_CMD;
 }
@@ -237,7 +265,7 @@ uint32_t CAstfDB::get_delay_ticks(uint16_t program_index, uint16_t cmd_index) {
 
 void CAstfDB::fill_delay_rnd(uint16_t program_index, 
                             uint16_t cmd_index,
-                            CTcpAppCmd &res) {
+                            CEmulAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -254,7 +282,7 @@ void CAstfDB::fill_delay_rnd(uint16_t program_index,
 
 void CAstfDB::fill_set_var(uint16_t program_index, 
                             uint16_t cmd_index,
-                            CTcpAppCmd &res) {
+                            CEmulAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -271,7 +299,7 @@ void CAstfDB::fill_set_var(uint16_t program_index,
 
 void CAstfDB::fill_jmpnz(uint16_t program_index, 
                             uint16_t cmd_index,
-                            CTcpAppCmd &res) {
+                            CEmulAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -286,8 +314,66 @@ void CAstfDB::fill_jmpnz(uint16_t program_index,
     res.u.m_jmpnz.m_offset = cmd["offset"].asInt();
 }
 
+void CAstfDB::fill_tx_pkt(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            uint8_t socket_id,
+                            CEmulAppCmd &res) {
+    Json::Value cmd;
 
-void CAstfDB::get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CTcpAppCmd &res) {
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "tx_msg");
+
+    uint32_t indx=cmd["buf_index"].asUInt();
+    res.u.m_tx_pkt.m_buf = m_tcp_data[socket_id].m_buf_list[indx];
+}
+
+void CAstfDB::fill_rx_pkt(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            CEmulAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "rx_msg");
+
+    uint32_t min_pkts=cmd["min_pkts"].asInt();
+    res.u.m_rx_pkt.m_rx_pkts =min_pkts;
+    res.u.m_rx_pkt.m_flags =CEmulAppCmdRxPkt::rxcmd_WAIT;
+
+    if (cmd["clear"] != Json::nullValue) {
+        if (cmd["clear"].asBool()) {
+            res.u.m_rx_cmd.m_flags |= CEmulAppCmdRxPkt::rxcmd_CLEAR;
+        }
+    }
+}
+
+void CAstfDB::fill_keepalive_pkt(uint16_t program_index, 
+                                 uint16_t cmd_index,
+                                 CEmulAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "keepalive");
+
+    res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asInt();
+}
+
+
+void CAstfDB::get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -301,7 +387,7 @@ void CAstfDB::get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CTcpAppCmd &
     res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt();
     if (cmd["clear"] != Json::nullValue) {
         if (cmd["clear"].asBool()) {
-            res.u.m_rx_cmd.m_flags |= CTcpAppCmdRxBuffer::rxcmd_CLEAR;
+            res.u.m_rx_cmd.m_flags |= CEmulAppCmdRxPkt::rxcmd_CLEAR;
         }
     }
 }
@@ -759,6 +845,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_k_cps = cps;
         dist.push_back(cps);
         template_ro.m_destination_port = c_temp["port"].asInt();
+        template_ro.m_stream = get_emul_stream(c_temp["program_index"].asInt());
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
 
         if (c_temp["limit"] != Json::nullValue ){
@@ -798,7 +885,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
  * side - 0 - client, 1 - server
  * Return pointer to program
  */
-CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
+CEmulAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
     uint32_t program_index;
 
@@ -818,13 +905,6 @@ CTcpAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_
     return m_tcp_data[socket_id].m_prog_list[program_index];
 }
 
-CTcpServreInfo *CAstfDB::get_server_info_by_port(uint16_t port, uint8_t socket_id) {
-    CTcpDataAssocParams params(port);
-
-    assert(m_tcp_data[socket_id].m_init > 0);
-
-    return m_tcp_data[socket_id].m_assoc_trans.get_server_info(params);
-}
 
 /*
   Building association translation, and all template related info.
@@ -845,8 +925,9 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
         // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
-        CTcpDataAssocParams tcp_params(port);
-        CTcpAppProgram *prog_p = get_prog(index, 1, socket_id);
+        bool is_stream = get_emul_stream(m_val["templates"][index]["server_template"]["program_index"].asInt());
+        CTcpDataAssocParams tcp_params(port,is_stream);
+        CEmulAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
 
         CTcpTuneables *s_tuneable = new CTcpTuneables();
@@ -904,8 +985,8 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
 
 /* Convert list of programs from json to CMbufBuffer */
 bool CAstfDB::convert_progs(uint8_t socket_id) {
-    CTcpAppCmd cmd;
-    CTcpAppProgram *prog;
+    CEmulAppCmd cmd;
+    CEmulAppProgram *prog;
     uint16_t cmd_index;
     tcp_app_cmd_enum_t cmd_type;
     uint32_t prog_len=0;
@@ -914,8 +995,10 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
         return false;
 
     for (uint16_t program_index = 0; program_index < m_val["program_list"].size(); program_index++) {
-        prog = new CTcpAppProgram();
+        prog = new CEmulAppProgram();
         assert(prog);
+        bool is_stream = get_emul_stream(program_index);
+        prog->set_stream(is_stream);
 
         cmd_index = 0;
         do {
@@ -932,7 +1015,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 break;
             case tcRX_BUFFER:
                 cmd.m_cmd = tcRX_BUFFER;
-                cmd.u.m_rx_cmd.m_flags = CTcpAppCmdRxBuffer::rxcmd_WAIT;
+                cmd.u.m_rx_cmd.m_flags = CEmulAppCmdRxBuffer::rxcmd_WAIT;
                 get_rx_cmd(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
@@ -966,6 +1049,29 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
             case tcJMPNZ :
                 cmd.m_cmd = tcJMPNZ;
                 fill_jmpnz(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcTX_PKT :
+                cmd.m_cmd = tcTX_PKT;
+                fill_tx_pkt(program_index, cmd_index,socket_id,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcRX_PKT:
+                cmd.m_cmd = tcRX_PKT;
+                fill_rx_pkt(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcKEEPALIVE:
+                cmd.m_cmd = tcKEEPALIVE;
+                fill_keepalive_pkt(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcCLOSE_PKT:
+                cmd.m_cmd = tcCLOSE_PKT;
                 prog->add_cmd(cmd);
                 break;
 
@@ -1028,8 +1134,8 @@ void CAstfDB::clear() {
     m_json_initiated = false;
 }
 
-    CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port) {
-    CTcpDataAssocParams params(port);
+CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port,bool stream) {
+    CTcpDataAssocParams params(port,stream);
     return m_assoc_trans.get_server_info(params);
 }
 

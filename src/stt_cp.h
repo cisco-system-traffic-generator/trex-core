@@ -54,6 +54,7 @@ public:
 
 public:
     tcpstat             m_tcp;
+    CUdpStats           m_udp;
     CSttFlowTableStats  m_ft;
 
     /* externation counters */

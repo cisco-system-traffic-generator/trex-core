@@ -74,7 +74,8 @@ const char ** tcp_get_tcpstate(){
 }
 
 
-static inline void tcp_pkt_update_len(struct tcpcb *tp,
+static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
+                                      struct tcpcb *tp,
                                       CTcpPkt &pkt,
                                       uint32_t dlen,
                                       uint16_t tcphlen){
@@ -82,18 +83,18 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
     uint32_t tcp_h_pyld=dlen+tcphlen;
     char *p=pkt.get_header_ptr();
 
-    if (tp->m_offload_flags & TCP_OFFLOAD_TX_CHKSUM){
+    if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM){
 
         rte_mbuf_t   * m=pkt.m_buf;
 
-        if (!tp->is_ipv6){
-            uint16_t tlen=tp->offset_tcp-tp->offset_ip+tcp_h_pyld;
-            m->l2_len = tp->offset_ip;
-            m->l3_len = tp->offset_tcp-tp->offset_ip;
+        if (!ftp->m_is_ipv6){
+            uint16_t tlen=ftp->m_offset_l4-ftp->m_offset_ip+tcp_h_pyld;
+            m->l2_len = ftp->m_offset_ip;
+            m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
-            IPHeader * ipv4=(IPHeader *)(p+tp->offset_ip);
+            IPHeader * ipv4=(IPHeader *)(p+ftp->m_offset_ip);
             ipv4->ClearCheckSum();
-            TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
+            TCPHeader *  tcp=(TCPHeader *)(p+ftp->m_offset_l4);
             /* must be before checksum calculation */
             bool tso_done=false;
             if ( tp->is_tso() ) {
@@ -108,20 +109,20 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             if (tso_done){
                 /* in case of TSO the len is auto calculated */
                 ipv4->setTotalLength(20);
-                tcp->setChecksumRaw(tp->l4_pseudo_checksum);
+                tcp->setChecksumRaw(ftp->m_l4_pseudo_checksum);
             }else{
                 ipv4->setTotalLength(tlen);
-                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
+                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(tlen-20)));
             }
 
 
         }else{
             uint16_t tlen=tcp_h_pyld;
-            m->l2_len = tp->offset_ip;
-            m->l3_len = tp->offset_tcp-tp->offset_ip;
+            m->l2_len = ftp->m_offset_ip;
+            m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
-            IPv6Header * ipv6=(IPv6Header *)(p+tp->offset_ip);
-            TCPHeader *  tcp=(TCPHeader *)(p+tp->offset_tcp);
+            IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
+            TCPHeader *  tcp=(TCPHeader *)(p+ftp->m_offset_l4);
 
             bool tso_done=false;
             if ( tp->is_tso() ) {
@@ -136,26 +137,24 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
             if (tso_done){
                 /* in case of TSO the len is auto calculated */
                 ipv6->setPayloadLen(0);
-                tcp->setChecksumRaw(tp->l4_pseudo_checksum);
+                tcp->setChecksumRaw(ftp->m_l4_pseudo_checksum);
             }else{
                 ipv6->setPayloadLen(tlen);
-                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(tp->l4_pseudo_checksum ,PKT_NTOHS(tlen)));
+                tcp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(tlen)));
             }
         }
     }else{
-        if (!tp->is_ipv6){
-            uint16_t tlen=tp->offset_tcp-tp->offset_ip+tcp_h_pyld;
-            IPHeader * lpv4=(IPHeader *)(p+tp->offset_ip);
+        if (!ftp->m_is_ipv6){
+            uint16_t tlen=ftp->m_offset_l4-ftp->m_offset_ip+tcp_h_pyld;
+            IPHeader * lpv4=(IPHeader *)(p+ftp->m_offset_ip);
             lpv4->setTotalLength(tlen);
             lpv4->updateCheckSumFast();
         }else{
             uint16_t tlen = tcp_h_pyld;
-            IPv6Header * Ipv6=(IPv6Header *)(p+tp->offset_ip);
+            IPv6Header * Ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             Ipv6->setPayloadLen(tlen);
         }
     }
-
-
 
 }
 
@@ -170,10 +169,11 @@ static inline void tcp_pkt_update_len(struct tcpcb *tp,
  * @return 
  */
 static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
-                   struct tcpcb *tp,
-                   uint16_t tcphlen,
-                   CTcpPkt &pkt){
-    int len= tp->offset_tcp+tcphlen;
+                                  CFlowTemplate *ftp,
+                                  struct tcpcb *tp,
+                                  uint16_t tcphlen,
+                                  CTcpPkt &pkt){
+    int len= ftp->m_offset_l4+tcphlen;
     rte_mbuf_t * m;
     m=tp->pktmbuf_alloc(len);
     pkt.m_buf=m;
@@ -186,8 +186,8 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
     char *p=rte_pktmbuf_append(m,len);
 
     /* copy template */
-    memcpy(p,tp->template_pkt,len);
-    pkt.lpTcp =(TCPHeader    *)(p+tp->offset_tcp);
+    memcpy(p,ftp->m_template_pkt,len);
+    pkt.lpTcp =(TCPHeader    *)(p+ftp->m_offset_l4);
 
 
     return(0);
@@ -197,9 +197,12 @@ int tcp_build_cpkt(CTcpPerThreadCtx * ctx,
                    struct tcpcb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt){
-   int res=_tcp_build_cpkt(ctx,tp,tcphlen,pkt);
+    assert(tp->m_flow);
+    CFlowTemplate *ftp=&tp->m_flow->m_template;
+
+   int res=_tcp_build_cpkt(ctx,ftp,tp,tcphlen,pkt);
    if (res==0){
-       tcp_pkt_update_len(tp,pkt,0,tcphlen) ;
+       tcp_pkt_update_len(ftp,tp,pkt,0,tcphlen) ;
    }
    return(res);
 }
@@ -238,12 +241,14 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
  * @return 
  */
 static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
-                   struct tcpcb *tp,
-                   uint32_t offset, 
-                   uint32_t dlen,
-                   uint16_t tcphlen, 
-                   CTcpPkt &pkt){
-    int res=_tcp_build_cpkt(ctx,tp,tcphlen,pkt);
+                                  CFlowTemplate *ftp,
+                                  struct tcpcb *tp,
+                                  uint32_t offset, 
+                                  uint32_t dlen,
+                                  uint16_t tcphlen, 
+                                  CTcpPkt &pkt){
+
+    int res=_tcp_build_cpkt(ctx,ftp,tp,tcphlen,pkt);
     if (res<0) {
         return(res);
     }
@@ -315,10 +320,12 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
                    uint32_t dlen,
                    uint16_t tcphlen, 
                    CTcpPkt &pkt){
+    assert(tp->m_flow);
+    CFlowTemplate *ftp=&tp->m_flow->m_template;
 
-    int res = tcp_build_dpkt_(ctx,tp,offset,dlen,tcphlen,pkt);
+    int res = tcp_build_dpkt_(ctx,ftp,tp,offset,dlen,tcphlen,pkt);
     if (res==0){
-        tcp_pkt_update_len(tp,pkt,dlen,tcphlen) ;
+        tcp_pkt_update_len(ftp,tp,pkt,dlen,tcphlen) ;
     }
     return(res);
 }

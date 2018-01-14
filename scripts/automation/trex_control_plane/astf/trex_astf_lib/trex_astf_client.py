@@ -40,6 +40,9 @@ class _ASTFCapPath(object):
 class ASTFCmd(object):
     def __init__(self):
         self.fields = {}
+        self.stream=None
+        self.buffer=None
+
 
     def to_json(self):
         return dict(self.fields)
@@ -49,13 +52,15 @@ class ASTFCmd(object):
         return ret
 
 
-class ASTFCmdSend(ASTFCmd):
+class ASTFCmdTxPkt(ASTFCmd):
     def __init__(self, buf):
-        super(ASTFCmdSend, self).__init__()
+        super(ASTFCmdTxPkt, self).__init__()
         self._buf = base64.b64encode(buf).decode()
-        self.fields['name'] = 'tx'
+        self.fields['name'] = 'tx_msg'
         self.fields['buf_index'] = -1
         self.buffer_len = len(buf)  # buf len before decode
+        self.stream=False
+        self.buffer=True;
 
     @property
     def buf_len(self):
@@ -78,6 +83,58 @@ class ASTFCmdSend(ASTFCmd):
         return ret
 
 
+class ASTFCmdSend(ASTFCmd):
+    def __init__(self, buf):
+        super(ASTFCmdSend, self).__init__()
+        self._buf = base64.b64encode(buf).decode()
+        self.fields['name'] = 'tx'
+        self.fields['buf_index'] = -1
+        self.buffer_len = len(buf)  # buf len before decode
+        self.stream=True
+        self.buffer=True;
+
+    @property
+    def buf_len(self):
+        return self.buffer_len
+
+    @property
+    def buf(self):
+        return self._buf
+
+    @property
+    def buf_index(self):
+        return self.fields['buf_index']
+
+    @buf_index.setter
+    def index(self, index):
+        self.fields['buf_index'] = index
+
+    def dump(self):
+        ret = "{0}(\"\"\"{1}\"\"\")".format(self.__class__.__name__, self.buf)
+        return ret
+
+class ASTFCmdKeepaliveMsg(ASTFCmd):
+    def __init__(self, msec):
+        super(ASTFCmdKeepaliveMsg, self).__init__()
+        self.fields['name'] = 'keepalive'
+        self.fields['msec'] = msec
+        self.stream=False
+
+
+class ASTFCmdRecvMsg(ASTFCmd):
+    def __init__(self, min_pkts,clear=False):
+        super(ASTFCmdRecvMsg, self).__init__()
+        self.fields['name'] = 'rx_msg'
+        self.fields['min_pkts'] = min_pkts
+        if clear:
+            self.fields['clear'] = True
+        self.stream=False
+
+    def dump(self):
+        ret = "{0}({1})".format(self.__class__.__name__, self.fields['min_pkts'])
+        return ret
+
+
 class ASTFCmdRecv(ASTFCmd):
     def __init__(self, min_bytes,clear=False):
         super(ASTFCmdRecv, self).__init__()
@@ -85,11 +142,17 @@ class ASTFCmdRecv(ASTFCmd):
         self.fields['min_bytes'] = min_bytes
         if clear:
             self.fields['clear'] = True
-
+        self.stream=True
 
     def dump(self):
         ret = "{0}({1})".format(self.__class__.__name__, self.fields['min_bytes'])
         return ret
+
+class ASTFCmdCloseMsg(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdCloseMsg, self).__init__()
+        self.fields['name'] = 'close_msg'
+        self.stream=False
 
 
 class ASTFCmdDelay(ASTFCmd):
@@ -98,21 +161,23 @@ class ASTFCmdDelay(ASTFCmd):
         self.fields['name'] = 'delay'
         self.fields['usec'] = usec
 
-
 class ASTFCmdReset(ASTFCmd):
     def __init__(self):
         super(ASTFCmdReset, self).__init__()
         self.fields['name'] = 'reset'
+        self.stream=True
 
 class ASTFCmdNoClose(ASTFCmd):
     def __init__(self):
         super(ASTFCmdNoClose, self).__init__()
         self.fields['name'] = 'nc'
+        self.stream=True
 
 class ASTFCmdConnect(ASTFCmd):
     def __init__(self):
         super(ASTFCmdConnect, self).__init__()
         self.fields['name'] = 'connect'
+        self.stream=True
 
 class ASTFCmdDelayRnd(ASTFCmd):
     def __init__(self,min_usec,max_usec):
@@ -153,6 +218,10 @@ class ASTFProgram(object):
 
      """
 
+    MIN_DELAY = 50 
+    MAX_DELAY = 700000 
+    MAX_KEEPALIVE = 500000 
+
     class BufferList():
         def __init__(self):
             self.buf_list = []
@@ -192,7 +261,7 @@ class ASTFProgram(object):
     def class_to_json():
         return ASTFProgram.buf_list.to_json()
 
-    def __init__(self, file=None, side="c", commands=None):
+    def __init__(self, file=None, side="c", commands=None,stream=True):
         """
 
         :parameters:
@@ -205,6 +274,8 @@ class ASTFProgram(object):
                   commands   : list
                         list of command objects cound be NULL in case you call the API
 
+                  stream    : bool
+                     is stream base
         """
 
         ver_args = {"types":
@@ -217,6 +288,7 @@ class ASTFProgram(object):
             raise ASTFError("Side must be one of {0}".side_vals)
 
         self.vars={};
+        self.stream=stream;
         self.labels={};
         self.fields = {}
         self.fields['commands'] = []
@@ -226,11 +298,28 @@ class ASTFProgram(object):
             cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
             self._p_len = cap.payload_len
-            cap.condense_pkt_data()
-            self._create_cmds_from_cap(cap.pkts, side)
+            is_tcp=cap.is_tcp()
+            if is_tcp:
+                cap.condense_pkt_data()
+            else:
+                self.stream=False
+            
+            self._create_cmds_from_cap(is_tcp,cap.pkts,cap.pkt_times,cap.pkt_dirs, side)
         else:
             if commands is not None:
                 self._set_cmds(listify(commands))
+
+    def update_keepalive (self,prog_s):
+        """ in case of pcap file need to copy the keepalive command from client to server side 
+        """
+        if len(self.fields['commands'])>0:
+            cmd=self.fields['commands'][0];
+            if isinstance(cmd, ASTFCmdKeepaliveMsg):
+                prog_s.fields['commands'].insert(0,cmd);
+
+
+    def is_stream(self):
+        return self.stream
 
     def calc_hash(self):
         return hashlib.sha256(repr(self.to_json()).encode()).digest()
@@ -281,11 +370,94 @@ class ASTFProgram(object):
             cnt+=chunk_size;
             size-=chunk_size;
 
+    def close_msg (self):
+        """
+        explicit UDP flow close 
+
+
+        """
+        self.fields['commands'].append(ASTFCmdCloseMsg())
+
+    def send_msg (self, buf):
+        """
+        send UDP message (buf) 
+
+         example1
+          send_msg (buffer1)
+          recv_msg (1)
+
+
+        :parameters:
+                  buf : string
+                     l7 stream as string 
+
+        """
+        ver_args = {"types":
+                    [{"name": "buf", 'arg': buf, "t": [bytes, str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        # we support bytes or ascii strings
+        if type(buf) is str:
+            try:
+                enc_buf = buf.encode('ascii')
+            except UnicodeEncodeError as e:
+                print (e)
+                raise ASTFError("If buf is a string, it must contain only ascii")
+        else:
+            enc_buf = buf
+
+        cmd = ASTFCmdTxPkt(enc_buf)
+        self.total_send_bytes += cmd.buf_len
+        cmd.index = ASTFProgram.buf_list.add(cmd.buf)
+        self.fields['commands'].append(cmd)
+
+    def set_keepalive_msg (self,msec):
+        """
+        set_keepalive_msg (sec), set the keepalive timer for UDP flows 
+
+        :parameters:
+                  msec  : uint32_t
+                   the keepalive time in msec 
+        """
+
+        ver_args = {"types":
+                    [{"name": "msec", 'arg': msec, "t": int}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdRecvMsg(self.total_rcv_bytes))
+
+
+    def recv_msg(self, pkts,clear=False):
+        """
+        recv_msg (pkts)
+
+        works for UDP flow 
+
+        :parameters:
+                  pkts  : uint32_t
+                   wait until the rx packet watermark is reached on flow counter.  
+
+                  clear  : bool
+                     when reach the watermark clear the flow counter 
+
+        """
+
+        ver_args = {"types":
+                    [ {"name": "pkts", 'arg': pkts, "t": int},
+                      {"name": "clear", 'arg': clear, "t": [int,bool], "must": False}
+                    ]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.total_rcv_bytes += pkts
+        self.fields['commands'].append(ASTFCmdRecvMsg(self.total_rcv_bytes,clear))
 
 
     def send(self, buf):
         """
-        send (l7_buffer) and wait for the buffer to be acked by peer. Rx side could work in parallel
+        send (l7_buffer) over TCP and wait for the buffer to be acked by peer. Rx side could work in parallel
 
          example1
           send (buffer1)
@@ -485,33 +657,78 @@ class ASTFProgram(object):
 
     def _set_cmds(self, cmds):
         for cmd in cmds:
-            if type(cmd) is ASTFCmdSend:
+            if cmd.buffer:
                 self.total_send_bytes += cmd.buf_len
                 cmd.index = ASTFProgram.buf_list.add(cmd.buf)
             self.fields['commands'].append(cmd)
 
-    def _create_cmds_from_cap(self, cmds, init_side):
+    def _create_cmds_from_cap(self, is_tcp,cmds,times,dirs,init_side):
         new_cmds = []
         origin = init_side
         tot_rcv_bytes = 0
+        rx=False
+        max_delay=0;
 
-        for cmd in cmds:
-            if origin == "c":
-                new_cmd = ASTFCmdSend(cmd.payload)
-                origin = "s"
-            else:
-                # Server need to see total rcv bytes, and not amount for each packet
-                tot_rcv_bytes += len(cmd.payload)
-                new_cmd = ASTFCmdRecv(tot_rcv_bytes)
-                origin = "c"
-            new_cmds.append(new_cmd)
+        if is_tcp:
+            for cmd in cmds:
+                if origin == "c":
+                    new_cmd = ASTFCmdSend(cmd.payload)
+                    origin = "s"
+                else:
+                    # Server need to see total rcv bytes, and not amount for each packet
+                    tot_rcv_bytes += len(cmd.payload)
+                    new_cmd = ASTFCmdRecv(tot_rcv_bytes)
+                    origin = "c"
+                new_cmds.append(new_cmd)
+        else:
+            last_dir=None
+            for i in range(len(cmds)):
+                cmd = cmds[i]
+
+                time = times[i]
+                dir = dirs[i]
+                #print([i,time,dir,cmd]);
+                if dir == init_side:
+                    if last_dir == init_side:
+                        dusec=int(time*1000000)
+                        if dusec > ASTFProgram.MAX_DELAY:
+                            dusec =ASTFProgram.MAX_DELAY;
+                        if dusec>ASTFProgram.MIN_DELAY:
+                           ncmd = ASTFCmdDelay(dusec)
+                           if max_delay<dusec:
+                               max_delay=dusec
+                           new_cmds.append(ncmd)
+                    else:
+                        if rx:
+                          rx=False
+                          ncmd = ASTFCmdRecvMsg(tot_rcv_bytes)
+                          new_cmds.append(ncmd)
+
+                    new_cmd = ASTFCmdTxPkt(cmd.payload)
+                    new_cmds.append(new_cmd)
+                else:
+                    tot_rcv_bytes += 1
+                    rx=True
+                last_dir=dir;
+
+        if rx:
+          rx=False
+          ncmd = ASTFCmdRecvMsg(tot_rcv_bytes)
+          new_cmds.append(ncmd)
+        if max_delay> ASTFProgram.MAX_KEEPALIVE:
+            new_cmds.insert(0,ASTFCmdKeepaliveMsg(max_delay*2))
         self._set_cmds(new_cmds)
 
     def __compile(self):
         # update offsets for  ASTFCmdJMPNZ
         # comvert var names to ids 
+
         i=0;
         for cmd in self.fields['commands']:
+            if cmd.stream != None:
+                if cmd.stream !=self.stream:
+                    raise ASTFError(" Command stream mode is {0} and different from the flow stream mode {1}".format(cmd.stream,self.stream))
+
             if isinstance(cmd, ASTFCmdJMPNZ):
                 #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
                 cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
@@ -530,6 +747,8 @@ class ASTFProgram(object):
         ret['commands'] = []
         for cmd in self.fields['commands']:
             ret['commands'].append(cmd.to_json())
+        if self.stream==False:
+            ret['stream']=False
         return ret
 
     def dump(self, out, var_name):
@@ -928,6 +1147,12 @@ class _ASTFTemplateBase(object):
     def __init__(self, program=None):
         self.fields = {}
         self.fields['program_index'] = _ASTFTemplateBase.add_program(program)
+        self.is_stream = program.is_stream
+
+
+    def is_stream (self):
+        return (self.is_stream)
+
 
     def to_json(self):
         ret = {}
@@ -1218,6 +1443,9 @@ class ASTFTemplate(object):
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
+        if client_template.is_stream() != server_template.is_stream() :
+            raise ASTFError(" Client template stream mode is {0} and different from server template mode {1}".format( client_template.is_stream(), server_template.is_stream() ) )
+
         self.fields = {}
         self.fields['client_template'] = client_template
         self.fields['server_template'] = server_template
@@ -1316,6 +1544,7 @@ class ASTFProfile(object):
                 glob_s = cap.s_glob_info
                 prog_c = ASTFProgram(file=cap_file, side="c")
                 prog_s = ASTFProgram(file=cap_file, side="s")
+                prog_c.update_keepalive(prog_s)
 
                 tcp_c = _ASTFTCPInfo(file=cap_file)
                 tcp_c_port = tcp_c.port
