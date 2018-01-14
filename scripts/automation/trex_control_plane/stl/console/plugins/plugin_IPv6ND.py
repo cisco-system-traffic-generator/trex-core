@@ -80,11 +80,11 @@ class IPv6ND_plugin(ConsolePlugin):
 
     def do_resolve(self, port, src_ip, src_mac, dst_ip, vlan, fmt, timeout, verify_timeout, count, rate, retries, verbose):
         ''' perform IPv6 neighbor discovery '''
-        print
-        print "performing ND for {0} addresses.".format(count)
-        print "NA response timeout............: {0}s".format(timeout)
-        print "Neighbor verification timeout..: {0}s".format(verify_timeout)
-        print
+        print("")
+        print("performing ND for {0} addresses.".format(count))
+        print("NA response timeout............: {0}s".format(timeout))
+        print("Neighbor verification timeout..: {0}s".format(verify_timeout))
+        print("")
 
         ctx  = self.trex_client.create_service_ctx(port = port)
         mac_lists = None
@@ -138,25 +138,25 @@ class IPv6ND_plugin(ConsolePlugin):
 
     def do_status(self, brief):
         ''' show status of generated ND requests'''
-        print
-        print
-        print "ND Status"
-        print "---------"
-        print
-        print "used vlan(s)...................: {0}".format(self.vlan)
-        print "used encapsulation.............: {0}".format(self.fmt)
-        print "number of IPv6 source addresses: {0}".format(self.count)
-        print
-        print
+        print("")
+        print("")
+        print("ND Status")
+        print("---------")
+        print("")
+        print("used vlan(s)...................: {0}".format(self.vlan))
+        print("used encapsulation.............: {0}".format(self.fmt))
+        print("number of IPv6 source addresses: {0}".format(self.count))
+        print("")
+        print("")
 
         if brief == None:
             fmt_string = "{:17s}  {:30s} | {:30s} {:17s} {:12s} {:5}"
             header = fmt_string.format("    SRC MAC", "      SRC IPv6", "      DST IPv6", "    DST MAC", "STATE", "VERIFIED")
-            print header
-            print "-" * len(header)
+            print(header)
+            print("-" * len(header))
             for r in self.requests:
                 entry = r.get_record()
-                print fmt_string.format(entry.src_mac, entry.src_ip, entry.dst_ip, entry.dst_mac, entry.state, entry.neighbor_verifications)
+                print(fmt_string.format(entry.src_mac, entry.src_ip, entry.dst_ip, entry.dst_mac, entry.state, entry.neighbor_verifications))
 
         resolved   = 0
         unresolved = 0
@@ -170,11 +170,11 @@ class IPv6ND_plugin(ConsolePlugin):
             else:
                 unresolved += 1
 
-        print
-        print "resolved..: {0} ".format(resolved)
-        print "unresolved: {0}".format(unresolved)
-        print "verified..: {0}".format(verified)
-        print
+        print()
+        print("resolved..: {0} ".format(resolved))
+        print("unresolved: {0}".format(unresolved))
+        print("verified..: {0}".format(verified))
+        print()
 
     def do_clear(self):
         ''' clear IPv6 ND requests/entries'''
