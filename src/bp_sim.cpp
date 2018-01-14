@@ -3784,15 +3784,15 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
         break;
 
     case CGenNode::TCP_RX_FLUSH:
-        thread->tcp_handle_rx_flush(node,on_terminate);
+        thread->handle_rx_flush(node,on_terminate);
         break;
 
     case CGenNode::TCP_TX_FIF:
-        thread->tcp_handle_tx_fif(node,on_terminate);
+        thread->handle_tx_fif(node,on_terminate);
         break;
 
     case CGenNode::TCP_TW:
-        thread->tcp_handle_tw(node,on_terminate);
+        thread->handle_tw(node,on_terminate);
         break;
 
     default:

@@ -138,7 +138,7 @@ public:
              rte_mbuf_t *m);
 
    int on_flow_close(CTcpPerThreadCtx *ctx,
-                     CTcpFlow * flow);
+                     CFlowBase * flow);
 
    int on_redirect_rx(CTcpPerThreadCtx *ctx,
                       rte_mbuf_t *m);
@@ -195,8 +195,8 @@ public:
 
 typedef std::function<int(CMbufBuffer * buf_req,
                           CMbufBuffer * buf_res,
-                          CTcpAppProgram * prog_c,
-                          CTcpAppProgram * prog_s,
+                          CEmulAppProgram * prog_c,
+                          CEmulAppProgram * prog_s,
                           uint32_t http_r_size)> method_program_cb_t;
 
 
@@ -234,41 +234,41 @@ public:
     int fill_from_file();
     bool compare(std::string exp_dir);
     void close_file();
-    void set_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *s_tune);
+    void set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *s_tune);
 private: 
     int simple_http_generic(method_program_cb_t bc);
     int build_http(CMbufBuffer * buf_req,
                   CMbufBuffer * buf_res,
-                  CTcpAppProgram * prog_c,
-                  CTcpAppProgram * prog_s,
+                  CEmulAppProgram * prog_c,
+                  CEmulAppProgram * prog_s,
                   uint32_t http_r_size);
     int build_http_rst(CMbufBuffer * buf_req,
                        CMbufBuffer * buf_res,
-                       CTcpAppProgram * prog_c,
-                       CTcpAppProgram * prog_s,
+                       CEmulAppProgram * prog_c,
+                       CEmulAppProgram * prog_s,
                        uint32_t http_r_size);
     int build_http_fin_ack(CMbufBuffer * buf_req,
                            CMbufBuffer * buf_res,
-                           CTcpAppProgram * prog_c,
-                           CTcpAppProgram * prog_s,
+                           CEmulAppProgram * prog_c,
+                           CEmulAppProgram * prog_s,
                            uint32_t http_r_size);
     int build_http_connect(CMbufBuffer * buf_req,
                          CMbufBuffer * buf_res,
-                         CTcpAppProgram * prog_c,
-                         CTcpAppProgram * prog_s,
+                         CEmulAppProgram * prog_c,
+                         CEmulAppProgram * prog_s,
                          uint32_t http_r_size);
 
 
     int build_http_connect_rst(CMbufBuffer * buf_req,
                          CMbufBuffer * buf_res,
-                         CTcpAppProgram * prog_c,
-                         CTcpAppProgram * prog_s,
+                         CEmulAppProgram * prog_c,
+                         CEmulAppProgram * prog_s,
                          uint32_t http_r_size);
 
     int build_http_connect_rst2(CMbufBuffer * buf_req,
                          CMbufBuffer * buf_res,
-                         CTcpAppProgram * prog_c,
-                         CTcpAppProgram * prog_s,
+                         CEmulAppProgram * prog_c,
+                         CEmulAppProgram * prog_s,
                          uint32_t http_r_size);
 
 
@@ -282,8 +282,8 @@ public:
     CTcpPerThreadCtx        m_s_ctx;
     CAstfDbRO                m_tcp_data_ro;
 
-    CTcpAppApiImpl          m_tcp_bh_api_impl_c;
-    CTcpAppApiImpl          m_tcp_bh_api_impl_s;
+    CEmulAppApiImpl          m_tcp_bh_api_impl_c;
+    CEmulAppApiImpl          m_tcp_bh_api_impl_s;
 
     CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
     CTcpCtxPcapWrt          m_s_pcap;

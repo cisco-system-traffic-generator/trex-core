@@ -47,17 +47,23 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
                  "astf/param_tcp_rxbufsize_pt.py",
                  "astf/param_sch_rampup.py",
                  "astf/http_manual_commands_pipeline4.py"
+                 "astf/udp_pcap.py",
+                 "astf/udp_sip.py",
+                 "astf/udp1.py",
+                 "astf/udp2.py",
         ]
 
         _files = [
-                "astf/param_sch_rampup.py",
+                #"astf/param_sch_rampup.py",
                 #"astf/param_tcp_rxbufsize_pt.py",
                 #"astf/http_manual_commands_delay.py"
                 #"astf/http_simple_limit.py",
                 #"astf/http_manual_commands_rst.py"
                 #"astf/http_manual_commands_pipeline2.py"
-                "astf/http_manual_commands_pipeline4.py"
+                #"astf/http_manual_commands_pipeline4.py"
                 #"astf/param_sch_rampup.py",
+                #"astf/udp_pcap.py",
+                #"astf/udp2.py",
         ]
 
         for file in files:

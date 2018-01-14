@@ -198,6 +198,8 @@ main_src = SrcGroup(dir='src',
             '44bsd/tcp_dpdk.cpp',
             '44bsd/sim_cs_tcp.cpp',
             '44bsd/sch_rampup.cpp',
+            '44bsd/udp.cpp',
+
             'utl_dbl_human.cpp',
             'utl_counter.cpp',
             'utl_policer.cpp',

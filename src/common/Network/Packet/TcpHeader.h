@@ -18,6 +18,20 @@ limitations under the License.
 
 #include "PacketHeaderBase.h"
 #define TCP_HEADER_LEN 20
+
+class TCPUDPHeaderBase
+{
+public:
+    inline void    setSourcePort   (uint16_t);
+    inline uint16_t  getSourcePort   ();
+
+    inline void    setDestPort     (uint16_t);
+    inline uint16_t  getDestPort     ();
+
+private:
+        uint16_t mySourcePort;
+        uint16_t myDestinationPort;
+};
                  
 class TCPHeader
 {

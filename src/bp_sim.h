@@ -2835,7 +2835,7 @@ private:
 /* per thread info  */
 
 class CTcpPerThreadCtx;
-class CTcpAppProgram;
+class CEmulAppProgram;
 class CMbufBuffer;
 class CTcpCtxCb;
 class CSyncBarrier;
@@ -3081,11 +3081,11 @@ public:
     bool Create_tcp();
     void Delete_tcp();
 
-    void tcp_generate_flow(bool &done);
+    void generate_flow(bool &done);
 
-    void tcp_handle_rx_flush(CGenNode * node,bool on_terminate);
-    void tcp_handle_tx_fif(CGenNode * node,bool on_terminate);
-    void tcp_handle_tw(CGenNode * node,bool on_terminate);
+    void handle_rx_flush(CGenNode * node,bool on_terminate);
+    void handle_tx_fif(CGenNode * node,bool on_terminate);
+    void handle_tw(CGenNode * node,bool on_terminate);
 
 
 private:

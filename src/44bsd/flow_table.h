@@ -144,8 +144,10 @@ typedef CCloseHash<flow_key_t> flow_hash_t;
 
 class CTcpPerThreadCtx ;
 class CTcpFlow;
-class CTcpAppApi;
-class CTcpAppProgram;
+class CUdpFlow;
+class CFlowBase;
+class CEmulAppApi;
+class CEmulAppProgram;
 
 #define FT_INC_SCNT(p) {m_sts.m_sts.p += 1; }
 
@@ -155,7 +157,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_no_syn;
     uint32_t        m_err_len_err;
     uint32_t        m_err_fragments_ipv4_drop;
-    uint32_t        m_err_no_tcp;  
+    uint32_t        m_err_no_tcp_udp;  
     uint32_t        m_err_no_template;  
     uint32_t        m_err_no_memory; 
     uint32_t        m_err_duplicate_client_tuple; 
@@ -193,8 +195,12 @@ public:
 
     void Delete();
 
-    void set_tcp_api(CTcpAppApi    *   tcp_api){
+    void set_tcp_api(CEmulAppApi    *   tcp_api){
          m_tcp_api = tcp_api;
+    }
+
+    void set_udp_api(CEmulAppApi    *   udp_api){
+         m_udp_api = udp_api;
     }
 
 
@@ -210,15 +216,40 @@ public:
                         bool rx_l4_check,
                         tcp_rx_pkt_action_t & action);
 
+      bool rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
+                                struct rte_mbuf * mbuf,
+                                flow_hash_ent_t * lpflow,
+                                CSimplePacketParser & parser,
+                                CFlowKeyTuple & tuple,
+                                CFlowKeyFullTuple & ftuple,
+                                uint32_t  hash
+                                );
+
+      void process_udp_packet(CTcpPerThreadCtx * ctx,
+                              CUdpFlow *  flow,
+                              struct rte_mbuf * mbuf,
+                              UDPHeader    * lpUDP,
+                              CFlowKeyFullTuple &ftuple);
+
+
+      bool rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
+                                struct rte_mbuf * mbuf,
+                                flow_hash_ent_t * lpflow,
+                                CSimplePacketParser & parser,
+                                CFlowKeyTuple & tuple,
+                                CFlowKeyFullTuple & ftuple,
+                                uint32_t  hash
+                                );
+
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf);
 
       /* insert new flow - usualy client */
-      bool insert_new_flow(CTcpFlow *  flow,
+      bool insert_new_flow(CFlowBase *  flow,
                            CFlowKeyTuple  & tuple);
 
       void handle_close(CTcpPerThreadCtx * ctx,
-                        CTcpFlow * flow,
+                        CFlowBase  * flow,
                         bool remove_from_ft);
 
       void process_tcp_packet(CTcpPerThreadCtx * ctx,
@@ -270,7 +301,18 @@ public:
                             uint16_t vlan,
                             bool is_ipv6);
 
-      void       free_flow(CTcpFlow * flow);            
+      CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
+                                uint32_t src,
+                                uint32_t dst,
+                                uint16_t src_port,
+                                uint16_t dst_port,
+                                uint16_t vlan,
+                                bool is_ipv6,
+                                bool client);
+
+      
+
+      void       free_flow(CFlowBase * flow);            
       void       set_debug(bool enable){
           m_verbose = enable;
       }
@@ -294,7 +336,9 @@ private:
     bool            m_client_side;
     flow_hash_t     m_ft;
 
-    CTcpAppApi    *   m_tcp_api;
+    CEmulAppApi    *   m_tcp_api;
+    CEmulAppApi    *   m_udp_api;
+
 };
 
 

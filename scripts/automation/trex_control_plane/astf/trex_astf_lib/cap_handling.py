@@ -27,8 +27,11 @@ class _CPcapReader_help(object):
     def __init__(self, file_name):
         self.file_name = file_name
         self._pkts = []
+        self._times = []
+        self._dir = [] 
         self.c_ip = None
         self.s_ip = None
+        self.is_tcp=None;
         self.s_port = -1
         self.d_port = -1
         self.c_tcp_win = -1
@@ -83,6 +86,21 @@ class _CPcapReader_help(object):
         for i in range(0, len(self._pkts)):
             self._pkts[i].dump()
 
+            if tcp:
+                self.is_tcp =True;
+            else:
+                if udp:
+                    self.is_tcp =False;
+                else:
+                    self.fail('Packet #%s in pcap has is not TCP or UDP' % index)
+
+    def get_type(self,tcp,udp):
+        if tcp and udp==None:
+            return("tcp");
+        if udp and tcp==None:
+            return("udp");
+        return("other");
+
     def analyze(self):
         pkt_num = 0
         pcap = RawPcapReader(self.file_name).read_all()
@@ -90,7 +108,16 @@ class _CPcapReader_help(object):
             self.fail('Empty pcap {0}'.format(self.file_name))
 
         l4_type = None
-        for index, (raw_pkt, _) in enumerate(pcap):
+        last_time=None;
+        for index, (raw_pkt, time) in enumerate(pcap):
+            dtime= time[0]+(time[1]/1000000.0)
+            pkt_time=0.0; # time from last pkt
+            if last_time == None:
+                pkt_time = 0.0;
+            else:
+                pkt_time=dtime-last_time;
+            last_time = dtime
+
             pkt_num += 1
             scapy_pkt = Ether(raw_pkt)
 
@@ -126,6 +153,18 @@ class _CPcapReader_help(object):
             # l4
             tcp = scapy_pkt.getlayer('TCP')
             udp = scapy_pkt.getlayer('UDP')
+
+            typel4 = self.get_type(tcp,udp);
+
+            if typel4 == "other":
+                 self.fail('Packet #%s in pcap has is not TCP or UDP' % index)
+
+            if self.is_tcp == None:
+                self.is_tcp = typel4;
+            else:
+                if self.is_tcp != typel4:
+                    self.fail('Packet #{0} in pcap is {1} and flow is {2}'.format(index,typel4,self.is_tcp))
+
             if tcp and udp:
                 scapy_pkt.show2()
                 self.fail('Packet #%s in pcap has both TCP and UDP' % index)
@@ -162,11 +201,11 @@ class _CPcapReader_help(object):
                     self.fail('PCAP contains both TCP and %s. This is not supported currently.' % l4_type)
                 l4_type = 'TCP'
             elif udp:
-                self.fail('CAP file contains UDP packets. This is not supported yet')
-                # l4 = udp
-                # if l4_type not in (None, 'UDP'):
-                #    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
-                # l4_type = 'UDP'
+                #self.fail('CAP file contains UDP packets. This is not supported yet')
+                 l4 = udp
+                 if l4_type not in (None, 'UDP'):
+                    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
+                 l4_type = 'UDP'
             else:
                 scapy_pkt.show2()
                 self.fail('Packet #%s in pcap is not TCP or UDP.' % index)
@@ -183,10 +222,13 @@ class _CPcapReader_help(object):
             l4_payload_len = len(l4.payload) - pad_len
             self.total_payload_len += l4_payload_len
             self._pkts.append(CPacketData(direction, bytes(l4.payload)[0:l4_payload_len]))
+            self._times.append(pkt_time)
+            self._dir.append(direction)
 
             # special handling for TCP FIN
-            if l4.flags & 0x01:
-                l4_payload_len = 1
+            if tcp:
+              if l4.flags & 0x01:
+                  l4_payload_len = 1
             # verify there is no packet loss or retransmission in cap file
             # don't check for SYN
             if tcp and (l4.flags & 0x02) == 0:
@@ -246,6 +288,20 @@ class CPcapReader(object):
 
     def gen_prog_file(self, out, origin="c"):
         return self.obj.gen_prog_file(out, origin)
+
+    def is_tcp(self):
+        if self.obj.is_tcp=="tcp":
+            return True
+        else:
+            return False
+
+    @property
+    def pkt_dirs(self):
+        return self.obj._dir  #"c","s" 
+
+    @property
+    def pkt_times(self):
+        return self.obj._times
 
     @property
     def pkts(self):

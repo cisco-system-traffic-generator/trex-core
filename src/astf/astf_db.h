@@ -160,12 +160,14 @@ class CTcpDataAssocParams {
     friend bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs);
 
     CTcpDataAssocParams() {}
-    CTcpDataAssocParams(uint16_t port) {
+    CTcpDataAssocParams(uint16_t port,bool stream) {
         m_port = port;
+        m_stream =stream;
     }
 
  private:
     uint16_t m_port;
+    bool     m_stream;
 };
 
 class CTcpServreInfo {
@@ -173,17 +175,17 @@ class CTcpServreInfo {
 
  public:
     CTcpServreInfo() {}
-    CTcpServreInfo(CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
+    CTcpServreInfo(CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
         m_prog = prog;
         m_tune = tune;
         m_temp_idx = temp_idx;
     }
-    CTcpAppProgram *get_prog() {return m_prog;}
+    CEmulAppProgram *get_prog() {return m_prog;}
     CTcpTuneables *get_tuneables() {return m_tune;}
     uint16_t get_temp_idx() {return m_temp_idx;}
 
  private:
-    CTcpAppProgram *m_prog;
+    CEmulAppProgram *m_prog;
     CTcpTuneables *m_tune;
     uint16_t m_temp_idx;
 };
@@ -192,6 +194,10 @@ typedef std::map<CTcpDataAssocParams, CTcpServreInfo*> assoc_map_t;
 typedef std::map<CTcpDataAssocParams, CTcpServreInfo*>::iterator assoc_map_it_t;
 
 inline bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs) {
+    if (lhs.m_stream != rhs.m_stream){
+        return false;
+    }
+
     if (lhs.m_port != rhs.m_port)
         return false;
 
@@ -199,7 +205,9 @@ inline bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParam
 }
 
 inline bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs) {
-    if (lhs.m_port < rhs.m_port)
+    uint32_t v1 =(lhs.m_stream?0x10000:0) + lhs.m_port;
+    uint32_t v2 =(rhs.m_stream?0x10000:0) + rhs.m_port;
+    if (v1 < v2)
         return true;
 
     return false;
@@ -208,7 +216,7 @@ inline bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams
 class CTcpDataAssocTransHelp {
     friend class CTcpDataAssocTranslation;
 
-    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
+    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
         m_params = params;
         m_server_info.m_prog = prog;
         m_server_info.m_tune = tune;
@@ -225,8 +233,8 @@ class CTcpDataAssocTranslation {
     friend class CAstfDbRO;
 
     CTcpServreInfo * get_server_info(const CTcpDataAssocParams& params);
-    void insert_hash(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
-    void insert_vec(const CTcpDataAssocParams &params, CTcpAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
+    void insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
+    void insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
     void dump(FILE *fd);
     void clear();
 
@@ -248,7 +256,7 @@ class CTcpTemplateInfo {
     }
  private:
     uint16_t            m_dport;
-    CTcpAppProgram *    m_client_prog; /* client program per template */
+    CEmulAppProgram *    m_client_prog; /* client program per template */
     uint32_t m_num_bytes;
 };
 
@@ -284,12 +292,12 @@ class CAstfDbRO {
     void Delete();
     bool is_init() {return (m_init == 2);}
     uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
-    CTcpAppProgram * get_client_prog(uint16_t temp_id) const {
+    CEmulAppProgram * get_client_prog(uint16_t temp_id) const {
         return m_templates[temp_id].m_client_prog;
     }
 
 
-    CTcpServreInfo * get_server_info_by_port(uint16_t port);
+    CTcpServreInfo * get_server_info_by_port(uint16_t port,bool stream=true);
     double  get_total_cps(){
         return (m_cps_sum);
     }
@@ -301,15 +309,15 @@ class CAstfDbRO {
     }
 
     // for tests in simulation
-    void set_test_assoc_table(uint16_t port, CTcpAppProgram *prog, CTcpTuneables *tune) {
-        CTcpDataAssocParams params(port);
+    void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
+        CTcpDataAssocParams params(port,true);
         m_assoc_trans.insert_vec(params, prog, tune, 0);
     }
  private:
     uint8_t                         m_init;
     double                          m_cps_sum;
     std::vector<CMbufBuffer *>      m_buf_list;
-    std::vector<CTcpAppProgram *>   m_prog_list;
+    std::vector<CEmulAppProgram *>   m_prog_list;
     std::vector<CTcpDataFlowInfo>   m_flow_info;
     std::vector<CTcpTemplateInfo>   m_templates;
     CTcpDataAssocTranslation        m_assoc_trans;
@@ -375,7 +383,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     void set_client_cfg_db(ClientCfgDB * client_config_info){
         m_client_config_info = client_config_info;
     }
-    CTcpServreInfo * get_server_info_by_port(uint16_t port, uint8_t socket_id);
+
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
     CAstfDbRO *get_db_ro(uint8_t socket_id);
@@ -391,8 +399,8 @@ class CAstfDB  : public CTRexDummyCommand  {
     void get_tuple_info(CTupleGenYamlInfo & tuple_info);
 
  private:
-    CTcpAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
-    CTcpAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
+    CEmulAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
+    CEmulAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
     CTcpTuneables * get_tunables(uint16_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
@@ -403,15 +411,28 @@ class CAstfDB  : public CTRexDummyCommand  {
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
     void convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
-    void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CTcpAppCmd &res);
+    void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
 
     uint32_t get_delay_ticks(uint16_t program_index, uint16_t cmd_index);
-    void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
-    void fill_set_var(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
-    void fill_jmpnz(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
+    void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
+    void fill_set_var(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
+    void fill_jmpnz(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
+    void fill_tx_pkt(uint16_t program_index, 
+                     uint16_t cmd_index,
+                     uint8_t socket_id,
+                     CEmulAppCmd &res);
+    void fill_rx_pkt(uint16_t program_index, 
+                     uint16_t cmd_index,
+                     CEmulAppCmd &res);
+
+    void fill_keepalive_pkt(uint16_t program_index, 
+                     uint16_t cmd_index,
+                     CEmulAppCmd &res);
 
 
     tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
+    bool get_emul_stream(uint16_t program_index);
+
     bool read_tunables(CTcpTuneables *tune, Json::Value json);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);

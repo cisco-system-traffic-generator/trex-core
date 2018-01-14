@@ -38,6 +38,7 @@ struct CAstfPerTemplateRO {
     pool_index_t        m_client_pool_idx;  /* client pool index - default is zero*/
     pool_index_t        m_server_pool_idx;  /* server pool index - default is zero*/
     uint16_t            m_destination_port; /* template dest port */
+    bool                m_stream;
     bool                m_one_app_server;   /* single server */
     uint32_t            m_server_addr;      /* IPv4 single server addr */  
     uint32_t            m_dual_mask;        /* dual mask */
@@ -59,6 +60,11 @@ public:
     void Delete();
 public:
     void Dump(FILE *fd);
+
+    bool is_udp(){
+        return m_is_udp;
+    }
+
     uint16_t get_dest_port(){
         return(m_dest_port);
     }
@@ -89,13 +95,14 @@ public:
     CTupleTemplateGeneratorSmart  m_tuple_gen;
     pool_index_t                  m_client_pool_idx;  /* client pool index - default is zero*/
     pool_index_t                  m_server_pool_idx;  /* server pool index - default is zero*/
-    CPolicer                      m_policer;
+    //CPolicer                      m_policer;
     uint16_t                      m_dest_port;
     astf_t_id_t                   m_tid ; 
     astf_thread_id_t              m_thread_id;
     CTcpTuneables               * m_c_tune;
     CTcpTuneables               * m_s_tune;
     uint32_t                      m_limit;
+    bool                         m_is_udp;
 } __rte_cache_aligned;
 
 

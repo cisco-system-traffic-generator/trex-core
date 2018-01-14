@@ -249,7 +249,7 @@ void CMbufBuffer::Add_mbuf(CMbufObject & obj){
 }
 
 
-void CTcpApp::force_stop_timer(){
+void CEmulApp::force_stop_timer(){
     if (get_timer_init_done()) {
         if (m_timer.is_running()){
             /* must stop timer before free the memory */
@@ -258,38 +258,57 @@ void CTcpApp::force_stop_timer(){
     }
 }
 
-void CTcpApp::tcp_close(){
-    tcp_usrclosed(m_ctx,&m_flow->m_tcp);
-    if (get_interrupt()==false) {
-        m_api->tx_tcp_output(m_ctx,m_flow);
+void CEmulApp::tcp_udp_close(){
+    if (is_udp_flow()) {
+        m_api->disconnect(m_ctx,m_flow);
+    }else{
+        tcp_usrclosed(m_ctx,&m_flow->m_tcp);
+        if (get_interrupt()==false) {
+            m_api->tx_tcp_output(m_ctx,m_flow);
+        }
     }
-
 }
 
 /* on tick */
-void CTcpApp::on_tick(){
+void CEmulApp::on_tick(){
     next();
 }
 
-void CTcpApp::run_cmd_delay_rand(htw_ticks_t min_ticks,
+void CEmulApp::run_cmd_delay_rand(htw_ticks_t min_ticks,
                                  htw_ticks_t max_ticks){
     uint32_t rnd=m_ctx->m_rand->getRandomInRange(min_ticks,max_ticks);
     run_cmd_delay(rnd);
 }
 
-void CTcpApp::run_cmd_delay(htw_ticks_t ticks){
+void CEmulApp::run_cmd_delay(htw_ticks_t ticks){
     m_state=te_NONE;
     if (!get_timer_init_done()) {
         /* lazey init */
         set_timer_init_done(true);
         m_timer.reset();
-        m_timer.m_type  = ttTCP_APP;
+        if (is_udp_flow()){
+            m_timer.m_type  = ttUDP_APP;
+        }else{
+            m_timer.m_type  = ttTCP_APP;
+        }
     }
     /* make sure the timer is not running*/
     if (m_timer.is_running()) {
         m_ctx->m_timer_w.timer_stop(&m_timer);
     }
     m_ctx->m_timer_w.timer_start(&m_timer,ticks);
+}
+
+
+void CEmulApp::check_rx_pkt_condition(){
+    if (m_cmd_rx_bytes>= m_cmd_rx_bytes_wm) {
+        if (get_rx_clear()){
+            m_cmd_rx_bytes=0;
+            set_rx_clear(false);
+        }
+        EMUL_LOG(0, "ON_RX_PKT [%d]- NEXT \n",m_debug_id);
+        next();
+    }
 }
 
 
@@ -305,7 +324,7 @@ void CTcpApp::run_cmd_delay(htw_ticks_t ticks){
    te_NONE    - for general commands
 
 */
-void CTcpApp::process_cmd(CTcpAppCmd * cmd){
+void CEmulApp::process_cmd(CEmulAppCmd * cmd){
 
     EMUL_LOG(cmd, "CMD [%d] state : %d ,cmd_index [%d] -",m_debug_id,m_state,m_cmd_index);
 
@@ -332,13 +351,13 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
         {
             uint32_t  flags = cmd->u.m_rx_cmd.m_flags;
             /* clear rx counter */
-            if (flags & CTcpAppCmdRxBuffer::rxcmd_CLEAR) {
+            if (flags & CEmulAppCmdRxBuffer::rxcmd_CLEAR) {
                 set_rx_clear(true);
             }
             /* disable rx thread if needed */
-            set_rx_disabled((flags & CTcpAppCmdRxBuffer::rxcmd_DISABLE_RX)?true:false);
+            set_rx_disabled((flags & CEmulAppCmdRxBuffer::rxcmd_DISABLE_RX)?true:false);
 
-            if (flags & CTcpAppCmdRxBuffer::rxcmd_WAIT) {
+            if (flags & CEmulAppCmdRxBuffer::rxcmd_WAIT) {
                 m_state=te_WAIT_RX;
                 m_cmd_rx_bytes_wm = cmd->u.m_rx_cmd.m_rx_bytes_wm;
                 check_rx_condition();
@@ -402,29 +421,76 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
             next();
         }
         break;
+
+    case tcTX_PKT : 
+        {
+           m_state=te_NONE;
+           m_api->send_pkt((CUdpFlow *)m_flow,cmd->u.m_tx_pkt.m_buf);
+           next();
+        }
+        break;
+
+    case tcRX_PKT : 
+        {
+            uint32_t  flags = cmd->u.m_rx_pkt.m_flags;
+            /* clear rx counter */
+            if (flags & CEmulAppCmdRxPkt::rxcmd_CLEAR) {
+                set_rx_clear(true);
+            }
+            /* disable rx thread if needed */
+            set_rx_disabled((flags & CEmulAppCmdRxPkt::rxcmd_DISABLE_RX)?true:false);
+
+            if (flags & CEmulAppCmdRxPkt::rxcmd_WAIT) {
+                m_state=te_WAIT_RX;
+                m_cmd_rx_bytes_wm = cmd->u.m_rx_pkt.m_rx_pkts;
+                check_rx_pkt_condition();
+            }else{
+                next();
+            }
+        }
+        break;
+
+    case tcKEEPALIVE : 
+        {
+            m_state=te_NONE;
+            m_api->set_keepalive((CUdpFlow *)m_flow,cmd->u.m_keepalive.m_keepalive_msec);
+            next();
+        }
+        break;
+    case tcCLOSE_PKT:
+        {
+            m_state=te_NONE;
+            m_api->disconnect(m_ctx,m_flow);
+            next();
+        }
+        break;
+
     default:
         assert(0);
     }
 }
 
 
-void CTcpApp::next(){
+void CEmulApp::next(){
     m_cmd_index++;
     if (m_cmd_index>m_program->get_size()) {
         /* could be in cases we get data after close of flow */
-        assert(m_flow->is_close_was_called());
+        if (is_udp_flow()) {
+        }else{
+            assert(m_flow->is_close_was_called());
+        }
         return;
     }
     if ( m_cmd_index == m_program->get_size() ) {
-        tcp_close();
+        tcp_udp_close();
         return;
     }
-    CTcpAppCmd * lpcmd=m_program->get_index(m_cmd_index);
+    CEmulAppCmd * lpcmd=m_program->get_index(m_cmd_index);
     process_cmd(lpcmd);
 }
 
 
-void CTcpApp::run_dpc_callbacks(){
+void CEmulApp::run_dpc_callbacks(){
     /* check all signals */
     if ( get_do_disconnect() ){
         set_disconnect(false);
@@ -437,30 +503,30 @@ void CTcpApp::run_dpc_callbacks(){
     check_dpc_next();
 }
 
-void CTcpApp::start(bool interrupt){
+void CEmulApp::start(bool interrupt){
     /* there is at least one command */
     set_interrupt(interrupt);
-    CTcpAppCmd * lpcmd=m_program->get_index(m_cmd_index);
+    assert(m_program->get_size()>0);
+    CEmulAppCmd * lpcmd=m_program->get_index(m_cmd_index);
     process_cmd(lpcmd);
-
     set_interrupt(false);
 }
 
 
-void CTcpApp::do_disconnect(){
+void CEmulApp::do_disconnect(){
     if (!m_flow->is_close_was_called()){
         m_api->disconnect(m_ctx,m_flow);
     }
 }
 
-void CTcpApp::do_close(){
+void CEmulApp::do_close(){
     if (!m_flow->is_close_was_called()){
-        tcp_close();
+        tcp_udp_close();
     }
 }
 
 
-int CTcpApp::on_bh_tx_acked(uint32_t tx_bytes){
+int CEmulApp::on_bh_tx_acked(uint32_t tx_bytes){
     assert(m_tx_active);
     assert(m_state==te_SEND);
     set_interrupt(true);
@@ -484,7 +550,7 @@ int CTcpApp::on_bh_tx_acked(uint32_t tx_bytes){
 }
 
 
-void CTcpApp::on_bh_event(tcp_app_events_t event){
+void CEmulApp::on_bh_event(tcp_app_events_t event){
     if ((m_flags&taDO_WAIT_FOR_CLOSE) && (event==te_SOOTHERISDISCONNECTING)){
         set_do_close(true);
     }
@@ -498,8 +564,28 @@ void CTcpApp::on_bh_event(tcp_app_events_t event){
     EMUL_LOG(0, "EVENT [%d]- %s \n",m_debug_id,get_tcp_app_events_name(event).c_str());
 }
 
+
+int CEmulApp::on_bh_rx_pkts(uint32_t rx_bytes,
+                            struct rte_mbuf * m){
+    set_interrupt(true);
+    if (m) {
+        rte_pktmbuf_free(m);
+    }
+
+    if ( get_rx_enabled() ) {
+        m_cmd_rx_bytes+= 1;
+        if (m_state==te_WAIT_RX) {
+            check_rx_pkt_condition();
+        }
+    }
+
+    set_interrupt(false);
+    return(0);
+}
+
+
 /* rx bytes */
-int CTcpApp::on_bh_rx_bytes(uint32_t rx_bytes,
+int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
                             struct rte_mbuf * m){
     set_interrupt(true);
     /* for now do nothing with the mbuf */
@@ -521,15 +607,56 @@ int CTcpApp::on_bh_rx_bytes(uint32_t rx_bytes,
 }
 
 
-void CTcpAppProgram::add_cmd(CTcpAppCmd & cmd){
+void CEmulAppProgram::add_cmd(CEmulAppCmd & cmd){
     m_cmds.push_back(cmd);
 }
 
+bool CEmulAppProgram::is_common_commands(tcp_app_cmd_t cmd_id){
+    if ( (cmd_id==tcDELAY) || 
+         (cmd_id==tcDELAY_RAND) ||
+         (cmd_id==tcSET_VAR) ||
+         (cmd_id==tcJMPNZ) 
+        ){
+        return (true);
+    }
+    return(false);
+}
 
-bool CTcpAppProgram::sanity_check(std::string & err){
+bool CEmulAppProgram::is_udp_commands(tcp_app_cmd_t cmd_id){
+    if ( (cmd_id==tcTX_PKT) || 
+         (cmd_id==tcRX_PKT) ||
+         (cmd_id==tcKEEPALIVE) ||
+         (cmd_id==tcCLOSE_PKT) 
+        ){
+        return (true);
+    }
+    return(false);
+}
+
+
+bool CEmulAppProgram::sanity_check(std::string & err){
     int i;
+
     for (i=0; i<m_cmds.size(); i++) {
-        CTcpAppCmd * lp=&m_cmds[i];
+        CEmulAppCmd * lp=&m_cmds[i];
+
+        if (m_stream) {  
+            if ( is_udp_commands(lp->m_cmd) ){
+                err="CMD is not valid with stream mode ";
+                return false;
+            }
+        }else{
+            if ( (!is_common_commands(lp->m_cmd)) &&
+                  (!is_udp_commands(lp->m_cmd))
+               ){
+                err="CMD is not valid with none-stream mode ";
+                return false;
+            }
+        }
+    }
+
+    for (i=0; i<m_cmds.size(); i++) {
+        CEmulAppCmd * lp=&m_cmds[i];
         if (i>0) {
             /* not the first */
             if (lp->m_cmd==tcCONNECT_WAIT) {
@@ -545,7 +672,7 @@ bool CTcpAppProgram::sanity_check(std::string & err){
             }
         }
         if (lp->m_cmd==tcSET_VAR||lp->m_cmd==tcJMPNZ){
-            if (lp->u.m_var.m_var_id>=CTcpApp::apVAR_NUM_SIZE) {
+            if (lp->u.m_var.m_var_id>=CEmulApp::apVAR_NUM_SIZE) {
                 err="CMD tcSET_VAR/tcJMPNZ var_id is not valid";
                 return false;
             }
@@ -564,35 +691,35 @@ bool CTcpAppProgram::sanity_check(std::string & err){
 }
 
 
-void CTcpAppProgram::Dump(FILE *fd){
+void CEmulAppProgram::Dump(FILE *fd){
     int i;
-    fprintf(fd," cmds : %lu \n",(ulong)get_size());
+    fprintf(fd," cmds : %lu stream: %d\n",(ulong)get_size(),m_stream?1:0);
     fprintf(fd," --------------\n");
 
     for (i=0; i<m_cmds.size(); i++) {
-        CTcpAppCmd * lp=&m_cmds[i];
+        CEmulAppCmd * lp=&m_cmds[i];
         fprintf(fd," cmd : %d ",(int)i);
         lp->Dump(fd);
     }
 }
 
 
-void CTcpAppCmd::Dump(FILE *fd){
+void CEmulAppCmd::Dump(FILE *fd){
     switch (m_cmd) {
     case tcTX_BUFFER :
          fprintf(fd," tcTX_BUFFER %lu bytes\n",(ulong)u.m_tx_cmd.m_buf->m_t_bytes);
          break;
     case tcRX_BUFFER :
-        if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_CLEAR) {
+        if (u.m_rx_cmd.m_flags & CEmulAppCmdRxBuffer::rxcmd_CLEAR) {
             fprintf(fd," tcRX_BUFFER clear count,");
         }
-        if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_DISABLE_RX) {
+        if (u.m_rx_cmd.m_flags & CEmulAppCmdRxBuffer::rxcmd_DISABLE_RX) {
             fprintf(fd," tcRX_BUFFER disable RX,");
         }else{
             fprintf(fd," tcRX_BUFFER enable RX ,");
         }
 
-        if (u.m_rx_cmd.m_flags & CTcpAppCmdRxBuffer::rxcmd_WAIT) {
+        if (u.m_rx_cmd.m_flags & CEmulAppCmdRxBuffer::rxcmd_WAIT) {
             fprintf(fd," tcRX_BUFFER wait for %lu RX bytes",(ulong)u.m_rx_cmd.m_rx_bytes_wm);
         }
         fprintf(fd," \n");
@@ -619,6 +746,34 @@ void CTcpAppCmd::Dump(FILE *fd){
     case tcJMPNZ :
         fprintf(fd," tcJMPNZ id:%lu, jmp:%d\n",(ulong)u.m_jmpnz.m_var_id,(int)u.m_jmpnz.m_offset);
         break;
+
+    case tcTX_PKT :
+         fprintf(fd," tcTX_PKT %lu bytes\n",(ulong)u.m_tx_pkt.m_buf->m_t_bytes);
+         break;
+    case tcRX_PKT :
+        if (u.m_rx_pkt.m_flags & CEmulAppCmdRxPkt::rxcmd_CLEAR) {
+            fprintf(fd," tcRX_PKT clear count,");
+        }
+        if (u.m_rx_pkt.m_flags & CEmulAppCmdRxPkt::rxcmd_DISABLE_RX) {
+            fprintf(fd," tcRX_PKT disable RX,");
+        }else{
+            fprintf(fd," tcRX_PKT enable RX ,");
+        }
+
+        if (u.m_rx_pkt.m_flags & CEmulAppCmdRxPkt::rxcmd_WAIT) {
+            fprintf(fd," tcRX_PKT wait for %lu RX pkts",(ulong)u.m_rx_pkt.m_rx_pkts);
+        }
+        fprintf(fd," \n");
+        break;
+
+    case tcKEEPALIVE:
+        fprintf(fd," tcKEEPALIVE_PKT %lu msec\n",(ulong)u.m_keepalive.m_keepalive_msec);
+        break;
+
+    case tcCLOSE_PKT:
+        fprintf(fd," tcCLOSE_PKT \n");
+        break;
+
     default:
         assert(0);
     }

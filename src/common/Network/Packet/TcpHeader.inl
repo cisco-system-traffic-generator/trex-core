@@ -16,6 +16,23 @@ limitations under the License.
 
 #include <common/BigEndianBitManipulation.h> 
 
+inline void    TCPUDPHeaderBase::setSourcePort(uint16_t argSourcePort){
+    mySourcePort = PKT_NTOHS(argSourcePort);
+}
+
+inline uint16_t  TCPUDPHeaderBase::getSourcePort   (){
+    return(PKT_NTOHS(mySourcePort));
+}
+
+inline void    TCPUDPHeaderBase::setDestPort(uint16_t argDestinationPort){
+    myDestinationPort = PKT_NTOHS(argDestinationPort);
+}
+
+inline uint16_t  TCPUDPHeaderBase::getDestPort     (){
+    return (PKT_NTOHS(myDestinationPort));
+}
+
+
 inline void   TCPHeader::setSourcePort(uint16_t argSourcePort)
 {
     mySourcePort = PKT_NTOHS(argSourcePort);
