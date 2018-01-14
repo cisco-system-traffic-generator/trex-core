@@ -21,7 +21,6 @@ from scapy.layers.inet6 import IPv6,ICMPv6ND_NA, ICMPv6ND_NS, ICMPv6NDOptSrcLLAd
 from scapy.utils6 import in6_ptoc, in6_ctop, in6_getnsmac, in6_getnsma
 
 from collections import defaultdict
-import ipaddr
 import time
 import socket
 
@@ -75,7 +74,7 @@ class STLServiceIPv6ND(STLService):
         IPv6ND service - generate NS requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '::0', retries=1, src_mac = None, vlan = None, fmt=None, timeout = 5, verify_timeout=0, verbose_level = STLService.INFO):
+    def __init__ (self, ctx, dst_ip, src_ip = '::0', retries=1, src_mac = None, vlan = None, fmt=None, timeout = 5, verify_timeout=0, verbose_level = STLService.ERROR):
         
         # init the base object
         super(STLServiceIPv6ND, self).__init__(verbose_level)
@@ -150,7 +149,7 @@ class STLServiceIPv6ND(STLService):
         for retry in range(0, (self.retries+1)):
             # send neighbor solicitation
             tx_info = yield pipe.async_tx_pkt(ns_request)
-            self.log("ND: TX  NS: {0},{1} -> {2} (retry {3})".format(self.src_ip,self.src_mac,self.dst_ip, retry))
+            self.log("ND: TX NS: {0},{1} -> {2} (retry {3})".format(self.src_ip,self.src_mac,self.dst_ip, retry))
             
             # wait for NA packet
             pkts = yield pipe.async_wait_for_pkt(time_sec = self.timeout)
