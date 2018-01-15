@@ -462,6 +462,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.skip('Not running on i40 vf currently due to trex-513 ')
 
         total_pkts = self.total_pkts
+        self.c.reset()
         s1 = STLStream(name = 'rx',
                        packet = self.pkt,
                        flow_stats = STLFlowLatencyStats(pg_id = 5),
@@ -625,6 +626,7 @@ class STLRX_Test(CStlGeneral_Test):
             streams_data.append({'name': 'IPv6 flow stat. No latency', 'pkt': self.ipv6pkt, 'lat': False})
             streams_data.append({'name': 'IPv6 latency, no field engine', 'pkt': self.ipv6pkt, 'lat': True})
 
+        self.c.reset()
         streams = []
         for data in streams_data:
             if data['lat']:
@@ -865,6 +867,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         total_pkts = self.total_pkts
         percent = 0.5
+        self.c.reset()
 
         try:
             # We run till maximum streams allowed. At some point, expecting drops, because rate is too high.
