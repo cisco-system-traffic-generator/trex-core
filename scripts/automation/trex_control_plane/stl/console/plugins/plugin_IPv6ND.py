@@ -156,7 +156,7 @@ class IPv6ND_plugin(ConsolePlugin):
             print("-" * len(header))
             for r in self.requests:
                 entry = r.get_record()
-                print(fmt_string.format(entry.src_mac, entry.src_ip, entry.dst_ip, entry.dst_mac, entry.state, entry.neighbor_verifications))
+                print(fmt_string.format(entry.src_mac, entry.src_ip, entry.dst_ip, str(entry.dst_mac), entry.state, entry.neighbor_verifications))
 
         resolved   = 0
         unresolved = 0
@@ -170,11 +170,11 @@ class IPv6ND_plugin(ConsolePlugin):
             else:
                 unresolved += 1
 
-        print()
+        print("")
         print("resolved..: {0} ".format(resolved))
         print("unresolved: {0}".format(unresolved))
         print("verified..: {0}".format(verified))
-        print()
+        print("")
 
     def do_clear(self):
         ''' clear IPv6 ND requests/entries'''
