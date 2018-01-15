@@ -424,7 +424,7 @@ class CTRexServer(object):
             trex_state = self.trex.get_status()
             if trex_state != TRexStatus.Starting:
                 return
-            sleep(0.1)
+            time.sleep(0.1)
         return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
 
     def get_running_info (self):
