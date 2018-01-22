@@ -25,19 +25,22 @@ Client Package
 | Put it at any place you like, preferably same place as your scripts.
 | (If it's not at same place as your scripts, you will need to ensure trex_client directory is in sys.path)
 
-Un-pack it using command:::
+Un-pack it using command::
 
  tar -xzf trex_client_<TRex version>.tar.gz
 
-| The client assumes stateful daemon is running.
-| After un-tarring the client package, you can verify basic tests in examples directory out of the box:
+The client assumes stateful daemon is running::
+
+ sudo ./trex_daemon_server start
+
+After un-tarring the client package, you can verify basic tests in examples directory out of the box:
 
 .. code-block:: bash
 
  cd trex_client/stf/examples
  python stf_example.py -s <server address>
 
-You can verify that the traffic was sent and arrives properly if you see something like this:::
+You can verify that the traffic was sent and arrives properly if you see something like this::
 
  Connecting to 127.0.0.1
  Connected, start TRex
