@@ -127,16 +127,17 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
     m_cur_time_sec =node->m_time;
     m_node_gen.m_v_if->set_rx_burst_time(m_cur_time_sec);
 #endif
+    double dtime=m_sched_accurate?TCP_RX_FLUSH_ACCURATE_SEC:TCP_RX_FLUSH_SEC;
 
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ){
-        node->m_time += TCP_RX_FLUSH_SEC;
+        node->m_time += dtime;
         m_node_gen.m_p_queue.push(node);
     }else{
         if (m_tcp_terminate){
             free_node(node);
         }else{
-            node->m_time += TCP_RX_FLUSH_SEC;
+            node->m_time += dtime;
             m_node_gen.m_p_queue.push(node);
         }
     }
@@ -178,6 +179,9 @@ void CFlowGenListPerThread::tcp_handle_rx_flush(CGenNode * node,
                 break;
             }
         }
+      if (m_sched_accurate && sum){
+          v_if->flush_tx_queue();
+      }
     }
 }
 
@@ -301,6 +305,11 @@ void CFlowGenListPerThread::tcp_handle_tx_fif(CGenNode * node,
 
         tcp_generate_flow(done);
 
+        if (m_sched_accurate){
+            CVirtualIF * v_if=m_node_gen.m_v_if;
+            v_if->flush_tx_queue();
+        }
+
         if (!done) {
             node->m_time += m_c_tcp->m_fif_d_time;
             m_node_gen.m_p_queue.push(node);
@@ -397,6 +406,12 @@ bool CFlowGenListPerThread::Create_tcp(){
 
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);
+
+
+    if ( (rw->get_c_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ||
+         (rw->get_s_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ){
+        m_sched_accurate=true;
+    }
 
     /* set dev flags */
     CPreviewMode * lp=&CGlobalInfo::m_options.preview;

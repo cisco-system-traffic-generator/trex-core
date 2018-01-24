@@ -64,6 +64,7 @@ limitations under the License.
 #define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
 #define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
 #define BUCKET_TIME_SEC_LEVEL1 (CGlobalInfo::m_options.get_tw_bucket_level1_time_in_sec())
+#define TCP_RX_FLUSH_ACCURATE_SEC  (2.0/1000000.0)
 #define TCP_RX_FLUSH_SEC  (20.0/1000000.0)
 
 class CGenNode;

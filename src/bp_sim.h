@@ -3075,6 +3075,7 @@ public:
     CTcpPerThreadCtx      *         m_s_tcp;
     CTcpCtxCb             *         m_s_tcp_io;
     bool                            m_tcp_terminate;
+    bool                            m_sched_accurate;
 
 private:
     CSyncBarrier *                  m_sync_b;
