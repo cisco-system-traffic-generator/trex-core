@@ -60,10 +60,10 @@ traffic_config_kwargs = {
     'mac_src2': '00:00:01:00:00:01',
     'mac_dst2': '00:00:00:00:00:00',
     'mac_src_mode': 'fixed',                # ( fixed | increment | decrement | random )
-    'mac_src_step': 1,
+    'mac_src_step': 1,                      # we are changing only 32 lowest bits
     'mac_src_count': 1,
     'mac_dst_mode': 'fixed',                # ( fixed | increment | decrement | random )
-    'mac_dst_step': 1,
+    'mac_dst_step': 1,                      # we are changing only 32 lowest bits
     'mac_dst_count': 1,
     'mac_src2_mode': 'fixed',                # ( fixed | increment | decrement | random )
     'mac_src2_step': 1,
@@ -1598,9 +1598,9 @@ def correct_direction(user_kwargs, kwargs):
                 dst_arg = 'ipv6_dst_' + arg[9:]
                 user_kwargs[arg], user_kwargs[dst_arg] = kwargs[dst_arg], kwargs[arg]
 
-# we produce packets without fcs, so need to reduce produced sizes
+# we produce packets without FCS, so need to reduce sizes of L2 arguments
 def correct_sizes(kwargs):
     for arg, value in kwargs.items():
         if is_integer(value):
-            if arg.endswith(('_length', '_size', '_size_min', '_size_max', '_length_min', '_length_max')):
+            if arg.endswith(('_size', '_size_min', '_size_max')):
                 kwargs[arg] -= 4
