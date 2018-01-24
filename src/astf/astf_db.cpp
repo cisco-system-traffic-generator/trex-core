@@ -540,6 +540,9 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
             if (read_tunable_uint16(tune,json,"rampup_sec",CTcpTuneables::sched_rampup,tune->m_scheduler_rampup)){
                 tunable_min_max_u32("rampup_sec",tune->m_scheduler_rampup,3,60000);
             }
+            if (read_tunable_uint8(tune,json,"accurate",CTcpTuneables::sched_accurate,tune->m_scheduler_accurate)){
+                tunable_min_max_u32("accurate",tune->m_scheduler_accurate,0,1);
+            }
         }
 
 

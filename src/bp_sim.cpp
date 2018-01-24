@@ -2813,6 +2813,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_s_tcp=0;
     m_s_tcp_io=0;
     m_tcp_terminate=false;
+    m_sched_accurate=false;
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
