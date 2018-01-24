@@ -910,6 +910,7 @@ enum {
        OPT_NODE_DUMP,
        OPT_DUMP_INTERFACES,
        OPT_UT,
+       OPT_PROM, 
        OPT_CORES,
        OPT_SINGLE_CORE,
        OPT_FLIP_CLIENT_SERVER,
@@ -988,6 +989,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_HELP,                   "--help",            SO_NONE    },
         { OPT_UT,                     "--ut",              SO_NONE    },
         { OPT_MODE_BATCH,             "-f",                SO_REQ_SEP },
+        { OPT_PROM,                   "--prom",            SO_NONE },
         { OPT_MODE_INTERACTIVE,       "-i",                SO_NONE    },
         { OPT_PLAT_CFG_FILE,          "--cfg",             SO_REQ_SEP },
         { OPT_SINGLE_CORE,            "-s",                SO_NONE    },
@@ -1135,6 +1137,8 @@ static int usage(){
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
     printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
+    printf(" --prom                     : enable promiscuous for ASTF/STF mode  \n");
+    
 
     printf("\n");
     printf(" Examples: ");
@@ -1342,6 +1346,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_MODE_BATCH:
                 po->cfg_file = args.OptionArg();
+                break;
+
+            case OPT_PROM :
+                po->preview.setPromMode(true);
                 break;
 
             case OPT_MODE_INTERACTIVE:
@@ -4247,6 +4255,10 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->conf_queues();
         _if->stats_clear();
         _if->start();
+        if (CGlobalInfo::m_options.preview.getPromMode()) {
+            _if->get_port_attr()->set_promiscuous(true);
+            _if->get_port_attr()->set_multicast(true);
+        }
 
         _if->configure_rx_duplicate_rules();
 

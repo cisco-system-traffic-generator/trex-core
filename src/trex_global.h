@@ -395,6 +395,14 @@ public:
         return (btGetMaskBit32(m_flags1, 19, 19) ? true : false);
     }
 
+    void setPromMode(bool enable){
+        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0) );
+    }
+
+    bool getPromMode() {
+        return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
