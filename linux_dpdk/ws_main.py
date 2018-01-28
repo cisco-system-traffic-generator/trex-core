@@ -1033,6 +1033,14 @@ class build_option:
             flags += ['-UNDEBUG'];
         return (flags)
 
+    def get_mlx4_flags(self):
+        flags=[]
+        if self.isRelease () :
+            flags += ['-DNDEBUG'];
+        else:
+            flags += ['-UNDEBUG'];
+        return (flags)
+
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
@@ -1138,20 +1146,19 @@ def build_prog (bld, build_obj):
           features='c',
           includes = dpdk_includes_path+dpdk_includes_verb_path,
           cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-          use =['ibverbs','mlx5'],
+            use =['ibverbs','mlx5'],
           source   = mlx5_dpdk.file_list(top),
           target   = build_obj.get_mlx5_target()
         )
 
-        # remove the mlx4 driver for now
-        #bld.shlib(
-        #features='c',
-        #includes = dpdk_includes_path+dpdk_includes_verb_path,
-        #cflags   = (cflags + DPDK_FLAGS ),
-        #use =['ibverbs'],
-        #source   = mlx4_dpdk.file_list(top),
-        #target   = build_obj.get_mlx4_target()
-       #)
+        bld.shlib(
+        features='c',
+        includes = dpdk_includes_path+dpdk_includes_verb_path,
+        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags() ),
+            use =['ibverbs', 'mlx4'],
+        source   = mlx4_dpdk.file_list(top),
+        target   = build_obj.get_mlx4_target()
+       )
 
     if bld.env.WITH_NTACC == True:
         bld.shlib(
@@ -1217,12 +1224,14 @@ def build(bld):
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
             bld.read_shlib(name='ibverbs')
             bld.read_shlib(name='mlx5')
+            bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/'
             dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
             bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
+            bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
     for obj in build_types:

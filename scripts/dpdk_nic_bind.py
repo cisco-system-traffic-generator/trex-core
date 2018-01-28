@@ -66,7 +66,7 @@ devices = {}
 # list of supported DPDK drivers
 # ,
 
-dpdk_and_kernel=[ "mlx5_core", "mlx5_ib" ]
+dpdk_and_kernel=[ "mlx5_core", "mlx5_ib", 'mlx4_core', 'mlx4_ib' ]
 
 dpdk_drivers = ["igb_uio", "vfio-pci", "uio_pci_generic" ]
 
