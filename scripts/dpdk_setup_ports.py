@@ -35,7 +35,7 @@ for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
 os.environ['PATH'] = ':'.join(PATH_ARR)
 
 def if_list_remove_sub_if(if_list):
-    return list(map(lambda x:x.split('/')[0],if_list))
+    return if_list
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -383,7 +383,7 @@ Other network devices
         out=out.decode(errors='replace');
         return (out.strip());
 
-    def tune_mlx5_device (self,pci_id):
+    def tune_mlx_device (self,pci_id):
         # set PCIe Read to 4K and not 512 ... need to add it to startup s
         val=self.read_pci (pci_id,68)
         if val[0]=='0':
@@ -394,7 +394,7 @@ Other network devices
             self.write_pci (pci_id,68,val)
             assert(self.read_pci (pci_id,68)==val);
 
-    def get_mtu_mlx5 (self,dev_id):
+    def get_mtu_mlx (self,dev_id):
         if len(dev_id)>0:
             try:
               out=subprocess.check_output(['ifconfig', dev_id])
@@ -412,23 +412,23 @@ Other network devices
                 else:
                     return -1
 
-    def set_mtu_mlx5 (self,dev_id,new_mtu):
+    def set_mtu_mlx (self,dev_id,new_mtu):
         if len(dev_id)>0:
             out=subprocess.check_output(['ifconfig', dev_id,'mtu',str(new_mtu)])
             out=out.decode(errors='replace');
 
 
-    def set_max_mtu_mlx5_device(self,dev_id):
+    def set_max_mtu_mlx_device(self,dev_id):
         mtu=9*1024+22
-        dev_mtu=self.get_mtu_mlx5 (dev_id);
+        dev_mtu=self.get_mtu_mlx (dev_id);
         if (dev_mtu>0) and (dev_mtu!=mtu):
-            self.set_mtu_mlx5(dev_id,mtu);
-            if self.get_mtu_mlx5(dev_id) != mtu:
+            self.set_mtu_mlx(dev_id,mtu);
+            if self.get_mtu_mlx(dev_id) != mtu:
                 print("Could not set MTU to %d" % mtu)
                 sys.exit(-1);
 
 
-    def disable_flow_control_mlx5_device (self,dev_id):
+    def disable_flow_control_mlx_device (self,dev_id):
 
            if len(dev_id)>0:
                my_stderr = open("/dev/null","wb")
@@ -622,7 +622,9 @@ Other network devices
         # check how many mellanox cards we have
         Mellanox_cnt=0;
         for key in if_list:
+            key = key.split("/")[0]
             if key not in self.m_devices:
+                print self.m_devices
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
@@ -647,14 +649,15 @@ Other network devices
                 self.check_ofed_version()
 
             for key in if_list:
+                key = key.split("/")[0]
                 if 'Virtual' not in self.m_devices[key]['Device_str']:
                     pci_id = self.m_devices[key]['Slot_str']
-                    self.tune_mlx5_device(pci_id)
+                    self.tune_mlx_device(pci_id)
                 if 'Interface' in self.m_devices[key]:
-                    dev_id=self.m_devices[key]['Interface']
-                    self.disable_flow_control_mlx5_device (dev_id)
-                    self.set_max_mtu_mlx5_device(dev_id)
-
+                    dev_ids = self.m_devices[key]['Interface'].split(",")
+                    for dev_id in dev_ids:
+                        self.disable_flow_control_mlx_device (dev_id)
+                        self.set_max_mtu_mlx_device(dev_id)
 
         if only_check_all_mlx:
             if Mellanox_cnt > 0:
@@ -685,6 +688,7 @@ Other network devices
         Napatech_cnt=0;
         to_bind_list = []
         for key in if_list:
+            key = key.split("/")[0]
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
@@ -706,7 +710,9 @@ Other network devices
             if Mellanox_cnt:
                 ret = self.do_bind_all('mlx5_core', to_bind_list)
                 if ret:
-                    raise DpdkSetup('Unable to bind interfaces to driver mlx5_core.')
+                    ret = self.do_bind_all('mlx4_core', to_bind_list)
+                    if ret:
+                        raise DpdkSetup('Unable to bind interfaces to driver mlx5_core/mlx4_core.')
                 return MLX_EXIT_CODE
             else:
                 # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci

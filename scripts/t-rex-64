@@ -22,7 +22,7 @@ elif [ $RESULT -eq 64 ]; then
   EXTRA_INPUT_ARGS="--ntacc-so"
 
 elif [ $RESULT -eq 32 ]; then
-  EXTRA_INPUT_ARGS="--mlx5-so"
+  EXTRA_INPUT_ARGS="--mlx4-so --mlx5-so"
 
 elif [ $RESULT -ne 0 ]; then
    echo "Bad return status from trex-cfg ($RESULT)"
