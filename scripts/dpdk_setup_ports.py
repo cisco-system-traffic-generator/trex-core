@@ -624,7 +624,6 @@ Other network devices
         for key in if_list:
             key = key.split("/")[0]
             if key not in self.m_devices:
-                print self.m_devices
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
