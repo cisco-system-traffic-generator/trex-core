@@ -622,7 +622,7 @@ Other network devices
         # check how many mellanox cards we have
         Mellanox_cnt=0;
         for key in if_list:
-            key = key.split("/")[0]
+            key = self.split_pci_key(key)
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
@@ -648,7 +648,7 @@ Other network devices
                 self.check_ofed_version()
 
             for key in if_list:
-                key = key.split("/")[0]
+                key = self.split_pci_key(key)
                 if 'Virtual' not in self.m_devices[key]['Device_str']:
                     pci_id = self.m_devices[key]['Slot_str']
                     self.tune_mlx_device(pci_id)
@@ -687,7 +687,7 @@ Other network devices
         Napatech_cnt=0;
         to_bind_list = []
         for key in if_list:
-            key = key.split("/")[0]
+            key = self.split_pci_key(key)
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
@@ -792,6 +792,9 @@ Other network devices
             else:
                 print('Returning to Linux %s' % pci)
                 dpdk_nic_bind.bind_one(pci, linux_driver, False)
+
+    def split_pci_key(self, pci_id):
+        return pci_id.split('/')[0]
 
     def _get_cpu_topology(self):
         cpu_topology_file = '/proc/cpuinfo'
