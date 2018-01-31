@@ -874,7 +874,7 @@ def STLHltStream(**user_kwargs):
         raise STLError('Could not create transmit_mode object %s: %s' % (transmit_mode, e if isinstance(e, STLError) else traceback.format_exc()))
 
     try:
-        if kwargs['l3_protocol'] == 'ipv4' and not kwargs['disable_flow_stats']:
+        if kwargs['l3_protocol'] in ('ipv4', 'ipv6') and not kwargs['disable_flow_stats']:
             pg_id = kwargs.get('pg_id', kwargs.get('flow_stats_id'))
         else:
             pg_id = None
