@@ -400,7 +400,7 @@ void CPretest::send_grat_arp_all() {
 bool CPretest::is_arp(const uint8_t *p, uint16_t pkt_size, ArpHdr *&arp, uint16_t &vlan_id) {
     EthernetHeader *m_ether = (EthernetHeader *)p;
     vlan_id = 0;
-    uint16_t min_size = sizeof(EthernetHeader);
+    uint16_t min_size = ETH_HDR_LEN;
     VLANHeader *vlan;
 
     if (pkt_size < min_size)
