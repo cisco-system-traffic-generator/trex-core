@@ -739,9 +739,8 @@ class TokenParser(object):
         token = self.pop()
 
         # special chars
-        if token == '\x1b' and self.peek() == '[':
-            token += self.pop()
-            if self.peek():
+        if token == '\x1b':
+            while self.peek():
                 token += self.pop()
 
         return token
@@ -816,24 +815,6 @@ class AsyncKeys:
         else:
             self.engine = self.engine_legend
 
-
-    # parse the buffer to manageble tokens
-    def parse_tokens (self, seq):
-
-        tokens = []
-        chars = list(seq)
-
-        while chars:
-            token = chars.pop(0)
-
-            # special chars
-            if token == '\x1b' and chars[0] == '[':
-                token += chars.pop(0)
-                token += chars.pop(0)
-
-            tokens.append(token)
-
-        return tokens
 
     def handle_token (self, token, pm):
         # ESC for switch
@@ -971,13 +952,63 @@ class AsyncKeysEngineConsole:
             self.lines[self.line_index].del_key()
 
         # home
-        elif seq == '\x1b[H':
+        elif seq in ('\x1b[H', '\x1b\x4fH'):
             self.lines[self.line_index].home_key()
 
         # end
-        elif seq == '\x1b[F':
+        elif seq in ('\x1b[F', '\x1b\x4fF'):
             self.lines[self.line_index].end_key()
-            return True
+
+        # Alt + Backspace
+        elif seq == '\x1b\x7f':
+
+            pos = orig_pos = self.lines[self.line_index].cursor_index
+            cut_to_pos = None
+            line = self.lines[self.line_index].get()
+            while pos >= 1:
+                if pos == 1:
+                    cut_to_pos = 0
+                elif line[pos - 1] != ' ' and line[pos - 2] == ' ':
+                    cut_to_pos = pos - 1
+                    break
+                pos -= 1
+
+            if cut_to_pos is not None:
+                self.lines[self.line_index].set(line[:cut_to_pos] + line[orig_pos:], cut_to_pos)
+
+        # Alt + Left or Ctrl + Left
+        elif seq in ('\x1b[\x31\x3B\x33\x44', '\x1b[\x31\x3B\x35\x44'):
+
+            pos = self.lines[self.line_index].cursor_index
+            move_to_pos = None
+            line = self.lines[self.line_index].get()
+            while pos >= 1:
+                if pos == 1:
+                    move_to_pos = 0
+                elif line[pos - 1] != ' ' and line[pos - 2] == ' ':
+                    move_to_pos = pos - 1
+                    break
+                pos -= 1
+
+            if move_to_pos is not None:
+                self.lines[self.line_index].cursor_index = move_to_pos
+
+        # Alt + Right or Ctrl + Right
+        elif seq in ('\x1b[\x31\x3B\x33\x43', '\x1b[\x31\x3B\x35\x43'):
+
+            pos = self.lines[self.line_index].cursor_index
+            move_to_pos = None
+            line = self.lines[self.line_index].get()
+            while pos <= len(line) - 1:
+                if pos == len(line) - 1:
+                    move_to_pos = len(line)
+                elif line[pos] != ' ' and line[pos + 1] == ' ':
+                    move_to_pos = pos + 1
+                    break
+                pos += 1
+
+            if move_to_pos is not None:
+                self.lines[self.line_index].cursor_index = move_to_pos
 
         # unknown key
         else:
