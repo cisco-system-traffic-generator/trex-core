@@ -972,7 +972,6 @@ class AsyncKeysEngineConsole:
                     cut_to_pos = pos - 1
                     break
                 pos -= 1
-
             if cut_to_pos is not None:
                 self.lines[self.line_index].set(line[:cut_to_pos] + line[orig_pos:], cut_to_pos)
 
@@ -989,7 +988,6 @@ class AsyncKeysEngineConsole:
                     move_to_pos = pos - 1
                     break
                 pos -= 1
-
             if move_to_pos is not None:
                 self.lines[self.line_index].cursor_index = move_to_pos
 
@@ -1006,9 +1004,32 @@ class AsyncKeysEngineConsole:
                     move_to_pos = pos + 1
                     break
                 pos += 1
-
             if move_to_pos is not None:
                 self.lines[self.line_index].cursor_index = move_to_pos
+
+        # PageUp
+        elif seq == '\x1b\x5b\x35\x7e':
+
+            line_part = self.lines[self.line_index].get()[:self.lines[self.line_index].cursor_index]
+            index = self.line_index
+            while index < len(self.lines) - 1:
+                index += 1
+                if self.lines[index].get().startswith(line_part):
+                    self.lines[index].cursor_index = self.lines[self.line_index].cursor_index
+                    self.line_index = index
+                    break
+
+        # PageDown
+        elif seq == '\x1b\x5b\x36\x7e':
+
+            line_part = self.lines[self.line_index].get()[:self.lines[self.line_index].cursor_index]
+            index = self.line_index
+            while index > 0:
+                index -= 1
+                if self.lines[index].get().startswith(line_part):
+                    self.lines[index].cursor_index = self.lines[self.line_index].cursor_index
+                    self.line_index = index
+                    break
 
         # unknown key
         else:
