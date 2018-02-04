@@ -38,6 +38,7 @@ endif::backend-docbook[]
 ** Add profiles that are Spirent compatible 
 * ASTF/STF - add promiscuous mode using "--prom"  CLI 
 * Support CX-3 Mellanox cards
+* Update Napatech driver 
 * STL
 ** HLTAPI bug fixes 
 ** fix XL710 VF counters crash 
