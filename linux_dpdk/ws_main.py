@@ -198,6 +198,10 @@ def check_ofed(ctx):
         ctx.end_msg("not found valid  OFED version '%s' " % (lines[0]),'YELLOW')
         return False
 
+    if not os.path.isfile("/usr/include/infiniband/mlx5dv.h"):
+       ctx.end_msg("ERROR, OFED should be installed using '$./mlnxofedinstall --with-mft --with-mstflint --dpdk --upstream-libs' try to reinstall or see manual", 'YELLOW')
+       return False
+
     ctx.end_msg('Found needed version %s' % ofed_ver_show)
     return True
 
