@@ -31,6 +31,7 @@
 #include "main_dpdk.h"
 #include "pkt_gen.h"
 #include "pre_test.h"
+#include "utl_mbuf.h"
 
 CPretestOnePortInfo::CPretestOnePortInfo() {
     m_state = RESOLVE_NOT_NEEDED;
@@ -230,7 +231,7 @@ void CPretestOnePortInfo::send_arp_req_all() {
             fprintf(stdout, "TX ARP request on port %d - " , m_port_id);
             (*it)->dump(stdout, "");
             if (verbose >= 7) {
-                utl_DumpBuffer(stdout, p, rte_pktmbuf_pkt_len(m[0]), 0);
+                utl_rte_pktmbuf_dump_k12(stdout,m[0]);
             }
         }
 
@@ -454,6 +455,11 @@ int CPretest::handle_rx(int port_id, int queue_id) {
             free_pkt = true;
             int pkt_size = rte_pktmbuf_pkt_len(m);
             uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
+            if (verbose >= 7){
+                fprintf(stdout, "RX-gen on port %d queue %d \n",port_id,queue_id);
+                utl_rte_pktmbuf_dump_k12(stdout,m);
+            }
+
             ArpHdr *arp;
             uint16_t vlan_id;
             if (is_arp(p, pkt_size, arp, vlan_id)) {
@@ -471,7 +477,7 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                                 , ip_to_str(ntohl(arp->m_arp_tip)).c_str()
                                 , vlan_id);
                         if (verbose >= 7)
-                            utl_DumpBuffer(stdout, p, rte_pktmbuf_pkt_len(m), 0);
+                            utl_rte_pktmbuf_dump_k12(stdout,m);
                     }
                     // is this request for our IP?
                     COneIPv4Info *src_addr;
