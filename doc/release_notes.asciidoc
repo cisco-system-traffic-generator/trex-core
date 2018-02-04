@@ -27,11 +27,27 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== (Pre) Release 2.36 ==
+
+== Release 2.36 ==
 
 * ASTF  
-** Remove ASTFTCPInfo object from profile. 
-** add support for scheduler.rampup_sec tunable 
+** Remove ASTFTCPInfo object from the profile (*NOT* backward compatible)
+** Add support for scheduler.rampup_sec tunable 
+** Add support for scheduler.accurate tunable - accurate traffic generation for low rates(<20gbps) important for ASA 
+** Add --lro-disable CLI 
+** Add profiles that are Spirent compatible 
+* ASTF/STF - add promiscuous mode using "--prom"  CLI 
+* Support CX-3 Mellanox cards
+* STL
+** HLTAPI bug fixes 
+** fix XL710 VF counters crash 
+** Add IPV6 ND service 
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-278[trex-278]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-514[trex-514]
+
 
 == Release 2.35 ==
 
