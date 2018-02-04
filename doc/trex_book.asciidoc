@@ -138,11 +138,10 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical) *Preferred* support per stream stats in hardware
 | Intel XXV710         | 1/10/25|+ | - | SFP28 link:https://ark.intel.com/products/95260/Intel-Ethernet-Network-Adapter-XXV710-DA2[Intel XXV710] *Preferred* support per stream stats in hardware
 | Intel XL710/X710 VF  | x  | + | - |
-| Napatech SmartNICs NT40E3-4 | 10 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
-| Napatech SmartNICs NT80E3-2 | 40 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
-  *Note:* This NIC require a BIOS with PCIe bifurcation support.
-  link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
-| Napatech SmartNICs NT200A01 | 10/25/40/50/100 | + | - | ./b configure --with-ntacc to build the library, it is *not* part of our regression so it might be broken
+| Napatech SmartNICs NT40E3-4 | 10 | - | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT80E3-2 | 40 | - | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT100E3-1 | 100 | - | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
+| Napatech SmartNICs NT200A01 | 100 | - | - | ./b configure --with-ntacc to build the library, it is not part of our regression so it might be broken
   *Note:* This NIC require a BIOS with PCIe bifurcation support.
   link:https://www.napatech.com/pci-express-bifurcation-in-the-100g-era-2/[PCIe bifurcation]
 | Mellanox ConnectX-4/Lx  | 25/40/50/56/100 |+ | + | SFP28/QSFP28, link:http://www.mellanox.com/page/products_dyn?product_family=201&[ConnectX-4] link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-4_VPI_Card.pdf[ConnectX-4-brief] (copper/optical) supported from v2.11 more details and issues xref:connectx_support[TRex Support]
