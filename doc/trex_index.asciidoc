@@ -9,19 +9,17 @@ include::trex_ga.asciidoc[]
 
 
 // Cisco Live 2018 
-*Free Learning Sessions*
+// *Free Learning Sessions*
 
 //DevNet webinar Webex 
 //image:images/webinar.png[width=250,title=""]  
 //* *Rescheduled*  Tues, November 14, 2017 6:00 pm (Tel Aviv+2)  Learning Session link:https://cisco.webex.com/cisco/onstage/g.php?MTID=e6fb167e743cde8cb5c02a6541b7fa98a[REGISTER NOW] 
 
-Cisco Live! 2018, Barcelona
-image:images/cl1028.png[width=250,title=""]  
-
-* Thursday, Feb 01,   Learning Session    link:https://www.ciscolive.com/emea/learn/sessions/content-catalog/?search=DEVNET-1120[REGISTER NOW]
+// Cisco Live! 2018, Barcelona
+// image:images/cl1028.png[width=250,title=""]  
+// * Thursday, Feb 01,   Learning Session    link:https://www.ciscolive.com/emea/learn/sessions/content-catalog/?search=DEVNET-1120[REGISTER NOW]
 // * Tuesday,   Jun 27  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
 // * Wednesday, Jun 28  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
-
 
 
 == Presentations
