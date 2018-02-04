@@ -269,6 +269,8 @@ def wait_with_progress(seconds):
         sys.stdout.flush()
     print('')
 
+format_error = lambda e: e if isinstance(e, STLError) else traceback.format_exc()
+
 # dict of streams per port
 # hlt_history = False: holds list of stream_id per port
 # hlt_history = True:  act as dictionary (per port) stream_id -> hlt arguments used for build
@@ -369,13 +371,13 @@ class CTRexHltApi(object):
                 zmq_ports['async_port'] = kwargs['trex_pub_port']
             self.trex_client = STLClient(kwargs['username'], device, verbose_level = self.verbose, **zmq_ports)
         except Exception as e:
-            return HLT_ERR('Could not init stateless client %s: %s' % (device, e if isinstance(e, STLError) else traceback.format_exc()))
+            return HLT_ERR('Could not init stateless client %s: %s' % (device, format_error(e)))
 
         try:
             self.trex_client.connect()
         except Exception as e:
             self.trex_client = None
-            return HLT_ERR('Could not connect to device %s: %s' % (device, e if isinstance(e, STLError) else traceback.format_exc()))
+            return HLT_ERR('Could not connect to device %s: %s' % (device, format_error(e)))
 
         # connection successfully created with server, try acquiring ports of TRex
         try:
@@ -385,7 +387,7 @@ class CTRexHltApi(object):
                 self._native_handle_by_pg_id[port] = {}
         except Exception as e:
             self.trex_client = None
-            return HLT_ERR('Could not acquire ports %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+            return HLT_ERR('Could not acquire ports %s: %s' % (port_list, format_error(e)))
 
         # arrived here, all desired ports were successfully acquired
         if kwargs['reset']:
@@ -395,7 +397,7 @@ class CTRexHltApi(object):
                 self.trex_client.reset(ports = port_list)
             except Exception as e:
                 self.trex_client = None
-                return HLT_ERR('Error in reset traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Error in reset traffic: %s' % format_error(e))
 
         self._streams_history = CStreamsPerPort(hlt_history = True)
         return HLT_OK(port_handle = dict([(port_id, port_id) for port_id in port_list]))
@@ -411,19 +413,19 @@ class CTRexHltApi(object):
                 else:
                     port_list = self._parse_port_list(port_list)
             except Exception as e:
-                return HLT_ERR('Unable to determine which ports to release: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Unable to determine which ports to release: %s' % format_error(e))
             try:
                 self.trex_client.stop(port_list)
             except Exception as e:
-                return HLT_ERR('Unable to stop traffic %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_ERR('Unable to stop traffic %s: %s' % (port_list, format_error(e)))
             try:
                 self.trex_client.remove_all_streams(port_list)
             except Exception as e:
-                return HLT_ERR('Unable to remove all streams %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_ERR('Unable to remove all streams %s: %s' % (port_list, format_error(e)))
             try:
                 self.trex_client.release(port_list)
             except Exception as e:
-                return HLT_ERR('Unable to release ports %s: %s' % (port_list, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_ERR('Unable to release ports %s: %s' % (port_list, format_error(e)))
         try:
             self.trex_client.disconnect(stop_traffic = False, release_ports = False)
         except Exception as e:
@@ -451,7 +453,7 @@ class CTRexHltApi(object):
         try:
             correct_macs(user_kwargs)
         except Exception as e:
-            return HLT_ERR(e if isinstance(e, STLError) else traceback.format_exc())
+            return HLT_ERR(format_error(e))
         kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
         stream_id = kwargs['stream_id']
         mode = kwargs['mode']
@@ -470,7 +472,7 @@ class CTRexHltApi(object):
                         del self._streams_history[port]
                 return HLT_OK()
             except Exception as e:
-                return HLT_ERR('Could not reset streams at ports %s: %s' % (port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_ERR('Could not reset streams at ports %s: %s' % (port_handle, format_error(e)))
 
         if mode == 'remove':
             if stream_id is None:
@@ -482,12 +484,12 @@ class CTRexHltApi(object):
                         if port in self._streams_history:
                             del self._streams_history[port]
                 except Exception as e:
-                    return HLT_ERR('Could not remove all streams at ports %s: %s' % (port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
+                    return HLT_ERR('Could not remove all streams at ports %s: %s' % (port_handle, format_error(e)))
             else:
                 try:
                     self._remove_stream(stream_id, port_handle)
                 except Exception as e:
-                    return HLT_ERR('Could not remove streams with specified by %s, error: %s' % (stream_id, e if isinstance(e, STLError) else traceback.format_exc()))
+                    return HLT_ERR('Could not remove streams with specified by %s, error: %s' % (stream_id, format_error(e)))
             return HLT_OK()
 
         #if mode == 'enable':
@@ -511,7 +513,7 @@ class CTRexHltApi(object):
                         if res['status'] == 0:
                             return HLT_ERR('Error during modify of stream: %s' % res['log'])
                     except Exception as e:
-                        return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
+                        return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, format_error(e)))
                 return HLT_OK()
             else:
                 if type(port_handle) is list:
@@ -529,7 +531,7 @@ class CTRexHltApi(object):
             try:
                 self._remove_stream(pg_id, [port])
             except Exception as e:
-                return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, e if isinstance(e, STLError) else traceback.format_exc()))
+                return HLT_ERR('Could not remove stream(s) %s from port(s) %s: %s' % (stream_id, port_handle, format_error(e)))
 
         if mode == 'create' or mode == 'modify':
             # create a new stream with desired attributes, starting by creating packet
@@ -561,7 +563,7 @@ class CTRexHltApi(object):
                         raise STLError('Could not create bidirectional stream 2: %s' % res2['log'])
                     stream_per_port[port_handle2] = res2['stream_id']
                 except Exception as e:
-                    return HLT_ERR('Could not generate bidirectional traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                    return HLT_ERR('Could not generate bidirectional traffic: %s' % format_error(e))
                 if mode == 'create':
                     return HLT_OK(stream_id = stream_per_port)
                 else:
@@ -576,7 +578,7 @@ class CTRexHltApi(object):
                     user_kwargs['pg_id'] = pg_id
                     stream_obj = STLHltStream(**user_kwargs)
             except Exception as e:
-                return HLT_ERR('Could not create stream: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not create stream: %s' % format_error(e))
 
             # try adding the stream per ports
             try:
@@ -588,7 +590,7 @@ class CTRexHltApi(object):
                         stream_id_arr = [stream_id_arr]
                     self._native_handle_by_pg_id[port][pg_id] = stream_id_arr
             except Exception as e:
-                return HLT_ERR('Could not add stream to ports: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not add stream to ports: %s' % format_error(e))
             if mode == 'create':
                 return HLT_OK(stream_id = pg_id)
             else:
@@ -610,20 +612,20 @@ class CTRexHltApi(object):
             try:
                 self.trex_client.start(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could not start traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not start traffic: %s' % format_error(e))
 
         elif action == 'sync_run': # (clear_stats + run)
             try:
                 self.trex_client.clear_stats(ports = port_handle)
                 self.trex_client.start(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Unable to do sync_run: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Unable to do sync_run: %s' % format_error(e))
 
         elif action == 'stop':
             try:
                 self.trex_client.stop(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could not stop traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not stop traffic: %s' % format_error(e))
 
         elif action == 'reset':
             try:
@@ -632,13 +634,13 @@ class CTRexHltApi(object):
                     if port in self._streams_history:
                         del self._streams_history[port]
             except Exception as e:
-                return HLT_ERR('Could not reset traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not reset traffic: %s' % format_error(e))
 
         elif action == 'clear_stats':
             try:
                 self.trex_client.clear_stats(ports = port_handle)
             except Exception as e:
-                return HLT_ERR('Could not clear stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+                return HLT_ERR('Could not clear stats: %s' % format_error(e))
 
         elif action != 'poll': # at poll just return 'stopped' status
             return HLT_ERR("Action '%s' is not supported yet on TRex" % action)
@@ -646,7 +648,7 @@ class CTRexHltApi(object):
         try:
             is_traffic_active = self.trex_client.is_traffic_active(ports = port_handle)
         except Exception as e:
-            return HLT_ERR('Unable to determine ports status: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+            return HLT_ERR('Unable to determine ports status: %s' % format_error(e))
 
         return HLT_OK(stopped = not is_traffic_active)
 
@@ -720,15 +722,15 @@ class CTRexHltApi(object):
                                     },
                                 }
         except Exception as e:
-            return HLT_ERR('Could not retrieve stats: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+            return HLT_ERR('Could not retrieve stats: %s' % format_error(e))
         return HLT_OK(hlt_stats_dict)
 
     # timeout = maximal time to wait
-    def wait_on_traffic(self, port_handle = None, timeout = 60):
+    def wait_on_traffic(self, port_handle = None, timeout = None):
         try:
             self.trex_client.wait_on_traffic(port_handle, timeout)
         except Exception as e:
-            return HLT_ERR('Unable to run wait_on_traffic: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+            return HLT_ERR('Unable to run wait_on_traffic: %s' % format_error(e))
 
 ###########################
 #    Private functions    #
@@ -878,7 +880,7 @@ def STLHltStream(**user_kwargs):
         else:
             raise STLError('transmit_mode %s not supported/implemented')
     except Exception as e:
-        raise STLError('Could not create transmit_mode object %s: %s' % (transmit_mode, e if isinstance(e, STLError) else traceback.format_exc()))
+        raise STLError('Could not create transmit_mode object %s: %s' % (transmit_mode, format_error(e)))
 
     try:
         if kwargs['l3_protocol'] in ('ipv4', 'ipv6') and not kwargs['disable_flow_stats']:
@@ -893,7 +895,7 @@ def STLHltStream(**user_kwargs):
                            mode = transmit_mode_obj,
                            )
     except Exception as e:
-        raise STLError('Could not create stream: %s' % e if isinstance(e, STLError) else traceback.format_exc())
+        raise STLError('Could not create stream: %s' % format_error(e))
 
     debug_filename = kwargs.get('save_to_yaml')
     if type(debug_filename) is str:
