@@ -1,4 +1,4 @@
 #! /bin/bash
 export LD_LIBRARY_PATH=`pwd`
-gdb --args ./_v-avc-64-debug-o $@
+gdb --args ./_t-rex-64-debug-o $@
 
