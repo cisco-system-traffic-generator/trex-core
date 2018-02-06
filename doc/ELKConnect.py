@@ -22,7 +22,7 @@ class ELKManager:
         self.hostname = hostname
         self.index = index
         self.port = port
-        self.setup_names = ['trex07', 'trex08', 'trex09', 'trex11', 'kiwi02']
+        self.setup_names = ['trex07', 'trex08', 'trex09', 'trex11', 'kiwi02','trex19']
         self.es = elasticsearch.Elasticsearch([{"host": hostname, "port": port}])
         self.all_data_raw = {}
         self.all_data_parsed = {}
