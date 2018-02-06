@@ -213,6 +213,44 @@ image:images/trex07_trend_graph.png[title="trex07_trend_graph",align="left",widt
 include::build/images/trex07_trend_stats.csv[]
 |===
 
+
+== Setup:  Mellanox ConnectX-5 (2x100GbE) trex-19
+
+.Setup Details
+[options='header',cols="1,5"]
+|=================
+| Server  | Cisco UCS 240 
+| CPU:    | 2 sockets x Intel(R) Xeon(R) CPU E5-2660 v4 @ 2.0GHz, 14 cores
+| NICs:   | 1 NIC x 100G (2 ports) Mellanox ConnectX-5 NUMA#0
+| NUMA    | One NIC on NUMA1
+| Memory  | 2x32GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS:     | CentOS 7.4 - baremetal
+|=================
+
+[NOTE] 
+=====================================================================
+This is a new version of UCS with low-end CPU (2Ghz vs 3.2GHz) so cycle/packet should be normalized accordingly
+=====================================================================
+
+image:images/trex19_latest_test_runs.png[title="trex19 test runs",align="left",width={p_width}, link="images/trex19_latest_test_runs.png"]
+ 
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex19_latest_test_runs_stats.csv[]
+|===
+
+=== Trend: Performance Over Time
+
+image:images/trex19_trend_graph.png[title="trex19_trend_graph",align="left",width={p_width}, link="images/trex19_trend_graph.png"]
+
+[format="csv", options="header",halign='center']
+|===
+include::build/images/trex19_trend_stats.csv[]
+|===
+
+
+
 == Comparison between Mellanox ConnectX-4 (2x100GbE) (trex-07) and XL710 (4x40GbE)  (trex-08)
 image:images/_comparison.png[title="comparison",align="left",width={p_width}, link="images/_comparison.png"]
  
