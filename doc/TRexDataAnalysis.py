@@ -229,9 +229,9 @@ def create_all_data(ga_data, end_date, save_path='', detailed_test_stats=''):
             all_setups_data_dframe = pd.DataFrame().append(all_setups_data)
             all_setups_data_dframe.to_csv(os.path.join(save_path, '_detailed_table.csv'))
 
-    trex07setup = all_setups['trex07']
+    trex19setup = all_setups['trex19']
     trex08setup = all_setups['trex08']
-    latest_runs_comparison_bar_chart('Mellanox ConnectX-4',
-                                     'Intel XL710', trex07setup.latest_test_results,
+    latest_runs_comparison_bar_chart('Mellanox ConnectX-5',
+                                     'Intel XL710', trex19setup.latest_test_results,
                                      trex08setup.latest_test_results,
                                      save_path=save_path)
