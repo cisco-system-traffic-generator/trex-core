@@ -1295,6 +1295,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     (void)latency_was_set;
     char ** rgpszArg = NULL;
     bool opt_vlan_was_set = false;
+    bool is_single_core = false;
 
     int a=0;
     int node_dump=0;
@@ -1528,7 +1529,7 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
 
             case OPT_VIRT_ONE_TX_RX_QUEUE:
                 CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
-                po->preview.setCores(1); // Only one TX core supported in software mode currently
+                is_single_core = true; // Only one TX core supported in software mode currently
                 break;
 
             case OPT_PREFIX:
@@ -1581,6 +1582,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     /* if no specific mode was provided, fall back to defaults - stateless on intearactive, stateful on batch */
     if (po->m_op_mode == CParserOption::OP_MODE_INVALID) {
         po->m_op_mode = ( (args_set.at(OPT_MODE_INTERACTIVE)) ? CParserOption::OP_MODE_STL : CParserOption::OP_MODE_STF);
+    }
+
+    if ( is_single_core || global_platform_cfg_info.m_is_lowend ) {
+        po->preview.setCores(1);
     }
     
     
@@ -2685,47 +2690,32 @@ void CCoreEthIF::DumpIfStats(FILE *fd){
  * this will allow us actually measure the max B/W possible 
  * without the noise of retrying 
  */
-#ifndef TREX_PERF
-#define DELAY_IF_NEEDED
-#endif
 
 int CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
                            CVirtualIFPerSideStats  * lp_stats){
 
-#ifdef DEBUG_SEND_BURST
-    if (CGlobalInfo::m_options.preview.getVMode() > 10) {
-        fprintf(stdout, "send_burst port:%d queue:%d len:%d\n", (int)lp_port->m_port->get_repid()
-                , lp_port->m_tx_queue_id, len);
-        for (int i = 0; i < lp_port->m_len; i++) {
-            fprintf(stdout, "packet %d:\n", i);
-            rte_mbuf_t *m = lp_port->m_table[i];
-            utl_DumpBuffer(stdout, rte_pktmbuf_mtod(m, uint8_t*), rte_pktmbuf_pkt_len(m), 0);
-        }
-    }
-#endif
-
     uint16_t ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,lp_port->m_table,len);
-#ifdef DELAY_IF_NEEDED
-    while ( unlikely( ret<len ) ){
-        rte_delay_us(1);
-        lp_stats->m_tx_queue_full += 1;
-        uint16_t ret1=lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,
-                                                &lp_port->m_table[ret],
-                                                len-ret);
-        ret+=ret1;
-    }
-#else
-    /* CPU has burst of packets larger than TX can send. Need to drop packets */
-    if ( unlikely(ret < len) ) {
-        lp_stats->m_tx_drop += (len-ret);
-        uint16_t i;
-        for (i=ret; i<len;i++) {
-            rte_mbuf_t * m=lp_port->m_table[i];
-            rte_pktmbuf_free(m);
+    if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
+        while ( unlikely( ret<len ) ){
+            rte_delay_us(1);
+            lp_stats->m_tx_queue_full += 1;
+            uint16_t ret1=lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,
+                                                    &lp_port->m_table[ret],
+                                                    len-ret);
+            ret+=ret1;
+        }
+    } else {
+        /* CPU has burst of packets larger than TX can send. Need to drop packets */
+        if ( unlikely(ret < len) ) {
+            lp_stats->m_tx_drop += (len-ret);
+            uint16_t i;
+            for (i=ret; i<len;i++) {
+                rte_mbuf_t * m=lp_port->m_table[i];
+                rte_pktmbuf_free(m);
+            }
         }
     }
-#endif
 
     return (0);
 }
@@ -2756,22 +2746,19 @@ int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPer
 
     int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
 
-#ifdef DELAY_IF_NEEDED
-    while ( unlikely( ret != 1 ) ){
-        rte_delay_us(1);
-        lp_stats->m_tx_queue_full += 1;
-        ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+    if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
+        while ( unlikely( ret != 1 ) ){
+            rte_delay_us(1);
+            lp_stats->m_tx_queue_full += 1;
+            ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+        }
+    } else {
+        if ( unlikely( ret != 1 ) ) {
+            lp_stats->m_tx_drop ++;
+            rte_pktmbuf_free(m);
+            return 0;
+        }
     }
-
-#else
-    if ( unlikely( ret != 1 ) ) {
-        lp_stats->m_tx_drop ++;
-        rte_pktmbuf_free(m);
-        return 0;
-    }
-
-#endif
-
     return ret;
 }
 
@@ -3762,13 +3749,6 @@ public:
     int start_master_statefull();
     int start_master_stateless();
     int run_in_core(virtual_thread_id_t virt_core_id);
-    int core_for_rx(){
-        if ( (! get_is_rx_thread_enabled()) ) {
-            return -1;
-        }else{
-            return m_max_cores - 1;
-        }
-    }
     int run_in_rx_core();
     int run_in_master();
 
@@ -6292,6 +6272,14 @@ int update_global_info_from_platform_file(){
 
     CGlobalInfo::m_options.prefix =cg->m_prefix;
     CGlobalInfo::m_options.preview.setCores(cg->m_thread_per_dual_if);
+    if ( cg->m_is_lowend ) {
+        CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
+        CGlobalInfo::m_options.m_is_queuefull_retry = false;
+    }
+    #ifdef TREX_PERF
+    CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
+    CGlobalInfo::m_options.m_is_queuefull_retry = false;
+    #endif
 
     if ( cg->m_port_limit_exist ){
         if (cg->m_port_limit > cg->m_if_list.size() ) {
@@ -6435,12 +6423,6 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-    snprintf(g_cores_str, sizeof(g_cores_str), "0x%llx" ,(unsigned long long)lpsock->get_cores_mask());
-    if (core_mask_sanity(strtol(g_cores_str, NULL, 16)) < 0) {
-        return -1;
-    }
-
-
     if ( lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES ){
         std::string err;
         if ( port_map.set_cfg_input(global_platform_cfg_info.m_if_list,err)!= 0){
@@ -6474,10 +6456,25 @@ int  update_dpdk_args(void){
         SET_ARGS(g_mlx4_so_id_str);
     }
 
-    SET_ARGS("-c");
-    SET_ARGS(g_cores_str);
+    if ( global_platform_cfg_info.m_is_lowend ) { // assign all threads to core 0
+        g_cores_str[0] = '(';
+        lpsock->get_cores_list(g_cores_str + 1);
+        strcat(g_cores_str, ")@0");
+        SET_ARGS("--lcores");
+        SET_ARGS(g_cores_str);
+    } else {
+        snprintf(g_cores_str, sizeof(g_cores_str), "0x%llx" ,(unsigned long long)lpsock->get_cores_mask());
+        if (core_mask_sanity(strtol(g_cores_str, NULL, 16)) < 0) {
+            return -1;
+        }
+        SET_ARGS("-c");
+        SET_ARGS(g_cores_str);
+    }
+
     SET_ARGS("-n");
     SET_ARGS("4");
+
+    //SET_ARGS("--no-huge");
 
     if ( lpp->getVMode() == 0  ) {
         SET_ARGS("--log-level");

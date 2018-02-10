@@ -23,6 +23,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "trex_defs.h"
 
 typedef uint8_t socket_id_t;
@@ -86,6 +87,9 @@ public:
     /* return the core mask */
     virtual uint64_t get_cores_mask()=0;
 
+    /* return the core list */
+    virtual void get_cores_list(char *)=0;
+
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id)=0;
 
@@ -134,6 +138,9 @@ public:
     /* return the core mask */
     uint64_t get_cores_mask();
 
+    void get_cores_list(char *);
+    uint32_t get_cores_count(void);
+
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id);
 
@@ -179,6 +186,8 @@ public:
 
     /* return the core mask */
     uint64_t get_cores_mask();
+
+    void get_cores_list(char *);
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id);
@@ -243,6 +252,8 @@ public:
 
     /* return the core mask */
     uint64_t get_cores_mask();
+
+    void get_cores_list(char *);
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id);

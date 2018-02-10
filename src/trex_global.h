@@ -537,6 +537,8 @@ public:
         x710_fdir_reset_threshold = 0xffffffff - 1000000000/8/64*40;
         m_astf_mode =OP_ASTF_MODE_NONE;
         m_astf_client_mask=0;
+        m_is_sleepy_scheduler = false;
+        m_is_queuefull_retry  = true;
     }
 
     CParserOption(){
@@ -573,7 +575,9 @@ public:
     bool            m_rx_thread_enabled;
     trex_op_mode_e  m_op_mode;
     trex_astf_mode_e m_astf_mode;
-    uint32_t         m_astf_client_mask;
+    uint32_t        m_astf_client_mask;
+    bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
+    bool            m_is_queuefull_retry;    // retry on queue full
 
     
     std::string        cfg_file;
@@ -975,6 +979,11 @@ static inline bool get_is_rx_filter_enable(){
 static inline uint16_t get_rx_check_hops() {
     return (CGlobalInfo::m_options.m_rx_check_hops);
 }
+
+
+#define LOWEND_SLEEP_SEC (100.0/1000000) // 100usec
+#define rte_pause_or_delay_lowend() if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) { delay_sec(LOWEND_SLEEP_SEC); } else { rte_pause(); }
+#define delay_lowend() if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) { delay_sec(LOWEND_SLEEP_SEC);}
 
 
 #endif

@@ -425,6 +425,16 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         }
         plat_info.m_mac_info_exist = true;
     }
+
+    if ( node.FindValue("is_lowend") ){
+        node["is_lowend"] >> plat_info.m_is_lowend;
+#ifndef SUPPORT_LOWEND
+        if ( plat_info.m_is_lowend ) {
+            printf(" ERROR: is_lowend argument should be used only with t-rex-64-o\n");
+            exit(-1);
+        }
+#endif
+    }
 }
 
 int CPlatformYamlInfo::load_from_yaml_file(std::string file_name){
@@ -465,7 +475,7 @@ std::string CPlatformYamlInfo::get_use_if_comma_seperated(){
 
 void CPlatformYamlInfo::Dump(FILE *fd){
     if ( m_info_exist ==false ){
-        fprintf(fd," file info does not exist  \n");
+        fprintf(fd," file info does not exist, using defaults.\n");
         return;
     }
 
@@ -491,6 +501,7 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     if ( m_prefix.length() ){
         fprintf(fd," prefix              : %s \n",m_prefix.c_str());
     }
+    fprintf(fd," is low-end :  %d \n", m_is_lowend? 1 : 0 );
     if ( m_limit_memory.length() ){
         fprintf(fd," limit_memory        : %s \n",m_limit_memory.c_str());
     }

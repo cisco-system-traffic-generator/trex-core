@@ -56,15 +56,20 @@ bool CPlatformSocketInfoNoConfig::sanity_check(){
     return (true);
 }
 
+uint32_t CPlatformSocketInfoNoConfig::get_cores_count() {
+    uint32_t cores_count = m_threads_per_dual_if * m_dual_if;
+    if ( m_rx_is_enabled ) {
+        cores_count += 2;
+    }else{
+        cores_count += 1; /* only MASTER*/
+    }
+    return cores_count;
+}
+
 /* return the core mask */
 uint64_t CPlatformSocketInfoNoConfig::get_cores_mask(){
 
-    uint32_t cores_number = m_threads_per_dual_if*m_dual_if;
-    if ( m_rx_is_enabled ) {
-        cores_number +=   2;
-    }else{
-        cores_number += 1; /* only MASTER*/
-    }
+    uint32_t cores_number = get_cores_count();
     int i;
     int offset=0;
     /* master */
@@ -76,6 +81,21 @@ uint64_t CPlatformSocketInfoNoConfig::get_cores_mask(){
    }
    return (res);
 }
+
+/* get cores list, separated by comma (for lowend core affinity) */
+void CPlatformSocketInfoNoConfig::get_cores_list(char *core_list_ptr){
+    std::stringstream core_list;
+    uint32_t cores_number = get_cores_count();
+
+    core_list << "0";
+
+    for (int i=1; i<cores_number; i++) {
+        core_list << "," << i;
+    }
+    assert(core_list.tellp() < 90); // need to fit 100 bytes with extra chars: "(<this string>)@0"
+    strcpy(core_list_ptr, core_list.str().c_str());
+}
+
 
 virtual_thread_id_t CPlatformSocketInfoNoConfig::thread_phy_to_virt(physical_thread_id_t  phy_id){
     return (phy_id);
@@ -300,13 +320,38 @@ uint64_t CPlatformSocketInfoConfig::get_cores_mask(){
         }
     }
 
-    mask |=(1LL<<m_platform->m_master_thread);
     assert(m_platform->m_master_thread<64);
+    mask |=(1LL<<m_platform->m_master_thread);
     if (m_rx_is_enabled) {
-        mask |=(1LL<<m_platform->m_rx_thread);
         assert(m_platform->m_rx_thread<64);
+        mask |=(1LL<<m_platform->m_rx_thread);
     }
     return (mask);
+}
+
+/* get cores list, separated by comma (for lowend core affinity) */
+void CPlatformSocketInfoConfig::get_cores_list(char *core_list_ptr){
+    std::stringstream core_list;
+
+    assert(m_platform->m_master_thread < 64);
+    core_list << m_platform->m_master_thread;
+    if (m_rx_is_enabled) {
+        assert(m_platform->m_rx_thread < 64);
+        core_list << "," << m_platform->m_rx_thread;
+    }
+
+    for (int i=0; i<MAX_THREADS_SUPPORTED; i++) {
+        if ( m_thread_phy_to_virtual[i] ) {
+
+            if (i>=64) {
+                printf(" ERROR phy threads can't be higher than 64 \n");
+                exit(1);
+            }
+            core_list << "," << i;
+        }
+    }
+    assert(core_list.tellp() < 50); // in lowend should not take much space
+    strcpy(core_list_ptr, core_list.str().c_str());
 }
 
 virtual_thread_id_t CPlatformSocketInfoConfig::thread_phy_to_virt(physical_thread_id_t  phy_id){
@@ -379,6 +424,10 @@ bool CPlatformSocketInfo::sanity_check(){
 /* return the core mask */
 uint64_t CPlatformSocketInfo::get_cores_mask(){
     return ( m_obj->get_cores_mask());
+}
+
+void CPlatformSocketInfo::get_cores_list(char *core_list_ptr){
+    m_obj->get_cores_list(core_list_ptr);
 }
 
 virtual_thread_id_t CPlatformSocketInfo::thread_phy_to_virt(physical_thread_id_t  phy_id){
