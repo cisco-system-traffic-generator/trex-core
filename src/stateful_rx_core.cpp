@@ -912,7 +912,7 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
                 break;
             }
             try_rx();
-            rte_pause();
+            rte_pause_or_delay_lowend();
         }
 
         switch (node->m_type) {

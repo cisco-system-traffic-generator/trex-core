@@ -2685,13 +2685,31 @@ void  CNodeGenerator::set_vif(CVirtualIF * v_if){
 }
 
 bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
-   m_v_if =0;
-   m_parent=parent;
-   m_socket_id =0;
-   m_realtime_his.Create();
-   m_last_sync_time_sec = 0;
-   m_tw_level1_next_sec = 0;
-   return(true);
+    m_v_if =0;
+    m_parent=parent;
+    m_socket_id =0;
+    m_realtime_his.Create();
+    m_last_sync_time_sec = 0;
+    m_tw_level1_next_sec = 0;
+
+#ifndef TREX_SIM
+    dsec_t start_measure_time = now_sec();
+    int measure_times = 50;
+    for (int i = 1; i <= measure_times; i++) {
+        now_sec();
+    }
+    now_sec_delay = (now_sec() - start_measure_time) / (measure_times + 1);
+
+    if ( CGlobalInfo::m_options.m_is_sleepy_scheduler ) { // measure nanosleep overhead
+        start_measure_time = now_sec();
+        for (int i = 1; i <= measure_times; i++) {
+            delay_sec(0);
+        }
+        nanosleep_delay = (now_sec() - start_measure_time - now_sec_delay) / measure_times;
+    }
+#endif
+
+    return(true);
 }
 
 void  CNodeGenerator::Delete(){
@@ -3323,41 +3341,21 @@ inline bool CNodeGenerator::do_work(CGenNode * node,
 inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
                                      CFlowGenListPerThread * thread,
                                      dsec_t n_time){
-    
-    /* if TREX_PERF flag is on - compile do_sleep as nanosleep
-       to allow perf to differntiate between user space code
-       and sleep code
-     */
-    #ifdef TREX_PERF
-    
-    dsec_t dt = n_time - now_sec();
-    if (dt > 0) {
-        thread->m_cpu_dp_u.commit1();
-        delay_sec(dt);
-        thread->m_cpu_dp_u.start_work1();
-    }
 
-    cur_time = now_sec();
-    
-    #else
-    
     thread->m_cpu_dp_u.commit1();
-    dsec_t dt;
-    
-    /* TBD make this better using calculation, minimum now_sec() */
-    while ( true ) {
+
+    if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
+        delay_sec(n_time - now_sec() - nanosleep_delay - now_sec_delay);
         cur_time = now_sec();
-        dt = cur_time - n_time ;
-
-        if (dt> WAIT_WINDOW_SIZE ) {
-            break;
+    } else {
+        cur_time = now_sec();
+        while ( cur_time < n_time - now_sec_delay ) {
+            rte_pause();
+            cur_time = now_sec();
         }
-
-        rte_pause();
     }
 
     thread->m_cpu_dp_u.start_work1();
-    #endif
 }
 
 

@@ -179,7 +179,9 @@ void CRxCore::hot_state_loop() {
     
     while (m_state == STATE_HOT) {
         if (!work_tick()) {
-            rte_pause();
+            rte_pause_or_delay_lowend();
+        } else {
+            delay_lowend();
         }
     }
 }
@@ -199,14 +201,15 @@ void CRxCore::cold_state_loop() {
         bool did_something = work_tick();
         if (did_something) {
             counter = 0;
-            /* we are hot - continue with no delay */
+            /* we are hot - continue with no delay (unless lowend)*/
+            delay_lowend();
             continue;
         }
         
         if (counter < COLD_LIMIT_ITER) {
             /* hot stage */
             counter++;
-            rte_pause();
+            rte_pause_or_delay_lowend();
         } else {
             /* cold stage */
             delay(COLD_SLEEP_MS);

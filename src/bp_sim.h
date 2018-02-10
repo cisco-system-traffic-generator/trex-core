@@ -1131,7 +1131,7 @@ public:
 
    #define BURST_OFFSET_DTIME    (100.0/1000000)
    #define EAT_WINDOW_DTIME      (15.0/1000000)
-   #define WAIT_WINDOW_SIZE      (-1.0/1000000)
+
 
     bool  Create(CFlowGenListPerThread  *  parent);
     void  Delete();
@@ -1279,6 +1279,8 @@ public:
     uint64_t                  m_limit;
     CTimeHistogram            m_realtime_his;
     dsec_t                    m_scheduler_offset;
+    dsec_t                    now_sec_delay;
+    dsec_t                    nanosleep_delay; // approx
 
     dsec_t                    m_last_sync_time_sec;
     dsec_t                    m_tw_level1_next_sec;

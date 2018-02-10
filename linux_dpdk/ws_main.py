@@ -846,6 +846,7 @@ common_flags_old = common_flags + [
                       '-mtune=generic',
                       '-DRTE_MACHINE_CPUFLAG_SSE',
                       '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
+                      '-DSUPPORT_LOWEND',
                       ];
 
 
