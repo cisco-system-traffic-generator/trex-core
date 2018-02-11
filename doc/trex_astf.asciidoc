@@ -959,7 +959,7 @@ in case there is no errors the 'err' object won't be there. in case of an error 
 
 *Goal*:: Use the TRex ASTF simple simulator.
 
-The TRex package includes a simulator tool, `astl-sim`. The simulator operates as a Python script that calls an executable. The platform requirements for the simulator tool are the same as for TRex.
+The TRex package includes a simulator tool, `astf-sim`. The simulator operates as a Python script that calls an executable. The platform requirements for the simulator tool are the same as for TRex. There is no need for super user in case of simulation.
 
 The TRex simulator can:
 
@@ -1755,7 +1755,7 @@ ASTF mode can help to solve the following requirement:
 * flexibility to emulate L7 application using Python API (e.g. Create many types of HTTP with different user-Agent field)
 * Measure latency in high resolution (usec)
 
-==== Why do I need to reload TRex server again with different flags to change to ASRF mode?
+==== Why do I need to reload TRex server again with different flags to change to ASTF mode, In other words, why STL and ASTF can't work together?
 In theory, we could have supported that, but it required much more effort because the NIC memory configuration is fundamentally different. For example, in ASTF mode, we need to configure all the Rx queues to receive the packets and to configure the RSS to split the packets to different interface queues. While in Stateful we filter most of the packets and count them in hardware.
 
 ==== Is your core TCP implementation based on prior work?    
@@ -1806,8 +1806,9 @@ client works in IPV6                             server works on IPv4
 ==== Is TSO/LRO NIC hardware optimization supported? 
 Yes. LRO improve the performance. GRO is not there yet
 
-==== Can I get the ASTF counters per port? 
-We plan to add it in the interactive mode with RPC API. for now it is only global per all client and per server side. 
+==== Can I get the ASTF counters per port/template? 
+Curently the TCP/App layer counters are per client/server side. 
+We plan to add it in the interactive mode with RPC API. 
 
 
 
