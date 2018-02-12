@@ -2692,22 +2692,14 @@ bool  CNodeGenerator::Create(CFlowGenListPerThread  *  parent){
     m_last_sync_time_sec = 0;
     m_tw_level1_next_sec = 0;
 
-#ifndef TREX_SIM
-    dsec_t start_measure_time = now_sec();
-    int measure_times = 50;
-    for (int i = 1; i <= measure_times; i++) {
-        now_sec();
-    }
-    now_sec_delay = (now_sec() - start_measure_time) / (measure_times + 1);
-
     if ( CGlobalInfo::m_options.m_is_sleepy_scheduler ) { // measure nanosleep overhead
-        start_measure_time = now_sec();
+        int measure_times = 20;
+        int start_measure_time = now_sec();
         for (int i = 1; i <= measure_times; i++) {
             delay_sec(0);
         }
-        nanosleep_delay = (now_sec() - start_measure_time - now_sec_delay) / measure_times;
+        nanosleep_overhead = (now_sec() - start_measure_time) / measure_times;
     }
-#endif
 
     return(true);
 }
@@ -3345,13 +3337,17 @@ inline void CNodeGenerator::do_sleep(dsec_t & cur_time,
     thread->m_cpu_dp_u.commit1();
 
     if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
-        delay_sec(n_time - now_sec() - nanosleep_delay - now_sec_delay);
+        delay_sec(n_time - now_sec() - nanosleep_overhead);
         cur_time = now_sec();
     } else {
-        cur_time = now_sec();
-        while ( cur_time < n_time - now_sec_delay ) {
-            rte_pause();
+        dsec_t dt;
+        while ( true ) {
             cur_time = now_sec();
+            dt = cur_time - n_time ;
+            if ( dt > WAIT_WINDOW_SIZE ) {
+                break;
+            }
+            rte_pause();
         }
     }
 
