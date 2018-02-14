@@ -418,7 +418,7 @@ private:
     void  send_pkt_all_ports();
     double grat_arp_timeout();
     void  send_one_grat_arp();
-    void  try_rx();
+    bool  try_rx();
     void  wait_for_rx_dump();
     void  handle_rx_pkt(CLatencyManagerPerPort * lp, rte_mbuf_t * m);
 

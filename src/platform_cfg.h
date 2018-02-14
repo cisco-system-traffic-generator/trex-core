@@ -172,6 +172,7 @@ public:
 public:
     void Dump(FILE *fd);
     void reset();
+    void limit_lowend();
 };
 
 

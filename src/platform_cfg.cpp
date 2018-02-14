@@ -25,7 +25,7 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include "utl_yaml.h"
 #include "platform_cfg.h"
-#include "utl_yaml.h"
+#include "trex_global.h"
 
 void CPlatformMemoryYamlInfo::reset(){
        int i;
@@ -35,7 +35,7 @@ void CPlatformMemoryYamlInfo::reset(){
        }
        m_mbuf[MBUF_64]           = m_mbuf[MBUF_64]*2;
 
-       m_mbuf[MBUF_2048]         = CONST_NB_MBUF_2_10G/2;
+       m_mbuf[MBUF_2048]         = m_mbuf[MBUF_2048]/2;
 
        m_mbuf[MBUF_4096]         = 128;
        m_mbuf[MBUF_9k]           = 512;
@@ -44,7 +44,7 @@ void CPlatformMemoryYamlInfo::reset(){
        m_mbuf[TRAFFIC_MBUF_64]           = m_mbuf[MBUF_64] * 4;
        m_mbuf[TRAFFIC_MBUF_128]           = m_mbuf[MBUF_128] * 4;
 
-       m_mbuf[TRAFFIC_MBUF_2048]         = CONST_NB_MBUF_2_10G * 8;
+       m_mbuf[TRAFFIC_MBUF_2048]         = m_mbuf[MBUF_2048] * 8;
 
        m_mbuf[TRAFFIC_MBUF_4096]         = 128;
        m_mbuf[TRAFFIC_MBUF_9k]           = 512;
@@ -52,6 +52,44 @@ void CPlatformMemoryYamlInfo::reset(){
 
        m_mbuf[MBUF_DP_FLOWS]     = (1024*1024/2);
        m_mbuf[MBUF_GLOBAL_FLOWS] =(10*1024/2);
+}
+
+typedef struct {
+    uint32_t pool_type;
+    uint32_t mbuf_size;
+} pool_sizes;
+
+void CPlatformMemoryYamlInfo::limit_lowend(){
+
+    pool_sizes pools [] = {
+        { MBUF_64,           CONST_SMALL_MBUF_SIZE },
+        { MBUF_128,          CONST_128_MBUF_SIZE },
+        { MBUF_256,          CONST_256_MBUF_SIZE },
+        { MBUF_512,          CONST_512_MBUF_SIZE },
+        { MBUF_1024,         CONST_1024_MBUF_SIZE },
+        { MBUF_2048,         CONST_2048_MBUF_SIZE },
+        { MBUF_4096,         CONST_4096_MBUF_SIZE },
+        { MBUF_9k,           CONST_9k_MBUF_SIZE },
+        { TRAFFIC_MBUF_64,   CONST_SMALL_MBUF_SIZE },
+        { TRAFFIC_MBUF_128,  CONST_128_MBUF_SIZE },
+        { TRAFFIC_MBUF_256,  CONST_256_MBUF_SIZE },
+        { TRAFFIC_MBUF_512,  CONST_512_MBUF_SIZE },
+        { TRAFFIC_MBUF_1024, CONST_1024_MBUF_SIZE },
+        { TRAFFIC_MBUF_2048, CONST_2048_MBUF_SIZE },
+        { TRAFFIC_MBUF_4096, CONST_4096_MBUF_SIZE },
+        { TRAFFIC_MBUF_9k,   CONST_9k_MBUF_SIZE },
+    };
+
+    for (int i = 0; i < sizeof(pools)/ sizeof(pools[0]); i++) {
+        uint32_t max_pool_size_for_lowend = LOWEND_MEMPOOL_LIMIT_MB / pools[i].mbuf_size;
+        if ( m_mbuf[pools[i].pool_type] > max_pool_size_for_lowend ) {
+            m_mbuf[pools[i].pool_type] = max_pool_size_for_lowend;
+        }
+    }
+    if ( m_mbuf[MBUF_DP_FLOWS] > LOWEND_LIMIT_FLOWNODES ) {
+        m_mbuf[MBUF_DP_FLOWS] = LOWEND_LIMIT_FLOWNODES;
+    }
+    m_mbuf[MBUF_GLOBAL_FLOWS] =(10*1024/2);
 }
 
 const std::string names []={
@@ -401,13 +439,21 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["port_bandwidth_gb"] >> plat_info.m_port_bandwidth_gb;
     }
 
-    if ( node.FindValue("memory") ){
-        node["memory"] >> plat_info.m_memory;
+    if ( node.FindValue("low_end") ){
+        node["low_end"] >> plat_info.m_is_lowend;
     }
 
-    if ( node.FindValue("platform") ){
-        node["platform"] >> plat_info.m_platform;
-        plat_info.m_platform.m_is_exists=true;
+    if ( plat_info.m_is_lowend ) {
+        plat_info.m_memory.limit_lowend(); // lower the defaults of memory
+    } else {
+        if ( node.FindValue("platform") ){ // ignore in lowend
+            node["platform"] >> plat_info.m_platform;
+            plat_info.m_platform.m_is_exists=true;
+        }
+    }
+
+    if ( node.FindValue("memory") ){
+        node["memory"] >> plat_info.m_memory;
     }
 
     if ( node.FindValue("tw") ){
@@ -424,16 +470,6 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
             plat_info.m_mac_info.push_back(fi);
         }
         plat_info.m_mac_info_exist = true;
-    }
-
-    if ( node.FindValue("is_lowend") ){
-        node["is_lowend"] >> plat_info.m_is_lowend;
-#ifndef SUPPORT_LOWEND
-        if ( plat_info.m_is_lowend ) {
-            printf(" ERROR: is_lowend argument should be used only with t-rex-64-o\n");
-            exit(-1);
-        }
-#endif
     }
 }
 

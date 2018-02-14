@@ -775,15 +775,17 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
     rte_pktmbuf_free(m);
 }
 
-void  CLatencyManager::try_rx(){
+bool CLatencyManager::try_rx(){
     rte_mbuf_t * rx_pkts[64];
     int i;
+    bool did_something = false;
     for (i=0; i<m_max_ports; i++) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         rte_mbuf_t * m;
         /* try to read 64 packets clean up the queue */
         uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
         if (cnt_p) {
+            did_something = true;
             m_cpu_dp_u.start_work1();
             int j;
             for (j=0; j<cnt_p; j++) {
@@ -792,8 +794,9 @@ void  CLatencyManager::try_rx(){
             }
             /* commit only if there was work to do ! */
             m_cpu_dp_u.commit1();
-          }/* if work */
-      }// all ports
+        }/* if work */
+    }// all ports
+    return did_something;
 }
 
 
@@ -911,8 +914,12 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
             if (dt> (0.0)) {
                 break;
             }
-            try_rx();
-            rte_pause_or_delay_lowend();
+            bool did_something = try_rx();
+            if (likely( did_something )) {
+                delay_lowend();
+            } else {
+                rte_pause_or_delay_lowend();
+            }
         }
 
         switch (node->m_type) {

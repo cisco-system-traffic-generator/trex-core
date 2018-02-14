@@ -968,6 +968,8 @@ enum {
        OPT_ASTF_CLIENT_MASK,
        OPT_ASTF_TUNABLE,
        OPT_NO_TERMIO,
+       OPT_QUEUE_DROP,
+       OPT_SLEEPY_SCHEDULER,
     
        /* no more pass this */
        OPT_MAX
@@ -1049,8 +1051,10 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
-        { OPT_ASTF_TUNABLE,           "-t",SO_REQ_SEP},
-        { OPT_NO_TERMIO,              "--no-termio", SO_NONE},
+        { OPT_ASTF_TUNABLE,           "-t",                SO_REQ_SEP},
+        { OPT_NO_TERMIO,              "--no-termio",       SO_NONE},
+        { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
+        { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -1109,7 +1113,7 @@ static int usage(){
     printf(" --learn-verify             : Test the NAT translation mechanism. Should be used when there is no NAT in the setup \n");
     printf(" --limit-ports              : Limit number of ports used. Must be even number (TRex always uses port pairs) \n");
     printf(" --lm                       : Hex mask of cores that should send traffic \n");
-    printf("    For example: Value of 0x5 will cause only ports 0 and 2 to send traffic \n");
+    printf("                              For example: Value of 0x5 will cause only ports 0 and 2 to send traffic \n");
     printf(" --lo                       : Only run latency test \n");
     printf(" -m <num>                   : Rate multiplier.  Multiply basic rate of templates by this number \n");
     printf(" --mbuf-factor              : Factor for packet memory \n");
@@ -1120,24 +1124,26 @@ static int usage(){
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
+    printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
     printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
-    printf("    e.g --pm 2.0 will multiply all the results bps in this factor \n");
+    printf("                              e.g --pm 2.0 will multiply all the results bps in this factor \n");
     printf(" --prefix <nam>             : For running multi TRex instances on the same machine. Each instance should have different name \n");
+    printf(" --prom                     : Enable promiscuous for ASTF/STF mode  \n");
     printf(" -pubd                      : Disable monitors publishers \n");
+    printf(" --queue-drop               : Do not retry to send packets on failure (queue full etc.)\n");
     printf(" --rx-check  <rate>         : Enable rx check. TRex will sample flows at 1/rate and check order, latency and more \n");
     printf(" -s                         : Single core. Run only one data path core. For debug \n");
     printf(" --send-debug-pkt <proto>   : Do not run traffic generator. Just send debug packet and dump receive queues \n");
-    printf("    Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
+    printf("                              Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
+    printf(" --sleeps                   : Use sleeps instead of busy wait in scheduler (less accurate, more power saving)\n");
     printf(" --software                 : Do not configure any hardware rules. In this mode we use 1 core, and one RX queue and one TX queue per port\n");
     printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
-    printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
-    printf(" --prom                     : enable promiscuous for ASTF/STF mode  \n");
     
 
     printf("\n");
@@ -1566,6 +1572,12 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 break;
             case OPT_NO_SCAPY_SERVER:
                 break;
+            case OPT_QUEUE_DROP:
+                CGlobalInfo::m_options.m_is_queuefull_retry = false;
+                break;
+            case OPT_SLEEPY_SCHEDULER:
+                CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
+                break;
 
             default:
                 printf("Error: option %s is not handled.\n\n", args.OptionText());
@@ -1584,11 +1596,10 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
         po->m_op_mode = ( (args_set.at(OPT_MODE_INTERACTIVE)) ? CParserOption::OP_MODE_STL : CParserOption::OP_MODE_STF);
     }
 
-    if ( is_single_core || global_platform_cfg_info.m_is_lowend ) {
+    if ( is_single_core || CGlobalInfo::m_options.m_is_lowend ) {
         po->preview.setCores(1);
     }
-    
-    
+
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
         parse_err("--learn mode is not supported with --ipv6, beacuse there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
                   "If you think it is important, please open a defect or write to TRex mailing list\n");
@@ -5802,6 +5813,8 @@ int CGlobalTRex::start_master_statefull() {
     m_fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,get_cores_tx());
     if ( CGlobalInfo::m_options.m_active_flows>0 ) {
         m_fl.update_active_flows(CGlobalInfo::m_options.m_active_flows);
+    } else if ( CGlobalInfo::m_options.m_is_lowend ) {
+        m_fl.update_active_flows(LOWEND_LIMIT_ACTIVEFLOWS);
     }
     /* client config */
     if (CGlobalInfo::m_options.client_cfg_file != "") {
@@ -6273,6 +6286,7 @@ int update_global_info_from_platform_file(){
     CGlobalInfo::m_options.prefix =cg->m_prefix;
     CGlobalInfo::m_options.preview.setCores(cg->m_thread_per_dual_if);
     if ( cg->m_is_lowend ) {
+        CGlobalInfo::m_options.m_is_lowend = true;
         CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
         CGlobalInfo::m_options.m_is_queuefull_retry = false;
     }
@@ -6329,15 +6343,20 @@ int update_global_info_from_platform_file(){
         }
     }
 
+    return (0);
+}
+
+void update_memory_cfg() {
+    CPlatformYamlInfo *cg=&global_platform_cfg_info;
+
     /* mul by interface type */
     float mul=1.0;
-    if (cg->m_port_bandwidth_gb<10) {
+    if (cg->m_port_bandwidth_gb<10 || CGlobalInfo::m_options.m_is_lowend) {
         cg->m_port_bandwidth_gb=10.0;
     }
 
     mul = mul*(float)cg->m_port_bandwidth_gb/10.0;
-    mul= mul * (float)cg->m_port_limit/2.0;
-
+    mul= mul * (float)CGlobalInfo::m_options.m_expected_portd/2.0;
     mul= mul * CGlobalInfo::m_options.m_mbuf_factor;
 
 
@@ -6347,7 +6366,6 @@ int update_global_info_from_platform_file(){
                                                     CGlobalInfo::m_options.get_number_of_dp_cores_needed() );
 
     CGlobalInfo::m_memory_cfg.set(cg->m_memory,mul);
-    return (0);
 }
 
 extern "C" int eal_cpu_detected(unsigned lcore_id);
@@ -6456,7 +6474,7 @@ int  update_dpdk_args(void){
         SET_ARGS(g_mlx4_so_id_str);
     }
 
-    if ( global_platform_cfg_info.m_is_lowend ) { // assign all threads to core 0
+    if ( CGlobalInfo::m_options.m_is_lowend ) { // assign all threads to core 0
         g_cores_str[0] = '(';
         lpsock->get_cores_list(g_cores_str + 1);
         strcat(g_cores_str, ")@0");
@@ -6651,6 +6669,7 @@ int main_test(int argc , char * argv[]){
         exit(-1);
     }
 
+    update_memory_cfg();
 
     if ( CGlobalInfo::m_options.preview.getVMode() > 0){
         CGlobalInfo::m_options.dump(stdout);

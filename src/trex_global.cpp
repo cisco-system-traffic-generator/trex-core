@@ -45,9 +45,11 @@ void CGlobalMemory::Dump(FILE *fd){
         if ( (i>MBUF_9k) && (i<MBUF_DP_FLOWS)){
             continue;
         }
-        if ( i<TRAFFIC_MBUF_64 ){
-            c_total= m_mbuf[i] *c_size;
+        if ( i<MBUF_9k ){
+            c_total += m_mbuf[i] * (c_size + MBUF_PKT_PREFIX);
             c_size=c_size*2;
+        } else if ( i == MBUF_9k ) {
+            c_total += m_mbuf[i] * CONST_9k_MBUF_SIZE;
         }
 
         fprintf(fd," %-40s  : %lu \n",names[i].c_str(),(ulong)m_mbuf[i]);
@@ -222,7 +224,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
                                                          lp->m_mbuf[pools[j].pool_type]
                                                          , pools[j].mbuf_size, 32, sock);
                 if (*pools[j].pool_p == NULL) {
-                    fprintf(stderr, "Error: Failed creaating %s mbuf pool with %d mbufs. Exiting\n"
+                    fprintf(stderr, "Error: Failed creating %s mbuf pool with %d mbufs. Exiting\n"
                             , pools[j].pool_name, lp->m_mbuf[pools[j].pool_type]);
                     exit(1);
                 }
