@@ -834,7 +834,7 @@ class STLStream(object):
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
                              dummy_stream             = (json_data['flags'] & 0x8) == 0x8,
-                             start_paused             = json_data['start_paused'])
+                             start_paused             = json_data.get('start_paused', False))
             
         except KeyError as e:
             raise STLError("from_json: missing field {0} from JSON".format(e))
