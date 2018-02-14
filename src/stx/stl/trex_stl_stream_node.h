@@ -247,7 +247,6 @@ public:
 
         /* in case of continues */
         m_time += m_next_time_offset;
-        
 
         /* insert a new event */
         thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
@@ -262,6 +261,7 @@ public:
         if (m_single_burst > 0 ) {
             /* in case of continues */
             m_time += m_next_time_offset;
+
             thread->m_node_gen.m_p_queue.push( (CGenNode *)this);
         }else{
             m_multi_bursts--;

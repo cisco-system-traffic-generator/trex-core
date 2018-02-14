@@ -3357,4 +3357,18 @@ class CRXCoreIgnoreStat {
 static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
 
+static inline void rte_pause_or_delay_lowend() {
+    if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
+        delay_sec(LOWEND_LONG_SLEEP_SEC); // sleep for "long" time (highend would rte_pause)
+    } else {
+        rte_pause();
+    }
+}
+
+static inline void delay_lowend() {
+    if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
+        delay_sec(LOWEND_SHORT_SLEEP_SEC); // sleep for "short" time (highend would do nothing)
+    }
+}
+
 #endif

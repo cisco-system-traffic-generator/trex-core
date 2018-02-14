@@ -18,6 +18,7 @@ from distutils.util import strtobool
 import subprocess
 import platform
 import stat
+import time
 
 # exit code is Important should be
 # -1 : don't continue
@@ -510,8 +511,16 @@ Other network devices
             raise DpdkSetup("Configuration file %s should include interfaces field with maximum 16 elements, got: %s." % (fcfg,l))
         if l % 2:
             raise DpdkSetup("Configuration file %s should include even number of interfaces, got: %s" % (fcfg,l))
-        if 'port_limit' in cfg_dict and cfg_dict['port_limit'] > len(if_list):
-            raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
+        if 'port_limit' in cfg_dict:
+            if cfg_dict['port_limit'] > len(if_list):
+                raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
+            if cfg_dict['port_limit'] % 2:
+                raise DpdkSetup('Error: port_limit in config file must be even number, got: %s\n' % cfg_dict['port_limit'])
+            if cfg_dict['port_limit'] <= 0:
+                raise DpdkSetup('Error: port_limit in config file must be positive number, got: %s\n' % cfg_dict['port_limit'])
+        if map_driver.parent_args and map_driver.parent_args.limit_ports is not None:
+            if map_driver.parent_args.limit_ports > len(if_list):
+                raise DpdkSetup('Error: --limit-ports CLI argument (%s) must not be higher than number of interfaces (%s) in config file: %s\n' % (map_driver.parent_args.limit_ports, len(if_list), fcfg))
 
 
     def do_bind_all(self, drv, pci, force = False):
@@ -598,6 +607,45 @@ Other network devices
             if ret:
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
 
+
+    def config_hugepages(self):
+        huge_mnt_dir = '/mnt/huge'
+        if not os.path.isdir(huge_mnt_dir):
+            print("Creating huge node")
+            os.makedirs(huge_mnt_dir)
+
+        mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
+        if 'hugetlbfs' not in mount_output:
+            os.system('mount -t hugetlbfs nodev %s' % huge_mnt_dir)
+
+        for socket_id in range(2):
+            filename = '/sys/devices/system/node/node%d/hugepages/hugepages-2048kB/nr_hugepages' % socket_id
+            if not os.path.isfile(filename):
+                if socket_id == 0:
+                    print('WARNING: hugepages config file (%s) does not exist!' % filename)
+                continue
+            if self.m_cfg_dict[0].get('low_end', False):
+                if socket_id == 0:
+                    if map_driver.parent_args and map_driver.parent_args.limit_ports:
+                        if_count = map_driver.parent_args.limit_ports
+                    else:
+                        if_count = self.m_cfg_dict[0].get('port_limit', len(self.m_cfg_dict[0]['interfaces']))
+                    hugepages_count = 20 + 40 * if_count
+                else:
+                    hugepages_count = 1 # otherwise, DPDK will not be able to see the device
+            else:
+                hugepages_count = 2048
+            with open(filename) as f:
+                configured_hugepages = int(f.read())
+            if configured_hugepages != hugepages_count:
+                os.system('echo %d > %s' % (hugepages_count, filename))
+                time.sleep(0.1)
+                with open(filename) as f: # verify
+                    configured_hugepages = int(f.read())
+                if configured_hugepages != hugepages_count:
+                    print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
+
+
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
 
@@ -670,8 +718,9 @@ Other network devices
             if pid:
                 cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
                 print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-                if not dpdk_nic_bind.confirm('Ignore and proceed (y/N):'):
-                    sys.exit(-1)
+                sys.exit(-1)
+
+        self.config_hugepages() # should be after check of running TRex
 
         if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
             try:
@@ -1073,12 +1122,18 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
+    parent_parser.add_argument('--limit-ports', type = int)
     parent_parser.add_argument('-f', dest = 'file')
     parent_parser.add_argument('-t', dest = 'tunable',default=None)
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if map_driver.parent_args.help:
         sys.exit(0)
+    if map_driver.parent_args.limit_ports is not None:
+        if map_driver.parent_args.limit_ports % 2:
+            raise DpdkSetup('ERROR: --limit-ports CLI argument must be even number, got: %s' % map_driver.parent_args.limit_ports)
+        if map_driver.parent_args.limit_ports <= 0:
+            raise DpdkSetup('ERROR: --limit-ports CLI argument must be positive, got: %s' % map_driver.parent_args.limit_ports)
 
 
 def process_options ():
@@ -1224,7 +1279,7 @@ def main ():
             obj.do_interactive_create();
         elif map_driver.args.linux:
             obj.do_return_to_linux();
-        elif not (map_driver.parent_args and map_driver.parent_args.dump_interfaces is not None):
+        elif map_driver.parent_args is None or map_driver.parent_args.dump_interfaces is None:
             ret = obj.do_run()
             print('The ports are bound/configured.')
             sys.exit(ret)
