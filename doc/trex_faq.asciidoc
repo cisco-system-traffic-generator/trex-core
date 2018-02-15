@@ -98,12 +98,32 @@ We present statistics only for first four ports because there is no console spac
 You can use the GUI/console or Python API, to see statistics for all ports.
 
 ==== Can I run multiple TRex servers on the same machine?
-One option for running few instances on the same physical machine is to install few VMs.
-Currently, it is complicated to do without using VMs (but possible with some advanced config file options). We are working on
-a solution to make this easier.
+One option for running few instances on the same physical machine is to install few VMs. +
+ +
+Second option is to use different config file for each instance (--cfg argument) +
+In each config file:
+
+----
+- port_limit: 2
+  version: 2
+  interfaces: ['86:00.2', '86:00.1']  <--- different ports
+  prefix: instance2                   <--- unique prefix
+  zmq_pub_port: 4600                  <--- unique ZMQ publisher port
+  zmq_rpc_port: 4601                  <--- unique ZMQ RPC port
+  limit_memory: 1024                  <--- limit used memory
+  ...
+  platform:                           <--- this section should use unique cores
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 0
+          threads: [2,3,4]
+  ...
+----
 
 ==== Can I use multiple types of ports with the same TRex server instance?
-No. All ports in the configuration file should be of the same NIC type.
+No. All ports in the configuration file should be of the same NIC type. +
+The workaround is to run several TRex instances, see section above.
 
 ==== What is better, running TRex on VM with PCI pass through or TRex on bare metal?
 The answer depends on your budget and needs. Bare metal will have lower latency and better performance. VM has the advantages you normally get when using VMs.
