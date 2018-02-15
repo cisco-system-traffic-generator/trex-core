@@ -47,6 +47,12 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_general_scenario_results(trex_res)
         self.check_CPU_benchmark(trex_res)
 
+    def test_high_active_negative(self):
+        ''' 4M active flows should produce an error with default config '''
+        cores = self.get_benchmark_param('cores', test_name = 'test_short_flow_high_active')
+        with self.assertRaises(Exception):
+            self.trex.start_trex(c = cores, m = 1, d = 10, active_flows = 4000000, f = 'cap2/cur_flow.yaml')
+
     def test_short_flow_high_active(self):
         """ short UDP flow with 64B packets, this test with 8M  active flows """
         # test initializtion
@@ -58,6 +64,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         core  = self.get_benchmark_param('cores')
         active_flows =self.get_benchmark_param('active_flows') 
 
+        config_file_path = self.alter_config_file('memory', 'dp_flows', active_flows)
 
         ret = self.trex.start_trex(
             c = core,
@@ -66,6 +73,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             nc = True,
             d = 60,   
             active_flows = active_flows,
+            cfg = config_file_path,
             f = 'cap2/cur_flow.yaml',
             l = 1000)
 
@@ -90,6 +98,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         core  = self.get_benchmark_param('cores')
         active_flows =self.get_benchmark_param('active_flows') 
 
+        config_file_path = self.alter_config_file('memory', 'dp_flows', active_flows)
 
         ret = self.trex.start_trex(
             c = core,
@@ -98,6 +107,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             nc = True,
             d = 60,   
             active_flows = active_flows,
+            cfg = config_file_path,
             f = 'cap2/cur_flow_single.yaml',
             l = 1000)
 

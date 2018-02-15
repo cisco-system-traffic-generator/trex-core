@@ -6366,6 +6366,18 @@ void update_memory_cfg() {
                                                     CGlobalInfo::m_options.get_number_of_dp_cores_needed() );
 
     CGlobalInfo::m_memory_cfg.set(cg->m_memory,mul);
+    if ( CGlobalInfo::m_options.m_active_flows > CGlobalInfo::m_memory_cfg.m_mbuf[MBUF_DP_FLOWS] ) {
+        printf("\n");
+        printf("ERROR: current configuration has %u flow objects, and you are asking for %u active flows.\n",
+                CGlobalInfo::m_memory_cfg.m_mbuf[MBUF_DP_FLOWS], CGlobalInfo::m_options.m_active_flows);
+        printf("Either decrease active flows, or increase memory pool.\n");
+        printf("For example put in platform config file:\n");
+        printf("\n");
+        printf(" memory:\n");
+        printf("     dp_flows: %u\n", CGlobalInfo::m_options.m_active_flows);
+        printf("\n");
+        exit(1);
+    }
 }
 
 extern "C" int eal_cpu_detected(unsigned lcore_id);
