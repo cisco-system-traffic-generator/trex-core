@@ -287,7 +287,7 @@ void CAstfDB::fill_jmpnz(uint16_t program_index,
 }
 
 
-uint32_t CAstfDB::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
+void CAstfDB::get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CTcpAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -298,7 +298,12 @@ uint32_t CAstfDB::get_num_bytes(uint16_t program_index, uint16_t cmd_index) {
 
     assert (cmd["name"] == "rx");
 
-    return cmd["min_bytes"].asInt();
+    res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt();
+    if (cmd["clear"] != Json::nullValue) {
+        if (cmd["clear"].asBool()) {
+            res.u.m_rx_cmd.m_flags |= CTcpAppCmdRxBuffer::rxcmd_CLEAR;
+        }
+    }
 }
 
 // verify correctness of json data
@@ -928,7 +933,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
             case tcRX_BUFFER:
                 cmd.m_cmd = tcRX_BUFFER;
                 cmd.u.m_rx_cmd.m_flags = CTcpAppCmdRxBuffer::rxcmd_WAIT;
-                cmd.u.m_rx_cmd.m_rx_bytes_wm = get_num_bytes(program_index, cmd_index);
+                get_rx_cmd(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
             case tcDELAY:

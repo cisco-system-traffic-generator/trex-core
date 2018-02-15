@@ -403,7 +403,8 @@ class CAstfDB  : public CTRexDummyCommand  {
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
     void convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
-    uint32_t get_num_bytes(uint16_t program_index, uint16_t cmd_index);
+    void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CTcpAppCmd &res);
+
     uint32_t get_delay_ticks(uint16_t program_index, uint16_t cmd_index);
     void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
     void fill_set_var(uint16_t program_index,uint16_t cmd_index,CTcpAppCmd &res);
