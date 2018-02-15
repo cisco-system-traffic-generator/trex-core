@@ -25,6 +25,7 @@ class Prof1():
         prog_s.set_label("a:");
         prog_s.delay_rand(100000,500000); # delay 100msec-500msec 
         prog_s.send(http_response)
+        prog_s.delay_rand(100000,500000); # delay 100msec-500msec 
         prog_s.jmp_nz("var2","a:") # dec var "var2". in case it is *not* zero jump a: 
 
 

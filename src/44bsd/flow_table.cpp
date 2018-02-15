@@ -526,6 +526,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     app->set_program(server_prog);
     app->set_bh_api(m_tcp_api);
     app->set_flow_ctx(ctx,lptflow);
+    app->set_debug_id(1);
 
     lptflow->set_app(app);
 

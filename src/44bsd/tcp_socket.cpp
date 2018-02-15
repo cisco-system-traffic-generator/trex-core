@@ -331,7 +331,7 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
             uint32_t  flags = cmd->u.m_rx_cmd.m_flags;
             /* clear rx counter */
             if (flags & CTcpAppCmdRxBuffer::rxcmd_CLEAR) {
-                m_cmd_rx_bytes =0;
+                set_rx_clear(true);
             }
             /* disable rx thread if needed */
             set_rx_disabled((flags & CTcpAppCmdRxBuffer::rxcmd_DISABLE_RX)?true:false);
@@ -390,7 +390,7 @@ void CTcpApp::process_cmd(CTcpAppCmd * cmd){
             assert(cmd->u.m_jmpnz.m_var_id<apVAR_NUM_SIZE);
             if (--m_vars[cmd->u.m_jmpnz.m_var_id]>0){
                 /* action jump  */
-                m_cmd_index+=cmd->u.m_jmpnz.m_offset;
+                m_cmd_index+=cmd->u.m_jmpnz.m_offset-1;
                 /* make sure we are not in at the end */
                 int end=m_program->get_size();
                 if (m_cmd_index>end) {
@@ -462,6 +462,7 @@ int CTcpApp::on_bh_tx_acked(uint32_t tx_bytes){
     assert(m_tx_active);
     assert(m_state==te_SEND);
     set_interrupt(true);
+
     m_tx_offset+=tx_bytes;
     if (m_tx_residue){
         uint32_t add_to_queue = bsd_umin(tx_bytes,m_tx_residue);
@@ -504,6 +505,7 @@ int CTcpApp::on_bh_rx_bytes(uint32_t rx_bytes,
     }
 
     if ( get_rx_enabled() ) {
+
         /* drain the bytes from the queue */
         m_cmd_rx_bytes+= m_api->rx_drain(m_flow); 
         if (m_state==te_WAIT_RX) {

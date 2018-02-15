@@ -79,10 +79,13 @@ class ASTFCmdSend(ASTFCmd):
 
 
 class ASTFCmdRecv(ASTFCmd):
-    def __init__(self, min_bytes):
+    def __init__(self, min_bytes,clear=False):
         super(ASTFCmdRecv, self).__init__()
         self.fields['name'] = 'rx'
         self.fields['min_bytes'] = min_bytes
+        if clear:
+            self.fields['clear'] = True
+
 
     def dump(self):
         ret = "{0}({1})".format(self.__class__.__name__, self.fields['min_bytes'])
@@ -321,22 +324,27 @@ class ASTFProgram(object):
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
         self.fields['commands'].append(cmd)
 
-    def recv(self, bytes):
+    def recv(self, bytes,clear=False):
         """
         recv (bytes)
 
         :parameters:
                   bytes  : uint32_t
-                   wait until we receive at least  x number of bytes. in always works, the command just check that the watermark was reached to start the next command 
+                   wait until the rx bytes watermark is reached on flow counter.  
+
+                  clear  : bool
+                     when reach the watermark clear the flow counter 
         """
 
         ver_args = {"types":
-                    [{"name": "bytes", 'arg': bytes, "t": int}]
+                    [ {"name": "bytes", 'arg': bytes, "t": int},
+                      {"name": "clear", 'arg': clear, "t": [int,bool], "must": False},
+                    ]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         self.total_rcv_bytes += bytes
-        self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes))
+        self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes,clear))
 
     def delay(self, usec):
         """

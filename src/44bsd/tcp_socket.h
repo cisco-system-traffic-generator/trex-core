@@ -422,9 +422,13 @@ public:
             taDO_WAIT_CONNECTED = 0x80,
             taDO_DPC_NEXT       = 0x100,
 
+
             ta_DPC_ANY          = (taDO_DPC_NEXT  |
                                    taDO_DPC_CLOSE |
-                                   taDO_DPC_DISCONNECT)
+                                   taDO_DPC_DISCONNECT),
+
+            taDO_RX_CLEAR       = 0x400,
+
     };
 
 
@@ -469,6 +473,19 @@ public:
 
     bool get_interrupt(){
         return ((m_flags &taINTERRUPT)?true:false);
+    }
+
+    
+    void set_rx_clear(bool enable){
+        if (enable){
+            m_flags|=taDO_RX_CLEAR;
+        }else{
+            m_flags&=(~taDO_RX_CLEAR);
+        }
+    }
+
+    bool get_rx_clear(){
+        return ((m_flags &taDO_RX_CLEAR)?true:false);
     }
 
     bool get_timer_init_done(){
@@ -608,6 +625,10 @@ private:
 
     inline void check_rx_condition(){
         if (m_cmd_rx_bytes>= m_cmd_rx_bytes_wm) {
+            if (get_rx_clear()){
+                m_cmd_rx_bytes=0;
+                set_rx_clear(false);
+            }
             next();
         }
     }
