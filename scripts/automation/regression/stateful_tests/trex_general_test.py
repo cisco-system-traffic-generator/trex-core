@@ -40,6 +40,9 @@ from platform_cmd_link import *
 import unittest
 from glob import glob
 from datetime import datetime, timedelta
+import yaml
+import tempfile
+import shutil
 
 def setUpModule(module):
     pass
@@ -170,6 +173,38 @@ class CTRexGeneral_Test(unittest.TestCase):
 
         if res[name] != float(val):
             self.fail('TRex results[%s]==%f and not as expected %f ' % (name, res[name], val))
+
+    # create config file in server machine, based on default config file
+    # input: list of arguments, while the last one is value, and the rest is "path" in config
+    # example: alter_config_file('memory', 'dp_flows', 4000000)
+    # returns path of created config file in server
+    def alter_config_file(self, *args):
+        assert len(args) > 1, 'alter_config_file: should be at least 2 arguments (name and value)'
+        config_str = self.trex.get_trex_config()
+        config_dict = yaml.load(config_str)[0]
+        section = config_dict
+        args = list(args)
+        val = args.pop(-1)
+        for i, arg in enumerate(args, 1):
+            if arg not in section:
+                section[arg] = {}
+            elif type(section[arg]) is not dict:
+                raise Exception('Can only change dict type sections in config file, type of section %s is %s' % (arg, type(section[arg])))
+            if i == len(args):
+                section[arg] = val
+            else:
+                section = section[arg]
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            tmp_file =  'tmp_trex_cfg.yaml'
+            with open(os.path.join(tmp_dir, tmp_file), 'wb') as f:
+                f.write(yaml.dump([config_dict]))
+            res = self.trex.push_files(f.name)
+            if not res:
+                raise Exception('Could not save file')
+            return os.path.join(self.trex.get_trex_files_path(), tmp_file)
+        finally:
+            shutil.rmtree(tmp_dir)
 
     def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85):
         cpu_util          = trex_res.get_avg_steady_state_value('trex-global.data.m_cpu_util_raw')
