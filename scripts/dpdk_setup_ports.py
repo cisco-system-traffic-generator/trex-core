@@ -1143,7 +1143,7 @@ Examples:
 ---------
 
 To return to Linux the DPDK bound interfaces (for ifconfig etc.)
-  sudo ./dpdk_set_ports.py -l
+  sudo ./dpdk_set_ports.py -L
 
 To create TRex config file using interactive mode
   sudo ./dpdk_set_ports.py -i
@@ -1161,7 +1161,7 @@ To see more detailed info on interfaces (table):
     description=" unbind dpdk interfaces ",
     epilog=" written by hhaim");
 
-    parser.add_argument("-l", "--linux", action='store_true',
+    parser.add_argument("-l", '-L', "--linux", action='store_true',
                       help=""" Return all DPDK interfaces to Linux driver """,
      )
 

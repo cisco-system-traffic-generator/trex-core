@@ -274,7 +274,7 @@ Supported Linux versions:
 * Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
 * Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
 // clarify "not fully supported"
-* CentOs/RedHat 7.2 LTS, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
+* CentOS/RedHat 7.2 LTS, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
@@ -296,6 +296,8 @@ ISO images for supported Linux releases can be downloaded from:
 [options="header",cols="1^,2^",width="50%"]
 |======================================
 | Distribution                                                                                                                                | SHA256 Checksum
+| link:http://isoredirect.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1708.iso[CentOS 7.4] (recommended)             |
+ http://mirror.centos.org/centos/7/isos/x86_64/sha256sum.txt.asc[CentOS 7.4 checksums]
 | link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]           |
  link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM]
 | link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-DVD-x86_64-21.iso[Fedora 21]                |
@@ -585,6 +587,61 @@ image:images/passthrough_marking.png[title="passthrough_marking"]
 
 4. Right-click the guest machine. Edit settings -> Add -> *PCI device* -> Select the NICs individually. +
 image:images/passthrough_adding.png[title="passthrough_adding"]
+
+=== Low-end machines
+Starting from version 2.37, was added feature to run TRex on low-end machines like weak laptops.
+
+To enable this mode, define low_end argument in platform config file:
+[source,bash]
+----
+  - port_limit: 2
+    version: 2
+    interfaces: ['82:00.0', '82:00.1']
+    low_end: true
+...
+----
+
+This mode implies following:
+
+* All TRex threads will be assigned to core 0
+* Lower memory allocation/requirement. +
+If you have already started without low_end argument, reboot the Linux to free hugepages.
+* Sleeps in scheduler instead of busy wait (less accurate, but saves power)
+* Do not retry sending packets in case of queue full.
+* "platform" section in config file is ignored.
+
+We have tested with following VM:
+
+* 1 core
+* 475MB of RAM
+* Two virtual NICs E1000
+
+For example, stateless IMIX: +
+>start -f stl/imix.py -m 100kpps
+
+----
+Tx bps L2  |       289.67 Mbps |       289.67 Mbps |       579.34 Mbps
+Tx bps L1  |       305.68 Mbps |       305.68 Mbps |       611.36 Mbps
+Tx pps     |       100.07 Kpps |       100.07 Kpps |       200.14 Kpps
+Line Util. |           30.57 % |           30.57 % |
+----
+
+"top" output:
+
+----
+%CPU COMMAND
+ 1.0 _t-rex-64
+ 0.0  `- eal-intr-thread
+13.0  `- Trex DP core 1
+ 3.0  `- TRex RX
+ 0.0  `- Trex Publisher
+ 0.0  `- Trex Publisher
+ 0.0  `- Trex ZMQ sync
+ 0.0  `- Trex Watchdog
+ 0.0  `- Trex ZMQ sync
+ 0.0  `- Trex ZMQ sync
+----
+
 
 === Configuring for running with router (or other L3 device) as DUT
 
@@ -1966,6 +2023,10 @@ Allow creation of core dump.
 *--arp-refresh-period <num>*::
 Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means ``never send``.
 
+*--astf*::
+Since version 2.29. +
+Flag that specifies advanced stateful mode. In this case, -f argument should be Python ASTF profile. Currently works as batch, WIP on adding interactive support.
+
 *-c <num>*::
 Number of hardware threads to use per interface pair. Use at least 4 for TRex 40Gbs. +
 TRex uses 2 threads for inner needs. Rest of the threads can be used. Maximum number here, can be number of free threads
@@ -1995,6 +2056,9 @@ Specify traffic YAML configuration file to use. Mandatory option for stateful mo
 *--hops <num>*::
    Provide number of hops in the setup (default is one hop). Relevant only if the Rx check is enabled.
    Look link:trex_manual.html#_flow_order_latency_verification[here] for details.
+
+*-i*::
+Flag that specifies interactive mode. Currently used for stateless (WIP adding advanced stateful to it)
 
 *--iom <mode>*::
         I/O mode. Possible values: 0 (silent), 1 (normal), 2 (short).
@@ -2061,9 +2125,17 @@ based routes to pass all traffic from one DUT port to the other. +
 *-pubd*::
   Disable ZMQ monitor's publishers.
 
+*--queue-drop*::
+Since version 2.37. +
+Do not retry to send packets on failure (queue full etc.).
+
 *--rx-check <sample rate>*::
         Enable Rx check module. Using this, each thread randomly samples 1/sample_rate of the flows and checks packet order, latency, and additional statistics for the sampled flows.
         Note: This feature works on the RX thread.
+
+*--sleeps*::
+Since version 2.37. +
+Use sleeps instead of busy wait in scheduler (less accurate, more power saving)
 
 *--software*::
     Since version 2.21. +
