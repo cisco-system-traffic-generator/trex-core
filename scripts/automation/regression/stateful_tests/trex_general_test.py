@@ -197,7 +197,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp()
         try:
             tmp_file =  'tmp_trex_cfg.yaml'
-            with open(os.path.join(tmp_dir, tmp_file), 'wb') as f:
+            with open(os.path.join(tmp_dir, tmp_file), 'w') as f:
                 f.write(yaml.dump([config_dict]))
             res = self.trex.push_files(f.name)
             if not res:
