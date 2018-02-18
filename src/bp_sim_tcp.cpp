@@ -282,6 +282,9 @@ void CFlowGenListPerThread::tcp_generate_flow(bool &done){
     app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(m_c_tcp,c_flow);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app_c->set_log_enable(true);
+    }
     c_flow->set_app(app_c);
     c_flow->set_c_tcp_info(cur, template_id);
 

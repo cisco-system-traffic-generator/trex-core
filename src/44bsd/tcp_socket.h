@@ -42,6 +42,9 @@
 #include <string.h>
 #include "mbuf.h"
 #include "h_timer.h"
+#include <stdarg.h>
+#include <stdlib.h>
+
 
 
 struct  sockbuf {
@@ -428,6 +431,7 @@ public:
                                    taDO_DPC_DISCONNECT),
 
             taDO_RX_CLEAR       = 0x400,
+            taLOG_ENABLE        = 0x800,
 
     };
 
@@ -483,6 +487,18 @@ public:
             m_flags&=(~taDO_RX_CLEAR);
         }
     }
+
+    void set_log_enable(bool enable){
+        if (enable){
+            m_flags|=taLOG_ENABLE;
+        }else{
+            m_flags&=(~taLOG_ENABLE);
+        }
+    }
+    bool is_log_enable(){
+        return ((m_flags &taLOG_ENABLE)?true:false);
+    }
+    
 
     bool get_rx_clear(){
         return ((m_flags &taDO_RX_CLEAR)?true:false);
@@ -613,6 +629,31 @@ public:
 
     void on_tick();
 
+private:
+    /* log support */
+#ifdef _DEBUG
+#define EMUL_LOG(cmd, fmt, args...) \
+	    if (is_log_enable()) { emul_log(cmd,"EMUL_LOG: " fmt "", ## args); }
+#else
+#define EMUL_LOG(cmd,fmt, args...) do { } while(0)
+#endif
+
+#ifdef _DEBUG
+    int emul_log(CTcpAppCmd * cmd,const char *format, ...){
+        va_list ap;
+        int ret;
+
+        va_start(ap, format);
+        ret = vfprintf(stdout, format, ap);
+        if (cmd) {
+            cmd->Dump(stdout);
+        }
+        fflush(stdout);
+        va_end(ap);
+        return ret;
+    }
+#endif
+
 
 private:
 
@@ -629,6 +670,7 @@ private:
                 m_cmd_rx_bytes=0;
                 set_rx_clear(false);
             }
+            EMUL_LOG(0, "ON_RX [%d]- NEXT \n",m_debug_id);
             next();
         }
     }

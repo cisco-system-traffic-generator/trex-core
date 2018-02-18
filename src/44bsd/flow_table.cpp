@@ -23,6 +23,7 @@ limitations under the License.
 #include "tcp_var.h"
 #include "flow_stat_parser.h"
 #include "flow_table.h"
+#include "trex_global.h"
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -526,6 +527,9 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     app->set_program(server_prog);
     app->set_bh_api(m_tcp_api);
     app->set_flow_ctx(ctx,lptflow);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app->set_log_enable(true);
+    }
     app->set_debug_id(1);
 
     lptflow->set_app(app);

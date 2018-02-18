@@ -43,6 +43,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_SL, OPT_ASF, OPT_DP_CORE_COUNT, OPT_DP_CORE_INDEX, OPT_LIMIT,
        OPT_ASTF_SIM_MODE,OPT_ASTF_FULL,
        OPT_ASTF_SIM_ARG,
+       OPT_ASTF_EMUL_DEBUG,
 
        OPT_DRY_RUN, OPT_DURATION,
        OPT_DUMP_JSON};
@@ -88,6 +89,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_ASTF_FULL,          "--full",       SO_NONE    },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
     { OPT_DP_CORE_INDEX,      "--core_index", SO_REQ_SEP },
+    { OPT_ASTF_EMUL_DEBUG,    "--astf-emul-debug",  SO_NONE},
     { OPT_LIMIT,              "--limit",      SO_REQ_SEP },
     { OPT_DUMP_JSON,          "--sim-json", SO_NONE },
     { OPT_ASTF_SIM_MODE,      "--sim-mode", SO_REQ_SEP },
@@ -193,6 +195,10 @@ static int parse_options(int argc,
 
             case OPT_SL:
                 params["type"] = OPT_TYPE_SL;
+                break;
+
+            case OPT_ASTF_EMUL_DEBUG:
+                po->preview.setEmulDebug(true);
                 break;
 
             case OPT_ASF:

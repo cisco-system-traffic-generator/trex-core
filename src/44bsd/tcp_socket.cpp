@@ -307,6 +307,8 @@ void CTcpApp::run_cmd_delay(htw_ticks_t ticks){
 */
 void CTcpApp::process_cmd(CTcpAppCmd * cmd){
 
+    EMUL_LOG(cmd, "CMD [%d] state : %d ,cmd_index [%d] -",m_debug_id,m_state,m_cmd_index);
+
     switch (cmd->m_cmd) {
     case  tcTX_BUFFER   :
         {
@@ -473,6 +475,7 @@ int CTcpApp::on_bh_tx_acked(uint32_t tx_bytes){
             m_tx_active = (CMbufBuffer *)0;
             m_tx_offset=0;
             m_tx_residue=0;
+            EMUL_LOG(0, "ON_BH_TX [%d]-ACK \n",m_debug_id);
             next();
         }
     }
@@ -492,7 +495,7 @@ void CTcpApp::on_bh_event(tcp_app_events_t event){
             m_flags&=(~taDO_WAIT_CONNECTED);
         }
     }
-    //printf(" event %d %s \n",(int)m_debug_id,get_tcp_app_events_name(event).c_str());
+    EMUL_LOG(0, "EVENT [%d]- %s \n",m_debug_id,get_tcp_app_events_name(event).c_str());
 }
 
 /* rx bytes */
