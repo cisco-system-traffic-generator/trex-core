@@ -55,7 +55,7 @@ class Prof1():
 
     def create_profile(self, **kwargs):
         self.requests = kwargs.get('req', 1)
-        self.transaction_per_conn = kwargs.get('tpc', 1)
+        self.transaction_per_conn = kwargs.get('tpc', 5)
         # client operations
         prog_c = ASTFProgram()
         #prog_c.connect()
