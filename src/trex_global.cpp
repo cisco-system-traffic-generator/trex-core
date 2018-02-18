@@ -42,14 +42,12 @@ void CGlobalMemory::Dump(FILE *fd){
 
     int i=0;
     for (i=0; i<MBUF_ELM_SIZE; i++) {
-        if ( (i>MBUF_9k) && (i<MBUF_DP_FLOWS)){
+        if ( (i>=MBUF_9k) && (i<MBUF_DP_FLOWS)){
             continue;
         }
-        if ( i<MBUF_9k ){
+        if ( i<TRAFFIC_MBUF_64 ){
             c_total += m_mbuf[i] * (c_size + MBUF_PKT_PREFIX);
             c_size=c_size*2;
-        } else if ( i == MBUF_9k ) {
-            c_total += m_mbuf[i] * CONST_9k_MBUF_SIZE;
         }
 
         fprintf(fd," %-40s  : %lu \n",names[i].c_str(),(ulong)m_mbuf[i]);
@@ -191,7 +189,7 @@ void CGlobalInfo::free_pools(){
  * rx_buffers - how many additional buffers to allocate for rx packets
  * rx_pool - which pool is being used for rx packets
  */
-void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
+void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool, bool is_hugepages) {
         /* this include the pkt from 64- */
     CGlobalMemory * lp=&CGlobalInfo::m_memory_cfg;
     CPlatformSocketInfo * lpSocket =&m_socket;
@@ -222,7 +220,7 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
             for (int j = 0; j < sizeof(pools)/ sizeof(pools[0]); j++) {
                 *pools[j].pool_p = utl_rte_mempool_create(pools[j].pool_name,
                                                          lp->m_mbuf[pools[j].pool_type]
-                                                         , pools[j].mbuf_size, 32, sock);
+                                                         , pools[j].mbuf_size, 32, sock, is_hugepages);
                 if (*pools[j].pool_p == NULL) {
                     fprintf(stderr, "Error: Failed creating %s mbuf pool with %d mbufs. Exiting\n"
                             , pools[j].pool_name, lp->m_mbuf[pools[j].pool_type]);
@@ -239,7 +237,8 @@ void CGlobalInfo::init_pools(uint32_t rx_buffers, uint32_t rx_pool) {
                                                          sizeof(CGenNode),
                                                          128,
                                                          SOCKET_ID_ANY,
-                                                         true);
+                                                         true,
+                                                         is_hugepages);
     assert(m_mem_pool[0].m_mbuf_global_nodes);
 }
 

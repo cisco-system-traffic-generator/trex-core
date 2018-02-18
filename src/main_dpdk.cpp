@@ -421,6 +421,20 @@ public:
 
 };
 
+class CTRexExtendedDriverAfPacket : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverAfPacket(){
+        CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+        m_cap = 0;
+        //m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+    }
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverAfPacket() );
+    }
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void update_configuration(port_cfg_t * cfg);
+};
+
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
@@ -832,6 +846,9 @@ private:
         register_driver(std::string("net_virtio"), CTRexExtendedDriverVirtio::create);
         register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverI40evf::create);
         register_driver(std::string("net_ixgbe_vf"), CTRexExtendedDriverIxgbevf::create);
+
+        /* raw socket */
+        register_driver(std::string("net_af_packet"), CTRexExtendedDriverAfPacket::create);
 
         m_driver_was_set=false;
         m_drv=0;
@@ -2115,10 +2132,10 @@ void DpdkTRexPortAttr::update_description(){
     struct rte_eth_dev_info dev_info;
     rte_eth_dev_info_get(m_repid , &dev_info);
     pci_addr = &(dev_info.pci_dev->addr);
-    if (pci_addr) {
+    if (dev_info.pci_dev && pci_addr) {
         rte_pci_device_name(pci_addr,pci, sizeof(pci));
         intf_info_st.pci_addr = pci;
-    }else{
+    } else {
         intf_info_st.pci_addr="none";
     }
     pci_envvar_name = "pci" + intf_info_st.pci_addr;
@@ -4389,12 +4406,13 @@ bool CGlobalTRex::Create(){
     CTrexDpdkParams dpdk_p;
     get_ex_drv()->get_dpdk_drv_params(dpdk_p);
 
+    bool use_hugepages = !CGlobalInfo::m_options.m_is_vdev;
     CGlobalInfo::init_pools(m_max_ports *
                             (dpdk_p.rx_data_q_num * dpdk_p.rx_desc_num_data_q +
-                             dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q)
-                            , dpdk_p.rx_mbuf_type);
-  
-     
+                             dpdk_p.rx_drop_q_num * dpdk_p.rx_desc_num_drop_q),
+                            dpdk_p.rx_mbuf_type,
+                            use_hugepages);
+
     ixgbe_start();
     dump_config(stdout);
     m_start_sync =new CSyncBarrier(get_cores_tx(),1.0);
@@ -4552,7 +4570,11 @@ void CGlobalTRex::Delete(){
 
 int  CGlobalTRex::ixgbe_prob_init(void){
 
-    m_max_ports  = port_map.get_max_num_ports();
+    if ( CGlobalInfo::m_options.m_is_vdev ) {
+        m_max_ports = rte_eth_dev_count();
+    } else {
+        m_max_ports = port_map.get_max_num_ports();
+    }
 
     if (m_max_ports == 0)
         rte_exit(EXIT_FAILURE, "Error: Could not find supported ethernet ports. You are probably trying to use unsupported NIC \n");
@@ -6385,6 +6407,28 @@ void update_memory_cfg() {
     }
 }
 
+void check_pdev_vdev() {
+    bool found_vdev = false;
+    bool found_pdev = false;
+    for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
+        if ( iface.find("--vdev") != std::string::npos ) {
+            found_vdev = true;
+        } else {
+            found_pdev = true;
+        }
+    }
+    if ( found_vdev ) {
+        if ( found_pdev ) {
+            printf("\n");
+            printf("ERROR: both --vdev and another interface type specified in config file.\n");
+            printf("\n");
+            exit(1);
+        } else {
+            CGlobalInfo::m_options.m_is_vdev = true;
+        }
+    }
+}
+
 extern "C" int eal_cpu_detected(unsigned lcore_id);
 // return mask representing available cores
 int core_mask_calc() {
@@ -6458,7 +6502,7 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-    if ( lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES ){
+    if ( !CGlobalInfo::m_options.m_is_vdev && lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES ){
         std::string err;
         if ( port_map.set_cfg_input(global_platform_cfg_info.m_if_list,err)!= 0){
             printf("%s \n",err.c_str());
@@ -6509,8 +6553,6 @@ int  update_dpdk_args(void){
     SET_ARGS("-n");
     SET_ARGS("4");
 
-    //SET_ARGS("--no-huge");
-
     if ( lpp->getVMode() == 0  ) {
         SET_ARGS("--log-level");
         snprintf(g_loglevel_str, sizeof(g_loglevel_str), "%d", 4);
@@ -6532,8 +6574,24 @@ int  update_dpdk_args(void){
             SET_ARGS("-w");
             SET_ARGS(lpop->dump_interfaces[i].c_str());
         }
-    }
-    else {
+
+    } else if ( CGlobalInfo::m_options.m_is_vdev ) {
+        for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
+            SET_ARGS(iface.c_str());
+        }
+        SET_ARGS("--no-pci");
+        SET_ARGS("--no-huge");
+        std::string mem_str;
+        SET_ARGS("-m");
+        if ( global_platform_cfg_info.m_limit_memory.size() ) {
+            mem_str = global_platform_cfg_info.m_limit_memory;
+        } else if ( CGlobalInfo::m_options.m_is_lowend ) {
+            mem_str = std::to_string(50 + 100 * global_platform_cfg_info.m_if_list.size());
+        } else {
+            mem_str = "1024";
+        }
+        SET_ARGS(mem_str.c_str());
+    } else {
         dpdk_input_args_t & dif = *port_map.get_dpdk_input_args();
 
         for (int i=0; i<(int)dif.size(); i++) {
@@ -6544,7 +6602,7 @@ int  update_dpdk_args(void){
 
 
 
-    if ( lpop->prefix.length()  ){
+    if ( lpop->prefix.length() && !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
         SET_ARGS("--file-prefix");
         snprintf(g_prefix_str, sizeof(g_prefix_str), "%s", lpop->prefix.c_str());
         SET_ARGS(g_prefix_str);
@@ -6555,21 +6613,18 @@ int  update_dpdk_args(void){
             mem_str = (char *)global_platform_cfg_info.m_limit_memory.c_str();
         }else{
             mem_str = (char *)"1024";
-            SET_ARGS("1024");
         }
-        int pos = 0;
-        pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
-        int socket;
-     	for (socket = 1; socket < 8; socket++) {
- 	    char path[PATH_MAX];
-   		snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
- 	    if (access(path, F_OK) == 0) {
-               pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
-           } else {
-               break;
-           }
-       }
-       SET_ARGS(g_socket_mem_str);
+        int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
+        for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
+            char path[PATH_MAX];
+            snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
+            if (access(path, F_OK) == 0) {
+                pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
+            } else {
+                break;
+            }
+        }
+        SET_ARGS(g_socket_mem_str);
     }
 
 
@@ -6693,6 +6748,7 @@ int main_test(int argc , char * argv[]){
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
 
+    check_pdev_vdev();
 
     if (update_dpdk_args() < 0) {
         return -1;
@@ -6770,7 +6826,9 @@ int main_test(int argc , char * argv[]){
         dump_interfaces_info();
         exit(0);
     }
-    reorder_dpdk_ports();
+    if ( !CGlobalInfo::m_options.m_is_vdev ) {
+        reorder_dpdk_ports();
+    }
     time_init();
 
     /* check if we are in simulation mode */
@@ -6920,8 +6978,8 @@ void wait_x_sec(int sec) {
 /* should be called after rte_eal_init() */
 void set_driver() {
     uint8_t m_max_ports = rte_eth_dev_count();
-    if ( !m_max_ports ) {
-        printf("Could not find interfaces.\n");
+    if ( m_max_ports != CGlobalInfo::m_options.m_expected_portd ) {
+        printf("Could not find all interfaces (asked for: %u, found: %u).\n", CGlobalInfo::m_options.m_expected_portd, m_max_ports);
         exit(1);
     }
     struct rte_eth_dev_info dev_info;
@@ -8444,6 +8502,10 @@ bool CTRexExtendedDriverVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFSta
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
+bool CTRexExtendedDriverAfPacket::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
 bool CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
     return get_extended_stats_fixed(_if, stats, 0, 4);
 }
@@ -8467,6 +8529,19 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
     if ( get_is_tcp_mode() ) {
        cfg->m_port_conf.rxmode.enable_lro = 1;
     }
+}
+
+void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    //cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
+    //cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    //cfg->m_tx_conf.tx_thresh.wthresh = 0;
+    // must have this, otherwise the driver fail at init
+    //cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMSCTP;
+    //if ( get_is_tcp_mode() ) {
+    //   cfg->m_port_conf.rxmode.enable_lro = 1;
+    //}
+    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
 }
 
 ///////////////////////////////////////////////////////// VF
@@ -8615,13 +8690,17 @@ TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
 
     memcpy(info.hw_macaddr, rte_mac_addr.addr_bytes, 6);
 
-    info.numa_node =  g_trex.m_ports[port_id].m_dev_info.pci_dev->device.numa_node;
-    struct rte_pci_addr *loc = &g_trex.m_ports[port_id].m_dev_info.pci_dev->addr;
+    if ( CGlobalInfo::m_options.m_is_vdev ) {
+        info.numa_node = -1;
+        info.pci_addr = "N/A";
+    } else {
+        info.numa_node =  g_trex.m_ports[port_id].m_dev_info.pci_dev->device.numa_node;
+        struct rte_pci_addr *loc = &g_trex.m_ports[port_id].m_dev_info.pci_dev->addr;
 
-    char pci_addr[50];
-    snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT, loc->domain, loc->bus, loc->devid, loc->function);
-    info.pci_addr = pci_addr;
-
+        char pci_addr[50];
+        snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT, loc->domain, loc->bus, loc->devid, loc->function);
+        info.pci_addr = pci_addr;
+    }
 }
 
 void

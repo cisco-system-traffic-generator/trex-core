@@ -645,6 +645,11 @@ Other network devices
                 if configured_hugepages != hugepages_count:
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
 
+    def is_all_vdev(self, if_list):
+        for iface in if_list:
+            if not iface.strip().startswith('--vdev'):
+                return False
+        return True
 
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
@@ -663,6 +668,11 @@ Other network devices
                 for dev in self.m_devices.values():
                     if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel:
                         if_list.append(dev['Slot'])
+
+        if self.is_all_vdev(if_list):
+            # TODO: check if TRex is running
+            # no need to config hugepages
+            return
 
         if_list = list(map(self.pci_name_to_full_name, if_list))
 

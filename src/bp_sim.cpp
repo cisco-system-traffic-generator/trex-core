@@ -2837,13 +2837,14 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
         flow_nodes = 1024; /* No need for many nodes, it handles in different ways */
     }
 
-
+    bool use_hugepages = CGlobalInfo::m_options.m_is_vdev ? false : true;
     m_node_pool = utl_rte_mempool_create_non_pkt(name,
                                                  flow_nodes,
                                                  sizeof(CGenNode),
                                                  128,
                                                  socket_id,
-                                                 false);
+                                                 false,
+                                                 use_hugepages);
 
      RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV); 
      if (tw_res != RC_HTW_OK){
