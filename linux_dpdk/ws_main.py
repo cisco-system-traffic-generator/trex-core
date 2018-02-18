@@ -16,6 +16,7 @@ import platform
 from waflib import Logs
 from waflib.Configure import conf
 from waflib import Build
+import sys
 
 from distutils.version import StrictVersion
 
@@ -613,6 +614,9 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  'drivers/net/vmxnet3/vmxnet3_rxtx.c',
 
+                 #af_packet
+                 'drivers/net/af_packet/rte_eth_af_packet.c',
+
                  #libs
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
@@ -636,7 +640,6 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
 dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
                  '../dpdk_funcs.c',
-                 #'drivers/net/af_packet/rte_eth_af_packet.c',
                  'drivers/bus/pci/pci_common.c',
                  'drivers/bus/pci/pci_common_uio.c',
                  'drivers/bus/pci/linux/pci.c',
@@ -918,6 +921,7 @@ dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/dpdk1711_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
+                        ../src/dpdk/drivers/net/af_packet/
                         ../src/dpdk/drivers/net/e1000/
                         ../src/dpdk/drivers/net/e1000/base/
                         ../src/dpdk/drivers/net/enic/
@@ -1295,8 +1299,18 @@ def post_build(bld):
         install_single_system(bld, exec_p, obj);
 
 
+def check_build_options(bld):
+    err_template = 'Should use %s flag at configuration stage, not in build.'
+    if bld.options.sanitized != bld.env.SANITIZED:
+        bld.fatal(err_template % 'sanitized')
+    if bld.options.gcc6 and bld.env.CC_VERSION[0] != '6':
+        bld.fatal(err_template % 'gcc6')
+    if bld.options.gcc7 and bld.env.CC_VERSION[0] != '7':
+        bld.fatal(err_template % 'gcc7')
+
 
 def build(bld):
+    check_build_options(bld)
     if bld.env.SANITIZED and bld.cmd == 'build':
         Logs.warn("\n******* building sanitized binaries *******\n")
 

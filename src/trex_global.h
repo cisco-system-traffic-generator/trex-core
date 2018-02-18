@@ -555,6 +555,7 @@ public:
         m_is_lowend           = false;
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
+        m_is_vdev             = false;
     }
 
     CParserOption(){
@@ -595,6 +596,7 @@ public:
     bool            m_is_lowend;
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
+    bool            m_is_vdev;
 
     
     std::string        cfg_file;
@@ -674,8 +676,6 @@ public:
     inline uint16_t get_tw_levels(void){
         return (m_tw_levels);
     }
-
-
 
     inline void set_rxcheck_const_ts(){
         m_run_flags |= RUN_FLAGS_RXCHECK_CONST_TS;
@@ -838,7 +838,7 @@ public:
     } queues_mode;
 
 
-    static void init_pools(uint32_t rx_buffers, uint32_t rx_pool);
+    static void init_pools(uint32_t rx_buffers, uint32_t rx_pool, bool is_hugepages = true);
     /* for simulation */
     static void free_pools();
 
