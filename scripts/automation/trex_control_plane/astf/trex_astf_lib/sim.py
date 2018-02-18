@@ -97,6 +97,9 @@ def execute_bp_sim(opts):
         valgrind = valgrind_str.split();
         exe = valgrind + exe
 
+    if opts.emul_debug:
+         exe += ["--astf-emul-debug"]
+
     if opts.pcap:
         exe += ["--pcap"]
 
@@ -175,6 +178,10 @@ def setParserOptions():
 
     parser.add_argument('--stat',
                         help="Print expected usage statistics on TRex server (memory, bps,...) if this file will be used.",
+                        action="store_true")
+
+    parser.add_argument('-e', '--emul-debug',
+                        help="emulation debug",
                         action="store_true")
 
     parser.add_argument('-v', '--verbose',

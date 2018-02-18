@@ -969,6 +969,7 @@ enum {
        OPT_ASTF_TUNABLE,
        OPT_NO_TERMIO,
        OPT_QUEUE_DROP,
+       OPT_ASTF_EMUL_DEBUG, 
        OPT_SLEEPY_SCHEDULER,
     
        /* no more pass this */
@@ -1048,6 +1049,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
+        { OPT_ASTF_EMUL_DEBUG,        "--astf-emul-debug",  SO_NONE},
         { OPT_STL_MODE,               "--stl",             SO_NONE},
         { OPT_ASTF_SERVR_ONLY,        "--astf-server-only",            SO_NONE},
         { OPT_ASTF_CLIENT_MASK,       "--astf-client-mask",SO_REQ_SEP},
@@ -1329,6 +1331,9 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
                 usage();
                 return -1;
 
+            case OPT_ASTF_EMUL_DEBUG:
+                po->preview.setEmulDebug(true);
+                break;
             /* astf */
             case OPT_TCP_MODE:
                 /* can be batch or non batch */

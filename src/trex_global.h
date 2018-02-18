@@ -411,6 +411,14 @@ public:
         return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
     }
 
+    void setEmulDebug(bool enable){
+        btSetMaskBit32(m_flags1, 21, 21, (enable ? 1 : 0) );
+    }
+
+    bool getEmulDebug() {
+        return (btGetMaskBit32(m_flags1, 21, 21) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
