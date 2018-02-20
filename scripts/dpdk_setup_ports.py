@@ -645,11 +645,50 @@ Other network devices
                 if configured_hugepages != hugepages_count:
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
 
-    def is_all_vdev(self, if_list):
+
+    # check vdev Linux interfaces status
+    # return True if interfaces are vdev
+    def check_vdev(self, if_list):
+        if not if_list:
+            return
+        af_names = []
+        ifname_re = re.compile('iface\s*=\s*([^\s,]+)')
+        found_vdev  = False
+        found_pdev  = False
         for iface in if_list:
-            if not iface.strip().startswith('--vdev'):
-                return False
-        return True
+            if '--vdev' in iface:
+                found_vdev = True
+                if 'net_af_packet' in iface:
+                    res = ifname_re.search(iface)
+                    if res:
+                        af_names.append(res.group(1))
+            elif ':' not in iface: # no PCI => assume af_packet
+                found_vdev = True
+                af_names.append(iface)
+            else:
+                found_pdev = True
+        if found_vdev:
+            if found_pdev:
+                raise DpdkSetup('You have mix of vdev and pdev interfaces in config file!')
+            for name in af_names:
+                if not os.path.exists('/sys/class/net/%s' % name):
+                    raise DpdkSetup('ERROR: Could not find Linux interface %s.' % name)
+                oper_state = '/sys/class/net/%s/operstate' % name
+                if os.path.exists(oper_state):
+                    with open(oper_state) as f:
+                        f_cont = f.read().strip()
+                    if f_cont in ('down', 'DOWN'):
+                        raise DpdkSetup('ERROR: Requested Linux interface %s is DOWN.' % name)
+            return found_vdev
+
+    def check_trex_running(self, if_list):
+        if if_list and map_driver.args.parent and self.m_cfg_dict[0].get('enable_zmq_pub', True):
+            publisher_port = self.m_cfg_dict[0].get('zmq_pub_port', 4500)
+            pid = dpdk_nic_bind.get_tcp_port_usage(publisher_port)
+            if pid:
+                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
+                print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                sys.exit(-1)
 
     def do_run (self,only_check_all_mlx=False):
         """ return the number of mellanox drivers"""
@@ -669,8 +708,8 @@ Other network devices
                     if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel:
                         if_list.append(dev['Slot'])
 
-        if self.is_all_vdev(if_list):
-            # TODO: check if TRex is running
+        if self.check_vdev(if_list):
+            self.check_trex_running(if_list)
             # no need to config hugepages
             return
 
@@ -722,14 +761,8 @@ Other network devices
             else:
                 sys.exit(0);
 
-        if if_list and map_driver.args.parent and self.m_cfg_dict[0].get('enable_zmq_pub', True):
-            publisher_port = self.m_cfg_dict[0].get('zmq_pub_port', 4500)
-            pid = dpdk_nic_bind.get_tcp_port_usage(publisher_port)
-            if pid:
-                cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
-                sys.exit(-1)
 
+        self.check_trex_running(if_list)
         self.config_hugepages() # should be after check of running TRex
 
         if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
