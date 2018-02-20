@@ -608,7 +608,7 @@ Other network devices
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
 
 
-    def config_hugepages(self):
+    def config_hugepages(self, wanted_count = None):
         huge_mnt_dir = '/mnt/huge'
         if not os.path.isdir(huge_mnt_dir):
             print("Creating huge node")
@@ -624,25 +624,26 @@ Other network devices
                 if socket_id == 0:
                     print('WARNING: hugepages config file (%s) does not exist!' % filename)
                 continue
-            if self.m_cfg_dict[0].get('low_end', False):
-                if socket_id == 0:
-                    if map_driver.parent_args and map_driver.parent_args.limit_ports:
-                        if_count = map_driver.parent_args.limit_ports
+            if wanted_count is None:
+                if self.m_cfg_dict[0].get('low_end', False):
+                    if socket_id == 0:
+                        if map_driver.parent_args and map_driver.parent_args.limit_ports:
+                            if_count = map_driver.parent_args.limit_ports
+                        else:
+                            if_count = self.m_cfg_dict[0].get('port_limit', len(self.m_cfg_dict[0]['interfaces']))
+                        wanted_count = 20 + 40 * if_count
                     else:
-                        if_count = self.m_cfg_dict[0].get('port_limit', len(self.m_cfg_dict[0]['interfaces']))
-                    hugepages_count = 20 + 40 * if_count
+                        wanted_count = 1 # otherwise, DPDK will not be able to see the device
                 else:
-                    hugepages_count = 1 # otherwise, DPDK will not be able to see the device
-            else:
-                hugepages_count = 2048
+                    wanted_count = 2048
             with open(filename) as f:
                 configured_hugepages = int(f.read())
-            if configured_hugepages != hugepages_count:
-                os.system('echo %d > %s' % (hugepages_count, filename))
+            if configured_hugepages < wanted_count:
+                os.system('echo %d > %s' % (wanted_count, filename))
                 time.sleep(0.1)
                 with open(filename) as f: # verify
                     configured_hugepages = int(f.read())
-                if configured_hugepages != hugepages_count:
+                if configured_hugepages < wanted_count:
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
 
 
@@ -1326,7 +1327,8 @@ def main ():
             ret = obj.do_run()
             print('The ports are bound/configured.')
             sys.exit(ret)
-        print('')
+        elif map_driver.parent_args.dump_interfaces:
+            obj.config_hugepages(1)
     except DpdkSetup as e:
         print(e)
         sys.exit(-1)
