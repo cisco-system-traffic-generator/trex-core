@@ -6331,6 +6331,9 @@ int update_global_info_from_platform_file(){
         CGlobalInfo::m_options.m_expected_portd = cg->m_if_list.size();
     }
 
+    if ( cg->m_if_list.size() > CGlobalInfo::m_options.m_expected_portd ) {
+        cg->m_if_list.resize(CGlobalInfo::m_options.m_expected_portd);
+    }
     if ( CGlobalInfo::m_options.m_expected_portd < 2 ){
         printf("ERROR need at least 2 ports \n");
         exit(-1);
