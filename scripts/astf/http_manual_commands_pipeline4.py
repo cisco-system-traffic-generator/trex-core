@@ -36,13 +36,13 @@ class Prof1():
         self.p1_dst_start_ip = '48.0.0.1'
         self.p1_dst_end_ip = '48.0.0.10'
 
-        self.http_req = (b'GET /0KB.bin HTTP/1.1\r\n'
+        self.http_req = ('GET /0KB.bin HTTP/1.1\r\n'
                           'Host: {host}\r\n'
                           'User-Agent: trex/astf\r\n'
                           'Accept: */*\r\n'
                           'Connection: keep-alive\r\n\r\n'
                           .format(host=self.p1_dst_start_ip))
-        self.http_res = (b'HTTP/1.1 200 OK\r\n'
+        self.http_res = ('HTTP/1.1 200 OK\r\n'
                           'Server: nginx/1.13.7\r\n'
                           'Date: Mon, 01 Jan 2018 00:00:00 GMT\r\n'
                           'Content-Type: application/octet-stream\r\n'
