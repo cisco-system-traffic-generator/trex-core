@@ -6410,8 +6410,13 @@ void update_memory_cfg() {
 void check_pdev_vdev() {
     bool found_vdev = false;
     bool found_pdev = false;
+    uint32_t dev_id = 1e6;
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
         if ( iface.find("--vdev") != std::string::npos ) {
+            found_vdev = true;
+        } else if (iface.find(":") == std::string::npos) { // not PCI, assume af-packet
+            iface = "--vdev=net_af_packet" + std::to_string(dev_id) + ",iface=" + iface;
+            dev_id++;
             found_vdev = true;
         } else {
             found_pdev = true;
@@ -6823,6 +6828,10 @@ int main_test(int argc , char * argv[]){
     }
     set_driver();
     if (CGlobalInfo::m_options.m_op_mode == CParserOption::OP_MODE_DUMP_INTERFACES) {
+        if ( CGlobalInfo::m_options.m_is_vdev ) {
+            printf("ERROR: dump interfaces is not supported in case of --vdev\n");
+            exit(1);
+        }
         dump_interfaces_info();
         exit(0);
     }
