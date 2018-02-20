@@ -6688,12 +6688,15 @@ void dump_interfaces_info() {
     for (uint8_t port_id=0; port_id<m_max_ports; port_id++) {
         // PCI, MAC and Driver
         rte_eth_dev_info_get(port_id, &dev_info);
-        pci_addr = &(dev_info.pci_dev->addr);
         rte_eth_macaddr_get(port_id, &mac_addr);
         ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
-        printf("PCI: %04x:%02x:%02x.%d - MAC: %s - Driver: %s\n",
-            pci_addr->domain, pci_addr->bus, pci_addr->devid, pci_addr->function, mac_str,
-            dev_info.driver_name); 
+        if ( dev_info.pci_dev ) {
+            pci_addr = &(dev_info.pci_dev->addr);
+            printf("PCI: %04x:%02x:%02x.%d", pci_addr->domain, pci_addr->bus, pci_addr->devid, pci_addr->function);
+        } else {
+            printf("PCI: N/A");
+        }
+        printf(" - MAC: %s - Driver: %s\n", mac_str, dev_info.driver_name);
     }
 }
 
@@ -6829,15 +6832,11 @@ int main_test(int argc , char * argv[]){
         printf(" You might need to run ./trex-cfg  once  \n");
         rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
     }
-    set_driver();
     if (CGlobalInfo::m_options.m_op_mode == CParserOption::OP_MODE_DUMP_INTERFACES) {
-        if ( CGlobalInfo::m_options.m_is_vdev ) {
-            printf("ERROR: dump interfaces is not supported in case of --vdev\n");
-            exit(1);
-        }
         dump_interfaces_info();
         exit(0);
     }
+    set_driver();
     if ( !CGlobalInfo::m_options.m_is_vdev ) {
         reorder_dpdk_ports();
     }
