@@ -1301,7 +1301,7 @@ def post_build(bld):
 
 def check_build_options(bld):
     err_template = 'Should use %s flag at configuration stage, not in build.'
-    if bld.options.sanitized != bld.env.SANITIZED:
+    if bld.options.sanitized and not bld.env.SANITIZED:
         bld.fatal(err_template % 'sanitized')
     if bld.options.gcc6 and bld.env.CC_VERSION[0] != '6':
         bld.fatal(err_template % 'gcc6')
