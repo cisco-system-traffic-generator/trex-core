@@ -1329,6 +1329,7 @@ def main ():
             sys.exit(ret)
         elif map_driver.parent_args.dump_interfaces:
             obj.config_hugepages(1)
+        print('')
     except DpdkSetup as e:
         print(e)
         sys.exit(-1)
