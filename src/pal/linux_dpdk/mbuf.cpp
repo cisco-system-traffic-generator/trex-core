@@ -30,7 +30,7 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                        bool is_hugepages){
     char buffer[100];
     sprintf(buffer,"%s-%d",name,socket_id);
-    unsigned flags = is_hugepages ? 0 : (MEMPOOL_F_NO_PHYS_CONTIG | MEMPOOL_F_NO_CACHE_ALIGN);
+    unsigned flags = is_hugepages ? 0 : MEMPOOL_F_NO_PHYS_CONTIG;
     //printf("Creating pool: %s, count: %u, size: %u, flags: %u\n", name, n, elt_size, flags);
 
     rte_mempool_t *  res=
@@ -67,7 +67,7 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
     }
 
     if (!is_hugepages) {
-        flags |= (MEMPOOL_F_NO_PHYS_CONTIG | MEMPOOL_F_NO_CACHE_ALIGN);
+        flags |= MEMPOOL_F_NO_PHYS_CONTIG;
     }
 
     //printf("Creating non-pkt-pool: %s, count: %u, size: %u, flags: %u\n", name, n, elt_size, flags);
