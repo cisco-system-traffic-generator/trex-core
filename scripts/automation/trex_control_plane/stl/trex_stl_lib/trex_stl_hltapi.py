@@ -20,6 +20,24 @@ cleanup_session_kwargs = {
     'port_handle': None,
 }
 
+interface_config_kwargs = {
+    'mode': None,          # ( config | destroy | modify )
+    'port_handle': [],
+
+    'arp': True,
+    'arp_send_req': False,
+    'arp_req_retries': 1,
+
+    'gateway': [],
+    'intf_ip_addr': [],
+    'dst_mac_addr': [],
+
+    'vlan': [],
+    'vlan_id': [],
+    'vlan_id_list': [],
+    'vlan_id_inner': [],
+}
+
 traffic_config_kwargs = {
     'mode': None,                           # ( create | modify | remove | reset )
     'split_by_cores': 'split',              # ( split | duplicate | single ) TRex extention: split = split traffic by cores, duplicate = duplicate traffic for all cores, single = run only with sinle core (not implemented yet)
@@ -210,6 +228,20 @@ def merge_kwargs(default_kwargs, user_kwargs):
             print("Warning: provided parameter '%s' is not supported" % key)
     return kwargs
 
+# change MAC from formats 01-23-45-67-89-10 or 0123.4567.8910 or {01 23 45 67 89 10} to Scapy format 01:23:45:67:89:10
+def correct_mac(mac):
+    if type(mac) is not str: raise STLError('Argument %s should be str' % mac)
+    updated_mac = mac.replace('{', '').replace('}', '').strip().replace('-', ' ').replace(':', ' ').replace('.',
+                                                                                                                ' ')
+    if updated_mac[4] == ' ' and updated_mac[9] == ' ':
+        updated_mac = ' '.join([updated_mac[0:2], updated_mac[2:7], updated_mac[7:12], updated_mac[12:14]])
+    updated_mac = ':'.join(updated_mac.split())
+    try:
+        mac2str(updated_mac)  # verify we are ok
+        return updated_mac
+    except:
+        return None
+
 # change MACs from formats 01-23-45-67-89-10 or 0123.4567.8910 or {01 23 45 67 89 10} to Scapy format 01:23:45:67:89:10
 def correct_macs(kwargs):
     list_of_mac_args = ['mac_src', 'mac_dst', 'mac_src2', 'mac_dst2']
@@ -219,15 +251,11 @@ def correct_macs(kwargs):
             mac_value = kwargs[mac_arg]
             if is_integer(mac_value) and mac_arg in list_of_mac_steps: # step can be number
                 continue
-            if type(mac_value) is not str: raise STLError('Argument %s should be str' % mac_arg)
-            mac_value = mac_value.replace('{', '').replace('}', '').strip().replace('-', ' ').replace(':', ' ').replace('.', ' ')
-            if mac_value[4] == ' ' and mac_value[9] == ' ':
-                mac_value = ' '.join([mac_value[0:2], mac_value[2:7], mac_value[7:12], mac_value[12:14]])
-            mac_value = ':'.join(mac_value.split())
-            try:
-                mac2str(mac_value)                                # verify we are ok
-                kwargs[mac_arg] = mac_value
-            except:
+
+            corrected_mac = correct_mac(mac_value)
+            if corrected_mac is not None:
+                kwargs[mac_arg] = corrected_mac
+            else:
                 raise STLError('Incorrect MAC %s=%s, please use 01:23:45:67:89:10 or 01-23-45-67-89-10 or 0123.4567.8910 or {01 23 45 67 89 10}' % (mac_arg, kwargs[mac_arg]))
 
 def is_true(input):
@@ -433,15 +461,87 @@ class CTRexHltApi(object):
         self.trex_client = None
         return HLT_OK()
 
-    def interface_config(self, port_handle, mode='config'):
+    def interface_config(self, **user_kwargs):
         if not self.trex_client:
             return HLT_ERR('Connect first')
-        ALLOWED_MODES = ['config', 'modify', 'destroy']
-        if mode not in ALLOWED_MODES:
-            return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
-        # pass this function for now...
-        return HLT_ERR('interface_config not implemented yet')
 
+        kwargs = merge_kwargs(interface_config_kwargs, user_kwargs)
+
+        modes = self._parse_string_list(kwargs['mode'])
+        ALLOWED_MODES = ['config']
+
+        for mode in modes:
+            if mode not in ALLOWED_MODES:
+                return HLT_ERR('Mode must be one of the following values: %s' % ALLOWED_MODES)
+
+        if not kwargs['port_handle']:
+            return HLT_ERR('Invalid port_handle parameter')
+
+        kwargs['port_handle'] = self._parse_port_list(kwargs['port_handle'])
+        kwargs['intf_ip_addr'] = self._parse_string_list(kwargs['intf_ip_addr'])
+        kwargs['gateway'] = self._parse_string_list(kwargs['gateway'])
+
+        try:
+            kwargs['dst_mac_addr'] = list(map(correct_mac, self._parse_mac_list(kwargs['dst_mac_addr'])))
+            if None in kwargs['dst_mac_addr']:
+                return HLT_ERR('dst_mac_addr contains incorrect mac')
+        except:
+            return HLT_ERR('dst_mac_addr contains incorrect mac')
+
+        kwargs['vlan'] = self._parse_string_list(kwargs['vlan'], is_true)
+        kwargs['vlan_id'] = self._parse_string_list(kwargs['vlan_id'], lambda x: int(x))
+        kwargs['vlan_id_list'] = self._parse_string_list(kwargs['vlan_id_list'], lambda x: int(x))
+        kwargs['vlan_id_inner'] = self._parse_string_list(kwargs['vlan_id_inner'], lambda x: int(x))
+
+        try:
+            self.trex_client.set_service_mode(kwargs['port_handle'], True)
+        except Exception as e:
+            return HLT_ERR('Error enabling service mode: %s' % e)
+
+        try:
+            for i, port_id in enumerate(kwargs['port_handle']):
+                port = self.trex_client.get_port(port_id)
+                if kwargs['vlan'] and kwargs['vlan'][i]:
+                    vlan_id = (kwargs['vlan_id_list'] and kwargs['vlan_id_list'][i]) or kwargs['vlan_id'][i]
+                    vlan_id = [vlan_id, kwargs['vlan_id_inner'][i]] if kwargs['vlan_id_inner'] else vlan_id
+
+                    self.trex_client.set_vlan([port_id], vlan_id)
+
+                if kwargs['dst_mac_addr']:
+                    port.set_l2_mode(kwargs['dst_mac_addr'][i])
+                if kwargs['intf_ip_addr'] or kwargs['gateway']:
+                    config = port.get_layer_cfg()
+                    src = (kwargs['intf_ip_addr'] and kwargs['intf_ip_addr'][i]) or config['ipv4']['src']
+                    dst = (kwargs['gateway'] and kwargs['gateway'][i]) or config['ipv4']['dst']
+
+                    port.set_l3_mode(src, dst)
+
+            if (is_true(kwargs['arp']) and is_true(kwargs['arp_send_req'])):
+                for i, port_id in enumerate(kwargs['port_handle']):
+                    vlan_id = None
+
+                    if kwargs['vlan'] and is_true(kwargs['vlan'][i]):
+                        vlan_id = (kwargs['vlan_id_list'] and kwargs['vlan_id_list'][i]) or kwargs['vlan_id'][i]
+                        vlan_id = [vlan_id, kwargs['vlan_id_inner'][i]] if kwargs['vlan_id_inner'] else vlan_id
+
+                    self.trex_client.resolve(ports=[port_id],
+                                             retries=kwargs['arp_req_retries'],
+                                             vlan=vlan_id)
+
+            config = {'layer_config': {}, 'vlan_config': {}}
+            for port_id in kwargs['port_handle']:
+                port = self.trex_client.get_port(port_id)
+                config['layer_config'][port_id] = port.get_layer_cfg()
+                config['vlan_config'][port_id] = port.get_vlan_cfg()
+
+            return HLT_OK(config=config)
+        except Exception as e:
+            return HLT_ERR(str(e))
+        finally:
+            try:
+                self.trex_client.set_service_mode(ports=kwargs['port_handle'], enabled=False)
+            except:
+                pass # Errors are not critical on finalizing step
 
 ###########################
 #    Traffic functions    #
@@ -795,6 +895,22 @@ class CTRexHltApi(object):
         elif is_integer(port_list):
             return [int(port_list)]
         raise STLError('port_list should be string with ports, list, or single number')
+
+    @staticmethod
+    def _parse_string_list(strs, modifier=lambda x: x):
+        if type(strs) is list:
+            return list(map(modifier, strs))
+        if type(strs) is str:
+            return list(map(modifier, strs.replace('{', '').replace('}', '').strip().split()))
+
+        return strs
+
+    @staticmethod
+    def _parse_mac_list(mac_list):
+        if type(mac_list) is str:
+            return re.findall('\{[ \w]+\}', mac_list) or mac_list.split()
+
+        return mac_list
 
 def STLHltStream(**user_kwargs):
     kwargs = merge_kwargs(traffic_config_kwargs, user_kwargs)
