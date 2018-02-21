@@ -426,7 +426,6 @@ public:
     CTRexExtendedDriverAfPacket(){
         CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
         m_cap = 0;
-        //m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverAfPacket() );
@@ -8544,14 +8543,6 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
 
 void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
-    //cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH_1G;
-    //cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
-    //cfg->m_tx_conf.tx_thresh.wthresh = 0;
-    // must have this, otherwise the driver fail at init
-    //cfg->m_tx_conf.txq_flags |= ETH_TXQ_FLAGS_NOXSUMSCTP;
-    //if ( get_is_tcp_mode() ) {
-    //   cfg->m_port_conf.rxmode.enable_lro = 1;
-    //}
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
 }
 
