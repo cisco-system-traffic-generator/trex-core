@@ -6509,7 +6509,7 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-    if ( !CGlobalInfo::m_options.m_is_vdev && lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES ){
+    if ( !CGlobalInfo::m_options.m_is_vdev && (lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES) ){
         std::string err;
         if ( port_map.set_cfg_input(global_platform_cfg_info.m_if_list,err)!= 0){
             printf("%s \n",err.c_str());
