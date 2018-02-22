@@ -13,6 +13,13 @@ class STLRX_Test(CStlGeneral_Test):
 
     def setUp(self):
         per_driver_params = {
+            'net_af_packet': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
             'net_vmxnet3': {
                 'rate_percent': 1,
                 'total_pkts': 50,
