@@ -29,8 +29,30 @@ endif::backend-docbook[]
 
 == Release 2.37 ==
 
-* Added "low_end" flag for weak platforms. Can run on machine with 1 core and ~500MB RAM. More info in link:trex_manual.html#_low_end_machines[manual]
-* Option to work with Linux interfaces (raw socket mode). More info in link:trex_manual.html#_linux_interfaces[manual]
+* Low footprint support. Resource require with this mode 1 thread and ~500MB RAM. More info in link:trex_manual.html#_low_end_machines[manual]
+* Option to work with Linux interfaces (raw socket mode,--vdev/af_packet). More info in link:trex_manual.html#_linux_interfaces[manual]
+
+Example
+[source,bash]
+----
+ - port_limit    : 2
+   version       : 2
+   low_end       : true                 #<1>
+   interfaces    : ["veth0", "veth1"]   #<2>
+   port_info     :  # set eh mac addr
+                 - ip         : 1.1.1.1
+                   default_gw : 2.2.2.2
+                 - ip         : 2.2.2.2
+                   default_gw : 1.1.1.1
+----
+<1> low footprint
+<2> Linux interfaces 
+
+
+* Above options introduced for supporting Cisco VIRL and Cisco IOx.
+* Docker hub image for simple tutorials using veth/low footprint link:trex_vm_manual[Docker]
+* ARM build support (works with virio for now)
+* ASTF, simulator can have `-e` option to debug the emulation layer 
 
 == Release 2.36 ==
 
