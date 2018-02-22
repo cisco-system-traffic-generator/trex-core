@@ -18,6 +18,137 @@ TRex traffic generator is a tool designed to benchmark platforms using realistic
 
 One of the tools through which TRex can be learned and tested is a virtual machine instance, fully simulating TRex without the need for any additional hardware.
 
+==== TRex inside Docker (from v2.37 and up)
+
+With a few commands you can run TRex inside docker with low performance/low footprint.
+You will need to have docker installed on your system with privileges. We are using in this example RedHat 7.4 
+
+Docker hub is located link:https://hub.docker.com/u/trexcisco/[docker hub] 
+
+.Pull the trex image
+[source,bash]
+----
+[bash]>docker pull trexcisco/trex:2.36                                     #<1>
+[bash]>docker run --rm -it --privileged --cap-add=ALL trexcisco/trex:2.36  #<2>
+[bash]root@d8ec7a3a09d9 v2.36]./t-rex-64 -i                                #<3>     
+----
+<1> Pull the trex image could be with higher version
+<2> Get into the docker shell
+<3> Run TRex in Stateless mode
+
+From *another* terminal 
+
+.Run Stateless Console
+[source,bash]
+----
+[bash]>docker ps
+CONTAINER ID        IMAGE                 COMMAND             
+*d4f956743f62*      trexcisco/trex:2.36   "/bin/bash"     #<1>
+
+[bash]>docker exec -it d4f956743f62 bash                   #<2> 
+[bash]root@d4f956743f62 v2.36]./trex-console               #<3> 
+----
+<1> Pull the trex image could be with higher version
+<2> Insert to the docker container (take the CONTAINER ID from $1)
+<3> Run stateless Console 
+
+
+.From TRex Console
+[source,bash]
+----
+[root@d8ec7a3a09d9 v2.36]./trex-console 
+
+Using 'python' as Python interpeter
+
+
+Connecting to RPC server on localhost:4501                   [SUCCESS]
+
+
+Connecting to publisher server on localhost:4500             [SUCCESS]
+
+
+Acquiring ports [0, 1]:                                      [SUCCESS]
+
+
+Server Info:
+
+Server version:   v2.36 @ STL
+Server mode:      Stateless
+Server CPU:       1 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+Ports count:      2 x 10Gbps @ Unknown
+
+ -=TRex Console v2.0=-
+
+Type 'help' or '?' for supported actions
+
+trex>start -f stl/imix.py -m 10kpps --port 0           #<1>
+
+trex>tui                                               #<2>
+
+  Global Statistics
+
+  connection   : localhost, Port 4501                  total_tx_L2  : 28.90 Mb/sec                   
+  version      : v2.36                                 total_tx_L1  : 30.50 Mb/sec                   
+  cpu_util.    : 1.35% @ 1 cores (1 per port)          total_rx     : 28.90 Mb/sec                   
+  rx_cpu_util. : 0.0% / 9.99 Kpkt/sec                  total_pps    : 9.99 Kpkt/sec                  
+  async_util.  : 0.41% / 1.28 KB/sec                   drop_rate    : 0.00 b/sec                     
+                                                       queue_full   : 0 pkts                         
+
+  Port Statistics
+
+   port    |         0         |         1         |       total       
+ ----------------------------------------------------------------------
+ owner      |              root |              root |                   
+ link       |                UP |                UP |                   
+ state      |      TRANSMITTING |              IDLE |                   
+ speed      |           10 Gb/s |           10 Gb/s |                   
+ CPU util.  |             1.35% |              0.0% |                   
+ --         |                   |                   |                   
+ Tx bps L2  |        28.90 Mbps |          0.00 bps |        28.90 Mbps 
+ Tx bps L1  |        30.50 Mbps |             0 bps |        30.50 Mbps 
+ Tx pps     |         9.99 Kpps |          0.00 pps |         9.99 Kpps 
+ Line Util. |            0.31 % |            0.00 % |                   
+ ---        |                   |                   |                   
+ Rx bps     |          0.00 bps |        28.90 Mbps |        28.90 Mbps 
+ Rx pps     |          0.00 pps |         9.99 Kpps |         9.99 Kpps 
+ ----       |                   |                   |                   
+ opackets   |            189282 |                 0 |            189282 
+ ipackets   |                 0 |            189282 |            189282 
+ obytes     |          68489264 |                 0 |          68489264 
+ ibytes     |                 0 |          68489264 |          68489264 
+ opackets   |      189.28 Kpkts |            0 pkts |      189.28 Kpkts 
+ ipackets   |            0 pkts |      189.28 Kpkts |      189.28 Kpkts 
+ obytes     |          68.49 MB |               0 B |          68.49 MB 
+ ibytes     |               0 B |          68.49 MB |          68.49 MB 
+ -----      |                   |                   |                   
+ oerrors    |                 0 |                 0 |                 0 
+ ierrors    |                 0 |                 0 |                 0 
+
+ status:  \
+ 
+ Press 'ESC' for navigation
+------
+<1> Start traffic on port 0 (imix profile)
+<2> Show the stats
+
+.TRex configuration file  /etc/trex_cfg.yaml
+[source,bash]
+----
+ - port_limit    : 2
+   version       : 2
+   low_end       : true                 #<1>
+   interfaces    : ["veth0", "veth1"]   #<2>
+   port_info     :  # set eh mac addr
+                 - ip         : 1.1.1.1
+                   default_gw : 2.2.2.2
+                 - ip         : 2.2.2.2
+                   default_gw : 1.1.1.1
+----
+<1> low-footprint mode ( require less resource), use one thread
+<2> use veth0/veth1 as DP ports conntect to an internal switch
+
+[NOTE] You will need to redirect the folowing  ports 4500/4501/4507 to use the external GUI
+
 
 ==== TRex Virtual Machine
 
