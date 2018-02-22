@@ -642,6 +642,43 @@ Line Util. |           30.57 % |           30.57 % |
  0.0  `- Trex ZMQ sync
 ----
 
+=== Linux interfaces
+
+Another interesting low-end use case is using native Linux interfaces. +
+(Starting from version 2.37)
+
+Pros:
+
+* Any NIC type (supported by Linux) can be used, particularly, virtual interfaces without PCI address.
+* Does not require hugepages.
+* Can capture the traffic in Linux (Wireshark / tcpdump etc.).
+* Startup is very fast (NICs are not initialized)
+* Does not require special Kernel module (igb_uio.ko etc.)
+
+Cons:
+
+* Single TX/RX core, particularly the rate will be limited to ~1Mpps.
+* Demands more CPU utilization.
+* Slows down the Linux overall.
+
+Platform config file example:
+[source,bash]
+----
+  - port_limit: 2
+    version: 2
+    interfaces: ['eth2', 'eth3']
+...
+----
+
+Under the hood it's being replaced with following (this full syntax can also be used, possibly containing another DPDK arguments):
+[source,bash]
+----
+  - port_limit: 2
+    version: 2
+    interfaces: ['--vdev=net_af_packet0,iface=eth2', '--vdev=net_af_packet1,iface=eth3']
+...
+----
+
 
 === Configuring for running with router (or other L3 device) as DUT
 

@@ -27,6 +27,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.37 ==
+
+* Added "low_end" flag for weak platforms. Can run on machine with 1 core and ~500MB RAM. More info in link:trex_manual.html#_low_end_machines[manual]
+* Option to work with Linux interfaces (raw socket mode). More info in link:trex_manual.html#_linux_interfaces[manual]
 
 == Release 2.36 ==
 
