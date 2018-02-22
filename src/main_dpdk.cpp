@@ -6330,9 +6330,6 @@ int update_global_info_from_platform_file(){
         CGlobalInfo::m_options.m_expected_portd = cg->m_if_list.size();
     }
 
-    if ( cg->m_if_list.size() > CGlobalInfo::m_options.m_expected_portd ) {
-        cg->m_if_list.resize(CGlobalInfo::m_options.m_expected_portd);
-    }
     if ( CGlobalInfo::m_options.m_expected_portd < 2 ){
         printf("ERROR need at least 2 ports \n");
         exit(-1);
@@ -6496,6 +6493,11 @@ int  update_dpdk_args(void){
 
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     CParserOption * lpop= &CGlobalInfo::m_options;
+    CPlatformYamlInfo *cg=&global_platform_cfg_info;
+
+    if ( cg->m_if_list.size() > CGlobalInfo::m_options.m_expected_portd ) {
+        cg->m_if_list.resize(CGlobalInfo::m_options.m_expected_portd);
+    }
 
     lpsock->set_rx_thread_is_enabled(get_is_rx_thread_enabled());
     lpsock->set_number_of_threads_per_ports(lpop->preview.getCores() );
@@ -6511,7 +6513,7 @@ int  update_dpdk_args(void){
 
     if ( !CGlobalInfo::m_options.m_is_vdev && (lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES) ){
         std::string err;
-        if ( port_map.set_cfg_input(global_platform_cfg_info.m_if_list,err)!= 0){
+        if ( port_map.set_cfg_input(cg->m_if_list,err)!= 0){
             printf("%s \n",err.c_str());
             return(-1);
         }
@@ -6583,17 +6585,17 @@ int  update_dpdk_args(void){
         }
 
     } else if ( CGlobalInfo::m_options.m_is_vdev ) {
-        for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
+        for ( std::string &iface : cg->m_if_list ) {
             SET_ARGS(iface.c_str());
         }
         SET_ARGS("--no-pci");
         SET_ARGS("--no-huge");
         std::string mem_str;
         SET_ARGS("-m");
-        if ( global_platform_cfg_info.m_limit_memory.size() ) {
-            mem_str = global_platform_cfg_info.m_limit_memory;
+        if ( cg->m_limit_memory.size() ) {
+            mem_str = cg->m_limit_memory;
         } else if ( CGlobalInfo::m_options.m_is_lowend ) {
-            mem_str = std::to_string(50 + 100 * global_platform_cfg_info.m_if_list.size());
+            mem_str = std::to_string(50 + 100 * cg->m_if_list.size());
         } else {
             mem_str = "1024";
         }
@@ -6616,8 +6618,8 @@ int  update_dpdk_args(void){
 
         SET_ARGS("--socket-mem");
         char *mem_str;
-        if (global_platform_cfg_info.m_limit_memory.length()) {
-            mem_str = (char *)global_platform_cfg_info.m_limit_memory.c_str();
+        if (cg->m_limit_memory.length()) {
+            mem_str = (char *)cg->m_limit_memory.c_str();
         }else{
             mem_str = (char *)"1024";
         }
