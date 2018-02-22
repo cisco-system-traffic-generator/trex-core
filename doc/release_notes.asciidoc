@@ -50,7 +50,7 @@ Example
 
 
 * Above options introduced for supporting Cisco VIRL and Cisco IOx.
-* Docker hub image for simple tutorials using veth/low footprint link:trex_vm_manual[Docker]
+* Docker hub image for simple tutorials using veth/low footprint link:trex_vm_manual.html[Docker]
 * ARM build support (works with virio for now)
 * ASTF, simulator can have `-e` option to debug the emulation layer 
 
