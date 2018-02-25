@@ -74,7 +74,11 @@ This guide explains the use of TRex internals and the use of TRex together with 
 === Hardware recommendations
 
 TRex operates in a Linux application environment, interacting with Linux kernel modules.
-TRex curretly works on x86 architecture and can operate well on Cisco UCS hardware. The following platforms have been tested and are recommended for operating TRex.
+TRex curretly works and tested on x86 architecture (it can be compiled to ARM but not tested in our regression) and can operate well on Cisco UCS hardware for high performance low latency use cases. 
+The following platforms have been tested and are recommended for operating TRex.
+
+Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces). 
+Docker example is provided link:trex_vm_manual.html#docker[Docker] for more info see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 
 [NOTE]
 =====================================
@@ -131,6 +135,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 [options="header",cols="1,1,1,1,4",width="90%"]
 |=================
 | Chipset              | Bandwidth  (Gb/sec)  | TSO |LRO  | Example
+| Any Kernel Linux interface |x| x | x | veth,tap,tun,eth0,wireless interface, up to ~1MPPS, one thread. see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
 | Intel 82599          | 10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter
 | Intel 82599 VF       | x   | + | + |
@@ -589,6 +594,9 @@ image:images/passthrough_marking.png[title="passthrough_marking"]
 image:images/passthrough_adding.png[title="passthrough_adding"]
 
 === Low-end machines
+
+anchor:low_end[]
+
 Starting from version 2.37, was added feature to run TRex on low-end machines like weak laptops.
 
 To enable this mode, define low_end argument in platform config file:
@@ -643,6 +651,8 @@ Line Util. |           30.57 % |           30.57 % |
 ----
 
 === Linux interfaces
+
+anchor:linux_interfaces[]
 
 Another interesting low-end use case is using native Linux interfaces. +
 (Starting from version 2.37)
