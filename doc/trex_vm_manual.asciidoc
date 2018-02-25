@@ -16,9 +16,11 @@ include::trex_ga.asciidoc[]
 
 TRex traffic generator is a tool designed to benchmark platforms using realistic traffic.
 
-One of the tools through which TRex can be learned and tested is a virtual machine instance, fully simulating TRex without the need for any additional hardware.
+One of the tools through which TRex can be learned and tested is a virtual machine instance or Docker, fully simulating TRex without the need for any additional hardware.
 
-==== TRex inside Docker (from v2.37 and up)
+== TRex inside Docker (from v2.37 and up)
+
+anchor:docker[]
 
 With a few commands you can run TRex inside docker with low performance/low footprint.
 You will need to have docker installed on your system with privileges. We are using in this example RedHat 7.4 
@@ -150,16 +152,14 @@ trex>tui                                               #<2>
 [NOTE] You will need to redirect the folowing  ports 4500/4501/4507 to use the external GUI
 
 
-==== TRex Virtual Machine
+== TRex inside Virtual Box 
 
 The TRex Virtual Machine is based on Oracle's Virtual Box freeware.
-
 It is designed to enable TRex newbies to explore this tool without any special resources.
 
+=== Setup and Usage
 
-== Setup and Usage
-
-=== Setup
+==== Setup
 
 In order to use TRex VM, there are several easy steps to follow:
 
@@ -187,7 +187,7 @@ endif::backend-xhtml11[]
   **That's it! you're all good and set to go!**
 
 
-=== Launching and logging into the machine
+==== Launching and logging into the machine
 
 First, launch the virtual machine by selecting it in the VM's menu and hitting 'Start' button.
 
@@ -237,7 +237,7 @@ endif::backend-xhtml11[]
 TIP: Remote connection to the machine from anywhere in the hosting machine can be set up using the following command: +
  `ssh -p 3022 trex@127.0.0.1`
 
-=== Running TRex traffic generator
+==== Running TRex traffic generator
 
 
   1. *upgrade* to the latest trex package see link:trex_manual.html#_obtaining_the_trex_package[how to upgrade]
@@ -373,11 +373,11 @@ zmq publisher at: tcp://*:4500
 [NOTE]
 See http://trex-tgn.cisco.com/trex/doc/trex_book.pdf[TRex full manual] for a complete understading of the tool features and options.
 
-=== Updating TRex
+==== Updating TRex
 
 See http://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
 
-=== TRex Live monitoring
+==== TRex Live monitoring
 
 Once we have TRex up and running, we can monitor its performance using TRexViewer application (Supported only on Windows OS).
 
@@ -415,7 +415,7 @@ endif::backend-xhtml11[]
 [NOTE]
 Make sure TRex is running, otherwise data will not be available at TRexViewer.
 
-=== Architecture and network design
+==== Architecture and network design
 
 Since no hardware is used, TRex simulates traffic using a virtual internal network, named 'trex_intnet'.
 
