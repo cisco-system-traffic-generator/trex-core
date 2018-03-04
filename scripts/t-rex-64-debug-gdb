@@ -23,6 +23,9 @@ if [ $RESULT -eq 32 ]; then
   EXTRA_INPUT_ARGS="--mlx5-so"
 fi
 
+if [ $RESULT -eq 64 ]; then
+  EXTRA_INPUT_ARGS="--ntacc-so"
+fi
 
 /usr/bin/gdb --args ./_t-rex-64-debug $@ $EXTRA_INPUT_ARGS
 
