@@ -430,6 +430,10 @@ public:
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverAfPacket() );
     }
+    virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
+        CTRexExtendedDriverVirtBase::get_dpdk_drv_params(p);
+        p.rx_mbuf_type = MBUF_9k;
+    }
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
 };
@@ -6413,8 +6417,19 @@ void check_pdev_vdev() {
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
         if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
-        } else if (iface.find(":") == std::string::npos) { // not PCI, assume af-packet
+        } else if ( iface.find(":") == std::string::npos ) { // not PCI, assume af-packet
             iface = "--vdev=net_af_packet" + std::to_string(dev_id) + ",iface=" + iface;
+            if ( getpagesize() == 4096 ) {
+                // block size should be multiplication of PAGE_SIZE
+                // frame size should be Jumbo packet size
+                iface += ",blocksz=36864,framesz=9216,framecnt=128";
+            } else {
+                printf("WARNING:\n");
+                printf("    Could not automatically set AF_PACKET arguments: blocksz, framesz, framecnt.\n");
+                printf("    Will not be able to send Jumbo packets.\n");
+                printf("    See link below for more details (section \"Other constraints\")\n");
+                printf("    https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt\n");
+            }
             dev_id++;
             found_vdev = true;
         } else {
