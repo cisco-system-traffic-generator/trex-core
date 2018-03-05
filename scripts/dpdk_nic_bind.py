@@ -228,11 +228,15 @@ def has_driver(dev_id):
     '''return true if a device is assigned to a driver. False otherwise'''
     return "Driver_str" in devices[dev_id]
 
+def has_modules():
+    modules_dir = '/lib/modules'
+    return os.path.isdir(modules_dir) and os.listdir(modules_dir)
+
 def get_pci_device_details(dev_id):
     '''This function gets additional details for a PCI device'''
     device = {}
-
-    extra_info = check_output(["lspci", "-vmmks", dev_id], universal_newlines = True).splitlines()
+    lspci_args = '-vmmks' if has_modules() else '-vmms'
+    extra_info = check_output(["lspci", lspci_args, dev_id], universal_newlines = True).splitlines()
 
     # parse lspci details
     for line in extra_info:

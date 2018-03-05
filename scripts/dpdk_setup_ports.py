@@ -647,6 +647,18 @@ Other network devices
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
 
 
+    def run_scapy_server(self):
+        if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
+            try:
+                master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
+            except:
+                master_core = 0
+            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
+            if ret:
+                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
+                sys.exit(-1)
+
+
     # check vdev Linux interfaces status
     # return True if interfaces are vdev
     def check_vdev(self, if_list):
@@ -711,6 +723,7 @@ Other network devices
 
         if self.check_vdev(if_list):
             self.check_trex_running(if_list)
+            self.run_scapy_server()
             # no need to config hugepages
             return
 
@@ -765,17 +778,7 @@ Other network devices
 
         self.check_trex_running(if_list)
         self.config_hugepages() # should be after check of running TRex
-
-        if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
-            try:
-                master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
-            except:
-                master_core = 0
-            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
-            if ret:
-                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
-                sys.exit(-1)
-
+        self.run_scapy_server()
 
         Napatech_cnt=0;
         to_bind_list = []
