@@ -199,17 +199,18 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
                 stats = self.c.get_stats()
 
-                assert self.tx_port in stats
-                assert self.rx_port in stats
+                assert self.tx_port in stats, 'tx port not in stats'
+                assert self.rx_port in stats, 'rx port not in stats'
 
                 # cont. with duration should be quite percise - 5% error is relaxed enough
-
-                assert get_error_in_percentage(golden, stats[self.tx_port]['opackets']) < 0.05
-                assert get_error_in_percentage(golden, stats[self.rx_port]['ipackets']) < 0.05
-
-                assert get_error_in_percentage(golden, stats[self.rx_port]['opackets']) < 0.05
-                assert get_error_in_percentage(golden, stats[self.tx_port]['ipackets']) < 0.05
-
+                check_params = (
+                    stats[self.tx_port]['opackets'],
+                    stats[self.rx_port]['opackets'],
+                    stats[self.tx_port]['ipackets'],
+                    stats[self.rx_port]['ipackets'],
+                    )
+                for param in check_params:
+                    assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
 

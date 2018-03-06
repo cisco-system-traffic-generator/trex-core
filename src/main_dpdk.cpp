@@ -6420,9 +6420,9 @@ void check_pdev_vdev() {
         } else if ( iface.find(":") == std::string::npos ) { // not PCI, assume af-packet
             iface = "--vdev=net_af_packet" + std::to_string(dev_id) + ",iface=" + iface;
             if ( getpagesize() == 4096 ) {
-                // block size should be multiplication of PAGE_SIZE
-                // frame size should be Jumbo packet size
-                iface += ",blocksz=36864,framesz=9216,framecnt=128";
+                // block size should be multiplication of PAGE_SIZE and frame size
+                // frame size should be Jumbo packet size and multiplication of 16
+                iface += ",blocksz=593920,framesz=9280,framecnt=256";
             } else {
                 printf("WARNING:\n");
                 printf("    Could not automatically set AF_PACKET arguments: blocksz, framesz, framecnt.\n");
