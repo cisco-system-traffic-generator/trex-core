@@ -5,7 +5,7 @@
 # Napatech setup
 
 trex:
-  hostname       : localhost
+  hostname       : csi-trex-41
   cores          : 10
   modes          : ['loopback']
 
