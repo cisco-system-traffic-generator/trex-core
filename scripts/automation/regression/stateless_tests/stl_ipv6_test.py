@@ -7,6 +7,8 @@ class STLIPv6_Test(CStlGeneral_Test):
 
     def setUp(self):
         CStlGeneral_Test.setUp(self)
+        if self.is_vdev:
+            self.skip("We don't know what to expect with vdev.")
         print('')
         self.stl_trex.reset()
         self.stl_trex.set_service_mode(ports = [0])

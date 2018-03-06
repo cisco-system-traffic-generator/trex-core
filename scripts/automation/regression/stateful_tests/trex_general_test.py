@@ -71,10 +71,12 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.fail_reasons          = []
         if not hasattr(self, 'unsupported_modes'):
             self.unsupported_modes   = []
-        self.is_loopback           = True if 'loopback' in self.modes else False
-        self.is_virt_nics          = True if 'virt_nics' in self.modes else False
-        self.is_vf_nics            = True if 'vf_nics' in self.modes else False
-        self.is_VM                 = True if 'VM' in self.modes else False
+        self.is_loopback           = 'loopback' in self.modes
+        self.is_virt_nics          = 'virt_nics' in self.modes
+        self.is_vf_nics            = 'vf_nics' in self.modes
+        self.is_VM                 = 'VM' in self.modes
+        self.is_lowend             = 'lowend' in self.modes
+        self.is_vdev               = 'vdev' in self.modes
 
         if not CTRexScenario.is_init:
             if self.trex and not self.no_daemon: # stateful

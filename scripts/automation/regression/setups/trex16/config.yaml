@@ -1,0 +1,4 @@
+trex:
+  hostname       : csi-trex-16
+  cores          : 1
+  modes          : [loopback, virt_nics, VM, vdev, lowend]
