@@ -1,0 +1,11 @@
+################################################################
+####         TRex nightly test configuration file          ####
+################################################################
+
+# Napatech setup
+
+trex:
+  hostname       : localhost
+  cores          : 10
+  modes          : ['loopback']
+

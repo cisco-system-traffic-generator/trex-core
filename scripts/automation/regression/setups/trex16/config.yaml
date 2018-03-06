@@ -1,3 +1,6 @@
+
+# --vdev and low-end setup
+
 trex:
   hostname       : csi-trex-16
   cores          : 1
