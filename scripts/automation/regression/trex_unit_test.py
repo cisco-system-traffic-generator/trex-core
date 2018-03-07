@@ -571,6 +571,8 @@ if __name__ == "__main__":
     CTRexScenario.scripts_path  = get_trex_path()
     if not CTRexScenario.setup_dir:
         CTRexScenario.setup_dir = check_setup_path(os.path.join('setups', setup_dir))
+    if setup_dir and not CTRexScenario.setup_dir:
+        fatal('Could not find setup directory %s' % setup_dir)
 
 
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--nologcapture']
