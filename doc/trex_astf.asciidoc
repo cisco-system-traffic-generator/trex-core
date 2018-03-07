@@ -211,7 +211,7 @@ close()
 ----
  
 This way both Client and Server don't need to know the exact application protocol, they just need to have the same story/program. In real HTTP server, the server parses the HTTP requeset, learns the Content-Length field, waits for  the rest of the data and finally retrieves the information from disk. With our L7 emulation there is no need. Even in cases where the data length is changed (for example NAT/LB that changes the data length) we can give some flexibility within the program on the value range of the length
-In case of UDP it would be message base protocols like send_msg/wait_for_msg etc. with UDP we will have the ability to wait for a few packets. 
+In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
 
 ==== Stateful(STF) vs Advance Stateful (ASTF)
 
