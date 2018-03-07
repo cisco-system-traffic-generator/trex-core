@@ -275,16 +275,16 @@ void CSTTCpPerDir::create_clm_counters(){
     create_bar(&m_clm,"UDP");
     create_bar(&m_clm,"-");
 
-    UDP_S_ADD_CNT(udps_accepts,"UDP connections accepted");
-    UDP_S_ADD_CNT(udps_connects,"UDP connections established");  
-    UDP_S_ADD_CNT(udps_closed,"UDP conn. closed (includes drops)");  
-    UDP_S_ADD_CNT(udps_sndbyte,"UDP data bytes retransmitted");
-    UDP_S_ADD_CNT(udps_sndpkt,"UDP data packets retransmitted");
-    UDP_S_ADD_CNT(udps_rcvbyte,"UDP data bytes received");                                
-    UDP_S_ADD_CNT(udps_rcvpkt,"UDP data packets received");
-    UDP_S_ADD_CNT_E(udps_keepdrops,"UDP keepalive drop");
-    UDP_S_ADD_CNT_E(udps_nombuf,"UDP keepalive drop");
-    UDP_S_ADD_CNT_E(udps_pkt_toobig,"UDP packets retransmitted too bif");
+    UDP_S_ADD_CNT(udps_accepts,"connections accepted");
+    UDP_S_ADD_CNT(udps_connects,"connections established");  
+    UDP_S_ADD_CNT(udps_closed,"conn. closed (includes drops)");  
+    UDP_S_ADD_CNT(udps_sndbyte,"data bytes transmitted");
+    UDP_S_ADD_CNT(udps_sndpkt,"data packets transmitted");
+    UDP_S_ADD_CNT(udps_rcvbyte,"data bytes received");                                
+    UDP_S_ADD_CNT(udps_rcvpkt,"data packets received");
+    UDP_S_ADD_CNT_E(udps_keepdrops,"keepalive drop");
+    UDP_S_ADD_CNT_E(udps_nombuf,"no mbuf");
+    UDP_S_ADD_CNT_E(udps_pkt_toobig,"packets transmitted too big");
 
 
     create_bar(&m_clm,"-");

@@ -90,7 +90,7 @@ WARNING: The basic ASTF support was released, however it is under constant impro
 
 ===== What works in the current version 
 
-* Profile with multi templates of TCP
+* Profile with multi templates of TCP/UDP
 * IPv4 and IPv6 
 * VLAN configuration 
 * One DP core per dual-ports
@@ -106,10 +106,8 @@ WARNING: The basic ASTF support was released, however it is under constant impro
 
 ===== Current high priority tasks
 
-* UDP support (for full SRF support)
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 * More than one core per dual-ports
-
 
 ===== On radar  
 
@@ -1447,6 +1445,27 @@ The first response could come while we are sending the first request as the Rx s
 see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
 
+==== Tutorial: L7 emulation - UDP example 
+
+This example will show UDP example 
+
+.Client delay 
+[source,python]
+----
+        # client commands
+        prog_c = ASTFProgram(stream=False)
+        prog_c.send_msg(http_req)             #<1>
+        prog_c.recv_msg(1)                    #<2>
+
+        prog_s = ASTFProgram(stream=False)
+        prog_s.recv_msg(1)
+        prog_s.send_msg(http_response) 
+----
+<1> send UDP messgae 
+<2> wait for number of packets 
+
+In case of pcap file, it will be converted to send_msg/recv_msg/delay taken from the pcap file 
+
 === Performance 
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
@@ -1595,15 +1614,15 @@ link:cp_astf_docs/index.html[python index]
 [options="header",cols="1,^1,5"]
 |=================
 | Counter           |Error |Description  
-|    active_flows   || active flows (established + non-established)
-|    est_flows      || active established flows 
-|    tx_bw_l7       || tx acked L7 bandwidth in bps 
-|    tx_bw_l7_total || tx total L7 bandwidth sent in bps 
-|    rx_bw_l7       || rx acked L7 bandwidth in bps 
-|    tx_pps_r       || tx bandwidth in pps  (TSO packets)     *1*
-|    rx_pps_r       || rx bandwidth in pps  (LRO packets)     *2*
-|    avg_size       || average pkt size (base on TSO/LRO) see *1*/*2*
-|    tx_ratio       || ratio betwean tx_bw_l7_r and tx_bw_l7_total_r 100% means no retransmition
+|    active_flows   || active flows (established + non-established) UDP/TCP
+|    est_flows      || active established flows UDP/TCP
+|    tx_bw_l7       || tx acked L7 bandwidth in bps TCP
+|    tx_bw_l7_total || tx total L7 bandwidth sent in bps TCP
+|    rx_bw_l7       || rx acked L7 bandwidth in bps TCP
+|    tx_pps_r       || tx bandwidth in pps  (TSO packets)     *1* TCP
+|    rx_pps_r       || rx bandwidth in pps  (LRO packets)     *2* TCP
+|    avg_size       || average pkt size (base on TSO/LRO) see *1*/*2* TCP
+|    tx_ratio       || ratio betwean tx_bw_l7_r and tx_bw_l7_total_r 100% means no retransmition TCP
 |=================
 
 .TCP counters 
@@ -1669,6 +1688,24 @@ link:cp_astf_docs/index.html[python index]
 |   tcps_nombuf |*| no mbuf for tcp - drop the packets
 |=================
 
+
+.UDP counters 
+[options="header",cols="1,^1,5"]
+|=================
+| Counter           |Error |Description  
+|    udps_accepts    |*| connections accepted
+|    udps_connects   |*| connections established
+|    udps_closed     |*| conn. closed (including drops)
+|    udps_sndbyte    |*| data bytes transmitted
+|    udps_sndpkt     |*| data packets transmitted
+|    udps_rcvbyte    |*| data bytes received
+|    udps_rcvpkt     |*| data packets received
+|    udps_keepdrops  |*| keepalive drop
+|    udps_nombuf     |*| no mbuf
+|    udps_pkt_toobig |*| packets transmitted too big
+|=================
+
+
 .Flow table counters 
 [options="header",cols="1,^1,5"]
 |=================
@@ -1689,6 +1726,7 @@ link:cp_astf_docs/index.html[python index]
 |    err_s_nf_throttled || Number of server side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
 |    err_s_nf_throttled || Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
 |=================
+
 
 *1*:: 
 
