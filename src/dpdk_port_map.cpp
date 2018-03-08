@@ -23,8 +23,8 @@ void CTRexPortMapper::set(uint8_t rte_ports,dpdk_map_args_t &  pmap){
 
     int i;
     for (i=0; i<pmap.size(); i++) {
-        m_map[i]=pmap[i];
-        set_rmap(m_map[i],i); /* set reverse */
+        set_map(i, pmap[i]);
+        set_rmap(pmap[i], i); /* set reverse */
     }
 }
 

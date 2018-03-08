@@ -221,11 +221,12 @@ public:
     virtual bool is_fc_change_supported() { return flag_is_fc_change_supported; }
     virtual bool is_led_change_supported() { return flag_is_led_change_supported; }
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
+    virtual bool is_prom_change_supported() { return flag_is_prom_change_supported; }
     virtual const std::string &get_description() { return intf_info_st.description; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
     virtual bool is_loopback() const = 0;
     
-    std::string get_rx_filter_mode() const;
+    virtual std::string get_rx_filter_mode() const;
 
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
@@ -311,7 +312,7 @@ protected:
     bool       flag_is_fc_change_supported;
     bool       flag_is_led_change_supported;
     bool       flag_is_link_change_supported;
-    
+    bool       flag_is_prom_change_supported;
 
     struct intf_info_st {
         std::string     pci_addr;
@@ -328,7 +329,8 @@ public:
     DpdkTRexPortAttr(uint8_t tvpid, 
                      uint8_t repid,
                      bool is_virtual, 
-                     bool fc_change_allowed) : TRexPortAttr(tvpid) {
+                     bool fc_change_allowed,
+                     bool is_prom_allowed) : TRexPortAttr(tvpid) {
 
         m_tvpid = tvpid;
         m_repid = repid;
@@ -341,6 +343,7 @@ public:
         flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
         flag_is_led_change_supported = (set_led(true) != -ENOTSUP);
         flag_is_link_change_supported = (set_link_up(true) != -ENOTSUP);
+        flag_is_prom_change_supported = is_prom_allowed;
         update_description();
         update_device_info();
     }
@@ -392,7 +395,7 @@ In order to use custom methods of port attributes per driver, need to instantiat
 class DpdkTRexPortAttrMlnx5G : public DpdkTRexPortAttr {
 public:
     DpdkTRexPortAttrMlnx5G(uint8_t tvpid, 
-                     uint8_t repid, bool is_virtual, bool fc_change_allowed) : DpdkTRexPortAttr(tvpid,repid, is_virtual, fc_change_allowed) {}
+                     uint8_t repid, bool is_virtual, bool fc_change_allowed, bool prom_change_allowed) : DpdkTRexPortAttr(tvpid,repid, is_virtual, fc_change_allowed, prom_change_allowed) {}
     virtual int set_link_up(bool up);
 };
 
@@ -408,7 +411,8 @@ public:
         flag_is_fc_change_supported = false;
         flag_is_led_change_supported = false;
         flag_is_link_change_supported = false;
-        
+        flag_is_prom_change_supported = false;
+        update_description();
     }
 
     /* DUMMY */
@@ -416,7 +420,7 @@ public:
     bool update_link_status_nowait() { return false; }
     void update_device_info() {}
     void reset_xstats() {}
-    void update_description() {}
+    void update_description() { intf_info_st.description = "Dummy port"; }
     bool get_promiscuous() { return false; }
     bool get_multicast() { return false; }
     void get_hw_src_mac(struct ether_addr *mac_addr) {}
@@ -432,7 +436,8 @@ public:
     int set_led(bool on) { return -ENOTSUP; }
     void dump_link(FILE *fd) {}
     int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
-    virtual bool is_loopback() const { return false; }
+    bool is_loopback() const { return false; }
+    std::string get_rx_filter_mode() {return "";}
 };
 
 

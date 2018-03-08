@@ -38,9 +38,6 @@ it maps betwean virtual trex port to dpdk ports (for cases that there is no 1:1 
 #include "utl_port_map.h"
 
 
-
-#define DPDK_MAP_IVALID_REPID (255)
-
 typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/
 typedef uint8_t repid_t; /* DPDK port id  */
 
@@ -70,14 +67,16 @@ public:
 
     /* map  tvpid ->repid */
     void set_map(tvpid_t tvpid,repid_t repid){
-        assert(repid<TREX_MAX_PORTS);
+        assert(tvpid<TREX_MAX_PORTS);
         m_map[tvpid]=repid;
     }
 
     /* map  repid -> tvpid  */
     void set_rmap(repid_t repid,tvpid_t tvpid){
-        assert(repid<TREX_MAX_PORTS);
-        m_rmap[repid]=tvpid;
+        assert(tvpid<TREX_MAX_PORTS);
+        if ( repid<TREX_MAX_PORTS ) {
+            m_rmap[repid]=tvpid;
+        }
     }
 
 public:
@@ -92,7 +91,6 @@ public:
     repid_t   get_repid(tvpid_t tvpid){
         assert(tvpid<m_max_trex_vports);
         repid_t repid=m_map[tvpid];
-        assert(repid<m_max_rte_eth_ports);
         return(repid);
     }
 
@@ -125,6 +123,10 @@ public:
 
     tvpid_t tvpid(void){
         return(m_tvport);
+    }
+
+    bool is_dummy(void) {
+        return (get_repid() == DPDK_MAP_IVALID_REPID);
     }
 
 private:

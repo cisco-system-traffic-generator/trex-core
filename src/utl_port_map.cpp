@@ -148,8 +148,13 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
 
     int i;
     for (i=0; i<vec.size(); i++) {
-        CPciPortCfgDesc * lp= new CPciPortCfgDesc();
         std::string iname=vec[i];
+        m_input.push_back(iname);
+        if ( iname == "dummy" ) {
+            continue;
+        }
+
+        CPciPortCfgDesc * lp= new CPciPortCfgDesc();
         lp->set_name(iname);
         
         if ( lp->parse(err)!=0){
@@ -157,7 +162,6 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
         }
         m_vec.push_back(lp);
         iname = lp->get_name();
-        m_input.push_back(iname);
 
         dpdk_map_name_to_int_iter_t it = map_name.find(iname);
 
@@ -228,12 +232,18 @@ int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
     }
 
     uint8_t index;
-    for (i=0; i<m_vec.size(); i++) {
-        CPciPortCfgDesc * lp= m_vec[i];
-        if ( find(lp,index, err)!=0){
-            return(-1);
+    uint8_t m_vec_index = 0;
+    for (i=0; i<m_input.size(); i++) {
+        if ( m_input[i] == "dummy" ) {
+            port_map.push_back(DPDK_MAP_IVALID_REPID);
+        } else {
+            CPciPortCfgDesc * lp = m_vec[m_vec_index];
+            m_vec_index++;
+            if ( find(lp, index, err)!=0){
+                return(-1);
+            }
+            port_map.push_back(index);
         }
-        port_map.push_back(index);
     }
     m_last_result = port_map;
     return(0);
