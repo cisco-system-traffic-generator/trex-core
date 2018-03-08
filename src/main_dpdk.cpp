@@ -195,7 +195,7 @@ public:
     }
 
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
-    bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
+    virtual bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats)=0;
     virtual void clear_extended_stats(CPhyEthIF * _if)=0;
     virtual int  wait_for_stable_link();
@@ -253,6 +253,130 @@ protected:
     uint32_t m_cap;
 };
 
+// stubs in case of dummy port, call to normal function otherwise
+class CTRexExtendedDriverDummySelector : public CTRexExtendedDriverBase {
+public:
+    CTRexExtendedDriverDummySelector(CTRexExtendedDriverBase *original_driver) {
+        m_real_drv = original_driver;
+        m_cap = 0;
+    }
+
+    int get_min_sample_rate(void) {
+        return m_real_drv->get_min_sample_rate();
+    }
+    void update_configuration(port_cfg_t *cfg) {
+        m_real_drv->update_configuration(cfg);
+    }
+    void update_global_config_fdir(port_cfg_t *cfg) {
+        m_real_drv->update_global_config_fdir(cfg);
+    }
+    int configure_rx_filter_rules(CPhyEthIF *_if) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->configure_rx_filter_rules(_if);
+        }
+    }
+    int add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->add_del_rx_flow_stat_rule(_if, op, l3, l4, ipv6_next_h, id);
+        }
+    }
+    int stop_queue(CPhyEthIF * _if, uint16_t q_num) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->stop_queue(_if, q_num);
+        }
+    }
+    bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->get_extended_stats_fixed(_if, stats, fix_i, fix_o);
+        }
+    }
+    bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->get_extended_stats(_if, stats);
+        }
+    }
+    void clear_extended_stats(CPhyEthIF * _if) {
+        if ( ! _if->is_dummy() ) {
+            m_real_drv->clear_extended_stats(_if);
+        }
+    }
+    int  wait_for_stable_link() {
+        return m_real_drv->wait_for_stable_link();
+    }
+    bool sleep_after_arp_needed() {
+        return m_real_drv->sleep_after_arp_needed();
+    }
+    void wait_after_link_up() {
+        m_real_drv->wait_after_link_up();
+    }
+    bool hw_rx_stat_supported() {
+        return m_real_drv->hw_rx_stat_supported();
+    }
+    int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->get_rx_stats(_if, pkts, prev_pkts, bytes, prev_bytes, min, max);
+        }
+    }
+    void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
+        if ( ! _if->is_dummy() ) {
+            m_real_drv->reset_rx_stats(_if, stats, min, len);
+        }
+    }
+    int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->dump_fdir_global_stats(_if, fd);
+        }
+    }
+    void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+         m_real_drv->get_rx_stat_capabilities(flags, num_counters, base_ip_id);
+    }
+    int verify_fw_ver(tvpid_t tvpid) {
+        if ( CTVPort(tvpid).is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->verify_fw_ver(tvpid);
+        }
+    }
+    CFlowStatParser *get_flow_stat_parser() {
+        return m_real_drv->get_flow_stat_parser();
+    }
+    int set_rcv_all(CPhyEthIF * _if, bool set_on) {
+        if ( _if->is_dummy() ) {
+            return 0;
+        } else {
+            return m_real_drv->set_rcv_all(_if, set_on);
+        }
+    }
+    TRexPortAttr * create_port_attr(tvpid_t tvpid, repid_t repid) {
+        if ( CTVPort(tvpid).is_dummy() ) {
+            return new SimTRexPortAttr();
+        } else {
+            return m_real_drv->create_port_attr(tvpid, repid);
+        }
+    }
+    rte_mempool_t * get_rx_mem_pool(int socket_id) {
+        return m_real_drv->get_rx_mem_pool(socket_id);
+    }
+    void get_dpdk_drv_params(CTrexDpdkParams &p) {
+        return m_real_drv->get_dpdk_drv_params(p);
+    }
+private:
+    CTRexExtendedDriverBase *m_real_drv;
+};
 
 class CTRexExtendedDriverBase1G : public CTRexExtendedDriverBase {
 
@@ -261,8 +385,8 @@ public:
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid,repid, false, true);
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid,repid, false, true, true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -310,8 +434,8 @@ typedef uint8_t repid_t; /* DPDK port id  */
 // Base for all virtual drivers. No constructor. Should not create object from this type.
 class CTRexExtendedDriverVirtBase : public CTRexExtendedDriverBase {
 public:
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid,true, true);
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid, repid,true, true, true);
     }
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
 
@@ -387,6 +511,9 @@ public:
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverI40evf() );
     }
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid, repid,true, true, false);
+    }
 };
 
 class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
@@ -402,6 +529,9 @@ public:
 
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverIxgbevf() );
+    }
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid, repid,true, true, false);
     }
 };
 
@@ -444,8 +574,8 @@ public:
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid,repid, false, true);
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid,repid, false, true, true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -491,9 +621,9 @@ public:
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
     }
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         // disabling flow control on 40G using DPDK API causes the interface to malfunction
-        return new DpdkTRexPortAttr(tvpid,repid, false, false);
+        return new DpdkTRexPortAttr(tvpid,repid, false, false, true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -567,8 +697,8 @@ public:
         }
     }
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid,repid, false, false);
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid,repid, false, false, true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -618,9 +748,9 @@ public:
          m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
     }
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         // disabling flow control on 40G using DPDK API causes the interface to malfunction
-        return new DpdkTRexPortAttr(tvpid,repid, false, false);
+        return new DpdkTRexPortAttr(tvpid,repid, false, false, true);
     }
 
     static CTRexExtendedDriverBase * create(){
@@ -723,8 +853,8 @@ public:
 
     ~CTRexExtendedDriverBaseNtAcc();
 
-    TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid,repid, false, false);
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
+        return new DpdkTRexPortAttr(tvpid,repid, false, false, true);
     }
 
     virtual bool sleep_after_arp_needed(){
@@ -816,6 +946,13 @@ public:
         assert(m_drv);
     }
 
+    void create_dummy() {
+        if ( ! m_dummy_selector_created ) {
+            m_dummy_selector_created = true;
+            m_drv = new CTRexExtendedDriverDummySelector(get_drv());
+        }
+    }
+
     CTRexExtendedDriverBase * get_drv(){
         if (!m_driver_was_set) {
             printf(" ERROR too early to use this object !\n");
@@ -854,12 +991,14 @@ private:
         register_driver(std::string("net_af_packet"), CTRexExtendedDriverAfPacket::create);
 
         m_driver_was_set=false;
-        m_drv=0;
+        m_dummy_selector_created=false;
+        m_drv=NULL;
         m_driver_name="";
     }
     void register_driver(std::string name,create_object_t func);
     static CTRexExtendedDriverDb * m_ins;
     bool        m_driver_was_set;
+    bool        m_dummy_selector_created;
     std::string m_driver_name;
     CTRexExtendedDriverBase * m_drv;
     std::vector <CTRexExtendedDriverRec*>     m_list;
@@ -1704,6 +1843,13 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
     return 0;
 }
 
+void free_args_copy(int argc, char **argv_copy) {
+    for(int i=0; i<argc; i++) {
+        free(argv_copy[i]);
+    }
+    free(argv_copy);
+}
+
 static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool first_time ) {
     // copy, as arg parser sometimes changes the argv
     char ** argv_copy = (char **) malloc(sizeof(char *) * argc);
@@ -1719,15 +1865,12 @@ static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool
         } else if (e.m_err_code == SO_ARG_MISSING) {
             printf("Error: option %s is expected to have argument.\n\n", e.m_opt_text);
         }
+        free_args_copy(argc, argv_copy);
         usage();
         return -1;
     }
 
-    // free
-    for(int i=0; i<argc; i++) {
-        free(argv_copy[i]);
-    }
-    free(argv_copy);
+    free_args_copy(argc, argv_copy);
     return ret;
 }
 
@@ -2304,6 +2447,9 @@ int DpdkTRexPortAttr::add_mac(char * mac){
 }
 
 int DpdkTRexPortAttr::set_promiscuous(bool enable){
+    if ( !is_prom_change_supported() ) {
+        return -ENOTSUP;
+    }
     if (enable) {
         rte_eth_promiscuous_enable(m_repid);
     }else{
@@ -3586,6 +3732,9 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
         fprintf (fd," --------------- \n");
         for (i=0; i<(int)port_to_show; i++) {
             CPerPortStats * lp=&m_port[i];
+            if ( CTVPort(i).is_dummy() ) {
+                continue;
+            }
             fprintf(fd,"port : %d ",(int)i);
             if ( ! lp->m_link_up ) {
                 fprintf(fd," (link DOWN)");
@@ -3605,6 +3754,9 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
         fprintf(fd," %10s ","ports");
         for (i=0; i<(int)port_to_show; i++) {
             CPerPortStats * lp=&m_port[i];
+            if ( CTVPort(i).is_dummy() ) {
+                continue;
+            }
             if ( lp->m_link_up ) {
                 fprintf(fd,"| %15d ",i);
             } else {
@@ -3621,6 +3773,9 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
             int j=0;
             for (j=0; j<port_to_show;j++) {
                 CPerPortStats * lp=&m_port[j];
+                if ( CTVPort(j).is_dummy() ) {
+                    continue;
+                }
                 uint64_t cnt;
                 switch (i) {
                 case 0:
@@ -3858,15 +4013,15 @@ public:
     float        m_expected_bps;//bps
     float        m_last_total_cps;
 
-    CPhyEthIF   m_ports[TREX_MAX_PORTS];
-    CCoreEthIF          m_cores_vif_sf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateful */
-    CCoreEthIFStateless m_cores_vif_sl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateless*/
+    CPhyEthIF          *m_ports[TREX_MAX_PORTS];
+    CCoreEthIF          m_cores_vif_stf[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateful */
+    CCoreEthIFStateless m_cores_vif_stl[BP_MAX_CORES]; /* counted from 1 , 2,3 core zero is reserved - stateless*/
     CCoreEthIFTcp       m_cores_vif_tcp[BP_MAX_CORES];
     CCoreEthIF *        m_cores_vif[BP_MAX_CORES];
-    CParserOption m_po ;
-    CFlowGenList  m_fl;
-    bool          m_fl_was_init;
-    volatile uint8_t       m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
+    CParserOption       m_po;
+    CFlowGenList        m_fl;
+    bool                m_fl_was_init;
+    volatile uint8_t    m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
     CLatencyManager     m_mg; // statefull RX core
     CTrexGlobalIoMode   m_io_modes;
     CTRexExtendedDriverBase * m_drv;
@@ -3897,7 +4052,7 @@ void CGlobalTRex::pre_test() {
 
     int i;
     for (i=0; i<m_max_ports; i++) {
-        pretest.set_port(i,&m_ports[i]);
+        pretest.set_port(i, m_ports[i]);
     }
     bool resolve_needed = false;
     uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
@@ -3947,6 +4102,9 @@ void CGlobalTRex::pre_test() {
             }
     } else {
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            if ( m_ports[port_id]->is_dummy() ) {
+                continue;
+            }
             if (! memcmp( CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
                 resolve_needed = true;
             } else {
@@ -3967,7 +4125,7 @@ void CGlobalTRex::pre_test() {
     }
 
     for (int port_id = 0; port_id < m_max_ports; port_id++) {
-        CPhyEthIF *pif = &m_ports[port_id];
+        CPhyEthIF *pif = m_ports[port_id];
         // Configure port to send all packets to software
         pif->set_port_rcv_all(true);
     }
@@ -4026,6 +4184,9 @@ void CGlobalTRex::pre_test() {
     } else {
         uint8_t mac[ETHER_ADDR_LEN];
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            if ( m_ports[port_id]->is_dummy() ) {
+                continue;
+            }
             if (! memcmp(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, empty_mac, ETHER_ADDR_LEN)) {
                 // we don't have dest MAC. Get it from what we resolved.
                 uint32_t ip = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
@@ -4056,7 +4217,7 @@ void CGlobalTRex::pre_test() {
             }
 
             // update statistics baseline, so we can ignore what happened in pre test phase
-            CPhyEthIF *pif = &m_ports[port_id];
+            CPhyEthIF *pif = m_ports[port_id];
             // some adapters (napatech at least) have a little delayed statistics
             if (get_ex_drv()->sleep_after_arp_needed() ){
                 sleep(1);
@@ -4145,7 +4306,7 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
     int i;
     for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
+        CPhyEthIF * _if=m_ports[i];
         _if->get_port_attr()->update_link_status();
         if ( dump ){
             _if->dump_stats(stdout);
@@ -4185,7 +4346,7 @@ void CGlobalTRex::wait_for_all_cores(){
 int  CGlobalTRex::ixgbe_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
+        CPhyEthIF * _if=m_ports[i];
         _if->flush_rx_queue();
     }
     return (0);
@@ -4215,7 +4376,7 @@ void CGlobalTRex::rx_batch_conf(void) {
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* vm mode, indirect queues  */
         for (i=0; i<m_max_ports; i++) {
-            CPhyEthIF * _if = &m_ports[i];
+            CPhyEthIF * _if = m_ports[i];
             CMessagingManager * rx_dp=CMsgIns::Ins()->getRxDp();
 
             uint8_t thread_id = (i>>1);
@@ -4228,7 +4389,7 @@ void CGlobalTRex::rx_batch_conf(void) {
 
     }else{
         for (i=0; i<m_max_ports; i++) {
-            CPhyEthIF * _if=&m_ports[i];
+            CPhyEthIF * _if=m_ports[i];
             //_if->dump_stats(stdout);
             m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
 
@@ -4246,7 +4407,7 @@ void CGlobalTRex::rx_interactive_conf(void) {
     if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
         /* vm mode, indirect queues  */
         for (int i=0; i < m_max_ports; i++) {
-            CPhyEthIF * _if = &m_ports[i];
+            CPhyEthIF * _if = m_ports[i];
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
@@ -4254,7 +4415,7 @@ void CGlobalTRex::rx_interactive_conf(void) {
         }
     } else {
         for (int i = 0; i < m_max_ports; i++) {
-            CPhyEthIF * _if = &m_ports[i];
+            CPhyEthIF * _if = m_ports[i];
             m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
         }
     }
@@ -4266,8 +4427,14 @@ int  CGlobalTRex::ixgbe_start(void){
     for (i=0; i<m_max_ports; i++) {
         socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
         assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
-        CPhyEthIF * _if=&m_ports[i];
-        _if->Create((uint8_t)i,CTVPort(i).get_repid());
+        CTVPort ctvport = CTVPort(i);
+        if ( ctvport.is_dummy() ) {
+            m_ports[i] = new CPhyEthIFDummy();
+        } else {
+            m_ports[i] = new CPhyEthIF();
+        }
+        CPhyEthIF * _if=m_ports[i];
+        _if->Create((uint8_t)i, ctvport.get_repid());
         _if->conf_queues();
         _if->stats_clear();
         _if->start();
@@ -4330,9 +4497,9 @@ CGlobalTRex::init_vif_cores() {
      
         m_cores_vif[j]->Create(j,
                                queue_id,
-                               &m_ports[port_offset], /* 0,2*/
+                               m_ports[port_offset], /* 0,2*/
                                queue_id,
-                               &m_ports[port_offset+1], /*1,3*/
+                               m_ports[port_offset+1], /*1,3*/
                                lat_q_id);
         port_offset+=2;
         if (port_offset == m_max_ports) {
@@ -4484,7 +4651,7 @@ CGlobalTRex::get_stx_cfg() {
 void CGlobalTRex::init_stl() {
     
     for (int i = 0; i < get_cores_tx(); i++) {
-        m_cores_vif[i + 1] = &m_cores_vif_sl[i + 1];
+        m_cores_vif[i + 1] = &m_cores_vif_stl[i + 1];
     }
     
     init_vif_cores();
@@ -4540,7 +4707,7 @@ void CGlobalTRex::init_stf() {
     }
         
     for (int i = 0; i < get_cores_tx(); i++) {
-        m_cores_vif[i + 1] = &m_cores_vif_sf[i + 1];
+        m_cores_vif[i + 1] = &m_cores_vif_stf[i + 1];
     }
     
     init_vif_cores();
@@ -4561,6 +4728,11 @@ void CGlobalTRex::Delete(){
         m_stx = nullptr;
     }
 
+    for (int i = 0; i < m_max_ports; i++) {
+        delete m_ports[i]->get_port_attr();
+        delete m_ports[i];
+    }
+
     m_fl.Delete();
     m_mg.Delete();
     
@@ -4574,7 +4746,7 @@ void CGlobalTRex::Delete(){
 int  CGlobalTRex::ixgbe_prob_init(void){
 
     if ( CGlobalInfo::m_options.m_is_vdev ) {
-        m_max_ports = rte_eth_dev_count();
+        m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
     } else {
         m_max_ports = port_map.get_max_num_ports();
     }
@@ -4582,7 +4754,11 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     if (m_max_ports == 0)
         rte_exit(EXIT_FAILURE, "Error: Could not find supported ethernet ports. You are probably trying to use unsupported NIC \n");
 
-    printf(" Number of ports found: %d \n",m_max_ports);
+    printf(" Number of ports found: %d", m_max_ports);
+    if ( CGlobalInfo::m_options.m_dummy_count ) {
+        printf(" (dummy among them: %d)", CGlobalInfo::m_options.m_dummy_count);
+    }
+    printf("\n");
 
     if ( m_max_ports %2 !=0 ) {
         rte_exit(EXIT_FAILURE, " Number of ports in config file is %d. It should be even. Please use --limit-ports, or change 'port_limit:' in the config file\n",
@@ -4613,8 +4789,28 @@ int  CGlobalTRex::ixgbe_prob_init(void){
                  (int)BP_MAX_CORES);
     }
 
-    struct rte_eth_dev_info dev_info;
-    rte_eth_dev_info_get( CTVPort(0).get_repid(),&dev_info);
+    int i;
+    struct rte_eth_dev_info dev_info, dev_info1;
+    bool found_non_dummy = false;
+
+    for (i=1; i<m_max_ports; i++) {
+        CTVPort ctvport = CTVPort(i);
+        if ( ctvport.is_dummy() ) {
+            continue;
+        }
+        if ( found_non_dummy ) {
+            rte_eth_dev_info_get(CTVPort(i).get_repid(),&dev_info1);
+            if ( strcmp(dev_info1.driver_name,dev_info.driver_name)!=0) {
+                printf(" ERROR all device should have the same type  %s != %s \n",dev_info1.driver_name,dev_info.driver_name);
+                exit(1);
+            }
+        } else {
+            found_non_dummy = true;
+            rte_eth_dev_info_get(ctvport.get_repid(), &dev_info);
+        }
+    }
+
+    assert(found_non_dummy);
 
     if ( ps->preview.getVMode() > 0){
         printf("\n\n");
@@ -4632,18 +4828,7 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         printf("flow_type_rss   : 0x%lx \n",dev_info.flow_type_rss_offloads);
     }
 
-    int i;
-    struct rte_eth_dev_info dev_info1;
-
-    for (i=1; i<m_max_ports; i++) {
-        rte_eth_dev_info_get(CTVPort(i).get_repid(),&dev_info1);
-        if ( strcmp(dev_info1.driver_name,dev_info.driver_name)!=0) {
-            printf(" ERROR all device should have the same type  %s != %s \n",dev_info1.driver_name,dev_info.driver_name);
-            exit(1);
-        }
-    }
-
-    m_drv = CTRexExtendedDriverDb::Ins()->get_drv();
+    m_drv = get_ex_drv();
 
     // check if firmware version is new enough
     for (i = 0; i < m_max_ports; i++) {
@@ -4729,8 +4914,8 @@ void CGlobalTRex::dump_config(FILE *fd){
 
 void CGlobalTRex::dump_links_status(FILE *fd){
     for (int i=0; i<m_max_ports; i++) {
-        m_ports[i].get_port_attr()->update_link_status_nowait();
-        m_ports[i].get_port_attr()->dump_link(fd);
+        m_ports[i]->get_port_attr()->update_link_status_nowait();
+        m_ports[i]->get_port_attr()->dump_link(fd);
     }
 }
 
@@ -4787,7 +4972,7 @@ uint16_t CGlobalTRex::get_latency_tx_queue_id() {
 
 bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     for (int i = 0; i < m_max_ports; i++) {
-        if (memcmp(m_ports[i].get_port_attr()->get_layer_cfg().get_ether().get_src(), mac, 6) == 0) {
+        if (memcmp(m_ports[i]->get_port_attr()->get_layer_cfg().get_ether().get_src(), mac, 6) == 0) {
             port_id = i;
             return true;
         }
@@ -4819,7 +5004,7 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
 
 
     for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
+        CPhyEthIF * _if=m_ports[i];
         pkt_in  +=_if->get_stats().ipackets;
         pkt_in_bytes +=_if->get_stats().ibytes;
         pkt_out +=_if->get_stats().opackets;
@@ -4877,7 +5062,7 @@ void CGlobalTRex::update_stats(){
 
     int i;
     for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
+        CPhyEthIF * _if=m_ports[i];
         _if->update_counters();
     }
     uint64_t total_open_flows=0;
@@ -4978,7 +5163,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     stats.m_threads      = m_fl.m_threads_info.size();
 
     for (i=0; i<m_max_ports; i++) {
-        CPhyEthIF * _if=&m_ports[i];
+        CPhyEthIF * _if=m_ports[i];
         CPerPortStats * stp=&stats.m_port[i];
 
         CPhyEthIFStats & st =_if->get_stats();
@@ -5142,7 +5327,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
 float
 CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
-    CPhyEthIF * _if = &m_ports[port_id];
+    CPhyEthIF * _if = m_ports[port_id];
 
     float    tmp = 0;
     uint8_t  cnt = 0;
@@ -5276,7 +5461,7 @@ void
 CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
     Json::Value data;
     data["port_id"] = port_id;
-    TRexPortAttr * _attr = m_ports[port_id].get_port_attr();
+    TRexPortAttr * _attr = m_ports[port_id]->get_port_attr();
 
     _attr->to_json(data["attr"]);
 
@@ -5289,7 +5474,7 @@ CGlobalTRex::check_for_ports_link_change() {
     
     // update speed, link up/down etc.
     for (int i=0; i<m_max_ports; i++) {
-        bool changed = m_ports[i].get_port_attr()->update_link_status_nowait();
+        bool changed = m_ports[i]->get_port_attr()->update_link_status_nowait();
         if (changed) {
             publish_async_port_attr_changed(i);
         }
@@ -5494,7 +5679,7 @@ void CGlobalTRex::shutdown() {
 
     /* shutdown drivers */
     for (int i = 0; i < m_max_ports; i++) {
-        m_ports[i].stop();
+        m_ports[i]->stop();
     }
 
     if (m_mark_for_shutdown != SHUTDOWN_TEST_ENDED) {
@@ -6123,7 +6308,7 @@ CPhyEthIF::get_core_list() {
 
             /* iterate over all the directions*/
             for (uint8_t dir = 0 ; dir < CS_NUM; dir++) {
-                if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_repid() == m_repid) {
+                if (g_trex.m_cores_vif[core_id + 1]->get_ports()[dir].m_port->get_tvpid() == m_tvpid) {
                     m_core_id_list.push_back(std::make_pair(core_id, dir));
                 }
             }
@@ -6410,12 +6595,14 @@ void update_memory_cfg() {
     }
 }
 
-void check_pdev_vdev() {
+void check_pdev_vdev_dummy() {
     bool found_vdev = false;
     bool found_pdev = false;
     uint32_t dev_id = 1e6;
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
-        if ( iface.find("--vdev") != std::string::npos ) {
+        if ( iface == "dummy" ) {
+            CGlobalInfo::m_options.m_dummy_count++;
+        } else if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
         } else if ( iface.find(":") == std::string::npos ) { // not PCI, assume af-packet
             iface = "--vdev=net_af_packet" + std::to_string(dev_id) + ",iface=" + iface;
@@ -6445,6 +6632,11 @@ void check_pdev_vdev() {
         } else {
             CGlobalInfo::m_options.m_is_vdev = true;
         }
+    } else if ( !found_pdev ) {
+        printf("\n");
+        printf("ERROR: should be specified at least one vdev or PCI-based interface in config file.\n");
+        printf("\n");
+        exit(1);
     }
 }
 
@@ -6601,7 +6793,9 @@ int  update_dpdk_args(void){
 
     } else if ( CGlobalInfo::m_options.m_is_vdev ) {
         for ( std::string &iface : cg->m_if_list ) {
-            SET_ARGS(iface.c_str());
+            if ( iface != "dummy" ) {
+                SET_ARGS(iface.c_str());
+            }
         }
         SET_ARGS("--no-pci");
         SET_ARGS("--no-huge");
@@ -6619,8 +6813,10 @@ int  update_dpdk_args(void){
         dpdk_input_args_t & dif = *port_map.get_dpdk_input_args();
 
         for (int i=0; i<(int)dif.size(); i++) {
-            SET_ARGS("-w");
-            SET_ARGS(dif[i].c_str());
+            if ( dif[i] != "dummy" ) {
+                SET_ARGS("-w");
+                SET_ARGS(dif[i].c_str());
+            }
         }
     }
 
@@ -6775,7 +6971,7 @@ int main_test(int argc , char * argv[]){
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
 
-    check_pdev_vdev();
+    check_pdev_vdev_dummy();
 
     if (update_dpdk_args() < 0) {
         return -1;
@@ -6884,7 +7080,7 @@ int main_test(int argc , char * argv[]){
     if (CGlobalInfo::m_options.m_debug_pkt_proto != 0) {
         CTrexDpdkParams dpdk_p;
         get_ex_drv()->get_dpdk_drv_params(dpdk_p);
-        CTrexDebug debug = CTrexDebug(g_trex.m_ports, g_trex.m_max_ports
+        CTrexDebug debug = CTrexDebug(g_trex.m_ports[0], g_trex.m_max_ports
                                       , dpdk_p.rx_data_q_num + dpdk_p.rx_drop_q_num);
         int ret;
 
@@ -6894,7 +7090,7 @@ int main_test(int argc , char * argv[]){
             printf("Starting receive all/normal mode toggle unit test\n");
             for (int i = 0; i < 100; i++) {
                 for (int port_id = 0; port_id < g_trex.m_max_ports; port_id++) {
-                    CPhyEthIF *pif = &g_trex.m_ports[port_id];
+                    CPhyEthIF *pif = g_trex.m_ports[port_id];
                     pif->set_port_rcv_all(true);
                 }
                 ret = debug.test_send(D_PKT_TYPE_HW_VERIFY_RCV_ALL);
@@ -6904,8 +7100,8 @@ int main_test(int argc , char * argv[]){
                 }
 
                 for (int port_id = 0; port_id < g_trex.m_max_ports; port_id++) {
-                    CPhyEthIF *pif = &g_trex.m_ports[port_id];
-                    CTRexExtendedDriverDb::Ins()->get_drv()->configure_rx_filter_rules(pif);
+                    CPhyEthIF *pif = g_trex.m_ports[port_id];
+                    get_ex_drv()->configure_rx_filter_rules(pif);
                 }
 
                 ret = debug.test_send(D_PKT_TYPE_HW_VERIFY);
@@ -6920,7 +7116,7 @@ int main_test(int argc , char * argv[]){
         } else {
             if (CGlobalInfo::m_options.m_debug_pkt_proto == D_PKT_TYPE_HW_VERIFY_RCV_ALL) {
                 for (int port_id = 0; port_id < g_trex.m_max_ports; port_id++) {
-                    CPhyEthIF *pif = &g_trex.m_ports[port_id];
+                    CPhyEthIF *pif = g_trex.m_ports[port_id];
                     pif->set_port_rcv_all(true);
                 }
             }
@@ -6938,7 +7134,7 @@ int main_test(int argc , char * argv[]){
     g_trex.ixgbe_rx_queue_flush();
     if (!get_is_tcp_mode()) {
         for (int i = 0; i < g_trex.m_max_ports; i++) {
-            CPhyEthIF *_if = &g_trex.m_ports[i];
+            CPhyEthIF *_if = g_trex.m_ports[i];
             _if->stop_rx_drop_queue();
         }
     }
@@ -7005,8 +7201,9 @@ void wait_x_sec(int sec) {
 /* should be called after rte_eal_init() */
 void set_driver() {
     uint8_t m_max_ports = rte_eth_dev_count();
-    if ( m_max_ports != CGlobalInfo::m_options.m_expected_portd ) {
-        printf("Could not find all interfaces (asked for: %u, found: %u).\n", CGlobalInfo::m_options.m_expected_portd, m_max_ports);
+    uint8_t expect_dpdk_ports = CGlobalInfo::m_options.m_expected_portd - CGlobalInfo::m_options.m_dummy_count;
+    if ( m_max_ports != expect_dpdk_ports ) {
+        printf("Could not find all interfaces (asked for: %u, found: %u).\n", expect_dpdk_ports, m_max_ports);
         exit(1);
     }
     struct rte_eth_dev_info dev_info;
@@ -7019,6 +7216,10 @@ void set_driver() {
     }
 
     CTRexExtendedDriverDb::Ins()->set_driver_name(dev_info.driver_name);
+
+    if ( CGlobalInfo::m_options.m_dummy_count ) {
+        CTRexExtendedDriverDb::Ins()->create_dummy();
+    }
 
     bool cs_offload=false;
     CPreviewMode * lp=&CGlobalInfo::m_options.preview;
@@ -7068,7 +7269,7 @@ void reorder_dpdk_ports() {
     dpdk_input_args_t  dpdk_scan;
     dpdk_map_args_t res_map;
 
-    std::string  err;
+    std::string err;
 
     /* build list of dpdk devices */
     uint8_t cnt = rte_eth_dev_count();
@@ -7081,7 +7282,7 @@ void reorder_dpdk_ports() {
         dpdk_scan.push_back(std::string(buf));
     }
 
-    if ( port_map.get_map_args(dpdk_scan, res_map,err) != 0){
+    if ( port_map.get_map_args(dpdk_scan, res_map, err) != 0){
         printf("ERROR in DPDK map \n");
         printf("%s\n",err.c_str());
         exit(1);
@@ -7090,7 +7291,7 @@ void reorder_dpdk_ports() {
     /* update MAP */
     CTRexPortMapper * lp=CTRexPortMapper::Ins();
 
-    lp->set(cnt,res_map);
+    lp->set(cnt, res_map);
 
     if ( CGlobalInfo::m_options.preview.getVMode() > 0){
         port_map.dump(stdout);
@@ -8641,11 +8842,11 @@ static void trex_termination_handler(int signum) {
  *
  **********************************************************/
 int TrexDpdkPlatformApi::get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {
-    return g_trex.m_ports[port_id].get_port_attr()->get_xstats_values(xstats_values);
+    return g_trex.m_ports[port_id]->get_port_attr()->get_xstats_values(xstats_values);
 }
 
 int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {
-    return g_trex.m_ports[port_id].get_port_attr()->get_xstats_names(xstats_names);
+    return g_trex.m_ports[port_id]->get_port_attr()->get_xstats_names(xstats_names);
 }
 
 
@@ -8688,7 +8889,7 @@ TrexDpdkPlatformApi::get_dp_core_count() const {
 void
 TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
 
-    CPhyEthIF *lpt = &g_trex.m_ports[port_id];
+    CPhyEthIF *lpt = g_trex.m_ports[port_id];
 
     /* copy data from the interface */
     cores_id_list = lpt->get_core_list();
@@ -8697,24 +8898,28 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
 
 void
 TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
-    struct ether_addr rte_mac_addr;
+    struct ether_addr rte_mac_addr = {{0}};
 
-    info.driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
+    if ( g_trex.m_ports[port_id]->is_dummy() ) {
+        info.driver_name = "Dummy";
+    } else {
+        info.driver_name = CTRexExtendedDriverDb::Ins()->get_driver_name();
+    }
 
     /* mac INFO */
 
     /* hardware */
-    g_trex.m_ports[port_id].get_port_attr()->get_hw_src_mac(&rte_mac_addr);
+    g_trex.m_ports[port_id]->get_port_attr()->get_hw_src_mac(&rte_mac_addr);
     assert(ETHER_ADDR_LEN == 6);
 
     memcpy(info.hw_macaddr, rte_mac_addr.addr_bytes, 6);
 
-    if ( CGlobalInfo::m_options.m_is_vdev ) {
+    if ( CGlobalInfo::m_options.m_is_vdev || g_trex.m_ports[port_id]->is_dummy() ) {
         info.numa_node = -1;
         info.pci_addr = "N/A";
     } else {
-        info.numa_node =  g_trex.m_ports[port_id].m_dev_info.pci_dev->device.numa_node;
-        struct rte_pci_addr *loc = &g_trex.m_ports[port_id].m_dev_info.pci_dev->addr;
+        info.numa_node =  g_trex.m_ports[port_id]->m_dev_info.pci_dev->device.numa_node;
+        struct rte_pci_addr *loc = &g_trex.m_ports[port_id]->m_dev_info.pci_dev->addr;
 
         char pci_addr[50];
         snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT, loc->domain, loc->bus, loc->devid, loc->function);
@@ -8736,16 +8941,16 @@ TrexDpdkPlatformApi::publish_async_port_attr_changed(uint8_t port_id) const {
 void
 TrexDpdkPlatformApi::get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                              , uint16_t &ip_id_base) const {
-    CTRexExtendedDriverDb::Ins()->get_drv()->get_rx_stat_capabilities(capabilities, num_counters ,ip_id_base);
+    get_ex_drv()->get_rx_stat_capabilities(capabilities, num_counters ,ip_id_base);
 }
 
-int TrexDpdkPlatformApi::get_flow_stats(uint8 port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset
+int TrexDpdkPlatformApi::get_flow_stats(uint8_t port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset
                                         , TrexPlatformApi::driver_stat_cap_e type) const {
     if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-        return g_trex.m_ports[port_id].get_flow_stats_payload((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
+        return g_trex.m_ports[port_id]->get_flow_stats_payload((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
                                                               , min, max, reset);
     } else {
-        return g_trex.m_ports[port_id].get_flow_stats((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
+        return g_trex.m_ports[port_id]->get_flow_stats((rx_per_flow_t *)rx_stats, (tx_per_flow_t *)tx_stats
                                                       , min, max, reset);
     }
 }
@@ -8760,7 +8965,7 @@ int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
 }
 
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
-    return g_trex.m_ports[port_id].reset_hw_flow_stats();
+    return g_trex.m_ports[port_id]->reset_hw_flow_stats();
 }
 
 int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
@@ -8769,10 +8974,9 @@ int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type
         || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
         return 0;
     }
-    CPhyEthIF * lp=&g_trex.m_ports[port_id];
+    CPhyEthIF * lp=g_trex.m_ports[port_id];
 
-    return CTRexExtendedDriverDb::Ins()->get_drv()
-        ->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_ADD, l3_type, l4_proto, ipv6_next_h, id);
+    return get_ex_drv()->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_ADD, l3_type, l4_proto, ipv6_next_h, id);
 }
 
 int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
@@ -8782,11 +8986,10 @@ int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type
         return 0;
     }
 
-    CPhyEthIF * lp=&g_trex.m_ports[port_id];
+    CPhyEthIF * lp=g_trex.m_ports[port_id];
 
 
-    return CTRexExtendedDriverDb::Ins()->get_drv()
-        ->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
+    return get_ex_drv()->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
 }
 
 int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
@@ -8827,11 +9030,11 @@ int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t>
 }
 
 CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
-    return CTRexExtendedDriverDb::Ins()->get_drv()->get_flow_stat_parser();
+    return get_ex_drv()->get_flow_stat_parser();
 }
 
 TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
-    return g_trex.m_ports[port_id].get_port_attr();
+    return g_trex.m_ports[port_id]->get_port_attr();
 }
 
 
@@ -8841,7 +9044,7 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
         return (0);
     }
 
-    CPhyEthIF *_if = &g_trex.m_ports[m_tvpid];
+    CPhyEthIF *_if = g_trex.m_ports[m_tvpid];
     bool recv_all = (rx_filter_mode == RX_FILTER_MODE_ALL);
     int rc = _if->set_port_rcv_all(recv_all);
     if (rc != 0) {

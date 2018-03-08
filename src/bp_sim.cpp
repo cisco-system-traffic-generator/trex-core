@@ -2410,6 +2410,7 @@ void CFlowStats::Clear(){
     m_errors =0;
     m_flows =0 ;
     m_memory.clear();
+    duration_sec=0.0;
 }
 
 void CFlowStats::Add(const CFlowStats & obj){
@@ -2424,6 +2425,7 @@ void CFlowStats::Add(const CFlowStats & obj){
     m_total_Mbytes +=obj.m_total_Mbytes ;
     m_errors  +=obj.m_errors;
     m_flows   +=obj.m_flows ;
+    duration_sec += obj.duration_sec;
 
     m_memory.Add(obj.m_memory);
 }

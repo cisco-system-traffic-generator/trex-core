@@ -90,46 +90,45 @@ class CPhyEthIF  {
         m_rx_queue       = 0;
         m_stats_err_cnt  = 0;
     }
+    virtual ~CPhyEthIF() {}
     bool Create(tvpid_t  tvpid,
                 repid_t  repid);
-
-    void Delete();
 
     void set_rx_queue(uint8_t rx_queue){
         m_rx_queue=rx_queue;
     }
-    void conf_queues();
-    void configure(uint16_t nb_rx_queue,
+    virtual void conf_queues();
+    virtual void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
                    const struct rte_eth_conf *eth_conf);
-    void get_stats(CPhyEthIFStats *stats);
-    int dump_fdir_global_stats(FILE *fd);
-    int reset_hw_flow_stats();
-    int get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
-    int get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
-    void rx_queue_setup(uint16_t rx_queue_id,
-                        uint16_t nb_rx_desc,
-                        unsigned int socket_id,
-                        const struct rte_eth_rxconf *rx_conf,
-                        struct rte_mempool *mb_pool);
-    void tx_queue_setup(uint16_t tx_queue_id,
-                        uint16_t nb_tx_desc,
-                        unsigned int socket_id,
-                        const struct rte_eth_txconf *tx_conf);
-    void stop_rx_drop_queue();
-    void configure_rx_duplicate_rules();
-    int set_port_rcv_all(bool is_rcv);
-    void start();
-    void stop();
-    void disable_flow_control();
-    void dump_stats(FILE *fd);
-    void set_ignore_stats_base(CPreTestStats &pre_stats);
-    bool get_extended_stats();
-    void update_counters();
-    int configure_rss_redirect_table(uint16_t numer_of_queues,
-                                     uint16_t skip_queue);
+    virtual int dump_fdir_global_stats(FILE *fd);
+    virtual int reset_hw_flow_stats();
+    virtual int get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
+    virtual int get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset);
+    virtual void rx_queue_setup(uint16_t rx_queue_id,
+                                uint16_t nb_rx_desc,
+                                unsigned int socket_id,
+                                const struct rte_eth_rxconf *rx_conf,
+                                struct rte_mempool *mb_pool);
+    virtual void tx_queue_setup(uint16_t tx_queue_id,
+                                uint16_t nb_tx_desc,
+                                unsigned int socket_id,
+                                const struct rte_eth_txconf *tx_conf);
+    virtual void stop_rx_drop_queue();
+    virtual void configure_rx_duplicate_rules();
+    virtual int set_port_rcv_all(bool is_rcv);
+    virtual inline bool is_dummy() { return false; }
+    virtual void start();
+    virtual void stop();
+    virtual void disable_flow_control();
+    virtual void dump_stats(FILE *fd);
+    virtual void set_ignore_stats_base(CPreTestStats &pre_stats);
+    virtual bool get_extended_stats();
+    virtual void update_counters();
+    virtual int configure_rss_redirect_table(uint16_t numer_of_queues,
+                                             uint16_t skip_queue);
 
-    void stats_clear();
+    virtual void stats_clear();
 
     tvpid_t             get_tvpid(){
         return (m_tvpid);
@@ -158,24 +157,36 @@ class CPhyEthIF  {
     CPhyEthIgnoreStats & get_ignore_stats() {
         return m_ignore_stats;
     }
-    void flush_dp_rx_queue(void);
-    void flush_rx_queue(void);
-    int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
-                          , uint8_t ipv6_next_h, uint16_t id) const;
-    int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
-                          , uint8_t ipv6_next_h, uint16_t id) const;
-    inline uint16_t  tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
-        return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
+    virtual void flush_rx_queue(void);
+
+    inline uint16_t tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
+        if (unlikely( is_dummy() )) {
+            for (int i=0; i<nb_pkts;i++) {
+                rte_pktmbuf_free(tx_pkts[i]);
+            }
+            return nb_pkts;
+        } else {
+            return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
+        }
     }
     inline uint16_t  rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
+        if (unlikely( is_dummy() )) {
+            return 0;
+        } else {
+            return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
+        }
     }
 
     inline uint16_t  rx_burst_dq(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        return rte_eth_rx_burst(m_repid, 0, rx_pkts, nb_pkts);
+        if (unlikely( is_dummy() )) {
+            return 0;
+        } else {
+            return rte_eth_rx_burst(m_repid, 0, rx_pkts, nb_pkts);
+        }
     }
 
     inline uint32_t pci_reg_read(uint32_t reg_off) {
+        assert( !is_dummy() );
         void *reg_addr;
         uint32_t reg_v;
         reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
@@ -185,15 +196,14 @@ class CPhyEthIF  {
     }
     inline void pci_reg_write(uint32_t reg_off,
                               uint32_t reg_v) {
+        assert( !is_dummy() );
         void *reg_addr;
 
         reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
                             reg_off);
         *((volatile uint32_t *)reg_addr) = rte_cpu_to_le_32(reg_v);
     }
-    void dump_stats_extended(FILE *fd);
-
-    int get_rx_stat_capabilities();
+    virtual void dump_stats_extended(FILE *fd);
 
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
     TRexPortAttr * get_port_attr() { return m_port_attr; }
@@ -222,6 +232,34 @@ class CPhyEthIF  {
 
  public:
     struct rte_eth_dev_info  m_dev_info;
+};
+
+// stubs for dummy port
+class CPhyEthIFDummy : public CPhyEthIF {
+public:
+    inline bool is_dummy() { return true; }
+    void conf_queues() {}
+    void configure(uint16_t, uint16_t, const struct rte_eth_conf *) {}
+    int dump_fdir_global_stats(FILE *fd) { return 0; }
+    int reset_hw_flow_stats() { return 0; }
+    int get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) { return 0; }
+    int get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) { return 0; }
+    void rx_queue_setup(uint16_t, uint16_t, unsigned int, const struct rte_eth_rxconf *, struct rte_mempool *) {}
+    void tx_queue_setup(uint16_t, uint16_t, unsigned int, const struct rte_eth_txconf *) {}
+    void stop_rx_drop_queue() {}
+    void configure_rx_duplicate_rules() {}
+    int set_port_rcv_all(bool) { return 0; }
+    void start() {}
+    void stop() {}
+    void disable_flow_control() {}
+    void dump_stats(FILE *) {}
+    void set_ignore_stats_base(CPreTestStats &) {}
+    bool get_extended_stats() { return 0; }
+    void update_counters() {}
+    int configure_rss_redirect_table(uint16_t, uint16_t) { return 0; }
+    void stats_clear() {}
+    void flush_rx_queue(void) {}
+    void dump_stats_extended(FILE *) {}
 };
 
 // Because it is difficult to move CGlobalTRex into this h file, defining interface class to it

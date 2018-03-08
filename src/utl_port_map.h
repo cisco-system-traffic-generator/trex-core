@@ -40,7 +40,8 @@ general trex core always works in virtual ports id
 #include <rte_config.h>
 #endif
 #include "rte_pci.h"
-                                  
+
+#define DPDK_MAP_IVALID_REPID (255)
 
 int  norm_pci_str(std::string pci_i,
                   std::string & out,

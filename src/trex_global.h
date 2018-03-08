@@ -532,7 +532,7 @@ public:
         m_wait_before_traffic = 1;
         m_zmq_port = 4500;
         m_telnet_port = 4501;
-        m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less */
+        m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less. includes dummy ports */
         m_io_mode = 1;
         m_run_flags = 0;
         m_l_pkt_mode = 0;
@@ -556,6 +556,7 @@ public:
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
+        m_dummy_count=0;
     }
 
     CParserOption(){
@@ -589,6 +590,7 @@ public:
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
     uint16_t        m_arp_ref_per;
+    uint8_t         m_dummy_count;
     bool            m_rx_thread_enabled;
     trex_op_mode_e  m_op_mode;
     trex_astf_mode_e m_astf_mode;

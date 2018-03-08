@@ -553,21 +553,23 @@ Other network devices
 
 
     def pci_name_to_full_name (self,pci_name):
-          c='[0-9A-Fa-f]';
-          sp='[:]'
-          s_short=c+c+sp+c+c+'[.]'+c;
-          s_full=c+c+c+c+sp+s_short
-          re_full = re.compile(s_full)
-          re_short = re.compile(s_short)
+        if pci_name == 'dummy':
+            return pci_name
+        c='[0-9A-Fa-f]';
+        sp='[:]'
+        s_short=c+c+sp+c+c+'[.]'+c;
+        s_full=c+c+c+c+sp+s_short
+        re_full = re.compile(s_full)
+        re_short = re.compile(s_short)
 
-          if re_short.match(pci_name):
-              return '0000:'+pci_name
+        if re_short.match(pci_name):
+            return '0000:'+pci_name
 
-          if re_full.match(pci_name):
-              return pci_name
+        if re_full.match(pci_name):
+            return pci_name
 
-          err=" %s is not a valid pci address \n" %pci_name;
-          raise DpdkSetup(err)
+        err=" %s is not a valid pci address \n" %pci_name;
+        raise DpdkSetup(err)
 
 
     def run_dpdk_lspci (self):
@@ -676,7 +678,9 @@ Other network devices
         found_vdev  = False
         found_pdev  = False
         for iface in if_list:
-            if '--vdev' in iface:
+            if iface == 'dummy':
+                continue
+            elif '--vdev' in iface:
                 found_vdev = True
                 if 'net_af_packet' in iface:
                     res = ifname_re.search(iface)
@@ -740,6 +744,8 @@ Other network devices
         # check how many mellanox cards we have
         Mellanox_cnt=0;
         for key in if_list:
+            if key == 'dummy':
+                continue
             key = self.split_pci_key(key)
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
@@ -766,6 +772,8 @@ Other network devices
                 self.check_ofed_version()
 
             for key in if_list:
+                if key == 'dummy':
+                    continue
                 key = self.split_pci_key(key)
                 if 'Virtual' not in self.m_devices[key]['Device_str']:
                     pci_id = self.m_devices[key]['Slot_str']
@@ -790,6 +798,8 @@ Other network devices
         Napatech_cnt=0;
         to_bind_list = []
         for key in if_list:
+            if key == 'dummy':
+                continue
             key = self.split_pci_key(key)
             if key not in self.m_devices:
                 err=" %s does not exist " %key;
