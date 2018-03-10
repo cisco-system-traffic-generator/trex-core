@@ -109,7 +109,7 @@ class STLRX_Test(CStlGeneral_Test):
                 'total_pkts': 1000,
                 'rate_latency': 1,
                 'latency_9k_enable': True,
-                'latency_9k_max_average': 150,
+                'latency_9k_max_average': 170,
                 'latency_9k_max_latency': 350,
                 'no_vlan': True,
                 'no_ipv6': True,
