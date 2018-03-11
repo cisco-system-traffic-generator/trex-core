@@ -129,6 +129,11 @@ public:
         return (get_repid() == DPDK_MAP_IVALID_REPID);
     }
 
+    void set_dummy() {
+        CTRexPortMapper * lp=CTRexPortMapper::Ins();
+        lp->set_map(m_tvport, DPDK_MAP_IVALID_REPID);
+    }
+
 private:
     tvpid_t  m_tvport;
 };

@@ -248,6 +248,10 @@ public:
         p.rx_mbuf_type = MBUF_2048;
     }
 
+    uint32_t get_capabilities(void) {
+        return m_cap;
+    }
+
 protected:
     // flags describing interface capabilities
     uint32_t m_cap;
@@ -258,7 +262,7 @@ class CTRexExtendedDriverDummySelector : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverDummySelector(CTRexExtendedDriverBase *original_driver) {
         m_real_drv = original_driver;
-        m_cap = 0;
+        m_cap = m_real_drv->get_capabilities();
     }
 
     int get_min_sample_rate(void) {
@@ -1455,8 +1459,11 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
 }
 
 
-static int parse_options(int argc, char *argv[], CParserOption* po, bool first_time ) {
+static int parse_options(int argc, char *argv[], bool first_time ) {
     CSimpleOpt args(argc, argv, parser_options);
+
+    CParserOption *po = &CGlobalInfo::m_options;
+    CPlatformYamlInfo *cg = &global_platform_cfg_info;
 
     bool latency_was_set=false;
     (void)latency_was_set;
@@ -1798,20 +1805,24 @@ static int parse_options(int argc, char *argv[], CParserOption* po, bool first_t
             if ( node_dump ){
                 printf("Using configuration file %s \n",po->platform_cfg_file.c_str());
             }
-            global_platform_cfg_info.load_from_yaml_file(po->platform_cfg_file);
+            cg->load_from_yaml_file(po->platform_cfg_file);
             if ( node_dump ){
-                global_platform_cfg_info.Dump(stdout);
+                cg->Dump(stdout);
             }
         }else{
             if ( utl_is_file_exists("/etc/trex_cfg.yaml") ){
                 if ( node_dump ){
                     printf("Using configuration file /etc/trex_cfg.yaml \n");
                 }
-                global_platform_cfg_info.load_from_yaml_file("/etc/trex_cfg.yaml");
+                cg->load_from_yaml_file("/etc/trex_cfg.yaml");
                 if ( node_dump ){
-                    global_platform_cfg_info.Dump(stdout);
+                    cg->Dump(stdout);
                 }
             }
+        }
+    } else {
+        if ( cg->m_if_list.size() > CGlobalInfo::m_options.m_expected_portd ) {
+            cg->m_if_list.resize(CGlobalInfo::m_options.m_expected_portd);
         }
     }
 
@@ -1850,7 +1861,7 @@ void free_args_copy(int argc, char **argv_copy) {
     free(argv_copy);
 }
 
-static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool first_time ) {
+static int parse_options_wrapper(int argc, char *argv[], bool first_time ) {
     // copy, as arg parser sometimes changes the argv
     char ** argv_copy = (char **) malloc(sizeof(char *) * argc);
     for(int i=0; i<argc; i++) {
@@ -1858,7 +1869,7 @@ static int parse_options_wrapper(int argc, char *argv[], CParserOption* po, bool
     }
     int ret = 0;
     try {
-        ret = parse_options(argc, argv_copy, po, first_time);
+        ret = parse_options(argc, argv_copy, first_time);
     } catch (ParsingOptException &e) {
         if (e.m_err_code == SO_OPT_INVALID) {
             printf("Error: option %s is not recognized.\n\n", e.m_opt_text);
@@ -4793,7 +4804,7 @@ int  CGlobalTRex::ixgbe_prob_init(void){
     struct rte_eth_dev_info dev_info, dev_info1;
     bool found_non_dummy = false;
 
-    for (i=1; i<m_max_ports; i++) {
+    for (i=0; i<m_max_ports; i++) {
         CTVPort ctvport = CTVPort(i);
         if ( ctvport.is_dummy() ) {
             continue;
@@ -6599,9 +6610,12 @@ void check_pdev_vdev_dummy() {
     bool found_vdev = false;
     bool found_pdev = false;
     uint32_t dev_id = 1e6;
+    uint8_t if_index = 0;
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
         if ( iface == "dummy" ) {
             CGlobalInfo::m_options.m_dummy_count++;
+            CGlobalInfo::m_options.m_dummy_port_ids.push_back(if_index);
+            CTVPort(if_index).set_dummy();
         } else if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
         } else if ( iface.find(":") == std::string::npos ) { // not PCI, assume af-packet
@@ -6622,6 +6636,7 @@ void check_pdev_vdev_dummy() {
         } else {
             found_pdev = true;
         }
+        if_index++;
     }
     if ( found_vdev ) {
         if ( found_pdev ) {
@@ -6701,10 +6716,6 @@ int  update_dpdk_args(void){
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     CParserOption * lpop= &CGlobalInfo::m_options;
     CPlatformYamlInfo *cg=&global_platform_cfg_info;
-
-    if ( cg->m_if_list.size() > CGlobalInfo::m_options.m_expected_portd ) {
-        cg->m_if_list.resize(CGlobalInfo::m_options.m_expected_portd);
-    }
 
     lpsock->set_rx_thread_is_enabled(get_is_rx_thread_enabled());
     lpsock->set_number_of_threads_per_ports(lpop->preview.getCores() );
@@ -6822,29 +6833,31 @@ int  update_dpdk_args(void){
 
 
 
-    if ( lpop->prefix.length() && !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
+    if ( lpop->prefix.length() ) {
         SET_ARGS("--file-prefix");
         snprintf(g_prefix_str, sizeof(g_prefix_str), "%s", lpop->prefix.c_str());
         SET_ARGS(g_prefix_str);
 
-        SET_ARGS("--socket-mem");
-        char *mem_str;
-        if (cg->m_limit_memory.length()) {
-            mem_str = (char *)cg->m_limit_memory.c_str();
-        }else{
-            mem_str = (char *)"1024";
-        }
-        int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
-        for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
-            char path[PATH_MAX];
-            snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
-            if (access(path, F_OK) == 0) {
-                pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
-            } else {
-                break;
+        if ( !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
+            SET_ARGS("--socket-mem");
+            char *mem_str;
+            if (cg->m_limit_memory.length()) {
+                mem_str = (char *)cg->m_limit_memory.c_str();
+            }else{
+                mem_str = (char *)"1024";
             }
+            int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
+            for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
+                char path[PATH_MAX];
+                snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
+                if (access(path, F_OK) == 0) {
+                    pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
+                } else {
+                    break;
+                }
+            }
+            SET_ARGS(g_socket_mem_str);
         }
-        SET_ARGS(g_socket_mem_str);
     }
 
 
@@ -6939,7 +6952,7 @@ int main_test(int argc , char * argv[]){
 
     CGlobalInfo::m_options.preview.clean();
 
-    if ( parse_options_wrapper(argc, argv, &CGlobalInfo::m_options,true ) != 0){
+    if ( parse_options_wrapper(argc, argv, true ) != 0){
         exit(-1);
     }
 
@@ -6960,7 +6973,7 @@ int main_test(int argc , char * argv[]){
     update_global_info_from_platform_file();
 
     /* It is not a mistake. Give the user higher priorty over the configuration file */
-    if (parse_options_wrapper(argc, argv, &CGlobalInfo::m_options ,false) != 0) {
+    if (parse_options_wrapper(argc, argv, false) != 0) {
         exit(-1);
     }
 
@@ -6994,8 +7007,6 @@ int main_test(int argc , char * argv[]){
     }
 
     if ( get_is_tcp_mode() ){
-        CParserOption * po=&CGlobalInfo::m_options;
-
         if ( po->preview.getCores() >1 ) {
         printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
         printf("we are working to solve this very soon  \n");
@@ -7048,10 +7059,8 @@ int main_test(int argc , char * argv[]){
         dump_interfaces_info();
         exit(0);
     }
+    reorder_dpdk_ports();
     set_driver();
-    if ( !CGlobalInfo::m_options.m_is_vdev ) {
-        reorder_dpdk_ports();
-    }
     time_init();
 
     /* check if we are in simulation mode */
@@ -7200,14 +7209,19 @@ void wait_x_sec(int sec) {
 
 /* should be called after rte_eal_init() */
 void set_driver() {
-    uint8_t m_max_ports = rte_eth_dev_count();
-    uint8_t expect_dpdk_ports = CGlobalInfo::m_options.m_expected_portd - CGlobalInfo::m_options.m_dummy_count;
-    if ( m_max_ports != expect_dpdk_ports ) {
-        printf("Could not find all interfaces (asked for: %u, found: %u).\n", expect_dpdk_ports, m_max_ports);
+    uint8_t m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+    if ( m_max_ports != CGlobalInfo::m_options.m_expected_portd ) {
+        printf("Could not find all interfaces (asked for: %u, found: %u).\n", CGlobalInfo::m_options.m_expected_portd, m_max_ports);
         exit(1);
     }
     struct rte_eth_dev_info dev_info;
-    rte_eth_dev_info_get(0, &dev_info);
+    for (int i=0; i<m_max_ports; i++) {
+        CTVPort ctvport = CTVPort(i);
+        if ( !ctvport.is_dummy() ) {
+            rte_eth_dev_info_get(ctvport.get_repid(), &dev_info);
+            break;
+        }
+    }
 
     if ( !CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name) ){
         printf("\nError: driver %s is not supported. Please consult the documentation for a list of supported drivers\n"
@@ -7264,6 +7278,20 @@ void set_driver() {
 */
 void reorder_dpdk_ports() {
 
+    CTRexPortMapper * lp=CTRexPortMapper::Ins();
+
+    if ( CGlobalInfo::m_options.m_is_vdev ) {
+        uint8_t if_index = 0;
+        for (int i=0; i<global_platform_cfg_info.m_if_list.size(); i++) {
+            if ( CTVPort(i).is_dummy() ) {
+                continue;
+            }
+            lp->set_map(i, if_index);
+            if_index++;
+        }
+        return;
+    }
+
     #define BUF_MAX 200
     char buf[BUF_MAX];
     dpdk_input_args_t  dpdk_scan;
@@ -7289,8 +7317,6 @@ void reorder_dpdk_ports() {
     }
 
     /* update MAP */
-    CTRexPortMapper * lp=CTRexPortMapper::Ins();
-
     lp->set(cnt, res_map);
 
     if ( CGlobalInfo::m_options.preview.getVMode() > 0){
