@@ -93,14 +93,15 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         if not self._check_tcp_errors(c,is_tcp,is_udp):
             self.fail('Errors in tcp counters check ' )
 
-    def get_duration ():
+    def get_duration(self):
         return 120
-    def get_simple_tests ():
+
+    def get_simple_tests(self):
         tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
                   {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}]
         return (tests);
 
-    def get_sfr_tests ():
+    def get_sfr_tests(self):
         tests = [ {'name': 'sfr.py','is_tcp' :True,'is_udp':False,'m':1.0},
                   {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
         return (tests);
