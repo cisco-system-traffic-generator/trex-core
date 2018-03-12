@@ -35,6 +35,6 @@
 
 trex:
   hostname       : localhost
-  cores          : 8
+  cores          : 10
   modes          : ['loopback']
 

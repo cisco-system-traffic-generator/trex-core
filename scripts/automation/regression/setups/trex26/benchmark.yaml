@@ -23,8 +23,8 @@ test_short_flow_high_active2:
 
 
 test_jumbo:
-    multiplier          : 120
-    cores               : 4
+    multiplier          : 60
+    cores               : 8
     bw_per_core         : 962.464
 
 
@@ -210,7 +210,7 @@ test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "10%"
         mpps_per_core_golden    :
-                                   min: 18.0
+                                   min: 15.0
                                    max: 25.0
 
 
@@ -236,7 +236,7 @@ test_performance_vm_multi_cpus_cached:
         core_count             : 7
         mult                   : "35%"
         mpps_per_core_golden   :
-                                  min: 21.0
+                                  min: 17.0
                                   max: 24.3
 
 test_performance_syn_attack_multi_cpus:

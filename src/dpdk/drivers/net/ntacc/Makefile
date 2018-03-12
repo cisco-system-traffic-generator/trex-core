@@ -71,6 +71,7 @@ LIBABIVER := 1
 #
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += rte_eth_ntacc.c
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += filter_ntacc.c
+SRCS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += nt_compat.c
 
 #
 # Export include files
@@ -78,11 +79,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += filter_ntacc.c
 SYMLINK-y-include +=
 
 # this lib depends upon:
-
-DEPDIRS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += lib/librte_eal
-DEPDIRS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += lib/librte_mbuf
-DEPDIRS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += lib/librte_mempool
-DEPDIRS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += lib/librte_ether
-DEPDIRS-$(CONFIG_RTE_LIBRTE_PMD_NTACC) += lib/librte_kvargs
+LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_kvargs 
+LDLIBS += -lrte_ethdev -lrte_bus_pci
 
 include $(RTE_SDK)/mk/rte.lib.mk
