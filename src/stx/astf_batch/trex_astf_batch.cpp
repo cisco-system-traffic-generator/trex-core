@@ -41,12 +41,8 @@ TrexDpCoreAstfBatch::start_astf() {
         if (go->m_astf_mode==CParserOption::OP_ASTF_MODE_CLIENT_MASK && 
            ((go->m_astf_client_mask & (0x1<<p1))==0) ){
             disable_client=true;
-        } else {
-            for (uint8_t &dummy_port_id : go->m_dummy_port_ids) {
-                if ( dummy_port_id == p1 ) {
-                    disable_client=true;
-                }
-            }
+        } else if ( go->m_dummy_port_map[p1] ) { // dummy port
+            disable_client=true;
         }
     }
 

@@ -196,6 +196,7 @@ public:
     };
 
     RXPortManager();
+    RXPortManager(const RXPortManager &other);
 
     void create(uint32_t port_id,
                 CPortLatencyHWBase *io,

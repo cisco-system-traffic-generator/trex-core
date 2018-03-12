@@ -201,6 +201,7 @@ public:
 
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
+
     
     CFlowGenList * get_fl() const;
 };
@@ -289,6 +290,7 @@ public:
     CFlowGenList * get_fl() const {
         return nullptr;
     }
+
     
 private:
     int m_dp_core_count;

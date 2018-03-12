@@ -320,12 +320,12 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["core_type"] = get_cpu_model();
 
     /* ports */
-    section["port_count"] = api.get_port_count();
-    section["ports"]      = Json::arrayValue;
+    const stx_port_map_t &stx_port_map = get_stx()->get_port_map();
+    section["port_count"] = (int)stx_port_map.size();
+    section["ports"] = Json::arrayValue;
 
-    
-    for (int i = 0; i < api.get_port_count(); i++) {
-        
+    for (auto &port : stx_port_map) {
+        int i = port.first;
         TrexPlatformApi::intf_info_st port_info;
         supp_speeds_t supp_speeds;
         uint16_t rx_count_num;
@@ -336,40 +336,43 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         api.get_port_info(i, port_info);
 
         get_platform_api().getPortAttrObj(i)->get_supported_speeds(supp_speeds);
+        Json::Value port_json;
 
-        section["ports"][i]["index"]   = i;
+        port_json["index"]   = i;
 
-        section["ports"][i]["driver"]       = port_info.driver_name;
-        section["ports"][i]["pci_addr"]     = port_info.pci_addr;
-        section["ports"][i]["numa"]         = port_info.numa_node;
-        section["ports"][i]["hw_mac"]       = utl_macaddr_to_str(port_info.hw_macaddr);
+        port_json["driver"]       = port_info.driver_name;
+        port_json["pci_addr"]     = port_info.pci_addr;
+        port_json["numa"]         = port_info.numa_node;
+        port_json["hw_mac"]       = utl_macaddr_to_str(port_info.hw_macaddr);
 
-        section["ports"][i]["description"]  = api.getPortAttrObj(i)->get_description();
+        port_json["description"]  = api.getPortAttrObj(i)->get_description();
         
         api.get_port_stat_info(i, rx_count_num, rx_caps, ip_id_base);
         
-        section["ports"][i]["rx"]["caps"]      = Json::arrayValue;
+        port_json["rx"]["caps"]      = Json::arrayValue;
         
         if (rx_caps & TrexPlatformApi::IF_STAT_IPV4_ID) {
-            section["ports"][i]["rx"]["caps"].append("flow_stats");
+            port_json["rx"]["caps"].append("flow_stats");
         }
         if (rx_caps & TrexPlatformApi::IF_STAT_PAYLOAD) {
-            section["ports"][i]["rx"]["caps"].append("latency");
+            port_json["rx"]["caps"].append("latency");
         }
         if (rx_caps & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT) {
-            section["ports"][i]["rx"]["caps"].append("rx_bytes");
+            port_json["rx"]["caps"].append("rx_bytes");
         }
         
-        section["ports"][i]["rx"]["counters"]     = rx_count_num;
-        section["ports"][i]["is_fc_supported"]    = api.getPortAttrObj(i)->is_fc_change_supported();
-        section["ports"][i]["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
-        section["ports"][i]["is_link_supported"]  = api.getPortAttrObj(i)->is_link_change_supported();
-        section["ports"][i]["is_virtual"]         = api.getPortAttrObj(i)->is_virtual();
+        port_json["rx"]["counters"]     = rx_count_num;
+        port_json["is_fc_supported"]    = api.getPortAttrObj(i)->is_fc_change_supported();
+        port_json["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
+        port_json["is_link_supported"]  = api.getPortAttrObj(i)->is_link_change_supported();
+        port_json["is_prom_supported"]  = api.getPortAttrObj(i)->is_prom_change_supported();
+        port_json["is_virtual"]         = api.getPortAttrObj(i)->is_virtual();
         
-        section["ports"][i]["supp_speeds"] = Json::arrayValue;
+        port_json["supp_speeds"] = Json::arrayValue;
         for (int speed_id=0; speed_id<supp_speeds.size(); speed_id++) {
-            section["ports"][i]["supp_speeds"].append(supp_speeds[speed_id]);
+            port_json["supp_speeds"].append(supp_speeds[speed_id]);
         }
+        section["ports"].append(port_json);
 
     }
 
@@ -406,11 +409,11 @@ TrexRpcCmdShutdown::_run(const Json::Value &params, Json::Value &result) {
     bool force = parse_bool(params, "force", result);
 
     /* verify every port is either free or owned by the issuer */
-    for (auto port : get_stx()->get_port_list()) {
-        TrexPortOwner &owner = port->get_owner();
+    for (auto &port : get_stx()->get_port_map()) {
+        TrexPortOwner &owner = port.second->get_owner();
         if ( (!owner.is_free()) && (!owner.is_owned_by(user)) && !force) {
             std::stringstream ss;
-            ss << "port " << int(port->get_port_id()) << " is owned by '" << owner.get_name() << "' - specify 'force' for override";
+            ss << "port " << int(port.first) << " is owned by '" << owner.get_name() << "' - specify 'force' for override";
             generate_execute_err(result, ss.str());
         }
     }

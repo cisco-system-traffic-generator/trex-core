@@ -429,7 +429,7 @@ private:
      CLatencyManagerPerPort  m_ports[TREX_MAX_PORTS];
      double                  m_cps;
      double                  m_delta_sec;
-     uint64_t                m_start_time; // calc tick betwen sending
+     uint64_t                m_start_time; // calc tick between sending
      uint32_t                m_port_mask;
      uint32_t                m_max_ports;
      RxCheckManager          m_rx_check_manager;

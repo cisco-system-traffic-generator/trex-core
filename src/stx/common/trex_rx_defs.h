@@ -24,7 +24,6 @@
 
 #include "trex_defs.h"
 #include <json/json.h>
-#include <vector>
 
 class CPortLatencyHWBase;
 
@@ -39,14 +38,14 @@ class CRxSlCfg {
         m_tx_cores = 0;
     }
 
-    void create(uint32_t tx_cores, const std::vector<CPortLatencyHWBase *> &ports) {
+    void create(uint32_t tx_cores, const std::unordered_map<uint8_t,CPortLatencyHWBase *> &ports) {
         m_tx_cores  = tx_cores;
         m_ports = ports;
     }
     
  public:
     uint32_t                            m_tx_cores;
-    std::vector<CPortLatencyHWBase *>   m_ports;
+    std::unordered_map<uint8_t, CPortLatencyHWBase *>   m_ports;
 };
 
 /**

@@ -48,8 +48,8 @@ TrexSTX::~TrexSTX() {
  */
 TrexPort *
 TrexSTX::get_port_by_id(uint8_t port_id) {
-    if (port_id >= m_ports.size()) {
-        throw TrexException("index out of range");
+    if (m_ports.find(port_id) == m_ports.end()) {
+        throw TrexException("Port index out of range");
     }
 
     return m_ports[port_id];

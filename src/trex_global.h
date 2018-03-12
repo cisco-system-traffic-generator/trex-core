@@ -608,7 +608,7 @@ public:
     std::string        out_file;
     std::string        prefix;
     std::vector<std::string> dump_interfaces;
-    std::vector<uint8_t> m_dummy_port_ids;
+    bool            m_dummy_port_map[TREX_MAX_PORTS];
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;

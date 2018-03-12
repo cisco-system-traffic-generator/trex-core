@@ -45,8 +45,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     TrexRpcCommandsTable::get_instance().load_component(new TrexRpcCmdsASTF());
     
      /* create ASTF ports */
-    for (int i = 0; i < get_platform_api().get_port_count(); i++) {
-        m_ports.push_back((TrexPort *)new TrexAstfPort(i));
+    for (auto &port_pair: cfg.m_dummy_port_map) {
+        m_ports[port_pair.first] = (TrexPort *)new TrexAstfPort(port_pair.first);
     }
     
     /* create RX core */
@@ -58,8 +58,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 
 
 TrexAstf::~TrexAstf() {
-    for (auto port : m_ports) {
-        delete port;
+    for (auto &port_pair : m_ports) {
+        delete port_pair.second;
     }
     
     delete m_rx;

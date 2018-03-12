@@ -21,6 +21,7 @@
 #ifndef __TREX_RX_CORE_H__
 #define __TREX_RX_CORE_H__
 #include <stdint.h>
+#include <unordered_map>
 
 #include "stateful_rx_core.h"
 #include "os_time.h"
@@ -30,6 +31,8 @@
 #include "trex_rx_tx.h"
 
 class TrexCpToRxMsgBase;
+
+typedef std::unordered_map<uint8_t, RXPortManager> rx_port_mngr_t;
 
 class CCPortLatencyStl {
  public:
@@ -242,7 +245,7 @@ class CRxCore : public TrexRxCore {
     CRxCoreErrCntrs  m_err_cntrs;
     CRFC2544Info     m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
-    RXPortManager    m_rx_port_mngr[TREX_MAX_PORTS];
+    rx_port_mngr_t   m_rx_port_mngr;
     
     CPPSMeasure      m_rx_pps;
     
