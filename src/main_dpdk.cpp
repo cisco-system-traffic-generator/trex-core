@@ -913,6 +913,7 @@ private:
                                uint8_t l4_proto, int queue, uint32_t f_id, char *ntpl_str);
     virtual int add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
+    virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     struct fid_s {
         uint8_t port_id;
         uint32_t id;
@@ -8660,6 +8661,20 @@ int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_stateless(CPhyEthIF 
     return 0;
 }
 
+int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_statefull(CPhyEthIF * _if) {
+    set_rcv_all(_if, false);
+    repid_t port_id =_if->get_repid();
+
+    char ntpl_str[] =
+        "((Data[DynOffset = DynOffIpv4Frame; Offset = 1; DataType = ByteStr1 ; DataMask = [0:0]] == 1) OR "
+        " (Data[DynOffset = DynOffIpv6Frame; Offset = 0; DataType = ByteStr2 ; DataMask = [11:11]] == 1) OR "
+        " (Data[DynOffset = DynOffIpv4Frame; Offset = 8; DataType = ByteStr2] == 0xFF11,0xFF06,0xFF01) OR "
+        " (Data[DynOffset = DynOffIpv6Frame; Offset = 6; DataType = ByteStr2] == 0x3CFF)) AND "
+        "Layer4Protocol == ICMP,UDP,TCP,SCTP";
+    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
+    return 0;
+}
+
 
 int CTRexExtendedDriverBaseNtAcc::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     repid_t port_id =_if->get_repid();
@@ -8685,7 +8700,7 @@ int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules(CPhyEthIF * _if) {
         /* Statefull currently work as stateless */
         return configure_rx_filter_rules_stateless(_if);
     } else {
-        return configure_rx_filter_rules_stateless(_if);
+        return configure_rx_filter_rules_statefull(_if);
     }
 }
 

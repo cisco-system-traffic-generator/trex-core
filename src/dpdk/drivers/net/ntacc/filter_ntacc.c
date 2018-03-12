@@ -92,10 +92,10 @@ static inline int _CheckArray(const uint8_t *addr, uint8_t len)
       zeros++;
     if (addr[i] == 0xFF)
       ffs++;
-    }
+  }
   if (zeros == len ||
       ffs == len) {
-  return 0;
+    return 0;
   }
   return 1;
 }
@@ -104,7 +104,7 @@ void pushNtplID(struct rte_flow *flow, uint32_t ntplId)
 {
   struct filter_flow *filter = rte_zmalloc("filter", sizeof(struct filter_flow), 0);
   if (!filter) {
-    RTE_LOG(ERR, PMD, "Memory allocation failed. Filter clean up is not possible\n");
+    PMD_NTACC_LOG(ERR, "Memory allocation failed. Filter clean up is not possible\n");
   }
   else {
     memset(filter, 0, sizeof(struct filter_flow));
@@ -113,9 +113,60 @@ void pushNtplID(struct rte_flow *flow, uint32_t ntplId)
   }
 }
 
+enum layer_e {
+  LAYER2,
+  LAYER3,
+  LAYER4,
+  VLAN,
+  IP,
+  MPLS,
+  PROTO,
+};
+
+/**
+ * Get the layer NTPL keyword. Either an outer or an inner
+ * version.
+ */
+static const char *GetLayer(enum layer_e layer, bool tunnel)
+{
+  switch (layer) {
+  case LAYER2:
+    if (tunnel)
+      return "InnerLayer2Header";
+    else
+      return "Layer2Header";
+  case LAYER3:
+  case IP:
+    if (tunnel)
+      return "InnerLayer3Header";
+    else
+      return "Layer3Header";
+  case LAYER4:
+    if (tunnel)
+      return "InnerLayer4Header";
+    else
+      return "Layer4Header";
+  case VLAN:
+    if (tunnel)
+      return "InnerFirstVLAN";
+    else
+      return "FirstVLAN";
+  case MPLS:
+    if (tunnel)
+      return "InnerFirstMPLS";
+    else
+      return "FirstMPLS";
+  case PROTO:
+    if (tunnel)
+      return "InnerIpProtocol";
+    else
+      return "IpProtocol";
+  }
+  return "UNKNOWN";
+}
+
 void FlushHash(struct pmd_internals *internals)
 {
-  NtNtplInfo_t ntplInfo;
   char ntpl_buf[21];
   struct filter_hash_s *pHash;
 loop:
@@ -123,8 +174,8 @@ loop:
   if (pHash->port == internals->port) {
       LIST_REMOVE(pHash, next);
       snprintf(ntpl_buf, 20, "delete=%d", pHash->ntpl_id);
-      DoNtpl(ntpl_buf, &ntplInfo, internals);
-      RTE_LOG(DEBUG, PMD, "Deleting Hash filter: %s\n", ntpl_buf);
+      DoNtpl(ntpl_buf, NULL, internals);
+      PMD_NTACC_LOG(DEBUG, "Deleting Hash filter: %s\n", ntpl_buf);
       rte_free(pHash);
       goto loop;
     }
@@ -132,7 +183,6 @@ loop:
 }
 
 void DeleteHash(uint64_t rss_hf, uint8_t port, int priority, struct pmd_internals *internals) {
-  NtNtplInfo_t ntplInfo;
   char ntpl_buf[21];
   struct filter_hash_s *pHash;
 
@@ -140,8 +190,8 @@ void DeleteHash(uint64_t rss_hf, uint8_t port, int priority, struct pmd_internal
     if (pHash->rss_hf == rss_hf && pHash->port == port && pHash->priority == priority) {
       LIST_REMOVE(pHash, next);
       snprintf(ntpl_buf, 20, "delete=%d", pHash->ntpl_id);
-      DoNtpl(ntpl_buf, &ntplInfo, internals);
-      RTE_LOG(DEBUG, PMD, "Deleting Hash filter: %s\n", ntpl_buf);
+      DoNtpl(ntpl_buf, NULL, internals);
+      PMD_NTACC_LOG(DEBUG, "Deleting Hash filter: %s\n", ntpl_buf);
       rte_free(pHash);
     }
   }
@@ -151,7 +201,7 @@ static void pushHash(uint32_t ntpl_id, uint64_t rss_hf, struct pmd_internals *in
 {
   struct filter_hash_s *pHash = rte_zmalloc(internals->name, sizeof(struct filter_hash_s), 0);
   if (!pHash) {
-    RTE_LOG(ERR, PMD, "Memory allocation failed. Filter clean up is not possible\n");
+    PMD_NTACC_LOG(ERR, "Memory allocation failed. Filter clean up is not possible\n");
   }
   else {
     pHash->ntpl_id = ntpl_id;
@@ -176,7 +226,7 @@ static int FindHash(uint64_t rss_hf, struct pmd_internals *internals, int priori
 #define PRINT_HASH(a,b) { if (PrintHash(a, priority, internals, rss_hf, b) != 0)  return -1; }
 static int PrintHash(const char *str, int priority, struct pmd_internals *internals, uint64_t rss_hf, uint8_t tuple)
 {
-  NtNtplInfo_t ntplInfo;
+  uint32_t ntplID;
   char tmpBuf[TMP_BSIZE + 1];
 
   const char *ptrTuple = "hashroundrobin";
@@ -223,14 +273,15 @@ static int PrintHash(const char *str, int priority, struct pmd_internals *intern
     break;
   }
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
   snprintf(tmpBuf, TMP_BSIZE, str, priority, internals->port, internals->tagName, ptrTuple);
 #pragma GCC diagnostic pop
-  if (DoNtpl(tmpBuf, &ntplInfo, internals) != 0) {
+  if (DoNtpl(tmpBuf, &ntplID, internals) != 0) {
     return -1;
   }
   rte_spinlock_lock(&internals->lock);
-  pushHash(ntplInfo.ntplId, rss_hf, internals, priority);
+  pushHash(ntplID, rss_hf, internals, priority);
   rte_spinlock_unlock(&internals->lock);
   return 0;
 }
@@ -238,10 +289,10 @@ static int PrintHash(const char *str, int priority, struct pmd_internals *intern
 /**
  * Create the hash filter from the DPDK hash function.
  */
-int CreateHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority)
+int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority)
 {
   if (rss_hf == 0) {
-    RTE_LOG(ERR, PMD, "No HASH function is selected. Ignoring hash.\n");
+    PMD_NTACC_LOG(ERR, "No HASH function is selected. Ignoring hash.\n");
     return 0;
   }
 
@@ -251,7 +302,7 @@ int CreateHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow
       (rss_hf & ETH_RSS_VXLAN)      ||
       (rss_hf & ETH_RSS_GENEVE)     ||
       (rss_hf & ETH_RSS_NVGRE)) {
-    RTE_LOG(ERR, PMD, "One of the selected HASH functions is not supported\n");
+    PMD_NTACC_LOG(ERR, "One of the selected HASH functions is not supported\n");
     return -1;
   }
 
@@ -388,6 +439,72 @@ int CreateHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow
   return 0;
 }
 
+static const char *GetSorted(struct pmd_internals *internals)
+{
+  if (internals->symHashMode == SYM_HASH_ENA_PER_PORT) {
+    return "XOR=true";
+  }
+  else {
+    return "XOR=false";
+  }
+}
+
+int CreateHash(char *ntpl_buf, uint64_t rss_hf, struct pmd_internals *internals, bool tunnel)
+{
+  if (rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWordP=%s,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
+             GetLayer(PROTO, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  if ((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP)) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWord8=%s[0]/32,HashWordP=%s,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
+             GetLayer(PROTO, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  if ((rss_hf & ETH_RSS_IPV4) || (rss_hf & ETH_RSS_FRAG_IPV4)) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  if (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWordP=%s,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
+             GetLayer(PROTO, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  if ((rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) ||
+      (rss_hf & ETH_RSS_IPV6_TCP_EX)      ||
+      (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) ||
+      (rss_hf & ETH_RSS_IPV6_UDP_EX)      ||
+      (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP)) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWord8=%s[0]/32,HashWordP=%s,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
+             GetLayer(PROTO, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  if ((rss_hf & ETH_RSS_IPV6) || (rss_hf & ETH_RSS_FRAG_IPV6) || (rss_hf & ETH_RSS_IPV6_EX)) {
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
+             ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,%s",
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
+    return 0;
+  }
+
+  snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, ";Hash=roundrobin");
+  return 0;
+}
+
 #if 0
 /**
  * Get a keyset value from the keyset pool.
@@ -493,7 +610,7 @@ void CreateStreamid(char *ntpl_buf, struct pmd_internals *internals, uint32_t nb
 
   strcat(ntpl_buf, "streamid=");
   if (range) {
-    snprintf(buf, 20, "(%u..%u)", internals->rxq[0].stream_id, internals->rxq[nb_queues - 1].stream_id);
+    snprintf(buf, 20, "(%u..%u)", internals->rxq[list_queues[0]].stream_id, internals->rxq[list_queues[nb_queues - 1]].stream_id);
     strcat(ntpl_buf, buf);
   }
   else {
@@ -505,52 +622,6 @@ void CreateStreamid(char *ntpl_buf, struct pmd_internals *internals, uint32_t nb
       }
     }
   }
-}
-
-enum layer_e {
-  LAYER2,
-  LAYER3,
-  LAYER4,
-  VLAN,
-  IP,
-  MPLS,
-};
-
-/**
- * Get the layer NTPL keyword. Either an outer or an inner
- * version.
- */
-static const char *GetLayer(enum layer_e layer, bool tunnel)
-{
-  switch (layer) {
-  case LAYER2:
-    if (tunnel)
-      return "InnerLayer2Header";
-    else
-      return "Layer2Header";
-  case LAYER3:
-  case IP:
-    if (tunnel)
-      return "InnerLayer3Header";
-    else
-      return "Layer3Header";
-  case LAYER4:
-    if (tunnel)
-      return "InnerLayer4Header";
-    else
-      return "Layer4Header";
-  case VLAN:
-    if (tunnel)
-      return "InnerFirstVLAN";
-    else
-      return "FirstVLAN";
-  case MPLS:
-    if (tunnel)
-      return "InnerFirstMPLS";
-    else
-      return "FirstMPLS";
-  }
-  return "UNKNOWN";
 }
 
 static void InsertFilterValues(struct filter_values_s *pInsertFilterValues, struct pmd_internals *internals)
@@ -675,7 +746,6 @@ static int SetFilter(int size,
 }
 
 void DeleteKeyset(int key, struct pmd_internals *internals) {
-  NtNtplInfo_t ntplInfo;
   char ntpl_buf[21];
   struct filter_keyset_s *key_set;
 
@@ -683,15 +753,28 @@ void DeleteKeyset(int key, struct pmd_internals *internals) {
     if (key_set->key == key) {
       LIST_REMOVE(key_set, next);
       snprintf(ntpl_buf, 20, "delete=%d", key_set->ntpl_id2);
-      DoNtpl(ntpl_buf, &ntplInfo, internals);
+      DoNtpl(ntpl_buf, NULL, internals);
       snprintf(ntpl_buf, 20, "delete=%d", key_set->ntpl_id1);
-      DoNtpl(ntpl_buf, &ntplInfo, internals);
+      DoNtpl(ntpl_buf, NULL, internals);
       rte_free(key_set);
       return;
     }
   }
 }
 
+/******************************************************
+  Find the keyset for multiple shared filter commands.
+
+  A filter command is shared when:
+    typeMask = commands and fields in the different commands
+    plist_queues = Queues used by the commands
+    port = Adapter port
+  are the same. This means that the filter can be
+  optimized to take less space in the FPGA.
+
+  If no match is found then it is the first
+  command or optimization cannot be done.
+ *******************************************************/
 static int FindKeyset(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queues, struct pmd_internals *internals)
 {
   struct filter_keyset_s *key_set;
@@ -714,6 +797,67 @@ static int FindKeyset(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queue
   return 0;
 }
 
+/******************************************************
+  Find the NTPL ID for the assign command as it is
+  the same assign command used when multiple shared
+  filter commands are used.
+
+  A filter command is shared when:
+    typeMask = commands and fields in the different commands
+    plist_queues = Queues used by the commands
+    port = Adapter port
+  are the same. This means that the filter can be
+  optimized to take less space in the FPGA.
+
+  If no assign NTPL ID is found then it is the first
+  command or optimization cannot be done.
+ *******************************************************/
+static uint32_t FindAssignNtplID(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queues, struct pmd_internals *internals)
+{
+  struct rte_flow *pFlow;
+  int match = 0;
+  int i;
+  LIST_FOREACH(pFlow, &internals->flows, next) {
+    if (pFlow->typeMask == typeMask && nb_queues == pFlow->nb_queues && pFlow->port == internals->port) {
+      match = 0;
+      for (i = 0; i < nb_queues; i++) {
+        if (plist_queues[i] == pFlow->list_queues[i]) {
+          match++;
+        }
+      }
+      if (match == nb_queues) {
+        return pFlow->assign_ntpl_id;
+      }
+    }
+  }
+  return 0;
+}
+
+//#define DUMP_FLOWS
+#ifdef DUMP_FLOWS
+static void DumpFlows(struct pmd_internals *internals)
+{
+  struct rte_flow *pFlow;
+  struct filter_flow *pNtlpid;
+  unsigned i = 0;
+  printf("Dump flows\n");
+  printf("----------\n");
+  LIST_FOREACH(pFlow, &internals->flows, next) {
+    unsigned j = 0;
+    printf("Flow no %u\n", i++);
+    printf("P %u, K %u, M %016llX. Queues:", pFlow->port, pFlow->key, (long long unsigned int)pFlow->typeMask);
+    for (j = 0; j < pFlow->nb_queues; j++) {
+      printf(" %u", pFlow->list_queues[j]);
+    }
+    printf("\nNTPL ID: Assign = %u", pFlow->assign_ntpl_id);
+    LIST_FOREACH(pNtlpid, &pFlow->ntpl_id, next) {
+      printf(" %u", pNtlpid->ntpl_id);
+    }
+    printf("\n---------------------------------------------------\n");
+  }
+}
+#endif
+
 int CreateOptimizedFilter(char *ntpl_buf,
                           struct pmd_internals *internals,
                           struct rte_flow *flow,
@@ -724,7 +868,6 @@ int CreateOptimizedFilter(char *ntpl_buf,
                           bool *reuse,
                           struct color_s *pColor)
 {
-  NtNtplInfo_t *pNtplInfo = NULL;
   struct filter_values_s *pFilter_values;
   int key;
   int iRet = 0;
@@ -733,37 +876,36 @@ int CreateOptimizedFilter(char *ntpl_buf,
   char *filter_buffer2 = NULL;
   char *filter_buffer3 = NULL;
   int i;
+  uint32_t ntplID;
+
+#ifdef DUMP_FLOWS
+  DumpFlows(internals);
+#endif
 
   rte_spinlock_lock(&internals->lock);
   if (LIST_EMPTY(&internals->filter_values)) {
     rte_spinlock_unlock(&internals->lock);
     return 0;
   }
-  pNtplInfo = rte_malloc(internals->name, sizeof(NtNtplInfo_t), 0);
-  if (!pNtplInfo) {
-    iRet = -1;
-    RTE_LOG(ERR, PMD, "Allocating memory failed\n");
-    goto Errors;
-  }
 
   filter_buffer1 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
   if (!filter_buffer1) {
     iRet = -1;
-    RTE_LOG(ERR, PMD, "Allocating memory failed\n");
+    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
     goto Errors;
   }
 
   filter_buffer2 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
   if (!filter_buffer2) {
     iRet = -1;
-    RTE_LOG(ERR, PMD, "Allocating memory failed\n");
+    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
     goto Errors;
   }
 
   filter_buffer3 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
   if (!filter_buffer3) {
     iRet = -1;
-    RTE_LOG(ERR, PMD, "Allocating memory failed\n");
+    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
     goto Errors;
   }
 
@@ -772,14 +914,14 @@ int CreateOptimizedFilter(char *ntpl_buf,
     struct filter_keyset_s *key_set = rte_zmalloc(internals->name, sizeof(struct filter_keyset_s), 0);
     if (!key_set) {
       iRet = -1;
-      RTE_LOG(ERR, PMD, "Allocating memory failed\n");
+      PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
       goto Errors;
     }
     key = GetKeysetValue(internals);
     if (key < 0) {
       rte_free(key_set);
       iRet = -1;
-      RTE_LOG(ERR, PMD, "Internal error: Illegal key set value returned\n");
+      PMD_NTACC_LOG(ERR, "Internal error: Illegal key set value returned\n");
       goto Errors;
     }
 
@@ -826,19 +968,19 @@ int CreateOptimizedFilter(char *ntpl_buf,
     snprintf(&filter_buffer3[strlen(filter_buffer3)],  NTPL_BSIZE - strlen(filter_buffer3) - 1, "}");
     snprintf(&filter_buffer2[strlen(filter_buffer2)],  NTPL_BSIZE - strlen(filter_buffer2) - 1, ")");
 
-    if (DoNtpl(filter_buffer3, pNtplInfo, internals)) {
+    if (DoNtpl(filter_buffer3, &ntplID, internals)) {
       rte_free(key_set);
       iRet = -1;
       goto Errors;
     }
-    key_set->ntpl_id1 = pNtplInfo->ntplId;
+    key_set->ntpl_id1 = ntplID;
 
-    if (DoNtpl(filter_buffer2, pNtplInfo, internals)) {
+    if (DoNtpl(filter_buffer2, &ntplID, internals)) {
       rte_free(key_set);
       iRet = -1;
       goto Errors;
     }
-    key_set->ntpl_id2 = pNtplInfo->ntplId;
+    key_set->ntpl_id2 = ntplID;
 
     for (i = 0; i < nb_queues; i++) {
       key_set->list_queues[i] = plist_queues[i];
@@ -847,12 +989,20 @@ int CreateOptimizedFilter(char *ntpl_buf,
     key_set->port = internals->port;
     LIST_INSERT_HEAD(&internals->filter_keyset, key_set, next);
     *reuse = false;
+    flow->assign_ntpl_id = 0;
   }
   else {
     *reuse = true;
+    flow->assign_ntpl_id = FindAssignNtplID(typeMask, plist_queues, nb_queues, internals);
   }
 
+  for (i = 0; i < nb_queues; i++) {
+    flow->list_queues[i] = plist_queues[i];
+  }
+  flow->nb_queues = nb_queues;
+  flow->port = internals->port;
   flow->key = key;
+  flow->typeMask = typeMask;
   first = true;
   LIST_FOREACH(pFilter_values, &internals->filter_values, next) {
     if (first) {
@@ -970,11 +1120,11 @@ int CreateOptimizedFilter(char *ntpl_buf,
   }
 
   // Set keylist filter
-  if (DoNtpl(filter_buffer1, pNtplInfo, internals)) {
+  if (DoNtpl(filter_buffer1, &ntplID, internals)) {
     iRet = -1;
     goto Errors;
   }
-  pushNtplID(flow, pNtplInfo->ntplId);
+  pushNtplID(flow, ntplID);
 
   if (*fc) strcat(ntpl_buf," and ");
   *fc = true;
@@ -984,9 +1134,6 @@ int CreateOptimizedFilter(char *ntpl_buf,
 Errors:
   rte_spinlock_unlock(&internals->lock);
 
-  if (pNtplInfo) {
-    rte_free(pNtplInfo);
-  }
   if (filter_buffer1) {
     rte_free(filter_buffer1);
   }
@@ -1190,7 +1337,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
   if (spec && (spec->hdr.version_ihl && spec->hdr.type_of_service)) {
     if (last && (last->hdr.version_ihl || spec->hdr.type_of_service)) {
-      RTE_LOG(ERR, PMD, "Range is not supported for version_ihl and type_of_service\n");
+      PMD_NTACC_LOG(ERR, "Range is not supported for version_ihl and type_of_service\n");
     }
 
     if (CHECK8(mask, hdr.version_ihl) || CHECK8(mask, hdr.type_of_service)) {
@@ -1245,7 +1392,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
     if (spec && spec->hdr.version_ihl) {
       if (last && last->hdr.version_ihl) {
-        RTE_LOG(ERR, PMD, "Range is not supported for version_ihl\n");
+        PMD_NTACC_LOG(ERR, "Range is not supported for version_ihl\n");
       }
 
       if (CHECK8(mask, hdr.version_ihl)) {
@@ -1349,7 +1496,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
   if (spec && (spec->hdr.time_to_live && spec->hdr.next_proto_id)) {
     if (last && (last->hdr.time_to_live || last->hdr.next_proto_id)) {
-      RTE_LOG(ERR, PMD, "Range is not supported for time_to_live and next_proto_id\n");
+      PMD_NTACC_LOG(ERR, "Range is not supported for time_to_live and next_proto_id\n");
     }
 
     if (CHECK8(mask, hdr.time_to_live) || CHECK8(mask, hdr.next_proto_id)) {
@@ -1372,59 +1519,59 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     }
   }
   else {
-  if (spec && spec->hdr.time_to_live) {
-    uint16_t vSpec;
-    uint16_t vMask;
-    uint16_t vLast;
-    if (last && last->hdr.time_to_live) {
-      vSpec = spec->hdr.time_to_live << 8;
-      vLast = last->hdr.time_to_live << 8;
+    if (spec && spec->hdr.time_to_live) {
+      uint16_t vSpec;
+      uint16_t vMask;
+      uint16_t vLast;
+      if (last && last->hdr.time_to_live) {
+        vSpec = spec->hdr.time_to_live << 8;
+        vLast = last->hdr.time_to_live << 8;
         if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV4_TIME_TO_LIVE;
       }
-      *typeMask |= IPV4_TIME_TO_LIVE;
-    }
-    else if (CHECK8(mask, hdr.time_to_live)) {
-      vSpec = spec->hdr.time_to_live << 8;
-      vMask = mask->hdr.time_to_live << 8;
+      else if (CHECK8(mask, hdr.time_to_live)) {
+        vSpec = spec->hdr.time_to_live << 8;
+        vMask = mask->hdr.time_to_live << 8;
         if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
       }
-    }
-    else {
-      vSpec = spec->hdr.time_to_live << 8;
+      else {
+        vSpec = spec->hdr.time_to_live << 8;
         if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
       }
     }
-  }
 
-  if (spec && spec->hdr.next_proto_id) {
-    uint16_t vSpec;
-    uint16_t vMask;
-    uint16_t vLast;
-    if (last && last->hdr.next_proto_id) {
-      vSpec = spec->hdr.next_proto_id;
-      vLast = last->hdr.next_proto_id;
+    if (spec && spec->hdr.next_proto_id) {
+      uint16_t vSpec;
+      uint16_t vMask;
+      uint16_t vLast;
+      if (last && last->hdr.next_proto_id) {
+        vSpec = spec->hdr.next_proto_id;
+        vLast = last->hdr.next_proto_id;
         if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV4_NEXT_PROTO_ID;
       }
-      *typeMask |= IPV4_NEXT_PROTO_ID;
-    }
-    else if (CHECK8(mask, hdr.next_proto_id)) {
-      vSpec = spec->hdr.next_proto_id;
-      vMask = mask->hdr.next_proto_id;
+      else if (CHECK8(mask, hdr.next_proto_id)) {
+        vSpec = spec->hdr.next_proto_id;
+        vMask = mask->hdr.next_proto_id;
         if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV4_NEXT_PROTO_ID;
       }
-      *typeMask |= IPV4_NEXT_PROTO_ID;
-    }
-    else {
-      vSpec = spec->hdr.next_proto_id;
+      else {
+        vSpec = spec->hdr.next_proto_id;
         if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-        return -1;
-      }
-      *typeMask |= IPV4_NEXT_PROTO_ID;
+          return -1;
+        }
+        *typeMask |= IPV4_NEXT_PROTO_ID;
       }
     }
   }
@@ -1590,55 +1737,55 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     }
   }
   else {
-  if (spec && (spec->hdr.proto)) {
-    if (last && (last->hdr.proto)) {
-      uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
-      uint16_t vLast = (last->hdr.proto << 8) & 0xFF00;
+    if (spec && (spec->hdr.proto)) {
+      if (last && (last->hdr.proto)) {
+        uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
+        uint16_t vLast = (last->hdr.proto << 8) & 0xFF00;
         if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV6_PROTO;
       }
-      *typeMask |= IPV6_PROTO;
-    }
-    else if (CHECK8(mask, hdr.proto)) {
-      uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
-      uint16_t vMask = (mask->hdr.proto << 8) & 0xFF00;
+      else if (CHECK8(mask, hdr.proto)) {
+        uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
+        uint16_t vMask = (mask->hdr.proto << 8) & 0xFF00;
         if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV6_PROTO;
       }
-      *typeMask |= IPV6_PROTO;
-    }
-    else {
-      uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
+      else {
+        uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
         if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV6_PROTO;
       }
-      *typeMask |= IPV6_PROTO;
     }
-  }
 
-  if (spec && (spec->hdr.hop_limits)) {
-    if (last && (last->hdr.hop_limits)) {
-      uint16_t vSpec = (spec->hdr.hop_limits);
-      uint16_t vLast = (last->hdr.hop_limits);
+    if (spec && (spec->hdr.hop_limits)) {
+      if (last && (last->hdr.hop_limits)) {
+        uint16_t vSpec = (spec->hdr.hop_limits);
+        uint16_t vLast = (last->hdr.hop_limits);
         if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV6_HOP_LIMITS;
       }
-      *typeMask |= IPV6_HOP_LIMITS;
-    }
-    else if (CHECK8(mask, hdr.hop_limits)) {
-      uint16_t vSpec = (spec->hdr.hop_limits);
-      uint16_t vMask = (mask->hdr.hop_limits);
+      else if (CHECK8(mask, hdr.hop_limits)) {
+        uint16_t vSpec = (spec->hdr.hop_limits);
+        uint16_t vMask = (mask->hdr.hop_limits);
         if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
-        return -1;
+          return -1;
+        }
+        *typeMask |= IPV6_HOP_LIMITS;
       }
-      *typeMask |= IPV6_HOP_LIMITS;
-    }
-    else {
-      uint16_t vSpec = (spec->hdr.hop_limits);
+      else {
+        uint16_t vSpec = (spec->hdr.hop_limits);
         if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-        return -1;
-      }
-      *typeMask |= IPV6_HOP_LIMITS;
+          return -1;
+        }
+        *typeMask |= IPV6_HOP_LIMITS;
       }
     }
   }
@@ -1784,7 +1931,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
 
   if (spec && spec->hdr.data_off && spec->hdr.tcp_flags) {
     if (last && (last->hdr.data_off || last->hdr.tcp_flags)) {
-      RTE_LOG(ERR, PMD, "Range is not supported for data_off and tcp_flags\n");
+      PMD_NTACC_LOG(ERR, "Range is not supported for data_off and tcp_flags\n");
       return -1;
     }
 
@@ -2496,7 +2643,7 @@ int SetGreFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uin
 }
 
 int SetGtpFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uint64_t *typeMask, int protocol)
- {
+{
   const struct rte_flow_item_gtp *spec = (const struct rte_flow_item_gtp *)item->spec;
   int type;
 
@@ -2507,14 +2654,14 @@ int SetGtpFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uin
         type = GTPU0_TUNNEL_TYPE;
       else
         return -1;
-    break;
+      break;
     default:
     case 1:
       if (protocol == 'U')
         type = GTPU1_TUNNEL_TYPE;
       else
         type = GTPC1_TUNNEL_TYPE;
-    break;
+      break;
     case 2:
       if (protocol == 'U')
         return -1;
@@ -2522,7 +2669,7 @@ int SetGtpFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uin
         type = GTPC2_TUNNEL_TYPE;
       break;
     }
-    }
+  }
   else {
     if (protocol == 'U')
       type = GTPU1_TUNNEL_TYPE;
@@ -2533,131 +2680,3 @@ int SetGtpFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uin
   return SetTunnelFilter(ntpl_buf, fc, type, typeMask);
 }
 
-void *ntacc_add_rules(uint8_t port_id, uint16_t type,
-                      uint8_t l4_proto, int queue, char *ntpl_str)
- {
-  struct rte_flow *rte_flow = NULL;
-  // Simple L4PROTO and TOS/TC bit 1 filter.
-  // The most annoying part is that a id <-> struct rte_flow* must be maintained
-  struct rte_flow_attr attr = { .ingress=1, };
-  struct rte_flow_action_queue rte_flow_action_queue = { .index = queue, };
-  struct rte_flow_action actions[2] = {
-      {
-          .type = RTE_FLOW_ACTION_TYPE_QUEUE,
-          .conf = &rte_flow_action_queue,
-      },
-      {
-          .type = RTE_FLOW_ACTION_TYPE_END,
-          .conf = NULL,
-      }
-  };
-  struct rte_flow_item pattern[2] =
-  {
-      {
-          .type = 0,
-          .spec = NULL,
-          .last = NULL,
-          .mask = NULL,
-      },
-      {
-          .type = RTE_FLOW_ITEM_TYPE_END,
-          .spec = NULL,
-          .last = NULL,
-          .mask = NULL,
-      },
-  };
-  struct rte_flow_error rte_flow_error;
-  switch (type) {
-    case RTE_ETH_FLOW_NTPL:
-    {
-      struct rte_flow_item_ntpl ntpl = {
-        .ntpl_str = ntpl_str,
-        .tunnel = RTE_FLOW_NTPL_NO_TUNNEL,
-      };
-      pattern[0].type = RTE_FLOW_ITEM_TYPE_NTPL;
-      pattern[0].spec = &ntpl;
-      pattern[0].last = NULL;
-      pattern[0].mask = NULL;
-      rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-    }
-    break;
-    case RTE_ETH_FLOW_RAW:
-    pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
-    pattern[0].spec = NULL;
-    pattern[0].last = NULL;
-    pattern[0].mask = NULL;
-    rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-    break;
-    case RTE_ETH_FLOW_IPV4:
-      pattern[0].type = RTE_FLOW_ITEM_TYPE_IPV4;
-      pattern[0].spec = NULL;
-      pattern[0].last = NULL;
-      pattern[0].mask = NULL;
-      rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-      break;
-    case RTE_ETH_FLOW_NONFRAG_IPV4_UDP:
-    case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
-    case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
-    case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
-    {
-      struct rte_flow_item_ipv4 ipv4 = {
-        .hdr = {
-            .next_proto_id = l4_proto,
-            .type_of_service = 0x1,
-        },
-      };
-      struct rte_flow_item_ipv4 ipv4_mask = {
-        .hdr = {
-            .next_proto_id = 0xFF,
-            .type_of_service = 0x01,
-        },
-      };
-      pattern[0].type = RTE_FLOW_ITEM_TYPE_IPV4;
-      pattern[0].spec = &ipv4;
-      pattern[0].last = NULL;
-      pattern[0].mask = &ipv4_mask;
-      rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-      break;
-    }
-    case RTE_ETH_FLOW_IPV6:
-      pattern[0].type = RTE_FLOW_ITEM_TYPE_IPV6;
-      pattern[0].spec = NULL;
-      pattern[0].last = NULL;
-      pattern[0].mask = NULL;
-      rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-      break;
-    case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
-    case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
-    case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
-    {
-      struct rte_flow_item_ipv6 ipv6 = {
-          .hdr = {
-              .vtc_flow = 0x6 | (1 << 4),
-              .proto = l4_proto,
-          },
-      };
-      struct rte_flow_item_ipv6 ipv6_mask = {
-          .hdr = {
-              .vtc_flow = 0x010,
-              .proto = 0xFF,
-          },
-      };
-      pattern[0].type = RTE_FLOW_ITEM_TYPE_IPV6;
-      pattern[0].spec = &ipv6;
-      pattern[0].last = NULL;
-      pattern[0].mask = &ipv6_mask;
-      rte_flow = rte_flow_create(port_id, &attr, pattern, actions, &rte_flow_error);
-      break;
-    }
-  }
-  if (rte_flow == NULL) {
-    printf("Programming port %d failed: %d %s\n",
-            port_id, rte_flow_error.type, rte_flow_error.message);
-  }
-  return rte_flow;
-}
-
-void ntacc_del_rules(uint8_t port_id, void *rte_flow)
-{
-  rte_flow_destroy(port_id, (struct rte_flow*)rte_flow, NULL);
-}

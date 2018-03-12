@@ -747,6 +747,7 @@ ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
 
                  'drivers/net/ntacc/filter_ntacc.c',
                  'drivers/net/ntacc/rte_eth_ntacc.c',
+                 'drivers/net/ntacc/nt_compat.c',
             ]);
 
 mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
