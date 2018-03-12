@@ -113,7 +113,8 @@ enum {
 
 /******************* Function Prototypes ********************/
 
-int CreateHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority);
+int CreateHash(char *ntpl_buf, uint64_t rss_hf, struct pmd_internals *internals, bool tunnel);
+int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority);
 void CreateStreamid(char *ntpl_buf, struct pmd_internals *internals, uint32_t nb_queues, uint8_t *list_queues);
 int ReturnKeysetValue(struct pmd_internals *internals, int value);
 void pushNtplID(struct rte_flow *flow, uint32_t ntplId);
