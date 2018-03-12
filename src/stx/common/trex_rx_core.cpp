@@ -67,7 +67,6 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 
 void CRxCore::create(const CRxSlCfg &cfg) {
     m_capture     = false;
-    m_max_ports   = cfg.m_ports.size();
     m_tx_cores    = cfg.m_tx_cores;
     m_rx_pkts     = 0;
 
@@ -83,12 +82,12 @@ void CRxCore::create(const CRxSlCfg &cfg) {
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
     /* create per port manager */
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].create(i,
-                                 cfg.m_ports[i],
-                                 m_rfc2544,
-                                 &m_err_cntrs,
-                                 &m_cpu_dp_u);
+    for (auto &port : cfg.m_ports) {
+        m_rx_port_mngr[port.first].create(port.first,
+                                          port.second,
+                                          m_rfc2544,
+                                          &m_err_cntrs,
+                                          &m_cpu_dp_u);
     }
     
     /* create a TX queue */
@@ -146,8 +145,8 @@ void CRxCore::recalculate_next_state() {
  * return true if any port has latency enabled
  */
 bool CRxCore::is_latency_active() {
-    for (int i = 0; i < m_max_ports; i++) {
-        if (m_rx_port_mngr[i].is_feature_set(RXPortManager::LATENCY)) {
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        if (mngr_pair.second.is_feature_set(RXPortManager::LATENCY)) {
             return true;
         }
     }
@@ -159,9 +158,9 @@ bool CRxCore::is_latency_active() {
  * return true if latency or capture is active
  */
 bool CRxCore::is_latency_or_capture_active() {
-    for (int i = 0; i < m_max_ports; i++) {
-        if ( TrexCaptureMngr::getInstance().is_active(i)
-            || m_rx_port_mngr[i].is_feature_set(RXPortManager::LATENCY ) ) {
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        if ( TrexCaptureMngr::getInstance().is_active(mngr_pair.first)
+            || mngr_pair.second.is_feature_set(RXPortManager::LATENCY ) ) {
             return true;
         }
     }
@@ -279,8 +278,8 @@ bool CRxCore::work_tick() {
  * 
  */
 void CRxCore::handle_grat_arp() {
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].send_next_grat_arp();
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        mngr_pair.second.send_next_grat_arp();
     }
 }
 
@@ -325,8 +324,8 @@ void CRxCore::start() {
 int CRxCore::process_all_pending_pkts(bool flush_rx) {
 
     int total_pkts = 0;
-    for (int i = 0; i < m_max_ports; i++) {
-        total_pkts += m_rx_port_mngr[i].process_all_pending_pkts(flush_rx);
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        total_pkts += mngr_pair.second.process_all_pending_pkts(flush_rx);
     }
 
     return total_pkts;
@@ -404,8 +403,8 @@ CRxCore::stop_queue(uint8_t port_id) {
 
 void
 CRxCore::enable_latency() {
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].enable_latency();
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        mngr_pair.second.enable_latency();
     }
     
     recalculate_next_state();
@@ -413,8 +412,8 @@ CRxCore::enable_latency() {
 
 void
 CRxCore::disable_latency() {
-    for (int i = 0; i < m_max_ports; i++) {
-        m_rx_port_mngr[i].disable_latency();
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        mngr_pair.second.disable_latency();
     }
     
     recalculate_next_state();
@@ -422,9 +421,7 @@ CRxCore::disable_latency() {
 
 RXPortManager &
 CRxCore::get_rx_port_mngr(uint8_t port_id) {
-    assert(port_id < m_max_ports);
     return m_rx_port_mngr[port_id];
-    
 }
 
 void

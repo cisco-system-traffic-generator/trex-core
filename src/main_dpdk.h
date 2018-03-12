@@ -89,6 +89,7 @@ class CPhyEthIF  {
         m_repid          = DPDK_MAP_IVALID_REPID;
         m_rx_queue       = 0;
         m_stats_err_cnt  = 0;
+        m_is_dummy       = false;
     }
     virtual ~CPhyEthIF() {}
     bool Create(tvpid_t  tvpid,
@@ -117,7 +118,7 @@ class CPhyEthIF  {
     virtual void stop_rx_drop_queue();
     virtual void configure_rx_duplicate_rules();
     virtual int set_port_rcv_all(bool is_rcv);
-    virtual inline bool is_dummy() { return false; }
+    virtual inline bool is_dummy() { return m_is_dummy; }
     virtual void start();
     virtual void stop();
     virtual void disable_flow_control();
@@ -160,33 +161,33 @@ class CPhyEthIF  {
     virtual void flush_rx_queue(void);
 
     inline uint16_t tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
-        if (unlikely( is_dummy() )) {
+        if (likely( !m_is_dummy )) {
+            return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
+        } else {
             for (int i=0; i<nb_pkts;i++) {
                 rte_pktmbuf_free(tx_pkts[i]);
             }
             return nb_pkts;
-        } else {
-            return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
         }
     }
     inline uint16_t  rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        if (unlikely( is_dummy() )) {
-            return 0;
-        } else {
+        if (likely( !m_is_dummy )) {
             return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
+        } else {
+            return 0;
         }
     }
 
     inline uint16_t  rx_burst_dq(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        if (unlikely( is_dummy() )) {
-            return 0;
-        } else {
+        if (likely( !m_is_dummy )) {
             return rte_eth_rx_burst(m_repid, 0, rx_pkts, nb_pkts);
+        } else {
+            return 0;
         }
     }
 
     inline uint32_t pci_reg_read(uint32_t reg_off) {
-        assert( !is_dummy() );
+        assert( !m_is_dummy );
         void *reg_addr;
         uint32_t reg_v;
         reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
@@ -196,7 +197,7 @@ class CPhyEthIF  {
     }
     inline void pci_reg_write(uint32_t reg_off,
                               uint32_t reg_v) {
-        assert( !is_dummy() );
+        assert( !m_is_dummy );
         void *reg_addr;
 
         reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
@@ -230,14 +231,19 @@ class CPhyEthIF  {
     /* holds the core ID list for this port - (core, dir) list*/
     std::vector<std::pair<uint8_t, uint8_t>> m_core_id_list;
 
+ protected:
+    bool                     m_is_dummy;
+
  public:
     struct rte_eth_dev_info  m_dev_info;
 };
 
 // stubs for dummy port
 class CPhyEthIFDummy : public CPhyEthIF {
-public:
-    inline bool is_dummy() { return true; }
+ public:
+    CPhyEthIFDummy() {
+        m_is_dummy = true;
+    }
     void conf_queues() {}
     void configure(uint16_t, uint16_t, const struct rte_eth_conf *) {}
     int dump_fdir_global_stats(FILE *fd) { return 0; }

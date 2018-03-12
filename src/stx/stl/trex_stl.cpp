@@ -58,10 +58,12 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     TrexRpcCommandsTable::get_instance().load_component(new TrexRpcCmdsSTL());
     
     /* create stateless ports */
-    for (int i = 0; i < get_platform_api().get_port_count(); i++) {
-        m_ports.push_back((TrexPort *)new TrexStatelessPort(i));
+    for (auto &dummy_map: cfg.m_dummy_port_map) {
+        if ( !dummy_map.second ) {
+            m_ports[dummy_map.first] = (TrexPort *)new TrexStatelessPort(dummy_map.first);
+        }
     }
- 
+
     /* create RX core */
     CRxCore *rx = new CRxCore();
     rx->create(cfg.m_rx_cfg);
@@ -78,8 +80,8 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 TrexStateless::~TrexStateless() {
     
     /* release memory for ports */
-    for (auto port : m_ports) {
-        delete port;
+    for (auto &port : m_ports) {
+        delete port.second;
     }
     
     /* RX core */
@@ -99,9 +101,9 @@ void TrexStateless::launch_control_plane() {
 */
 void TrexStateless::shutdown() {
     /* stop ports */
-    for (TrexStatelessPort *port : get_port_list()) {
+    for (auto &port : get_port_map()) {
         /* safe to call stop even if not active */
-        port->stop_traffic();
+        port.second->stop_traffic();
     }
     
     /* shutdown the RPC server */

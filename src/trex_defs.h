@@ -80,5 +80,6 @@ typedef std::vector<uint32_t> supp_speeds_t;
 typedef std::set<uint32_t> stream_ids_t;
 typedef std::unordered_map<uint32_t,double> stream_ipgs_map_t;
 typedef std::unordered_map<uint32_t,double>::const_iterator stream_ipgs_map_it_t;
+typedef std::unordered_map<uint8_t, bool> uint8_to_bool_map_t;
 
 #endif

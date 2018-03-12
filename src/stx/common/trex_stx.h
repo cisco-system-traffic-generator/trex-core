@@ -48,6 +48,7 @@ class CFlowGenListPerThread;
  *  
  */
 
+typedef std::unordered_map<uint8_t, TrexPort *> stx_port_map_t;
 
 /**
  * config object for STX object
@@ -61,12 +62,14 @@ public:
     
     TrexSTXCfg(const TrexRpcServerConfig &rpc_cfg,
                const CRxSlCfg &rx_cfg,
-               TrexPublisher *publisher) : m_rpc_req_resp_cfg(rpc_cfg), m_rx_cfg(rx_cfg), m_publisher(publisher) {
+               TrexPublisher *publisher,
+               uint8_to_bool_map_t dummy_port_map) : m_rpc_req_resp_cfg(rpc_cfg), m_rx_cfg(rx_cfg), m_publisher(publisher), m_dummy_port_map(dummy_port_map) {
     }
 
     TrexRpcServerConfig           m_rpc_req_resp_cfg;
     CRxSlCfg                      m_rx_cfg;
     TrexPublisher                *m_publisher;
+    uint8_to_bool_map_t           m_dummy_port_map;
 };
 
 
@@ -171,9 +174,9 @@ public:
     
     
     /**
-     * returns a list of CP ports
+     * returns a map of CP ports
      */
-    const std::vector <TrexPort *> get_port_list() {
+    const stx_port_map_t &get_port_map() const {
         return m_ports;
     }
 
@@ -212,7 +215,7 @@ protected:
     TrexRpcServer               m_rpc_server;
 
     /* ports */
-    std::vector<TrexPort *>     m_ports;
+    stx_port_map_t m_ports;
     
     /* RX */
     TrexRxCore                 *m_rx;

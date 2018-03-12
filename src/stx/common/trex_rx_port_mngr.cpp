@@ -635,6 +635,13 @@ RXPortManager::RXPortManager() : m_feature_api(this) {
     m_port_id        = UINT8_MAX;
 }
 
+// workaround for inserting this object to map (GCC 4.7 does copy)
+RXPortManager::RXPortManager(const RXPortManager &other) : m_feature_api(this) {
+    clear_all_features();
+    m_io             = NULL;
+    m_port_id        = UINT8_MAX;
+}
+
 
 void
 RXPortManager::create(uint32_t port_id,

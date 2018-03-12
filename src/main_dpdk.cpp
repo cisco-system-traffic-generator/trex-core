@@ -3626,6 +3626,9 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
 
     int i;
     for (i=0; i<(int)m_num_of_ports; i++) {
+        if ( CTVPort(i).is_dummy() ) {
+            continue;
+        }
         CPerPortStats * lp=&m_port[i];
         json+=GET_FIELD_PORT(i,opackets) ;
         json+=GET_FIELD_PORT(i,obytes)   ;
@@ -3742,10 +3745,10 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
     if ( mode== dmpSTANDARD ){
         fprintf (fd," --------------- \n");
         for (i=0; i<(int)port_to_show; i++) {
-            CPerPortStats * lp=&m_port[i];
             if ( CTVPort(i).is_dummy() ) {
                 continue;
             }
+            CPerPortStats * lp=&m_port[i];
             fprintf(fd,"port : %d ",(int)i);
             if ( ! lp->m_link_up ) {
                 fprintf(fd," (link DOWN)");
@@ -3764,10 +3767,10 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
     }else{
         fprintf(fd," %10s ","ports");
         for (i=0; i<(int)port_to_show; i++) {
-            CPerPortStats * lp=&m_port[i];
             if ( CTVPort(i).is_dummy() ) {
                 continue;
             }
+            CPerPortStats * lp=&m_port[i];
             if ( lp->m_link_up ) {
                 fprintf(fd,"| %15d ",i);
             } else {
@@ -3783,10 +3786,10 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
             fprintf(fd," %10s ",names[i].c_str());
             int j=0;
             for (j=0; j<port_to_show;j++) {
-                CPerPortStats * lp=&m_port[j];
                 if ( CTVPort(j).is_dummy() ) {
                     continue;
                 }
+                CPerPortStats * lp=&m_port[j];
                 uint64_t cnt;
                 switch (i) {
                 case 0:
@@ -4243,6 +4246,9 @@ void CGlobalTRex::pre_test() {
     /* for interactive only - set port mode */
     if (get_is_interactive()) {
         for (int port_id = 0; port_id < m_max_ports; port_id++) {
+            if ( m_ports[port_id]->is_dummy() ) {
+                continue;
+            }
             uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
             uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
             const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
@@ -4637,15 +4643,18 @@ CGlobalTRex::get_stx_cfg() {
                                   &m_cp_lock);
     
     bool vm_cfg = (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE);
-    std::vector<CPortLatencyHWBase *> ports;
+    std::unordered_map<uint8_t, CPortLatencyHWBase*> ports;
     
-    if (vm_cfg) {
-        for (int i = 0; i < m_max_ports; i++) {
-            ports.push_back(&m_latency_vm_vports[i]);
+    for (int i = 0; i < m_max_ports; i++) {
+        bool is_dummy = CTVPort(i).is_dummy();
+        cfg.m_dummy_port_map[i] = is_dummy;
+        if ( is_dummy ) {
+            continue;
         }
-    } else {
-        for (int i = 0; i < m_max_ports; i++) {
-            ports.push_back(&m_latency_vports[i]);
+        if (vm_cfg) {
+            ports[i] = &m_latency_vm_vports[i];
+        } else {
+            ports[i] = &m_latency_vports[i];
         }
     }
     
@@ -6612,9 +6621,10 @@ void check_pdev_vdev_dummy() {
     uint32_t dev_id = 1e6;
     uint8_t if_index = 0;
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
+        CGlobalInfo::m_options.m_dummy_port_map[if_index] = false;
         if ( iface == "dummy" ) {
             CGlobalInfo::m_options.m_dummy_count++;
-            CGlobalInfo::m_options.m_dummy_port_ids.push_back(if_index);
+            CGlobalInfo::m_options.m_dummy_port_map[if_index] = true;
             CTVPort(if_index).set_dummy();
         } else if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
@@ -8875,7 +8885,6 @@ int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstat
     return g_trex.m_ports[port_id]->get_port_attr()->get_xstats_names(xstats_names);
 }
 
-
 void
 TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
     CGlobalStats trex_stats;
@@ -8903,7 +8912,6 @@ TrexDpdkPlatformApi::get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats 
 uint32_t
 TrexDpdkPlatformApi::get_port_count() const {
     return g_trex.m_max_ports;
-    
 }
 
 uint8_t

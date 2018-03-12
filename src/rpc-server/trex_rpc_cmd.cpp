@@ -115,9 +115,13 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
 
 void 
 TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
-    if (port_id >= get_stx()->get_port_count()) {
+    const stx_port_map_t &port_map = get_stx()->get_port_map();
+    if ( port_map.find(port_id) == port_map.end() ) {
         std::stringstream ss;
-        ss << "invalid port id - should be between 0 and " << (int)get_stx()->get_port_count() - 1;
+        ss << "invalid port id - should be:";
+        for ( auto &port:port_map ) {
+            ss << " " << port.first;
+        }
         generate_execute_err(result, ss.str());
     }
 }

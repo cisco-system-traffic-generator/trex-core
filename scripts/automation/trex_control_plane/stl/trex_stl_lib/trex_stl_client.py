@@ -628,7 +628,7 @@ class STLClient(object):
 
         # none means all
         if port_id_list == None:
-            return range(0, self.get_port_count())
+            return list(self.ports.keys())
 
         # always list
         if isinstance(port_id_list, int):
@@ -638,7 +638,7 @@ class STLClient(object):
              raise ValueError("Bad port id list: {0}".format(port_id_list))
 
         for port_id in port_id_list:
-            if not isinstance(port_id, int) or (port_id < 0) or (port_id > self.get_port_count()):
+            if not isinstance(port_id, int) or port_id not in self.ports:
                 raise ValueError("Bad port id {0}".format(port_id))
 
         return port_id_list
@@ -948,8 +948,8 @@ class STLClient(object):
 
         # create ports
         self.ports.clear()
-        for port_id in range(self.system_info["port_count"]):
-            info = self.system_info['ports'][port_id]
+        for info in self.system_info['ports']:
+            port_id = info['index']
 
             self.ports[port_id] = Port(port_id,
                                        self.username,

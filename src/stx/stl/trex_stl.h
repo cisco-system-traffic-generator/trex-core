@@ -28,6 +28,8 @@ limitations under the License.
 
 class TrexStatelessPort;
 
+typedef std::unordered_map<uint8_t, TrexStatelessPort*> stl_port_map_t;
+
 /**
  * TRex stateless interactive object
  * 
@@ -75,16 +77,16 @@ public:
      * 
      */
     void publish_async_data();
-     
-         
+
+
     /**
      * returns the port list as stateless port objects
      */
-    const std::vector <TrexStatelessPort *> &get_port_list() {
-        return *((std::vector <TrexStatelessPort *> *)&m_ports);
+    const stl_port_map_t &get_port_map() const {
+        return *(stl_port_map_t *)&m_ports;
     }
 
-    
+
     CRxCore *get_stl_rx(){
         return static_cast<CRxCore *>(m_rx);
     }
