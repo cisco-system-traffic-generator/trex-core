@@ -53,8 +53,16 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         self.check_one_counter (c,'m_active_flows',0)
         self.check_one_counter (c,'tcps_accepts',c['all']['tcps_closed'])
 
+    def check_c_udp_counters (self,c):
+        self.check_one_counter (c,'m_active_flows',0)
+        self.check_one_counter (c,'udps_connects',c['all']['udps_closed'])
 
-    def _check_tcp_errors(self, c):
+    def check_s_udp_counters (self,c):
+        self.check_one_counter (c,'m_active_flows',0)
+        self.check_one_counter (c,'udps_accepts',c['all']['udps_closed'])
+
+
+    def _check_tcp_errors(self, c,is_tcp,is_udp):
         tcp_c= c["tcp-v1"]["data"]["client"];
         if not self.validate_tcp(tcp_c):
            return False
@@ -62,19 +70,40 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         if not self.validate_tcp(tcp_s):
             return False
 
-        self.check_c_tcp_counters(tcp_c)
-        self.check_s_tcp_counters(tcp_s)
+        if is_tcp:
+          self.check_c_tcp_counters(tcp_c)
+          self.check_s_tcp_counters(tcp_s)
+          self.check_counters(tcp_c['all']['tcps_sndbyte'],tcp_s['all']['tcps_rcvbyte'],"c.tcps_sndbyte != s.tcps_rcvbyte");
+          self.check_counters(tcp_s['all']['tcps_sndbyte'],tcp_c['all']['tcps_rcvbyte'],"s.tcps_sndbyte != c.tcps_rcvbyte");
 
-        self.check_counters(tcp_c['all']['tcps_sndbyte'],tcp_s['all']['tcps_rcvbyte'],"c.tcps_sndbyte != s.tcps_rcvbyte");
-        self.check_counters(tcp_s['all']['tcps_sndbyte'],tcp_c['all']['tcps_rcvbyte'],"s.tcps_sndbyte != c.tcps_rcvbyte");
+        if is_udp :
+          self.check_c_udp_counters(tcp_c)
+          self.check_s_udp_counters(tcp_s)
+          self.check_counters(tcp_c['all']['udps_sndbyte'],tcp_s['all']['udps_rcvbyte'],"c.udps_sndbyte != s.udps_rcvbyte");
+          self.check_counters(tcp_c['all']['udps_rcvbyte'],tcp_s['all']['udps_sndbyte'],"c.udps_rcvbyte != s.udps_sndbyte");
+          self.check_counters(tcp_c['all']['udps_sndpkt'],tcp_s['all']['udps_rcvpkt'],"c.udps_rcvpkt != s.udps_rcvpkt");
+          self.check_counters(tcp_c['all']['udps_rcvpkt'],tcp_s['all']['udps_sndpkt'],"c.udps_rcvpkt != s.udps_sndpkt");
+
 
         return True
 
-    def check_tcp_errors(self, trex_res):
+    def check_tcp_errors(self, trex_res,is_tcp,is_udp):
         c=trex_res.get_latest_dump()
         pprint(c["tcp-v1"]["data"])
-        if not self._check_tcp_errors(c):
+        if not self._check_tcp_errors(c,is_tcp,is_udp):
             self.fail('Errors in tcp counters check ' )
+
+    def get_duration ():
+        return 120
+    def get_simple_tests ():
+        tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
+                  {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}]
+        return (tests);
+
+    def get_sfr_tests ():
+        tests = [ {'name': 'sfr.py','is_tcp' :True,'is_udp':False,'m':1.0},
+                  {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
+        return (tests);
 
     def test_tcp_http(self):
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
@@ -85,30 +114,36 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        ret = self.trex.start_trex(
-            c = core,
-            m = mult,
-            d = 120,
-            f = 'astf/http_simple.py',
-            l = 1000,
-            k = 10,
-            astf =True
-            )
 
+        tests = self.get_simple_tests () 
 
-        trex_res = self.trex.sample_to_run_finish()
-
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-        print ("\nLATEST DUMP:")
-        #pprint(trex_res.get_latest_dump());
-
-        self.check_general_scenario_results(trex_res,True,True)
-        self.check_CPU_benchmark(trex_res)
-        if bypass == None:
-           self.check_tcp_errors(trex_res)
-        else:
-            print("BYPASS the counter test for now");
+        for obj in tests:
+            ret = self.trex.start_trex(
+                c = core,
+                m = mult,
+                d = self.get_duration(),
+                f = 'astf/'+obj['name'],
+                l = 1000,
+                k = 10,
+                astf =True
+                )
+    
+            trex_res = self.trex.sample_to_run_finish()
+    
+            print("\nLATEST RESULT OBJECT:")
+            print(trex_res)
+            print ("\nLATEST DUMP:")
+            #pprint(trex_res.get_latest_dump());
+    
+            self.check_general_scenario_results(trex_res,True,True)
+            s=''
+            if not obj['default']:
+                s='.'+obj['name']
+            self.check_CPU_benchmark(trex_res,elk_name = s)
+            if bypass == None:
+               self.check_tcp_errors(trex_res,obj['is_tcp'],obj['is_udp'])
+            else:
+                print("BYPASS the counter test for now");
 
     def test_ipv6_tcp_http(self):
         if self.is_virt_nics:
@@ -124,32 +159,34 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        ret = self.trex.start_trex(
-            cfg = '/etc/trex_cfg_mac.yaml',
-            c = core,
-            m = mult,
-            d = 120,
-            ipv6 =True,
-            f = 'astf/http_simple.py',
-            l = 1000,
-            k = 10,
-            astf =True
-            )
+        tests = self.get_simple_tests () 
 
-
-        trex_res = self.trex.sample_to_run_finish()
-
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-        print ("\nLATEST DUMP:")
-        #pprint(trex_res.get_latest_dump());
-
-        self.check_general_scenario_results(trex_res,True,True)
-        self.check_CPU_benchmark(trex_res)
-        if bypass == None:
-           self.check_tcp_errors(trex_res)
-        else:
-            print("BYPASS the counter test for now");
+        for obj in tests:
+            ret = self.trex.start_trex(
+                cfg = '/etc/trex_cfg_mac.yaml',
+                c = core,
+                m = mult,
+                d = self.get_duration(),
+                ipv6 =True,
+                f = 'astf/'+obj['name'],
+                l = 1000,
+                k = 10,
+                astf =True
+                )
+    
+            trex_res = self.trex.sample_to_run_finish()
+    
+            print("\nLATEST RESULT OBJECT:")
+            print(trex_res)
+            print ("\nLATEST DUMP:")
+            #pprint(trex_res.get_latest_dump());
+    
+            self.check_general_scenario_results(trex_res,True,True)
+            self.check_CPU_benchmark(trex_res,elk_name = "."+obj['name'])
+            if bypass == None:
+               self.check_tcp_errors(trex_res,obj['is_tcp'],obj['is_udp'])
+            else:
+                print("BYPASS the counter test for now");
 
 
     def test_tcp_sfr(self):
@@ -161,30 +198,32 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        ret = self.trex.start_trex(
-            c = core,
-            m = mult,
-            d = 120,
-            f = 'astf/sfr.py',
-            l = 1000,
-            k = 10,
-            astf =True
-            )
+        tests = self.get_sfr_tests ()
 
-
-        trex_res = self.trex.sample_to_run_finish()
-
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-        print ("\nLATEST DUMP:")
-        #pprint(trex_res.get_latest_dump());
-
-        self.check_general_scenario_results(trex_res,True,True)
-        self.check_CPU_benchmark(trex_res)
-        if bypass == None:
-           self.check_tcp_errors(trex_res)
-        else:
-            print("BYPASS the counter test for now");
+        for obj in tests:
+            ret = self.trex.start_trex(
+                c = core,
+                m = mult*obj['m'],
+                d = self.get_duration(),
+                f = 'astf/'+obj['name'],
+                l = 1000,
+                k = 10,
+                astf =True
+                )
+    
+            trex_res = self.trex.sample_to_run_finish()
+    
+            print("\nLATEST RESULT OBJECT:")
+            print(trex_res)
+            print ("\nLATEST DUMP:")
+            #pprint(trex_res.get_latest_dump());
+    
+            self.check_general_scenario_results(trex_res,True,True)
+            self.check_CPU_benchmark(trex_res,elk_name = "."+obj['name'])
+            if bypass == None:
+               self.check_tcp_errors(trex_res,obj['is_tcp'],obj['is_udp'])
+            else:
+                print("BYPASS the counter test for now");
 
 
 
@@ -202,24 +241,26 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        ret = self.trex.start_trex(
-            c = core,
-            m = mult,
-            d = 120,
-            nc = True,
-            f = 'astf/http_simple.py',
-            l = 1000,
-            k = 10,
-            astf =True
-            )
+        tests = self.get_simple_tests () 
 
-
-        trex_res = self.trex.sample_to_run_finish()
-
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-        print ("\nLATEST DUMP:")
-        pprint(trex_res.get_latest_dump());
+        for obj in tests:
+            ret = self.trex.start_trex(
+                c = core,
+                m = mult,
+                d = self.get_duration(),
+                nc = True,
+                f = 'astf/'+obj['name'],
+                l = 1000,
+                k = 10,
+                astf =True
+                )
+    
+            trex_res = self.trex.sample_to_run_finish()
+    
+            print("\nLATEST RESULT OBJECT:")
+            print(trex_res)
+            print ("\nLATEST DUMP:")
+            pprint(trex_res.get_latest_dump());
 
     def test_tcp_sfr_no_crash(self):
         """ 
@@ -235,24 +276,27 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        ret = self.trex.start_trex(
-            c = core,
-            m = mult,
-            d = 60,
-            nc = True,
-            f = 'astf/sfr.py',
-            l = 1000,
-            k = 1,
-            astf =True
-            )
+        tests = self.get_sfr_tests ()
 
-
-        trex_res = self.trex.sample_to_run_finish()
-
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-        print ("\nLATEST DUMP:")
-        pprint(trex_res.get_latest_dump());
+        for obj in tests:
+            ret = self.trex.start_trex(
+                c = core,
+                m = mult * obj['m'],
+                d = self.get_duration(),
+                nc = True,
+                f = 'astf/'+obj['name'],
+                l = 1000,
+                k = 1,
+                astf =True
+                )
+    
+    
+            trex_res = self.trex.sample_to_run_finish()
+    
+            print("\nLATEST RESULT OBJECT:")
+            print(trex_res)
+            print ("\nLATEST DUMP:")
+            pprint(trex_res.get_latest_dump());
 
 
     def tearDown(self):
