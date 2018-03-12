@@ -208,7 +208,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_dir)
 
-    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85):
+    def check_CPU_benchmark (self, trex_res, err = 25, minimal_cpu = 10, maximal_cpu = 85, elk_name = ''):
         cpu_util          = trex_res.get_avg_steady_state_value('trex-global.data.m_cpu_util_raw')
         trex_tx_bps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_bps')
         trex_tx_pps       = trex_res.get_avg_steady_state_value('trex-global.data.m_tx_pps')
@@ -257,7 +257,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         if self.elk : 
             elk_obj = self.get_elk_obj()
             print("Reporting to elk")
-            obj ={ "name" : self.get_name(),
+            obj ={ "name" : self.get_name()+elk_name,
                         "type"  : "stateful",
                         "cores" : total_dp_cores,
                         "cpu%"  : cpu_util,
