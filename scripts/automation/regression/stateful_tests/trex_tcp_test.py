@@ -27,17 +27,26 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
     def validate_tcp(self,tcp_s):
-        vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack','udps_keepdrops','keepalive drop'];
+        vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack','udps_keepdrops'];
+        err_522 =['__last','udps_keepdrops']
 
         if 'err' in tcp_s :
-            if self.is_VM: # should be fixed , latency could be supported in this mode
+            if self.is_VM : # should be fixed , latency could be supported in this mode
                 for key in tcp_s["err"]:
                     if key in vm_valid_error :
                         continue;
                     else:
                         return False;
             else:
-               return(False);
+                if self.skip_test_trex_522:
+                    for key in tcp_s["err"]:
+                        if key in err_522 :
+                            continue;
+                        else:
+                            return False;
+
+                else:
+                    return(False);
         return True;
 
     def check_one_counter (self,c,name,val):
