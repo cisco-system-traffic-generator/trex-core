@@ -18,6 +18,13 @@ class CTRexTcp_Test(CTRexGeneral_Test):
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
 
+        setup= CTRexScenario.setup_name;
+        self.skip_test_trex_522 =False;
+        if ( setup in ['trex19','trex07','trex23']) :
+            self.skip_test_trex_522 =True;
+
+
+
 
     def validate_tcp(self,tcp_s):
         vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack','udps_keepdrops','keepalive drop'];
@@ -79,12 +86,12 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         if is_udp :
           self.check_c_udp_counters(tcp_c)
           self.check_s_udp_counters(tcp_s)
-          if not self.is_VM:
+
+          if not self.skip_test_trex_522 :
             self.check_counters(tcp_c['all']['udps_sndbyte'],tcp_s['all']['udps_rcvbyte'],"c.udps_sndbyte != s.udps_rcvbyte");
             self.check_counters(tcp_c['all']['udps_rcvbyte'],tcp_s['all']['udps_sndbyte'],"c.udps_rcvbyte != s.udps_sndbyte");
             self.check_counters(tcp_c['all']['udps_sndpkt'],tcp_s['all']['udps_rcvpkt'],"c.udps_rcvpkt != s.udps_rcvpkt");
             self.check_counters(tcp_c['all']['udps_rcvpkt'],tcp_s['all']['udps_sndpkt'],"c.udps_rcvpkt != s.udps_sndpkt");
-
 
         return True
 
