@@ -3072,6 +3072,7 @@ public:
     CTcpCtxCb             *         m_s_tcp_io;
     bool                            m_tcp_terminate;
     bool                            m_sched_accurate;
+    uint32_t                        m_tcp_terminate_cnt;
 
 private:
     CSyncBarrier *                  m_sync_b;
