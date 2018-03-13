@@ -20,7 +20,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
     def validate_tcp(self,tcp_s):
-        vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack'];
+        vm_valid_error=['__last','err_no_tcp','err_redirect_rx','tcps_rexmttimeo','tcps_sndrexmitbyte','tcps_sndrexmitpack','udps_keepdrops','keepalive drop'];
 
         if 'err' in tcp_s :
             if self.is_VM: # should be fixed , latency could be supported in this mode
@@ -79,10 +79,11 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         if is_udp :
           self.check_c_udp_counters(tcp_c)
           self.check_s_udp_counters(tcp_s)
-          self.check_counters(tcp_c['all']['udps_sndbyte'],tcp_s['all']['udps_rcvbyte'],"c.udps_sndbyte != s.udps_rcvbyte");
-          self.check_counters(tcp_c['all']['udps_rcvbyte'],tcp_s['all']['udps_sndbyte'],"c.udps_rcvbyte != s.udps_sndbyte");
-          self.check_counters(tcp_c['all']['udps_sndpkt'],tcp_s['all']['udps_rcvpkt'],"c.udps_rcvpkt != s.udps_rcvpkt");
-          self.check_counters(tcp_c['all']['udps_rcvpkt'],tcp_s['all']['udps_sndpkt'],"c.udps_rcvpkt != s.udps_sndpkt");
+          if not self.is_VM:
+            self.check_counters(tcp_c['all']['udps_sndbyte'],tcp_s['all']['udps_rcvbyte'],"c.udps_sndbyte != s.udps_rcvbyte");
+            self.check_counters(tcp_c['all']['udps_rcvbyte'],tcp_s['all']['udps_sndbyte'],"c.udps_rcvbyte != s.udps_sndbyte");
+            self.check_counters(tcp_c['all']['udps_sndpkt'],tcp_s['all']['udps_rcvpkt'],"c.udps_rcvpkt != s.udps_rcvpkt");
+            self.check_counters(tcp_c['all']['udps_rcvpkt'],tcp_s['all']['udps_sndpkt'],"c.udps_rcvpkt != s.udps_sndpkt");
 
 
         return True
