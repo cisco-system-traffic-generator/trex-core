@@ -2606,6 +2606,7 @@ public:
 
     bool Create();
     void Delete();
+    void clear(void);
     uint64_t Size(void){
         return (m_flow_pkts.size());
     }
@@ -2732,7 +2733,6 @@ public:
     double m_mB_sec;
     double m_c_flows;
     double m_pps ;
-    double m_total_Mbytes ;
     uint64_t m_errors ;
     uint64_t m_flows  ;
     CCCapFileMemoryUsage m_memory;

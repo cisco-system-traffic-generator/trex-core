@@ -1583,12 +1583,10 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
 
     parser.Create();
     flow.Create(0);
-    m_total_bytes=0;
-    m_total_flows=0;
-    m_total_errors=0;
     CFlow * first_flow=0;
     bool first_flow_fif_is_swap=false;
     bool time_was_set=false;
+    bool is_init_side=true;
     double last_time=0.0;
     CCapPktRaw raw_packet;
     int cnt=0;
@@ -1646,17 +1644,13 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                         first_flow =lpflow;/* save it for single flow support , to signal error */
                         lpflow->is_fif_swap =pkt_indication.m_desc.IsSwapTuple();
                         first_flow_fif_is_swap = pkt_indication.m_desc.IsSwapTuple();
-                        pkt_indication.m_desc.SetInitSide(true);
-                        Append(&pkt_indication);
+                        is_init_side = true;
                         m_total_flows++;
                     } else {
                         if ( multi_flow_enable ) {
                             lpflow->is_fif_swap = pkt_indication.m_desc.IsSwapTuple();
                             /* in respect to the first flow */
-                            bool init_side_in_repect_to_first_flow =
-                                ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
-                            pkt_indication.m_desc.SetInitSide(init_side_in_repect_to_first_flow);
-                            Append(&pkt_indication);
+                            is_init_side = ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
                             m_total_flows++;
                         } else {
                             printf("More than one flow in this cap. Ignoring it !! \n");
@@ -1670,10 +1664,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                     if ( multi_flow_enable ==false ){
                         if (lpflow == first_flow) {
                             // add to
-                            bool init_side=
-                                ((lpflow->is_fif_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
-                            pkt_indication.m_desc.SetInitSide( init_side  );
-                            Append(&pkt_indication);
+                            is_init_side = ((lpflow->is_fif_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                         }else{
                             //printf(" more than one flow in this cap ignot it !! \n");
                             m_total_errors++;
@@ -1682,17 +1673,15 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                         /* support multi-flow,  */
 
                         /* work in respect to first flow */
-                        bool init_side=
-                            ((first_flow_fif_is_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
-                        pkt_indication.m_desc.SetInitSide( init_side  );
-                        Append(&pkt_indication);
-
+                        is_init_side = ((first_flow_fif_is_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                     }
                 }
             }else{
                 fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
                 return kPktNotSupp;
             }
+            pkt_indication.m_desc.SetInitSide(is_init_side);
+            Append(&pkt_indication);
         }else{
             fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
             return kPktProcessFail;
@@ -1876,10 +1865,14 @@ void CCCapFileMemoryUsage::dump(FILE *fd){
 }
 
 
-bool CCapFileFlowInfo::Create(){
-    m_total_bytes=0;
+void CCapFileFlowInfo::clear(void) {
+    m_total_bytes = 0;
     m_total_errors = 0;
-    m_total_flows  = 0;
+    m_total_flows = 0;
+}
+
+bool CCapFileFlowInfo::Create(){
+    clear();
     return (true);
 }
 
@@ -1900,9 +1893,7 @@ void CCapFileFlowInfo::dump_pkt_sizes(void){
 
 void CCapFileFlowInfo::RemoveAll(){
     int i;
-    m_total_bytes=0;
-    m_total_errors = 0;
-    m_total_flows  = 0;
+    clear();
     for (i=0; i<(int)Size(); i++) {
         flow_pkt_info_t lp=GetPacket((uint32_t)i);
         lp->Delete();
@@ -2406,7 +2397,6 @@ void CFlowStats::Clear(){
     m_mB_sec=0.0;
     m_c_flows=0.0;
     m_pps =0.0;
-    m_total_Mbytes=0.0 ;
     m_errors =0;
     m_flows =0 ;
     m_memory.clear();
@@ -2422,7 +2412,6 @@ void CFlowStats::Add(const CFlowStats & obj){
     m_mB_sec  += obj.m_mB_sec  ;
     m_c_flows += obj.m_c_flows ;
     m_pps     += obj.m_pps     ;
-    m_total_Mbytes +=obj.m_total_Mbytes ;
     m_errors  +=obj.m_errors;
     m_flows   +=obj.m_flows ;
     duration_sec += obj.duration_sec;
@@ -2432,12 +2421,11 @@ void CFlowStats::Add(const CFlowStats & obj){
 
 
 void CFlowStats::DumpHeader(FILE *fd){
-    fprintf(fd," %2s,%-40s,%4s,%4s,%5s,%7s,%9s,%9s,%9s,%10s,%5s,%7s,%4s,%4s \n",
-                 "id","name","tps","cps","f-pkts","f-bytes","duration","Mb/sec","MB/sec","c-flows","PPS","total-Mbytes-duration","errors","flows");
+    fprintf(fd," %2s %-40s %-8s %-9s %-6s %-8s %-8s %-7s %-6s %-7s %-6s %-4s %-4s\n",
+                 "id","name","tps","cps","f-pkts","f-bytes","duration","Mb/sec","MB/sec","c-flows","PPS","errors","flows");
 }
 void CFlowStats::Dump(FILE *fd){
-                 //"name","cps","f-pkts","f-bytes","Mb/sec","MB/sec","c-flows","PPS","total-Mbytes-duration","errors","flows"
-    fprintf(fd," %02d, %-40s ,%4.2f,%4.2f, %5.0f , %7.0f ,%7.2f ,%7.2f , %7.2f , %10.0f , %5.0f , %7.0f , %llu , %llu \n",
+    fprintf(fd," %02d %-40s %8.2f %9.2f %6.0f %8.0f %8.2f %7.2f %6.2f %7.0f %6.0f %4llu %4llu\n",
             m_id,
             m_name.c_str(),
             m_cps,
@@ -2449,7 +2437,6 @@ void CFlowStats::Dump(FILE *fd){
             m_mB_sec,
             m_c_flows,
             m_pps,
-            m_total_Mbytes,
             (unsigned long long)m_errors,
             (unsigned long long)m_flows);
 }
@@ -2527,7 +2514,6 @@ void CFlowGeneratorRecPerThread::getFlowStats(CFlowStats * stats){
 
     double c_flows  = cps*c_flow_windows_sec*m_flow_info->get_total_flows();
     double pps =cps*t_pkt;
-    double total_Mbytes = mB_sec * m_flows_info->m_duration_sec;
     uint64_t errors = m_flow_info->get_total_errors();
     uint64_t flows  = m_flow_info->get_total_flows();
 
@@ -2542,7 +2528,6 @@ void CFlowGeneratorRecPerThread::getFlowStats(CFlowStats * stats){
     stats->m_mB_sec =  mB_sec;
     stats->m_c_flows  =  c_flows;
     stats->m_pps    =  pps;
-    stats->m_total_Mbytes    =  total_Mbytes;
     stats->m_errors    =  errors;
     stats->m_flows    =  flows;
 }
@@ -2581,7 +2566,6 @@ void CFlowGeneratorRec::getFlowStats(CFlowStats * stats){
 
     double c_flows  = cps*c_flow_windows_sec;
     double pps =cps*t_pkt;
-    double total_Mbytes = mB_sec * m_flows_info->m_duration_sec;
     uint64_t errors = m_flow_info.get_total_errors();
     uint64_t flows  = m_flow_info.get_total_flows();
 
@@ -2596,7 +2580,6 @@ void CFlowGeneratorRec::getFlowStats(CFlowStats * stats){
     stats->m_mB_sec =  mB_sec;
     stats->m_c_flows  =  c_flows;
     stats->m_pps    =  pps;
-    stats->m_total_Mbytes    =  total_Mbytes;
     stats->m_errors    =  errors;
     stats->m_flows    =  flows;
 }

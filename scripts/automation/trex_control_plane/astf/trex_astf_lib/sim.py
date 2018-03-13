@@ -117,10 +117,10 @@ def execute_bp_sim(opts):
     if opts.verbose:
         rc = subprocess.call(cmd)
     else:
-        FNULL = open(os.devnull, 'wb')
-        rc = subprocess.call(cmd, stdout=FNULL)
-        if rc != 0:
-            raise Exception('simulation has failed with error code {0}'.format(rc))
+        with open(os.devnull, 'wb') as devnull:
+            rc = subprocess.call(cmd, stdout=devnull)
+    if rc != 0:
+        raise Exception('simulation has failed with error code {0}'.format(rc))
 
 
 def print_stats(prof):

@@ -4646,9 +4646,7 @@ CGlobalTRex::get_stx_cfg() {
     std::unordered_map<uint8_t, CPortLatencyHWBase*> ports;
     
     for (int i = 0; i < m_max_ports; i++) {
-        bool is_dummy = CTVPort(i).is_dummy();
-        cfg.m_dummy_port_map[i] = is_dummy;
-        if ( is_dummy ) {
+        if ( CTVPort(i).is_dummy() ) {
             continue;
         }
         if (vm_cfg) {
@@ -6074,9 +6072,10 @@ int CGlobalTRex::start_master_statefull() {
         exit(-1);
     }
 
-    m_expected_pps = m_fl.get_total_pps();
-    m_expected_cps = 1000.0*m_fl.get_total_kcps();
-    m_expected_bps = m_fl.get_total_tx_bps();
+    float dummy_factor = 1.0 - (float) CGlobalInfo::m_options.m_dummy_count / m_max_ports;
+    m_expected_pps = m_fl.get_total_pps() * dummy_factor;
+    m_expected_cps = 1000.0 * m_fl.get_total_kcps() * dummy_factor;
+    m_expected_bps = m_fl.get_total_tx_bps() * dummy_factor;
     if ( m_fl.get_total_repeat_flows() > 2000) {
         /* disable flows cache */
         CGlobalInfo::m_options.preview.setDisableMbufCache(true);

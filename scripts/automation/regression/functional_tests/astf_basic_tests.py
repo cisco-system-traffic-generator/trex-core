@@ -65,7 +65,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
                 #"astf/udp_pcap.py",
                 #"astf/udp2.py",
         ]
-
+        print('')
         for file in files:
             base_name = file.split("/")[-1].split(".")[0]
             output = "../../generated/"+base_name + ".generated.pcap"

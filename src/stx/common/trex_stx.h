@@ -62,14 +62,12 @@ public:
     
     TrexSTXCfg(const TrexRpcServerConfig &rpc_cfg,
                const CRxSlCfg &rx_cfg,
-               TrexPublisher *publisher,
-               uint8_to_bool_map_t dummy_port_map) : m_rpc_req_resp_cfg(rpc_cfg), m_rx_cfg(rx_cfg), m_publisher(publisher), m_dummy_port_map(dummy_port_map) {
+               TrexPublisher *publisher) : m_rpc_req_resp_cfg(rpc_cfg), m_rx_cfg(rx_cfg), m_publisher(publisher) {
     }
 
     TrexRpcServerConfig           m_rpc_req_resp_cfg;
     CRxSlCfg                      m_rx_cfg;
     TrexPublisher                *m_publisher;
-    uint8_to_bool_map_t           m_dummy_port_map;
 };
 
 
