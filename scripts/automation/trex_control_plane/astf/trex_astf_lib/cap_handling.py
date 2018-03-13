@@ -1,5 +1,6 @@
-from scapy.all import RawPcapReader, Ether
 from .trex_astf_exceptions import ASTFError
+import dpkt
+from repoze.lru import lru_cache
 
 
 class CPacketData():
@@ -38,6 +39,9 @@ class _CPcapReader_help(object):
         self.s_tcp_win = -1
         self.total_payload_len = 0
         self.state = _CPcapReader_help.states["init"]
+        self.condensed = False
+        self.analyzed = False
+
 
     def fail(self, msg):
         raise ASTFError('\nError for file %s: %s\n' % (self.file_name, msg))
@@ -47,6 +51,8 @@ class _CPcapReader_help(object):
         return self._pkts
 
     def condense_pkt_data(self):
+        if self.condensed:
+            return;
         prev_pkt = None
         new_list = []
         for i in range(1, len(self._pkts)):
@@ -64,6 +70,7 @@ class _CPcapReader_help(object):
                 prev_pkt = pkt
         new_list.append(prev_pkt)
         self._pkts = new_list
+        self.condensed =True
 
     # return -1 if packets in given cap_reader equals to ones in self.
     # If not equal, return number of packets which differs
@@ -86,13 +93,6 @@ class _CPcapReader_help(object):
         for i in range(0, len(self._pkts)):
             self._pkts[i].dump()
 
-            if tcp:
-                self.is_tcp =True;
-            else:
-                if udp:
-                    self.is_tcp =False;
-                else:
-                    self.fail('Packet #%s in pcap has is not TCP or UDP' % index)
 
     def get_type(self,tcp,udp):
         if tcp and udp==None:
@@ -102,148 +102,156 @@ class _CPcapReader_help(object):
         return("other");
 
     def analyze(self):
+        if self.analyzed:
+            return;
         pkt_num = 0
-        pcap = RawPcapReader(self.file_name).read_all()
-        if not pcap:
-            self.fail('Empty pcap {0}'.format(self.file_name))
+        pcap = None
+        with open(self.file_name, 'rb') as f:
+            pcap = dpkt.pcap.Reader(f)
+            if not pcap:
+               self.fail('Empty pcap {0}'.format(self.file_name))
 
-        l4_type = None
-        last_time=None;
-        for index, (raw_pkt, time) in enumerate(pcap):
-            dtime= time[0]+(time[1]/1000000.0)
-            pkt_time=0.0; # time from last pkt
-            if last_time == None:
-                pkt_time = 0.0;
-            else:
-                pkt_time=dtime-last_time;
-            last_time = dtime
+            l4_type = None
+            last_time=None;
+            index =0 ;
+            for (time,buf) in pcap:
+                dtime= time
+                pkt_time=0.0; # time from last pkt
+                if last_time == None:
+                    pkt_time = 0.0;
+                else:
+                    pkt_time=dtime-last_time;
+                last_time = dtime
+    
+                pkt_num += 1
 
-            pkt_num += 1
-            scapy_pkt = Ether(raw_pkt)
+                eth = dpkt.ethernet.Ethernet(buf)
 
-            # l3
-            ipv4 = scapy_pkt.getlayer('IP')
-            ipv6 = scapy_pkt.getlayer('IPv6')
-            if ipv4 and ipv6:
-                scapy_pkt.show2()
-                self.fail('Packet #%s in pcap has both IPv4 and IPv6!' % index)
+                l3 = None;
+                next = eth.data;
 
-            if ipv4:
-                l3 = ipv4
-            elif ipv6:
-                l3 = ipv6
-            else:
-                scapy_pkt.show2()
-                self.fail('Packet #%s in pcap is not IPv4/6.' % index)
+                if isinstance(next, dpkt.ip.IP):
+                    l3 = next;
 
-            # first packet
-            if self.c_ip is None:
-                self.c_ip = l3.src
-                self.s_ip = l3.dst
-                direction = "c"
-            else:
-                if self.c_ip == l3.src and self.s_ip == l3.dst:
+                if isinstance(next, dpkt.ip6.IP6):
+                    l3 = next;
+
+                if not l3:
+                    self.fail('Packet #%s in pcap is not IPv4 or IPv6!' % index)
+    
+    
+                # first packet
+                if self.c_ip is None:
+                    self.c_ip = l3.src
+                    self.s_ip = l3.dst
                     direction = "c"
-                elif self.s_ip == l3.src and self.c_ip == l3.dst:
-                    direction = "s"
                 else:
-                    self.fail('Only one session is allowed in a file. Packet {0} is from different session'
-                              .format(index))
-
-            # l4
-            tcp = scapy_pkt.getlayer('TCP')
-            udp = scapy_pkt.getlayer('UDP')
-
-            typel4 = self.get_type(tcp,udp);
-
-            if typel4 == "other":
-                 self.fail('Packet #%s in pcap has is not TCP or UDP' % index)
-
-            if self.is_tcp == None:
-                self.is_tcp = typel4;
-            else:
-                if self.is_tcp != typel4:
-                    self.fail('Packet #{0} in pcap is {1} and flow is {2}'.format(index,typel4,self.is_tcp))
-
-            if tcp and udp:
-                scapy_pkt.show2()
-                self.fail('Packet #%s in pcap has both TCP and UDP' % index)
-
-            elif tcp:
-                l4 = tcp
-                # SYN
-                if l4.flags & 0x02:
-                    # SYN + ACK
-                    if l4.flags & 0x10:
-                        self.s_tcp_opts = tcp.options
-                        self.s_tcp_win = tcp.window
-                        if self.state == _CPcapReader_help.states["init"]:
-                            self.fail('Packet #%s is SYN+ACK, but there was no SYN yet, or ' % index)
-                        else:
-                            if self.state != _CPcapReader_help.states["syn"]:
-                                self.fail('Packet #%s is SYN+ACK, but there was already SYN+ACK in cap file' % index)
-                        self.state = _CPcapReader_help.states["syn+ack"]
-                        exp_s_seq = tcp.seq + 1
-                    # SYN - no ACK. Should be first packet client->server
+                    if self.c_ip == l3.src and self.s_ip == l3.dst:
+                        direction = "c"
+                    elif self.s_ip == l3.src and self.c_ip == l3.dst:
+                        direction = "s"
                     else:
-                        self.c_tcp_opts = tcp.options
-                        self.c_tcp_win = tcp.window
-                        exp_c_seq = tcp.seq + 1
-                        # allowing syn retransmission because cap2/https.pcap contains this
-                        if self.state > _CPcapReader_help.states["syn"]:
-                            self.fail('Packet #%s is TCP SYN, but there was already TCP SYN in cap file' % index)
+                        self.fail('Only one session is allowed in a file. Packet {0} is from different session'
+                                  .format(index))
+    
+                # l4
+                l4 = l3.data;
+
+                tcp = None
+                udp = None
+
+                if  isinstance(l4, dpkt.udp.UDP):
+                    udp = l4;
+
+                if isinstance(l4, dpkt.tcp.TCP):
+                    tcp = l4
+
+                typel4 = self.get_type(tcp,udp);
+    
+                if typel4 == "other":
+                     self.fail('Packet #%s in pcap has is not TCP or UDP' % index)
+    
+                if self.is_tcp == None:
+                    self.is_tcp = typel4;
+                else:
+                    if self.is_tcp != typel4:
+                        self.fail('Packet #{0} in pcap is {1} and flow is {2}'.format(index,typel4,self.is_tcp))
+    
+                if tcp and udp:
+                    self.fail('Packet #%s in pcap has both TCP and UDP' % index)
+    
+                elif tcp:
+                    l4 = tcp
+                    # SYN
+                    if l4.flags & 0x02:
+                        # SYN + ACK
+                        if l4.flags & 0x10:
+                            #self.s_tcp_opts =tcp.opts
+                            self.s_tcp_win = tcp.win
+                            if self.state == _CPcapReader_help.states["init"]:
+                                self.fail('Packet #%s is SYN+ACK, but there was no SYN yet, or ' % index)
+                            else:
+                                if self.state != _CPcapReader_help.states["syn"]:
+                                    self.fail('Packet #%s is SYN+ACK, but there was already SYN+ACK in cap file' % index)
+                            self.state = _CPcapReader_help.states["syn+ack"]
+                            exp_s_seq = tcp.seq + 1
+                        # SYN - no ACK. Should be first packet client->server
                         else:
-                            self.state = _CPcapReader_help.states["syn"]
+                            #self.c_tcp_opts = tcp.options
+                            self.c_tcp_win = tcp.win
+                            exp_c_seq = tcp.seq + 1
+                            # allowing syn retransmission because cap2/https.pcap contains this
+                            if self.state > _CPcapReader_help.states["syn"]:
+                                self.fail('Packet #%s is TCP SYN, but there was already TCP SYN in cap file' % index)
+                            else:
+                                self.state = _CPcapReader_help.states["syn"]
+                    else:
+                        if self.state != _CPcapReader_help.states["syn+ack"]:
+                            self.fail('Cap file must start with syn, syn+ack sequence')
+                    if l4_type not in (None, 'TCP'):
+                        self.fail('PCAP contains both TCP and %s. This is not supported currently.' % l4_type)
+                    l4_type = 'TCP'
+                elif udp:
+                    #self.fail('CAP file contains UDP packets. This is not supported yet')
+                     l4 = udp
+                     if l4_type not in (None, 'UDP'):
+                        self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
+                     l4_type = 'UDP'
                 else:
-                    if self.state != _CPcapReader_help.states["syn+ack"]:
-                        self.fail('Cap file must start with syn, syn+ack sequence')
-                if l4_type not in (None, 'TCP'):
-                    self.fail('PCAP contains both TCP and %s. This is not supported currently.' % l4_type)
-                l4_type = 'TCP'
-            elif udp:
-                #self.fail('CAP file contains UDP packets. This is not supported yet')
-                 l4 = udp
-                 if l4_type not in (None, 'UDP'):
-                    self.fail('PCAP contains both UDP and %s. This is not supported currently.' % l4_type)
-                 l4_type = 'UDP'
-            else:
-                scapy_pkt.show2()
-                self.fail('Packet #%s in pcap is not TCP or UDP.' % index)
-
-            if self.s_port == -1:
-                self.s_port = l4.sport
-                self.d_port = l4.dport
-
-            padding = scapy_pkt.getlayer('Padding')
-            if padding is not None:
-                pad_len = len(padding)
-            else:
+                    self.fail('Packet #%s in pcap is not TCP or UDP.' % index)
+    
+                if self.s_port == -1:
+                    self.s_port = l4.sport
+                    self.d_port = l4.dport
+    
                 pad_len = 0
-            l4_payload_len = len(l4.payload) - pad_len
-            self.total_payload_len += l4_payload_len
-            self._pkts.append(CPacketData(direction, bytes(l4.payload)[0:l4_payload_len]))
-            self._times.append(pkt_time)
-            self._dir.append(direction)
-
-            # special handling for TCP FIN
-            if tcp:
-              if l4.flags & 0x01:
-                  l4_payload_len = 1
-            # verify there is no packet loss or retransmission in cap file
-            # don't check for SYN
-            if tcp and (l4.flags & 0x02) == 0:
-                if l4.sport == self.s_port:
-                    if exp_c_seq != tcp.seq:
-                        self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are no packet
-                        loss or retransmission in cap file"""
-                                  .format(pkt_num, tcp.seq, exp_c_seq))
-                    exp_c_seq = tcp.seq + l4_payload_len
-                else:
-                    if exp_s_seq != tcp.seq:
-                        self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are
-                        no packet loss or retransmission in cap file"""
-                                  .format(pkt_num, tcp.seq, exp_s_seq))
-                    exp_s_seq = tcp.seq + l4_payload_len
+                l4_payload_len = len(l4.data) 
+                self.total_payload_len += l4_payload_len
+                self._pkts.append(CPacketData(direction, bytes(l4.data)[0:l4_payload_len]))
+                self._times.append(pkt_time)
+                self._dir.append(direction)
+    
+                # special handling for TCP FIN
+                if tcp:
+                  if l4.flags & 0x01:
+                      l4_payload_len = 1
+                # verify there is no packet loss or retransmission in cap file
+                # don't check for SYN
+                if tcp and (l4.flags & 0x02) == 0:
+                    if l4.sport == self.s_port:
+                        if exp_c_seq != tcp.seq:
+                            self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are no packet
+                            loss or retransmission in cap file"""
+                                      .format(pkt_num, tcp.seq, exp_c_seq))
+                        exp_c_seq = tcp.seq + l4_payload_len
+                    else:
+                        if exp_s_seq != tcp.seq:
+                            self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are
+                            no packet loss or retransmission in cap file"""
+                                      .format(pkt_num, tcp.seq, exp_s_seq))
+                        exp_s_seq = tcp.seq + l4_payload_len
+                index = index +1
+        self.analyzed =True
 
     def gen_prog_file_header(self, out):
         out.write("import astf_path\n")
@@ -252,25 +260,12 @@ class _CPcapReader_help(object):
         out.write("\n")
 
 
-class CPcapReader(object):
-    last_file_name = None
-    obj = None
-    condensed = False
-    analyzed = False
-
+class _CPcapReader(object):
     def __init__(self, file_name):
-        if file_name != CPcapReader.last_file_name:
-            CPcapReader.last_file_name = file_name
-            CPcapReader.obj = _CPcapReader_help(file_name)
-            CPcapReader.condensed = False
-            CPcapReader.analyzed = False
-
-        self.obj = CPcapReader.obj
+        self.obj = _CPcapReader_help(file_name)
 
     def condense_pkt_data(self):
-        if not self.condensed:
-            CPcapReader.condensed = True
-            return self.obj.condense_pkt_data()
+          return self.obj.condense_pkt_data()
 
     def dump(self):
         return self.obj.dump()
@@ -279,9 +274,7 @@ class CPcapReader(object):
         return self.obj.is_same_pkts(cap_reader.obj)
 
     def analyze(self):
-        if not self.analyzed:
-            CPcapReader.analyzed = True
-            self.obj.analyze()
+          self.obj.analyze()
 
     def gen_prog_file_header(self, out):
         return self.obj.gen_prog_file_header(out)
@@ -335,10 +328,17 @@ class CPcapReader(object):
     def c_tcp_opts(self):
         return self.obj.c_tcp_opts
 
-    @property
-    def s_tcp_opts(self):
-        return self.obj.s_tcp_opts
+    #@property
+    #def s_tcp_opts(self):
+    #    return self.obj.s_tcp_opts
 
     @property
     def payload_len(self):
         return self.obj.total_payload_len
+
+@lru_cache(maxsize=None)
+def  pcap_reader(file_name):
+    obj = _CPcapReader(file_name)
+    return (obj)
+
+
