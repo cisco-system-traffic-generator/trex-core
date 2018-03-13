@@ -147,9 +147,11 @@ public:
         return ((uint32_t)(m_jitter.get_jitter()*1000000.0));
     }
     static void DumpShortHeader(FILE *fd);
+    bool has_dummy_port_in_pair(void) { return m_dummy_port_in_pair; }
+    void set_dummy_port_in_pair(void) { m_dummy_port_in_pair = true; }
 
     bool is_any_err(){
-        if (  (m_tx_pkt_ok == m_rx_port->m_pkt_ok ) &&
+        if ( (m_dummy_port_in_pair || (m_tx_pkt_ok == m_rx_port->m_pkt_ok)) &&
 
               ((m_unsup_prot+
                 m_no_magic+
@@ -191,6 +193,7 @@ private:
      bool              m_nat_learn;
      bool              m_nat_can_send;
      uint32_t          m_nat_external_ip;
+     bool     m_dummy_port_in_pair; /* one of ports on this core is dummy */
      uint32_t m_tx_seq;
      uint32_t m_rx_seq;
      uint8_t  m_pad;
@@ -432,6 +435,7 @@ private:
      uint64_t                m_start_time; // calc tick between sending
      uint32_t                m_port_mask;
      uint32_t                m_max_ports;
+     std::vector<uint8_t>    m_port_ids; // (non dummy) port IDs
      RxCheckManager          m_rx_check_manager;
      CNatRxManager           m_nat_check_manager;
      CCpuUtlDp               m_cpu_dp_u;

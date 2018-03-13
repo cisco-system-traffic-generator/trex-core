@@ -10,6 +10,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
     """Benchark stateless performance"""
 
     def test_CPU_benchmark(self):
+        tx_port, rx_port = CTRexScenario.stl_ports_map['bi'][0]
         critical_test = CTRexScenario.setup_name in ('kiwi02', 'trex08', 'trex09') # temporary patch, this test needs to be fixed
         timeout       = 60 # max time to wait for stabilization
         stabilize     = 5  # ensure stabilization over this period
@@ -72,8 +73,8 @@ class STLBenchmark_Test(CStlGeneral_Test):
 
             if critical_test and i == timeout and agv_cpu_util > 10:
                 raise Exception('Timeout on waiting for stabilization, last CPU util values: %s' % list(cpu_utils))
-            if stats[0]['opackets'] < 300 or stats[1]['opackets'] < 300:
-                raise Exception('Too few opackets, port0: %s, port1: %s' % (stats[0]['opackets'], stats[1]['opackets']))
+            if stats[tx_port]['opackets'] < 300 or stats[rx_port]['opackets'] < 300:
+                raise Exception('Too few opackets, port0: %s, port1: %s' % (stats[tx_port]['opackets'], stats[rx_port]['opackets']))
             is_VM = True if 'VM' in self.modes else False
             if (is_VM == False)  and (stats['global']['queue_full'] > 100000):
                 raise Exception('Too much queue_full: %s' % stats['global']['queue_full'])

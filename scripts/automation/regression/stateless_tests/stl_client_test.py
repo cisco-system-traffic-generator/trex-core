@@ -441,7 +441,11 @@ class STLClient_Test(CStlGeneral_Test):
 
 
         except STLError as e:
-            assert False , '{0}'.format(e)
+            if not self.is_dummy_ports:
+                assert False , '{0}'.format(e)
+        else:
+            if self.is_dummy_ports and (master not in self.c.ports or slave not in self.c.ports): # negative test
+                raise Exception('Should have raised exception with dummy port')
 
         
     def test_tx_from_rx (self):
@@ -605,6 +609,8 @@ class STLClient_Test(CStlGeneral_Test):
 
         if self.c.system_info.get('dp_core_count_per_port') < 2:
             self.skip('pinning test requires at least 2 cores per interface')
+        if self.is_dummy_ports:
+            self.skip('pinning test is not designed for setup with dummy ports')
 
         s1 = STLStream(packet = self.pkt, mode = STLTXCont())
         self.c.reset([0, 1])
@@ -647,6 +653,8 @@ class STLClient_Test(CStlGeneral_Test):
 
         if self.c.system_info.get('dp_core_count_per_port') < 2:
             self.skip('pinning test requires at least 2 cores per interface')
+        if self.is_dummy_ports:
+            self.skip('pinning test is not designed for setup with dummy ports')
 
         s1 = STLStream(packet = self.pkt, mode = STLTXCont())
 
