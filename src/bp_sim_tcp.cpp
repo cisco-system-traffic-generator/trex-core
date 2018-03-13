@@ -129,18 +129,22 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
     m_node_gen.m_v_if->set_rx_burst_time(m_cur_time_sec);
 #endif
     double dtime=m_sched_accurate?TCP_RX_FLUSH_ACCURATE_SEC:TCP_RX_FLUSH_SEC;
-
+    int drop=0;
     m_node_gen.m_p_queue.pop();
-    if ( on_terminate == false ){
+    if ( on_terminate ){
+        if (m_tcp_terminate){
+            if (m_tcp_terminate_cnt>(uint32_t)(2.0/dtime)) {
+                drop=1;
+            }else{
+                m_tcp_terminate_cnt++;
+            }
+        }
+    }
+    if (drop) {
+        free_node(node);
+    }else{
         node->m_time += dtime;
         m_node_gen.m_p_queue.push(node);
-    }else{
-        if (m_tcp_terminate){
-            free_node(node);
-        }else{
-            node->m_time += dtime;
-            m_node_gen.m_p_queue.push(node);
-        }
     }
 
     CVirtualIF * v_if=m_node_gen.m_v_if;

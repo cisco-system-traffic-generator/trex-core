@@ -2406,7 +2406,7 @@ void CFlowStats::Clear(){
     m_mB_sec=0.0;
     m_c_flows=0.0;
     m_pps =0.0;
-    m_total_Mbytes=00 ;
+    m_total_Mbytes=0.0 ;
     m_errors =0;
     m_flows =0 ;
     m_memory.clear();
@@ -2823,6 +2823,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_s_tcp=0;
     m_s_tcp_io=0;
     m_tcp_terminate=false;
+    m_tcp_terminate_cnt=0;
     m_sched_accurate=false;
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
