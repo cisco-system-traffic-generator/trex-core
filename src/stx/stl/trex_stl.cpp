@@ -58,9 +58,9 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     TrexRpcCommandsTable::get_instance().load_component(new TrexRpcCmdsSTL());
     
     /* create stateless ports */
-    for (auto &dummy_map: cfg.m_dummy_port_map) {
-        if ( !dummy_map.second ) {
-            m_ports[dummy_map.first] = (TrexPort *)new TrexStatelessPort(dummy_map.first);
+    for (int i = 0; i < get_platform_api().get_port_count(); i++) {
+        if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
+            m_ports[i] = (TrexPort *)new TrexStatelessPort(i);
         }
     }
 

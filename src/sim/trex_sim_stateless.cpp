@@ -180,7 +180,7 @@ SimStateless::init() {
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
     
-    cfg.m_rx_cfg.create(1, {nullptr});
+    cfg.m_rx_cfg.create(1, {});
     
     set_stx(new TrexStateless(cfg));
 }
@@ -248,8 +248,8 @@ SimStateless::prepare_control_plane() {
 
     get_stateless_obj()->launch_control_plane();
 
-    for (auto &port : get_stateless_obj()->get_port_list()) {
-        port->acquire("test", 0, true);
+    for (auto &port : get_stateless_obj()->get_port_map()) {
+        port.second->acquire("test", 0, true);
     }
 
 }
