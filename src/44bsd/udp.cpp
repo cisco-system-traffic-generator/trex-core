@@ -66,7 +66,7 @@ void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
         }else{
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
+            m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
             IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             ipv6->setPayloadLen(udp_pyld_bytes+UDP_HEADER_LEN);
             udp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(udp_pyld_bytes+UDP_HEADER_LEN)));
