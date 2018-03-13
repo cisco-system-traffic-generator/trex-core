@@ -14,7 +14,7 @@ PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pard
 ZMQ_PATH            = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', cpu_arch, python_ver, ucs_ver, '64bit'))
 YAML_PATH           = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyyaml-3.11', python_ver))
 
-CLIENT_UTILS_MODULES = ['dpkt-1.8.6',
+CLIENT_UTILS_MODULES = [
                         'texttable-0.8.4',
                         'scapy-2.3.1'
                         'zmq',

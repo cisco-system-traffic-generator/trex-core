@@ -1,4 +1,4 @@
-from .cap_handling import CPcapReader
+from .cap_handling import pcap_reader
 from .arg_verify import ArgVerify
 import os
 import sys
@@ -8,6 +8,7 @@ from .trex_astf_global_info import ASTFGlobalInfo, ASTFGlobalInfoPerTemplate
 import json
 import base64
 import hashlib
+
 
 
 def listify(x):
@@ -295,7 +296,7 @@ class ASTFProgram(object):
         self.total_send_bytes = 0
         self.total_rcv_bytes = 0
         if file is not None:
-            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
+            cap = pcap_reader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
             self._p_len = cap.payload_len
             is_tcp=cap.is_tcp()
@@ -1460,7 +1461,7 @@ class ASTFTemplate(object):
 class _ASTFTCPInfo(object):
     def __init__(self, file=None):
         if file is not None:
-            cap = CPcapReader(_ASTFCapPath.get_pcap_file_path(file))
+            cap = pcap_reader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
             new_port = cap.d_port
 

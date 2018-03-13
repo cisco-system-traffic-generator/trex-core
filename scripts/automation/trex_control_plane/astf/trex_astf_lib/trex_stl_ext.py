@@ -25,6 +25,8 @@ CLIENT_UTILS_MODULES = [ {'name': 'texttable-0.8.4'},
                          {'name': 'scapy-2.3.1', 'py-dep': True},
                          {'name': 'pyzmq-14.5.0', 'py-dep': True, 'arch-dep': True},
                          {'name': 'simpy-3.0.10'},
+                         {'name': 'dpkt-1.9.1'},
+                         {'name': 'repoze'},
                         ]
 
 
