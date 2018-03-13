@@ -502,7 +502,6 @@ CFlowStatRuleMgr::CFlowStatRuleMgr() {
     m_rx_core = NULL;
     memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
     memset(m_tx_cant_count_err, 0, sizeof(m_tx_cant_count_err));
-    m_num_ports = 0; // need to call create to init
     m_mode = FLOW_STAT_MODE_NORMAL;
 }
 
@@ -517,8 +516,12 @@ void CFlowStatRuleMgr::create() {
     m_api = &get_platform_api();
     assert(m_api);
     m_api->get_port_stat_info(0, num_counters, cap, ip_id_base);
-    m_num_ports = m_api->get_port_count(); // This initialize m_num_ports
-    for (uint8_t port = 0; port < m_num_ports; port++) {
+    for (int i=0; i<m_api->get_port_count(); i++) {
+        if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
+            m_port_ids.push_back(i);
+        }
+    }
+    for (auto &port: m_port_ids) {
         assert(m_api->reset_hw_flow_stats(port) == 0);
     }
     m_hw_id_map.create(num_counters);
@@ -545,13 +548,6 @@ void CFlowStatRuleMgr::create() {
     assert(m_parser_pl);
 }
 
-std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf) {
-    os << "Flow stat rule mgr (" << cf.m_num_ports << ") ports:" << std::endl;
-    os << cf.m_hw_id_map;
-    os << cf.m_hw_id_map_payload;
-    os << cf.m_user_id_map;
-    return os;
-}
 
 int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser *parser) {
 #ifdef __DEBUG_FUNC_ENTRY__
@@ -764,7 +760,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
             }
         }
         if (p_user_id) {
-            for (uint8_t port = 0; port < m_num_ports; port++) {
+            for (auto &port: m_port_ids) {
                 if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
                     m_api->del_rx_flow_stat_rule(port, p_user_id->get_l3_proto(), p_user_id->get_l4_proto()
                                                  , p_user_id->get_ipv6_next_h(), hw_id);
@@ -776,7 +772,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
         rx_per_flow_t rx_cntr;
         tx_per_flow_t tx_cntr;
         // clean stat for hw_id
-        for (uint8_t port = 0; port < m_num_ports; port++) {
+        for (auto &port: m_port_ids) {
             m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
         }
     }
@@ -927,7 +923,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
                 rx_per_flow_t rx_cntr;
                 tx_per_flow_t tx_cntr;
                 rfc2544_info_t rfc2544_info;
-                for (uint8_t port = 0; port < m_num_ports; port++) {
+                for (auto &port: m_port_ids) {
                     m_api->get_flow_stats(port, &rx_cntr, (void *)&tx_cntr, hw_id, hw_id, true, rule_type);
                 }
                 if (rule_type == TrexPlatformApi::IF_STAT_PAYLOAD) {
@@ -988,7 +984,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 }
 
 int CFlowStatRuleMgr::add_hw_rule(uint16_t hw_id, uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
-    for (int port = 0; port < m_num_ports; port++) {
+    for (auto &port: m_port_ids) {
         m_api->add_rx_flow_stat_rule(port, l3_proto, l4_proto, ipv6_next_h, hw_id);
     }
 
@@ -1182,7 +1178,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
         printf("CFlowStatRuleMgr::update_counters: time:%ld, flow(%d-%d) payload(%d-%d)\n"
                , now, min_f, max_f, min_l, max_l);
 #endif
-    for (uint8_t port = 0; port < m_num_ports; port++) {
+    for (auto &port: m_port_ids) {
         if (min_f != HW_ID_INIT) {
             m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
             for (int i = min_f; i <= max_f; i++) {
@@ -1290,7 +1286,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
 
     // build json report
     // general per port data
-    for (uint8_t port = 0; port < m_num_ports; port++) {
+    for (auto &port: m_port_ids) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             if (m_rx_cant_count_err[port] != 0)
                 s_data_section["g"]["rx_err"][str_port] = m_rx_cant_count_err[port];
@@ -1345,7 +1341,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
         std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream() << user_id) )->str();
         v_data_section[str_user_id] = user_id_info->get_ver_id();
         // flow stat json
-        for (uint8_t port = 0; port < m_num_ports; port++) {
+        for (auto &port: m_port_ids) {
             std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
             s_data_section[str_user_id]["rp"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
             if (m_cap & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)

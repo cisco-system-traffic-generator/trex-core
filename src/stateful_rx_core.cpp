@@ -261,6 +261,10 @@ bool CCPortLatency::Create(CLatencyManager * parent,
     m_nat_can_send = nat_is_port_can_send(m_id);
     m_nat_learn    = m_nat_can_send;
     m_nat_external_ip=0;
+    if ( CGlobalInfo::m_options.m_dummy_port_map[m_id] ) {
+        set_dummy_port_in_pair();
+        rx_port->set_dummy_port_in_pair();
+    }
 
     m_hist.Create();
     reset();
@@ -317,7 +321,7 @@ void CCPortLatency::dump_json(std::string & json ){
     json += get_field("avg",m_hist.get_average_latency() );
     json += get_field("max",m_hist.get_max_latency() );
     json += get_field("c-max",m_hist.get_max_latency_last_update() );
-    json += get_field("error",(float)(m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_l3_cs_err+m_l4_cs_err));
+    json += get_field("error",(float)(m_unsup_prot+m_no_magic+m_no_id+m_seq_error+m_length_error+m_no_ipv4_option+m_l3_cs_err+m_l4_cs_err+m_tx_pkt_err));
     json += get_field("jitter",(float)get_jitter_usec() );
 }
 
@@ -580,9 +584,7 @@ void CLatencyManager::Delete(){
    3->2
 */
 static uint8_t swap_port(uint8_t port_id){
-    uint8_t offset= ((port_id>>1)<<1);
-    uint8_t client_index = (port_id %2);
-    return (offset + (client_index ^ 1));
+    return port_id ^ 1;
 }
 
 
@@ -607,8 +609,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
     m_do_stop =false;
     m_is_active =false;
     m_pkt_gen.Create(c_l_pkt_mode);
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (int i=0; i<m_max_ports; i++) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         CCPortLatency * lpo=&m_ports[swap_port(i)].m_port;
 
@@ -618,6 +619,9 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
                           m_pkt_gen.get_payload_offset(),
                           m_pkt_gen.get_l4_offset(),
                           m_pkt_gen.get_pkt_size(),lpo );
+        if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
+            m_port_ids.push_back(i);
+        }
     }
     m_cps= cfg->m_cps;
     if (m_cps != 0) {
@@ -646,8 +650,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
 
 void  CLatencyManager::send_pkt_all_ports(){
     m_start_time = os_get_hr_tick_64();
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         if ( m_port_mask & (1<<i)  ){
             CLatencyManagerPerPort * lp=&m_ports[i];
             if (lp->m_port.can_send_packet(i%2) ){
@@ -727,12 +730,11 @@ void CLatencyManager::send_one_grat_arp() {
 
 void  CLatencyManager::wait_for_rx_dump(){
     rte_mbuf_t * rx_pkts[64];
-    int i;
     while ( true  ) {
         rte_pause();
         rte_pause();
         rte_pause();
-        for (i=0; i<m_max_ports; i++) {
+        for (auto &i: m_port_ids) {
             CLatencyManagerPerPort * lp=&m_ports[i];
             rte_mbuf_t * m;
             uint16_t cnt_p = lp->m_io->rx_burst(rx_pkts, 64);
@@ -777,9 +779,8 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
 
 bool CLatencyManager::try_rx(){
     rte_mbuf_t * rx_pkts[64];
-    int i;
     bool did_something = false;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         rte_mbuf_t * m;
         /* try to read 64 packets clean up the queue */
@@ -802,8 +803,7 @@ bool CLatencyManager::try_rx(){
 
 void  CLatencyManager::reset(){
 
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.reset();
     }
@@ -1024,8 +1024,7 @@ void CLatencyManager::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, boo
 
 double CLatencyManager::get_max_latency(){
     double l=0.0;
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         if ( l <lp->m_port.m_hist.get_max_latency() ){
             l=lp->m_port.m_hist.get_max_latency();
@@ -1036,8 +1035,7 @@ double CLatencyManager::get_max_latency(){
 
 double CLatencyManager::get_avr_latency(){
     double l=0.0;
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         if ( l <lp->m_port.m_hist.get_average_latency() ){
             l=lp->m_port.m_hist.get_average_latency();
@@ -1047,9 +1045,8 @@ double CLatencyManager::get_avr_latency(){
 }
 
 uint64_t CLatencyManager::get_total_pkt(){
-    int i;
     uint64_t t=0;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         t+=lp->m_port.m_tx_pkt_ok ;
     }
@@ -1057,9 +1054,8 @@ uint64_t CLatencyManager::get_total_pkt(){
 }
 
 uint64_t CLatencyManager::get_total_bytes(){
-    int i;
     uint64_t t=0;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         t+=lp->m_port.m_tx_pkt_ok* (m_pkt_gen.get_pkt_size()+4);
     }
@@ -1069,8 +1065,7 @@ uint64_t CLatencyManager::get_total_bytes(){
 
 
 bool   CLatencyManager::is_any_error(){
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         if ( lp->m_port.is_any_err() ){
             return (true);
@@ -1082,8 +1077,7 @@ bool   CLatencyManager::is_any_error(){
 
 void CLatencyManager::dump_json(std::string & json ){
     json="{\"name\":\"trex-latecny\",\"type\":0,\"data\":{";
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.dump_json(json);
     }
@@ -1096,8 +1090,7 @@ void CLatencyManager::dump_json_v2(std::string & json ){
     json="{\"name\":\"trex-latecny-v2\",\"type\":0,\"data\":{";
     json+=add_json("cpu_util",m_cpu_cp_u.GetVal());
 
-    int i;
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.dump_json_v2(json);
     }
@@ -1140,17 +1133,16 @@ double CLatencyManager::get_cpu_util() {
 }
 
 void CLatencyManager::update(){
-    for (int i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.m_hist.update();
     }
 }
 
 void CLatencyManager::DumpShort(FILE *fd){
-    int i;
     fprintf(fd," Cpu Utilization : %2.1f %%  \n",m_cpu_cp_u.GetVal());
     CCPortLatency::DumpShortHeader(fd);
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         fprintf(fd," %d | ",i);
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.DumpShort(fd);
@@ -1161,9 +1153,8 @@ void CLatencyManager::DumpShort(FILE *fd){
 }
 
 void CLatencyManager::Dump(FILE *fd){
-    int i;
     fprintf(fd," cpu : %2.1f  %% \n",m_cpu_cp_u.GetVal());
-    for (i=0; i<m_max_ports; i++) {
+    for (auto &i: m_port_ids) {
         fprintf(fd," port   %d \n",i);
         fprintf(fd," -----------------\n");
         CLatencyManagerPerPort * lp=&m_ports[i];

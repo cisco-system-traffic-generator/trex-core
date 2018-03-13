@@ -548,7 +548,7 @@ class CFlowStatRuleMgr {
     CFlowStatHwIdMap m_hw_id_map; // map hw ids to user ids
     CFlowStatHwIdMap m_hw_id_map_payload; // map hw id numbers of payload rules to user ids
     CFlowStatUserIdMap m_user_id_map; // map user ids to hw ids
-    uint8_t m_num_ports; // How many ports are being used
+    std::vector<uint8_t> m_port_ids; // (non dummy) port IDs
     const TrexPlatformApi *m_api;
     const CRxCore *m_rx_core;
     int m_max_hw_id; // max hw id we ever used

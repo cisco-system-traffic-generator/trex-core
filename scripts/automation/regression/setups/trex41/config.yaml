@@ -7,5 +7,5 @@
 trex:
   hostname       : csi-trex-41
   cores          : 10
-  modes          : ['loopback']
+  modes          : ['loopback', 'dummy']
 

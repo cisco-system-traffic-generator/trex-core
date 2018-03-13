@@ -321,7 +321,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
     /* ports */
     const stx_port_map_t &stx_port_map = get_stx()->get_port_map();
-    section["port_count"] = (int)stx_port_map.size();
+    section["port_count"] = get_stx()->get_port_count();
     section["ports"] = Json::arrayValue;
 
     for (auto &port : stx_port_map) {
