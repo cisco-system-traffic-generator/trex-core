@@ -1,0 +1,377 @@
+Napatech support
+================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+Napatech SmartNIC family support 1/10/25/40/50/100 Gb/s Ethernet speeds on various cards. The NT200A01 card can
+potentially support all speeds within the one card.
+The Napatech SmartNICs operate using a bifurcated driver, the main driver resides in userspace and DPDK run on top
+of that driver. The Napatech SmartNIC driver suite provide it's own kernel driver and does therefore not need igb_uio.
+In order to run TRex on Napatech SmartNICs the Napatech driver suite must be install and running.
+
+== Installation
+
+* Download latest driver suite from https://www.napatech.com/downloads/
+
+As of writing this is the following release: "Huntington Beach 2" - ntanl_package_3gd_linux_9.0.7.tar.gz
+
+=== Extract and install
+[source,bash]
+----
+ [bash]>tar xf ntanl_package_3gd_linux_9.0.7.tar.gz
+ [bash]>cd ntanl_package_3gd_linux_9.0.7
+ [bash]>./package_install_3gd.sh --noprompt
+ [ Install documentation ]
+ [ Extract and install tools ]
+ nt_tools_3gd_linux_3.6.8.20-6cb89.run
+ readme_tools_3gd_linux_3.6.8.20-6cb89.txt
+ Verifying archive integrity... All good.
+ Uncompressing Napatech A/S tools package v 3.6.8.20-6cb89.............
+ ......................................................................
+ ......................................................................
+ .....................................................................
+
+ ######################################################################
+ ######################################################################
+ ######################################################################
+ ######   _   _          _____     _______ ______ _____ _    _   ######
+ ######  | \ | |   /\   |  __ \ /\|__   __|  ____/ ____| |  | |  ######
+ ######  |  \| |  /  \  | |__) /  \  | |  | |__ | |    | |__| |  ######
+ ######  |     | / /\ \ |  ___/ /\ \ | |  |  __|| |    |  __  |  ######
+ ######  | |\  |/ ____ \| |  / ____ \| |  | |___| |____| |  | |  ######
+ ######  |_| \_/_/    \_\_| /_/    \_\_|  |______\_____|_|  |_|  ######
+ ######                                                          ######
+ ######                      N T   T O O L S                     ######
+ ######               ( T o o l s   P a c k a g e )              ######
+ ######################################################################
+ ######################################################################
+ ######################################################################
+
+ Commencing installation procedure..
+ Creating installation directory at /opt/napatech3               [Done]
+ Installing tools                                                [Done]
+ Installing documentation                                        [Done]
+ Installing documentation                                        [Done]
+
+ ######################################################################
+ #                 Installation completed successfully                #
+ #            See /tmp/nt_tools_3gd.log for a full install log        #
+ ######################################################################
+ [ Extract and build driver ]
+ nt_driver_3gd_linux_3.6.8.20-6cb89.run
+ readme_driver_3gd_linux_3.6.8.20-6cb89.txt
+ Verifying archive integrity... All good.
+ Uncompressing Napatech A/S driver package v 3.6.8.20-6cb89 ...........
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ ......................................................................
+ .................................................
+
+ ######################################################################
+ ######################################################################
+ ######################################################################
+ ######   _   _          _____     _______ ______ _____ _    _   ######
+ ######  | \ | |   /\   |  __ \ /\|__   __|  ____/ ____| |  | |  ######
+ ######  |  \| |  /  \  | |__) /  \  | |  | |__ | |    | |__| |  ######
+ ######  |     | / /\ \ |  ___/ /\ \ | |  |  __|| |    |  __  |  ######
+ ######  | |\  |/ ____ \| |  / ____ \| |  | |___| |____| |  | |  ######
+ ######  |_| \_/_/    \_\_| /_/    \_\_|  |______\_____|_|  |_|  ######
+ ######                                                          ######
+ ######                    N T   D R I V E R S                   ######
+ ######              ( D r i v e r   P a c k a g e )             ######
+ ######################################################################
+ ######################################################################
+ ######################################################################
+
+ Commencing installation procedure..
+ Creating installation directory at /opt/napatech3               [Done]
+ Checking build and install disk space                           [Done]
+ Installing driver source                                        [Done]
+ Compiling the driver                                            [Done]
+ Installing driver                                               [Done]
+ Compiling the netdev driver                                     [Done]
+ Installing netdev driver                                        [Done]
+ Installing libraries                                            [Done]
+ Installing header files                                         [Done]
+ Installing binaries                                             [Done]
+ Installing config files                                         [Done]
+ Installing examples                                             [Done]
+ Installing documentation                                        [Done]
+ Checking dynamic linker bindings:
+   Regenerate dynamic linker bindings                            [Done]
+ Installing symbolic links                                       [Done]
+
+ ######################################################################
+ #                 Installation completed successfully                #
+ #            See /tmp/nt_driver_3gd.log for a full install log       #
+ ######################################################################
+ [ Extract and install the Image control applications ]
+ imgctrl
+ [ Install Images ]
+ [ Package installation done... ]
+ [bash]>
+----
+
+=== Update the firmware
+[source,bash]
+----
+ [bash]>cd /opt/napatech3/images/
+ [bash]>tar xf NT200A01-2x100_fpga_200-9508-07-06.tar.gz
+ [bash]>/opt/napatech3/bin/imgctl -p --ini trex --ntimg 200-9508-07-06.ntimg
+ imgctrl v3.5.1.29628 (May 11 2017 15:28:19) (Logfile: /tmp/imgctrl.log)
+ Scanning for Napatech adapters..
+ Adapter upgrade commencing..
+ Writing FPGA bank 1
+   Erasing................... 100% done
+   Writing................... 100% done
+   Verifying................. 100% done
+ Done writing FPGA bank 1
+ Note: You can inspect the upload result through the Bank1 Contents
+       section using the --query mode. To try the new image, remember
+       to switch bank using the --switch mode. See --help for more information.
+ Upgrade process complete
+ [bash]>/opt/napatech3/bin/imgctl -s
+ imgctrl v3.5.1.29628 (May 11 2017 15:28:19) (Logfile: /tmp/imgctrl.log)
+ Scanning for Napatech adapters..
+ Switching image on adapter 0:
+   OK. Image switched. Remember to issue --confirm or --discard to accept/discard the change. Inquire the adapter via  --query
+ [bash]>/opt/napatech3/bin/imgctl -s --confirm
+ imgctrl v3.5.1.29628 (May 11 2017 15:28:19) (Logfile: /tmp/imgctrl.log)
+ Scanning for Napatech adapters..
+ Applying current running image as safeboot image..
+   OK. Adapter PrimaryImage has been updated to reflect current running image.
+ [bash]>
+----
+
+=== Create a driver configuration file
+[source,bash]
+----
+ [bash]>/opt/napatech3/bin/ntstart.sh
+ Loading nt3gd driver                                        [Done]
+ Creating driver device file                                 [Done]
+ Loading nt3gd_netdev driver                                 [Done]
+ Creating driver device file                                 [Done]
+ Starting NTService (this may take a while)                  [Done]
+ [bash]>/opt/napatech3/bin/ntstop.sh
+ Stopping NTService (this may take a while)
+ NTService stopped                                           [Done]
+ [bash]>
+----
+
+=== Change the amount of Rx/Tx queues
+The /opt/napatech3/config/ntservice.ini contain the following settings:
+[source,bash]
+----
+ ...
+ HostBuffersRx = [4,16,-1]                # [x1, x2, x3], ...
+ HostBuffersTx = [4,16,-1]                # [x1, x2, x3], ...
+ ...
+ ----
+ They need to be changed to:
+ [source,bash]
+ ----
+ ...
+ HostBuffersRx = [32,16,-1]                # [x1, x2, x3], ...
+ HostBuffersTx = [32,16,-1]                # [x1, x2, x3], ...
+ ...
+----
+
+[source,bash]
+----
+ [bash]>sed -i -- 's/x = \[4/x = \[32/g' /opt/napatech3/config/ntservice.ini
+ [bash>
+----
+
+=== Start the Napatech driver
+[source,bash]
+----
+ [bash]>/opt/napatech3/bin/ntstart.sh
+ Loading nt3gd driver                                        [Done]
+ Creating driver device file                                 [Done]
+ Loading nt3gd_netdev driver                                 [Done]
+ Creating driver device file                                 [Done]
+ Starting NTService (this may take a while)                  [Done]
+ [bash]>
+----
+
+=== Build with Napatech support
+[source,bash]
+----
+ [bash]>cd linux_dpdk
+ [bash]>./b configure --with-ntacc
+ Setting top to                           : /usr/builds/trex-core
+ Setting out to                           : /usr/builds/trex-core/linux_dpdk/build_dpdk
+ Checking for program 'g++, c++'          : /usr/bin/g++
+ Checking for program 'ar'                : /usr/bin/ar
+ Checking for program 'gcc, cc'           : /usr/bin/gcc
+ Checking for program 'ar'                : /usr/bin/ar
+ Checking for program 'ldd'               : /usr/bin/ldd
+ Checking for library z                   : yes
+ Checking for OFED                        : Found needed version 4.0
+ Checking for library ibverbs             : yes
+ Checking for NTAPI                       : Found needed NTAPI library
+ 'configure' finished successfully (14.827s)
+ [bash]>./b
+ Waf: Entering directory `/usr/builds/trex-core.github.rsync/linux_dpdk/build_dpdk'
+ Info: Using external libverbs.
+ update version files
+ ...
+ [1206/1210] Compiling version.c
+ [1207/1210] Linking build_dpdk/linux_dpdk/_t-rex-64-debug-o
+ [1208/1210] Linking build_dpdk/linux_dpdk/_t-rex-64-debug
+ [1209/1210] Linking build_dpdk/linux_dpdk/_t-rex-64-o
+ [1210/1210] Linking build_dpdk/linux_dpdk/_t-rex-64
+ Waf: Leaving directory `/usr/builds/trex-core.github.rsync/linux_dpdk/build_dpdk'
+ *** generating softlinks ***
+ 'build' finished successfully (15.621s)
+----
+
+=== Get the adapter bus-id
+[source,bash]
+----
+ [bash]>/opt/napatech3/bin/adapterinfo
+ adapterinfo (v. 3.6.8.20-6cb89)
+ ==============================================================================
+ System: 3.6.8.20
+ ------------------------------------------------------------------------------
+ Adapters:  1
+ Ports:     2
+ ==============================================================================
+ Adapter: 0 - NT200A01-01-SCC-2x100-E3-FF-ANL Analysis Network Adapter
+ ------------------------------------------------------------------------------
+ Bus ID:             0000:82:00.0      #<1>
+ PCI ID:             18F4:01A5
+ FPGA ID:            200-9508-07-06-00
+ Feature level:      N-ANL8
+ Profile:            Capture
+ Supported profiles: Capture
+
+ AVR version:  3.5e
+
+ Ports:            2
+ Port Range:       0 - 1
+ Descriptor:       Standard
+ Timestamp:        Native Unix
+ TimestampMethod:  EOF (End of Frame)
+
+ RX host buffers:  32
+ TX host buffers:  32
+
+ Port #0 MAC : 00.0D.E9.05.4E.31
+ Port #1 MAC : 00.0D.E9.05.4E.32
+
+ SDRAM size  : 12GB
+
+ Bus type                : PCI Express 3
+ Link width supported    : x16
+ Link width negotiated   : x16
+ Link speed              : 8.0 GT/s
+ Max payload supported   : 512
+ Max payload negotiated  : 256
+ Max expected throughput : 113426 Mbps
+ ==============================================================================
+ [bash]>
+----
+<1> Napatech bus-id. Omit the domain 0000: in the config file
+
+=== Config file example
+[source,bash]
+----
+ ### Config file generated by dpdk_setup_ports.py ###
+
+  - port_limit: 2
+    version: 2
+    interfaces: ['82:00.0/0', '82:00.0/1']
+    port_info:
+       - ip: 1.1.1.1
+         default_gw: 2.2.2.2
+       - ip: 2.2.2.2
+         default_gw: 1.1.1.1
+
+    platform:
+       master_thread_id: 0
+       latency_thread_id: 1
+       dual_if:
+         - socket: 1
+           threads: [8,9,10,11,12,13,14]
+----
+
+== Performance benchmark
+
+=== Setup details
+
+[cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz
+| RAM:    | 64GB @ 2400 MHz
+| NICs:   | 2 x NT100E3-1-PTP Network Adapter 1x100Gb
+| QSFP:   | 2 x CFP4
+| OS:     | CentOS 7.3
+| TRex:   | pre-v2.38 using 10 cores per dual interface.
+|=================
+
+=== Topology
+
+Loopback with optic cable. +
+We got two NICs, each one has single interface and belong to different NUMA. +
+In order to get optimal performance we have used 2 dummy indterfaces as pair to real ones. +
+trex_cfg.yaml:
+
+[source,bash]
+----
+...
+interfaces: ['07:00.0', 'dummy', 'dummy', '8a:00.0']
+...
+----
+
+=== Stateless results
+
+Ran bidirectional traffic between the two ports with following trex-console command:
+
+[source,bash]
+----
+start -p 0 3 -m 99.9% -f stl/imix.py
+start -p 0 3 -m 99.9% -f stl/bench.py -t size=1514
+start -p 0 3 -m 99.9% -f stl/bench.py -t size=590
+start -p 0 3 -m 99.9% -f stl/bench.py -t size=128
+start -p 0 3 -m 99.9% -f stl/bench.py -t size=64
+----
+
+Results summary:
+
+image:images/napa_table.png[title="Napatech performance summary",align="center"]

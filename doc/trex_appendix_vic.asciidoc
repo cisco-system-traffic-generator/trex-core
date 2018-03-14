@@ -1,0 +1,99 @@
+Cisco VIC support
+=================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+* Supported from TRex version v2.12.
+* Since version 2.21, all VIC card types supported by DPDK are supported by TRex, using ``--software'' command line argument.
+Notice that if using ``--software'', no HW assist is used, causing supported packet rate to be much lower.
+Since we do not have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
+
+* If not using ``--software'', following limitations apply:
+** Only 1300 series Cisco adapter supported.
+** Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
+** Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
+** The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
+        RTE_ETH_FLOW_NONFRAG_IPV4_OTHER
+        RTE_ETH_FLOW_NONFRAG_IPV4_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_UDP
+        RTE_ETH_FLOW_NONFRAG_IPV6_TCP
+        RTE_ETH_FLOW_NONFRAG_IPV6_SCTP
+        RTE_ETH_FLOW_NONFRAG_IPV6_OTHER
+
+== vNIC Configuration Parameters
+
+*Number of Queues*::
+  The maximum number of receive queues (RQs), work queues (WQs) and completion queues (CQs) are configurable on a per vNIC basis through the Cisco UCS Manager (CIMC or UCSM).
+  These values should be configured as follows:
+  * The number of WQs should be greater or equal to the number of threads (-c value) plus 1
+  * The number of RQs should be greater than 5
+  * The number of CQs should set to WQs + RQs
+  * Unless there is a lack of resources due to creating many vNICs, it is recommended that the WQ and RQ sizes be set to the *maximum*.
+
+*Advanced filters*::
+  advanced filter should be enabled
+
+*MTU*::
+  set the MTU to maximum 9000-9190 (Depends on the FW version)
+
+more information could be found here link:http://www.dpdk.org/doc/guides/nics/enic.html?highlight=enic[enic DPDK]
+
+image:images/UCS-B-adapter_policy_1.jpg[title="vic configuration",align="center",width=800]
+image:images/UCS-B-adapter_policy_2.jpg[title="vic configuration",align="center",width=800]
+
+In case it is not configured correctly, this error will be seen
+
+.VIC error in case of wrong RQ/WQ
+[source,bash]
+----
+Starting  TRex v2.15 please wait  ...
+no client generator pool configured, using default pool
+no server generator pool configured, using default pool
+zmq publisher at: tcp://*:4500
+Number of ports found: 2
+set driver name rte_enic_pmd
+EAL: Error - exiting with code: 1
+  Cause: Cannot configure device: err=-22, port=0     #<1>
+----
+<1>There is not enough queues
+
+
+running it with verbose mode with CLI  `-v 7`
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f cap2/dns.yaml -c 1 -m 1 -d 10  -l 1000 -v 7
+----
+
+will give move info
+
+[source,bash]
+----
+EAL:   probe driver: 1137:43 rte_enic_pmd
+PMD: rte_enic_pmd: Advanced Filters available
+PMD: rte_enic_pmd: vNIC MAC addr 00:25:b5:99:00:4c wq/rq 256/512 mtu 1500, max mtu:9190
+PMD: rte_enic_pmd: vNIC csum tx/rx yes/yes rss yes intr mode any type min
+PMD: rte_enic_pmd: vNIC resources avail: wq 2 rq 2 cq 4 intr 6                  #<1>
+EAL: PCI device 0000:0f:00.0 on NUMA socket 0
+EAL:   probe driver: 1137:43 rte_enic_pmd
+PMD: rte_enic_pmd: Advanced Filters available
+PMD: rte_enic_pmd: vNIC MAC addr 00:25:b5:99:00:5c wq/rq 256/512 mtu 1500, max
+----
+<1> rq is 2 which mean 1 input queue which is less than minimum required by trex (rq should be at least 5)
+
+
+== Limitations/Issues
+
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-272[QSFP+ issue]
+* VLAN 0 Priority Tagging
+If a vNIC is configured in TRUNK mode by the UCS manager, the adapter will priority tag egress packets according to 802.1Q if they were not already VLAN tagged by software. If the adapter is connected to a properly configured switch, there will be no unexpected behavior.
+In test setups where an Ethernet port of a Cisco adapter in TRUNK mode is connected point-to-point to another adapter port or connected though a router instead of a switch, all ingress packets will be VLAN tagged. TRex can work with that see more link:http://www.cisco.com/c/en/us/support/docs/servers-unified-computing/ucs-c-series-rack-servers/117637-technote-UCS-00.html[upstream VIC]
+Upstream the VIC always tags packets with an 802.1p header.In downstream it is possible to remove the tag (not supported by TRex yet)

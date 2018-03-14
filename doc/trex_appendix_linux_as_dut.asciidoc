@@ -1,0 +1,86 @@
+Linux host as network emulator
+==============================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+There are lots of Linux tutorials on the web, so this will not be full tutorial, only highlighting some key points. Commands
+were checked on Ubuntu system.
+
+For this example:
+
+1. TRex Client side network is 16.0.0.x
+2. TRex Server side network is 48.0.0.x
+3. Linux Client side network eth0 is configured with IPv4 as 172.168.0.1
+4. Linux Server side network eth1 is configured with IPv4 as 10.0.0.1
+
+[source,bash]
+----
+
+  TRex-0 (16.0.0.1->48.0.0.1 )   <-->
+
+                ( 172.168.0.1/255.255.0.0)-eth0 [linux] -( 10.0.0.1/255.255.0.0)-eth1
+
+                <--> TRex-1 (16.0.0.1<-48.0.0.1)
+
+----
+
+
+== Enable forwarding
+One time (will be discarded after reboot): +
+
+[source,bash]
+----
+[bash]>echo 1 > /proc/sys/net/ipv4/ip_forward
+----
+To make this permanent, add the following line to the file /etc/sysctl.conf: +
+----
+net.ipv4.ip_forward=1
+----
+
+== Add static routes
+Example if for the default TRex networks, 48.0.0.0 and 16.0.0.0.
+
+Routing all traffic from 48.0.0.0 to the gateway 10.0.0.100
+[source,bash]
+----
+[cli]>route add -net 48.0.0.0 netmask 255.255.0.0 gw 10.0.0.100
+----
+
+Routing all traffic from 16.0.0.0 to the gateway 172.168.0.100
+[source,bash]
+----
+[cli]>route add -net 16.0.0.0 netmask 255.255.0.0 gw 172.168.0.100
+----
+If you use stateless mode, and decide to add route only in one direction, remember to disable reverse path check. +
+For example, to disable on all interfaces:
+[source,bash]
+----
+for i in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+  echo 0 > $i
+done
+----
+
+Alternatively, you can edit /etc/network/interfaces, and add something like this for both ports connected to TRex.
+This will take effect, only after restarting networking (rebooting the machine in an alternative also).
+----
+auto eth1
+iface eth1 inet static
+address 16.0.0.100
+netmask 255.0.0.0
+network 16.0.0.0
+broadcast 16.255.255.255
+... same for 48.0.0.0
+----
+
+== Add static ARP entries
+[source,bash]
+----
+[cli]>sudo arp -s 10.0.0.100 <Second TRex port MAC>
+[cli]>sudo arp -s 172.168.0.100 <TRex side the NICs are not visible to ifconfig, run:
+----

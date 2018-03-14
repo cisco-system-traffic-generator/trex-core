@@ -1,0 +1,272 @@
+More active flows
+=================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+From version v2.13 there is a new Stateful scheduler that works better in the case of high concurrent/active flows.
+In case of EMIX 70% better performance was observed.
+In this tutorial there are 14 DP cores & up to 8M flows.
+There is a  special config file to enlarge the number of flows. This tutorial  present the difference in performance between the old scheduler and the new.
+
+== Setup details
+
+[cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2 x Intel Corporation Ethernet Controller XL710 for 40GbE QSFP+ (rev 01)
+| QSFP:   | Cisco QSFP-H40G-AOC1M
+| OS:     | Fedora 18
+| Switch: | Cisco Nexus 3172 Chassis, System version: 6.0(2)U5(2).
+| TRex:   | v2.13/v2.12 using 7 cores per dual interface.
+|=================
+
+== Traffic profile
+
+.cap2/cur_flow_single.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0"
+  cap_info :
+     - name: cap2/udp_10_pkts.pcap  <1>
+       cps : 100
+       ipg : 200
+       rtt : 200
+       w   : 1
+----
+<1> One directional UDP flow with 10 packets of 64B
+
+
+== Config file command
+
+./cfg/trex_08_5mflows.yaml
+[source,python]
+----
+- port_limit: 4
+  version: 2
+  interfaces: ['05:00.0', '05:00.1', '84:00.0', '84:00.1']
+  port_info:
+      - ip: 1.1.1.1
+        default_gw: 2.2.2.2
+      - ip: 3.3.3.3
+        default_gw: 4.4.4.4
+
+      - ip: 4.4.4.4
+        default_gw: 3.3.3.3
+      - ip: 2.2.2.2
+        default_gw: 1.1.1.1
+
+  platform:
+      master_thread_id: 0
+      latency_thread_id: 15
+      dual_if:
+        - socket: 0
+          threads: [1,2,3,4,5,6,7]
+
+        - socket: 1
+          threads: [8,9,10,11,12,13,14]
+  memory    :
+        dp_flows    : 1048576                    <1>
+----
+<1> add memory section with more flows
+
+== Traffic command
+
+.command
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f cap2/cur_flow_single.yaml -m 30000 -c 7 -d 40 -l 1000 --active-flows 5000000 -p --cfg cfg/trex_08_5mflows.yaml
+----
+
+The number of active flows can be change using `--active-flows` CLI. in this example it is set to 5M flows
+
+
+== Script to get performance per active number of flows
+
+[source,python]
+----
+
+def minimal_stateful_test(server,csv_file,a_active_flows):
+
+    trex_client = CTRexClient(server)                                   <1>
+
+    trex_client.start_trex(                                             <2>
+            c = 7,
+            m = 30000,
+            f = 'cap2/cur_flow_single.yaml',
+            d = 30,
+            l = 1000,
+            p=True,
+            cfg = "cfg/trex_08_5mflows.yaml",
+            active_flows=a_active_flows,
+            nc=True
+            )
+
+    result = trex_client.sample_to_run_finish()                         <3>
+
+    active_flows=result.get_value_list('trex-global.data.m_active_flows')
+    cpu_utl=result.get_value_list('trex-global.data.m_cpu_util')
+    pps=result.get_value_list('trex-global.data.m_tx_pps')
+    queue_full=result.get_value_list('trex-global.data.m_total_queue_full')
+    if queue_full[-1]>10000:
+        print("WARNING QUEU WAS FULL");
+    tuple=(active_flows[-5],cpu_utl[-5],pps[-5],queue_full[-1])         <4>
+    file_writer = csv.writer(test_file)
+    file_writer.writerow(tuple);
+
+
+
+if __name__ == '__main__':
+    test_file = open('tw_2_layers.csv', 'wb');
+    parser = argparse.ArgumentParser(description="Example for TRex Stateful, assuming server daemon is running.")
+
+    parser.add_argument('-s', '--server',
+                        dest='server',
+                        help='Remote trex address',
+                        default='127.0.0.1',
+                        type = str)
+    args = parser.parse_args()
+
+    max_flows=8000000;
+    min_flows=100;
+    active_flow=min_flows;
+    num_point=10
+    factor=math.exp(math.log(max_flows/min_flows,math.e)/num_point);
+    for i in range(num_point+1):
+        print("=====================",i,math.floor(active_flow))
+        minimal_stateful_test(args.server,test_file,math.floor(active_flow))
+        active_flow=active_flow*factor
+
+    test_file.close();
+----
+<1> connect
+<2> Start with different active_flows
+<3> wait for the results
+<4> get the results and save to csv file
+
+This script iterate between 100 to 8M active flows and save the results to csv file.
+
+== The results v2.12 vs v2.14
+
+.MPPS/core
+image:images/tw1_0.png[title="results",align="center"]
+
+.MPPS/core
+image:images/tw0_0_chart.png[title="results",align="center",width=800]
+
+* TW0 - v2.14 default configuration
+* PQ  - v2.12 default configuration
+
+* To run the same script on v2.12 (that does not support `active_flows` directive) a patch was introduced.
+
+*Observation*::
+  * TW works better (up to 250%) in case of 25-100K flows
+  * TW scale better with active-flows
+
+== Tunning
+
+let's add another modes called *TW1*, in this mode the scheduler is tune to have more buckets (more memory)
+
+.TW1 cap2/cur_flow_single_tw_8.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0"
+  tw :
+     buckets : 16384                    <1>
+     levels  : 2                        <2>
+     bucket_time_usec : 20.0
+  cap_info :
+     - name: cap2/udp_10_pkts.pcap
+       cps : 100
+       ipg : 200
+       rtt : 200
+       w   : 1
+----
+<1> more buckets
+<2> less levels
+
+
+in *TW2* mode we have the same template, duplicated one with short IPG and another one with high IPG
+10% of the new flows will be with long IPG
+
+.TW2 cap2/cur_flow.yaml
+[source,python]
+----
+- duration : 0.1
+  generator :
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.0.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.255.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0"
+          tcp_aging      : 0
+          udp_aging      : 0
+  mac        : [0x0,0x0,0x0,0x1,0x0,0x00]
+  #cap_ipg    : true
+  cap_info :
+     - name: cap2/udp_10_pkts.pcap
+       cps : 10
+       ipg : 100000
+       rtt : 100000
+       w   : 1
+     - name: cap2/udp_10_pkts.pcap
+       cps : 90
+       ipg : 2
+       rtt : 2
+       w   : 1
+----
+
+== Full results
+
+
+* PQ - v2.12 default configuration
+* TW0 - v2.14 default configuration
+* TW1 - v2.14 more buckets 16K
+* TW2 - v2.14 two templates
+
+.MPPS/core Comparison
+image:images/tw1.png[title="results",align="center",width=800]
+
+.MPPS/core
+image:images/tw1_tbl.png[title="results",align="center"]
+
+.Factor relative to v2.12 results
+image:images/tw2.png[title="results",align="center",width=800]
+
+.Extrapolation Total GbE per UCS with average packet size of 600B
+image:images/tw3.png[title="results",align="center",width=800]
+
+Observation:
+
+* TW2 (two flows) almost does not have a performance impact
+* TW1 (more buckets) improve the performance up to a point
+* TW is general is better than PQ

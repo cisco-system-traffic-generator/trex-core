@@ -1,0 +1,571 @@
+Mellanox support
+================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+Mellanox ConnectX-4/5 adapter family supports 100/56/40/25/10 Gb/s Ethernet speeds.
+Its DPDK support is a bit different from Intel DPDK support, more information can be found link:http://dpdk.org/doc/guides/nics/mlx5.html[here].
+Intel NICs do not require additional kernel drivers (except for igb_uio which is already supported in most distributions). ConnectX-4 works on top of Infiniband API (verbs) and requires special kernel modules/user space libs.
+This means that it is required to install OFED package to be able to work with this NIC.
+Installing the full OFED package is the simplest way to make it work (trying to install part of the package can work too but didn't work for us).
+The advantage of this model is that you can control it using standard Linux tools (ethtool and ifconfig will work).
+The disadvantage is the OFED dependency.
+
+== Distro Installation 
+
+We tested the following distro with TRex and OFED. Others might work too.
+
+* CentOS 7.4 (This is the only tested distro)
+
+Following distro was tested and did *not* work for us.
+
+* Fedora 21 (3.17.4-301.fc21.x86_64)
+* Ubuntu 14.04.3 LTS (GNU/Linux 3.19.0-25-generic x86_64)  -- crash when RSS was enabled link:https://trex-tgn.cisco.com/youtrack/issue/trex-294[MLX RSS issue]
+
+== OFED Installation  
+
+Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
+
+* Download latest OFED 4.2.1 OFED tar for RedHat 7.4 distro. 
+
+[IMPORTANT]
+=====================================
+The version must be *MLNX_OFED_LINUX-4.2.1* or higher (4.2.1)
+=====================================
+
+[IMPORTANT]
+=====================================
+Make sure you have an internet connection without firewalls for HTTPS/HTTP - required by yum/apt-get
+=====================================
+
+.Verify md5
+[source,bash]
+----
+[bash]>md5sum md5sum MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
+hash_from_mellanox  MLNX_OFED_LINUX-4.2-1-.0.0.0-rhel7.4-x86_64.tgz
+----
+
+.Open the tar
+[source,bash]
+----
+[bash]>tar -xvzf MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
+[bash]>cd MLNX_OFED_LINUX-4.2-1.0.0.0-rhel7.4-x86_64.tgz
+----
+
+.Run Install script
+[source,bash]
+----
+[bash]>sudo ./mlnxofedinstall --with-mft --with-mstflint --dpdk --upstream-libs 
+
+
+Log: /tmp/ofed.build.log
+Logs dir: /tmp/MLNX_OFED_LINUX.10406.logs
+
+
+
+Do you want to continue?[y/N]:y
+
+Uninstalling the previous version of MLNX_OFED_LINUX
+
+rpm --nosignature -e --allmatches --nodeps mft
+
+Starting MLNX_OFED_LINUX-4.2-1.0.0.0 installation ...
+
+Installing mlnx-ofa_kernel RPM
+Preparing...                          ########################################
+Updating / installing...
+mlnx-ofa_kernel-4.2-OFED.4.2.1.0.0.1.g########################################
+Installing kmod-mlnx-ofa_kernel 4.2 RPM
+Preparing...                          ########################################
+kmod-mlnx-ofa_kernel-4.2-OFED.4.2.1.0.########################################
+Installing mlnx-ofa_kernel-devel RPM
+Preparing...                          ########################################
+Updating / installing...
+mlnx-ofa_kernel-devel-4.2-OFED.4.2.1.0########################################
+Installing user level RPMs:
+Preparing...                          ########################################
+mstflint-4.8.0-1.4.g501cec1.42100     ########################################
+Preparing...                          ########################################
+ofed-scripts-4.2-OFED.4.2.1.0.0       ########################################
+Preparing...                          ########################################
+rdma-core-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+libibumad-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+libibmad-1.3.13.MLNX20170511.267a441-0########################################
+Preparing...                          ########################################
+mft-4.8.0-26                          ########################################
+Preparing...                          ########################################
+libibverbs-42mlnx2-1.42100            ########################################
+Preparing...                          ########################################
+rdma-core-devel-42mlnx2-1.42100       ########################################
+Preparing...                          ########################################
+libibverbs-utils-42mlnx2-1.42100      ########################################
+Preparing...                          ########################################
+librdmacm-42mlnx2-1.42100             ########################################
+Preparing...                          ########################################
+librdmacm-utils-42mlnx2-1.42100       ########################################
+Device (87:00.0):
+        87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+Device (87:00.1):
+        87:00.1 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Link Width: x16
+        PCI Link Speed: 8GT/s
+
+..
+
+
+Installation passed successfully
+To load the new driver, run:
+/etc/init.d/openibd restart
+----
+
+
+.Reboot
+[source,bash]
+----
+[bash]>sudo  reboot
+----
+
+
+.After reboot
+[source,bash]
+----
+[bash]>ibv_devinfo
+hca_id: mlx5_1
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.21.1000             << 12.21.1000
+        node_guid:                      248a:0703:0014:fc61
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+hca_id: mlx5_0
+        transport:                      InfiniBand (0)
+        fw_ver:                         12.21.1000
+        node_guid:                      248a:0703:0014:fc60
+        sys_image_guid:                 248a:0703:0014:fc60
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4115
+        hw_ver:                         0x0
+        board_id:                       MT_2150110033
+        phys_port_cnt:                  1
+        Device ports:
+                port:   1
+                        state:                  PORT_DOWN (1)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+
+----
+
+.ibdev2netdev
+[source,bash]
+----
+[bash]>ibdev2netdev
+mlx5_0 port 1 ==> eth6 (Down)
+mlx5_1 port 1 ==> eth7 (Down)
+----
+
+
+//to upgrade the FW you need to try to download the tool and build for you system link:http://www.mellanox.com/page/management_tools[management_tools]
+//
+//.upgrade FW for CX-5 device to support full-line rate with DROP
+//[source,bash]
+//----
+//$sudo mst start
+//$sudo mst status
+//$sudo mlxburn -d /dev/mst/mt4121_pciconf0 -fw fw-ConnectX5.mlx -conf_dir .
+//----
+
+.find the ports
+[source,bash]
+----
+
+   [bash]>sudo ./dpdk_setup_ports.py -t
+
+  +----+------+---------++---------------------------------------------
+  | ID | NUMA |   PCI   ||                      Name     |  Driver   |
+  +====+======+=========++===============================+===========+=
+  | 0  | 0    | 06:00.0 || VIC Ethernet NIC              | enic      |
+  +----+------+---------++-------------------------------+-----------+-
+  | 1  | 0    | 07:00.0 || VIC Ethernet NIC              | enic      |
+  +----+------+---------++-------------------------------+-----------+-
+  | 2  | 0    | 0a:00.0 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     |
+  +----+------+---------++-------------------------------+-----------+-
+  | 3  | 0    | 0a:00.1 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     |
+  +----+------+---------++-------------------------------+-----------+-
+  | 4  | 0    | 0d:00.0 || Device 15d0                   |           |
+  +----+------+---------++-------------------------------+-----------+-
+  | 5  | 0    | 10:00.0 || I350 Gigabit Network Connectio| igb       |
+  +----+------+---------++-------------------------------+-----------+-
+  | 6  | 0    | 10:00.1 || I350 Gigabit Network Connectio| igb       |
+  +----+------+---------++-------------------------------+-----------+-
+  | 7  | 1    | 85:00.0 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     |
+  +----+------+---------++-------------------------------+-----------+-
+  | 8  | 1    | 85:00.1 || 82599ES 10-Gigabit SFI/SFP+ Ne| ixgbe     |
+  +----+------+---------++-------------------------------+-----------+-
+  | 9  | 1    | 87:00.0 || MT27700 Family [ConnectX-4]   | mlx5_core |  #<1>
+  +----+------+---------++-------------------------------+-----------+-
+  | 10 | 1    | 87:00.1 || MT27700 Family [ConnectX-4]   | mlx5_core |  #<2>
+  +----+------+---------++---------------------------------------------
+----
+<1>  ConnectX-4 port 0
+<2>  ConnectX-4 port 1
+
+
+.Config file example
+[source,bash]
+----
+### Config file generated by dpdk_setup_ports.py ###
+
+ - port_limit: 2
+   version: 2
+   interfaces: ['87:00.0', '87:00.1']
+   port_info:
+      - ip: 1.1.1.1
+        default_gw: 2.2.2.2
+      - ip: 2.2.2.2
+        default_gw: 1.1.1.1
+
+   platform:
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 1
+          threads: [8,9,10,11,12,13,14,15,24,25,26,27,28,29,30,31]
+----
+
+
+== Connect-5x maximum throughput
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
+| 64  |  100%  | 94%
+| 128 |  100%  | 100%
+| 256 |  90%   | 90%      
+| 512 |  100%  | 100%
+| 1024 |  100% | 100%
+| 1500 |  100% | 100%
+|=================
+
+== Upgrade procedure
+
+anchor:ofed_upgrade[]
+
+TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
+
+.TRex OFED matirx
+[options="header",cols="1^,1^,1^",width="60%"]
+|=================
+| TRex version  | OFED | Disto
+| 2.32  |  *only* 4.1  | CentOs 7.3
+| 2.33 or higher |  *only* 4.2  | CentOs 7.4
+|=================
+
+WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
+
+== TRex specific implementation details
+
+TRex uses flow director filter to steer specific packets to specific queues.
+To support that, we change IPv4.TOS/Ipv6.TC  LSB to *1* for packets we want to handle by software (Other packets will be dropped). So latency packets will have this bit turned on (This is true for all NIC types, not only for ConnectX-4).
+This means taht if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
+
+== Which NIC to buy?
+
+NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
+
+== Limitation/Issues
+
+Many issues were solved in new DPDK 17.11 the current list of issues are:
+
+* a special FW to drop and count packets in high rate
+* Stateless mode ``per stream statistics'' feature is handled in software (No hardware support like in X710 card).
+
+== Troubleshooting
+
+* Before running TRex make sure the commands    `ibv_devinfo` and  `ibdev2netdev` present the NICS
+* `ifconfig` should work too, you need to be able to ping from those ports
+* run TRex server with '-v 7' for example `sudo ./t-rex-64 -i -v 7`
+* In case the link_layer is not set to *Ethernet* you should run this command
+
+[source,bash]
+----
+[bash]>sudo mlxconfig -d /dev/mst/mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+[bash]>sudo mlxconfig -d /dev/mst/mt4115_pciconf1 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
+----
+
+see link:https://community.mellanox.com/docs/DOC-2294[ConnectX-4 getting Started]
+
+* It is possible to change the link speed  (e.g. 50Gb/40Gb/25Gb) see link:https://community.mellanox.com/docs/DOC-2334[change speed]
+
+for example to change to 50Gb speed
+
+[source,bash]
+----
+[bash]>sudo ethtool -s enp135s0f1 speed 50000 autoneg off
+----
+
+* Check how many DRAM channels are installed. Less than 4 will impose latency and performance issue
+
+[source,bash]
+----
+[bash]>sudo dmidecode -t memory | grep CHANNEL
+Bank Locator: NODE 0 CHANNEL 0 DIMM 0
+Bank Locator: NODE 0 CHANNEL 0 DIMM 1
+Bank Locator: NODE 0 CHANNEL 0 DIMM 2
+Bank Locator: NODE 0 CHANNEL 1 DIMM 0
+Bank Locator: NODE 0 CHANNEL 1 DIMM 1
+Bank Locator: NODE 0 CHANNEL 1 DIMM 2
+Bank Locator: NODE 0 CHANNEL 2 DIMM 0
+Bank Locator: NODE 0 CHANNEL 2 DIMM 1
+Bank Locator: NODE 0 CHANNEL 2 DIMM 2
+Bank Locator: NODE 0 CHANNEL 3 DIMM 0
+Bank Locator: NODE 0 CHANNEL 3 DIMM 1
+Bank Locator: NODE 0 CHANNEL 3 DIMM 2
+----
+
+
+* I can reach maximum rate of 50Gb/sec
+
+
+[source,bash]
+----
+
+[bash]>sudo lspci | grep  Mellanox
+87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]  #<1>
+87:00.1 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+
+
+[bash]>sudo lspci -vv -s 87:00.0                                                         #<2>
+87:00.0 Ethernet controller: Mellanox Technologies MT27700 Family [ConnectX-4]
+        Subsystem: Mellanox Technologies Device 0008
+        Physical Slot: 0-9
+        Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+        Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+        Latency: 0, Cache Line Size: 64 bytes
+        Interrupt: pin A routed to IRQ 43
+        Region 0: Memory at f8000000 (64-bit, prefetchable) [size=32M]
+        Expansion ROM at fbe00000 [disabled] [size=1M]
+        Capabilities: [60] Express (v2) Endpoint, MSI 00
+                DevCap: MaxPayload 512 bytes, PhantFunc 0, Latency L0s unlimited, L1 unlimited
+                        ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset+
+                DevCtl: Report errors: Correctable- Non-Fatal+ Fatal+ Unsupported-
+                        RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop+ FLReset-
+                        MaxPayload 256 bytes, MaxReadReq 1024 bytes
+                DevSta: CorrErr+ UncorrErr- FatalErr- UnsuppReq+ AuxPwr- TransPend-
+                LnkCap: Port #0, Speed 8GT/s, Width x16, ASPM not supported, Exit Latency L0s unlimited, L1 unlimited
+                        ClockPM- Surprise- LLActRep- BwNot-
+                LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
+                        ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-  #<4>
+                DevCap2: Completion Timeout: Range ABCD, TimeoutDis+, LTR-, OBFF Not Supported
+                DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled
+                LnkCtl2: Target Link Speed: 8GT/s, EnterCompliance- SpeedDis-
+                         Transmit Margin: Normal Operating Range, EnterModifiedCompliance- ComplianceSOS-
+                         Compliance De-emphasis: -6dB
+                LnkSta2: Current De-emphasis Level: -6dB, EqualizationComplete+, EqualizationPhase1+
+                         EqualizationPhase2+, EqualizationPhase3+, LinkEqualizationRequest-
+        Capabilities: [48] Vital Product Data
+                Product Name: CX416A - ConnectX-4 QSFP28
+                Read-only fields:
+                        [PN] Part number: MCX416A-CCAT                                 #<3>
+                        [EC] Engineering changes: A7
+                        [SN] Serial number: MT1618X16948
+                        [V0] Vendor specific: PCIeGen3 x16
+                        [RV] Reserved: checksum good, 0 byte(s) reserved
+                End
+        Capabilities: [9c] MSI-X: Enable+ Count=64 Masked-
+                Vector table: BAR=0 offset=00002000
+                PBA: BAR=0 offset=00003000
+        Capabilities: [c0] Vendor Specific Information: Len=18 <?>
+        Capabilities: [40] Power Management version 3
+                Flags: PMEClk- DSI- D1- D2- AuxCurrent=375mA PME(D0-,D1-,D2-,D3hot-,D3cold+)
+                Status: D0 NoSoftRst+ PME-Enable- DSel=0 DScale=0 PME-
+        Capabilities: [100 v1] Advanced Error Reporting
+                UESta:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UEMsk:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UESvrt: DLP+ SDES- TLP- FCP+ CmpltTO- CmpltAbrt- UnxCmplt- RxOF+ MalfTLP+ ECRC- UnsupReq- ACSViol-
+                CESta:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr+
+                CEMsk:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr+
+                AERCap: First Error Pointer: 04, GenCap+ CGenEn- ChkCap+ ChkEn-
+        Capabilities: [150 v1] Alternative Routing-ID Interpretation (ARI)
+                ARICap: MFVC- ACS-, Next Function: 1
+                ARICtl: MFVC- ACS-, Function Group: 0
+        Capabilities: [180 v1] Single Root I/O Virtualization (SR-IOV)
+                IOVCap: Migration-, Interrupt Message Number: 000
+                IOVCtl: Enable- Migration- Interrupt- MSE- ARIHierarchy+
+                IOVSta: Migration-
+                Initial VFs: 8, Total VFs: 8, Number of VFs: 0, Function Dependency Link: 00
+                VF offset: 2, stride: 1, Device ID: 1014
+                Supported Page Size: 000007ff, System Page Size: 00000001
+                Region 0: Memory at 00000000fa800000 (64-bit, prefetchable)
+                VF Migration: offset: 00000000, BIR: 0
+        Capabilities: [1c0 v1] #19
+        Capabilities: [230 v1] Access Control Services
+                ACSCap: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+                ACSCtl: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+        Kernel driver in use: mlx5_core
+
+
+[bash]>sudo lspci -vt | grep Mellanox                                                       #<5>
+ +-[0000:80]-+-00.0-[81]--
+  |           +-01.0-[82]--
+  |           +-01.1-[83]--
+  |           +-02.0-[84]--
+  |           +-02.2-[85-86]--+-00.0  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+  |           |               \-00.1  Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection
+  |           +-03.0-[87]--+-00.0  Mellanox Technologies MT27700 Family [ConnectX-4]
+  |           |            \-00.1  Mellanox Technologies MT27700 Family [ConnectX-4]
+
+
+
+[bash]>sudo lspci -vv -s 0000:80:03.0                                                     #<6>
+80:03.0 PCI bridge: Intel Corporation Xeon E7 v3/Xeon E5 v3/Core i7 PCI Express Root Port 3 (rev 02) (prog-if 00 [Normal decode])
+        Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+        Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+        Latency: 0, Cache Line Size: 64 bytes
+        Bus: primary=80, secondary=87, subordinate=87, sec-latency=0
+        Memory behind bridge: fbd00000-fbefffff
+        Prefetchable memory behind bridge: 00000000f6000000-00000000faffffff
+        Secondary status: 66MHz- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort+ <SERR- <PERR-
+        BridgeCtl: Parity- SERR- NoISA- VGA- MAbort- >Reset- FastB2B-
+                PriDiscTmr- SecDiscTmr- DiscTmrStat- DiscTmrSERREn-
+        Capabilities: [40] Subsystem: Intel Corporation Device 0000
+        Capabilities: [60] MSI: Enable+ Count=1/2 Maskable+ 64bit-
+                Address: fee00138  Data: 0000
+                Masking: 00000002  Pending: 00000000
+        Capabilities: [90] Express (v2) Root Port (Slot-), MSI 00
+                DevCap: MaxPayload 256 bytes, PhantFunc 0
+                        ExtTag- RBE+
+                DevCtl: Report errors: Correctable+ Non-Fatal+ Fatal+ Unsupported+
+                        RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+                        MaxPayload 256 bytes, MaxReadReq 128 bytes
+                DevSta: CorrErr- UncorrErr- FatalErr- UnsuppReq- AuxPwr- TransPend-
+                LnkCap: Port #7, Speed 8GT/s, Width x16, ASPM L1, Exit Latency L0s <512ns, L1 <16us
+                        ClockPM- Surprise+ LLActRep+ BwNot+
+                LnkCtl: ASPM Disabled; RCB 64 bytes Disabled- CommClk+
+                        ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
+                LnkSta: Speed 8GT/s, Width x16, TrErr- Train- SlotClk+ DLActive+ BWMgmt+ ABWMgmt-
+                RootCtl: ErrCorrectable- ErrNon-Fatal- ErrFatal- PMEIntEna+ CRSVisible-
+                RootCap: CRSVisible-
+                RootSta: PME ReqID 0000, PMEStatus- PMEPending-
+                DevCap2: Completion Timeout: Range BCD, TimeoutDis+, LTR-, OBFF Not Supported ARIFwd+
+                DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled ARIFwd+
+                LnkCtl2: Target Link Speed: 8GT/s, EnterCompliance- SpeedDis-
+                         Transmit Margin: Normal Operating Range, EnterModifiedCompliance- ComplianceSOS-
+                         Compliance De-emphasis: -6dB
+                LnkSta2: Current De-emphasis Level: -6dB, EqualizationComplete+, EqualizationPhase1+
+                         EqualizationPhase2+, EqualizationPhase3+, LinkEqualizationRequest-
+        Capabilities: [e0] Power Management version 3
+                Flags: PMEClk- DSI- D1- D2- AuxCurrent=0mA PME(D0+,D1-,D2-,D3hot+,D3cold+)
+                Status: D0 NoSoftRst+ PME-Enable- DSel=0 DScale=0 PME-
+        Capabilities: [100 v1] Vendor Specific Information: ID=0002 Rev=0 Len=00c <?>
+        Capabilities: [110 v1] Access Control Services
+                ACSCap: SrcValid+ TransBlk+ ReqRedir+ CmpltRedir+ UpstreamFwd+ EgressCtrl- DirectTrans-
+                ACSCtl: SrcValid- TransBlk- ReqRedir- CmpltRedir- UpstreamFwd- EgressCtrl- DirectTrans-
+        Capabilities: [148 v1] Advanced Error Reporting
+                UESta:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UEMsk:  DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
+                UESvrt: DLP+ SDES+ TLP- FCP+ CmpltTO- CmpltAbrt- UnxCmplt- RxOF+ MalfTLP+ ECRC- UnsupReq- ACSViol-
+                CESta:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr-
+                CEMsk:  RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr-
+                AERCap: First Error Pointer: 00, GenCap- CGenEn- ChkCap- ChkEn-
+        Capabilities: [1d0 v1] Vendor Specific Information: ID=0003 Rev=1 Len=00a <?>
+        Capabilities: [250 v1] #19
+        Capabilities: [280 v1] Vendor Specific Information: ID=0005 Rev=3 Len=018 <?>
+        Capabilities: [300 v1] Vendor Specific Information: ID=0008 Rev=0 Len=038 <?>
+        Kernel driver in use: pcieport
+
+
+----
+<1>  look for the PCI id
+<2>  run the lspci -vv to find out the Part number
+<3>  Part number  should be MCX516A-CDAT(CX5)/MCX416A-CCAT (CX4) for 100Gb NICS
+<4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configucation (raiser)
+<5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
+<6>  Look for the speed
+
+
+== Build with native OFED
+
+In some case there is a need to build the dpdk-mlx5 with different OFED (not just 4.0 maybe newer)
+to do so run this on native machine
+
+[source,bash]
+----
+[bash]> ./b configure
+Setting top to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core
+Setting out to                           : /auto/srg-sce-swinfra-usr/emb/users/hhaim/work/depot/asr1k/emb/private/hhaim/bp_sim_git/trex-core/linux_dpdk/build_dpdk
+Checking for program 'g++, c++'          : /bin/g++
+Checking for program 'ar'                : /bin/ar
+Checking for program 'gcc, cc'           : /bin/gcc
+Checking for program 'ar'                : /bin/ar
+Checking for program 'ldd'               : /bin/ldd
+Checking for library z                   : yes
+Checking for OFED                        : Found needed version 4.0   #<1>
+Checking for library ibverbs             : yes
+'configure' finished successfully (1.826s)
+----
+<1> make sure it was identify
+
+
+.Code change need for new OFED
+[source,python]
+----
+        index fba7540..a55fe6b 100755
+        --- a/linux_dpdk/ws_main.py
+        +++ b/linux_dpdk/ws_main.py
+        @@ -143,8 +143,11 @@ def missing_pkg_msg(fedora, ubuntu):
+         def check_ofed(ctx):
+             ctx.start_msg('Checking for OFED')
+             ofed_info='/usr/bin/ofed_info'
+        -    ofed_ver= '-3.4-'
+        -    ofed_ver_show= 'v3.4'
+        +
+        +    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+        +
+        +    ofed_ver= 40                                     <1>
+        +    ofed_ver_show= '4.0'
+
+
+        --- a/scripts/dpdk_setup_ports.py
+        +++ b/scripts/dpdk_setup_ports.py
+        @@ -366,8 +366,8 @@ Other network devices
+
+                 ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+
+        -        ofed_ver= 34
+        -        ofed_ver_show= '3.4-1'
+        +        ofed_ver= 40                                 <2>
+        +        ofed_ver_show= '4.0'
+----
+<1> change to new version
+<2> change to new version

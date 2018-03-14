@@ -1,0 +1,89 @@
+XL710 Firmware
+==============
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+To upgrade the firmware  follow  this
+
+== Download the driver
+
+*Download driver i40e from link:https://downloadcenter.intel.com/download/24411/Network-Adapter-Driver-for-PCI-E-40-Gigabit-Network-Connections-under-Linux-[here]
+*Build the kernel module
+
+[source,bash]
+----
+[bash]>tar -xvzf i40e-1.3.47
+[bash]>cd i40e-1.3.47/src
+[bash]>make
+[bash]>sudo insmod  i40e.ko
+----
+
+
+==  Bind the NIC to Linux
+
+In this stage we bind the NIC to Linux (take it from DPDK)
+
+[source,bash]
+----
+[bash]>sudo ./dpdk_nic_bind.py --status # show the ports
+
+Network devices using DPDK-compatible driver
+============================================
+0000:02:00.0 'Device 1583' drv=igb_uio unused=      #<1>
+0000:02:00.1 'Device 1583' drv=igb_uio unused=      #<2>
+0000:87:00.0 'Device 1583' drv=igb_uio unused=
+0000:87:00.1 'Device 1583' drv=igb_uio unused=
+
+[bash]>sudo dpdk_nic_bind.py -u 02:00.0  02:00.1          #<3>
+
+[bash]>sudo dpdk_nic_bind.py -b i40e 02:00.0 02:00.1      #<4>
+
+[bash]>ethtool -i p1p2                                    #<5>
+
+driver: i40e
+version: 1.3.47
+firmware-version: 4.24 0x800013fc 0.0.0             #<6>
+bus-info: 0000:02:00.1
+supports-statistics: yes
+supports-test: yes
+supports-eeprom-access: yes
+supports-register-dump: yes
+supports-priv-flags: yes
+
+
+[bash]>ethtool -S p1p2
+[bash]>lspci -s 02:00.0 -vvv                              #<7>
+
+
+----
+<1> XL710 ports that need to unbind from DPDK
+<2> XL710 ports that need to unbind from DPDK
+<3> Unbind from DPDK using this command
+<4> Bind to linux to i40e driver
+<5> Show firmware version throw linux driver
+<6> Firmare version
+<7> More info
+
+
+== Upgrade 
+
+Download NVMUpdatePackage.zip from Intel site link:http://downloadcenter.intel.com/download/24769/NVM-Update-Utility-for-Intel-Ethernet-Converged-Network-Adapter-XL710-X710-Series[here]
+It includes the utility `nvmupdate64e`
+
+Run this:
+
+[source,bash]
+----
+[bash]>sudo ./nvmupdate64e
+----
+
+You might need a power cycle and to run this command a few times to get the latest firmware
+
+== External references
+
+see link:https://www.intel.com/content/dam/www/public/us/en/documents/release-notes/xl710-ethernet-controller-feature-matrix.pdf[QSFP+ support] for QSFP+ support and Firmware requirement for XL710 from Intel
