@@ -287,7 +287,7 @@ def convert_to_pdf(task):
 
 
 
-def convert_to_html_toc_book (task, disqus=False, generator='asciidoc'):
+def convert_to_html_toc_book (task, disqus=False, generator='asciidoc', docinfo = True):
     """
         generate HTML output with TOC
 
@@ -303,9 +303,10 @@ def convert_to_html_toc_book (task, disqus=False, generator='asciidoc'):
     json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
     tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
     json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
-    cmd='{0} -a stylesheet={1} -a  icons=true -a docinfo -d book  -o {2} {3}'.format(
+    cmd='{0} -a stylesheet={1} -a  icons=true {2} -d book  -o {3} {4}'.format(
             tools[generator],
             task.inputs[1].abspath(),
+            '-a docinfo' if docinfo else '',
             tmp,
             task.inputs[0].abspath());
 
@@ -327,6 +328,8 @@ def convert_to_html_toc_book (task, disqus=False, generator='asciidoc'):
 
     return os.system('rm {0}'.format(tmp));
 
+def convert_to_html_toc_book_no_docinfo(task):
+    return convert_to_html_toc_book(task, docinfo = False)
 
 
 
@@ -690,7 +693,7 @@ def build(bld):
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
 
-    bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
+    bld(rule='${ASCIIDOC} -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless_moved1.asciidoc waf.css', target='draft_trex_stateless1.html', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_book.asciidoc waf.css', target='trex_book.pdf', scan=ascii_doc_scan)
@@ -709,7 +712,7 @@ def build(bld):
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html',scan=ascii_doc_scan)
 
-    bld(rule=convert_to_html_toc_book,
+    bld(rule=convert_to_html_toc_book_no_docinfo,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
     bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook", css = "css/trex_cookbook.css"),
@@ -730,11 +733,37 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
 
-    bld(rule=convert_to_html_toc_book,
+    bld(rule=convert_to_html_toc_book_no_docinfo,
         source='trex_stateless_bench.asciidoc waf.css', target='trex_stateless_bench.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless_wlc_bench.asciidoc waf.css', target='trex_stateless_wlc_bench.html', scan=ascii_doc_scan);
+
+    notoc_appendixes = [
+        'simulator',
+        'fedora_21',
+        ]
+    for appendix_name in notoc_appendixes:
+        src_name = 'trex_appendix_%s.asciidoc waf.css' % appendix_name
+        tgt_name = 'trex_appendix_%s.html' % appendix_name
+        bld(rule='${ASCIIDOC} -a stylesheet=${SRC[1].abspath()} -a icons=true -a max-width=55em -o ${TGT} ${SRC[0].abspath()}',
+            source=src_name, target=tgt_name, scan=ascii_doc_scan);
+
+    toc_appendixes = [
+        'firmware_xl710',
+        'asa_5585',
+        'linux_as_dut',
+        'linux_vf_config',
+        'napatech',
+        'mellanox',
+        'vic',
+        'active_flows',
+        'dummy_port',
+        ]
+    for appendix_name in toc_appendixes:
+        src_name = 'trex_appendix_%s.asciidoc waf.css' % appendix_name
+        tgt_name = 'trex_appendix_%s.html' % appendix_name
+        bld(rule=convert_to_html_toc_book_no_docinfo, source=src_name, target=tgt_name, scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_book.asciidoc waf.css', target='trex_manual.html',scan=ascii_doc_scan);

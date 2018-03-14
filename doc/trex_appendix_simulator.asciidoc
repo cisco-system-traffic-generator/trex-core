@@ -1,0 +1,70 @@
+Simulator
+=========
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+The TRex simulator is a linux application (no DPDK needed) that can run on any Linux (it can also run on TRex machine itself). +
+You can create output pcap file from input of traffic YAML.
+
+.Using simulator to get per-template detailed information:
+[source,bash]
+----
+
+[bash]>./bp-sim-64-debug -f avl/sfr_delay_10_1g.yaml -v 1
+
+ -- loading cap file avl/delay_10_http_get_0.pcap
+ -- loading cap file avl/delay_10_http_post_0.pcap
+ -- loading cap file avl/delay_10_https_0.pcap
+ -- loading cap file avl/delay_10_http_browsing_0.pcap
+ -- loading cap file avl/delay_10_exchange_0.pcap
+ -- loading cap file avl/delay_10_mail_pop_0.pcap
+ -- loading cap file avl/delay_10_mail_pop_1.pcap
+ -- loading cap file avl/delay_10_mail_pop_2.pcap
+ -- loading cap file avl/delay_10_oracle_0.pcap
+ -- loading cap file avl/delay_10_rtp_160k_full.pcap
+ -- loading cap file avl/delay_10_rtp_250k_full.pcap
+ -- loading cap file avl/delay_10_smtp_0.pcap
+ -- loading cap file avl/delay_10_smtp_1.pcap
+ -- loading cap file avl/delay_10_smtp_2.pcap
+ -- loading cap file avl/delay_10_video_call_0.pcap
+ -- loading cap file avl/delay_10_sip_video_call_full.pcap
+ -- loading cap file avl/delay_10_citrix_0.pcap
+ -- loading cap file avl/delay_10_dns_0.pcap
+ id,name                                    , tps, cps,f-pkts,f-bytes, duration,   Mb/sec,   MB/sec,   c-flows,  PPS,total-Mbytes-duration,errors,flows    #<2>
+ 00, avl/delay_10_http_get_0.pcap             ,404.52,404.52,    44 ,   37830 ,   0.17 , 122.42 ,   15.30 ,         67 , 17799 ,       2 , 0 , 1
+ 01, avl/delay_10_http_post_0.pcap            ,404.52,404.52,    54 ,   48468 ,   0.21 , 156.85 ,   19.61 ,         85 , 21844 ,       2 , 0 , 1
+ 02, avl/delay_10_https_0.pcap                ,130.87,130.87,    96 ,   91619 ,   0.22 ,  95.92 ,   11.99 ,         29 , 12564 ,       1 , 0 , 1
+ 03, avl/delay_10_http_browsing_0.pcap        ,709.89,709.89,    37 ,   34425 ,   0.13 , 195.50 ,   24.44 ,         94 , 26266 ,       2 , 0 , 1
+ 04, avl/delay_10_exchange_0.pcap             ,253.81,253.81,    43 ,    9848 ,   1.57 ,  20.00 ,    2.50 ,        400 , 10914 ,       0 , 0 , 1
+ 05, avl/delay_10_mail_pop_0.pcap             ,4.76,4.76,    20 ,    5603 ,   0.17 ,   0.21 ,    0.03 ,          1 ,    95 ,       0 , 0 , 1
+ 06, avl/delay_10_mail_pop_1.pcap             ,4.76,4.76,   114 ,  101517 ,   0.25 ,   3.86 ,    0.48 ,          1 ,   543 ,       0 , 0 , 1
+ 07, avl/delay_10_mail_pop_2.pcap             ,4.76,4.76,    30 ,   15630 ,   0.19 ,   0.60 ,    0.07 ,          1 ,   143 ,       0 , 0 , 1
+ 08, avl/delay_10_oracle_0.pcap               ,79.32,79.32,   302 ,   56131 ,   6.86 ,  35.62 ,    4.45 ,        544 , 23954 ,       0 , 0 , 1
+ 09, avl/delay_10_rtp_160k_full.pcap          ,2.78,8.33,  1354 , 1232757 ,  61.24 ,  27.38 ,    3.42 ,        170 ,  3759 ,       0 , 0 , 3
+ 10, avl/delay_10_rtp_250k_full.pcap          ,1.98,5.95,  2069 , 1922000 ,  61.38 ,  30.48 ,    3.81 ,        122 ,  4101 ,       0 , 0 , 3
+ 11, avl/delay_10_smtp_0.pcap                 ,7.34,7.34,    22 ,    5618 ,   0.19 ,   0.33 ,    0.04 ,          1 ,   161 ,       0 , 0 , 1
+ 12, avl/delay_10_smtp_1.pcap                 ,7.34,7.34,    35 ,   18344 ,   0.21 ,   1.08 ,    0.13 ,          2 ,   257 ,       0 , 0 , 1
+ 13, avl/delay_10_smtp_2.pcap                 ,7.34,7.34,   110 ,   96544 ,   0.27 ,   5.67 ,    0.71 ,          2 ,   807 ,       0 , 0 , 1
+ 14, avl/delay_10_video_call_0.pcap           ,11.90,11.90,  2325 , 2532577 ,  36.56 , 241.05 ,   30.13 ,        435 , 27662 ,       3 , 0 , 1
+ 15, avl/delay_10_sip_video_call_full.pcap    ,29.35,58.69,  1651 ,  120315 ,  24.56 ,  28.25 ,    3.53 ,        721 , 48452 ,       0 , 0 , 2
+ 16, avl/delay_10_citrix_0.pcap               ,43.62,43.62,   272 ,   84553 ,   6.23 ,  29.51 ,    3.69 ,        272 , 11866 ,       0 , 0 , 1
+ 17, avl/delay_10_dns_0.pcap                  ,1975.02,1975.02,     2 ,     162 ,   0.01 ,   2.56 ,    0.32 ,         22 ,  3950 ,       0 , 0 , 1
+
+ 00, sum                                      ,4083.86,93928.84,  8580 , 6413941 ,   0.00 , 997.28 ,  124.66 ,       2966 , 215136 ,      12 , 0 , 23
+ Memory usage
+ size_64        : 1687
+ size_128       : 222
+ size_256       : 798
+ size_512       : 1028
+ size_1024      : 86
+ size_2048      : 4086
+ Total    :       8.89 Mbytes  159% util #<1>
+
+----
+<1> the memory usage of the templates
+<2> CSV for all the templates

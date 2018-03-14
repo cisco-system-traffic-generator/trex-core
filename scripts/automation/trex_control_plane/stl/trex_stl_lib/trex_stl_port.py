@@ -924,6 +924,11 @@ class Port(object):
         else:
             info['fc_supported'] = 'N/A'
 
+        if 'is_prom_supported' in info:
+            info['prom_supported'] = 'yes' if info['is_prom_supported'] else 'no'
+        else:
+            info['prom_supported'] = 'N/A'
+
         if 'is_led_supported' in info:
             info['led_change_supported'] = 'yes' if info['is_led_supported'] else 'no'
         else:

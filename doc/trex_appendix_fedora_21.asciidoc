@@ -1,0 +1,37 @@
+Fedora 21 Server installation
+=============================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+Download the .iso file from link in manual, boot with it using Hypervisor or CIMC console. +
+Troubleshooting -> install in basic graphics mode
+
+* In packages selection, choose:
+
+** C Development Tools and Libraries
+
+** Development Tools
+
+** System Tools
+
+* Set Ethernet configuration if needed
+
+* Use default hard-drive partitions, reclaim space if needed
+
+* After installation, edit file /etc/selinux/config +
+set: +
+SELINUX=disabled
+
+* Run: +
+systemctl disable firewalld
+
+* Edit file /etc/yum.repos.d/fedora-updates.repo +
+set everywhere: +
+enabled=0
+
+* Reboot

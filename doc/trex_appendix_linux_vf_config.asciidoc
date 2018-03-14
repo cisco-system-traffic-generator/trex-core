@@ -1,0 +1,240 @@
+Configure Linux to use VF
+=========================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+TRex supports paravirtualized interfaces such as VMXNET3/virtio/E1000 however when connected to a vSwitch, the vSwitch limits the performance. VPP or OVS-DPDK can improve the performance but require more software resources to handle the rate.
+SR-IOV can accelerate the performance and reduce CPU resource usage as well as latency by utilizing NIC hardware switch capability (the switching  is done by hardware).
+TRex version 2.15 now includes SR-IOV support for XL710 and X710.
+The following diagram compares between vSwitch and SR-IOV.
+
+image:images/sr_iov_vswitch.png[title="vSwitch_main",width=850]
+
+One use case which shows the performance gain that can be acheived by using SR-IOV is when a user wants to create a pool of TRex VMs that tests a pool of virtual DUTs (e.g. ASAv,CSR etc.)
+When using newly supported SR-IOV, compute, storage and networking resources can be controlled dynamically (e.g by using OpenStack)
+
+image:images/sr_iov_trex.png[title="vSwitch_main",width=850]
+
+The above diagram is an example of one server with two NICS. TRex VMs can be allocated on one NIC while the DUTs can be allocated on another.
+
+
+Following are some links we used and lessons we learned while putting up an environment for testing TRex with VF interfaces (using SR-IOV).
+This is by no means a full toturial of VF usage, and different Linux distributions might need slightly different handling.
+
+== Links and resources
+link:http://www.intel.com/content/dam/www/public/us/en/documents/technology-briefs/xl710-sr-iov-config-guide-gbe-linux-brief.pdf[This]
+is a good tutorial by Intel of SR-IOV and how to configure. +
+
+link:http://dpdk.org/doc/guides/nics/intel_vf.html[This] is a tutorial from DPDK documentation. +
+
+link:https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/6/html/Virtualization_Host_Configuration_and_Guest_Installation_Guide/chap-Virtualization_Host_Configuration_and_Guest_Installation_Guide-PCI_Device_Config.html#intel-prep[This]
+ is section from RedHat on Kernel boot params.
+
+link:https://community.mellanox.com/docs/DOC-2386[This] is doc from Mellanox for KVM +
+link:https://community.mellanox.com/docs/DOC-2534[This] is doc from Mellanox for ESXi
+
+== Linux configuration
+First, need to verify BIOS support for the feature (make sure VT-d is enabled.) +
+Second, need to make sure you have the correct kernel options. (see links above)  +
+In our regression with SR-IOV (Cisco UCS, Intel CPU, host OS: CentOS), we have following configs:
+
+*Kernel params:*::
+[source,bash]
+----
+# cat /proc/cmdline
+BOOT_IMAGE=/vmlinuz-3.10.0-514.el7.x86_64 root=/dev/mapper/cl-root ro crashkernel=auto rd.lvm.lv=cl/root rd.lvm.lv=cl/swap nomodeset rhgb quiet intel_iommu=on iommu=pt isolcpus=2-23 nohz_full=2-23 selinux=0 audit=0
+----
+
+*82599 and Mellanox VFs:*::
+[source,bash]
+----
+# cat /etc/rc.local
+
+##############
+# 82599
+##############
+
+ifconfig enp2s0f0 up
+ifconfig enp2s0f1 up
+
+echo 9500 > /sys/bus/pci/devices/0000:02:00.0/net/*/mtu
+echo 9500 > /sys/bus/pci/devices/0000:02:00.1/net/*/mtu
+
+echo 3 > /sys/bus/pci/devices/0000:02:00.0/sriov_numvfs
+echo 1 > /sys/bus/pci/devices/0000:02:00.1/sriov_numvfs
+
+
+##############
+# Mellanox
+##############
+
+echo 9500 > /sys/bus/pci/devices/0000:84:00.0/net/*/mtu
+echo 9500 > /sys/bus/pci/devices/0000:84:00.1/net/*/mtu
+
+echo 3 > /sys/bus/pci/devices/0000:84:00.0/sriov_numvfs
+echo 1 > /sys/bus/pci/devices/0000:84:00.1/sriov_numvfs
+----
+
+*Intel i40e VFs:*::
+[source,bash]
+----
+# cat /etc/modprobe.d/tuned.conf
+options i40e max_vfs=3,3
+----
+
+
+
+
+== x710 specific instructions
+For x710 (i40e driver), we needed to download latest kernel driver. On all distributions we were using, existing driver was not new enough. +
+To make the system use your new compiled driver with the correct parameters: +
+Copy the .ko file to /lib/modules/Your kernel version as seen by uname -r/kernel/drivers/net/ethernet/intel/i40e/i40e.ko +
+
+== 82599 specific instructions
+In order to make VF interfaces work correctly, we had to increase mtu on related PF interfaces. +
+For example, if you run with max_vfs=1,1 (one VF per PF), you will have something like this:
+
+[source,bash]
+----
+[bash]>sudo ./dpdk_nic_bind.py -s
+Network devices using DPDK-compatible driver
+============================================
+0000:03:10.0 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+0000:03:10.1 '82599 Ethernet Controller Virtual Function' drv=igb_uio unused=
+
+Network devices using kernel driver
+===================================
+0000:01:00.0 'I350 Gigabit Network Connection' if=eth0 drv=igb unused=igb_uio *Active*
+0000:03:00.0 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth2 drv=ixgbe unused=igb_uio
+0000:03:00.1 '82599ES 10-Gigabit SFI/SFP+ Network Connection' if=eth3 drv=ixgbe unused=igb_uio
+----
+
+In order to work with 0000:03:10.0 and 0000:03:10.1, you will have to run the following +
+[source,bash]
+----
+[bash]>sudo ifconfig eth3 up mtu 9000
+[bash]>sudo ifconfig eth2 up mtu 9000
+----
+
+
+TRex stateful performance::
+
+Using the following command, running on x710 card with VF driver, we can see that TRex can reach 30GBps, using only one core. We can also see that the average latency is around 20 usec, which is pretty much the same value we get on loopback ports with x710 physical function without VF.
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+----
+
+[source,python]
+----
+
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -m 40000 -l 100 -c 1 -p
+
+  -Per port stats table
+      ports |               0 |               1
+  -----------------------------------------------------------------------------------------
+   opackets |       106573954 |       107433792
+     obytes |     99570878833 |    100374254956
+   ipackets |       107413075 |       106594490
+     ibytes | 100354899813    |     99590070585
+    ierrors |            1038 |            1027
+    oerrors |               0 |               0
+      Tx Bw |      15.33 Gbps |      15.45 Gbps
+
+ -Global stats enabled
+ Cpu Utilization : 91.5  %  67.3 Gb/core
+ Platform_factor : 1.0
+ Total-Tx :      30.79 Gbps
+ Total-Rx :      30.79 Gbps
+ Total-PPS :       4.12 Mpps
+ Total-CPS :     111.32 Kcps
+
+ Expected-PPS :       4.11 Mpps
+ Expected-CPS :     111.04 Kcps
+ Expected-BPS :      30.71 Gbps
+
+ Active-flows :    14651  Clients : 255   Socket-util : 0.0912 %
+ Open-flows :  5795073  Servers : 65535   Socket :    14652 Socket/Clients :  57.5
+ drop-rate :       0.00 bps
+ current time : 53.9 sec
+ test duration : 3546.1 sec
+
+ -Latency stats enabled
+ Cpu Utilization : 23.4 %
+ if| tx_ok , rx_ok  , rx check ,error,       latency (usec) ,    Jitter
+   | ,        ,          , ,   average   , max  ,    (usec)
+  -------------------------------------------------------------------------------
+ 0 | 5233,    5233,         0, 0,         19  , 580,       5      | 37  37  37 4
+ 1 | 5233,    5233,         0, 0,         22  , 577,       5      | 38  40  39 3
+----
+
+TRex stateless performance::
+
+[source,python]
+----
+
+[bash]>sudo ./t-rex-64 -i -c 1
+
+trex>portattr
+Port Status
+
+     port |          0           |          1
+  -------------------------------------------------------------
+  driver          | net_i40e_vf      |     net_i40e_vf
+  description     | XL710/X710 Virtual  |  XL710/X710 Virtual
+
+With the console command:
+start -f stl/imix.py -m 8mpps --force --port 0
+We can see, that we can reach 8M packet per second, which in this case is around 24.28 Gbit/second.
+
+Global Statistics
+
+connection   : localhost, Port 4501                  total_tx_L2  : 24.28 Gb/sec
+version      : v2.15 total_tx_L1  : 25.55 Gb/sec
+cpu_util.    : 80.6% @ 1 cores (1 per port)          total_rx     : 24.28 Gb/sec
+rx_cpu_util. : 66.8%                                 total_pps    : 7.99 Mpkt/sec
+async_util.  : 0.18% / 1.84 KB/sec                   drop_rate    : 0.00 b/sec
+queue_full   : 3,467 pkts
+
+Port Statistics
+
+   port    |         0         |         1         | total
+  ----------------------------------------------------------------------
+  owner      |           ibarnea |           ibarnea |
+  link       |                UP |                UP |
+  state      | TRANSMITTING      |              IDLE |
+  speed      |           40 Gb/s |           40 Gb/s |
+  CPU util.  | 80.6%             |              0.0% |
+  --         |                   |                   |
+  Tx bps L2  | 24.28 Gbps        |          0.00 bps |        24.28 Gbps
+  Tx bps L1  | 25.55 Gbps        |             0 bps |        25.55 Gbps
+  Tx pps     | 7.99 Mpps         |          0.00 pps |         7.99 Mpps
+  Line Util. |           63.89 % |            0.00 % |
+  ---        |                   |                   |
+  Rx bps     | 0.00 bps          |        24.28 Gbps |        24.28 Gbps
+  Rx pps     | 0.00 pps          |         7.99 Mpps |         7.99 Mpps
+  ----       |                   |                   |
+  opackets   | 658532501         |                 0 |         658532501
+  ipackets   |                 0 |         658612569 |         658612569
+  obytes     | 250039721918      |                 0 |      250039721918
+  ibytes     |                 0 |      250070124150 |      250070124150
+  tx-bytes   | 250.04 GB         |               0 B |         250.04 GB
+  rx-bytes   |               0 B |         250.07 GB |         250.07 GB
+  tx-pkts    | 658.53 Mpkts      |            0 pkts |      658.53 Mpkts
+  rx-pkts    | 0 pkts            |      658.61 Mpkts |      658.61 Mpkts
+  -----      |                   |                   |
+  oerrors    |                 0 |                 0 |                 0
+  ierrors    |                 0 |            15,539 |            15,539
+----
+
+
+== Performance
+See the performance tests we did link:trex_vm_bench.html[here]

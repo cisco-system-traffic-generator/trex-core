@@ -1,0 +1,206 @@
+TRex with ASA 5585
+==================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+When running TRex aginst ASA 5585, you have to notice following things:
+
+* ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 (or 3) in case of NAT. In this mode, bidirectional UDP flows are not supported.
+--learn-mode 1 support TCP sequence number randomization in both sides of the connection (client to server and server client). For this to work, TRex must learn
+the translation of packets from both sides, so this mode reduce the amount of connections per second TRex can generate (The number is still high enough to test
+any existing firewall). If you need higher cps rate, you can use --learn-mode 3. This mode handles sequence number randomization on client->server side only.
+* Latency should be tested using ICMP with `--l-pkt-mode 2`
+
+== ASA 5585 sample configuration
+
+[source,bash]
+----
+ciscoasa# show running-config
+: Saved
+
+:
+: Serial Number: JAD194801KX
+: Hardware:   ASA5585-SSP-10, 6144 MB RAM, CPU Xeon 5500 series 2000 MHz, 1 CPU (4 cores)
+:
+ASA Version 9.5(2)
+!
+hostname ciscoasa
+enable password 8Ry2YjIyt7RRXU24 encrypted
+passwd 2KFQnbNIdI.2KYOU encrypted
+names
+!
+interface Management0/0
+ management-only
+ nameif management
+ security-level 100
+ ip address 10.56.216.106 255.255.255.0
+!
+interface TenGigabitEthernet0/8
+ nameif inside
+ security-level 100
+ ip address 15.0.0.1 255.255.255.0
+!
+interface TenGigabitEthernet0/9
+ nameif outside
+ security-level 0
+ ip address 40.0.0.1 255.255.255.0
+!
+boot system disk0:/asa952-smp-k8.bin
+ftp mode passive
+pager lines 24
+logging asdm informational
+mtu management 1500
+mtu inside 9000
+mtu outside 9000
+no failover
+no monitor-interface service-module
+icmp unreachable rate-limit 1 burst-size 1
+no asdm history enable
+arp outside 40.0.0.2 90e2.baae.87d1
+arp inside 15.0.0.2 90e2.baae.87d0
+arp timeout 14400
+no arp permit-nonconnected
+route management 0.0.0.0 0.0.0.0 10.56.216.1 1
+route inside 16.0.0.0 255.0.0.0 15.0.0.2 1
+route outside 48.0.0.0 255.0.0.0 40.0.0.2 1
+timeout xlate 3:00:00
+timeout pat-xlate 0:00:30
+timeout conn 1:00:00 half-closed 0:10:00 udp 0:02:00 sctp 0:02:00 icmp 0:00:02
+timeout sunrpc 0:10:00 h323 0:05:00 h225 1:00:00 mgcp 0:05:00 mgcp-pat 0:05:00
+timeout sip 0:30:00 sip_media 0:02:00 sip-invite 0:03:00 sip-disconnect 0:02:00
+timeout sip-provisional-media 0:02:00 uauth 0:05:00 absolute
+timeout tcp-proxy-reassembly 0:01:00
+timeout floating-conn 0:00:00
+user-identity default-domain LOCAL
+http server enable
+http 192.168.1.0 255.255.255.0 management
+no snmp-server location
+no snmp-server contact
+crypto ipsec security-association pmtu-aging infinite
+crypto ca trustpool policy
+telnet 0.0.0.0 0.0.0.0 management
+telnet timeout 5
+ssh stricthostkeycheck
+ssh timeout 5
+ssh key-exchange group dh-group1-sha1
+console timeout 0
+!
+tls-proxy maximum-session 1000
+!
+threat-detection basic-threat
+threat-detection statistics access-list
+no threat-detection statistics tcp-intercept
+dynamic-access-policy-record DfltAccessPolicy
+!
+class-map icmp-class
+ match default-inspection-traffic
+class-map inspection_default
+ match default-inspection-traffic
+!
+!
+policy-map type inspect dns preset_dns_map
+ parameters
+  message-length maximum client auto
+  message-length maximum 512
+policy-map icmp_policy
+ class icmp-class
+  inspect icmp
+policy-map global_policy
+ class inspection_default
+  inspect dns preset_dns_map
+  inspect ftp
+  inspect h323 h225
+  inspect h323 ras
+  inspect rsh
+  inspect rtsp
+  inspect esmtp
+  inspect sqlnet
+  inspect skinny
+  inspect sunrpc
+  inspect xdmcp
+  inspect sip
+  inspect netbios
+  inspect tftp
+  inspect ip-options
+!
+service-policy global_policy global
+service-policy icmp_policy interface outside
+prompt hostname context
+!
+jumbo-frame reservation
+!
+no call-home reporting anonymous
+: end
+ciscoasa#
+----
+
+== TRex commands example
+
+Using these commands the configuration is:
+
+1. NAT learn mode (TCP-ACK)
+2. Delay of 1 second at start up (-k 1). It was added because ASA drops the first packets.
+3. Latency is configured to ICMP reply mode (--l-pkt-mode 2).
+
+
+*Simple HTTP:*::
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
+----
+
+This is more realistic traffic for enterprise (we removed from SFR file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
+
+*Enterprise profile:*::
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g_asa_nat.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 4 --learn-mode 1 -k 1
+----
+
+The TRex output
+
+[source,bash]
+----
+ -Per port stats table
+      ports |               0 |               1
+  -----------------------------------------------------------------------------------------
+   opackets |       106347896 |       118369678
+     obytes |     33508291818 |    118433748567
+   ipackets |       118378757 |       106338782
+     ibytes |    118434305375 |     33507698915
+    ierrors |               0 |               0
+    oerrors |               0 |               0
+      Tx Bw |     656.26 Mbps |       2.27 Gbps
+
+ -Global stats enabled
+  Cpu Utilization : 18.4  %  31.7 Gb/core
+  Platform_factor : 1.0
+  Total-Tx        :       2.92 Gbps   NAT time out    :        0 #<1> (0 in wait for syn+ack) #<1>
+  Total-Rx        :       2.92 Gbps   NAT aged flow id:        0 #<1>
+  Total-PPS       :     542.29 Kpps   Total NAT active:      163  (12 waiting for syn)
+  Total-CPS       :       8.30 Kcps   Nat_learn_errors:        0
+
+  Expected-PPS    :     539.85 Kpps
+  Expected-CPS    :       8.29 Kcps
+  Expected-BPS    :       2.90 Gbps
+
+  Active-flows    :     7860  Clients :      255   Socket-util : 0.0489 %
+  Open-flows      :  3481234  Servers :     5375   Socket :     7860 Socket/Clients :  30.8
+  drop-rate       :       0.00  bps   #<1>
+  current time    : 425.1 sec
+  test duration   : 574.9 sec
+
+ -Latency stats enabled
+  Cpu Utilization : 0.3 %
+  if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,
+  -------------------------------------------------------------------------------------------------------
+  0 |   420510,  420495,         0,   1,         58  ,    1555,      14      |  240  257  258  258  219
+  1 |   420496,  420509,         0,   1,         51  ,    1551,      13      |  234  253  257  258  214
+----
+<1>  These counters should be zero

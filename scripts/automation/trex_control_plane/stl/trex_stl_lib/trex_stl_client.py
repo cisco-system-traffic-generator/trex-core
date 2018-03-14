@@ -2379,9 +2379,11 @@ class STLClient(object):
 
         ports = ports if ports is not None else self.get_all_ports()
         ports = self._validate_port_list(ports)
-
+        info = self.ports[ports[0]].get_formatted_info(False) # assume ports have same type
         
         if restart:
+            if info['link_change_supported'] != 'yes':
+                raise STLError("NICs of this type do not support link down, can't use restart flag.")
             self.logger.pre_cmd("Hard resetting ports {0}:".format(ports))
         else:
             self.logger.pre_cmd("Resetting ports {0}:".format(ports))
@@ -2395,7 +2397,7 @@ class STLClient(object):
                 self.remove_all_streams(ports)
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
-                                   promiscuous = False,
+                                   promiscuous = False if (info['is_prom_supported'] != 'no') else None,
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
                 self.set_service_mode(ports, False)
@@ -4726,10 +4728,10 @@ class STLClient(object):
             return
 
         if opts.supp:
-            info = self.ports[0].get_formatted_info() # assume for now all ports are same
+            info = self.ports[opts.ports[0]].get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
-            print('  Promiscuous:   yes')
+            print('  Promiscuous:   %s' % info['prom_supported'])
             print('  Multicast:     yes')
             print('  Link status:   %s' % info['link_change_supported'])
             print('  LED status:    %s' % info['led_change_supported'])
