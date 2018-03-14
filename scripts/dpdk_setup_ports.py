@@ -581,10 +581,14 @@ Other network devices
             input_file = map_driver.parent_args.file
             if not input_file:
                 return
-                
+
+            just_copy=False
             extension = os.path.splitext(input_file)[1]
-            if extension != '.py':
-                raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
+            if extension == '.json':
+                just_copy = True;
+            else:
+              if extension != '.py':
+                  raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
 
             instance_name = ""
             if map_driver.parent_args.prefix is not '':
@@ -600,7 +604,10 @@ Other network devices
             if map_driver.parent_args.tunable:
                 tunable="-t "+map_driver.parent_args.tunable+" "
 
-            cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable, json_file=json_file)
+            if just_copy:
+                cmd = 'cp {file} {json_file}'.format(file=input_file, json_file=json_file)
+            else:
+              cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable, json_file=json_file)
             print(cmd)
             ret = os.system(cmd)
             os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
