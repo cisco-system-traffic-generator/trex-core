@@ -100,12 +100,16 @@ class STLServiceCtx(object):
         self.filters         = {}
         self.services        = {}
         self.done_services   = 0
+        self.prom_required   = False
         
              
     def _add (self, services):
         '''
             Add a service to the context
         '''
+        port_info = self.port_obj.get_formatted_info(False)
+        self.prom_supported = port_info['prom_supported'] != 'no'
+
         if isinstance(services, STLService):
             self._add_single_service(services)
 
@@ -145,7 +149,7 @@ class STLServiceCtx(object):
                        
         # save promisicous state and move to enabled
         is_promiscuous = self.client.get_port_attr(port = self.port)['prom'] == "on"
-        if not is_promiscuous:
+        if self.prom_required and not is_promiscuous:
             self.client.set_port_attr(ports = self.port, promiscuous = True)
 
         try:
@@ -169,13 +173,18 @@ class STLServiceCtx(object):
                 if f['capture_id'] is not None:
                     self.client.stop_capture(f['capture_id'])
 
-            if not is_promiscuous:
+            if self.prom_required and not is_promiscuous:
                 self.client.set_port_attr(ports = self.port, promiscuous = False)
             self._reset()
             
  
     def _add_single_service (self, service):
-        
+        if service.is_prom_required():
+            if not self.prom_supported:
+                name = service.__class__.__name__
+                raise STLError('Promiscuous mode is not supported by this NIC (required by service %s)' % name)
+            self.prom_required = True
+
         filter_type = service.get_filter_type()
 
         # if the service does not have a filter installed - create it
