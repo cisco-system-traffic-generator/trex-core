@@ -3043,7 +3043,7 @@ class STLClient(object):
                 if slave in ports:
                     raise STLError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
-                if not slave in self.get_acquired_ports():
+                if slave not in self.get_acquired_ports():
                     raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
 
@@ -3152,7 +3152,7 @@ class STLClient(object):
                 if slave in ports:
                     raise STLError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
-                if not slave in self.get_acquired_ports():
+                if slave not in self.get_acquired_ports():
                     raise STLError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
         # regular push

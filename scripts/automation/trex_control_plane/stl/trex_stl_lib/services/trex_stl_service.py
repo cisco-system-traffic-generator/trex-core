@@ -88,7 +88,13 @@ class STLService(object):
         '''
         raise NotImplementedError
 
- 
+
+    def is_prom_required(self):
+        '''
+            Boolean - does this service require promiscuous mode
+            Default is False, override to set promiscuous upon run
+        '''
+        return False
         
         
 ######### API          #########
