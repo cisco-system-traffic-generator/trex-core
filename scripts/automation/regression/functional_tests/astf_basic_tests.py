@@ -116,10 +116,10 @@ class CAstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
         sys.path.append("../../astf")
 
     def compare_l7(self, cap1, cap2):
-        cap1_reader = CPcapReader(cap1)
+        cap1_reader = pcap_reader(cap1)
         cap1_reader.analyze()
         cap1_reader.condense_pkt_data()
-        cap2_reader = CPcapReader(cap2)
+        cap2_reader = pcap_reader(cap2)
         cap2_reader.analyze()
         cap2_reader.condense_pkt_data()
 
