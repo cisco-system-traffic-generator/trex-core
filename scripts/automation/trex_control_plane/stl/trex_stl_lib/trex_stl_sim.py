@@ -40,6 +40,16 @@ class BpSimException(Exception):
     pass
 
 
+def get_valgrind():
+    valgrind_loc = os.environ.get('VALGRIND_LOC')
+    if not valgrind_loc:
+        return("valgrind");
+
+    os.environ['VALGRIND_LIB']=valgrind_loc+"/lib/valgrind"
+    valgrind_exe=valgrind_loc+"/bin/valgrind";
+    os.environ['VALGRIND_EXE']=valgrind_exe
+    return(valgrind_exe);
+
 # stateless simulation
 class STLSim(object):
     MASK_ALL = ((1 << 64) - 1)
@@ -267,7 +277,7 @@ class STLSim(object):
             cmd += ['--core_index', str(self.dp_core_index)]
 
         if self.mode == 'valgrind':
-            cmd = ['valgrind', '--leak-check=full', '--error-exitcode=1'] + cmd
+            cmd = [get_valgrind(), '--leak-check=full', '--error-exitcode=1'] + cmd
 
         elif self.mode == 'gdb':
             cmd = ['/usr/bin/gdb', '--args'] + cmd
