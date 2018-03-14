@@ -578,16 +578,6 @@ void CLatencyManager::Delete(){
     }
 }
 
-/* 0->1
-   1->0
-   2->3
-   3->2
-*/
-static uint8_t swap_port(uint8_t port_id){
-    return port_id ^ 1;
-}
-
-
 
 bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
     switch (CGlobalInfo::m_options.get_l_pkt_mode()) {
@@ -611,7 +601,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
     m_pkt_gen.Create(c_l_pkt_mode);
     for (int i=0; i<m_max_ports; i++) {
         CLatencyManagerPerPort * lp=&m_ports[i];
-        CCPortLatency * lpo=&m_ports[swap_port(i)].m_port;
+        CCPortLatency * lpo=&m_ports[dual_port_pair(i)].m_port;
 
         lp->m_io=cfg->m_ports[i];
         lp->m_port.Create(this,

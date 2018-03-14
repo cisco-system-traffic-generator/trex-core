@@ -24,75 +24,72 @@ test_short_flow_high_active2:
 
 
 test_jumbo:
-    multiplier          : 50
+    multiplier          : 100
     cores               : 10
     bw_per_core         : 962.464
 
 
 test_routing_imix:
-    multiplier          : 40
+    multiplier          : 80
     cores               : 10
     bw_per_core         : 48.130
 
 
 test_routing_imix_64:
-    multiplier          : 2000
+    multiplier          : 4000
     cores               : 10
     bw_per_core         : 12.699
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 50
+    multiplier          : 100
     cores               : 10
     bw_per_core         : 50.561
 
 
 test_ipv6_simple:
     multiplier          : 50
-    cores               : 10
+    cores               : 5
     bw_per_core         : 19.5
 
 
 test_rx_check_http: &rx_http
-    multiplier          : 90000
+    multiplier          : 180000
     cores               : 10
     rx_sample_rate      : 128
     bw_per_core         : 49.464
     error_tolerance     : 5
 
-# https://trex-tgn.cisco.com/youtrack/issue/trex-521
-#test_rx_check_http_ipv6:
-#    <<                  : *rx_http
-#    bw_per_core         : 49.237
+test_rx_check_http_ipv6:
+    <<                  : *rx_http
+    bw_per_core         : 49.237
 
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 35
+    multiplier          : 70
     cores               : 10
     rx_sample_rate      : 128
     bw_per_core         : 20.871
     error_tolerance     : 5
 
-# https://trex-tgn.cisco.com/youtrack/issue/trex-521
-#test_rx_check_sfr_ipv6:
-#    <<                  : *rx_sfr
-#    bw_per_core         : 19.198
+test_rx_check_sfr_ipv6:
+    <<                  : *rx_sfr
+    bw_per_core         : 19.198
 
 
 ############### ASTF ################
 
-test_tcp_http :
-    multiplier          : 10000
+test_tcp_http : &tcp_http
+    multiplier          : 20000
     cores               : 1
     bw_per_core         : 25
     bypass_result       : 1
 
 test_ipv6_tcp_http :
-    multiplier          : 10000
-    cores               : 1
+    <<                  : *tcp_http
     bw_per_core         : 20
 
 test_tcp_sfr :
-    multiplier          : 10
+    multiplier          : 20
     cores               : 1
     bw_per_core         : 20
 

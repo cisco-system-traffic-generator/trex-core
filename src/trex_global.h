@@ -976,6 +976,10 @@ static inline int get_is_stateless(){
     return (get_op_mode() == CParserOption::OP_MODE_STL);
 }
 
+static inline int get_is_stateful(){
+    return (get_op_mode() == CParserOption::OP_MODE_STF);
+}
+
 static inline int get_is_tcp_mode(){
     return ( (get_op_mode() == CParserOption::OP_MODE_ASTF) || (get_op_mode() == CParserOption::OP_MODE_ASTF_BATCH) );
 }
