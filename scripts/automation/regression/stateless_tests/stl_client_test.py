@@ -343,7 +343,8 @@ class STLClient_Test(CStlGeneral_Test):
 
                 # if profile contains custom MAC addrs we need promiscuous mode
                 # but virtual NICs does not support promiscuous mode
-                self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
+                if not self.is_vf_nics:
+                    self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
 
                 if p1.has_custom_mac_addr() or p2.has_custom_mac_addr():
                     if self.is_virt_nics:
@@ -391,7 +392,8 @@ class STLClient_Test(CStlGeneral_Test):
 
 
         finally:
-            self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
+            if not self.is_vf_nics:
+                self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
 
 
     # see https://trex-tgn.cisco.com/youtrack/issue/trex-226
