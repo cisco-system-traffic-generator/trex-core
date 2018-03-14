@@ -132,6 +132,15 @@ inline void utl_swap(T& a, T& b) {
   b = tmp;
 }
 
+/* 0->1
+   1->0
+   2->3
+   3->2
+*/
+inline uint8_t dual_port_pair(uint8_t port_id){
+    return port_id ^ 1;
+}
+
 
 bool utl_is_file_exists (const std::string& name) ;
 

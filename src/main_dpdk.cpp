@@ -4829,8 +4829,6 @@ int  CGlobalTRex::ixgbe_prob_init(void){
         }
     }
 
-    assert(found_non_dummy);
-
     if ( ps->preview.getVMode() > 0){
         printf("\n\n");
         printf("if_index : %d \n",dev_info.if_index);
@@ -6620,11 +6618,12 @@ void check_pdev_vdev_dummy() {
     bool found_pdev = false;
     uint32_t dev_id = 1e6;
     uint8_t if_index = 0;
+    CParserOption *g_opts=&CGlobalInfo::m_options;
     for ( std::string &iface : global_platform_cfg_info.m_if_list ) {
-        CGlobalInfo::m_options.m_dummy_port_map[if_index] = false;
+        g_opts->m_dummy_port_map[if_index] = false;
         if ( iface == "dummy" ) {
-            CGlobalInfo::m_options.m_dummy_count++;
-            CGlobalInfo::m_options.m_dummy_port_map[if_index] = true;
+            g_opts->m_dummy_count++;
+            g_opts->m_dummy_port_map[if_index] = true;
             CTVPort(if_index).set_dummy();
         } else if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
@@ -6655,14 +6654,22 @@ void check_pdev_vdev_dummy() {
             printf("\n");
             exit(1);
         } else {
-            CGlobalInfo::m_options.m_is_vdev = true;
+            g_opts->m_is_vdev = true;
         }
     } else if ( !found_pdev ) {
         printf("\n");
         printf("ERROR: should be specified at least one vdev or PCI-based interface in config file.\n");
         printf("\n");
         exit(1);
+    } else { // require at least one port in pair (dual-port) is non-dummy
+        for ( uint8_t i=0; i<global_platform_cfg_info.m_if_list.size(); i++ ) {
+            if ( g_opts->m_dummy_port_map[i] && g_opts->m_dummy_port_map[dual_port_pair(i)] ) {
+                printf("ERROR: got dummy pair of interfaces: %u %u.\nAt least one of them should be non-dummy.\n", i, dual_port_pair(i));
+                exit(1);
+            }
+        }
     }
+
 }
 
 extern "C" int eal_cpu_detected(unsigned lcore_id);
@@ -6956,23 +6963,25 @@ int main_test(int argc , char * argv[]){
          printf("\n*******************************************************\n");
          printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
          printf("\n*******************************************************\n");
-     }
-    
+    }
+
+    CParserOption * po=&CGlobalInfo::m_options;
+
     printf("Starting  TRex %s please wait  ... \n",VERSION_BUILD_NUM);
 
-    CGlobalInfo::m_options.preview.clean();
+    po->preview.clean();
 
     if ( parse_options_wrapper(argc, argv, true ) != 0){
         exit(-1);
     }
 
-    if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
+    if (!po->preview.get_is_termio_disabled()) {
         utl_termio_init();
     }
     
     
     /* enable core dump if requested */
-    if (CGlobalInfo::m_options.preview.getCoreDumpEnable()) {
+    if (po->preview.getCoreDumpEnable()) {
         utl_set_coredump_size(-1);
     }
     else {
@@ -6989,8 +6998,8 @@ int main_test(int argc , char * argv[]){
 
     update_memory_cfg();
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0){
-        CGlobalInfo::m_options.dump(stdout);
+    if ( po->preview.getVMode() > 0){
+        po->dump(stdout);
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
 
@@ -7000,10 +7009,7 @@ int main_test(int argc , char * argv[]){
         return -1;
     }
 
-    CParserOption * po=&CGlobalInfo::m_options;
-
-
-    if ( CGlobalInfo::m_options.preview.getVMode() == 0  ) {
+    if ( po->preview.getVMode() == 0  ) {
         rte_log_set_global_level(1);
     }
 
