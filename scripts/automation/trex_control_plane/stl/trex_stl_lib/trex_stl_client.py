@@ -2397,7 +2397,7 @@ class STLClient(object):
                 self.remove_all_streams(ports)
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
-                                   promiscuous = False if (info['is_prom_supported'] != 'no') else None,
+                                   promiscuous = False if (info['prom_supported'] != 'no') else None,
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
                 self.set_service_mode(ports, False)
