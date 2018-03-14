@@ -27,6 +27,15 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.38 ==
+
+* Dummy port support. Currently 
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-521[trex-521]
+
+
 == Release 2.37 ==
 
 * Low footprint support. Resource require with this mode 1 thread and ~500MB RAM. More info in link:trex_manual.html#_low_end_machines[manual]
