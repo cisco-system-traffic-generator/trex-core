@@ -758,7 +758,6 @@ def build(bld):
         'mellanox',
         'vic',
         'active_flows',
-        'dummy_port',
         ]
     for appendix_name in toc_appendixes:
         src_name = 'trex_appendix_%s.asciidoc waf.css' % appendix_name
