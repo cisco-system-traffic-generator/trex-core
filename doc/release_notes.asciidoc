@@ -31,8 +31,12 @@ endif::backend-docbook[]
 
 * Dummy port support. (more info in link:trex_manual.html#_dummy_ports[manual]) +
 They can solve 2 issues:
-** Odd number of interfaces
+** Odd number of interfaces (e.g. single port)
 ** Performance degradation when adjacent interfaces belong to different NUMAs.
+* Advance Stateful (ASTF)
+** Support L7 emulation on top of UDP (e.g. DNS/RTP Video)
+** Faster script to convert to JSON (Scapy->dpkt)
+
 
 === Fixed issues: ===
 
