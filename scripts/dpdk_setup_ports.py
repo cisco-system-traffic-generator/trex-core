@@ -653,7 +653,7 @@ Other network devices
                 with open(filename) as f: # verify
                     configured_hugepages = int(f.read())
                 if configured_hugepages < wanted_count:
-                    print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (hugepages_count, socket_id, configured_hugepages))
+                    print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (wanted_count, socket_id, configured_hugepages))
 
 
     def run_scapy_server(self):
