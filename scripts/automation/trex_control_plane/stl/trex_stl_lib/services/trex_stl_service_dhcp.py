@@ -84,6 +84,10 @@ class STLServiceDHCP(STLService):
         self.state  = 'INIT'
         
         
+    def is_prom_required(self):
+        return True
+
+
     def get_filter_type (self):
         return STLServiceFilterDHCP
 
