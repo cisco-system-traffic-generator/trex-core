@@ -36,7 +36,7 @@ They can solve 2 issues:
 * Advance Stateful (ASTF)
 ** Support L7 emulation on top of UDP (e.g. DNS/RTP Video)
 ** Faster script to convert to JSON (Scapy->dpkt)
-* Napatech bencmark on UCS240 link:trex_appendix_napatech.html#_performance_benchmark[napatech_benchmark]
+* Napatech benchmark on UCS240 link:trex_appendix_napatech.html#_performance_benchmark[napatech_benchmark]
 
 === Fixed issues: ===
 
