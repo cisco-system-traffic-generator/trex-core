@@ -89,6 +89,10 @@ struct rte_mbuf {
     uint16_t l4_len;
     uint16_t vlan_tci;
     uint8_t  m_core_locality;
+    union {
+        uint32_t rss;     /**< RSS hash result if RSS enabled */
+    } hash;                   /**< hash information */
+
 } ;
 
 #ifdef TREX_MBUF_SIM_LOCAL

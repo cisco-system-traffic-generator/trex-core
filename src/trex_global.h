@@ -557,6 +557,8 @@ public:
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
         m_dummy_count=0;
+        m_reta_mask=0;
+
     }
 
     CParserOption(){
@@ -591,6 +593,7 @@ public:
     uint16_t        m_debug_pkt_proto;
     uint16_t        m_arp_ref_per;
     uint8_t         m_dummy_count;
+    uint8_t         m_reta_mask;
     bool            m_rx_thread_enabled;
     trex_op_mode_e  m_op_mode;
     trex_astf_mode_e m_astf_mode;
@@ -613,6 +616,7 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
+    
 
 
 public:
@@ -983,6 +987,14 @@ static inline int get_is_stateful(){
 static inline int get_is_tcp_mode(){
     return ( (get_op_mode() == CParserOption::OP_MODE_ASTF) || (get_op_mode() == CParserOption::OP_MODE_ASTF_BATCH) );
 }
+
+
+/* more than 1 core with ASTF  mode */
+static inline int get_is_tcp_mode_multi_core(){
+    return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) ); 
+}
+
+
 
 static inline int get_is_interactive(){
     return ( (get_op_mode() == CParserOption::OP_MODE_STL) || (get_op_mode() == CParserOption::OP_MODE_ASTF) );

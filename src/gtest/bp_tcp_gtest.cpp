@@ -2234,3 +2234,360 @@ uint32_t utl_split_int(uint32_t val,
 
 
 
+#if 0
+
+uint8_t reverse_bits8(uint8_t b) {
+   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+   return b;
+}
+
+
+
+
+#define TOEPLITZ_KEYLEN_MAX	40
+
+void	toeplitz_get_key(uint8_t *_key, int _keylen);
+void    toeplitz_init(uint8_t *key, int key_size);
+
+
+#define TOEPLITZ_INIT_KEYLEN	(TOEPLITZ_KEYSEED_CNT)
+
+static uint32_t	toeplitz_keyseeds[] =
+{0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+ 0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+ 0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+ 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+ 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa};
+
+#define TOEPLITZ_KEYSEED_CNT (sizeof(toeplitz_keyseeds) / sizeof(uint32_t))
+
+uint32_t	toeplitz_cache[TOEPLITZ_KEYSEED_CNT][256];
+
+#define NBBY 8
+
+
+static __inline uint32_t
+toeplitz_rawhash_addr(uint32_t _faddr, uint32_t _laddr)
+{
+	uint32_t _res;
+
+        _res =  toeplitz_cache[0][(_faddr >> 0) & 0xff];
+        _res ^= toeplitz_cache[1][(_faddr >> 8) & 0xff];
+        _res ^= toeplitz_cache[2][(_faddr >> 16)  & 0xff];
+        _res ^= toeplitz_cache[3][(_faddr >> 24)  & 0xff];
+        _res ^= toeplitz_cache[4][(_laddr >> 0) & 0xff];
+        _res ^= toeplitz_cache[5][(_laddr >> 8) & 0xff];
+        _res ^= toeplitz_cache[6][(_laddr >> 16)  & 0xff];
+        _res ^= toeplitz_cache[7][(_laddr >> 24)  & 0xff];
+
+	return _res;
+}
+
+static void
+toeplitz_cache_create(uint32_t cache[][256], int cache_len,
+		      const uint8_t key_str[],
+                      __attribute__((unused)) int key_strlen)
+{
+	int i;
+
+	for (i = 0; i < cache_len; ++i) {
+		uint32_t key[NBBY];
+		int j, b, shift, val;
+
+		bzero(key, sizeof(key));
+
+		/*
+		 * Calculate 32bit keys for one byte; one key for each bit.
+		 */
+		for (b = 0; b < NBBY; ++b) {
+			for (j = 0; j < 32; ++j) {
+				uint8_t k;
+				int bit;
+
+				bit = (i * NBBY) + b + j;
+
+				k = key_str[bit / NBBY];
+				shift = NBBY - (bit % NBBY) - 1;
+				if (k & (1 << shift))
+					key[b] |= 1 << (31 - j);
+			}
+		}
+
+		/*
+		 * Cache the results of all possible bit combination of
+		 * one byte.
+		 */
+		for (val = 0; val < 256; ++val) {
+			uint32_t res = 0;
+
+			for (b = 0; b < NBBY; ++b) {
+				shift = NBBY - b - 1;
+				if (val & (1 << shift))
+					res ^= key[b];
+			}
+			cache[i][val] = res;
+		}
+	}
+}
+
+static __inline uint32_t
+toeplitz_rawhash_addrport(uint32_t _faddr, uint32_t _laddr,
+			  uint16_t _fport, uint16_t _lport)
+{
+	uint32_t _res;
+
+        _res =  toeplitz_cache[0][(_faddr >> 0) & 0xff];
+        _res ^= toeplitz_cache[1][(_faddr >> 8) & 0xff];
+        _res ^= toeplitz_cache[2][(_faddr >> 16)  & 0xff];
+        _res ^= toeplitz_cache[3][(_faddr >> 24)  & 0xff];
+        _res ^= toeplitz_cache[4][(_laddr >> 0) & 0xff];
+        _res ^= toeplitz_cache[5][(_laddr >> 8) & 0xff];
+        _res ^= toeplitz_cache[6][(_laddr >> 16)  & 0xff];
+        _res ^= toeplitz_cache[7][(_laddr >> 24)  & 0xff];
+
+        _res ^= toeplitz_cache[8][(_fport >> 0)  & 0xff];
+        _res ^= toeplitz_cache[9][(_fport >> 8)  & 0xff];
+        _res ^= toeplitz_cache[10][(_lport >> 0)  & 0xff];
+        _res ^= toeplitz_cache[11][(_lport >> 8)  & 0xff];
+
+	return _res;
+}
+
+void
+toeplitz_verify(void)
+{
+	uint32_t faddr, laddr;
+	uint16_t fport, lport;
+
+	/*
+	 * The first IPv4 example in the verification suite
+	 */
+
+	/* 66.9.149.187:2794 */
+	faddr = 0xbb950942;
+	fport = 0xea0a;
+
+	/* 161.142.100.80:1766 */
+	laddr = 0x50648ea1;
+	lport = 0xe606;
+
+	printf("toeplitz: verify addr/port 0x%08x, addr 0x%08x\n",
+               toeplitz_rawhash_addrport(faddr, laddr, fport, lport),
+               toeplitz_rawhash_addr(faddr, laddr));
+
+    if (toeplitz_rawhash_addrport(faddr, laddr, fport, lport) != 0x51ccc178) {
+        printf("ERROR !!! \n");
+    }
+}
+
+
+void
+toeplitz_init(uint8_t *key_in, int key_size)
+{
+	uint8_t key[TOEPLITZ_INIT_KEYLEN];
+	unsigned int i;
+
+        if (key == NULL || (unsigned int)key_size < TOEPLITZ_KEYSEED_CNT) {
+            for (i = 0; i < TOEPLITZ_KEYSEED_CNT; ++i)
+		toeplitz_keyseeds[i] &= 0xff;
+        } else {
+            for (i = 0; i < TOEPLITZ_KEYSEED_CNT; ++i)
+		toeplitz_keyseeds[i] = key_in[i];
+        }
+
+	toeplitz_get_key(key, TOEPLITZ_INIT_KEYLEN);
+
+#ifdef RSS_DEBUG
+	printf("toeplitz: keystr ");
+	for (i = 0; i < TOEPLITZ_INIT_KEYLEN; ++i)
+            printf("%02x ", key[i]);
+	printf("\n");
+#endif
+
+	toeplitz_cache_create(toeplitz_cache, TOEPLITZ_KEYSEED_CNT,
+			      key, TOEPLITZ_INIT_KEYLEN);
+
+#ifdef RSS_DEBUG
+	toeplitz_verify();
+#endif
+}
+
+void
+toeplitz_get_key(uint8_t *key, int keylen)
+{
+	int i;
+
+	if (keylen > TOEPLITZ_KEYLEN_MAX)
+            return; /* panic("invalid key length %d", keylen); */
+
+	/* Replicate key seeds to form key */
+	for (i = 0; i < keylen; ++i)
+		key[i] = toeplitz_keyseeds[i % TOEPLITZ_KEYSEED_CNT];
+}
+
+
+
+
+uint8_t port_rss_key[] = {
+ 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+ 0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+ 0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+ 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+ 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
+
+ 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+ 0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+ 0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+ 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+ 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
+};
+
+uint32_t calc_toeplitz(uint8_t* key,int key_size,uint8_t* input,int input_size){
+
+    toeplitz_init((uint8_t *)key,key_size);
+    uint32_t _res=0;
+    int i;
+    _res =  toeplitz_cache[0][input[0]];
+    //printf(" xor %d with %x \n",0,_res);
+    for (i=1;i<input_size; i++) {
+      //  printf(" xor %d with %x \n",i,toeplitz_cache[i][input[i]]);
+        _res ^= toeplitz_cache[i][input[i]];
+    }
+    return(_res);
+}
+
+uint8_t port_rss_keya[] = {
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0,
+
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+
+};
+
+
+TEST_F(gt_tcp, tst71) {
+
+    //uint8_t b[]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
+    //printf(" %x \n",calc_toeplitz(port_rss_key,40,b,8));
+    int i=0; 
+
+    //uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
+    uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
+    for (i=0; i<12; i++) {
+        b[i]=0;
+    }
+
+    int j;
+    for (j=0; j<12; j++) {
+        for (i=0; i<255; i++) {
+            b[j]=i;
+            if (calc_toeplitz(port_rss_keya,40,b,12)!=0) {
+                printf(" %d found \n",j);
+                break;
+            }
+            //printf(" %x:%x \n",i,calc_toeplitz(port_rss_keya,40,b,12));
+        }
+    }
+}
+
+
+uint16_t get_rss_port(uint16_t port){
+    uint8_t port_lsb =port&0xff;
+    uint8_t c=( (0x80&port_lsb?0x01:0)|
+                (0x40&port_lsb?0x02:0)|
+              (0x20&port_lsb?0x04:0)|
+              (0x10&port_lsb?0x08:0)|
+              (0x08&port_lsb?0x10:0)|
+              (0x04&port_lsb?0x20:0)|
+              (0x02&port_lsb?0x40:0)|
+              (0x01&port_lsb?0x80:0));
+    return ((port&0xff00)|c);
+}
+
+TEST_F(gt_tcp, tst72) {
+    int i; 
+    uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
+    for (i=0; i<12; i++) {
+        b[i]=0;
+    }
+
+    for (i=0; i<0xff; i++) {
+        b[11]=get_rss_port(i)&0xff;
+
+        assert(calc_toeplitz(port_rss_keya,40,b,12)==i);
+        printf(" %x %x\n",get_rss_port(i),calc_toeplitz(port_rss_keya,40,b,12));
+    }
+}
+
+
+
+TEST_F(gt_tcp, tst73) {
+    int i;
+    for (i=0; i<256; i++) {
+        printf(" %02x:%02x \n",i,(int)reverse_bits8(i));
+    }
+}
+
+
+TEST_F(gt_tcp, tst75) {
+
+    uint8_t b[32]={0x3f,0xfe,0x05,0x01,0x00,0x08,0x00,0x00,0x02,0x60,0x97,0xff,0xfe,0x40,0xef,0xab,
+                   0xff,0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01
+        };
+
+    //b[11]=get_rss_port(i)&0xff;
+
+    //assert(calc_toeplitz(port_rss_key,40,b,32));
+    printf(" %x \n",calc_toeplitz(port_rss_key,40,b,32));
+
+}
+
+
+TEST_F(gt_tcp, tst76) {
+
+     uint8_t b[32+4]={0x3f,0xfe,0x05,0x01,0x00,0x08,0x00,0x00,0x02,0x60,0x97,0xff,0xfe,0x40,0xef,0xab,
+                    0xff,0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,
+                    0x37,0x96,0x12,0x83
+         };
+
+     assert(calc_toeplitz(port_rss_key,40,b,32+4)==0xdde51bbf);
+     #if 1
+     int i;
+     b[11]=0;
+     for (i=0; i<255; i++) {
+         b[35]=reverse_bits8(i);
+         printf(" %x: %x \n",i,(calc_toeplitz(port_rss_keya,40,b,32+4)&0xff ) );
+     }
+     #endif
+}
+
+int rss_init(){
+    toeplitz_init((uint8_t *)key,key_size);
+    return(0);
+}
+
+
+#endif
+
+int rss_calc(unsigned char* a, int b){
+    return(0);
+}
+
+TEST_F(gt_tcp, tst77) {
+  uint32_t hash[]={0x73e864a7,0xbd021303,0xeabcdebb,0xebb1bb23,0xb51d615e};
+
+  int i;
+  for (i=0; i<sizeof(hash)/sizeof(uint32_t); i++) {
+      printf(" hash:%x %x \n",hash[i],(hash[i]&0x7f)%3);
+  }
+}
+

@@ -29,8 +29,8 @@ enum {
 
 class CTrexDpdkParams {
  public:
-    uint16_t rx_data_q_num;
-    uint16_t rx_drop_q_num;
+    uint16_t rx_data_q_num; /* this is for Rx thread data */
+    uint16_t rx_drop_q_num; /* for ASTF this is *NOT* drop_q it is actualy read queues could be more than 1 */
     uint16_t rx_desc_num_data_q;
     uint16_t rx_desc_num_drop_q;
     uint16_t tx_desc_num;
@@ -99,6 +99,7 @@ class CPhyEthIF  {
         m_rx_queue=rx_queue;
     }
     virtual void conf_queues();
+
     virtual void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
                    const struct rte_eth_conf *eth_conf);
@@ -178,13 +179,6 @@ class CPhyEthIF  {
         }
     }
 
-    inline uint16_t  rx_burst_dq(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
-        if (likely( !m_is_dummy )) {
-            return rte_eth_rx_burst(m_repid, 0, rx_pkts, nb_pkts);
-        } else {
-            return 0;
-        }
-    }
 
     inline uint32_t pci_reg_read(uint32_t reg_off) {
         assert( !m_is_dummy );
@@ -208,6 +202,17 @@ class CPhyEthIF  {
 
     const std::vector<std::pair<uint8_t, uint8_t>> & get_core_list();
     TRexPortAttr * get_port_attr() { return m_port_attr; }
+
+    virtual void configure_rss();
+
+private:
+    void conf_rx_queues_astf_multi_core();
+
+    void configure_rss_astf(bool is_client,
+                           uint16_t numer_of_queues,
+                           uint16_t skip_queue);
+
+
 
  private:
     tvpid_t                  m_tvpid;
@@ -266,6 +271,7 @@ class CPhyEthIFDummy : public CPhyEthIF {
     void stats_clear() {}
     void flush_rx_queue(void) {}
     void dump_stats_extended(FILE *) {}
+    void configure_rss(){}
 };
 
 // Because it is difficult to move CGlobalTRex into this h file, defining interface class to it

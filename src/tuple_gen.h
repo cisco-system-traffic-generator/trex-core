@@ -44,6 +44,35 @@ limitations under the License.
 typedef uint16_t  pool_index_t;
 #define CS_MAX_POOLS UINT16_MAX
 
+static inline uint16_t rss_align_lsb(uint16_t val,
+                              uint16_t rss_thread_id,
+                              uint16_t rss_thread_max,
+                              uint8_t reta_mask){
+    /* input to reta table */
+
+    uint16_t hash_input = (val& reta_mask);
+    /* make it align to core id */
+    hash_input = (hash_input - (hash_input%rss_thread_max)) + rss_thread_id;
+    if (hash_input>reta_mask) {
+        hash_input=rss_thread_id;
+    }
+    val = (val & ~((uint16_t)reta_mask)) | hash_input ;
+    return(val);
+
+}
+
+static inline uint8_t reverse_bits8(uint8_t b) {
+   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+   return b;
+}
+
+static inline uint16_t rss_reverse_bits_port(uint16_t port){        
+    return ( (port&0xff00) + reverse_bits8(port&0xff));
+}
+
+
 class CTupleBase {
 public:
 
@@ -181,6 +210,11 @@ class CIpInfoBase {
         virtual void return_port(uint16_t a) = 0;
         virtual void generate_tuple(CTupleBase & tuple) = 0;
         virtual void set_start_port(uint16_t a)=0;
+
+        virtual void set_min_port(uint16_t a)=0;
+        virtual void set_inc_port(uint16_t a)=0;
+        virtual void set_sport_reverse_lsb(bool enable,uint8_t reta_mask)=0; /* for RSS */
+
         virtual void return_all_ports() = 0;
         virtual ClientCfgBase * get_client_cfg(){
             return (NULL);
@@ -205,6 +239,21 @@ class CIpInfoL : public CIpInfoBase {
         m_curr_port = MIN_PORT;
     }
 
+    /* not supported in this mode */
+    void set_min_port(uint16_t a){
+        assert(0);
+    }
+
+    /* not supported in this mode */
+    void set_inc_port(uint16_t a){
+        assert(0);
+    }
+
+    void set_sport_reverse_lsb(bool enable,uint8_t reta_mask){
+        assert(0);
+    }
+
+
     void set_start_port(uint16_t a){
         m_curr_port = a;
     }
@@ -225,13 +274,27 @@ class CIpInfoL : public CIpInfoBase {
 };
 
 
+
 class CIpInfo : public CIpInfoBase {
  private:
     std::bitset<MAX_PORT>  m_bitmap_port;
-    uint16_t m_head_port;
+    uint16_t    m_head_port;
+    uint16_t    m_port_inc;
+    uint16_t    m_min_port;
+    uint8_t     m_reverse_port;
+    uint8_t     m_reta_mask;
+
     friend class CClientInfoUT;
 
  private:
+    /* done for RSS */
+    uint16_t convert_sport(uint16_t port){
+        if (m_reverse_port==0) {
+            return(port);
+        }
+        return (rss_reverse_bits_port(port));
+    }
+
     bool is_port_available(uint16_t port) {
         if (!is_port_legal(port)) {
             return PORT_IN_USE;
@@ -244,7 +307,7 @@ class CIpInfo : public CIpInfoBase {
      *        false if the port is illegal.
      */
     bool is_port_legal(uint16_t port) {
-        if (port>=MAX_PORT || port < MIN_PORT) {
+        if (port>=MAX_PORT || port < m_min_port) {
                 return false;
         }
         return true;
@@ -261,7 +324,7 @@ class CIpInfo : public CIpInfoBase {
     void get_next_free_port_by_bit() {
         uint16_t cnt = 0;
         if (!is_port_legal(m_head_port)) {
-            m_head_port = MIN_PORT;
+            m_head_port = m_min_port;
         }
         while (true) {
             if (is_port_available(m_head_port)) {
@@ -272,19 +335,51 @@ class CIpInfo : public CIpInfoBase {
                 /*FIXME: need to trigger some alarms?*/
                 return;
             }
-            m_head_port++;
+            inc_port();
             if (m_head_port>=MAX_PORT) {
-                m_head_port = MIN_PORT;
+                m_head_port = m_min_port;
             }
         }
     }
 
+    inline void inc_port(){
+        if (m_reverse_port) { /* normal */
+            if (((m_head_port&m_reta_mask)+m_port_inc)>m_reta_mask) {
+              /* there are cases that this need to fix  */
+              m_head_port+=m_port_inc;
+              uint8_t rss_thread_id=(m_min_port&m_reta_mask)%m_port_inc; /* calc the rss_thread_id back */
+              m_head_port = rss_align_lsb(m_head_port,rss_thread_id,m_port_inc,m_reta_mask); /* fixup the port */
+            }else{
+              m_head_port+=m_port_inc;
+            }
+        }else{
+            m_head_port+=m_port_inc;
+        }
+    }
 
  public:
     CIpInfo() {
         m_head_port = MIN_PORT;
+        m_min_port  = MIN_PORT;
+        m_port_inc  = 1;
+        m_reverse_port=0;
         m_bitmap_port.reset();
     }
+
+    void set_min_port(uint16_t a){
+        m_min_port = a;
+    }
+
+    void set_sport_reverse_lsb(bool enable,uint8_t reta_mask){
+        m_reverse_port=enable?1:0;
+        m_reta_mask=reta_mask;
+    }
+
+
+    void set_inc_port(uint16_t a){
+        m_port_inc=a;
+    }
+
 
     void set_start_port(uint16_t a){
         m_head_port = a;
@@ -295,27 +390,30 @@ class CIpInfo : public CIpInfoBase {
 
         get_next_free_port_by_bit();
         if (!is_port_available(m_head_port)) {
-            m_head_port = MIN_PORT;
+            m_head_port = m_min_port ;
             return ILLEGAL_PORT;
         }
 
         m_bitmap_port[m_head_port] = PORT_IN_USE;
         r = m_head_port;
-        m_head_port++;
+        inc_port();
         if (m_head_port>MAX_PORT) {
-            m_head_port = MIN_PORT;
+            m_head_port = m_min_port;
         }
-        return r;
+
+
+        return convert_sport(r);
     }
 
     void return_port(uint16_t a) {
+        a=convert_sport(a);
         assert(is_port_legal(a));
         assert(m_bitmap_port[a]==PORT_IN_USE);
         m_bitmap_port[a] = PORT_FREE;
     }
 
     void return_all_ports() {
-        m_head_port = MIN_PORT;
+        m_head_port = m_min_port;
         m_bitmap_port.reset();
     }
 };
@@ -519,6 +617,11 @@ public:
 
     CClientPool(){
         m_thread_id=0;
+        m_rss_thread_id=0;
+        m_rss_thread_max=0;
+        m_reta_mask=0;
+        m_rss_astf_mode=false;
+
     }
 
     uint32_t GenerateTuple(CTupleBase & tuple) {
@@ -549,14 +652,27 @@ public:
                 uint16_t        tcp_aging,
                 uint16_t        udp_aging); 
 
+
     void set_thread_id(uint16_t thread_id){
         m_thread_id = thread_id;
+    }
+    void set_rss_thread_id(uint16_t rss_thread_id,
+                           uint16_t rss_thread_max,
+                           uint8_t reta_mask){
+        m_rss_astf_mode=true;
+        m_rss_thread_id  = rss_thread_id;
+        m_rss_thread_max = rss_thread_max;
+        m_reta_mask = reta_mask;
     }
 
 public: 
     uint16_t m_tcp_aging;
     uint16_t m_udp_aging;
     uint16_t m_thread_id;
+    uint16_t m_rss_thread_id;
+    uint16_t m_rss_thread_max;
+    uint8_t  m_reta_mask;
+    bool     m_rss_astf_mode;
 
 private:
     void allocate_simple_clients(uint32_t  min_ip,
@@ -568,6 +684,7 @@ private:
                                      bool            is_long_range,
                                      ClientCfgDB     &client_info);
 
+    void configure_client(uint32_t indx);
 };
 
 class CServerPoolBase {
@@ -710,11 +827,29 @@ public:
 public:
     CTupleGeneratorSmart(){
         m_was_init=false;
+        m_rss_thread_id=0;
+        m_rss_thread_max =0;
+        m_reta_mask=0;
+        m_rss_astf_mode=false;
     }
 
     bool Create(uint32_t _id, uint32_t thread_id);
 
     void Delete();
+
+    void set_astf_rss_mode(uint16_t rss_thread_id,
+                           uint16_t rss_thread_max,
+                           uint8_t  reta_mask){
+        m_rss_thread_id = rss_thread_id;
+        m_rss_thread_max = rss_thread_max;
+        m_reta_mask  = reta_mask;
+        m_rss_astf_mode =true;
+    }
+
+    bool is_astf_rss_mode(){
+        return(m_rss_astf_mode);
+    }
+
 
     inline uint32_t GetThreadId(){
         return (  m_thread_id );
@@ -757,6 +892,15 @@ public:
 private:
     uint32_t m_id;
     uint32_t m_thread_id;
+    uint16_t m_rss_thread_id; /* per port thread id 0..x, for 2 dual-ports systems with 8 threads total 
+                                  dual-0 : 0,1,2,3
+                                  dual-1 : 0,1,2,3
+                                 */
+    uint16_t m_rss_thread_max; /* how many threads per RSS port */
+    uint8_t  m_reta_mask;       /* 0xff or 0x7f */
+
+    bool     m_rss_astf_mode;        /* true for ASTF mode */
+
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
     bool     m_was_init;

@@ -772,6 +772,14 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
 
     g_gen->Create(0, thread_id);
+
+    uint16_t rss_thread_id =0;
+    uint16_t rss_thread_max  = CGlobalInfo::m_options.preview.getCores();
+    if ( rss_thread_max > 1 ) {
+        rss_thread_id = ( thread_id / (CGlobalInfo::m_options.get_expected_dual_ports() ));
+        g_gen->set_astf_rss_mode(rss_thread_id,rss_thread_max,CGlobalInfo::m_options.m_reta_mask); /* configure the generator */
+    }
+
     uint32_t active_flows_per_core;
     CIpPortion  portion;
     CTupleGenPoolYaml poolinfo;

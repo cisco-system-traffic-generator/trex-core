@@ -830,8 +830,8 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		/* Remove this check once DPDK supports larger/variable
 		 * indirection tables. */
 		if (priv->ind_table_max_size >
-				(unsigned int)ETH_RSS_RETA_SIZE_512)
-			priv->ind_table_max_size = ETH_RSS_RETA_SIZE_512;
+				(unsigned int)ETH_RSS_RETA_SIZE_128)
+			priv->ind_table_max_size = ETH_RSS_RETA_SIZE_128;
 		DEBUG("maximum RX indirection table size is %u",
 		      priv->ind_table_max_size);
 		priv->hw_vlan_strip = !!(device_attr_ex.raw_packet_caps &

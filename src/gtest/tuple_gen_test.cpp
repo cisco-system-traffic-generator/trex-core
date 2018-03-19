@@ -673,11 +673,99 @@ TEST(tuple_gen_yaml,yam_is_valid) {
 
 
 
+TEST(tuple_gen,astf_mode1) {
+    #if 0
+    #endif
+}
+
+TEST(tuple_gen,astf_mode2) {
+    uint8_t  reta_mask=0x7f;
+    int cid;
+    int tcores;
+    for (tcores=2; tcores<7; tcores++ ) {
+        for (cid=0; cid<tcores; cid++) {
+            int i;
+            for (i=0; i<0xffff; i++) {
+                uint16_t val=rss_align_lsb(i,cid,tcores,reta_mask);
+                EXPECT_EQ((val&reta_mask)%tcores,cid);
+            }
+        }
+    }
+}
+
+int test_gen_astf_rss(uint16_t rss_thread_id,
+                      uint16_t rss_thread_max,
+                      uint8_t  reta_mask,
+                      int cnt){
+    CTupleGeneratorSmart gen;
+    gen.Create(1, 1);
+    gen.set_astf_rss_mode(rss_thread_id,
+                          rss_thread_max,
+                          reta_mask);      
+    gen.add_client_pool(cdSEQ_DIST,0x10000001,0x10000001,64000,g_dummy,0,0);
+    gen.add_server_pool(cdSEQ_DIST,0x30000001,0x400000ff,64000,false);
+    CTupleTemplateGeneratorSmart template_1;
+    template_1.Create(&gen,0,0);
+
+    CTupleBase result;
+
+    int i;
+    for (i=0; i<cnt; i++) {
+        template_1.GenerateTuple(result);
+        EXPECT_EQ(result.getClient(),0x10000001);
+        //EXPECT_EQ(result.getClientPort(),golden[i]);
+        if (result.getClientPort()!=0){
+            uint16_t calc_thread_id=((rss_reverse_bits_port(result.getClientPort())&reta_mask)%rss_thread_max);
+
+
+            if (calc_thread_id != rss_thread_id) {
+                printf(" port:%x reverse_port_mask: %x  thread_id: %x original_thread_id: %d \n",
+                                                                     result.getClientPort(),
+                                                                    (rss_reverse_bits_port(result.getClientPort()) &reta_mask),
+                                                                     calc_thread_id,rss_thread_id);
+
+                EXPECT_EQ(calc_thread_id,rss_thread_id);    
+            }
+
+            CTupleGeneratorSmart * lpgen= template_1.get_gen();
+            if ( lpgen->IsFreePortRequired(0) ){
+                lpgen->FreePort(0,0, result.getClientPort());
+            }
+
+        }
+    }
+            
+    template_1.Delete();
+    gen.Delete();
+    return(0);
+}
+
+
+
+TEST(tuple_gen,astf_mode3) {
+
+    uint8_t  reta_mask=0x7f;
+    int cid;
+    int tcores;
+    for (tcores=2; tcores<7; tcores++ ) {
+        for (cid=0; cid<tcores; cid++) {
+            test_gen_astf_rss(cid,
+                              tcores,
+                              reta_mask,
+                              40000);
+
+        }
+    }
+}
+
+
+TEST(tuple_gen,astf_mode4) {
+
+    uint8_t  reta_mask=0x7f;
+    test_gen_astf_rss(1,3,reta_mask,80000);
+
+}
 
 
 
 
-/*GTEST_API_ int main(int argc, char **argv) {
-      testing::InitGoogleTest(&argc, argv);
-        return RUN_ALL_TESTS();
-} */
