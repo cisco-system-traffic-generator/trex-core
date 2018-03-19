@@ -81,8 +81,8 @@ int CTcpIOCb::on_flow_close(CTcpPerThreadCtx *ctx,
     assert(enable==true); /* all flows should have tuple generator */
 
     CAstfPerTemplateRW * cur = ctx->m_template_rw->get_template_by_id(c_template_id);
-    CTupleGeneratorSmart * lpgen= cur->m_tuple_gen.get_gen();
 
+    CTupleGeneratorSmart * lpgen= cur->m_tuple_gen.get_gen();
     if ( lpgen->IsFreePortRequired(c_pool_idx) ){
         lpgen->FreePort(c_pool_idx,c_idx,flow->m_template.m_src_port);
     }
@@ -174,6 +174,17 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
                 if ( CGlobalInfo::m_options.preview.getVMode() ==7 ){
                     fprintf(stdout,"RX---> dir %d \n",dir);
                     utl_rte_pktmbuf_dump_k12(stdout,m);
+
+                    #ifdef RSS_DEBUG
+                        if (dir==SERVER_SIDE) {
+                            uint8_t *p1=rte_pktmbuf_mtod(m, uint8_t*);
+                            uint32_t rss_hash=rss_calc(p1+14+12,12);
+                            uint16_t c=CGlobalInfo::m_options.preview.getCores();
+                            uint16_t r=(m->hash.rss&CGlobalInfo::m_options.m_reta_mask) %c;
+                            uint16_t rss_thread_id = (m_thread_id/(CGlobalInfo::m_options.get_expected_dual_ports() ));
+                            fprintf(stdout,"RX---> dir %d tid:%d(%d) hash:%08x sw:%08x RSS: %x, rss_thread %d -> (%d:%d)%s\n",dir,m_thread_id,rss_thread_id,m->hash.rss,rss_hash,((m->ol_flags&0x2)?1:0),r,r,rss_thread_id,((r==rss_thread_id)?"OK":"ERROR"));
+                        }
+                    #endif
                 }
 #endif
                 ctx->m_ft.rx_handle_packet(ctx,m);
@@ -216,6 +227,8 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     CTupleBase  tuple;
     cur->m_tuple_gen.GenerateTuple(tuple);
 
+
+
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
@@ -245,8 +258,10 @@ void CFlowGenListPerThread::generate_flow(bool &done){
         c_flow = m_c_tcp->m_ft.alloc_flow_udp(m_c_tcp,
                                                      tuple.getClient(),
                                                      tuple.getServer(),
+
                                                      tuple.getClientPort(),
                                                      tuple.getServerPort(),
+
                                                      vlan,
                                                      is_ipv6,
                                                      true);
@@ -259,6 +274,10 @@ void CFlowGenListPerThread::generate_flow(bool &done){
                                                      vlan,
                                                      is_ipv6);
     }
+
+    #ifdef  RSS_DEBUG
+    printf(" (%d) generated tuple %x:%x:%x:%x \n",m_thread_id,tuple.getClient(),tuple.getServer(),tuple.getClientPort(),tuple.getServerPort());
+    #endif
     if (c_flow == (CFlowBase *)0) {
         return;
     }

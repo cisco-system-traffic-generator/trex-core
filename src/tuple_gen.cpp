@@ -27,7 +27,12 @@ limitations under the License.
 #include "tuple_gen.h"
 
 static bool _enough_ips(uint32_t total_ip,
-                       double active_flows){
+                       double active_flows,
+                        bool rss_astf_mode){
+    if (rss_astf_mode){
+        /* don't do the optimization in case of ASTF RSS mode */
+        return(false);
+    }
     /* Socket utilization is lower than 20% */
     if ( (active_flows/((double)total_ip*(double)MAX_PORT))>0.10 ) {
         return(false);
@@ -46,7 +51,7 @@ void CServerPool::Create(IP_DIST_t  dist_value,
     uint32_t total_ip = max_ip - min_ip +1;
     gen->m_ip_info.resize(total_ip);
 
-    if ( _enough_ips(total_ip,active_flows) ) {
+    if ( _enough_ips(total_ip,active_flows,false) ) {
         for(int idx=0;idx<total_ip;idx++){
             gen->m_ip_info[idx] = new CServerInfoL();
             gen->m_ip_info[idx]->set_ip(min_ip+idx);
@@ -75,7 +80,7 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     set_dist(dist_value);
 
     uint32_t total_ip  = max_ip - min_ip +1;
-    bool is_long_range = _enough_ips(total_ip,active_flows);
+    bool is_long_range = _enough_ips(total_ip,active_flows,m_rss_astf_mode);
 
     m_ip_info.resize(total_ip);
 
@@ -91,15 +96,24 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     CreateBase(); 
 }
 
+
 /* base on thread_id and client_index 
   client index would be the same for all thread 
 */
 static uint16_t generate_rand_sport(uint32_t client_index,
-                                   uint16_t threadid){
+                                    uint16_t threadid,
+                                    uint16_t rss_thread_id,
+                                    uint16_t rss_thread_max,
+                                    uint8_t  reta_mask,
+                                    bool     rss_astf_mode){
 
     uint32_t rand  = ((214013*(client_index + 11213*threadid) + 2531011));
     uint16_t rand16 = ((rand)&0xffff);
     uint16_t port = MIN_PORT+(rand16%(MAX_PORT-MIN_PORT))+1;
+
+    if (rss_astf_mode) {
+        port = rss_align_lsb(port,rss_thread_id,rss_thread_max,reta_mask);
+    }
     return (port);
 }
 
@@ -124,11 +138,28 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
         } else {
             m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
         }
-        uint16_t port = generate_rand_sport(i,m_thread_id);
-        m_ip_info[i]->set_start_port(port);
+        configure_client(i);
     }
 
 }
+
+
+void CClientPool::configure_client(uint32_t indx){
+
+    uint16_t port = generate_rand_sport(indx,m_thread_id,
+                                             m_rss_thread_id,
+                                             m_rss_thread_max,
+                                             m_reta_mask,
+                                             m_rss_astf_mode);
+    CIpInfoBase* lp=m_ip_info[indx];
+    lp->set_start_port(port);
+    if (m_rss_astf_mode){
+        lp->set_min_port(rss_align_lsb(MIN_PORT,m_rss_thread_id,m_rss_thread_max,m_reta_mask));
+        lp->set_inc_port(m_rss_thread_max);
+        lp->set_sport_reverse_lsb(true,m_reta_mask);
+    }
+}
+
 
 /**
  * simple allocation of a client - no configuration was provided
@@ -164,8 +195,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         } else {
             m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
         }
-        uint16_t port = generate_rand_sport(i,m_thread_id);
-        m_ip_info[i]->set_start_port(port);
+        configure_client(i);
     }
 }
 
@@ -180,6 +210,9 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->set_thread_id((uint16_t)m_thread_id);
+    if (m_rss_astf_mode) {
+        pool->set_rss_thread_id(m_rss_thread_id,m_rss_thread_max,m_reta_mask);
+    }
     pool->Create(client_dist,
                  min_client,
                  max_client,
@@ -219,6 +252,9 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_thread_id     = thread_id;
     m_id = _id;
     m_was_init=true;
+    m_rss_thread_id=0;
+    m_rss_thread_max=0;
+    m_rss_astf_mode=false;
     return(true);
 }
 

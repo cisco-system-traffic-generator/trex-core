@@ -103,11 +103,12 @@ WARNING: The basic ASTF support was released, however it is under constant impro
 * Client Cluster  
 * Basic L7 emulation capability e.g. Random delay, loops, variables, Spirent and IXIA like TCP traffic patterns, Elephant flows  
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
+* More than one core per dual-ports
+* Ability to use all ports as clients or server 
 
 ===== Current high priority tasks
 
 * Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
-* More than one core per dual-ports
 
 ===== On radar  
 
@@ -1536,7 +1537,7 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 ==== Limitation 
 
 * Latency (`-l` switch) should be disabled when working in this mode because both Client and Server will send ICMP packets to all the ports
-* It is not possible to configure TRex with all ports acting as client side or all ports acting as server side. 
+* To configure TRex with all ports acting as client side or all ports acting as server side use "dummy" port configuration (see the main manual);
 
 === Client clustering configuration
 
@@ -1573,6 +1574,37 @@ To run TRex add `--client_cfg` CLI :
 The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT. 
 Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
 =====================================================================
+
+
+=== Multi core support 
+
+Distribution to multi core is done using RSS hardware assist. Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
+It can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). 
+For more complex tunnel traffic there is a need for a software distributed that will be slower. 
+It is possible to enable this assit on some virtual NIC (e.g. vmxnet3) if there would be a request for that.
+
+.NICs that support RSS
+[options="header",cols="3^,2^,2^,2^",width="50%"]
+|=================
+|  Chipset  | support | vlan skip | qinq skip
+|  Intel 82599   | + | - | -
+|  Intel 710     | + | + | -
+|  Mellanox ConnectX-5/4  | + | + |-
+| Napatech  | - | - | -
+|=================
+
+* IPv6 and IPv4 are supported. For IPv6 to work there is a need that the server side IPv6 template e.g. info.ipv6.dst_msb ="ff03::" will have zero in bits 32-40 (LSB is zero).
+
+.ipv6.dst_msb should have one zero 
+[source,bash]
+----
+                 this should be zero
+                        ||        
+ipv6: 3ffe:501:8::260:97ff:fe40:efab  #<< not supported
+ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
+                   
+----
+
 
 === Traffic profile reference 
 
@@ -1847,6 +1879,8 @@ Yes. LRO improve the performance. GRO is not there yet
 ==== Can I get the ASTF counters per port/template? 
 Curently the TCP/App layer counters are per client/server side. 
 We plan to add it in the interactive mode with RPC API. 
+
+
 
 
 

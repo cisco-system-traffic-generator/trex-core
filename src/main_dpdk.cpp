@@ -66,7 +66,6 @@
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
 
-
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
 }
@@ -170,7 +169,11 @@ protected:
 
         // when there is more than one RX queue, does RSS is configured by by default to split to all the queues.
         // some driver configure RSS by default (MLX5/ENIC) and some (Intel) does not. in case of TCP stack need to remove the latency thread from RSS
-        TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES = 0x08
+        TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES = 0x08,
+
+        /* ASTF multi-core is supported */
+        TREX_DRV_DEFAULT_ASTF_MULTI_CORE = 0x10
+
 
     } trex_drv_cap;
 
@@ -184,6 +187,11 @@ public:
     bool is_hardware_default_rss(){
         return ((m_cap & TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES) != 0);
     }
+
+    bool is_capable_astf_multi_core(){
+        return ((m_cap & TREX_DRV_DEFAULT_ASTF_MULTI_CORE) != 0);
+    }
+
     bool is_hardware_support_drop_queue() {
         return ((m_cap & TREX_DRV_CAP_DROP_Q) != 0);
     }
@@ -234,14 +242,21 @@ public:
 
     virtual void get_dpdk_drv_params(CTrexDpdkParams &p) {
         p.rx_data_q_num = 1;
+
         if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
             p.rx_drop_q_num = 0;
         } else {
             p.rx_drop_q_num = 1;
+            if (get_is_tcp_mode()) {
+                /* data queues is the number of cores , drop is the first queue in this mode */
+                p.rx_drop_q_num = CGlobalInfo::m_options.preview.getCores();
+            }
+
         }
         p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
         p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
         if (get_is_tcp_mode()) {
+            /* data queues is the number of cores , drop is the first queue in this mode */
             p.rx_desc_num_drop_q = RX_DESC_NUM_DATA_Q;
         }
         p.tx_desc_num = TX_DESC_NUM;
@@ -575,7 +590,7 @@ public:
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase10G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
     }
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -622,7 +637,7 @@ public:
         // Will have to identify the number of interfaces dynamically.
         m_if_per_card = 4;
 
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
     }
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -749,7 +764,7 @@ private:
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
     }
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -832,7 +847,7 @@ public:
 class CTRexExtendedDriverBaseNtAcc : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseNtAcc(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
         TAILQ_INIT(&lh_fid);
         // The current rte_flow.h is not C++ includable so rte_flow wrappers
         // have been made in libntacc
@@ -2775,11 +2790,24 @@ protected:
 
 class CCoreEthIFTcp : public CCoreEthIF {
 public:
+    CCoreEthIFTcp() {
+        m_rx_queue_id[CLIENT_SIDE]=0xffff;
+        m_rx_queue_id[SERVER_SIDE]=0xffff;
+    }
+
     uint16_t     rx_burst(pkt_dir_t dir,
                           struct rte_mbuf **rx_pkts,
                           uint16_t nb_pkts);
 
     virtual int send_node(CGenNode *node);
+
+    void set_rx_queue_id(uint16_t client_qid,
+                         uint16_t server_qid){
+        m_rx_queue_id[CLIENT_SIDE]=client_qid;
+        m_rx_queue_id[SERVER_SIDE]=server_qid;
+    }
+public:
+    uint16_t     m_rx_queue_id[CS_NUM]; 
 };
 
 
@@ -2969,7 +2997,7 @@ void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
 uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
-    uint16_t res = m_ports[dir].m_port->rx_burst_dq(rx_pkts,nb_pkts);
+    uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
     return (res);
 }
 
@@ -3884,6 +3912,7 @@ public:
     void init_stl();
     void init_stf();
     void init_astf();
+
     void init_astf_batch();
     
     bool is_all_links_are_up(bool dump=false);
@@ -3906,6 +3935,8 @@ public:
     }
 
 private:
+    void init_astf_vif_rx_queues();
+
     void register_signals();
 
     /* try to stop all datapath cores and RX core */
@@ -4456,6 +4487,7 @@ int  CGlobalTRex::ixgbe_start(void){
         _if->conf_queues();
         _if->stats_clear();
         _if->start();
+        _if->configure_rss();
         if (CGlobalInfo::m_options.preview.getPromMode()) {
             _if->get_port_attr()->set_promiscuous(true);
             _if->get_port_attr()->set_multicast(true);
@@ -4682,6 +4714,17 @@ void CGlobalTRex::init_stl() {
 }
 
 
+
+void CGlobalTRex::init_astf_vif_rx_queues(){
+    for (int i = 0; i < get_cores_tx(); i++) {
+        int rx_qid =(i/get_base_num_cores());   /* 0,2,3,..*/
+        if (rx_qid >= MAIN_DPDK_RX_Q) {
+            rx_qid++;
+        }
+        m_cores_vif_tcp[i+1].set_rx_queue_id(rx_qid,rx_qid);
+    }
+}
+
 void CGlobalTRex::init_astf() {
         
     for (int i = 0; i < get_cores_tx(); i++) {
@@ -4689,6 +4732,7 @@ void CGlobalTRex::init_astf() {
     }
 
     init_vif_cores();
+    init_astf_vif_rx_queues();
     rx_interactive_conf();
     
     m_stx = new TrexAstf(get_stx_cfg());
@@ -4704,6 +4748,7 @@ void CGlobalTRex::init_astf_batch() {
     }
      
      init_vif_cores();
+     init_astf_vif_rx_queues();
      rx_batch_conf();
      
      m_stx = new TrexAstfBatch(get_stx_cfg(), &m_mg);
@@ -6125,6 +6170,140 @@ int CGlobalTRex::start_master_statefull() {
 ////////////////////////////////////////////
 static CGlobalTRex g_trex;
 
+const static uint8_t server_rss_key[] = {
+ 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+ 0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+ 0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+ 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+ 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
+
+ 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+ 0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+ 0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+ 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+ 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
+};
+
+const static uint8_t client_rss_key[] = {
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0,
+
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+
+};
+
+
+
+
+void CPhyEthIF::configure_rss_astf(bool is_client,
+                                   uint16_t numer_of_queues,
+                                   uint16_t skip_queue){ 
+
+    struct rte_eth_dev_info dev_info;
+
+    rte_eth_dev_info_get(m_repid,&dev_info);
+    if (dev_info.reta_size == 0) {
+        printf("ERROR driver does not support RSS table configuration for accurate latency measurement, \n");
+        printf("You must add the flag --software to CLI \n");
+        exit(1);
+        return;
+    }
+
+    int reta_conf_size = std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE);
+
+    struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];
+
+    uint16_t skip = 0;
+    uint16_t q;
+    uint16_t indx=0;
+    for (int j = 0; j < reta_conf_size; j++) {
+        reta_conf[j].mask = ~0ULL;
+        for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
+            while (true) {
+                q=(indx + skip) % numer_of_queues;
+                if (q != skip_queue) {
+                    break;
+                }
+                skip += 1;
+            }
+            reta_conf[j].reta[i] = q;
+            indx++;
+        }
+    }              
+    assert(rte_eth_dev_rss_reta_update(m_repid, &reta_conf[0], dev_info.reta_size)==0);
+
+    #ifdef RSS_DEBUG
+     rte_eth_dev_rss_reta_query(m_repid, &reta_conf[0], dev_info.reta_size);
+     int j; int i;
+
+     printf(" RSS port  %d \n",m_tvpid);
+     /* verification */
+     for (j = 0; j < reta_conf_size; j++) {
+         for (i = 0; i<RTE_RETA_GROUP_SIZE; i++) {
+             printf(" R %d  %d \n",(j*RTE_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
+         }
+     }
+    #endif
+}
+
+
+/* configure RSS for multi-core ASTF */
+void CPhyEthIF::conf_rx_queues_astf_multi_core() {
+    CTrexDpdkParams dpdk_p;
+    socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)m_tvpid);
+
+    get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+    if ( !get_ex_drv()->is_capable_astf_multi_core() ){
+        printf("ERROR driver does not support ASTF multi cores  \n");
+        printf("You must add the flag --software to CLI \n");
+        exit(1);
+        return;
+    }
+    /* the driver support multi-core ASTF */
+
+    if (is_dummy()){
+        return;
+    }
+    uint16_t rx_q_n = dpdk_p.rx_data_q_num +
+                      dpdk_p.rx_drop_q_num;
+
+    g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
+
+
+    set_rx_queue(MAIN_DPDK_RX_Q);
+    /* configure all the rx queues, all are the same in this case  */
+    int i;
+    for (i=0; i<rx_q_n; i++) {
+        struct rte_mempool * p = get_ex_drv()->get_rx_mem_pool(socket_id);
+        rx_queue_setup(i,
+                       dpdk_p.rx_desc_num_drop_q,
+                       socket_id,
+                       &g_trex.m_port_cfg.m_rx_conf,
+                       p);
+    }
+}
+
+
+void CPhyEthIF::configure_rss(){
+    if ( !get_is_tcp_mode_multi_core() ){
+        return;
+    }
+    CTrexDpdkParams dpdk_p;
+    get_ex_drv()->get_dpdk_drv_params(dpdk_p);
+
+    configure_rss_astf(false,
+                       dpdk_p.rx_drop_q_num + dpdk_p.rx_data_q_num,
+                       MAIN_DPDK_RX_Q);
+
+}
+
 void CPhyEthIF::conf_queues() {
     CTrexDpdkParams dpdk_p;
     get_ex_drv()->get_dpdk_drv_params(dpdk_p);
@@ -6134,11 +6313,63 @@ void CPhyEthIF::conf_queues() {
     socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)m_tvpid);
     assert(CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048);
 
+    struct rte_eth_dev_info dev_info;
+    if ( get_is_tcp_mode_multi_core() ){
+       rte_eth_dev_info_get(m_repid,&dev_info);
+
+       #ifdef RSS_DEBUG
+       printf("reta_size : %d \n",dev_info.reta_size);
+       printf("hash_key  : %d \n",dev_info.hash_key_size);
+       #endif
+
+       if (dev_info.hash_key_size==0){
+          dev_info.hash_key_size=40; /* for mlx5 */
+       }
+
+       if (!rte_eth_dev_filter_supported(m_repid, RTE_ETH_FILTER_HASH)) {
+            // Setup HW touse the TOEPLITZ hash function as an RSS hash function
+            struct rte_eth_hash_filter_info info = {};
+            info.info_type = RTE_ETH_HASH_FILTER_GLOBAL_CONFIG;
+            info.info.global_conf.hash_func = RTE_ETH_HASH_FUNCTION_TOEPLITZ;
+            if (rte_eth_dev_filter_ctrl(m_repid, RTE_ETH_FILTER_HASH,
+                                        RTE_ETH_FILTER_SET, &info) < 0) {
+              printf(" ERROR cannot set hash function on a port %d \n",m_repid);
+              exit(1);
+            }
+       }
+       /* set reta_mask, for now it is ok to set one value to all ports */
+       uint8_t reta_mask=(uint8_t)(min(dev_info.reta_size,(uint16_t)256)-1);
+       if (CGlobalInfo::m_options.m_reta_mask==0){
+            CGlobalInfo::m_options.m_reta_mask = reta_mask ;
+       }else{
+          if (CGlobalInfo::m_options.m_reta_mask != reta_mask){
+               printf("ERROR reta_mask should be the same to all nics \n!");
+               exit(1);
+           }
+       }
+       g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+       struct rte_eth_rss_conf *lp_rss =&g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
+       lp_rss->rss_hf = ETH_RSS_UDP | ETH_RSS_TCP;
+       bool is_client_side = ((get_tvpid()%2==0)?true:false);
+       if (is_client_side) {
+           lp_rss->rss_key =  (uint8_t*)&client_rss_key[0];
+       }else{
+           lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
+       }
+       lp_rss->rss_key_len = dev_info.hash_key_size;
+    }
+
     configure(dpdk_p.rx_drop_q_num + dpdk_p.rx_data_q_num, num_tx_q, &g_trex.m_port_cfg.m_port_conf);
+
     for (uint16_t qid = 0; qid < num_tx_q; qid++) {
         tx_queue_setup(qid, dpdk_p.tx_desc_num , socket_id, &g_trex.m_port_cfg.m_tx_conf);
     }
     rte_mempool_t * drop_p=0;
+
+    if ( get_is_tcp_mode_multi_core() ){
+        return(conf_rx_queues_astf_multi_core());
+    }
+    /* ASTF with one core - continue to work the same */
 
     switch (dpdk_p.rx_drop_q_num) {
     case 0:
@@ -6199,6 +6430,7 @@ void CPhyEthIF::conf_queues() {
     }
 
 
+    #if 0
     /* FIX RSS to queue 0 if needed */
     if ( get_is_tcp_mode() ) {
       if ( get_ex_drv()->is_hardware_default_rss() ){
@@ -6207,7 +6439,10 @@ void CPhyEthIF::conf_queues() {
                                        MAIN_DPDK_RX_Q);
       }
     }
+    #endif
 }
+
+
 
 int CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t skip_queue) {
      struct rte_eth_dev_info dev_info;
@@ -6224,25 +6459,27 @@ int CPhyEthIF::configure_rss_redirect_table(uint16_t numer_of_queues, uint16_t s
 
      rte_eth_dev_rss_reta_query(m_repid,&reta_conf[0],dev_info.reta_size);
 
+     uint16_t skip = 0;
+     uint16_t q;
+     uint16_t indx=0;
      for (int j = 0; j < reta_conf_size; j++) {
-         uint16_t skip = 0;
          reta_conf[j].mask = ~0ULL;
          for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
-             uint16_t q;
              while (true) {
-                 q=(i + skip) % numer_of_queues;
+                 q=(indx + skip) % numer_of_queues;
                  if (q != skip_queue) {
                      break;
                  }
                  skip += 1;
              }
              reta_conf[j].reta[i] = q;
+             indx++;
          }
      }
      rte_eth_dev_rss_reta_update(m_repid, &reta_conf[0], dev_info.reta_size);
      return(0);
 
-#if 0
+#if RSS_DEBUG
      rte_eth_dev_rss_reta_query(m_repid, &reta_conf[0], dev_info.reta_size);
      int j; int i;
 
@@ -7023,11 +7260,6 @@ int main_test(int argc , char * argv[]){
     }
 
     if ( get_is_tcp_mode() ){
-        if ( po->preview.getCores() >1 ) {
-        printf("ERROR advanced stateful does not support more than 1 DP core per dual ports for now  \n");
-        printf("we are working to solve this very soon  \n");
-        return (-1);
-        }
 
         if ( po->preview.get_is_rx_check_enable() ){
            printf("ERROR advanced stateful does not require --rx-check mode, it is done by default, please remove this switch\n");
@@ -9154,3 +9386,5 @@ TrexPlatformApi &get_platform_api() {
     
     return api;
 }
+
+

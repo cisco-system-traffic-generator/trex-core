@@ -617,12 +617,19 @@ dev_configure(struct rte_eth_dev *dev)
 	INFO("%p: RX queues number update: %u -> %u",
 	     (void *)dev, priv->rxqs_n, rxqs_n);
 	priv->rxqs_n = rxqs_n;
+
+    /* remove dynamic RETA size!! not sure why this optimization was done, I want the maximum all the time, 
+       hhaim - Cisco */
+    #if 0 
 	/* If the requested number of RX queues is not a power of two, use the
 	 * maximum indirection table size for better balancing.
 	 * The result is always rounded to the next power of two. */
 	reta_idx_n = (1 << log2above((rxqs_n & (rxqs_n - 1)) ?
 				     priv->ind_table_max_size :
 				     rxqs_n));
+    #endif
+    reta_idx_n = priv->ind_table_max_size ;
+
 	if (priv_rss_reta_index_resize(priv, reta_idx_n))
 		return ENOMEM;
 	/* When the number of RX queues is not a power of two, the remaining
