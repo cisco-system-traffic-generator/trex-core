@@ -189,13 +189,13 @@ class CTRexGeneral_Test(unittest.TestCase):
         args = list(args)
         val = args.pop(-1)
         for i, arg in enumerate(args, 1):
-            if arg not in section:
-                section[arg] = {}
-            elif type(section[arg]) is not dict:
-                raise Exception('Can only change dict type sections in config file, type of section %s is %s' % (arg, type(section[arg])))
+            if type(section) is not dict:
+                raise Exception('Can only change dict type sections in config file, type of section %s is %s' % (arg, type(section)))
             if i == len(args):
                 section[arg] = val
             else:
+                if arg not in section or section[arg] is None:
+                    section[arg] = {}
                 section = section[arg]
         tmp_dir = tempfile.mkdtemp()
         try:
