@@ -106,6 +106,7 @@ class STLRX_Test(CStlGeneral_Test):
             },
             'net_ntacc': {
                 'rate_percent': 10,
+                'rate_percent_soft': 1,
                 'total_pkts': 1000,
                 'rate_latency': 1,
                 'latency_9k_enable': True,
@@ -395,7 +396,6 @@ class STLRX_Test(CStlGeneral_Test):
                                   , pkt_len, pkt_type)
 
         if tx_pkts != total_pkts:
-            pprint.pprint(flow_stats)
             self.__exit_with_error(flow_stats, xstats
                               , 'TX pkts mismatch - got: {0}, expected: {1}'.format(tx_pkts, total_pkts)
                               , pkt_len, pkt_type)
@@ -430,7 +430,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         if duration != 0:
             self.c.start(ports = [self.tx_port], duration=duration)
-            self.c.wait_on_traffic(ports = [self.tx_port],timeout = duration+10,rx_delay_ms = 100)
+            self.c.wait_on_traffic(ports = [self.tx_port], timeout = duration+10, rx_delay_ms = 100)
         else:
             self.c.start(ports = [self.tx_port])
             self.c.wait_on_traffic(ports = [self.tx_port])
