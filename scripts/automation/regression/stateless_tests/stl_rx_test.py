@@ -645,7 +645,7 @@ class STLRX_Test(CStlGeneral_Test):
                 mode = STLTXSingleBurst(total_pkts = total_pkts, pps = self.lat_pps)
             else:
                 flow_stats = STLFlowStats(pg_id = 5)
-                mode = STLTXSingleBurst(total_pkts = total_pkts, percentage = self.rate_percent)
+                mode = STLTXSingleBurst(total_pkts = total_pkts, percentage = self.rate_fstat)
 
             s = STLStream(name = data['name'],
                           packet = data['pkt'],
