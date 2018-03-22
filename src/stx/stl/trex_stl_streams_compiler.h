@@ -127,36 +127,16 @@ public:
         return (m_all_continues);
     }
 
-    std::vector<obj_st> migrate_latency() {
-        std::vector<obj_st> latency_objs;
-
-        /* define a predicate that will hit only non-null latency streams */
-        auto predicate = [](const obj_st &obj) { return (obj.m_stream->is_latency_stream() && !obj.m_stream->is_null_stream()); };
-
-        /* first filter all latency objects */
-        for (obj_st &obj : m_objs) {
-            if (predicate(obj)) {
-                latency_objs.push_back(obj);
-                /* mark those objects to be removed (safer than calling the predicate again) */
-                obj.m_stream = nullptr;
-            }
-        }
-
-        /* now remove them from this object */
-        m_objs.erase(std::remove_if(m_objs.begin(), m_objs.end(), [](const obj_st &obj) {return obj.m_stream == nullptr;}), m_objs.end());
-
-        /* RVO */
-        return latency_objs;
-
-    }
-
-
     void Dump(FILE *fd);
 
     TrexStreamsCompiledObj* clone();
 
     bool is_empty() {
         return (m_objs.size() == 0);
+    }
+
+    int size() const {
+        return m_objs.size();
     }
 
 private:
@@ -197,12 +177,25 @@ public:
 
 private:
 
-    bool compile_internal(uint8_t                                port_id,
+    void compile_internal(uint8_t                                port_id,
                           const std::vector<TrexStream *>        &streams,
                           std::vector<TrexStreamsCompiledObj *>  &objs,
-                          uint8_t                                dp_core_count,
-                          double                                 factor,
-                          std::string                            *fail_msg);
+                          const TrexDPCoreMask                   &core_mask,
+                          double                                 factor);
+
+    void migrate_to_direct_cores(const TrexDPCoreMask                         &core_mask,
+                                 const std::vector<TrexStreamsCompiledObj *>  &indirect_objs,
+                                 std::vector<TrexStreamsCompiledObj *>        &direct_objs);
+
+    void compile_non_latency_streams(uint8_t                                port_id,
+                                     const std::vector<TrexStream *>        &streams,
+                                     std::vector<TrexStreamsCompiledObj *>  &objs,
+                                     uint8_t                                dp_core_count,
+                                     double                                 factor);
+
+    void compile_latency_streams(uint8_t                                port_id,
+                                 const std::vector<TrexStream *>        &streams,
+                                 TrexStreamsCompiledObj                 *&latency_obj);
 
     void pre_compile_check(const std::vector<TrexStream *> &streams,
                            GraphNodeMap & nodes);
@@ -210,6 +203,7 @@ private:
     void direct_pass(GraphNodeMap *nodes);
     void check_for_unreachable_streams(GraphNodeMap *nodes);
     void check_stream(const TrexStream *stream);
+    void on_next_not_found(const TrexStream *stream);
     void add_warning(const std::string &warning);
     void err(const std::string &err);
 
@@ -247,9 +241,6 @@ private:
                                      std::vector<TrexStreamsCompiledObj *> &objs,
                                      int new_id,
                                      int new_next_id);
-
-
-    void migrate_latency(std::vector<TrexStreamsCompiledObj *> &objs, uint8_t port_id);
 
 
     std::vector<std::string> m_warnings;

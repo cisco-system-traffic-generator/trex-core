@@ -25,6 +25,7 @@ limitations under the License.
 #include <iostream>
 
 #include "trex_stl.h"
+#include "trex_stl_port.h"
 #include "trex_stl_stream.h"
 #include "trex_stl_streams_compiler.h"
 #include "trex_stl_vm_splitter.h"
@@ -194,12 +195,12 @@ void TrexStreamsCompiledObj::Dump(FILE *fd){
 
 void
 TrexStreamsCompiler::add_warning(const std::string &warning) {
-    m_warnings.push_back("*** warning: " + warning);
+    m_warnings.push_back("warning: " + warning);
 }
 
 void
 TrexStreamsCompiler::err(const std::string &err) {
-    throw TrexException("*** error: " + err);
+    throw TrexException("error: " + err);
 }
 
 void
@@ -267,9 +268,7 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
         /* check the stream points on an existing stream */
         GraphNode *next_node = nodes->get(stream->m_next_stream_id);
         if (!next_node) {
-            std::stringstream ss;
-            ss << "stream " << node->get_stream_id() << " is pointing on non existent stream " << stream->m_next_stream_id;
-            err(ss.str());
+           on_next_not_found(stream);
         }
 
         node->m_next = next_node;
@@ -295,6 +294,44 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
         }
     }
 }
+
+
+/**
+ * when a stream points to a non-found next stream 
+ *  
+ * can be: 
+ * 1. the next stream does not exists 
+ * 2. mixing of latency / non-latency streams 
+ * 
+ * @author imarom (3/22/2018)
+ */
+void
+TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
+
+    /* we encoutred a problem - decode the reason */
+    std::stringstream ss;
+
+    /* lookup the next in the stream table */
+    TrexStream *next = get_stateless_obj()->get_port_by_id(stream->m_port_id)->get_stream_by_id(stream->m_next_stream_id);
+
+    if (next == NULL) {
+        ss << "stream " << stream->m_stream_id << " is pointing to a non-existent stream " << stream->m_next_stream_id;
+
+    } else if (stream->is_latency_stream() != next->is_latency_stream()) {
+
+        if (stream->is_latency_stream()) {
+            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+        } else {
+            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+        } 
+    } else {
+        /* unknown problem */
+        assert(0);
+    }
+
+    err(ss.str());
+}
+
 
 /**
  * mark sure all the streams are reachable
@@ -378,6 +415,41 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
                              double                                 factor,
                              std::string                            *fail_msg) {
 
+    try {
+
+        compile_internal(port_id,
+                         streams,
+                         objs,
+                         core_mask,
+                         factor);
+        return true;
+
+    } catch (const TrexException &ex) {
+        if (fail_msg) {
+            *fail_msg = ex.what();
+        } else {
+            std::cout << ex.what();
+        }
+
+        /* cleanup in case of error */
+        for (TrexStreamsCompiledObj *obj : objs) {
+            delete obj;
+        }
+        objs.clear();
+
+        return false;
+    }
+}
+
+
+void
+TrexStreamsCompiler::compile_internal(uint8_t                                port_id,
+                                      const std::vector<TrexStream *>        &streams,
+                                      std::vector<TrexStreamsCompiledObj *>  &objs,
+                                      const TrexDPCoreMask                   &core_mask,
+                                      double                                 factor) {
+
+
     assert(core_mask.get_active_count() > 0);
 
     /* create an indirect list which contains all
@@ -388,36 +460,58 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
     
     /* zero all */
     for (int i = 0; i < indirect_core_count; i++) {
-        indirect_objs[i] = NULL;
+        indirect_objs[i] = nullptr;
     }
 
-    try {
-        bool rc = compile_internal(port_id,
-                                   streams,
-                                   indirect_objs,
-                                   indirect_core_count,
-                                   factor,
-                                   fail_msg);
-        if (!rc) {
-            return rc;
-        }
+    /* divide the streams to latency and non latency */
+    std::vector<TrexStream *> latency_streams;
+    std::vector<TrexStream *> non_latency_streams;
 
-    } catch (const TrexException &ex) {
-        if (fail_msg) {
-            *fail_msg = ex.what();
+    for (const auto stream : streams) {
+        if (stream->is_latency_stream()) {
+            latency_streams.push_back(stream);
         } else {
-            std::cout << ex.what();
+            non_latency_streams.push_back(stream);
         }
-        return false;
     }
 
-    /* prepare the result */
-    objs.resize(core_mask.get_total_count());
+
+    /* non latency streams - compile on non-direct objs */
+    compile_non_latency_streams(port_id,
+                                non_latency_streams,
+                                indirect_objs,
+                                indirect_core_count,
+                                factor);
+
+    
+    /* migrate to direct cores */
+    migrate_to_direct_cores(core_mask, indirect_objs, objs);
+
+    /* now handle the latency streams on a direct core (lowest) - if any */
+    compile_latency_streams(port_id,
+                            latency_streams,
+                            objs[0]);
+
+}
+
+
+/**
+ * after complication was done on "virtual cores" 
+ * assign them to the real cores required by the mask 
+ * 
+ */
+void
+TrexStreamsCompiler::migrate_to_direct_cores(const TrexDPCoreMask                         &core_mask,
+                                             const std::vector<TrexStreamsCompiledObj *>  &indirect_objs,
+                                             std::vector<TrexStreamsCompiledObj *>        &direct_objs) {
+
+    /* prepare result */
+    direct_objs.resize(core_mask.get_total_count());
     for (int i = 0; i < core_mask.get_total_count(); i++) {
-        objs[i] = nullptr;
+        direct_objs[i] = nullptr;
     }
 
-
+    /* migrate to direct cores */
     uint8_t index = 0;
     for (uint8_t active_core_id : core_mask.get_active_cores()) {
 
@@ -428,67 +522,17 @@ TrexStreamsCompiler::compile(uint8_t                                port_id,
             break;
         }
 
-        objs[active_core_id] = indirect_objs[index++];
+        direct_objs[active_core_id] = indirect_objs[index++];
     }
-
-
-    /* migrate any latency compiled objects to the first core */
-    migrate_latency(objs, port_id);
-
-    return true;
 }
 
 
-/**
- * due to an architecture limitation, latency streams must be 
- * injected from the first core in any port. 
- *  
- * migrate any latency objects to the first core regardless 
- * of a mask 
- */
 void
-TrexStreamsCompiler::migrate_latency(std::vector<TrexStreamsCompiledObj *> &objs, uint8_t port_id) {
-
-    /* migrate any latency compiled objects to the first core */
-    for (int core_id = 1; core_id < objs.size(); core_id++) {
-
-        if (objs[core_id] == nullptr) {
-            continue;
-        }
-
-        /* pop out any latency compiled objects */
-        std::vector<TrexStreamsCompiledObj::obj_st> latency_objs = objs[core_id]->migrate_latency();
-
-        for (const TrexStreamsCompiledObj::obj_st &latency_obj : latency_objs) {
-
-            /* generate object if does not exists */
-            if (objs[0] == nullptr) {
-                objs[0] = new TrexStreamsCompiledObj(port_id);
-            }
-
-            /* add it to core 0 */
-            objs[0]->add_compiled_stream(latency_obj.m_stream);
-        }
-    }
-
-}
-
-
-
-bool 
-TrexStreamsCompiler::compile_internal(uint8_t                                port_id,
-                                      const std::vector<TrexStream *>        &streams,
-                                      std::vector<TrexStreamsCompiledObj *>  &objs,
-                                      uint8_t                                dp_core_count,
-                                      double                                 factor,
-                                      std::string                            *fail_msg) {
-
-#if 0
-    for (auto stream : streams) {
-        stream->Dump(stdout);
-    }
-    fprintf(stdout,"------------pre compile \n");
-#endif
+TrexStreamsCompiler::compile_non_latency_streams(uint8_t                                port_id,
+                                                 const std::vector<TrexStream *>        &streams,
+                                                 std::vector<TrexStreamsCompiledObj *>  &objs,
+                                                 uint8_t                                dp_core_count,
+                                                 double                                 factor) {
 
     GraphNodeMap nodes;
 
@@ -498,10 +542,13 @@ TrexStreamsCompiler::compile_internal(uint8_t                                por
     /* check if all are cont. streams */
     bool all_continues = true;
     int  non_splitable_count = 0;
+
     for (const auto stream : streams) {
+
         if (stream->get_type() != TrexStream::stCONTINUOUS) {
             all_continues = false;
         }
+
         if (!stream->is_splitable(dp_core_count)) {
             non_splitable_count++;
         }
@@ -525,10 +572,65 @@ TrexStreamsCompiler::compile_internal(uint8_t                                por
                              nodes,
                              all_continues);
     }
-
-    return true;
-
 }
+
+
+void
+TrexStreamsCompiler::compile_latency_streams(uint8_t                                port_id,
+                                             const std::vector<TrexStream *>        &streams,
+                                             TrexStreamsCompiledObj                 *&latency_obj) {
+
+    /* no latency streams ? */
+    if (streams.size() == 0) {
+        return;
+    }
+
+    GraphNodeMap nodes;
+
+    /* compile checks */
+    pre_compile_check(streams, nodes);
+
+    if (latency_obj == nullptr) {
+        latency_obj = new TrexStreamsCompiledObj(port_id);
+        /* start with true */
+        latency_obj->m_all_continues = true;
+    } 
+
+    /* offset for stream IDs */
+    uint32_t id_offset = latency_obj->size();
+
+    std::vector<TrexStreamsCompiledObj *> objs;
+    objs.push_back(latency_obj);
+
+    /* compile all latency streams */
+    for (auto const stream : streams) {
+
+        /* skip non-enabled streams */
+        if (!stream->m_enabled) {
+            continue;
+        }
+     
+        if (stream->get_type() != TrexStream::stCONTINUOUS) {
+            latency_obj->m_all_continues = false;
+        }
+
+        /* fix the stream ids */
+        int new_id = nodes.get(stream->m_stream_id)->m_compressed_stream_id;
+        assert(new_id >= 0);
+        new_id += id_offset;
+
+        int new_next_id = ( (stream->m_next_stream_id >= 0) ? (nodes.get(stream->m_next_stream_id)->m_compressed_stream_id + id_offset) : -1);
+
+        /* compile the stream for only one core */
+        compile_stream_on_single_core(stream,
+                                      1,
+                                      objs,
+                                      new_id,
+                                      new_next_id);
+    }
+}
+
+
 
 /**
  * compile a list of streams on a single core (pinned to core 0)
