@@ -27,6 +27,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.39 ==
+
+* ASTF multi-core support see link:trex_astf.html#_multi_core_support[astf] can reach 200gb/sec with TCP/UDP stack 
+
 == Release 2.38 ==
 
 * Dummy port support. (more info in link:trex_manual.html#_dummy_ports[manual]) +
