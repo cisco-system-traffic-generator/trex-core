@@ -1090,7 +1090,9 @@ trimthenstep6:
 
         if (SEQ_LEQ(ti->ti_ack, tp->snd_una)) {
             if (ti->ti_len == 0 && tiwin == tp->snd_wnd) {
-                INC_STAT(ctx,tcps_rcvdupack);
+                if (tp->t_state!=TCPS_FIN_WAIT_2){
+                    INC_STAT(ctx,tcps_rcvdupack);  /* we can get ack on FIN-ACK and it should not considered dup */
+                }
                 /*
                  * If we have outstanding data (other than
                  * a window probe), this is a completely
