@@ -256,7 +256,7 @@ test_all_profiles :
 
 test_tcp_http :
     multiplier          : 15000
-    cores               : 1
+    cores               : 5
     bw_per_core         : 25
         
 test_ipv6_tcp_http :

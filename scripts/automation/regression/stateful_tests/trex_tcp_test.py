@@ -128,7 +128,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
 
-        core  = 1 #self.get_benchmark_param('cores')
+        core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
@@ -173,7 +173,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             self.router.config_ipv6_pbr(mode = "config")
 
 
-        core  = 1 #self.get_benchmark_param('cores')
+        core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
@@ -212,7 +212,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
 
-        core  = 1 #self.get_benchmark_param('cores')
+        core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
@@ -255,7 +255,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
 
-        core  = 1 #self.get_benchmark_param('cores')
+        core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
@@ -290,7 +290,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
 
-        core  = 1 #self.get_benchmark_param('cores')
+        core  = self.get_benchmark_param('cores')
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
