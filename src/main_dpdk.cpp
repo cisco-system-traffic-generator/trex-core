@@ -1650,11 +1650,14 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
                 po->preview.setFileWrite(false);
                 break;
             case OPT_DUMP_INTERFACES:
-                if (first_time) {
+                if ( !first_time ) {
                     rgpszArg = args.MultiArg(1);
-                    while (rgpszArg != NULL) {
-                        po->dump_interfaces.push_back(rgpszArg[0]);
-                        rgpszArg = args.MultiArg(1);
+                    if ( rgpszArg != NULL ) {
+                        cg->m_if_list.clear();
+                        do {
+                            cg->m_if_list.push_back(rgpszArg[0]);
+                            rgpszArg = args.MultiArg(1);
+                        } while (rgpszArg != NULL);
                     }
                 }
                 po->m_op_mode = CParserOption::OP_MODE_DUMP_INTERFACES;
@@ -6983,7 +6986,7 @@ int  update_dpdk_args(void){
         lpsock->dump(stdout);
     }
 
-    if ( !CGlobalInfo::m_options.m_is_vdev && (lpop->m_op_mode != CParserOption::OP_MODE_DUMP_INTERFACES) ){
+    if ( !CGlobalInfo::m_options.m_is_vdev ){
         std::string err;
         if ( port_map.set_cfg_input(cg->m_if_list,err)!= 0){
             printf("%s \n",err.c_str());
@@ -7050,13 +7053,7 @@ int  update_dpdk_args(void){
     SET_ARGS(g_master_id_str);
 
     /* add white list */
-    if ((lpop->m_op_mode == CParserOption::OP_MODE_DUMP_INTERFACES) && (lpop->dump_interfaces.size())) {
-        for (int i=0; i<(int)lpop->dump_interfaces.size(); i++) {
-            SET_ARGS("-w");
-            SET_ARGS(lpop->dump_interfaces[i].c_str());
-        }
-
-    } else if ( CGlobalInfo::m_options.m_is_vdev ) {
+    if ( CGlobalInfo::m_options.m_is_vdev ) {
         for ( std::string &iface : cg->m_if_list ) {
             if ( iface != "dummy" ) {
                 SET_ARGS(iface.c_str());

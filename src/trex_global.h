@@ -573,9 +573,9 @@ public:
     float           m_mbuf_factor;
     float           m_duration;
     float           m_platform_factor;
-    uint16_t		m_vlan_port[2]; /* vlan value */
-    uint16_t		m_src_ipv6[6];  /* Most signficant 96-bits */
-    uint16_t		m_dst_ipv6[6];  /* Most signficant 96-bits */
+    uint16_t        m_vlan_port[2]; /* vlan value */
+    uint16_t        m_src_ipv6[6];  /* Most signficant 96-bits */
+    uint16_t        m_dst_ipv6[6];  /* Most signficant 96-bits */
     CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
     uint32_t        m_latency_mask;
@@ -610,7 +610,6 @@ public:
     std::string        platform_cfg_file;
     std::string        out_file;
     std::string        prefix;
-    std::vector<std::string> dump_interfaces;
     bool            m_dummy_port_map[TREX_MAX_PORTS];
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;
