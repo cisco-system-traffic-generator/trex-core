@@ -79,6 +79,7 @@ bpf_run(bpf_h bpf, const char *buffer, uint32_t len) {
     return bpf_filter(fcode, buffer, len, len);
 }
 
+#ifdef TREX_USE_BPFJIT
 
 bpf_h
 bpfjit_compile(const char *bpf_filter) {
@@ -102,6 +103,7 @@ bpfjit_destroy(bpf_h bpfjit) {
     bpfjit_free_code((bpfjit_func_t)bpfjit);
 }
 
+#endif /* TREX_USE_BPFJIT */
 
 #ifdef __cplusplus
 }

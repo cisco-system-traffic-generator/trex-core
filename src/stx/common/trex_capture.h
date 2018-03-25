@@ -29,8 +29,6 @@ limitations under the License.
 #include "trex_capture_rc.h"
 #include "bpf_api.h"
 
-/* use BPFJIT */
-#define TREX_USE_BPFJIT
 
 /**
  * a class to handle BPF filter 
