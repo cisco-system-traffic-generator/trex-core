@@ -791,11 +791,22 @@ if march == 'x86_64':
                   dpdk_src,
                   dpdk_src_x86_64
                   ]);
+
+    # BPF + JIT
+    bpf = SrcGroups([
+                bpf_src,
+                bpfjit_src]);
+
+
 elif march == 'aarch64':
     bp_dpdk = SrcGroups([
                   dpdk_src,
                   dpdk_src_aarch64
                   ]);
+
+    # software BPF
+    bpf = SrcGroups([bpf_src]);
+
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
@@ -808,9 +819,6 @@ mlx4_dpdk =SrcGroups([
                 mlx4_dpdk_src
                 ]);
 
-bpf = SrcGroups([
-                bpf_src,
-                bpfjit_src]);
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -871,6 +879,7 @@ if march == 'x86_64':
                     '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
                     '-DRTE_MACHINE_CPUFLAG_AVX',
                     '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
+                    '-DTREX_USE_BPFJIT',
                    ]
 
     common_flags_old = common_flags + [
@@ -879,6 +888,7 @@ if march == 'x86_64':
                       '-mtune=generic',
                       '-DRTE_MACHINE_CPUFLAG_SSE',
                       '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
+                      '-DTREX_USE_BPFJIT',
                       ];
 
 elif march == 'aarch64':
