@@ -5,13 +5,15 @@ class STLMultiCore(object):
 
     def __init__ (self):
         # default IMIX properties
-        self.streams_def = [ {'size': 300,   'pps': 2884,  'isg':0 },
+        self.streams_def = [ {'size': 300,   'pps': 1,  'isg':0 },
                             #{'size': 590,  'pps': 20,  'isg':0.1 },
                             #{'size': 1514, 'pps': 4,   'isg':0.2 } 
                             ]
 
+        self.tests = {'vars': self.test_var, 'tuple': self.test_tuple, 'topology': self.test_topology}
 
-    def create_stream (self, size, pps, isg, vm ):
+
+    def create_stream (self, size, pps, isg, vm = None, mode = "cont", name = None, next = None, self_start = True, pg_id = None):
         # Create base packet and pad it to size
         base_pkt = Ether()/IP()/UDP(sport = 1500, dport = 1500)
         pad = max(0, size - len(base_pkt)) * b'\xff'
@@ -19,9 +21,13 @@ class STLMultiCore(object):
         pkt = STLPktBuilder(pkt = base_pkt/pad,
                             vm = vm)
 
-        return STLStream(isg = isg,
+        return STLStream(name = name,
+                         next = next,
+                         isg = isg,
                          packet = pkt,
-                         mode = STLTXCont(pps = pps))
+                         self_start = self_start,
+                         flow_stats = STLFlowLatencyStats(pg_id = pg_id) if pg_id is not None else None,
+                         mode = STLTXCont(pps = pps) if mode == "cont" else STLTXSingleBurst(total_pkts = 100, pps = pps))
 
 
     def generate_var (self, rng, i, vm, pkt_offset, verbose = False):
@@ -90,29 +96,65 @@ class STLMultiCore(object):
         
 
 
-
-    def get_streams (self, direction = 0, **kwargs):
-      
-        rng = random.Random(kwargs.get('seed', 1))
-        test_type = kwargs.get('test_type', 'plain')
-
-        # base offset
+    def test_var (self):
         pkt_offset = 42
 
         vm = STLVM()
+        for i in range(20):
+            pkt_offset += self.generate_var(self.rng, i, vm, pkt_offset)
 
-        if test_type == 'plain':
-            for i in range(20):
-                pkt_offset += self.generate_var(rng, i, vm, pkt_offset)
-        elif test_type == 'tuple':
-            for i in range(5):
-                pkt_offset += self.generate_tuple_var(rng, i, vm, pkt_offset)
-        else:
+        return [self.create_stream(300, 1, 0, vm)]
+
+
+    def test_tuple (self):
+        pkt_offset = 42
+
+        vm = STLVM()
+        for i in range(5):
+            pkt_offset += self.generate_tuple_var(self.rng, i, vm, pkt_offset)
+
+        return [self.create_stream(300, 1, 0, vm)]
+
+
+    def generate_single_var (self):
+        vm = STLVM()
+        self.generate_var(self.rng, 1, vm, 42)
+        return vm
+
+
+    def test_topology (self):
+        pkt_offset = 42
+
+        # two continous streams
+        s1 = self.create_stream(134, 1, 0, self.generate_single_var())
+        s2 = self.create_stream(182, 2, 11, self.generate_single_var())
+
+        # two bursts
+        s3 = self.create_stream(142, 3, 23,  vm = self.generate_single_var(), mode = "burst")
+        s4 = self.create_stream(153, 5, 37,  vm = None, mode = "burst")
+
+        # single burst pointing to cont.
+        s5 = self.create_stream(117, 7, 48,  vm = self.generate_single_var(), mode = "burst", name = "s5", next = "s6")
+        s6 = self.create_stream(121, 3, 51,  vm = self.generate_single_var(), mode = "burst", name = "s6", self_start = False)
+
+        # latency pointing at each other
+        s7 = self.create_stream(113, 7, 48,  vm = self.generate_single_var(), mode = "burst", name = "s7", next = "s8", pg_id = 1)
+        s8 = self.create_stream(127, 3, 51,  vm = self.generate_single_var(), mode = "cont", name = "s8", self_start = False, pg_id = 2)
+
+        return [s1, s2, s3, s4, s5, s6, s7, s8]
+
+
+    def get_streams (self, direction = 0, **kwargs):
+
+        self.rng = random.Random(kwargs.get('seed', 1))
+
+        test_type = kwargs.get('test_type', 'vars')
+
+        func = self.tests.get(test_type, None)
+        if not func:
             raise STLError('unknown mutli core test type')
 
-
-        # create imix streams
-        return [self.create_stream(x['size'], x['pps'],x['isg'] , vm) for x in self.streams_def]
+        return func()
 
 
 
