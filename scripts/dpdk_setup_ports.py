@@ -614,7 +614,9 @@ Other network devices
             ret = os.system(cmd)
             os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
             if ret:
-                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.')
+                with open(json_file) as f:
+                    out = '    ' + '\n    '.join(f.read().splitlines())
+                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.\nProduced output:\n%s' % out)
 
 
     def config_hugepages(self, wanted_count = None):
