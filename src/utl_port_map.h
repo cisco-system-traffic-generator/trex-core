@@ -132,8 +132,7 @@ private:
     void add_dpdk(std::string name);
 
     int find(CPciPortCfgDesc * lp,
-             uint8_t & index, 
-             std::string & err);
+             uint8_t & index);
 
     int dump_vec(FILE *fd,
                  std::string vec_name,

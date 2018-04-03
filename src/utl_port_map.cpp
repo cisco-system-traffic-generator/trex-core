@@ -204,12 +204,6 @@ int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
         m_dpdk_pci_scan.push_back(npci);
     }
 
-    /* check counter */
-    if ( dpdk_scan.size() < m_vec.size() ) {
-        err ="ERROR scan size should be equal of bigger than input";
-        return (-1);
-    }
-
     dpdk_map_name_to_int_t  m_map_scan; /* scan index */
 
     for (i=0; i<m_dpdk_pci_scan.size(); i++) {
@@ -219,10 +213,10 @@ int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
 
         /* already there */
         if ( it != m_map_scan.end() ){
-            val=(*it).second+1;
-            it->second=val;
+            it->second++;
+            val=it->second;
         }else{
-            m_map_scan.insert(std::make_pair(pci,0));
+            m_map_scan[pci]=0;
             val=0;
         }
         CPciPortCfgDesc * lp= new CPciPortCfgDesc();
@@ -239,7 +233,8 @@ int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
         } else {
             CPciPortCfgDesc * lp = m_vec[m_vec_index];
             m_vec_index++;
-            if ( find(lp, index, err)!=0){
+            if ( find(lp, index)!=0){
+                err = "Could not find requested interface " + m_input[i];
                 return(-1);
             }
             port_map.push_back(index);
@@ -252,8 +247,7 @@ int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
 
 /* could be done faster with hash but who care for max of 16 ports ..*/
 int CPciPorts::find(CPciPortCfgDesc * lp,
-                    uint8_t & index, 
-                    std::string & err){
+                    uint8_t & index){
     int i;
     for (i=0; i<m_scan_vec.size(); i++) {
         if (lp->compare(m_scan_vec[i]) ) {
@@ -261,8 +255,6 @@ int CPciPorts::find(CPciPortCfgDesc * lp,
             return(0);
         }
     }
-    err = "ERROR can't find object";
-    lp->dump(stdout);
     return(-1);
 }
 
