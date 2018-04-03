@@ -7454,7 +7454,13 @@ void wait_x_sec(int sec) {
 
 /* should be called after rte_eal_init() */
 void set_driver() {
-    uint8_t m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+    uint8_t m_max_ports;
+    if ( CGlobalInfo::m_options.m_is_vdev ) {
+        m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+    } else {
+        m_max_ports = port_map.get_max_num_ports();
+    }
+
     if ( m_max_ports != CGlobalInfo::m_options.m_expected_portd ) {
         printf("Could not find all interfaces (asked for: %u, found: %u).\n", CGlobalInfo::m_options.m_expected_portd, m_max_ports);
         exit(1);
