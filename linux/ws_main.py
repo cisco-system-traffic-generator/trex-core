@@ -640,10 +640,12 @@ def build_info(bld):
     pass;
       
 def install_single_system (bld, exec_p, build_obj):
-    o='build/linux/';
+    o=bld.out_dir+'/linux/';
     src_file =  os.path.realpath(o+build_obj.get_target())
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()
+        if os.path.islink(dest_file):
+            os.unlink(dest_file)
         if not os.path.lexists(dest_file):
             relative_path = os.path.relpath(src_file, exec_p)
             os.symlink(relative_path, dest_file);
