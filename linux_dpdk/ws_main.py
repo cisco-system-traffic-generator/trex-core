@@ -1372,6 +1372,9 @@ def do_create_link (src, name, where):
 
         full_link = os.path.join(where, name)
 
+        if os.path.islink(full_link):
+            os.unlink(full_link)
+
         if not os.path.lexists(full_link):
             rel_path = os.path.relpath(src, where)
             print('{0} --> {1}'.format(name, rel_path))
@@ -1381,7 +1384,7 @@ def do_create_link (src, name, where):
 
 def install_single_system (bld, exec_p, build_obj):
 
-    o = 'build_dpdk/linux_dpdk/'
+    o = bld.out_dir+'/linux_dpdk/'
 
     # executable
     do_create_link(src = os.path.realpath(o + build_obj.get_target()),
@@ -1478,7 +1481,7 @@ def build_test(bld):
     create_version_files ()
 
 def _copy_single_system (bld, exec_p, build_obj):
-    o='build_dpdk/linux_dpdk/';
+    o=bld.out_dir+'/linux_dpdk/';
     src_file =  os.path.realpath(o+build_obj.get_target())
     print(src_file)
     if os.path.exists(src_file):
@@ -1616,6 +1619,8 @@ def release(bld, custom_dir = None):
     print("copy images and libs")
     os.system(' mkdir -p '+exec_p);
 
+    # get build context to refer the build output dir
+    bld=Build.Context.create_context('build')
     for obj in build_types:
         copy_single_system(bld,exec_p,obj)
         copy_single_system1(bld,exec_p,obj)
