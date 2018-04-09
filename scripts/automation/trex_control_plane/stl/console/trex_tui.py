@@ -910,8 +910,8 @@ class AsyncKeysEngineConsole:
                    '?'            : self.action_help}
 
         # fetch readline history and add relevants
-        for i in range(0, readline.get_current_history_length()):
-            cmd = readline.get_history_item(i)
+        for i in range(1, readline.get_current_history_length()):
+            cmd = readline.get_history_item(i).strip()
             if cmd and cmd.split()[0] in self.ac:
                 self.lines.appendleft(CmdLine(cmd))
 
