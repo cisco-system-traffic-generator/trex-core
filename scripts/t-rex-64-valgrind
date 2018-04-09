@@ -13,7 +13,7 @@ if [ $RESULT -ne 0 ]; then
 fi
 
 pci_desc_re='^(\S+) - (.+)$'
-source find_python.sh
+source find_python.sh --local
 while read line
 do
     if [[ "$line" =~ $pci_desc_re ]]; then
