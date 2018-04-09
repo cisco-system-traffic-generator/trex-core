@@ -25,6 +25,6 @@ fi
 # try to bind the ports from the configuration file (new DPDK)
 PARENT_ARGS="$0 $@"
 
-source find_python.sh
+source find_python.sh --local
 $PYTHON ./dpdk_setup_ports.py --parent "$PARENT_ARGS"
 
