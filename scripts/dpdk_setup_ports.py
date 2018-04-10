@@ -1,4 +1,7 @@
-#! /usr/bin/python
+#! /bin/bash
+"source" "find_python.sh" "--local"
+"exec" "$PYTHON" "$0" "$@"
+
 # hhaim
 import sys
 import os
