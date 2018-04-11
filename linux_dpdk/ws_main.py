@@ -619,6 +619,12 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  #af_packet
                  'drivers/net/af_packet/rte_eth_af_packet.c',
 
+                 #Amazone ENA
+                 'drivers/net/ena/ena_ethdev.c',
+                 'drivers/net/ena/base/ena_com.c',
+                 'drivers/net/ena/base/ena_eth_com.c',
+
+
                  #libs
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
@@ -689,6 +695,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
                  'drivers/net/virtio/virtio_user/vhost_user.c',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
+
 
                  #libs
                  'lib/librte_cfgfile/rte_cfgfile.c',
@@ -950,6 +957,10 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/virtio/virtio_user/
                         ../src/dpdk/drivers/net/vmxnet3/
                         ../src/dpdk/drivers/net/vmxnet3/base
+
+                        ../src/dpdk/drivers/net/ena/
+                        ../src/dpdk/drivers/net/ena/base/
+                        ../src/dpdk/drivers/net/ena/base/ena_defs/
                          
                         ../src/dpdk/lib/
                         ../src/dpdk/lib/librte_cfgfile/
