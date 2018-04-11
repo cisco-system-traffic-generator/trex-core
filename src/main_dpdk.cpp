@@ -144,6 +144,8 @@ static char g_mlx5_so_id_str[50];
 static char g_mlx4_so_id_str[50];
 static char g_image_postfix[10];
 static CPciPorts port_map;
+static rte_eth_dev_info g_dev_info;
+
 #define TREX_NAME "_t-rex-64"
 
 static uint16_t all_eth_types[]  = {
@@ -1004,6 +1006,7 @@ private:
         register_driver(std::string("net_e1000_em"), CTRexExtendedDriverBaseE1000::create);
         register_driver(std::string("net_vmxnet3"), CTRexExtendedDriverVmxnet3::create);
         register_driver(std::string("net_virtio"), CTRexExtendedDriverVirtio::create);
+        register_driver(std::string("net_ena"),CTRexExtendedDriverVirtio::create);
         register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverI40evf::create);
         register_driver(std::string("net_ixgbe_vf"), CTRexExtendedDriverIxgbevf::create);
 
@@ -7473,6 +7476,7 @@ void set_driver() {
             break;
         }
     }
+    g_dev_info = dev_info;
 
     if ( !CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name) ){
         printf("\nError: driver %s is not supported. Please consult the documentation for a list of supported drivers\n"
@@ -7518,6 +7522,8 @@ void set_driver() {
             printf("checksum-offload disabled by user \n");
         }
     }
+
+    
 }
 
 
@@ -9009,7 +9015,9 @@ void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg){
         if ( get_is_tcp_mode() ) {
             cfg->m_port_conf.rxmode.enable_lro = 1;
         }
-
+        if (cfg->m_port_conf.rxmode.max_rx_pkt_len > g_dev_info.max_rx_pktlen ) {
+            cfg->m_port_conf.rxmode.max_rx_pkt_len = g_dev_info.max_rx_pktlen;
+        }
 }
 
 
