@@ -1370,6 +1370,9 @@ def build_info(bld):
     pass;
 
 
+def compare_link(link_path, dst_path):
+    return os.path.abspath(os.readlink(link_path)) == os.path.abspath(dst_path)
+
 def do_create_link (src, name, where):
     '''
         creates a soft link
@@ -1382,14 +1385,15 @@ def do_create_link (src, name, where):
     if os.path.exists(src):
 
         full_link = os.path.join(where, name)
+        rel_path  = os.path.relpath(src, where)
 
         if os.path.islink(full_link):
+            if compare_link(full_link, rel_path):
+                return
             os.unlink(full_link)
 
         if not os.path.lexists(full_link):
-            rel_path = os.path.relpath(src, where)
             print('{0} --> {1}'.format(name, rel_path))
-
             os.symlink(rel_path, full_link)
 
 
