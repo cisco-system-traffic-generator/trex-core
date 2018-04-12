@@ -3563,7 +3563,12 @@ public:
 public:
     void Dump(FILE *fd,DumpFormat mode);
     void DumpAllPorts(FILE *fd);
+
     void dump_json(std::string & json, bool baseline);
+
+private:
+    bool is_dump_nat();
+
 private:
     std::string get_field(const char *name, float &f);
     std::string get_field(const char *name, uint64_t &f);
@@ -3681,20 +3686,17 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
     json+="\"unknown\":0}}"  ;
 }
 
+bool CGlobalStats::is_dump_nat(){
+    return( CGlobalInfo::is_learn_mode() && (get_is_tcp_mode()==0) );
+}
+
 void CGlobalStats::DumpAllPorts(FILE *fd){
-
-    //fprintf (fd," Total-Tx-Pkts   : %s  \n",double_to_human_str((double)m_total_tx_pkts,"pkts",KBYE_1000).c_str());
-    //fprintf (fd," Total-Rx-Pkts   : %s  \n",double_to_human_str((double)m_total_rx_pkts,"pkts",KBYE_1000).c_str());
-
-    //fprintf (fd," Total-Tx-Bytes  : %s  \n",double_to_human_str((double)m_total_tx_bytes,"bytes",KBYE_1000).c_str());
-    //fprintf (fd," Total-Rx-Bytes  : %s  \n",double_to_human_str((double)m_total_rx_bytes,"bytes",KBYE_1000).c_str());
-
 
 
     fprintf (fd," Cpu Utilization : %2.1f  %%  %2.1f Gb/core \n",m_cpu_util,m_bw_per_core);
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
-    if ( CGlobalInfo::is_learn_mode() ) {
+    if ( is_dump_nat() ) {
         fprintf (fd," NAT time out    : %8llu", (unsigned long long)m_total_nat_time_out);
         if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
             fprintf (fd," (%llu in wait for syn+ack)\n", (unsigned long long)m_total_nat_time_out_wait_ack);
@@ -3707,14 +3709,14 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 
 
     fprintf (fd," Total-Rx        : %s  ",double_to_human_str(m_rx_bps,"bps",KBYE_1000).c_str());
-    if ( CGlobalInfo::is_learn_mode() ) {
+    if ( is_dump_nat() ) {
         fprintf (fd," NAT aged flow id: %8llu \n", (unsigned long long)m_total_nat_no_fid);
     }else{
         fprintf (fd,"\n");
     }
 
     fprintf (fd," Total-PPS       : %s  ",double_to_human_str(m_tx_pps,"pps",KBYE_1000).c_str());
-    if ( CGlobalInfo::is_learn_mode() ) {
+    if ( is_dump_nat() ) {
         fprintf (fd," Total NAT active: %8llu", (unsigned long long)m_total_nat_active);
         if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP_ACK)) {
             fprintf (fd," (%llu waiting for syn)\n", (unsigned long long)m_total_nat_syn_wait);
@@ -3726,14 +3728,14 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
     }
 
     fprintf (fd," Total-CPS       : %s  ",double_to_human_str(m_tx_cps,"cps",KBYE_1000).c_str());
-    if ( CGlobalInfo::is_learn_mode() ) {
+    if ( is_dump_nat() ) {
         fprintf (fd," Total NAT opened: %8llu \n", (unsigned long long)m_total_nat_open);
     }else{
         fprintf (fd,"\n");
     }
     fprintf (fd,"\n");
     fprintf (fd," Expected-PPS    : %s  ",double_to_human_str(m_tx_expected_pps,"pps",KBYE_1000).c_str());
-    if ( CGlobalInfo::is_learn_verify_mode() ) {
+    if ( is_dump_nat() && CGlobalInfo::is_learn_verify_mode() ) {
         fprintf (fd," NAT learn errors: %8llu \n", (unsigned long long)m_total_nat_learn_error);
     }else{
         fprintf (fd,"\n");
@@ -7266,9 +7268,10 @@ int main_test(int argc , char * argv[]){
            return (-1);
         }
 
-        if ( po->m_learn_mode !=0 ){
-           printf("ERROR advanced stateful does not require --learn/--learn-mode, it is done by default, please remove this switch\n");
-           return (-1);
+        /* set latency to work in ICMP mode with learn mode */
+        po->m_learn_mode = CParserOption::LEARN_MODE_IP_OPTION;
+        if (po->m_l_pkt_mode ==0){
+            po->m_l_pkt_mode =L_PKT_SUBMODE_REPLY;
         }
 
         if ( po->preview.getClientServerFlip() ){

@@ -126,7 +126,9 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
     m_dummy_node.m_flags =CGenNode::NODE_FLAGS_LATENCY;
 }
 
-rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
+rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, 
+                                           uint32_t extern_ip,
+                                           uint32_t extern_dest_ip) {
     bool is_client_to_server = (port_id % 2 == 0) ? true:false;
     int dual_port_index = port_id >> 1;
     uint32_t mask = dual_port_index * m_dual_port_mask;
@@ -136,17 +138,19 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, uint32_t extern_ip) {
     if (is_client_to_server) {
         if ( extern_ip ) {
             m_dummy_node.m_src_ip = extern_ip;
+            m_dummy_node.m_dest_ip = extern_dest_ip;
         } else {
             m_dummy_node.m_src_ip = c + mask;
+            m_dummy_node.m_dest_ip = s + mask;
         }
-        m_dummy_node.m_dest_ip = s + mask;
     } else {
         if ( extern_ip ) {
             m_dummy_node.m_dest_ip = extern_ip;
+            m_dummy_node.m_src_ip = extern_dest_ip;
         } else {
             m_dummy_node.m_dest_ip = c + mask;
+            m_dummy_node.m_src_ip = s + mask;
         }
-        m_dummy_node.m_src_ip = s + mask;
     }
 
     rte_mbuf_t *m = m_pkt_info.generate_new_mbuf(&m_dummy_node);
@@ -261,6 +265,7 @@ bool CCPortLatency::Create(CLatencyManager * parent,
     m_nat_can_send = nat_is_port_can_send(m_id);
     m_nat_learn    = m_nat_can_send;
     m_nat_external_ip=0;
+    m_nat_external_dest_ip=0;
     if ( CGlobalInfo::m_options.m_dummy_port_map[m_id] ) {
         set_dummy_port_in_pair();
         rx_port->set_dummy_port_in_pair();
@@ -426,10 +431,12 @@ bool CCPortLatency::check_rx_check(rte_mbuf_t * m) {
     return (true);
 }
 
-bool CCPortLatency::do_learn(uint32_t external_ip) {
+bool CCPortLatency::do_learn(uint32_t external_ip,
+                             uint32_t external_dest_ip) {
     m_nat_learn=true;
     m_nat_can_send=true;
     m_nat_external_ip=external_ip;
+    m_nat_external_dest_ip = external_dest_ip ;
     return (true);
 }
 
@@ -532,7 +539,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     } // End of check for non-latency packet
     // learn for latency packets. We only have one flow for latency, so translation is for it.
     if ( CGlobalInfo::is_learn_mode() && (m_nat_learn ==false) ) {
-        do_learn(parser.m_ipv4->getSourceIp());
+        do_learn(parser.m_ipv4->getSourceIp(),parser.m_ipv4->getDestIp());
     }
 
     if ( (pkt_size-vlan_offset) != m_pkt_size ) {
@@ -644,13 +651,21 @@ void  CLatencyManager::send_pkt_all_ports(){
         if ( m_port_mask & (1<<i)  ){
             CLatencyManagerPerPort * lp=&m_ports[i];
             if (lp->m_port.can_send_packet(i%2) ){
-                rte_mbuf_t * m=m_pkt_gen.generate_pkt(i,lp->m_port.external_nat_ip());
+                rte_mbuf_t * m=m_pkt_gen.generate_pkt(i,lp->m_port.external_nat_ip(),
+                                                        lp->m_port.external_dest_ip());
                 lp->m_port.update_packet(m, i);
 
 #ifdef LATENCY_DEBUG
                 uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
                 c_l_pkt_mode->send_debug_print(p + 34);
+                /****************************************/
+                uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
+                uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
+                utl_k12_pkt_format(stdout,p ,pkt_size) ;
+                /****************************************/
 #endif
+
+
                 if ( lp->m_io->tx_latency(m) == 0 ){
                     lp->m_port.m_tx_pkt_ok++;
                 }else{

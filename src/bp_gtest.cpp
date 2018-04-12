@@ -543,7 +543,7 @@ create_latency_test_pkt(uint8_t l_pkt_mode, uint16_t &pkt_size, uint8_t port_id,
     info.Create(c_l_pkt_mode);
     port0.Create(&mgr, 0, info.get_payload_offset(), info.get_l4_offset(), info.get_pkt_size(), 0);
     info.set_ip(l_pkt_test_s_ip ,l_pkt_test_d_ip, 0x01000000);
-    m=info.generate_pkt(0);
+    m=info.generate_pkt(0,0);
     while (pkt_num > 0) {
         pkt_num--;
         port0.update_packet(m, port_id);

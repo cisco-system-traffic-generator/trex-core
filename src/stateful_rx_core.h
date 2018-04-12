@@ -60,7 +60,7 @@ public:
                 ClientCfgDB            &db);
     
     
-    rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0);
+    rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0,uint32_t extern_dest_ip=0);
 
     CGenNode   *    getNode(){
         return (&m_dummy_node);
@@ -133,8 +133,14 @@ public:
     uint32_t external_nat_ip(){
         return (m_nat_external_ip);
     }
+
+    uint32_t external_dest_ip(){
+        return (m_nat_external_dest_ip);
+    }
+
     void update_packet(rte_mbuf_t * m, int port_id);
-    bool do_learn(uint32_t external_ip);
+    bool do_learn(uint32_t external_ip,
+                  uint32_t external_dest_ip);
     bool check_packet(rte_mbuf_t * m, CRx_check_header * & rx_p);
     bool check_rx_check(rte_mbuf_t * m);
     bool dump_packet(rte_mbuf_t * m);
@@ -193,6 +199,7 @@ private:
      bool              m_nat_learn;
      bool              m_nat_can_send;
      uint32_t          m_nat_external_ip;
+     uint32_t          m_nat_external_dest_ip;
      bool     m_dummy_port_in_pair; /* one of ports on this core is dummy */
      uint32_t m_tx_seq;
      uint32_t m_rx_seq;
