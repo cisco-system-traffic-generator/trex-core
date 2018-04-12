@@ -27,6 +27,7 @@
 
 #include "trex_pkt.h"
 #include "trex_rx_feature_api.h"
+#include "trex_stack_base.h"
 
 class CPortLatencyHWBase;
 class CRFC2544Info;
@@ -128,54 +129,6 @@ private:
 };
 
 
-/**************************************
- * RX server (ping, ARP and etc.)
- * 
- *************************************/
-class RXPktParser;
-class RXServer {
-public:
-    
-    RXServer();
-    
-    void create(RXFeatureAPI *api);
-    void handle_pkt(const rte_mbuf_t *m);
-    
-private:
-    void handle_icmp(RXPktParser &parser);
-    void handle_arp(RXPktParser &parser);
-    rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
-    
-    RXFeatureAPI *m_api;
-};
-
-/**************************************
- * Gratidious ARP
- * 
- *************************************/
-class RXGratARP {
-public:
-    RXGratARP() {
-        m_api = NULL;
-        m_ign_stats = NULL;
-    }
-    
-    void create(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
-
-    
-    /**
-     * the main 'tick' of the service
-     * 
-     */
-    void send_next_grat_arp();
-    
-    Json::Value to_json() const;
-    
-private:
-    RXFeatureAPI         *m_api;
-    CRXCoreIgnoreStat    *m_ign_stats;
-};
-
 /************************ manager ***************************/
 
 /**
@@ -188,21 +141,24 @@ class RXPortManager {
     
 public:
     enum feature_t {
-        NO_FEATURES  = 0x0,
-        LATENCY      = 0x1,
-        QUEUE        = 0x4,
-        SERVER       = 0x8,
-        GRAT_ARP     = 0x10,
+        NO_FEATURES  = 0,
+        LATENCY      = 1,
+        QUEUE        = 1 << 1,
+        STACK        = 1 << 2,
     };
 
     RXPortManager();
     RXPortManager(const RXPortManager &other);
+    ~RXPortManager(void);
 
-    void create(uint32_t port_id,
+    void create_async(uint32_t port_id,
                 CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
                 CCpuUtlDp *cpu_util);
+    void wait_for_create_done(void);
+    void cleanup_async(void);
+    void wait_for_cleanup_done(void);
 
     void clear_stats() {
         m_latency.reset_stats();
@@ -219,6 +175,10 @@ public:
     
     RXLatency & get_latency() {
         return m_latency;
+    }
+
+    CStackBase *get_stack() {
+        return m_stack;
     }
 
     /* latency */
@@ -249,14 +209,6 @@ public:
         return m_queue.fetch();
     }
 
-    void start_grat_arp() {
-        set_feature(GRAT_ARP);
-    }
-    
-    void stop_grat_arp() {
-        unset_feature(GRAT_ARP);
-    }
-
     /**
      * fetch and process all packets
      * 
@@ -272,32 +224,7 @@ public:
         process_all_pending_pkts(true);
     }
 
-    
-    /**
-     * handle a single packet
-     * 
-     */
-    void handle_pkt(const rte_mbuf_t *m);
 
-    /**
-     * send next grat arp (if on)
-     * 
-     * @author imarom (12/13/2016)
-     */
-    void send_next_grat_arp();
-
-    /**
-     * set port mode to L2
-     */
-    void set_l2_mode();
-    
-    /**
-     * set port mode to L3
-     * 
-     * @author imarom (12/13/2016)
-     */
-    void set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed);
-  
     /**
      * TX packets immediately (no queue)
      *  
@@ -306,13 +233,6 @@ public:
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
     
-    
-    /**
-     * configure VLAN
-     */
-    void set_vlan_cfg(const VLANConfig &vlan_cfg) {
-        m_vlan_cfg = vlan_cfg;
-    }
     
     bool has_features_set() {
         return (m_features != NO_FEATURES);
@@ -335,12 +255,21 @@ public:
     /**
      * write the status to a JSON format
      */
-    Json::Value to_json() const;
-    
+    void to_json(Json::Value &feat_res) const;
+
 private:
-  
-  
-      
+
+    // currently read from Linux sockets and send through port
+    // might be extended later to other features
+    uint16_t handle_tx(void);
+
+    /**
+     * handle a single packet
+     * 
+     */
+    void handle_pkt(const rte_mbuf_t *m);
+
+
     void clear_all_features() {
         m_features = NO_FEATURES;
     }
@@ -352,20 +281,16 @@ private:
     void unset_feature(feature_t feature) {
         m_features &= (~feature);
     }
-  
+
     uint32_t                     m_features;
     uint8_t                      m_port_id;
     RXLatency                    m_latency;
     RXQueue                      m_queue;
-    RXServer                     m_server;
-    RXGratARP                    m_grat_arp;
-    
+
+    CStackBase                  *m_stack;
     CCpuUtlDpPredict             m_cpu_pred;
     CPortLatencyHWBase          *m_io;
-    
-    CManyIPInfo                  m_src_addr;
-    VLANConfig                   m_vlan_cfg;
-    
+
     /* stats to ignore (ARP and etc.) */
     CRXCoreIgnoreStat            m_ign_stats;
     CRXCoreIgnoreStat            m_ign_stats_prev;

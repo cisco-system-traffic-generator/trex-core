@@ -242,6 +242,7 @@ public:
     uint16_t                      m_zmq_rpc_port;
 
     bool                          m_is_lowend;
+    std::string                   m_stack_type;
 
     bool                       m_mac_info_exist;
     std::vector <CMacYamlInfo> m_mac_info;

@@ -18,13 +18,14 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
+
 #include "bp_sim.h"
 #include "trex_rx_port_mngr.h"
 #include "trex_rx_core.h"
-#include "common/Network/Packet/Arp.h"
-#include "common/Network/Packet/VLANHeader.h"
 #include "pkt_gen.h"
 #include "trex_capture.h"
+
+
 
 /**************************************
  * latency RX feature
@@ -272,379 +273,36 @@ RXQueue::to_json() const {
 
 
 /**************************************
- * RX feature server (ARP, ICMP) and etc.
- * 
- *************************************/
-
-class RXPktParser {
-public:
-    RXPktParser(const rte_mbuf_t *m) {
-
-        m_mbuf = m;
-        
-        /* start point */
-        m_current   = rte_pktmbuf_mtod(m, uint8_t *);;
-        m_size_left = rte_pktmbuf_pkt_len(m);
-        
-        m_ether    = NULL;
-        m_arp      = NULL;
-        m_ipv4     = NULL;
-        m_icmp     = NULL;
-        
-        /* parse L2 (stripping VLANs) */
-        uint16_t next_proto = parse_l2();
-        
-        /**
-         * support only for ARP or IPv4 based protocols
-         */
-        switch (next_proto) {
-        case EthernetHeader::Protocol::ARP:
-            parse_arp();
-            return;
-            
-        case EthernetHeader::Protocol::IP:
-            parse_ipv4();
-            return;
-            
-        default:
-            return;
-        }
-        
-    }
-    
-    const rte_mbuf_t         *m_mbuf;
-    EthernetHeader           *m_ether;
-    ArpHdr                   *m_arp;
-    IPHeader                 *m_ipv4;
-    ICMPHeader               *m_icmp;
-    std::vector<uint16_t>     m_vlan_ids;
-    
-protected:
-    
-    /**
-     * parse L2 header 
-     * returns the payload protocol (VLANs stripped)
-     */
-    uint16_t parse_l2() {
-        /* ethernet */
-        m_ether = (EthernetHeader *)parse_bytes(14);
-        
-        uint16_t next_proto = m_ether->getNextProtocol();
-     
-        while (true) {
-            switch (next_proto) {
-            case EthernetHeader::Protocol::QINQ:
-            case EthernetHeader::Protocol::VLAN:
-                {
-                    VLANHeader *vlan_hdr = (VLANHeader *)parse_bytes(4);
-                    m_vlan_ids.push_back(vlan_hdr->getVlanTag());
-    
-                    next_proto = vlan_hdr->getNextProtocolHostOrder();
-                    
-                }
-                break;
-                
-            default:
-                /* break */
-                return next_proto;
-            }                            
-        }
-        
-    }
-    
-    
-    const uint8_t *parse_bytes(uint32_t size) {
-        if (m_size_left < size) {
-            parse_err();
-        }
-        
-        const uint8_t *p = m_current;
-        m_current    += size;
-        m_size_left  -= size;
-        
-        return p;
-    }
-    
-    void parse_arp() {
-        m_arp = (ArpHdr *)parse_bytes(sizeof(ArpHdr));
-    }
-    
-    void parse_ipv4() {
-        m_ipv4 = (IPHeader *)parse_bytes(IPHeader::DefaultSize);
-        
-        /* advance over IP options if exists */
-        parse_bytes(m_ipv4->getOptionLen());
-        
-        switch (m_ipv4->getNextProtocol()) {
-        case IPHeader::Protocol::ICMP:
-            parse_icmp();
-            return;
-            
-        default:
-            return;
-        }
-    }
-    
-    void parse_icmp() {
-        m_icmp = (ICMPHeader *)parse_bytes(sizeof(ICMPHeader));
-    }
-    
-    void parse_err() {
-        throw TrexException(TrexException::T_RX_PKT_PARSE_ERR);
-    }
-    
-    const uint8_t *m_current;
-    uint16_t       m_size_left;
-};
-
-
-
-RXServer::RXServer() {
-    m_api = NULL;
-}
-
-
-void
-RXServer::create(RXFeatureAPI *api) {
-    m_api = api;
-}
-
-
-void
-RXServer::handle_pkt(const rte_mbuf_t *m) {
-    try {
-        RXPktParser parser(m);
-        
-        /* verify that packet matches the port VLAN config */
-        if (!m_api->get_vlan_cfg()->in_vlan(parser.m_vlan_ids)) {
-            return;
-        }
-        
-        if (parser.m_icmp) {
-            handle_icmp(parser);
-        } else if (parser.m_arp) {
-            handle_arp(parser);
-        } else {
-            return;
-        }
-        
-    } catch (const TrexException &e) {
-        return;
-    }
-
-}
-
-void
-RXServer::handle_icmp(RXPktParser &parser) {
-    
-    /* maybe not for us... */
-    uint32_t sip = m_api->get_src_ipv4();
-    if (parser.m_ipv4->getDestIp() != sip) {
-        return;
-    }
-    
-    /* we handle only echo request */
-    if (parser.m_icmp->getType() != ICMPHeader::TYPE_ECHO_REQUEST) {
-        return;
-    }
-    
-    /* duplicate the MBUF */
-    rte_mbuf_t *response = duplicate_mbuf(parser.m_mbuf);
-    if (!response) {
-        return;
-    }
-    
-    /* reparse the cloned packet */
-    RXPktParser response_parser(response);
-    
-    /* swap MAC */
-    MacAddress tmp = response_parser.m_ether->mySource;
-    response_parser.m_ether->mySource = response_parser.m_ether->myDestination;
-    response_parser.m_ether->myDestination = tmp;
-    
-    /* swap IP */
-    std::swap(response_parser.m_ipv4->mySource, response_parser.m_ipv4->myDestination);
-    
-    /* new packet - new TTL */
-    response_parser.m_ipv4->setTimeToLive(128);
-    response_parser.m_ipv4->updateCheckSum();
-    
-    /* update type and fix checksum */
-    response_parser.m_icmp->setType(ICMPHeader::TYPE_ECHO_REPLY);
-    response_parser.m_icmp->updateCheckSum(response_parser.m_ipv4->getTotalLength() - response_parser.m_ipv4->getHeaderLength());
-    
-    /* send */
-    bool rc = m_api->tx_pkt(response);
-    if (!rc) {
-        rte_pktmbuf_free(response);
-    }
-}
-
-void
-RXServer::handle_arp(RXPktParser &parser) {
-    MacAddress src_mac;
-    
-    /* only ethernet format supported */
-    if (parser.m_arp->getHrdType() != ArpHdr::ARP_HDR_HRD_ETHER) {
-        return;
-    }
-    
-    /* IPV4 only */    
-    if (parser.m_arp->getProtocolType() != ArpHdr::ARP_HDR_PROTO_IPV4) {
-        return;
-    }
-
-    /* support only for ARP request */
-    if (parser.m_arp->getOp() != ArpHdr::ARP_HDR_OP_REQUEST) {
-        return;
-    }
-    
-    /* are we the target ? if not - go home */
-    if (!m_api->get_src_addr()->lookup(parser.m_arp->getTip(), 0, src_mac)) {
-        return;
-    }
-    
-    /* duplicate the MBUF */
-    rte_mbuf_t *response = duplicate_mbuf(parser.m_mbuf);
-    if (!response) {
-        return;
-    }
- 
-    /* reparse the cloned packet */
-    RXPktParser response_parser(response);
-    
-    /* reply */
-    response_parser.m_arp->setOp(ArpHdr::ARP_HDR_OP_REPLY);
-    
-    /* fix the MAC addresses */
-    response_parser.m_ether->mySource = src_mac;
-    response_parser.m_ether->myDestination = parser.m_ether->mySource;
-    
-    /* fill up the fields */
-    
-    /* src */
-    response_parser.m_arp->m_arp_sha = src_mac;
-    response_parser.m_arp->setSip(parser.m_arp->getTip());
-    
-    /* dst */
-    response_parser.m_arp->m_arp_tha = parser.m_arp->m_arp_sha;
-    response_parser.m_arp->m_arp_tip = parser.m_arp->m_arp_sip;
-    
-    /* send */
-    bool rc = m_api->tx_pkt(response);
-    if (!rc) {
-        rte_pktmbuf_free(response);
-    }
-}
-
-rte_mbuf_t *
-RXServer::duplicate_mbuf(const rte_mbuf_t *m) {
-    
-    /* allocate */
-    rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(m_api->get_port_id(), rte_pktmbuf_pkt_len(m));
-    assert(clone_mbuf);
-    
-    /* append data - should always succeed */
-    uint8_t *dest = (uint8_t *)rte_pktmbuf_append(clone_mbuf, rte_pktmbuf_pkt_len(m));
-    assert(dest);
-    
-    /* copy data */
-    mbuf_to_buffer(dest, m);
-    
-    return clone_mbuf;
-}
-
-
-/**************************************
- * Gratidious ARP
- * 
- *************************************/
-void
-RXGratARP::create(RXFeatureAPI *api, CRXCoreIgnoreStat *ign_stats) {
-    
-    m_api         = api;
-    m_ign_stats   = ign_stats;
-}
-
-void
-RXGratARP::send_next_grat_arp() {
-    uint8_t src_mac[ETHER_ADDR_LEN];
-
-    uint8_t port_id = m_api->get_port_id();
-    
-    const COneIPInfo *ip_info = m_api->get_src_addr()->get_next_loop();
-    if (!ip_info) {
-        return;
-    }
-    
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(port_id));
-    assert(m);
-    
-    uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, ip_info->get_grat_arp_len());
-    ip_info->get_mac(src_mac);
-    
-    /* for now only IPv4 */
-    assert(ip_info->ip_ver() == COneIPInfo::IP4_VER);
-    uint32_t sip = ((COneIPv4Info *)ip_info)->get_ip();
-    
-    /* generate ARP request according to the VLAN configuration */
-    const VLANConfig *vlan_cfg = m_api->get_vlan_cfg();
-    
-    switch (vlan_cfg->count()) {
-    case 0:
-        /* no VLAN */
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, port_id);
-        break;
-        
-    case 1:
-        /* single VLAN */
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, port_id, vlan_cfg->m_tags[0]);
-        break;
-        
-    case 2:
-        /* QinQ */
-        CTestPktGen::create_arp_req(p, sip, sip, src_mac, port_id, vlan_cfg->m_tags[0], vlan_cfg->m_tags[1]);
-        break;
-    }
-
-    if (m_api->tx_pkt(m)) {
-        m_ign_stats->m_tx_arp    += 1;
-        m_ign_stats->m_tot_bytes += 64;
-    } else {
-       rte_pktmbuf_free(m);
-    }   
-   
-}
-
-Json::Value
-RXGratARP::to_json() const {
-    Json::Value output = Json::objectValue;
-    output["interval_sec"] = (double)CGlobalInfo::m_options.m_arp_ref_per;
-    
-    return output;
-}
-
-/**************************************
  * Port manager 
  * 
  *************************************/
 
 RXPortManager::RXPortManager() : m_feature_api(this) {
     clear_all_features();
-    m_io             = NULL;
+    m_stack          = nullptr;
+    m_io             = nullptr;
     m_port_id        = UINT8_MAX;
 }
 
 // workaround for inserting this object to map (GCC 4.7 does copy)
 RXPortManager::RXPortManager(const RXPortManager &other) : m_feature_api(this) {
     clear_all_features();
-    m_io             = NULL;
+    m_stack          = nullptr;
+    m_io             = nullptr;
     m_port_id        = UINT8_MAX;
 }
 
+RXPortManager::~RXPortManager(void) {
+    if ( m_stack != nullptr) {
+        delete m_stack;
+        m_stack = nullptr;
+    }
+}
+
+struct CPlatformYamlInfo;
 
 void
-RXPortManager::create(uint32_t port_id,
+RXPortManager::create_async(uint32_t port_id,
                       CPortLatencyHWBase *io,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
@@ -659,13 +317,44 @@ RXPortManager::create(uint32_t port_id,
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
 
-    m_server.create(&m_feature_api);
-    m_grat_arp.create(&m_feature_api, &m_ign_stats);
-    
-    /* by default, server is always on */
-    set_feature(SERVER);
+    /* by default, stack is always on */
+    std::string &stack_type = CGlobalInfo::m_options.m_stack_type;
+    m_stack = CStackFactory::create(stack_type, &m_feature_api, &m_ign_stats);
+    m_stack->add_port_node_async();
+    m_stack->run_pending_tasks_async(0);
+    set_feature(STACK);
 }
-    
+
+std::string wait_stack_tasks(CStackBase *stack, double timeout_sec) {
+    stack_result_t results;
+    try {
+        stack->wait_on_tasks(0, results, timeout_sec);
+    } catch (const TrexException &ex) {
+        return ex.what();
+    }
+    if ( results.err_per_mac.size() ) {
+        assert(results.err_per_mac.size()==1);
+        return results.err_per_mac.begin()->second;
+    }
+    return "";
+}
+
+void RXPortManager::wait_for_create_done(void) {
+    std::string err = wait_stack_tasks(get_stack(), 5);
+    if ( err.size() ) {
+        throw TrexException("Error: cound not create stack with following reason:\n" + err);
+    }
+}
+
+void RXPortManager::cleanup_async(void) {
+    m_stack->cleanup_async();
+    m_stack->run_pending_tasks_async(0);
+}
+
+void RXPortManager::wait_for_cleanup_done(void) {
+    wait_stack_tasks(get_stack(), -1);
+}
+
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
 
     /* handle features */
@@ -681,29 +370,47 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_queue.handle_pkt(m);
     }
     
-    if (is_feature_set(SERVER)) {
-        m_server.handle_pkt(m);
+    if ( is_feature_set(STACK) && !m_stack->is_running_tasks() ) {
+        m_stack->handle_pkt(m);
     }
+}
+
+uint16_t RXPortManager::handle_tx(void) {
+    uint16_t cnt_pkts = 0;
+    uint16_t limit = 32;
+
+    if ( is_feature_set(STACK) && !m_stack->is_running_tasks() ) {
+        cnt_pkts += m_stack->handle_tx(limit);
+    }
+
+    return cnt_pkts;
 }
 
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     rte_mbuf_t *rx_pkts[64];
+    uint16_t cnt_tx = 0;
     
     /* start CPU util. with heuristics
        this may or may not start the CPU util.
        measurement
      */
     m_cpu_pred.start_heur();
-    
+    cnt_tx = handle_tx();
+
+    if ( cnt_tx ) {
+        m_cpu_pred.update(true);
+    }
+
     /* try to read 64 packets clean up the queue */
-    uint16_t cnt_p = m_io->rx_burst(rx_pkts, 64);
-    if (cnt_p == 0) {
+    uint16_t cnt_rx = m_io->rx_burst(rx_pkts, 64);
+
+    if (cnt_tx + cnt_rx == 0) {
         /* update the predicator that no packets have arrived
            will stop the predictor if it was started
          */
         m_cpu_pred.update(false);
-        return cnt_p;
+        return 0;
     }
 
     /* for next time mark the predictor as true
@@ -711,7 +418,7 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
      */
     m_cpu_pred.update(true);
 
-    for (int j = 0; j < cnt_p; j++) {
+    for (int j = 0; j < cnt_rx; j++) {
         rte_mbuf_t *m = rx_pkts[j];
 
         if (!flush_rx) {
@@ -723,41 +430,9 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     /* done */
     m_cpu_pred.commit();
-
-    return cnt_p;
-}
-
-void
-RXPortManager::send_next_grat_arp() {
-    if (is_feature_set(GRAT_ARP)) {
-        m_grat_arp.send_next_grat_arp();
-    }
-}
-
-  
-void
-RXPortManager::set_l2_mode() {
-        
-    /* no IPv4 addresses */
-    m_src_addr.clear();
-        
-    /* stop grat arp */
-    stop_grat_arp();     
-}
-
-void
-RXPortManager::set_l3_mode(const CManyIPInfo &ip_info, bool is_grat_arp_needed) {
-        
-    /* copy L3 address */
-    m_src_addr = ip_info;
     
-    if (is_grat_arp_needed) {
-        start_grat_arp();
-    }
-    else {
-        stop_grat_arp();
-    }
-    
+
+    return cnt_tx + cnt_rx;
 }
 
 
@@ -789,34 +464,30 @@ RXPortManager::tx_pkt(rte_mbuf_t *m) {
     TrexCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
     return (m_io->tx_raw(m) == 0);
 }
-    
-    
-Json::Value
-RXPortManager::to_json() const {
-    Json::Value output = Json::objectValue;
-    
+
+
+void RXPortManager::to_json(Json::Value &feat_res) const {
     if (is_feature_set(LATENCY)) {
-        output["latency"] = m_latency.to_json();
-        output["latency"]["is_active"] = true;
+        feat_res["latency"] = m_latency.to_json();
+        feat_res["latency"]["is_active"] = true;
     } else {
-        output["latency"]["is_active"] = false;
+        feat_res["latency"]["is_active"] = false;
     }
 
     if (is_feature_set(QUEUE)) {
-        output["queue"] = m_queue.to_json();
-        output["queue"]["is_active"] = true;
+        feat_res["queue"] = m_queue.to_json();
+        feat_res["queue"]["is_active"] = true;
     } else {
-        output["queue"]["is_active"] = false;
+        feat_res["queue"]["is_active"] = false;
     }
- 
-    if (is_feature_set(GRAT_ARP)) {
-        output["grat_arp"] = m_grat_arp.to_json();
-        output["grat_arp"]["is_active"] = true;
+
+    if (is_feature_set(STACK)) {
+        feat_res["stack"]["is_active"] = true;
+        m_stack->grat_to_json(feat_res["grat_arp"]);
     } else {
-        output["grat_arp"]["is_active"] = false;
+        feat_res["stack"]["is_active"] = false;
+        feat_res["grat_arp"]["is_active"] = false;
     }
-    
-    return output;
 }
 
 
@@ -846,33 +517,7 @@ RXFeatureAPI::tx_pkt(rte_mbuf_t *m) {
     return m_port_mngr->tx_pkt(m);
 }
 
-
 uint8_t
 RXFeatureAPI::get_port_id() {
     return m_port_mngr->m_port_id;
 }
-
-
-CManyIPInfo *
-RXFeatureAPI::get_src_addr() {
-    return &m_port_mngr->m_src_addr;
-}
-
-
-const VLANConfig *
-RXFeatureAPI::get_vlan_cfg() {
-    return &m_port_mngr->m_vlan_cfg;
-}
-
-
-uint32_t
-RXFeatureAPI::get_src_ipv4() {
-    /* maybe not for us... */
-    const COneIPv4Info *ipv4_info = (const COneIPv4Info *)m_port_mngr->m_src_addr.get_first();
-    if (!ipv4_info) {
-        return 0;
-    }
-    
-    return ipv4_info->get_ip();
-}
-

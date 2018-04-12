@@ -25,8 +25,8 @@ limitations under the License.
 #include "internal_api/trex_platform_api.h"
 #include "common/basic_utils.h"
 #include "trex_dp_port_events.h"
-#include "trex_vlan.h"
 #include "trex_port_attr.h"
+#include "trex_stack_base.h"
 
 
 class TrexPktBuffer;
@@ -204,34 +204,69 @@ public:
      */
     const TrexPktBuffer *get_rx_queue_pkts();
 
+    /* stack related funcs */
+
+    // get stack capabilities
+    uint16_t get_stack_caps(void);
+
+    // stack operations will not anger watchdog
+    bool has_fast_stack(void);
+
+    // get name of stack to print in error message
+    std::string& get_stack_name(void);
+
+    // run pending tasks of stack, need to poll results with ticket
+    uint64_t run_rx_cfg_tasks_async(void);
+
+    // same as above with ticket 0
+    void run_rx_cfg_tasks_initial_async(void);
+
+    // check if stack is running tasks
+    bool is_rx_running_cfg_tasks(void);
+
+    // get results of stack tasks
+    // return false if results are deleted
+    bool get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results);
+
+    // get port node to query ip/mac/vlan etc. info
+    void get_port_node(CNodeBase &node);
+
     /**
      * configures port for L2 mode
      * 
      */
-    void set_l2_mode(const uint8_t *dest_mac);
+    void set_l2_mode_async(const std::string &dst_mac);
     
     /**
      * configures port in L3 mode
      * 
      */
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4);
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac);
+    //void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4);
+    void set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac);
     
     /**
      * configure VLAN
      */
-    void set_vlan_cfg(const VLANConfig &vlan_cfg);
-    
+    void set_vlan_cfg_async(const vlan_list_t &vlan_cfg);
+
+    /**
+     * invalidate dst MAC of port
+     */
+    void invalidate_dst_mac(void);
+
+    /**
+     * generate a JSON with MAC/IP/VLAN etc. of port
+     */
+    void port_attr_to_json(Json::Value &attr_res);
+
     /**
      * generate a JSON describing the status 
      * of the RX features 
-     * 
      */
-    Json::Value rx_features_to_json();
+    void rx_features_to_json(Json::Value &feat_res);
     
     /**
-     * return the port attribute object
-     * 
+     * return the port attribute object (speed, prom etc.)
      */
     TRexPortAttr *getPortAttrObj() {
         return get_platform_api().getPortAttrObj(m_port_id);
@@ -272,7 +307,6 @@ public:
         return m_port_state;
     }
 
-
     /**
      * port state as string
      *
@@ -298,7 +332,7 @@ public:
      * 
      */
     virtual bool is_service_mode_on() const = 0;
-        
+
 protected:
     
     /**
@@ -358,6 +392,10 @@ protected:
      *
      */
     void send_message_to_rx(TrexCpToRxMsgBase *msg);
+
+    // run RX core config tasks with given ticket ID
+    void run_rx_cfg_tasks_internal_async(uint64_t ticket_id);
+
     
     
     /* port id */
@@ -380,6 +418,8 @@ protected:
     uint16_t               m_rx_caps;
     uint16_t               m_rx_count_num;
     uint16_t               m_ip_id_base;
+    uint16_t               m_stack_caps;
+    bool                   m_synced_stack_caps;
 };
 
 

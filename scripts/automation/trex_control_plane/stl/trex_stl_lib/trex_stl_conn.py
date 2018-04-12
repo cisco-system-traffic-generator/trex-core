@@ -36,7 +36,16 @@ class CCommLink(object):
         return self.rpc_link.disconnect()
 
     def transmit(self, method_name, params = None, retry = 0):
-        return self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
+        poll_rate = 0.3
+        rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
+        while not rc and rc.errno() == JsonRpcErrNo.JSONRPC_V2_ERR_TRY_AGAIN:
+            time.sleep(poll_rate)
+            rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
+        while not rc and rc.errno() == JsonRpcErrNo.JSONRPC_V2_ERR_WIP:
+            time.sleep(poll_rate)
+            params = {'ticket_id': int(rc.err())}
+            rc = self.rpc_link.invoke_rpc_method("get_async_results", params, self.api_h, retry = retry)
+        return rc
 
     def transmit_batch(self, batch_list, retry = 0):
 

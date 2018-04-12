@@ -28,10 +28,9 @@ class CRxCore;
 #include "os_time.h"
 #include "trex_capture.h"
 #include "utl_ip.h"
-#include "trex_vlan.h"
 #include "trex_exception.h"
 #include <rte_atomic.h>
-
+#include "trex_stack_base.h"
 
 /**
  * Generic message reply object
@@ -429,20 +428,37 @@ private:
     
 };
 
+/**
+ * get capabilities of stack
+ */
+class TrexRxGetStackCaps : public TrexCpToRxMsgBase {
+public:
+    TrexRxGetStackCaps(uint8_t port_id, MsgReply<uint16_t> &reply) : m_reply(reply) {
+        m_port_id       = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    MsgReply<uint16_t>  &m_reply;
+};
 
 /**
  * updates the RX core that we are in L2 mode
  */
 class TrexRxSetL2Mode : public TrexCpToRxMsgBase {
 public:
-    TrexRxSetL2Mode(uint8_t port_id) {
-        m_port_id = port_id;
+    TrexRxSetL2Mode(uint8_t port_id, const std::string &dst_mac) {
+        m_port_id       = port_id;
+        m_dst_mac       = dst_mac;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
 private:
-    uint8_t           m_port_id;
+    uint8_t             m_port_id;
+    std::string         m_dst_mac;
 };
 
 
@@ -451,31 +467,98 @@ private:
  */
 class TrexRxSetL3Mode : public TrexCpToRxMsgBase {
 public:
-    TrexRxSetL3Mode(uint8_t port_id,
-                             const CManyIPInfo &src_addr,
-                             bool is_grat_arp_needed) {
-        
-        m_port_id              = port_id;
-        m_src_addr             = src_addr;
-        m_is_grat_arp_needed   = is_grat_arp_needed;
+    TrexRxSetL3Mode(uint8_t port_id, const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac) {
+        m_port_id       = port_id;
+        m_src_ipv4      = src_ipv4;
+        m_dst_ipv4      = dst_ipv4;
+        m_dst_mac       = (dst_mac == nullptr) ? "" : *dst_mac;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
 private:
-    uint8_t           m_port_id;
-    CManyIPInfo       m_src_addr;
-    bool              m_is_grat_arp_needed;
+    uint8_t             m_port_id;
+    std::string         m_src_ipv4;
+    std::string         m_dst_ipv4;
+    std::string         m_dst_mac;
+};
+
+/**
+ * Get port node for data
+ */
+class TrexRxGetPortNode : public TrexCpToRxMsgBase {
+public:
+    TrexRxGetPortNode(uint8_t port_id, CNodeBase &node, std::string &err, MsgReply<bool> &reply) :
+                    m_node(node), m_err(err), m_reply(reply) {
+        m_port_id       = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    CNodeBase          &m_node;
+    std::string        &m_err;
+    MsgReply<bool>     &m_reply;
+};
+
+/**
+ * Is RX in the middle of config
+ */
+class TrexRxIsRunningTasks : public TrexCpToRxMsgBase {
+public:
+    TrexRxIsRunningTasks(uint8_t port_id, MsgReply<bool> &reply) : m_reply(reply) {
+        m_port_id       = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    MsgReply<bool>     &m_reply;
+};
+
+/**
+ * Get results of running config tasks of RX
+ */
+class TrexRxGetTasksResults : public TrexCpToRxMsgBase {
+public:
+    TrexRxGetTasksResults(uint8_t port_id, uint64_t ticket_id, stack_result_t &results, MsgReply<bool> &reply) :
+                    m_results(results), m_reply(reply) {
+        m_port_id       = port_id;
+        m_ticket_id     = ticket_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    uint64_t            m_ticket_id;
+    stack_result_t     &m_results;
+    MsgReply<bool>     &m_reply;
+};
+
+class TrexRxRunCfgTasks : public TrexCpToRxMsgBase {
+public:
+    TrexRxRunCfgTasks(uint8_t port_id, uint64_t ticket_id) {
+        m_port_id = port_id;
+        m_ticket_id = ticket_id;
+    }
+    virtual bool handle(CRxCore *rx_core);
+private:
+    uint8_t                  m_port_id;
+    uint64_t                 m_ticket_id;
 };
 
 
 /**
- * a request from RX core to dump to Json the RX features
+ * a request from RX core to dump to Json with MAC/IP/VLAN etc. of port
  */
-class TrexRxFeaturesToJson : public TrexCpToRxMsgBase {
+class TrexPortAttrToJson : public TrexCpToRxMsgBase {
 public:
     
-    TrexRxFeaturesToJson(uint8_t port_id, MsgReply<Json::Value> &reply) : m_reply(reply) {
+    TrexPortAttrToJson(uint8_t port_id, Json::Value &attr_res, MsgReply<bool> &reply) :
+                    m_attr_res(attr_res), m_reply(reply) {
         m_port_id = port_id;
     }
      
@@ -487,7 +570,32 @@ public:
     
 private:
     uint8_t                  m_port_id;
-    MsgReply<Json::Value>   &m_reply;
+    Json::Value             &m_attr_res;
+    MsgReply<bool>          &m_reply;
+};
+
+
+/**
+ * a request from RX core to dump to Json the RX features
+ */
+class TrexRxFeaturesToJson : public TrexCpToRxMsgBase {
+public:
+    
+    TrexRxFeaturesToJson(uint8_t port_id, Json::Value &feat_res, MsgReply<bool> &reply) :
+                    m_feat_res(feat_res), m_reply(reply) {
+        m_port_id = port_id;
+    }
+     
+    /**
+     * virtual function to handle a message
+     *
+     */
+    virtual bool handle(CRxCore *rx_core);
+    
+private:
+    uint8_t                  m_port_id;
+    Json::Value             &m_feat_res;
+    MsgReply<bool>          &m_reply;
 };
 
 
@@ -497,7 +605,7 @@ private:
 class TrexRxSetVLAN : public TrexCpToRxMsgBase {
 public:
 
-    TrexRxSetVLAN(uint8_t port_id, const VLANConfig &vlan_cfg) : m_vlan_cfg(vlan_cfg) {
+    TrexRxSetVLAN(uint8_t port_id, const vlan_list_t &vlan_list) : m_vlan_list(vlan_list) {
         m_port_id    = port_id;
     }
     
@@ -505,7 +613,23 @@ public:
 
 private:
     uint8_t           m_port_id;
-    VLANConfig        m_vlan_cfg;
+    vlan_list_t       m_vlan_list;
+};
+
+/**
+ * Invalidate dst MAC
+ */
+class TrexRxInvalidateDstMac : public TrexCpToRxMsgBase {
+public:
+
+    TrexRxInvalidateDstMac(uint8_t port_id) {
+        m_port_id    = port_id;
+    }
+    
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
 };
 
 
@@ -515,7 +639,8 @@ private:
 class TrexRxTXPkts : public TrexCpToRxMsgBase {
 public:
     
-    TrexRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec, MsgReply<uint32_t> &reply) : m_pkts(pkts), m_reply(reply) {
+    TrexRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec, MsgReply<uint32_t> &reply) :
+                    m_pkts(pkts), m_reply(reply) {
         m_port_id  = port_id;
         m_ipg_usec = ipg_usec;
     }

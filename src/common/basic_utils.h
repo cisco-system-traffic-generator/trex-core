@@ -164,7 +164,8 @@ void utl_set_coredump_size(long size, bool map_huge_pages = false);
 
 bool           utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num);
 std::string    utl_uint32_to_ipv4(uint32_t ipv4_addr);
-   
+std::string    utl_uint32_to_ipv4_buf(uint32_t ipv4_addr);
+
 #endif
 
 

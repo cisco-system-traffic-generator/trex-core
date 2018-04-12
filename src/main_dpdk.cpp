@@ -2442,27 +2442,6 @@ void DpdkTRexPortAttr::update_link_status(){
     rte_eth_link_get(m_repid, &m_link);
 }
 
-bool DpdkTRexPortAttr::update_link_status_nowait(){
-    rte_eth_link new_link;
-    bool changed = false;
-    rte_eth_link_get_nowait(m_repid, &new_link);
-
-    if (new_link.link_speed != m_link.link_speed ||
-                new_link.link_duplex != m_link.link_duplex ||
-                    new_link.link_autoneg != m_link.link_autoneg ||
-                        new_link.link_status != m_link.link_status) {
-        changed = true;
-
-        /* in case of link status change - notify the dest object */
-        if (new_link.link_status != m_link.link_status) {
-            on_link_down();
-        }
-    }
-
-    m_link = new_link;
-    return changed;
-}
-
 int DpdkTRexPortAttr::add_mac(char * mac){
     struct ether_addr mac_addr;
     for (int i=0; i<6;i++) {
@@ -3928,6 +3907,7 @@ public:
     
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
+    void apply_pretest_results_to_stack(void);
     void abort_gracefully(const std::string &on_stdout,
                           const std::string &on_publisher) __attribute__ ((__noreturn__));
 
@@ -4288,45 +4268,61 @@ void CGlobalTRex::pre_test() {
             pif->set_port_rcv_all(false);
         }
     }
-
-    /* for interactive only - set port mode */
-    if (get_is_interactive()) {
-        for (int port_id = 0; port_id < m_max_ports; port_id++) {
-            if ( m_ports[port_id]->is_dummy() ) {
-                continue;
-            }
-            uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
-            uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
-            const uint8_t *dst_mac = CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest;
-
-            /* L3 mode */
-            if (src_ipv4 && dg) {
-                if (memcmp(dst_mac, empty_mac, 6) == 0) {
-                    m_stx->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg);
-                } else {
-                    m_stx->get_port_by_id(port_id)->set_l3_mode(src_ipv4, dg, dst_mac);
-                }
-
-            /* L2 mode */
-            } else if (CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.is_set) {
-                m_stx->get_port_by_id(port_id)->set_l2_mode(dst_mac);
-            }
-
-            /* configure single VLAN */
-            uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
-            if (vlan != 0) {
-
-                VLANConfig vlan_cfg;
-                vlan_cfg.set_vlan(vlan);
-
-                m_stx->get_port_by_id(port_id)->set_vlan_cfg(vlan_cfg);
-            }
-        }
-    }
-
-
 }
 
+void CGlobalTRex::apply_pretest_results_to_stack(void) {
+    assert(m_stx->get_rx()->is_active());
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        if ( m_ports[port_id]->is_dummy() ) {
+            continue;
+        }
+        TrexPort *port = m_stx->get_port_by_id(port_id);
+        uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
+        uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
+        std::string dst_mac((char*)CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, 6);
+
+        /* L3 mode */
+        if (src_ipv4 && dg) {
+            if ( dst_mac == "\0\0\0\0\0\0" ) {
+                port->set_l3_mode_async(utl_uint32_to_ipv4_buf(src_ipv4), utl_uint32_to_ipv4_buf(dg), nullptr);
+            } else {
+                port->set_l3_mode_async(utl_uint32_to_ipv4_buf(src_ipv4), utl_uint32_to_ipv4_buf(dg), &dst_mac);
+            }
+
+        /* L2 mode */
+        } else if (CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.is_set) {
+            port->set_l2_mode_async(dst_mac);
+        }
+
+        /* configure single VLAN */
+        uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+        if (vlan != 0) {
+            port->set_vlan_cfg_async({vlan});
+        }
+        port->run_rx_cfg_tasks_initial_async();
+    }
+
+    bool success = true;
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        if ( m_ports[port_id]->is_dummy() ) {
+            continue;
+        }
+        TrexPort *port = m_stx->get_port_by_id(port_id);
+        while ( port->is_rx_running_cfg_tasks() ) {
+            rte_pause_or_delay_lowend();
+        }
+        stack_result_t results;
+        port->get_rx_cfg_tasks_results(0, results);
+        if ( results.err_per_mac.size() ) {
+            success = false;
+            printf("Configure port node %d failed with following error:\n", port_id);
+            printf("%s\n", results.err_per_mac.begin()->second.c_str());
+        }
+    }
+    if ( !success ) {
+        exit(1);
+    }
+}
 
 /**
  * handle an abort
@@ -4394,14 +4390,19 @@ void CGlobalTRex::wait_for_all_cores(){
         }
         delay(100);
     }
-    if ( all_core_finished ){
-        Json::Value data;
-        data["cause"] = get_shutdown_cause();
-        m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
-        printf(" All cores stopped !! \n");
 
+    Json::Value data;
+    data["cause"] = get_shutdown_cause();
+    m_zmq_publisher.publish_event(TrexPublisher::EVENT_SERVER_STOPPED, data);
+
+    if ( all_core_finished ){
+        printf(" All cores stopped !! \n");
     }else{
-        printf(" ERROR one of the DP core is stucked !\n");
+        if ( !m_stx->get_rx()->is_active() ) {
+            printf(" ERROR RX core is stuck!\n");
+        } else {
+            printf(" ERROR one of the DP cores is stuck!\n");
+        }
     }
 }
 
@@ -5048,7 +5049,10 @@ uint16_t CGlobalTRex::get_latency_tx_queue_id() {
 
 bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     for (int i = 0; i < m_max_ports; i++) {
-        if (memcmp(m_ports[i]->get_port_attr()->get_layer_cfg().get_ether().get_src(), mac, 6) == 0) {
+        if ( m_ports[i]->is_dummy() ) {
+            continue;
+        }
+        if (memcmp((char *)CGlobalInfo::m_options.get_src_mac_addr(i), mac, 6) == 0) {
             port_id = i;
             return true;
         }
@@ -5789,6 +5793,9 @@ int CGlobalTRex::run_in_master() {
 
     TrexWatchDog::getInstance().start();
 
+    if ( get_is_interactive() ) {
+        apply_pretest_results_to_stack();
+    }
     while (!is_marked_for_shutdown()) {
 
         /* fast path */
@@ -6763,6 +6770,7 @@ int main(int argc , char * argv[]){
 int update_global_info_from_platform_file(){
 
     CPlatformYamlInfo *cg=&global_platform_cfg_info;
+    CParserOption *g_opts = &CGlobalInfo::m_options;
 
     CGlobalInfo::m_socket.Create(&cg->m_platform);
 
@@ -6772,39 +6780,42 @@ int update_global_info_from_platform_file(){
         return 0;
     }
 
-    CGlobalInfo::m_options.prefix =cg->m_prefix;
-    CGlobalInfo::m_options.preview.setCores(cg->m_thread_per_dual_if);
+    g_opts->prefix =cg->m_prefix;
+    g_opts->preview.setCores(cg->m_thread_per_dual_if);
     if ( cg->m_is_lowend ) {
-        CGlobalInfo::m_options.m_is_lowend = true;
-        CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
-        CGlobalInfo::m_options.m_is_queuefull_retry = false;
+        g_opts->m_is_lowend = true;
+        g_opts->m_is_sleepy_scheduler = true;
+        g_opts->m_is_queuefull_retry = false;
+    }
+    if ( cg->m_stack_type.size() ) {
+        g_opts->m_stack_type = cg->m_stack_type;
     }
     #ifdef TREX_PERF
-    CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
-    CGlobalInfo::m_options.m_is_queuefull_retry = false;
+    g_opts->m_is_sleepy_scheduler = true;
+    g_opts->m_is_queuefull_retry = false;
     #endif
 
     if ( cg->m_port_limit_exist ){
         if (cg->m_port_limit > cg->m_if_list.size() ) {
             cg->m_port_limit = cg->m_if_list.size();
         }
-        CGlobalInfo::m_options.m_expected_portd = cg->m_port_limit;
+        g_opts->m_expected_portd = cg->m_port_limit;
     }else{
-        CGlobalInfo::m_options.m_expected_portd = cg->m_if_list.size();
+        g_opts->m_expected_portd = cg->m_if_list.size();
     }
 
-    if ( CGlobalInfo::m_options.m_expected_portd < 2 ){
+    if ( g_opts->m_expected_portd < 2 ){
         printf("ERROR need at least 2 ports \n");
         exit(-1);
     }
 
 
     if ( cg->m_enable_zmq_pub_exist ){
-        CGlobalInfo::m_options.preview.set_zmq_publish_enable(cg->m_enable_zmq_pub);
-        CGlobalInfo::m_options.m_zmq_port = cg->m_zmq_pub_port;
+        g_opts->preview.set_zmq_publish_enable(cg->m_enable_zmq_pub);
+        g_opts->m_zmq_port = cg->m_zmq_pub_port;
     }
     if ( cg->m_telnet_exist ){
-        CGlobalInfo::m_options.m_telnet_port = cg->m_telnet_port;
+        g_opts->m_telnet_port = cg->m_telnet_port;
     }
 
     if ( cg->m_mac_info_exist ){
@@ -6817,17 +6828,17 @@ int update_global_info_from_platform_file(){
             port_size = TREX_MAX_PORTS;
         }
         for (i=0; i<port_size; i++){
-            cg->m_mac_info[i].copy_src(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.src)   ;
-            cg->m_mac_info[i].copy_dest(( char *)CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.dest)  ;
-            CGlobalInfo::m_options.m_mac_addr[i].u.m_mac.is_set = 1;
+            cg->m_mac_info[i].copy_src(( char *)g_opts->m_mac_addr[i].u.m_mac.src)   ;
+            cg->m_mac_info[i].copy_dest(( char *)g_opts->m_mac_addr[i].u.m_mac.dest)  ;
+            g_opts->m_mac_addr[i].u.m_mac.is_set = 1;
 
-            CGlobalInfo::m_options.m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
-            CGlobalInfo::m_options.m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
-            CGlobalInfo::m_options.m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
-            CGlobalInfo::m_options.m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
+            g_opts->m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
+            g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
+            g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
+            g_opts->m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
-                CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
             }
         }
     }
@@ -9348,6 +9359,26 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
     return g_trex.m_ports[port_id]->get_port_attr();
 }
 
+bool DpdkTRexPortAttr::update_link_status_nowait(){
+    rte_eth_link new_link;
+    bool changed = false;
+    rte_eth_link_get_nowait(m_repid, &new_link);
+
+    if (new_link.link_speed != m_link.link_speed ||
+                new_link.link_duplex != m_link.link_duplex ||
+                    new_link.link_autoneg != m_link.link_autoneg ||
+                        new_link.link_status != m_link.link_status) {
+        changed = true;
+
+        /* in case of link status change - notify the dest object */
+        if (new_link.link_status != m_link.link_status && get_is_interactive()) {
+            g_trex.m_stx->get_port_by_id(m_port_id)->invalidate_dst_mac();
+        }
+    }
+
+    m_link = new_link;
+    return changed;
+}
 
 int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 
@@ -9369,7 +9400,7 @@ int DpdkTRexPortAttr::set_rx_filter_mode(rx_filter_mode_e rx_filter_mode) {
 
 bool DpdkTRexPortAttr::is_loopback() const {
     uint8_t port_id;
-    return g_trex.lookup_port_by_mac(m_layer_cfg.get_ether().get_dst(), port_id);
+    return g_trex.lookup_port_by_mac(CGlobalInfo::m_options.get_dst_src_mac_addr(m_port_id), port_id);
 }
 
 

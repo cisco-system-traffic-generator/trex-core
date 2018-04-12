@@ -128,24 +128,30 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdSetServiceMode, "service");
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
+    verify_fast_stack(params, result, port_id);
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    Json::Value &res = result["result"];
 
-    result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    result["result"]["state"]         = port->get_state_as_string();
-    result["result"]["max_stream_id"] = port->get_max_stream_id();
-    result["result"]["service"]       = port->is_service_mode_on();
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_try_again(result);
+    }
+    res["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
+    res["state"]         = port->get_state_as_string();
+    res["max_stream_id"] = port->get_max_stream_id();
+    res["service"]       = port->is_service_mode_on();
     
-    /* attributes */
-    get_platform_api().getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
-    
+    // promisc, speed etc.
+    get_platform_api().getPortAttrObj(port_id)->to_json(res["attr"]);
+
     /* RX info */
     try {
-        result["result"]["rx_info"] = port->rx_features_to_json();
+        port->port_attr_to_json(res["attr"]); // mac/vlan/ip etc.
+        port->rx_features_to_json(res["rx_info"]);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    
+
     return (TREX_RPC_CMD_OK);
 }
 
@@ -931,6 +937,10 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_parse_err(result, ss.str());
     }
 
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
+    }
+
     /* multiplier */
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
 
@@ -1215,24 +1225,24 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    
+
+    Json::Value &res = result["result"];
     /* max values */
-    result["result"]["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
-    result["result"]["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
-    result["result"]["rate"]["max_pps"]       = graph->get_max_pps();
-    result["result"]["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.01;
+    res["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
+    res["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
+    res["rate"]["max_pps"]       = graph->get_max_pps();
+    res["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.01;
 
     /* min values */
-    result["result"]["rate"]["min_bps_l2"]    = graph->get_max_bps_l2(0);
-    result["result"]["rate"]["min_bps_l1"]    = graph->get_max_bps_l1(0);
-    result["result"]["rate"]["min_pps"]       = graph->get_max_pps(0);
-    result["result"]["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.01;
+    res["rate"]["min_bps_l2"]    = graph->get_max_bps_l2(0);
+    res["rate"]["min_bps_l1"]    = graph->get_max_bps_l1(0);
+    res["rate"]["min_pps"]       = graph->get_max_pps(0);
+    res["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.01;
 
-    result["result"]["graph"]["expected_duration"] = graph->get_duration();
-    result["result"]["graph"]["events_count"] = (int)graph->get_events().size();
+    res["graph"]["expected_duration"] = graph->get_duration();
+    res["graph"]["events_count"] = (int)graph->get_events().size();
 
-    result["result"]["graph"]["events"] = Json::arrayValue;
-    Json::Value &events_json = result["result"]["graph"]["events"];
+    res["graph"]["events"] = Json::arrayValue;
 
     int index = 0;
     for (const auto &ev : graph->get_events()) {
@@ -1244,7 +1254,7 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
         ev_json["diff_pps"]      = ev.diff_pps;
         ev_json["stream_id"]     = ev.stream_id;
 
-        events_json.append(ev_json);
+        result["result"]["graph"]["events"].append(ev_json);
 
         index++;
         if (index >= 100) {

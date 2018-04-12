@@ -93,6 +93,18 @@ TrexRpcCommand::verify_ownership(const Json::Value &params, Json::Value &result)
     }
 }
 
+void TrexRpcCommand::verify_fast_stack(const Json::Value &params, Json::Value &result, uint8_t port_id) {
+    if ( !get_stx()->get_rx()->is_active() ) { // we don't have RX core
+        return;
+    }
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    const bool block = parse_bool(params, "block", result, true);
+
+    if ( block && !port->has_fast_stack() ) {
+        generate_parse_err(result, "Current stack \"" + port->get_stack_name() + "\" does not support blocking operations. Switch to another or use newer client");
+    }
+}
+
 void
 TrexRpcCommand::verify_api_handler(const Json::Value &params, Json::Value &result) {
     
@@ -338,6 +350,31 @@ void
 TrexRpcCommand::generate_execute_err(Json::Value &result, const std::string &msg) {
     result["specific_err"] = msg;
     throw (TrexRpcCommandException(TREX_RPC_CMD_EXECUTE_ERR,msg));
+}
+
+void TrexRpcCommand::generate_try_again(Json::Value &result, const std::string &msg) {
+    result["specific_err"] = msg;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_TRY_AGAIN_ERR, ""));
+}
+
+void TrexRpcCommand::generate_try_again(Json::Value &result) {
+    result["specific_err"] = "";
+    throw (TrexRpcCommandException(TREX_RPC_CMD_TRY_AGAIN_ERR, ""));
+}
+
+void TrexRpcCommand::generate_async_wip(Json::Value &result, uint64_t ticket_id) {
+    result["specific_err"] = std::to_string(ticket_id);
+    throw (TrexRpcCommandException(TREX_RPC_CMD_ASYNC_WIP_ERR, ""));
+}
+
+void TrexRpcCommand::generate_async_no_results(Json::Value &result, const std::string &msg) {
+    result["specific_err"] = msg;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR, ""));
+}
+
+void TrexRpcCommand::generate_async_no_results(Json::Value &result) {
+    result["specific_err"] = "";
+    throw (TrexRpcCommandException(TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR, ""));
 }
 
 /**

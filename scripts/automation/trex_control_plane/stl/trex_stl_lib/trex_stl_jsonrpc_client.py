@@ -60,6 +60,10 @@ class BatchMessage(object):
 # values from JSON-RPC RFC
 class ErrNo:
     MethodNotSupported = -32601
+    # custom err
+    JSONRPC_V2_ERR_TRY_AGAIN          = -32001
+    JSONRPC_V2_ERR_WIP                = -32002
+    JSONRPC_V2_ERR_NO_RESULTS         = -32003
 
 
 # JSON RPC v2.0 client

@@ -443,6 +443,10 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["low_end"] >> plat_info.m_is_lowend;
     }
 
+    if ( node.FindValue("stack") ) {
+        node["stack"] >> plat_info.m_stack_type;
+    }
+
     if ( plat_info.m_is_lowend ) {
         plat_info.m_memory.limit_lowend(); // lower the defaults of memory
     } else {
@@ -537,7 +541,8 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     if ( m_prefix.length() ){
         fprintf(fd," prefix              : %s \n",m_prefix.c_str());
     }
-    fprintf(fd," is low-end :  %d \n", m_is_lowend? 1 : 0 );
+    fprintf(fd," is low-end : %d \n", m_is_lowend? 1 : 0 );
+    fprintf(fd," stack type : %s \n", m_stack_type.c_str());
     if ( m_limit_memory.length() ){
         fprintf(fd," limit_memory        : %s \n",m_limit_memory.c_str());
     }

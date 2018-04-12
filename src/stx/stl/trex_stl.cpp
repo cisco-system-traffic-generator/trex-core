@@ -48,7 +48,7 @@ using namespace std;
 TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 4;
-    const int API_VER_MINOR = 1;
+    const int API_VER_MINOR = 2;
     
     /* init the RPC table */
     TrexRpcCommandsTable::get_instance().init("STL", API_VER_MAJOR, API_VER_MINOR);

@@ -579,6 +579,11 @@ Other network devices
         dpdk_nic_bind.get_nic_details()
         self.m_devices= dpdk_nic_bind.devices
 
+    def get_prefix(self):
+        if map_driver.parent_args.prefix:
+            return map_driver.parent_args.prefix
+        return self.m_cfg_dict[0].get('prefix', '')
+
     def preprocess_astf_file_is_needed(self):
         """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
         is_astf_mode = map_driver.parent_args and map_driver.parent_args.astf
@@ -596,10 +601,9 @@ Other network devices
                   raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
 
             instance_name = ""
-            if map_driver.parent_args.prefix is not '':
-                instance_name = "-" + map_driver.parent_args.prefix
-            elif 'prefix' in self.m_cfg_dict[0]:
-                instance_name = '-' + self.m_cfg_dict[0]['prefix']
+            prefix = self.get_prefix()
+            if prefix:
+                instance_name = '-' + prefix
 
             json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
 

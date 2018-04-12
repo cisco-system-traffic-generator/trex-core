@@ -225,7 +225,7 @@ class Port(object):
 
     def sync(self):
 
-        params = {"port_id": self.port_id}
+        params = {"port_id": self.port_id, 'block': False}
 
         rc = self.transmit("get_port_status", params)
         if rc.bad():
@@ -505,7 +505,8 @@ class Port(object):
         
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
-                  "dst_mac":        dst_mac}
+                  "dst_mac":        dst_mac,
+                  'block'  :        False}
 
         rc = self.transmit("set_l2", params)
         if rc.bad():
@@ -522,7 +523,8 @@ class Port(object):
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
                   "src_addr":       src_addr,
-                  "dst_addr":       dst_addr}
+                  "dst_addr":       dst_addr,
+                  'block'   :       False}
 
         if resolved_mac:
             params["resolved_mac"] = resolved_mac
@@ -541,7 +543,8 @@ class Port(object):
         
         params = {"handler" :       self.handler,
                   "port_id" :       self.port_id,
-                  "vlan"    :       vlan.get_tags()}
+                  "vlan"    :       vlan.get_tags(),
+                  'block'   :       False}
             
         rc = self.transmit("set_vlan", params)
         if rc.bad():
