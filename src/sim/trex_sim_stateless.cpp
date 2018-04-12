@@ -180,7 +180,7 @@ SimStateless::init() {
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
     
-    cfg.m_rx_cfg.create(1, {});
+    cfg.m_rx_cfg.create(1, {{}});
     
     set_stx(new TrexStateless(cfg));
 }
