@@ -30,6 +30,7 @@ limitations under the License.
 
 TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), m_cfg(cfg) {
     m_dp_core_count = get_platform_api().get_dp_core_count();
+    m_ticket_id = 1; // 0 is reserved for initial configs
 }
 
 
@@ -41,6 +42,32 @@ TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), 
 TrexSTX::~TrexSTX() {
 }
 
+uint64_t TrexSTX::get_ticket(void) {
+    return m_ticket_id++;
+}
+
+#define MAX_STX_TICKETS 50
+
+void clean_old_tickets(async_ticket_map_t &ticket_map) {
+    while ( ticket_map.size() > MAX_STX_TICKETS ) {
+        ticket_map.erase(ticket_map.begin());
+    }
+}
+
+void TrexSTX::add_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func) {
+    clean_old_tickets(m_async_func_by_ticket);
+    m_async_func_by_ticket[ticket_id] = func;
+}
+
+bool TrexSTX::get_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func) {
+    auto it = m_async_func_by_ticket.find(ticket_id);
+    if ( it == m_async_func_by_ticket.end() ) {
+        return false;
+    }
+    func = it->second;
+    m_async_func_by_ticket.erase(it);
+    return true;
+}
 
 /**
  * fetch a port by ID

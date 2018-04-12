@@ -228,7 +228,10 @@ typedef enum trex_rpc_cmd_rc_ {
     TREX_RPC_CMD_OK,
     TREX_RPC_CMD_PARSE_ERR,
     TREX_RPC_CMD_EXECUTE_ERR,
-    TREX_RPC_CMD_INTERNAL_ERR
+    TREX_RPC_CMD_INTERNAL_ERR,
+    TREX_RPC_CMD_TRY_AGAIN_ERR,
+    TREX_RPC_CMD_ASYNC_WIP_ERR,
+    TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR,
 } trex_rpc_cmd_rc_e;
 
 /**
@@ -339,7 +342,11 @@ protected:
      */
     void verify_ownership(const Json::Value &params, Json::Value &result);
 
-    
+    /**
+     * verify that current stack supports blocking operation if command blocks
+     */
+    void verify_fast_stack(const Json::Value &params, Json::Value &result, uint8_t port_id);
+
     /**
      * validate port id
      * 
@@ -572,6 +579,26 @@ protected:
      * 
      */
     void generate_internal_err(Json::Value &result, const std::string &msg);
+
+    /**
+     * try again same command later, can't handle it now
+     * 
+     */
+    void generate_try_again(Json::Value &result, const std::string &msg);
+    void generate_try_again(Json::Value &result);
+
+    /**
+     * async: wip, continues polling for status
+     * 
+     */
+    void generate_async_wip(Json::Value &result, uint64_t ticket_id);
+
+    /**
+     * async: no results (got wiped by aging?)
+     * 
+     */
+    void generate_async_no_results(Json::Value &result, const std::string &msg);
+    void generate_async_no_results(Json::Value &result);
 
 
     /**

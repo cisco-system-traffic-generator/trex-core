@@ -3319,7 +3319,7 @@ inline  pkt_dir_t CGenNode::cur_interface_dir(){
 class CRXCoreIgnoreStat {
     friend class CCPortLatency;
     friend class CLatencyManager;
-    friend class RXGratARP;
+    friend class CStackLegacy;
     
  public:
      

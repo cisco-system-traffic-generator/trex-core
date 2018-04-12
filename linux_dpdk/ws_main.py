@@ -437,6 +437,7 @@ ef_src = SrcGroup(dir='src/common',
 stx_src = SrcGroup(dir='src/stx/common/',
                            src_list=['trex_stx.cpp',
                                      'trex_pkt.cpp',
+                                     'trex_rx_packet_parser.cpp',
                                      'trex_capture.cpp',
                                      'trex_port.cpp',
                                      'trex_dp_port_events.cpp',
@@ -446,6 +447,9 @@ stx_src = SrcGroup(dir='src/stx/common/',
                                      'trex_rx_core.cpp',
                                      'trex_rx_port_mngr.cpp',
                                      'trex_rx_tx.cpp',
+                                     'trex_stack_base.cpp',
+                                     'trex_stack_linux_based.cpp',
+                                     'trex_stack_legacy.cpp',
                                      
                                      'trex_rpc_cmds_common.cpp'
                                      ])

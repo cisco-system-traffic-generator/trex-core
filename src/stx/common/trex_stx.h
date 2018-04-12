@@ -193,13 +193,22 @@ public:
         return m_rx;
     }
 
- 
+
     /**
      * check for messages from any core
      * 
      */
     void check_for_dp_messages();
-    
+
+    /**
+     *  get ticket for async ops
+     */
+    uint64_t get_ticket(void);
+
+    // set and get async func by ticket
+    void add_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func);
+    bool get_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func);
+
 protected:
 
     void check_for_dp_message_from_core(int thread_id);
@@ -220,7 +229,8 @@ protected:
     const TrexSTXCfg            m_cfg;
     
     uint8_t                     m_dp_core_count;
-
+    uint64_t                    m_ticket_id;
+    async_ticket_map_t          m_async_func_by_ticket;
 };
 
 
