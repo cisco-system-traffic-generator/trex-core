@@ -670,6 +670,9 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
 
     /* handle features */
 
+    /* capture should be first */
+    TrexCaptureMngr::getInstance().handle_pkt_rx(m, m_port_id);
+
     if (is_feature_set(LATENCY)) {
         m_latency.handle_pkt(m);
     }
@@ -681,9 +684,6 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
     if (is_feature_set(SERVER)) {
         m_server.handle_pkt(m);
     }
-    
-    /* capture */
-    TrexCaptureMngr::getInstance().handle_pkt_rx(m, m_port_id);
 }
 
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {

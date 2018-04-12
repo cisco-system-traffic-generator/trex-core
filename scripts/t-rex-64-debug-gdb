@@ -27,5 +27,7 @@ if [ $RESULT -eq 64 ]; then
   EXTRA_INPUT_ARGS="--ntacc-so"
 fi
 
+saveterm="$(stty -g)"
 /usr/bin/gdb --args ./_t-rex-64-debug $@ $EXTRA_INPUT_ARGS
+stty $saveterm
 
