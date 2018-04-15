@@ -898,6 +898,9 @@ void tcp_gen_test(std::string pcap_file,
     case tiHTTP_CONNECT_RST2:
         lpt1->simple_http_connect_rst2();
         break;
+    case tiHTTP_RST_KEEP_ALIVE:
+        lpt1->simple_http_connect_rst_keepalive();
+        break;
 
     default:
         assert(0);
@@ -987,6 +990,17 @@ TEST_F(gt_tcp, tst30_http_simple_cmd_connect_rst2) {
                  tiHTTP_CONNECT_RST2);
 
 }
+
+TEST_F(gt_tcp, tst30_http_simple_cmd_connect_keepalive) {
+    tcp_gen_test("tcp2_http_simple_cmd_connect_rst_keepalive",
+                 true,
+                 tiHTTP_RST_KEEP_ALIVE,
+                 0,
+                 csSIM_RST_MIDDLE_KEEPALIVE
+                 );
+
+}
+
 
 
 TEST_F(gt_tcp, tst30_http_simple_pad) {

@@ -290,7 +290,8 @@ public:
                                  bool is_ipv6,
                                  TCPHeader    * lpTcp,
                                  uint8_t *   pkt,
-                                 IPv6Header *    ipv6);
+                                 IPv6Header *    ipv6,
+                                 CFlowKeyFullTuple &ftuple);
 
 
       CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,

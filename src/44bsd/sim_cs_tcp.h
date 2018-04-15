@@ -160,6 +160,7 @@ typedef enum {  csSIM_NONE    =0,
                 csSIM_REORDER,
                 csSIM_REORDER_DROP,
                 csSIM_PAD,
+                csSIM_RST_MIDDLE_KEEPALIVE
 
                } cs_sim_mode_t_;
 
@@ -173,6 +174,8 @@ typedef enum {  tiTEST2    =0,
                 tiHTTP_CONNECT =4, 
                 tiHTTP_CONNECT_RST =5, 
                 tiHTTP_CONNECT_RST2 =6, 
+                tiHTTP_RST_KEEP_ALIVE =7, 
+
 
                } cs_sim_test_id_t_;
 
@@ -228,6 +231,7 @@ public:
     int simple_http_connect();
     int simple_http_connect_rst();
     int simple_http_connect_rst2();
+    int simple_http_connect_rst_keepalive();
 
 
 

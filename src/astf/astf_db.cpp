@@ -678,6 +678,10 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
                 tunable_min_max_u32("keepintvl",tune->m_tcp_keepintvl,2,253);
             }
 
+            if (read_tunable_uint8(tune,json,"blackhole",CTcpTuneables::tcp_blackhole,tune->m_tcp_blackhole)){
+                tunable_min_max_u32("blackhole",tune->m_tcp_blackhole,0,2);
+            }
+
             if (read_tunable_uint16(tune,json,"delay_ack_msec",CTcpTuneables::tcp_delay_ack,tune->m_tcp_delay_ack_msec)){
                 tunable_min_max_u32("delay_ack_msec",tune->m_tcp_delay_ack_msec,20,500);
             }
