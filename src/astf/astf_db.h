@@ -77,6 +77,7 @@ class CTcpTuneables {
         tcp_no_delay    =  0x2000,
         sched_rampup    =  0x4000,
         sched_accurate  =  0x8000,
+        tcp_blackhole   =  0x10000,
     };
 
 
@@ -94,7 +95,7 @@ class CTcpTuneables {
         m_tcp_keepinit=0;;
         m_tcp_keepidle=0;
         m_tcp_keepintvl=0;
-        m_tcp_pad=0;
+        m_tcp_blackhole=0;
         m_tcp_delay_ack_msec=0;
         m_tcp_no_delay=0; /* disable nagel */
         m_scheduler_rampup=0;
@@ -128,7 +129,7 @@ class CTcpTuneables {
     uint8_t  m_tcp_keepidle;
 
     uint8_t  m_tcp_keepintvl;
-    uint8_t  m_tcp_pad;
+    uint8_t  m_tcp_blackhole;
     uint16_t m_tcp_delay_ack_msec; /* 20-500msec */
 
     uint16_t m_tcp_mss;

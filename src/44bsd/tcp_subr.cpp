@@ -581,6 +581,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_keepintvl = (int)tune->m_tcp_keepintvl;
     }
 
+    if (tune->is_valid_field(CTcpTuneables::tcp_blackhole)) {
+        tcp_blackhole  = (int)tune->m_tcp_blackhole;
+    }
+
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
         tcp_fast_tick_msec =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
@@ -615,6 +619,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_keepinit = TCPTV_KEEP_INIT;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepintvl = TCPTV_KEEPINTVL;
+    tcp_blackhole =0;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
     tcp_fast_tick_msec =  TCP_FAST_TICK_;

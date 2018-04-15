@@ -258,13 +258,22 @@ void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
                                          bool is_ipv6,
                                         TCPHeader    * lpTcp,
                                         uint8_t *   pkt,
-                                        IPv6Header *    ipv6){
+                                        IPv6Header *    ipv6,
+                                        CFlowKeyFullTuple &ftuple){
    /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
       allocate flow, 
       fill information
       generate RST
       free flow 
    */
+
+    if ( lpTcp->getResetFlag() ){
+        /* do not reply with RST to RST */
+        return;
+    }
+
+
+
     CTcpFlow * flow=alloc_flow(ctx,
                                  src,
                                  dst,
@@ -282,11 +291,36 @@ void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
         flow->m_template.learn_ipv6_headers_from_network(ipv6);
     }
 
-    tcp_respond(ctx,
-                 &flow->m_tcp,
-                 lpTcp->getSeqNumber()+1, 
-                 0, 
-                 TH_RST|TH_ACK);
+    if ( lpTcp->getAckFlag() ){
+
+        tcp_respond(ctx,
+                     &flow->m_tcp,
+                     0, 
+                     lpTcp->getAckNumber(), 
+                     TH_RST);
+
+
+
+    }else{
+        int tlen=ftuple.m_l7_total_len;
+        if (lpTcp->getSynFlag()) {
+            tlen++;
+        }
+        if (lpTcp->getFinFlag()) {
+            tlen++;
+        }
+        tcp_seq seq=0;
+        if (tlen==0 && (lpTcp->getFlags()==0)) {
+            /* keep-alive packet  */
+            seq = lpTcp->getAckNumber();
+        }
+        tcp_respond(ctx,
+                     &flow->m_tcp,
+                     lpTcp->getSeqNumber()+tlen, 
+                     seq, 
+                     TH_RST|TH_ACK);
+    }
+
 
     free_flow(flow);
 }
@@ -554,16 +588,19 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
     /* server side */
     if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
         /* no syn */
-        generate_rst_pkt(ctx,
-                         dest_ip,
-                         tuple.get_ip(),
-                         dst_port,
-                         tuple.get_port(),
-                         vlan,
-                         is_ipv6,
-                         lpTcp,
-                         pkt,parser.m_ipv6);
+        if ( ctx->tcp_blackhole !=2 ){
+            generate_rst_pkt(ctx,
+                             dest_ip,
+                             tuple.get_ip(),
+                             dst_port,
+                             tuple.get_port(),
+                             vlan,
+                             is_ipv6,
+                             lpTcp,
+                             pkt,parser.m_ipv6,
+                             ftuple);
 
+        }
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_syn);
         return(false);
@@ -573,7 +610,8 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
     CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port,true);
 
     if (! server_info) {
-        generate_rst_pkt(ctx,
+        if (ctx->tcp_blackhole ==0 ){
+          generate_rst_pkt(ctx,
                          dest_ip,
                          tuple.get_ip(),
                          dst_port,
@@ -581,7 +619,9 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
                          vlan,
                          is_ipv6,
                          lpTcp,
-                         pkt,parser.m_ipv6);
+                         pkt,parser.m_ipv6,
+                         ftuple);
+        }
 
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);

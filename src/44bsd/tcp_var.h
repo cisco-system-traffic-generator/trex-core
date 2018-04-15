@@ -927,6 +927,7 @@ public:
     int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */
+    int tcp_blackhole;
     int tcp_keepcnt;
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;

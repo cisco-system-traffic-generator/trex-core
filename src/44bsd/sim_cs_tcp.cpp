@@ -332,7 +332,22 @@ void CClientServerTcp::on_tx(int dir,
             }
         }
 
-        
+
+        if ( m_sim_type == csSIM_RST_MIDDLE_KEEPALIVE ){
+            if (dir==0) {
+                if ( (t>0.4) && (m_sim_data==0) ) {
+                    m_sim_data=1;
+                    printf(" send RST to server \n");
+                    tcp->setResetFlag(true);
+                }
+            }
+            if (dir==1) { /* server to client */
+                if ( (t>0.4)  && (!tcp->getResetFlag()) ) {
+                  drop=true;
+                }
+            }
+
+        }
     }
 
     if (drop==false){
@@ -661,6 +676,13 @@ int CClientServerTcp::simple_http_connect_rst2(){
 }
 
 
+int CClientServerTcp::simple_http_connect_rst_keepalive(){
+    using namespace std::placeholders;
+    method_program_cb_t cb = std::bind(&CClientServerTcp::build_http, this, _1, _2,_3,_4,_5);
+    return(simple_http_generic(cb));
+}
+
+
 int CClientServerTcp::build_http(CMbufBuffer * buf_req,
                                   CMbufBuffer * buf_res,
                                   CEmulAppProgram * prog_c,
@@ -837,6 +859,9 @@ int CClientServerTcp::build_http_connect_rst(CMbufBuffer * buf_req,
     
     return(0);
 }
+
+
+
 
 int CClientServerTcp::build_http_connect_rst2(CMbufBuffer * buf_req,
                                          CMbufBuffer * buf_res,
