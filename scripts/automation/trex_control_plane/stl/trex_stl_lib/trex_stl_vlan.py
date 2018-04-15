@@ -37,10 +37,10 @@ class VLAN(object):
             raise STLError("only up to two VLAN tags are supported")
 
         for tag in vlan_list:
-            if not type(tag) == int:
+            if type(tag) is not int:
                 raise STLError("invalid VLAN tag: '{0}' (int value expected)".format(tag))
 
-            if not (tag in range(1, 4096)) :
+            if tag < 1 or tag > 4096:
                 raise STLError("invalid VLAN tag: '{0}' (valid range: 1 - 4095)".format(tag))
 
         self.tags = tuple(vlan_list)
@@ -91,9 +91,6 @@ class VLAN(object):
         '''
 
         # no VLANs
-        if scapy_pkt.type not in (0x8100, 0x88a8):
-            return []
-
         vlans = []
         vlan_layer = scapy_pkt.payload
 

@@ -1025,6 +1025,9 @@ The keywords `src_ipv6` and `dst_ipv6` specify the most significant 96 bits of t
           udp_aging      : 1
 ----
 
+[NOTE]
+src_ipv6 and dst_ipv6 should be in the root scope, not at IP pools.
+
 The IPv6 address is formed by placing what would typically be the IPv4
 address into the least significant 32 bits and copying the value provided
 in the src_ipv6/dst_ipv6 keywords into the most signficant 96 bits.
