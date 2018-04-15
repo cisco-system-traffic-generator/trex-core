@@ -1009,8 +1009,20 @@ The keywords `src_ipv6` and `dst_ipv6` specify the most significant 96 bits of t
 
 [source,python]
 ----
-      src_ipv6 : [0xFE80,0x0232,0x1002,0x0051,0x0000,0x0000]
-      dst_ipv6 : [0x2001,0x0DB8,0x0003,0x0004,0x0000,0x0000]
+  - duration : 10
+    src_ipv6 : [0xFE80,0x0232,0x1002,0x0051,0x0000,0x0000]
+    dst_ipv6 : [0x2001,0x0DB8,0x0003,0x0004,0x0000,0x0000]
+    generator :  
+          distribution : "seq"
+          clients_start : "16.0.0.1"
+          clients_end   : "16.0.1.255"
+          servers_start : "48.0.0.1"
+          servers_end   : "48.0.0.255"
+          clients_per_gb : 201
+          min_clients    : 101
+          dual_port_mask : "1.0.0.0" 
+          tcp_aging      : 1
+          udp_aging      : 1
 ----
 
 The IPv6 address is formed by placing what would typically be the IPv4
