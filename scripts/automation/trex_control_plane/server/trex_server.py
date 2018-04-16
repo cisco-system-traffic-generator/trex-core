@@ -400,7 +400,7 @@ class CTRexServer(object):
             pid, proc_name, full_cmd = line.strip().split(' ', 2)
             pid = pid.strip()
             full_cmd = full_cmd.strip()
-            if proc_name.find('t-rex-64') >= 0:
+            if proc_name.find('_t-rex-64') >= 0:
                 trex_cmds_list.append((pid, full_cmd))
         return trex_cmds_list
 
@@ -412,7 +412,12 @@ class CTRexServer(object):
         trex_cmds_list = self.get_trex_cmds()
         for pid, cmd in trex_cmds_list:
             logger.info('Killing with signal %s process %s %s' % (signal_name, pid, cmd))
-            os.kill(int(pid), signal_name)
+            try:
+                os.kill(int(pid), signal_name)
+            except OSError as e:
+                if e.errno == errno.ESRCH:
+                    logger.info('No such process, ignoring.')
+                raise
 
 
     def wait_until_kickoff_finish (self, timeout = 40):
