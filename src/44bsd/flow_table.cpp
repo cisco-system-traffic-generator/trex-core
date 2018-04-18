@@ -552,16 +552,8 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
 
     TCPHeader    * lpTcp = (TCPHeader *)parser.m_l4;
 
-    /* not found in flowtable , we are generating the flows*/
-    if ( m_client_side ){
-        FT_INC_SCNT(m_err_client_pkt_without_flow);
-        rte_pktmbuf_free(mbuf);
-        return(false);
-    }
-
     /* server with SYN packet, it is OK 
       we need to build the flow and add it to the table */
-
     /* Patch */
     uint32_t dest_ip;
     bool is_ipv6=false;
@@ -584,6 +576,27 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
     }
 
     uint16_t dst_port = lpTcp->getDestPort();
+
+        /* not found in flowtable , we are generating the flows*/
+    if ( m_client_side ){
+        if ( ctx->tcp_blackhole ==0 ){
+            generate_rst_pkt(ctx,
+                           dest_ip,
+                           tuple.get_ip(),
+                           dst_port,
+                           tuple.get_port(),
+                           vlan,
+                           is_ipv6,
+                           lpTcp,
+                           pkt,parser.m_ipv6,
+                           ftuple);
+        }
+
+        FT_INC_SCNT(m_err_client_pkt_without_flow);
+        rte_pktmbuf_free(mbuf);
+        return(false);
+    }
+
 
     /* server side */
     if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
