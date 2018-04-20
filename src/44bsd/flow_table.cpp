@@ -580,11 +580,21 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
         /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
         if ( ctx->tcp_blackhole ==0 ){
+
+            uint32_t source_ip;
+            if (parser.m_ipv4){
+                IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;    
+                source_ip=ipv4->getSourceIp();
+            }else{
+                IPv6Header *   ipv6= parser.m_ipv6;
+                source_ip =ipv6->getSourceIpv6LSB();
+            }
+
             generate_rst_pkt(ctx,
                            dest_ip,
-                           tuple.get_ip(),
+                           source_ip,
                            dst_port,
-                           tuple.get_port(),
+                           lpTcp->getSourcePort(),
                            vlan,
                            is_ipv6,
                            lpTcp,
