@@ -403,7 +403,7 @@ To obtain a specific version:
 ----
 [bash]>wget --no-cache ${TREX_WEB_URL}/release/vX.XX.tar.gz #<1>
 ----
- 1. (where X.XX = major.minor version number as per https://trex-tgn.cisco.com/trex/doc/release_notes.html)
+<1> where X.XX = major.minor version number as per https://trex-tgn.cisco.com/trex/doc/release_notes.html
 
 == First time Running
 
