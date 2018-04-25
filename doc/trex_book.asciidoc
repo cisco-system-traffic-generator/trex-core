@@ -279,7 +279,7 @@ Supported Linux versions:
 * Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
 * Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
 // clarify "not fully supported"
-* CentOS/RedHat 7.2 LTS, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
+* CentOS/RHEL 7.4, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
