@@ -27,6 +27,21 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.40 ==
+
+* Search for Python2/3 in start-up scripts
+* Add Amazon ENA DPDK driver - there are reports that the performance is not that good. 
+* Fix history issue 
+* ARM compilation issue fix (BPF)
+
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-526[trex-526]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-525[trex-525]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-524[trex-524]
+
+
 == Release 2.39 ==
 
 * ASTF multi-core support see link:trex_astf.html#_multi_core_support[astf] can reach 200gb/sec with TCP/UDP stack 
