@@ -31,9 +31,9 @@ endif::backend-docbook[]
 
 * Search for Python2/3 in start-up scripts
 * Add Amazon ENA DPDK driver - there are reports that the performance is not that good. 
-* Fix history issue 
+* Fix STL Console history issue 
 * ARM compilation issue fix (BPF)
-
+* Add ASTF example profiles (e.g elephant flow) 
 
 === Fixed issues: ===
 
