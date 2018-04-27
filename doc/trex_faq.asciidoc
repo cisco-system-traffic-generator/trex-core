@@ -57,9 +57,11 @@ Cisco systems, Intel, Imperva, Melanox, Vasona networks and much more.
 
 ==== What are the Stateful and Stateless modes of operation?
 
-``Stateful'' mode is meant for testing networking gear which save state per flow (5 tuple). Usually, this is done by injecting pre recorded cap files on pairs of interfaces of the device under test, changing src/dst IP/port. 
-``Stateless'' mode is meant to test networking gear, not saving state per flow (doing the decision on per packet bases). This is usually done by injecting customed packet streams to the device under test.
-See link:trex_stateless.html#_stateful_vs_stateless[here] for more details.
+``link:trex_manual.html[Stateful]'' mode is meant for testing networking gear which saves state per flow (5 tuple). Usually this is done by injecting pre-recorded capture files on pairs of interfaces of the device under test, and dynamically changing src/dst IP/port.
+
+``link:trex_stateless.html[Stateless]'' mode is meant to test networking gear that does not manage any state per flow (instead operating on a per packet basis). This is usually done by injecting customized packet streams to the device under test.
+
+See this link:trex_stateless.html#_stateful_vs_stateless[in-depth comparisson] for more details.
 
 ==== Can TRex run on an hypervisor with virtual NICS?
 
