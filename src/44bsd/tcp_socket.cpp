@@ -331,13 +331,14 @@ void CEmulApp::process_cmd(CEmulAppCmd * cmd){
     switch (cmd->m_cmd) {
     case  tcTX_BUFFER   :
         {
-            m_tx_offset =0;
-            m_tx_active = cmd->u.m_tx_cmd.m_buf; /* tx is active */
-            assert(m_tx_active);
-            uint32_t add_to_queue = bsd_umin(m_api->get_tx_max_space(m_flow),m_tx_active->m_t_bytes);
-            m_tx_residue = m_tx_active->m_t_bytes - add_to_queue;
-            /* append to tx queue the maximum bytes */
+            CMbufBuffer *   b=cmd->u.m_tx_cmd.m_buf;
+            assert(b);
+            uint32_t len = b->len();
+            m_q.add_buffer(b); /* add buffer */
+            uint32_t add_to_queue = bsd_umin(m_api->get_tx_sbspace(m_flow),len);
             m_api->tx_sbappend(m_flow,add_to_queue);
+            m_q.subtract_bytes(add_to_queue);
+
             m_state=te_SEND;
             if (get_interrupt()==false) {
                 m_api->tx_tcp_output(m_ctx,m_flow);
@@ -464,6 +465,15 @@ void CEmulApp::process_cmd(CEmulAppCmd * cmd){
             next();
         }
         break;
+    case tcTX_MODE:
+        {
+            m_state=te_NONE;
+            bool none_block=(cmd->u.m_tx_mode.m_flags&CEmulAppCmdTxMode::txcmd_BLOCK_MASK?true:false);
+            set_tx_none_blocking(none_block);
+            next();
+        }
+        break;
+
 
     default:
         assert(0);
@@ -507,6 +517,9 @@ void CEmulApp::start(bool interrupt){
     /* there is at least one command */
     set_interrupt(interrupt);
     assert(m_program->get_size()>0);
+    if (!is_udp_flow()) {
+        m_q.set_window_size(m_api->get_tx_max_space(m_flow));
+    }
     CEmulAppCmd * lpcmd=m_program->get_index(m_cmd_index);
     process_cmd(lpcmd);
     set_interrupt(false);
@@ -527,23 +540,17 @@ void CEmulApp::do_close(){
 
 
 int CEmulApp::on_bh_tx_acked(uint32_t tx_bytes){
-    assert(m_tx_active);
-    assert(m_state==te_SEND);
     set_interrupt(true);
+    uint32_t  add_to_queue;
+    
+    bool is_next=m_q.on_bh_tx_acked(tx_bytes,add_to_queue,get_tx_mode_none_blocking()?false:true);
 
-    m_tx_offset+=tx_bytes;
-    if (m_tx_residue){
-        uint32_t add_to_queue = bsd_umin(tx_bytes,m_tx_residue);
+    if (add_to_queue) {
         m_api->tx_sbappend(m_flow,add_to_queue);
-        m_tx_residue-=add_to_queue;
-    }else{
-        if ( m_tx_offset == m_tx_active->m_t_bytes){
-            m_tx_active = (CMbufBuffer *)0;
-            m_tx_offset=0;
-            m_tx_residue=0;
-            EMUL_LOG(0, "ON_BH_TX [%d]-ACK \n",m_debug_id);
-            next();
-        }
+    }
+    if (is_next) {
+        EMUL_LOG(0, "ON_BH_TX [%d]-ACK \n",m_debug_id);
+        next();
     }
     set_interrupt(false);
     return(0);
@@ -774,6 +781,10 @@ void CEmulAppCmd::Dump(FILE *fd){
         fprintf(fd," tcCLOSE_PKT \n");
         break;
 
+    case tcTX_MODE:
+        fprintf(fd," tcTX_MODE : flags : %x  \n",u.m_tx_mode.m_flags);
+        break;
+
     default:
         assert(0);
     }
@@ -841,6 +852,114 @@ int utl_mbuf_buffer_create_and_fill(uint8_t socket,
     return(0);
 }
 
+
+void CEmulTxQueue::get_by_offset(uint32_t offset,CBufMbufRef & res){
+    uint32_t z=m_q.size();
+    assert(z>0);
+    if (likely(z==1)) {
+        /* most of the time there are *one* buffer in the queue */ 
+        CMbufBuffer * b=m_q[0];
+        b->get_by_offset(m_tx_offset+offset,res);
+        return;
+    }
+    /* sequential search. The common case there are very few buffers, so it is not a performance  problem*/
+    uint32_t calc_of = m_tx_offset+offset; /*m_tx_offset should be in the range of the first buffer */
+    int i;
+    for (i=0;i<(int)z; i++ ) {
+        CMbufBuffer * b=m_q[i];
+        uint32_t c_len =m_q[i]->len();
+        if ( calc_of < c_len ){
+            b->get_by_offset(calc_of,res);
+            return;
+        }
+        calc_of -=c_len;
+    }
+    /* can't happen */
+    assert(0);
+}
+
+
+/* ack number tx_bytes, 
+   tx_residue : how many to fill the virtual queue of TCP Tx
+   is_zero    : do we want to get event if the queue is zero or almost zero ?
+
+*/   
+bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
+                              uint32_t & add_to_tcp_queue,
+                              bool is_zero){
+    uint32_t z=m_q.size();
+    assert(z>0);
+
+    uint32_t sum;
+    if (likely(z==1)) {
+        CMbufBuffer * b=m_q[0];
+        sum=b->len();
+    }else{
+        int i;
+        sum=0;
+        uint32_t new_offset = m_tx_offset + tx_bytes;
+
+        /* update the vector, remove buffer if needed */
+        for (i=0;i<(int)z; i++ ) {
+            CMbufBuffer * b=m_q[i];
+            uint32_t c_len =b->len();
+            sum+=c_len;
+            if (new_offset < sum){
+                break;
+            }
+        }
+        /* remove the buffers */
+        if (i>0) {
+            /* i is the number of elemets to drop, 
+               sum is the number of bytes to fix */
+            int j;
+            sum=0;
+            for (j=0; j<i; j++) {
+                CMbufBuffer * b=m_q[0];
+                sum+=b->len();
+                m_q.erase(m_q.begin());
+            }
+            z=m_q.size();
+            m_tx_offset -= sum;
+        }
+
+        sum=0;
+        /* with new vector, calculate the sum again, could be size of 1 */
+        for (i=0;i<(int)z; i++ ) {
+            CMbufBuffer * b=m_q[i];
+            uint32_t c_len =b->len();
+            sum+=c_len;
+        }
+    }
+
+    m_tx_offset += tx_bytes;
+    uint32_t residue = sum - m_tx_offset; /* how much we have to send */
+
+    add_to_tcp_queue = bsd_umin(tx_bytes,m_v_cc);
+    m_v_cc -= add_to_tcp_queue;
+
+    if (residue==0) {
+        reset();
+    }
+    if (is_zero) {
+        return(residue?false:true);
+    }else{
+        if ( (residue==0) || ( (m_v_cc>0)&& (m_v_cc<m_wnd_div_2) )) {
+            /*
+            There is no need to go next (add another buffer) if  v_cc==0 (byte in outer queue), in any case pipeline won't happen and BDP would be larger. 
+            For  example, in case that window> buffer_size. Adding next buffer cost CPU% and better to do it only when there is a need for that.
+            */
+            return true;
+        }
+        return(false);
+    }
+}
+
+
+void CEmulTxQueue::reset(){
+    m_tx_offset=0;
+    m_q.clear();
+}
 
 
 

@@ -202,6 +202,12 @@ class ASTFCmdJMPNZ(ASTFCmd):
         self.fields['id'] = id_val
         self.fields['offset'] = offset
 
+class ASTFCmdTxMode(ASTFCmd):
+    def __init__(self,flags):
+        super(ASTFCmdTxMode, self).__init__()
+        self.fields['name'] = 'tx_mode'
+        self.fields['flags'] = flags
+
 
 class ASTFProgram(object):
     """
@@ -412,6 +418,29 @@ class ASTFProgram(object):
         self.total_send_bytes += cmd.buf_len
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
         self.fields['commands'].append(cmd)
+
+    def set_send_blocking (self,block):
+        """
+           set_send_blocking (block), set the stream transmit mode 
+
+           block : for send command wait until the last byte is ack 
+
+           non-block: continue to the next command when the queue is almost empty, this is good for pipeline the transmit 
+
+        :parameters:
+                  block  : bool
+
+        """
+        ver_args = {"types":
+                    [{"name": "block", 'arg': block, "t": bool}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+        if block:
+            flags = 0
+        else:
+            flags = 1
+
+        self.fields['commands'].append(ASTFCmdTxMode(flags))
 
     def set_keepalive_msg (self,msec):
         """

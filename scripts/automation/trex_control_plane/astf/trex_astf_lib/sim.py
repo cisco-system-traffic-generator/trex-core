@@ -88,6 +88,7 @@ def execute_bp_sim(opts):
 
     if opts.cmd:
         args = opts.cmd.split(",")
+        #args = list(map(lambda x: "--"+x, args)) 
     else:
         args = []
 
@@ -202,7 +203,7 @@ def setParserOptions():
                         help="duration in time for full mode")
 
     parser.add_argument("-c", "--cmd",
-                        help="command to the simulator",
+                        help="command to the simulator for example '--shaper-rate=12,--rtt=1' => spliter is ',' ",
                         dest='cmd',
                         default=None,
                         type=str)
