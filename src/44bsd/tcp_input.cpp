@@ -646,6 +646,10 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
                 acked = ti->ti_ack - tp->snd_una;
                 INC_STAT(ctx,tcps_rcvackpack);
                 INC_STAT_CNT(ctx,tcps_rcvackbyte,acked);
+                /* clear the dup-ack*/
+                if (tp->t_dupacks){
+                    tp->t_dupacks=0;
+                }
                 so->so_snd.sbdrop(so,acked);
 
                 tp->snd_una = ti->ti_ack;
@@ -670,6 +674,7 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
                 }
                 if (so->so_snd.sb_cc)
                     (void) tcp_output(ctx,tp);
+
                 return 0;
             }
         } else if ( (ti->ti_ack == tp->snd_una) &&

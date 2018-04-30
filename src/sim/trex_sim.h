@@ -198,6 +198,11 @@ struct asrtf_args_t {
     bool dump_json;
     uint8_t sim_mode;
     double sim_arg;
+
+    uint32_t m_shaper_kbps;  /* kbps shaper - 0 means disable */
+    uint32_t m_shaper_size; /* shaper size in bytes */
+    double   m_drop_prob_precent;   /* prob for drop */
+    uint32_t m_rtt_usec;    /* rtt in usec */
 };
 
 /**

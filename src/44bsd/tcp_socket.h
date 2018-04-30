@@ -261,6 +261,8 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcRX_PKT                =11,  /* check # pkts */
                tcKEEPALIVE             =12,  /* set keep alive */
                tcCLOSE_PKT             =13,  /* close connection for udp */ 
+               tcTX_MODE               =14,  /* TCP send mode, block, none block */ 
+
 
                tcNO_CMD                =255  /* explicit reset */
 } tcp_app_cmd_enum_t;
@@ -269,6 +271,14 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
 
 typedef uint8_t tcp_app_cmd_t;
 
+
+struct CEmulAppCmdTxMode {
+    enum {
+            txcmd_BLOCK_MASK  = 0x1,
+    };
+
+    uint32_t        m_flags;
+};
 
 
 /* CMD == tcTX_BUFFER*/
@@ -340,6 +350,7 @@ struct CEmulAppCmd {
     tcp_app_cmd_t     m_cmd;
 
     union {
+        CEmulAppCmdTxMode    m_tx_mode;
         CEmulAppCmdTxBuffer  m_tx_cmd;
         CEmulAppCmdRxBuffer  m_rx_cmd;
         CEmulAppCmdDelay     m_delay_cmd;
@@ -462,6 +473,47 @@ typedef enum { te_NONE     =0,
 
 typedef uint8_t tcp_app_state_t;
 
+class CEmulTxQueue {
+public:
+    CEmulTxQueue(){
+        m_tx_offset=0;
+        m_v_cc=0;
+        m_wnd_div_2=0;
+    }
+
+    void set_window_size(uint32_t wnd){
+        m_wnd_div_2 = wnd>>1;
+    }
+    /* add buffer to the queue */
+    void add_buffer(CMbufBuffer * b){
+        m_q.push_back(b);
+        m_v_cc+=b->len();
+    }
+
+    void subtract_bytes(uint32_t bytes){
+        assert(m_v_cc>=bytes);
+        m_v_cc-=bytes;
+    }
+
+    void get_by_offset(uint32_t offset,CBufMbufRef & res);
+    
+    bool on_bh_tx_acked(uint32_t tx_bytes,
+                        uint32_t & tx_residue,
+                        bool is_zero
+                        );
+
+private:
+
+    void reset();
+
+private:
+    uint32_t                    m_wnd_div_2; /* the TCP Tx window size */
+    uint32_t                    m_v_cc; /* number of bytes in the app level queue -> me move bytes to TCP queue */
+    uint32_t                    m_tx_offset; /* offset into the vector */
+    std::vector<CMbufBuffer *>  m_q; /* queue of buffers */
+};
+
+
 
 class CEmulApp  {
 public:
@@ -489,6 +541,7 @@ public:
 
             taDO_RX_CLEAR       = 0x400,
             taLOG_ENABLE        = 0x800,
+            taTX_MODE_NONE_BLOCK     = 0x1000,
 
     };
 
@@ -498,14 +551,11 @@ public:
         m_flow = (CTcpFlow *)0;
         m_ctx =(CTcpPerThreadCtx *)0;
         m_api=(CEmulAppApi *)0;
-        m_tx_active =0;
         m_program =(CEmulAppProgram *)0;
         m_flags=0;
         m_state =te_NONE;
         m_debug_id=0;
         m_cmd_index=0;
-        m_tx_offset=0;
-        m_tx_residue =0;
         m_cmd_rx_bytes=0;
         m_cmd_rx_bytes_wm=0;
         m_vars[0]=0; /* unroll*/
@@ -552,6 +602,18 @@ public:
         }else{
             m_flags&=(~taDO_RX_CLEAR);
         }
+    }
+
+    void set_tx_none_blocking(bool enable){
+        if (enable){
+            m_flags|=taTX_MODE_NONE_BLOCK;
+        }else{
+            m_flags&=(~taTX_MODE_NONE_BLOCK);
+        }
+    }
+
+    bool get_tx_mode_none_blocking(){
+        return ((m_flags &taTX_MODE_NONE_BLOCK)?true:false);
     }
 
     void set_log_enable(bool enable){
@@ -681,8 +743,7 @@ public:
 public:
 
     void get_by_offset(uint32_t offset,CBufMbufRef & res){
-        assert(m_tx_active);
-        m_tx_active->get_by_offset(m_tx_offset+offset,res);
+        m_q.get_by_offset(offset,res);
     }
 
     /* application events */
@@ -769,7 +830,8 @@ private:
     CTcpFlow *              m_flow;
     CTcpPerThreadCtx *      m_ctx;
     CEmulAppApi *           m_api; 
-    CMbufBuffer *           m_tx_active;
+
+    CEmulTxQueue            m_q;
 
     /* cache line 1 */
     CEmulAppProgram       * m_program;
@@ -779,8 +841,6 @@ private:
     uint8_t                m_debug_id;
 
     uint32_t               m_cmd_index; /* the index of current command */
-    uint32_t               m_tx_offset; /* in case of TX tcTX_BUFFER command, offset into the buffer */
-    uint32_t               m_tx_residue; /* how many bytes we can add to the socket queue */
 
     uint32_t               m_cmd_rx_bytes;
     uint32_t               m_cmd_rx_bytes_wm; /* water mark to check */

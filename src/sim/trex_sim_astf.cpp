@@ -296,6 +296,25 @@ int SimAstfSimple::run(){
         lpt->set_simulate_rst_error(args->sim_mode);
     }
 
+    /* shaper */
+    if (args->m_shaper_kbps) {
+        if (args->m_shaper_size==0){
+            args->m_shaper_size= 100*1024*1024; /* default */
+        }
+        lpt->set_shaper(args->m_shaper_kbps,args->m_shaper_size);
+    }
+
+    /* rtt */
+    if (args->m_rtt_usec) {
+        lpt->set_rtt(args->m_rtt_usec);
+    }
+
+    /* drop */
+    if (args->m_drop_prob_precent>0.0) {
+        lpt->set_simulate_rst_error(csSIM_DROP);
+        lpt->set_drop_rate((args->m_drop_prob_precent/100.0));
+    }
+
     if (args->sim_arg>0.0){
         CClientServerTcpCfgExt cfg;
         cfg.m_rate=args->sim_arg;
