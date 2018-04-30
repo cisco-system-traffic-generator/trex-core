@@ -45,6 +45,13 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_ASTF_SIM_ARG,
        OPT_ASTF_EMUL_DEBUG,
 
+       /* simulator ASTF */
+       OPT_ASTF_SHAPER_RATE,
+       OPT_ASTF_SHAPER_SIZE,
+       OPT_ASTF_RTT,
+       OPT_ASTF_DROP_PROB,
+
+
        OPT_DRY_RUN, OPT_DURATION,
        OPT_DUMP_JSON};
 
@@ -94,6 +101,12 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_DUMP_JSON,          "--sim-json", SO_NONE },
     { OPT_ASTF_SIM_MODE,      "--sim-mode", SO_REQ_SEP },
     { OPT_ASTF_SIM_ARG,       "--sim-arg",  SO_REQ_SEP },
+
+    { OPT_ASTF_SHAPER_RATE,   "--shaper-rate", SO_REQ_SEP },
+    { OPT_ASTF_SHAPER_SIZE,   "--shaper-size", SO_REQ_SEP },
+    { OPT_ASTF_RTT,           "--rtt", SO_REQ_SEP},
+    { OPT_ASTF_DROP_PROB,     "--drop", SO_REQ_SEP },
+
     { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
     
@@ -152,6 +165,12 @@ static int usage(){
     printf("            csSIM_REORDER,      0x1d 29  \n");
     printf("            csSIM_REORDER_DROP  0x1e 30  \n");
     printf("                                      \n");
+    printf(" ASTF simulator  :\n");
+    printf(" --shaper-rate : shaper rate in kbps   \n");
+    printf(" --shaper-size : shaper size in bytes \n");
+    printf(" --rtt         : rtt in usec          \n");
+    printf(" --drop        : drop precents        \n");
+
     printf(" Copyright (C) 2015 by hhaim Cisco-System for IL dev-test \n");
     printf(" version : 1.0 beta  \n");
     
@@ -244,6 +263,23 @@ static int parse_options(int argc,
             case OPT_PCAP:
                 po->preview.set_pcap_mode_enable(true);
                 break;
+
+            case OPT_ASTF_SHAPER_RATE:
+                asrtf_args.m_shaper_kbps=atoi(args.OptionArg());
+                break;
+            case OPT_ASTF_SHAPER_SIZE: 
+                asrtf_args.m_shaper_size=atoi(args.OptionArg());
+                break;
+            case OPT_ASTF_RTT:
+                asrtf_args.m_rtt_usec=atoi(args.OptionArg());
+                break;
+
+            case OPT_ASTF_DROP_PROB:
+                float d;
+                sscanf(args.OptionArg(),"%f", &d);
+                asrtf_args.m_drop_prob_precent=d;
+                break;
+
 
             case OPT_ASTF_FULL :
                 asrtf_args.full_sim=true;
