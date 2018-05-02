@@ -1605,6 +1605,12 @@ ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
                    
 ----
 
+[NOTE]
+=====================================================================
+When using RSS, the number of sockets (available source ports per clients IP) will be 100% divided by the numbers of cores (c). For example for c=3 each client IP would have 64K/3 source ports = 21K ports. In this case it is advised to add more clients to the pool (in case you are close to the limit). 
+in other words the reported socket-util is the console should be multiply by c
+=====================================================================
+
 
 === Traffic profile reference 
 
