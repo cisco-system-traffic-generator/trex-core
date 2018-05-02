@@ -89,8 +89,8 @@ See Stateless Manual
 link:https://github.com/cisco-system-traffic-generator/trex-core[GitHub]
 | Wiki    | 
 link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
-| Defect manager    | 
-link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
+| Issue Trackers    | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/issues[GitHub], link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 | Release pkgs    | 
 link:../release/[pkgs]
 | Windows Stateful GUI v0.6   | 
@@ -110,6 +110,7 @@ link:trex_vm_bench.html[sr_iov_bench]
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
+| Contributing | link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/CONTRIBUTING.md[CONTRIBUTING]
 | Stateless server RPC specification    | 
 link:trex_rpc_server_spec.html[stl_rpc_server.html] 
 | Scapy server RPC specification    | 
@@ -125,8 +126,6 @@ link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[Wiki]
 | Description  |    Name 
 | TRex community     | 
 link:https://groups.google.com/forum/#!forum/trex-tgn[Gmail TRex Forum] 
-| Report a defect  | 
-link:http://trex-tgn.cisco.com/youtrack/dashboard[youtrack]
 | Cisco TRex Devnet community   | 
 link:https://communities.cisco.com/community/developer/trex[Jive]
 |=================
