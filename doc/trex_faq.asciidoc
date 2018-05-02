@@ -151,8 +151,10 @@ There is good answer in the mailing list link:https://groups.google.com/forum/#!
 ==== I want to contribute to the project
 You have several ways you can help: +
 1. Download the product, use it, and report issues (If no issues, we will be very happy to also hear success stories). +
-2. If you use the product and have improvment suggestions (for the product or documentation) we will be happy to hear. +
-3. If you fix a bug, or develop new feature, you are more than welcome to create pool request in GitHub.
+2. If you use the product and have improvement suggestions (for the product or documentation) we will be happy to hear. +
+3. If you fix a bug, or develop new feature, you are more than welcome to create pull request in GitHub.
+
+See link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/CONTRIBUTING.md[CONTRIBUTING] for more details.
 
 ==== What is the release process? How do I know when a new release is available?
 It is a continuous integration. The latest internal version is under 24/7 regression on few setups in our lab. Once we have enough content we release it to GitHub (Usually every few weeks).
