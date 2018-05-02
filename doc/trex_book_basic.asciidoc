@@ -2700,7 +2700,7 @@ Full command line reference can be found xref:cml-line[here]
 | cap2/imix_fast_1g.yaml     |  imix profile with 1600 flows normalized to 1Gb/sec.
 | cap2/imix_fast_1g_100k_flows.yaml    |  imix profile with 100k flows normalized to 1Gb/sec.
 | cap2/imix_64.yaml  |  64byte UDP packets profile 
-|========================  
+|=================
 
 
 === Mimicking stateless traffic under stateful mode
