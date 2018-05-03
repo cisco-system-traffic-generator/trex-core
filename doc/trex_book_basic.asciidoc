@@ -2699,7 +2699,7 @@ Full command line reference can be found xref:cml-line[here]
 | avl/sfr_branch_profile_delay_10.yaml      |  branch sfr profile capture from Avalanche - Spirent with bundeling support with RTT=10msec it, is normalized to 1Gb/sec for m=1
 | cap2/imix_fast_1g.yaml     |  imix profile with 1600 flows normalized to 1Gb/sec.
 | cap2/imix_fast_1g_100k_flows.yaml    |  imix profile with 100k flows normalized to 1Gb/sec.
-| cap2/imix_64.yaml  |  64byte UDP packets profile 
+| cap2/imix_64.yaml  |  64byte UDP packets profile
 |=================
 
 
@@ -3260,8 +3260,9 @@ This feature will give the user more flexibility in defining the IP generator.
 
 === Measuring Jitter/Latency
 
-To measure jitter/latency using independent flows (SCTP or ICMP), use `-l [Hz]` where Hz defines the number of packets to send from each port per second.
-This option measures latency and jitter. We can define the type of traffic used for the latency measurement using the `--l-pkt-mode` option. 
+anchor:jitter_latency[]
+
+To measure jitter/latency using independent flows (SCTP or ICMP), use `-l <Hz>` where Hz defines the number of packets to send from each port per second. This option measures latency and jitter. We can define the type of traffic used for the latency measurement using the `--l-pkt-mode <0-3>` option. 
 
 
 [options="header",cols="^1,10a"]
@@ -3281,26 +3282,31 @@ Send ICMP request packets with a constant 0 sequence number from both sides.
 |=================
 
 
-The shell output is similar to the following: 
+==== Interpretting Jitter/Latency Output
+
+The command output of the `t-rex` utility with latency stats enabled looks similar to the following: 
 
 [source,python]
 ----
- Cpu Utilization : 0.1 %  
- if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter<1> ,max 
-   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,   window           
- --------------------------------------------------------------------------------------
- 0 |     1002,    1002,      2501,   0,         61  ,      70,       3      |  60  60  
- 1 |     1002,    1002,      2012,   0,         56  ,      63,       2      |  50  51  
- 2 |     1002,    1002,      2322,   0,         66  ,      74,       5      |  68  59  
- 3 |     1002,    1002,      1727,   0,         58  ,      68,       2      |  52  49  
+ -Latency stats enabled
+ Cpu Utilization : 0.2 %  <1>               <5>         <6>         <7>          <8>
+ if|   tx_ok , rx_ok  , rx check ,error,      latency (usec) ,    Jitter       max window
+   |         ,    <2> ,     <3>  , <4> ,  average   ,   max  ,    (usec)
+ ------------------------------------------------------------------------------------------------------
+ 0 |     1002,    1002,         0,    0,        51  ,      69,       3      |   0  69  67   ... 
+ 1 |     1002,    1002,         0,    0,        53  ,     196,       2      |   0  196  53  ...
+ 2 |     1002,    1002,         0,    0,        54  ,      71,       5      |   0  71  69   ...
+ 3 |     1002,    1002,         0,    0,        53  ,     193,       2      |   0  193  52  ...
 
- Rx Check stats enabled 
- ---------------------------------------------------------------------------------------
- rx check:  avg/max/jitter latency,       94  ,     744,       49<1>      |  252  287  3 
- 
- active flows:       10, fif:      308,  drop:        0, errors:        0 
- ---------------------------------------------------------------------------------------
 ----
-<1> Jitter information
 
+<1> Rx check and latency thread CPU utilization.
+<2> `tx_ok` on port 0 should equal `rx_ok` on port 1, and vice versa, for all paired ports.
+<3> Rx check rate as per `--rx-check`. For more information on Rx check, see xref:rx_check[Flow order/latency verification] section.
+<4> Number of packet errors detected. (various reasons, see `stateful_rx_core.cpp`)
+<5> Average latency (in microseconds) across **all** samples since startup.
+<6> Maximum latency (in microseconds) across **all** samples since startup.
+<7> Jitter calculated as per RC3550 Appendix-A.8.
+<8> Maximum latency within a sliding window of 500 milliseconds. There are few values shown per port according to terminal width. The odlest value is on the left and most recent value (latest 500msec sample) on the right. This can help in identifying spikes of high latency clearing after some time. Maximum latency (<6>) is the total maximum over the entire test duration. To best understand this, run TRex with the latency option (-l) and watch the results. 
+ 
 
