@@ -2699,6 +2699,7 @@ Full command line reference can be found xref:cml-line[here]
 | avl/sfr_branch_profile_delay_10.yaml      |  branch sfr profile capture from Avalanche - Spirent with bundeling support with RTT=10msec it, is normalized to 1Gb/sec for m=1
 | cap2/imix_fast_1g.yaml     |  imix profile with 1600 flows normalized to 1Gb/sec.
 | cap2/imix_fast_1g_100k_flows.yaml    |  imix profile with 100k flows normalized to 1Gb/sec.
+| cap2/imix_64.yaml  |  64byte UDP packets profile
 |=================
 
 
