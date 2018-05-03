@@ -3286,7 +3286,7 @@ Send ICMP request packets with a constant 0 sequence number from both sides.
 
 The command output of the `t-rex` utility with latency stats enabled looks similar to the following: 
 
-[source%nowrap,python]
+[source,python]
 ----
  -Latency stats enabled
  Cpu Utilization : 0.2 %  <1>               <5>         <6>         <7>          <8>
