@@ -245,6 +245,9 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) 
     if (cmd["name"] == "close_msg")
         return tcCLOSE_PKT;
 
+    if (cmd["name"] == "tx_mode")
+        return tcTX_MODE;
+    
     /* TBD need to check the value and put an error  !!! */
     return tcNO_CMD;
 }
@@ -262,6 +265,23 @@ uint32_t CAstfDB::get_delay_ticks(uint16_t program_index, uint16_t cmd_index) {
 
     return tw_time_usec_to_ticks(cmd["usec"].asInt());
 }
+
+void CAstfDB::fill_tx_mode(uint16_t program_index, 
+                            uint16_t cmd_index,
+                            CEmulAppCmd &res) {
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
+    } catch(std::exception &e) {
+        assert(0);
+    }
+
+    assert (cmd["name"] == "tx_mode");
+
+    res.u.m_tx_mode.m_flags = cmd["flags"].asUInt();
+}
+
 
 void CAstfDB::fill_delay_rnd(uint16_t program_index, 
                             uint16_t cmd_index,
@@ -1086,6 +1106,13 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 cmd.m_cmd = tcCLOSE_PKT;
                 prog->add_cmd(cmd);
                 break;
+
+            case tcTX_MODE :
+                cmd.m_cmd = tcTX_MODE;
+                fill_tx_mode(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
 
             default:
                 assert(0);

@@ -415,6 +415,8 @@ class CAstfDB  : public CTRexDummyCommand  {
     void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
 
     uint32_t get_delay_ticks(uint16_t program_index, uint16_t cmd_index);
+    void fill_tx_mode(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
+
     void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
     void fill_set_var(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
     void fill_jmpnz(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
