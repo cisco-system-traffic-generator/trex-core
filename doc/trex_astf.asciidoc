@@ -834,7 +834,7 @@ def run_stateful_tcp_test(server):
     trex_client = CTRexClient(server)
 
     trex_client.start_trex(
-            c = 1, # limitation for now                 <2>
+            c = 1, #                    <2>
             m = 1000,
             f = 'astf/http_simple.py',                  <3>
             k=10,
@@ -873,7 +873,7 @@ if __name__ == '__main__':
 
 ----
 <1> Imports the old trex_stf_lib 
-<2> force one DP core, limitation for now
+<2> One DP core, could be more 
 <3> load a astf profile 
 <4> enable astf mode 
 <5> check astf client server counters.
@@ -1414,6 +1414,8 @@ What we can do is loop inside the client side to send 1MB buffer 4096 times and 
 
 see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
+Usually in case of a very long flows there is a need to cap the number of  active flows, this can be done by `limit` directive 
+
 .Limit the number to flows
 [source,python]
 ----
@@ -1423,6 +1425,55 @@ see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for 
 
 ----
 <1> use `limit` field to control the total flows generated
+
+
+==== Tutorial: L7 emulation - Elefeant flows with non-blocking send  
+
+By default `send()` command waits for the ACK on the last byte. To make it non-blocking, especially in case big BDP (large window is required) it is possible to work in non-blocking mode, this way to achieve full pipeline. 
+
+have a look int `astf/htttp_eflow2.py` example 
+
+.Non-blocking send 
+[source,python]
+----
+    def create_profile(self,size,loop,mss,win,pipe):
+
+        http_response = 'HTTP/1.1'
+
+        bsize = len(http_response)
+
+        r=self.calc_loops (bsize,loop)
+
+        # client commands
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+
+        if r[1]==0:
+          prog_c.recv(r[0])
+        else:
+            prog_c.set_var("var1",r[1]); 
+            prog_c.set_label("a:");
+            prog_c.recv(r[0],True)
+            prog_c.jmp_nz("var1","a:") 
+            if r[2]:
+               prog_c.recv(bsize*r[2])
+
+
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req))
+        if pipe:
+          prog_s.set_send_blocking (False)   #<1>
+        prog_s.set_var("var2",loop-1);
+        prog_s.set_label("a:");
+        prog_s.send(http_response)
+        prog_s.jmp_nz("var2","a:") 
+        prog_s.set_send_blocking (True)      #<2>
+        prog_s.send(http_response)
+----
+<1> Set all send mode to be non-blocking from now on
+<2> Back to blocking mode. to make the last send to be blocking 
+
+see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
 ==== Tutorial: L7 emulation - http pipeline 
 
@@ -1604,6 +1655,12 @@ ipv6: 3ffe:501:8::260:97ff:fe40:efab  #<< not supported
 ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
                    
 ----
+
+[NOTE]
+=====================================================================
+When using RSS, the number of sockets (available source ports per clients IP) will be 100% divided by the numbers of cores (c). For example for c=3 each client IP would have 64K/3 source ports = 21K ports. In this case it is advised to add more clients to the pool (in case you are close to the limit). 
+in other words the reported socket-util is the console should be multiply by c
+=====================================================================
 
 
 === Traffic profile reference 
@@ -1883,5 +1940,36 @@ We plan to add it in the interactive mode with RPC API.
 
 
 
+=== Appendix
+
+==== Blocking vs non-blocking 
+
+Let's simulate a very long  HTTP download session with `astf-sim` to understand the difference betwean blocking and non-blocking
+
+1. rtt= 10msec
+2. shaper rate is 10mbps (simulate egress shaper of the DUT)
+3. write in chucks of 40KB
+4. max-window = 24K
+
+BDP (10msec*10mbps=12.5KB) but in case of blocking we will wait the RTT time in idle, reducing the maximum throughput.
+
+.Send is block
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_eflow2.py -o ab_np.pcap -r -v -t win=24,size=40,loop=100,pipe=0 --cmd "shaper-rate=10000,rtt=10000" 
+----
+
+In this case the rate is ~7mbps lower than 10mbps due to idle time.
+
+.Simulate is non-blocking 
+[source,bash]
+----
+[bash]>./astf-sim -f astf/http_eflow2.py -o ab_np.pcap -r -v -t win=24,size=40,loop=100,pipe=1 --cmd "shaper-rate=10000,rtt=10000" 
+----
+
+In this case the rate is 10mbps (maximum expected) full-pipeline 
+
+
+ 
 
 
