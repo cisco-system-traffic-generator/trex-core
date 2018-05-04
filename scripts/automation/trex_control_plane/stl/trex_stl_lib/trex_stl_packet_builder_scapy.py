@@ -341,6 +341,7 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         self.init_value = init_value
         validate_type('init_value', init_value, int)
         assert init_value >= 0, 'init_value (%s) is negative' % init_value
+        assert init_value <= max_value and init_value >= min_value, 'init_value (%s) must be between min_value (%s) and max_value (%s)' % (init_value, min_value, max_value)
         self.min_value=min_value
         validate_type('min_value', min_value, int)
         assert min_value >= 0, 'min_value (%s) is negative' % min_value
@@ -349,7 +350,7 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         assert max_value >= 0, 'max_value (%s) is negative' % max_value
         self.step=step
         validate_type('step', step, int)
-        assert step >= 0, 'step (%s) is negative' % step
+        assert step > 0, 'step (%s) is equals 0 or negative' % step
 
 class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
     #TBD add more validation tests
@@ -363,7 +364,7 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
         self.size = size
         self.limit=limit
         validate_type('limit', limit, int)
-        assert limit >= 0, 'limit (%s) is negative' % limit
+        assert limit > 0, 'limit (%s) is equals 0 or negative' % limit
         self.seed=seed
         validate_type('seed', seed, int)
         self.min_value=min_value
@@ -708,6 +709,31 @@ def convert_val (val):
 def check_for_int (val):
     validate_type('val', val, int)
 
+def valid_fv_var_sizes(size, vars):
+    for val in vars:
+        if val > get_max_by_size(size):
+            raise CTRexPacketBuildException(-11, ("requested value %d with size %d is bigger than %s") % (val, size, hex(get_max_by_size(size))));
+
+def valid_fv_init(init_value, min_value, max_value):
+    if init_value > max_value or init_value < min_value:
+        raise CTRexPacketBuildException(-11, ("init_value must be between min_value %d and max_value %d" % (min_value, max_value)));
+
+def valid_fv_min_max(min_value, max_value):
+    if min_value > max_value :
+        raise CTRexPacketBuildException(-11, ("max %d is lower than min %d ") % (max_value, min_value));
+
+def valid_fv_cycle(min_value, max_value, step, op):
+    pad = (max_value - min_value + 1) % step
+    if pad != 0:
+        step_pad = step - pad
+        if op == 'inc':
+            if (get_max_by_size(8) - max_value) < step_pad:
+                raise CTRexPacketBuildException(-11,("could not pad range to be a true cycle - '(max_value - min_value + 1) % step' should be zero"));
+        elif op == 'dec':
+            if min_value < step_pad:
+                raise CTRexPacketBuildException(-11,("could not pad range to be a true cycle - '(max_value - min_value + 1) % step' should be zero"));
+        
+
 
 class STLVmFlowVar(CTRexVmDescBase):
 
@@ -783,9 +809,14 @@ class STLVmFlowVar(CTRexVmDescBase):
         self.min_value  = convert_val (min_value);
         self.max_value  = convert_val (max_value)
         self.step       = convert_val (step)
+        
+        valid_fv_var_sizes(self.size, [self.min_value, self.max_value, self.init_value, self.step])
+        valid_fv_min_max(self.min_value, self.max_value)
+        valid_fv_init(self.init_value, self.min_value, self.max_value)
+        valid_fv_cycle(self.min_value, self.max_value, self.step, self.op)
 
-        if self.min_value > self.max_value :
-            raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
+        if self.step <= 0:
+            raise CTRexPacketBuildException(-11,("step %d must be more than 0") % (self.step));
 
     def get_obj (self):
         return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step);
@@ -860,9 +891,12 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         else:
             self.max_value = convert_val (max_value)
 
-            
-        if self.min_value > self.max_value :
-            raise CTRexPacketBuildException(-11,("max %d is lower than min %d ") % (self.max_value,self.min_value)  );
+        valid_fv_var_sizes(self.size, [self.min_value, self.max_value])
+        valid_fv_min_max(self.min_value, self.max_value)
+
+        if self.limit <= 0:
+            raise CTRexPacketBuildException(-11,("limit %d must be more than 0") % (self.limit));
+
 
     def get_obj (self):
         return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
