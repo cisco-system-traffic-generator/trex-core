@@ -1163,9 +1163,9 @@ class build_option:
 
         if self.isIntelPlatform():
             if self.is64Platform():
-	       flags += ['-m64']
-	    else:
-	       flags += ['-m32']
+                flags += ['-m64']
+            else:
+                flags += ['-m32']
 
         if self.isRelease():
             flags += ['-O3']
