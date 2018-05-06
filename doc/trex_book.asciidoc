@@ -797,16 +797,7 @@ zmq publisher at: tcp://*:4500
  test duration   : 94.7 sec
 
 ----
-
-==== startup
-
 <1> Link must be up for TRex to work.
-
-// ==== Interpretting per port stats
-// TODO
-
-==== global stats
-
 <2> Average CPU utilization of transmitters threads. For best results it should be lower than 80%.
 <3> Gb/sec generated per core of DP. Higher is better.
 <4> Total Tx must be the same as Rx at the end of the run.
