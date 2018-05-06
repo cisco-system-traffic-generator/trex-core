@@ -27,6 +27,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.41 ==
+
+* ASTF
+** Add add support for non-blocking send, for better eflow performance (30Gb/sec per one flow) see http_eflow2.py profile
+** Fix TCP fast recovery. dupack counter wasn't cleard
+* minor bug fixes 
+      
 == Release 2.40 ==
 
 * Search for Python2/3 in start-up scripts

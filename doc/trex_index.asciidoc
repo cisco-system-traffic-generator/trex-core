@@ -102,7 +102,8 @@ link:trex_vm_bench.html[sr_iov_bench]
 [options="header",cols="<4,a"]
 |=================
 | Description  |    Name 
-| Contributing | link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/CONTRIBUTING.md[CONTRIBUTING]
+| Contributing | 
+link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/CONTRIBUTING.md[CONTRIBUTING] 
 | Stateless server RPC specification    | 
 link:trex_rpc_server_spec.html[stl_rpc_server.html] 
 | Scapy server RPC specification    | 
