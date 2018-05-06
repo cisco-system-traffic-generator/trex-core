@@ -8,8 +8,8 @@ from nose.tools import assert_raises
 
 class CClientLaunching_Test(CControlPlaneGeneral_Test):
     def __init__(self):
-    	super(CClientLaunching_Test, self).__init__()
-    	pass
+        super(CClientLaunching_Test, self).__init__()
+        pass
 
     def setUp(self):
         pass

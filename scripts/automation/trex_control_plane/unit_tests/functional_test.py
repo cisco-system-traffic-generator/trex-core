@@ -145,8 +145,8 @@ class CTRexStartStop_Test(CControlPlaneGeneral_Test):
 
 class CBasicQuery_Test(CControlPlaneGeneral_Test):
     def __init__(self):
-    	super(CBasicQuery_Test, self).__init__()
-    	pass
+        super(CBasicQuery_Test, self).__init__()
+        pass
 
     def setUp(self):
         pass
