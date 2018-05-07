@@ -621,6 +621,12 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
         generate_parse_err(result, ss.str());
     }
 
+    if (init_value < min_value || init_value > max_value) {
+        std::stringstream ss;
+        ss << "VM: requested flow var init value: '" << init_value << "' should be in range from min value '" << min_value << "' to max value '" << max_value << "'";
+        generate_parse_err(result, ss.str());
+    }
+
     if (flow_var_size == 1 ) {
         if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
             std::stringstream ss;
