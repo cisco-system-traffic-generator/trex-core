@@ -671,7 +671,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
 		generate_parse_err(result, ss.str());
 	}
 
-    check_min_max(flow_var_size, 0, 1, min_value, max_value, result);
+    check_min_max(flow_var_size, min_value, 1, min_value, max_value, result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowRandLimit(flow_var_name,
                                                                       flow_var_size,
