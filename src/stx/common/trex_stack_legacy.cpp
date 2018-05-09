@@ -38,7 +38,7 @@ CStackLegacy::~CStackLegacy(void) {
 
 CNodeBase* CStackLegacy::add_node_internal(const std::string &mac_buf) {
     assert(m_nodes.size()==0);
-    CNodeBase *node = new CLegacyNode(mac_buf);
+    CLegacyNode *node = new CLegacyNode(mac_buf);
     if (node == nullptr) {
         string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
         throw TrexException("Could not create node " + mac_str + "!");

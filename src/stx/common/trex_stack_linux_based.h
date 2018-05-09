@@ -35,11 +35,13 @@ public:
     CLinuxIfNode(uint8_t port_id, uint64_t ns_id, const string &mac_str, const string &mac_buf, const string &mtu);
     ~CLinuxIfNode();
 
+    void conf_vlan_internal(const vlan_list_t &vlans);
     void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
     void clear_ip4_internal(void);
     void conf_ip6_internal(const string &ip6_buf, const string &gw6_buf);
     void clear_ip6_internal(void);
     int  get_pair_id(void);
+    string &get_vlans_insert_to_pkt(void);
     uint16_t filter_and_send(const rte_mbuf_t *m);
 
 private:
@@ -55,6 +57,7 @@ private:
     string          m_ip6;
     string          m_gw6;
     bpf_h           m_bpf;
+    string          m_vlans_insert_to_pkt;
 };
 
 
@@ -73,9 +76,10 @@ public:
 
 private:
     typedef vector<struct pollfd> pollfd_list_t;
+    typedef map<int,CLinuxIfNode*> node_by_pairfd_t;
     CNodeBase* add_node_internal(const std::string &mac_buf);
     void del_node_internal(const std::string &mac_buf);
-
+    node_by_pairfd_t    m_node_by_pairfd;
     static string       m_mtu;
     static bool         m_is_initialized;
     uint64_t            m_next_namespace_id = 0;
