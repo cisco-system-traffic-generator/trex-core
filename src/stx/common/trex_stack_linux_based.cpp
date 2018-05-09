@@ -92,9 +92,16 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
         for (auto &pollfd: m_pollfds) {
             if ( pollfd.revents == POLLIN ) {
                 uint16_t pkt_len = recv(pollfd.fd, m_rw_buf, MAX_PKT_ALIGN_BUF_9K, MSG_DONTWAIT);
-                if ( pkt_len <= MAX_PKT_ALIGN_BUF_9K ) {
+                string &vlans_insert_to_pkt = m_node_by_pairfd[pollfd.fd]->get_vlans_insert_to_pkt();
+                if ( pkt_len + vlans_insert_to_pkt.size() <= MAX_PKT_ALIGN_BUF_9K ) {
                     debug({"Linux handle_tx: pkt len:", to_string(pkt_len)});
-                    read_buf_str.assign(m_rw_buf, pkt_len);
+                    if ( vlans_insert_to_pkt.size() ) {
+                        read_buf_str.assign(m_rw_buf, 12);
+                        read_buf_str += vlans_insert_to_pkt;
+                        read_buf_str.append(m_rw_buf + 12, pkt_len - 12);
+                    } else {
+                        read_buf_str.assign(m_rw_buf, pkt_len);
+                    }
                     m_api->tx_pkt(read_buf_str);
                     cnt_pkts++;
                 }
@@ -110,16 +117,17 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
 CNodeBase* CStackLinuxBased::add_node_internal(const std::string &mac_buf) {
     string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
     if ( get_node_internal(mac_buf) != nullptr ) {
-        throw TrexException("Node with MAC " + mac_str + " already exists!");
+        throw TrexException("Node with MAC " + mac_str + " already exists");
     }
-    CNodeBase *node = new CLinuxIfNode(m_api->get_port_id(), m_next_namespace_id, mac_str, mac_buf, m_mtu);
+    CLinuxIfNode *node = new CLinuxIfNode(m_api->get_port_id(), m_next_namespace_id, mac_str, mac_buf, m_mtu);
     if (node == nullptr) {
-        throw TrexException("Could not create node " + mac_str + "!");
+        throw TrexException("Could not create node " + mac_str);
     }
     m_next_namespace_id++;
     m_nodes[mac_buf] = node;
+    m_node_by_pairfd[node->get_pair_id()] = node;
     struct pollfd m_pfd;
-    m_pfd.fd = ((CLinuxIfNode*)node)->get_pair_id();
+    m_pfd.fd = node->get_pair_id();
     m_pfd.events = POLLIN;
     m_pfd.revents = 0;
     m_pollfds.emplace_back(m_pfd);
@@ -130,10 +138,19 @@ void CStackLinuxBased::del_node_internal(const std::string &mac_buf) {
     auto iter_pair = m_nodes.find(mac_buf);
     if ( iter_pair == m_nodes.end() ) {
         string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
-        throw TrexException("Node with MAC " + mac_str + " does not exist!");
+        throw TrexException("Node with MAC " + mac_str + " does not exist");
     }
-    delete iter_pair->second;
+    CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
+    int pair_id = node->get_pair_id();
+    delete node;
+    m_node_by_pairfd.erase(pair_id);
     m_nodes.erase(iter_pair->first);
+    for (auto it = m_pollfds.begin(); it != m_pollfds.end(); it++ ) {
+        if ( it->fd == pair_id ) {
+            m_pollfds.erase(it);
+            break;
+        }
+    }
 }
 
 uint16_t CStackLinuxBased::get_capa(void) {
@@ -155,7 +172,6 @@ CLinuxIfNode::CLinuxIfNode(uint8_t port_id, uint64_t ns_id, const string &mac_st
     create_net(mtu);
     set_src_mac(mac_str, mac_buf);
     bind_pair();
-    // TODO: add and remove vlans when they will be supported in this stack
     m_bpf = bpfjit_compile("not udp and not tcp");
 }
 
@@ -177,6 +193,9 @@ uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {
         return 0;
     }
     debug("Packet was NOT filtered by BPF");
+    if ( m_vlans_insert_to_pkt.size() ) {
+        pkt = pkt.substr(0, 12) + pkt.substr(12 + m_vlans_insert_to_pkt.size());
+    }
     return send(m_pair_id, pkt.c_str(), pkt.size(), MSG_DONTWAIT);
 }
 
@@ -226,6 +245,28 @@ void CLinuxIfNode::set_src_mac(const string &mac_str, const string &mac_buf) {
     m_src_mac = mac_buf;
 }
 
+void append_to_str(uint16_t num, string &str) {
+    str += num >> 8;
+    str += num & 0xff;
+}
+
+void CLinuxIfNode::conf_vlan_internal(const vlan_list_t &vlans) {
+    string bpf_str = "";
+    m_vlans_insert_to_pkt = "";
+    for (auto &vlan : vlans) {
+        if ( vlans.size() == 2 && !m_vlans_insert_to_pkt.size() ) {
+            append_to_str(EthernetHeader::Protocol::QINQ, m_vlans_insert_to_pkt);
+        } else {
+            append_to_str(EthernetHeader::Protocol::VLAN, m_vlans_insert_to_pkt);
+        }
+        append_to_str(vlan, m_vlans_insert_to_pkt);
+        bpf_str += "vlan " + to_string(vlan) + " and ";
+    }
+    bpf_str += "not udp and not tcp";
+    m_bpf = bpfjit_compile(bpf_str.c_str());
+    m_vlan_tags = vlans;
+}
+
 void CLinuxIfNode::clear_ip4_internal(void) {
     run_in_ns("ip -4 addr flush dev " + m_ns_name + "-L", "Could not flush IPv4 for veth");
     m_ip4.clear();
@@ -271,10 +312,15 @@ void CLinuxIfNode::conf_ip6_internal(const string &ip6_buf, const string &gw6_bu
     m_gw6 = gw6_buf;
 }
 
+// veth pair (from TRex side)
 int CLinuxIfNode::get_pair_id(void) {
-     return m_pair_id;
+    return m_pair_id;
 }
 
+// string of VLAN header(s) to insert into packet
+string &CLinuxIfNode::get_vlans_insert_to_pkt(void) {
+    return m_vlans_insert_to_pkt;
+}
 
 /***************************************
 *            helper func               *
@@ -292,7 +338,6 @@ void clean_old_nets_helper(void) {
     } else {
         ns_pattern = "trex-[0-9]+-[0-9]+";
     }
-    delay(10000);
 
     // remove old namespaces
     string read_dir = "/var/run/netns";
