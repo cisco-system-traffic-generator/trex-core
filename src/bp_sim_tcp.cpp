@@ -227,7 +227,11 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     CTupleBase  tuple;
     cur->m_tuple_gen.GenerateTuple(tuple);
 
-
+    if ( tuple.getClientPort() == ILLEGAL_PORT ){
+        /* we can't allocate tuple, too much */
+        m_c_tcp->m_ft.inc_err_c_new_tuple_err_cnt();
+        return;
+    }
 
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
