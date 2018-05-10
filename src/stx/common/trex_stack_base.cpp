@@ -279,10 +279,7 @@ void CStackBase::reset_async(void) {
 }
 
 void CStackBase::cleanup_async(void) {
-    stringstream ss;
-    ss << this_thread::get_id();
-    debug({"cleanup, thread_id:", ss.str()});
-
+    debug("cleanup");
     cancel_running_tasks();
     cancel_pending_tasks();
     m_results.clear();
