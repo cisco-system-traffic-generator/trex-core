@@ -169,6 +169,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_c_nf_throttled;
     uint32_t        m_err_s_nf_throttled;
     uint32_t        m_err_flow_overflow;
+    uint32_t        m_err_c_tuple_err;
 };
 
 class  CSttFlowTableStats {
@@ -262,6 +263,11 @@ public:
 
       void inc_rx_throttled_cnt(){
           m_sts.m_sts.m_err_rx_throttled++;
+      }
+
+
+      void inc_err_c_new_tuple_err_cnt(){
+          m_sts.m_sts.m_err_c_tuple_err++;
       }
 
       void inc_err_c_new_flow_throttled_cnt(){

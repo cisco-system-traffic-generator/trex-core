@@ -3886,7 +3886,9 @@ public:
         SHUTDOWN_CTRL_C,
         SHUTDOWN_SIGINT,
         SHUTDOWN_SIGTERM,
-        SHUTDOWN_RPC_REQ
+        SHUTDOWN_RPC_REQ,
+        SHUTDOWN_NOT_ENOGTH_CLIENTS
+
     } shutdown_rc_e;
 
     CGlobalTRex (){
@@ -3900,6 +3902,7 @@ public:
         m_expected_bps=0.0;
         m_stx = NULL;
         m_mark_for_shutdown = SHUTDOWN_NONE;
+        m_mark_not_enogth_clients =false;
         m_start_sync=0;
     }
 
@@ -3976,6 +3979,8 @@ private:
         case SHUTDOWN_RPC_REQ:
             return "server received RPC 'shutdown' request";
 
+        case SHUTDOWN_NOT_ENOGTH_CLIENTS :
+            return "there are not enogth clients for this rate, try to add more";
         default:
             assert(0);
         }
@@ -4091,6 +4096,7 @@ private:
 
     TrexMonitor           m_monitor;
     shutdown_rc_e         m_mark_for_shutdown;
+    bool                  m_mark_not_enogth_clients;
 
 public:
     TrexSTX              *m_stx;
@@ -5424,12 +5430,13 @@ bool CGlobalTRex::sanity_check(){
         errors   += lpt->m_smart_gen.getErrorAllocationCounter();
     }
 
-    if ( errors ) {
-        printf(" ERRORs sockets allocation errors! \n");
+    if ( errors && (get_is_tcp_mode()==false) ) {
+        m_mark_not_enogth_clients = true;
+        printf(" ERROR can't allocate tuple, not enough clients \n");
         printf(" you should allocate more clients in the pool \n");
         
         /* mark test end and get out */
-        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
+        mark_for_shutdown(SHUTDOWN_NOT_ENOGTH_CLIENTS);
         
         return(true);
     }
@@ -5940,6 +5947,10 @@ int CGlobalTRex::stop_master(){
     }
 
     publish_async_data(false);
+
+    if (m_mark_not_enogth_clients) {
+        printf("ERROR: there are not enogth clients for this rate, try to add more clients to the pool ! \n");
+    }
 
     return (0);
 }
