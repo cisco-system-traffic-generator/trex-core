@@ -92,7 +92,16 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
         for (auto &pollfd: m_pollfds) {
             if ( pollfd.revents == POLLIN ) {
                 uint16_t pkt_len = recv(pollfd.fd, m_rw_buf, MAX_PKT_ALIGN_BUF_9K, MSG_DONTWAIT);
-                string &vlans_insert_to_pkt = m_node_by_pairfd[pollfd.fd]->get_vlans_insert_to_pkt();
+                if ( pkt_len < 14 ) {
+                    continue;
+                }
+                string src_mac(m_rw_buf + 6, 6);
+                auto iter_pair = m_nodes.find(src_mac);
+                if ( iter_pair == m_nodes.end() ) {
+                    continue;
+                }
+                CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
+                string &vlans_insert_to_pkt = node->get_vlans_insert_to_pkt();
                 if ( pkt_len + vlans_insert_to_pkt.size() <= MAX_PKT_ALIGN_BUF_9K ) {
                     debug({"Linux handle_tx: pkt len:", to_string(pkt_len)});
                     if ( vlans_insert_to_pkt.size() ) {
@@ -125,7 +134,6 @@ CNodeBase* CStackLinuxBased::add_node_internal(const std::string &mac_buf) {
     }
     m_next_namespace_id++;
     m_nodes[mac_buf] = node;
-    m_node_by_pairfd[node->get_pair_id()] = node;
     struct pollfd m_pfd;
     m_pfd.fd = node->get_pair_id();
     m_pfd.events = POLLIN;
@@ -143,7 +151,6 @@ void CStackLinuxBased::del_node_internal(const std::string &mac_buf) {
     CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
     int pair_id = node->get_pair_id();
     delete node;
-    m_node_by_pairfd.erase(pair_id);
     m_nodes.erase(iter_pair->first);
     for (auto it = m_pollfds.begin(); it != m_pollfds.end(); it++ ) {
         if ( it->fd == pair_id ) {
@@ -254,7 +261,7 @@ void CLinuxIfNode::conf_vlan_internal(const vlan_list_t &vlans) {
     string bpf_str = "";
     m_vlans_insert_to_pkt = "";
     for (auto &vlan : vlans) {
-        if ( vlans.size() == 2 && !m_vlans_insert_to_pkt.size() ) {
+        if ( vlans.size() == 2 && !bpf_str.size() ) {
             append_to_str(EthernetHeader::Protocol::QINQ, m_vlans_insert_to_pkt);
         } else {
             append_to_str(EthernetHeader::Protocol::VLAN, m_vlans_insert_to_pkt);

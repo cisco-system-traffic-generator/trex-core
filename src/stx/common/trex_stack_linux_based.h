@@ -76,10 +76,8 @@ public:
 
 private:
     typedef vector<struct pollfd> pollfd_list_t;
-    typedef map<int,CLinuxIfNode*> node_by_pairfd_t;
     CNodeBase* add_node_internal(const std::string &mac_buf);
     void del_node_internal(const std::string &mac_buf);
-    node_by_pairfd_t    m_node_by_pairfd;
     static string       m_mtu;
     static bool         m_is_initialized;
     uint64_t            m_next_namespace_id = 0;
