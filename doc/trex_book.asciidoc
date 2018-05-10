@@ -73,17 +73,14 @@ This guide explains the use of TRex internals and the use of TRex together with 
 
 === Hardware recommendations
 
-TRex operates in a Linux application environment, interacting with Linux kernel modules.
-TRex curretly works and tested on x86 architecture (it can be compiled to ARM but not tested in our regression) and can operate well on Cisco UCS hardware for high performance low latency use cases. 
+TRex is a Linux application, interacting with Linux kernel modules. It uses DPDK (there is *no* need to install DPDK as a library).
+TRex should work on any COTS x86 server (it can be compiled to ARM but not tested in our regression).
+Our regression setups uses Cisco UCS hardware for high performance low latency use cases. 
 The following platforms have been tested and are recommended for operating TRex.
 
 Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces). 
 Docker example is provided link:trex_vm_manual.html#docker[Docker] for more info see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 
-[NOTE]
-=====================================
- A high-end UCS platform is not required for operating TRex in its current version, but may be required for future versions.
-=====================================
 
 [NOTE]
 =====================================
