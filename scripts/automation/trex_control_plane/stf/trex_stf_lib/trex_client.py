@@ -1085,7 +1085,7 @@ class CTRexClient(object):
             finally:
                 self.prompt_verbose_data()
             time.sleep(1)
-        raise
+        raise Exception('Could not restart trex_daemon_server, no more retries.')
 
     def start_trex_daemon(self):
         '''
