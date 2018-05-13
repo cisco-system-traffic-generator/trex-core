@@ -74,6 +74,7 @@ TREX_RPC_CMD(TrexRpcCmdGetVersion,            "get_version");
 TREX_RPC_CMD(TrexRpcCmdGetUtilization,        "get_utilization");
 TREX_RPC_CMD(TrexRpcPublishNow,               "publish_now"); 
 TREX_RPC_CMD(TrexRpcCmdGetAsyncResults,       "get_async_results");
+TREX_RPC_CMD(TrexRpcCmdCancelAsyncTask,       "cancel_async_task");
 
 TREX_RPC_CMD_EXT(TrexRpcCmdGetSysInfo,        "get_system_info",
 
@@ -777,8 +778,10 @@ void TrexRpcCmdSetL2::process_results(uint64_t ticket_id, const Json::Value &par
         generate_async_no_results(result, "Could not find L2 results, probably timeout on aging.");
     }
     if ( !results.is_ready ) {
-        async_ticket_func_t f = bind(&TrexRpcCmdSetL2::process_results, this, ticket_id, params, _1);
-        get_stx()->add_func_by_ticket(ticket_id, f);
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdSetL2::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
         generate_async_wip(result, ticket_id);
     }
     if ( results.err_per_mac.size() ) {
@@ -837,8 +840,10 @@ void TrexRpcCmdSetVLAN::process_results(uint64_t ticket_id, const Json::Value &p
         generate_async_no_results(result, "Could not find VLAN config results, probably timeout on aging.");
     }
     if ( !results.is_ready ) {
-        async_ticket_func_t f = bind(&TrexRpcCmdSetVLAN::process_results, this, ticket_id, params, _1);
-        get_stx()->add_func_by_ticket(ticket_id, f);
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdSetVLAN::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
         generate_async_wip(result, ticket_id);
     }
     if ( results.err_per_mac.size() ) {
@@ -932,8 +937,10 @@ void TrexRpcCmdSetL3::process_results(uint64_t ticket_id, const Json::Value &par
         generate_async_no_results(result, "Could not find L3 results, probably timeout on aging.");
     }
     if ( !results.is_ready ) {
-        async_ticket_func_t f = bind(&TrexRpcCmdSetL3::process_results, this, ticket_id, params, _1);
-        get_stx()->add_func_by_ticket(ticket_id, f);
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdSetL3::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
         generate_async_wip(result, ticket_id);
     }
     if ( results.err_per_mac.size() ) {
@@ -1277,17 +1284,34 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetAsyncResults::_run(const Json::Value &params, Json::Value &result) {
     uint64_t ticket_id = parse_uint64(params, "ticket_id", result);
-    async_ticket_func_t func;
-    bool found = get_stx()->get_func_by_ticket(ticket_id, func);
+    async_ticket_task_t task;
+    bool found = get_stx()->get_task_by_ticket(ticket_id, task);
 
     if ( !found ) {
         generate_async_no_results(result);
     }
 
-    func(result);
+    task.result_func(result);
 
     return (TREX_RPC_CMD_OK);
 }
+
+/**
+ * Cancel async task
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdCancelAsyncTask::_run(const Json::Value &params, Json::Value &result) {
+    uint64_t ticket_id = parse_uint64(params, "ticket_id", result);
+
+    async_ticket_task_t task;
+    bool found = get_stx()->get_task_by_ticket(ticket_id, task);
+    if ( found ) {
+        task.cancel_func();
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
 
 /****************************** component implementation ******************************/
 
@@ -1322,6 +1346,7 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdGetRxQueuePkts(this));
     m_cmds.push_back(new TrexRpcCmdSetRxFeature(this));
     m_cmds.push_back(new TrexRpcCmdGetAsyncResults(this));
+    m_cmds.push_back(new TrexRpcCmdCancelAsyncTask(this));
     
 }
 

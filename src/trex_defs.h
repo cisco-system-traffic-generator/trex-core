@@ -98,8 +98,13 @@ typedef std::map<uint64_t,stack_result_t> stack_result_map_t;
 // end stack related
 
 // async related
-typedef std::function<void(Json::Value &result)> async_ticket_func_t;
-typedef std::map<uint64_t,async_ticket_func_t> async_ticket_map_t;
+typedef std::function<void(Json::Value &result)> async_result_func_t;
+typedef std::function<void(void)> async_cancel_func_t;
+typedef struct {
+    async_result_func_t result_func;
+    async_cancel_func_t cancel_func;
+} async_ticket_task_t;
+typedef std::map<uint64_t,async_ticket_task_t> async_ticket_map_t;
 // end async related
 
 #endif

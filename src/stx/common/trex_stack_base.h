@@ -159,13 +159,14 @@ public:
     // busy wait for tasks to finish
     void wait_on_tasks(uint64_t ticket_id, stack_result_t &results, double timeout);
 
+    void cancel_pending_tasks(void);
+    void cancel_running_tasks(void);
+
 protected:
     typedef std::unordered_map<std::string,CNodeBase*> nodes_map_t;
     virtual CNodeBase* add_node_internal(const std::string &mac_buf)=0;
     virtual void del_node_internal(const std::string &mac_buf)=0;
     void run_pending_tasks_internal(uint64_t ticket_id);
-    void cancel_pending_tasks(void);
-    void cancel_running_tasks(void);
     CNodeBase* get_node_internal(const std::string &mac_buf);
     bool has_pending_tasks(void);
 

@@ -65,6 +65,7 @@ TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
     if (get_owner().is_free() || force) {
         get_owner().own(user, session_id);
+        cancel_rx_cfg_tasks();
 
     } else {
         /* not same user or session id and not force - report error */
@@ -97,6 +98,7 @@ TrexPort::release(void) {
     data["session_id"] = get_owner().get_session_id();
 
     get_owner().release();
+    cancel_rx_cfg_tasks();
 
     get_stx()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RELEASED, data);
 }
@@ -407,6 +409,11 @@ bool TrexPort::get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &resu
     TrexRxGetTasksResults *msg = new TrexRxGetTasksResults(m_port_id, ticket_id, results, reply);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
     return reply.wait_for_reply();
+}
+
+void TrexPort::cancel_rx_cfg_tasks(void) {
+    TrexRxCancelCfgTasks *msg = new TrexRxCancelCfgTasks(m_port_id);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
 void TrexPort::port_attr_to_json(Json::Value &attr_res) {

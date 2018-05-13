@@ -222,6 +222,7 @@ bool CStackBase::has_pending_tasks(void) {
 }
 
 void CStackBase::cancel_pending_tasks(void) {
+    debug("Canceling pending tasks");
     m_add_macs_list.clear();
     m_del_macs_list.clear();
     for (auto &node_pair : m_nodes) {
@@ -230,6 +231,7 @@ void CStackBase::cancel_pending_tasks(void) {
 }
 
 void CStackBase::cancel_running_tasks(void) {
+    debug("Canceling running tasks");
     if ( m_is_running_tasks ) {
         pthread_cancel(m_thread_handle);
         m_is_running_tasks = false;

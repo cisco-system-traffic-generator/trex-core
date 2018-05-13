@@ -54,18 +54,18 @@ void clean_old_tickets(async_ticket_map_t &ticket_map) {
     }
 }
 
-void TrexSTX::add_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func) {
-    clean_old_tickets(m_async_func_by_ticket);
-    m_async_func_by_ticket[ticket_id] = func;
+void TrexSTX::add_task_by_ticket(uint64_t ticket_id, async_ticket_task_t &task) {
+    clean_old_tickets(m_async_task_by_ticket);
+    m_async_task_by_ticket[ticket_id] = task;
 }
 
-bool TrexSTX::get_func_by_ticket(uint64_t ticket_id, async_ticket_func_t &func) {
-    auto it = m_async_func_by_ticket.find(ticket_id);
-    if ( it == m_async_func_by_ticket.end() ) {
+bool TrexSTX::get_task_by_ticket(uint64_t ticket_id, async_ticket_task_t &task) {
+    auto it = m_async_task_by_ticket.find(ticket_id);
+    if ( it == m_async_task_by_ticket.end() ) {
         return false;
     }
-    func = it->second;
-    m_async_func_by_ticket.erase(it);
+    task = it->second;
+    m_async_task_by_ticket.erase(it);
     return true;
 }
 
