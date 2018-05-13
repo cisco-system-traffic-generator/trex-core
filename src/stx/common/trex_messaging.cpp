@@ -290,6 +290,13 @@ bool TrexRxInvalidateDstMac::handle(CRxCore *rx_core) {
     return true;
 }
 
+bool TrexRxCancelCfgTasks::handle(CRxCore *rx_core) {
+    CStackBase* stack = get_stack(rx_core, m_port_id);
+    stack->cancel_running_tasks();
+    stack->cancel_pending_tasks();
+    return true;
+}
+
 bool TrexRxSetVLAN::handle(CRxCore *rx_core) {
     CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
     node->conf_vlan_async(m_vlan_list);

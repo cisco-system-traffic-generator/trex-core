@@ -550,6 +550,15 @@ private:
     uint64_t                 m_ticket_id;
 };
 
+class TrexRxCancelCfgTasks : public TrexCpToRxMsgBase {
+public:
+    TrexRxCancelCfgTasks(uint8_t port_id) {
+        m_port_id = port_id;
+    }
+    virtual bool handle(CRxCore *rx_core);
+private:
+    uint8_t                 m_port_id;
+};
 
 /**
  * a request from RX core to dump to Json with MAC/IP/VLAN etc. of port

@@ -254,6 +254,9 @@ public:
      */
     void invalidate_dst_mac(void);
 
+    // cancel rx config tasks
+    void cancel_rx_cfg_tasks(void);
+
     /**
      * generate a JSON with MAC/IP/VLAN etc. of port
      */

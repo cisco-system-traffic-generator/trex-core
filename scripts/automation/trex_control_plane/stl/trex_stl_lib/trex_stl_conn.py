@@ -36,15 +36,28 @@ class CCommLink(object):
         return self.rpc_link.disconnect()
 
     def transmit(self, method_name, params = None, retry = 0):
-        poll_rate = 0.3
+        sleep_sec = 0.3
+        timeout_sec = 3
+        poll_tries = int(timeout_sec / sleep_sec)
         rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
         while not rc and rc.errno() == JsonRpcErrNo.JSONRPC_V2_ERR_TRY_AGAIN:
-            time.sleep(poll_rate)
+            if poll_tries == 0:
+                return RC_ERR('Server was busy within %s sec, try again later' % timeout_sec)
+            poll_tries -= 1
+            time.sleep(sleep_sec)
             rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
         while not rc and rc.errno() == JsonRpcErrNo.JSONRPC_V2_ERR_WIP:
-            time.sleep(poll_rate)
-            params = {'ticket_id': int(rc.err())}
-            rc = self.rpc_link.invoke_rpc_method("get_async_results", params, self.api_h, retry = retry)
+            try:
+                params = {'ticket_id': int(rc.err())}
+                if poll_tries == 0:
+                    self.rpc_link.invoke_rpc_method('cancel_async_task', params, self.api_h)
+                    return RC_ERR('Timeout on processing async command, server did not finish within %s second' % timeout_sec)
+                poll_tries -= 1
+                time.sleep(sleep_sec)
+                rc = self.rpc_link.invoke_rpc_method('get_async_results', params, self.api_h, retry = retry)
+            except KeyboardInterrupt:
+                self.rpc_link.invoke_rpc_method('cancel_async_task', params, self.api_h)
+                raise
         return rc
 
     def transmit_batch(self, batch_list, retry = 0):
