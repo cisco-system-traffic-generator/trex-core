@@ -1237,6 +1237,7 @@ TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
             if ( !port_node_updated ) {
                 try {
                     port->get_port_node(port_node);
+                    port_node_updated = true;
                 } catch (const TrexException &ex) {
                     generate_execute_err(result, ex.what());
                 }
