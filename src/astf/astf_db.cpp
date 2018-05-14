@@ -17,9 +17,9 @@
 #include "bp_sim.h"
 #include "44bsd/tcp_var.h"
 #include "utl_split.h"
+#include "inet_pton.h"
+#include "astf/astf_json_validator.h"
 
-
-extern int my_inet_pton4(const char *src, unsigned char *dst);
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -34,6 +34,31 @@ inline std::string methodName(const std::string& prettyFunction)
 
 // make the class singelton
 CAstfDB* CAstfDB::m_pInstance = NULL;
+
+
+CAstfDB::CAstfDB(){
+    m_client_config_info=0;
+    m_validator=0;
+    m_validator = new CAstfJsonValidator();
+    if (!m_validator->Create("astf_schema.json")){
+        exit(-1);
+    }
+}
+
+
+CAstfDB::~CAstfDB(){
+    if (m_validator){
+        m_validator->Delete();
+        delete m_validator;
+    }
+    clear();
+}
+
+
+bool CAstfDB::validate_profile(Json::Value profile,std::string & err){
+    return (m_validator->validate_profile(profile, err));
+}
+
 
 
 static double cps_factor(double cps){
@@ -101,6 +126,99 @@ void CTcpDataAssocTranslation::clear() {
     m_vec.clear();
 }
 
+bool CAstfDB::start_profile_no_buffer(Json::Value msg){
+    /* free buffer */
+    clear_buffers();
+    set_profile_one_msg(msg);
+    return (true);
+}
+
+/* clear buffers */
+bool CAstfDB::clear_buffers(){
+    m_buffers = Json::nullValue;
+    return (true);
+}
+
+bool CAstfDB::add_buffers(Json::Value msg,std::string & err){
+    
+    if (!msg.isArray()){
+        std::stringstream ss;
+        ss << "val should be an array of strings  ";
+        err = ss.str();
+        clear_buffers();
+        return (false);
+    }
+
+    int i;
+    /* check val array type of string */
+    for (i=0; i<msg.size(); i++) {
+        if (!msg[i].isString()){
+            std::stringstream ss;
+            ss << "msg[x] should be an array of strings  ";
+            err = ss.str();
+            return (false);
+        }
+        m_buffers.append(msg[i]);
+    }
+
+    return(true);
+
+}
+
+bool CAstfDB::compile_profile(std::string & err){
+    if (!m_val.isObject()){
+        std::stringstream ss;
+        ss << "val should be an object ";
+        err = ss.str();
+        return (false);
+    }
+
+    if (!m_buffers.isArray()){
+        std::stringstream ss;
+        ss << "buffers should be an array of strings  ";
+        err = ss.str();
+        return (false);
+    }
+
+    m_val["buf_list"]=m_buffers;
+    return (true);
+}
+
+
+bool CAstfDB::compile_profile_dp(uint8_t socket_id){
+
+    return(true);
+}
+
+
+void CAstfDB::dump_profile(FILE *fd){
+    Json::StreamWriterBuilder builder;
+    std::string output = Json::writeString(builder, m_val);
+
+    fprintf(fd," %s ",output.c_str());
+}
+
+void CAstfDB::set_profile_one_msg(Json::Value msg){
+    m_val =msg;
+}
+
+
+bool CAstfDB::set_profile_one_msg(std::string msg,std::string & err){
+
+    Json::Reader reader;
+
+    err="";
+    bool rc = reader.parse(msg, m_val, false);
+    if (!rc) {
+        std::stringstream ss;
+        ss << "Failed parsing json message : " << reader.getFormattedErrorMessages() ;
+        err = ss.str();
+        return false;
+    }
+    return(validate_profile(m_val,err));
+}
+
+
 bool CAstfDB::parse_file(std::string file) {
     static bool parsed = false;
     if (parsed)
@@ -114,12 +232,14 @@ bool CAstfDB::parse_file(std::string file) {
         std::cerr << "Failed openeing json file " << file << std::endl;
         exit(1);
     }
-    std::string m_msg((std::istreambuf_iterator<char>(t)),
-                                    std::istreambuf_iterator<char>());
-    bool rc = reader.parse(m_msg, m_val, false);
 
+    std::string msg((std::istreambuf_iterator<char>(t)),
+                                    std::istreambuf_iterator<char>());
+
+    std::string err;
+    bool rc = set_profile_one_msg(msg,err);
     if (!rc) {
-        std::cerr << "Failed parsing json file " << file << std::endl;
+        std::cerr << "Failed parsing json file " << file << err << std::endl;
         return false;
     }
 
@@ -1209,3 +1329,7 @@ void CAstfDbRO::Delete() {
     m_assoc_trans.clear();
     m_init = false;
 }
+
+
+
+

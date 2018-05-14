@@ -347,6 +347,8 @@ typedef enum {
 } CJsonData_read_type_t ;
 
 
+class CAstfJsonValidator;
+
 class CAstfDB  : public CTRexDummyCommand  {
 
     struct json_handle {
@@ -370,17 +372,49 @@ class CAstfDB  : public CTRexDummyCommand  {
             m_pInstance=0;
         }
     }
-    CAstfDB() : CTRexDummyCommand() {
-        m_client_config_info=0;
-    }
+    CAstfDB();
+    virtual ~CAstfDB();
 
+    /***************************/
 
-    virtual ~CAstfDB(){
-        clear();
-    }
+    void set_profile_one_msg(Json::Value msg);
 
-    // Parsing json file called from master 
+    /* set profile as one message, if profile message  is small. for interactive mode */
+    bool set_profile_one_msg(std::string msg,std::string & err);
+
+    /***************************/
+    /* split profile to a few steps */
+    /*  
+        start_profile_no_buffer(..);
+
+        loops:        
+          add_buffers(msg,err);
+        
+        compile_profile(err);
+
+        m_val will have a valid json after this
+        
+    */
+
+    /* set profile as message without buffers  */
+    bool start_profile_no_buffer(Json::Value msg);
+
+    /* clear buffers */
+    bool clear_buffers();
+
+    bool add_buffers(Json::Value msg,std::string & err);
+
+    bool compile_profile(std::string & err);
+
+    void dump_profile(FILE *fd);
+
+    bool compile_profile_dp(uint8_t socket_id);
+
+    /***************************/
+
+    // Parsing json file called from master. used for batch mode, read the JSON from file
     bool parse_file(std::string file);
+
     void set_client_cfg_db(ClientCfgDB * client_config_info){
         m_client_config_info = client_config_info;
     }
@@ -398,6 +432,9 @@ class CAstfDB  : public CTRexDummyCommand  {
 
     /* Update for client cluster mode. Should be deprecated */
     void get_tuple_info(CTupleGenYamlInfo & tuple_info);
+
+private:
+    bool validate_profile(Json::Value profile,std::string & err);
 
  private:
     CEmulAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
@@ -507,6 +544,8 @@ private:
     bool m_json_initiated;
     static CAstfDB *m_pInstance;
     Json::Value  m_val;
+    Json::Value  m_buffers;
+
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     std::vector<CTcpTuneables *> m_s_tuneables;
@@ -516,6 +555,7 @@ private:
     CAstfDbRO            m_tcp_data[MAX_SOCKETS_SUPPORTED];
 
     ClientCfgDB   *      m_client_config_info;
+    CAstfJsonValidator  * m_validator;
 };
 
 #endif

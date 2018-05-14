@@ -242,6 +242,7 @@ main_src = SrcGroup(dir='src',
              'sim/trex_sim_astf.cpp',
              'h_timer.cpp',
              'astf/astf_db.cpp',
+             'astf/astf_json_validator.cpp',
              'utl_sync_barrier.cpp',
              'trex_build_info.cpp',
              ]);
@@ -439,6 +440,7 @@ includes_path =''' ../src/pal/linux/
                    ../external_libs/zmq-'''+ march +'''/include/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/bpf/
+                   ../external_libs/valijson/include/
               ''';
 
 

@@ -437,7 +437,7 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 }
 
 
-bool CFlowGenListPerThread::Create_tcp(){
+bool CFlowGenListPerThread::Create_tcp_batch(){
     m_tcp_terminate = false;
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
@@ -514,7 +514,7 @@ bool CFlowGenListPerThread::Create_tcp(){
     return(true);
 }
 
-void CFlowGenListPerThread::Delete_tcp(){
+void CFlowGenListPerThread::Delete_tcp_batch(){
     if (m_c_tcp) {
         m_c_tcp->Delete();
         delete m_c_tcp;

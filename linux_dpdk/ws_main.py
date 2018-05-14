@@ -381,6 +381,7 @@ main_src = SrcGroup(dir='src',
              'pal/common/common_mbuf.cpp',
              'h_timer.cpp',
              'astf/astf_db.cpp',
+             'astf/astf_json_validator.cpp',
              'bp_sim_stf.cpp',
              'utl_sync_barrier.cpp',
              'trex_build_info.cpp',
@@ -1546,6 +1547,7 @@ files_list=[
             'trex_daemon_server',
             'scapy_daemon_server',
             'master_daemon.py',
+            'astf_schema.json',
             'trex-console',
             'daemon_server'
             ];

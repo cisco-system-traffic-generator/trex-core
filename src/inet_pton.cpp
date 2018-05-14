@@ -16,9 +16,8 @@
  */
 
 #include <string.h>
+#include "inet_pton.h"
 
-typedef unsigned char u_char;
-typedef unsigned int  u_int;
 /* int
  * inet_pton4(src, dst)
  *	like inet_aton() but without all the hexadecimal and shorthand.

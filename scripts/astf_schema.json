@@ -1,0 +1,513 @@
+{
+    "title": "astf_profile",
+    "description": "TRex ASTF profile ",
+    "type": "object",
+    "properties": {
+        "buf_list" : {
+           "$ref": "#/definitions/buf_list_t"
+        },
+
+        "ip_gen_dist_list": {
+           "$ref": "#/definitions/ip_gen_dist_list_t" 
+        },
+ 
+        "templates" : {
+            "$ref": "#/definitions/template_array_t"
+        },
+        
+        "program_list" : {
+            "$ref": "#/definitions/program_array_t"
+        },
+        
+        "c_glob_info" : {
+            "$ref": "#/definitions/glob_info_t"
+        },
+        
+        "s_glob_info" : {
+            "$ref": "#/definitions/glob_info_t"
+        }
+    },
+    
+    "required": ["buf_list"],
+    
+    "definitions": {
+
+             "buf_list_t" : {
+                  "type": "array",
+                  "items": {
+                       "type": "string"
+                   },
+                   "minItems": 1
+              },
+
+              "ip_gen_dist_list_t" : {
+                  "type": "array",
+                  "items": {
+                       "type": "object",
+                       "properties": {
+                            "ip_start": {
+                              "type" : "string"
+                            },
+
+                            "dir": { 
+                               "type" : "string",
+                               "enum" : ["c","s"]
+                            },
+
+                            "distribution": {
+                              "type" : "string",
+                              "enum" : ["seq","rand","normal"]
+                            },
+
+                            "ip_end":  {
+                              "type" : "string"
+                            },
+
+                            "ip_offset" : {
+                             "type" : "string"
+                            }
+                       },
+                       "required": ["ip_start","dir","distribution","ip_end","ip_offset"]
+                   }
+             },
+             
+             "server_template_t" : {
+                 "type": "object",
+                 "properties": {
+                        "program_index": {
+                             "type" : "integer"
+                         },
+                         "assoc" : {
+                             "type" : "array",
+                              "items": {
+                                   "type": "object",
+                                   "properties": {
+                                        "port": {
+                                            "type" : "integer"
+                                          }
+                                   }, // for now
+                                   "required": ["port"]
+                              }
+                         }
+                 },
+                 "required": ["program_index","assoc"]
+             },
+
+             "client_template_t" : {
+                 "type": "object",
+                 "properties": {
+                        "program_index": {
+                             "type" : "integer"
+                         },
+                        "port": {
+                             "type" : "integer"
+                         },
+
+                        "glob_info" : {
+                          "$ref": "#/definitions/glob_info_t"      
+                        },
+                        
+                        "cps": {
+                             "type" : "number" 
+                         },
+                        "limit": {
+                             "type" : "integer"
+                         },
+                        "cluster": {
+                             "type" : "object"
+                         },
+
+                         "ip_gen" : {
+                             "type" : "object",
+                             "properties": { 
+
+                               "dist_server" : {
+                                   "type" : "object",
+                                   "properties": {
+                                        "index": {
+                                           "type" : "integer"
+                                        }
+                                    },
+                                    "required": ["index"]
+                               },
+
+                               "dist_client" : {
+                                   "type" : "object",
+                                   "properties": {
+                                        "index": {
+                                           "type" : "integer"
+                                        }
+                                    },
+                                    "required": ["index"]
+                               }
+                            }
+                         }
+                 },
+                 "required": ["program_index","ip_gen","cps","port"]
+             },
+             
+             /* one template type */   
+             "template_t" : {
+                "type": "object",
+                "properties": {
+                  "server_template" : {
+                    "$ref": "#/definitions/server_template_t" 
+                  },
+
+                 "client_template" : {
+                    "$ref": "#/definitions/client_template_t" 
+                  }
+                },
+               "required": ["server_template","client_template"]
+            },
+            
+           /* array of templates  */   
+           "template_array_t" : {
+                  "type": "array",
+                  "items": {
+                       "$ref": "#/definitions/template_t"     
+                   },
+                   "minItems": 1
+           },
+
+
+          /* programs commands */
+          /*****************************/   
+
+          
+          "program_command_tx_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum": ["tx"]
+                      },
+
+                      "buf_index" : {
+                          "type" : "integer"
+                      }   
+                },
+                "required": ["name","buf_index"]
+           },
+                
+          "program_command_rx_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["rx"]
+                      },
+
+                      "min_bytes" : {
+                          "type" : "integer"
+                      },
+
+                      "clear" : {
+                          "type" : "boolean"
+                      }   
+                         
+                },
+                "required": ["name","min_bytes"]
+           },
+
+          "program_command_keepalive_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["keepalive"]
+                      },
+
+                      "msec" : {
+                          "type" : "integer"
+                      }   
+                },
+                "required": ["name","msec"]
+           },
+
+
+          "program_command_rx_msg_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["rx_msg"]
+                      },
+
+                      "min_pkts" : {
+                          "type" : "integer"
+                      },
+
+                      "clear" : {
+                          "type" : "boolean"
+                      }   
+                },
+                "required": ["name","min_pkts"]
+           },
+           
+          "program_command_tx_msg_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["tx_msg"]
+                      },
+
+                      "buf_index" : {
+                          "type" : "integer"
+                      }   
+                },
+                "required": ["name","buf_index"]
+           },
+
+           
+          "program_command_gen_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["close_msg","connect","reset","nc"]
+                      }
+                },
+                "required": ["name"]
+           },
+
+          "program_command_delay_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["delay"]
+                      },
+
+                     "usec" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","usec"]
+           },
+
+          "program_command_delay_rnd_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["delay_rnd"]
+                      },
+
+                     "min_usec" : {
+                          "type" : "integer"
+                      },
+
+                     "max_usec" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","min_usec","max_usec"]
+           },
+
+          "program_command_set_val_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["set_var"]
+                      },
+
+                     "id" : {
+                          "type" : "integer"
+                      },
+
+                     "val" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","id","val"]
+           },
+
+          "program_command_jmp_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["jmp_nz"]
+                      },
+
+                     "id" : {
+                          "type" : "integer"
+                      },
+
+                     "offset" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","id","offset"]
+           },
+
+           "program_command_tx_mode_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["tx_mode"]
+                      },
+
+                     "flags" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","flags"]
+           },
+
+             
+         /*****************************/   
+         /* one programs  */
+
+         "program_t" : {
+              "type": "object",
+              
+              "properties": {
+                      "commands": {
+                            "type": "array",
+                            "items": {
+                                  "anyOf": [
+                                    {"$ref": "#/definitions/program_command_tx_t"},
+                                    {"$ref": "#/definitions/program_command_rx_t"},
+                                    {"$ref": "#/definitions/program_command_keepalive_t"},
+                                    {"$ref": "#/definitions/program_command_rx_msg_t"},
+                                    {"$ref": "#/definitions/program_command_tx_msg_t"},
+                                    {"$ref": "#/definitions/program_command_gen_t"},
+                                    {"$ref": "#/definitions/program_command_delay_t"},
+                                    {"$ref": "#/definitions/program_command_delay_rnd_t"},
+                                    {"$ref": "#/definitions/program_command_set_val_t"},
+                                    {"$ref": "#/definitions/program_command_jmp_t"},
+                                    {"$ref": "#/definitions/program_command_tx_mode_t"}
+                                    
+                                    ]
+                                },
+                             "minItems": 1
+                      }
+                },
+
+              "required": ["commands"]    
+         },
+         
+         "program_array_t" : {
+                  "type": "array",
+                  "items": {
+                       "$ref": "#/definitions/program_t"     
+                   },
+                   "minItems": 1
+         },
+         
+        "glob_info_t": {
+               "type": "object",
+                "properties": {
+
+                    "scheduler" : {
+                        "type": "object",
+                         "properties": {
+                            "rampup_sec" : {
+                                "type": "integer"
+                            },
+
+                            "accurate" : {
+                                "type": "integer"
+                            }
+                         }   
+                    },    
+                
+                    "ipv6" : {
+                        "type": "object",
+                         "properties": {
+                            "src_msb" : {
+                                "type": "array",
+                                "items": {
+                                     "type": "integer"
+                                },
+                                "minItems": 16,
+                                "maxItems": 16
+                            },
+
+                            "dst_msb" : {
+                                "type": "array",
+                                "items": {
+                                     "type": "integer"
+                                },
+                                "minItems": 16,
+                                "maxItems": 16
+                            },
+                            
+                            "enable" : {
+                                "type": "integer"
+                            }
+                         }   
+                    },    
+                
+                    "tcp" : {
+                        "type": "object",
+                        "properties": {
+                           "initwnd" : {
+                               "type": "integer"
+                           },
+                           "mss" : {
+                               "type": "integer"
+                           },
+                           
+                           "rxbufsize" : {
+                               "type": "integer"
+                           },
+                           "txbufsize" : {
+                               "type": "integer"
+                           },
+                           "no_delay" : {
+                               "type": "integer",
+                               "enum" : [0,1]
+                               
+                           },
+
+                           "rexmtthresh" : {
+                               "type": "integer"
+                           },
+                           "do_rfc1323" : {
+                               "type": "integer"
+                           },
+                           
+                           "keepinit" : {
+                               "type": "integer"
+                           },
+                           "keepidle" : {
+                               "type": "integer"
+                           },
+                           "keepintvl" : {
+                               "type": "integer"
+                           },
+                           "blackhole" : {
+                               "type": "integer"
+                           },
+                           "delay_ack_msec" : {
+                               "type": "integer"
+                           },
+                           "delay_ack_msec" : {
+                               "type": "integer"
+                           }
+                        }
+                    },
+                    
+                    "ip" : {
+                        "type": "object",
+                        "properties": {
+                           "tos" : {
+                               "type": "integer"
+                           },
+                           "ttl" : {
+                               "type": "integer"
+                           }
+                        }
+                    }
+
+                }
+          }
+
+    }
+}

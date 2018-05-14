@@ -24,11 +24,8 @@ limitations under the License.
 #include "common/basic_utils.h"
 #include <common/Network/Packet/CPktCmn.h>
 #include "utl_yaml.h"
+#include "inet_pton.h"
 
-#define INADDRSZ 4
-
-extern int my_inet_pton4(const char *src, unsigned char *dst);
-extern int my_inet_pton6(const char *src, unsigned char *dst);
 
 bool utl_yaml_read_ip_addr(const YAML::Node& node,
                            const std::string &name,

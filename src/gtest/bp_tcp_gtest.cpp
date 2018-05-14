@@ -2782,3 +2782,100 @@ TEST_F(gt_tcp, tst80) {
 }
 
 
+
+#if 1
+
+TEST_F(gt_tcp, tst100) {
+    CAstfDB * lpastf=CAstfDB::instance();
+    bool res=lpastf->parse_file("a.json");
+    EXPECT_EQ(res,true);
+    lpastf->free_instance();
+}
+
+TEST_F(gt_tcp, tst101) {
+    CAstfDB * lpastf=CAstfDB::instance();
+
+    std::ifstream t("a1.json");
+    if (!  t.is_open()) {
+        std::cerr << "Failed openeing json file "  << std::endl;
+        return;
+    }
+
+    std::string msg((std::istreambuf_iterator<char>(t)),
+                                    std::istreambuf_iterator<char>());
+
+
+
+    std::string err;
+
+    bool res=lpastf->set_profile_one_msg(msg,err);
+
+    printf(" res: %d, msg : '%s' \n",res?1:0,(char *)err.c_str());
+
+    //EXPECT_EQ(res,true);
+    lpastf->free_instance();
+}
+
+#endif
+
+#include "astf/astf_json_validator.h"
+
+using std::cerr;
+using std::endl;
+
+
+
+TEST_F(gt_tcp, tst201) {
+
+    CAstfJsonValidator validator;
+    if (!validator.Create("input_schema.json")){
+        printf(" ERORR loading schema \n");
+        return;
+    }
+
+    std::string err;
+    int i;
+    bool res;
+    double d=now_sec();
+    for (i=0; i<1; i++) {
+        res=validator.validate_profile_file("input.json",err);
+    }
+    double d1=now_sec();
+    if (!res) {
+        printf("ERROR is : %s \n",err.c_str()); 
+    }else{
+        printf(" OK %f \n",d1-d);
+    }
+
+    validator.Delete();
+}
+
+
+TEST_F(gt_tcp, tst202) {
+
+    CAstfJsonValidator validator;
+    if (!validator.Create("input_schema_simple.json")){
+        printf(" ERORR loading schema \n");
+        return;
+    }
+
+    std::string err;
+    int i;
+    bool res;
+    double d=now_sec();
+    for (i=0; i<1; i++) {
+        res=validator.validate_profile_file("input_simple.json",err);
+    }
+    double d1=now_sec();
+    if (!res) {
+        printf("ERROR is : %s \n",err.c_str()); 
+    }else{
+        printf(" OK %f \n",d1-d);
+    }
+
+    validator.Delete();
+}
+
+
+
+
