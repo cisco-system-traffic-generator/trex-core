@@ -21,8 +21,8 @@ limitations under the License.
 #include <sys/resource.h>
 
 #include "pal_utl.h"
+#include "inet_pton.h"
 
-int my_inet_pton4(const char *src, unsigned char *dst);
 
 bool utl_is_file_exists (const std::string& name) {
     if (FILE *file = fopen(name.c_str(), "r")) {

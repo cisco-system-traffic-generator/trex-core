@@ -3074,8 +3074,8 @@ private:
 public:
     double tcp_get_tw_tick_in_sec();
 
-    bool Create_tcp();
-    void Delete_tcp();
+    bool Create_tcp_batch();
+    void Delete_tcp_batch();
 
     void generate_flow(bool &done);
 
