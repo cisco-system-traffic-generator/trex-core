@@ -1552,14 +1552,16 @@ class ASTFProfile(object):
 
         self.default_c_glob_info = default_c_glob_info
         self.default_s_glob_info = default_s_glob_info
+        self.templates = []
+
+
+        if (templates is None) and (cap_list is None):
+             raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
+
         if cap_list is not None:
-            if templates is not None:
-                raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
             self.cap_list = listify(cap_list)
-            self.templates = []
-        else:
-            if templates is None:
-                raise ASTFErrorMissingParam(self.__class__.__name__, "templates", "cap_list")
+
+        if templates is not None:
             self.templates = listify(templates)
 
         if cap_list is not None:
