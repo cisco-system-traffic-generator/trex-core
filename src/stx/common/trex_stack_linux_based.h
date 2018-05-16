@@ -32,7 +32,7 @@ using namespace std;
 
 class CLinuxIfNode : public CNodeBase {
 public:
-    CLinuxIfNode(uint8_t port_id, uint64_t ns_id, const string &mac_str, const string &mac_buf, const string &mtu);
+    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu);
     ~CLinuxIfNode();
 
     void conf_vlan_internal(const vlan_list_t &vlans);
@@ -79,8 +79,9 @@ private:
     CNodeBase* add_node_internal(const std::string &mac_buf);
     void del_node_internal(const std::string &mac_buf);
     static string       m_mtu;
+    static string       m_ns_prefix;
     static bool         m_is_initialized;
-    uint64_t            m_next_namespace_id = 0;
+    uint64_t            m_next_namespace_id;
     char                m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
     pollfd_list_t       m_pollfds;
 };
