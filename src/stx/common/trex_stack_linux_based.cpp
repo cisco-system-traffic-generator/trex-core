@@ -24,24 +24,28 @@
 #include "trex_global.h"
 #include "common/basic_utils.h"
 
-#include <regex.h>
-#include <netdb.h>
-#include <net/if_arp.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <future>
+#include <ifaddrs.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <net/if.h>
+#include <net/if_arp.h>
+#include <netdb.h>
+#include <regex.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <ifaddrs.h>
-#include <arpa/inet.h>
-#include <future>
+#include <sys/wait.h>
+#include <unistd.h>
 
 
-void clean_old_nets(void);
+char clean_old_nets_and_get_prefix(void);
+void verify_programs(void);
 void str_from_mbuf(const rte_mbuf_t *m, string &result);
-void system_with_err(const string &cmd, const string &err);
+void popen_with_err(const string &cmd, const string &err);
 
 /***************************************
 *          CStackLinuxBased            *
@@ -49,13 +53,18 @@ void system_with_err(const string &cmd, const string &err);
 
 bool CStackLinuxBased::m_is_initialized = false;
 string CStackLinuxBased::m_mtu = "";
+string CStackLinuxBased::m_ns_prefix = "";
 
 CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats) {
     if ( !m_is_initialized ) {
+        verify_programs();
+        char prefix_char = clean_old_nets_and_get_prefix();
+        m_ns_prefix = string("trex-") + prefix_char + "-";
+        debug("Using netns prefix " + m_ns_prefix);
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
-        clean_old_nets();
         m_is_initialized = true;
     }
+    m_next_namespace_id = 0;
 }
 
 CStackLinuxBased::~CStackLinuxBased(void) {
@@ -123,12 +132,14 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
     return cnt_pkts;
 }
 
-CNodeBase* CStackLinuxBased::add_node_internal(const std::string &mac_buf) {
+CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
     string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
     if ( get_node_internal(mac_buf) != nullptr ) {
         throw TrexException("Node with MAC " + mac_str + " already exists");
     }
-    CLinuxIfNode *node = new CLinuxIfNode(m_api->get_port_id(), m_next_namespace_id, mac_str, mac_buf, m_mtu);
+    stringstream ss;
+    ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << m_next_namespace_id;
+    CLinuxIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu);
     if (node == nullptr) {
         throw TrexException("Could not create node " + mac_str);
     }
@@ -142,7 +153,7 @@ CNodeBase* CStackLinuxBased::add_node_internal(const std::string &mac_buf) {
     return node;
 }
 
-void CStackLinuxBased::del_node_internal(const std::string &mac_buf) {
+void CStackLinuxBased::del_node_internal(const string &mac_buf) {
     auto iter_pair = m_nodes.find(mac_buf);
     if ( iter_pair == m_nodes.end() ) {
         string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
@@ -168,14 +179,9 @@ uint16_t CStackLinuxBased::get_capa(void) {
 *            CLinuxIfNode              *
 ***************************************/
 
-CLinuxIfNode::CLinuxIfNode(uint8_t port_id, uint64_t ns_id, const string &mac_str, const string &mac_buf, const string &mtu) {
+CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu) {
     debug("Linux node ctor");
-    string &prefix = CGlobalInfo::m_options.prefix;
-    if ( prefix.size() ) {
-        m_ns_name = "trex-" + prefix + "-" + to_string(port_id) + "-" + to_string(ns_id);
-    } else {
-        m_ns_name = "trex-" + to_string(port_id) + "-" + to_string(ns_id);
-    }
+    m_ns_name = ns_name;
     create_net(mtu);
     set_src_mac(mac_str, mac_buf);
     bind_pair();
@@ -188,7 +194,7 @@ CLinuxIfNode::~CLinuxIfNode() {
 }
 
 void CLinuxIfNode::run_in_ns(const string &cmd, const string &err) {
-    system_with_err("ip netns exec " + m_ns_name + " " + cmd, err);
+    popen_with_err("ip netns exec " + m_ns_name + " " + cmd, err);
 }
 
 uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {
@@ -208,17 +214,19 @@ uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {
 
 void CLinuxIfNode::create_net(const string &mtu) {
     // netns
-    system_with_err("ip netns add " + m_ns_name, "Could not create network namespace");
+    popen_with_err("ip netns add " + m_ns_name, "Could not create network namespace");
     // veths
-    system_with_err("ip link add " + m_ns_name + "-T type veth peer name " + m_ns_name + "-L", "Could not create veth pair");
-    system_with_err("ip link set " + m_ns_name + "-T mtu " + mtu + " up", "Could not configure veth");
-    system_with_err("ip link set " + m_ns_name + "-L netns " + m_ns_name, "Could not add veth to namespace");
+    popen_with_err("ip link add " + m_ns_name + "-T type veth peer name " + m_ns_name + "-L", "Could not create veth pair");
+    popen_with_err("sysctl net.ipv6.conf." + m_ns_name + "-T.disable_ipv6=1", "Could not disable ipv6 for veth");
+    popen_with_err("ip link set " + m_ns_name + "-T mtu " + mtu + " up", "Could not configure veth");
+    popen_with_err("ip link set " + m_ns_name + "-L netns " + m_ns_name, "Could not add veth to namespace");
+    run_in_ns("sysctl net.ipv6.conf." + m_ns_name + "-L.disable_ipv6=1", "Could not disable ipv6 for veth");
     run_in_ns("ip link set " + m_ns_name + "-L mtu " + mtu + " up", "Could not configure veth");
 }
 
 void CLinuxIfNode::delete_net(void) {
-    system_with_err("ip link delete " + m_ns_name + "-T", "Could not delete veth");
-    system_with_err("ip netns delete " + m_ns_name, "Could not delete network namespace");
+    popen_with_err("ip link delete " + m_ns_name + "-T", "Could not delete veth");
+    popen_with_err("ip netns delete " + m_ns_name, "Could not delete network namespace");
 }
 
 void CLinuxIfNode::bind_pair(void) {
@@ -232,7 +240,7 @@ void CLinuxIfNode::bind_pair(void) {
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(struct ifreq));
     strncpy(ifr.ifr_name, if_name.c_str(), IFNAMSIZ-1);
-    if ( ioctl(sockfd , SIOCGIFINDEX , &ifr) < 0) { 
+    if ( ioctl(sockfd , SIOCGIFINDEX , &ifr) < 0) {
         throw TrexException("Unable to find interface index for node");
     }
     struct sockaddr_ll sockaddr;
@@ -333,75 +341,125 @@ string &CLinuxIfNode::get_vlans_insert_to_pkt(void) {
 *            helper func               *
 ***************************************/
 
-void clean_old_nets_helper(void) {
+bool is_file_exists(const string &filename) {
+    struct stat buf;
+    return stat(filename.data(), &buf) == 0;
+}
+
+char clean_old_nets_helper(void) {
     DIR *dirp;
     struct dirent *direntp;
     regex_t search_regex;
-    string &prefix = CGlobalInfo::m_options.prefix;
-    string ns_pattern;
-    int rc;
-    if ( prefix.size() ) {
-        ns_pattern = "trex-" + prefix + "-[0-9]+-[0-9]+";
-    } else {
-        ns_pattern = "trex-[0-9]+-[0-9]+";
-    }
+    char free_prefix = 0;
+    for ( char prefix_char = 'a'; prefix_char <= 'z'; prefix_char++ ) {
+        string netns_lock_name = string("/var/lock/trex_netns_") + prefix_char;
 
-    // remove old namespaces
-    string read_dir = "/var/run/netns";
-    dirp = opendir(read_dir.c_str());
-    if ( dirp != nullptr ) {
-    
-        rc = regcomp(&search_regex, string("^" + ns_pattern + "$").c_str(), REG_EXTENDED);
-        if ( rc ) {
-            throw TrexException("Could not compile regex");
+        // is lock file exists?
+        bool exists = is_file_exists(netns_lock_name);
+        if ( !exists ) {
+            if ( free_prefix == 0 ) {
+                free_prefix = prefix_char;
+            }
+            continue;
         }
 
-        while (true) {
-            direntp = readdir(dirp);
-            if ( direntp == nullptr ) {
-                break;
-            }
-            rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
-            if ( rc ) {
-                continue;
-            }
-            system_with_err("ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
+        // is lock file locked?
+        int fd = open(netns_lock_name.data(), O_RDONLY);
+        if ( fd == -1 ) {
+            throw TrexException("Could not open  " + netns_lock_name);
         }
-    }
+        int res = flock(fd, LOCK_EX | LOCK_NB);
+        if ( res ) {
+            continue; // locked, try next
+        }
+        res = flock(fd, LOCK_UN);
+        if ( res ) {
+            throw TrexException("Could not unlock " + netns_lock_name);
+        }
 
-    // remove old veths
-    read_dir = "/sys/class/net";
-    vector<string> if_postfixes = {"T", "L"};
-    for (auto &if_postfix : if_postfixes) {
-        debug("Cleaning IFs with postfixes " + if_postfix);
+        int rc;
+        string ns_pattern = string("trex-") + prefix_char + "-[0-9a-f]+-[0-9a-f]+";
+
+        // remove unused namespace
+        string read_dir = "/var/run/netns";
         dirp = opendir(read_dir.c_str());
-        if ( dirp == nullptr ) {
-            throw TrexException("Could not read interfaces directory " + read_dir);
-        }
-        rc = regcomp(&search_regex, string(ns_pattern + "-" + if_postfix + "$").c_str(), REG_EXTENDED);
-        if ( rc ) {
-            throw TrexException("Could not compile regex");
+        if ( dirp != nullptr ) {
+
+            rc = regcomp(&search_regex, string("^" + ns_pattern + "$").c_str(), REG_EXTENDED);
+            if ( rc ) {
+                throw TrexException("Could not compile regex");
+            }
+
+            while (true) {
+                direntp = readdir(dirp);
+                if ( direntp == nullptr ) {
+                    break;
+                }
+                rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
+                if ( rc ) {
+                    continue;
+                }
+                popen_with_err("ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
+            }
         }
 
-        while (true) {
-            direntp = readdir(dirp);
-            if ( direntp == nullptr ) {
-                break;
+        // remove old veths
+        read_dir = "/sys/class/net";
+        vector<string> if_postfixes = {"T", "L"};
+        for (auto &if_postfix : if_postfixes) {
+            debug("Cleaning IFs with postfixes " + if_postfix);
+            dirp = opendir(read_dir.c_str());
+            if ( dirp == nullptr ) {
+                throw TrexException("Could not read interfaces directory " + read_dir);
             }
-            rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
+            rc = regcomp(&search_regex, string(ns_pattern + "-" + if_postfix + "$").c_str(), REG_EXTENDED);
             if ( rc ) {
-                continue;
+                throw TrexException("Could not compile regex");
             }
-            system_with_err("ip link delete " + string(direntp->d_name), "Could not remove old veth");
+    
+            while (true) {
+                direntp = readdir(dirp);
+                if ( direntp == nullptr ) {
+                    break;
+                }
+                rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
+                if ( rc ) {
+                    continue;
+                }
+                popen_with_err("ip link delete " + string(direntp->d_name), "Could not remove old veth");
+            }
+        }
+        close(fd);
+        unlink(netns_lock_name.data());
+        if ( free_prefix == 0 ) {
+            free_prefix = prefix_char;
         }
     }
+    if ( free_prefix == 0 ) {
+        throw TrexException("Could not determine prefix for Linux-based stack, everything from 'a' to 'z' is in use.");
+    }
+    return free_prefix;
 }
 
-void clean_old_nets(void) {
+int lock_cleanup(void) {
+    string lock_cleanup_file = "/var/lock/trex_cleanup";
+    debug("Locking cleanup file " + lock_cleanup_file);
+    int cleanup_fd = open(lock_cleanup_file.data(), O_RDONLY | O_CREAT, 0600);
+    if ( cleanup_fd == -1 ) {
+        throw TrexException("Could not open/create " + lock_cleanup_file);
+    }
+    int res = flock(cleanup_fd, LOCK_EX); // blocks waiting for our lock
+    if ( res ) {
+        throw TrexException("Could not lock cleanup file " + lock_cleanup_file);
+    }
+    return cleanup_fd;
+}
+
+char clean_old_nets_and_get_prefix(void) {
     uint8_t timeout_sec = 5;
-    printf("Cleanup of old namespaces related to Linux-based stack\n");
-    future<void> thread_handle = async(launch::async, clean_old_nets_helper);
-    future_status thread_status = thread_handle.wait_for(chrono::seconds(timeout_sec));
+
+    future<int> lock_thread_handle = async(launch::async, lock_cleanup);
+    future_status thread_status = lock_thread_handle.wait_for(chrono::seconds(timeout_sec));
     if ( thread_status == future_status::timeout ) {
         printf("Timeout of %u seconds on waiting for cleanup of old namespaces/veths\n", timeout_sec);
         printf("Try removing manually:\n");
@@ -409,10 +467,58 @@ void clean_old_nets(void) {
         printf("  * veth interfaces starting with \"trex-\" (ip link)\n");
         throw TrexException("Could not cleanup old namespaces/veths");
     }
+    int cleanup_fd;
     try {
-        thread_handle.get();
+        cleanup_fd = lock_thread_handle.get();
     } catch (const TrexException &ex) {
+        throw TrexException("Could not lock for cleanup: " + string(ex.what()));
+    }
+
+    printf("Cleanup of old namespaces related to Linux-based stack\n");
+    future<char> cleanup_thread_handle = async(launch::async, clean_old_nets_helper);
+    thread_status = cleanup_thread_handle.wait_for(chrono::seconds(timeout_sec));
+    if ( thread_status == future_status::timeout ) {
+        printf("Timeout of %u seconds on waiting for cleanup of old namespaces/veths\n", timeout_sec);
+        printf("Try removing manually:\n");
+        printf("  * namespaces starting with \"trex-\" (ip netns list)\n");
+        printf("  * veth interfaces starting with \"trex-\" (ip link)\n");
+        throw TrexException("Could not cleanup old namespaces/veths");
+    }
+    char prefix_char;
+    try {
+        prefix_char = cleanup_thread_handle.get();
+    } catch (const TrexException &ex) {
+        flock(cleanup_fd, LOCK_UN);
         throw TrexException("Could not cleanup old namespaces/veths, error: " + string(ex.what()));
+    }
+
+    // lock the netns file
+    string netns_lock_name = string("/var/lock/trex_netns_") + prefix_char;
+    int netns_fd = open(netns_lock_name.c_str(), O_RDONLY | O_CREAT, 0600);
+    if ( netns_fd == -1 ) {
+        throw TrexException("Could not open  " + netns_lock_name);
+    }
+    int res = flock(netns_fd, LOCK_EX | LOCK_NB);
+    if ( res ) {
+        throw TrexException("Could not lock file " + netns_lock_name);
+    }
+
+    // unlock cleanup file
+    res = flock(cleanup_fd, LOCK_UN);
+    if ( res ) {
+        throw TrexException("Could not unlock cleanup file");
+    }
+    return prefix_char;
+}
+
+void verify_programs(void) {
+    // ensure sbin(s) are in path
+    string path = getenv("PATH");
+    setenv("PATH", ("/sbin:/usr/sbin:/usr/local/sbin/:" + path).c_str(), 1);
+
+    vector<vector<string>> cmds = {{"ip", "ip -V"}, {"sysctl", "sysctl -V"}};
+    for (auto &cmd : cmds) {
+        popen_with_err(cmd[1], "Could not find program \"" + cmd[0] + "\", which is required for Linux-based stack");
     }
 }
 
@@ -423,13 +529,25 @@ void str_from_mbuf(const rte_mbuf_t *m, string &result) {
     }
 }
 
-void system_with_err(const string &cmd, const string &err) {
-    string cmd_without_output = cmd + " &> /dev/null";
+void popen_with_err(const string &cmd, const string &err) {
+    string cmd_with_redirect = cmd + " 2>&1";
     debug("stack going to run: " + cmd);
-    int ret = system(cmd_without_output.c_str());
+    FILE *fstream = popen(cmd_with_redirect.c_str(), "r");
+    if ( fstream == nullptr ) {
+        throw TrexException(err + " (popen could not allocate memory to execute cmd: " + cmd + ").");
+    }
+    string output = "";
+    char buffer[1024];
+    while ( fgets(buffer, sizeof(buffer), fstream) != nullptr ) {
+        output += buffer;
+    }
+    int ret = pclose(fstream);
     if ( ret ) {
-        debug("stack command: " + cmd + "(exit status: " + to_string(ret) + ")");
-        throw TrexException(err + " (" + cmd + ")");
+        if ( WIFEXITED(ret) ) {
+            throw TrexException(err + "\nCmd: " + cmd + "\nReturn code: " + to_string(WEXITSTATUS(ret)) + "\nOutput: " + output + "\n");
+        } else {
+            throw TrexException(err + "\nCmd: " + cmd + "\nOutput: " + output + "\n");
+        }
     }
 }
 
