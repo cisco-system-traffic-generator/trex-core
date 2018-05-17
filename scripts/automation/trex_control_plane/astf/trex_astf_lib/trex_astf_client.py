@@ -359,15 +359,7 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        if type(l7_buf) is str:
-            try:
-                enc_buf = l7_buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-                enc_buf = buf
-
+        enc_buf=self._c_b (l7_buf)
         size=len(enc_buf);
         cnt=0;
         while size>0 :
@@ -384,6 +376,19 @@ class ASTFProgram(object):
 
         """
         self.fields['commands'].append(ASTFCmdCloseMsg())
+
+    def _c_b (self,buf):
+
+        #Python2 string and bytes are the same 
+        if type(buf) is bytes:
+            return buf;
+        try:
+            enc_buf = buf.encode('ascii')
+            return enc_buf
+        except UnicodeEncodeError as e:
+            print (e)
+            raise ASTFError("If buf is a string, it must contain only ascii")
+
 
     def send_msg (self, buf):
         """
@@ -405,14 +410,7 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         # we support bytes or ascii strings
-        if type(buf) is str:
-            try:
-                enc_buf = buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-            enc_buf = buf
+        enc_buf=self._c_b (buf)
 
         cmd = ASTFCmdTxPkt(enc_buf)
         self.total_send_bytes += cmd.buf_len
@@ -512,15 +510,7 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         # we support bytes or ascii strings
-        if type(buf) is str:
-            try:
-                enc_buf = buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-            enc_buf = buf
-
+        enc_buf=self._c_b (buf)
         cmd = ASTFCmdSend(enc_buf)
         self.total_send_bytes += cmd.buf_len
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
