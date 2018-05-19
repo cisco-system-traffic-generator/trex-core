@@ -24,8 +24,23 @@ limitations under the License.
 #include <string.h>
 #include "utl_json.h"
 #include <rte_atomic.h>
+#include "trex_global.h"
 #include "time_histogram.h"
 #include <iostream>
+#include "hdr_histogram_log.h"
+
+
+/* minimum value to track is 1 usec */
+#define HDRH_LOWEST_TRACKABLE_VALUE 1
+/* maximum value to track is 10 sec in usec unit */
+#define HDRH_HIGHEST_TRACKABLE_VALUE (10*1000*1000)
+/* precision in number of digits, 3 corresponds to 0.1% precision:
+   1 usec precision up to 1000 usec
+   1 msec precision or better up to 1 sec
+   1 sec precision or better up to 1000 sec
+*/
+#define HDRH_SIGNIFICANT_DIGITS 3
+
 
 void CTimeHistogram::Reset() {
     m_period_data[0].reset();
@@ -45,9 +60,20 @@ void CTimeHistogram::Reset() {
             m_hcnt[j][i] = 0;
         }
     }
+    if (m_hdrh) {
+        hdr_reset(m_hdrh);
+    }
 }
 
 bool CTimeHistogram::Create() {
+	m_hdrh=0;
+    if ( CGlobalInfo::m_options.m_hdrh ) {
+        int res = hdr_init(HDRH_LOWEST_TRACKABLE_VALUE, HDRH_HIGHEST_TRACKABLE_VALUE,
+                        HDRH_SIGNIFICANT_DIGITS, &m_hdrh);
+        if (res) {
+            return(false);
+        }
+    }
     Reset();
     m_min_delta =10.0/1000000.0;
     m_hot_max=10;
@@ -55,6 +81,10 @@ bool CTimeHistogram::Create() {
 }
 
 void CTimeHistogram::Delete() {
+    if (m_hdrh) {
+		hdr_close(m_hdrh);
+        m_hdrh = 0;
+    }
 }
 
 bool CTimeHistogram::Add(dsec_t dt) {
@@ -64,6 +94,11 @@ bool CTimeHistogram::Add(dsec_t dt) {
     period_elem.update_sum(dt);
     if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || (m_win_cnt > 1)){
         period_elem.update_max(dt);
+    }
+
+    // record any value in usec
+    if (m_hdrh) {
+        hdr_record_value(m_hdrh, (int64_t) (dt*1000000.0));
     }
 
     // values smaller then certain threshold do not get into the histogram
@@ -229,7 +264,7 @@ void CTimeHistogram::dump_json(std::string name,std::string & json ) {
 
 // Used in stateless
 void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
-    int i, j;
+    int i, j, rc;
     uint32_t base=10;
     CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
 
@@ -262,6 +297,17 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
                 m_short_latency = short_latency;
             }
             json["histogram"]["0"] = Json::Value::UInt64(m_short_latency);
+        }
+        if (m_hdrh) {
+            char *hdr_encoded_histogram;
+
+            // encode the hdr histogram in compressed base64 format
+            rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
+            if (rc == 0) {
+                std::string hdr((const char *)hdr_encoded_histogram);
+                free(hdr_encoded_histogram);
+                json["hdrh"] = Json::Value(hdr);
+            }
         }
     }
 }
@@ -301,3 +347,4 @@ std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in) {
     // Other things might be added.
     return os;
 }
+

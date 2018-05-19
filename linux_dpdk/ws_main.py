@@ -386,6 +386,11 @@ main_src = SrcGroup(dir='src',
              '44bsd/sch_rampup.cpp',
              '44bsd/udp.cpp',
 
+             'hdrh/hdr_time.c',
+             'hdrh/hdr_encoding.c',
+             'hdrh/hdr_histogram.c',
+             'hdrh/hdr_histogram_log.c',
+
              'bp_sim_tcp.cpp',
              'astf/astf_template_db.cpp',
              'stt_cp.cpp',
@@ -1125,6 +1130,7 @@ includes_path = '''
                    ../src/stx/
                    ../src/stx/common/
                    ../src/utils/
+                   ../src/hdrh/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/

@@ -210,6 +210,11 @@ main_src = SrcGroup(dir='src',
             '44bsd/sch_rampup.cpp',
             '44bsd/udp.cpp',
 
+            'hdrh/hdr_time.c',
+            'hdrh/hdr_encoding.c',
+            'hdrh/hdr_histogram.c',
+            'hdrh/hdr_histogram_log.c',
+
             'astf/astf_template_db.cpp',
             'stt_cp.cpp',
             'bp_sim_tcp.cpp',
@@ -461,6 +466,8 @@ includes_path =''' ../src/pal/linux/
                    
                    ../src/rpc-server/
                    
+                    ../src/hdrh/
+
                    ../src/stx/
                    ../src/stx/common/
                    ../src/stx/common/rx/
