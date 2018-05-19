@@ -30,6 +30,11 @@ limitations under the License.
 #include <json/json.h>
 #include "mbuf.h"
 #include "os_time.h"
+#include "hdr/hdr_histogram.h"
+/* unfortunately hdr_histograh.h pulls in stdbool.h and this causes redefinition
+   for true and false in other code. So we have to undefine them here */
+#undef true
+#undef false
 
 class CTimeHistogramPerPeriodData {
  public:
@@ -114,6 +119,8 @@ private:
     uint32_t m_win_cnt;
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
     uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE] __rte_cache_aligned ;
+    // Hdr histogram instance
+    hdr_histogram *m_hdrh;
 };
 
 #endif

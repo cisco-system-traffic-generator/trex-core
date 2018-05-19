@@ -156,6 +156,8 @@ class CPgIdStats(object):
                 else:
                     lat['latency']['total_min'] = StatNotAvailable('total_min')
                     lat['latency']['histogram'] = {}
+                if 'hdrh' in ans_dict['latency'][pg_id]['lat']:
+                    lat['latency']['hdrh'] = ans_dict['latency'][pg_id]['lat']['hdrh']
 
         # translate json 'flow_stats' to python API 'flow_stats'
         if 'flow_stats' in ans_dict and ans_dict['flow_stats'] is not None:
