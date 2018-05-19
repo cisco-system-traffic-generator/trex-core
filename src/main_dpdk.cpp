@@ -211,6 +211,7 @@ enum {
        OPT_ASTF_EMUL_DEBUG, 
        OPT_SLEEPY_SCHEDULER,
        OPT_UNBIND_UNUSED_PORTS,
+       OPT_HDRH,
     
        /* no more pass this */
        OPT_MAX
@@ -290,6 +291,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server", SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
+        { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
         { OPT_ASTF_EMUL_DEBUG,        "--astf-emul-debug",  SO_NONE},
@@ -337,7 +339,8 @@ static int __attribute__((cold)) usage() {
     printf("                               This it temporary option. Will be removed in the future \n");
     printf(" -d                         : Duration of the test in sec (default is 3600). Look also at --nc \n");
     printf(" -e                         : Like -p but src/dst IP will be chosen according to the port (i.e. on client port send all packets with client src and server dest, and vice versa on server port \n");
-    printf(" --flip                     : Each flow will be sent both from client to server and server to client. This can acheive better port utilization when flow traffic is asymmetric \n");
+    printf(" --flip                     : Each flow will be sent both from client to server and server to client. This can achieve better port utilization when flow traffic is asymmetric \n");
+    printf(" --hdrh                     : Report latency using high dynamic range histograms (http://hdrhistogram.org)\n");
     printf(" --hops <hops>              : If rx check is enabled, the hop number can be assigned. See manual for details \n");
     printf(" --iom  <mode>              : IO mode  for server output [0- silent, 1- normal , 2- short] \n");
     printf(" --ipv6                     : Work in ipv6 mode \n");
@@ -419,6 +422,7 @@ static int __attribute__((cold)) usage() {
     printf(" YAML-CPP   (BSD)       \n");
     printf(" JSONCPP    (MIT)       \n");
     printf(" BPF        (BSD)       \n");
+    printf(" HDR-HISTOGRAM-C (CC0)  \n");
     printf(" \n");
     printf(" Open Source Binaries \n");
     printf(" ZMQ        (LGPL v3plus) \n");
@@ -887,6 +891,9 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_NO_SCAPY_SERVER:
                 break;
             case OPT_UNBIND_UNUSED_PORTS:
+                break;
+            case OPT_HDRH:
+                po->m_hdrh = true;
                 break;
             case OPT_SCAPY_SERVER:
                 break;

@@ -549,7 +549,7 @@ public:
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
-
+        m_hdrh = false;
     }
 
     CParserOption(){
@@ -593,6 +593,7 @@ public:
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;
     std::string     m_stack_type;
+    bool            m_hdrh;        /* enable HDR histograms for latency */
 
     
     std::string        cfg_file;
