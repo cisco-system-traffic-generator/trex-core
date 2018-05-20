@@ -168,17 +168,21 @@ void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_
     if (is_last) {
         to_update.set_p_rate(0);
         to_update.set_b_rate(0);
-        to_update.set_last_rate_calc_time(0);
+        to_update.set_calc_time_valid(false);
         to_update.set_pkt_base(val.get_pkts());
         to_update.set_byte_base(val.get_bytes());
     } else {
-        if (to_update.get_last_rate_calc_time() != 0) {
+        if ( to_update.is_calc_time_valid() ) {
             if (rate_update) {
-                double time_diff = ((double)curr_time - (double)to_update.get_last_rate_calc_time()) / (double)freq;
+                double time_diff = (double)(curr_time - to_update.get_last_rate_calc_time()) / freq;
                 uint64_t pkt_diff = val.get_pkts() - to_update.get_pkt_base();
                 uint64_t byte_diff = val.get_bytes() - to_update.get_byte_base();
                 float curr_p_rate = pkt_diff / time_diff;
                 float curr_b_rate = byte_diff * 8 / time_diff;
+
+                // guard from cases where time_diff was too small
+                curr_p_rate = clear_nan_inf(curr_p_rate);
+                curr_b_rate = clear_nan_inf(curr_b_rate);
 
                 if (to_update.get_p_rate() != 0) {
                     to_update.set_p_rate(to_update.get_p_rate() * 0.5 + curr_p_rate * 0.5);
@@ -192,6 +196,7 @@ void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_
                 to_update.set_byte_base(val.get_bytes());
             }
         } else {
+            to_update.set_calc_time_valid(true);
             to_update.set_last_rate_calc_time(curr_time);
             to_update.set_pkt_base(val.get_pkts());
             to_update.set_byte_base(val.get_bytes());
@@ -1351,13 +1356,13 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
 
             // truncate floats to two digits after decimal point
             char temp_str[100];
-            snprintf(temp_str, sizeof(temp_str), "%.2f", user_id_info->get_rx_bps(port));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_rx_bps(port)));
             s_data_section[str_user_id]["rbs"][str_port] = Json::Value(atof(temp_str));
-            snprintf(temp_str, sizeof(temp_str), "%.2f", user_id_info->get_rx_pps(port));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_rx_pps(port)));
             s_data_section[str_user_id]["rps"][str_port] = Json::Value(atof(temp_str));
-            snprintf(temp_str, sizeof(temp_str), "%.2f", user_id_info->get_tx_bps(port));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_tx_bps(port)));
             s_data_section[str_user_id]["tbs"][str_port] = Json::Value(atof(temp_str));
-            snprintf(temp_str, sizeof(temp_str), "%.2f", user_id_info->get_tx_pps(port));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_tx_pps(port)));
             s_data_section[str_user_id]["tps"][str_port] = Json::Value(atof(temp_str));
         }
 
