@@ -275,6 +275,7 @@ class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
         m_p_rate = 0;
         m_b_rate = 0;
         m_last_rate_calc_time = 0;
+        m_calc_time_valid = false;
     }
     void set_p_rate(float rate) {m_p_rate = rate;}
     float get_p_rate() {return m_p_rate;}
@@ -286,6 +287,8 @@ class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
     inline void set_pkt_base(uint64_t pkts) { m_pkts_base = pkts;}
     void set_last_rate_calc_time(hr_time_t time) {m_last_rate_calc_time = time;}
     hr_time_t get_last_rate_calc_time() {return m_last_rate_calc_time;}
+    void set_calc_time_valid(bool valid) {m_calc_time_valid = valid;}
+    bool is_calc_time_valid(void) {return m_calc_time_valid;}
  private:
     float m_p_rate; // packet rate
     float m_b_rate; // bits rate
@@ -293,6 +296,7 @@ class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
     uint64_t m_pkts_base;
     uint64_t m_bytes_base;
     hr_time_t m_last_rate_calc_time;
+    bool m_calc_time_valid;
 };
 
 typedef class rfc2544_info_t_ rfc2544_info_t;

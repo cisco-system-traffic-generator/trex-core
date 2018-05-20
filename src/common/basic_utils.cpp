@@ -305,3 +305,10 @@ std::string utl_uint32_to_ipv4_buf(uint32_t ipv4_addr) {
     ipv4_addr = PAL_NTOHL(ipv4_addr);
     return std::string((char *) &ipv4_addr, 4);
 }
+
+float clear_nan_inf(const float var) {
+    if ( std::isnan(var) || std::isinf(var) ) {
+        return 0.0;
+    }
+    return var;
+}
