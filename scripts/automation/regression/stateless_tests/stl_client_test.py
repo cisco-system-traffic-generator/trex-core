@@ -543,7 +543,7 @@ class STLClient_Test(CStlGeneral_Test):
 
             # VICs adds VLAN 0 tagging
             bpf_filter = "udp and src portrange 1-250"
-            bpf_filter = '{0} or (vlan and {1})'.format(bpf_filter, bpf_filter)
+            bpf_filter = '{0} or (vlan and {0})'.format(bpf_filter)
             
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = bpf_filter)['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = bpf_filter)['id']
