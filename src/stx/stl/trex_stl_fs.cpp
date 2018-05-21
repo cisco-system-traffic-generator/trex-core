@@ -164,7 +164,7 @@ void CFlowStatUserIdInfo::reset_hw_id() {
 }
 
 void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update
-                                      , bool is_last, hr_time_t curr_time, hr_time_t freq, bool rate_update) {
+                                      , bool is_last, hr_time_t curr_time, bool rate_update) {
     if (is_last) {
         to_update.set_p_rate(0);
         to_update.set_b_rate(0);
@@ -174,26 +174,24 @@ void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_
     } else {
         if ( to_update.is_calc_time_valid() ) {
             if (rate_update) {
-                double time_diff = (double)(curr_time - to_update.get_last_rate_calc_time()) / freq;
-                uint64_t pkt_diff = val.get_pkts() - to_update.get_pkt_base();
-                uint64_t byte_diff = val.get_bytes() - to_update.get_byte_base();
-                float curr_p_rate = pkt_diff / time_diff;
-                float curr_b_rate = byte_diff * 8 / time_diff;
+                double time_diff = ptime_convert_hr_dsec(curr_time - to_update.get_last_rate_calc_time());
+                if ( time_diff > 0.1 ) { // below 100msec the interval for rate is too small
+                    uint64_t pkt_diff = val.get_pkts() - to_update.get_pkt_base();
+                    uint64_t byte_diff = val.get_bytes() - to_update.get_byte_base();
+                    float curr_p_rate = pkt_diff / time_diff;
+                    float curr_b_rate = byte_diff * 8 / time_diff;
 
-                // guard from cases where time_diff was too small
-                curr_p_rate = clear_nan_inf(curr_p_rate);
-                curr_b_rate = clear_nan_inf(curr_b_rate);
-
-                if (to_update.get_p_rate() != 0) {
-                    to_update.set_p_rate(to_update.get_p_rate() * 0.5 + curr_p_rate * 0.5);
-                    to_update.set_b_rate(to_update.get_b_rate() * 0.5 + curr_b_rate * 0.5);
-                } else {
-                    to_update.set_p_rate(curr_p_rate);
-                    to_update.set_b_rate(curr_b_rate);
+                    if (to_update.get_p_rate() != 0) {
+                        to_update.set_p_rate(to_update.get_p_rate() * 0.5 + curr_p_rate * 0.5);
+                        to_update.set_b_rate(to_update.get_b_rate() * 0.5 + curr_b_rate * 0.5);
+                    } else {
+                        to_update.set_p_rate(curr_p_rate);
+                        to_update.set_b_rate(curr_b_rate);
+                    }
+                    to_update.set_last_rate_calc_time(curr_time);
+                    to_update.set_pkt_base(val.get_pkts());
+                    to_update.set_byte_base(val.get_bytes());
                 }
-                to_update.set_last_rate_calc_time(curr_time);
-                to_update.set_pkt_base(val.get_pkts());
-                to_update.set_byte_base(val.get_bytes());
             }
         } else {
             to_update.set_calc_time_valid(true);
@@ -1178,7 +1176,6 @@ void CFlowStatRuleMgr::internal_periodic_update(uint16_t min_f, uint16_t max_f
 void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_t max_f
                                        , uint16_t min_l, uint16_t max_l, bool is_last) {
     hr_time_t now = os_get_hr_tick_64();
-    hr_time_t freq = os_get_hr_freq();
 #ifdef __DEBUG_FUNC_ENTRY__
         printf("CFlowStatRuleMgr::update_counters: time:%ld, flow(%d-%d) payload(%d-%d)\n"
                , now, min_f, max_f, min_l, max_l);
@@ -1191,7 +1188,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     rx_per_flow_t rx_pkts = m_rx_stats[i - min_f];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, freq, update_rate);
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
                     } else {
                         m_rx_cant_count_err[port] += rx_pkts.get_pkts();
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx packets, on port "
@@ -1204,7 +1201,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, freq, update_rate);
+                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, update_rate);
                     } else {
                         m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
@@ -1222,7 +1219,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, freq, update_rate);
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
                     } else {
                         m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
@@ -1235,7 +1232,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
                     if (likely(p_user_id != NULL)) {
                         DEBUG_PRINT("payload - port: %d, hw_id:%d tx_pkts:%lu\n", port, i, tx_pkts.get_pkts());
-                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, freq, update_rate);
+                        p_user_id->update_tx_vals(port, tx_pkts, is_last, now, update_rate);
                     } else {
                         m_tx_cant_count_err[port] += tx_pkts.get_pkts();;
                         std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << tx_pkts <<  " tx packets on port "
