@@ -313,14 +313,12 @@ class CFlowStatUserIdInfo {
     CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h);
     virtual ~CFlowStatUserIdInfo() {};
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatUserIdInfo& cf);
-    void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq
-                        , bool update_rate) {
-        update_vals(val, m_rx_cntr[port], is_last, time, freq, update_rate);
+    void update_rx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, bool update_rate) {
+        update_vals(val, m_rx_cntr[port], is_last, time, update_rate);
     }
     rx_per_flow_t get_rx_cntr(uint8_t port) {return m_rx_cntr[port];}
-    void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, hr_time_t freq
-                        , bool update_rate) {
-        update_vals(val, m_tx_cntr[port], is_last, time, freq, update_rate);
+    void update_tx_vals(uint8_t port, rx_per_flow_t val, bool is_last, hr_time_t time, bool update_rate) {
+        update_vals(val, m_tx_cntr[port], is_last, time, update_rate);
     }
     tx_per_flow_t get_tx_cntr(uint8_t port) {return m_tx_cntr[port];}
     float get_rx_bps(uint8_t port) {return m_rx_cntr[port].get_b_rate();};
@@ -348,7 +346,7 @@ class CFlowStatUserIdInfo {
 
  private:
     void update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update, bool is_last
-                     , hr_time_t time, hr_time_t freq, bool update_rate);
+                     , hr_time_t time, bool update_rate);
 
  protected:
     bool m_rfc2544_support;
