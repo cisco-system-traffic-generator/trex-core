@@ -535,7 +535,19 @@ class Port(object):
 
         return self.sync()
 
-        
+    @writeable
+    def conf_ipv6(self, enabled, src_ipv6):
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'enabled':    enabled,
+                  'src_ipv6':   src_ipv6 if (enabled and src_ipv6) else '',
+                  'block':      False}
+        rc = self.transmit("conf_ipv6", params)
+        if rc.bad():
+            return self.err(rc.err())
+        return self.sync()
+
+
     @writeable
     def set_vlan (self, vlan):
         if not self.is_service_mode_on():
@@ -970,32 +982,41 @@ class Port(object):
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
-        # holds the information about all the layers configured for the port
-        layer_cfg = attr['layer_cfg']
-        
-        info['src_mac'] = attr['layer_cfg']['ether']['src']
-        
         # pretty show per mode
+        ether = attr['layer_cfg']['ether']
+        ipv4  = attr['layer_cfg']['ipv4']
+        ipv6  = attr['layer_cfg'].get('ipv6')
         
-        if layer_cfg['ipv4']['state'] == 'none':
+        info['src_mac'] = ether['src']
+        
+        if ipv4['state'] == 'none':
             info['layer_mode'] = 'Ethernet'
             info['src_ipv4']   = '-'
-            info['dest']       = layer_cfg['ether']['dst'] if layer_cfg['ether']['state'] == 'configured' else 'unconfigured'
+            info['dest']       = ether['dst'] if ether['state'] == 'configured' else 'unconfigured'
             info['arp']        = '-'
             
-        elif layer_cfg['ipv4']['state'] == 'unresolved':
+        elif ipv4['state'] == 'unresolved':
             info['layer_mode'] = 'IPv4'
-            info['src_ipv4']   = layer_cfg['ipv4']['src']
-            info['dest']       = layer_cfg['ipv4']['dst']
+            info['src_ipv4']   = ipv4['src']
+            info['dest']       = ipv4['dst']
             info['arp']        = 'unresolved'
             
-        elif layer_cfg['ipv4']['state'] == 'resolved':
+        elif ipv4['state'] == 'resolved':
             info['layer_mode'] = 'IPv4'
-            info['src_ipv4']   = layer_cfg['ipv4']['src']
-            info['dest']       = layer_cfg['ipv4']['dst']
-            info['arp']        = layer_cfg['ether']['dst']
-            
+            info['src_ipv4']   = ipv4['src']
+            info['dest']       = ipv4['dst']
+            info['arp']        = ether['dst']
 
+        else:
+            assert 0, ipv4['state']
+
+        if ipv6 and ipv6['enabled']:
+            if ipv6['src']:
+                info['ipv6'] = ipv6['src']
+            else:
+                info['ipv6'] = 'auto'
+        else:
+            info['ipv6'] = 'off'
             
         # RX info
         rx_info = self.status['rx_info']
@@ -1061,6 +1082,7 @@ class Port(object):
 
         return {"driver":           info['driver'],
                 "description":      info.get('description', 'N/A')[:18],
+                'IPv6':             info['ipv6'],
                 "src MAC":          info['src_mac'],
                 "src IPv4":         info['src_ipv4'],
                 "Destination":      format_text("{0}".format(info['dest']), 'bold', 'red' if info['dest'] == 'unconfigured' else None),

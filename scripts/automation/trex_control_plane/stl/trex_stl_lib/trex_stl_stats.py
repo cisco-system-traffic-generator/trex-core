@@ -708,6 +708,7 @@ class CTRexInfoGenerator(object):
                                         ("layer mode", []),
                                         ("src IPv4", []),
                                         ("src MAC", []),
+                                        ("IPv6", []),
                                         ("---", []),
                                         ("Destination", []),
                                         ("ARP Resolution", []),

@@ -82,6 +82,11 @@ SCAPY_PKT
 SHOW_LAYERS
 SCAPY_PKT_CMD
 
+IPV6_OFF
+IPV6_AUTO
+IPV6_SRC
+IPV6_OPTS_CMD
+
 GLOBAL_STATS
 PORT_STATS
 PORT_STATUS
@@ -364,6 +369,12 @@ def check_ipv4_addr (ipv4_str):
         raise argparse.ArgumentTypeError("invalid IPv4 address: '{0}'".format(ipv4_str))
 
     return ipv4_str
+
+def check_ipv6_addr(ipv6_str):
+    if not is_valid_ipv6(ipv6_str):
+        raise argparse.ArgumentTypeError("invalid IPv6 address: '{0}'".format(ipv6_str))
+
+    return ipv6_str
 
 def check_ip_addr(addr):
     if not (is_valid_ipv4(addr) or is_valid_ipv6(addr)):
@@ -830,7 +841,25 @@ OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
               SCAPY_PKT_CMD: ArgumentGroup(MUTEX, [SCAPY_PKT,
                                                    SHOW_LAYERS],
                                            {'required': True}),
-              
+
+              IPV6_OFF: ArgumentPack(['--off'],
+                                     {'help': 'Disable IPv6 on port.',
+                                      'action': 'store_true'}),
+
+              IPV6_AUTO: ArgumentPack(['--auto'],
+                                     {'help': 'Enable IPv6 on port with automatic address.',
+                                      'action': 'store_true'}),
+
+              IPV6_SRC: ArgumentPack(['-s', '--src'],
+                                     {'help': 'Enable IPv6 on port with specific address.',
+                                      'dest': 'src_ipv6',
+                                      'type': check_ipv6_addr}),
+
+              IPV6_OPTS_CMD: ArgumentGroup(MUTEX, [IPV6_OFF,
+                                                   IPV6_AUTO,
+                                                   IPV6_SRC],
+                                           {'required': True}),
+
               # advanced options
               PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
                                                         ALL_PORTS],

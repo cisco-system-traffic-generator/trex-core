@@ -306,25 +306,24 @@ void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_bu
 }
 
 void CLinuxIfNode::clear_ip6_internal(void) {
-    run_in_ns("ip -6 addr flush dev " + m_ns_name + "-L", "Could not flush IPv6 for veth");
+    run_in_ns("sysctl net.ipv6.conf." + m_ns_name + "-L.disable_ipv6=1", "Could not disable ipv6 for veth");
+    m_ip6_enabled = false;
     m_ip6.clear();
-    m_gw6.clear();
 }
 
-void CLinuxIfNode::conf_ip6_internal(const string &ip6_buf, const string &gw6_buf) {
+void CLinuxIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     clear_ip6_internal();
     char buf[INET6_ADDRSTRLEN];
-
-    inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
-    string ip6_str(buf);
-    run_in_ns("ip -6 addr add " + ip6_str + "/128 dev " + m_ns_name + "-L", "Could not set IPv6 for veth");
-
-    inet_ntop(AF_INET6, gw6_buf.c_str(), buf, INET6_ADDRSTRLEN);
-    string gw6_str(buf);
-    run_in_ns("ip -6 route add " + gw6_str + " dev " + m_ns_name + "-L", "Could not add route to default IPv6 gateway from veth");
-    run_in_ns("ip -6 route add default via " + gw6_str, "Could not set default IPv6 gateway for veth");
+    if ( enabled ) {
+        run_in_ns("sysctl net.ipv6.conf." + m_ns_name + "-L.disable_ipv6=0", "Could not enable ipv6 for veth");
+        if ( ip6_buf.size() ) {
+            inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
+            string ip6_str(buf);
+            run_in_ns("ip -6 addr add " + ip6_str + "/128 dev " + m_ns_name + "-L", "Could not set IPv6 for veth");
+        }
+    }
+    m_ip6_enabled = enabled;
     m_ip6 = ip6_buf;
-    m_gw6 = gw6_buf;
 }
 
 // veth pair (from TRex side)
@@ -401,6 +400,8 @@ char clean_old_nets_helper(void) {
                 }
                 popen_with_err("ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
             }
+            regfree(&search_regex);
+            closedir(dirp);
         }
 
         // remove old veths
@@ -428,6 +429,8 @@ char clean_old_nets_helper(void) {
                 }
                 popen_with_err("ip link delete " + string(direntp->d_name), "Could not remove old veth");
             }
+            regfree(&search_regex);
+            closedir(dirp);
         }
         close(fd);
         unlink(netns_lock_name.data());

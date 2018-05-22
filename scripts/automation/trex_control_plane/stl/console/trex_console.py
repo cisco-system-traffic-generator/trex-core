@@ -352,6 +352,14 @@ class TRexConsole(TRexGeneralCmd):
     def help_l3 (self):
         self.do_l3("-h")
 
+    @verify_connected
+    def do_ipv6(self, line):
+        '''Configures IPv6 on a port'''
+        self.stateless_client.conf_ipv6_line(line)
+
+    def help_ipv6(self):
+        self.do_ipv6("-h")
+
         
     @verify_connected
     def do_vlan (self, line):
