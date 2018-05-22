@@ -152,17 +152,20 @@ def check_ibverbs_deps(bld):
 
 def missing_pkg_msg(fedora, ubuntu):
     msg = 'not found\n'
-    fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
+    fedora_install = 'Fedora/CentOS install:\nsudo yum install %s\n' % fedora
     ubuntu_install = 'Ubuntu install:\nsudo apt install %s\n' % ubuntu
+    unknown_install = 'Could not determine Linux distribution.\n%s\n%s' % (fedora_install, ubuntu_install)
     try:
-        if platform.linux_distribution()[0].capitalize() == 'Ubuntu':
-            msg += ubuntu_install
-        elif platform.linux_distribution()[0].capitalize() == 'Fedora':
-            msg += fedora_install
-        else:
-            raise
+        dist = platform.linux_distribution(full_distribution_name=False)[0].capitalize()
     except:
-        msg += 'Could not determine Linux distribution.\n%s\n%s' % (ubuntu_install, fedora_install)
+        return msg + unknown_install
+
+    if dist == 'Ubuntu':
+        msg += ubuntu_install
+    elif dist in ('Fedora', 'Centos'):
+        msg += fedora_install
+    else:
+        msg += unknown_install
     return msg
 
 
