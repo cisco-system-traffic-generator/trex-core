@@ -28,7 +28,7 @@ def simple ():
         # port info
         print(c.get_port_info(my_ports))
 
-        c.ping()
+        #c.ping()
         profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'udp_1pkt_simple.py')
 
         print("start")
