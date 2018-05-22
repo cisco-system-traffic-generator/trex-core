@@ -241,9 +241,14 @@ public:
      * configures port in L3 mode
      * 
      */
-    //void set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4);
     void set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac);
-    
+
+    /**
+     * configures IPv6 of port
+     * 
+     */
+    void conf_ipv6_async(bool enabled, const std::string &src_ipv6);
+
     /**
      * configure VLAN
      */

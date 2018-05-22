@@ -171,7 +171,10 @@ class JsonRpcClient(object):
             response = self.zipper.decompress(response)
 
         # return to string
-        response = response.decode()
+        try:
+            response = response.decode()
+        except:
+            return RC_ERR('*** [RPC] - Failed to decode response from server')
 
         # print after
         if self.logger.check_verbose(self.logger.VERBOSE_HIGH):

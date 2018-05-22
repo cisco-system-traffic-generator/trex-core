@@ -352,6 +352,16 @@ void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string 
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+/**
+ * configures IPv6 of port
+ * 
+ */
+void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "conf_ipv6");
+    TrexRxConfIPv6 *msg = new TrexRxConfIPv6(m_port_id, enabled, src_ipv6);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
 void TrexPort::invalidate_dst_mac(void) {
     TrexRxInvalidateDstMac *msg = new TrexRxInvalidateDstMac(m_port_id);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );

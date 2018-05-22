@@ -82,6 +82,20 @@ void CStackBase::attr_to_json(Json::Value &res) {
     } else {
         cfg["ipv4"]["state"] = "none";
     }
+
+    if ( m_port_node->is_ip6_enabled() ) {
+        cfg["ipv6"]["enabled"] = true;
+        string ipv6_src = m_port_node->get_src_ip6();
+        if ( ipv6_src.size() ) {
+            char buf[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipv6_src.c_str(), buf, INET6_ADDRSTRLEN);
+            ipv6_src = buf;
+        }
+        cfg["ipv6"]["src"] = ipv6_src;
+    } else {
+        cfg["ipv6"]["enabled"] = false;
+    }
+
 }
 
 void CStackBase::grat_to_json(Json::Value &res) {
@@ -302,6 +316,7 @@ bool CStackBase::is_running_tasks(void) {
 CNodeBase::CNodeBase() {
     m_dst_mac_valid = false;
     m_is_loopback = false;
+    m_ip6_enabled = false;
 }
 
 CNodeBase::~CNodeBase() {}
@@ -361,18 +376,17 @@ void CNodeBase::clear_ip4_async(void) {
     }
 }
 
-void CNodeBase::conf_ip6_async(const string &ip6_buf, const string &gw6_buf) {
-    assert(ip6_buf.size()==16);
-    assert(gw6_buf.size()==16);
+void CNodeBase::conf_ip6_async(bool enabled, const string &ip6_buf) {
+    assert(ip6_buf.size()==16 || ip6_buf.size()==0);
     debug("conf ip6");
-    if ( ip6_buf != m_ip6 || gw6_buf != m_gw6 ) {
-        m_tasks.push_back(bind(&CNodeBase::conf_ip6_internal, this, ip6_buf, gw6_buf));
+    if ( enabled != m_ip6_enabled || ip6_buf != m_ip6 ) {
+        m_tasks.push_back(bind(&CNodeBase::conf_ip6_internal, this, enabled, ip6_buf));
     }
 }
 
 void CNodeBase::clear_ip6_async(void) {
     debug("clear ip6");
-    if ( m_ip6.size() || m_gw6.size() ) {
+    if ( m_ip6_enabled || m_ip6.size() ) {
         m_tasks.push_back(bind(&CNodeBase::clear_ip6_internal, this));
     }
 }
@@ -406,13 +420,13 @@ void CNodeBase::clear_ip4_internal(void) {
     m_gw4.clear();
 }
 
-void CNodeBase::conf_ip6_internal(const string &ip6_buf, const string &gw6_buf) {
+void CNodeBase::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     throw TrexException("IPv6 is not supported with current stack");
 }
 
 void CNodeBase::clear_ip6_internal(void) {
+    m_ip6_enabled = false;
     m_ip6.clear();
-    m_gw6.clear();
 }
 
 // getters
@@ -424,12 +438,20 @@ bool CNodeBase::is_loopback(void) {
     return m_is_loopback;
 }
 
+bool CNodeBase::is_ip6_enabled(void) {
+    return m_ip6_enabled;
+}
+
 const string &CNodeBase::get_src_mac(void) {
     return m_src_mac;
 }
 
 const string &CNodeBase::get_dst_mac(void) {
     return m_dst_mac;
+}
+
+const vlan_list_t &CNodeBase::get_vlan(void) {
+    return m_vlan_tags;
 }
 
 const string &CNodeBase::get_src_ip4(void) {
@@ -440,8 +462,8 @@ const string &CNodeBase::get_dst_ip4(void) {
     return m_gw4;
 }
 
-const vlan_list_t &CNodeBase::get_vlan(void) {
-    return m_vlan_tags;
+const string &CNodeBase::get_src_ip6(void) {
+    return m_ip6;
 }
 
 

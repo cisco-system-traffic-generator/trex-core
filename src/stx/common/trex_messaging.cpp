@@ -273,6 +273,12 @@ bool TrexRxSetL3Mode::handle(CRxCore *rx_core) {
     return true;
 }
 
+bool TrexRxConfIPv6::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->conf_ip6_async(m_enabled, m_src_ipv6);
+    return true;
+}
+
 bool TrexRxGetPortNode::handle(CRxCore *rx_core) {
     CStackBase* stack = get_stack(rx_core, m_port_id);
     if ( stack->is_running_tasks() ) {

@@ -484,6 +484,25 @@ private:
 };
 
 /**
+ * Configure IPv6 of port
+ */
+class TrexRxConfIPv6 : public TrexCpToRxMsgBase {
+public:
+    TrexRxConfIPv6(uint8_t port_id, bool enabled, const std::string &src_ipv6) {
+        m_port_id       = port_id;
+        m_enabled       = enabled;
+        m_src_ipv6      = src_ipv6;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    bool                m_enabled;
+    std::string         m_src_ipv6;
+};
+
+/**
  * Get port node for data
  */
 class TrexRxGetPortNode : public TrexCpToRxMsgBase {

@@ -98,6 +98,9 @@ TREX_RPC_CMD_EXT(TrexRpcCmdSetL2,             "set_l2",
 TREX_RPC_CMD_EXT(TrexRpcCmdSetL3,             "set_l3",
     void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
 );
+TREX_RPC_CMD_EXT(TrexRpcCmdConfIPv6,          "conf_ipv6",
+    void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
+);
 
 TREX_RPC_CMD_EXT(TrexRpcCmdSetVLAN,           "set_vlan",
     void validate_vlan(uint16_t vlan, Json::Value &result);
@@ -952,6 +955,68 @@ void TrexRpcCmdSetL3::process_results(uint64_t ticket_id, const Json::Value &par
 
 
 /**
+ * configures IPv6 of a port
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdConfIPv6::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    verify_fast_stack(params, result, port_id);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
+    }
+
+    const bool enabled = parse_bool(params, "enabled", result);
+    string src_ipv6 = parse_string(params, "src_ipv6", result);
+
+    if ( enabled && src_ipv6.size() ) {
+        char buf[16];
+        if ( inet_pton(AF_INET6, src_ipv6.c_str(), buf) != 1 ) {
+            stringstream ss;
+            ss << "invalid source IPv6 address: '" << src_ipv6 << "'";
+            generate_parse_err(result, ss.str());
+        }
+        src_ipv6.assign(buf, 16);
+    }
+
+    try {
+        port->conf_ipv6_async(enabled, src_ipv6);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    process_results(ticket_id, params, result);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+void TrexRpcCmdConfIPv6::process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    stack_result_t results;
+    bool found = get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results(ticket_id, results);
+    if ( !found ) {
+        generate_async_no_results(result, "Could not find IPv6 results, probably timeout on aging.");
+    }
+    if ( !results.is_ready ) {
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdConfIPv6::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
+        generate_async_wip(result, ticket_id);
+    }
+    if ( results.err_per_mac.size() ) {
+        assert(results.err_per_mac.size() == 1);
+        generate_execute_err(result, "Could not configure IPv6: " + results.err_per_mac.begin()->second);
+    }
+    result["result"] = Json::objectValue;
+}
+
+
+/**
  * capture command tree
  * 
  */
@@ -1329,6 +1394,7 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
 
     m_cmds.push_back(new TrexRpcCmdSetL2(this));
     m_cmds.push_back(new TrexRpcCmdSetL3(this));
+    m_cmds.push_back(new TrexRpcCmdConfIPv6(this));
     m_cmds.push_back(new TrexRpcCmdSetVLAN(this));
     
     m_cmds.push_back(new TrexRpcPublishNow(this));

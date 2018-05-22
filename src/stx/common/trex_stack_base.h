@@ -46,7 +46,7 @@ public:
     void conf_vlan_async(const vlan_list_t &vlans);
     void conf_ip4_async(const std::string &ip4_buf, const std::string &gw4_buf);
     void clear_ip4_async(void);
-    void conf_ip6_async(const std::string &ip6_buf, const std::string &gw6_buf);
+    void conf_ip6_async(bool enabled, const std::string &ip6_buf);
     void clear_ip6_async(void);
 
     // mark dst mac as invalid (after link down, or if IPv4 is not resolved)
@@ -61,13 +61,13 @@ public:
     // getters
     bool is_dst_mac_valid(void);
     bool is_loopback(void);
+    bool is_ip6_enabled(void);
     const std::string &get_src_mac(void);
     const std::string &get_dst_mac(void);
     const vlan_list_t &get_vlan(void);
     const std::string &get_src_ip4(void);
     const std::string &get_dst_ip4(void);
     const std::string &get_src_ip6(void);
-    const std::string &get_dst_ip6(void);
 
     task_list_t         m_tasks;
 
@@ -78,7 +78,7 @@ protected:
     virtual void conf_ip4_internal(const std::string &ip6_buf, const std::string &gw4_buf);
     virtual void clear_ip4_internal(void);
     virtual void conf_vlan_internal(const vlan_list_t &vlans);
-    virtual void conf_ip6_internal(const std::string &ip6_buf, const std::string &gw6_buf);
+    virtual void conf_ip6_internal(bool enabled, const std::string &ip6_buf);
     virtual void clear_ip6_internal(void);
 
     // binary values as it would be in packet
@@ -90,7 +90,7 @@ protected:
     std::string         m_ip4;
     std::string         m_gw4;
     std::string         m_ip6;
-    std::string         m_gw6;
+    bool                m_ip6_enabled;
 };
 
 
