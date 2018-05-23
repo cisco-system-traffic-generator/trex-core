@@ -78,6 +78,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.is_lowend             = 'lowend' in self.modes
         self.is_vdev               = 'vdev' in self.modes
         self.is_dummy_ports        = 'dummy' in self.modes
+        self.is_linux_stack        = 'linux_stack' in self.modes
 
         if not CTRexScenario.is_init:
             if self.trex and not self.no_daemon: # stateful

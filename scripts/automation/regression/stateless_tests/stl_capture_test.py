@@ -22,7 +22,10 @@ class STLCapture_Test(CStlGeneral_Test):
 
         if not self.is_loopback:
             self.skip('capture tests are skipped on a non-loopback machine')
-            
+
+        if self.is_linux_stack:
+            self.skip('capture tests are skipped with linux-based stack')
+
         assert 'bi' in CTRexScenario.stl_ports_map
 
         self.c = CTRexScenario.stl_trex
@@ -278,14 +281,14 @@ class STLCapture_Test(CStlGeneral_Test):
             assert len(res_pkts) == count
             
             for req_pkt in req_pkts:
-                assert 'ICMP' in req_pkt
+                assert 'ICMP' in req_pkt, req_pkt.command()
                 assert req_pkt['IP'].src == tx_ipv4
                 assert req_pkt['IP'].dst == rx_ipv4
                 assert req_pkt['ICMP'].type == 8
                 assert len(req_pkt) == 1500
                 
             for res_pkt in res_pkts:
-                assert 'ICMP' in res_pkt
+                assert 'ICMP' in res_pkt, res_pkt.command()
                 assert res_pkt['IP'].src == rx_ipv4
                 assert res_pkt['IP'].dst == tx_ipv4
                 assert res_pkt['ICMP'].type == 0
