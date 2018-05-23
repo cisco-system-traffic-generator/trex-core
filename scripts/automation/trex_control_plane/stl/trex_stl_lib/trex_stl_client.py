@@ -1978,6 +1978,7 @@ class STLClient(object):
         if enabled and src_ipv6 and not is_valid_ipv6(src_ipv6):
             raise STLError("src_ipv6 is not a valid IPv6 address: '%s'" % src_ipv6)
 
+        self.logger.pre_cmd('Configuring IPv6 on port %s' % port)
         rc = self.ports[port].conf_ipv6(enabled, src_ipv6)
         self.logger.post_cmd(rc)
 
