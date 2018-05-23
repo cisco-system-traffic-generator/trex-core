@@ -64,6 +64,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         m_is_initialized = true;
     }
+    get_platform_api().getPortAttrObj(api->get_port_id())->set_multicast(true); // We need multicast for IPv6
     m_next_namespace_id = 0;
 }
 
@@ -376,16 +377,42 @@ char clean_old_nets_helper(void) {
             throw TrexException("Could not unlock " + netns_lock_name);
         }
 
-        int rc;
         string ns_pattern = string("trex-") + prefix_char + "-[0-9a-f]+-[0-9a-f]+";
+
+        // remove unused veths
+        struct ifaddrs *if_list, *if_iter;
+        res = getifaddrs(&if_list);
+        if ( res ) {
+            throw TrexException("Could not get list of interfaces for cleanup");
+        }
+        vector<string> if_postfixes = {"T", "L"};
+        for (auto &if_postfix : if_postfixes) {
+            debug("Cleaning IFs with postfixes " + if_postfix);
+            res = regcomp(&search_regex, ("^" + ns_pattern + "-" + if_postfix + "$").c_str(), REG_EXTENDED);
+            if ( res ) {
+                throw TrexException("Could not compile regex");
+            }
+            for (if_iter = if_list; if_iter != nullptr; if_iter = if_iter->ifa_next) {
+                if (if_iter->ifa_addr == nullptr) {
+                   continue;
+                }
+                res = regexec(&search_regex, if_iter->ifa_name, 0, NULL, 0);
+                if ( res ) {
+                    continue;
+                }
+                popen_with_err("ip link delete " + string(if_iter->ifa_name), "Could not remove old veth");
+            }
+            regfree(&search_regex);
+        }
+        freeifaddrs(if_list);
 
         // remove unused namespace
         string read_dir = "/var/run/netns";
         dirp = opendir(read_dir.c_str());
         if ( dirp != nullptr ) {
 
-            rc = regcomp(&search_regex, string("^" + ns_pattern + "$").c_str(), REG_EXTENDED);
-            if ( rc ) {
+            res = regcomp(&search_regex, ("^" + ns_pattern + "$").c_str(), REG_EXTENDED);
+            if ( res ) {
                 throw TrexException("Could not compile regex");
             }
 
@@ -394,8 +421,8 @@ char clean_old_nets_helper(void) {
                 if ( direntp == nullptr ) {
                     break;
                 }
-                rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
-                if ( rc ) {
+                res = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
+                if ( res ) {
                     continue;
                 }
                 popen_with_err("ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
@@ -404,34 +431,6 @@ char clean_old_nets_helper(void) {
             closedir(dirp);
         }
 
-        // remove old veths
-        read_dir = "/sys/class/net";
-        vector<string> if_postfixes = {"T", "L"};
-        for (auto &if_postfix : if_postfixes) {
-            debug("Cleaning IFs with postfixes " + if_postfix);
-            dirp = opendir(read_dir.c_str());
-            if ( dirp == nullptr ) {
-                throw TrexException("Could not read interfaces directory " + read_dir);
-            }
-            rc = regcomp(&search_regex, string(ns_pattern + "-" + if_postfix + "$").c_str(), REG_EXTENDED);
-            if ( rc ) {
-                throw TrexException("Could not compile regex");
-            }
-    
-            while (true) {
-                direntp = readdir(dirp);
-                if ( direntp == nullptr ) {
-                    break;
-                }
-                rc = regexec(&search_regex, direntp->d_name, 0, NULL, 0);
-                if ( rc ) {
-                    continue;
-                }
-                popen_with_err("ip link delete " + string(direntp->d_name), "Could not remove old veth");
-            }
-            regfree(&search_regex);
-            closedir(dirp);
-        }
         close(fd);
         unlink(netns_lock_name.data());
         if ( free_prefix == 0 ) {
