@@ -17,11 +17,11 @@ class RXServiceIPv6(RXServiceAPI):
         self.src_mac = self.attr['layer_cfg']['ether']['src']
         ipv6 = self.attr['layer_cfg']['ipv6']
         if ipv6['enabled'] and ipv6['src']:
-            self.src_ip = ipv6['src']
+            self.src_ip = in6_ptop(ipv6['src'])
         else:
-            self.src_ip  = generate_ipv6(self.src_mac)
-        self.mld_ip  = generate_ipv6_solicited_node(self.src_ip)
-        self.dst_ip  = dst_ip
+            self.src_ip  = in6_ptop(generate_ipv6(self.src_mac))
+        self.mld_ip  = in6_ptop(generate_ipv6_solicited_node(self.src_ip))
+        self.dst_ip  = in6_ptop(dst_ip)
         self.responses = {}
 
     def pre_execute(self):
@@ -91,23 +91,23 @@ class RXServiceIPv6Scan(RXServiceIPv6):
         # convert to scapy
         scapy_pkt = Ether(pkt['binary'])
 
-        if scapy_pkt.haslayer('ICMPv6ND_NS') and scapy_pkt.haslayer('ICMPv6NDOptSrcLLAddr'):
-            node_mac = scapy_pkt.getlayer(ICMPv6NDOptSrcLLAddr).lladdr
-            node_ip = scapy_pkt.getlayer(IPv6).src
+        if ICMPv6ND_NS in scapy_pkt and ICMPv6NDOptSrcLLAddr in scapy_pkt:
+            node_mac = scapy_pkt[ICMPv6NDOptSrcLLAddr].lladdr
+            node_ip = scapy_pkt[IPv6].src
             if node_ip not in self.responses:
                 self.send_intermediate(self.generate_ns_na(node_mac, node_ip))
 
-        elif scapy_pkt.haslayer('ICMPv6ND_NA'):
-            is_router = scapy_pkt.getlayer(ICMPv6ND_NA).R
-            node_ip = scapy_pkt.getlayer(ICMPv6ND_NA).tgt
-            dst_ip  = scapy_pkt.getlayer(IPv6).dst
+        elif ICMPv6ND_NA in scapy_pkt:
+            is_router = scapy_pkt[ICMPv6ND_NA].R
+            node_ip = scapy_pkt[ICMPv6ND_NA].tgt
+            dst_ip  = scapy_pkt[IPv6].dst
             node_mac = scapy_pkt.src
             if node_ip not in self.responses and dst_ip == self.src_ip:
                 self.responses[node_ip] = {'type': 'Router' if is_router else 'Host', 'mac': node_mac}
 
-        elif scapy_pkt.haslayer('ICMPv6EchoReply'):
+        elif ICMPv6EchoReply in scapy_pkt:
             node_mac = scapy_pkt.src
-            node_ip = scapy_pkt.getlayer(IPv6).src
+            node_ip = scapy_pkt[IPv6].src
             if node_ip == self.dst_ip and node_ip != 'ff02::1': # for ping ipv6
                 return self.port.ok([{'type': 'N/A', 'ipv6': node_ip, 'mac': node_mac}])
             if node_ip not in self.responses:
@@ -159,10 +159,10 @@ class RXServiceICMPv6(RXServiceIPv6):
     def on_pkt_rx(self, pkt, start_ts):
         scapy_pkt = Ether(pkt['binary'])
 
-        if scapy_pkt.haslayer('ICMPv6EchoReply'):
-            node_ip = scapy_pkt.getlayer(IPv6).src
-            hlim = scapy_pkt.getlayer(IPv6).hlim
-            dst_ip = scapy_pkt.getlayer(IPv6).dst
+        if ICMPv6EchoReply in scapy_pkt:
+            node_ip = scapy_pkt[IPv6].src
+            hlim = scapy_pkt[IPv6].hlim
+            dst_ip = scapy_pkt[IPv6].dst
             if dst_ip != self.src_ip: # not our ping
                 return
 
@@ -174,17 +174,17 @@ class RXServiceICMPv6(RXServiceIPv6):
             self.result['status'] = 'success'
             return self.port.ok(self.result)
 
-        if scapy_pkt.haslayer('ICMPv6ND_NS') and scapy_pkt.haslayer('ICMPv6NDOptSrcLLAddr'):
-            node_mac = scapy_pkt.getlayer(ICMPv6NDOptSrcLLAddr).lladdr
-            node_ip = scapy_pkt.getlayer(IPv6).src
-            dst_ip = scapy_pkt.getlayer(IPv6).dst
+        if ICMPv6ND_NS in scapy_pkt and ICMPv6NDOptSrcLLAddr in scapy_pkt:
+            node_mac = scapy_pkt[ICMPv6NDOptSrcLLAddr].lladdr
+            node_ip = scapy_pkt[IPv6].src
+            dst_ip = scapy_pkt[IPv6].dst
             if dst_ip != self.src_ip: # not our ping
                 return
             self.send_intermediate(self.generate_ns_na(node_mac, node_ip))
 
-        if scapy_pkt.haslayer('ICMPv6DestUnreach'):
-            node_ip = scapy_pkt.getlayer(IPv6).src
-            dst_ip = scapy_pkt.getlayer(IPv6).dst
+        if ICMPv6DestUnreach in scapy_pkt:
+            node_ip = scapy_pkt[IPv6].src
+            dst_ip = scapy_pkt[IPv6].dst
             if dst_ip != self.src_ip: # not our ping
                 return
             self.result['formatted_string'] = 'Reply from {0}: Destination host unreachable'.format(node_ip)
