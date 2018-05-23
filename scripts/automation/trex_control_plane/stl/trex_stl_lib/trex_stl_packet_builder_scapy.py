@@ -88,10 +88,9 @@ def generate_ipv6(mac_str, prefix = 'fe80'):
     return '%s::%s%s:%sff:fe%s:%s%s' % tuple([prefix] + mac_arr[:3] + mac_arr[3:])
 
 # RFC 4291
-def generate_ipv6_solicited_node(mac_str):
-    mac_arr = mac_str.split(':')
-    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
-    return 'ff02::1:ff%s:%s%s' % tuple(mac_arr[3:])
+def generate_ipv6_solicited_node(ipv6):
+    ipv6 = expand_ipv6(ipv6)
+    return 'ff02::1:ff%s' % ipv6[-7:]
 
 
 # return full ipv6 ff02::1 -> ff02:0:0:0:0:0:0:1

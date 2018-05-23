@@ -6,6 +6,7 @@ import re
 from collections import namedtuple
 import zlib
 import struct
+import pprint
 
 from .trex_stl_types import *
 from .utils.common import random_id_gen
@@ -170,10 +171,12 @@ class JsonRpcClient(object):
         elif self.zipper.is_compressed(response):
             response = self.zipper.decompress(response)
 
-        # return to string
+        # bytes -> string -> load as JSON
         try:
             response = response.decode()
-        except:
+            response_json = json.loads(response)
+        except (UnicodeDecodeError, TypeError, ValueError):
+            pprint.pprint(response)
             return RC_ERR('*** [RPC] - Failed to decode response from server')
 
         # print after
@@ -181,11 +184,6 @@ class JsonRpcClient(object):
             self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
 
         # process response (batch and regular)
-        try:       
-            response_json = json.loads(response)
-        except (TypeError, ValueError):
-            return RC_ERR("*** [RPC] - Failed to decode response from server")
-
         if isinstance(response_json, list):
             return self.process_batch_response(response_json)
         else:
