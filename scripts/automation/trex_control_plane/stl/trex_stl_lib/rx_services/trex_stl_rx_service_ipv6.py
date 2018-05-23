@@ -15,9 +15,12 @@ class RXServiceIPv6(RXServiceAPI):
         RXServiceAPI.__init__(self, port, *a, **k)
         self.attr = port.get_ts_attr()
         self.src_mac = self.attr['layer_cfg']['ether']['src']
-        mac_for_ip   = port.info.get('hw_mac', self.src_mac)
-        self.src_ip  = generate_ipv6(mac_for_ip)
-        self.mld_ip  = generate_ipv6_solicited_node(mac_for_ip)
+        ipv6 = self.attr['layer_cfg']['ipv6']
+        if ipv6['enabled'] and ipv6['src']:
+            self.src_ip = ipv6['src']
+        else:
+            self.src_ip  = generate_ipv6(self.src_mac)
+        self.mld_ip  = generate_ipv6_solicited_node(self.src_ip)
         self.dst_ip  = dst_ip
         self.responses = {}
 

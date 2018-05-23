@@ -92,7 +92,7 @@ class Connection(object):
         self.sigint_on_conn_lost   = False
 
         # API classes
-        self.api_ver = {'name': 'STL', 'major': 4, 'minor': 1}
+        self.api_ver = {'name': 'STL', 'major': 4, 'minor': 3}
 
         # low level RPC layer
         self.rpc = CCommLink(self.conn_info['server'],
