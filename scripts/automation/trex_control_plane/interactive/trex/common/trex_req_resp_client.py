@@ -7,6 +7,7 @@ from collections import namedtuple
 import zlib
 import struct
 import pprint
+import time
 from threading import Lock
 
 from .trex_types import RC, RC_OK, RC_ERR
@@ -170,7 +171,7 @@ class JsonRpcClient(object):
                 return RC_ERR('Server was busy within %s sec, try again later' % timeout_sec)
             poll_tries -= 1
             time.sleep(sleep_sec)
-            rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
+            rc = self.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
         while not rc and rc.errno() == ErrNo.JSONRPC_V2_ERR_WIP:
             try:
                 params = {'ticket_id': int(rc.err())}
@@ -179,9 +180,9 @@ class JsonRpcClient(object):
                     return RC_ERR('Timeout on processing async command, server did not finish within %s second' % timeout_sec)
                 poll_tries -= 1
                 time.sleep(sleep_sec)
-                rc = self.rpc_link.invoke_rpc_method('get_async_results', params, retry = retry)
+                rc = self.invoke_rpc_method('get_async_results', params, retry = retry)
             except KeyboardInterrupt:
-                self.rpc_link.invoke_rpc_method('cancel_async_task', params)
+                self.invoke_rpc_method('cancel_async_task', params)
                 raise
         return rc
 
