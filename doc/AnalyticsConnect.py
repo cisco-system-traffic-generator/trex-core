@@ -135,16 +135,12 @@ if __name__ == '__main__':
 """
 response structure (when fetched with "export to tuples"):
 
-{ 'setup1': {'test_name1': [(test_res1),(test_res2),...],
-			 'test_name2': [(test_res1),(test_res2),...]
-			},
-  'setup2': {'test_name1': [(test_res1),(test_res2),...],
-			 'test_name2': [(test_res1),(test_res2),...]
-			},
-	.
-	.
-	.
-	.
+{ 'setup1': {'test_name1': [(test_res1),(test_res2),...], 'test_name2': [(test_res1),(test_res2),...]},
+  'setup2': {'test_name1': [(test_res1),(test_res2),...], 'test_name2': [(test_res1),(test_res2),...]},
+   .
+   .
+   .
+   .
 }
 
 {u'kiwi02': {u'VM - 64 bytes, multi CPU, cache size 1024': [(u'VM - 64 bytes, multi CPU, cache size 1024',

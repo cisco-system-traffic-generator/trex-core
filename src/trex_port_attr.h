@@ -30,173 +30,12 @@ limitations under the License.
 #include "trex_vlan.h"
 
 
-/**
- * holds L2 MAC configuration
- */
-class LayerConfigMAC {
-public:
-    
-    /**
-     * IPv4 state of resolution
-     */
-    enum ether_state_e {
-        STATE_UNCONFIGRED,
-        STATE_CONFIGURED
-    };
-    
-    LayerConfigMAC(uint8_t port_id);
-    
-    void set_src(const uint8_t *src_mac) {
-        memcpy(m_src_mac, src_mac, 6);
-    }
-    
-    void set_dst(const uint8_t *dst_mac) {
-        memcpy(m_dst_mac, dst_mac, 6);
-    }
-    
-    const uint8_t *get_src() const {
-        return m_src_mac;
-    }
-    
-    const uint8_t *get_dst() const {
-        return m_dst_mac;
-    }
-    
-    void set_state(ether_state_e state) {
-        m_state = state;    
-    }
-    
-    ether_state_e get_state() const {
-        return m_state;
-    }
-    
-    Json::Value to_json() const;
-    
-private:
-    uint8_t         *m_src_mac;
-    uint8_t         *m_dst_mac;
-    ether_state_e    m_state;
-};
-
-/**
- * holds L3 IPv4 configuration
- */
-class LayerConfigIPv4 {
-    
-public:
-    
-    /**
-     * IPv4 state of resolution
-     */
-    enum ipv4_state_e {
-        STATE_NONE,
-        STATE_UNRESOLVED,
-        STATE_RESOLVED
-    };
-    
-    LayerConfigIPv4() {
-        m_state = STATE_NONE;
-    }
-    
-    void set_src(uint32_t src_ipv4) {
-        m_src_ipv4 = src_ipv4;
-    }
-    
-    void set_dst(uint32_t dst_ipv4) {
-        m_dst_ipv4 = dst_ipv4;
-    }
-    
-    void set_state(ipv4_state_e state) {
-        m_state = state;
-    }
-    
-    uint32_t get_src() const {
-        return m_src_ipv4;
-    }
-    
-    uint32_t get_dst() const {
-        return m_dst_ipv4;
-    }
-    
-    ipv4_state_e get_state() const {
-        return m_state;
-    }
-    
-    Json::Value to_json() const;
-    
-private:
-    ipv4_state_e    m_state;
-    uint32_t        m_src_ipv4;
-    uint32_t        m_dst_ipv4;
-};
-
-/**
- * holds all layer configuration
- * 
- * @author imarom (12/25/2016)
- */
-class LayerConfig {
-public:
-    
-    LayerConfig(uint8_t port_id) : m_l2_config(port_id) {
-        m_port_id = port_id;
-    }
-    
-    /**
-     * configure port for L2 (no L3)
-     * 
-     */
-    void set_l2_mode(const uint8_t *dst_mac);
-    
-    /**
-     * configure port IPv4 (unresolved)
-     * 
-     */
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4);
-    
-    /**
-     * configure port IPv4 (resolved)
-     * 
-     */
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4, const uint8_t *resolved_mac);
-    
-    /**
-     * event handler in case of a link down event
-     * 
-     * @author imarom (12/22/2016)
-     */
-    void on_link_down();
-    
-    const LayerConfigMAC& get_ether() const {
-        return m_l2_config;
-    }
-    
-    const LayerConfigIPv4& get_ipv4() const {
-        return m_l3_ipv4_config;
-    }
-    
-    /**
-     * write state to JSON
-     * 
-     */
-    Json::Value to_json() const;
-        
-private:
-    
-    uint8_t          m_port_id;
-    LayerConfigMAC   m_l2_config;
-    LayerConfigIPv4  m_l3_ipv4_config;
-};
 
 
 
 class TRexPortAttr {
 public:
 
-    TRexPortAttr(uint8_t port_id) : m_layer_cfg(port_id) {
-        m_src_ipv4 = 0;
-    }
-    
     virtual ~TRexPortAttr(){}
 
 /*    UPDATES    */
@@ -236,48 +75,7 @@ public:
     virtual int set_flow_ctrl(int mode) = 0;
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
-    
-    /**
-     * configures port for L2 mode
-     * 
-     */
-    void set_l2_mode(const uint8_t *dest_mac) {
-        m_layer_cfg.set_l2_mode(dest_mac);
-    }
 
-    /**
-     * configures port in L3 mode
-     * unresolved
-     */
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4) {
-        m_layer_cfg.set_l3_mode(src_ipv4, dst_ipv4);
-    }
-    
-    /**
-     * configure port for L3 mode 
-     * resolved
-     */
-    void set_l3_mode(uint32_t src_ipv4, uint32_t dst_ipv4, const uint8_t *resolved_mac) {
-        m_layer_cfg.set_l3_mode(src_ipv4, dst_ipv4, resolved_mac);
-    }
-
-    const LayerConfig & get_layer_cfg() const {
-        return m_layer_cfg;
-    }
-
-
-    void set_vlan_cfg(const VLANConfig &vlan_cfg) {
-        m_vlan_cfg = vlan_cfg;
-    }
-    
-    
-    /**
-     * gets the port VLAN configuration
-     * 
-     */
-    const VLANConfig & get_vlan_cfg() const {
-        return m_vlan_cfg;
-    }
     
     
     /* DUMPS */
@@ -289,21 +87,12 @@ public:
     uint8_t get_port_id() const {
         return m_port_id;
     } 
-    
-    /**
-     * event handler for link down event
-     */
-    void on_link_down();
-    
+
 protected:
 
     uint8_t                   m_port_id;
     rte_eth_link              m_link;
-    uint32_t                  m_src_ipv4;
 
-    LayerConfig               m_layer_cfg;
-    VLANConfig                m_vlan_cfg;
-        
     struct rte_eth_dev_info   dev_info;
     
     rx_filter_mode_e m_rx_filter_mode;
@@ -330,7 +119,7 @@ public:
                      uint8_t repid,
                      bool is_virtual, 
                      bool fc_change_allowed,
-                     bool is_prom_allowed) : TRexPortAttr(tvpid) {
+                     bool is_prom_allowed) {
 
         m_tvpid = tvpid;
         m_repid = repid;
@@ -402,7 +191,7 @@ public:
 
 class SimTRexPortAttr : public TRexPortAttr {
 public:
-    SimTRexPortAttr() : TRexPortAttr(0) {
+    SimTRexPortAttr() {
         m_link.link_speed   = 10000;
         m_link.link_duplex  = 1;
         m_link.link_autoneg = 0;

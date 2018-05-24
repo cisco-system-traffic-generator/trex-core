@@ -220,40 +220,112 @@ TrexRxQueueGetPkts::handle(CRxCore *rx_core) {
     return true;
 }
 
+CStackBase* get_stack(CRxCore *rx_core, uint8_t port_id) {
+    return rx_core->get_rx_port_mngr(port_id).get_stack();
+}
 
-bool
-TrexRxFeaturesToJson::handle(CRxCore *rx_core) {
-    Json::Value output = rx_core->get_rx_port_mngr(m_port_id).to_json();
-    
-    /* set the reply */
-    m_reply.set_reply(output);
-
+bool TrexPortAttrToJson::handle(CRxCore *rx_core) {
+    get_stack(rx_core, m_port_id)->attr_to_json(m_attr_res);
+    m_reply.set_reply(true);
     return true;
 }
 
-bool
-TrexRxSetL2Mode::handle(CRxCore *rx_core) {
-    rx_core->get_rx_port_mngr(m_port_id).set_l2_mode();
-    
+bool TrexRxFeaturesToJson::handle(CRxCore *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).to_json(m_feat_res);
+    m_reply.set_reply(true);
     return true;
 }
 
-bool
-TrexRxSetL3Mode::handle(CRxCore *rx_core) {
-    rx_core->get_rx_port_mngr(m_port_id).set_l3_mode(m_src_addr, m_is_grat_arp_needed);
-    
+bool TrexRxGetStackCaps::handle(CRxCore *rx_core) {
+    m_reply.set_reply(get_stack(rx_core, m_port_id)->get_capa());
     return true;
 }
 
-
-bool
-TrexRxSetVLAN::handle(CRxCore *rx_core) {
-    RXPortManager &port_mngr = rx_core->get_rx_port_mngr(m_port_id);
-    port_mngr.set_vlan_cfg(m_vlan_cfg);
-    
+bool TrexRxSetL2Mode::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->clear_ip4_async();
+    node->clear_ip6_async();
+    node->conf_dst_mac_async(m_dst_mac);
+    node->set_dst_mac_valid_async();
+    if ( rx_core->has_port(m_dst_mac) ) {
+        node->set_is_loopback_async();
+    } else {
+        node->set_not_loopback();
+    }
     return true;
 }
 
+bool TrexRxSetL3Mode::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->conf_ip4_async(m_src_ipv4, m_dst_ipv4);
+    if ( m_dst_mac.size() ) {
+        node->conf_dst_mac_async(m_dst_mac);
+        node->set_dst_mac_valid_async();
+        if ( rx_core->has_port(m_dst_mac) ) {
+            node->set_is_loopback_async();
+        } else  {
+            node->set_not_loopback();
+        }
+    } else {
+        node->set_dst_mac_invalid();
+        node->set_not_loopback();
+    }
+    return true;
+}
+
+bool TrexRxConfIPv6::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->conf_ip6_async(m_enabled, m_src_ipv6);
+    return true;
+}
+
+bool TrexRxGetPortNode::handle(CRxCore *rx_core) {
+    CStackBase* stack = get_stack(rx_core, m_port_id);
+    if ( stack->is_running_tasks() ) {
+        m_err = "Interface stack is in the middle of configuration";
+    } else {
+        m_node = *stack->get_port_node(); // copy the node
+    }
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexRxInvalidateDstMac::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->set_dst_mac_invalid();
+    return true;
+}
+
+bool TrexRxCancelCfgTasks::handle(CRxCore *rx_core) {
+    CStackBase* stack = get_stack(rx_core, m_port_id);
+    stack->cancel_running_tasks();
+    stack->cancel_pending_tasks();
+    return true;
+}
+
+bool TrexRxSetVLAN::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->conf_vlan_async(m_vlan_list);
+    return true;
+}
+
+bool TrexRxRunCfgTasks::handle(CRxCore *rx_core) {
+    get_stack(rx_core, m_port_id)->run_pending_tasks_async(m_ticket_id);
+    return true;
+}
+
+bool TrexRxIsRunningTasks::handle(CRxCore *rx_core) {
+    bool is_running_tasks = get_stack(rx_core, m_port_id)->is_running_tasks();
+    m_reply.set_reply(is_running_tasks);
+    return true;
+}
+
+bool TrexRxGetTasksResults::handle(CRxCore *rx_core) {
+    CStackBase* stack = get_stack(rx_core, m_port_id);
+    bool found = stack->get_tasks_results(m_ticket_id, m_results);
+    m_reply.set_reply(found);
+    return true;
+}
 
 bool
 TrexRxTXPkts::handle(CRxCore *rx_core) {

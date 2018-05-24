@@ -202,6 +202,12 @@ class ASTFCmdJMPNZ(ASTFCmd):
         self.fields['id'] = id_val
         self.fields['offset'] = offset
 
+class ASTFCmdTxMode(ASTFCmd):
+    def __init__(self,flags):
+        super(ASTFCmdTxMode, self).__init__()
+        self.fields['name'] = 'tx_mode'
+        self.fields['flags'] = flags
+
 
 class ASTFProgram(object):
     """
@@ -353,15 +359,7 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        if type(l7_buf) is str:
-            try:
-                enc_buf = l7_buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-                enc_buf = buf
-
+        enc_buf=self._c_b (l7_buf)
         size=len(enc_buf);
         cnt=0;
         while size>0 :
@@ -378,6 +376,19 @@ class ASTFProgram(object):
 
         """
         self.fields['commands'].append(ASTFCmdCloseMsg())
+
+    def _c_b (self,buf):
+
+        #Python2 string and bytes are the same 
+        if type(buf) is bytes:
+            return buf;
+        try:
+            enc_buf = buf.encode('ascii')
+            return enc_buf
+        except UnicodeEncodeError as e:
+            print (e)
+            raise ASTFError("If buf is a string, it must contain only ascii")
+
 
     def send_msg (self, buf):
         """
@@ -399,19 +410,35 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         # we support bytes or ascii strings
-        if type(buf) is str:
-            try:
-                enc_buf = buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-            enc_buf = buf
+        enc_buf=self._c_b (buf)
 
         cmd = ASTFCmdTxPkt(enc_buf)
         self.total_send_bytes += cmd.buf_len
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
         self.fields['commands'].append(cmd)
+
+    def set_send_blocking (self,block):
+        """
+           set_send_blocking (block), set the stream transmit mode 
+
+           block : for send command wait until the last byte is ack 
+
+           non-block: continue to the next command when the queue is almost empty, this is good for pipeline the transmit 
+
+        :parameters:
+                  block  : bool
+
+        """
+        ver_args = {"types":
+                    [{"name": "block", 'arg': block, "t": bool}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+        if block:
+            flags = 0
+        else:
+            flags = 1
+
+        self.fields['commands'].append(ASTFCmdTxMode(flags))
 
     def set_keepalive_msg (self,msec):
         """
@@ -483,15 +510,7 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         # we support bytes or ascii strings
-        if type(buf) is str:
-            try:
-                enc_buf = buf.encode('ascii')
-            except UnicodeEncodeError as e:
-                print (e)
-                raise ASTFError("If buf is a string, it must contain only ascii")
-        else:
-            enc_buf = buf
-
+        enc_buf=self._c_b (buf)
         cmd = ASTFCmdSend(enc_buf)
         self.total_send_bytes += cmd.buf_len
         cmd.index = ASTFProgram.buf_list.add(cmd.buf)
@@ -1523,14 +1542,16 @@ class ASTFProfile(object):
 
         self.default_c_glob_info = default_c_glob_info
         self.default_s_glob_info = default_s_glob_info
+        self.templates = []
+
+
+        if (templates is None) and (cap_list is None):
+             raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
+
         if cap_list is not None:
-            if templates is not None:
-                raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
             self.cap_list = listify(cap_list)
-            self.templates = []
-        else:
-            if templates is None:
-                raise ASTFErrorMissingParam(self.__class__.__name__, "templates", "cap_list")
+
+        if templates is not None:
             self.templates = listify(templates)
 
         if cap_list is not None:

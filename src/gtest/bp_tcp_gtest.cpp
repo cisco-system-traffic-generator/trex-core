@@ -2605,3 +2605,180 @@ TEST_F(gt_tcp, tst77) {
   }
 }
 
+
+
+
+
+TEST_F(gt_tcp, tst78) {
+    
+
+    CMbufBuffer b1;
+
+    utl_mbuf_buffer_create_and_fill(0,&b1,2048,2050,true);
+
+    CMbufBuffer  b2;
+    utl_mbuf_buffer_create_and_fill(0,&b2,2048,2050,true);
+
+    b1.Dump(stdout);
+
+
+    CEmulTxQueue q;
+
+    q.add_buffer(&b1);
+    q.add_buffer(&b2);
+    CBufMbufRef res;
+
+    q.get_by_offset(0,res);
+    EXPECT_EQ(res.m_offset,0);
+    EXPECT_EQ(res.get_mbuf_size(),2048);
+    EXPECT_EQ(res.need_indirect_mbuf(5000),true);
+
+
+    q.get_by_offset(res.get_mbuf_size(),res);
+    EXPECT_EQ(res.m_offset,0);
+    EXPECT_EQ(res.get_mbuf_size(),2);
+    EXPECT_EQ(res.need_indirect_mbuf(2048),true);
+    res.Dump(stdout);
+
+    q.get_by_offset(res.get_mbuf_size(),res);
+    res.Dump(stdout);
+
+    q.get_by_offset(2050,res);
+    res.Dump(stdout);
+
+
+    uint32_t tx_residue=0;
+    bool is_next=q.on_bh_tx_acked(100,tx_residue,true);
+    EXPECT_EQ(is_next,false);
+    EXPECT_EQ(tx_residue,100);
+
+    is_next=q.on_bh_tx_acked(2048-100,tx_residue,true);
+    EXPECT_EQ(is_next,false);
+    EXPECT_EQ(tx_residue,2048-100);
+
+    is_next=q.on_bh_tx_acked(2,tx_residue,true);
+    EXPECT_EQ(is_next,false);
+    EXPECT_EQ(tx_residue,2);
+
+
+    b1.Delete();
+    b2.Delete();
+}
+
+
+TEST_F(gt_tcp, tst79) {
+
+    CMbufBuffer b1;
+
+    utl_mbuf_buffer_create_and_fill(0,&b1,2048,2050,true);
+
+    CMbufBuffer  b2;
+    utl_mbuf_buffer_create_and_fill(0,&b2,2048,2050,true);
+
+    b1.Dump(stdout);
+
+    CEmulTxQueue q;
+
+    q.add_buffer(&b1);
+    q.add_buffer(&b2);
+    CBufMbufRef res;
+
+    q.get_by_offset(0,res);
+    EXPECT_EQ(res.m_offset,0);
+    EXPECT_EQ(res.get_mbuf_size(),2048);
+    EXPECT_EQ(res.need_indirect_mbuf(5000),true);
+
+
+    q.get_by_offset(res.get_mbuf_size(),res);
+    EXPECT_EQ(res.m_offset,0);
+    EXPECT_EQ(res.get_mbuf_size(),2);
+    EXPECT_EQ(res.need_indirect_mbuf(2048),true);
+    res.Dump(stdout);
+
+    q.get_by_offset(res.get_mbuf_size(),res);
+    res.Dump(stdout);
+
+    q.get_by_offset(2050,res);
+    res.Dump(stdout);
+
+    q.subtract_bytes(2060); //<< move the packet to buffer 
+
+    uint32_t tx_residue=0;
+    bool is_next=q.on_bh_tx_acked(2060,tx_residue,true);
+    EXPECT_EQ(is_next,false);
+    EXPECT_EQ(tx_residue,2040);
+
+    q.get_by_offset(10,res);
+    EXPECT_EQ(res.get_mbuf_size(),2028);
+    res.Dump(stdout);
+
+    is_next=q.on_bh_tx_acked(1500,tx_residue,false);
+    EXPECT_EQ(is_next,false);
+    EXPECT_EQ(tx_residue,0);
+
+    b1.Delete();
+    b2.Delete();
+}
+
+static uint32_t get_queue_size(CEmulTxQueue *q,uint32_t max_size){
+    uint32_t sum=0;
+    CBufMbufRef res;
+    uint32_t offset=0;
+
+    while (max_size>sum) {
+        q->get_by_offset(offset,res);
+        sum+=res.get_mbuf_size();
+        offset+=res.get_mbuf_size();
+    }
+    return(sum);
+}
+
+
+static int test_tx_queue(int num_buffers,
+                         int block_size,
+                         int buffer_size,
+                         int step
+                         ){
+    int i;
+    std::vector<CMbufBuffer *>  qm;
+    CEmulTxQueue q;
+
+    for (i=0;i<num_buffers; i++) {
+        CMbufBuffer * p=new CMbufBuffer();
+        utl_mbuf_buffer_create_and_fill(0,p,block_size,buffer_size,true);
+        qm.push_back(p);
+        q.add_buffer(p);
+    }
+
+    uint32_t total= buffer_size*num_buffers;
+    uint32_t tx_residue=0;
+
+    while (total) {
+        int qsize=get_queue_size(&q,total);
+        EXPECT_EQ(qsize,total);
+
+        (void)q.on_bh_tx_acked(step,tx_residue,true);
+        total-=step;
+        if (step>total) {
+            step=total;
+        }
+    }
+
+    for (i=0;i<num_buffers; i++) {
+        qm[i]->Delete();
+        delete qm[i];
+    }
+    qm.clear();
+    return(0);
+}
+
+TEST_F(gt_tcp, tst80) {
+
+    //test_tx_queue(2,2048,2050,1);
+    int i;
+    for (i=1; i<2048; i++) {
+        test_tx_queue(2,2048,2050+i,i);
+    }
+}
+
+

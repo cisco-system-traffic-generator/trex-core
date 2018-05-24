@@ -556,6 +556,7 @@ public:
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
+        m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
 
@@ -602,6 +603,7 @@ public:
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;
+    std::string     m_stack_type;
 
     
     std::string        cfg_file;
@@ -796,7 +798,7 @@ public:
         }else if (size <= _4096_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_4096);
         }else{
-            assert(size<MAX_PKT_ALIGN_BUF_9K);
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
             m = _rte_pktmbuf_alloc(m_mbuf_pool_9k);
         }
         return (m);

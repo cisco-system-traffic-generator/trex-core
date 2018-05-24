@@ -21,7 +21,7 @@
 #ifndef __TREX_RX_CORE_H__
 #define __TREX_RX_CORE_H__
 #include <stdint.h>
-#include <unordered_map>
+#include <map>
 
 #include "stateful_rx_core.h"
 #include "os_time.h"
@@ -32,7 +32,7 @@
 
 class TrexCpToRxMsgBase;
 
-typedef std::unordered_map<uint8_t, RXPortManager> rx_port_mngr_t;
+typedef std::map<uint8_t, RXPortManager> rx_port_mngr_t;
 
 class CCPortLatencyStl {
  public:
@@ -127,6 +127,7 @@ class CRxCore : public TrexRxCore {
     CRxCore() {
         m_is_active = false;
     }
+    ~CRxCore();
     
     void start();
     void create(const CRxSlCfg &cfg);
@@ -143,9 +144,7 @@ class CRxCore : public TrexRxCore {
     void update_cpu_util();
 
     
-    const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id) {
-        return m_rx_port_mngr[port_id].get_pkt_buffer();
-    }
+    const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id);
     
     /**
      * start RX queueing of packets
@@ -162,7 +161,10 @@ class CRxCore : public TrexRxCore {
     void disable_latency();
 
     RXPortManager &get_rx_port_mngr(uint8_t port_id);
-    
+    bool has_port(const std::string &mac_buf);
+
+    bool is_cfg_state(uint8_t port_id);
+
     /**
      * fetch the ignored stats for a port
      * 
@@ -195,7 +197,7 @@ class CRxCore : public TrexRxCore {
     bool is_active() {
         return m_is_active;
     }
-    
+
  private:
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
 
@@ -215,7 +217,6 @@ class CRxCore : public TrexRxCore {
 
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
-    void handle_grat_arp();
 
     int process_all_pending_pkts(bool flush_rx = false);
 

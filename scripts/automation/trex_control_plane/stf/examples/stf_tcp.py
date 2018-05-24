@@ -16,9 +16,9 @@ def run_stateful_tcp_test(server):
     trex_client = CTRexClient(server)
 
     trex_client.start_trex(
-            c = 1, # limitation for now
+            c = 1, 
             m = 1000,
-            f = 'cap2/http_simple.yaml',
+            f = 'astf/http_simple.py',
             k = 10,
             d = 20,
             l = 1000,

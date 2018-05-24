@@ -529,6 +529,12 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
         generate_parse_err(result, ss.str());
     }
 
+    if (init_value < min_value || init_value > max_value) {
+        std::stringstream ss;
+        ss << "VM: requested flow var init value: '" << init_value << "' should be in range from min value '" << min_value << "' to max value '" << max_value << "'";
+        generate_parse_err(result, ss.str());
+    }
+
     if (flow_var_size == 1 ) {
         if ( (init_value > UINT8_MAX) || (min_value > UINT8_MAX) || (max_value > UINT8_MAX) || (step >UINT8_MAX) )  {
             std::stringstream ss;
@@ -573,7 +579,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
 		generate_parse_err(result, ss.str());
 	}
 
-    check_min_max(flow_var_size, 0, 1, min_value, max_value, result);
+    check_min_max(flow_var_size, min_value, 1, min_value, max_value, result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFlowRandLimit(flow_var_name,
                                                                       flow_var_size,
@@ -831,6 +837,10 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         std::stringstream ss;
         ss << "core_mask: '0x" << std::hex << core_mask << "' for " << std::to_string(port->get_dp_core_count()) << " cores generates an empty set"; 
         generate_parse_err(result, ss.str());
+    }
+
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
     }
 
     /* multiplier */
@@ -1117,24 +1127,24 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    
+
+    Json::Value &res = result["result"];
     /* max values */
-    result["result"]["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
-    result["result"]["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
-    result["result"]["rate"]["max_pps"]       = graph->get_max_pps();
-    result["result"]["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.01;
+    res["rate"]["max_bps_l2"]    = graph->get_max_bps_l2();
+    res["rate"]["max_bps_l1"]    = graph->get_max_bps_l1();
+    res["rate"]["max_pps"]       = graph->get_max_pps();
+    res["rate"]["max_line_util"] = (graph->get_max_bps_l1() / port->get_port_speed_bps()) * 100.01;
 
     /* min values */
-    result["result"]["rate"]["min_bps_l2"]    = graph->get_max_bps_l2(0);
-    result["result"]["rate"]["min_bps_l1"]    = graph->get_max_bps_l1(0);
-    result["result"]["rate"]["min_pps"]       = graph->get_max_pps(0);
-    result["result"]["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.01;
+    res["rate"]["min_bps_l2"]    = graph->get_max_bps_l2(0);
+    res["rate"]["min_bps_l1"]    = graph->get_max_bps_l1(0);
+    res["rate"]["min_pps"]       = graph->get_max_pps(0);
+    res["rate"]["min_line_util"] = (graph->get_max_bps_l1(0) / port->get_port_speed_bps()) * 100.01;
 
-    result["result"]["graph"]["expected_duration"] = graph->get_duration();
-    result["result"]["graph"]["events_count"] = (int)graph->get_events().size();
+    res["graph"]["expected_duration"] = graph->get_duration();
+    res["graph"]["events_count"] = (int)graph->get_events().size();
 
-    result["result"]["graph"]["events"] = Json::arrayValue;
-    Json::Value &events_json = result["result"]["graph"]["events"];
+    res["graph"]["events"] = Json::arrayValue;
 
     int index = 0;
     for (const auto &ev : graph->get_events()) {
@@ -1146,7 +1156,7 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
         ev_json["diff_pps"]      = ev.diff_pps;
         ev_json["stream_id"]     = ev.stream_id;
 
-        events_json.append(ev_json);
+        result["result"]["graph"]["events"].append(ev_json);
 
         index++;
         if (index >= 100) {

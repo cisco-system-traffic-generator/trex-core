@@ -306,6 +306,7 @@ void CSTTCpPerDir::create_clm_counters(){
     FT_S_ADD_CNT_OK(redirect_rx_ok,"redirect to rx OK");
     FT_S_ADD_CNT_OK(err_rx_throttled,"rx thread was throttled");
     FT_S_ADD_CNT_E(err_c_nf_throttled,"client new flow throttled");
+    FT_S_ADD_CNT_E(err_c_tuple_err,"client new flow, not enough clients");
     FT_S_ADD_CNT_E(err_s_nf_throttled,"server new flow throttled");
     FT_S_ADD_CNT_E(err_flow_overflow,"too many flows errors");
 }

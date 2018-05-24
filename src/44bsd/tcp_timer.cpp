@@ -221,8 +221,7 @@ tcp_timers(CTcpPerThreadCtx * ctx,struct tcpcb *tp, int timer){
         INC_STAT(ctx,tcps_keeptimeo);
         if (tp->t_state < TCPS_ESTABLISHED)
             goto dropit;
-        if (tp->m_socket.so_options & US_SO_KEEPALIVE &&
-            tp->t_state <= TCPS_CLOSE_WAIT) {
+        if (tp->m_socket.so_options & US_SO_KEEPALIVE) {
                 if (tp->t_idle >= ctx->tcp_keepidle + ctx->tcp_maxidle)
                 goto dropit;
             /*

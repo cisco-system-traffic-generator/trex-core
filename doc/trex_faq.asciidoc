@@ -57,9 +57,11 @@ Cisco systems, Intel, Imperva, Melanox, Vasona networks and much more.
 
 ==== What are the Stateful and Stateless modes of operation?
 
-``Stateful'' mode is meant for testing networking gear which save state per flow (5 tuple). Usually, this is done by injecting pre recorded cap files on pairs of interfaces of the device under test, changing src/dst IP/port. 
-``Stateless'' mode is meant to test networking gear, not saving state per flow (doing the decision on per packet bases). This is usually done by injecting customed packet streams to the device under test.
-See link:trex_stateless.html#_stateful_vs_stateless[here] for more details.
+``link:trex_manual.html[Stateful]'' mode is meant for testing networking gear which saves state per flow (5 tuple). Usually this is done by injecting pre-recorded capture files on pairs of interfaces of the device under test, and dynamically changing src/dst IP/port.
+
+``link:trex_stateless.html[Stateless]'' mode is meant to test networking gear that does not manage any state per flow (instead operating on a per packet basis). This is usually done by injecting customized packet streams to the device under test.
+
+See this link:trex_stateless.html#_stateful_vs_stateless[in-depth comparisson] for more details.
 
 ==== Can TRex run on an hypervisor with virtual NICS?
 
@@ -151,8 +153,10 @@ There is good answer in the mailing list link:https://groups.google.com/forum/#!
 ==== I want to contribute to the project
 You have several ways you can help: +
 1. Download the product, use it, and report issues (If no issues, we will be very happy to also hear success stories). +
-2. If you use the product and have improvment suggestions (for the product or documentation) we will be happy to hear. +
-3. If you fix a bug, or develop new feature, you are more than welcome to create pool request in GitHub.
+2. If you use the product and have improvement suggestions (for the product or documentation) we will be happy to hear. +
+3. If you fix a bug, or develop new feature, you are more than welcome to create pull request in GitHub.
+
+See link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/CONTRIBUTING.md[CONTRIBUTING] for more details.
 
 ==== What is the release process? How do I know when a new release is available?
 It is a continuous integration. The latest internal version is under 24/7 regression on few setups in our lab. Once we have enough content we release it to GitHub (Usually every few weeks).

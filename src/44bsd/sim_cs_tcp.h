@@ -106,6 +106,58 @@ private:
 };
 
 
+
+
+class CTcpSimEventTxPkt : public CSimEventBase {
+
+public:
+    CTcpSimEventTxPkt(CClientServerTcp *p,
+                   rte_mbuf_t *m,
+                   int dir,
+                   double time){
+        m_p = p;
+        m_pkt = m;
+        m_dir = dir;
+        m_time = time;
+    }
+
+    virtual bool on_event(CSimEventDriven *sched,
+                          bool & reschedule);
+
+private:
+    CClientServerTcp * m_p;
+    int                m_dir;
+    rte_mbuf_t *       m_pkt;
+};
+
+
+class CTcpSimShaper {
+public:
+    bool Create(uint32_t queue_size,
+                double rate_bps,
+                CClientServerTcp *p,
+                int dir);
+
+    void Delete();
+
+    void add_packet(rte_mbuf_t *m);
+    void next_packet();
+    void update_config(uint32_t size,double rate);
+
+private:
+    void trigger_next();
+
+private:
+    bool                       m_state_on;
+    std::vector<rte_mbuf_t *>  m_q;
+    int                        m_dir;
+    uint32_t                   m_max_queue_size;
+    uint32_t                   m_cc;
+    double                     m_rate;
+    CClientServerTcp *         m_p;
+};
+
+
 class CTcpCtxPcapWrt  {
 public:
     CTcpCtxPcapWrt(){
@@ -221,7 +273,11 @@ public:
        dir ==1   S->C */
     void on_tx(int dir,rte_mbuf_t *m);
     void on_rx(int dir,rte_mbuf_t *m);
+    void on_tx_transmit(int dir, rte_mbuf_t *m);
+    void on_tx_shaper(int dir, rte_mbuf_t *m);  
+
     void set_cfg_ext(CClientServerTcpCfgExt * cfg);
+
 
 public:
     int test2();
@@ -240,6 +296,7 @@ public:
     void close_file();
     void set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *s_tune);
 private: 
+    void write_pcap(int dir, rte_mbuf_t *m,double dtime);
     int simple_http_generic(method_program_cb_t bc);
     int build_http(CMbufBuffer * buf_req,
                   CMbufBuffer * buf_res,
@@ -278,16 +335,23 @@ private:
 
     void dump_counters();
     bool is_drop();
+
 public:
+    void set_shaper(uint32_t kbps,uint32_t size);
+    void set_rtt(uint32_t rtt_usec);
+
+public:
+    bool                    m_shaper_enable;
     std::string             m_out_dir;
     std::string             m_pcap_file;
+    CTcpSimShaper           m_shapers[2];
 
     CTcpPerThreadCtx        m_c_ctx;  /* context */
     CTcpPerThreadCtx        m_s_ctx;
-    CAstfDbRO                m_tcp_data_ro;
+    CAstfDbRO               m_tcp_data_ro;
 
-    CEmulAppApiImpl          m_tcp_bh_api_impl_c;
-    CEmulAppApiImpl          m_tcp_bh_api_impl_s;
+    CEmulAppApiImpl         m_tcp_bh_api_impl_c;
+    CEmulAppApiImpl         m_tcp_bh_api_impl_s;
 
     CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
     CTcpCtxPcapWrt          m_s_pcap;

@@ -73,17 +73,14 @@ This guide explains the use of TRex internals and the use of TRex together with 
 
 === Hardware recommendations
 
-TRex operates in a Linux application environment, interacting with Linux kernel modules.
-TRex curretly works and tested on x86 architecture (it can be compiled to ARM but not tested in our regression) and can operate well on Cisco UCS hardware for high performance low latency use cases. 
+TRex is a Linux application, interacting with Linux kernel modules. It uses DPDK (there is *no* need to install DPDK as a library).
+TRex should work on any COTS x86 server (it can be compiled to ARM but not tested in our regression).
+Our regression setups uses Cisco UCS hardware for high performance low latency use cases. 
 The following platforms have been tested and are recommended for operating TRex.
 
 Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces). 
 Docker example is provided link:trex_vm_manual.html#docker[Docker] for more info see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 
-[NOTE]
-=====================================
- A high-end UCS platform is not required for operating TRex in its current version, but may be required for future versions.
-=====================================
 
 [NOTE]
 =====================================
@@ -279,7 +276,7 @@ Supported Linux versions:
 * Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
 * Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
 // clarify "not fully supported"
-* CentOS/RedHat 7.2 LTS, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
+* CentOS/RHEL 7.4, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
@@ -372,36 +369,38 @@ Example: 4x 10Gb/sec TRex configuration (see output below):
 
 Use `ssh` to connect to the TRex machine and execute the commands described below.
 
-NOTE: Prerequisite: *$WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (Cisco internal)
-
+NOTE: Prerequisite: *$TREX_WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (Cisco internal)
 // Clarify the note above and probably should not have the Cisco internal part
 
-Latest release:
+TIP: For easier copy/paste, begin by assigning a temporary local variable to denote the appropriate TRex TREX_WEB_URL:
+[source,bash]
+----
+[bash]>TREX_WEB_URL=http://<AS PER ABOVE PRE-REQUISITE NOTE>
+----
 
-// want to call that "Latest stable release" ?
+Latest (stable) release:
 
 [source,bash]
 ----
-[bash]>mkdir trex
-[bash]>cd trex
-[bash]>wget --no-cache $WEB_URL/release/latest
+[bash]>mkdir -p /opt/trex
+[bash]>cd /opt/trex
+[bash]>wget --no-cache ${TREX_WEB_URL}/release/latest
 [bash]>tar -xzvf latest
 ----
 
 
-Bleeding edge version:
+Latest (bleeding edge) version:
 [source,bash]
 ----
-[bash]>wget --no-cache $WEB_URL/release/be_latest
+[bash]>wget --no-cache ${TREX_WEB_URL}/release/be_latest
 ----
 
 To obtain a specific version:
 [source,bash]
 ----
-[bash]>wget --no-cache $WEB_URL/release/vX.XX.tar.gz #<1>
+[bash]>wget --no-cache ${TREX_WEB_URL}/release/vX.XX.tar.gz #<1>
 ----
-
-<1> X.XX = Version number
+<1> where X.XX = major.minor version number as per https://trex-tgn.cisco.com/trex/doc/release_notes.html
 
 == First time Running
 
@@ -734,7 +733,7 @@ After configuration is complete, use the following command to start basic TRex r
 (it will use the default config file name /etc/trex_cfg.yaml):
 [source,bash]
 ----
-[bash]>sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10  -l 1000
+[bash]>sudo ./t-rex-64 -f cap2/dns.yaml -c 4 -m 1 -d 10
 ----
 
 ==== TRex output
@@ -743,7 +742,7 @@ After running TRex successfully, the output will be similar to the following:
 
 [source,python]
 ----
-$ sudo ./t-rex-64 -f cap2/dns.yaml -d 10 -l 1000
+$ sudo ./t-rex-64 -f cap2/dns.yaml -d 10
 Starting  TRex 2.09 please wait  ...
 zmq publisher at: tcp://*:4500
  number of ports found : 4
@@ -794,15 +793,6 @@ zmq publisher at: tcp://*:4500
  current time    : 5.3 sec
  test duration   : 94.7 sec
 
- -Latency stats enabled
- Cpu Utilization : 0.2 %  <12>
- if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window
-   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,
- --------------------------------------------------------------------------------------------------
- 0 |     1002,    1002,         0,   0,         51  ,      69,       0      |   0  69  67    <13>
- 1 |     1002,    1002,         0,   0,         53  ,     196,       0      |   0  196  53
- 2 |     1002,    1002,         0,   0,         54  ,      71,       0      |   0  71  69
- 3 |     1002,    1002,         0,   0,         53  ,     193,       0      |   0  193  52
 ----
 <1> Link must be up for TRex to work.
 <2> Average CPU utilization of transmitters threads. For best results it should be lower than 80%.
@@ -815,12 +805,13 @@ zmq publisher at: tcp://*:4500
 <9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router because the router ages flows slower.
 <10> Total number of TRex flows opened since startup (including active ones, and ones already closed).
 <11> Drop rate.
-<12> Rx and latency thread CPU utilization.
-<13> Tx_ok on port 0 should equal Rx_ok on port 1, and vice versa.
 
-// the formatting of the latency stats table in the output above is difficult to read
+==== latency stats
 
-==== Additional information about statistics in output
+Though not present in the above output, measuring latency and jitter is possible!
+See the xref:jitter_latency[Measuring Jittery/Latency] section for more details.
+
+==== additional information about statistics in output
 
 *socket*::  Same as the active flows.
 
@@ -829,20 +820,14 @@ zmq publisher at: tcp://*:4500
 *Socket-util*:: Estimate of number of L4 ports (sockets) used per client IP. This is approximately (100*active_flows/#clients)/64K, calculated as (average active flows per client*100/64K). Utilization of more than 50% means that TRex is generating too many flows per single client, and that more clients must be added in the generator configuration.
 // clarify above, especially the formula
 
-*Max window*:: Maximum latency within a time window of 500 msec. There are few values shown per port.
- The earliest value is on the left, and latest value (last 500msec) on the right. This can help in identifying spikes of high latency clearing after some time. Maximum latency is the total maximum over the entire test duration. To best understand this, run TRex with the latency option (-l) and watch the results with this section in mind.
-
-// clarify the values. in the table, it looks like there are 3 values: left, middle, right
-
 *Platform_factor*:: In some cases, users duplicate traffic using a splitter/switch. In this scenario, it is useful for all numbers displayed by TRex to be multiplied by this factor, so that TRex counters will match the DUT counters.
 
 // in the above "multiplied by this factor" - which factor? 2?
 
 WARNING: If you do not see Rx packets, review the MAC address configuration.
 
+// include the entirety of the "Basic usage" section
 include::trex_book_basic.asciidoc[]
-
-// not sure what the include thing above is for
 
 == Advanced features
 
@@ -1708,6 +1693,8 @@ access-list 8 permit 17.0.0.0 0.0.0.255
 
 === Flow order/latency verification
 
+anchor:rx_check[]
+
 In normal mode (without the feature enabled), received traffic is not checked by software. Hardware (Intel NIC) testing for dropped packets occurs at the end of the test. The only exception is the Latency/Jitter packets. This is one reason that with TRex, you *cannot* check features that terminate traffic (for example TCP Proxy).
 
 To enable this feature, add
@@ -1735,26 +1722,27 @@ This feature ensures that:
 ----
 Cpu Utilization : 0.1 %                                                                       <1>
  if|   tx_ok , rx_ok  , rx   ,error,    average   ,   max         , Jitter ,  max window
-   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,
+   |         ,        , check,     , latency(usec),latency (usec) ,(usec)  ,                  <2>
  --------------------------------------------------------------------------------
  0 |     1002,    1002,      2501,   0,         61  ,      70,       3      |  60
  1 |     1002,    1002,      2012,   0,         56  ,      63,       2      |  50
  2 |     1002,    1002,      2322,   0,         66  ,      74,       5      |  68
  3 |     1002,    1002,      1727,   0,         58  ,      68,       2      |  52
 
- Rx Check stats enabled                                                                       <2>
+ Rx Check stats enabled                                                                       <3>
  -------------------------------------------------------------------------------------------
- rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309       <3>
+ rx check:  avg/max/jitter latency,       94  ,     744,       49      |  252  287  309       <4>
 
- active flows: <6>      10, fif: <5>     308,  drop:        0, errors:        0                <4>
+ active flows: <7>      10, fif: <6>     308,  drop:        0, errors:        0                <5>
  -------------------------------------------------------------------------------------------
 ----
 <1> CPU% of the Rx thread. If it is too high, *increase* the sample rate.
-<2> Rx Check section. For more detailed info, press 'r' during the test or at the end of the test.
-<3> Average latency, max latency, jitter on the template flows in microseconds. This is usually *higher* than the latency check packet because the feature works more on this packet.
-<4> Drop counters and errors counter should be zero. If not, press 'r' to see the full report or view the report at the end of the test.
-<5> fif - First in flow. Number of new flows handled by the Rx thread.
-<6> active flows - number of active flows handled by rx thread
+<2> The latency-specific packet measurement section. See xref:jitter_latency[Measuring Jittery/Latency] section for detailed output interpretation.
+<3> Rx Check section. For more detailed info, press 'r' during the test or at the end of the test.
+<4> Average latency, max latency, jitter on the template flows in microseconds. This is usually *higher* than the latency check packet because the feature works more on this packet.
+<5> Drop counters and errors counter should be zero. If not, press 'r' to see the full report or view the report at the end of the test.
+<6> fif - First in flow. Number of new flows handled by the Rx thread.
+<7> active flows - number of active flows handled by rx thread
 
 .Press R to Display Full Report
 [source,python]
