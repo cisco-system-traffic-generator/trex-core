@@ -254,7 +254,7 @@
     {
       "id": "rep_rand_var",
       "name": "Repeatable random",
-      "instructionIds": ["STLVmFlowVarRepetableRandom", "STLVmWrFlowVar"]
+      "instructionIds": ["STLVmFlowVarRepeatableRandom", "STLVmWrFlowVar"]
     }
   ],
   "global_params_meta":[

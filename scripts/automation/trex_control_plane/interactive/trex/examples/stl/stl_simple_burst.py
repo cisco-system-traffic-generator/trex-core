@@ -67,5 +67,5 @@ def simple_burst (port_a, port_b, pkt_size, burst_size, rate):
 
 
 # run the tests
-simple_burst(0, 3, 256, 50000, "80%")
+simple_burst(0, 1, 256, 50000, "10%")
 
