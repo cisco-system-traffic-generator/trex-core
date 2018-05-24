@@ -1,5 +1,5 @@
 import functional_general_test
-from trex import CTRexScenario
+from trex_scenario import CTRexScenario
 import os
 
 def is_ignored(name, ignores):
