@@ -13,7 +13,6 @@ err_tb - traceback at print of exception (could lead to different path)
 the idea is to show full_tb path starting from start of err_tb
 '''
 def remove_common_prefix(full_tb, err_tb):
-    full_tb = list(reversed(full_tb))[:-1]
     if not err_tb:
         return full_tb
     for index, frame in enumerate(full_tb):
@@ -24,14 +23,15 @@ def remove_common_prefix(full_tb, err_tb):
 # basic error for API
 class TRexError(Exception):
     def __init__ (self, msg):
+        super(TRexError, self).__init__(msg)
         self.msg = str(msg)
-        self.tb = inspect.stack()
+        self.tb = inspect.stack()[1:]
+        self.tb.reverse()
 
-    def __str__ (self):
-        s = self.get_tb()
-        s += format_text('\nSummary error message:\n\n', 'underline')
-        s += format_text(self.msg + '\n', 'bold')
-        return s
+    def brief (self):
+        return self.msg
+
+    __str__ = brief
 
     def get_tb(self):
         err_tb = inspect.trace()
@@ -48,34 +48,37 @@ class TRexError(Exception):
             s += "#{:<2}    {:<50} - '{}'\n".format(len(short_tb) - i - 1, format_text(fname, 'bold') + ':' + format_text(lineno, 'bold'), format_text(func, 'bold'))
         return s
 
-    def brief (self):
-        return self.msg
+    def full(self):
+        s = self.get_tb()
+        s += format_text('\nSummary error message:\n\n', 'underline')
+        s += format_text(self.msg + '\n', 'bold')
+        return s
 
 
 # raised when argument value is not valid for operation
 class TRexArgumentError(TRexError):
     def __init__ (self, name, got, valid_values = None, extended = None):
-        self.tb = inspect.stack()
-        self.msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
+        msg = "Argument: '{0}' invalid value: '{1}'".format(name, got)
         if valid_values:
-            self.msg += " - valid values are '{0}'".format(valid_values)
+            msg += " - valid values are '{0}'".format(valid_values)
 
         if extended:
-            self.msg += "\n{0}".format(extended)
+            msg += "\n{0}".format(extended)
+        super(TRexArgumentError, self).__init__(msg)
 
 
 # raised when argument type is not valid for operation
 class TRexTypeError(TRexError):
     def __init__ (self, arg_name, arg_type, valid_types):
-        self.tb = inspect.stack()
-        self.msg = "Argument: '%s' invalid type: '%s', expecting type(s): %s." % (arg_name, arg_type.__name__,
+        msg = "Argument: '%s' invalid type: '%s', expecting type(s): %s." % (arg_name, arg_type.__name__,
             [t.__name__ for t in valid_types] if isinstance(valid_types, tuple) else valid_types.__name__)
+        super(TRexTypeError, self).__init__(msg)
 
 
 # raised when timeout occurs
 class TRexTimeoutError(TRexError):
     def __init__ (self, timeout):
-        self.tb = inspect.stack()
-        self.msg = "Timeout: operation took more than '{0}' seconds".format(timeout)
+        msg = "Timeout: operation took more than '{0}' seconds".format(timeout)
+        super(TRexTimeoutError, self).__init__(msg)
 
 
