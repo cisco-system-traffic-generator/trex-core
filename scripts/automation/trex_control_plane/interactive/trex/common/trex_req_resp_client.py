@@ -6,6 +6,7 @@ import re
 from collections import namedtuple
 import zlib
 import struct
+import pprint
 from threading import Lock
 
 from .trex_types import RC, RC_OK, RC_ERR
@@ -54,6 +55,10 @@ class BatchMessage(object):
 # values from JSON-RPC RFC
 class ErrNo:
     MethodNotSupported = -32601
+    # custom err
+    JSONRPC_V2_ERR_TRY_AGAIN          = -32001
+    JSONRPC_V2_ERR_WIP                = -32002
+    JSONRPC_V2_ERR_NO_RESULTS         = -32003
 
 
 # JSON RPC v2.0 client
@@ -155,8 +160,41 @@ class JsonRpcClient(object):
         return self.send_msg(msg, retry = retry)
 
 
-    # alias
-    transmit = invoke_rpc_method
+    def handle_async_transmit (self, method_name, params, retry, rc):
+        sleep_sec    = 0.3
+        timeout_sec  = 3
+        poll_tries   = int(timeout_sec / sleep_sec)
+
+        while not rc and rc.errno() == ErrNo.JSONRPC_V2_ERR_TRY_AGAIN:
+            if poll_tries == 0:
+                return RC_ERR('Server was busy within %s sec, try again later' % timeout_sec)
+            poll_tries -= 1
+            time.sleep(sleep_sec)
+            rc = self.rpc_link.invoke_rpc_method(method_name, params, self.api_h, retry = retry)
+        while not rc and rc.errno() == ErrNo.JSONRPC_V2_ERR_WIP:
+            try:
+                params = {'ticket_id': int(rc.err())}
+                if poll_tries == 0:
+                    self.invoke_rpc_method('cancel_async_task', params)
+                    return RC_ERR('Timeout on processing async command, server did not finish within %s second' % timeout_sec)
+                poll_tries -= 1
+                time.sleep(sleep_sec)
+                rc = self.rpc_link.invoke_rpc_method('get_async_results', params, retry = retry)
+            except KeyboardInterrupt:
+                self.rpc_link.invoke_rpc_method('cancel_async_task', params)
+                raise
+        return rc
+
+
+    def transmit(self, method_name, params = None, retry = 0):
+
+        rc = self.invoke_rpc_method(method_name, params, retry)
+
+        # handle async/work in progress
+        if not rc and rc.errno() in (ErrNo.JSONRPC_V2_ERR_TRY_AGAIN, ErrNo.JSONRPC_V2_ERR_WIP):
+            return self.handle_async_transmit(method_name, params, retry, rc)
+
+        return rc
 
 
     # transmit a batch list
@@ -196,23 +234,22 @@ class JsonRpcClient(object):
         elif self.zipper.is_compressed(response):
             response = self.zipper.decompress(response)
 
-        # return to string
-        response = response.decode()
-
+        # bytes -> string -> load as JSON
+        try:
+            response = response.decode()
+            response_json = json.loads(response)
+        except (UnicodeDecodeError, TypeError, ValueError):
+            pprint.pprint(response)
+            return RC_ERR('*** [RPC] - Failed to decode response from server')
+    
         # print after
         self.verbose_msg("Server Response:\n\n" + self.pretty_json(response) + "\n")
-
+    
         # process response (batch and regular)
-        try:       
-            response_json = json.loads(response)
-        except (TypeError, ValueError):
-            return RC_ERR("*** [RPC] - Failed to decode response from server")
-
         if isinstance(response_json, list):
             return self.process_batch_response(response_json)
         else:
             return self.process_single_response(response_json)
-
 
 
     # low level send of string message

@@ -57,7 +57,7 @@ class STLClient(TRexClient):
                 if None, will use ScreenLogger
         """
 
-        api_ver = {'name': 'STL', 'major': 4, 'minor': 1}
+        api_ver = {'name': 'STL', 'major': 4, 'minor': 3}
 
         TRexClient.__init__(self,
                             api_ver,

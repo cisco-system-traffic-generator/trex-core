@@ -1284,8 +1284,34 @@ class TRexClient(object):
     
         # resolve the port
         self.resolve(ports = port)
+     
+        
+    @client_api('command', True)
+    def conf_ipv6(self, port, enabled, src_ipv6 = None):
+        """
+            Configure IPv6 of port.
 
-       
+            :parameters:
+                 port      - the port to disable ipv6
+                 enabled   - bool wherever IPv6 should be enabled
+                 src_ipv6  - src IPv6 of port or empty string for auto-address
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Configure IPv6', port, (PSV_ACQUIRED, PSV_SERVICE))
+        validate_type('enabled', enabled, bool)
+        if enabled and src_ipv6 and not is_valid_ipv6(src_ipv6):
+            raise TRexError("src_ipv6 is not a valid IPv6 address: '%s'" % src_ipv6)
+
+        self.logger.pre_cmd('Configuring IPv6 on port %s' % port)
+        rc = self.ports[port].conf_ipv6(enabled, src_ipv6)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+
     @client_api('command', True)
     def set_vlan (self, ports = None, vlan = None):
         """
@@ -2355,6 +2381,32 @@ class TRexClient(object):
 
         # source ports maps to ports as a single port
         self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4, vlan = opts.vlan)
+
+        return True
+
+
+
+    @console_api('ipv6', 'common', True)
+    def conf_ipv6_line(self, line):
+        '''Configures IPv6 of a port'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "port",
+                                         self.conf_ipv6_line.__doc__,
+                                         parsing_opts.SINGLE_PORT,
+                                         parsing_opts.IPV6_OPTS_CMD,
+                                         )
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        if opts.off:
+            self.conf_ipv6(opts.ports[0], False)
+        elif opts.auto:
+            self.conf_ipv6(opts.ports[0], True)
+        else:
+            self.conf_ipv6(opts.ports[0], True, opts.src_ipv6)
 
         return True
 

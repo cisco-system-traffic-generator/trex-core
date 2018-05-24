@@ -188,7 +188,7 @@ class Port(object):
 
     def sync(self):
 
-        params = {"port_id": self.port_id}
+        params = {"port_id": self.port_id, 'block': False}
 
         rc = self.transmit("get_port_status", params)
         if rc.bad():
@@ -235,7 +235,8 @@ class Port(object):
         
         params = {"handler":        self.handler,
                   "port_id":        self.port_id,
-                  "dst_mac":        dst_mac}
+                  "dst_mac":        dst_mac,
+                  "block"  :        False}
 
         rc = self.transmit("set_l2", params)
         if rc.bad():
@@ -249,10 +250,11 @@ class Port(object):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring L3 mode. Please enable service mode')
         
-        params = {"handler":        self.handler,
-                  "port_id":        self.port_id,
-                  "src_addr":       src_addr,
-                  "dst_addr":       dst_addr}
+        params = {"handler"  :      self.handler,
+                  "port_id"  :      self.port_id,
+                  "src_addr" :      src_addr,
+                  "dst_addr" :      dst_addr,
+                  "block"    :      False}
 
         if resolved_mac:
             params["resolved_mac"] = resolved_mac
@@ -265,13 +267,27 @@ class Port(object):
 
         
     @writeable
+    def conf_ipv6(self, enabled, src_ipv6):
+        params = {'handler':    self.handler,
+                  'port_id':    self.port_id,
+                  'enabled':    enabled,
+                  'src_ipv6':   src_ipv6 if (enabled and src_ipv6) else '',
+                  'block':      False}
+        rc = self.transmit("conf_ipv6", params)
+        if rc.bad():
+            return self.err(rc.err())
+        return self.sync()
+        
+                
+    @writeable
     def set_vlan (self, vlan):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
         
         params = {"handler" :       self.handler,
                   "port_id" :       self.port_id,
-                  "vlan"    :       vlan.get_tags()}
+                  "vlan"    :       vlan.get_tags(),
+                  "block"   :       False}
             
         rc = self.transmit("set_vlan", params)
         if rc.bad():
@@ -479,33 +495,42 @@ class Port(object):
         # RX filter mode
         info['rx_filter_mode'] = 'hardware match' if attr['rx_filter_mode'] == 'hw' else 'fetch all'
 
-        # holds the information about all the layers configured for the port
-        layer_cfg = attr['layer_cfg']
-        
-        info['src_mac'] = attr['layer_cfg']['ether']['src']
-        
         # pretty show per mode
+        ether = attr['layer_cfg']['ether']
+        ipv4  = attr['layer_cfg']['ipv4']
+        ipv6  = attr['layer_cfg'].get('ipv6')
         
-        if layer_cfg['ipv4']['state'] == 'none':
+        info['src_mac'] = ether['src']
+        
+        if ipv4['state'] == 'none':
             info['layer_mode'] = 'Ethernet'
             info['src_ipv4']   = '-'
-            info['dest']       = layer_cfg['ether']['dst'] if layer_cfg['ether']['state'] == 'configured' else 'unconfigured'
+            info['dest']       = ether['dst'] if ether['state'] == 'configured' else 'unconfigured'
             info['arp']        = '-'
             
-        elif layer_cfg['ipv4']['state'] == 'unresolved':
+        elif ipv4['state'] == 'unresolved':
             info['layer_mode'] = 'IPv4'
-            info['src_ipv4']   = layer_cfg['ipv4']['src']
-            info['dest']       = layer_cfg['ipv4']['dst']
+            info['src_ipv4']   = ipv4['src']
+            info['dest']       = ipv4['dst']
             info['arp']        = 'unresolved'
             
-        elif layer_cfg['ipv4']['state'] == 'resolved':
+        elif ipv4['state'] == 'resolved':
             info['layer_mode'] = 'IPv4'
-            info['src_ipv4']   = layer_cfg['ipv4']['src']
-            info['dest']       = layer_cfg['ipv4']['dst']
-            info['arp']        = layer_cfg['ether']['dst']
-            
+            info['src_ipv4']   = ipv4['src']
+            info['dest']       = ipv4['dst']
+            info['arp']        = ether['dst']
 
-            
+        else:
+            assert 0, ipv4['state']
+
+        if ipv6 and ipv6['enabled']:
+            if ipv6['src']:
+                info['ipv6'] = ipv6['src']
+            else:
+                info['ipv6'] = 'auto'
+        else:
+            info['ipv6'] = 'off'
+
         # RX info
         rx_info = self.status['rx_info']
 
@@ -590,6 +615,7 @@ class Port(object):
 
                            ("layer mode",      format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta')),
                            ("src IPv4",         info['src_ipv4']),
+                           ("IPv6",             info['ipv6']),
                            ("src MAC",          info['src_mac']),
                            ("---", ""),
 
