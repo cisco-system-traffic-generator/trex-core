@@ -58,14 +58,12 @@ class STLIPv6_Test(CStlGeneral_Test):
         '''Testing Linux-based stack ping in different scenarios'''
         if not (self.is_linux_stack and self.is_loopback):
             self.skip('Relevant only for Linux-based stack in loopback')
-        print('')
         rx_src = '1111::1112'
-        self.stl_trex.set_verbose('high')
         try:
             for tx_enabled in (True, False):
                 for rx_enabled in (True, False):
                     for tx_src in ('1111::1111', None):
-                        print('tx_enabled: %s, rx_enabled: %s, tx_src: %s, rx_src: %s' % (tx_enabled, rx_enabled, tx_src, rx_src))
+                        print('tx_enabled: %5s,   rx_enabled: %5s,   tx_src: %10s' % (tx_enabled, rx_enabled, tx_src))
                         tx, rx = self.conf_ipv6(tx_enabled, rx_enabled, tx_src, rx_src)
                         results = self.stl_trex.ping_ip(src_port = tx, dst_ip = rx_src, count = 2)
                         replies = self.filter_ping_results(results)

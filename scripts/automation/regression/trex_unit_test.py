@@ -54,6 +54,12 @@ from io import StringIO
 from argparse import ArgumentParser
 
 
+def cleanup_trex_pyc():
+    path = os.path.join(os.path.dirname(__file__), 'trex.pyc')
+    if os.path.exists(path):
+        os.unlink(path)
+
+cleanup_trex_pyc()
 
 TEST_ID = re.compile(r'^(.*?)(\(.*\))$')
 
