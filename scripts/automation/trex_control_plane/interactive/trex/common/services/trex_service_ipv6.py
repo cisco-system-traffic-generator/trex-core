@@ -39,14 +39,17 @@ class ServiceIPv6(Service):
         Service.__init__(self, verbose_level)
         self.ctx        = ctx
         self.port       = ctx.port_obj
-        self.dst_ip     = dst_ip
         self.vlan       = vlan
         self.timeout    = timeout
         self.attr       = self.port.get_ts_attr()
         self.src_mac    = self.attr['layer_cfg']['ether']['src']
-        mac_for_ip      = self.port.info.get('hw_mac', self.src_mac)
-        self.src_ip     = generate_ipv6(mac_for_ip)
-        self.mld_ip     = generate_ipv6_solicited_node(mac_for_ip)
+        ipv6 = self.attr['layer_cfg']['ipv6']
+        if ipv6['enabled'] and ipv6['src']:
+            self.src_ip = in6_ptop(ipv6['src'])
+        else:
+            self.src_ip  = in6_ptop(generate_ipv6(self.src_mac))
+        self.mld_ip     = in6_ptop(generate_ipv6_solicited_node(self.src_ip))
+        self.dst_ip     = in6_ptop(dst_ip)
         self.record     = {}
 
     def get_filter_type (self):
