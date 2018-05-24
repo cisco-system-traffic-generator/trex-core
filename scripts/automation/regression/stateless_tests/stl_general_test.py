@@ -1,6 +1,6 @@
 import os, sys
 import unittest
-from trex import CTRexScenario
+from trex_scenario import CTRexScenario
 from stateful_tests.trex_general_test import CTRexGeneral_Test
 from trex_stl_lib.api import *
 import time
@@ -93,7 +93,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             self.trex.start_stateless(c = cores)
         self.stl_trex = STLClient(username = 'TRexRegression',
                                   server = self.configuration.trex['trex_name'],
-                                  verbose_level = LoggerApi.VERBOSE_HIGH if CTRexScenario.json_verbose else LoggerApi.VERBOSE_QUIET)
+                                  verbose_level = "debug" if CTRexScenario.json_verbose else "none")
         CTRexScenario.stl_trex = self.stl_trex
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 

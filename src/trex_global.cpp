@@ -95,8 +95,8 @@ void CRteMemPool::dump_in_case_of_error(FILE *fd, rte_mempool_t *mp) {
 void CRteMemPool::add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool){
     uint32_t p_free = rte_mempool_count(pool);
     uint32_t p_size = pool->size;
-    json[name].append((unsigned long long)p_free);
-    json[name].append((unsigned long long)p_size);
+    json[name].append(p_free);
+    json[name].append(p_size);
 }
 
 

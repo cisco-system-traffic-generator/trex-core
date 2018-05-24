@@ -2,10 +2,10 @@
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 
-from trex_stl_lib.services.trex_stl_service import STLService
-from trex_stl_lib.services.trex_stl_service_arp import STLServiceARP
-from trex_stl_lib.services.trex_stl_service_icmp import STLServiceICMP
-from trex_stl_lib.services.trex_stl_service_dhcp import STLServiceDHCP
+from trex.common.services.trex_service import Service
+from trex.common.services.trex_service_arp import ServiceARP
+from trex.common.services.trex_service_icmp import ServiceICMP
+from trex.common.services.trex_service_dhcp import ServiceDHCP
 
 def ip2num (ip_str):
     return struct.unpack('>L', socket.inet_pton(socket.AF_INET, ip_str))[0]
@@ -37,8 +37,8 @@ class STLServices_Test(CStlGeneral_Test):
         self.percentage = 5 if self.is_virt_nics else 50
         
         # change this for verbose level
-        self.vl = STLService.ERROR
-        #self.vl = STLService.INFO
+        self.vl = Service.ERROR
+        #self.vl = Service.INFO
         
         
     @classmethod
@@ -70,7 +70,7 @@ class STLServices_Test(CStlGeneral_Test):
         
         try:
             # single ARP
-            arp = STLServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, verbose_level = self.vl)
+            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, verbose_level = self.vl)
             self.ctx.run(arp)
             
             rec = arp.get_record()
@@ -80,7 +80,7 @@ class STLServices_Test(CStlGeneral_Test):
             assert is_valid_mac(rec.dst_mac)
             
             # timeout ARP
-            arp = STLServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = '1.2.3.4', verbose_level = self.vl)
+            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = '1.2.3.4', verbose_level = self.vl)
             self.ctx.run(arp)
 
             rec = arp.get_record()
@@ -90,7 +90,7 @@ class STLServices_Test(CStlGeneral_Test):
             src_ips = [num2ip((ip2num(src_ipv4) & 0xFFFFFFF0) + i) for i in range(256)]
             src_ips = [x for x in src_ips if x not in (src_ipv4, dst_ipv4)]
             
-            arps = [STLServiceARP(self.ctx, src_ip = x, dst_ip = dst_ipv4, verbose_level = self.vl) for x in src_ips]
+            arps = [ServiceARP(self.ctx, src_ip = x, dst_ip = dst_ipv4, verbose_level = self.vl) for x in src_ips]
             self.ctx.run(arps)
         
             for arp in arps:

@@ -38,15 +38,9 @@ using namespace std;
 /**
  * PG ids
  */
-TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
 TREX_RPC_CMD(TrexRpcCmdGetActivePGIds,   "get_active_pgids");
 TREX_RPC_CMD(TrexRpcCmdGetPGIdsStats,    "get_pgid_stats");
 
-/**
- * ownership
- */
-TREX_RPC_CMD(TrexRpcCmdAcquire,          "acquire");
-TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");   
 
 /**
  * streams status
@@ -115,40 +109,6 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdSetServiceMode, "service");
 
 /****************************** commands implementation ******************************/
 
-/**
- * fetch the port status
- *
- * @author imarom (09-Dec-15)
- *
- * @param params
- * @param result
- *
- * @return trex_rpc_cmd_rc_e
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
-    uint8_t port_id = parse_port(params, result);
-
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-
-    result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    result["result"]["state"]         = port->get_state_as_string();
-    result["result"]["max_stream_id"] = port->get_max_stream_id();
-    result["result"]["service"]       = port->is_service_mode_on();
-    
-    /* attributes */
-    get_platform_api().getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
-    
-    /* RX info */
-    try {
-        result["result"]["rx_info"] = port->rx_features_to_json();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-    
-    return (TREX_RPC_CMD_OK);
-}
-
 
 /**
  * get active packet group IDs
@@ -214,58 +174,6 @@ TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
-
-
-
-/**
- * acquire device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    const std::string  &new_owner  = parse_string(params, "user", result);
-    bool force = parse_bool(params, "force", result);
-    uint32_t session_id = parse_uint32(params, "session_id", result);
-
-    /* if not free and not you and not force - fail */
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-
-    try {
-        port->acquire(new_owner, session_id, force);
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = port->get_owner().get_handler();
-
-    return (TREX_RPC_CMD_OK);
-}
-
-
-/**
- * release device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-
-    try {
-        port->release();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = Json::objectValue;
-
-    return (TREX_RPC_CMD_OK);
-}
 
 
 /***************************
@@ -1323,15 +1231,9 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
  */
 TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     
-    m_cmds.push_back(new TrexRpcCmdGetPortStatus(this));
-    
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
-    
-    /* aqcuire / release */
-    m_cmds.push_back(new TrexRpcCmdAcquire(this));
-    m_cmds.push_back(new TrexRpcCmdRelease(this));
     
     /* streams */
     m_cmds.push_back(new TrexRpcCmdGetStreamList(this));

@@ -25,8 +25,8 @@ Description:
 """
 from nose.plugins import Plugin
 from nose.plugins.skip import SkipTest
-import trex
-from trex import CTRexScenario
+import trex_scenario
+from trex_scenario import CTRexScenario
 import misc_methods
 import pprint
 import sys
@@ -144,7 +144,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.router = CTRexScenario.router
 
     def get_elk_obj (self):
-        obj=trex.copy_elk_info ()
+        obj=trex_scenario.copy_elk_info ()
         return (obj);
 
 #   def assert_dict_eq (self, dict, key, val, error=''):

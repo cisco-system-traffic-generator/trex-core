@@ -1,4 +1,4 @@
-from trex_stl_lib.trex_stl_hltapi import STLHltStream
+from trex.stl.trex_stl_hltapi import STLHltStream
 
 
 class STLS1(object):

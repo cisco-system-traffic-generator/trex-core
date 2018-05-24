@@ -16,8 +16,8 @@ if [ -z "$PYTHON" ]; then
     source find_python.sh
 fi
 
-export PYTHONPATH=automation/trex_control_plane/stl
+export PYTHONPATH=automation/trex_control_plane/interactive
 
 printf "\nUsing '$PYTHON' as Python interpeter\n\n"
 
-$PYTHON -m console.trex_console $INPUT_ARGS
+$PYTHON -m trex.console.trex_console $INPUT_ARGS

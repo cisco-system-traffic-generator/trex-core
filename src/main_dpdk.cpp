@@ -3566,6 +3566,9 @@ public:
 
     void dump_json(std::string & json, bool baseline);
 
+    void global_stats_to_json(Json::Value &output);
+    void port_stats_to_json(Json::Value &output, uint8_t port_id);
+
 private:
     bool is_dump_nat();
 
@@ -3686,9 +3689,70 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
     json+="\"unknown\":0}}"  ;
 }
 
+
+void
+CGlobalStats::global_stats_to_json(Json::Value &output) {
+
+    output["m_cpu_util"] = m_cpu_util;
+    output["m_cpu_util_raw"] = m_cpu_util_raw;
+    output["m_bw_per_core"] = m_bw_per_core;
+    output["m_rx_cpu_util"] = m_rx_cpu_util;
+    output["m_rx_core_pps"] = m_rx_core_pps;
+    output["m_platform_factor"] = m_platform_factor;
+    output["m_tx_bps"] = m_tx_bps;
+    output["m_rx_bps"] = m_rx_bps;
+    output["m_tx_pps"] = m_tx_pps;
+    output["m_rx_pps"] = m_rx_pps;
+    output["m_tx_cps"] = m_tx_cps;
+    output["m_tx_expected_cps"] = m_tx_expected_cps;
+    output["m_tx_expected_pps"] = m_tx_expected_pps;
+    output["m_tx_expected_bps"] = m_tx_expected_bps;
+    output["m_total_alloc_error"] = m_total_alloc_error;
+    output["m_total_queue_full"] = m_total_queue_full;
+    output["m_total_queue_drop"] = m_total_queue_drop;
+    output["m_rx_drop_bps"] = m_rx_drop_bps;
+    output["m_active_flows"] = m_active_flows;
+    output["m_open_flows"] = m_open_flows;
+    output["m_total_tx_pkts"] = m_total_tx_pkts;
+    output["m_total_rx_pkts"] = m_total_rx_pkts;
+    output["m_total_tx_bytes"] = m_total_tx_bytes;
+    output["m_total_rx_bytes"] = m_total_rx_bytes;
+    output["m_total_clients"] = m_total_clients;
+    output["m_total_servers"] = m_total_servers;
+    output["m_active_sockets"] = m_active_sockets;
+    output["m_socket_util"] = m_socket_util;
+    output["m_total_nat_time_out"] = m_total_nat_time_out;
+    output["m_total_nat_time_out_wait_ack"] = m_total_nat_time_out_wait_ack;
+    output["m_total_nat_no_fid "] = m_total_nat_no_fid ;
+    output["m_total_nat_active "] = m_total_nat_active ;
+    output["m_total_nat_syn_wait"] = m_total_nat_syn_wait;
+    output["m_total_nat_open   "] = m_total_nat_open   ;
+    output["m_total_nat_learn_error"] = m_total_nat_learn_error;
+}
+
+
 bool CGlobalStats::is_dump_nat(){
     return( CGlobalInfo::is_learn_mode() && (get_is_tcp_mode()==0) );
 }
+
+
+void
+CGlobalStats::port_stats_to_json(Json::Value &output, uint8_t port_id) {
+     CPerPortStats *lp = &m_port[port_id];
+
+     output["opackets"]        = lp->opackets;
+     output["obytes"]          = lp->obytes;
+     output["ipackets"]        = lp->ipackets;
+     output["ibytes"]          = lp->ibytes;
+     output["ierrors"]         = lp->ierrors;
+     output["oerrors"]         = lp->oerrors;
+     output["m_total_tx_bps"]  = lp->m_total_tx_bps;
+     output["m_total_tx_pps"]  = lp->m_total_tx_pps;
+     output["m_total_rx_bps"]  = lp->m_total_rx_bps;
+     output["m_total_rx_pps"]  = lp->m_total_rx_pps;
+     output["m_cpu_util"]      = lp->m_cpu_util;
+}   
+
 
 void CGlobalStats::DumpAllPorts(FILE *fd){
 
@@ -3990,7 +4054,10 @@ private:
     void shutdown();
 
 public:
+    int start_master_astf_common();
+    int start_master_astf_batch();
     int start_master_astf();
+
     int start_master_statefull();
     int start_master_stateless();
     int run_in_core(virtual_thread_id_t virt_core_id);
@@ -4026,13 +4093,16 @@ private:
     void check_for_ports_link_change();
     void check_for_io();
     void show_panel();
-        
+
 public:
 
     void sync_threads_stats();
     void publish_async_data(bool sync_now, bool baseline = false);
     void publish_async_barrier(uint32_t key);
     void publish_async_port_attr_changed(uint8_t port_id);
+
+    void global_stats_to_json(Json::Value &output);
+    void port_stats_to_json(Json::Value &output, uint8_t port_id);
 
     void dump_stats(FILE *fd,
                     CGlobalStats::DumpFormat format);
@@ -4761,7 +4831,7 @@ void CGlobalTRex::init_astf_batch() {
      
      m_stx = new TrexAstfBatch(get_stx_cfg(), &m_mg);
      
-     start_master_astf();
+     start_master_astf_batch();
 }
 
 
@@ -5540,6 +5610,19 @@ CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
 
 
 void
+CGlobalTRex::global_stats_to_json(Json::Value &output) {
+    sync_threads_stats();
+    m_stats.global_stats_to_json(output);
+}
+
+void
+CGlobalTRex::port_stats_to_json(Json::Value &output, uint8_t port_id) {
+    sync_threads_stats();
+    m_stats.port_stats_to_json(output, port_id);
+}
+
+
+void
 CGlobalTRex::check_for_ports_link_change() {
     
     // update speed, link up/down etc.
@@ -5995,13 +6078,40 @@ int CGlobalTRex::start_master_stateless(){
     return (0);
 }
 
-int CGlobalTRex::start_master_astf() {
-    int i;
-    for (i=0; i<BP_MAX_CORES; i++) {
-        m_signal[i]=0;
+
+int CGlobalTRex::start_master_astf_common() {
+    for (int i = 0; i < BP_MAX_CORES; i++) {
+        m_signal[i] = 0;
     }
+
     m_fl.Create();
     m_fl.load_astf();
+
+
+    m_expected_pps = 0; // Can't know this in astf mode.
+    // two below are computed later. Need to do this after analyzing data read from json.
+    m_expected_cps = 0;
+    m_expected_bps = 0;
+
+
+    m_fl.generate_p_thread_info(get_cores_tx());
+
+    for (int i = 0; i < get_cores_tx(); i++) {
+        CFlowGenListPerThread *lpt = m_fl.m_threads_info[i];
+        CVirtualIF *erf_vif = m_cores_vif[i+1];
+        lpt->set_vif(erf_vif);
+        lpt->set_sync_barrier(m_start_sync);
+    }
+
+    m_fl_was_init = true;
+
+    return (0);
+}
+
+
+int CGlobalTRex::start_master_astf_batch() {
+
+    start_master_astf_common();
 
     std::string json_file_name = "/tmp/astf";
     if (CGlobalInfo::m_options.prefix.size() != 0) {
@@ -6053,11 +6163,6 @@ int CGlobalTRex::start_master_astf() {
         exit(-1);
     }
 
-    m_expected_pps = 0; // Can't know this in astf mode.
-    // two below are computed later. Need to do this after analyzing data read from json.
-    m_expected_cps = 0;
-    m_expected_bps = 0;
-
     CTcpLatency lat;
     db->get_latency_params(lat);
 
@@ -6067,25 +6172,22 @@ int CGlobalTRex::start_master_astf() {
                    lat.get_s_ip(),
                    lat.get_mask(),
                    m_fl.m_client_config_info);
-
    } else {
         m_mg.set_ip( lat.get_c_ip() ,
                     lat.get_s_ip(),
                     lat.get_mask());
     }
 
-    m_fl.generate_p_thread_info(get_cores_tx());
-    CFlowGenListPerThread   * lpt;
+   return (0);
+}
 
-    for (i=0; i<get_cores_tx(); i++) {
-        lpt = m_fl.m_threads_info[i];
-        CVirtualIF * erf_vif = m_cores_vif[i+1];
-        lpt->set_vif(erf_vif);
-        lpt->set_sync_barrier(m_start_sync);
-    }
-    m_fl_was_init=true;
+
+int CGlobalTRex::start_master_astf() {
+    start_master_astf_common();
+
     return (0);
 }
+
 
 int CGlobalTRex::start_master_statefull() {
     int i;
@@ -9152,27 +9254,13 @@ int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstat
 }
 
 void
-TrexDpdkPlatformApi::get_global_stats(TrexPlatformGlobalStats &stats) const {
-    CGlobalStats trex_stats;
-    g_trex.get_stats(trex_stats);
-
-    stats.m_stats.m_cpu_util           = trex_stats.m_cpu_util;
-    stats.m_stats.m_rx_cpu_util        = trex_stats.m_rx_cpu_util;
-
-    stats.m_stats.m_tx_bps             = trex_stats.m_tx_bps;
-    stats.m_stats.m_tx_pps             = trex_stats.m_tx_pps;
-    stats.m_stats.m_total_tx_pkts      = trex_stats.m_total_tx_pkts;
-    stats.m_stats.m_total_tx_bytes     = trex_stats.m_total_tx_bytes;
-
-    stats.m_stats.m_rx_bps             = trex_stats.m_rx_bps;
-    stats.m_stats.m_rx_pps             = /*trex_stats.m_rx_pps*/ 0; /* missing */
-    stats.m_stats.m_total_rx_pkts      = trex_stats.m_total_rx_pkts;
-    stats.m_stats.m_total_rx_bytes     = trex_stats.m_total_rx_bytes;
+TrexDpdkPlatformApi::global_stats_to_json(Json::Value &output) const {
+    g_trex.global_stats_to_json(output);
 }
 
 void
-TrexDpdkPlatformApi::get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const {
-
+TrexDpdkPlatformApi::port_stats_to_json(Json::Value &output, uint8_t port_id) const {
+    g_trex.port_stats_to_json(output, port_id);
 }
 
 uint32_t

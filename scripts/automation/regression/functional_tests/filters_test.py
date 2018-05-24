@@ -1,7 +1,7 @@
 #!/router/bin/python
 
 import functional_general_test
-from trex_stl_lib.utils import filters
+from trex.utils import filters
 from nose.tools import assert_equal
 from nose.tools import assert_not_equal
 from nose.tools import assert_raises

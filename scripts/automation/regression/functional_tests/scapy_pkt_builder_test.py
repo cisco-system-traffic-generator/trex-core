@@ -7,9 +7,9 @@ import sys
 import os
 
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(CURRENT_PATH, '../../../trex_control_plane/stl/'))
+sys.path.append(os.path.join(CURRENT_PATH, '../../../trex_control_plane/interactive/trex/'))
 #HACK FIX ME END
-from trex_stl_lib.trex_stl_packet_builder_scapy import *
+from trex.stl.trex_stl_packet_builder_scapy import *
 
 from scapy.all import *
 from nose.tools import assert_equal

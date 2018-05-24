@@ -59,7 +59,7 @@ Example 1 - Typical Python API::
 STLClient class
 ---------------
 
-.. autoclass:: trex_stl_lib.trex_stl_client.STLClient
+.. autoclass:: trex.stl.trex_stl_client.STLClient
     :members: 
     :member-order: bysource
     

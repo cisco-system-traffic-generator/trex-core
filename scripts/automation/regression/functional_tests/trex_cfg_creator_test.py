@@ -3,7 +3,7 @@
 import sys
 import copy
 from collections import OrderedDict
-from trex import CTRexScenario
+from trex_scenario import CTRexScenario
 sys.path.append(CTRexScenario.scripts_path)
 from dpdk_setup_ports import ConfigCreator, DpdkSetup
 sys.path.remove(CTRexScenario.scripts_path)

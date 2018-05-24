@@ -3,7 +3,6 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 import os, sys
 from misc_methods import run_command
 
-
 class STLExamples_Test(CStlGeneral_Test):
     """This class defines the IMIX testcase of the TRex traffic generator"""
 
@@ -25,14 +24,16 @@ class STLExamples_Test(CStlGeneral_Test):
         if drv_name == 'net_mlx5' and 'VM' in self.modes:
             self.skip('Can not run on mlx VM currently - see trex-405 for details')
 
-        examples_dir = '../trex_control_plane/stl/examples'
+        examples_dir = '../trex_control_plane/interactive'
         examples_to_test = [
-                            'stl_imix.py',
+                            'stl_imix',
                             ]
 
         for example in examples_to_test:
+            cmd = "-m trex.examples.stl.{0}".format(example)
+
             self.explicitSetUp()
-            return_code, stdout, stderr = run_command("sh -c 'cd %s; %s %s -s %s'" % (examples_dir, sys.executable, example, CTRexScenario.configuration.trex['trex_name']))
+            return_code, stdout, stderr = run_command("sh -c 'cd %s; %s %s -s %s'" % (examples_dir, sys.executable, cmd, CTRexScenario.configuration.trex['trex_name']))
             self.explicitTearDown()
             assert return_code == 0, 'example %s failed.\nstdout: %s\nstderr: %s' % (return_code, stdout, stderr)
 

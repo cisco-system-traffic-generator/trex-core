@@ -609,7 +609,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_core_pinning (self):
 
-        if self.c.system_info.get('dp_core_count_per_port') < 2:
+        if self.c.get_server_system_info().get('dp_core_count_per_port') < 2:
             self.skip('pinning test requires at least 2 cores per interface')
         if self.is_dummy_ports:
             self.skip('pinning test is not designed for setup with dummy ports')
@@ -653,7 +653,7 @@ class STLClient_Test(CStlGeneral_Test):
     # check pinning with latency
     def test_core_pinning_latency (self):
 
-        if self.c.system_info.get('dp_core_count_per_port') < 2:
+        if self.c.get_server_system_info().get('dp_core_count_per_port') < 2:
             self.skip('pinning test requires at least 2 cores per interface')
         if self.is_dummy_ports:
             self.skip('pinning test is not designed for setup with dummy ports')

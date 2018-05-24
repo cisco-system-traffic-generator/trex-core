@@ -6,11 +6,13 @@ from nose.tools import assert_equal
 from nose.tools import assert_not_equal
 from nose.tools import nottest
 from nose.plugins.attrib import attr
-from trex import CTRexScenario
-from trex_stl_lib import trex_stl_sim
-from trex_stl_lib.trex_stl_streams import STLProfile
-from trex_stl_lib.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, Ether
-from trex_stl_lib.utils.text_opts import *
+from trex_scenario import CTRexScenario
+
+from trex.stl import trex_stl_sim
+from trex.stl.trex_stl_streams import STLProfile
+from trex.stl.trex_stl_packet_builder_scapy import RawPcapReader, RawPcapWriter, Ether
+from trex.utils.text_opts import *
+
 from pprint import pprint
 
 import sys
