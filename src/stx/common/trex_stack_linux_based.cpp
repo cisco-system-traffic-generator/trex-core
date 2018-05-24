@@ -317,6 +317,7 @@ void CLinuxIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     char buf[INET6_ADDRSTRLEN];
     if ( enabled ) {
         run_in_ns("sysctl net.ipv6.conf." + m_ns_name + "-L.disable_ipv6=0", "Could not enable ipv6 for veth");
+        run_in_ns("ip -6 route add default dev " + m_ns_name + "-L", "Could not set interface as default route");
         if ( ip6_buf.size() ) {
             inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
             string ip6_str(buf);
