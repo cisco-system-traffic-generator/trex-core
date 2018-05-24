@@ -41,6 +41,9 @@ enum {
 
     /* specific server errors */
     JSONRPC_V2_ERR_EXECUTE_ERROR      = -32000,
+    JSONRPC_V2_ERR_TRY_AGAIN          = -32001,
+    JSONRPC_V2_ERR_WIP                = -32002,
+    JSONRPC_V2_ERR_NO_RESULTS         = -32003,
 };
 
 
@@ -98,6 +101,29 @@ public:
             response["error"]["message"]       = "Internal Server Error";
             response["error"]["specific_err"]  = result["specific_err"];
             break;
+
+        case TREX_RPC_CMD_TRY_AGAIN_ERR:
+            response["error"]["code"]          = JSONRPC_V2_ERR_TRY_AGAIN;
+            response["error"]["message"]       = "Try again later";
+            if ( result["specific_err"].size() ) {
+                response["error"]["specific_err"]  = result["specific_err"];
+            }
+            break;
+
+        case TREX_RPC_CMD_ASYNC_WIP_ERR:
+            response["error"]["code"]          = JSONRPC_V2_ERR_WIP;
+            response["error"]["message"]       = "Work in progress";
+            response["error"]["specific_err"]  = result["specific_err"];
+            break;
+
+        case TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR:
+            response["error"]["code"]          = JSONRPC_V2_ERR_NO_RESULTS;
+            response["error"]["message"]       = "No results for request";
+            if ( result["specific_err"].size() ) {
+                response["error"]["specific_err"]  = result["specific_err"];
+            }
+            break;
+
         }
 
     }

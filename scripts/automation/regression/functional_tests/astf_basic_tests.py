@@ -348,23 +348,10 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         try:
             prof = ASTFProfile(default_ip_gen=ip_gen)
         except ASTFError as e:
-            assert type(e) == ASTFErrorMissingParam
-        else:
-            assert 0, "Bad exception, or no exception"
-
-        # specifying both templates and cap_list
-        prog = ASTFProgram()
-        prog.send("yyy")
-        c_temp = ASTFTCPClientTemplate(program=prog, ip_gen=ip_gen)
-        s_temp = ASTFTCPServerTemplate(program=prog)
-        template = ASTFTemplate(client_template=c_temp, server_template=s_temp)
-        try:
-            prof = ASTFProfile(default_ip_gen=ip_gen,   # noqa: ignore=F841
-                templates=template, cap_list=ASTFCapInfo(file="/tmp/aaa"))
-        except ASTFError as e:
             assert type(e) == ASTFErrorBadParamCombination
         else:
             assert 0, "Bad exception, or no exception"
+
 
     def setUp(self):
         self.reset()

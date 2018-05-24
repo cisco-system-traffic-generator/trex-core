@@ -19,6 +19,7 @@
   limitations under the License.
 */
 
+#include <thread>
 #include <stdio.h>
 #include "bp_sim.h"
 #include "flow_stat_parser.h"
@@ -65,6 +66,15 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
     obj.set_latency_json(json);
 };
 
+CRxCore::~CRxCore(void) {
+    for (auto &iter_pair : m_rx_port_mngr) {
+        iter_pair.second.cleanup_async();
+    }
+    for (auto &iter_pair : m_rx_port_mngr) {
+        iter_pair.second.wait_for_cleanup_done();
+    }
+}
+
 void CRxCore::create(const CRxSlCfg &cfg) {
     m_capture     = false;
     m_tx_cores    = cfg.m_tx_cores;
@@ -83,13 +93,16 @@ void CRxCore::create(const CRxSlCfg &cfg) {
 
     /* create per port manager */
     for (auto &port : cfg.m_ports) {
-        m_rx_port_mngr[port.first].create(port.first,
-                                          port.second,
-                                          m_rfc2544,
-                                          &m_err_cntrs,
-                                          &m_cpu_dp_u);
+        m_rx_port_mngr[port.first].create_async(port.first,
+                                                port.second,
+                                                m_rfc2544,
+                                                &m_err_cntrs,
+                                                &m_cpu_dp_u);
     }
-    
+    for (auto &port : cfg.m_ports) {
+        m_rx_port_mngr[port.first].wait_for_create_done();
+    }
+
     /* create a TX queue */
     m_tx_queue.create(this, 5000);
 }
@@ -235,20 +248,21 @@ void CRxCore::init_work_stage() {
 bool CRxCore::work_tick() {
     
     bool did_something = false;
-    int n;
+    int pkt_cnt;
     int limit = 10;
 
     /* TODO: add a scheduler - will solve all problems here */
     
     /* continue while pending packets are waiting or limit reached */
-    while ( (n = process_all_pending_pkts()) && limit) {
-        m_rx_pkts += n;
+    do {
+        pkt_cnt = process_all_pending_pkts();
+        m_rx_pkts += pkt_cnt;
         limit--;
-        did_something = true;
-    }
+        did_something = pkt_cnt > 0;
+    } while ( pkt_cnt && limit );
     
     dsec_t now = now_sec();
-        
+
     /* until a scheduler is added here - dirty IFs */
 
     if ( (now - m_sync_time_sec) > 0 ) {
@@ -259,11 +273,6 @@ bool CRxCore::work_tick() {
         
         m_sync_time_sec = now + (1.0 / 1000);
     }
-    
-    if ( (now - m_grat_arp_sec) > 0) {
-        handle_grat_arp();
-        m_grat_arp_sec = now + (double)CGlobalInfo::m_options.m_arp_ref_per;
-    }
 
     /* pass a tick to the TX queue
      
@@ -271,16 +280,6 @@ bool CRxCore::work_tick() {
     m_tx_queue.tick();
     
     return did_something;
-}
-
-/**
- * for each port handle the grat ARP mechansim
- * 
- */
-void CRxCore::handle_grat_arp() {
-    for (auto &mngr_pair : m_rx_port_mngr) {
-        mngr_pair.second.send_next_grat_arp();
-    }
 }
 
 void CRxCore::start() {
@@ -316,7 +315,7 @@ void CRxCore::start() {
     }
 
     m_monitor.disable();
-    
+
     m_is_active = false;
     
 }
@@ -419,16 +418,29 @@ CRxCore::disable_latency() {
     recalculate_next_state();
 }
 
-RXPortManager &
-CRxCore::get_rx_port_mngr(uint8_t port_id) {
+const TrexPktBuffer *CRxCore::get_rx_queue_pkts(uint8_t port_id) {
+    return m_rx_port_mngr[port_id].get_pkt_buffer();
+}
+
+RXPortManager &CRxCore::get_rx_port_mngr(uint8_t port_id) {
     return m_rx_port_mngr[port_id];
 }
 
 void
 CRxCore::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
-    get_rx_port_mngr(port_id).get_ignore_stats(stat, get_diff);
+    m_rx_port_mngr[port_id].get_ignore_stats(stat, get_diff);
 }
 
+
+bool CRxCore::has_port(const std::string &mac_buf) {
+    assert(mac_buf.size()==6);
+    for (auto &mngr_pair : m_rx_port_mngr) {
+        if ( mngr_pair.second.get_stack()->has_port(mac_buf) ) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * sends packets through the RX core TX queue

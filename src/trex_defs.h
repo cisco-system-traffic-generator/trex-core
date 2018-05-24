@@ -20,8 +20,10 @@ limitations under the License.
 #include <queue>
 #include <vector>
 #include <string>
+#include <map>
 #include <unordered_map>
-
+#include <functional>
+#include <json/json.h>
 
 #define TREX_MAX_PORTS 16
 
@@ -81,5 +83,28 @@ typedef std::set<uint32_t> stream_ids_t;
 typedef std::unordered_map<uint32_t,double> stream_ipgs_map_t;
 typedef std::unordered_map<uint32_t,double>::const_iterator stream_ipgs_map_it_t;
 typedef std::unordered_map<uint8_t, bool> uint8_to_bool_map_t;
+
+// stack related
+typedef std::function<void(void)> stack_task_t;
+typedef std::vector<stack_task_t> task_list_t;
+typedef std::unordered_map<std::string,std::string> err_per_mac_t;
+typedef std::set<std::string> str_set_t;
+typedef std::vector<uint16_t> vlan_list_t;
+typedef struct {
+    bool            is_ready;
+    err_per_mac_t   err_per_mac;
+} stack_result_t;
+typedef std::map<uint64_t,stack_result_t> stack_result_map_t;
+// end stack related
+
+// async related
+typedef std::function<void(Json::Value &result)> async_result_func_t;
+typedef std::function<void(void)> async_cancel_func_t;
+typedef struct {
+    async_result_func_t result_func;
+    async_cancel_func_t cancel_func;
+} async_ticket_task_t;
+typedef std::map<uint64_t,async_ticket_task_t> async_ticket_map_t;
+// end async related
 
 #endif

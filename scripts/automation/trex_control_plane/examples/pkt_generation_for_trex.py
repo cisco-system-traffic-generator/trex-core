@@ -44,14 +44,14 @@ def main (args):
     print "\ngenerated traffic:"
     print "=================="
     map(lambda x: pprint(x.summary()) , pkts)
-    pkts_to_pcap("dns_traffic.pcap", pkts)				    # Export the generated to a .pcap file
+    pkts_to_pcap("dns_traffic.pcap", pkts)              # Export the generated to a .pcap file
 
     if args.steps:
         print "\nNext step: .yaml generation."
         raw_input("Press Enter to continue...")
     # Generate .yaml file that uses the generated .pcap file
-    trex_files_path = trex.get_trex_files_path()	# fetch the path in which packets are saved on TRex server
-    yaml_obj 		= CTRexYaml(trex_files_path)	# instantiate CTRexYaml obj
+    trex_files_path = trex.get_trex_files_path()        # fetch the path in which packets are saved on TRex server
+    yaml_obj        = CTRexYaml(trex_files_path)        # instantiate CTRexYaml obj
 
     # set .yaml file parameters according to need and use
     ret_idx = yaml_obj.add_pcap_file("dns_traffic.pcap")

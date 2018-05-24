@@ -138,9 +138,9 @@ hr_time_t    os_get_hr_freq(void);
 extern  COsTimeGlobalData  timer_gd;
 
 static inline void time_init(){
-	timer_gd.m_start_time = os_get_hr_tick_64();
+    timer_gd.m_start_time = os_get_hr_tick_64();
     timer_gd.m_freq       = (double)os_get_hr_freq();
-    timer_gd.m_1_div_freq = 1.0/(double)os_get_hr_freq();
+    timer_gd.m_1_div_freq = 1.0/timer_gd.m_freq;
 }
 
 

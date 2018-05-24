@@ -579,6 +579,11 @@ Other network devices
         dpdk_nic_bind.get_nic_details()
         self.m_devices= dpdk_nic_bind.devices
 
+    def get_prefix(self):
+        if map_driver.parent_args.prefix:
+            return map_driver.parent_args.prefix
+        return self.m_cfg_dict[0].get('prefix', '')
+
     def preprocess_astf_file_is_needed(self):
         """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
         is_astf_mode = map_driver.parent_args and map_driver.parent_args.astf
@@ -596,10 +601,9 @@ Other network devices
                   raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
 
             instance_name = ""
-            if map_driver.parent_args.prefix is not '':
-                instance_name = "-" + map_driver.parent_args.prefix
-            elif 'prefix' in self.m_cfg_dict[0]:
-                instance_name = '-' + self.m_cfg_dict[0]['prefix']
+            prefix = self.get_prefix()
+            if prefix:
+                instance_name = '-' + prefix
 
             json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
 
@@ -719,8 +723,39 @@ Other network devices
                 print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
                 sys.exit(-1)
 
-    def do_run (self,only_check_all_mlx=False):
-        """ return the number of mellanox drivers"""
+    # verify that all interfaces of i40e NIC are in use by current instance of TRex
+    def check_i40e_binds(self, if_list):
+        # i40e device IDs taked from dpdk/drivers/net/i40e/base/i40e_devids.h
+        i40e_device_ids = [0x1572, 0x1574, 0x1580, 0x1581, 0x1583, 0x1584, 0x1585, 0x1586, 0x1587, 0x1588, 0x1589, 0x158A, 0x158B]
+        iface_without_slash = set()
+        for iface in if_list:
+            iface_without_slash.add(self.split_pci_key(iface))
+        show_warning_devices = set()
+        for iface in iface_without_slash:
+            if iface == 'dummy':
+                continue
+            iface = self.split_pci_key(iface)
+            if self.m_devices[iface]['Device'] not in i40e_device_ids: # not i40e
+                return
+            iface_pci = iface.split('.')[0]
+            for device in self.m_devices.values():
+                if device['Slot'] in iface_without_slash: # we use it
+                    continue
+                if iface_pci == device['Slot'].split('.')[0]:
+                    if device.get('Driver_str') == 'i40e':
+                        print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
+                        print('See following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
+                        print('Unbind the interface from Linux with following command:')
+                        print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
+                        print('')
+                        sys.exit(-1)
+                    if device.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
+                        show_warning_devices.add(device['Slot'])
+        for dev in show_warning_devices:
+            print('WARNING: i40e interface %s is under DPDK driver and might interfere with current TRex interfaces.' % dev)
+
+    def do_run (self, only_check_all_mlx=False):
+        """ returns code that specifies if interfaces are Mellanox/Napatech etc. """
 
         self.run_dpdk_lspci ()
         self.load_config_file()
@@ -795,7 +830,7 @@ Other network devices
             else:
                 sys.exit(0);
 
-
+        self.check_i40e_binds(if_list)
         self.check_trex_running(if_list)
         self.config_hugepages() # should be after check of running TRex
         self.run_scapy_server()

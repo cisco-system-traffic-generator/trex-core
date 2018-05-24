@@ -22,7 +22,7 @@ class TRexCPConfiguringPlugin(Plugin):
 
     def configure(self, options, conf):
         if options.trex_server:
-        	self.trex_server = options.trex_server
+            self.trex_server = options.trex_server
 
     def begin (self):
         # initialize CTRexCP global testing class, to be used by and accessible all tests

@@ -32,6 +32,7 @@ TrexPort::TrexPort(uint8_t port_id) : m_dp_events(this) {
 
     m_port_id             = port_id;
     m_port_state          = PORT_STATE_IDLE;
+    m_synced_stack_caps   = false;
     
     /* query RX info from driver */
     get_platform_api().get_port_stat_info(port_id, m_rx_count_num, m_rx_caps, m_ip_id_base);
@@ -64,6 +65,7 @@ TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
     if (get_owner().is_free() || force) {
         get_owner().own(user, session_id);
+        cancel_rx_cfg_tasks();
 
     } else {
 
@@ -99,6 +101,7 @@ TrexPort::release(void) {
     data["session_id"] = get_owner().get_session_id();
 
     get_owner().release();
+    cancel_rx_cfg_tasks();
 
     get_stx()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RELEASED, data);
 }
@@ -194,7 +197,7 @@ TrexPort::get_state_as_string() const {
         return "DOWN";
 
     case PORT_STATE_IDLE:
-        return  "IDLE";
+        return "IDLE";
 
     case PORT_STATE_STREAMS:
         return "STREAMS";
@@ -274,110 +277,159 @@ TrexPort::get_port_speed_bps() const {
     return (uint64_t) get_platform_api().getPortAttrObj(m_port_id)->get_link_speed() * 1000 * 1000;
 }
 
+uint16_t TrexPort::get_stack_caps(void) {
+    if ( !m_synced_stack_caps ) {
+        static MsgReply<uint16_t> reply;
+        reply.reset();
+        TrexRxGetStackCaps *msg = new TrexRxGetStackCaps(m_port_id, reply);
+        send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+        m_stack_caps = reply.wait_for_reply();
+    }
+    return m_stack_caps;
+}
 
+bool TrexPort::has_fast_stack(void) {
+    return get_stack_caps() & CStackBase::FAST_OPS;
+}
+
+std::string& TrexPort::get_stack_name(void) {
+    return CGlobalInfo::m_options.m_stack_type;
+}
+
+void TrexPort::get_port_node(CNodeBase &node) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    std::string err;
+    TrexRxGetPortNode *msg = new TrexRxGetPortNode(m_port_id, node, err, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    reply.wait_for_reply();
+    if ( err.size() ) {
+        throw TrexException("Could not get interface information, error: " + err);
+    }
+}
 
 /**
  * configures port in L2 mode
  * 
  */
-void
-TrexPort::set_l2_mode(const uint8_t *dest_mac) {
-    
+void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
     /* not valid under traffic */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l2_mode");
-    
-    /* configure port attributes for L2 */
-    getPortAttrObj()->set_l2_mode(dest_mac);
+
+    uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
+    memcpy(dp_dst_mac, dst_mac.c_str(), 6);
 
     /* update RX core */
-    TrexRxSetL2Mode *msg = new TrexRxSetL2Mode(m_port_id);
+    TrexRxSetL2Mode *msg = new TrexRxSetL2Mode(m_port_id, dst_mac);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
 /**
- * configures port in L3 mode - unresolved
- */
-void
-TrexPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4) {
-    
-    /* not valid under traffic */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
-    
-    /* configure port attributes with L3 */
-    getPortAttrObj()->set_l3_mode(src_ipv4, dest_ipv4);
-
-    /* send RX core the relevant info */
-    CManyIPInfo ip_info;
-    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_layer_cfg().get_ether().get_src()));
-    
-    TrexRxSetL3Mode *msg = new TrexRxSetL3Mode(m_port_id, ip_info, false);
-    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
-}
-
-/**
- * configures port in L3 mode - resolved
+ * configures port in L3 mode
  * 
  */
-void
-TrexPort::set_l3_mode(uint32_t src_ipv4, uint32_t dest_ipv4, const uint8_t *resolved_mac) {
-    
+void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac) {
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
-    
-    /* configure port attributes with L3 */
-    getPortAttrObj()->set_l3_mode(src_ipv4, dest_ipv4, resolved_mac);
-    
-    /* send RX core the relevant info */
-    CManyIPInfo ip_info;
-    ip_info.insert(COneIPv4Info(src_ipv4, 0, getPortAttrObj()->get_layer_cfg().get_ether().get_src()));
-    
-    bool is_grat_arp_needed = !getPortAttrObj()->is_loopback();
-    
-    TrexRxSetL3Mode *msg = new TrexRxSetL3Mode(m_port_id, ip_info, is_grat_arp_needed);
+
+    if ( dst_mac != nullptr ) {
+        uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
+        memcpy(dp_dst_mac, dst_mac->c_str(), 6);
+    }
+
+    TrexRxSetL3Mode *msg = new TrexRxSetL3Mode(m_port_id, src_ipv4, dst_ipv4, dst_mac);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+/**
+ * configures IPv6 of port
+ * 
+ */
+void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "conf_ipv6");
+    TrexRxConfIPv6 *msg = new TrexRxConfIPv6(m_port_id, enabled, src_ipv6);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+void TrexPort::invalidate_dst_mac(void) {
+    TrexRxInvalidateDstMac *msg = new TrexRxInvalidateDstMac(m_port_id);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
 
 /**
  * configures VLAN tagging
  * 
  */
-void
-TrexPort::set_vlan_cfg(const VLANConfig &vlan_cfg) {
-    
+void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
     /* not valid under traffic */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_vlan_cfg");
-    
-    /* configure VLAN on port attribute object */
-    getPortAttrObj()->set_vlan_cfg(vlan_cfg);
-    
-    TrexRxSetVLAN *msg = new TrexRxSetVLAN(m_port_id, vlan_cfg);
+
+    TrexRxSetVLAN *msg = new TrexRxSetVLAN(m_port_id, vlan_list);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+void TrexPort::run_rx_cfg_tasks_initial_async(void) {
+    /* valid at startup of server */
+    verify_state(PORT_STATE_IDLE, "run_rx_cfg_tasks_initial");
+    TrexPort::run_rx_cfg_tasks_internal_async(0);
+}
 
+uint64_t TrexPort::run_rx_cfg_tasks_async(void) {
+    /* valid at startup of server */
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "run_rx_cfg_tasks");
 
-Json::Value
-TrexPort::rx_features_to_json() {
-    static MsgReply<Json::Value> reply;
-    
-    reply.reset();
+    uint64_t ticket_id = get_stx()->get_ticket();
+    TrexPort::run_rx_cfg_tasks_internal_async(ticket_id);
+    return ticket_id;
+}
 
-    TrexRxFeaturesToJson *msg = new TrexRxFeaturesToJson(m_port_id, reply);
+void TrexPort::run_rx_cfg_tasks_internal_async(uint64_t ticket_id) {
+    TrexRxRunCfgTasks *msg = new TrexRxRunCfgTasks(m_port_id, ticket_id);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
 
+bool TrexPort::is_rx_running_cfg_tasks(void) {
+    if ( !get_stx()->get_rx()->is_active() ) {
+        return false;
+    }
+    if ( has_fast_stack() ) {
+        return false;
+    }
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxIsRunningTasks *msg = new TrexRxIsRunningTasks(m_port_id, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
     return reply.wait_for_reply();
 }
 
-
-const uint8_t *
-TrexPort::get_src_mac() const {
-    return getPortAttrObj()->get_layer_cfg().get_ether().get_src();
+bool TrexPort::get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxGetTasksResults *msg = new TrexRxGetTasksResults(m_port_id, ticket_id, results, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
 }
 
-const uint8_t *
-TrexPort::get_dst_mac() const {
-    return getPortAttrObj()->get_layer_cfg().get_ether().get_dst();
+void TrexPort::cancel_rx_cfg_tasks(void) {
+    TrexRxCancelCfgTasks *msg = new TrexRxCancelCfgTasks(m_port_id);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
+
+void TrexPort::port_attr_to_json(Json::Value &attr_res) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexPortAttrToJson *msg = new TrexPortAttrToJson(m_port_id, attr_res, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    reply.wait_for_reply();
+}
+
+void TrexPort::rx_features_to_json(Json::Value &feat_res) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxFeaturesToJson *msg = new TrexRxFeaturesToJson(m_port_id, feat_res, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    reply.wait_for_reply();
+}
+
 
 
 /************* Trex Port Owner **************/

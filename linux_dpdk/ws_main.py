@@ -152,17 +152,20 @@ def check_ibverbs_deps(bld):
 
 def missing_pkg_msg(fedora, ubuntu):
     msg = 'not found\n'
-    fedora_install = 'Fedora install:\nsudo yum install %s\n' % fedora
+    fedora_install = 'Fedora/CentOS install:\nsudo yum install %s\n' % fedora
     ubuntu_install = 'Ubuntu install:\nsudo apt install %s\n' % ubuntu
+    unknown_install = 'Could not determine Linux distribution.\n%s\n%s' % (fedora_install, ubuntu_install)
     try:
-        if platform.linux_distribution()[0].capitalize() == 'Ubuntu':
-            msg += ubuntu_install
-        elif platform.linux_distribution()[0].capitalize() == 'Fedora':
-            msg += fedora_install
-        else:
-            raise
+        dist = platform.linux_distribution(full_distribution_name=False)[0].capitalize()
     except:
-        msg += 'Could not determine Linux distribution.\n%s\n%s' % (ubuntu_install, fedora_install)
+        return msg + unknown_install
+
+    if dist == 'Ubuntu':
+        msg += ubuntu_install
+    elif dist in ('Fedora', 'Centos'):
+        msg += fedora_install
+    else:
+        msg += unknown_install
     return msg
 
 
@@ -437,6 +440,7 @@ ef_src = SrcGroup(dir='src/common',
 stx_src = SrcGroup(dir='src/stx/common/',
                            src_list=['trex_stx.cpp',
                                      'trex_pkt.cpp',
+                                     'trex_rx_packet_parser.cpp',
                                      'trex_capture.cpp',
                                      'trex_port.cpp',
                                      'trex_dp_port_events.cpp',
@@ -446,6 +450,9 @@ stx_src = SrcGroup(dir='src/stx/common/',
                                      'trex_rx_core.cpp',
                                      'trex_rx_port_mngr.cpp',
                                      'trex_rx_tx.cpp',
+                                     'trex_stack_base.cpp',
+                                     'trex_stack_linux_based.cpp',
+                                     'trex_stack_legacy.cpp',
                                      
                                      'trex_rpc_cmds_common.cpp'
                                      ])
@@ -1163,9 +1170,9 @@ class build_option:
 
         if self.isIntelPlatform():
             if self.is64Platform():
-	       flags += ['-m64']
-	    else:
-	       flags += ['-m32']
+                flags += ['-m64']
+            else:
+                flags += ['-m32']
 
         if self.isRelease():
             flags += ['-O3']

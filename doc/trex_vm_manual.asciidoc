@@ -30,13 +30,14 @@ Docker hub is located link:https://hub.docker.com/u/trexcisco/[docker hub]
 .Pull the trex image
 [source,bash]
 ----
-[bash]>docker pull trexcisco/trex:2.36                                     #<1>
-[bash]>docker run --rm -it --privileged --cap-add=ALL trexcisco/trex:2.36  #<2>
-[bash]root@d8ec7a3a09d9 v2.36]./t-rex-64 -i                                #<3>     
+[bash]>docker pull trexcisco/trex                                         #<1>
+[bash]>docker run --rm -it --privileged --cap-add=ALL trexcisco/trex      #<2>
+[bash]root@d8ec7a3a09d9 v2.36]./t-rex-64 -i                               #<3>     
 ----
 <1> Pull the trex image could be with higher version
 <2> Get into the docker shell
 <3> Run TRex in Stateless mode
+
 
 From *another* terminal 
 
@@ -45,7 +46,7 @@ From *another* terminal
 ----
 [bash]>docker ps
 CONTAINER ID        IMAGE                 COMMAND             
-*d4f956743f62*      trexcisco/trex:2.36   "/bin/bash"     #<1>
+*d4f956743f62*      trexcisco/trex:2.36   "/bin/bash"      #<1>
 
 [bash]>docker exec -it d4f956743f62 bash                   #<2> 
 [bash]root@d4f956743f62 v2.36]./trex-console               #<3> 
@@ -149,8 +150,18 @@ trex>tui                                               #<2>
 <1> low-footprint mode ( require less resource), use one thread
 <2> use veth0/veth1 as DP ports conntect to an internal switch
 
-[NOTE] You will need to redirect the folowing  ports 4500/4501/4507 to use the external GUI
+[NOTE] 
+=====================================
+You will need to redirect the folowing  ports 4500/4501/4507 to use the external GUI 
+for that you can use this command 
 
+
+`[bash]>docker run --rm -it --privileged --cap-add=ALL  -p 4500:4500 -p 4501:4501 -p 4507:4507 trexcisco/trex`
+
+      
+=====================================
+
+Download the GUI from GitHub link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui/releases[trex-gui-release]
 
 == TRex inside Virtual Box 
 
