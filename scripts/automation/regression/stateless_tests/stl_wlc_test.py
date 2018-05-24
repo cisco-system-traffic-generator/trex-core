@@ -28,7 +28,7 @@ class CTRexWLC_Test(CStlGeneral_Test):
         if self.elk:
             self.update_elk_obj()
         self.client = CTRexScenario.stl_trex
-        from trex_stl_lib.trex_stl_wlc import AP_Manager
+        from trex.stl.trex_stl_wlc import AP_Manager
         ap_manager = AP_Manager(self.client)
 
         base_data = CTRexScenario.config_dict['base']

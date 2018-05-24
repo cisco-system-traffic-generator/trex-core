@@ -25,8 +25,8 @@ class CTRexClientPKG_Test(CStlGeneral_Test):
                     'cd %s' % CTRexScenario.scripts_path,
                     'source find_python.sh --%s' % python_version,
                     'which $PYTHON',
-                    'cd trex_client/stl/examples',
-                    '$PYTHON stl_imix.py -s %s' % self.configuration.trex['trex_name'],
+                    'cd trex_client/interactive',
+                    '$PYTHON -m trex.examples.stl.stl_imix -s %s' % self.configuration.trex['trex_name'],
                    ]
         return_code, stdout, stderr = run_command("bash -ce '%s'" % '; '.join(commands))
         if return_code:

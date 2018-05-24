@@ -140,8 +140,8 @@ Two possible solutions:
 '''.format(path = last_err_path)
         fail(msg)
 
-    server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'stl', 'services', 'scapy_server')
-    cmd = 'taskset -c {core} {python} ./scapy_zmq_server.py -s {port}'.format(core = args.core, python = sys.executable, port = args.port)
+    server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'interactive')
+    cmd = 'taskset -c {core} {python} -m trex.scapy_server.scapy_zmq_server -s {port}'.format(core = args.core, python = sys.executable, port = args.port)
     proc, stdout_file = run_command(cmd, demote = True, is_daemon = True, cwd = server_path)
     ret = progress(is_running, 'Starting Scapy server', 'Scapy server is started', 'Scapy server failed to run', fail_check = proc.poll)
     if proc.poll():

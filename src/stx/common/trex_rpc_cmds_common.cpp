@@ -43,6 +43,8 @@ limitations under the License.
 #include "trex_capture.h"
 #include "trex_messaging.h"
 
+/* this is a hack for get_port_status */
+#include "stl/trex_stl_port.h"
 
 #ifdef RTE_DPDK
     #include <../linux_dpdk/version.h>
@@ -55,9 +57,22 @@ using namespace std;
 /**
  * API sync
  */
-TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISync,   "api_sync");
-TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2, "api_sync_v2");
+TREX_RPC_CMD_NOAPI(TrexRpcCmdGetVersion,   "get_version");
+TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISync,      "api_sync");
+TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2,    "api_sync_v2");
 
+
+/**
+ * ownership
+ */
+TREX_RPC_CMD(TrexRpcCmdAcquire,          "acquire");
+TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");   
+
+
+/**
+ * port status
+ */
+TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
 
 /**
  * ping - the most basic command
@@ -69,7 +84,6 @@ TREX_RPC_CMD_NOAPI(TrexRpcCmdPing, "ping");
  */
 TREX_RPC_CMD(TrexRpcCmdShutdown,              "shutdown");
 TREX_RPC_CMD(TrexRpcCmdGetCmds,               "get_supported_cmds");
-TREX_RPC_CMD(TrexRpcCmdGetVersion,            "get_version");
 TREX_RPC_CMD(TrexRpcCmdGetUtilization,        "get_utilization");
 TREX_RPC_CMD(TrexRpcPublishNow,               "publish_now"); 
 
@@ -80,12 +94,13 @@ void get_hostname(string &hostname);
 
 );
 
+TREX_RPC_CMD(TrexRpcCmdGetGlobalStats,        "get_global_stats"); 
+
 
 /**
  * port commands
  */
 TREX_RPC_CMD(TrexRpcCmdGetPortStats,          "get_port_stats");
-TREX_RPC_CMD(TrexRpcCmdGetPortStatus,         "get_port_status");        
 TREX_RPC_CMD(TrexRpcCmdGetPortXStatsValues,   "get_port_xstats_values");
 TREX_RPC_CMD(TrexRpcCmdGetPortXStatsNames,    "get_port_xstats_names");
 TREX_RPC_CMD(TrexRpcCmdSetPortAttr,           "set_port_attr");  
@@ -192,6 +207,101 @@ TrexRpcCmdAPISyncV2::_run(const Json::Value &params, Json::Value &result) {
 
     return(TREX_RPC_CMD_OK);
 }
+
+
+
+/**
+ * fetch the port status
+ *
+ * @author imarom (09-Dec-15)
+ *
+ * @param params
+ * @param result
+ *
+ * @return trex_rpc_cmd_rc_e
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    result["result"]["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
+    result["result"]["state"]         = port->get_state_as_string();
+    result["result"]["service"]       = port->is_service_mode_on();
+
+    /* yes, this is an ugly hack... for now */
+    TrexStatelessPort *stl_port = dynamic_cast<TrexStatelessPort *>(port);
+    if (stl_port) {
+        result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
+    }
+
+    /* attributes */
+    get_platform_api().getPortAttrObj(port_id)->to_json(result["result"]["attr"]);
+    
+    /* RX info */
+    try {
+        result["result"]["rx_info"] = port->rx_features_to_json();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
+    return (TREX_RPC_CMD_OK);
+}
+
+
+
+
+/**
+ * acquire device
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+
+    const std::string  &new_owner  = parse_string(params, "user", result);
+    bool force = parse_bool(params, "force", result);
+    uint32_t session_id = parse_uint32(params, "session_id", result);
+
+    /* if not free and not you and not force - fail */
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    try {
+        port->acquire(new_owner, session_id, force);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = port->get_owner().get_handler();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/**
+ * release device
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    try {
+        port->release();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
+
+    return (TREX_RPC_CMD_OK);
+}
+
 
 
 /**
@@ -378,6 +488,18 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
 
     return (TREX_RPC_CMD_OK);
 }
+
+
+/**
+ * get global stats
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetGlobalStats::_run(const Json::Value &params, Json::Value &result) {
+    get_platform_api().global_stats_to_json(result["result"]);
+    return (TREX_RPC_CMD_OK);
+}
+
 
 /**
  * query command
@@ -1211,6 +1333,11 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdAPISync(this));
     m_cmds.push_back(new TrexRpcCmdAPISyncV2(this));
     
+    m_cmds.push_back(new TrexRpcCmdAcquire(this));
+    m_cmds.push_back(new TrexRpcCmdRelease(this));
+        
+    m_cmds.push_back(new TrexRpcCmdGetPortStatus(this));
+        
     m_cmds.push_back(new TrexRpcCmdPing(this));
 
     m_cmds.push_back(new TrexRpcCmdSetL2(this));
@@ -1220,6 +1347,7 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcPublishNow(this));
     m_cmds.push_back(new TrexRpcCmdGetVersion(this));
     m_cmds.push_back(new TrexRpcCmdGetSysInfo(this));
+    m_cmds.push_back(new TrexRpcCmdGetGlobalStats(this));
     m_cmds.push_back(new TrexRpcCmdGetCmds(this));
     m_cmds.push_back(new TrexRpcCmdShutdown(this));
     m_cmds.push_back(new TrexRpcCmdGetUtilization(this));

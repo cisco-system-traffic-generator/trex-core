@@ -69,7 +69,7 @@ license you like.
 // //////////////////////////////////////////////////////////////////////
 
 
-
+#include <stdint.h>
 
 
 #ifndef JSON_AMALGATED_H_INCLUDED
@@ -209,8 +209,8 @@ typedef unsigned int LargestUInt;
 typedef __int64 Int64;
 typedef unsigned __int64 UInt64;
 #else                 // if defined(_MSC_VER) // Other platforms, use long long
-typedef long long int Int64;
-typedef unsigned long long int UInt64;
+typedef int64_t Int64;
+typedef uint64_t UInt64;
 #endif // if defined(_MSC_VER)
 typedef Int64 LargestInt;
 typedef UInt64 LargestUInt;

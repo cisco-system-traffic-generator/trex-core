@@ -38,13 +38,13 @@ import CustomLogger
 import misc_methods
 from rednose import RedNose
 import termstyle
-from trex import CTRexScenario
+from trex_scenario import CTRexScenario
 from trex_stf_lib.trex_client import *
 from trex_stf_lib.trex_exceptions import *
-from trex_stl_lib.api import *
-from trex_stl_lib.utils.GAObjClass import GAmanager_Regression
+#from trex_stl_lib.api import *
+from GAObjClass import GAmanager_Regression
 import trex_elk
-import trex
+import trex_scenario
 import socket
 from pprint import pprint
 import time
@@ -217,7 +217,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             tb = format_exception(err, self.encoding)
             err_msg="TB : \n"+tb+"\n\n STDOUT:"+self._getCapturedStdout()+self._getCapturedStderr();
             name=id_split(id)[-1]
-            elk_obj = trex.copy_elk_info ()
+            elk_obj = trex_scenario.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
                        "name_key"   : name,
@@ -240,7 +240,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             id = test.id()
             err_msg="TB : \n"+tb+"\n\n STDOUT:"+ self._getCapturedStdout()+self._getCapturedStderr();
             name=id_split(id)[-1]
-            elk_obj = trex.copy_elk_info ()
+            elk_obj = trex_scenario.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
                        "name_key"   : name,
@@ -261,7 +261,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             taken = self._timeTaken()
             id = test.id()
             name=id_split(id)[-1]
-            elk_obj = trex.copy_elk_info ()
+            elk_obj = trex_scenario.copy_elk_info ()
             elk_obj['test']={ 
                        "name"   : name,
                        "name_key"   : name,

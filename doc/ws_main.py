@@ -473,7 +473,7 @@ def parse_hlt_args(task):
     trex_core_git_path = get_trex_core_git()
     if not trex_core_git_path:
         return 1
-    hltapi_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'stl', 'trex_stl_lib', 'trex_stl_hltapi.py'))
+    hltapi_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'interactive', 'trex', 'stl', 'trex_stl_hltapi.py'))
     header = ['[options="header",cols="<.^1,^.^1,9<.^e"]', '|=================', '^| Argument | Default ^| Comment']
     footer = ['|=================\n']
     hlt_asciidoc = []
@@ -800,7 +800,7 @@ def build(bld):
 
     build_cp(bld,'cp_docs','doc',build_cp_docs)
 
-    build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
+    #build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
 
     build_cp(bld,'cp_astf_docs','doc_astf',build_astf_cp_docs)
 

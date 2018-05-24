@@ -35,71 +35,6 @@ limitations under the License.
 class CFlowGenList;
 
 /**
- * Global stats
- *
- * @author imarom (06-Oct-15)
- */
-
-
-class TrexPlatformGlobalStats {
-public:
-    TrexPlatformGlobalStats() {
-        m_stats = {0};
-    }
-
-    struct {
-        double m_cpu_util;
-        double m_rx_cpu_util;
-        double m_tx_bps;
-        double m_rx_bps;
-
-        double m_tx_pps;
-        double m_rx_pps;
-
-        uint64_t m_total_tx_pkts;
-        uint64_t m_total_rx_pkts;
-
-        uint64_t m_total_tx_bytes;
-        uint64_t m_total_rx_bytes;
-
-        uint64_t m_tx_rx_errors;
-    } m_stats;
-};
-
-/**
- * Per Interface stats
- *
- * @author imarom (26-Oct-15)
- */
-class TrexPlatformInterfaceStats {
-
-public:
-    TrexPlatformInterfaceStats() {
-        m_stats = {0};
-    }
-
-public:
-
-    struct {
-
-        double m_tx_bps;
-        double m_rx_bps;
-
-        double m_tx_pps;
-        double m_rx_pps;
-
-        uint64_t m_total_tx_pkts;
-        uint64_t m_total_rx_pkts;
-
-        uint64_t m_total_tx_bytes;
-        uint64_t m_total_rx_bytes;
-
-        uint64_t m_tx_rx_errors;
-    } m_stats;
-};
-
-
-/**
  * low level API interface
  * can be implemented by DPDK or mock
  *
@@ -128,8 +63,8 @@ public:
 
     virtual uint32_t  get_port_count() const = 0;
     virtual void      port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const = 0;
-    virtual void      get_global_stats(TrexPlatformGlobalStats &stats) const = 0;
-    virtual void      get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const = 0;
+    virtual void      global_stats_to_json(Json::Value &output) const = 0;
+    virtual void      port_stats_to_json(Json::Value &output, uint8_t port_id) const = 0;
 
     virtual void get_port_info(uint8_t port_id, intf_info_st &info) const = 0;
 
@@ -172,14 +107,15 @@ class TrexDpdkPlatformApi : public TrexPlatformApi {
 public:
     uint32_t  get_port_count() const;
     void      port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const;
-    void      get_global_stats(TrexPlatformGlobalStats &stats) const;
-    void      get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const;
+    void      global_stats_to_json(Json::Value &output) const;
+    void      port_stats_to_json(Json::Value &output, uint8_t port_id) const;
 
     void get_port_info(uint8_t port_id, intf_info_st &info) const;
 
     void publish_async_data_now(uint32_t key, bool baseline) const;
     void publish_async_port_attr_changed(uint8_t port_id) const;
     uint8_t get_dp_core_count() const;
+    
     void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                  , uint16_t &ip_id_base) const;
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
@@ -232,7 +168,7 @@ public:
         m_dp_core_count = dp_core_count;
     }
     
-    virtual void get_global_stats(TrexPlatformGlobalStats &stats) const {
+    virtual void global_stats_to_json(Json::Value &output) const {
     }
 
     virtual uint32_t get_port_count() const {
@@ -247,8 +183,9 @@ public:
         memset(&info.hw_macaddr, 0, sizeof(info.hw_macaddr));
     }
 
-    virtual void get_port_stats(uint8_t port_id, TrexPlatformInterfaceStats &stats) const {
+    virtual void port_stats_to_json(Json::Value &output, uint8_t port_id) const {
     }
+
     virtual void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                          , uint16_t &ip_id_base) const {num_counters=128; capabilities=TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD; ip_id_base = 0xff00;}
 

@@ -66,12 +66,15 @@ TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
         get_owner().own(user, session_id);
 
     } else {
-        /* not same user or session id and not force - report error */
-        if (get_owner().get_name() == user) {
-            throw TrexException("port is already owned by another session of '" + user + "'");
-        } else {
+
+        /* not free - can be owned by another user or by the same user */
+        if (get_owner().get_name() != user) {
             throw TrexException("port is already taken by '" + get_owner().get_name() + "'");
+
+        } else if (get_owner().get_session_id() != session_id) {
+            throw TrexException("port is already owned by another session of '" + user + "'");
         }
+
     }
 
     Json::Value data;
@@ -214,22 +217,7 @@ TrexPort::get_state_as_string() const {
 void
 TrexPort::encode_stats(Json::Value &port) {
 
-    TrexPlatformInterfaceStats stats;
-    get_platform_api().get_port_stats(m_port_id, stats);
-
-    port["tx_bps"]          = stats.m_stats.m_tx_bps;
-    port["rx_bps"]          = stats.m_stats.m_rx_bps;
-
-    port["tx_pps"]          = stats.m_stats.m_tx_pps;
-    port["rx_pps"]          = stats.m_stats.m_rx_pps;
-
-    port["total_tx_pkts"]   = Json::Value::UInt64(stats.m_stats.m_total_tx_pkts);
-    port["total_rx_pkts"]   = Json::Value::UInt64(stats.m_stats.m_total_rx_pkts);
-
-    port["total_tx_bytes"]  = Json::Value::UInt64(stats.m_stats.m_total_tx_bytes);
-    port["total_rx_bytes"]  = Json::Value::UInt64(stats.m_stats.m_total_rx_bytes);
-    
-    port["tx_rx_errors"]    = Json::Value::UInt64(stats.m_stats.m_tx_rx_errors);
+    get_platform_api().port_stats_to_json(port, m_port_id);
 }
 
 

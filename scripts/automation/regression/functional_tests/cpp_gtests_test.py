@@ -1,7 +1,7 @@
 import outer_packages
 from nose.plugins.attrib import attr
 import functional_general_test
-from trex import CTRexScenario
+from trex_scenario import CTRexScenario
 import os, sys
 from subprocess import Popen, STDOUT
 from stl_basic_tests import compare_caps
