@@ -184,6 +184,11 @@ def calc_bps_L1 (bps, pps):
 def round_float (f):
     return float("%.2f" % f) if type(f) is float else f
 
+def try_int(i):
+    try:
+        return int(i)
+    except:
+        return i
 
 # a2 before a10 in sorting
 # https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/
