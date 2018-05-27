@@ -82,3 +82,12 @@ class TRexTimeoutError(TRexError):
         super(TRexTimeoutError, self).__init__(msg)
 
 
+class TRexConsoleError(TRexError):
+    def __init__ (self, msg):
+        TRexError.__init__(self, msg)
+
+
+class TRexConsoleNoAction(TRexError):
+    def __init__ (self):
+        TRexError.__init__(self, '')
+

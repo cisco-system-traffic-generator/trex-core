@@ -5,7 +5,7 @@ from .text_opts import format_text
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
-from ..common.trex_exceptions import TRexError
+from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 from ..common.trex_psv import PSV_ACQUIRED
 
 from .constants import ON_OFF_DICT, UP_DOWN_DICT, FLOW_CTRL_DICT
@@ -1012,14 +1012,15 @@ class CCmdArgParser(argparse.ArgumentParser):
     def has_ports_cfg (self, opts):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
-    def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False):
+    def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False, allow_empty=True):
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
-                return RC_ERR("'{0}' - invalid arguments".format(self.cmd_name))
+                raise TRexError("'{0}' - invalid arguments".format(self.cmd_name))
 
             if not self.has_ports_cfg(opts):
                 return opts
+
             opts.ports = listify(opts.ports)
             
             # explicit -a means ALL ports
@@ -1034,18 +1035,18 @@ class CCmdArgParser(argparse.ArgumentParser):
             
             # validate the ports state
             if verify_acquired:
-                self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED)
+                self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
             else:
-                self.client.psv.validate(self.cmd_name, opts.ports)
+                self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
 
             return opts
 
         except ValueError as e:
-            return RC_ERR("'{0}' - {1}".format(self.cmd_name, str(e)))
+            raise TRexConsoleError(str(e))
 
         except SystemExit:
             # recover from system exit scenarios, such as "help", or bad arguments.
-            return RC_ERR("'{0}' - {1}".format(self.cmd_name, "no action"))
+            raise TRexConsoleNoAction()
 
 
     def formatted_error (self, msg):

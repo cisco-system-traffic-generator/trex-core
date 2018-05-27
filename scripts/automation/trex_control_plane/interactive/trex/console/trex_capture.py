@@ -13,7 +13,7 @@ import time
 from scapy.layers.l2 import Ether
 
 from ..common.trex_types import *
-from ..common.trex_exceptions import TRexError
+from ..common.trex_exceptions import TRexError, TRexConsoleNoAction
 
 from ..utils import parsing_opts, text_tables
 from ..utils.common import sec_split_usec, bitfield_to_str
@@ -524,6 +524,10 @@ class CaptureManager(object):
     def parse_line (self, line):
         try:
             self.parse_line_internal(line)
+
+        except TRexConsoleNoAction:
+            return
+
         except TRexError as e:
             self.logger.error("\nAction has failed with the following error:\n\n" + format_text(e.brief() + "\n", 'bold'))
             return RC_ERR(e.brief())
@@ -537,8 +541,6 @@ class CaptureManager(object):
             line = "show"
 
         opts = self.parser.parse_args(line.split())
-        if not opts:
-            return opts
 
         # call the handler
         self.cmds[opts.commands](opts)

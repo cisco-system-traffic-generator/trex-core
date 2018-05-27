@@ -3,6 +3,7 @@ import traceback
 import re
 import os
 import signal
+import inspect
 import sys
 import tempfile
 import readline
@@ -1209,7 +1210,6 @@ class TRexClient(object):
                 + :exc:`TRexError`
 
         """
-
         self.ctx.logger.pre_cmd("Pinging the server on '{0}' port '{1}': ".format(self.ctx.server, self.ctx.sync_port))
         rc = self._transmit("ping")
 
@@ -1232,7 +1232,6 @@ class TRexClient(object):
             :raises:
                 + :exc:`TRexError`
         """
-        
         validate_type('port', port, int)
 
         self.psv.validate('set_l2_mode', port)
@@ -1405,10 +1404,10 @@ class TRexClient(object):
         """
         
         if not (is_valid_ipv4(dst_ip) or is_valid_ipv6(dst_ip)):
-            raise TRexError("ping - dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
+            raise TRexError("dst_ip is not a valid IPv4/6 address: '{0}'".format(dst_ip))
             
         if (pkt_size < 64) or (pkt_size > 9216):
-            raise TRexError("ping - pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
+            raise TRexError("pkt_size should be a value between 64 and 9216: '{0}'".format(pkt_size))
         
         validate_type('count', count, int)
         validate_type('interval_sec', interval_sec, (int, float))
@@ -2236,8 +2235,6 @@ class TRexClient(object):
                                          parsing_opts.READONLY)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
 
         self.connect()
         if not opts.readonly:
@@ -2254,8 +2251,6 @@ class TRexClient(object):
                                          self.disconnect_line.__doc__)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
 
         self.disconnect()
 
@@ -2279,8 +2274,6 @@ class TRexClient(object):
                                          parsing_opts.PING_COUNT)
 
         opts = parser.parse_args(line.split(), verify_acquired = True)
-        if not opts:
-            return
             
         # IP ping
         # source ports maps to ports as a single port
@@ -2299,8 +2292,6 @@ class TRexClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
-        if not opts:
-            return
 
         # filter out all the already owned ports
         ports = list_difference(opts.ports, self.get_acquired_ports())
@@ -2324,15 +2315,13 @@ class TRexClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
-        if not opts:
-            return
 
         ports = list_intersect(opts.ports, self.get_acquired_ports())
         if not ports:
             if not opts.ports:
-                raise TRexError("release - no acquired ports")
+                raise TRexError("no acquired ports")
             else:
-                raise TRexError("release - none of port(s) {0} are acquired".format(opts.ports))
+                raise TRexError("none of port(s) {0} are acquired".format(opts.ports))
         
         self.release(ports = ports)
 
@@ -2351,9 +2340,6 @@ class TRexClient(object):
                                          parsing_opts.DST_MAC)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return opts
-
 
         # source ports maps to ports as a single port
         self.set_l2_mode(opts.ports[0], dst_mac = opts.dst_mac)
@@ -2375,9 +2361,6 @@ class TRexClient(object):
                                          )
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
-
 
         # source ports maps to ports as a single port
         self.set_l3_mode(opts.ports[0], src_ipv4 = opts.src_ipv4, dst_ipv4 = opts.dst_ipv4, vlan = opts.vlan)
@@ -2398,8 +2381,6 @@ class TRexClient(object):
                                          )
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return opts
 
         if opts.off:
             self.conf_ipv6(opts.ports[0], False)
@@ -2424,8 +2405,6 @@ class TRexClient(object):
                                          )
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
 
         if opts.clear_vlan:
             self.clear_vlan(ports = opts.ports)
@@ -2446,8 +2425,6 @@ class TRexClient(object):
                                          parsing_opts.TIMEOUT)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if not opts:
-            return opts
 
         kw = {}
         if opts.timeout is not None:
@@ -2469,9 +2446,6 @@ class TRexClient(object):
                                          parsing_opts.RETRIES)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
-        if not opts:
-            return
-
         
         self.resolve(ports = opts.ports, retries = opts.retries, vlan = opts.vlan)
 
@@ -2489,8 +2463,6 @@ class TRexClient(object):
                                          parsing_opts.PORT_RESTART)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if not opts:
-            return
 
         self.reset(ports = opts.ports, restart = opts.restart)
 
@@ -2510,8 +2482,6 @@ class TRexClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
             
         # show layers option
         if opts.layers:
@@ -2541,8 +2511,6 @@ class TRexClient(object):
                                          parsing_opts.FORCE)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
 
         self.server_shutdown(force = opts.force)
 
@@ -2565,9 +2533,7 @@ class TRexClient(object):
                                          parsing_opts.SUPPORTED,
                                          parsing_opts.MULTICAST)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
-        if not opts:
-            return opts
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), allow_empty = False)
 
         opts.prom            = parsing_opts.ON_OFF_DICT.get(opts.prom)
         opts.mult            = parsing_opts.ON_OFF_DICT.get(opts.mult)
@@ -2631,8 +2597,6 @@ class TRexClient(object):
                                          *x)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return opts
 
 
         ev_type_filter = []
@@ -2666,9 +2630,6 @@ class TRexClient(object):
 
         opts = parser.parse_args(line.split())
 
-        if not opts:
-            return opts
-
         self.clear_stats(opts.ports)
 
         return RC_OK()
@@ -2686,9 +2647,6 @@ class TRexClient(object):
                                          self.debug_line.__doc__)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
-            
         
         try:
             import readline
@@ -2730,17 +2688,23 @@ class TRexClient(object):
 
 
 
+    def get_console_methods (self):
+        def predicate (x):
+            return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'console'
+
+        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(self ,predicate = predicate)}
+
     ################## private common console functions ##################
     
-    def _show_global_stats (self):
+    def _show_global_stats (self, buffer = sys.stdout):
 
         self.global_stats.update_sync(self.conn.rpc)
 
         table = self.global_stats.to_table()
-        text_tables.print_table_with_header(table, table.title)
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
 
-    def _show_port_stats (self, ports):
+    def _show_port_stats (self, ports, buffer = sys.stdout):
         port_stats = [self.ports[port_id].get_port_stats() for port_id in ports]
 
         # update in a batch
@@ -2760,7 +2724,7 @@ class TRexClient(object):
         table = TRexTextTable.merge(tables)
 
         # show
-        text_tables.print_table_with_header(table, table.title)
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
 
     def _show_port_xstats (self, ports, include_zero_lines):
