@@ -215,13 +215,7 @@ class TRexConsole(TRexGeneralCmd):
 
 
     def load_client_console_functions (self):
-        def predicate (x):
-            return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'console'
-
-        console_methods = inspect.getmembers(self.client ,predicate = predicate)
-        for cmd in console_methods:
-            cmd_func = cmd[1]
-            cmd_name = cmd_func.name
+        for cmd_name, cmd_func in self.client.get_console_methods().items():
             
             # register the function and its help
             setattr(self.__class__, 'do_' + cmd_name, cmd_func)
@@ -379,8 +373,9 @@ class TRexConsole(TRexGeneralCmd):
                                          self.do_history.__doc__,
                                          item)
 
-        opts = parser.parse_args(line.split())
-        if not opts:
+        try:
+            opts = parser.parse_args(line.split())
+        except TRexError:
             return
 
         if opts.item == 0:
@@ -449,10 +444,11 @@ class TRexConsole(TRexGeneralCmd):
                                          parsing_opts.XTERM,
                                          parsing_opts.LOCKED)
 
-        opts = parser.parse_args(line.split())
+        try:
+            opts = parser.parse_args(line.split())
+        except TRexError:
+            return
 
-        if not opts:
-            return opts
         if opts.xterm:
             if not os.path.exists('/usr/bin/xterm'):
                 print(format_text("XTERM does not exists on this machine", 'bold'))
@@ -470,7 +466,7 @@ class TRexConsole(TRexGeneralCmd):
 
         
         try:
-            with self.client.logger.supress():
+            with self.client.logger.supress(verbose = 'none'):
                 self.tui.show(self.client, self.save_console_history, locked = opts.locked)
 
         except self.tui.ScreenSizeException as e:

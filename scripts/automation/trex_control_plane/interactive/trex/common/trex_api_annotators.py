@@ -7,7 +7,7 @@ import time
 
 from .trex_types import *
 from .trex_ctx import TRexCtx
-from .trex_exceptions import TRexError
+from .trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 
 from ..utils.text_opts import format_time, format_text
 
@@ -116,11 +116,19 @@ def console_api (name, group, connected = True):
 
             try:
                 rc = f(*args)
+
+            except TRexConsoleNoAction:
+                return RC_ERR("no action")
+
+            except TRexConsoleError as e:
+                # the argparser will handle the error
+                return RC_ERR(e.brief())
+
             except TRexError as e:
-                client.logger.error('\nAction has failed with the following error:\n')
+                client.logger.debug('\nAction has failed with the following error:\n')
                 client.logger.debug(e.get_tb())
-                client.logger.error("\n" + format_text(e.brief() + "\n", 'bold'))
-                return
+                client.logger.error("\n%s - " % name + format_text(e.brief() + "\n", 'bold'))
+                return RC_ERR(e.brief())
 
             # if got true - print time
             if rc:

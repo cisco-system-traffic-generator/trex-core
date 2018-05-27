@@ -40,7 +40,7 @@ class PortState(object):
             if custom_err_msg:
                 err_msg = '{0} - {1}'.format(err_msg, custom_err_msg)
             
-            raise TRexError('{0} - port(s) {1}: {2}'.format(cmd_name, invalid_ports, err_msg))
+            raise TRexError('port(s) {0}: {1}'.format(invalid_ports, err_msg))
         
             
     def get_valid_ports (self, client):
@@ -165,10 +165,10 @@ class PortStateValidator(object):
             raise TRexTypeError('ports', type(ports), list)
 
         if has_dup(ports):
-            raise TRexError('{0} - duplicate port(s) are not allowed'.format(cmd_name))
+            raise TRexError('duplicate port(s) are not allowed')
 
         if not ports and not allow_empty:
-            raise TRexError('{0} - action requires at least one port'.format(cmd_name))
+            raise TRexError('action requires at least one port')
             
         # default checks for every command
         states_map = {_PSV_ALL: None}

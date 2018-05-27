@@ -1358,8 +1358,6 @@ class STLClient(TRexClient):
                                          parsing_opts.STL_STATS)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return
 
         # without paramters show only global and ports
         if not opts.stats:
@@ -1407,8 +1405,6 @@ class STLClient(TRexClient):
                                          parsing_opts.SERVICE_OFF)
 
         opts = parser.parse_args(line.split())
-        if not opts:
-            return opts
             
         self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
         
@@ -1434,8 +1430,6 @@ class STLClient(TRexClient):
                                          parsing_opts.SYNCHRONIZED)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-        if not opts:
-            return opts
 
         # core mask
         if opts.core_mask is not None:
@@ -1480,11 +1474,7 @@ class STLClient(TRexClient):
             for line in e.brief().splitlines():
                 if ansi_len(line.strip()):
                     error = line
-            msg = format_text("\nError loading profile '{0}'".format(opts.file[0]), 'bold')
-            self.logger.error(msg + '\n')
-            self.logger.error(e.brief() + "\n")
-            return RC_ERR("%s: %s" % (msg, error))
-
+            raise TRexError(format_text("Error loading profile '{0}'".format(opts.file[0]), 'bold'))
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
@@ -1498,7 +1488,7 @@ class STLClient(TRexClient):
                        core_mask,
                        opts.sync)
 
-        return RC_OK()
+        return True
 
 
     @console_api('stop', 'STL', True)
@@ -1509,24 +1499,22 @@ class STLClient(TRexClient):
                                          self.stop_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
-        if not opts:
-            return opts
-
+        opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True, allow_empty = True)
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
             if not opts.ports:
-                msg = 'stop - no active ports'
+                msg = 'no active ports'
             else:
-                msg = 'stop - no active traffic on ports {0}'.format(opts.ports)
+                msg = 'no active traffic on ports {0}'.format(opts.ports)
 
-            self.logger.error(msg)
-            return RC_ERR(msg)
+            raise TRexError(msg)
 
         # call API
         self.stop(ports)
+
+        return True
 
 
     @console_api('update', 'STL', True)
@@ -1542,31 +1530,27 @@ class STLClient(TRexClient):
                                          parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_active_ports(), verify_acquired = True)
-        if not opts:
-            return opts
 
         if opts.ids:
             if len(opts.ports) != 1:
-                msg = 'update - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
-                self.logger.error(msg)
-                return RC_ERR(msg)
+                raise TRexError('must provide exactly one port when specifying stream_ids, got: %s' % opts.ports)
+
             self.update_streams(opts.ports[0], opts.mult, opts.force, opts.ids)
-            return RC_OK()
+            return True
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_active_ports())
         if not ports:
             if not opts.ports:
-                msg = 'update - no active ports'
+                msg = 'no active ports'
             else:
-                msg = 'update - no active traffic on ports {0}'.format(opts.ports)
+                msg = 'no active traffic on ports {0}'.format(opts.ports)
 
-            self.logger.error(msg)
-            return RC_ERR(msg)
+            raise TRexError(msg)
 
         self.update(ports, opts.mult, opts.total, opts.force)
 
-        return RC_OK()
+        return True
 
 
     @console_api('pause', 'STL', True)
@@ -1579,37 +1563,32 @@ class STLClient(TRexClient):
                                          parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_transmitting_ports(), verify_acquired = True)
-        if not opts:
-            return opts
 
         if opts.ids:
             if len(opts.ports) != 1:
-                msg = 'pause - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
-                self.logger.error(msg)
-                return RC_ERR(msg)
+                raise TRexError('pause - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports)
+
             self.pause_streams(opts.ports[0], opts.ids)
-            return RC_OK()
+
+            return True
 
         # check for already paused case
         if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
-            msg = 'pause - all of port(s) {0} are already paused'.format(opts.ports)
-            self.logger.log(msg)
-            return RC_ERR(msg)
+            raise TRexError('all of port(s) {0} are already paused'.format(opts.ports))
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_transmitting_ports())
         if not ports:
             if not opts.ports:
-                msg = 'pause - no transmitting ports'
+                msg = 'no transmitting ports'
             else:
-                msg = 'pause - none of ports {0} are transmitting'.format(opts.ports)
+                msg = 'none of ports {0} are transmitting'.format(opts.ports)
 
-            self.logger.error(msg)
-            return RC_ERR(msg)
+            raise TRexError(msg)
 
         self.pause(ports)
 
-        return RC_OK()
+        return True
 
 
     @console_api('resume', 'STL', True)
@@ -1622,31 +1601,27 @@ class STLClient(TRexClient):
                                          parsing_opts.STREAMS_MASK)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_paused_ports(), verify_acquired = True)
-        if not opts:
-            return opts
 
         if opts.ids:
             if len(opts.ports) != 1:
-                msg = 'resume - must provide exactly one port when specifying stream_ids, got: %s' % opts.ports
-                self.logger.error(msg)
-                return RC_ERR(msg)
+                raise TRexError('must provide exactly one port when specifying stream_ids, got: %s' % opts.ports)
+
             self.resume_streams(opts.ports[0], opts.ids)
-            return RC_OK()
+            return True
 
         # find the relevant ports
         ports = list_intersect(opts.ports, self.get_paused_ports())
         if not ports:
             if not opts.ports:
-                msg = 'resume - no paused ports'
+                msg = 'no paused ports'
             else:
-                msg = 'resume - none of ports {0} are paused'.format(opts.ports)
+                msg = 'none of ports {0} are paused'.format(opts.ports)
 
-            self.logger.error(msg)
-            return RC_ERR(msg)
+            raise TRexError(msg)
 
 
         self.resume(ports)
 
         # true means print time
-        return RC_OK()
+        return True
 

@@ -21,9 +21,9 @@ else:
 
 from ..utils.text_opts import *
 from ..utils import text_tables
-#from .. import trex_stl_stats
 from ..utils.filters import ToggleFilter
 from ..common.trex_exceptions import TRexError
+
 
 class TUIQuit(Exception):
     pass
@@ -114,10 +114,8 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def show (self, buffer):
-        stats = self.client._get_formatted_stats(self.get_showed_ports())
-        # print stats to screen
-        for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
+        self.client._show_global_stats(buffer = buffer)
+        self.client._show_port_stats(ports = self.get_showed_ports(), buffer = buffer)
 
 
     def get_key_actions (self):
@@ -567,7 +565,6 @@ class TrexTUI():
     def __init__ (self, console):
         self.console = console
         self.client  = console.client
-        
 
         self.tui_global_lock = threading.Lock()
         self.pm = TrexTUIPanelManager(self)
@@ -593,13 +590,13 @@ class TrexTUI():
 
 
 
-    def show (self, client, show_log = False, locked = False):
+    def show (self, client, save_console_history, show_log = False, locked = False):
         
         rows, cols = os.popen('stty size', 'r').read().split()
         if (int(rows) < TrexTUI.MIN_ROWS) or (int(cols) < TrexTUI.MIN_COLS):
             raise self.ScreenSizeException(rows = rows, cols = cols)
 
-        with AsyncKeys(client, self.console, self.tui_global_lock, locked) as async_keys:
+        with AsyncKeys(client, self.console, save_console_history, self.tui_global_lock, locked) as async_keys:
             sys.stdout.write("\x1bc")
             self.async_keys = async_keys
             self.show_internal(show_log, locked)
@@ -767,10 +764,10 @@ class AsyncKeys:
     STATUS_REDRAW_KEYS = 1
     STATUS_REDRAW_ALL  = 2
 
-    def __init__ (self, client, console, tui_global_lock, locked = False):
+    def __init__ (self, client, console, save_console_history, tui_global_lock, locked = False):
         self.tui_global_lock = tui_global_lock
 
-        self.engine_console = AsyncKeysEngineConsole(self, console, client)
+        self.engine_console = AsyncKeysEngineConsole(self, console, client, save_console_history)
         self.engine_legend  = AsyncKeysEngineLegend(self)
         self.locked = locked
 
@@ -882,31 +879,21 @@ class AsyncKeysEngineLegend:
 
 # console engine
 class AsyncKeysEngineConsole:
-    def __init__ (self, async, console, client):
+    def __init__ (self, async, console, client, save_console_history):
         self.async = async
         self.lines = deque(maxlen = 100)
 
-        self.generate_prompt = console.generate_prompt
+        self.generate_prompt       = console.generate_prompt
+        self.save_console_history  = save_console_history
 
-        self.ac = {'start'        : client.start_line,
-                   'stop'         : client.stop_line,
-                   'pause'        : client.pause_line,
-                   'clear'        : client.clear_stats_line,
-                   'push'         : client.push_line,
-                   'resume'       : client.resume_line,
-                   'reset'        : client.reset_line,
-                   'update'       : client.update_line,
-                   'connect'      : client.connect_line,
-                   'disconnect'   : client.disconnect_line,
-                   'acquire'      : client.acquire_line,
-                   'release'      : client.release_line,
-                   'service'      : client.service_line,
-                   'arp'          : client.resolve_line,
-                   'quit'         : self.action_quit,
-                   'q'            : self.action_quit,
-                   'exit'         : self.action_quit,
-                   'help'         : self.action_help,
-                   '?'            : self.action_help}
+        self.ac = client.get_console_methods()
+
+        self.ac.update({'quit'         : self.action_quit,
+                        'q'            : self.action_quit,
+                        'exit'         : self.action_quit,
+                        'help'         : self.action_help,
+                        '?'            : self.action_help})
+
 
         # fetch readline history and add relevants
         for i in range(1, readline.get_current_history_length()):
@@ -1189,6 +1176,7 @@ class AsyncKeysEngineConsole:
         self.lines.appendleft(empty_line)
         self.line_index = 0
         readline.add_history(cmd)
+        self.save_console_history()
 
         # back to readonly
         for line in self.lines:
@@ -1206,7 +1194,7 @@ class AsyncKeysEngineConsole:
             # RC response
             else:
                 # success
-                if func_rc:
+                if func_rc is None:
                     self.last_status = format_text("[OK]", 'green')
                 # errors
                 else:
@@ -1215,7 +1203,6 @@ class AsyncKeysEngineConsole:
                     if len(err_msgs) > 1:
                         self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)
                     color = 'red'
-
 
 
         # trim too long lines
