@@ -5,8 +5,6 @@ import os
 import signal
 import inspect
 import sys
-import tempfile
-import readline
 import time
 import base64
 from collections import OrderedDict, defaultdict
@@ -2211,20 +2209,6 @@ class TRexClient(object):
 ############################   commands  #############################
 ############################             #############################
 
-    # save current history to a temp file
-    def _push_history (self):
-        tmp_file = tempfile.mktemp()
-        readline.write_history_file(tmp_file)
-        readline.clear_history()
-        return tmp_file
-        
-
-    # restore history from a temp file        
-    def _pop_history (self, filename):
-        readline.clear_history()
-        readline.read_history_file(filename)
-        
-
     @console_api('connect', 'common', False)
     def connect_line (self, line):
         '''Connects to the TRex server and acquire ports'''
@@ -2257,7 +2241,7 @@ class TRexClient(object):
 
     @console_api('ping', 'common', True)
     def ping_line (self, line):
-        '''pings the server / specific IP'''
+        '''Pings the server / specific IP'''
         
         # no parameters - so ping server
         if not line:
@@ -2504,7 +2488,7 @@ class TRexClient(object):
 
     @console_api('shutdown', 'common', True)
     def shutdown_line (self, line):
-        '''shutdown the server'''
+        '''Shutdown the server'''
         parser = parsing_opts.gen_parser(self,
                                          "shutdown",
                                          self.shutdown_line.__doc__,
@@ -2571,7 +2555,7 @@ class TRexClient(object):
 
     @console_api('events', 'basic', False)
     def get_events_line (self, line):
-        '''shows events log\n'''
+        '''Shows events log\n'''
 
         x = [parsing_opts.ArgumentPack(['-c','--clear'],
                                       {'action' : "store_true",
@@ -2633,58 +2617,6 @@ class TRexClient(object):
         self.clear_stats(opts.ports)
 
         return RC_OK()
-
-
-    @console_api('debug', 'common', False)
-    def debug_line (self, line):
-        '''Internal debugger for development.
-
-           Requires IPython and readline modules installed
-        '''
-     
-        parser = parsing_opts.gen_parser(self,
-                                         "debug",
-                                         self.debug_line.__doc__)
-
-        opts = parser.parse_args(line.split())
-        
-        try:
-            import readline
-            from IPython.terminal.ipapp import load_default_config
-            from IPython.terminal.embed import InteractiveShellEmbed
-            from IPython import embed
-            
-        except ImportError:
-            self.logger.info(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
-            return
-            
-            
-        self.logger.info(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
-        
-        
-        client = self
-        auto_completer = readline.get_completer()
-        
-        console_h = self._push_history()
-        
-        try:
-            
-            cfg = load_default_config()
-            cfg['TerminalInteractiveShell']['confirm_exit'] = False
-            
-            embed(config = cfg, display_banner = False)
-            #InteractiveShellEmbed.clear_instance()
-            
-        finally:
-            readline.set_completer(auto_completer)
-            self._pop_history(console_h)
-            try:
-                os.unlink(console_h)
-            except OSError:
-                pass
-        
-        self.logger.info(format_text("\n*** Leaving IPython ***\n"))
-        
 
 
 
