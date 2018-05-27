@@ -34,6 +34,7 @@ from threading import Lock
 from functools import wraps
 import threading
 import atexit
+import tempfile
 
 if __package__ == None:
     print("TRex console must be launched as a module")
@@ -356,6 +357,60 @@ class TRexConsole(TRexGeneralCmd):
 
     def help_capture (self):
         self.do_capture("-h")
+
+    # save current history to a temp file
+    def _push_history(self):
+        tmp_file = tempfile.mktemp()
+        readline.write_history_file(tmp_file)
+        readline.clear_history()
+        return tmp_file
+
+    # restore history from a temp file
+    def _pop_history(self, filename):
+        readline.clear_history()
+        readline.read_history_file(filename)
+
+    def do_debug(self, line):
+        '''Internal debugger for development.
+           Requires IPython module installed
+        '''
+
+        parser = parsing_opts.gen_parser(self.client,
+                                         "debug",
+                                         self.do_debug.__doc__)
+
+        opts = parser.parse_args(line.split())
+
+        try:
+            from IPython.terminal.ipapp import load_default_config
+            from IPython.terminal.embed import InteractiveShellEmbed
+            from IPython import embed
+
+        except ImportError:
+            self.client.logger.info(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
+            return
+
+        self.client.logger.info(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
+
+        auto_completer = readline.get_completer()
+        console_h = self._push_history()
+        client = self.client
+
+        try:
+            cfg = load_default_config()
+            cfg['TerminalInteractiveShell']['confirm_exit'] = False
+            embed(config = cfg, display_banner = False)
+            #InteractiveShellEmbed.clear_instance()
+
+        finally:
+            readline.set_completer(auto_completer)
+            self._pop_history(console_h)
+            try:
+                os.unlink(console_h)
+            except OSError:
+                pass
+
+        self.client.logger.info(format_text("\n*** Leaving IPython ***\n"))
 
 
     def do_history (self, line):
