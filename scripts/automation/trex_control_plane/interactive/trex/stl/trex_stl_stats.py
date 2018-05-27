@@ -1,15 +1,24 @@
-from ..common.trex_types import StatNotAvailable
+from collections import OrderedDict
+
+from ..common.trex_types import StatNotAvailable, is_integer
+from ..utils.text_opts import format_num
+from ..utils.common import try_int
+from ..utils import text_tables
 
 # TRex PG stats - (needs a refactor)
 
 class CPgIdStats(object):
     def __init__(self, rpc):
         self.rpc = rpc
+        self.latency_window_size = 14
+        self.max_histogram_size = 17
         self.reset()
 
     def reset(self):
         # sample when clear was last called. Values we return are last - ref
         self.ref =  {'flow_stats': {}, 'latency': {}}
+        self.max_hist = {}
+        self.max_hist_index = 0
 
     def _get (self, src, field, default = None):
         if isinstance(field, list):
@@ -206,14 +215,11 @@ class CPgIdStats(object):
         if 'ver_id' in self.ref:
             for pg_id in self.ref['ver_id']:
                 if pg_id in stats['ver_id'] and self.ref['ver_id'][pg_id] != stats['ver_id'][pg_id]:
-                    try:
-                        del self.ref['flow_stats'][int(del_id)]
-                    except:
-                        pass
-                    try:
-                        del self.ref['latency'][int(del_id)]
-                    except:
-                        pass
+                    int_pg_id = int(pg_id)
+                    if int_pg_id in self.ref['flow_stats']:
+                        del self.ref['flow_stats'][int_pg_id]
+                    if int_pg_id in self.ref['latency']:
+                        del self.ref['latency'][int(pg_id)]
         else:
             self.ref['ver_id'] = {}
 
@@ -278,4 +284,159 @@ class CPgIdStats(object):
 
         return stats
 
+    def streams_stats_to_table(self, pg_ids):
+        stream_count = len(pg_ids)
+        data = self.get_stats(pg_ids)
 
+        # init table
+        stats_table = text_tables.TRexTextTable('Streams Statistics')
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([10] + [17]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+        header = ["PG ID"] + [key for key in pg_ids]
+        stats_table.header(header)
+
+        # fill table
+        def _add_vals(disp_key, internal_key, **k):
+            vals = [self.get(data, ['flow_stats', pg_id, internal_key, 'total'], **k) for pg_id in pg_ids]
+            stats_table.add_row([disp_key] + vals)
+
+        def _add_sep(sep):
+            stats_table.add_row([sep] + [''] * stream_count)
+
+        _add_vals('Tx pps', 'tx_pps', format = True, suffix = 'pps')
+        _add_vals('Tx bps L2', 'tx_bps', format = True, suffix = 'bps')
+        _add_vals('Tx bps L1', 'tx_bps_l1', format = True, suffix = 'bps')
+        _add_sep('---')
+        _add_vals('Rx pps', 'rx_pps', format = True, suffix = 'pps')
+        _add_vals('Rx bps', 'rx_bps', format = True, suffix = 'bps')
+        _add_sep('----')
+        _add_vals('opackets', 'tx_pkts')
+        _add_vals('ipackets', 'rx_pkts')
+        _add_vals('obytes', 'tx_bytes')
+        _add_vals('ibytes', 'rx_bytes')
+        _add_sep('-----')
+        _add_vals('opackets', 'tx_pkts', format = True, suffix = 'pkts')
+        _add_vals('ipackets', 'rx_pkts', format = True, suffix = 'pkts')
+        _add_vals('obytes', 'tx_bytes', format = True, suffix = 'B')
+        _add_vals('ibytes', 'rx_bytes', format = True, suffix = 'B')
+
+        return stats_table
+
+
+    def latency_stats_to_table(self, pg_ids):
+        # Display data for at most 5 pgids.
+        to_delete = []
+        for id in self.max_hist.keys():
+            if id not in pg_ids:
+                to_delete.append(id)
+
+        for id in to_delete:
+            del self.max_hist[id]
+
+        for id in pg_ids:
+            if id not in self.max_hist.keys():
+                self.max_hist[id] = [-1] * self.latency_window_size
+
+        stream_count = len(pg_ids)
+        data = self.get_stats(pg_ids)
+
+        # init table
+        stats_table = text_tables.TRexTextTable('Latency Statistics')
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([12] + [14]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+        header = ["PG ID"] + [key for key in pg_ids]
+        stats_table.header(header)
+
+        # fill table
+        lstats_data = OrderedDict([('TX pkts',       []),
+                                   ('RX pkts',       []),
+                                   ('Max latency',   []),
+                                   ('Avg latency',   []),
+                                   ('-- Window --', [''] * stream_count),
+                                   ('Last max',     []),
+                                  ] + [('Last-%s' % i, []) for i in range(1, self.latency_window_size)] + [
+                                   ('---', [''] * stream_count),
+                                   ('Jitter',        []),
+                                   ('----', [''] * stream_count),
+                                   ('Errors',        []),
+                                  ])
+
+        for pg_id in pg_ids:
+            last_max = self.get(data, ['latency', pg_id, 'latency', 'last_max'])
+            lstats_data['TX pkts'].append(self.get(data, ['flow_stats', pg_id, 'tx_pkts', 'total']))
+            lstats_data['RX pkts'].append(self.get(data, ['flow_stats', pg_id, 'rx_pkts', 'total']))
+            lstats_data['Avg latency'].append(try_int(self.get(data, ['latency', pg_id, 'latency', 'average'])))
+            lstats_data['Max latency'].append(try_int(self.get(data, ['latency', pg_id, 'latency', 'total_max'])))
+            lstats_data['Last max'].append(last_max)
+            self.max_hist[pg_id][self.max_hist_index] = last_max
+            for i in range(1, self.latency_window_size):
+                val = self.max_hist[pg_id][(self.max_hist_index - i) % self.latency_window_size]
+                if val != -1:
+                    lstats_data['Last-%s' % i].append(val)
+                else:
+                    lstats_data['Last-%s' % i].append(" ")
+            lstats_data['Jitter'].append(self.get(data, ['latency', pg_id, 'latency', 'jitter']))
+            errors = 0
+            seq_too_low = self.get(data, ['latency', pg_id, 'err_cntrs', 'seq_too_low'])
+            if is_integer(seq_too_low):
+                errors += seq_too_low
+            seq_too_high = self.get(data, ['latency', pg_id, 'err_cntrs', 'seq_too_high'])
+            if is_integer(seq_too_high):
+                errors += seq_too_high
+            lstats_data['Errors'].append(format_num(errors,
+                                            opts = 'green' if errors == 0 else 'red'))
+        self.max_hist_index += 1
+        self.max_hist_index %= self.latency_window_size
+
+
+        stats_table.add_rows([[k] + v
+                              for k, v in lstats_data.items()],
+                              header=False)
+
+        return stats_table
+
+
+    def latency_histogram_to_table(self, pg_ids):
+        stream_count = len(pg_ids)
+        data = self.get_stats(pg_ids)
+        lat_stats = data['latency']
+
+        merged_histogram = {}
+        for pg_id in pg_ids:
+            merged_histogram.update(lat_stats[pg_id]['latency']['histogram'])
+        histogram_size = min(self.max_histogram_size, len(merged_histogram))
+
+        # init table
+        stats_table = text_tables.TRexTextTable('Latency Histogram')
+        stats_table.set_cols_align(["l"] + ["r"] * stream_count)
+        stats_table.set_cols_width([12] + [14]   * stream_count)
+        stats_table.set_cols_dtype(['t'] + ['t'] * stream_count)
+        header = ["PG ID"] + [key for key in pg_ids]
+        stats_table.header(header)
+
+        # fill table
+        for i in range(self.max_histogram_size - histogram_size):
+            if i == 0 and not merged_histogram:
+                stats_table.add_row(['  No Data'] + [' '] * stream_count)
+            else:
+                stats_table.add_row([' '] * (stream_count + 1))
+        for key in list(reversed(sorted(merged_histogram.keys())))[:histogram_size]:
+            hist_vals = []
+            for pg_id in pg_ids:
+                hist_vals.append(lat_stats[pg_id]['latency']['histogram'].get(key, ' '))
+            stats_table.add_row([key] + hist_vals)
+
+        stats_table.add_row(['- Counters -'] + [' '] * stream_count)
+        err_cntrs_dict = OrderedDict()
+        for pg_id in pg_ids:
+            for err_cntr in sorted(lat_stats[pg_id]['err_cntrs'].keys()):
+                if err_cntr not in err_cntrs_dict:
+                    err_cntrs_dict[err_cntr] = [lat_stats[pg_id]['err_cntrs'][err_cntr]]
+                else:
+                    err_cntrs_dict[err_cntr].append(lat_stats[pg_id]['err_cntrs'][err_cntr])
+        for err_cntr, val_list in err_cntrs_dict.items():
+            stats_table.add_row([err_cntr] + val_list)
+
+        return stats_table

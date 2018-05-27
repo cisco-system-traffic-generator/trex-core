@@ -1,4 +1,5 @@
 import time
+import sys
 
 from ..utils.common import get_current_user, list_intersect, is_sub_list
 from ..utils import parsing_opts, text_tables
@@ -1316,6 +1317,31 @@ class STLClient(TRexClient):
 ############################   commands  #############################
 ############################             #############################
 
+    def _show_streams_stats(self, buffer = sys.stdout):
+        all_pg_ids = self.get_active_pgids()
+        # Display data for at most 4 pgids. If there are latency PG IDs, use them first
+        pg_ids = all_pg_ids['latency'][:4]
+        pg_ids += all_pg_ids['flow_stats'][:4 - len(pg_ids)]
+        table = self.pgid_stats.streams_stats_to_table(pg_ids)
+        # show
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
+
+    def _show_latency_stats(self, buffer = sys.stdout):
+        all_pg_ids = self.get_active_pgids()
+        # Display data for at most 5 pgids.
+        pg_ids = all_pg_ids['latency'][:5]
+        table = self.pgid_stats.latency_stats_to_table(pg_ids)
+        # show
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
+
+    def _show_latency_histogram(self, buffer = sys.stdout):
+        all_pg_ids = self.get_active_pgids()
+        # Display data for at most 5 pgids.
+        pg_ids = all_pg_ids['latency'][:5]
+        table = self.pgid_stats.latency_histogram_to_table(pg_ids)
+        # show
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
+
     @console_api('map', 'STL', True)
     def map_line (self, line):
         '''Maps ports topology\n'''
@@ -1388,8 +1414,19 @@ class STLClient(TRexClient):
         elif opts.stats == 'mbuf':
             self._show_mbuf_util()
 
+        elif opts.stats == 'streams':
+            self._show_streams_stats()
 
-       
+        elif opts.stats == 'latency':
+            self._show_latency_stats()
+
+        elif opts.stats == 'latency_histogram':
+            self._show_latency_histogram()
+
+        else:
+            raise TRexError('Unhandled stats: %s' % opts.stats)
+
+
 
     @console_api('service', 'STL', True)
     def service_line (self, line):
