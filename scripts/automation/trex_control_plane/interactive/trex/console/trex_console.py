@@ -235,7 +235,8 @@ class TRexConsole(TRexGeneralCmd):
             
             p = prefix
             
-            if self.client.get_service_enabled_ports():
+            # HACK
+            if self.client.get_mode() == "STL" and self.client.get_service_enabled_ports():
                 if self.client.get_service_enabled_ports() == self.client.get_acquired_ports():
                     p += '(service)'
                 else:

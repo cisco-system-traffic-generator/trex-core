@@ -71,6 +71,10 @@ class STLClient(TRexClient):
 
         self.pgid_stats = CPgIdStats(self.conn.rpc)
 
+
+    def get_mode (self):
+        return "STL"
+
 ############################    called       #############################
 ############################    by base      #############################
 ############################    TRex Client  #############################   

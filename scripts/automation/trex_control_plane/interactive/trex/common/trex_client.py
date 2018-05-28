@@ -109,6 +109,13 @@ class TRexClient(object):
         # port state checker
         self.psv = PortStateValidator(self)
 
+
+    def get_mode (self):
+        """
+            return the mode/type for the client
+        """
+        raise NotImplementedError()
+
 ############################    abstract   #############################
 ############################    functions  #############################
 ############################               #############################
@@ -2637,6 +2644,7 @@ class TRexClient(object):
 
 
     def _show_port_stats (self, ports, buffer = sys.stdout):
+
         port_stats = [self.ports[port_id].get_port_stats() for port_id in ports]
 
         # update in a batch
@@ -2684,16 +2692,16 @@ class TRexClient(object):
         text_tables.print_table_with_header(table, table.title)
 
 
-    def _show_cpu_util (self):
+    def _show_cpu_util (self, buffer = sys.stdout):
         self.util_stats.update_sync(self.conn.rpc)
 
         table = self.util_stats.to_table('cpu')
-        text_tables.print_table_with_header(table, table.title)
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
 
-    def _show_mbuf_util (self):
+    def _show_mbuf_util (self, buffer = sys.stdout):
         self.util_stats.update_sync(self.conn.rpc)
 
         table = self.util_stats.to_table('mbuf')
-        text_tables.print_table_with_header(table, table.title)
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
