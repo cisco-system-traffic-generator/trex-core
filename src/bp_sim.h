@@ -453,7 +453,6 @@ struct CFlowYamlInfo {
     dsec_t          m_ipg_sec;   // ipg in sec
     dsec_t          m_rtt_sec;   // rtt in sec
     uint32_t        m_w;
-    uint32_t        m_wlength;
     uint32_t        m_limit;
     uint32_t        m_flowcnt;
     pool_index_t    m_client_pool_idx;
@@ -464,7 +463,6 @@ struct CFlowYamlInfo {
     bool            m_one_app_server_was_set;
     bool            m_cap_mode;
     bool            m_cap_mode_was_set;
-    bool            m_wlength_set;
     bool            m_limit_was_set;
     CFlowYamlDynamicPyloadPlugin * m_dpPkt; /* plugin */
 
@@ -2686,9 +2684,6 @@ public:
 
     double          m_cap_overide_ipg;
     bool            m_cap_overide_ipg_set;
-
-    uint32_t        m_wlength;
-    bool            m_wlength_set;
 
     bool            m_one_app_server;
     bool            m_one_app_server_was_set;
