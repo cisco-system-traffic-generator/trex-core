@@ -50,6 +50,21 @@ class BPF_Test(functional_general_test.CGeneralFunctional_Test):
     
         finally:
             libbpf.bpf_destroy(bpf_h)
+
+    def test_bpf_ipv6 (self):
+
+        pattern = c_buffer(b'ip6 src host 2001:0db8:85a3:0042:0000:8a2e:0371:7334')
+        bpf_h = libbpf.bpf_compile(pattern)
+        assert(bpf_h)
+
+        try:
+            c_ip6 = bytes(Ether()/IPv6(src='2001:0db8:85a3:0042:0000:8a2e:0371:7334'))
+
+            rc = libbpf.bpf_run(bpf_h, c_ip6, len(c_ip6) - 1)
+            assert(rc != 0)
+
+        finally:
+            libbpf.bpf_destroy(bpf_h)
     
             
     def test_bpf_multiple_matches (self):
@@ -79,8 +94,8 @@ class BPF_Test(functional_general_test.CGeneralFunctional_Test):
                 
         finally:
             libbpf.bpf_destroy(bpf_h)
-            
-        
+
+       
             
     def test_bpf_vlan (self):
         
