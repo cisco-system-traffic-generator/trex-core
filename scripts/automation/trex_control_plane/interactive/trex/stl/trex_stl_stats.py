@@ -401,7 +401,7 @@ class CPgIdStats(object):
     def latency_histogram_to_table(self, pg_ids):
         stream_count = len(pg_ids)
         data = self.get_stats(pg_ids)
-        lat_stats = data['latency']
+        lat_stats = data.get('latency')
 
         merged_histogram = {}
         for pg_id in pg_ids:

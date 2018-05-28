@@ -115,7 +115,9 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     def show (self, buffer):
         self.client._show_global_stats(buffer = buffer)
-        self.client._show_port_stats(ports = self.get_showed_ports(), buffer = buffer)
+
+        if self.get_showed_ports():
+            self.client._show_port_stats(ports = self.get_showed_ports(), buffer = buffer)
 
 
     def get_key_actions (self):
@@ -207,15 +209,13 @@ class TrexTUIStreamsStats(TrexTUIPanel):
 
 
     def show (self, buffer):
-        stats = self.client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.SS_COMPAT)
-        # print stats to screen
-        for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
-        pass
+        self.client._show_global_stats(buffer = buffer)
+        self.client._show_streams_stats(buffer = buffer)
 
 
     def get_key_actions (self):
         return self.key_actions 
+
 
     def action_clear (self):
          self.client.pgid_stats.clear_stats()
@@ -233,24 +233,22 @@ class TrexTUILatencyStats(TrexTUIPanel):
 
 
     def show (self, buffer):
+        self.client._show_global_stats(buffer = buffer)
+
         if self.is_histogram:
-            stats = self.client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LH_COMPAT)
+            self.client._show_latency_histogram(buffer = buffer)
         else:
-            stats = self.client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.LS_COMPAT)
-        # print stats to screen
-        for stat_type, stat_data in stats.items():
-            if stat_type == 'latency_statistics':
-                untouched_header = ' (usec)'
-            else:
-                untouched_header = ''
-            text_tables.print_table_with_header(stat_data.text_table, stat_type, untouched_header = untouched_header, buffer = buffer)
+            self.client._show_latency_stats(buffer = buffer)
+
 
     def get_key_actions (self):
         return self.key_actions 
 
+
     def action_toggle_histogram (self):
         self.is_histogram = not self.is_histogram
         return ""
+
 
     def action_clear (self):
          self.client.pgid_stats.clear_stats()
@@ -264,10 +262,10 @@ class TrexTUIUtilizationStats(TrexTUIPanel):
         self.key_actions = {}
 
     def show (self, buffer):
-        stats = self.client._get_formatted_stats(port_id_list = None, stats_mask = trex_stl_stats.UT_COMPAT)
-        # print stats to screen
-        for stat_type, stat_data in stats.items():
-            text_tables.print_table_with_header(stat_data.text_table, stat_type, buffer = buffer)
+        self.client._show_global_stats(buffer = buffer)
+        self.client._show_cpu_util(buffer = buffer)
+        self.client._show_mbuf_util(buffer = buffer)
+
 
     def get_key_actions (self):
         return self.key_actions 
@@ -313,9 +311,8 @@ class TrexTUIPanelManager():
         self.locked = False
 
         self.panels = {}
+
         self.panels['dashboard'] = TrexTUIDashBoard(self)
-        self.panels['sstats']    = TrexTUIStreamsStats(self)
-        self.panels['lstats']    = TrexTUILatencyStats(self)
         self.panels['ustats']    = TrexTUIUtilizationStats(self)
 
         self.key_actions = OrderedDict()
@@ -325,10 +322,17 @@ class TrexTUIPanelManager():
 
         self.key_actions['q'] = {'action': self.action_none, 'legend': 'quit', 'show': True}
         self.key_actions['d'] = {'action': self.action_show_dash, 'legend': 'dashboard', 'show': True}
-        self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
-        self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
+        
         self.key_actions['u'] = {'action': self.action_show_ustats, 'legend': 'util', 'show': True}
         
+
+        # HACK - FIX THIS
+        # stateless specific panels
+        if self.client.get_mode() == "STL":
+            self.panels['sstats'] = TrexTUIStreamsStats(self)
+            self.panels['lstats'] = TrexTUILatencyStats(self)
+            self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
+            self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
