@@ -60,8 +60,14 @@ by the project. In the absence of such guidelines, mimic the styles and patterns
 in the existing codebase.
 
 Commit Notes:
+ - Prefix the summary with a single keyword identifying the high level "area" that the change applies to.
+   Common keywords include: `doc`, `stl`, `tcp`, `astf`, `tui`, `arm`, ...
+   - General format:
+   > keyword: succinct summary of change
+   - Example:
+   > doc: fixed a typo
  - Always use git's `-s (--signoff)` flag to append the legal sign off required.
-This applies to all pull requests. If making documentation changes directly in
+This applies to all pull requests. See `man git-commit` for more details. If making documentation changes directly in
 gitlab, you can manually append the signoff note in the commit message.
 > Signed-off-by: Full Name \<e-mail\>
- - See `man git-commit` for more details.
+ - Version tags have a commit summary of simply `v<major>.<minor>`
