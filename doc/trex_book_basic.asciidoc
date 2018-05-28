@@ -876,7 +876,6 @@ The traffic was recorded from a Spirent C100 with a Pagent that introduce 10msec
        ipg : 10000
        rtt : 10000
        w   : 1
-       wlength    : 1
 ----
 <1> Plugin for SIP protocol, used to replace the IP/port in the control flow base on the data-flow. 
 //TBD: I'm placing your note into a TBD - (what are plugins should have a seperate chapter)
@@ -3081,12 +3080,10 @@ To support a template with one server, you can add ``server_addr'' keyword. Each
   w   : 1
   server_addr : "48.0.0.1"   <1>
   one_app_server : true      <2>
-  wlength   : 1
 ----
 <1> Server IP.
 <2> Enable one server mode.
 
-// TBD - what is wlength???
 
 In TRex server, you will see the following statistics.
 // TBD - need to explain this

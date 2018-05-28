@@ -61,9 +61,7 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"ipg         : %f \n",m_ipg_sec);
     fprintf(fd,"rtt         : %f \n",m_rtt_sec);
     fprintf(fd,"w           : %d \n",m_w);
-    fprintf(fd,"wlength     : %d \n",m_wlength);
     fprintf(fd,"limit       : %d \n",m_limit);
-    fprintf(fd,"limit_was_set       : %d \n",m_limit_was_set?1:0);
     fprintf(fd,"cap_mode    : %d \n",m_cap_mode?1:0);
     fprintf(fd,"plugin_id   : %d \n",m_plugin_id);
     fprintf(fd,"one_server  : %d \n",m_one_app_server?1:0);
@@ -1966,13 +1964,6 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
        fi.m_cap_mode_was_set =false;
    }
 
-   if ( node.FindValue("wlength") ){
-       node["wlength"] >> fi.m_wlength;
-       fi.m_wlength_set=true;
-   }else{
-       fi.m_wlength_set=false;
-       fi.m_wlength =500;
-   }
 
    if ( node.FindValue("limit") ){
        node["limit"] >>  fi.m_limit;
@@ -2119,13 +2110,6 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        flows_info.m_cap_overide_ipg = 0;
    }
 
-   if (node.FindValue("wlength")) {
-       node["wlength"] >> flows_info.m_wlength;
-       flows_info.m_wlength_set=true;
-   }else{
-       flows_info.m_wlength_set=false;
-       flows_info.m_wlength =100;
-   }
 
    if (node.FindValue("one_app_server")) {
        printf("one_app_server should be configured per template. \n"
@@ -2202,11 +2186,6 @@ void CFlowsYamlInfo::Dump(FILE *fd){
         fprintf(fd," cap_override_ipg  : %f \n",m_cap_overide_ipg);
     }
 
-    if ( !m_wlength_set ){
-        fprintf(fd," wlength      : wasn't set  \n");
-    }else{
-        fprintf(fd," m_wlength  : %d  \n",m_wlength);
-    }
     fprintf(fd," one_server_for_application : %d  \n",m_one_app_server?1:0);
     fprintf(fd," one_server_for_application_was_set : %d  \n",m_one_app_server_was_set?1:0);
 
@@ -2348,9 +2327,6 @@ int CFlowsYamlInfo::load_from_yaml_file(std::string file_name){
       m_vec[i].m_k_cps =m_vec[i].m_k_cps*CGlobalInfo::m_options.m_factor;
       if (( ! m_vec[i].m_cap_mode_was_set  ) && (m_cap_mode_set ) ){
           m_vec[i].m_cap_mode = m_cap_mode;
-      }
-      if (( ! m_vec[i].m_wlength_set  ) && (m_wlength_set ) ){
-          m_vec[i].m_wlength = m_wlength;
       }
 
       if (( ! m_vec[i].m_one_app_server_was_set  ) && (m_one_app_server_was_set ) ){
@@ -2974,7 +2950,6 @@ void CFlowGenListPerThread::init_from_global(){
         yaml_info->m_rtt_sec = lp->m_info->m_rtt_sec;
         yaml_info->m_w   = lp->m_info->m_w;
         yaml_info->m_cap_mode =lp->m_info->m_cap_mode;
-        yaml_info->m_wlength  =lp->m_info->m_wlength;
         yaml_info->m_plugin_id = lp->m_info->m_plugin_id;
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
@@ -4550,119 +4525,6 @@ static uint32_t  get_rand_32(uint32_t MinimumRange ,
                       uint32_t MaximumRange );
 
 
-#if 0
-void CTupleGlobalGenerator::Generate(uint32_t thread_id,
-                                     uint32_t num_addr ){
-    if ( was_generated == false) {
-        /* first time */
-        was_generated = true;
-        cur_src_ip = m_min_src_ip;
-        cur_dst_ip = m_min_dest_ip;
-    }
-
-    if ( ( cur_src_ip + num_addr ) > m_max_src_ip ) {
-        cur_src_ip = m_min_src_ip;
-    }
-
-    /* copy the results */
-    m_result_src_ip  = cur_src_ip;
-    m_result_dest_ip = cur_dst_ip;
-    cur_src_ip += num_addr;
-    cur_dst_ip += 1;
-    if (cur_dst_ip > m_max_dest_ip ) {
-        cur_dst_ip = m_min_dest_ip;
-    }
-}
-
-
-
-
-void CTupleTemplateGenerator::Dump(FILE  *fd){
-    fprintf(fd," id: %x,  %x:%x -  %x \n",m_id,m_result_src_ip,m_result_dest_ip,m_result_src_port);
-}
-
-
-bool CTupleTemplateGenerator::Create(CTupleGlobalGenerator * global_gen,
-                                     uint16_t w,
-                                     uint16_t wlength,
-                                     uint32_t _id,
-                                     uint32_t thread_id){
-    m_was_generated = false;
-    m_thread_id     = thread_id;
-    m_lp_global_gen = global_gen;
-    BP_ASSERT(m_lp_global_gen);
-    m_cur_src_port  = 1;
-    m_cur_src_port_cnt=0;
-
-    m_w = w;
-    m_wlength = wlength;
-
-    m_id = _id;
-    m_was_init=true;
-    return(true);
-}
-
-void CTupleTemplateGenerator::Delete(){
-    m_was_generated = false;
-    m_was_init=false;
-}
-
-void CTupleTemplateGenerator::Generate_src_dest(){
-    /* TBD need to fix the 100*/
-    m_lp_global_gen->Generate(m_thread_id,m_wlength);
-    m_result_src_ip  = m_lp_global_gen->m_result_src_ip;
-
-    m_dest_ip        = m_lp_global_gen->m_result_dest_ip;
-    m_result_dest_ip = update_dest_ip(m_dest_ip );
-    m_cnt=0;
-}
-
-uint16_t CTupleTemplateGenerator::GenerateOneSourcePort(){
-        /* handle port */
-    m_cur_src_port++;
-    /* do not use port zero */
-    if (m_cur_src_port == 0) {
-        m_cur_src_port=1;
-    }
-    m_result_src_port=m_cur_src_port;
-    return (m_cur_src_port);
-}
-
-void CTupleTemplateGenerator::Generate(){
-    BP_ASSERT(m_was_init);
-    if ( m_was_generated == false  ) {
-        /* first time */
-        Generate_src_dest();
-        m_was_generated = true;
-    }else{
-        /*  ip+cnt,dest+cnt*/
-        m_cnt++;
-        if ( m_cnt >= m_wlength ) {
-            m_cnt =0;
-            m_result_src_ip -=m_wlength;
-            m_result_dest_ip = m_dest_ip;
-            m_cur_src_port_cnt++;
-            if (m_cur_src_port_cnt >= m_w ) {
-                Generate_src_dest();
-                m_cur_src_port_cnt=0;
-            }
-        }
-        m_result_src_ip += 1;
-        m_result_dest_ip = update_dest_ip(m_dest_ip +m_cnt );
-    }
-
-
-    /* handle port */
-    m_cur_src_port++;
-    /* do not use port zero */
-    if (m_cur_src_port == 0) {
-        m_cur_src_port=1;
-    }
-    m_result_src_ip =update_src_ip( m_result_src_ip );
-    m_result_src_port=m_cur_src_port;
-}
-
-#endif
 
 static uint32_t get_rand_32(uint32_t MinimumRange,
                             uint32_t MaximumRange) __attribute__ ((unused));

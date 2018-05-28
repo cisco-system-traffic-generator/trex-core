@@ -14,7 +14,6 @@
   cap_ipg    : true
   #cap_ipg_min    : 30
   #cap_override_ipg    : 200
-  #wlength    : 107
   cap_info : 
      - name: avl/delay_10_http_get_0.pcap
        cps : 404.52
@@ -113,5 +112,4 @@
        ipg : 10000
        rtt : 10000
        w   : 1
-       wlength    : 1
 

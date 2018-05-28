@@ -21,12 +21,10 @@
        w   : 1
        server_addr : "48.0.0.1"
        one_app_server : true
-       wlength   : 1
      - name: cap2/dns.pcap
        cps : 1.0
        ipg : 10000
        rtt : 10000
        w   : 1
-       wlength   : 1
        
 
