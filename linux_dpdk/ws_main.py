@@ -1298,7 +1298,7 @@ def build_prog (bld, build_obj):
     # build the BPF as a shared library
     bld.shlib(features = 'c',
               includes = bpf_includes_path,
-              cflags   = cflags + ['-DSLJIT_CONFIG_AUTO=1'],
+              cflags   = cflags + ['-DSLJIT_CONFIG_AUTO=1','-DINET6'],
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
