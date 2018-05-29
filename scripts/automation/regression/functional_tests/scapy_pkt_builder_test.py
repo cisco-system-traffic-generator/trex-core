@@ -347,6 +347,64 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         scapy_pkt = Ether(pkt_str);
         scapy_pkt.show2();
 
+    def test_simple_vm4(self):
+        ipaddr_list = ["16.0.0.1","16.0.0.4","16.0.0.5","16.0.0.2","16.0.0.3","16.0.0.6"]
+        raw1 = STLScVmRaw( [ STLVmFlowVar(name="a",value_list=ipaddr_list,size=4,op="inc"),
+                             STLVmWrFlowVar(fv_name="a",pkt_offset= "IP.src"),
+                             STLVmFixIpv4(offset = "IP")]
+                          );
+
+        pkt_builder = STLPktBuilder();
+
+        py='5'*128
+        pkt=Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/py
+
+        # set packet
+        pkt_builder.set_packet(pkt);
+        pkt_builder.add_command ( raw1 )
+        pkt_builder.compile();
+
+        pkt_builder.dump_scripts ()
+
+        print(pkt_builder.get_vm_data())
+
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+
+    def test_simple_random_pkt_size_list(self):
+
+        ip_pkt_size = 9*1024
+        p_l2 = Ether();
+        p_l3 = IP(src="16.0.0.1",dst="48.0.0.1")
+        p_l4 = UDP(dport=12,sport=1025)
+        pyld_size = ip_pkt_size-len(p_l3/p_l4);
+
+        pkt =p_l2/p_l3/p_l4/('\x55'*(pyld_size))
+
+        l3_len_fix =-(len(p_l2));
+        l4_len_fix =-(len(p_l2/p_l3));
+
+        pkt_size_list = [256,64,128,512,4096,8192,1024,2048,len(pkt)]
+
+        vm = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", value_list=pkt_size_list, size=2, op="random"),
+                           STLVmTrimPktSize("fv_rand"), # total packet size
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=l3_len_fix),
+                           STLVmFixIpv4(offset = "IP"), # fix checksum
+                           STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "UDP.len", add_val=l4_len_fix)
+                          ]
+                       )
+        pkt_builder = STLPktBuilder();
+
+        # set packet
+        pkt_builder.set_packet(pkt);
+        pkt_builder.add_command ( vm )
+        pkt_builder.compile();
+        d= pkt_builder.get_vm_data()
+        pkt_builder.dump_vm_data_as_yaml()
+
+        assert_equal(d['instructions'][0]['value_list'],[256,64,128,512,4096,8192,1024,2048,9230])
+        assert_equal(d['instructions'][2]['pkt_offset'],16)
+        assert_equal(d['instructions'][4]['pkt_offset'],38)
+
     def tearDown(self):
         pass
 

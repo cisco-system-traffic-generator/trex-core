@@ -66,7 +66,7 @@ void parse_vm_instr_checksum_hw(const Json::Value &inst, std::unique_ptr<TrexStr
 void parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void check_min_max(uint8_t flow_var_size, uint64_t init_value,uint64_t step,uint64_t min_value,uint64_t max_value,Json::Value &result);
-
+void check_value_list(uint8_t flow_var_size, uint64_t step, std::vector<uint64_t> value_list, Json::Value &result);
 
 void parse_vm_instr_tuple_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_trim_pkt_size(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
@@ -561,6 +561,39 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
 
 }
 
+void
+TrexRpcCmdAddStream::check_value_list(uint8_t flow_var_size,
+                                      uint64_t step,
+                                      std::vector<uint64_t> value_list,
+                                      Json::Value &result) {
+
+    if (step == 0) {
+        generate_parse_err(result, "VM: step cannot be 0");
+    }
+
+    if (step > (uint64_t)value_list.size()) {
+        generate_parse_err(result, "VM: step cannot be bigger than list size");
+    }
+
+    for (int i = 0; i < (int)value_list.size(); i++) {
+        if (flow_var_size == 1 && value_list[i] > UINT8_MAX) {
+            std::stringstream ss;
+            ss << "VM: requested value is bigger than " << UINT8_MAX;
+            generate_parse_err(result, ss.str());
+        }
+        else if (flow_var_size == 2 && value_list[i] > UINT16_MAX) {
+            std::stringstream ss;
+            ss << "VM: requested value is bigger than " << UINT16_MAX;
+            generate_parse_err(result, ss.str());
+        }
+        else if (flow_var_size == 4 && value_list[i] > UINT32_MAX) {
+            std::stringstream ss;
+            ss << "VM: requested value is bigger than " << UINT32_MAX;
+            generate_parse_err(result, ss.str());
+        }
+    }
+}
+
 void 
 TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
@@ -612,24 +645,44 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
         throw TrexRpcException("internal error");
     }
 
-    uint64_t init_value  = parse_uint64(inst, "init_value", result);
-    uint64_t min_value   = parse_uint64(inst, "min_value", result);
-    uint64_t max_value   = parse_uint64(inst, "max_value", result);
-    uint64_t step        = parse_uint64(inst, "step", result);
+    const Json::Value &array = parse_array(inst, "value_list", result, Json::Value::null);
+    uint64_t step            = parse_uint64(inst, "step", result);
 
-    check_min_max(flow_var_size, init_value, step, min_value, max_value, result);
+    if (array == Json::Value::null) {
+        uint64_t init_value  = parse_uint64(inst, "init_value", result);
+        uint64_t min_value   = parse_uint64(inst, "min_value", result);
+        uint64_t max_value   = parse_uint64(inst, "max_value", result);
 
-    /* implicit range padding if possible */
-    handle_range_padding(max_value,min_value,step, op_type, result);
+        check_min_max(flow_var_size, init_value, step, min_value, max_value, result);
 
-    stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
-                                                                flow_var_size,
-                                                                op_type,
-                                                                init_value,
-                                                                min_value,
-                                                                max_value,
-                                                                step)
-                                 );
+        /* implicit range padding if possible */
+        handle_range_padding(max_value,min_value,step, op_type, result);
+
+        stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
+                                                                    flow_var_size,
+                                                                    op_type,
+                                                                    init_value,
+                                                                    min_value,
+                                                                    max_value,
+                                                                    step)
+                                     );
+    }
+    else {
+        std::vector<uint64_t> value_list;
+
+        for (Json::Value::ArrayIndex i = 0; i != array.size(); i++) {
+            value_list.push_back(array[i].asUInt64());
+        }
+
+        check_value_list(flow_var_size, step, value_list, result);
+
+        stream->m_vm.add_instruction(new StreamVmInstructionFlowMan(flow_var_name,
+                                                                    flow_var_size,
+                                                                    op_type,
+                                                                    value_list,
+                                                                    step)
+                                     );
+    }
 }
 
 
