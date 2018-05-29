@@ -676,6 +676,161 @@ TEST_F(basic_vm, vm5) {
     }
 }
 
+/* two fields */
+TEST_F(basic_vm, vm5_list) {
+
+    StreamVm vm;
+    std::vector<uint64_t> value_list_inc;
+    std::vector<uint64_t> value_list_dec;
+
+    int n;
+    for (n=5; n<=7; n++) {
+        value_list_inc.push_back(n);
+    }
+    for (n=1; n<=4; n++) {
+        value_list_inc.push_back(n);
+    }
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,value_list_inc ));
+
+    for (n=25; n<=27; n++) {
+        value_list_dec.push_back(n);
+    }
+    for (n=23; n<=24; n++) {
+        value_list_dec.push_back(n);
+    }
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var2",1 /* size */,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_DEC,value_list_dec ));
+
+    /* src ip */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var1",26, 0,true)
+                        );
+
+    /* change TOS */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "var2",15, 0,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+    vm.Dump(stdout);
+
+    #define PKT_TEST_SIZE (14+20+4+4)
+    uint8_t test_udp_pkt[PKT_TEST_SIZE]={
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x00,0x00,0x00,0x01,0x00,0x00,
+        0x08,0x00,
+
+        0x45,0x00,0x00,0x81, /*14 */
+        0xaf,0x7e,0x00,0x00, /*18 */
+        0x12,0x11,0xd9,0x23, /*22 */
+        0x01,0x01,0x01,0x01, /*26 */
+        0x3d,0xad,0x72,0x1b, /*30 */
+
+        0x11,0x11,           /*34 */
+        0x11,0x11,
+
+        0x00,0x6d,
+        0x00,0x00,
+    };
+
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint8_t ex[]={5,
+                  6,
+                  7,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  1,
+                  2,
+                  3};
+
+         uint8_t ex_tos[]={0x18,
+                           0x17,
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+
+                           0x1b,
+                           0x1a,
+                           0x19,
+                           0x18,
+                           0x17,
+         };
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_udp_pkt);
+
+        fprintf(stdout," %d \n",i);
+        //utl_DumpBuffer(stdout,test_udp_pkt,PKT_TEST_SIZE,0);
+        /* not big */
+        EXPECT_EQ(test_udp_pkt[29],ex[i]);
+        EXPECT_EQ(test_udp_pkt[28],0);
+        EXPECT_EQ(test_udp_pkt[27],0);
+        EXPECT_EQ(test_udp_pkt[26],0);
+
+        /* check tos */
+        EXPECT_EQ(test_udp_pkt[15],ex_tos[i]);
+    }
+}
 
 TEST_F(basic_vm, vm_rand_len) {
 
@@ -1782,6 +1937,61 @@ TEST_F(basic_vm, vm_mask6) {
     EXPECT_EQ(1, res1?1:0);
 }
 
+TEST_F(basic_vm, vm_mask6_list) {
+
+    StreamVm vm;
+    std::vector<uint64_t> value_list;
+
+    int n;
+    for (n=1; n<=20; n++) {
+        value_list.push_back(n);
+    }
+    vm.add_instruction( new StreamVmInstructionFlowMan( "var1",4,
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, value_list));
+
+    vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00FF,-1,0,1) );
+
+    vm.compile(128);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+
+    vm.Dump(stdout);
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+
+
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask6.pcap");
+    assert(lpWriter);
+
+
+    StreamDPVmInstructionsRunner runner;
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<20; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   (uint8_t*)pcap.m_raw.raw);
+
+        assert(lpWriter->write_packet(&pcap.m_raw));
+    }
+
+    delete lpWriter;
+
+    CErfCmp cmp;
+
+    bool res1=cmp.compare("exp/udp_64B_vm_mask6.pcap","exp/udp_64B_vm_mask6-ex.pcap");
+    EXPECT_EQ(1, res1?1:0);
+}
+
 ////////////////////////////////////////////////////////
 
 
@@ -2256,6 +2466,48 @@ TEST_F(basic_vm, vm_random_size_64_127_128) {
 
 }
 
+/* should have exception packet size is smaller than range */
+TEST_F(basic_vm, vm_random_size_64_127_128_list) {
+
+    StreamVm vm;
+    std::vector<uint64_t> value_list;
+    srand(0x1234);
+
+    int n;
+    for (n=128; n<=256; n++) {
+        value_list.push_back(n);
+    }
+
+    vm.add_instruction( new StreamVmInstructionFlowMan( "rand_pkt_size_var",
+                                                        2,                // size var  must be 16bit size
+                                                        StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM,
+                                                        value_list));
+
+    vm.add_instruction( new StreamVmInstructionChangePktSize( "rand_pkt_size_var"));
+
+    /* src ip */
+    /*14+ 2 , remove the */
+
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",16, -14,true)
+                        );
+
+    vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+
+    /* update UDP length */
+    vm.add_instruction( new StreamVmInstructionWriteToPkt( "rand_pkt_size_var",32+6, -(14+20),true)
+                        );
+
+    bool fail=false;
+
+    try {
+       run_vm_program(vm,"stl/udp_64B_no_crc.pcap","stl_vm_rand_size_64B_127_128",20);
+     } catch (const TrexException &ex) {
+        fail=true;
+    }
+
+    EXPECT_EQ(true, fail);
+
+}
 
 TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 

@@ -321,22 +321,30 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     OPERATIONS =['inc', 'dec', 'random']
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
         self.name = fv_name;
         validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.op = op
-        self.init_value = init_value
-        validate_type('init_value', init_value, int)
-        assert init_value >= 0, 'init_value (%s) is negative' % init_value
-        assert init_value <= max_value and init_value >= min_value, 'init_value (%s) must be between min_value (%s) and max_value (%s)' % (init_value, min_value, max_value)
-        self.min_value=min_value
-        validate_type('min_value', min_value, int)
-        assert min_value >= 0, 'min_value (%s) is negative' % min_value
-        self.max_value=max_value
-        validate_type('max_value', max_value, int)
-        assert max_value >= 0, 'max_value (%s) is negative' % max_value
+
+        if value_list == None:
+            self.init_value = init_value
+            validate_type('init_value', init_value, int)
+            assert init_value >= 0, 'init_value (%s) is negative' % init_value
+            assert init_value <= max_value and init_value >= min_value, 'init_value (%s) must be between min_value (%s) and max_value (%s)' % (init_value, min_value, max_value)
+            self.min_value = min_value
+            validate_type('min_value', min_value, int)
+            assert min_value >= 0, 'min_value (%s) is negative' % min_value
+            self.max_value = max_value
+            validate_type('max_value', max_value, int)
+            assert max_value >= 0, 'max_value (%s) is negative' % max_value
+        else:
+            self.value_list = value_list
+            validate_type('value_list', value_list, list)
+            for value in value_list:
+                assert value >= 0, 'value_list (%s) is negative' % value
+
         self.step=step
         validate_type('step', step, int)
         assert step > 0, 'step (%s) is equals 0 or negative' % step
@@ -695,6 +703,19 @@ def convert_val (val):
         return ipv4_str_to_num (is_valid_ipv4_ret(val))
     raise CTRexPacketBuildException(-11,("init val invalid %s ") % val  );
 
+def convert_val_list(val):
+    if not isinstance(val, (list,)):
+        raise CTRexPacketBuildException(-11, ("init val invalid(not list) %s ") % val);
+
+    for index in range(0,len(val)):
+        if is_integer(val[index]):
+            continue
+        elif type(val[index]) == str:
+            val[index] = ipv4_str_to_num (is_valid_ipv4_ret(val[index]))
+        else:
+            raise CTRexPacketBuildException(-11, ("init val[%s] invalid %s ") % (index, val[index]));
+    return val
+
 def check_for_int (val):
     validate_type('val', val, int)
 
@@ -726,7 +747,7 @@ def valid_fv_cycle(min_value, max_value, step, op):
 
 class STLVmFlowVar(CTRexVmDescBase):
 
-    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1,op="inc"):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None):
         """
         Flow variable instruction. Allocates a variable on a stream context. The size argument determines the variable size.
         The operation can be inc, dec, and random. 
@@ -755,6 +776,9 @@ class STLVmFlowVar(CTRexVmDescBase):
              op    : string 
                 Possible values: "inc", "dec", "random"
 
+             value_list  : int
+                List of values instead of init_value, min_value and max_value
+
         .. code-block:: python
 
             # Example1
@@ -780,6 +804,17 @@ class STLVmFlowVar(CTRexVmDescBase):
 
             # output 0,3,6,9,0,3,6,9,0..
 
+            # Example2
+
+            # input value_list
+            STLVmFlowVar(value_list=["16.0.0.1","16.0.0.2","16.0.0.3","16.0.0.4"], op="inc"))
+
+            # output 268435457,268435458,268435459,268435460,268435457,268435458,268435459,268435460,268435457..
+
+            # input value_list
+            STLVmFlowVar(value_list=[9,0,4,7,5], op="dec"))
+
+            # output 5,7,4,0,9,5,7,4,0,9,5,7..
 
         """
         super(STLVmFlowVar, self).__init__()
@@ -790,25 +825,34 @@ class STLVmFlowVar(CTRexVmDescBase):
         self.op =op
         valid_fv_ops (op)
 
-        # choose default value for init val
-        if init_value == None:
-            init_value = max_value if op == "dec" else min_value
-
-        self.init_value = convert_val (init_value)
-        self.min_value  = convert_val (min_value);
-        self.max_value  = convert_val (max_value)
-        self.step       = convert_val (step)
-
-        valid_fv_var_sizes(self.size, [self.min_value, self.max_value, self.init_value, self.step])
-        valid_fv_min_max(self.min_value, self.max_value)
-        valid_fv_init(self.init_value, self.min_value, self.max_value)
-        valid_fv_cycle(self.min_value, self.max_value, self.step, self.op)
-
+        self.step = convert_val (step)
         if self.step <= 0:
             raise CTRexPacketBuildException(-11,("step %d must be more than 0") % (self.step));
 
+        if value_list == None:
+            # choose default value for init val
+            if init_value == None :
+                init_value = max_value if op == "dec" else min_value
+
+            self.init_value = convert_val(init_value)
+            self.min_value  = convert_val(min_value);
+            self.max_value  = convert_val(max_value)
+            self.value_list = None
+
+            valid_fv_var_sizes(self.size, [self.min_value, self.max_value, self.init_value, self.step])
+            valid_fv_min_max(self.min_value, self.max_value)
+            valid_fv_init(self.init_value, self.min_value, self.max_value)
+            valid_fv_cycle(self.min_value, self.max_value, self.step, self.op)
+
+        else :
+            self.init_value = None
+            self.min_value  = None
+            self.max_value  = None
+            self.value_list = convert_val_list(value_list)
+            valid_fv_var_sizes(self.size, self.value_list)
+
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step);
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list);
 
     def get_var_name(self):
         return [self.name]
@@ -1738,8 +1782,9 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                 if instr['type'] == 'flow_var':
                     vm_obj.var(name      = instr['name'],
                                op        = instr['op'],
-                               min_value = instr['min_value'],
-                               max_value = instr['max_value'],
+                               min_value = instr.get('min_value',0),
+                               max_value = instr.get('max_value',0),
+                               value_list = instr.get('value_list',None),
                                size      = instr['size'],
                                step      = instr['step'])
                     
