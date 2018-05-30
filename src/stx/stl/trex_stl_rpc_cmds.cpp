@@ -575,6 +575,12 @@ TrexRpcCmdAddStream::check_value_list(uint8_t flow_var_size,
         generate_parse_err(result, "VM: step cannot be bigger than list size");
     }
 
+    if (value_list.size() > UINT16_MAX) {
+        std::stringstream ss;
+        ss << "VM: value_list size is bigger than " << UINT16_MAX;
+        generate_parse_err(result, ss.str());
+    }
+
     for (int i = 0; i < (int)value_list.size(); i++) {
         if (flow_var_size == 1 && value_list[i] > UINT8_MAX) {
             std::stringstream ss;

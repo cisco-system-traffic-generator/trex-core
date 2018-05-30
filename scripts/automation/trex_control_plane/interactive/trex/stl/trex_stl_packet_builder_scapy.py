@@ -844,7 +844,10 @@ class STLVmFlowVar(CTRexVmDescBase):
             valid_fv_init(self.init_value, self.min_value, self.max_value)
             valid_fv_cycle(self.min_value, self.max_value, self.step, self.op)
 
-        else :
+        else:
+            if len(value_list) > get_max_by_size(2):
+                raise CTRexPacketBuildException(-11,("value_list size %d bigger than %d") % (len(value_list), get_max_by_size(2)));
+
             self.init_value = None
             self.min_value  = None
             self.max_value  = None
