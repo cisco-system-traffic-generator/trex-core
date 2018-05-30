@@ -2,7 +2,7 @@
   "instructions": [
     {
       "id": "STLVmFlowVar",
-      "parameters": ["name", "init_value", "max_value","min_value","step", "size","op"]
+      "parameters": ["name", "init_value", "max_value","min_value","step", "size","op","value_list"]
     },
     {
       "id": "STLVmWrFlowVar",
@@ -53,22 +53,25 @@
       "id": "max_value",
       "name": "Maximum value",
       "type": "STRING",
-      "required": true,
       "defaultValue": "0"
     },
     {
       "id": "min_value",
       "name": "Minimum value",
       "type": "STRING",
-      "required": true,
       "defaultValue": "0"
     },
     {
       "id": "step",
       "name": "Step",
       "type": "NUMBER",
-      "required": true,
       "defaultValue": "1"
+    },
+    {
+      "id": "value_list",
+      "name": "List",
+      "type": "EXPRESSION",
+      "defaultValue": "[]"
     },
     {
       "id": "op",
