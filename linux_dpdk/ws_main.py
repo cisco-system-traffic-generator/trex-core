@@ -1018,6 +1018,7 @@ includes_path = '''
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/
                    ../external_libs/bpf/
+                   ../external_libs/valijson/include/
                   ''';
 
 
