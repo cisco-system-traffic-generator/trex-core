@@ -2783,7 +2783,7 @@ TEST_F(gt_tcp, tst80) {
 
 
 
-#if 1
+#if 0
 
 TEST_F(gt_tcp, tst100) {
     CAstfDB * lpastf=CAstfDB::instance();
@@ -2816,7 +2816,6 @@ TEST_F(gt_tcp, tst101) {
     lpastf->free_instance();
 }
 
-#endif
 
 #include "astf/astf_json_validator.h"
 
@@ -2877,5 +2876,5 @@ TEST_F(gt_tcp, tst202) {
 }
 
 
-
+#endif
 
