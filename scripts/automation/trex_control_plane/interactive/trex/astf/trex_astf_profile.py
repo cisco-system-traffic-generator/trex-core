@@ -8,7 +8,9 @@ from .trex_astf_global_info import ASTFGlobalInfo, ASTFGlobalInfoPerTemplate
 import json
 import base64
 import hashlib
-
+import traceback
+from ..common.trex_exceptions import *
+import imp
 
 
 def listify(x):
@@ -965,11 +967,11 @@ class ASTFIPGen(object):
 
 
         :parameters:
-                  dist_client  : Client side ASTFIPGenDist  :class:`trex_astf_lib.trex_astf_client.ASTFIPGenDist`
+                  dist_client  : Client side ASTFIPGenDist  :class:`trex.astf.trex_astf_profile.ASTFIPGenDist`
 
-                  dist_server  : Server side ASTFIPGenDist  :class:`trex_astf_lib.trex_astf_client.ASTFIPGenDist`
+                  dist_server  : Server side ASTFIPGenDist  :class:`trex.astf.trex_astf_profile.ASTFIPGenDist`
 
-                  glob :  ASTFIPGenGlobal see :class:`trex_astf_lib.trex_astf_client.ASTFIPGenGlobal`
+                  glob :  ASTFIPGenGlobal see :class:`trex.astf.trex_astf_profile.ASTFIPGenGlobal`
         """
 
         ver_args = {"types":
@@ -1103,7 +1105,7 @@ class ASTFAssociation(object):
         """
 
         :parameters:
-                  rules  : ASTFAssociationRule see :class:`trex_astf_lib.trex_astf_client.ASTFAssociationRule`
+                  rules  : ASTFAssociationRule see :class:`trex.astf.trex_astf_profile.ASTFAssociationRule`
                        rule or rules list
 
         """
@@ -1223,12 +1225,12 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
         """
 
         :parameters:
-                  ip_gen  : ASTFIPGen see :class:`trex_astf_lib.trex_astf_client.ASTFIPGen`
+                  ip_gen  : ASTFIPGen see :class:`trex.astf.trex_astf_profile.ASTFIPGen`
                        generator
 
-                  cluster :  ASTFCluster see :class:`trex_astf_lib.trex_astf_client.ASTFCluster`
+                  cluster :  ASTFCluster see :class:`trex.astf.trex_astf_profile.ASTFCluster`
 
-                  program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
+                  program  : ASTFProgram see :class:`trex.astf.trex_astf_profile.ASTFProgram`
                         L7 emulation program
 
                   port     : uint16_t
@@ -1240,7 +1242,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   limit    : uint32_t 
                         limit the number of flows. default is None which means zero 
 
-                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
 
         """
 
@@ -1294,12 +1296,12 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
 
         :parameters:
 
-                  program  : ASTFProgram see :class:`trex_astf_lib.trex_astf_client.ASTFProgram`
+                  program  : ASTFProgram see :class:`trex.astf.trex_astf_profile.ASTFProgram`
                         L7 emulation program
 
-                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
 
-                  assoc    : ASTFAssociation see :class:`trex_astf_lib.trex_astf_client.ASTFAssociation`
+                  assoc    : ASTFAssociation see :class:`trex.astf.trex_astf_profile.ASTFAssociation`
 
         """
         ver_args = {"types":
@@ -1354,10 +1356,10 @@ class ASTFCapInfo(object):
                   cps  :  float
                        new connection per second rate
 
-                  assoc :  ASTFAssociation see :class:`trex_astf_lib.trex_astf_client.ASTFAssociation`
+                  assoc :  ASTFAssociation see :class:`trex.astf.trex_astf_profile.ASTFAssociation`
                        rule for server association in default take the destination port from pcap file
 
-                  ip_gen  : ASTFIPGen see :class:`trex_astf_lib.trex_astf_client.ASTFIPGen`
+                  ip_gen  : ASTFIPGen see :class:`trex.astf.trex_astf_profile.ASTFIPGen`
                       tuple generator for this template
 
                   port    : uint16_t
@@ -1369,9 +1371,9 @@ class ASTFCapInfo(object):
                   limit     : uint32_t 
                         Limit the number of flows 
 
-                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
 
-                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfoPerTemplate`
+                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
 
         """
 
@@ -1450,10 +1452,10 @@ class ASTFTemplate(object):
         You should give either templates or cap_list (mutual exclusion).
 
         :parameters:
-                  client_template  : ASTFTCPClientTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFTCPClientTemplate`
+                  client_template  : ASTFTCPClientTemplate see :class:`trex.astf.trex_astf_profile.ASTFTCPClientTemplate`
                        client side template info
 
-                  server_template  :  ASTFTCPServerTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFTCPServerTemplate`
+                  server_template  :  ASTFTCPServerTemplate see :class:`trex.astf.trex_astf_profile.ASTFTCPServerTemplate`
                        server side template info
 
         """
@@ -1490,6 +1492,24 @@ class _ASTFTCPInfo(object):
     def port(self):
         return self.m_port
 
+class ASTFProfileLight(object):
+    """ ASTF profile light to save the json dict """
+    def __init__(self, json_dict):
+        if not (type(json_dict) is dict):
+            raise TRexError("json_dict should be dict type")
+
+        self.json_dict = json_dict;
+
+    def to_json(self):
+        return (self.json_dict);
+
+    def to_json_str(self):
+        ret = self.to_json()
+        return json.dumps(ret, indent=4, separators=(',', ': '))
+
+    def print_stats(self):
+        print(" NOT supported for this format \n");
+
 
 class ASTFProfile(object):
     """ ASTF profile
@@ -1514,20 +1534,20 @@ class ASTFProfile(object):
         You should give either templates or cap_list (mutual exclusion).
 
         :parameters:
-                  default_ip_gen  : ASTFIPGen  :class:`trex_astf_lib.trex_astf_client.ASTFIPGen`
+                  default_ip_gen  : ASTFIPGen  :class:`trex.astf.trex_astf_profile.ASTFIPGen`
                        tuple generator object
 
-                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
+                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_profile.ASTFGlobalInfo`
                        tcp parameters to be used for server side, if cap_list is given. This is optional. If not specified,
                        TCP parameters for each flow will be taken from its cap file.
 
-                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex_astf_lib.trex_astf_client.ASTFGlobalInfo`
+                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_profile.ASTFGlobalInfo`
                        Same as default_tcp_server_info for client side.
 
-                  templates  :  ASTFTemplate see :class:`trex_astf_lib.trex_astf_client.ASTFTemplate`
+                  templates  :  ASTFTemplate see :class:`trex.astf.trex_astf_profile.ASTFTemplate`
                        define a list of manual templates or one template
 
-                  cap_list  : ASTFCapInfo see :class:`trex_astf_lib.trex_astf_client.ASTFCapInfo`
+                  cap_list  : ASTFCapInfo see :class:`trex.astf.trex_astf_profile.ASTFCapInfo`
                       define a list of pcap files list in case there is no  templates
         """
 
@@ -1614,6 +1634,11 @@ class ASTFProfile(object):
                 template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
                 self.templates.append(template)
 
+    def to_json_str(self):
+        ret = self.to_json()
+        return json.dumps(ret, indent=4, separators=(',', ': '))
+
+
     def to_json(self):
         ret = {}
         ret['buf_list'] = ASTFProgram.class_to_json()
@@ -1627,7 +1652,7 @@ class ASTFProfile(object):
         for i in range(0, len(self.templates)):
             ret['templates'].append(self.templates[i].to_json())
 
-        return json.dumps(ret, indent=4, separators=(',', ': '))
+        return ret;
 
     def print_stats(self):
         tot_bps = 0
@@ -1646,3 +1671,108 @@ class ASTFProfile(object):
             tot_bps += temp_bps
             tot_cps += temp_cps
         print("total for all templates - cps:{0} bps:{1}".format(tot_cps, tot_bps))
+
+    @staticmethod
+    def get_module_tunables(module):
+        # remove self and variables
+        func = module.register().get_profile
+        argc = func.__code__.co_argcount
+        tunables = func.__code__.co_varnames[1:argc]
+
+        # fetch defaults
+        defaults = func.__defaults__
+        if defaults is None:
+            return {}
+        if len(defaults) != (argc - 1):
+            raise TRexError("Module should provide default values for all arguments on get_streams()")
+
+        output = {}
+        for t, d in zip(tunables, defaults):
+            output[t] = d
+
+        return output
+
+    @staticmethod
+    def load_py (python_file, **kwargs):
+        """ Load from ASTF Python profile """
+
+        # check filename
+        if not os.path.isfile(python_file):
+            raise TRexError("File '{0}' does not exist".format(python_file))
+
+        basedir = os.path.dirname(python_file)
+        sys.path.insert(0, basedir)
+
+        try:
+            file    = os.path.basename(python_file).split('.')[0]
+            module = __import__(file, globals(), locals(), [], 0)
+            imp.reload(module) # reload the update 
+
+            t = ASTFProfile.get_module_tunables(module)
+
+            profile = module.register().get_profile(**kwargs)
+
+            profile.meta = {'type': 'python',
+                            'tunables': t}
+
+            return profile
+
+        except Exception as e:
+            a, b, tb = sys.exc_info()
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
+
+            summary = "\nPython Traceback follows:\n\n" + x
+            raise TRexError(summary)
+
+
+        finally:
+            sys.path.remove(basedir)
+
+
+
+    @staticmethod
+    def load_json (json_file):
+        """ Load (from JSON file) a profile with a number of streams """
+                # check filename
+        if not os.path.isfile(json_file):
+            raise TRexError("file '{0}' does not exists".format(json_file))
+
+        # read the content
+        with open(json_file) as f:
+            try:
+                data = json.load(f)
+                profile =  ASTFProfileLight(data)
+                
+            except (ValueError, yaml.parser.ParserError):
+                raise TRexError("file '{0}' is not a valid {1} formatted file".format(plain_file, 'JSON'))
+            
+        return profile
+
+
+
+
+    @staticmethod
+    def load (filename, **kwargs):
+        """ Load a profile by its type. Supported types are: 
+           * py
+           * json
+
+           :Parameters:
+              filename  : string as filename 
+              kwargs    : forward those key-value pairs to the profile
+
+        """
+
+        x = os.path.basename(filename).split('.')
+        suffix = x[1] if (len(x) == 2) else None
+
+        if suffix == 'py':
+            profile = ASTFProfile.load_py(filename, **kwargs)
+
+        elif suffix == 'json':
+            profile = ASTFProfile.load_json(filename)
+        else:
+            raise TRexError("unknown profile file type: '{0}'".format(suffix))
+
+        return profile
+

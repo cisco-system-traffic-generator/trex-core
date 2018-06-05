@@ -61,6 +61,7 @@ STLClient class
 
 .. autoclass:: trex.stl.trex_stl_client.STLClient
     :members: 
+    :inherited-members:
     :member-order: bysource
     
 

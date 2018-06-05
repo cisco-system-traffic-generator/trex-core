@@ -42,6 +42,8 @@ def __load ():
                  {'name': 'pyzmq-14.5.0', 'py-dep': True, 'arch-dep': True},
                  {'name': 'simpy-3.0.10'},
                  {'name': 'trex-openssl'},
+                 {'name': 'dpkt-1.9.1'},
+                 {'name': 'repoze'},
                ]
 
     __import_ext_libs(ext_libs, ext_libs_path)

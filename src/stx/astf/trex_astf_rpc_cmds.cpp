@@ -31,13 +31,29 @@ limitations under the License.
 /**
  * test
  */
-TREX_RPC_CMD(TrexRpcCmdAstfTest, "astf_test");
+TREX_RPC_CMD(TrexRpcCmdAstfStart, "start_stf");
 
 
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdAstfTest::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
+
+    /* parsing of args  */
+    uint32_t duration = parse_uint32(params, "duration", result, 0);
+    printf("duration : %d \n",duration);
+
+    Json::Value &section = result["result"];
+    section["duration"] = duration;
+
+    if (duration == 10) {
+        generate_execute_err(result, "duration is not valid");
+    }
+
+    if (duration == 20) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
     return (TREX_RPC_CMD_OK);
 }
 
@@ -45,10 +61,10 @@ TrexRpcCmdAstfTest::_run(const Json::Value &params, Json::Value &result) {
 /****************************** component implementation ******************************/
 
 /**
- * STL RPC component
+ * ASTF RPC component
  * 
  */
 TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     
-    m_cmds.push_back(new TrexRpcCmdAstfTest(this));
+    m_cmds.push_back(new TrexRpcCmdAstfStart(this));
 }

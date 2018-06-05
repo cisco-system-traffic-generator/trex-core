@@ -1,4 +1,4 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 # scheduler.accurate =1 means that it be more accurate generating traffic 
 

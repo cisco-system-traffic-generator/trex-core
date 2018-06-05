@@ -1,6 +1,6 @@
 # Example for creating your program by specifying buffers to send, without relaying on pcap file
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 class Prof1():
     def __init__(self):

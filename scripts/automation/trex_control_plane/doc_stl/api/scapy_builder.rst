@@ -34,7 +34,7 @@ STLPktBuilder  class
 
 Aggregate a raw instructions objects 
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLPktBuilder
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLPktBuilder
     :members: 
     :member-order: bysource
 

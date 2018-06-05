@@ -507,6 +507,7 @@ class TRexConsole(TRexGeneralCmd):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
     complete_push = complete_start
+    complete_hello = complete_start
 
 
     def complete_profile(self, text, line, begidx, endidx):
@@ -602,6 +603,9 @@ class TRexConsole(TRexGeneralCmd):
 
          if 'STL' in categories:
              self._help_cmds('Stateless Commands', categories['STL'])
+
+         if 'ASTF' in categories:
+             self._help_cmds('Advance Stateful Commands', categories['ASTF'])
 
 
     def _help_cmds (self, title, cmds):

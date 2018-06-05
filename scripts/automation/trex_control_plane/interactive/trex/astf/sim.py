@@ -17,6 +17,8 @@ import os
 import sys
 import subprocess
 import re
+from .trex_astf_profile import ASTFProfile
+
 
 DEFAULT_OUT_JSON_FILE = "/tmp/astf.json"
 
@@ -122,11 +124,6 @@ def execute_bp_sim(opts):
             rc = subprocess.call(cmd, stdout=devnull)
     if rc != 0:
         raise Exception('simulation has failed with error code {0}'.format(rc))
-
-
-def print_stats(prof):
-    # num programs, buffers, cps, bps client/server ip range
-    prof.print_stats()
 
 
 # when parsing paths, return an absolute path (for chdir)
@@ -242,39 +239,28 @@ def main(args=None):
     else:
         opts = parser.parse_args(args)
 
-    basedir = os.path.dirname(opts.input_file)
-    
-    sys.path.insert(0, basedir)
-
-    try:
-        file = os.path.basename(opts.input_file).split('.')[0]
-        prof = __import__(file, globals(), locals(), [], 0)
-    except Exception as e:
-        print("Failed importing {0}".format(opts.input_file))
-        print(e)
-        sys.exit(100)
-
-    cl = prof.register()
     tun=opts.tunables if opts.tunables else {};
+
+    profile = None
     if opts.dev:
-        profile = cl.get_profile(**tun)
+        profile = ASTFProfile.load(opts.input_file,**tun);
     else:
-        try:
-            profile = cl.get_profile(**tun)
-        except Exception as e:
-            print (e)
-            sys.exit(100)
+       try:
+           profile = ASTFProfile.load(opts.input_file,**tun);
+       except Exception as e:
+           print(e)
+           sys.exit(100)
 
     if opts.json:
-        print(profile.to_json())
+        print(profile.to_json_str())
         sys.exit(0)
 
     if opts.stat:
-        print_stats(profile)
+        profile.print_stats()
         sys.exit(0)
 
     f = open(DEFAULT_OUT_JSON_FILE, 'w')
-    f.write(str(profile.to_json()).replace("'", "\""))
+    f.write(str(profile.to_json_str()).replace("'", "\""))
     f.close()
     
     # if the path is not the same - handle the switch

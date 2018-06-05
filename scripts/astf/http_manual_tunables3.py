@@ -1,6 +1,6 @@
 # split the buffer to MSS and ack every buffer, no need the no_delay option
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

@@ -1,4 +1,4 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 # Only TCP SFR data is here 
 # SFR UDP templates are not here yet (e.g. DNS)

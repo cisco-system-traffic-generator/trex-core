@@ -1,6 +1,6 @@
 # Example using prog_c.reset(),prog_s.wait_for_peer_close() to generate RST from client to server 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

@@ -800,7 +800,7 @@ def build(bld):
 
     build_cp(bld,'cp_docs','doc',build_cp_docs)
 
-    #build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
+    build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
 
     build_cp(bld,'cp_astf_docs','doc_astf',build_astf_cp_docs)
 
