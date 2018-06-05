@@ -1,4 +1,4 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 # IPV6 tunable example 
 #

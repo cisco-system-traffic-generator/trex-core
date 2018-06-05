@@ -5,8 +5,9 @@ from ..utils import parsing_opts, text_tables
 from ..common.trex_logger import Logger
 from ..common.trex_exceptions import TRexError
 from ..common.trex_client import TRexClient
-from ..common.trex_types import RC_OK, RC_ERR, RC
 from ..common.trex_api_annotators import client_api, console_api
+from ..common.trex_types import *
+
 
 from .trex_astf_port import ASTFPort
 
@@ -154,6 +155,55 @@ class ASTFClient(TRexClient):
         pass
 
 
+    @client_api('command', True)
+    def load_profile(self, filename, **kwargs):
+        """ |  load a profile Supported types are:
+            |  .py
+            |  .json
+
+            :parameters:
+                filename : string
+                    filename (with path) of the profile
+
+                kwargs : dict
+                    forward those key-value pairs to the profile (tunables)
+
+            :returns:
+                0 in case of sucess 
+
+            :raises:
+                + :exc:`TRexError`
+
+        """
+        print("load profile");
+        pass
+            #validate_type('filename', filename, basestring)
+            #profile = STLProfile.load(filename, **kwargs)
+            #return self.add_streams(profile.get_streams(), ports)
+
+    @client_api('command', True)
+    def hello (self, filename = None,duration=None,tunables=None):
+
+        self.ctx.logger.pre_cmd("Hello {0} {1} {2} ".format(filename,duration,tunables))
+
+        #self.load_profile(filename, tunables)
+
+        # capture RPC parameters
+        params = {
+                  'duration'     : duration
+                  }
+
+        rc = self._transmit("start_stf", params = params)
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+        print(rc.data());
+
+        pass
+
+
     # get stats
     @client_api('getter', True)
     def get_stats (self, ports = None, sync_now = True):
@@ -180,6 +230,26 @@ class ASTFClient(TRexClient):
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @console_api('hello', 'ASTF', True)
+    def show_hello_line (self, line):
+        '''my first command \n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "hello",
+                                         self.show_hello_line.__doc__,
+                                         parsing_opts.FILE_PATH,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.TUNABLES
+                                         )
+        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+
+        if type(opts.tunables) is dict:
+            tunables = opts.tunables
+        else:
+            tunables = {}
+
+        self.hello(opts.file[0],opts.duration,tunables)
+
 
     @console_api('stats', 'common', True)
     def show_stats_line (self, line):

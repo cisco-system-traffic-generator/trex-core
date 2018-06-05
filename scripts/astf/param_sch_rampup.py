@@ -1,4 +1,4 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 # scheduler.rampup_sec =5 means that it will get to maximum rate after 5 sec 
 # CPS will increase linearly (every 1 sec) 

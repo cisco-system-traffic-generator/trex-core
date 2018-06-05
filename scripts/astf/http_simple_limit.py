@@ -2,7 +2,7 @@
 # this feature is good for generating Elephant flow (which are very big) so we should limit the total flows
 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 class Prof1():

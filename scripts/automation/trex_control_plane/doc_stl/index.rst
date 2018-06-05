@@ -73,9 +73,9 @@ TRex supports both Python2 and Python3 pyATS.
 
 * Source trex stateless libs in scripts::
 
-          from trex_stl_lib.api import *
+          from trex.stl.api import *
           from scapy.contrib.mpls import *
-          from trex_stl_lib.trex_stl_hltapi import *
+          from trex.stl.trex_stl_hltapi import *
 
 If using trex_client package, import syntax is::
 

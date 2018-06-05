@@ -999,9 +999,19 @@ class TRexClient(object):
     @client_api('getter', False)
     def get_events (self, ev_type_filter = None):
         """
-            returns list of the events recorded
+        returns list of the events recorded
+
+        :parameters:
+
             ev_type_filter: list
                 combination of: 'warning', 'info'
+
+        :return:
+            warning logged events
+
+        :raises:
+          None
+
             
         """
         return self.ctx.event_handler.get_events(ev_type_filter)

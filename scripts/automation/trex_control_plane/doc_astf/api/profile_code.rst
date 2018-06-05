@@ -76,7 +76,7 @@ Example3::
 ASTFProfile class
 -----------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFProfile
+.. autoclass:: trex.astf.trex_astf_profile.ASTFProfile
     :members: 
     :member-order: bysource
 
@@ -84,28 +84,28 @@ ASTFProfile class
 ASTFTemplate class
 ------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFTemplate
+.. autoclass:: trex.astf.trex_astf_profile.ASTFTemplate
     :members: 
     :member-order: bysource
 
 ASTFCapInfo class
 -----------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFCapInfo
+.. autoclass:: trex.astf.trex_astf_profile.ASTFCapInfo
     :members: 
     :member-order: bysource
 
 ASTFTCPServerTemplate class
 ---------------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFTCPServerTemplate
+.. autoclass:: trex.astf.trex_astf_profile.ASTFTCPServerTemplate
     :members: 
     :member-order: bysource
 
 ASTFTCPClientTemplate class
 ---------------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFTCPClientTemplate
+.. autoclass:: trex.astf.trex_astf_profile.ASTFTCPClientTemplate
     :members: 
     :member-order: bysource
 
@@ -113,7 +113,7 @@ ASTFTCPClientTemplate class
 ASTFIPGen class
 ---------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFIPGen
+.. autoclass:: trex.astf.trex_astf_profile.ASTFIPGen
     :members: 
     :member-order: bysource
 
@@ -121,7 +121,7 @@ ASTFIPGen class
 ASTFIPGenGlobal class
 ---------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFIPGenGlobal
+.. autoclass:: trex.astf.trex_astf_profile.ASTFIPGenGlobal
     :members: 
     :member-order: bysource
 
@@ -129,28 +129,28 @@ ASTFIPGenGlobal class
 ASTFIPGenDist class
 -------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFIPGenDist
+.. autoclass:: trex.astf.trex_astf_profile.ASTFIPGenDist
     :members: 
     :member-order: bysource
 
 ASTFProgram class
 -----------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFProgram
+.. autoclass:: trex.astf.trex_astf_profile.ASTFProgram
     :members: 
     :member-order: bysource
 
 ASTFAssociation class
 ---------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFAssociation
+.. autoclass:: trex.astf.trex_astf_profile.ASTFAssociation
     :members: 
     :member-order: bysource
 
 ASTFAssociationRule class
 -------------------------
 
-.. autoclass:: trex_astf_lib.trex_astf_client.ASTFAssociationRule
+.. autoclass:: trex.astf.trex_astf_profile.ASTFAssociationRule
     :members: 
     :member-order: bysource
 

@@ -16,5 +16,5 @@ if [ -z "$PYTHON" ]; then
     source find_python.sh
 fi
 
-export PYTHONPATH=automation/trex_control_plane/astf:automation/trex_control_plane/astf/trex_astf_lib
-$PYTHON -m trex_astf_lib.sim -p $PWD $INPUT_ARGS
+export PYTHONPATH=automation/trex_control_plane/interactive
+$PYTHON -m trex.astf.sim -p $PWD $INPUT_ARGS
