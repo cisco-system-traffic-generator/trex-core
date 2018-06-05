@@ -1512,10 +1512,9 @@ class STLClient(TRexClient):
                 self.add_streams(profile.get_streams(), ports = port)
 
         except TRexError as e:
-            for line in e.brief().splitlines():
-                if ansi_len(line.strip()):
-                    error = line
-            raise TRexError(format_text("Error loading profile '{0}'".format(opts.file[0]), 'bold'))
+            s = format_text("\nError loading profile '{0}'\n".format(opts.file[0]), 'bold')
+            s += "\n" + e.brief()
+            raise TRexError(s)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
