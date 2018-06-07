@@ -532,7 +532,7 @@ private:
         // keep our promise of no CLIB usage
         while (nCount-- > 0) *ppDst++ = *ppSrc++;
 #else
-        memcpy(ppDst, ppSrc, nCount * sizeof(SOCHAR*));
+        memmove(ppDst, ppSrc, nCount * sizeof(SOCHAR*));
 #endif
     }
 
