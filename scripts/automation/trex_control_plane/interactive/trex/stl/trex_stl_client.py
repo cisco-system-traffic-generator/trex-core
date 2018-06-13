@@ -1131,7 +1131,7 @@ class STLClient(TRexClient):
         # TODO: move this to a generic protocol (AbstractStats)
         pgid_stats = self.get_pgid_stats()
         if not pgid_stats:
-            raise STLError(pgid_stats)
+            raise TRexError(pgid_stats)
 
         output['flow_stats'] = pgid_stats.get('flow_stats', {})
         output['latency']    = pgid_stats.get('latency', {})

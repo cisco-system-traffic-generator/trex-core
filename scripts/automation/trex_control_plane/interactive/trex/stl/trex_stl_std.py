@@ -1,5 +1,6 @@
 
 from ..utils.common import *
+from ..common.trex_exceptions import TRexError
 
 from .trex_stl_streams import *
 from .trex_stl_packet_builder_scapy import *
@@ -16,7 +17,7 @@ def stl_map_ports (client, ports = None):
 
     unresolved_ports = list_difference(ports, client.get_resolved_ports())
     if unresolved_ports:
-        raise STLError("Port(s) {0} have unresolved destination addresses".format(unresolved_ports))
+        raise TRexError("Port(s) {0} have unresolved destination addresses".format(unresolved_ports))
 
     stl_send_3_pkts(client, ports)
 
@@ -39,14 +40,14 @@ def stl_map_ports (client, ports = None):
                                mode = STLTXSingleBurst(pps = 1e4, total_pkts = PKTS_SENT))
             try:
                 client.add_streams(stream, [port])
-            except STLError:
+            except TRexError:
                 continue
             pgid_per_port[port] = test_pgid
             test_pgid += 1
             break
 
     if len(pgid_per_port) != len(ports):
-        raise STLError('Could not add flow stats streams per port.')
+        raise TRexError('Could not add flow stats streams per port.')
 
     # inject
     client.clear_stats(ports, clear_global = False, clear_flow_stats = True, clear_latency_stats = False, clear_xstats = False)

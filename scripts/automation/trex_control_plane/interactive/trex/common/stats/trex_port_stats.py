@@ -4,7 +4,7 @@ from collections import deque, OrderedDict
 import copy
 
 from .trex_stats import AbstractStats
-from ..trex_types import RpcCmdData
+from ..trex_types import RpcCmdData, TRexError
 
 from ...utils import text_tables
 from ...utils.common import calc_bps_L1, round_float
@@ -216,7 +216,7 @@ class PortXStats(AbstractStats):
         values = snapshot['xstats_values']
 
         if len(values) != len(self.names):
-            raise STLError('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
+            raise TRexError('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
 
         snapshot = OrderedDict([(key, val) for key, val in zip(self.names, values)])
 
