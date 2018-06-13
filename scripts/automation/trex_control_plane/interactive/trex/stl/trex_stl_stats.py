@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from ..common.trex_types import StatNotAvailable, is_integer
+from ..common.trex_types import StatNotAvailable, is_integer, TRexError
 from ..utils.text_opts import format_num
 from ..utils.common import try_int
 from ..utils import text_tables
@@ -87,7 +87,7 @@ class CPgIdStats(object):
             rc = self.rpc.transmit('get_pgid_stats', params = {'pgids': curr_pgid_list})
 
             if not rc:
-                raise STLError(rc)
+                raise TRexError(rc)
 
             for key, val in rc.data().items():
                 if key in ans_dict:

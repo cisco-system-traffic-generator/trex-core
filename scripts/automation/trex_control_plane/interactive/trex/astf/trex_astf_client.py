@@ -142,7 +142,7 @@ class ASTFClient(TRexClient):
                     Force acquire the ports.
 
             :raises:
-                + :exc:`STLError`
+                + :exc:`TRexError`
 
         """
         # call the base class acqurie

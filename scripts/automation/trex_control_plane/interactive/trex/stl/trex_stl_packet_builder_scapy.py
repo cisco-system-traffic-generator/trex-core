@@ -12,6 +12,7 @@ import copy
 from scapy.all import *
 
 from ..common.trex_types import *
+from ..common.trex_exceptions import TRexError
 
 from .trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 
@@ -1775,7 +1776,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
             # fetch instructions    
             vm_instr = json_data['vm']['instructions']
             if not type(vm_instr) == list:
-                raise STLError("from_json: bad type {0} for 'VM' field".format(type(vm_instr)))
+                raise TRexError("from_json: bad type {0} for 'VM' field".format(type(vm_instr)))
                 
             
             # iterate over instructions
@@ -1849,14 +1850,14 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                     
                 else:
                     print(instr)
-                    raise STLError("from_json: unknown VM instruction type '{0}'".format(instr['type']))
+                    raise TRexError("from_json: unknown VM instruction type '{0}'".format(instr['type']))
             
                     
         except binascii.Error:
-            raise STLError("from_json: bad packet format")
+            raise TRexError("from_json: bad packet format")
             
         except KeyError as e:
-            raise STLError("from_json: missing field {0} from JSON".format(e))
+            raise TRexError("from_json: missing field {0} from JSON".format(e))
         
                 
         return STLPktBuilder(pkt_buffer = pkt_buffer, vm = vm_obj)
