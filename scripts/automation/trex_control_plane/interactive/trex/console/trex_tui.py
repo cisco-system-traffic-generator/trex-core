@@ -20,6 +20,7 @@ else:
     from cStringIO import StringIO
 
 from ..utils.text_opts import *
+from ..utils.common import list_intersect
 from ..utils import text_tables
 from ..utils.filters import ToggleFilter
 from ..common.trex_exceptions import TRexError
@@ -152,9 +153,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
     ######### actions
     def action_pause (self):
+        ports = list_intersect(self.get_showed_ports(), self.client.get_transmitting_ports())
         try:
-            rc = self.client.pause(ports = self.get_showed_ports())
-        except STLError:
+            rc = self.client.pause(ports = ports)
+        except TRexError:
             pass
 
         return ""
@@ -162,9 +164,10 @@ class TrexTUIDashBoard(TrexTUIPanel):
 
 
     def action_resume (self):
+        ports = list_intersect(self.get_showed_ports(), self.client.get_paused_ports())
         try:
-            self.client.resume(ports = self.get_showed_ports())
-        except STLError:
+            self.client.resume(ports = ports)
+        except TRexError:
             pass
 
         return ""
@@ -671,7 +674,7 @@ class TrexTUI():
                 self.client.connect()
                 self.client.acquire()
                 self.state = self.STATE_ACTIVE
-            except STLError:
+            except TRexError:
                 self.state = self.STATE_LOST_CONT
 
 
