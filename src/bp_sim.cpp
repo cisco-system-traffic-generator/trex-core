@@ -2313,6 +2313,7 @@ int CFlowsYamlInfo::load_from_yaml_file(std::string file_name){
           break;
        }
     } catch ( const std::exception& e ) {
+        printf("Error parsing file %s as YAML:\n", file_name.c_str());
         std::cout << e.what() << "\n";
         exit(-1);
     }

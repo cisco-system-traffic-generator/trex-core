@@ -625,6 +625,15 @@ Other network devices
                     out = '    ' + '\n    '.join(f.read().splitlines())
                 raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.\nProduced output:\n%s' % out)
 
+    def verify_stf_file(self):
+        """ check the input file of STF """
+        is_stf_mode = map_driver.parent_args and (not map_driver.parent_args.astf) and map_driver.parent_args.file
+        if is_stf_mode:
+            extension = os.path.splitext(map_driver.parent_args.file)[1]
+            if extension == '.py':
+                raise DpdkSetup('ERROR: Python files can not be used with STF mode, did you forget "--astf" flag?')
+            elif extension != '.yaml':
+                pass # should we fail here?
 
     def config_hugepages(self, wanted_count = None):
         huge_mnt_dir = '/mnt/huge'
@@ -759,6 +768,7 @@ Other network devices
 
         self.load_config_file()
         self.preprocess_astf_file_is_needed()
+        self.verify_stf_file()
         if (map_driver.parent_args is None or
                 map_driver.parent_args.dump_interfaces is None or
                     (map_driver.parent_args.dump_interfaces == [] and
