@@ -38,6 +38,8 @@
 import sys, os, getopt, subprocess, shlex
 from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
+import platform
+import errno
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 
@@ -235,11 +237,32 @@ def has_modules():
     modules_dir = '/lib/modules'
     return os.path.isdir(modules_dir) and os.listdir(modules_dir)
 
+def run_lspci(*args):
+    try:
+        return check_output(["lspci"] + list(args), universal_newlines = True).splitlines()
+    except OSError as e:
+        if e.errno != errno.ENOENT: # No such file or directory
+            raise
+
+        print('Error running "lspci" to query information about interfaces.')
+        dist = platform.linux_distribution(full_distribution_name=False)[0].lower()
+        if dist == 'ubuntu':
+            print('Try installing it with:')
+            print('    sudo apt-get install pciutils')
+        elif dist in ('centos', 'fedora'):
+            print('Try installing it with:')
+            print('    sudo yum install pciutils')
+        else:
+            print('Try installing pciutils or another package which contains lspci command.')
+        print('')
+        sys.exit(-1)
+
+
 def get_pci_device_details(dev_id):
     '''This function gets additional details for a PCI device'''
     device = {}
     lspci_args = '-vmmks' if has_modules() else '-vmms'
-    extra_info = check_output(["lspci", lspci_args, dev_id], universal_newlines = True).splitlines()
+    extra_info = run_lspci(lspci_args, dev_id)
 
     # parse lspci details
     for line in extra_info:
@@ -273,12 +296,14 @@ def get_nic_details():
     global devices
     global dpdk_drivers
 
-    # clear any old data
-    devices = {}
+    if devices:
+        return
+
     # first loop through and read details for all devices
     # request machine readable format, with numeric IDs
+    dev_lines = run_lspci('-Dvmmn')
+
     dev = {};
-    dev_lines = check_output(["lspci", "-Dvmmn"], universal_newlines = True).splitlines()
     for dev_line in dev_lines:
         if (len(dev_line) == 0):
             if dev["Class"] == ETHERNET_CLASS or dev["Class"] == NAPATECH_CLASS:

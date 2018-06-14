@@ -12,11 +12,11 @@ ARCH=$(uname -m)
 RESULT=$?
 
 if [ $RESULT -eq 255 ]; then
-  echo "ERROR encountered while configuring trex system"
+  echo "ERROR encountered while configuring TRex system"
   exit $RESULT
 
 elif [ $RESULT -eq 2 ]; then
-  echo "ERROR encountered while configuring trex system"
+  echo "ERROR encountered while configuring TRex system"
   exit $RESULT
 
 elif [ $RESULT -eq 64 ]; then
