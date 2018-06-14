@@ -757,7 +757,6 @@ Other network devices
     def do_run (self, only_check_all_mlx=False):
         """ returns code that specifies if interfaces are Mellanox/Napatech etc. """
 
-        self.run_dpdk_lspci ()
         self.load_config_file()
         self.preprocess_astf_file_is_needed()
         if (map_driver.parent_args is None or
@@ -768,6 +767,7 @@ Other network devices
         else:
             if_list = map_driver.parent_args.dump_interfaces
             if not if_list:
+                self.run_dpdk_lspci()
                 for dev in self.m_devices.values():
                     if dev.get('Driver_str') in dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel:
                         if_list.append(dev['Slot'])
@@ -778,6 +778,7 @@ Other network devices
             # no need to config hugepages
             return
 
+        self.run_dpdk_lspci()
         if_list = list(map(self.pci_name_to_full_name, if_list))
 
 
