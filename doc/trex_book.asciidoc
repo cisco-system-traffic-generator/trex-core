@@ -134,7 +134,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Chipset              | Bandwidth  (Gb/sec)  | TSO |LRO  | Example
 | Any Kernel Linux interface |x| x | x | veth,tap,tun,eth0,wireless interface, up to ~1MPPS, one thread. see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
-| Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. x550-T2,x540-T2 for tbase 
+| Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. X550-T2,x540-T2 for tbase Cisco part ID:UCSC-PCIE-ID10GC 
 | Intel 82599 VF       | x   | + | + |
 | Intel X710           | 10  | + | - |Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
 | Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical) *Preferred* support per stream stats in hardware
