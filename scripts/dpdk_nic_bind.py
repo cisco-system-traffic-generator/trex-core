@@ -289,6 +289,110 @@ def get_pci_device_details(dev_id):
 
     return device
 
+def get_nt_mac_address_imgctrl():
+    # helper function
+    def hex2(n):
+        x = '%x' % (n,)
+        return (('0' * (len(x) % 2)) + x).zfill(12)
+
+    cmd = "/opt/napatech3/bin/imgctrl -q --log"
+    try:
+        proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, universal_newlines = True)
+        stdout, _ = proc.communicate()
+        if proc.returncode:
+            return None
+    except:
+        print ("Could not run Napatech imgctrl to obtain MAC address\n")
+        return None
+
+    d = {}
+    alldevs = {}
+    for line in stdout.splitlines():
+        if "PCI SLOT" in line:
+            busid = line.split()[3]
+            d["Bus"] = busid
+        elif "vpd macAddress" in line:
+            mac = line.split()[3].replace('.',':')
+            d["Mac"] = mac
+        elif "vpd noOfMacs" in line:
+            num_ports = int(line.split()[3]) -1
+            if (num_ports != 1) and ((num_ports & 1)) != 0:
+                num_ports += 1 # no cards with 3, 5, 7 ... ports
+            d["num_ports"] = num_ports
+        elif "NIM-port-" in line:
+            # let NIM-port-x on-the-fly override the number of ports
+            d["num_ports"] = 1 + int(line.split('-')[2].split()[0])
+        elif "uptime" in line:  # use 'uptime' for "done" trigger
+            m = int("0x" + d.get("Mac", "00:00:00:00:00:00").replace(":",""), 16)   # base MAC
+            for n in range(0, d.get("num_ports",0)):
+                m_i = hex2(m + n)
+                m_l = [m_i[i:i+2] for i in range(0, len(m_i), 2)]
+                d["Mac_" + str(n)] = ':'.join(m_l)
+            alldevs[d["Bus"]] = dict(d)
+    return alldevs
+
+def get_nt_mac_address_adapterinfo():
+    cmd = "/opt/napatech3/bin/adapterinfo"
+
+    try:
+        proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, universal_newlines = True)
+        stdout, _ = proc.communicate()
+        if proc.returncode:
+            return None
+    except:
+        print ("Could not run Napatech adapterinfo to obtain MAC address\n")
+        return None
+
+    d = {}
+    alldevs = {}
+    port_idx = 0
+    for line in stdout.splitlines():
+        if "Bus ID" in line:
+            busid = line.split()[2]
+            d["Bus"] = busid
+            port_idx = 0        # reset port-idx to 0 for new adapter (triggered by new BusId)
+        elif "Ports" in line:
+            d["num_ports"] = int(line.split()[1])
+        elif "Port #" in line and " MAC :" in line:
+            mac = line.split()[4].replace('.',':').lower()
+            a = alldevs.get("Bus", None)
+            if a is None:
+                d["Mac"] = mac  # base mac address
+                d["Mac_" + str(port_idx)] = mac   # port MAC address
+                port_idx += 1
+        elif port_idx > 0 and " MAC : " in line:
+            #print (line)
+            mac = line.split()[4].replace('.',':').lower()
+            d["Mac_" + str(port_idx)] = mac
+        elif "Max expected throughput" in line:
+            alldevs[d["Bus"]] = dict(d)
+    return alldevs
+
+def collect_nt_dev_info():
+    if 'nt_devs' not in collect_nt_dev_info.__dict__:
+        collect_nt_dev_info.nt_devs = None
+    if collect_nt_dev_info.nt_devs is None:
+        collect_nt_dev_info.nt_devs = get_nt_mac_address_adapterinfo()
+    if collect_nt_dev_info.nt_devs is None:
+        collect_nt_dev_info.nt_devs = get_nt_mac_address_imgctrl()
+    ()
+
+    return collect_nt_dev_info.nt_devs
+
+def get_nt_mac_address(pci_slot):
+    '''This function attempts to get Napatech adapter MAC Address based on output of other tools.'''
+    nt_devs = collect_nt_dev_info()
+
+    # there's no guarantee that NT driver is configured to handle the given card (i.e. it's not given that nt_devs[pci_slot] is known) 
+    # hence we try to read MAC using a try-except construction
+    try:
+        mac = nt_devs[pci_slot]["Mac"]
+    except:
+        mac = "" #"00:00:00:00:00:00"
+    return mac
+
 def get_nic_details():
     '''This function populates the "devices" dictionary. The keys used are
     the pci addresses (domain:bus:slot.func). The values are themselves
@@ -360,6 +464,9 @@ def get_nic_details():
             if os.path.exists(mac_file):
                 with open(mac_file) as f:
                     devices[d]['MAC'] = f.read().strip()
+
+        if devices[d]["Class"] == NAPATECH_CLASS:
+            devices[d]['MAC'] = get_nt_mac_address(devices[d]['Slot'])
 
         # get NUMA from Linux if available
         numa_node_file = '/sys/bus/pci/devices/%s/numa_node' % devices[d]['Slot']
@@ -681,6 +788,18 @@ def get_info_from_trex(pci_addr_list):
             pci_info_dict[pci]['TRex_Driver'] = match.group(3)
     return pci_info_dict
 
+def add_table_entry_napatech(id, d, table):
+    nt_devs = collect_nt_dev_info()
+    try:
+        num_ports = nt_devs[d['Slot']]["num_ports"]
+        if num_ports > 0:
+            for port in range(0, num_ports):
+                mac = nt_devs[d['Slot']].get("Mac_" + str(port), nt_devs[d['Slot']].get("Mac", '00:00:00:00:00:00'))
+                table.add_row([str(id) + "/" + str(port), d['NUMA'], d['Slot_str'] + "/" + str(port), mac, d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
+            return True
+    except:
+        return False
+
 def show_table(get_macs = True):
     '''Function called when the script is passed the "--table" option.
     Similar to show_status() function, but shows more info: NUMA etc.'''
@@ -702,8 +821,12 @@ def show_table(get_macs = True):
     table = texttable.Texttable(max_width=-1)
     table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])
     for id, pci in enumerate(sorted(devices.keys())):
+        custom_row_added = False
         d = devices[pci]
-        table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
+        if d["Class"] == NAPATECH_CLASS:
+            custom_row_added = add_table_entry_napatech(id, d, table)
+        if not custom_row_added:
+            table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
     print(table.draw())
 
 # dumps pci address and description (user friendly device name)
