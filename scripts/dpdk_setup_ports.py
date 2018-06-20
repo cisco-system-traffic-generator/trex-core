@@ -806,8 +806,10 @@ Other network devices
 
         # check how many mellanox cards we have
         Mellanox_cnt=0;
+        dummy_cnt=0
         for key in if_list:
             if key == 'dummy':
+                dummy_cnt += 1
                 continue
             key = self.split_pci_key(key)
             if key not in self.m_devices:
@@ -823,8 +825,8 @@ Other network devices
 
 
         if not (map_driver.parent_args and map_driver.parent_args.dump_interfaces):
-            if (Mellanox_cnt > 0) and (Mellanox_cnt != len(if_list)):
-               err=" All driver should be from one vendor. you have at least one driver from Mellanox but not all ";
+            if (Mellanox_cnt > 0) and ((Mellanox_cnt + dummy_cnt) != len(if_list)):
+               err = "All driver should be from one vendor. You have at least one driver from Mellanox but not all."
                raise DpdkSetup(err)
             if Mellanox_cnt > 0:
                 self.set_only_mellanox_nics()
