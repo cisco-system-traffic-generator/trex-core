@@ -308,7 +308,7 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
 void
 TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
 
-    /* we encoutred a problem - decode the reason */
+    /* we encountered a problem - decode the reason */
     std::stringstream ss;
 
     /* lookup the next in the stream table */
@@ -317,12 +317,15 @@ TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
     if (next == NULL) {
         ss << "stream " << stream->m_stream_id << " is pointing to a non-existent stream " << stream->m_next_stream_id;
 
+    } else if ( !next->m_enabled ) {
+        ss << "stream " << stream->m_stream_id << " is pointing to disabled stream " << stream->m_next_stream_id;
+
     } else if (stream->is_latency_stream() != next->is_latency_stream()) {
 
         if (stream->is_latency_stream()) {
-            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } else {
-            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } 
     } else {
         /* unknown problem */

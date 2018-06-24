@@ -874,9 +874,10 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-D__STDC_CONSTANT_MACROS'
+                '-D__STDC_CONSTANT_MACROS',
                 #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
                 #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
+                #'-D__DEBUG_FUNC_ENTRY__', # Added by Ido to debug Flow Stats
                ]
 
 
