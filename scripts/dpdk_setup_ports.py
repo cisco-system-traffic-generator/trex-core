@@ -610,7 +610,7 @@ Other network devices
                 just_copy = True;
             else:
               if extension != '.py':
-                  raise DpdkSetup('ERROR when running with --astf mode, you need to have a new python profile format (.py) and not YAML')
+                  raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
 
             instance_name = ""
             prefix = self.get_prefix()
