@@ -127,11 +127,11 @@ TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
     if (get_platform_api().get_active_pgids(active_flow_stat) < 0)
         return TREX_RPC_CMD_INTERNAL_ERR;
 
-    for (it = active_flow_stat.begin(); it != active_flow_stat.end(); it++) {
-        if ((*it).m_type == PGID_FLOW_STAT) {
-            section["ids"]["flow_stats"][i++] = (*it).m_pg_id;
+    for (auto &it : active_flow_stat) {
+        if (it.m_type == PGID_FLOW_STAT) {
+            section["ids"]["flow_stats"][i++] = it.m_pg_id;
         } else {
-            section["ids"]["latency"][j++] = (*it).m_pg_id;
+            section["ids"]["latency"][j++] = it.m_pg_id;
         }
     }
 
@@ -151,10 +151,10 @@ TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &pgids = parse_array(params, "pgids", result);
 
-    /* iterate over all attributes in the dict */
-    for( Json::ValueIterator itr = pgids.begin() ; itr != pgids.end() ; itr++ ) {
+    /* iterate over list */
+    for (auto &itr : pgids) {
         try {
-            pgids_arr.push_back(itr->asUInt());
+            pgids_arr.push_back(itr.asUInt());
         } catch (const std::exception &ex) {
             generate_execute_err(result, ex.what());
         }
@@ -192,7 +192,7 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
 
     Json::Value json_list = Json::arrayValue;
 
-    for (auto stream_id : stream_list) {
+    for (auto &stream_id : stream_list) {
         json_list.append(stream_id);
     }
 
@@ -216,7 +216,7 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     port->get_object_list(streams);
 
     Json::Value streams_json = Json::objectValue;
-    for (auto stream : streams) {
+    for (auto &stream : streams) {
 
         Json::Value j = stream->get_stream_json();
 

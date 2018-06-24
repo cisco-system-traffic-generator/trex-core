@@ -295,8 +295,11 @@ class JsonRpcClient(object):
     # processs a single response from server
     def process_single_response (self, response_json):
 
+        if not response_json:
+            return RC_ERR("Empty JSON Response")
+
         if (response_json.get("jsonrpc") != "2.0"):
-            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
+            return RC_ERR("Malformed JSON Response ({0})".format(str(response_json)))
 
         # error reported by server
         if ("error" in response_json):
@@ -308,7 +311,7 @@ class JsonRpcClient(object):
         
         # if no error there should be a result
         if ("result" not in response_json):
-            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
+            return RC_ERR("Malformed JSON Response ({0})".format(str(response_json)))
 
         return RC_OK(response_json["result"])
 
