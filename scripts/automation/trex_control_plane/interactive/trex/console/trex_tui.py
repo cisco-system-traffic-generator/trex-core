@@ -654,7 +654,6 @@ class TrexTUI():
         if self.state == self.STATE_ACTIVE:
             # if no connectivity - move to lost connecitivty
             if not self.client.is_connected():
-                self.client._invalidate_stats(self.pm.ports)
                 self.state = self.STATE_LOST_CONT
 
 
