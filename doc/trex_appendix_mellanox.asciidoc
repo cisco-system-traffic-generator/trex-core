@@ -264,7 +264,7 @@ mlx5_1 port 1 ==> eth7 (Down)
 
 == Connect-5x maximum throughput
 
-.TRex OFED matirx
+.TRex OFED matrix
 [options="header",cols="1^,1^,1^",width="60%"]
 |=================
 | Packet size  | Tx L1 Precent (100Gb) | Rx L1 Precent (with new FW) (100Gb)
@@ -282,15 +282,15 @@ anchor:ofed_upgrade[]
 
 TRex v2.32 and lower works with OFED 4.1 and it can't work with new OFED 4.2 
 
-.TRex OFED matirx
+.TRex OFED matrix
 [options="header",cols="1^,1^,1^",width="60%"]
 |=================
 | TRex version  | OFED | Disto
-| 2.32  |  *only* 4.1  | CentOs 7.3
-| 2.33 or higher |  *only* 4.2  | CentOs 7.4
+| 2.32  |  *only* 4.1  | CentOS 7.3
+| 2.33 or higher |  *only* 4.2  | CentOS 7.4
 |=================
 
-WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
+WARNING: In our case an upgrade from CentOS 7.3 to CentOS 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
 
 == TRex specific implementation details
 
