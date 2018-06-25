@@ -21,7 +21,7 @@ class TRexTextTable(Texttable):
     def __init__(self, title = None):
         Texttable.__init__(self)
         # set class attributes so that it'll be more like TRex standard output
-        self.set_chars(['-', '|', '-', '-'])
+        self.set_chars(['-', '|', '+', '-'])
         self.set_deco(Texttable.HEADER | Texttable.VLINES)
         self.title = title
 
@@ -45,15 +45,13 @@ class TRexTextTable(Texttable):
         if not rows:
             return output
 
-        output.add_rows(rows)
         cols = len(rows[0])
 
-        
         output.set_cols_align([tables[0]._align[0]] + [tables[0]._align[1]] * (cols - 1))
         output.set_cols_width([tables[0]._width[0]] + [tables[0]._width[1]] * (cols - 1))
         output.set_cols_dtype([tables[0]._dtype[0]] + [tables[0]._dtype[1]] * (cols - 1))
 
-        
+        output.add_rows(rows)
         header_title  = tables[0]._header[0]
         header_values = [table._header[1] for table in tables]
         output.header([header_title] + header_values)
