@@ -296,7 +296,7 @@ WARNING: In our case an upgrade from CentOs 7.3 to CentOs 7.4 using `yum update`
 
 TRex uses flow director filter to steer specific packets to specific queues.
 To support that, we change IPv4.TOS/Ipv6.TC  LSB to *1* for packets we want to handle by software (Other packets will be dropped). So latency packets will have this bit turned on (This is true for all NIC types, not only for ConnectX-4).
-This means taht if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
+This means that if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
 
 == Which NIC to buy?
 

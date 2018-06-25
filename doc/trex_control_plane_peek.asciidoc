@@ -24,7 +24,7 @@ This document will shortly describe the planned control plane for TRex, which is
 
 TRex control plane is based on a JSON RPC transactions between clients and server. +
 Each TRex machine will have a server running on it, closely interacting with TRex (clients do not approach TRex directly). +
-As future feature, and as multiple T-Rexes might run on the same machine, single server shall serve all T-Rexes running a machine.
+As future feature, and as multiple TRexes might run on the same machine, single server shall serve all TRexes running a machine.
 
 The client is a Python based application that created `TRexClient` instances. +
 Using class methods, the client interacts with TRex server, and enable it to perform the following commands:
