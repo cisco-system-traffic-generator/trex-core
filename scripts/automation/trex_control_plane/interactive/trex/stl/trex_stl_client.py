@@ -1172,12 +1172,7 @@ class STLClient(TRexClient):
                 + :exc:`TRexError`
 
         """
-        rc = self._transmit("get_active_pgids")
-
-        if not rc:
-            raise TRexError(rc)
-
-        return rc.data()["ids"]
+        return self.pgid_stats.get_active_pgids()
 
 
     @client_api('getter', True)
@@ -1311,10 +1306,6 @@ class STLClient(TRexClient):
 
         # transform single stream
         pgid_list = listify(pgid_list)
-        if pgid_list == []:
-            active_pgids = self.get_active_pgids()
-            pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
-
         return self.pgid_stats.get_stats(pgid_list)
 
 ############################   console   #############################
