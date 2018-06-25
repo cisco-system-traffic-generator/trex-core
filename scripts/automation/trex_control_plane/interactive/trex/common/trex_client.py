@@ -9,7 +9,7 @@ import time
 import base64
 from collections import OrderedDict, defaultdict
 
-from ..utils.common import get_current_user, list_remove_dup, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_difference, list_intersect, PassiveTimer
+from ..utils.common import get_current_user, list_remove_dup, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_difference, list_intersect, PassiveTimer, sec_split_usec
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 from ..utils.text_tables import TRexTextTable
