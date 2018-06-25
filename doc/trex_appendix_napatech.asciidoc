@@ -198,7 +198,7 @@ The /opt/napatech3/config/ntservice.ini contains the following settings that con
 
 === Build with Napatech support
 Make sure to use a version of TRex downloaded from https://github.com/cisco-system-traffic-generator/trex-core (https://github.com/cisco-system-traffic-generator/trex-core/releases).
-T-Rex versions downloaded from here are in source form and contains a built-in DPDK
+TRex versions downloaded from here are in source form and contains a built-in DPDK
 [source,bash]
 ----
  [bash]>cd linux_dpdk

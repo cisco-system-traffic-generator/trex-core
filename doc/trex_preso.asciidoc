@@ -1281,7 +1281,7 @@ import trex_client
 == TRex On your laptop
 
 ++++++++++++++++++
-<img src="images/T-Rex_vm.png" alt="title=" align="center" >
+<img src="images/TRex_vm.png" alt="title=" align="center" >
 ++++++++++++++++++
 
 * You can experience TRex on your laptop 

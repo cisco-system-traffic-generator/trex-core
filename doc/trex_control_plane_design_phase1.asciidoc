@@ -27,7 +27,7 @@ This document will describe the current control plane for TRex, and its scalable
 TRex control plane is based on a JSON RPC transactions between clients and server. +
 Each TRex machine will have a server running on it, closely interacting with TRex (clients do not approach TRex directly). +
 The server version (which runs as either a daemon or a CLI application) is deployed with TRex latest version, written in Python 2.7.
-As future feature, and as multiple T-Rexes might run on the same machine, single server shall serve all T-Rexes running a machine.
+As future feature, and as multiple TRexes might run on the same machine, single server shall serve all TRexes running a machine.
 
 The control plane implementation is using the currently dumped data messaging from TRex's core via ZMQ publisher, running from core #1.
 The server used as a Subscriptor for this data, manipulating the packets, and re-encodes it into JSON-RPC format for clients use. +
