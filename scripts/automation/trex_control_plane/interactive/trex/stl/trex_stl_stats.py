@@ -73,7 +73,16 @@ class CPgIdStats(object):
                 continue
             self.ref[key] = stats[key]
 
+    def get_active_pgids(self):
+        rc = self.rpc.transmit('get_active_pgids')
+        if not rc:
+            raise TRexError(rc)
+        return rc.data()['ids']
+
     def get_stats(self, pgid_list = [], relative = True):
+        if not pgid_list:
+            active_pgids = self.get_active_pgids()
+            pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
 
         # Should not exceed MAX_ALLOWED_PGID_LIST_LEN from common/stl/trex_stl_fs.cpp
         max_pgid_in_query = 1024 + 128
