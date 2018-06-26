@@ -847,14 +847,13 @@ def main():
         return
 
 
-    # TUI or no acquire will give us READ ONLY mode
     try:
         client.connect()
     except TRexError as e:
         logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
-    
+    # TUI or no acquire will give us READ ONLY mode
     if not options.tui and not options.readonly:
         try:
             # acquire all ports

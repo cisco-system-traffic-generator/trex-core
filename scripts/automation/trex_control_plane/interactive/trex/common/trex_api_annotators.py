@@ -89,7 +89,7 @@ def client_api(api_type = 'getter', connected = True):
         return wrap
 
 
-def console_api (name, group, connected = True):
+def console_api (name, group, require_connect = True):
     """
         console decorator
 
@@ -108,7 +108,7 @@ def console_api (name, group, connected = True):
             client = args[0]
 
             # check connection if needed
-            if connected and not client.conn.is_connected():
+            if require_connect and not client.conn.is_connected():
                 client.logger.error(format_text("\n'{0}' cannot be executed in offline mode\n".format(name), 'bold'))
                 return
 
