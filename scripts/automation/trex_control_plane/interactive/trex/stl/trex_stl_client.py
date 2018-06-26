@@ -1,8 +1,9 @@
 import time
 import sys
 import os
+from collections import OrderedDict
 
-from ..utils.common import get_current_user, list_intersect, is_sub_list
+from ..utils.common import get_current_user, list_intersect, is_sub_list, user_input
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 
@@ -1422,6 +1423,137 @@ class STLClient(TRexClient):
         else:
             raise TRexError('Unhandled stats: %s' % opts.stats)
 
+    def _get_streams(self, port_id_list, streams_mask, table_format):
+        streams_per_port = OrderedDict()
+        for port_id in port_id_list:
+            data = self.ports[port_id].generate_loaded_streams_sum(streams_mask, table_format)
+            if data:
+                streams_per_port[port_id] = data
+        return streams_per_port
+
+    def get_traffic_info(self, console, line):
+        '''Get loaded to server streams information'''
+        parser = parsing_opts.gen_parser(self,
+                                         "get_traffic_info",
+                                         self.get_traffic_info.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.STREAMS_MASK,
+                                         parsing_opts.STREAMS_CODE)
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        streams_per_port = self._get_streams(opts.ports, set(opts.ids), table_format = opts.code is None)
+
+        if not streams_per_port:
+            self.logger.info(format_text("No streams found with desired filter.\n", "bold", "magenta"))
+
+        elif opts.code is None: # Just print the summary table of streams
+
+            for port_id, port_streams_table in streams_per_port.items():
+                if port_streams_table:
+                    text_tables.print_table_with_header(port_streams_table,
+                                                        header = 'Port %s:' % port_id)
+
+        elif opts.code: # Save the code that generates streams to file
+
+            if not opts.code.endswith('.py'):
+                raise TRexError('Saved filename should end with .py')
+            is_several_ports = len(streams_per_port) > 1
+            if is_several_ports:
+                print(format_text('\nWarning: several ports specified, will save in separate file per port.', 'bold'))
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data:
+                    print('No streams to save at port %s, skipping.' % port_id)
+                    continue
+                filename = ('%s_port%s.py' % (opts.code[:-3], port_id)) if is_several_ports else opts.code
+                if os.path.exists(filename):
+                    sys.stdout.write('\nFilename %s already exists, overwrite? (y/N) ' % filename)
+                    history_bu = console._push_history()
+                    try:
+                        ans = user_input().strip()
+                    finally:
+                        console._pop_history(history_bu)
+                    if ans.lower() not in ('y', 'yes'):
+                        print('Not saving.')
+                        continue
+                self.logger.pre_cmd('Saving file as: %s' % filename)
+                try:
+                    profile = STLProfile(list(port_streams_data.values()))
+                    with open(filename, 'w') as f:
+                        f.write(profile.dump_to_code())
+                except Exception as e:
+                    self.logger.post_cmd(False)
+                    print(e)
+                    print('')
+                else:
+                    self.logger.post_cmd(True)
+
+        else: # Print the code that generates streams
+
+            for port_id, port_streams_data in streams_per_port.items():
+                if not port_streams_data:
+                    continue
+                print(format_text('Port: %s' % port_id, 'cyan', 'underline') + '\n')
+                for stream_id, stream in port_streams_data.items():
+                    print(format_text('Stream ID: %s' % stream_id, 'cyan', 'underline'))
+                    print('    ' + '\n    '.join(stream.to_code().splitlines()) + '\n')
+
+
+    @console_api('push', 'STL', True)
+    def push_line(self, line):
+        '''Push a pcap file '''
+        args = [self,
+                "push",
+                self.push_line.__doc__,
+                parsing_opts.REMOTE_FILE,
+                parsing_opts.PORT_LIST_WITH_ALL,
+                parsing_opts.COUNT,
+                parsing_opts.DURATION,
+                parsing_opts.IPG,
+                parsing_opts.MIN_IPG,
+                parsing_opts.SPEEDUP,
+                parsing_opts.FORCE,
+                parsing_opts.DUAL]
+
+        parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH_NO_CHECK]))
+        opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if not opts:
+            return opts
+
+        if not opts.remote:
+            parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH]))
+            opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if not opts:
+            return opts
+
+        if opts.remote:
+            self.push_remote(opts.file[0],
+                             ports          = opts.ports,
+                             ipg_usec       = opts.ipg_usec,
+                             min_ipg_usec   = opts.min_ipg_usec,
+                             speedup        = opts.speedup,
+                             count          = opts.count,
+                             duration       = opts.duration,
+                             force          = opts.force,
+                             is_dual        = opts.dual)
+
+        else:
+            self.push_pcap(opts.file[0],
+                           ports          = opts.ports,
+                           ipg_usec       = opts.ipg_usec,
+                           min_ipg_usec   = opts.min_ipg_usec,
+                           speedup        = opts.speedup,
+                           count          = opts.count,
+                           duration       = opts.duration,
+                           force          = opts.force,
+                           is_dual        = opts.dual)
+
+        return RC_OK()
 
 
     @console_api('service', 'STL', True)

@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
+from collections import OrderedDict
 
 from ..utils.common import list_difference, list_intersect
+from ..utils.text_opts import limit_string
+from ..utils import text_tables
 
 from ..common.trex_types import listify, RpcCmdData, RC, RC_OK
 from ..common.trex_port import Port, owned, writeable, up
@@ -491,37 +494,52 @@ class STLPort(Port):
 
     
     ################# stream printout ######################
-    def generate_loaded_streams_sum(self, sync = True, table_format = True):
+    def generate_loaded_streams_sum(self, stream_id_list, table_format = True):
         if self.state == self.STATE_DOWN:
             return {}
 
-        if sync:
-            self.sync_streams()
-        
-        data = OrderedDict()
-        for id in sorted(self.streams.keys()):
-            stream = self.streams[id]
-            if not table_format:
-                data[id] = stream
-                continue
+        self.sync_streams()
 
+        if stream_id_list:
+            stream_ids = list_intersect(stream_id_list, self.streams.keys())
+        else:
+            stream_ids = self.streams.keys()
+
+        data = OrderedDict([(k, self.streams[k]) for k in sorted(self.streams.keys()) if k in stream_ids])
+
+        if not data or not table_format:
+            return data
+
+        pkt_types = {}
+        p_type_field_len = 1
+        for stream_id, stream in data.items():
+            pkt_types[stream_id] = format_limit_string(stream.get_pkt_type(), 30)
+            p_type_field_len = max(p_type_field_len, len(pkt_types[stream_id]))
+
+        info_table = text_tables.TRexTextTable()
+        info_table.set_cols_align(["c"] + ["c"] + ["c"] + ["r"] + ["c"] + ["c"] + ["c"] + ["c"])
+        info_table.set_cols_width([10]  + [15]  + [p_type_field_len]  + [8] + [16]  + [15] + [12] + [12])
+        info_table.set_cols_dtype(["t"] * 8)
+        info_table.header(["ID", "name", "packet type", "length", "mode", "rate", "PG ID", "next"])
+
+        for stream_id, stream in data.items():
             if stream.has_flow_stats():
                 pg_id = '{0}: {1}'.format(stream.get_flow_stats_type(), stream.get_pg_id())
             else:
                 pg_id = '-'
-            
-            data[id] = OrderedDict([ ('id',           id),
-                                     ('name',         stream.get_name() or '-'),
-                                     ('packet_type',  stream.get_pkt_type()),
-                                     ('L2 len',       len(stream.get_pkt())+ 4),
-                                     ('mode',         stream.get_mode()),
-                                     ('rate',         stream.get_rate()),
-                                     ('PG ID',        pg_id),
-                                     ('next',         stream.get_next() or '-')
-                                    ])
-    
-        return {"streams" : data}
-    
+
+            info_table.add_row([
+                stream_id,
+                stream.get_name() or '-',
+                pkt_types[stream_id],
+                len(stream.get_pkt())+ 4,
+                stream.get_mode(),
+                stream.get_rate(),
+                pg_id,
+                stream.get_next() or '-',
+                ])
+
+        return info_table
 
 
     # return True if port has any stream configured with RX stats

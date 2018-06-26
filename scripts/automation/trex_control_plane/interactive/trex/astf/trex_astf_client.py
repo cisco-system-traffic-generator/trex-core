@@ -224,4 +224,8 @@ class ASTFClient(TRexClient):
             self._show_mbuf_util()
 
 
+    def get_traffic_info(self, console, line):
+        '''Get loaded traffic information'''
+        raise TRexError('Not implemented')
+
 

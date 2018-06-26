@@ -413,6 +413,19 @@ class TRexConsole(TRexGeneralCmd):
 
         self.client.logger.info(format_text("\n*** Leaving IPython ***\n"))
 
+    def do_traffic(self, line):
+        '''Show loaded traffic info'''
+        return self.client.get_traffic_info(self, line)
+
+    def do_streams(self, line):
+        '''Legacy for STL, hidden from menu'''
+        if self.client.get_mode() == 'STL':
+            return self.do_traffic(line)
+        else:
+            self.client.logger.info(format_text('Streams command is relevant to STL only, use traffic command\n', 'bold'))
+
+    def help_traffic(self):
+        return self.do_traffic('-h')
 
     def do_history (self, line):
         '''Manage the command history\n'''
@@ -535,7 +548,7 @@ class TRexConsole(TRexGeneralCmd):
 
     # quit function
     def do_quit(self, line):
-        '''Exit the client\n'''
+        '''Exit the console\n'''
         return True
 
     
@@ -559,7 +572,7 @@ class TRexConsole(TRexGeneralCmd):
     
     
          cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
-         hidden = ['EOF', 'q', 'exit', 'h', 'shell']
+         hidden = ['EOF', 'q', 'exit', 'h', 'shell', 'streams']
 
          categories = collections.defaultdict(list)
          
