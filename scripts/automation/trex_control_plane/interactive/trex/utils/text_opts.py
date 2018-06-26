@@ -113,6 +113,10 @@ def format_time (t_sec):
         t_sec /= 24.0
         return '{:,.2f} [{:}]'.format(t_sec, 'days')
 
+def limit_string(string, trim_limit):
+    if len(string) <= trim_limit:
+        return string
+    return (string[:trim_limit-3] + '...')
 
 def format_percentage (size):
     return "%0.2f %%" % (size)
