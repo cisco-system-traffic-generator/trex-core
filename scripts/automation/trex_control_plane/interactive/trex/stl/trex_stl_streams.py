@@ -14,6 +14,7 @@ import imp
 
 from ..common.trex_exceptions import *
 from ..common.trex_types import verify_exclusive_arg, validate_type
+from ..utils.text_opts import format_num
 
 from .trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 from .trex_stl_packet_builder_scapy import *
