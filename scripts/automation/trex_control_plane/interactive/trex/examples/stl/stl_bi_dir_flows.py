@@ -46,7 +46,7 @@ def simple_burst (port_a, port_b, pkt_size, rate):
 
     try:
         # turn this on for some information
-        #c.set_verbose("high")
+        #c.set_verbose("debug")
 
         # create two streams
         s1 = STLStream(packet = create_pkt(pkt_size, 0),
