@@ -1,6 +1,6 @@
 # from __future__ import division
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 import yaml as yml
 from pprint import pprint
 import argparse
@@ -35,7 +35,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
                        fe_src_start_ip=None,
                        fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None, drop_rate_interval=10,
                        output=None, ports_list=[],
-                       latency_rate=1000, max_iterations=10, yaml=None):
+                       latency_rate=1000, max_iterations=10, yaml_file=None):
     configs = {'server': server, 'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
                'pdr_error': pdr_error, 'title': title,
@@ -46,12 +46,11 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
                'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
                'fe_dst_stop_ip': fe_dst_stop_ip}
     passed = True
-    if yaml:
+    if yaml_file:
         try:
-            f = open(yaml)
-            yml_config_dict = yml.safe_load(f)
+            with open(yaml_file) as f:
+                yml_config_dict = yml.safe_load(f)
             configs.update(yml_config_dict)
-            f.close()
         except IOError as e:
             print ("Error loading YAML file: %s \nExiting", e.message)
             return -1

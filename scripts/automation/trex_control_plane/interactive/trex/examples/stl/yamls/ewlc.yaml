@@ -1,0 +1,19 @@
+
+server     : csi-trex-17
+result_acc : 0.05
+flows      : 100000
+
+
+base:
+    ap_ip      : 8.8.12.1
+    ap_mac     : '94:12:12:12:12:01'
+    client_ip  : 8.8.100.1
+    client_mac : '94:13:13:13:13:01'
+
+
+ports:
+    0:
+        clients  : 6
+        dst_ip   : 48.0.0.0
+        dst_port : 2
+

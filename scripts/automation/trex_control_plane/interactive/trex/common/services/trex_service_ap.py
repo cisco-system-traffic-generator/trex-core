@@ -1,4 +1,5 @@
-from ...stl.api import *
+from trex.stl.api import *
+from trex.utils.text_opts import *
 from .trex_service import Service, ServiceFilter
 from .trex_service_int import ServiceCtx, simpy, TXBuffer
 import time
@@ -164,18 +165,18 @@ class ServiceApBgMaintenance:
             )
 
 
-    def log(self, msg, level = Logger._Logger__LEVEL_WARNING):
+    def log(self, msg, level = Logger.VERBOSES['warning']):
         if not msg.startswith('(WLC) '):
             msg = '(WLC) %s' % msg
         self.ap_mngr.trex_client.logger.async_log('\n' + bold(msg), level)
 
 
     def err(self, msg):
-        self.log(msg, Logger._Logger__LEVEL_ERROR)
+        self.log(msg, Logger.VERBOSES['error'])
 
 
     def fatal(self, msg):
-        self.log(msg, Logger._Logger__LEVEL_CRITICAL)
+        self.log(msg, Logger.VERBOSES['critical'])
         self.stop()
 
 

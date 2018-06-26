@@ -1106,11 +1106,12 @@ class TRexClient(object):
 
             :parameters:
                 level : str
-                    "none"
+                    "none" - be silent no matter what
                     "critical"
-                    "error"
+                    "error" - show only errors (default client mode)
+                    "warning"
                     "info"
-                    "debug"
+                    "debug" - print everything
 
             :raises:
                 None

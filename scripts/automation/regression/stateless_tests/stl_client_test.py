@@ -101,11 +101,15 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-  
+
+    def test_push_pcap(self):
+        pcap_file = CTRexScenario.scripts_path + '/stl/udp_64B_no_crc.pcap'
+        ports = CTRexScenario.stl_ports_map['bi'][0]
+        self.c.push_pcap(pcap_file, ports = ports)
 
     def test_basic_single_burst (self):
 
-        try:                              
+        try:
             b1 = STLStream(name = 'burst',
                            packet = self.pkt,
                            mode = STLTXSingleBurst(total_pkts = 100,

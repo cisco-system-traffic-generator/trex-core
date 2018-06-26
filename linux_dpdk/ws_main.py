@@ -1674,16 +1674,6 @@ def release(bld, custom_dir = None):
     os.system('cp ../scripts/automation/trex_control_plane/stf %s/trex_client/ -r' % exec_p)
     os.system('cp ../scripts/automation/trex_control_plane/interactive/ %s/trex_client/ -r' % exec_p)
 
-    """
-    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p) as f:
-        stl_path_content = f.read()
-    if 'STL_PROFILES_PATH' not in stl_path_content:
-        raise Exception('Could not find STL_PROFILES_PATH in stl/examples/stl_path.py')
-    stl_path_content = re.sub('STL_PROFILES_PATH.*?\n', "STL_PROFILES_PATH = os.path.join(os.pardir, 'profiles')\n", stl_path_content)
-    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p, 'w') as f:
-        f.write(stl_path_content)
-    """
-
     os.system('mkdir %s/trex_client/interactive/profiles' % exec_p)
     os.system('cp ../scripts/stl %s/trex_client/interactive/profiles/ -r' % exec_p)
 

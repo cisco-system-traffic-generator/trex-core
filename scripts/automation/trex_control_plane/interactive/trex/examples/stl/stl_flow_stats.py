@@ -1,7 +1,7 @@
 # Example showing how to define stream for getting per flow statistics, and how to parse the received statistics
 
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 import time
 import pprint

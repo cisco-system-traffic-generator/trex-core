@@ -1,7 +1,7 @@
 # from __future__ import division
+import stl_path
 from trex.stl.api import *
 
-import yaml
 import json
 from pprint import pprint
 import argparse
@@ -442,3 +442,6 @@ class NdrBench:
             ndr_range.reverse()
             ndr_res = [float((self.results.stats['rate_tx_bps'])) / float(t) for t in ndr_range]
         self.results.update({'ndr_points': ndr_res})
+
+if __name__ == '__main__':
+    print('Designed to be imported, not as stand-alone script.')
