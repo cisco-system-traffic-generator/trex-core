@@ -1,0 +1,15 @@
+# YAML
+server: csi-trex-08
+vm: cached
+latency: false
+drop_rate_interval: 10
+pkt_size: 128
+max_iterations: 10
+iteration_duration: 20.0
+q_ful_resolution: 2.0
+first_run_duration: 20.0
+pdr: 0.1
+pdr_error: 1.0
+ndr_results: 1
+verbose: true
+title: Running From YAML

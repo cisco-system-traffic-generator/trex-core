@@ -1,5 +1,5 @@
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 """
 An example on how to use TRex for functional tests
@@ -54,9 +54,9 @@ def test_ping (c, tx_port, rx_port):
     # fetch the config
     tx_port_attr = c.get_port_attr(port = tx_port)
     rx_port_attr = c.get_port_attr(port = rx_port)
-    
-    assert(tx_port_attr['layer_mode'] == 'IPv4')
-    assert(rx_port_attr['layer_mode'] == 'IPv4')
+
+    assert tx_port_attr['layer_mode'] == 'IPv4', 'Should be used with L3 config'
+    assert rx_port_attr['layer_mode'] == 'IPv4', 'Should be used with L3 config'
     
     pkt = Ether() / IP(src = tx_port_attr['src_ipv4'], dst = rx_port_attr['src_ipv4']) / ICMP(type = 8)
 

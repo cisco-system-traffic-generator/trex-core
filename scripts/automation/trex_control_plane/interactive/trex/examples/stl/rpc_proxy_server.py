@@ -10,18 +10,15 @@ import socket
 from functools import partial
 logging.basicConfig(level = logging.FATAL) # keep quiet
 
+import stl_path
 from trex.stl.api import *
 from trex.stl.trex_stl_hltapi import CTRexHltApi, HLT_OK, HLT_ERR
 
 # ext libs
-ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs') # usual package path
-if not os.path.exists(ext_libs):
-    ext_libs = os.path.join(os.pardir, os.pardir, 'external_libs') # client package path
-sys.path.append(os.path.join(ext_libs, 'jsonrpclib-pelix-0.2.5'))
+sys.path.append(os.path.join(stl_path.EXT_LIBS_PATH, 'jsonrpclib-pelix-0.2.5'))
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import yaml
 
-# TODO: refactor this to class
 
 native_client = None
 hltapi_client = None

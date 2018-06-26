@@ -34,12 +34,12 @@ def run_and_export(server_name):
               "first_run_duration": 20.0, "pdr": 0.1, "pdr_error": 1.0,
               "ndr_results": 1, "verbose": True, "title": "kiwi-02", 'core_mask': 0xffffffffffffffff}
 
-    if os.path.isfile("config.yaml"):
+    cfg_file = 'yamls/config.yaml'
+    if os.path.isfile(cfg_file):
         try:
-            f = open("config.yaml")
-            yml_config_dict = yml.safe_load(f)
+            with open(cfg_file) as f:
+                yml_config_dict = yml.safe_load(f)
             config.update(yml_config_dict)
-            f.close()
         except IOError as e:
             print "loading yaml failed with error: " + e.message
 

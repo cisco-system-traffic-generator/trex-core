@@ -1,3 +1,4 @@
+import stl_path
 from trex.stl.api import *
 from trex.stl.trex_stl_wlc import AP_Manager
 from pprint import pprint
@@ -29,11 +30,8 @@ m = AP_Manager(c)
 try:
     def establish_setup():
         m.set_base_values(
-            name = base_data['ap_name'],
             mac = base_data['ap_mac'],
             ip = base_data['ap_ip'],
-            udp = base_data['ap_udp'],
-            radio = base_data['ap_radio'],
             client_mac = base_data['client_mac'],
             client_ip = base_data['client_ip'],
             )

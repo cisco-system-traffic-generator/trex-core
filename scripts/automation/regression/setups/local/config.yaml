@@ -1,0 +1,5 @@
+trex:
+  hostname       : localhost
+  cores          : 1
+  modes          : ['loopback']
+
