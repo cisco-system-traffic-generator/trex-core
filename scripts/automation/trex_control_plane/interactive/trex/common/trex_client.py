@@ -694,7 +694,7 @@ class TRexClient(object):
         return list(self.ports)
 
     
-    @client_api('getter', True)
+    @client_api('getter', False)
     def get_acquired_ports(self):
         """ 
 

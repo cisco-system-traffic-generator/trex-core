@@ -638,19 +638,18 @@ class TRexConsole(TRexGeneralCmd):
 
 
 # run a script of commands
-def run_script_file (self, filename, client):
+def run_script_file(filename, client):
 
-    self.logger.log(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
+    client.logger.info(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
 
     with open(filename) as f:
         script_lines = f.readlines()
 
+    # register all the commands
     cmd_table = {}
 
-    # register all the commands
-    cmd_table['start'] = client.start_line
-    cmd_table['stop']  = client.stop_line
-    cmd_table['reset'] = client.reset_line
+    for cmd_name, cmd_func in client.get_console_methods().items():
+        cmd_table[cmd_name] = cmd_func
 
     for index, line in enumerate(script_lines, start = 1):
         line = line.strip()
@@ -668,12 +667,13 @@ def run_script_file (self, filename, client):
 
         client.logger.info(format_text("Executing line {0} : '{1}'\n".format(index, line)))
 
-        if not cmd in cmd_table:
-            print("\n*** Error at line {0} : '{1}'\n".format(index, line))
-            client.logger.info(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
+        if cmd not in cmd_table:
+            client.logger.error(format_text("Unknown command '%s', available commands are:\n%s" % (cmd, '\n'.join(sorted(cmd_table.keys()))), 'bold'))
             return False
 
-        cmd_table[cmd](args)
+        rc = cmd_table[cmd](args)
+        if not rc:
+            return False
 
     client.logger.info(format_text("\n[Done]", 'bold'))
 
