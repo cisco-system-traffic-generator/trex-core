@@ -35,8 +35,7 @@ class STLClient(TRexClient):
                  sync_port = 4501,
                  async_port = 4500,
                  verbose_level = "error",
-                 logger = None,
-                 **depracted):
+                 logger = None):
         """ 
         TRex stateless client
 
