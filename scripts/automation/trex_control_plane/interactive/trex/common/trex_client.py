@@ -2632,7 +2632,7 @@ class TRexClient(object):
         def predicate (x):
             return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'console'
 
-        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(self ,predicate = predicate)}
+        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(self, predicate = predicate)}
 
     ################## private common console functions ##################
     

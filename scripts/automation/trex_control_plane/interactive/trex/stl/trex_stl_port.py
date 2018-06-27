@@ -513,7 +513,7 @@ class STLPort(Port):
         pkt_types = {}
         p_type_field_len = 1
         for stream_id, stream in data.items():
-            pkt_types[stream_id] = format_limit_string(stream.get_pkt_type(), 30)
+            pkt_types[stream_id] = limit_string(stream.get_pkt_type(), 30)
             p_type_field_len = max(p_type_field_len, len(pkt_types[stream_id]))
 
         info_table = text_tables.TRexTextTable()
