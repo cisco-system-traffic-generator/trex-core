@@ -141,7 +141,7 @@ def console_api (name, group, require_connect = True, preserve_history = False):
                 delta = time.time() - time1
                 client.logger.error(format_time(delta) + "\n")
 
-            return
+            return RC_OK()
 
         wrap2.api_type          = 'console'
         wrap2.name              = name
