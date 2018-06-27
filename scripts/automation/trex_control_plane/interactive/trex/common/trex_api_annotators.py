@@ -124,11 +124,10 @@ def console_api (name, group, require_connect = True, preserve_history = False):
                 rc = f(*args)
 
             except TRexConsoleNoAction:
-                return RC_ERR("no action")
+                return
 
-            except TRexConsoleError as e:
-                # the argparser will handle the error
-                return RC_ERR(e.brief())
+            except TRexConsoleError:
+                return
 
             except TRexError as e:
                 client.logger.debug('\nAction has failed with the following error:\n')
@@ -141,7 +140,7 @@ def console_api (name, group, require_connect = True, preserve_history = False):
                 delta = time.time() - time1
                 client.logger.error(format_time(delta) + "\n")
 
-            return RC_OK()
+            return
 
         wrap2.api_type          = 'console'
         wrap2.name              = name
