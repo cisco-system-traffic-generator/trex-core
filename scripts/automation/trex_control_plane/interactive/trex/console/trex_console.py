@@ -31,7 +31,7 @@ import os
 import sys
 import tty, termios
 from threading import Lock
-from functools import wraps
+from functools import wraps, partial
 import threading
 import atexit
 import tempfile
@@ -214,12 +214,24 @@ class TRexConsole(TRexGeneralCmd):
 
         return wrap
 
+    def history_preserver(self, func, line):
+        filename = self._push_history()
+        try:
+            func(line)
+        finally:
+            self._pop_history(filename)
+
 
     def load_client_console_functions (self):
         for cmd_name, cmd_func in self.client.get_console_methods().items():
             
             # register the function and its help
-            setattr(self.__class__, 'do_' + cmd_name, cmd_func)
+            if cmd_func.preserve_history:
+                f = partial(self.history_preserver, cmd_func)
+                f.__doc__ = cmd_func.__doc__
+                setattr(self.__class__, 'do_' + cmd_name, f)
+            else:
+                setattr(self.__class__, 'do_' + cmd_name, cmd_func)
             setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
 
 
@@ -361,15 +373,15 @@ class TRexConsole(TRexGeneralCmd):
 
     # save current history to a temp file
     def _push_history(self):
-        tmp_file = tempfile.mktemp()
-        readline.write_history_file(tmp_file)
+        tmp_file = tempfile.NamedTemporaryFile()
+        readline.write_history_file(tmp_file.name)
         readline.clear_history()
         return tmp_file
 
     # restore history from a temp file
     def _pop_history(self, filename):
         readline.clear_history()
-        readline.read_history_file(filename)
+        readline.read_history_file(filename.name)
 
     def do_debug(self, line):
         '''Internal debugger for development.
@@ -406,26 +418,9 @@ class TRexConsole(TRexGeneralCmd):
         finally:
             readline.set_completer(auto_completer)
             self._pop_history(console_h)
-            try:
-                os.unlink(console_h)
-            except OSError:
-                pass
 
         self.client.logger.info(format_text("\n*** Leaving IPython ***\n"))
 
-    def do_traffic(self, line):
-        '''Show loaded traffic info'''
-        return self.client.get_traffic_info(self, line)
-
-    def do_streams(self, line):
-        '''Legacy for STL, hidden from menu'''
-        if self.client.get_mode() == 'STL':
-            return self.do_traffic(line)
-        else:
-            self.client.logger.info(format_text('Streams command is relevant to STL only, use traffic command\n', 'bold'))
-
-    def help_traffic(self):
-        return self.do_traffic('-h')
 
     def do_history (self, line):
         '''Manage the command history\n'''
@@ -572,7 +567,7 @@ class TRexConsole(TRexGeneralCmd):
     
     
          cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
-         hidden = ['EOF', 'q', 'exit', 'h', 'shell', 'streams']
+         hidden = ['EOF', 'q', 'exit', 'h', 'shell']
 
          categories = collections.defaultdict(list)
          

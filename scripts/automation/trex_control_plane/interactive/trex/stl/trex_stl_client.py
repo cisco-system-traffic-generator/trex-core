@@ -1431,11 +1431,12 @@ class STLClient(TRexClient):
                 streams_per_port[port_id] = data
         return streams_per_port
 
-    def get_traffic_info(self, console, line):
+    @console_api('streams', 'STL', True, True)
+    def streams_line(self, line):
         '''Get loaded to server streams information'''
         parser = parsing_opts.gen_parser(self,
-                                         "get_traffic_info",
-                                         self.get_traffic_info.__doc__,
+                                         "streams",
+                                         self.streams_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
                                          parsing_opts.STREAMS_MASK,
                                          parsing_opts.STREAMS_CODE)
@@ -1471,11 +1472,7 @@ class STLClient(TRexClient):
                 filename = ('%s_port%s.py' % (opts.code[:-3], port_id)) if is_several_ports else opts.code
                 if os.path.exists(filename):
                     sys.stdout.write('\nFilename %s already exists, overwrite? (y/N) ' % filename)
-                    history_bu = console._push_history()
-                    try:
-                        ans = user_input().strip()
-                    finally:
-                        console._pop_history(history_bu)
+                    ans = user_input().strip()
                     if ans.lower() not in ('y', 'yes'):
                         print('Not saving.')
                         continue

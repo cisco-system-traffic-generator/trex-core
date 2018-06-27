@@ -89,7 +89,7 @@ def client_api(api_type = 'getter', connected = True):
         return wrap
 
 
-def console_api (name, group, require_connect = True):
+def console_api (name, group, require_connect = True, preserve_history = False):
     """
         console decorator
 
@@ -100,6 +100,12 @@ def console_api (name, group, require_connect = True):
 
         group: str
             group name for the console help
+
+        require_connect: bool
+            require client to be connected
+
+        preserve_history: bool
+            preserve readline history
     """
 
     def wrap (f):
@@ -137,9 +143,10 @@ def console_api (name, group, require_connect = True):
 
             return
 
-        wrap2.api_type  = 'console'
-        wrap2.name      = name
-        wrap2.group     = group
+        wrap2.api_type          = 'console'
+        wrap2.name              = name
+        wrap2.group             = group
+        wrap2.preserve_history  = preserve_history
 
         return wrap2
 
