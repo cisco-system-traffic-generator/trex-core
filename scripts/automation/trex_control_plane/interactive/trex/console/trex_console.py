@@ -672,7 +672,7 @@ def run_script_file(filename, client):
             return False
 
         rc = cmd_table[cmd](args)
-        if not rc:
+        if isinstance(rc, RC) and not rc:
             return False
 
     client.logger.info(format_text("\n[Done]", 'bold'))
