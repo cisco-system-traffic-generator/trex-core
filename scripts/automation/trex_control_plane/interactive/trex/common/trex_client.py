@@ -255,7 +255,8 @@ class TRexClient(object):
             self.ports[port_id].async_event_port_job_done()
 
         ev = Event('server', 'info', msg)
-        self.ctx.logger.info(ev)
+        if port_id in self.get_acquired_ports():
+            self.ctx.logger.info(ev)
 
         return ev
 
