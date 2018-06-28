@@ -2646,8 +2646,11 @@ class TRexClient(object):
 
 
     def _show_port_stats (self, ports, buffer = sys.stdout):
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
 
-        port_stats = [self.ports[port_id].get_port_stats() for port_id in ports]
+        port_stats = [self.ports[port_id].get_port_stats() for port_id in ports[:4]]
 
         # update in a batch
         StatsBatch.update(port_stats, self.conn.rpc)
@@ -2670,7 +2673,11 @@ class TRexClient(object):
 
 
     def _show_port_xstats (self, ports, include_zero_lines):
-        port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports]
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
+
+        port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports[:4]]
 
         # update in a batch
         StatsBatch.update(port_xstats, self.conn.rpc)
@@ -2685,11 +2692,14 @@ class TRexClient(object):
 
 
     def _show_port_status (self, ports):
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
+
         # for each port, fetch port status
-        port_status = [self.ports[port_id].get_port_status() for port_id in ports]
+        port_status = [self.ports[port_id].get_port_status() for port_id in ports[:4]]
 
         # merge
-        #table = TRexTextTable.merge([status.to_table() for status in port_status])
         table = TRexTextTable.merge(port_status)
         text_tables.print_table_with_header(table, table.title)
 
