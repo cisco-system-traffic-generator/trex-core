@@ -213,13 +213,7 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
         process_request(request, response);
     }
 
-    if ( response.size() > MSG_COMPRESS_THRESHOLD ) {
-        std::string zipped_response;
-        TrexRpcZip::compress(response, zipped_response);
-        zmq_send(m_socket, zipped_response.c_str(), zipped_response.size(), 0);
-    } else {
-        zmq_send(m_socket, response.c_str(), response.size(), 0);
-    }
+    zmq_send(m_socket, response.c_str(), response.size(), 0);
 }
 
 void TrexRpcServerReqRes::process_request(const std::string &request, std::string &response) {
@@ -289,12 +283,15 @@ void TrexRpcServerReqRes::process_zipped_request(const std::string &request, std
     }
 
     /* process the request */
+    std::string raw_response;
     if ( unzipped.size() > MAX_RPC_MSG_LEN ) {
         std::string err_msg = "Request is too large (" + std::to_string(unzipped.size()) + " bytes). Consider splitting to smaller chunks.";
-        TrexJsonRpcV2Parser::generate_common_error(response, err_msg);
+        TrexJsonRpcV2Parser::generate_common_error(raw_response, err_msg);
     } else {
-        process_request_raw(unzipped, response);
+        process_request_raw(unzipped, raw_response);
     }
+
+    TrexRpcZip::compress(raw_response, response);
 
 }
 
