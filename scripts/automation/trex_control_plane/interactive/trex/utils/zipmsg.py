@@ -3,7 +3,7 @@ import struct
 
 class ZippedMsg:
 
-    MSG_COMPRESS_THRESHOLD    = 256
+    MSG_COMPRESS_THRESHOLD    = 0
     MSG_COMPRESS_HEADER_MAGIC = 0xABE85CEA
 
     def check_threshold(self, msg):
