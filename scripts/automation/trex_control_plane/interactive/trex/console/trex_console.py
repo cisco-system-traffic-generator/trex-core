@@ -400,26 +400,39 @@ class TRexConsole(TRexGeneralCmd):
             from IPython import embed
 
         except ImportError:
-            self.client.logger.info(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
-            return
+            embed = None
 
-        self.client.logger.info(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
+        if not embed:
+            try:
+                import code
+            except ImportError:
+                self.client.logger.info(format_text("\n*** 'IPython' and 'code' library are not available ***\n", 'bold'))
+                return
 
         auto_completer = readline.get_completer()
-        console_h = self._push_history()
+        console_history_file = self._push_history()
         client = self.client
 
+        descr = 'IPython' if embed else "'code' library"
+        self.client.logger.info(format_text("\n*** Starting Python shell (%s)... use 'client' as client object, Ctrl + D to exit ***\n" % descr, 'bold'))
+
         try:
-            cfg = load_default_config()
-            cfg['TerminalInteractiveShell']['confirm_exit'] = False
-            embed(config = cfg, display_banner = False)
-            #InteractiveShellEmbed.clear_instance()
+            if embed:
+                cfg = load_default_config()
+                cfg['TerminalInteractiveShell']['confirm_exit'] = False
+                embed(config = cfg, display_banner = False)
+                #InteractiveShellEmbed.clear_instance()
+            else:
+                ns = {}
+                ns.update(globals())
+                ns.update(locals())
+                code.InteractiveConsole(ns).interact('')
 
         finally:
             readline.set_completer(auto_completer)
-            self._pop_history(console_h)
+            self._pop_history(console_history_file)
 
-        self.client.logger.info(format_text("\n*** Leaving IPython ***\n"))
+        self.client.logger.info(format_text("\n*** Leaving Python shell ***\n"))
 
 
     def do_history (self, line):
