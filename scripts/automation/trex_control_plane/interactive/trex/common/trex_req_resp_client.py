@@ -1,5 +1,6 @@
-#!/router/bin/python
+#!/usr/bin/python
 
+import sys
 import zmq
 import json
 import re
@@ -105,23 +106,21 @@ class JsonRpcClient(object):
 
 
     # pretty print for JSON
-    def pretty_json (self, json_str, use_colors = True):
+    def pretty_json (self, json_str, use_colors = None):
         pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
 
-        if not use_colors:
-            return pretty_str
+        if use_colors is True or (use_colors is None and sys.stdout.isatty()):
+            try:
+                # int numbers
+                pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*[^.])',r'\1{0}\2{1}'.format(bcolors.BLUE, bcolors.ENDC), pretty_str)
+                # float
+                pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
+                # strings
 
-        try:
-            # int numbers
-            pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*[^.])',r'\1{0}\2{1}'.format(bcolors.BLUE, bcolors.ENDC), pretty_str)
-            # float
-            pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
-            # strings
-
-            pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
-            pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
-        except :
-            pass
+                pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
+                pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
+            except :
+                pass
 
         return pretty_str
 
