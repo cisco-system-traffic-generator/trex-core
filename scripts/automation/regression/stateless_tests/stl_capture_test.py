@@ -3,6 +3,9 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 import pprint
+import tempfile
+from scapy.utils import RawPcapReader
+from nose.tools import assert_raises
 
 def ip2num (ip_str):
     return struct.unpack('>L', socket.inet_pton(socket.AF_INET, ip_str))[0]
@@ -104,10 +107,14 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.wait_on_traffic(ports = self.tx_port)
             
             tx_pkt_list = []
-            rx_pkt_list = []
             
             self.c.stop_capture(txc['id'], output = tx_pkt_list)
-            self.c.stop_capture(rxc['id'], output = rx_pkt_list)
+            with tempfile.NamedTemporaryFile() as rx_pcap:
+                with assert_raises(TRexError):
+                    self.c.stop_capture(rxc['id'], output = '/tmp/asdfasdfqwerasdf/azasdfas') # should raise TRexError
+
+                self.c.stop_capture(rxc['id'], output = rx_pcap.name)
+                rx_pkt_list = [{'binary': pkt[0]} for pkt in RawPcapReader(rx_pcap.name)]
             
             assert (len(tx_pkt_list) == len(rx_pkt_list) == pkt_count)
             
