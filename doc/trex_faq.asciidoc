@@ -275,19 +275,12 @@ terminate called after throwing an instance of 'std::runtime_error'
  clone + 109
 ----
 
-Try to disable Hypervisor Hyper thread (HT) for TRex threads . two TRex threads can't share cores.
-Moving to 'none' (ESXi) only disable sharing of hyper threading, this mitigates the problem but does not solve it.
-The full solution is to provide pinning of cores *exclusively* to TRex.
-This means making sure on your Hypervisor that *only* TRex VM gets those specific cores and no other guest shares them.
-(we handle Linux processor affinity but cannot handle the Hypervisor affinity)
-If you cannot make sure your cores are pinned to the TRex guest you can run TRex without watchdog:
-
-[source,bash]
-----
-[bash]>sudo ./t-rex-64 -i --no-watchdog
-----
-
-This will hide the problem that some threads do not get reasonable response time, but will allow to work anyway.
+* Set at least 8G RAM +
+If you do not have enough RAM, try using low_end flag: +
+ link:trex_manual.html#_low_end_machines[Low end]
+* Set HT Core sharing of TRex VM to None: +
+image:images/ESXi_core_sharing.png[title="Core sharing"] +
+(...or disable HT and set core affinity so that different VMs do not share cores)
 
 
 ===  Stateful 
