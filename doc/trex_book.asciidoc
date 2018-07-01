@@ -718,7 +718,7 @@ Incorrect configuration example:
 
 [NOTE]
 =====================================
-1. Currently GUI does not work with dummy ports. Will update as soon as it will.
+1. Old GUI does not work with dummy ports. Use latest.
 2. Client (Python API, trex-console) older than v2.38 will not work with dummy ports. Update your client to v2.38 or later.
 =====================================
 
