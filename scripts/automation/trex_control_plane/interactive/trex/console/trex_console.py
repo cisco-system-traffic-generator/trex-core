@@ -379,9 +379,10 @@ class TRexConsole(TRexGeneralCmd):
         return tmp_file
 
     # restore history from a temp file
-    def _pop_history(self, filename):
+    def _pop_history(self, tmp_file):
         readline.clear_history()
-        readline.read_history_file(filename.name)
+        readline.read_history_file(tmp_file.name)
+        tmp_file.close()
 
     def do_debug(self, line):
         '''Internal debugger for development.
