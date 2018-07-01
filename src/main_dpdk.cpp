@@ -9460,7 +9460,9 @@ bool DpdkTRexPortAttr::update_link_status_nowait(){
 
         /* in case of link status change - notify the dest object */
         if (new_link.link_status != m_link.link_status && get_is_interactive()) {
-            g_trex.m_stx->get_port_by_id(m_port_id)->invalidate_dst_mac();
+            if ( g_trex.m_stx != nullptr ) {
+                g_trex.m_stx->get_port_by_id(m_port_id)->invalidate_dst_mac();
+            }
         }
     }
 
