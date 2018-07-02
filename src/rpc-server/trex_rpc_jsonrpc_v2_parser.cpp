@@ -75,7 +75,17 @@ public:
     virtual void _execute(Json::Value &response) {
         Json::Value result;
 
+        #ifdef __TREX_RPC_DEBUG__
+            printf("Received RPC: %s\n", m_cmd->get_name().c_str());
+            Json::FastWriter writer;
+            printf("Params: %s", writer.write(m_params).c_str());
+        #endif
+
         trex_rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
+
+        #ifdef __TREX_RPC_DEBUG__
+            printf("Response: %s\n", writer.write(result).c_str());
+        #endif
 
         switch (rc) {
         case TREX_RPC_CMD_OK:
