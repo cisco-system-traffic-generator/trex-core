@@ -88,7 +88,7 @@ class STLTXMode(object):
         elif percentage is not None:
             validate_type('percentage', percentage, [float, int])
             if not (percentage > 0 and percentage <= 100):
-                raise STLArgumentError('percentage', percentage)
+                raise TRexArgumentError('percentage', percentage)
 
             self.fields['rate']['type']  = 'percentage'
             self.fields['rate']['value'] = percentage
@@ -183,7 +183,7 @@ class STLTXSingleBurst(STLTXMode):
 
 
         if not isinstance(total_pkts, int):
-            raise STLArgumentError('total_pkts', total_pkts)
+            raise TRexArgumentError('total_pkts', total_pkts)
 
         super(STLTXSingleBurst, self).__init__(**kwargs)
 
@@ -229,13 +229,13 @@ class STLTXMultiBurst(STLTXMode):
 
 
         if not isinstance(pkts_per_burst, int):
-            raise STLArgumentError('pkts_per_burst', pkts_per_burst)
+            raise TRexArgumentError('pkts_per_burst', pkts_per_burst)
 
         if not isinstance(ibg, (int, float)):
-            raise STLArgumentError('ibg', ibg)
+            raise TRexArgumentError('ibg', ibg)
 
         if not isinstance(count, int):
-            raise STLArgumentError('count', count)
+            raise TRexArgumentError('count', count)
 
         super(STLTXMultiBurst, self).__init__(**kwargs)
 
@@ -897,7 +897,7 @@ class STLProfile(object):
             streams = [streams]
 
         if not all([isinstance(stream, STLStream) for stream in streams]):
-            raise STLArgumentError('streams', streams, valid_values = STLStream)
+            raise TRexArgumentError('streams', streams, valid_values = STLStream)
 
         self.streams = streams
         self.meta = None
