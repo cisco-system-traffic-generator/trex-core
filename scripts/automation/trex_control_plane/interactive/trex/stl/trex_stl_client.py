@@ -589,7 +589,7 @@ class STLClient(TRexClient):
                     After this time, RX filters will be removed, and packets arriving for per flow statistics feature and latency flows will be counted as errors.
 
             :raises:
-                + :exc:`STLTimeoutError` - in case timeout has expired
+                + :exc:`TRexTimeoutError` - in case timeout has expired
                 + :exe:'TRexError'
 
         """

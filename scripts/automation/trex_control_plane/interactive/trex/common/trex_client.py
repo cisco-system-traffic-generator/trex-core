@@ -869,7 +869,6 @@ class TRexClient(object):
 
 
             :raises:
-                + :exc:`STLTimeoutError` - in case timeout has expired
                 + :exe:'TRexError'
 
         """
