@@ -225,7 +225,8 @@ This means that if the DUT for some reason clears this bit (change TOS LSB to 0,
 
 == Which NIC to buy?
 
-NIC with two ports will work better from performance prospective, so it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
+For CX-4, it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
+For CX-5, it is better to have the ConnectX-5 Ex version which run faster. part number is MCX556A-EDAT
 
 == Limitation/Issues
 
