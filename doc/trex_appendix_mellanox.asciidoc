@@ -226,7 +226,8 @@ This means that if the DUT for some reason clears this bit (change TOS LSB to 0,
 == Which NIC to buy?
 
 For CX-4, it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
-For CX-5, it is better to have the ConnectX-5 Ex version which run faster. part number is MCX556A-EDAT
+For CX-5, it is better to have the ConnectX-5 Ex EN version which run faster(Ex). part number is MCX516A-CDAT (PCIe4.0). MCX516A-CCAT and MCX515A-CCAT will be a bit slower. 
+see link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-5_EN_Card.pdf[ConnectX-5]
 
 == Limitation/Issues
 
