@@ -290,6 +290,26 @@ class Scapy_service_api():
         """
         pass
 
+    def decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw):
+        """ decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw) -> Dictionary
+        Decompiles vm_raw instructions to high level vm instructions
+
+        Parameters
+        ----------
+        pkt_binary_base64 - binary of packet in base64 encoding
+        vm_raw - An object representing compiled VM instructions
+
+        Returns
+        -------
+        - High level VM instructions dictionary
+
+        Raises
+        ------
+        will raise an exception when the Scapy string format is illegal, contains syntax error, contains non-supported
+        instruction, etc.
+        """
+        pass
+
 def is_python(version):
     return version == sys.version_info[0]
 
@@ -437,7 +457,7 @@ class Scapy_service(Scapy_service_api):
         self.all_protocols = self._build_lib()
         self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
         self.version_major = '1'
-        self.version_minor = '01'
+        self.version_minor = '02'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
         self.protocol_definitions = {} # protocolId -> prococol definition overrides data
         self.field_engine_supported_protocols = {}
@@ -1173,6 +1193,31 @@ class Scapy_service(Scapy_service_api):
             wrpcap(tmpPcap.name, packets)
             pcap_bin = tmpPcap.read()
         return bytes_to_b64(pcap_bin)
+
+    def decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw):
+        json_data =  {
+            'packet': {
+                'binary': pkt_binary_base64
+            },
+            'vm' : vm_raw
+        }
+        builder = STLPktBuilder.from_json(json_data)
+        res = []
+        for script in builder.vm_scripts:
+            cur_script = {}
+            cur_script['instructions'] = []
+            for var  in script.commands:
+                instruction = {}
+                instruction['id'] = type(var).__name__
+                instruction['parameters'] = var.__dict__
+                cur_script['instructions'].append(instruction)
+
+            if script.cache_size is not None:
+                cur_script['global_parameters'] = {}
+                cur_script['global_parameters']['cache_size'] = script.cache_size
+
+            res = cur_script # only one instruction
+        return res
 
 
 #---------------------------------------------------------------------------
