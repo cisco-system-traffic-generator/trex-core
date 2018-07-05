@@ -1114,7 +1114,7 @@ class STLVmWrFlowVar(CTRexVmDescBase):
         """
 
         super(STLVmWrFlowVar, self).__init__()
-        self.name =fv_name
+        self.fv_name =fv_name
         validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
@@ -1125,10 +1125,10 @@ class STLVmWrFlowVar(CTRexVmDescBase):
         validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-            return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
+            return  CTRexVmInsWrFlowVar(self.fv_name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
 
     def compile(self,parent):
         if type(self.pkt_offset)==str:
@@ -1240,7 +1240,7 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
         """
 
         super(STLVmWrMaskFlowVar, self).__init__()
-        self.name =fv_name
+        self.fv_name =fv_name
         validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
@@ -1261,10 +1261,10 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
         validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-            return  CTRexVmInsWrMaskFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
+            return  CTRexVmInsWrMaskFlowVar(self.fv_name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
 
     def compile(self,parent):
         if type(self.pkt_offset)==str:
@@ -1326,14 +1326,14 @@ class STLVmTrimPktSize(CTRexVmDescBase):
         """
 
         super(STLVmTrimPktSize, self).__init__()
-        self.name = fv_name
+        self.fv_name = fv_name
         validate_type('fv_name', fv_name, basestring)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-        return  CTRexVmInsTrimPktSize(self.name)
+        return  CTRexVmInsTrimPktSize(self.fv_name)
 
 
 
