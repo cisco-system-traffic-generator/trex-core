@@ -27,7 +27,10 @@ if [ $RESULT -eq 64 ]; then
   EXTRA_INPUT_ARGS="--ntacc-so"
 fi
 
+# comment out to enable watchdog
+NO_WATCH="--no-watchdog"
+
 saveterm="$(stty -g)"
-/usr/bin/gdb --args ./_t-rex-64-debug $@ $EXTRA_INPUT_ARGS
+/usr/bin/gdb --args ./_t-rex-64-debug $@ $NO_WATCH $EXTRA_INPUT_ARGS
 stty $saveterm
 

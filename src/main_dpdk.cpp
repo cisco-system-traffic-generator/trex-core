@@ -634,11 +634,6 @@ public:
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBase40G(){
-        // 4 will make us support 127 flow stat counters
-        // If we want to support more counters in case of card having less interfaces, we
-        // Will have to identify the number of interfaces dynamically.
-        m_if_per_card = 4;
-
         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
     }
 
@@ -667,17 +662,14 @@ public:
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
         flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
-        // HW counters on x710 does not support coutning bytes.
+        // HW counters on x710 do not support counting bytes.
         if ( CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
              || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
             flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
             num_counters = MAX_FLOW_STATS;
         } else {
-            if (m_if_per_card == 4) {
-                num_counters = MAX_FLOW_STATS_X710;
-            } else {
-                num_counters = MAX_FLOW_STATS_XL710;
-            }
+            // TODO: check if we could get amount of interfaces per NIC to enlarge this
+            num_counters = MAX_FLOW_STATS_X710;
         }
         base_ip_id = IP_ID_RESERVE_BASE;
         m_max_flow_stats = num_counters;
@@ -701,9 +693,9 @@ private:
                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx);
     virtual int add_del_eth_type_rule(repid_t  repid, enum rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
+    uint32_t get_flow_stats_offset(repid_t repid);
 
 private:
-    uint8_t m_if_per_card;
     uint16_t m_max_flow_stats;
 };
 
@@ -8421,6 +8413,14 @@ int CTRexExtendedDriverBase40G::add_del_eth_type_rule(repid_t  repid, enum rte_f
     return ret;
 }
 
+uint32_t CTRexExtendedDriverBase40G::get_flow_stats_offset(repid_t repid) {
+    uint8_t pf_id;
+    int ret = i40e_trex_get_pf_id(repid, &pf_id);
+    assert(ret >= 0);
+    assert((pf_id >= 0) && (pf_id <= 3));
+    return pf_id * m_max_flow_stats;
+}
+
 
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
@@ -8429,7 +8429,7 @@ int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum 
                                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
     repid_t repid = _if->get_repid();
 
-    uint32_t rule_id = (repid % m_if_per_card) * m_max_flow_stats + id;
+    uint32_t rule_id = get_flow_stats_offset(repid) + id;
     uint16_t rte_type = RTE_ETH_FLOW_NONFRAG_IPV4_OTHER;
     uint8_t next_proto;
 
@@ -8529,7 +8529,7 @@ void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats
 
     repid_t repid = _if->get_repid();
 
-    uint32_t rule_id = (repid % m_if_per_card) * m_max_flow_stats + min;
+    uint32_t rule_id = get_flow_stats_offset(repid) + min;
 
     // Since flow dir counters are not wrapped around as promised in the data sheet, but rather get stuck at 0xffffffff
     // we reset the HW value
@@ -8551,12 +8551,11 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
     uint32_t hw_stats[MAX_FLOW_STATS_XL710];
     repid_t repid = _if->get_repid();
 
-    uint32_t start = (repid % m_if_per_card) * m_max_flow_stats + min;
+    uint32_t start = get_flow_stats_offset(repid) + min;
     uint32_t len = max - min + 1;
-    uint32_t loop_start = min;
 
     rte_eth_fdir_stats_get(repid, hw_stats, start, len);
-    for (int i = loop_start; i <  loop_start + len; i++) {
+    for (int i = min; i <= max; i++) {
         if (unlikely(hw_stats[i - min] > CGlobalInfo::m_options.get_x710_fdir_reset_threshold())) {
             // When x710 fdir counters reach max of 32 bits (4G), they get stuck. To handle this, we temporarily
             // move to temp counter, reset the counter in danger, and go back to using it.
