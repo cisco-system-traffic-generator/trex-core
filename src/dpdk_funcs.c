@@ -99,6 +99,16 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
 	I40E_WRITE_FLUSH(hw);
 }
 
+int i40e_trex_get_pf_id(repid_t repid, uint8_t *pf_id) {
+    RTE_ETH_VALID_PORTID_OR_ERR_RET(repid, -EINVAL);
+
+    struct rte_eth_dev *dev;
+    dev = &rte_eth_devices[repid];
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+    *pf_id = hw->pf_id;
+    return 0;
+}
+
 // fill stats array with fdir rules match count statistics
 // Notice that we read statistics from start to start + len, but we fill the stats are
 //  starting from 0 with len values
