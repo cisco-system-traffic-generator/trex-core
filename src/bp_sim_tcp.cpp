@@ -209,6 +209,11 @@ uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
 void CFlowGenListPerThread::generate_flow(bool &done){
 
+  if ( m_c_tcp->is_open_flow_enabled()==false ){
+       m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
+       return;
+  }
+
     done=false;
 
     CAstfTemplatesRW * c_rw = m_c_tcp->m_template_rw;
@@ -413,6 +418,7 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
     bool any_event=false;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
+        ctx->maintain_resouce();
         ctx->timer_w_on_tick();
         if(ctx->timer_w_any_events()){
             any_event=true;
@@ -459,6 +465,7 @@ bool CFlowGenListPerThread::Create_tcp_batch(){
     if (active_flows<100000) {
         active_flows=100000;
     }
+
     m_c_tcp->Create(active_flows,true);
     m_s_tcp->Create(active_flows,false);
     m_c_tcp->set_cb(m_c_tcp_io);
