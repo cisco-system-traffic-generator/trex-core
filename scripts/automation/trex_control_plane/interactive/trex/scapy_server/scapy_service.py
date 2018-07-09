@@ -921,6 +921,9 @@ class Scapy_service(Scapy_service_api):
         return pkt_builder.get_vm_data()
 
     def _sanitize_value(self, param_id, val):
+        if type(val) in [dict, list]:
+            return self._value_from_dict(val)
+
         if param_id == "pkt_offset":
             if self._is_int(val):
                 return int(val)
