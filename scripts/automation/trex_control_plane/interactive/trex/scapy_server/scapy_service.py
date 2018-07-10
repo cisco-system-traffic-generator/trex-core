@@ -2,11 +2,6 @@
 import os
 import sys
 
-scapy_service_dir = os.path.abspath(os.path.dirname(__file__))
-trex_dir = os.path.join(scapy_service_dir, os.pardir, os.pardir)
-
-sys.path.append(scapy_service_dir)
-sys.path.append(trex_dir)
 
 from trex.stl.api import *
 from trex import stl
