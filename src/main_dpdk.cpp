@@ -6344,22 +6344,29 @@ void CPhyEthIF::configure_rss_astf(bool is_client,
     uint16_t q;
     uint16_t indx=0;
     for (int j = 0; j < reta_conf_size; j++) {
-        reta_conf[j].mask = ~0ULL;
-        for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
-            while (true) {
-                q=(indx + skip) % numer_of_queues;
-                if (q != skip_queue) {
-                    break;
+        if (j<4) {
+            reta_conf[j].mask = ~0ULL;
+            for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
+                while (true) {
+                    q=(indx + skip) % numer_of_queues;
+                    if (q != skip_queue) {
+                        break;
+                    }
+                    skip += 1;
                 }
-                skip += 1;
+                reta_conf[j].reta[i] = q;
+                indx++;
             }
-            reta_conf[j].reta[i] = q;
-            indx++;
+        }else{
+            reta_conf[j].mask = ~0ULL;
+            for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
+                reta_conf[j].reta[i] = reta_conf[j%4].reta[i];
+            }
         }
     }              
     assert(rte_eth_dev_rss_reta_update(m_repid, &reta_conf[0], dev_info.reta_size)==0);
 
-    #ifdef RSS_DEBUG
+     #ifdef RSS_DEBUG
      rte_eth_dev_rss_reta_query(m_repid, &reta_conf[0], dev_info.reta_size);
      int j; int i;
 
@@ -6367,7 +6374,9 @@ void CPhyEthIF::configure_rss_astf(bool is_client,
      /* verification */
      for (j = 0; j < reta_conf_size; j++) {
          for (i = 0; i<RTE_RETA_GROUP_SIZE; i++) {
-             printf(" R %d  %d \n",(j*RTE_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
+             if (reta_conf[j].mask & (1<<i)) {
+                 printf(" R (%d:%d) %d  %d \n",j,i,(j*RTE_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
+             }
          }
      }
     #endif
