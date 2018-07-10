@@ -5,14 +5,14 @@ import base64
 import inspect
 from inspect import getcallargs
 # add paths to scapy_service and trex_stl_lib.api
-sys.path.append(os.path.abspath(os.pardir))
-sys.path.append(os.path.abspath(os.path.join(os.pardir, os.pardir, os.pardir)))
+scapy_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+sys.path.append(scapy_dir)
 
 from scapy_service import *
 from scapy.all import *
 
 service = Scapy_service()
-v_handler = service.get_version_handler('1','01')
+v_handler = service.get_version_handler('1','02')
 
 def pretty_json(obj):
     return json.dumps(obj, indent=4)

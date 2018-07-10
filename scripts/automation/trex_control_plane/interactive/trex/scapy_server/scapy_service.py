@@ -2,8 +2,14 @@
 import os
 import sys
 
-from ..stl.api import *
-from .. import stl
+scapy_service_dir = os.path.abspath(os.path.dirname(__file__))
+trex_dir = os.path.join(scapy_service_dir, os.pardir, os.pardir)
+
+sys.path.append(scapy_service_dir)
+sys.path.append(trex_dir)
+
+from trex.stl.api import *
+from trex import stl
 
 import tempfile
 import hashlib
@@ -1009,6 +1015,7 @@ class Scapy_service(Scapy_service_api):
 
     def _get_templates(self):
         templates = []
+        os.chdir(scapy_service_dir)
         for root, subdirs, files in os.walk("templates"):
             for file in files:
                 if not file.endswith('.trp'):
