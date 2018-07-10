@@ -5,11 +5,13 @@ import os
 import traceback
 import errno
 
-from ..stl.api import *
+sys.path.append(os.path.abspath(os.path.join(os.pardir, os.pardir)))
+
+from trex.stl.api import *
 
 import zmq
 import inspect
-from .scapy_service import *
+from trex.scapy_server.scapy_service import *
 from argparse import *
 import socket
 import logging

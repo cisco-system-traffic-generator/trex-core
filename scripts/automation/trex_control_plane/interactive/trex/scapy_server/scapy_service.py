@@ -2,8 +2,10 @@
 import os
 import sys
 
-from ..stl.api import *
-from .. import stl
+sys.path.append(os.path.abspath(os.path.join(os.pardir, os.pardir)))
+
+from trex.stl.api import *
+from trex import stl
 
 import tempfile
 import hashlib
