@@ -96,7 +96,11 @@ def test_reconstruct_dns_packet():
     assert("offset" in dns_id)
 
 def test_build_invalid_structure_pkt():
-    ether_fields = {"dst": TEST_MAC_1, "type": "LOOP"}
+    # Scapy depends on /etc/ethertypes
+    # but this file exists not on all machines
+    invalid_ether_type = "LOOP" if "LOOP" in ETHER_TYPES else 0x9000
+
+    ether_fields = {"dst": TEST_MAC_1, "type": invalid_ether_type}
     pkt = build_pkt_get_scapy([
         layer_def("Ether", **ether_fields),
         layer_def("IP"),
@@ -292,7 +296,8 @@ def test_layer_wrong_structure():
             for field_property in required_field_properties:
                 assert(field[field_property] is not None)
         if (model[depth]["id"] == "Ether"):
-            assert(layer_fields["type"]["hvalue"] == "IPv4")
+            IPv4_hvalue = "IPv4" if "IPv4" in ETHER_TYPES else "0x800"
+            assert(layer_fields["type"]["hvalue"] == IPv4_hvalue)
     real_structure = [layer["real_id"] for layer in model]
     valid_structure_flags = [layer["valid_structure"] for layer in model]
     assert(real_structure == ["Ether", "IP", "Raw", None, None])
@@ -340,7 +345,7 @@ def test_generate_vm_instructions():
     ]
     ip_instructions_model = {"field_engine": {"instructions": [{"id": "STLVmFlowVar",
                                                                 "parameters": {"op": "inc", "min_value": "192.168.0.10",
-                                                                               "size": "1", "name": "ip_src",
+                                                                               "size": "4", "name": "ip_src",
                                                                                "step": "1",
                                                                                "max_value": "192.168.0.100"}},
                                                                {"id": "STLVmWrFlowVar",
