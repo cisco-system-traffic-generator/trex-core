@@ -56,6 +56,9 @@ def build_pkt(model_def):
 def build_pkt_ex(model_def, instructions_def):
     return pass_result(service.build_pkt_ex(v_handler, model_def, instructions_def))
 
+def decompile_vm_raw(pkt_binary_base64, vm_raw):
+    return pass_result(service.decompile_vm_raw(v_handler, pkt_binary_base64, vm_raw))
+
 def build_pkt_get_scapy(model_def):
     return build_pkt_to_scapy(build_pkt(model_def))
 

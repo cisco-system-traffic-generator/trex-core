@@ -360,7 +360,7 @@ def test_generate_vm_instructions():
                                                                 "parameters": {"pkt_offset": "IP.ttl", "is_big": "true",
                                                                                "add_val": "0", "offset_fixup": "0",
                                                                                "fv_name": "ip_ttl"}}],
-                                              "global_parameters": {}}}
+                                              "global_parameters": {'cache_size': 500}}}
     res = build_pkt_ex(ip_pkt_model, ip_instructions_model)
     src_instruction = res['field_engine']['instructions']['instructions'][0]
     assert(src_instruction['min_value'] == 3232235530)
@@ -370,6 +370,123 @@ def test_generate_vm_instructions():
     assert(ttl_instruction['min_value'] == 32)
     assert(ttl_instruction['max_value'] == 64)
 
+    assert('cache' in res['field_engine']['instructions'])
+    cache_size = res['field_engine']['instructions']['cache']
+    assert(cache_size == 500)
+
+def test_decompile_vm_instructions_from_compiled_by_scapy():
+    ip_pkt_model = [
+        layer_def("Ether"),
+        layer_def("IP", src="16.0.0.1", dst="48.0.0.1")
+    ]
+
+    vm_initial ={
+      "instructions": [
+        {
+          "id": "STLVmFlowVar",
+          "parameters": {
+            "op": "inc",
+            "min_value": "1235",
+            "size": "4",
+            "name": "ip_src",
+            "step": "1",
+            "max_value": "12350"
+          }
+        },
+        {
+          "id": "STLVmWrFlowVar",
+          "parameters": {
+            "pkt_offset": "IP.src",
+            "is_big": "true",
+            "add_val": "0",
+            "offset_fixup": "0",
+            "fv_name": "ip_src"
+          }
+        },
+      ],
+      "global_parameters": {
+        'cache_size': 1000
+      }
+    }
+
+    ip_instructions_model = {
+      "field_engine": vm_initial,
+    }
+
+    builded_pkt = build_pkt_ex(ip_pkt_model, ip_instructions_model)
+    binary = builded_pkt["binary"]
+    compiled_vm = builded_pkt["field_engine"]["instructions"]
+    
+    vm_decompiled = decompile_vm_raw(binary, compiled_vm);
+
+    assert(vm_decompiled["global_parameters"]["cache_size"] == 1000)
+    assert([i["id"] for i in vm_decompiled["instructions"]] == ["STLVmFlowVar", "STLVmWrFlowVar"])
+
+    fv_decompiled_params = vm_decompiled["instructions"][0]["parameters"]
+    assert(fv_decompiled_params["op"] == "inc")
+    assert(fv_decompiled_params["min_value"] == 1235)
+    assert(fv_decompiled_params["size"] == 4)
+    assert(fv_decompiled_params["name"] == "ip_src")
+    assert(fv_decompiled_params["step"] == 1)
+    assert(fv_decompiled_params["max_value"] == 12350)
+
+    wrfv_decompiled_params = vm_decompiled["instructions"][1]["parameters"]
+    assert(wrfv_decompiled_params["pkt_offset"] == 26)
+    assert(wrfv_decompiled_params["is_big"] == True)
+    assert(wrfv_decompiled_params["add_val"] == 0)
+    assert(wrfv_decompiled_params["offset_fixup"] == 0)
+    assert(wrfv_decompiled_params["fv_name"] == "ip_src")
+
+def test_decompile_vm_instructions_from_raw():
+    binary = "AAAAAQAAAAAAAgAACABFAAAuAAEAAEAROr0QAAABMAAAAQA1ADUAGoMSeHh4eHh4eHh4eHh4eHh4eHh4"
+    compiled_vm = {
+        "cache": 2193,
+        "instructions": [
+            {
+                "init_value": 1761607681,
+                "max_value": 1761607934,
+                "min_value": 1761607681,
+                "name": "src",
+                "op": "inc",
+                "size": 4,
+                "step": 1,
+                "type": "flow_var"
+            },
+            {
+                "add_value": 0,
+                "is_big_endian": True,
+                "name": "src",
+                "pkt_offset": 26,
+                "type": "write_flow_var"
+            },
+            {
+                "pkt_offset": 14,
+                "type": "fix_checksum_ipv4"
+            }
+        ]
+    }
+
+    vm_decompiled = decompile_vm_raw(binary, compiled_vm);
+    assert(vm_decompiled["global_parameters"]["cache_size"] == 2193)
+    assert([i["id"] for i in vm_decompiled["instructions"]] == ["STLVmFlowVar", "STLVmWrFlowVar", "STLVmFixIpv4"])
+
+    fv_decompiled_params = vm_decompiled["instructions"][0]["parameters"]
+    assert(fv_decompiled_params["op"] == "inc")
+    assert(fv_decompiled_params["min_value"] == 1761607681)
+    assert(fv_decompiled_params["size"] == 4)
+    assert(fv_decompiled_params["name"] == "src")
+    assert(fv_decompiled_params["step"] == 1)
+    assert(fv_decompiled_params["max_value"] == 1761607934)
+    assert(fv_decompiled_params["init_value"] == 1761607681)
+
+    wrfv_decompiled_params = vm_decompiled["instructions"][1]["parameters"]
+    assert(wrfv_decompiled_params["pkt_offset"] == 26)
+    assert(wrfv_decompiled_params["is_big"] == True)
+    assert(wrfv_decompiled_params["add_val"] == 0)
+    assert(wrfv_decompiled_params["fv_name"] == "src")
+
+    fixipv4_decompiled_params = vm_decompiled["instructions"][2]["parameters"]
+    assert(fixipv4_decompiled_params["offset"] == 14)
 
 def test_list_templates_hierarchy():
     ids = []
