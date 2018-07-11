@@ -1044,6 +1044,7 @@ client_external_libs = [
         'texttable-0.8.4',
         'simpy-3.0.10',
         'trex-openssl',
+        'dpkt-1.9.1'
         ]
 
 rpath_linkage = ['so']
