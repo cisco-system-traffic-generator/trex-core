@@ -5,11 +5,13 @@ import os
 import traceback
 import errno
 
-from ..stl.api import *
+try:
+    from scapy_service import *
+except:
+    from .scapy_service import *
 
 import zmq
 import inspect
-from .scapy_service import *
 from argparse import *
 import socket
 import logging
