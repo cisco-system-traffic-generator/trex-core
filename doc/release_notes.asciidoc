@@ -43,14 +43,16 @@ from trex_stl_lib.api import *
 ----
 
 ** Interactive ASTF connects to the console, sending traffic/collecting stats via new lib is WIP.
-
 * Mellanox with OFED 4.3.1 offers newer FW with significantly better RX speed (due to faster dropping). +
 Bidirectional 64B packets RX is \~132MPPS from 2 ports (compared to ~38MPPS with older OFED/FW)
+
 
 * TODO: describe FE instruction "list"
 
 === Fixed issues: ===
 
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-531[trex-531]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-532[trex-532]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-510[trex-510]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-528[trex-528]
 * link:https://trex-tgn.cisco.com/youtrack/issue/trex-529[trex-529]
