@@ -27,7 +27,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 2.42 ==
+== Release 2.43 ==
 
 * Client Python library consolidation STL/ASTF
 ** New code should use:
