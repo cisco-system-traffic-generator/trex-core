@@ -7,12 +7,14 @@ TRex Documentation
 
 include::trex_ga.asciidoc[]
 
-*Cisco Live! 2018, Orlando*
 
-image:images/clus18.png[width=100,title=""]  
-
-* Wednesday, Jun 13,   Learning Session    link:https://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-1120[REGISTER NOW]
-* Tuesday,   Jun 12  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
+//*Cisco Live! 2018, Orlando*
+//
+//image:images/clus18.png[width=100,title=""]  
+//
+//* Wednesday, Jun 13,   Learning Session    link:https://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-1120[REGISTER NOW]
+//* Tuesday,   Jun 12  Workshop-Python API automation  link:http://www.ciscolive.com/us/learn/sessions/session-catalog/?search=DEVNET-2568[REGISTER NOW]
+//
 
 == Presentations
 
