@@ -731,9 +731,9 @@ Consider the following if using dummy ports for a single interface TRex generato
 | Configuration | Mode | Support Status | Comments
 | Single TRex Generator, Single Interface | Stateless | functional | unidirectional
 | | Stateful | semi-functional | will only send unidirectional side of the flows
-| | ASTF | unsupported | will not work due to requiring bidirectional TCP stack
+| | ASTF | depends on remote | requires bidirectional TCP stack, if remote supports TCP stack, will work, otherwise will not work
 | Two TRex Generators ,Single Interface | Stateless | functional | bidirectional
-| | Stateful | semi-functional | will "work", but flows will not be in sync
+| | Stateful | semi-functional | will "work", however flows will not be in sync
 | | ASTF | functional | full TCP stack
 |=================
 
