@@ -1205,6 +1205,8 @@ class AsyncKeysEngineConsole:
                 # errors
                 else:
                     err_msgs = ascii_split(str(func_rc))
+                    if not err_msgs:
+                        err_msgs = ['Unknown error']
                     self.last_status = format_text(clear_formatting(err_msgs[0]), 'red')
                     if len(err_msgs) > 1:
                         self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)

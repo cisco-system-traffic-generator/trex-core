@@ -120,14 +120,15 @@ def console_api (name, group, require_connect = True, preserve_history = False):
 
             time1 = time.time()
 
+            rc = None
             try:
                 rc = f(*args)
 
-            except TRexConsoleNoAction:
-                return
+            except TRexConsoleNoAction as e:
+                return RC_ERR(e)
 
-            except TRexConsoleError:
-                return
+            except TRexConsoleError as e:
+                return RC_ERR(e)
 
             except TRexError as e:
                 client.logger.debug('\nAction has failed with the following error:\n')
