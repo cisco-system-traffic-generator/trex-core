@@ -891,7 +891,6 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   dev_info->max_rx_queues = STREAMIDS_PER_PORT > RTE_ETHDEV_QUEUE_STAT_CNTRS ? RTE_ETHDEV_QUEUE_STAT_CNTRS : STREAMIDS_PER_PORT;
   dev_info->max_tx_queues = STREAMIDS_PER_PORT > RTE_ETHDEV_QUEUE_STAT_CNTRS ? RTE_ETHDEV_QUEUE_STAT_CNTRS : STREAMIDS_PER_PORT;
   dev_info->min_rx_bufsize = 0;
-  dev_info->default_txconf.txq_flags = ETH_TXQ_FLAGS_NOMULTSEGS;
 
   pInfo = (NtInfo_t *)rte_malloc(internals->name, sizeof(NtInfo_t), 0);
   if (!pInfo) {
@@ -946,6 +945,7 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_SCATTER;
   //dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_CHECKSUM;
   dev_info->rx_queue_offload_capa = dev_info->rx_offload_capa;
+  dev_info->tx_queue_offload_capa = dev_info->tx_offload_capa = 0;
 }
 
 #ifdef USE_SW_STAT
