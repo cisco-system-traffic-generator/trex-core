@@ -1,35 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   Copyright 2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation.
+ * Copyright 2014 6WIND S.A.
  */
 
 #include <string.h>
@@ -42,6 +13,7 @@
 #include <ctype.h>
 #include <sys/queue.h>
 
+#include <rte_compat.h>
 #include <rte_debug.h>
 #include <rte_common.h>
 #include <rte_log.h>
@@ -54,25 +26,11 @@
 #include <rte_branch_prediction.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
+#include <rte_mbuf_pool_ops.h>
 #include <rte_string_fns.h>
 #include <rte_hexdump.h>
 #include <rte_errno.h>
 #include <rte_memcpy.h>
-
-/*
- * ctrlmbuf constructor, given as a callback function to
- * rte_mempool_obj_iter() or rte_mempool_create()
- */
-void
-rte_ctrlmbuf_init(struct rte_mempool *mp,
-		__attribute__((unused)) void *opaque_arg,
-		void *_m,
-		__attribute__((unused)) unsigned i)
-{
-	struct rte_mbuf *m = _m;
-	rte_pktmbuf_init(mp, opaque_arg, _m, i);
-	m->ol_flags |= CTRL_MBUF_FLAG;
-}
 
 /*
  * pktmbuf pool constructor, given as a callback function to
@@ -144,22 +102,22 @@ rte_pktmbuf_init(struct rte_mempool *mp,
 	m->pool = mp;
 	m->nb_segs = 1;
 	m->port = MBUF_INVALID_PORT;
-    #ifdef TREX_PATCH
+#ifdef TREX_PATCH
     m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
-    #endif
+#endif
 	rte_mbuf_refcnt_set(m, 1);
 	m->next = NULL;
 }
 
-/* helper to create a mbuf pool */
-struct rte_mempool *
-rte_pktmbuf_pool_create(const char *name, unsigned n,
-	unsigned cache_size, uint16_t priv_size, uint16_t data_room_size,
-	int socket_id)
+/* Helper to create a mbuf pool with given mempool ops name*/
+struct rte_mempool * __rte_experimental
+rte_pktmbuf_pool_create_by_ops(const char *name, unsigned int n,
+	unsigned int cache_size, uint16_t priv_size, uint16_t data_room_size,
+	int socket_id, const char *ops_name)
 {
 	struct rte_mempool *mp;
 	struct rte_pktmbuf_pool_private mbp_priv;
-	const char *mp_ops_name;
+	const char *mp_ops_name = ops_name;
 	unsigned elt_size;
 	int ret;
 
@@ -179,7 +137,8 @@ rte_pktmbuf_pool_create(const char *name, unsigned n,
 	if (mp == NULL)
 		return NULL;
 
-	mp_ops_name = rte_eal_mbuf_default_mempool_ops();
+	if (mp_ops_name == NULL)
+		mp_ops_name = rte_mbuf_best_mempool_ops();
 	ret = rte_mempool_set_ops_byname(mp, mp_ops_name, NULL);
 	if (ret != 0) {
 		RTE_LOG(ERR, MBUF, "error setting mempool handler\n");
@@ -201,12 +160,21 @@ rte_pktmbuf_pool_create(const char *name, unsigned n,
 	return mp;
 }
 
+/* helper to create a mbuf pool */
+struct rte_mempool *
+rte_pktmbuf_pool_create(const char *name, unsigned int n,
+	unsigned int cache_size, uint16_t priv_size, uint16_t data_room_size,
+	int socket_id)
+{
+	return rte_pktmbuf_pool_create_by_ops(name, n, cache_size, priv_size,
+			data_room_size, socket_id, NULL);
+}
+
 /* do some sanity checks on a mbuf: panic if it fails */
 void
 rte_mbuf_sanity_check(const struct rte_mbuf *m, int is_header)
 {
-	const struct rte_mbuf *m_seg;
-	unsigned nb_segs;
+	unsigned int nb_segs, pkt_len;
 
 	if (m == NULL)
 		rte_panic("mbuf is NULL\n");
@@ -227,14 +195,22 @@ rte_mbuf_sanity_check(const struct rte_mbuf *m, int is_header)
 	if (is_header == 0)
 		return;
 
+	/* data_len is supposed to be not more than pkt_len */
+	if (m->data_len > m->pkt_len)
+		rte_panic("bad data_len\n");
+
 	nb_segs = m->nb_segs;
-	m_seg = m;
-	while (m_seg && nb_segs != 0) {
-		m_seg = m_seg->next;
-		nb_segs--;
-	}
-	if (nb_segs != 0)
+	pkt_len = m->pkt_len;
+
+	do {
+		nb_segs -= 1;
+		pkt_len -= m->data_len;
+	} while ((m = m->next) != NULL);
+
+	if (nb_segs)
 		rte_panic("bad nb_segs\n");
+	if (pkt_len)
+		rte_panic("bad pkt_len\n");
 }
 
 /* dump a mbuf on console */
@@ -242,7 +218,7 @@ void
 rte_pktmbuf_dump(FILE *f, const struct rte_mbuf *m, unsigned dump_len)
 {
 	unsigned int len;
-	unsigned nb_segs;
+	unsigned int nb_segs;
 
 	__rte_mbuf_sanity_check(m, 1);
 
@@ -417,6 +393,9 @@ const char *rte_get_tx_ol_flag_name(uint64_t mask)
 	case PKT_TX_TUNNEL_IPIP: return "PKT_TX_TUNNEL_IPIP";
 	case PKT_TX_TUNNEL_GENEVE: return "PKT_TX_TUNNEL_GENEVE";
 	case PKT_TX_TUNNEL_MPLSINUDP: return "PKT_TX_TUNNEL_MPLSINUDP";
+	case PKT_TX_TUNNEL_VXLAN_GPE: return "PKT_TX_TUNNEL_VXLAN_GPE";
+	case PKT_TX_TUNNEL_IP: return "PKT_TX_TUNNEL_IP";
+	case PKT_TX_TUNNEL_UDP: return "PKT_TX_TUNNEL_UDP";
 	case PKT_TX_MACSEC: return "PKT_TX_MACSEC";
 	case PKT_TX_SEC_OFFLOAD: return "PKT_TX_SEC_OFFLOAD";
 	default: return NULL;
@@ -450,6 +429,12 @@ rte_get_tx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
 		{ PKT_TX_TUNNEL_GENEVE, PKT_TX_TUNNEL_MASK,
 		  "PKT_TX_TUNNEL_NONE" },
 		{ PKT_TX_TUNNEL_MPLSINUDP, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_VXLAN_GPE, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_IP, PKT_TX_TUNNEL_MASK,
+		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_UDP, PKT_TX_TUNNEL_MASK,
 		  "PKT_TX_TUNNEL_NONE" },
 		{ PKT_TX_MACSEC, PKT_TX_MACSEC, NULL },
 		{ PKT_TX_SEC_OFFLOAD, PKT_TX_SEC_OFFLOAD, NULL },

@@ -1,35 +1,6 @@
-/*
- * Copyright 2008-2016 Cisco Systems, Inc.  All rights reserved.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2008-2017 Cisco Systems, Inc.  All rights reserved.
  * Copyright 2007 Nuova Systems, Inc.  All rights reserved.
- *
- * Copyright (c) 2014, Cisco Systems, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in
- * the documentation and/or other materials provided with the
- * distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
  */
 
 #ifndef _VNIC_DEVCMD_H_
@@ -629,6 +600,7 @@ enum filter_cap_mode {
 
 /* flags for CMD_OPEN */
 #define CMD_OPENF_OPROM		0x1	/* open coming from option rom */
+#define CMD_OPENF_IG_DESCCACHE	0x2	/* Do not flush IG DESC cache */
 
 /* flags for CMD_INIT */
 #define CMD_INITF_DEFAULT_MAC	0x1	/* init with default mac addr */
@@ -869,7 +841,9 @@ struct filter_action {
 
 #define FILTER_ACTION_RQ_STEERING_FLAG	(1 << 0)
 #define FILTER_ACTION_FILTER_ID_FLAG	(1 << 1)
+#define FILTER_ACTION_DROP_FLAG		(1 << 2)
 #define FILTER_ACTION_V2_ALL		(FILTER_ACTION_RQ_STEERING_FLAG \
+					 | FILTER_ACTION_DROP_FLAG \
 					 | FILTER_ACTION_FILTER_ID_FLAG)
 
 /* Version 2 of filter action must be a strict extension of struct filter_action
@@ -1105,6 +1079,18 @@ typedef enum {
 	VIC_FEATURE_RDMA,
 	VIC_FEATURE_MAX,
 } vic_feature_t;
+
+/*
+ * These flags are used in args[1] of devcmd CMD_GET_SUPP_FEATURE_VER
+ * to indicate the host driver about the VxLAN and Multi WQ features
+ * supported
+ */
+#define FEATURE_VXLAN_IPV6_INNER	(1 << 0)
+#define FEATURE_VXLAN_IPV6_OUTER	(1 << 1)
+#define FEATURE_VXLAN_MULTI_WQ		(1 << 2)
+
+#define FEATURE_VXLAN_IPV6		(FEATURE_VXLAN_IPV6_INNER | \
+					 FEATURE_VXLAN_IPV6_OUTER)
 
 /*
  * CMD_CONFIG_GRPINTR subcommands

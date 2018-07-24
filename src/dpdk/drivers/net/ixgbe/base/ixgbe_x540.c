@@ -779,6 +779,9 @@ s32 ixgbe_acquire_swfw_sync_X540(struct ixgbe_hw *hw, u32 mask)
 
 	swmask |= swi2c_mask;
 	fwmask |= swi2c_mask << 2;
+	if (hw->mac.type >= ixgbe_mac_X550)
+		timeout = 1000;
+
 	for (i = 0; i < timeout; i++) {
 		/* SW NVM semaphore bit is used for access to all
 		 * SW_FW_SYNC bits (not just NVM)
@@ -802,14 +805,6 @@ s32 ixgbe_acquire_swfw_sync_X540(struct ixgbe_hw *hw, u32 mask)
 		 */
 		ixgbe_release_swfw_sync_semaphore(hw);
 		msec_delay(5);
-	}
-
-	/* Failed to get SW only semaphore */
-	if (swmask == IXGBE_GSSR_SW_MNG_SM) {
-		ERROR_REPORT1(IXGBE_ERROR_POLLING,
-			     "Failed to get SW only semaphore");
-		DEBUGOUT("Failed to get SW only semaphore, returning IXGBE_ERR_SWFW_SYNC\n");
-		return IXGBE_ERR_SWFW_SYNC;
 	}
 
 	/* If the resource is not released by the FW/HW the SW can assume that
@@ -836,7 +831,8 @@ s32 ixgbe_acquire_swfw_sync_X540(struct ixgbe_hw *hw, u32 mask)
 	 */
 	if (swfw_sync & swmask) {
 		u32 rmask = IXGBE_GSSR_EEP_SM | IXGBE_GSSR_PHY0_SM |
-			    IXGBE_GSSR_PHY1_SM | IXGBE_GSSR_MAC_CSR_SM;
+			    IXGBE_GSSR_PHY1_SM | IXGBE_GSSR_MAC_CSR_SM |
+			    IXGBE_GSSR_SW_MNG_SM;
 
 		if (swi2c_mask)
 			rmask |= IXGBE_GSSR_I2C_MASK;
@@ -970,14 +966,25 @@ STATIC void ixgbe_release_swfw_sync_semaphore(struct ixgbe_hw *hw)
  **/
 void ixgbe_init_swfw_sync_X540(struct ixgbe_hw *hw)
 {
+	u32 rmask;
+
 	/* First try to grab the semaphore but we don't need to bother
-	 * looking to see whether we got the lock or  not since we do
+	 * looking to see whether we got the lock or not since we do
 	 * the same thing regardless of whether we got the lock or not.
 	 * We got the lock - we release it.
 	 * We timeout trying to get the lock - we force its release.
 	 */
 	ixgbe_get_swfw_sync_semaphore(hw);
 	ixgbe_release_swfw_sync_semaphore(hw);
+
+	/* Acquire and release all software resources. */
+	rmask = IXGBE_GSSR_EEP_SM | IXGBE_GSSR_PHY0_SM |
+		IXGBE_GSSR_PHY1_SM | IXGBE_GSSR_MAC_CSR_SM |
+		IXGBE_GSSR_SW_MNG_SM;
+
+	rmask |= IXGBE_GSSR_I2C_MASK;
+	ixgbe_acquire_swfw_sync_X540(hw, rmask);
+	ixgbe_release_swfw_sync_X540(hw, rmask);
 }
 
 /**

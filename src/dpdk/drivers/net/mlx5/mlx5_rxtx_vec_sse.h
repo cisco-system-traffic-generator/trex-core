@@ -1,34 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright 2017 6WIND S.A.
- *   Copyright 2017 Mellanox.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2017 6WIND S.A.
+ * Copyright 2017 Mellanox Technologies, Ltd
  */
 
 #ifndef RTE_PMD_MLX5_RXTX_VEC_SSE_H_
@@ -150,7 +122,7 @@ txq_scatter_v(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 				      8,  9, 10, 11, /* bswap32 */
 				      4,  5,  6,  7, /* bswap32 */
 				      0,  1,  2,  3  /* bswap32 */);
-		uint8_t cs_flags = 0;
+		uint8_t cs_flags;
 		uint16_t max_elts;
 		uint16_t max_wqe;
 		__m128i *t_wqe, *dseg;
@@ -172,22 +144,7 @@ txq_scatter_v(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 		}
 		wqe = &((volatile struct mlx5_wqe64 *)
 			 txq->wqes)[wqe_ci & wq_mask].hdr;
-		if (buf->ol_flags &
-		     (PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM)) {
-			const uint64_t is_tunneled =
-				buf->ol_flags & (PKT_TX_TUNNEL_GRE |
-						 PKT_TX_TUNNEL_VXLAN);
-
-			if (is_tunneled && txq->tunnel_en) {
-				cs_flags = MLX5_ETH_WQE_L3_INNER_CSUM |
-					   MLX5_ETH_WQE_L4_INNER_CSUM;
-				if (buf->ol_flags & PKT_TX_OUTER_IP_CKSUM)
-					cs_flags |= MLX5_ETH_WQE_L3_CSUM;
-			} else {
-				cs_flags = MLX5_ETH_WQE_L3_CSUM |
-					   MLX5_ETH_WQE_L4_CSUM;
-			}
-		}
+		cs_flags = txq_ol_cksum_to_cs(buf);
 		/* Title WQEBB pointer. */
 		t_wqe = (__m128i *)wqe;
 		dseg = (__m128i *)(wqe + 1);
@@ -585,6 +542,7 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq, __m128i cqes[4],
 	const __m128i mbuf_init =
 		_mm_loadl_epi64((__m128i *)&rxq->mbuf_initializer);
 	__m128i rearm0, rearm1, rearm2, rearm3;
+	uint8_t pt_idx0, pt_idx1, pt_idx2, pt_idx3;
 
 	/* Extract pkt_info field. */
 	pinfo0 = _mm_unpacklo_epi32(cqes[0], cqes[1]);
@@ -599,7 +557,7 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq, __m128i cqes[4],
 			_mm_set_epi32(0xffffff00, 0xffffff00,
 				      0xffffff00, 0xffffff00);
 		const __m128i fdir_flags = _mm_set1_epi32(PKT_RX_FDIR);
-		const __m128i fdir_id_flags = _mm_set1_epi32(PKT_RX_FDIR_ID);
+		__m128i fdir_id_flags = _mm_set1_epi32(PKT_RX_FDIR_ID);
 		__m128i flow_tag, invalid_mask;
 
 		flow_tag = _mm_and_si128(pinfo, pinfo_ft_mask);
@@ -609,7 +567,7 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq, __m128i cqes[4],
 					_mm_andnot_si128(invalid_mask,
 							 fdir_flags));
 		/* Mask out invalid entries. */
-		flow_tag = _mm_andnot_si128(invalid_mask, flow_tag);
+		fdir_id_flags = _mm_andnot_si128(invalid_mask, fdir_id_flags);
 		/* Check if flow tag MLX5_FLOW_MARK_DEFAULT. */
 		ol_flags = _mm_or_si128(ol_flags,
 					_mm_andnot_si128(
@@ -638,10 +596,18 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq, __m128i cqes[4],
 	/* Errored packets will have RTE_PTYPE_ALL_MASK. */
 	op_err = _mm_srli_epi16(op_err, 8);
 	ptype = _mm_or_si128(ptype, op_err);
-	pkts[0]->packet_type = mlx5_ptype_table[_mm_extract_epi8(ptype, 0)];
-	pkts[1]->packet_type = mlx5_ptype_table[_mm_extract_epi8(ptype, 2)];
-	pkts[2]->packet_type = mlx5_ptype_table[_mm_extract_epi8(ptype, 4)];
-	pkts[3]->packet_type = mlx5_ptype_table[_mm_extract_epi8(ptype, 6)];
+	pt_idx0 = _mm_extract_epi8(ptype, 0);
+	pt_idx1 = _mm_extract_epi8(ptype, 2);
+	pt_idx2 = _mm_extract_epi8(ptype, 4);
+	pt_idx3 = _mm_extract_epi8(ptype, 6);
+	pkts[0]->packet_type = mlx5_ptype_table[pt_idx0] |
+			       !!(pt_idx0 & (1 << 6)) * rxq->tunnel;
+	pkts[1]->packet_type = mlx5_ptype_table[pt_idx1] |
+			       !!(pt_idx1 & (1 << 6)) * rxq->tunnel;
+	pkts[2]->packet_type = mlx5_ptype_table[pt_idx2] |
+			       !!(pt_idx2 & (1 << 6)) * rxq->tunnel;
+	pkts[3]->packet_type = mlx5_ptype_table[pt_idx3] |
+			       !!(pt_idx3 & (1 << 6)) * rxq->tunnel;
 	/* Fill flags for checksum and VLAN. */
 	pinfo = _mm_and_si128(pinfo, ptype_ol_mask);
 	pinfo = _mm_shuffle_epi8(cv_flag_sel, pinfo);
@@ -677,12 +643,16 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq, __m128i cqes[4],
  *   Array to store received packets.
  * @param pkts_n
  *   Maximum number of packets in array.
+ * @param[out] err
+ *   Pointer to a flag. Set non-zero value if pkts array has at least one error
+ *   packet to handle.
  *
  * @return
  *   Number of packets received including errors (<= pkts_n).
  */
 static inline uint16_t
-rxq_burst_v(struct mlx5_rxq_data *rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
+rxq_burst_v(struct mlx5_rxq_data *rxq, struct rte_mbuf **pkts, uint16_t pkts_n,
+	    uint64_t *err)
 {
 	const uint16_t q_n = 1 << rxq->cqe_n;
 	const uint16_t q_mask = q_n - 1;
@@ -844,7 +814,7 @@ rxq_burst_v(struct mlx5_rxq_data *rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		/* B.2 copy mbuf pointers. */
 		_mm_storeu_si128((__m128i *)&pkts[pos], mbp1);
 		_mm_storeu_si128((__m128i *)&pkts[pos + 2], mbp2);
-		rte_compiler_barrier();
+		rte_cio_rmb();
 		/* C.1 load remained CQE data and extract necessary fields. */
 		cqe_tmp2 = _mm_load_si128((__m128i *)&cq[pos + p3]);
 		cqe_tmp1 = _mm_load_si128((__m128i *)&cq[pos + p2]);
@@ -944,7 +914,7 @@ rxq_burst_v(struct mlx5_rxq_data *rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		opcode = _mm_packs_epi32(opcode, zero);
 		opcode = _mm_andnot_si128(invalid_mask, opcode);
 		/* D.4 mark if any error is set */
-		rxq->pending_err |= !!_mm_cvtsi128_si64(opcode);
+		*err |= _mm_cvtsi128_si64(opcode);
 		/* D.5 fill in mbuf - rearm_data and packet_type. */
 		rxq_cq_to_ptype_oflags_v(rxq, cqes, opcode, &pkts[pos]);
 		if (rxq->hw_timestamp) {

@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #include <string.h>
@@ -43,7 +14,9 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/mman.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 
 #include <rte_memory.h>
 #include <rte_eal.h>
@@ -59,6 +32,40 @@
 #include "eal_filesystem.h"
 
 static const char sys_dir_path[] = "/sys/kernel/mm/hugepages";
+static const char sys_pages_numa_dir_path[] = "/sys/devices/system/node";
+
+/*
+ * Uses mmap to create a shared memory area for storage of data
+ * Used in this file to store the hugepage file map on disk
+ */
+static void *
+map_shared_memory(const char *filename, const size_t mem_size, int flags)
+{
+	void *retval;
+	int fd = open(filename, flags, 0666);
+	if (fd < 0)
+		return NULL;
+	if (ftruncate(fd, mem_size) < 0) {
+		close(fd);
+		return NULL;
+	}
+	retval = mmap(NULL, mem_size, PROT_READ | PROT_WRITE,
+			MAP_SHARED, fd, 0);
+	close(fd);
+	return retval;
+}
+
+static void *
+open_shared_memory(const char *filename, const size_t mem_size)
+{
+	return map_shared_memory(filename, mem_size, O_RDWR);
+}
+
+static void *
+create_shared_memory(const char *filename, const size_t mem_size)
+{
+	return map_shared_memory(filename, mem_size, O_RDWR | O_CREAT);
+}
 
 /* this function is only called from eal_hugepage_info_init which itself
  * is only called from a primary process */
@@ -99,6 +106,45 @@ get_num_hugepages(const char *subdir)
 	return num_pages;
 }
 
+static uint32_t
+get_num_hugepages_on_node(const char *subdir, unsigned int socket)
+{
+	char path[PATH_MAX], socketpath[PATH_MAX];
+	DIR *socketdir;
+	unsigned long num_pages = 0;
+	const char *nr_hp_file = "free_hugepages";
+
+	snprintf(socketpath, sizeof(socketpath), "%s/node%u/hugepages",
+		sys_pages_numa_dir_path, socket);
+
+	socketdir = opendir(socketpath);
+	if (socketdir) {
+		/* Keep calm and carry on */
+		closedir(socketdir);
+	} else {
+		/* Can't find socket dir, so ignore it */
+		return 0;
+	}
+
+	snprintf(path, sizeof(path), "%s/%s/%s",
+			socketpath, subdir, nr_hp_file);
+	if (eal_parse_sysfs_value(path, &num_pages) < 0)
+		return 0;
+
+	if (num_pages == 0)
+		RTE_LOG(WARNING, EAL, "No free hugepages reported in %s\n",
+				subdir);
+
+	/*
+	 * we want to return a uint32_t and more than this looks suspicious
+	 * anyway ...
+	 */
+	if (num_pages > UINT32_MAX)
+		num_pages = UINT32_MAX;
+
+	return num_pages;
+}
+
 static uint64_t
 get_default_hp_size(void)
 {
@@ -123,8 +169,8 @@ get_default_hp_size(void)
 	return size;
 }
 
-static const char *
-get_hugepage_dir(uint64_t hugepage_sz)
+static int
+get_hugepage_dir(uint64_t hugepage_sz, char *hugedir, int len)
 {
 	enum proc_mount_fieldnames {
 		DEVICE = 0,
@@ -142,7 +188,7 @@ get_hugepage_dir(uint64_t hugepage_sz)
 	const char split_tok = ' ';
 	char *splitstr[_FIELDNAME_MAX];
 	char buf[BUFSIZ];
-	char *retval = NULL;
+	int retval = -1;
 
 	FILE *fd = fopen(proc_mounts, "r");
 	if (fd == NULL)
@@ -169,7 +215,8 @@ get_hugepage_dir(uint64_t hugepage_sz)
 			/* if no explicit page size, the default page size is compared */
 			if (pagesz_str == NULL){
 				if (hugepage_sz == default_size){
-					retval = strdup(splitstr[MOUNTPT]);
+					strlcpy(hugedir, splitstr[MOUNTPT], len);
+					retval = 0;
 					break;
 				}
 			}
@@ -177,7 +224,8 @@ get_hugepage_dir(uint64_t hugepage_sz)
 			else {
 				uint64_t pagesz = rte_str_to_size(&pagesz_str[pagesize_opt_len]);
 				if (pagesz == hugepage_sz) {
-					retval = strdup(splitstr[MOUNTPT]);
+					strlcpy(hugedir, splitstr[MOUNTPT], len);
+					retval = 0;
 					break;
 				}
 			}
@@ -236,11 +284,9 @@ clear_hugedir(const char * hugedir)
 		/* non-blocking lock */
 		lck_result = flock(fd, LOCK_EX | LOCK_NB);
 
-		/* if lock succeeds, unlock and remove the file */
-		if (lck_result != -1) {
-			flock(fd, LOCK_UN);
+		/* if lock succeeds, remove the file */
+		if (lck_result != -1)
 			unlinkat(dir_fd, dirent->d_name, 0);
-		}
 		close (fd);
 		dirent = readdir(dir);
 	}
@@ -267,17 +313,11 @@ compare_hpi(const void *a, const void *b)
 	return hpi_b->hugepage_sz - hpi_a->hugepage_sz;
 }
 
-/*
- * when we initialize the hugepage info, everything goes
- * to socket 0 by default. it will later get sorted by memory
- * initialization procedure.
- */
-int
-eal_hugepage_info_init(void)
-{
-	const char dirent_start_text[] = "hugepages-";
+static int
+hugepage_info_init(void)
+{	const char dirent_start_text[] = "hugepages-";
 	const size_t dirent_start_len = sizeof(dirent_start_text) - 1;
-	unsigned i, num_sizes = 0;
+	unsigned int i, total_pages, num_sizes = 0;
 	DIR *dir;
 	struct dirent *dirent;
 
@@ -302,10 +342,10 @@ eal_hugepage_info_init(void)
 		hpi = &internal_config.hugepage_info[num_sizes];
 		hpi->hugepage_sz =
 			rte_str_to_size(&dirent->d_name[dirent_start_len]);
-		hpi->hugedir = get_hugepage_dir(hpi->hugepage_sz);
 
 		/* first, check if we have a mountpoint */
-		if (hpi->hugedir == NULL) {
+		if (get_hugepage_dir(hpi->hugepage_sz,
+			hpi->hugedir, sizeof(hpi->hugedir)) < 0) {
 			uint32_t num_pages;
 
 			num_pages = get_num_hugepages(dirent->d_name);
@@ -331,9 +371,28 @@ eal_hugepage_info_init(void)
 		if (clear_hugedir(hpi->hugedir) == -1)
 			break;
 
-		/* for now, put all pages into socket 0,
-		 * later they will be sorted */
-		hpi->num_pages[0] = get_num_hugepages(dirent->d_name);
+		/*
+		 * first, try to put all hugepages into relevant sockets, but
+		 * if first attempts fails, fall back to collecting all pages
+		 * in one socket and sorting them later
+		 */
+		total_pages = 0;
+		/* we also don't want to do this for legacy init */
+		if (!internal_config.legacy_mem)
+			for (i = 0; i < rte_socket_count(); i++) {
+				int socket = rte_socket_id_by_idx(i);
+				unsigned int num_pages =
+						get_num_hugepages_on_node(
+							dirent->d_name, socket);
+				hpi->num_pages[socket] = num_pages;
+				total_pages += num_pages;
+			}
+		/*
+		 * we failed to sort memory from the get go, so fall
+		 * back to old way
+		 */
+		if (total_pages == 0)
+			hpi->num_pages[0] = get_num_hugepages(dirent->d_name);
 
 #ifndef RTE_ARCH_64
 		/* for 32-bit systems, limit number of hugepages to
@@ -357,11 +416,79 @@ eal_hugepage_info_init(void)
 	      sizeof(internal_config.hugepage_info[0]), compare_hpi);
 
 	/* now we have all info, check we have at least one valid size */
-	for (i = 0; i < num_sizes; i++)
-		if (internal_config.hugepage_info[i].hugedir != NULL &&
-		    internal_config.hugepage_info[i].num_pages[0] > 0)
+	for (i = 0; i < num_sizes; i++) {
+		/* pages may no longer all be on socket 0, so check all */
+		unsigned int j, num_pages = 0;
+		struct hugepage_info *hpi = &internal_config.hugepage_info[i];
+
+		for (j = 0; j < RTE_MAX_NUMA_NODES; j++)
+			num_pages += hpi->num_pages[j];
+		if (strnlen(hpi->hugedir, sizeof(hpi->hugedir)) != 0 &&
+				num_pages > 0)
 			return 0;
+	}
 
 	/* no valid hugepage mounts available, return error */
 	return -1;
+}
+
+/*
+ * when we initialize the hugepage info, everything goes
+ * to socket 0 by default. it will later get sorted by memory
+ * initialization procedure.
+ */
+int
+eal_hugepage_info_init(void)
+{
+	struct hugepage_info *hpi, *tmp_hpi;
+	unsigned int i;
+
+	if (hugepage_info_init() < 0)
+		return -1;
+
+	hpi = &internal_config.hugepage_info[0];
+
+	tmp_hpi = create_shared_memory(eal_hugepage_info_path(),
+			sizeof(internal_config.hugepage_info));
+	if (tmp_hpi == NULL) {
+		RTE_LOG(ERR, EAL, "Failed to create shared memory!\n");
+		return -1;
+	}
+
+	memcpy(tmp_hpi, hpi, sizeof(internal_config.hugepage_info));
+
+	/* we've copied file descriptors along with everything else, but they
+	 * will be invalid in secondary process, so overwrite them
+	 */
+	for (i = 0; i < RTE_DIM(internal_config.hugepage_info); i++) {
+		struct hugepage_info *tmp = &tmp_hpi[i];
+		tmp->lock_descriptor = -1;
+	}
+
+	if (munmap(tmp_hpi, sizeof(internal_config.hugepage_info)) < 0) {
+		RTE_LOG(ERR, EAL, "Failed to unmap shared memory!\n");
+		return -1;
+	}
+	return 0;
+}
+
+int eal_hugepage_info_read(void)
+{
+	struct hugepage_info *hpi = &internal_config.hugepage_info[0];
+	struct hugepage_info *tmp_hpi;
+
+	tmp_hpi = open_shared_memory(eal_hugepage_info_path(),
+				  sizeof(internal_config.hugepage_info));
+	if (tmp_hpi == NULL) {
+		RTE_LOG(ERR, EAL, "Failed to open shared memory!\n");
+		return -1;
+	}
+
+	memcpy(hpi, tmp_hpi, sizeof(internal_config.hugepage_info));
+
+	if (munmap(tmp_hpi, sizeof(internal_config.hugepage_info)) < 0) {
+		RTE_LOG(ERR, EAL, "Failed to unmap shared memory!\n");
+		return -1;
+	}
+	return 0;
 }

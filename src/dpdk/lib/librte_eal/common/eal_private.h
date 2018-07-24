@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2018 Intel Corporation
  */
 
 #ifndef _EAL_PRIVATE_H_
@@ -37,6 +8,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#include <rte_dev.h>
 
 /**
  * Initialize the memzone subsystem (private to eal).
@@ -110,6 +83,12 @@ int rte_eal_timer_init(void);
 int rte_eal_log_init(const char *id, int facility);
 
 /**
+ * Save the log regexp for later
+ */
+int rte_log_save_regexp(const char *type, int priority);
+int rte_log_save_pattern(const char *pattern, int priority);
+
+/**
  * Init tail queues for non-EAL library structures. This is to allow
  * the rings, mempools, etc. lists to be shared among multiple processes
  *
@@ -154,6 +133,39 @@ int rte_eal_alarm_init(void);
  *	1  means the module loaded
  */
 int rte_eal_check_module(const char *module_name);
+
+/**
+ * Get virtual area of specified size from the OS.
+ *
+ * This function is private to the EAL.
+ *
+ * @param requested_addr
+ *   Address where to request address space.
+ * @param size
+ *   Size of requested area.
+ * @param page_sz
+ *   Page size on which to align requested virtual area.
+ * @param flags
+ *   EAL_VIRTUAL_AREA_* flags.
+ * @param mmap_flags
+ *   Extra flags passed directly to mmap().
+ *
+ * @return
+ *   Virtual area address if successful.
+ *   NULL if unsuccessful.
+ */
+
+#define EAL_VIRTUAL_AREA_ADDR_IS_HINT (1 << 0)
+/**< don't fail if cannot get exact requested address. */
+#define EAL_VIRTUAL_AREA_ALLOW_SHRINK (1 << 1)
+/**< try getting smaller sized (decrement by page size) virtual areas if cannot
+ * get area of requested size.
+ */
+#define EAL_VIRTUAL_AREA_UNMAP (1 << 2)
+/**< immediately unmap reserved virtual area. */
+void *
+eal_get_virtual_area(void *requested_addr, size_t *size,
+		size_t page_sz, int flags, int mmap_flags);
 
 /**
  * Get cpu core_id.
@@ -223,5 +235,27 @@ int rte_eal_hugepage_attach(void);
  *   NULL if no bus is able to parse this device.
  */
 struct rte_bus *rte_bus_find_by_device_name(const char *str);
+
+/**
+ * Create the unix channel for primary/secondary communication.
+ *
+ * @return
+ *   0 on success;
+ *   (<0) on failure.
+ */
+
+int rte_mp_channel_init(void);
+
+/**
+ * Internal Executes all the user application registered callbacks for
+ * the specific device. It is for DPDK internal user only. User
+ * application should not call it directly.
+ *
+ * @param device_name
+ *  The device name.
+ * @param event
+ *  the device event type.
+ */
+void dev_callback_process(char *device_name, enum rte_dev_event_type event);
 
 #endif /* _EAL_PRIVATE_H_ */

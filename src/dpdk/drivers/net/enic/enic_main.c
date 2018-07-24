@@ -1,35 +1,6 @@
-/*
- * Copyright 2008-2014 Cisco Systems, Inc.  All rights reserved.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2008-2017 Cisco Systems, Inc.  All rights reserved.
  * Copyright 2007 Nuova Systems, Inc.  All rights reserved.
- *
- * Copyright (c) 2014, Cisco Systems, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in
- * the documentation and/or other materials provided with the
- * distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
  */
 
 #include <stdio.h>
@@ -45,7 +16,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 
 #include "enic_compat.h"
 #include "enic.h"
@@ -96,11 +67,6 @@ enic_rxmbuf_queue_release(__rte_unused struct enic *enic, struct vnic_rq *rq)
 			rq->mbuf_ring[i] = NULL;
 		}
 	}
-}
-
-void enic_set_hdr_split_size(struct enic *enic, u16 split_hdr_size)
-{
-	vnic_set_hdr_split_size(enic->vdev, split_hdr_size);
 }
 
 static void enic_free_wq_buf(struct vnic_wq_buf *buf)
@@ -182,7 +148,7 @@ int enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 
 #ifdef TREX_PATCH
     // This used to be in older DPDK version, and seems to be needed. Was removed for some reason in dpdk1702.
-		rx_truncated -= stats->rx.rx_no_bufs;
+    rx_truncated -= stats->rx.rx_no_bufs;
 #endif
 
 	r_stats->ipackets = stats->rx.rx_frames_ok - rx_truncated;
@@ -193,7 +159,6 @@ int enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 #else
 	r_stats->ibytes = stats->rx.rx_bytes_ok;
 #endif
-
 	r_stats->obytes = stats->tx.tx_bytes_ok;
 
 	r_stats->ierrors = stats->rx.rx_errors + stats->rx.rx_drop;
@@ -206,13 +171,12 @@ int enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 	return 0;
 }
 
-void enic_del_mac_address(struct enic *enic, int mac_index)
+int enic_del_mac_address(struct enic *enic, int mac_index)
 {
 	struct rte_eth_dev *eth_dev = enic->rte_dev;
 	uint8_t *mac_addr = eth_dev->data->mac_addrs[mac_index].addr_bytes;
 
-	if (vnic_dev_del_addr(enic->vdev, mac_addr))
-		dev_err(enic, "del mac addr failed\n");
+	return vnic_dev_del_addr(enic->vdev, mac_addr);
 }
 
 int enic_set_mac_address(struct enic *enic, uint8_t *mac_addr)
@@ -244,9 +208,14 @@ void enic_init_vnic_resources(struct enic *enic)
 {
 	unsigned int error_interrupt_enable = 1;
 	unsigned int error_interrupt_offset = 0;
+	unsigned int rxq_interrupt_enable = 0;
+	unsigned int rxq_interrupt_offset = ENICPMD_RXQ_INTR_OFFSET;
 	unsigned int index = 0;
 	unsigned int cq_idx;
 	struct vnic_rq *data_rq;
+
+	if (enic->rte_dev->data->dev_conf.intr_conf.rxq)
+		rxq_interrupt_enable = 1;
 
 	for (index = 0; index < enic->rq_count; index++) {
 		cq_idx = enic_cq_rq(enic, enic_rte_rq_idx_to_sop_idx(index));
@@ -269,11 +238,13 @@ void enic_init_vnic_resources(struct enic *enic)
 			0 /* cq_head */,
 			0 /* cq_tail */,
 			1 /* cq_tail_color */,
-			0 /* interrupt_enable */,
+			rxq_interrupt_enable,
 			1 /* cq_entry_enable */,
 			0 /* cq_message_enable */,
-			0 /* interrupt offset */,
+			rxq_interrupt_offset,
 			0 /* cq_message_addr */);
+		if (rxq_interrupt_enable)
+			rxq_interrupt_offset++;
 	}
 
 	for (index = 0; index < enic->wq_count; index++) {
@@ -281,6 +252,9 @@ void enic_init_vnic_resources(struct enic *enic)
 			enic_cq_wq(enic, index),
 			error_interrupt_enable,
 			error_interrupt_offset);
+		/* Compute unsupported ol flags for enic_prep_pkts() */
+		enic->wq[index].tx_offload_notsup_mask =
+			PKT_TX_OFFLOAD_MASK ^ enic->tx_offload_mask;
 
 		cq_idx = enic_cq_wq(enic, index);
 		vnic_cq_init(&enic->cq[cq_idx],
@@ -296,10 +270,12 @@ void enic_init_vnic_resources(struct enic *enic)
 			(u64)enic->wq[index].cqmsg_rz->iova);
 	}
 
-	vnic_intr_init(&enic->intr,
-		enic->config.intr_timer_usec,
-		enic->config.intr_timer_type,
-		/*mask_on_assertion*/1);
+	for (index = 0; index < enic->intr_count; index++) {
+		vnic_intr_init(&enic->intr[index],
+			       enic->config.intr_timer_usec,
+			       enic->config.intr_timer_type,
+			       /*mask_on_assertion*/1);
+	}
 }
 
 
@@ -310,6 +286,8 @@ enic_alloc_rx_queue_mbufs(struct enic *enic, struct vnic_rq *rq)
 	struct rq_enet_desc *rqd = rq->ring.descs;
 	unsigned i;
 	dma_addr_t dma_addr;
+	uint32_t max_rx_pkt_len;
+	uint16_t rq_buf_len;
 
 	if (!rq->in_use)
 		return 0;
@@ -317,6 +295,18 @@ enic_alloc_rx_queue_mbufs(struct enic *enic, struct vnic_rq *rq)
 	dev_debug(enic, "queue %u, allocating %u rx queue mbufs\n", rq->index,
 		  rq->ring.desc_count);
 
+	/*
+	 * If *not* using scatter and the mbuf size is greater than the
+	 * requested max packet size (max_rx_pkt_len), then reduce the
+	 * posted buffer size to max_rx_pkt_len. HW still receives packets
+	 * larger than max_rx_pkt_len, but they will be truncated, which we
+	 * drop in the rx handler. Not ideal, but better than returning
+	 * large packets when the user is not expecting them.
+	 */
+	max_rx_pkt_len = enic->rte_dev->data->dev_conf.rxmode.max_rx_pkt_len;
+	rq_buf_len = rte_pktmbuf_data_room_size(rq->mp) - RTE_PKTMBUF_HEADROOM;
+	if (max_rx_pkt_len < rq_buf_len && !rq->data_queue_enable)
+		rq_buf_len = max_rx_pkt_len;
 	for (i = 0; i < rq->ring.desc_count; i++, rqd++) {
 		mb = rte_mbuf_raw_alloc(rq->mp);
 		if (mb == NULL) {
@@ -331,9 +321,27 @@ enic_alloc_rx_queue_mbufs(struct enic *enic, struct vnic_rq *rq)
 		rq_enet_desc_enc(rqd, dma_addr,
 				(rq->is_sop ? RQ_ENET_TYPE_ONLY_SOP
 				: RQ_ENET_TYPE_NOT_SOP),
-				mb->buf_len - RTE_PKTMBUF_HEADROOM);
+				rq_buf_len);
 		rq->mbuf_ring[i] = mb;
 	}
+	/*
+	 * Do not post the buffers to the NIC until we enable the RQ via
+	 * enic_start_rq().
+	 */
+	rq->need_initial_post = true;
+	return 0;
+}
+
+/*
+ * Post the Rx buffers for the first time. enic_alloc_rx_queue_mbufs() has
+ * allocated the buffers and filled the RQ descriptor ring. Just need to push
+ * the post index to the NIC.
+ */
+static void
+enic_initial_post_rx(struct enic *enic, struct vnic_rq *rq)
+{
+	if (!rq->in_use || !rq->need_initial_post)
+		return;
 
 	/* make sure all prior writes are complete before doing the PIO write */
 	rte_rmb();
@@ -348,9 +356,7 @@ enic_alloc_rx_queue_mbufs(struct enic *enic, struct vnic_rq *rq)
 	iowrite32(rq->posted_index, &rq->ctrl->posted_index);
 	iowrite32(0, &rq->ctrl->fetch_index);
 	rte_rmb();
-
-	return 0;
-
+	rq->need_initial_post = false;
 }
 
 static void *
@@ -363,8 +369,8 @@ enic_alloc_consistent(void *priv, size_t size,
 	struct enic *enic = (struct enic *)priv;
 	struct enic_memzone_entry *mze;
 
-	rz = rte_memzone_reserve_aligned((const char *)name,
-					 size, SOCKET_ID_ANY, 0, ENIC_ALIGN);
+	rz = rte_memzone_reserve_aligned((const char *)name, size,
+			SOCKET_ID_ANY, RTE_MEMZONE_IOVA_CONTIG, ENIC_ALIGN);
 	if (!rz) {
 		pr_err("%s : Failed to allocate memory requested for %s\n",
 			__func__, name);
@@ -423,16 +429,14 @@ enic_free_consistent(void *priv,
 int enic_link_update(struct enic *enic)
 {
 	struct rte_eth_dev *eth_dev = enic->rte_dev;
-	int ret;
-	int link_status = 0;
+	struct rte_eth_link link;
 
-	link_status = enic_get_link_status(enic);
-	ret = (link_status == enic->link_status);
-	enic->link_status = link_status;
-	eth_dev->data->dev_link.link_status = link_status;
-	eth_dev->data->dev_link.link_duplex = ETH_LINK_FULL_DUPLEX;
-	eth_dev->data->dev_link.link_speed = vnic_dev_port_speed(enic->vdev);
-	return ret;
+	memset(&link, 0, sizeof(link));
+	link.link_status = enic_get_link_status(enic);
+	link.link_duplex = ETH_LINK_FULL_DUPLEX;
+	link.link_speed = vnic_dev_port_speed(enic->vdev);
+
+	return rte_eth_linkstatus_set(eth_dev, &link);
 }
 
 static void
@@ -441,11 +445,60 @@ enic_intr_handler(void *arg)
 	struct rte_eth_dev *dev = (struct rte_eth_dev *)arg;
 	struct enic *enic = pmd_priv(dev);
 
-	vnic_intr_return_all_credits(&enic->intr);
+	vnic_intr_return_all_credits(&enic->intr[ENICPMD_LSC_INTR_OFFSET]);
 
 	enic_link_update(enic);
-	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL, NULL);
+	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_INTR_LSC, NULL);
 	enic_log_q_error(enic);
+}
+
+static int enic_rxq_intr_init(struct enic *enic)
+{
+	struct rte_intr_handle *intr_handle;
+	uint32_t rxq_intr_count, i;
+	int err;
+
+	intr_handle = enic->rte_dev->intr_handle;
+	if (!enic->rte_dev->data->dev_conf.intr_conf.rxq)
+		return 0;
+	/*
+	 * Rx queue interrupts only work when we have MSI-X interrupts,
+	 * one per queue. Sharing one interrupt is technically
+	 * possible with VIC, but it is not worth the complications it brings.
+	 */
+	if (!rte_intr_cap_multiple(intr_handle)) {
+		dev_err(enic, "Rx queue interrupts require MSI-X interrupts"
+			" (vfio-pci driver)\n");
+		return -ENOTSUP;
+	}
+	rxq_intr_count = enic->intr_count - ENICPMD_RXQ_INTR_OFFSET;
+	err = rte_intr_efd_enable(intr_handle, rxq_intr_count);
+	if (err) {
+		dev_err(enic, "Failed to enable event fds for Rx queue"
+			" interrupts\n");
+		return err;
+	}
+	intr_handle->intr_vec = rte_zmalloc("enic_intr_vec",
+					    rxq_intr_count * sizeof(int), 0);
+	if (intr_handle->intr_vec == NULL) {
+		dev_err(enic, "Failed to allocate intr_vec\n");
+		return -ENOMEM;
+	}
+	for (i = 0; i < rxq_intr_count; i++)
+		intr_handle->intr_vec[i] = i + ENICPMD_RXQ_INTR_OFFSET;
+	return 0;
+}
+
+static void enic_rxq_intr_deinit(struct enic *enic)
+{
+	struct rte_intr_handle *intr_handle;
+
+	intr_handle = enic->rte_dev->intr_handle;
+	rte_intr_efd_disable(intr_handle);
+	if (intr_handle->intr_vec != NULL) {
+		rte_free(intr_handle->intr_vec);
+		intr_handle->intr_vec = NULL;
+	}
 }
 
 int enic_enable(struct enic *enic)
@@ -464,6 +517,9 @@ int enic_enable(struct enic *enic)
 	if (eth_dev->data->dev_conf.intr_conf.lsc)
 		vnic_dev_notify_set(enic->vdev, 0);
 
+	err = enic_rxq_intr_init(enic);
+	if (err)
+		return err;
 	if (enic_clsf_init(enic))
 		dev_warning(enic, "Init of hash table for clsf failed."\
 			"Flow director feature will not work\n");
@@ -501,7 +557,8 @@ int enic_enable(struct enic *enic)
 		enic_intr_handler, (void *)enic->rte_dev);
 
 	rte_intr_enable(&(enic->pdev->intr_handle));
-	vnic_intr_unmask(&enic->intr);
+	/* Unmask LSC interrupt */
+	vnic_intr_unmask(&enic->intr[ENICPMD_LSC_INTR_OFFSET]);
 
 	return 0;
 }
@@ -509,17 +566,21 @@ int enic_enable(struct enic *enic)
 int enic_alloc_intr_resources(struct enic *enic)
 {
 	int err;
+	unsigned int i;
 
 	dev_info(enic, "vNIC resources used:  "\
 		"wq %d rq %d cq %d intr %d\n",
 		enic->wq_count, enic_vnic_rq_count(enic),
 		enic->cq_count, enic->intr_count);
 
-	err = vnic_intr_alloc(enic->vdev, &enic->intr, 0);
-	if (err)
-		enic_free_vnic_resources(enic);
-
-	return err;
+	for (i = 0; i < enic->intr_count; i++) {
+		err = vnic_intr_alloc(enic->vdev, &enic->intr[i], i);
+		if (err) {
+			enic_free_vnic_resources(enic);
+			return err;
+		}
+	}
+	return 0;
 }
 
 void enic_free_rq(void *rxq)
@@ -583,10 +644,13 @@ void enic_start_rq(struct enic *enic, uint16_t queue_idx)
 	rq_data = &enic->rq[rq_sop->data_queue_idx];
 	struct rte_eth_dev *eth_dev = enic->rte_dev;
 
-	if (rq_data->in_use)
+	if (rq_data->in_use) {
 		vnic_rq_enable(rq_data);
+		enic_initial_post_rx(enic, rq_data);
+	}
 	rte_mb();
 	vnic_rq_enable(rq_sop);
+	enic_initial_post_rx(enic, rq_sop);
 	eth_dev->data->rx_queue_state[queue_idx] = RTE_ETH_QUEUE_STATE_STARTED;
 }
 
@@ -625,7 +689,7 @@ int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 	unsigned int mbuf_size, mbufs_per_pkt;
 	unsigned int nb_sop_desc, nb_data_desc;
 	uint16_t min_sop, max_sop, min_data, max_data;
-	uint16_t mtu = enic->rte_dev->data->mtu;
+	uint32_t max_rx_pkt_len;
 
 	rq_sop->is_sop = 1;
 	rq_sop->data_queue_idx = data_queue_idx;
@@ -643,21 +707,42 @@ int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 
 	mbuf_size = (uint16_t)(rte_pktmbuf_data_room_size(mp) -
 			       RTE_PKTMBUF_HEADROOM);
+	/* max_rx_pkt_len includes the ethernet header and CRC. */
+	max_rx_pkt_len = enic->rte_dev->data->dev_conf.rxmode.max_rx_pkt_len;
 
-	if (enic->rte_dev->data->dev_conf.rxmode.enable_scatter) {
+	if (enic->rte_dev->data->dev_conf.rxmode.offloads &
+	    DEV_RX_OFFLOAD_SCATTER) {
 		dev_info(enic, "Rq %u Scatter rx mode enabled\n", queue_idx);
-		/* ceil((mtu + ETHER_HDR_LEN + 4)/mbuf_size) */
-		mbufs_per_pkt = ((mtu + ETHER_HDR_LEN + 4) +
-				 (mbuf_size - 1)) / mbuf_size;
+		/* ceil((max pkt len)/mbuf_size) */
+		mbufs_per_pkt = (max_rx_pkt_len + mbuf_size - 1) / mbuf_size;
 	} else {
 		dev_info(enic, "Scatter rx mode disabled\n");
 		mbufs_per_pkt = 1;
+		if (max_rx_pkt_len > mbuf_size) {
+			dev_warning(enic, "The maximum Rx packet size (%u) is"
+				    " larger than the mbuf size (%u), and"
+				    " scatter is disabled. Larger packets will"
+				    " be truncated.\n",
+				    max_rx_pkt_len, mbuf_size);
+		}
 	}
 
 	if (mbufs_per_pkt > 1) {
 		dev_info(enic, "Rq %u Scatter rx mode in use\n", queue_idx);
 		rq_sop->data_queue_enable = 1;
 		rq_data->in_use = 1;
+		/*
+		 * HW does not directly support rxmode.max_rx_pkt_len. HW always
+		 * receives packet sizes up to the "max" MTU.
+		 * If not using scatter, we can achieve the effect of dropping
+		 * larger packets by reducing the size of posted buffers.
+		 * See enic_alloc_rx_queue_mbufs().
+		 */
+		if (max_rx_pkt_len <
+		    enic_mtu_to_max_rx_pktlen(enic->max_mtu)) {
+			dev_warning(enic, "rxmode.max_rx_pkt_len is ignored"
+				    " when scatter rx mode is in use.\n");
+		}
 	} else {
 		dev_info(enic, "Rq %u Scatter rx mode not being used\n",
 			 queue_idx);
@@ -697,8 +782,9 @@ int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 		nb_data_desc = max_data;
 	}
 	if (mbufs_per_pkt > 1) {
-		dev_info(enic, "For mtu %d and mbuf size %d valid rx descriptor range is %d to %d\n",
-			 mtu, mbuf_size, min_sop + min_data,
+		dev_info(enic, "For max packet size %u and mbuf size %u valid"
+			 " rx descriptor range is %u to %u\n",
+			 max_rx_pkt_len, mbuf_size, min_sop + min_data,
 			 max_sop + max_data);
 	}
 	dev_info(enic, "Using %d rx descriptors (sop %d, data %d)\n",
@@ -831,9 +917,8 @@ int enic_alloc_wq(struct enic *enic, uint16_t queue_idx,
 		instance++);
 
 	wq->cqmsg_rz = rte_memzone_reserve_aligned((const char *)name,
-						   sizeof(uint32_t),
-						   SOCKET_ID_ANY, 0,
-						   ENIC_ALIGN);
+			sizeof(uint32_t), SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG, ENIC_ALIGN);
 	if (!wq->cqmsg_rz)
 		return -ENOMEM;
 
@@ -845,8 +930,11 @@ int enic_disable(struct enic *enic)
 	unsigned int i;
 	int err;
 
-	vnic_intr_mask(&enic->intr);
-	(void)vnic_intr_masked(&enic->intr); /* flush write */
+	for (i = 0; i < enic->intr_count; i++) {
+		vnic_intr_mask(&enic->intr[i]);
+		(void)vnic_intr_masked(&enic->intr[i]); /* flush write */
+	}
+	enic_rxq_intr_deinit(enic);
 	rte_intr_disable(&enic->pdev->intr_handle);
 	rte_intr_callback_unregister(&enic->pdev->intr_handle,
 				     enic_intr_handler,
@@ -889,7 +977,8 @@ int enic_disable(struct enic *enic)
 			vnic_rq_clean(&enic->rq[i], enic_free_rq_buf);
 	for (i = 0; i < enic->cq_count; i++)
 		vnic_cq_clean(&enic->cq[i]);
-	vnic_intr_clean(&enic->intr);
+	for (i = 0; i < enic->intr_count; i++)
+		vnic_intr_clean(&enic->intr[i]);
 
 	return 0;
 }
@@ -922,9 +1011,10 @@ static int enic_dev_wait(struct vnic_dev *vdev,
 static int enic_dev_open(struct enic *enic)
 {
 	int err;
+	int flags = CMD_OPENF_IG_DESCCACHE;
 
 	err = enic_dev_wait(enic->vdev, vnic_dev_open,
-		vnic_dev_open_done, 0);
+		vnic_dev_open_done, flags);
 	if (err)
 		dev_err(enic_get_dev(enic),
 			"vNIC device open failed, err %d\n", err);
@@ -932,44 +1022,42 @@ static int enic_dev_open(struct enic *enic)
 	return err;
 }
 
-static int enic_set_rsskey(struct enic *enic)
+static int enic_set_rsskey(struct enic *enic, uint8_t *user_key)
 {
 	dma_addr_t rss_key_buf_pa;
 	union vnic_rss_key *rss_key_buf_va = NULL;
-	static union vnic_rss_key rss_key = {
-		.key = {
-			[0] = {.b = {85, 67, 83, 97, 119, 101, 115, 111, 109, 101}},
-			[1] = {.b = {80, 65, 76, 79, 117, 110, 105, 113, 117, 101}},
-			[2] = {.b = {76, 73, 78, 85, 88, 114, 111, 99, 107, 115}},
-			[3] = {.b = {69, 78, 73, 67, 105, 115, 99, 111, 111, 108}},
-		}
-	};
-	int err;
+	int err, i;
 	u8 name[NAME_MAX];
 
+	RTE_ASSERT(user_key != NULL);
 	snprintf((char *)name, NAME_MAX, "rss_key-%s", enic->bdf_name);
 	rss_key_buf_va = enic_alloc_consistent(enic, sizeof(union vnic_rss_key),
 		&rss_key_buf_pa, name);
 	if (!rss_key_buf_va)
 		return -ENOMEM;
 
-	rte_memcpy(rss_key_buf_va, &rss_key, sizeof(union vnic_rss_key));
+	for (i = 0; i < ENIC_RSS_HASH_KEY_SIZE; i++)
+		rss_key_buf_va->key[i / 10].b[i % 10] = user_key[i];
 
 	err = enic_set_rss_key(enic,
 		rss_key_buf_pa,
 		sizeof(union vnic_rss_key));
 
+	/* Save for later queries */
+	if (!err) {
+		rte_memcpy(&enic->rss_key, rss_key_buf_va,
+			   sizeof(union vnic_rss_key));
+	}
 	enic_free_consistent(enic, sizeof(union vnic_rss_key),
 		rss_key_buf_va, rss_key_buf_pa);
 
 	return err;
 }
 
-static int enic_set_rsscpu(struct enic *enic, u8 rss_hash_bits)
+int enic_set_rss_reta(struct enic *enic, union vnic_rss_cpu *rss_cpu)
 {
 	dma_addr_t rss_cpu_buf_pa;
 	union vnic_rss_cpu *rss_cpu_buf_va = NULL;
-	int i;
 	int err;
 	u8 name[NAME_MAX];
 
@@ -979,9 +1067,7 @@ static int enic_set_rsscpu(struct enic *enic, u8 rss_hash_bits)
 	if (!rss_cpu_buf_va)
 		return -ENOMEM;
 
-	for (i = 0; i < (1 << rss_hash_bits); i++)
-		(*rss_cpu_buf_va).cpu[i / 4].b[i % 4] =
-			enic_rte_rq_idx_to_sop_idx(i % enic->rq_count);
+	rte_memcpy(rss_cpu_buf_va, rss_cpu, sizeof(union vnic_rss_cpu));
 
 	err = enic_set_rss_cpu(enic,
 		rss_cpu_buf_pa,
@@ -990,6 +1076,9 @@ static int enic_set_rsscpu(struct enic *enic, u8 rss_hash_bits)
 	enic_free_consistent(enic, sizeof(union vnic_rss_cpu),
 		rss_cpu_buf_va, rss_cpu_buf_pa);
 
+	/* Save for later queries */
+	if (!err)
+		rte_memcpy(&enic->rss_cpu, rss_cpu, sizeof(union vnic_rss_cpu));
 	return err;
 }
 
@@ -998,8 +1087,6 @@ static int enic_set_niccfg(struct enic *enic, u8 rss_default_cpu,
 {
 	const u8 tso_ipid_split_en = 0;
 	int err;
-
-	/* Enable VLAN tag stripping */
 
 	err = enic_set_nic_cfg(enic,
 		rss_default_cpu, rss_hash_type,
@@ -1010,46 +1097,49 @@ static int enic_set_niccfg(struct enic *enic, u8 rss_default_cpu,
 	return err;
 }
 
-int enic_set_rss_nic_cfg(struct enic *enic)
+/* Initialize RSS with defaults, called from dev_configure */
+int enic_init_rss_nic_cfg(struct enic *enic)
 {
-	const u8 rss_default_cpu = 0;
-	const u8 rss_hash_type = NIC_CFG_RSS_HASH_TYPE_IPV4 |
-	    NIC_CFG_RSS_HASH_TYPE_TCP_IPV4 |
-	    NIC_CFG_RSS_HASH_TYPE_IPV6 |
-	    NIC_CFG_RSS_HASH_TYPE_TCP_IPV6;
-	const u8 rss_hash_bits = 7;
-	const u8 rss_base_cpu = 0;
-	u8 rss_enable = ENIC_SETTING(enic, RSS) && (enic->rq_count > 1);
+	static uint8_t default_rss_key[] = {
+		85, 67, 83, 97, 119, 101, 115, 111, 109, 101,
+		80, 65, 76, 79, 117, 110, 105, 113, 117, 101,
+		76, 73, 78, 85, 88, 114, 111, 99, 107, 115,
+		69, 78, 73, 67, 105, 115, 99, 111, 111, 108,
+	};
+	struct rte_eth_rss_conf rss_conf;
+	union vnic_rss_cpu rss_cpu;
+	int ret, i;
 
-	if (rss_enable) {
-		if (!enic_set_rsskey(enic)) {
-			if (enic_set_rsscpu(enic, rss_hash_bits)) {
-				rss_enable = 0;
-				dev_warning(enic, "RSS disabled, "\
-					"Failed to set RSS cpu indirection table.");
-			}
-		} else {
-			rss_enable = 0;
-			dev_warning(enic,
-				"RSS disabled, Failed to set RSS key.\n");
-		}
+	rss_conf = enic->rte_dev->data->dev_conf.rx_adv_conf.rss_conf;
+	/*
+	 * If setting key for the first time, and the user gives us none, then
+	 * push the default key to NIC.
+	 */
+	if (rss_conf.rss_key == NULL) {
+		rss_conf.rss_key = default_rss_key;
+		rss_conf.rss_key_len = ENIC_RSS_HASH_KEY_SIZE;
 	}
-
-	return enic_set_niccfg(enic, rss_default_cpu, rss_hash_type,
-		rss_hash_bits, rss_base_cpu, rss_enable);
+	ret = enic_set_rss_conf(enic, &rss_conf);
+	if (ret) {
+		dev_err(enic, "Failed to configure RSS\n");
+		return ret;
+	}
+	if (enic->rss_enable) {
+		/* If enabling RSS, use the default reta */
+		for (i = 0; i < ENIC_RSS_RETA_SIZE; i++) {
+			rss_cpu.cpu[i / 4].b[i % 4] =
+				enic_rte_rq_idx_to_sop_idx(i % enic->rq_count);
+		}
+		ret = enic_set_rss_reta(enic, &rss_cpu);
+		if (ret)
+			dev_err(enic, "Failed to set RSS indirection table\n");
+	}
+	return ret;
 }
 
 int enic_setup_finish(struct enic *enic)
 {
-	int ret;
-
 	enic_init_soft_stats(enic);
-
-	ret = enic_set_rss_nic_cfg(enic);
-	if (ret) {
-		dev_err(enic, "Failed to config nic, aborting.\n");
-		return -1;
-	}
 
 	/* Default conf */
 	vnic_dev_packet_filter(enic->vdev,
@@ -1063,6 +1153,112 @@ int enic_setup_finish(struct enic *enic)
 	enic->allmulti = 1;
 
 	return 0;
+}
+
+static int enic_rss_conf_valid(struct enic *enic,
+			       struct rte_eth_rss_conf *rss_conf)
+{
+	/* RSS is disabled per VIC settings. Ignore rss_conf. */
+	if (enic->flow_type_rss_offloads == 0)
+		return 0;
+	if (rss_conf->rss_key != NULL &&
+	    rss_conf->rss_key_len != ENIC_RSS_HASH_KEY_SIZE) {
+		dev_err(enic, "Given rss_key is %d bytes, it must be %d\n",
+			rss_conf->rss_key_len, ENIC_RSS_HASH_KEY_SIZE);
+		return -EINVAL;
+	}
+	if (rss_conf->rss_hf != 0 &&
+	    (rss_conf->rss_hf & enic->flow_type_rss_offloads) == 0) {
+		dev_err(enic, "Given rss_hf contains none of the supported"
+			" types\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+/* Set hash type and key according to rss_conf */
+int enic_set_rss_conf(struct enic *enic, struct rte_eth_rss_conf *rss_conf)
+{
+	struct rte_eth_dev *eth_dev;
+	uint64_t rss_hf;
+	u8 rss_hash_type;
+	u8 rss_enable;
+	int ret;
+
+	RTE_ASSERT(rss_conf != NULL);
+	ret = enic_rss_conf_valid(enic, rss_conf);
+	if (ret) {
+		dev_err(enic, "RSS configuration (rss_conf) is invalid\n");
+		return ret;
+	}
+
+	eth_dev = enic->rte_dev;
+	rss_hash_type = 0;
+	rss_hf = rss_conf->rss_hf & enic->flow_type_rss_offloads;
+	if (enic->rq_count > 1 &&
+	    (eth_dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG) &&
+	    rss_hf != 0) {
+		rss_enable = 1;
+		if (rss_hf & (ETH_RSS_IPV4 | ETH_RSS_FRAG_IPV4 |
+			      ETH_RSS_NONFRAG_IPV4_OTHER))
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_IPV4;
+		if (rss_hf & ETH_RSS_NONFRAG_IPV4_TCP)
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_TCP_IPV4;
+		if (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) {
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_UDP_IPV4;
+			if (ENIC_SETTING(enic, RSSHASH_UDP_WEAK)) {
+				/*
+				 * 'TCP' is not a typo. The "weak" version of
+				 * UDP RSS requires both the TCP and UDP bits
+				 * be set. It does enable TCP RSS as well.
+				 */
+				rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_TCP_IPV4;
+			}
+		}
+		if (rss_hf & (ETH_RSS_IPV6 | ETH_RSS_IPV6_EX |
+			      ETH_RSS_FRAG_IPV6 | ETH_RSS_NONFRAG_IPV6_OTHER))
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_IPV6;
+		if (rss_hf & (ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_IPV6_TCP_EX))
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_TCP_IPV6;
+		if (rss_hf & (ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_UDP_EX)) {
+			rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_UDP_IPV6;
+			if (ENIC_SETTING(enic, RSSHASH_UDP_WEAK))
+				rss_hash_type |= NIC_CFG_RSS_HASH_TYPE_TCP_IPV6;
+		}
+	} else {
+		rss_enable = 0;
+		rss_hf = 0;
+	}
+
+	/* Set the hash key if provided */
+	if (rss_enable && rss_conf->rss_key) {
+		ret = enic_set_rsskey(enic, rss_conf->rss_key);
+		if (ret) {
+			dev_err(enic, "Failed to set RSS key\n");
+			return ret;
+		}
+	}
+
+	ret = enic_set_niccfg(enic, ENIC_RSS_DEFAULT_CPU, rss_hash_type,
+			      ENIC_RSS_HASH_BITS, ENIC_RSS_BASE_CPU,
+			      rss_enable);
+	if (!ret) {
+		enic->rss_hf = rss_hf;
+		enic->rss_hash_type = rss_hash_type;
+		enic->rss_enable = rss_enable;
+	}
+	return 0;
+}
+
+int enic_set_vlan_strip(struct enic *enic)
+{
+	/*
+	 * Unfortunately, VLAN strip on/off and RSS on/off are configured
+	 * together. So, re-do niccfg, preserving the current RSS settings.
+	 */
+	return enic_set_niccfg(enic, ENIC_RSS_DEFAULT_CPU, enic->rss_hash_type,
+			       ENIC_RSS_HASH_BITS, ENIC_RSS_BASE_CPU,
+			       enic->rss_enable);
 }
 
 void enic_add_packet_filter(struct enic *enic)
@@ -1085,6 +1281,10 @@ static void enic_dev_deinit(struct enic *enic)
 	vnic_dev_notify_unset(enic->vdev);
 
 	rte_free(eth_dev->data->mac_addrs);
+	rte_free(enic->cq);
+	rte_free(enic->intr);
+	rte_free(enic->rq);
+	rte_free(enic->wq);
 }
 
 
@@ -1092,27 +1292,38 @@ int enic_set_vnic_res(struct enic *enic)
 {
 	struct rte_eth_dev *eth_dev = enic->rte_dev;
 	int rc = 0;
+	unsigned int required_rq, required_wq, required_cq, required_intr;
 
-	/* With Rx scatter support, two RQs are now used per RQ used by
-	 * the application.
-	 */
-	if (enic->conf_rq_count < eth_dev->data->nb_rx_queues) {
+	/* Always use two vNIC RQs per eth_dev RQ, regardless of Rx scatter. */
+	required_rq = eth_dev->data->nb_rx_queues * 2;
+	required_wq = eth_dev->data->nb_tx_queues;
+	required_cq = eth_dev->data->nb_rx_queues + eth_dev->data->nb_tx_queues;
+	required_intr = 1; /* 1 for LSC even if intr_conf.lsc is 0 */
+	if (eth_dev->data->dev_conf.intr_conf.rxq) {
+		required_intr += eth_dev->data->nb_rx_queues;
+	}
+
+	if (enic->conf_rq_count < required_rq) {
 		dev_err(dev, "Not enough Receive queues. Requested:%u which uses %d RQs on VIC, Configured:%u\n",
 			eth_dev->data->nb_rx_queues,
-			eth_dev->data->nb_rx_queues * 2, enic->conf_rq_count);
+			required_rq, enic->conf_rq_count);
 		rc = -EINVAL;
 	}
-	if (enic->conf_wq_count < eth_dev->data->nb_tx_queues) {
+	if (enic->conf_wq_count < required_wq) {
 		dev_err(dev, "Not enough Transmit queues. Requested:%u, Configured:%u\n",
 			eth_dev->data->nb_tx_queues, enic->conf_wq_count);
 		rc = -EINVAL;
 	}
 
-	if (enic->conf_cq_count < (eth_dev->data->nb_rx_queues +
-				   eth_dev->data->nb_tx_queues)) {
+	if (enic->conf_cq_count < required_cq) {
 		dev_err(dev, "Not enough Completion queues. Required:%u, Configured:%u\n",
-			(eth_dev->data->nb_rx_queues +
-			 eth_dev->data->nb_tx_queues), enic->conf_cq_count);
+			required_cq, enic->conf_cq_count);
+		rc = -EINVAL;
+	}
+	if (enic->conf_intr_count < required_intr) {
+		dev_err(dev, "Not enough Interrupts to support Rx queue"
+			" interrupts. Required:%u, Configured:%u\n",
+			required_intr, enic->conf_intr_count);
 		rc = -EINVAL;
 	}
 
@@ -1120,6 +1331,7 @@ int enic_set_vnic_res(struct enic *enic)
 		enic->rq_count = eth_dev->data->nb_rx_queues;
 		enic->wq_count = eth_dev->data->nb_tx_queues;
 		enic->cq_count = enic->rq_count + enic->wq_count;
+		enic->intr_count = required_intr;
 	}
 
 	return rc;
@@ -1215,19 +1427,26 @@ int enic_set_mtu(struct enic *enic, uint16_t new_mtu)
 			"MTU (%u) is greater than value configured in NIC (%u)\n",
 			new_mtu, config_mtu);
 
-	/* The easy case is when scatter is disabled. However if the MTU
-	 * becomes greater than the mbuf data size, packet drops will ensue.
-	 */
-	if (!enic->rte_dev->data->dev_conf.rxmode.enable_scatter) {
-		eth_dev->data->mtu = new_mtu;
-		goto set_mtu_done;
-	}
+	/* Update the MTU and maximum packet length */
+	eth_dev->data->mtu = new_mtu;
+	eth_dev->data->dev_conf.rxmode.max_rx_pkt_len =
+		enic_mtu_to_max_rx_pktlen(new_mtu);
 
-	/* Rx scatter is enabled so reconfigure RQ's on the fly. The point is to
-	 * change Rx scatter mode if necessary for better performance. I.e. if
-	 * MTU was greater than the mbuf size and now it's less, scatter Rx
-	 * doesn't have to be used and vice versa.
-	  */
+	/*
+	 * If the device has not started (enic_enable), nothing to do.
+	 * Later, enic_enable() will set up RQs reflecting the new maximum
+	 * packet length.
+	 */
+	if (!eth_dev->data->dev_started)
+		goto set_mtu_done;
+
+	/*
+	 * The device has started, re-do RQs on the fly. In the process, we
+	 * pick up the new maximum packet length.
+	 *
+	 * Some applications rely on the ability to change MTU without stopping
+	 * the device. So keep this behavior for now.
+	 */
 	rte_spinlock_lock(&enic->mtu_lock);
 
 	/* Stop traffic on all RQs */
@@ -1252,12 +1471,12 @@ int enic_set_mtu(struct enic *enic, uint16_t new_mtu)
 
 	/* now it is safe to reconfigure the RQs */
 
-	/* update the mtu */
-	eth_dev->data->mtu = new_mtu;
 
 	/* free and reallocate RQs with the new MTU */
 	for (rq_idx = 0; rq_idx < enic->rq_count; rq_idx++) {
 		rq = &enic->rq[enic_rte_rq_idx_to_sop_idx(rq_idx)];
+		if (!rq->in_use)
+			continue;
 
 		enic_free_rq(rq);
 		rc = enic_alloc_rq(enic, rq_idx, rq->socket_id, rq->mp,
@@ -1317,6 +1536,31 @@ static int enic_dev_init(struct enic *enic)
 		dev_err(enic, "See the ENIC PMD guide for more information.\n");
 		return -EINVAL;
 	}
+	/* Queue counts may be zeros. rte_zmalloc returns NULL in that case. */
+	enic->cq = rte_zmalloc("enic_vnic_cq", sizeof(struct vnic_cq) *
+			       enic->conf_cq_count, 8);
+	enic->intr = rte_zmalloc("enic_vnic_intr", sizeof(struct vnic_intr) *
+				 enic->conf_intr_count, 8);
+	enic->rq = rte_zmalloc("enic_vnic_rq", sizeof(struct vnic_rq) *
+			       enic->conf_rq_count, 8);
+	enic->wq = rte_zmalloc("enic_vnic_wq", sizeof(struct vnic_wq) *
+			       enic->conf_wq_count, 8);
+	if (enic->conf_cq_count > 0 && enic->cq == NULL) {
+		dev_err(enic, "failed to allocate vnic_cq, aborting.\n");
+		return -1;
+	}
+	if (enic->conf_intr_count > 0 && enic->intr == NULL) {
+		dev_err(enic, "failed to allocate vnic_intr, aborting.\n");
+		return -1;
+	}
+	if (enic->conf_rq_count > 0 && enic->rq == NULL) {
+		dev_err(enic, "failed to allocate vnic_rq, aborting.\n");
+		return -1;
+	}
+	if (enic->conf_wq_count > 0 && enic->wq == NULL) {
+		dev_err(enic, "failed to allocate vnic_wq, aborting.\n");
+		return -1;
+	}
 
 	/* Get the supported filters */
 	enic_fdir_info(enic);
@@ -1337,6 +1581,27 @@ static int enic_dev_init(struct enic *enic)
 
 	/* set up link status checking */
 	vnic_dev_notify_set(enic->vdev, -1); /* No Intr for notify */
+
+	enic->overlay_offload = false;
+	if (!enic->disable_overlay && enic->vxlan &&
+	    /* 'VXLAN feature' enables VXLAN, NVGRE, and GENEVE. */
+	    vnic_dev_overlay_offload_ctrl(enic->vdev,
+					  OVERLAY_FEATURE_VXLAN,
+					  OVERLAY_OFFLOAD_ENABLE) == 0) {
+		enic->tx_offload_capa |=
+			DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+			DEV_TX_OFFLOAD_GENEVE_TNL_TSO |
+			DEV_TX_OFFLOAD_VXLAN_TNL_TSO;
+		/*
+		 * Do not add PKT_TX_OUTER_{IPV4,IPV6} as they are not
+		 * 'offload' flags (i.e. not part of PKT_TX_OFFLOAD_MASK).
+		 */
+		enic->tx_offload_mask |=
+			PKT_TX_OUTER_IP_CKSUM |
+			PKT_TX_TUNNEL_MASK;
+		enic->overlay_offload = true;
+		dev_info(enic, "Overlay offload is enabled\n");
+	}
 
 	return 0;
 
@@ -1370,6 +1635,15 @@ int enic_probe(struct enic *enic)
 		enic_alloc_consistent,
 		enic_free_consistent);
 
+	/*
+	 * Allocate the consistent memory for stats upfront so both primary and
+	 * secondary processes can dump stats.
+	 */
+	err = vnic_dev_alloc_stats_mem(enic->vdev);
+	if (err) {
+		dev_err(enic, "Failed to allocate cmd memory, aborting\n");
+		goto err_out_unregister;
+	}
 	/* Issue device open to get device in known state */
 	err = enic_dev_open(enic);
 	if (err) {

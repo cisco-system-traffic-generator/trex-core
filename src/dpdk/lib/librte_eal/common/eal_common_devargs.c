@@ -1,33 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright 2014 6WIND S.A.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A nor the names of its contributors
- *       may be used to endorse or promote products derived from this
- *       software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2014 6WIND S.A.
  */
 
 /* This file manages the list of devices and their arguments, as given
@@ -39,11 +11,16 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
+#include <rte_compat.h>
 #include <rte_dev.h>
 #include <rte_devargs.h>
 #include <rte_tailq.h>
 #include "eal_private.h"
+
+/** user device double-linked queue type definition */
+TAILQ_HEAD(rte_devargs_list, rte_devargs);
 
 /** Global list of user devices */
 struct rte_devargs_list devargs_list =
@@ -85,16 +62,24 @@ bus_name_cmp(const struct rte_bus *bus, const void *name)
 	return strncmp(bus->name, name, strlen(bus->name));
 }
 
-int
-rte_eal_devargs_parse(const char *dev, struct rte_devargs *da)
+int __rte_experimental
+rte_devargs_parse(struct rte_devargs *da, const char *format, ...)
 {
 	struct rte_bus *bus = NULL;
+	va_list ap;
+	va_start(ap, format);
+	char dev[vsnprintf(NULL, 0, format, ap) + 1];
 	const char *devname;
 	const size_t maxlen = sizeof(da->name);
 	size_t i;
 
-	if (dev == NULL || da == NULL)
+	va_end(ap);
+	if (da == NULL)
 		return -EINVAL;
+
+	va_start(ap, format);
+	vsnprintf(dev, sizeof(dev), format, ap);
+	va_end(ap);
 	/* Retrieve eventual bus info */
 	do {
 		devname = dev;
@@ -139,12 +124,12 @@ rte_eal_devargs_parse(const char *dev, struct rte_devargs *da)
 	return 0;
 }
 
-int
-rte_eal_devargs_insert(struct rte_devargs *da)
+int __rte_experimental
+rte_devargs_insert(struct rte_devargs *da)
 {
 	int ret;
 
-	ret = rte_eal_devargs_remove(da->bus->name, da->name);
+	ret = rte_devargs_remove(da->bus->name, da->name);
 	if (ret < 0)
 		return ret;
 	TAILQ_INSERT_TAIL(&devargs_list, da, next);
@@ -152,8 +137,9 @@ rte_eal_devargs_insert(struct rte_devargs *da)
 }
 
 /* store a whitelist parameter for later parsing */
+__rte_experimental
 int
-rte_eal_devargs_add(enum rte_devtype devtype, const char *devargs_str)
+rte_devargs_add(enum rte_devtype devtype, const char *devargs_str)
 {
 	struct rte_devargs *devargs = NULL;
 	struct rte_bus *bus = NULL;
@@ -164,7 +150,7 @@ rte_eal_devargs_add(enum rte_devtype devtype, const char *devargs_str)
 	if (devargs == NULL)
 		goto fail;
 
-	if (rte_eal_devargs_parse(dev, devargs))
+	if (rte_devargs_parse(devargs, "%s", dev))
 		goto fail;
 	devargs->type = devtype;
 	bus = devargs->bus;
@@ -188,8 +174,8 @@ fail:
 	return -1;
 }
 
-int
-rte_eal_devargs_remove(const char *busname, const char *devname)
+int __rte_experimental
+rte_devargs_remove(const char *busname, const char *devname)
 {
 	struct rte_devargs *d;
 	void *tmp;
@@ -207,8 +193,9 @@ rte_eal_devargs_remove(const char *busname, const char *devname)
 }
 
 /* count the number of devices of a specified type */
+__rte_experimental
 unsigned int
-rte_eal_devargs_type_count(enum rte_devtype devtype)
+rte_devargs_type_count(enum rte_devtype devtype)
 {
 	struct rte_devargs *devargs;
 	unsigned int count = 0;
@@ -222,8 +209,9 @@ rte_eal_devargs_type_count(enum rte_devtype devtype)
 }
 
 /* dump the user devices on the console */
+__rte_experimental
 void
-rte_eal_devargs_dump(FILE *f)
+rte_devargs_dump(FILE *f)
 {
 	struct rte_devargs *devargs;
 
@@ -233,4 +221,24 @@ rte_eal_devargs_dump(FILE *f)
 			(devargs->bus ? devargs->bus->name : "??"),
 			devargs->name, devargs->args);
 	}
+}
+
+/* bus-aware rte_devargs iterator. */
+__rte_experimental
+struct rte_devargs *
+rte_devargs_next(const char *busname, const struct rte_devargs *start)
+{
+	struct rte_devargs *da;
+
+	if (start != NULL)
+		da = TAILQ_NEXT(start, next);
+	else
+		da = TAILQ_FIRST(&devargs_list);
+	while (da != NULL) {
+		if (busname == NULL ||
+		    (strcmp(busname, da->bus->name) == 0))
+			return da;
+		da = TAILQ_NEXT(da, next);
+	}
+	return NULL;
 }

@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef _RTE_COMMON_H_
@@ -50,6 +21,8 @@ extern "C" {
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+
+#include <rte_config.h>
 
 #ifndef typeof
 #define typeof __typeof__
@@ -108,16 +81,12 @@ typedef uint16_t unaligned_uint16_t;
  */
 #define RTE_SET_USED(x) (void)(x)
 
-/**
- * Run function before main() with low priority.
- *
- * The constructor will be run after prioritized constructors.
- *
- * @param func
- *   Constructor function.
- */
-#define RTE_INIT(func) \
-static void __attribute__((constructor, used)) func(void)
+#define RTE_PRIORITY_LOG 101
+#define RTE_PRIORITY_BUS 110
+#define RTE_PRIORITY_LAST 65535
+
+#define RTE_PRIO(prio) \
+	RTE_PRIORITY_ ## prio
 
 /**
  * Run function before main() with high priority.
@@ -129,7 +98,18 @@ static void __attribute__((constructor, used)) func(void)
  *   Lowest number is the first to run.
  */
 #define RTE_INIT_PRIO(func, prio) \
-static void __attribute__((constructor(prio), used)) func(void)
+static void __attribute__((constructor(RTE_PRIO(prio)), used)) func(void)
+
+/**
+ * Run function before main() with low priority.
+ *
+ * The constructor will be run after prioritized constructors.
+ *
+ * @param func
+ *   Constructor function.
+ */
+#define RTE_INIT(func) \
+	RTE_INIT_PRIO(func, LAST)
 
 /**
  * Force a function to be inlined
@@ -144,7 +124,7 @@ static void __attribute__((constructor(prio), used)) func(void)
 /*********** Macros for pointer arithmetic ********/
 
 /**
- * add a byte-value offset from a pointer
+ * add a byte-value offset to a pointer
  */
 #define RTE_PTR_ADD(ptr, x) ((void*)((uintptr_t)(ptr) + (x)))
 
@@ -218,6 +198,22 @@ static void __attribute__((constructor(prio), used)) func(void)
 #define RTE_ALIGN(val, align) RTE_ALIGN_CEIL(val, align)
 
 /**
+ * Macro to align a value to the multiple of given value. The resultant
+ * value will be of the same type as the first parameter and will be no lower
+ * than the first parameter.
+ */
+#define RTE_ALIGN_MUL_CEIL(v, mul) \
+	(((v + (typeof(v))(mul) - 1) / ((typeof(v))(mul))) * (typeof(v))(mul))
+
+/**
+ * Macro to align a value to the multiple of given value. The resultant
+ * value will be of the same type as the first parameter and will be no higher
+ * than the first parameter.
+ */
+#define RTE_ALIGN_MUL_FLOOR(v, mul) \
+	((v / ((typeof(v))(mul))) * (typeof(v))(mul))
+
+/**
  * Checks if a pointer is aligned to a given power-of-two value
  *
  * @param ptr
@@ -250,6 +246,51 @@ extern int RTE_BUILD_BUG_ON_detected_error;
 } while(0)
 #endif
 
+/**
+ * Combines 32b inputs most significant set bits into the least
+ * significant bits to construct a value with the same MSBs as x
+ * but all 1's under it.
+ *
+ * @param x
+ *    The integer whose MSBs need to be combined with its LSBs
+ * @return
+ *    The combined value.
+ */
+static inline uint32_t
+rte_combine32ms1b(register uint32_t x)
+{
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+
+	return x;
+}
+
+/**
+ * Combines 64b inputs most significant set bits into the least
+ * significant bits to construct a value with the same MSBs as x
+ * but all 1's under it.
+ *
+ * @param v
+ *    The integer whose MSBs need to be combined with its LSBs
+ * @return
+ *    The combined value.
+ */
+static inline uint64_t
+rte_combine64ms1b(register uint64_t v)
+{
+	v |= v >> 1;
+	v |= v >> 2;
+	v |= v >> 4;
+	v |= v >> 8;
+	v |= v >> 16;
+	v |= v >> 32;
+
+	return v;
+}
+
 /*********** Macros to work with powers of 2 ********/
 
 /**
@@ -277,13 +318,26 @@ static inline uint32_t
 rte_align32pow2(uint32_t x)
 {
 	x--;
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
+	x = rte_combine32ms1b(x);
 
 	return x + 1;
+}
+
+/**
+ * Aligns input parameter to the previous power of 2
+ *
+ * @param x
+ *   The integer value to algin
+ *
+ * @return
+ *   Input parameter aligned to the previous power of 2
+ */
+static inline uint32_t
+rte_align32prevpow2(uint32_t x)
+{
+	x = rte_combine32ms1b(x);
+
+	return x - (x >> 1);
 }
 
 /**
@@ -299,14 +353,26 @@ static inline uint64_t
 rte_align64pow2(uint64_t v)
 {
 	v--;
-	v |= v >> 1;
-	v |= v >> 2;
-	v |= v >> 4;
-	v |= v >> 8;
-	v |= v >> 16;
-	v |= v >> 32;
+	v = rte_combine64ms1b(v);
 
 	return v + 1;
+}
+
+/**
+ * Aligns 64b input parameter to the previous power of 2
+ *
+ * @param v
+ *   The 64b value to align
+ *
+ * @return
+ *   Input parameter aligned to the previous power of 2
+ */
+static inline uint64_t
+rte_align64prevpow2(uint64_t v)
+{
+	v = rte_combine64ms1b(v);
+
+	return v - (v >> 1);
 }
 
 /*********** Macros for calculating min and max **********/
@@ -347,7 +413,7 @@ rte_align64pow2(uint64_t v)
 static inline uint32_t
 rte_bsf32(uint32_t v)
 {
-	return __builtin_ctz(v);
+	return (uint32_t)__builtin_ctz(v);
 }
 
 /**

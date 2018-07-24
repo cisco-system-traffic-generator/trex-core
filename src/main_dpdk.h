@@ -181,20 +181,20 @@ class CPhyEthIF  {
 
 
     inline uint32_t pci_reg_read(uint32_t reg_off) {
-        assert( !m_is_dummy );
+        assert(!m_is_dummy);
         void *reg_addr;
         uint32_t reg_v;
-        reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
+        reg_addr = (void *)((char *)m_port_attr->get_pci_dev()->mem_resource[0].addr +
                             reg_off);
         reg_v = *((volatile uint32_t *)reg_addr);
         return rte_le_to_cpu_32(reg_v);
     }
     inline void pci_reg_write(uint32_t reg_off,
                               uint32_t reg_v) {
-        assert( !m_is_dummy );
+        assert(!m_is_dummy);
         void *reg_addr;
 
-        reg_addr = (void *)((char *)m_dev_info.pci_dev->mem_resource[0].addr +
+        reg_addr = (void *)((char *)m_port_attr->get_pci_dev()->mem_resource[0].addr +
                             reg_off);
         *((volatile uint32_t *)reg_addr) = rte_cpu_to_le_32(reg_v);
     }
@@ -239,8 +239,6 @@ private:
  protected:
     bool                     m_is_dummy;
 
- public:
-    struct rte_eth_dev_info  m_dev_info;
 };
 
 // stubs for dummy port
@@ -279,5 +277,11 @@ class CGlobalTRexInterface  {
  public:
     CPhyEthIF *get_ports(uint8_t &port_num);
 };
+
+bool fill_pci_dev(struct rte_eth_dev_info *dev_info, struct rte_pci_device* pci_dev);
+void wait_x_sec(int sec);
+
+typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/
+typedef uint8_t repid_t; /* DPDK port id  */
 
 #endif

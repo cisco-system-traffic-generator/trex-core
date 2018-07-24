@@ -241,7 +241,7 @@ endif::backend-xhtml11[]
     On success (condition has been met), this method returns the latest result object that satisfied the given condition. +
     ON fail, this method will raise `UserWarning` exception.
 
-  - **`sample_to_run_finish(time_between_samples = 5)`** +
+  - **`sample_until_finish(time_between_samples = 5)`** +
     This method automatically sets ongoing sampling of TRex data with sampling rate described by `time_between_samples` until TRex run finished.
 
   - **`get_result_obj()`** +
@@ -504,7 +504,7 @@ print "Before Running, TRex status is: ", trex.get_running_status()
         p = True,
         l = 1000)
 
-    res = trex.sample_to_run_finish(time_between_samples = 10) #<2>
+    res = trex.sample_until_finish(time_between_samples = 10) #<2>
 
     print res #<3>
     val_list = res.get_value_list("trex-global.data", "m_tx_expected_\w+") #<4>

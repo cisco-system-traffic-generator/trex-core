@@ -1,35 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
- *   Copyright(c) 2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2018 Intel Corporation.
+ * Copyright(c) 2014 6WIND S.A.
  */
 
 #include <stdio.h>
@@ -47,7 +18,9 @@
 #include <limits.h>
 #include <sys/mman.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 
+#include <rte_compat.h>
 #include <rte_common.h>
 #include <rte_debug.h>
 #include <rte_memory.h>
@@ -68,6 +41,7 @@
 #include <rte_dev.h>
 #include <rte_devargs.h>
 #include <rte_version.h>
+#include <rte_vfio.h>
 #include <rte_atomic.h>
 #include <malloc_heap.h>
 
@@ -92,8 +66,8 @@ static int mem_cfg_fd = -1;
 static struct flock wr_lock = {
 		.l_type = F_WRLCK,
 		.l_whence = SEEK_SET,
-		.l_start = offsetof(struct rte_mem_config, memseg),
-		.l_len = sizeof(early_mem_config.memseg),
+		.l_start = offsetof(struct rte_mem_config, memsegs),
+		.l_len = sizeof(early_mem_config.memsegs),
 };
 
 /* Address of global and public configuration */
@@ -110,11 +84,83 @@ struct internal_config internal_config;
 /* used by rte_rdtsc() */
 int rte_cycles_vmware_tsc_map;
 
+/* platform-specific runtime dir */
+static char runtime_dir[PATH_MAX];
+
+static const char *default_runtime_dir = "/var/run";
+
+int
+eal_create_runtime_dir(void)
+{
+	const char *directory = default_runtime_dir;
+	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+	const char *fallback = "/tmp";
+	char tmp[PATH_MAX];
+	int ret;
+
+	if (getuid() != 0) {
+		/* try XDG path first, fall back to /tmp */
+		if (xdg_runtime_dir != NULL)
+			directory = xdg_runtime_dir;
+		else
+			directory = fallback;
+	}
+	/* create DPDK subdirectory under runtime dir */
+	ret = snprintf(tmp, sizeof(tmp), "%s/dpdk", directory);
+	if (ret < 0 || ret == sizeof(tmp)) {
+		RTE_LOG(ERR, EAL, "Error creating DPDK runtime path name\n");
+		return -1;
+	}
+
+	/* create prefix-specific subdirectory under DPDK runtime dir */
+	ret = snprintf(runtime_dir, sizeof(runtime_dir), "%s/%s",
+			tmp, internal_config.hugefile_prefix);
+	if (ret < 0 || ret == sizeof(runtime_dir)) {
+		RTE_LOG(ERR, EAL, "Error creating prefix-specific runtime path name\n");
+		return -1;
+	}
+
+	/* create the path if it doesn't exist. no "mkdir -p" here, so do it
+	 * step by step.
+	 */
+	ret = mkdir(tmp, 0700);
+	if (ret < 0 && errno != EEXIST) {
+		RTE_LOG(ERR, EAL, "Error creating '%s': %s\n",
+			tmp, strerror(errno));
+		return -1;
+	}
+
+	ret = mkdir(runtime_dir, 0700);
+	if (ret < 0 && errno != EEXIST) {
+		RTE_LOG(ERR, EAL, "Error creating '%s': %s\n",
+			runtime_dir, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+const char *
+eal_get_runtime_dir(void)
+{
+	return runtime_dir;
+}
+
+/* Return user provided mbuf pool ops name */
+const char * __rte_experimental
+rte_eal_mbuf_user_pool_ops(void)
+{
+	return internal_config.user_mbuf_pool_ops_name;
+}
+
 /* Return mbuf pool ops name */
 const char *
 rte_eal_mbuf_default_mempool_ops(void)
 {
-	return internal_config.mbuf_pool_ops_name;
+	if (internal_config.user_mbuf_pool_ops_name == NULL)
+		return RTE_MBUF_DEFAULT_MEMPOOL_OPS;
+
+	return internal_config.user_mbuf_pool_ops_name;
 }
 
 /* Return a pointer to the configuration structure */
@@ -307,7 +353,7 @@ eal_get_hugepage_mem_size(void)
 
 	for (i = 0; i < internal_config.num_hugepage_sizes; i++) {
 		struct hugepage_info *hpi = &internal_config.hugepage_info[i];
-		if (hpi->hugedir != NULL) {
+		if (strnlen(hpi->hugedir, sizeof(hpi->hugedir)) != 0) {
 			for (j = 0; j < RTE_MAX_NUMA_NODES; j++) {
 				size += hpi->hugepage_sz * hpi->num_pages[j];
 			}
@@ -397,7 +443,8 @@ eal_parse_args(int argc, char **argv)
 
 		switch (opt) {
 		case OPT_MBUF_POOL_OPS_NAME_NUM:
-			internal_config.mbuf_pool_ops_name = optarg;
+			internal_config.user_mbuf_pool_ops_name =
+			    strdup(optarg);
 			break;
 		case 'h':
 			eal_usage(prgname);
@@ -447,24 +494,28 @@ out:
 	return ret;
 }
 
+static int
+check_socket(const struct rte_memseg_list *msl, void *arg)
+{
+	int *socket_id = arg;
+
+	if (msl->socket_id == *socket_id && msl->memseg_arr.count != 0)
+		return 1;
+
+	return 0;
+}
+
 static void
 eal_check_mem_on_local_socket(void)
 {
-	const struct rte_memseg *ms;
-	int i, socket_id;
+	int socket_id;
 
 	socket_id = rte_lcore_to_socket_id(rte_config.master_lcore);
 
-	ms = rte_eal_get_physmem_layout();
-
-	for (i = 0; i < RTE_MAX_MEMSEG; i++)
-		if (ms[i].socket_id == socket_id &&
-				ms[i].len > 0)
-			return;
-
-	RTE_LOG(WARNING, EAL, "WARNING: Master core has no "
-			"memory on local socket!\n");
+	if (rte_memseg_list_walk(check_socket, &socket_id) == 0)
+		RTE_LOG(WARNING, EAL, "WARNING: Master core has no memory on local socket!\n");
 }
+
 
 static int
 sync_func(__attribute__((unused)) void *arg)
@@ -549,6 +600,16 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
+	/* create runtime data directory */
+	if (eal_create_runtime_dir() < 0) {
+		rte_eal_init_alert("Cannot create runtime directory\n");
+		rte_errno = EACCES;
+		return -1;
+	}
+
+	/* FreeBSD always uses legacy memory model */
+	internal_config.legacy_mem = true;
+
 	if (eal_plugins_init() < 0) {
 		rte_eal_init_alert("Cannot init plugins\n");
 		rte_errno = EINVAL;
@@ -562,6 +623,19 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
+	rte_config_init();
+
+	/* Put mp channel init before bus scan so that we can init the vdev
+	 * bus through mp channel in the secondary process before the bus scan.
+	 */
+	if (rte_mp_channel_init() < 0) {
+		rte_eal_init_alert("failed to init mp channel\n");
+		if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
+			rte_errno = EFAULT;
+			return -1;
+		}
+	}
+
 	if (rte_bus_scan()) {
 		rte_eal_init_alert("Cannot scan the buses for devices\n");
 		rte_errno = ENODEV;
@@ -572,13 +646,17 @@ rte_eal_init(int argc, char **argv)
 	/* autodetect the iova mapping mode (default is iova_pa) */
 	rte_eal_get_configuration()->iova_mode = rte_bus_get_iommu_class();
 
-	if (internal_config.no_hugetlbfs == 0 &&
-			internal_config.process_type != RTE_PROC_SECONDARY &&
-			eal_hugepage_info_init() < 0) {
-		rte_eal_init_alert("Cannot get hugepage information.");
-		rte_errno = EACCES;
-		rte_atomic32_clear(&run_once);
-		return -1;
+	if (internal_config.no_hugetlbfs == 0) {
+		/* rte_config isn't initialized yet */
+		ret = internal_config.process_type == RTE_PROC_PRIMARY ?
+			eal_hugepage_info_init() :
+			eal_hugepage_info_read();
+		if (ret < 0) {
+			rte_eal_init_alert("Cannot get hugepage information.");
+			rte_errno = EACCES;
+			rte_atomic32_clear(&run_once);
+			return -1;
+		}
 	}
 
 	if (internal_config.memory == 0 && internal_config.force_sockets == 0) {
@@ -601,7 +679,15 @@ rte_eal_init(int argc, char **argv)
 
 	rte_srand(rte_rdtsc());
 
-	rte_config_init();
+	/* in secondary processes, memory init may allocate additional fbarrays
+	 * not present in primary processes, so to avoid any potential issues,
+	 * initialize memzones first.
+	 */
+	if (rte_eal_memzone_init() < 0) {
+		rte_eal_init_alert("Cannot init memzone\n");
+		rte_errno = ENODEV;
+		return -1;
+	}
 
 	if (rte_eal_memory_init() < 0) {
 		rte_eal_init_alert("Cannot init memory\n");
@@ -609,8 +695,8 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	if (rte_eal_memzone_init() < 0) {
-		rte_eal_init_alert("Cannot init memzone\n");
+	if (rte_eal_malloc_heap_init() < 0) {
+		rte_eal_init_alert("Cannot init malloc heap\n");
 		rte_errno = ENODEV;
 		return -1;
 	}
@@ -642,7 +728,7 @@ rte_eal_init(int argc, char **argv)
 
 	eal_thread_init_master(rte_config.master_lcore);
 
-	ret = eal_thread_dump_affinity(cpuset, RTE_CPU_AFFINITY_STR_LEN);
+	ret = eal_thread_dump_affinity(cpuset, sizeof(cpuset));
 
 	RTE_LOG(DEBUG, EAL, "Master lcore %u is ready (tid=%p;cpuset=[%s%s])\n",
 		rte_config.master_lcore, thread_id, cpuset,
@@ -668,7 +754,7 @@ rte_eal_init(int argc, char **argv)
 			rte_panic("Cannot create thread\n");
 
 		/* Set thread_name for aid in debugging. */
-		snprintf(thread_name, RTE_MAX_THREAD_NAME_LEN,
+		snprintf(thread_name, sizeof(thread_name),
 				"lcore-slave-%d", i);
 		rte_thread_setname(lcore_config[i].thread_id, thread_name);
 	}
@@ -709,6 +795,13 @@ rte_eal_init(int argc, char **argv)
 	return fctret;
 }
 
+int __rte_experimental
+rte_eal_cleanup(void)
+{
+	rte_service_finalize();
+	return 0;
+}
+
 /* get core role */
 enum rte_lcore_role_t
 rte_eal_lcore_role(unsigned lcore_id)
@@ -738,17 +831,6 @@ rte_eal_vfio_intr_mode(void)
 	return RTE_INTR_MODE_NONE;
 }
 
-/* dummy forward declaration. */
-struct vfio_device_info;
-
-/* dummy prototypes. */
-int rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
-		int *vfio_dev_fd, struct vfio_device_info *device_info);
-int rte_vfio_release_device(const char *sysfs_base, const char *dev_addr, int fd);
-int rte_vfio_enable(const char *modname);
-int rte_vfio_is_enabled(const char *modname);
-int rte_vfio_noiommu_is_enabled(void);
-
 int rte_vfio_setup_device(__rte_unused const char *sysfs_base,
 		      __rte_unused const char *dev_addr,
 		      __rte_unused int *vfio_dev_fd,
@@ -777,4 +859,87 @@ int rte_vfio_is_enabled(__rte_unused const char *modname)
 int rte_vfio_noiommu_is_enabled(void)
 {
 	return 0;
+}
+
+int rte_vfio_clear_group(__rte_unused int vfio_group_fd)
+{
+	return 0;
+}
+
+int __rte_experimental
+rte_vfio_dma_map(uint64_t __rte_unused vaddr, __rte_unused uint64_t iova,
+		  __rte_unused uint64_t len)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_dma_unmap(uint64_t __rte_unused vaddr, uint64_t __rte_unused iova,
+		    __rte_unused uint64_t len)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_get_group_num(__rte_unused const char *sysfs_base,
+		       __rte_unused const char *dev_addr,
+		       __rte_unused int *iommu_group_num)
+{
+	return -1;
+}
+
+int  __rte_experimental
+rte_vfio_get_container_fd(void)
+{
+	return -1;
+}
+
+int  __rte_experimental
+rte_vfio_get_group_fd(__rte_unused int iommu_group_num)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_create(void)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_destroy(__rte_unused int container_fd)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_group_bind(__rte_unused int container_fd,
+		__rte_unused int iommu_group_num)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_group_unbind(__rte_unused int container_fd,
+		__rte_unused int iommu_group_num)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_dma_map(__rte_unused int container_fd,
+			__rte_unused uint64_t vaddr,
+			__rte_unused uint64_t iova,
+			__rte_unused uint64_t len)
+{
+	return -1;
+}
+
+int __rte_experimental
+rte_vfio_container_dma_unmap(__rte_unused int container_fd,
+			__rte_unused uint64_t vaddr,
+			__rte_unused uint64_t iova,
+			__rte_unused uint64_t len)
+{
+	return -1;
 }

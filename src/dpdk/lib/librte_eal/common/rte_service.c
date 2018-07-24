@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdio.h>
@@ -38,6 +9,7 @@
 #include <string.h>
 #include <dirent.h>
 
+#include <rte_compat.h>
 #include <rte_service.h>
 #include "include/rte_service_component.h"
 
@@ -111,14 +83,14 @@ int32_t rte_service_init(void)
 			RTE_CACHE_LINE_SIZE);
 	if (!rte_services) {
 		printf("error allocating rte services array\n");
-		return -ENOMEM;
+		goto fail_mem;
 	}
 
 	lcore_states = rte_calloc("rte_service_core_states", RTE_MAX_LCORE,
 			sizeof(struct core_state), RTE_CACHE_LINE_SIZE);
 	if (!lcore_states) {
 		printf("error allocating core states array\n");
-		return -ENOMEM;
+		goto fail_mem;
 	}
 
 	int i;
@@ -135,6 +107,27 @@ int32_t rte_service_init(void)
 
 	rte_service_library_initialized = 1;
 	return 0;
+fail_mem:
+	if (rte_services)
+		rte_free(rte_services);
+	if (lcore_states)
+		rte_free(lcore_states);
+	return -ENOMEM;
+}
+
+void
+rte_service_finalize(void)
+{
+	if (!rte_service_library_initialized)
+		return;
+
+	if (rte_services)
+		rte_free(rte_services);
+
+	if (lcore_states)
+		rte_free(lcore_states);
+
+	rte_service_library_initialized = 0;
 }
 
 /* returns 1 if service is registered and has not been unregistered
@@ -168,7 +161,8 @@ service_mt_safe(struct rte_service_spec_impl *s)
 	return !!(s->spec.capabilities & RTE_SERVICE_CAP_MT_SAFE);
 }
 
-int32_t rte_service_set_stats_enable(uint32_t id, int32_t enabled)
+int32_t
+rte_service_set_stats_enable(uint32_t id, int32_t enabled)
 {
 	struct rte_service_spec_impl *s;
 	SERVICE_VALID_GET_OR_ERR_RET(id, s, 0);
@@ -181,7 +175,8 @@ int32_t rte_service_set_stats_enable(uint32_t id, int32_t enabled)
 	return 0;
 }
 
-int32_t rte_service_set_runstate_mapped_check(uint32_t id, int32_t enabled)
+int32_t
+rte_service_set_runstate_mapped_check(uint32_t id, int32_t enabled)
 {
 	struct rte_service_spec_impl *s;
 	SERVICE_VALID_GET_OR_ERR_RET(id, s, 0);
@@ -200,7 +195,8 @@ rte_service_get_count(void)
 	return rte_service_count;
 }
 
-int32_t rte_service_get_by_name(const char *name, uint32_t *service_id)
+int32_t
+rte_service_get_by_name(const char *name, uint32_t *service_id)
 {
 	if (!service_id)
 		return -EINVAL;
@@ -545,10 +541,14 @@ service_update(struct rte_service_spec *service, uint32_t lcore,
 
 	uint64_t sid_mask = UINT64_C(1) << sid;
 	if (set) {
-		if (*set) {
+		uint64_t lcore_mapped = lcore_states[lcore].service_mask &
+			sid_mask;
+
+		if (*set && !lcore_mapped) {
 			lcore_states[lcore].service_mask |= sid_mask;
 			rte_atomic32_inc(&rte_services[sid].num_mapped_cores);
-		} else {
+		}
+		if (!*set && lcore_mapped) {
 			lcore_states[lcore].service_mask &= ~(sid_mask);
 			rte_atomic32_dec(&rte_services[sid].num_mapped_cores);
 		}
@@ -583,23 +583,6 @@ rte_service_map_lcore_get(uint32_t id, uint32_t lcore)
 	return ret;
 }
 
-int32_t rte_service_lcore_reset_all(void)
-{
-	/* loop over cores, reset all to mask 0 */
-	uint32_t i;
-	for (i = 0; i < RTE_MAX_LCORE; i++) {
-		lcore_states[i].service_mask = 0;
-		lcore_states[i].is_service_core = 0;
-		lcore_states[i].runstate = RUNSTATE_STOPPED;
-	}
-	for (i = 0; i < RTE_SERVICE_NUM_MAX; i++)
-		rte_atomic32_set(&rte_services[i].num_mapped_cores, 0);
-
-	rte_smp_wmb();
-
-	return 0;
-}
-
 static void
 set_lcore_state(uint32_t lcore, int32_t state)
 {
@@ -612,6 +595,26 @@ set_lcore_state(uint32_t lcore, int32_t state)
 
 	/* update per-lcore optimized state tracking */
 	lcore_states[lcore].is_service_core = (state == ROLE_SERVICE);
+}
+
+int32_t
+rte_service_lcore_reset_all(void)
+{
+	/* loop over cores, reset all to mask 0 */
+	uint32_t i;
+	for (i = 0; i < RTE_MAX_LCORE; i++) {
+		if (lcore_states[i].is_service_core) {
+			lcore_states[i].service_mask = 0;
+			set_lcore_state(i, ROLE_RTE);
+			lcore_states[i].runstate = RUNSTATE_STOPPED;
+		}
+	}
+	for (i = 0; i < RTE_SERVICE_NUM_MAX; i++)
+		rte_atomic32_set(&rte_services[i].num_mapped_cores, 0);
+
+	rte_smp_wmb();
+
+	return 0;
 }
 
 int32_t
@@ -705,6 +708,27 @@ rte_service_lcore_stop(uint32_t lcore)
 	return 0;
 }
 
+int32_t
+rte_service_attr_get(uint32_t id, uint32_t attr_id, uint32_t *attr_value)
+{
+	struct rte_service_spec_impl *s;
+	SERVICE_VALID_GET_OR_ERR_RET(id, s, -EINVAL);
+
+	if (!attr_value)
+		return -EINVAL;
+
+	switch (attr_id) {
+	case RTE_SERVICE_ATTR_CYCLES:
+		*attr_value = s->cycles_spent;
+		return 0;
+	case RTE_SERVICE_ATTR_CALL_COUNT:
+		*attr_value = s->calls;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
 static void
 rte_service_dump_one(FILE *f, struct rte_service_spec_impl *s,
 		     uint64_t all_cycles, uint32_t reset)
@@ -717,15 +741,27 @@ rte_service_dump_one(FILE *f, struct rte_service_spec_impl *s,
 	if (s->calls != 0)
 		calls = s->calls;
 
+	if (reset) {
+		s->cycles_spent = 0;
+		s->calls = 0;
+		return;
+	}
+
 	fprintf(f, "  %s: stats %d\tcalls %"PRIu64"\tcycles %"
 			PRIu64"\tavg: %"PRIu64"\n",
 			s->spec.name, service_stats_enabled(s), s->calls,
 			s->cycles_spent, s->cycles_spent / calls);
+}
 
-	if (reset) {
-		s->cycles_spent = 0;
-		s->calls = 0;
-	}
+int32_t
+rte_service_attr_reset_all(uint32_t id)
+{
+	struct rte_service_spec_impl *s;
+	SERVICE_VALID_GET_OR_ERR_RET(id, s, -EINVAL);
+
+	int reset = 1;
+	rte_service_dump_one(NULL, s, 0, reset);
+	return 0;
 }
 
 static void
@@ -745,7 +781,8 @@ service_dump_calls_per_lcore(FILE *f, uint32_t lcore, uint32_t reset)
 	fprintf(f, "\n");
 }
 
-int32_t rte_service_dump(FILE *f, uint32_t id)
+int32_t
+rte_service_dump(FILE *f, uint32_t id)
 {
 	uint32_t i;
 	int print_one = (id != UINT32_MAX);
@@ -773,7 +810,7 @@ int32_t rte_service_dump(FILE *f, uint32_t id)
 	for (i = 0; i < RTE_SERVICE_NUM_MAX; i++) {
 		if (!service_valid(i))
 			continue;
-		uint32_t reset = 1;
+		uint32_t reset = 0;
 		rte_service_dump_one(f, &rte_services[i], total_cycles, reset);
 	}
 
@@ -782,7 +819,7 @@ int32_t rte_service_dump(FILE *f, uint32_t id)
 		if (lcore_config[i].core_role != ROLE_SERVICE)
 			continue;
 
-		uint32_t reset = 1;
+		uint32_t reset = 0;
 		service_dump_calls_per_lcore(f, i, reset);
 	}
 

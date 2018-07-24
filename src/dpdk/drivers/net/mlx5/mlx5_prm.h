@@ -1,34 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright 2016 6WIND S.A.
- *   Copyright 2016 Mellanox.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2016 6WIND S.A.
+ * Copyright 2016 Mellanox Technologies, Ltd
  */
 
 #ifndef RTE_PMD_MLX5_PRM_H_
@@ -135,6 +107,30 @@
 /* Inner L4 checksum offload (Tunneled packets only). */
 #define MLX5_ETH_WQE_L4_INNER_CSUM (1u << 5)
 
+/* Outer L4 type is TCP. */
+#define MLX5_ETH_WQE_L4_OUTER_TCP  (0u << 5)
+
+/* Outer L4 type is UDP. */
+#define MLX5_ETH_WQE_L4_OUTER_UDP  (1u << 5)
+
+/* Outer L3 type is IPV4. */
+#define MLX5_ETH_WQE_L3_OUTER_IPV4 (0u << 4)
+
+/* Outer L3 type is IPV6. */
+#define MLX5_ETH_WQE_L3_OUTER_IPV6 (1u << 4)
+
+/* Inner L4 type is TCP. */
+#define MLX5_ETH_WQE_L4_INNER_TCP (0u << 1)
+
+/* Inner L4 type is UDP. */
+#define MLX5_ETH_WQE_L4_INNER_UDP (1u << 1)
+
+/* Inner L3 type is IPV4. */
+#define MLX5_ETH_WQE_L3_INNER_IPV4 (0u << 0)
+
+/* Inner L3 type is IPV6. */
+#define MLX5_ETH_WQE_L3_INNER_IPV6 (1u << 0)
+
 /* Is flow mark valid. */
 #if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
 #define MLX5_FLOW_MARK_IS_VALID(val) ((val) & 0xffffff00)
@@ -222,6 +218,21 @@ struct mlx5_mpw {
 		volatile uint8_t *raw;
 	} data;
 };
+
+/* WQE for Multi-Packet RQ. */
+struct mlx5_wqe_mprq {
+	struct mlx5_wqe_srq_next_seg next_seg;
+	struct mlx5_wqe_data_seg dseg;
+};
+
+#define MLX5_MPRQ_LEN_MASK 0x000ffff
+#define MLX5_MPRQ_LEN_SHIFT 0
+#define MLX5_MPRQ_STRIDE_NUM_MASK 0x3fff0000
+#define MLX5_MPRQ_STRIDE_NUM_SHIFT 16
+#define MLX5_MPRQ_FILLER_MASK 0x80000000
+#define MLX5_MPRQ_FILLER_SHIFT 31
+
+#define MLX5_MPRQ_STRIDE_SHIFT_BYTE 2
 
 /* CQ element structure - should be equal to the cache line size */
 struct mlx5_cqe {

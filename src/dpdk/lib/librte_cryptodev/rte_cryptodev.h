@@ -49,6 +49,7 @@ extern "C" {
 #include "rte_crypto.h"
 #include "rte_dev.h"
 #include <rte_common.h>
+#include <rte_config.h>
 
 extern const char **rte_cyptodev_names;
 
@@ -372,7 +373,8 @@ struct rte_cryptodev_info {
 	uint8_t driver_id;			/**< Driver identifier */
 	struct rte_pci_device *pci_dev;		/**< PCI information. */
 
-	uint64_t feature_flags;			/**< Feature flags */
+	uint64_t feature_flags;
+	/**< Feature flags exposes HW/SW features for the given device */
 
 	const struct rte_cryptodev_capabilities *capabilities;
 	/**< Array of devices supported capabilities */
@@ -601,6 +603,7 @@ rte_cryptodev_queue_pair_setup(uint8_t dev_id, uint16_t queue_pair_id,
 		struct rte_mempool *session_pool);
 
 /**
+ * @deprecated
  * Start a specified queue pair of a device. It is used
  * when deferred_start flag of the specified queue is true.
  *
@@ -614,10 +617,12 @@ rte_cryptodev_queue_pair_setup(uint8_t dev_id, uint16_t queue_pair_id,
  *   - -EINVAL: The dev_id or the queue_id out of range.
  *   - -ENOTSUP: The function not supported in PMD driver.
  */
+__rte_deprecated
 extern int
 rte_cryptodev_queue_pair_start(uint8_t dev_id, uint16_t queue_pair_id);
 
 /**
+ * @deprecated
  * Stop specified queue pair of a device
  *
  * @param	dev_id		The identifier of the device
@@ -630,6 +635,7 @@ rte_cryptodev_queue_pair_start(uint8_t dev_id, uint16_t queue_pair_id);
  *   - -EINVAL: The dev_id or the queue_id out of range.
  *   - -ENOTSUP: The function not supported in PMD driver.
  */
+__rte_deprecated
 extern int
 rte_cryptodev_queue_pair_stop(uint8_t dev_id, uint16_t queue_pair_id);
 
@@ -748,7 +754,7 @@ struct rte_cryptodev {
 	struct rte_cryptodev_ops *dev_ops;
 	/**< Functions exported by PMD */
 	uint64_t feature_flags;
-	/**< Supported features */
+	/**< Feature flags exposes HW/SW features for the given device */
 	struct rte_device *device;
 	/**< Backing device */
 
@@ -890,7 +896,10 @@ rte_cryptodev_enqueue_burst(uint8_t dev_id, uint16_t qp_id,
 }
 
 
-/** Cryptodev symmetric crypto session */
+/** Cryptodev symmetric crypto session
+ * Each session is derived from a fixed xform chain. Therefore each session
+ * has a fixed algo, key, op-type, digest_len etc.
+ */
 struct rte_cryptodev_sym_session {
 	__extension__ void *sess_private_data[0];
 	/**< Private session material */
@@ -947,7 +956,9 @@ rte_cryptodev_sym_session_init(uint8_t dev_id,
 
 /**
  * Frees private data for the device id, based on its device type,
- * returning it to its mempool.
+ * returning it to its mempool. It is the application's responsibility
+ * to ensure that private session data is not cleared while there are
+ * still in-flight operations using it.
  *
  * @param   dev_id   ID of device that uses the session.
  * @param   sess     Session containing the reference to the private data
@@ -961,15 +972,18 @@ rte_cryptodev_sym_session_clear(uint8_t dev_id,
 			struct rte_cryptodev_sym_session *sess);
 
 /**
+ * @deprecated
  * Get the size of the header session, for all registered drivers.
  *
  * @return
  *   Size of the header session.
  */
+__rte_deprecated
 unsigned int
 rte_cryptodev_get_header_session_size(void);
 
 /**
+ * @deprecated
  * Get the size of the private session data for a device.
  *
  * @param	dev_id		The device identifier.
@@ -978,10 +992,35 @@ rte_cryptodev_get_header_session_size(void);
  *   - Size of the private data, if successful
  *   - 0 if device is invalid or does not have private session
  */
+__rte_deprecated
 unsigned int
 rte_cryptodev_get_private_session_size(uint8_t dev_id);
 
 /**
+ * Get the size of the header session, for all registered drivers.
+ *
+ * @return
+ *   Size of the symmetric eader session.
+ */
+unsigned int
+rte_cryptodev_sym_get_header_session_size(void);
+
+/**
+ * Get the size of the private symmetric session data
+ * for a device.
+ *
+ * @param	dev_id		The device identifier.
+ *
+ * @return
+ *   - Size of the private data, if successful
+ *   - 0 if device is invalid or does not have private
+ *   symmetric session
+ */
+unsigned int
+rte_cryptodev_sym_get_private_session_size(uint8_t dev_id);
+
+/**
+ * @deprecated
  * Attach queue pair with sym session.
  *
  * @param	dev_id		Device to which the session will be attached.
@@ -993,11 +1032,13 @@ rte_cryptodev_get_private_session_size(uint8_t dev_id);
  *  - On success, zero.
  *  - On failure, a negative value.
  */
+__rte_deprecated
 int
 rte_cryptodev_queue_pair_attach_sym_session(uint8_t dev_id, uint16_t qp_id,
 		struct rte_cryptodev_sym_session *session);
 
 /**
+ * @deprecated
  * Detach queue pair with sym session.
  *
  * @param	dev_id		Device to which the session is attached.
@@ -1009,6 +1050,7 @@ rte_cryptodev_queue_pair_attach_sym_session(uint8_t dev_id, uint16_t qp_id,
  *  - On success, zero.
  *  - On failure, a negative value.
  */
+__rte_deprecated
 int
 rte_cryptodev_queue_pair_detach_sym_session(uint8_t dev_id, uint16_t qp_id,
 		struct rte_cryptodev_sym_session *session);
@@ -1032,6 +1074,38 @@ int rte_cryptodev_driver_id_get(const char *name);
  *  The driver name or null if no driver found
  */
 const char *rte_cryptodev_driver_name_get(uint8_t driver_id);
+
+/**
+ * Set private data for a session.
+ *
+ * @param	sess		Session pointer allocated by
+ *				*rte_cryptodev_sym_session_create*.
+ * @param	data		Pointer to the private data.
+ * @param	size		Size of the private data.
+ *
+ * @return
+ *  - On success, zero.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_cryptodev_sym_session_set_private_data(
+					struct rte_cryptodev_sym_session *sess,
+					void *data,
+					uint16_t size);
+
+/**
+ * Get private data of a session.
+ *
+ * @param	sess		Session pointer allocated by
+ *				*rte_cryptodev_sym_session_create*.
+ *
+ * @return
+ *  - On success return pointer to private data.
+ *  - On failure returns NULL.
+ */
+void * __rte_experimental
+rte_cryptodev_sym_session_get_private_data(
+					struct rte_cryptodev_sym_session *sess);
 
 #ifdef __cplusplus
 }

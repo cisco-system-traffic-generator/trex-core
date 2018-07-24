@@ -96,24 +96,23 @@ enum {
   ICMP_CKSUM           = (1ULL << 39),
   ICMP_IDENT           = (1ULL << 40),
   ICMP_SEQ_NB          = (1ULL << 41),
-  VLAN_TPID            = (1ULL << 42),
-  VLAN_TCI             = (1ULL << 43),
-  GTPU0_TUNNEL         = (1ULL << 44),
-  GTPU1_TUNNEL         = (1ULL << 45),
-  GREV0_TUNNEL         = (1ULL << 46),
-  VXLAN_TUNNEL         = (1ULL << 47),
-  NVGRE_TUNNEL         = (1ULL << 48),
-  IP_IN_IP_TUNNEL      = (1ULL << 49),
-  GTPC2_TUNNEL         = (1ULL << 50),
-  GTPC1_TUNNEL         = (1ULL << 51),
-  GTPC1_2_TUNNEL       = (1ULL << 52),
-  GREV1_TUNNEL         = (1ULL << 53),
-  MPLS_LABEL           = (1ULL << 54),
+  VLAN_TCI             = (1ULL << 42),
+  GTPU0_TUNNEL         = (1ULL << 43),
+  GTPU1_TUNNEL         = (1ULL << 44),
+  GREV0_TUNNEL         = (1ULL << 45),
+  VXLAN_TUNNEL         = (1ULL << 46),
+  NVGRE_TUNNEL         = (1ULL << 47),
+  IP_IN_IP_TUNNEL      = (1ULL << 48),
+  GTPC2_TUNNEL         = (1ULL << 49),
+  GTPC1_TUNNEL         = (1ULL << 50),
+  GTPC1_2_TUNNEL       = (1ULL << 51),
+  GREV1_TUNNEL         = (1ULL << 52),
+  MPLS_LABEL           = (1ULL << 53),
 };
 
 /******************* Function Prototypes ********************/
 
-int CreateHash(char *ntpl_buf, uint64_t rss_hf, struct pmd_internals *internals, bool tunnel);
+int CreateHash(char *ntpl_buf, const struct rte_flow_action_rss *rss, struct pmd_internals *internals);
 int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority);
 void CreateStreamid(char *ntpl_buf, struct pmd_internals *internals, uint32_t nb_queues, uint8_t *list_queues);
 int ReturnKeysetValue(struct pmd_internals *internals, int value);

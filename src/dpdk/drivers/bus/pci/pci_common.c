@@ -1,35 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   Copyright 2013-2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation.
+ * Copyright 2013-2014 6WIND S.A.
  */
 
 #include <string.h>
@@ -74,12 +45,8 @@ static struct rte_devargs *pci_devargs_lookup(struct rte_pci_device *dev)
 {
 	struct rte_devargs *devargs;
 	struct rte_pci_addr addr;
-	struct rte_bus *pbus;
 
-	pbus = rte_bus_find_by_name("pci");
-	TAILQ_FOREACH(devargs, &devargs_list, next) {
-		if (devargs->bus != pbus)
-			continue;
+	RTE_EAL_DEVARGS_FOREACH("pci", devargs) {
 		devargs->bus->parse(devargs->name, &addr);
 		if (!rte_pci_addr_cmp(&dev->addr, &addr))
 			return devargs;
@@ -488,17 +455,20 @@ static struct rte_device *
 pci_find_device(const struct rte_device *start, rte_dev_cmp_t cmp,
 		const void *data)
 {
-	struct rte_pci_device *dev;
+	const struct rte_pci_device *pstart;
+	struct rte_pci_device *pdev;
 
-	FOREACH_DEVICE_ON_PCIBUS(dev) {
-		if (start && &dev->device == start) {
-			start = NULL; /* starting point found */
-			continue;
-		}
-		if (cmp(&dev->device, data) == 0)
-			return &dev->device;
+	if (start != NULL) {
+		pstart = RTE_DEV_TO_PCI_CONST(start);
+		pdev = TAILQ_NEXT(pstart, next);
+	} else {
+		pdev = TAILQ_FIRST(&rte_pci_bus.device_list);
 	}
-
+	while (pdev != NULL) {
+		if (cmp(&pdev->device, data) == 0)
+			return &pdev->device;
+		pdev = TAILQ_NEXT(pdev, next);
+	}
 	return NULL;
 }
 

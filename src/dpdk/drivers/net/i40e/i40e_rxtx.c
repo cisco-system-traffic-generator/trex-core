@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2016 Intel Corporation
  */
 
 #include <stdio.h>
@@ -46,7 +17,7 @@
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
 #include <rte_ether.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_tcp.h>
 #include <rte_sctp.h>
 #include <rte_udp.h>
@@ -68,9 +39,6 @@
 
 /* Base address of the HW descriptor ring should be 128B aligned. */
 #define I40E_RING_BASE_ALIGN	128
-
-#define I40E_SIMPLE_FLAGS ((uint32_t)ETH_TXQ_FLAGS_NOMULTSEGS | \
-					ETH_TXQ_FLAGS_NOOFFLOADS)
 
 #define I40E_TXD_CMD (I40E_TX_DESC_CMD_EOP | I40E_TX_DESC_CMD_RS)
 
@@ -98,10 +66,6 @@
 
 #define I40E_TX_OFFLOAD_NOTSUP_MASK \
 		(PKT_TX_OFFLOAD_MASK ^ I40E_TX_OFFLOAD_MASK)
-
-static uint16_t i40e_xmit_pkts_simple(void *tx_queue,
-				      struct rte_mbuf **tx_pkts,
-				      uint16_t nb_pkts);
 
 static inline void
 i40e_rxd_to_vlan_tci(struct rte_mbuf *mb, volatile union i40e_rx_desc *rxdp)
@@ -1273,7 +1237,7 @@ i40e_tx_free_bufs(struct i40e_tx_queue *txq)
 	for (i = 0; i < txq->tx_rs_thresh; i++)
 		rte_prefetch0((txep + i)->mbuf);
 
-	if (txq->txq_flags & (uint32_t)ETH_TXQ_FLAGS_NOREFCOUNT) {
+	if (txq->offloads & DEV_TX_OFFLOAD_MBUF_FAST_FREE) {
 		for (i = 0; i < txq->tx_rs_thresh; ++i, ++txep) {
 			rte_mempool_put(txep->mbuf->pool, txep->mbuf);
 			txep->mbuf = NULL;
@@ -1718,9 +1682,80 @@ i40e_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 #endif
 	    dev->rx_pkt_burst == i40e_recv_scattered_pkts ||
 	    dev->rx_pkt_burst == i40e_recv_scattered_pkts_vec ||
-	    dev->rx_pkt_burst == i40e_recv_pkts_vec)
+	    dev->rx_pkt_burst == i40e_recv_pkts_vec ||
+	    dev->rx_pkt_burst == i40e_recv_scattered_pkts_vec_avx2 ||
+	    dev->rx_pkt_burst == i40e_recv_pkts_vec_avx2)
 		return ptypes;
 	return NULL;
+}
+
+static int
+i40e_dev_first_queue(uint16_t idx, void **queues, int num)
+{
+	uint16_t i;
+
+	for (i = 0; i < num; i++) {
+		if (i != idx && queues[i])
+			return 0;
+	}
+
+	return 1;
+}
+
+static int
+i40e_dev_rx_queue_setup_runtime(struct rte_eth_dev *dev,
+				struct i40e_rx_queue *rxq)
+{
+	struct i40e_adapter *ad =
+		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	int use_def_burst_func =
+		check_rx_burst_bulk_alloc_preconditions(rxq);
+	uint16_t buf_size =
+		(uint16_t)(rte_pktmbuf_data_room_size(rxq->mp) -
+			   RTE_PKTMBUF_HEADROOM);
+	int use_scattered_rx =
+		((rxq->max_pkt_len + 2 * I40E_VLAN_TAG_SIZE) > buf_size);
+
+	if (i40e_rx_queue_init(rxq) != I40E_SUCCESS) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to do RX queue initialization");
+		return -EINVAL;
+	}
+
+	if (i40e_dev_first_queue(rxq->queue_id,
+				 dev->data->rx_queues,
+				 dev->data->nb_rx_queues)) {
+		/**
+		 * If it is the first queue to setup,
+		 * set all flags to default and call
+		 * i40e_set_rx_function.
+		 */
+		ad->rx_bulk_alloc_allowed = true;
+		ad->rx_vec_allowed = true;
+		dev->data->scattered_rx = use_scattered_rx;
+		if (use_def_burst_func)
+			ad->rx_bulk_alloc_allowed = false;
+		i40e_set_rx_function(dev);
+		return 0;
+	}
+
+	/* check bulk alloc conflict */
+	if (ad->rx_bulk_alloc_allowed && use_def_burst_func) {
+		PMD_DRV_LOG(ERR, "Can't use default burst.");
+		return -EINVAL;
+	}
+	/* check scatterred conflict */
+	if (!dev->data->scattered_rx && use_scattered_rx) {
+		PMD_DRV_LOG(ERR, "Scattered rx is required.");
+		return -EINVAL;
+	}
+	/* check vector conflict */
+	if (ad->rx_vec_allowed && i40e_rxq_vec_setup(rxq)) {
+		PMD_DRV_LOG(ERR, "Failed vector rx setup.");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 int
@@ -1743,9 +1778,12 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t len, i;
 	uint16_t reg_idx, base, bsf, tc_mapping;
 	int q_offset, use_def_burst_func = 1;
+	uint64_t offloads;
 #ifdef TREX_PATCH_LOW_LATENCY
     int is_vf = 0;
 #endif
+
+	offloads = rx_conf->offloads | dev->data->dev_conf.rxmode.offloads;
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
@@ -1797,11 +1835,12 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	rxq->queue_id = queue_idx;
 	rxq->reg_idx = reg_idx;
 	rxq->port_id = dev->data->port_id;
-	rxq->crc_len = (uint8_t) ((dev->data->dev_conf.rxmode.hw_strip_crc) ?
-							0 : ETHER_CRC_LEN);
+	rxq->crc_len = (uint8_t)((dev->data->dev_conf.rxmode.offloads &
+			DEV_RX_OFFLOAD_CRC_STRIP) ? 0 : ETHER_CRC_LEN);
 	rxq->drop_en = rx_conf->rx_drop_en;
 	rxq->vsi = vsi;
 	rxq->rx_deferred_start = rx_conf->rx_deferred_start;
+	rxq->offloads = offloads;
 
 	/* Allocate the maximun number of RX ring hardware descriptor. */
 	len = I40E_MAX_RING_DESC;
@@ -1845,48 +1884,58 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 
 	i40e_reset_rx_queue(rxq);
 	rxq->q_set = TRUE;
-	dev->data->rx_queues[queue_idx] = rxq;
-
-	use_def_burst_func = check_rx_burst_bulk_alloc_preconditions(rxq);
-
-	if (!use_def_burst_func) {
-#ifdef RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC
-		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
-			     "satisfied. Rx Burst Bulk Alloc function will be "
-			     "used on port=%d, queue=%d.",
-			     rxq->port_id, rxq->queue_id);
-#endif /* RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC */
-	} else {
-		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
-			     "not satisfied, Scattered Rx is requested, "
-			     "or RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC is "
-			     "not enabled on port=%d, queue=%d.",
-			     rxq->port_id, rxq->queue_id);
-		ad->rx_bulk_alloc_allowed = false;
-	}
 
 #ifdef TREX_PATCH_LOW_LATENCY
-    if (! is_vf) {
+    if ( !is_vf ) {
         rxq->dcb_tc =0;
-    } else { 
+    } else {
 #endif
 
-    	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
-    		if (!(vsi->enabled_tc & (1 << i)))
-    			continue;
-    		tc_mapping = rte_le_to_cpu_16(vsi->info.tc_mapping[i]);
-    		base = (tc_mapping & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) >>
-    			I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT;
-    		bsf = (tc_mapping & I40E_AQ_VSI_TC_QUE_NUMBER_MASK) >>
-    			I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT;
-    
-    		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
-    			rxq->dcb_tc = i;
-    	}
+	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
+		if (!(vsi->enabled_tc & (1 << i)))
+			continue;
+		tc_mapping = rte_le_to_cpu_16(vsi->info.tc_mapping[i]);
+		base = (tc_mapping & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) >>
+			I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT;
+		bsf = (tc_mapping & I40E_AQ_VSI_TC_QUE_NUMBER_MASK) >>
+			I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT;
+
+		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
+			rxq->dcb_tc = i;
+	}
+
 #ifdef TREX_PATCH_LOW_LATENCY
     }
 #endif
 
+	if (dev->data->dev_started) {
+		if (i40e_dev_rx_queue_setup_runtime(dev, rxq)) {
+			i40e_dev_rx_queue_release(rxq);
+			return -EINVAL;
+		}
+	} else {
+		use_def_burst_func =
+			check_rx_burst_bulk_alloc_preconditions(rxq);
+		if (!use_def_burst_func) {
+#ifdef RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC
+			PMD_INIT_LOG(DEBUG,
+			  "Rx Burst Bulk Alloc Preconditions are "
+			  "satisfied. Rx Burst Bulk Alloc function will be "
+			  "used on port=%d, queue=%d.",
+			  rxq->port_id, rxq->queue_id);
+#endif /* RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC */
+		} else {
+			PMD_INIT_LOG(DEBUG,
+			  "Rx Burst Bulk Alloc Preconditions are "
+			  "not satisfied, Scattered Rx is requested, "
+			  "or RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC is "
+			  "not enabled on port=%d, queue=%d.",
+			  rxq->port_id, rxq->queue_id);
+			ad->rx_bulk_alloc_allowed = false;
+		}
+	}
+
+	dev->data->rx_queues[queue_idx] = rxq;
 	return 0;
 }
 
@@ -2018,6 +2067,52 @@ i40e_dev_tx_descriptor_status(void *tx_queue, uint16_t offset)
 	return RTE_ETH_TX_DESC_FULL;
 }
 
+static int
+i40e_dev_tx_queue_setup_runtime(struct rte_eth_dev *dev,
+				struct i40e_tx_queue *txq)
+{
+	struct i40e_adapter *ad =
+		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+
+	if (i40e_tx_queue_init(txq) != I40E_SUCCESS) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to do TX queue initialization");
+		return -EINVAL;
+	}
+
+	if (i40e_dev_first_queue(txq->queue_id,
+				 dev->data->tx_queues,
+				 dev->data->nb_tx_queues)) {
+		/**
+		 * If it is the first queue to setup,
+		 * set all flags and call
+		 * i40e_set_tx_function.
+		 */
+		i40e_set_tx_function_flag(dev, txq);
+		i40e_set_tx_function(dev);
+		return 0;
+	}
+
+	/* check vector conflict */
+	if (ad->tx_vec_allowed) {
+		if (txq->tx_rs_thresh > RTE_I40E_TX_MAX_FREE_BUF_SZ ||
+		    i40e_txq_vec_setup(txq)) {
+			PMD_DRV_LOG(ERR, "Failed vector tx setup.");
+			return -EINVAL;
+		}
+	}
+	/* check simple tx conflict */
+	if (ad->tx_simple_allowed) {
+		if (txq->offloads != 0 ||
+				txq->tx_rs_thresh < RTE_PMD_I40E_TX_MAX_BURST) {
+			PMD_DRV_LOG(ERR, "No-simple tx is required.");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 int
 i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 			uint16_t queue_idx,
@@ -2035,11 +2130,14 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t tx_rs_thresh, tx_free_thresh;
 	uint16_t reg_idx, i, base, bsf, tc_mapping;
 	int q_offset;
+	uint64_t offloads;
 
 #ifdef TREX_PATCH_LOW_LATENCY
     u8 low_latency = 0;
     int is_vf = 1;
 #endif
+
+	offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
@@ -2180,7 +2278,7 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	txq->queue_id = queue_idx;
 	txq->reg_idx = reg_idx;
 	txq->port_id = dev->data->port_id;
-	txq->txq_flags = tx_conf->txq_flags;
+	txq->offloads = offloads;
 	txq->vsi = vsi;
 	txq->tx_deferred_start = tx_conf->tx_deferred_start;
 
@@ -2201,37 +2299,47 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 
 	i40e_reset_tx_queue(txq);
 	txq->q_set = TRUE;
-	dev->data->tx_queues[queue_idx] = txq;
 
-	/* Use a simple TX queue without offloads or multi segs if possible */
-	i40e_set_tx_function_flag(dev, txq);
-
-    #ifdef TREX_PATCH_LOW_LATENCY
-    if (!is_vf) {
+#ifdef TREX_PATCH_LOW_LATENCY
+    if ( !is_vf ) {
         if (low_latency) {
             txq->dcb_tc=1;
         }else{
             txq->dcb_tc=0;
         }
     } else {
-   #endif
+#endif
 
-    	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
-    		if (!(vsi->enabled_tc & (1 << i)))
-    			continue;
-    		tc_mapping = rte_le_to_cpu_16(vsi->info.tc_mapping[i]);
-    		base = (tc_mapping & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) >>
-    			I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT;
-    		bsf = (tc_mapping & I40E_AQ_VSI_TC_QUE_NUMBER_MASK) >>
-    			I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT;
-    
-    		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
-    			txq->dcb_tc = i;
-    	}
+	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
+		if (!(vsi->enabled_tc & (1 << i)))
+			continue;
+		tc_mapping = rte_le_to_cpu_16(vsi->info.tc_mapping[i]);
+		base = (tc_mapping & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) >>
+			I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT;
+		bsf = (tc_mapping & I40E_AQ_VSI_TC_QUE_NUMBER_MASK) >>
+			I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT;
 
-   #ifdef TREX_PATCH_LOW_LATENCY
+		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
+			txq->dcb_tc = i;
+	}
+
+#ifdef TREX_PATCH_LOW_LATENCY
     }
-   #endif
+#endif
+
+	if (dev->data->dev_started) {
+		if (i40e_dev_tx_queue_setup_runtime(dev, txq)) {
+			i40e_dev_tx_queue_release(txq);
+			return -EINVAL;
+		}
+	} else {
+		/**
+		 * Use a simple TX queue without offloads or
+		 * multi segs if possible
+		 */
+		i40e_set_tx_function_flag(dev, txq);
+	}
+	dev->data->tx_queues[queue_idx] = txq;
 
 	return 0;
 }
@@ -2260,8 +2368,8 @@ i40e_memzone_reserve(const char *name, uint32_t len, int socket_id)
 	if (mz)
 		return mz;
 
-	mz = rte_memzone_reserve_aligned(name, len,
-					 socket_id, 0, I40E_RING_BASE_ALIGN);
+	mz = rte_memzone_reserve_aligned(name, len, socket_id,
+			RTE_MEMZONE_IOVA_CONTIG, I40E_RING_BASE_ALIGN);
 	return mz;
 }
 
@@ -2356,7 +2464,8 @@ i40e_tx_queue_release_mbufs(struct i40e_tx_queue *txq)
 	 *  vPMD tx will not set sw_ring's mbuf to NULL after free,
 	 *  so need to free remains more carefully.
 	 */
-	if (dev->tx_pkt_burst == i40e_xmit_pkts_vec) {
+	if (dev->tx_pkt_burst == i40e_xmit_pkts_vec_avx2 ||
+			dev->tx_pkt_burst == i40e_xmit_pkts_vec) {
 		i = txq->tx_next_dd - txq->tx_rs_thresh + 1;
 		if (txq->tx_tail < i) {
 			for (; i < txq->nb_tx_desc; i++) {
@@ -2539,7 +2648,7 @@ i40e_rx_queue_config(struct i40e_rx_queue *rxq)
 
 	len = hw->func_caps.rx_buf_chain_len * rxq->rx_buf_len;
 	rxq->max_pkt_len = RTE_MIN(len, data->dev_conf.rxmode.max_rx_pkt_len);
-	if (data->dev_conf.rxmode.jumbo_frame == 1) {
+	if (data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
 		if (rxq->max_pkt_len <= ETHER_MAX_LEN ||
 			rxq->max_pkt_len > I40E_FRAME_SIZE_MAX) {
 			PMD_DRV_LOG(ERR, "maximum packet length must "
@@ -2789,6 +2898,7 @@ i40e_fdir_setup_rx_resources(struct i40e_pf *pf)
 	rxq->vsi = pf->fdir.fdir_vsi;
 
 	rxq->rx_ring_phys_addr = rz->iova;
+	memset(rz->addr, 0, I40E_FDIR_NUM_RX_DESC * sizeof(union i40e_rx_desc));
 	rxq->rx_ring = (union i40e_rx_desc *)rz->addr;
 
 	/*
@@ -2816,6 +2926,7 @@ i40e_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->conf.rx_free_thresh = rxq->rx_free_thresh;
 	qinfo->conf.rx_drop_en = rxq->drop_en;
 	qinfo->conf.rx_deferred_start = rxq->rx_deferred_start;
+	qinfo->conf.offloads = rxq->offloads;
 }
 
 void
@@ -2834,8 +2945,8 @@ i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 
 	qinfo->conf.tx_free_thresh = txq->tx_free_thresh;
 	qinfo->conf.tx_rs_thresh = txq->tx_rs_thresh;
-	qinfo->conf.txq_flags = txq->txq_flags;
 	qinfo->conf.tx_deferred_start = txq->tx_deferred_start;
+	qinfo->conf.offloads = txq->offloads;
 }
 
 void __attribute__((cold))
@@ -2879,6 +2990,17 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 				     dev->data->port_id);
 
 			dev->rx_pkt_burst = i40e_recv_scattered_pkts_vec;
+#ifdef RTE_ARCH_X86
+			/*
+			 * since AVX frequency can be different to base
+			 * frequency, limit use of AVX2 version to later
+			 * plaforms, not all those that could theoretically
+			 * run it.
+			 */
+			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+				dev->rx_pkt_burst =
+					i40e_recv_scattered_pkts_vec_avx2;
+#endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Using a Scattered with bulk "
 					   "allocation callback (port=%d).",
@@ -2898,6 +3020,16 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 			     dev->data->port_id);
 
 		dev->rx_pkt_burst = i40e_recv_pkts_vec;
+#ifdef RTE_ARCH_X86
+		/*
+		 * since AVX frequency can be different to base
+		 * frequency, limit use of AVX2 version to later
+		 * plaforms, not all those that could theoretically
+		 * run it.
+		 */
+		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+			dev->rx_pkt_burst = i40e_recv_pkts_vec_avx2;
+#endif
 	} else if (ad->rx_bulk_alloc_allowed) {
 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
 				    "satisfied. Rx Burst Bulk Alloc function "
@@ -2918,7 +3050,9 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 		rx_using_sse =
 			(dev->rx_pkt_burst == i40e_recv_scattered_pkts_vec ||
-			 dev->rx_pkt_burst == i40e_recv_pkts_vec);
+			 dev->rx_pkt_burst == i40e_recv_pkts_vec ||
+			 dev->rx_pkt_burst == i40e_recv_scattered_pkts_vec_avx2 ||
+			 dev->rx_pkt_burst == i40e_recv_pkts_vec_avx2);
 
 		for (i = 0; i < dev->data->nb_rx_queues; i++) {
 			struct i40e_rx_queue *rxq = dev->data->rx_queues[i];
@@ -2935,19 +3069,24 @@ i40e_set_tx_function_flag(struct rte_eth_dev *dev, struct i40e_tx_queue *txq)
 	struct i40e_adapter *ad =
 		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 
-	/* Use a simple Tx queue (no offloads, no multi segs) if possible */
-	if (((txq->txq_flags & I40E_SIMPLE_FLAGS) == I40E_SIMPLE_FLAGS)
-			&& (txq->tx_rs_thresh >= RTE_PMD_I40E_TX_MAX_BURST)) {
-		if (txq->tx_rs_thresh <= RTE_I40E_TX_MAX_FREE_BUF_SZ) {
-			PMD_INIT_LOG(DEBUG, "Vector tx"
-				     " can be enabled on this txq.");
+	/* Use a simple Tx queue if possible (only fast free is allowed) */
+	ad->tx_simple_allowed =
+		(txq->offloads ==
+		 (txq->offloads & DEV_TX_OFFLOAD_MBUF_FAST_FREE) &&
+		 txq->tx_rs_thresh >= RTE_PMD_I40E_TX_MAX_BURST);
+	ad->tx_vec_allowed = (ad->tx_simple_allowed &&
+			txq->tx_rs_thresh <= RTE_I40E_TX_MAX_FREE_BUF_SZ);
 
-		} else {
-			ad->tx_vec_allowed = false;
-		}
-	} else {
-		ad->tx_simple_allowed = false;
-	}
+	if (ad->tx_vec_allowed)
+		PMD_INIT_LOG(DEBUG, "Vector Tx can be enabled on Tx queue %u.",
+				txq->queue_id);
+	else if (ad->tx_simple_allowed)
+		PMD_INIT_LOG(DEBUG, "Simple Tx can be enabled on Tx queue %u.",
+				txq->queue_id);
+	else
+		PMD_INIT_LOG(DEBUG,
+				"Neither simple nor vector Tx enabled on Tx queue %u\n",
+				txq->queue_id);
 }
 
 void __attribute__((cold))
@@ -2975,6 +3114,16 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 		if (ad->tx_vec_allowed) {
 			PMD_INIT_LOG(DEBUG, "Vector tx finally be used.");
 			dev->tx_pkt_burst = i40e_xmit_pkts_vec;
+#ifdef RTE_ARCH_X86
+			/*
+			 * since AVX frequency can be different to base
+			 * frequency, limit use of AVX2 version to later
+			 * plaforms, not all those that could theoretically
+			 * run it.
+			 */
+			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+				dev->tx_pkt_burst = i40e_xmit_pkts_vec_avx2;
+#endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Simple tx finally be used.");
 			dev->tx_pkt_burst = i40e_xmit_pkts_simple;
@@ -3081,6 +3230,22 @@ i40e_recv_scattered_pkts_vec(
 	return 0;
 }
 
+uint16_t __attribute__((weak))
+i40e_recv_pkts_vec_avx2(void __rte_unused *rx_queue,
+			struct rte_mbuf __rte_unused **rx_pkts,
+			uint16_t __rte_unused nb_pkts)
+{
+	return 0;
+}
+
+uint16_t __attribute__((weak))
+i40e_recv_scattered_pkts_vec_avx2(void __rte_unused *rx_queue,
+			struct rte_mbuf __rte_unused **rx_pkts,
+			uint16_t __rte_unused nb_pkts)
+{
+	return 0;
+}
+
 int __attribute__((weak))
 i40e_rxq_vec_setup(struct i40e_rx_queue __rte_unused *rxq)
 {
@@ -3101,6 +3266,14 @@ i40e_rx_queue_release_mbufs_vec(struct i40e_rx_queue __rte_unused*rxq)
 
 uint16_t __attribute__((weak))
 i40e_xmit_fixed_burst_vec(void __rte_unused * tx_queue,
+			  struct rte_mbuf __rte_unused **tx_pkts,
+			  uint16_t __rte_unused nb_pkts)
+{
+	return 0;
+}
+
+uint16_t __attribute__((weak))
+i40e_xmit_pkts_vec_avx2(void __rte_unused * tx_queue,
 			  struct rte_mbuf __rte_unused **tx_pkts,
 			  uint16_t __rte_unused nb_pkts)
 {

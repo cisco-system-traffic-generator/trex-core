@@ -91,6 +91,18 @@ typedef int (*security_session_destroy_t)(void *device,
 typedef int (*security_session_update_t)(void *device,
 		struct rte_security_session *sess,
 		struct rte_security_session_conf *conf);
+
+/**
+ * Get the size of a security session
+ *
+ * @param	device		Crypto/eth device pointer
+ *
+ * @return
+ *  - On success returns the size of the session structure for device
+ *  - On failure returns 0
+ */
+typedef unsigned int (*security_session_get_size)(void *device);
+
 /**
  * Get stats from the PMD.
  *
@@ -122,6 +134,22 @@ typedef int (*security_set_pkt_metadata_t)(void *device,
 		void *params);
 
 /**
+ * Get application specific userdata associated with the security session.
+ * Device specific metadata provided would be used to uniquely identify
+ * the security session being referred to.
+ *
+ * @param	device		Crypto/eth device pointer
+ * @param	md		Metadata
+ * @param	userdata	Pointer to receive userdata
+ *
+ * @return
+ *  - Returns 0 if userdata is retrieved successfully.
+ *  - Returns -ve value for errors.
+ */
+typedef int (*security_get_userdata_t)(void *device,
+		uint64_t md, void **userdata);
+
+/**
  * Get security capabilities of the device.
  *
  * @param	device		crypto/eth device pointer
@@ -139,12 +167,16 @@ struct rte_security_ops {
 	/**< Configure a security session. */
 	security_session_update_t session_update;
 	/**< Update a security session. */
+	security_session_get_size session_get_size;
+	/**< Return size of security session. */
 	security_session_stats_get_t session_stats_get;
 	/**< Get security session statistics. */
 	security_session_destroy_t session_destroy;
 	/**< Clear a security sessions private data. */
 	security_set_pkt_metadata_t set_pkt_metadata;
 	/**< Update mbuf metadata. */
+	security_get_userdata_t get_userdata;
+	/**< Get userdata associated with session which processed the packet. */
 	security_capabilities_get_t capabilities_get;
 	/**< Get security capabilities. */
 };

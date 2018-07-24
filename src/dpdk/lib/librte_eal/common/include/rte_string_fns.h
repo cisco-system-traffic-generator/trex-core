@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 /**
@@ -43,6 +14,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <stdio.h>
 
 /**
  * Takes string "string" parameter and splits it at character "delim"
@@ -73,6 +46,35 @@ extern "C" {
 int
 rte_strsplit(char *string, int stringlen,
              char **tokens, int maxtokens, char delim);
+
+/**
+ * @internal
+ * DPDK-specific version of strlcpy for systems without
+ * libc or libbsd copies of the function
+ */
+static inline size_t
+rte_strlcpy(char *dst, const char *src, size_t size)
+{
+	return (size_t)snprintf(dst, size, "%s", src);
+}
+
+/* pull in a strlcpy function */
+#ifdef RTE_EXEC_ENV_BSDAPP
+#include <string.h>
+#ifndef __BSD_VISIBLE /* non-standard functions are hidden */
+#define strlcpy(dst, src, size) rte_strlcpy(dst, src, size)
+#endif
+
+
+#else /* non-BSD platforms */
+#ifdef RTE_USE_LIBBSD
+#include <bsd/string.h>
+
+#else /* no BSD header files, create own */
+#define strlcpy(dst, src, size) rte_strlcpy(dst, src, size)
+
+#endif /* RTE_USE_LIBBSD */
+#endif /* BSDAPP */
 
 #ifdef __cplusplus
 }

@@ -262,19 +262,40 @@ rte_cryptodev_sym_capability_get(uint8_t dev_id,
 
 }
 
-#define param_range_check(x, y) \
-	(((x < y.min) || (x > y.max)) || \
-	(y.increment != 0 && (x % y.increment) != 0))
+static int
+param_range_check(uint16_t size, const struct rte_crypto_param_range *range)
+{
+	unsigned int next_size;
+
+	/* Check lower/upper bounds */
+	if (size < range->min)
+		return -1;
+
+	if (size > range->max)
+		return -1;
+
+	/* If range is actually only one value, size is correct */
+	if (range->increment == 0)
+		return 0;
+
+	/* Check if value is one of the supported sizes */
+	for (next_size = range->min; next_size <= range->max;
+			next_size += range->increment)
+		if (size == next_size)
+			return 0;
+
+	return -1;
+}
 
 int
 rte_cryptodev_sym_capability_check_cipher(
 		const struct rte_cryptodev_symmetric_capability *capability,
 		uint16_t key_size, uint16_t iv_size)
 {
-	if (param_range_check(key_size, capability->cipher.key_size))
+	if (param_range_check(key_size, &capability->cipher.key_size) != 0)
 		return -1;
 
-	if (param_range_check(iv_size, capability->cipher.iv_size))
+	if (param_range_check(iv_size, &capability->cipher.iv_size) != 0)
 		return -1;
 
 	return 0;
@@ -285,13 +306,13 @@ rte_cryptodev_sym_capability_check_auth(
 		const struct rte_cryptodev_symmetric_capability *capability,
 		uint16_t key_size, uint16_t digest_size, uint16_t iv_size)
 {
-	if (param_range_check(key_size, capability->auth.key_size))
+	if (param_range_check(key_size, &capability->auth.key_size) != 0)
 		return -1;
 
-	if (param_range_check(digest_size, capability->auth.digest_size))
+	if (param_range_check(digest_size, &capability->auth.digest_size) != 0)
 		return -1;
 
-	if (param_range_check(iv_size, capability->auth.iv_size))
+	if (param_range_check(iv_size, &capability->auth.iv_size) != 0)
 		return -1;
 
 	return 0;
@@ -303,16 +324,16 @@ rte_cryptodev_sym_capability_check_aead(
 		uint16_t key_size, uint16_t digest_size, uint16_t aad_size,
 		uint16_t iv_size)
 {
-	if (param_range_check(key_size, capability->aead.key_size))
+	if (param_range_check(key_size, &capability->aead.key_size) != 0)
 		return -1;
 
-	if (param_range_check(digest_size, capability->aead.digest_size))
+	if (param_range_check(digest_size, &capability->aead.digest_size) != 0)
 		return -1;
 
-	if (param_range_check(aad_size, capability->aead.aad_size))
+	if (param_range_check(aad_size, &capability->aead.aad_size) != 0)
 		return -1;
 
-	if (param_range_check(iv_size, capability->aead.iv_size))
+	if (param_range_check(iv_size, &capability->aead.iv_size) != 0)
 		return -1;
 
 	return 0;
@@ -334,6 +355,8 @@ rte_cryptodev_get_feature_name(uint64_t flag)
 		return "CPU_AVX";
 	case RTE_CRYPTODEV_FF_CPU_AVX2:
 		return "CPU_AVX2";
+	case RTE_CRYPTODEV_FF_CPU_AVX512:
+		return "CPU_AVX512";
 	case RTE_CRYPTODEV_FF_CPU_AESNI:
 		return "CPU_AESNI";
 	case RTE_CRYPTODEV_FF_HW_ACCELERATED:
@@ -344,6 +367,8 @@ rte_cryptodev_get_feature_name(uint64_t flag)
 		return "CPU_NEON";
 	case RTE_CRYPTODEV_FF_CPU_ARM_CE:
 		return "CPU_ARM_CE";
+	case RTE_CRYPTODEV_FF_SECURITY:
+		return "SECURITY_PROTOCOL";
 	default:
 		return NULL;
 	}
@@ -1092,13 +1117,15 @@ rte_cryptodev_sym_session_create(struct rte_mempool *mp)
 	struct rte_cryptodev_sym_session *sess;
 
 	/* Allocate a session structure from the session pool */
-	if (rte_mempool_get(mp, (void *)&sess)) {
+	if (rte_mempool_get(mp, (void **)&sess)) {
 		CDEV_LOG_ERR("couldn't get object from session mempool");
 		return NULL;
 	}
 
-	/* Clear device session pointer */
-	memset(sess, 0, (sizeof(void *) * nb_drivers));
+	/* Clear device session pointer.
+	 * Include the flag indicating presence of private data
+	 */
+	memset(sess, 0, (sizeof(void *) * nb_drivers) + sizeof(uint8_t));
 
 	return sess;
 }
@@ -1200,15 +1227,28 @@ rte_cryptodev_sym_session_free(struct rte_cryptodev_sym_session *sess)
 unsigned int
 rte_cryptodev_get_header_session_size(void)
 {
+	return rte_cryptodev_sym_get_header_session_size();
+}
+
+unsigned int
+rte_cryptodev_sym_get_header_session_size(void)
+{
 	/*
 	 * Header contains pointers to the private data
-	 * of all registered drivers
+	 * of all registered drivers, and a flag which
+	 * indicates presence of private data
 	 */
-	return (sizeof(void *) * nb_drivers);
+	return ((sizeof(void *) * nb_drivers) + sizeof(uint8_t));
 }
 
 unsigned int
 rte_cryptodev_get_private_session_size(uint8_t dev_id)
+{
+	return rte_cryptodev_sym_get_private_session_size(dev_id);
+}
+
+unsigned int
+rte_cryptodev_sym_get_private_session_size(uint8_t dev_id)
 {
 	struct rte_cryptodev *dev;
 	unsigned int header_size = sizeof(void *) * nb_drivers;
@@ -1234,6 +1274,38 @@ rte_cryptodev_get_private_session_size(uint8_t dev_id)
 
 	return priv_sess_size;
 
+}
+
+int __rte_experimental
+rte_cryptodev_sym_session_set_private_data(
+					struct rte_cryptodev_sym_session *sess,
+					void *data,
+					uint16_t size)
+{
+	uint16_t off_set = sizeof(void *) * nb_drivers;
+	uint8_t *private_data_present = (uint8_t *)sess + off_set;
+
+	if (sess == NULL)
+		return -EINVAL;
+
+	*private_data_present = 1;
+	off_set += sizeof(uint8_t);
+	rte_memcpy((uint8_t *)sess + off_set, data, size);
+	return 0;
+}
+
+void * __rte_experimental
+rte_cryptodev_sym_session_get_private_data(
+					struct rte_cryptodev_sym_session *sess)
+{
+	uint16_t off_set = sizeof(void *) * nb_drivers;
+	uint8_t *private_data_present = (uint8_t *)sess + off_set;
+
+	if (sess == NULL || !*private_data_present)
+		return NULL;
+
+	off_set += sizeof(uint8_t);
+	return (uint8_t *)sess + off_set;
 }
 
 /** Initialise rte_crypto_op mempool element */

@@ -1,32 +1,10 @@
-/*-
- *   BSD LICENSE
+/* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
  * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <stdbool.h>
@@ -77,6 +55,7 @@ struct sfc_ef10_txq {
 	unsigned int			ptr_mask;
 	unsigned int			added;
 	unsigned int			completed;
+	unsigned int			max_fill_level;
 	unsigned int			free_thresh;
 	unsigned int			evq_read_ptr;
 	struct sfc_ef10_tx_sw_desc	*sw_ring;
@@ -288,7 +267,6 @@ static uint16_t
 sfc_ef10_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_ef10_txq * const txq = sfc_ef10_txq_by_dp_txq(tx_queue);
-	unsigned int ptr_mask;
 	unsigned int added;
 	unsigned int dma_desc_space;
 	bool reap_done;
@@ -299,16 +277,13 @@ sfc_ef10_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		     (SFC_EF10_TXQ_NOT_RUNNING | SFC_EF10_TXQ_EXCEPTION)))
 		return 0;
 
-	ptr_mask = txq->ptr_mask;
 	added = txq->added;
-	dma_desc_space = SFC_EF10_TXQ_LIMIT(ptr_mask + 1) -
-			 (added - txq->completed);
+	dma_desc_space = txq->max_fill_level - (added - txq->completed);
 
 	reap_done = (dma_desc_space < txq->free_thresh);
 	if (reap_done) {
 		sfc_ef10_tx_reap(txq);
-		dma_desc_space = SFC_EF10_TXQ_LIMIT(ptr_mask + 1) -
-				 (added - txq->completed);
+		dma_desc_space = txq->max_fill_level - (added - txq->completed);
 	}
 
 	for (pktp = &tx_pkts[0], pktp_end = &tx_pkts[nb_pkts];
@@ -333,7 +308,7 @@ sfc_ef10_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 			sfc_ef10_tx_reap(txq);
 			reap_done = true;
-			dma_desc_space = SFC_EF10_TXQ_LIMIT(ptr_mask + 1) -
+			dma_desc_space = txq->max_fill_level -
 				(added - txq->completed);
 			if (sfc_ef10_tx_pkt_descs_max(m_seg) > dma_desc_space)
 				break;
@@ -343,7 +318,7 @@ sfc_ef10_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		do {
 			rte_iova_t seg_addr = rte_mbuf_data_iova(m_seg);
 			unsigned int seg_len = rte_pktmbuf_data_len(m_seg);
-			unsigned int id = added & ptr_mask;
+			unsigned int id = added & txq->ptr_mask;
 
 			SFC_ASSERT(seg_len <= SFC_EF10_TX_DMA_DESC_LEN_MAX);
 
@@ -446,14 +421,12 @@ sfc_ef10_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 	ptr_mask = txq->ptr_mask;
 	added = txq->added;
-	dma_desc_space = SFC_EF10_TXQ_LIMIT(ptr_mask + 1) -
-			 (added - txq->completed);
+	dma_desc_space = txq->max_fill_level - (added - txq->completed);
 
 	reap_done = (dma_desc_space < RTE_MAX(txq->free_thresh, nb_pkts));
 	if (reap_done) {
 		sfc_ef10_simple_tx_reap(txq);
-		dma_desc_space = SFC_EF10_TXQ_LIMIT(ptr_mask + 1) -
-				 (added - txq->completed);
+		dma_desc_space = txq->max_fill_level - (added - txq->completed);
 	}
 
 	pktp_end = &tx_pkts[MIN(nb_pkts, dma_desc_space)];
@@ -486,6 +459,40 @@ sfc_ef10_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	return pktp - &tx_pkts[0];
 }
 
+static sfc_dp_tx_get_dev_info_t sfc_ef10_get_dev_info;
+static void
+sfc_ef10_get_dev_info(struct rte_eth_dev_info *dev_info)
+{
+	/*
+	 * Number of descriptors just defines maximum number of pushed
+	 * descriptors (fill level).
+	 */
+	dev_info->tx_desc_lim.nb_min = 1;
+	dev_info->tx_desc_lim.nb_align = 1;
+}
+
+static sfc_dp_tx_qsize_up_rings_t sfc_ef10_tx_qsize_up_rings;
+static int
+sfc_ef10_tx_qsize_up_rings(uint16_t nb_tx_desc,
+			   unsigned int *txq_entries,
+			   unsigned int *evq_entries,
+			   unsigned int *txq_max_fill_level)
+{
+	/*
+	 * rte_ethdev API guarantees that the number meets min, max and
+	 * alignment requirements.
+	 */
+	if (nb_tx_desc <= EFX_TXQ_MINNDESCS)
+		*txq_entries = EFX_TXQ_MINNDESCS;
+	else
+		*txq_entries = rte_align32pow2(nb_tx_desc);
+
+	*evq_entries = *txq_entries;
+
+	*txq_max_fill_level = RTE_MIN(nb_tx_desc,
+				      SFC_EF10_TXQ_LIMIT(*evq_entries));
+	return 0;
+}
 
 static sfc_dp_tx_qcreate_t sfc_ef10_tx_qcreate;
 static int
@@ -519,11 +526,12 @@ sfc_ef10_tx_qcreate(uint16_t port_id, uint16_t queue_id,
 
 	txq->flags = SFC_EF10_TXQ_NOT_RUNNING;
 	txq->ptr_mask = info->txq_entries - 1;
+	txq->max_fill_level = info->max_fill_level;
 	txq->free_thresh = info->free_thresh;
 	txq->txq_hw_ring = info->txq_hw_ring;
 	txq->doorbell = (volatile uint8_t *)info->mem_bar +
 			ER_DZ_TX_DESC_UPD_REG_OFST +
-			info->hw_index * ER_DZ_TX_DESC_UPD_REG_STEP;
+			(info->hw_index << info->vi_window_shift);
 	txq->evq_hw_ring = info->evq_hw_ring;
 
 	*dp_txqp = &txq->dp;
@@ -628,6 +636,8 @@ struct sfc_dp_tx sfc_ef10_tx = {
 				  SFC_DP_TX_FEAT_MULTI_POOL |
 				  SFC_DP_TX_FEAT_REFCNT |
 				  SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.get_dev_info		= sfc_ef10_get_dev_info,
+	.qsize_up_rings		= sfc_ef10_tx_qsize_up_rings,
 	.qcreate		= sfc_ef10_tx_qcreate,
 	.qdestroy		= sfc_ef10_tx_qdestroy,
 	.qstart			= sfc_ef10_tx_qstart,
@@ -644,6 +654,8 @@ struct sfc_dp_tx sfc_ef10_simple_tx = {
 		.type		= SFC_DP_TX,
 	},
 	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.get_dev_info		= sfc_ef10_get_dev_info,
+	.qsize_up_rings		= sfc_ef10_tx_qsize_up_rings,
 	.qcreate		= sfc_ef10_tx_qcreate,
 	.qdestroy		= sfc_ef10_tx_qdestroy,
 	.qstart			= sfc_ef10_tx_qstart,

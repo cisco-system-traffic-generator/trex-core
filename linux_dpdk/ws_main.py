@@ -338,18 +338,12 @@ main_src = SrcGroup(dir='src',
              '44bsd/udp.cpp',
 
              'bp_sim_tcp.cpp',
-             'utl_mbuf.cpp',
-             'utl_dbl_human.cpp',
-             'utl_counter.cpp',
-             'utl_policer.cpp',
              'astf/astf_template_db.cpp',
              'stt_cp.cpp',
              'trex_global.cpp',
              'bp_sim.cpp',
              'trex_platform.cpp',
              'flow_stat_parser.cpp',
-             'utl_term_io.cpp',
-             'utl_port_map.cpp',
              'global_io_mode.cpp',
              'main_dpdk.cpp',
              'dpdk_port_map.cpp',
@@ -368,13 +362,11 @@ main_src = SrcGroup(dir='src',
              'timer_wheel_pq.cpp',
              'time_histogram.cpp',
              'os_time.cpp',
-             'utl_cpuu.cpp',
-             'utl_ip.cpp',
-             'utl_yaml.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
              'msg_manager.cpp',
              'trex_port_attr.cpp',
+             'dpdk_trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
@@ -383,9 +375,29 @@ main_src = SrcGroup(dir='src',
              'astf/astf_db.cpp',
              'astf/astf_json_validator.cpp',
              'bp_sim_stf.cpp',
-             'utl_sync_barrier.cpp',
              'trex_build_info.cpp',
-             'dpdk_drv_filter.cpp'
+             'dpdk_drv_filter.cpp',
+
+             'drivers/trex_driver_base.cpp',
+             'drivers/trex_driver_i40e.cpp',
+             'drivers/trex_driver_igb.cpp',
+             'drivers/trex_driver_ixgbe.cpp',
+             'drivers/trex_driver_mlx5.cpp',
+             'drivers/trex_driver_ntacc.cpp',
+             'drivers/trex_driver_vic.cpp',
+             'drivers/trex_driver_virtual.cpp',
+
+             'utils/utl_counter.cpp',
+             'utils/utl_cpuu.cpp',
+             'utils/utl_dbl_human.cpp',
+             'utils/utl_ip.cpp',
+             'utils/utl_mbuf.cpp',
+             'utils/utl_offloads.cpp',
+             'utils/utl_policer.cpp',
+             'utils/utl_port_map.cpp',
+             'utils/utl_sync_barrier.cpp',
+             'utils/utl_term_io.cpp',
+             'utils/utl_yaml.cpp',
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -597,6 +609,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
                  #'drivers/net/ixgbe/ixgbe_ipsec.c',
                  'drivers/net/ixgbe/ixgbe_tm.c',
+                 'drivers/net/ixgbe/ixgbe_vf_representor.c',
                  'drivers/net/ixgbe/rte_pmd_ixgbe.c',
 
                  #i40e
@@ -607,15 +620,16 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/base/i40e_hmc.c',
                  'drivers/net/i40e/base/i40e_lan_hmc.c',
                  'drivers/net/i40e/base/i40e_nvm.c',
+                 'drivers/net/i40e/i40e_ethdev.c',
                  'drivers/net/i40e/i40e_ethdev_vf.c',
+                 'drivers/net/i40e/i40e_fdir.c',
+                 'drivers/net/i40e/i40e_flow.c',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
-                 'drivers/net/i40e/i40e_flow.c',
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
-                 'drivers/net/i40e/i40e_fdir.c',
-                 'drivers/net/i40e/i40e_tm.c',      # add
-                 'drivers/net/i40e/rte_pmd_i40e.c', # add
-                 'drivers/net/i40e/i40e_ethdev.c',
+                 'drivers/net/i40e/i40e_tm.c',
+                 'drivers/net/i40e/i40e_vf_representor.c',
+                 'drivers/net/i40e/rte_pmd_i40e.c',
 
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
@@ -678,6 +692,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/base/e1000_api.c',
                  'drivers/net/e1000/base/e1000_i210.c',
                  'drivers/net/e1000/base/e1000_ich8lan.c',
+                 'drivers/net/e1000/e1000_logs.c',
                  'drivers/net/e1000/base/e1000_mac.c',
                  'drivers/net/e1000/base/e1000_manage.c',
                  'drivers/net/e1000/base/e1000_mbx.c',
@@ -713,13 +728,16 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
                  'lib/librte_eal/common/eal_common_errno.c',
+                 'lib/librte_eal/common/eal_common_fbarray.c',
                  'lib/librte_eal/common/eal_common_hexdump.c',
                  'lib/librte_eal/common/eal_common_launch.c',
                  'lib/librte_eal/common/eal_common_lcore.c',
                  'lib/librte_eal/common/eal_common_log.c',
+                 'lib/librte_eal/common/eal_common_memalloc.c',
                  'lib/librte_eal/common/eal_common_memory.c',
                  'lib/librte_eal/common/eal_common_memzone.c',
                  'lib/librte_eal/common/eal_common_options.c',
+                 'lib/librte_eal/common/eal_common_proc.c',
                  'lib/librte_eal/common/eal_common_string_fns.c',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
@@ -727,6 +745,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
+                 'lib/librte_eal/common/malloc_mp.c',
                  'lib/librte_eal/common/rte_keepalive.c',
                  'lib/librte_eal/common/rte_malloc.c',
                  'lib/librte_eal/common/rte_service.c',
@@ -737,22 +756,26 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
                  'lib/librte_eal/linuxapp/eal/eal_lcore.c',
                  'lib/librte_eal/linuxapp/eal/eal_log.c',
+                 'lib/librte_eal/linuxapp/eal/eal_memalloc.c',
                  'lib/librte_eal/linuxapp/eal/eal_memory.c',
                  'lib/librte_eal/linuxapp/eal/eal_thread.c',
                  'lib/librte_eal/linuxapp/eal/eal_timer.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
                  'lib/librte_eal/linuxapp/eal/eal_vfio.c',
-                 'lib/librte_ether/rte_ethdev.c',
-                 'lib/librte_ether/rte_flow.c',
-                 'lib/librte_ether/ethdev_profile.c',
+                 'lib/librte_ethdev/rte_ethdev.c',
+                 'lib/librte_ethdev/rte_flow.c',
+                 'lib/librte_ethdev/ethdev_profile.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
                  'lib/librte_mbuf/rte_mbuf_ptype.c',
+                 'lib/librte_mbuf/rte_mbuf_pool_ops.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
+                 'lib/librte_mempool/rte_mempool_ops_default.c',
                  'lib/librte_net/rte_net.c',
                  'lib/librte_net/rte_net_crc.c',
+                 'lib/librte_net/rte_arp.c',
                  'lib/librte_ring/rte_ring.c',
                  'lib/librte_pci/rte_pci.c',
             ]);
@@ -768,23 +791,24 @@ ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
 mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
 
-                 'drivers/net/mlx5/mlx5_mr.c',
-                 'drivers/net/mlx5/mlx5_ethdev.c',
-                 'drivers/net/mlx5/mlx5_mac.c',
-                 'drivers/net/mlx5/mlx5_rxmode.c',
-                 'drivers/net/mlx5/mlx5_rxtx.c',
-                 'drivers/net/mlx5/mlx5_stats.c',
-                 'drivers/net/mlx5/mlx5_txq.c',
                  'drivers/net/mlx5/mlx5.c',
+                 'drivers/net/mlx5/mlx5_ethdev.c',
                  #'drivers/net/mlx5/mlx5_fdir.c', # remove 
                  'drivers/net/mlx5/mlx5_flow.c',
+                 'drivers/net/mlx5/mlx5_glue.c',
+                 'drivers/net/mlx5/mlx5_mr.c',
+                 'drivers/net/mlx5/mlx5_mac.c',
+                 'drivers/net/mlx5/mlx5_nl.c',
+                 'drivers/net/mlx5/mlx5_rxmode.c',
+                 'drivers/net/mlx5/mlx5_rxtx.c',
+                 'drivers/net/mlx5/mlx5_socket.c',
+                 'drivers/net/mlx5/mlx5_stats.c',
+                 'drivers/net/mlx5/mlx5_txq.c',
                  'drivers/net/mlx5/mlx5_rss.c',
                  'drivers/net/mlx5/mlx5_rxq.c',
+                 'drivers/net/mlx5/mlx5_rxtx_vec.c',
                  'drivers/net/mlx5/mlx5_trigger.c',
                  'drivers/net/mlx5/mlx5_vlan.c',
-
-                 'drivers/net/mlx5/mlx5_rxtx_vec.c',
-                 'drivers/net/mlx5/mlx5_socket.c',
 
             ]);
 
@@ -793,6 +817,7 @@ mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/mlx4/mlx4.c',
                  'drivers/net/mlx4/mlx4_ethdev.c',
                  'drivers/net/mlx4/mlx4_flow.c',
+                 'drivers/net/mlx4/mlx4_glue.c',
                  'drivers/net/mlx4/mlx4_intr.c',
                  'drivers/net/mlx4/mlx4_mr.c',
                  'drivers/net/mlx4/mlx4_rxq.c',
@@ -948,7 +973,7 @@ dpdk_includes_path_aarch64 ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1711_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk1805_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
@@ -975,7 +1000,6 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/
                         ../src/dpdk/lib/librte_cfgfile/
                         ../src/dpdk/lib/librte_compat/
-                        ../src/dpdk/lib/librte_distributor/
                         ../src/dpdk/lib/librte_eal/
                         ../src/dpdk/lib/librte_eal/common/
                         ../src/dpdk/lib/librte_eal/common/include/
@@ -986,8 +1010,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_eal/linuxapp/eal/
                         ../src/dpdk/lib/librte_eal/linuxapp/eal/include/
                         ../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
-                        ../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
-                        ../src/dpdk/lib/librte_ether/
+                        ../src/dpdk/lib/librte_ethdev/
                         ../src/dpdk/lib/librte_hash/
                         ../src/dpdk/lib/librte_kvargs/
                         ../src/dpdk/lib/librte_mbuf/
@@ -1012,10 +1035,12 @@ elif march == 'aarch64':
 
 includes_path = '''
                    ../src/
+                   ../src/drivers/
                    ../src/pal/common/
                    ../src/pal/linux_dpdk/
                    ../src/stx/
                    ../src/stx/common/
+                   ../src/utils/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/
@@ -1031,9 +1056,9 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march != 'aarch64':
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1711_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1805_x86_64/rte_config.h'];
 else:
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1711_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1805_aarch64/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',

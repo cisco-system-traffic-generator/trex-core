@@ -91,7 +91,10 @@ static struct {
 #define PCI_DEVICE_ID_NT40A01  0x0185
 #define PCI_DEVICE_ID_NT100E3  0x0155
 
-#define NB_SUPPORTED_FPGAS 10
+#define PCI_VENDOR_ID_INTEL          0x8086
+#define PCIE_DEVICE_ID_PF_DSC_1_X    0x09C4
+
+#define NB_SUPPORTED_FPGAS 12
 struct {
   uint32_t item:12;
   uint32_t product:16;
@@ -110,6 +113,8 @@ struct {
   { 200, 9516, 9, 8, 0 },
   { 200, 9517, 9, 8, 0 },
   { 200, 9519, 10, 7, 0 },
+  { 200, 7000, 12, 0, 0 },
+  { 200, 7001, 12, 0, 0 },
 };
 
 static void *_libnt;
@@ -138,6 +143,7 @@ int (*_NT_NetTxRead)(NtNetStreamTx_t hStream, NtNetTx_t *cmd);
 int (*_NT_StatClose)(NtStatStream_t);
 int (*_NT_StatOpen)(NtStatStream_t *, const char *);
 int (*_NT_StatRead)(NtStatStream_t, NtStatistics_t *);
+int (*_NT_NetRxRead)(NtNetStreamRx_t, NtNetRx_t *);
 
 static int _dev_flow_flush(struct rte_eth_dev *dev, struct rte_flow_error *error __rte_unused);
 static int eth_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id);
@@ -185,6 +191,7 @@ static uint32_t _log_out_of_memory_errors(const char *func)
   return ENOMEM;
 }
 
+#ifdef RTE_CONTIGUOUS_MEMORY_BATCHING
 static void _seg_release_cb(struct rte_mbuf *mbuf)
 {
 	struct batch_ctrl *batchCtl = (struct batch_ctrl *)((u_char *)mbuf->userdata);
@@ -195,6 +202,7 @@ static void _seg_release_cb(struct rte_mbuf *mbuf)
 	/* swap poniter back */
 	mbuf->buf_addr = batchCtl->orig_buf_addr;
 }
+#endif
 
 
 static void _write_to_file(int fd, const char *buffer)
@@ -299,7 +307,7 @@ static uint16_t eth_ntacc_rx(void *queue,
     }
   }
 
-#if 0
+#ifdef RTE_CONTIGUOUS_MEMORY_BATCHING
   if (rx_q->cmbatch) {
     struct batch_ctrl *batchCtl;
     uint64_t countPackets;
@@ -321,7 +329,7 @@ static uint16_t eth_ntacc_rx(void *queue,
     rx_q->pSeg = NULL;
 
     mbuf->port = rx_q->in_port;
-    mbuf->ol_flags |= PKT_BATCH | CTRL_MBUF_FLAG;
+    mbuf->ol_flags |= PKT_BATCH;
     mbuf->cmbatch_release_cb = _seg_release_cb;
 
     /* let userdata point to original mbuf address where batchCtl is placed */
@@ -381,8 +389,10 @@ static uint16_t eth_ntacc_rx(void *queue,
         mbuf->ol_flags |= PKT_RX_FDIR_ID | PKT_RX_FDIR;
       }
 
-      mbuf->timestamp = dyn3->timestamp;
-      mbuf->ol_flags |= PKT_RX_TIMESTAMP;
+      if (rx_q->tsMultiplier) {
+        mbuf->timestamp = dyn3->timestamp * rx_q->tsMultiplier;
+        mbuf->ol_flags |= PKT_RX_TIMESTAMP;
+      }
       mbuf->port = rx_q->in_port + (dyn3->rxPort - rx_q->local_port);
 
       data_len = (uint16_t)(dyn3->capLength - dyn3->descrLength - 4);
@@ -472,7 +482,9 @@ static uint16_t eth_ntacc_tx(void *queue,
     // Get a TX buffer for this packet
     ret = (*_NT_NetTxGet)(tx_q->pNetTx, &hNetBufTx, tx_q->port, MAX(mbuf->data_len + 4, 64), NT_NETTX_PACKET_OPTION_L2, -1);
     if(unlikely(ret != NT_SUCCESS)) {
-      _log_nt_errors(ret, "NT_NetTxGet() failed", __func__);
+      char errorBuffer[NT_ERRBUF_SIZE]; // Error buffer
+      NT_ExplainError(ret, errorBuffer, NT_ERRBUF_SIZE);
+      PMD_NTACC_LOG(ERR, "Failed to get a tx buffer: %s\n", errorBuffer);
 #ifdef USE_SW_STAT
       tx_q->err_pkts += (nb_pkts - i);
 #endif
@@ -484,7 +496,9 @@ static uint16_t eth_ntacc_tx(void *queue,
     // Release the TX buffer and the packet will be transmitted
     ret = (*_NT_NetTxRelease)(tx_q->pNetTx, hNetBufTx);
     if(unlikely(ret != NT_SUCCESS)) {
-      _log_nt_errors(ret, "NT_NetTxRelease() failed", __func__);
+      char errorBuffer[NT_ERRBUF_SIZE]; // Error buffer
+      NT_ExplainError(ret, errorBuffer, NT_ERRBUF_SIZE);
+      PMD_NTACC_LOG(ERR, "Failed to tx a packet: %s\n", errorBuffer);
 #ifdef USE_SW_STAT
       tx_q->err_pkts += (nb_pkts - i);
 #endif
@@ -824,6 +838,7 @@ static void eth_dev_stop(struct rte_eth_dev *dev)
       }
       if (rx_q[queue].pNetRx) {
           (void)(*_NT_NetRxClose)(rx_q[queue].pNetRx);
+          rx_q[queue].pNetRx = NULL;
       }
       eth_rx_queue_stop(dev, queue);
     }
@@ -877,7 +892,6 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   dev_info->max_tx_queues = STREAMIDS_PER_PORT > RTE_ETHDEV_QUEUE_STAT_CNTRS ? RTE_ETHDEV_QUEUE_STAT_CNTRS : STREAMIDS_PER_PORT;
   dev_info->min_rx_bufsize = 0;
   dev_info->default_txconf.txq_flags = ETH_TXQ_FLAGS_NOMULTSEGS;
-  dev_info->pci_dev = RTE_ETH_DEV_TO_PCI(dev);
 
   pInfo = (NtInfo_t *)rte_malloc(internals->name, sizeof(NtInfo_t), 0);
   if (!pInfo) {
@@ -925,6 +939,13 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
     dev_info->speed_capa |= ETH_LINK_SPEED_50G;
   }
   rte_free(pInfo);
+
+  dev_info->rx_offload_capa = DEV_RX_OFFLOAD_JUMBO_FRAME;
+  dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_CRC_STRIP;
+  dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_TIMESTAMP;
+  dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_SCATTER;
+  //dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_CHECKSUM;
+  dev_info->rx_queue_offload_capa = dev_info->rx_offload_capa;
 }
 
 #ifdef USE_SW_STAT
@@ -1146,7 +1167,11 @@ static int eth_rx_queue_setup(struct rte_eth_dev *dev,
                               uint16_t rx_queue_id,
                               uint16_t nb_rx_desc __rte_unused,
                               unsigned int socket_id __rte_unused,
+#ifdef RTE_CONTIGUOUS_MEMORY_BATCHING
                               const struct rte_eth_rxconf *rx_conf,
+#else
+                              const struct rte_eth_rxconf *rx_conf __rte_unused,
+#endif
                               struct rte_mempool *mb_pool)
 {
   struct rte_pktmbuf_pool_private *mbp_priv;
@@ -1157,8 +1182,9 @@ static int eth_rx_queue_setup(struct rte_eth_dev *dev,
   dev->data->rx_queues[rx_queue_id] = rx_q;
   rx_q->in_port = dev->data->port_id;
   rx_q->local_port = internals->local_port;
+  rx_q->tsMultiplier = internals->tsMultiplier;
 
-#if 0
+#ifdef RTE_CONTIGUOUS_MEMORY_BATCHING
   // Enable contiguous memory batching for this queue
   if (rx_conf->rxq_flags & ETH_RXQ_FLAGS_CMBATCH) {
     rx_q->cmbatch = 1;
@@ -1175,9 +1201,7 @@ static int eth_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 {
   struct pmd_internals *internals = dev->data->dev_private;
   char ntpl_buf[50];
-  snprintf(ntpl_buf, sizeof(ntpl_buf),
-    "Setup[State=Active] = StreamId == %d",
-    internals->rxq[rx_queue_id].stream_id);
+  snprintf(ntpl_buf, sizeof(ntpl_buf), "Setup[State=Active] = StreamId == %d", internals->rxq[rx_queue_id].stream_id);
   DoNtpl(ntpl_buf, NULL, internals);
   dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
   return 0;
@@ -1187,9 +1211,7 @@ static int eth_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 {
   struct pmd_internals *internals = dev->data->dev_private;
   char ntpl_buf[50];
-  snprintf(ntpl_buf, sizeof(ntpl_buf),
-    "Setup[State=InActive] = StreamId == %d",
-    internals->rxq[rx_queue_id].stream_id);
+  snprintf(ntpl_buf, sizeof(ntpl_buf), "Setup[State=InActive] = StreamId == %d", internals->rxq[rx_queue_id].stream_id);
   DoNtpl(ntpl_buf, NULL, internals);
   dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
   return 0;
@@ -1233,7 +1255,6 @@ static const char *ActionErrorString(enum rte_flow_action_type type)
   case RTE_FLOW_ACTION_TYPE_FLAG:     return "Action FLAG is not supported";
   case RTE_FLOW_ACTION_TYPE_DROP:     return "Action DROP is not supported";
   case RTE_FLOW_ACTION_TYPE_COUNT:    return "Action COUNT is not supported";
-  case RTE_FLOW_ACTION_TYPE_DUP:      return "Action DUP is not supported";
   case RTE_FLOW_ACTION_TYPE_PF:       return "Action PF is not supported";
   case RTE_FLOW_ACTION_TYPE_VF:       return "Action VF is not supported";
   default:                            return "Action is UNKNOWN";
@@ -1319,8 +1340,6 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
   struct color_s color = {0, false};
   uint8_t nb_ports = 0;
   uint8_t list_ports[MAX_NTACC_PORTS];
-  uint64_t rss_hf = 0;
-
 
   uint64_t typeMask = 0;
   bool reuse = false;
@@ -1381,21 +1400,16 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
         goto FlowError;
       }
       queueDefined = true;
-      if (rss->num > RTE_ETHDEV_QUEUE_STAT_CNTRS) {
+      if (rss->queue_num > RTE_ETHDEV_QUEUE_STAT_CNTRS) {
         rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, NULL, "Number of RSS queues out of range");
         goto FlowError;
       }
-      for (i = 0; i < rss->num; i++) {
-        if (rss->queue[i] >= RTE_ETHDEV_QUEUE_STAT_CNTRS) {
+      for (i = 0; i < rss->queue_num; i++) {
+        if (rss->queue && rss->queue[i] >= RTE_ETHDEV_QUEUE_STAT_CNTRS) {
           rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, NULL, "RSS queue out of range");
           goto FlowError;
         }
         list_queues[nb_queues++] = rss->queue[i];
-
-        // Set hash mode function
-        if (rss->rss_conf) {
-          rss_hf = rss->rss_conf->rss_hf;
-        }
       }
       break;
     case RTE_FLOW_ACTION_TYPE_QUEUE:
@@ -1459,9 +1473,9 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
         break;
     case RTE_FLOW_ITEM_TYPE_VOID:
       continue;
-    case RTE_FLOW_ITEM_TYPE_PORT:
+    case RTE_FLOW_ITEM_TYPE_PHY_PORT:
       if (nb_ports < MAX_NTACC_PORTS) {
-        const struct rte_flow_item_port *spec = (const struct rte_flow_item_port *)items->spec;
+        const struct rte_flow_item_phy_port *spec = (const struct rte_flow_item_phy_port *)items->spec;
         if (spec->index > internals->nbPortsOnAdapter) {
           rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM, NULL, "Illegal port number in port flow. All port numbers must be from the same adapter");
           goto FlowError;
@@ -1645,9 +1659,9 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
   }
 
   // Create HASH
-  if (rss && rss->rss_conf) {
+  if (rss) {
     // If RSS is used, then set the Hash mode
-    if (CreateHash(&ntpl_buf[strlen(ntpl_buf)], rss_hf, internals, tunnel) != 0) {
+    if (CreateHash(&ntpl_buf[strlen(ntpl_buf)], rss, internals) != 0) {
       rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, NULL, "Failed setting up hash mode");
       goto FlowError;
     }
@@ -1796,17 +1810,61 @@ static int _hash_filter_ctrl(struct rte_eth_dev *dev,
   return ret;
 }
 
+static unsigned int _checkHostbuffers(struct rte_eth_dev *dev, uint8_t queue)
+{
+  int status;
+  struct pmd_internals *internals = dev->data->dev_private;
+  struct ntacc_rx_queue *rx_q;
+  NtNetRx_t rxInfo;
+  NtNetBuf_t pSeg;
+  rx_q = &internals->rxq[queue];
+
+  PMD_NTACC_LOG(DEBUG, "Get dummy segment: Queue %u streamID %u\n", queue, rx_q->stream_id);
+  status = (*_NT_NetRxGet)(rx_q->pNetRx, &pSeg, 1000);
+  if (status == NT_SUCCESS) {
+    PMD_NTACC_LOG(DEBUG, "Discard dummy segment: Queue %u streamID %u\n", queue, rx_q->stream_id);
+    // We got a segment of data. Discard it and release the segment again
+    (*_NT_NetRxRelease)(rx_q->pNetRx, pSeg);
+  }
+
+  rxInfo.cmd = NT_NETRX_READ_CMD_GET_HB_INFO;
+  status = (*_NT_NetRxRead)(rx_q->pNetRx, &rxInfo);
+  if (status != NT_SUCCESS) {
+    PMD_NTACC_LOG(DEBUG, "Failed to run RxRead\n");
+  }
+  PMD_NTACC_LOG(DEBUG, "Host buffers assigned %u: %u, %u\n", queue, rxInfo.u.hbInfo.numAddedHostBuffers, rxInfo.u.hbInfo.numAssignedHostBuffers);
+
+  return rxInfo.u.hbInfo.numAssignedHostBuffers;
+}
+
 static int _dev_flow_isolate(struct rte_eth_dev *dev,
                              int set,
                              struct rte_flow_error *error __rte_unused)
 {
   uint32_t ntplID;
   struct pmd_internals *internals = dev->data->dev_private;
-  int status;
   int i;
+  int counter;
+  bool found;
+  unsigned int assignedHostbuffers[RTE_ETHDEV_QUEUE_STAT_CNTRS];
 
   if (set == 1 && internals->defaultFlow) {
     char ntpl_buf[21];
+
+    // Check that the hostbuffers are assigned and ready
+    counter = 0;
+    found = false;
+    while (counter < 10 && found == false) {
+      for (i = 0; i < internals->defaultFlow->nb_queues; i++) {
+        assignedHostbuffers[i] = _checkHostbuffers(dev, i);
+        if (assignedHostbuffers[i] != 0) {
+          found = true;
+        }
+        counter++;
+      }
+    }
+
+    // Delete the filter
     rte_spinlock_lock(&internals->lock);
     while (!LIST_EMPTY(&internals->defaultFlow->ntpl_id)) {
       struct filter_flow *id;
@@ -1819,19 +1877,18 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
     }
     rte_spinlock_unlock(&internals->lock);
 
-    // Call RxGet in order to activate the delete of the default filter
-    for (i = 0; i < internals->defaultFlow->nb_queues; i++) {
-      NtNetBuf_t pSeg;
-      struct ntacc_rx_queue *rx_q;
-      rx_q = &internals->rxq[internals->defaultFlow->list_queues[i]];
-      PMD_NTACC_LOG(DEBUG, "Get dummy segment: Queue %u streamID %u\n", internals->defaultFlow->list_queues[i], rx_q->stream_id);
-      status = (*_NT_NetRxGet)(rx_q->pNetRx, &pSeg, 0);
-      if (status == NT_SUCCESS) {
-        PMD_NTACC_LOG(DEBUG, "Discard dummy segment: Queue %u streamID %u\n", internals->defaultFlow->list_queues[i], rx_q->stream_id);
-        // We got a segment of data. Discard it and release the segment again
-        (*_NT_NetRxRelease)(rx_q->pNetRx, pSeg);
+    // Check that the hostbuffers are deleted/changed
+    counter = 0;
+    found = false;
+    while (counter < 10 && found == false) {
+      for (i = 0; i < internals->defaultFlow->nb_queues; i++) {
+        if (_checkHostbuffers(dev, i) != assignedHostbuffers[i]) {
+          found = true;
+        }
+        counter++;
       }
     }
+
     rte_spinlock_lock(&internals->lock);
     rte_free(internals->defaultFlow);
     internals->defaultFlow = NULL;
@@ -1872,10 +1929,15 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
       snprintf(ntpl_buf, NTPL_BSIZE, "assign[priority=62;Descriptor=DYN3,length=20,colorbits=14;");
 #endif
       if (internals->rss_hf != 0) {
+        struct rte_flow_action_rss rss;
+        memset(&rss, 0, sizeof(struct rte_flow_action_rss));
         // Set the stream IDs
         CreateStreamid(&ntpl_buf[strlen(ntpl_buf)], internals, nb_queues, list_queues);
         // If RSS is used, then set the Hash mode
-        if (CreateHash(&ntpl_buf[strlen(ntpl_buf)], internals->rss_hf, internals, false) != 0) {
+        rss.types = internals->rss_hf;
+        rss.level = 0;
+        rss.func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+        if (CreateHash(&ntpl_buf[strlen(ntpl_buf)], &rss, internals) != 0) {
           PMD_NTACC_LOG(ERR, "Failed to create hash function eth_dev_start\n");
           goto IsolateError;
         }
@@ -1883,6 +1945,7 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
       else {
         // Set the stream IDs
         CreateStreamid(&ntpl_buf[strlen(ntpl_buf)], internals, 1, list_queues);
+        nb_queues = 1;
       }
 
       // Set the port number
@@ -2218,8 +2281,19 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
     internals->port = offset + localPort;
     internals->local_port = localPort;
     internals->local_port_offset = offset;
-    internals->symHashMode = SYM_HASH_ENA_PER_PORT;
+    internals->symHashMode = SYM_HASH_DIS_PER_PORT;
     internals->fpgaid.value = pInfo->u.port_v7.data.adapterInfo.fpgaid.value;
+
+    // Check timestamp format
+    if (pInfo->u.port_v7.data.adapterInfo.timestampType == NT_TIMESTAMP_TYPE_NATIVE_UNIX) {
+      internals->tsMultiplier = 10;
+    }
+    else if (pInfo->u.port_v7.data.adapterInfo.timestampType == NT_TIMESTAMP_TYPE_UNIX_NANOTIME) {
+      internals->tsMultiplier = 1;
+    }
+    else {
+      internals->tsMultiplier = 0;
+    }
 
     for (i=0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++) {
       internals->rxq[i].stream_id = STREAMIDS_PER_PORT * internals->port + i;
@@ -2279,6 +2353,7 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
     eth_dev->dev_ops = &ops;
     eth_dev->rx_pkt_burst = eth_ntacc_rx;
     eth_dev->tx_pkt_burst = eth_ntacc_tx;
+    eth_dev->state = RTE_ETH_DEV_ATTACHED;
 
   #ifndef USE_SW_STAT
     /* Open the stat stream */
@@ -2457,6 +2532,11 @@ static int _nt_lib_open(void)
     fprintf(stderr, "Failed to find \"NT_NetTxGet\" in %s\n", path);
     return -1;
   }
+  _NT_NetRxRead = dlsym(_libnt, "NT_NetRxRead");
+  if (_NT_NetRxRead == NULL) {
+    fprintf(stderr, "Failed to find \"NT_NetRxRead\" in %s\n", path);
+    return -1;
+  }
 
   return 0;
 }
@@ -2466,7 +2546,7 @@ static int rte_pmd_ntacc_dev_probe(struct rte_pci_driver *drv __rte_unused, stru
   int ret = 0;
   struct rte_kvargs *kvlist;
   unsigned int i;
-  uint32_t mask=0xF;
+  uint32_t mask=0xFF;
 
   char ntplStr[MAX_NTPL_NAME] = { 0 };
 
@@ -2561,6 +2641,9 @@ static const struct rte_pci_id ntacc_pci_id_map[] = {
   {
     RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT100E3)
   },
+  {
+    RTE_PCI_DEVICE(PCI_VENDOR_ID_INTEL,PCIE_DEVICE_ID_PF_DSC_1_X) // Intel AFU adapter
+  },
 	{
 		.vendor_id = 0
 	}
@@ -2580,13 +2663,14 @@ static struct rte_pci_driver ntacc_driver = {
 RTE_INIT(rte_ntacc_pmd_init);
 static void rte_ntacc_pmd_init(void)
 {
-	rte_pci_register(&ntacc_driver);
 	ntacc_logtype = rte_log_register("pmd.net.ntacc");
 	if (ntacc_logtype >= 0)
 		rte_log_set_level(ntacc_logtype, RTE_LOG_NOTICE);
 }
 
-RTE_PMD_EXPORT_NAME(net_ntacc, __COUNTER__);
+RTE_PMD_REGISTER_PCI(net_ntacc, ntacc_driver);
 RTE_PMD_REGISTER_PCI_TABLE(net_ntacc, ntacc_pci_id_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_ntacc, "* nt3gd");
+
+
 

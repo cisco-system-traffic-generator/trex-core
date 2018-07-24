@@ -1,34 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   Copyright(c) 2014 6WIND S.A.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation.
+ * Copyright(c) 2014 6WIND S.A.
  */
 
 #include <stdlib.h>
@@ -55,8 +27,12 @@
 #include "eal_internal_cfg.h"
 #include "eal_options.h"
 #include "eal_filesystem.h"
+#include "eal_private.h"
 
 #define BITS_PER_HEX 4
+#define LCORE_OPT_LST 1
+#define LCORE_OPT_MSK 2
+#define LCORE_OPT_MAP 3
 
 const char
 eal_short_options[] =
@@ -98,6 +74,8 @@ eal_long_options[] = {
 	{OPT_VDEV,              1, NULL, OPT_VDEV_NUM             },
 	{OPT_VFIO_INTR,         1, NULL, OPT_VFIO_INTR_NUM        },
 	{OPT_VMWARE_TSC_MAP,    0, NULL, OPT_VMWARE_TSC_MAP_NUM   },
+	{OPT_LEGACY_MEM,        0, NULL, OPT_LEGACY_MEM_NUM       },
+	{OPT_SINGLE_FILE_SEGMENTS, 0, NULL, OPT_SINGLE_FILE_SEGMENTS_NUM},
 	{0,                     0, NULL, 0                        }
 };
 
@@ -176,7 +154,7 @@ eal_option_device_parse(void)
 
 	TAILQ_FOREACH_SAFE(devopt, &devopt_list, next, tmp) {
 		if (ret == 0) {
-			ret = rte_eal_devargs_add(devopt->type, devopt->arg);
+			ret = rte_devargs_add(devopt->type, devopt->arg);
 			if (ret)
 				RTE_LOG(ERR, EAL, "Unable to parse device '%s'\n",
 					devopt->arg);
@@ -202,8 +180,11 @@ eal_reset_internal_config(struct internal_config *internal_cfg)
 	for (i = 0; i < RTE_MAX_NUMA_NODES; i++)
 		internal_cfg->socket_mem[i] = 0;
 	/* zero out hugedir descriptors */
-	for (i = 0; i < MAX_HUGEPAGE_SIZES; i++)
+	for (i = 0; i < MAX_HUGEPAGE_SIZES; i++) {
+		memset(&internal_cfg->hugepage_info[i], 0,
+				sizeof(internal_cfg->hugepage_info[0]));
 		internal_cfg->hugepage_info[i].lock_descriptor = -1;
+	}
 	internal_cfg->base_virtaddr = 0;
 
 	internal_cfg->syslog_facility = LOG_DAEMON;
@@ -218,7 +199,8 @@ eal_reset_internal_config(struct internal_config *internal_cfg)
 #endif
 	internal_cfg->vmware_tsc_map = 0;
 	internal_cfg->create_uio_dev = 0;
-	internal_cfg->mbuf_pool_ops_name = RTE_MBUF_DEFAULT_MEMPOOL_OPS;
+	internal_cfg->user_mbuf_pool_ops_name = NULL;
+	internal_cfg->init_complete = 0;
 }
 
 static int
@@ -900,7 +882,7 @@ static int
 eal_parse_syslog(const char *facility, struct internal_config *conf)
 {
 	int i;
-	static struct {
+	static const struct {
 		const char *name;
 		int value;
 	} map[] = {
@@ -936,41 +918,90 @@ eal_parse_syslog(const char *facility, struct internal_config *conf)
 }
 
 static int
+eal_parse_log_priority(const char *level)
+{
+	static const char * const levels[] = {
+		[RTE_LOG_EMERG]   = "emergency",
+		[RTE_LOG_ALERT]   = "alert",
+		[RTE_LOG_CRIT]    = "critical",
+		[RTE_LOG_ERR]     = "error",
+		[RTE_LOG_WARNING] = "warning",
+		[RTE_LOG_NOTICE]  = "notice",
+		[RTE_LOG_INFO]    = "info",
+		[RTE_LOG_DEBUG]   = "debug",
+	};
+	size_t len = strlen(level);
+	unsigned long tmp;
+	char *end;
+	unsigned int i;
+
+	if (len == 0)
+		return -1;
+
+	/* look for named values, skip 0 which is not a valid level */
+	for (i = 1; i < RTE_DIM(levels); i++) {
+		if (strncmp(levels[i], level, len) == 0)
+			return i;
+	}
+
+	/* not a string, maybe it is numeric */
+	errno = 0;
+	tmp = strtoul(level, &end, 0);
+
+	/* check for errors */
+	if (errno != 0 || end == NULL || *end != '\0' ||
+	    tmp >= UINT32_MAX)
+		return -1;
+
+	return tmp;
+}
+
+static int
 eal_parse_log_level(const char *arg)
 {
-	char *end, *str, *type, *level;
-	unsigned long tmp;
+	const char *pattern = NULL;
+	const char *regex = NULL;
+	char *str, *level;
+	int priority;
 
 	str = strdup(arg);
 	if (str == NULL)
 		return -1;
 
-	if (strchr(str, ',') == NULL) {
-		type = NULL;
-		level = str;
+	if ((level = strchr(str, ','))) {
+		regex = str;
+		*level++ = '\0';
+	} else if ((level = strchr(str, ':'))) {
+		pattern = str;
+		*level++ = '\0';
 	} else {
-		type = strsep(&str, ",");
-		level = strsep(&str, ",");
+		level = str;
 	}
 
-	errno = 0;
-	tmp = strtoul(level, &end, 0);
-
-	/* check for errors */
-	if ((errno != 0) || (level[0] == '\0') ||
-		    end == NULL || (*end != '\0'))
+	priority = eal_parse_log_priority(level);
+	if (priority < 0) {
+		fprintf(stderr, "invalid log priority: %s\n", level);
 		goto fail;
+	}
 
-	/* log_level is a uint32_t */
-	if (tmp >= UINT32_MAX)
-		goto fail;
-
-	if (type == NULL) {
-		rte_log_set_global_level(tmp);
-	} else if (rte_log_set_level_regexp(type, tmp) < 0) {
-		printf("cannot set log level %s,%lu\n",
-			type, tmp);
-		goto fail;
+	if (regex) {
+		if (rte_log_set_level_regexp(regex, priority) < 0) {
+			fprintf(stderr, "cannot set log level %s,%d\n",
+				pattern, priority);
+			goto fail;
+		}
+		if (rte_log_save_regexp(regex, priority) < 0)
+			goto fail;
+	} else if (pattern) {
+		if (rte_log_set_level_pattern(pattern, priority) < 0) {
+			fprintf(stderr, "cannot set log level %s:%d\n",
+				pattern, priority);
+			goto fail;
+		}
+		if (rte_log_save_pattern(pattern, priority) < 0)
+			goto fail;
+	} else {
+		rte_log_set_global_level(priority);
 	}
 
 	free(str);
@@ -1028,7 +1059,16 @@ eal_parse_common_option(int opt, const char *optarg,
 			RTE_LOG(ERR, EAL, "invalid coremask\n");
 			return -1;
 		}
-		core_parsed = 1;
+
+		if (core_parsed) {
+			RTE_LOG(ERR, EAL, "Option -c is ignored, because (%s) is set!\n",
+				(core_parsed == LCORE_OPT_LST) ? "-l" :
+				(core_parsed == LCORE_OPT_MAP) ? "--lcore" :
+				"-c");
+			return -1;
+		}
+
+		core_parsed = LCORE_OPT_MSK;
 		break;
 	/* corelist */
 	case 'l':
@@ -1036,7 +1076,16 @@ eal_parse_common_option(int opt, const char *optarg,
 			RTE_LOG(ERR, EAL, "invalid core list\n");
 			return -1;
 		}
-		core_parsed = 1;
+
+		if (core_parsed) {
+			RTE_LOG(ERR, EAL, "Option -l is ignored, because (%s) is set!\n",
+				(core_parsed == LCORE_OPT_MSK) ? "-c" :
+				(core_parsed == LCORE_OPT_MAP) ? "--lcore" :
+				"-l");
+			return -1;
+		}
+
+		core_parsed = LCORE_OPT_LST;
 		break;
 	/* service coremask */
 	case 's':
@@ -1096,6 +1145,8 @@ eal_parse_common_option(int opt, const char *optarg,
 
 	case OPT_NO_HUGE_NUM:
 		conf->no_hugetlbfs = 1;
+		/* no-huge is legacy mem */
+		conf->legacy_mem = 1;
 		break;
 
 	case OPT_NO_PCI_NUM:
@@ -1156,7 +1207,22 @@ eal_parse_common_option(int opt, const char *optarg,
 				OPT_LCORES "\n");
 			return -1;
 		}
-		core_parsed = 1;
+
+		if (core_parsed) {
+			RTE_LOG(ERR, EAL, "Option --lcore is ignored, because (%s) is set!\n",
+				(core_parsed == LCORE_OPT_LST) ? "-l" :
+				(core_parsed == LCORE_OPT_MSK) ? "-c" :
+				"--lcore");
+			return -1;
+		}
+
+		core_parsed = LCORE_OPT_MAP;
+		break;
+	case OPT_LEGACY_MEM_NUM:
+		conf->legacy_mem = 1;
+		break;
+	case OPT_SINGLE_FILE_SEGMENTS_NUM:
+		conf->single_file_segments = 1;
 		break;
 
 	/* don't know what to do, leave this to caller */
@@ -1300,7 +1366,7 @@ eal_common_usage(void)
 	       "  --"OPT_PROC_TYPE"         Type of this process (primary|secondary|auto)\n"
 	       "  --"OPT_SYSLOG"            Set syslog facility\n"
 	       "  --"OPT_LOG_LEVEL"=<int>   Set global log level\n"
-	       "  --"OPT_LOG_LEVEL"=<type-regexp>,<int>\n"
+	       "  --"OPT_LOG_LEVEL"=<type-match>:<int>\n"
 	       "                      Set specific log level\n"
 	       "  -v                  Display version information on startup\n"
 	       "  -h, --help          This help\n"

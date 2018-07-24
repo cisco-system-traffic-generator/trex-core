@@ -1,34 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright 2017 6WIND S.A.
- *   Copyright 2017 Mellanox.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2017 6WIND S.A.
+ * Copyright 2017 Mellanox Technologies, Ltd
  */
 
 #include <assert.h>
@@ -70,8 +42,6 @@
 /**
  * Count the number of packets having same ol_flags and calculate cs_flags.
  *
- * @param txq
- *   Pointer to TX queue structure.
  * @param pkts
  *   Pointer to array of packets.
  * @param pkts_n
@@ -83,8 +53,7 @@
  *   Number of packets having same ol_flags.
  */
 static inline unsigned int
-txq_calc_offload(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
-		 uint16_t pkts_n, uint8_t *cs_flags)
+txq_calc_offload(struct rte_mbuf **pkts, uint16_t pkts_n, uint8_t *cs_flags)
 {
 	unsigned int pos;
 	const uint64_t ol_mask =
@@ -98,24 +67,7 @@ txq_calc_offload(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 	for (pos = 1; pos < pkts_n; ++pos)
 		if ((pkts[pos]->ol_flags ^ pkts[0]->ol_flags) & ol_mask)
 			break;
-	/* Should open another MPW session for the rest. */
-	if (pkts[0]->ol_flags &
-	    (PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM)) {
-		const uint64_t is_tunneled =
-			pkts[0]->ol_flags &
-			(PKT_TX_TUNNEL_GRE |
-			 PKT_TX_TUNNEL_VXLAN);
-
-		if (is_tunneled && txq->tunnel_en) {
-			*cs_flags = MLX5_ETH_WQE_L3_INNER_CSUM |
-				    MLX5_ETH_WQE_L4_INNER_CSUM;
-			if (pkts[0]->ol_flags & PKT_TX_OUTER_IP_CKSUM)
-				*cs_flags |= MLX5_ETH_WQE_L3_CSUM;
-		} else {
-			*cs_flags = MLX5_ETH_WQE_L3_CSUM |
-				    MLX5_ETH_WQE_L4_CSUM;
-		}
-	}
+	*cs_flags = txq_ol_cksum_to_cs(pkts[0]);
 	return pos;
 }
 
@@ -177,16 +129,16 @@ mlx5_tx_burst_vec(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		uint16_t ret;
 
 		/* Transmit multi-seg packets in the head of pkts list. */
-		if (!(txq->flags & ETH_TXQ_FLAGS_NOMULTSEGS) &&
+		if ((txq->offloads & DEV_TX_OFFLOAD_MULTI_SEGS) &&
 		    NB_SEGS(pkts[nb_tx]) > 1)
 			nb_tx += txq_scatter_v(txq,
 					       &pkts[nb_tx],
 					       pkts_n - nb_tx);
 		n = RTE_MIN((uint16_t)(pkts_n - nb_tx), MLX5_VPMD_TX_MAX_BURST);
-		if (!(txq->flags & ETH_TXQ_FLAGS_NOMULTSEGS))
+		if (txq->offloads & DEV_TX_OFFLOAD_MULTI_SEGS)
 			n = txq_count_contig_single_seg(&pkts[nb_tx], n);
-		if (!(txq->flags & ETH_TXQ_FLAGS_NOOFFLOADS))
-			n = txq_calc_offload(txq, &pkts[nb_tx], n, &cs_flags);
+		if (txq->offloads & MLX5_VEC_TX_CKSUM_OFFLOAD_CAP)
+			n = txq_calc_offload(&pkts[nb_tx], n, &cs_flags);
 		ret = txq_burst_v(txq, &pkts[nb_tx], n, cs_flags);
 		nb_tx += ret;
 		if (!ret)
@@ -236,7 +188,6 @@ rxq_handle_pending_error(struct mlx5_rxq_data *rxq, struct rte_mbuf **pkts,
 	rxq->stats.ipackets -= (pkts_n - n);
 	rxq->stats.ibytes -= err_bytes;
 #endif
-	rxq->pending_err = 0;
 	return n;
 }
 
@@ -258,9 +209,10 @@ mlx5_rx_burst_vec(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 {
 	struct mlx5_rxq_data *rxq = dpdk_rxq;
 	uint16_t nb_rx;
+	uint64_t err = 0;
 
-	nb_rx = rxq_burst_v(rxq, pkts, pkts_n);
-	if (unlikely(rxq->pending_err))
+	nb_rx = rxq_burst_v(rxq, pkts, pkts_n, &err);
+	if (unlikely(err))
 		nb_rx = rxq_handle_pending_error(rxq, pkts, nb_rx);
 	return nb_rx;
 }
@@ -268,26 +220,19 @@ mlx5_rx_burst_vec(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 /**
  * Check Tx queue flags are set for raw vectorized Tx.
  *
- * @param priv
- *   Pointer to private structure.
+ * @param dev
+ *   Pointer to Ethernet device.
  *
  * @return
  *   1 if supported, negative errno value if not.
  */
 int __attribute__((cold))
-priv_check_raw_vec_tx_support(struct priv *priv)
+mlx5_check_raw_vec_tx_support(struct rte_eth_dev *dev)
 {
-	uint16_t i;
+	uint64_t offloads = dev->data->dev_conf.txmode.offloads;
 
-	/* All the configured queues should support. */
-	for (i = 0; i < priv->txqs_n; ++i) {
-		struct mlx5_txq_data *txq = (*priv->txqs)[i];
-
-		if (!(txq->flags & ETH_TXQ_FLAGS_NOMULTSEGS) ||
-		    !(txq->flags & ETH_TXQ_FLAGS_NOOFFLOADS))
-			break;
-	}
-	if (i != priv->txqs_n)
+	/* Doesn't support any offload. */
+	if (offloads)
 		return -ENOTSUP;
 	return 1;
 }
@@ -295,19 +240,22 @@ priv_check_raw_vec_tx_support(struct priv *priv)
 /**
  * Check a device can support vectorized TX.
  *
- * @param priv
- *   Pointer to private structure.
+ * @param dev
+ *   Pointer to Ethernet device.
  *
  * @return
  *   1 if supported, negative errno value if not.
  */
 int __attribute__((cold))
-priv_check_vec_tx_support(struct priv *priv)
+mlx5_check_vec_tx_support(struct rte_eth_dev *dev)
 {
-	if (!priv->tx_vec_en ||
+	struct priv *priv = dev->data->dev_private;
+	uint64_t offloads = dev->data->dev_conf.txmode.offloads;
+
+	if (!priv->config.tx_vec_en ||
 	    priv->txqs_n > MLX5_VPMD_MIN_TXQS ||
-	    priv->mps != MLX5_MPW_ENHANCED ||
-	    priv->tso)
+	    priv->config.mps != MLX5_MPW_ENHANCED ||
+	    offloads & ~MLX5_VEC_TX_OFFLOAD_CAP)
 		return -ENOTSUP;
 	return 1;
 }
@@ -322,12 +270,14 @@ priv_check_vec_tx_support(struct priv *priv)
  *   1 if supported, negative errno value if not.
  */
 int __attribute__((cold))
-rxq_check_vec_support(struct mlx5_rxq_data *rxq)
+mlx5_rxq_check_vec_support(struct mlx5_rxq_data *rxq)
 {
 	struct mlx5_rxq_ctrl *ctrl =
 		container_of(rxq, struct mlx5_rxq_ctrl, rxq);
 
-	if (!ctrl->priv->rx_vec_en || rxq->sges_n != 0)
+	if (mlx5_mprq_enabled(ETH_DEV(ctrl->priv)))
+		return -ENOTSUP;
+	if (!ctrl->priv->config.rx_vec_en || rxq->sges_n != 0)
 		return -ENOTSUP;
 	return 1;
 }
@@ -335,18 +285,21 @@ rxq_check_vec_support(struct mlx5_rxq_data *rxq)
 /**
  * Check a device can support vectorized RX.
  *
- * @param priv
- *   Pointer to private structure.
+ * @param dev
+ *   Pointer to Ethernet device.
  *
  * @return
  *   1 if supported, negative errno value if not.
  */
 int __attribute__((cold))
-priv_check_vec_rx_support(struct priv *priv)
+mlx5_check_vec_rx_support(struct rte_eth_dev *dev)
 {
+	struct priv *priv = dev->data->dev_private;
 	uint16_t i;
 
-	if (!priv->rx_vec_en)
+	if (!priv->config.rx_vec_en)
+		return -ENOTSUP;
+	if (mlx5_mprq_enabled(dev))
 		return -ENOTSUP;
 	/* All the configured queues should support. */
 	for (i = 0; i < priv->rxqs_n; ++i) {
@@ -354,7 +307,7 @@ priv_check_vec_rx_support(struct priv *priv)
 
 		if (!rxq)
 			continue;
-		if (rxq_check_vec_support(rxq) < 0)
+		if (mlx5_rxq_check_vec_support(rxq) < 0)
 			break;
 	}
 	if (i != priv->rxqs_n)

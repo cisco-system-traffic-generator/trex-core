@@ -1,32 +1,6 @@
-/*
- *   Copyright(c) 2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2017 Intel Corporation.
+ * All rights reserved.
  */
 
 #ifndef _RTE_EVENT_ETH_RX_ADAPTER_
@@ -47,7 +21,11 @@
  *
  * The adapter uses a EAL service core function for SW based packet transfer
  * and uses the eventdev PMD functions to configure HW based packet transfer
- * between the ethernet device and the event device.
+ * between the ethernet device and the event device. For SW based packet
+ * transfer, if the mbuf does not have a timestamp set, the adapter adds a
+ * timestamp to the mbuf using rte_get_tsc_cycles(), this provides a more
+ * accurate timestamp as compared to if the application were to set the time
+ * stamp since it avoids event device schedule latency.
  *
  * The ethernet Rx event adapter's functions are:
  *  - rte_event_eth_rx_adapter_create_ext()
@@ -85,7 +63,10 @@
  * rte_event_eth_rx_adapter_service_id_get() function can be used to retrieve
  * the service function ID of the adapter in this case.
  *
- * Note: Interrupt driven receive queues are currently unimplemented.
+ * Note:
+ * 1) Interrupt driven receive queues are currently unimplemented.
+ * 2) Devices created after an instance of rte_event_eth_rx_adapter_create
+ *  should be added to a new instance of the rx adapter.
  */
 
 #ifdef __cplusplus
@@ -321,9 +302,15 @@ int rte_event_eth_rx_adapter_free(uint8_t id);
  * @return
  *  - 0: Success, Receive queue added correctly.
  *  - <0: Error code on failure.
+ *  - (-EIO) device reconfiguration and restart error. The adapter reconfigures
+ *  the event device with an additional port if it is required to use a service
+ *  function for packet transfer from the ethernet device to the event device.
+ *  If the device had been started before this call, this error code indicates
+ *  an error in restart following an error in reconfiguration, i.e., a
+ *  combination of the two error codes.
  */
 int rte_event_eth_rx_adapter_queue_add(uint8_t id,
-			uint8_t eth_dev_id,
+			uint16_t eth_dev_id,
 			int32_t rx_queue_id,
 			const struct rte_event_eth_rx_adapter_queue_conf *conf);
 
@@ -351,7 +338,7 @@ int rte_event_eth_rx_adapter_queue_add(uint8_t id,
  *  - 0: Success, Receive queue deleted correctly.
  *  - <0: Error code on failure.
  */
-int rte_event_eth_rx_adapter_queue_del(uint8_t id, uint8_t eth_dev_id,
+int rte_event_eth_rx_adapter_queue_del(uint8_t id, uint16_t eth_dev_id,
 				       int32_t rx_queue_id);
 
 /**
