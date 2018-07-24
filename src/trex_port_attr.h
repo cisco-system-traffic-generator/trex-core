@@ -41,10 +41,8 @@ public:
 /*    UPDATES    */
     virtual void update_link_status() = 0;
     virtual bool update_link_status_nowait() = 0; // returns true if the status was changed
-    virtual void update_device_info() = 0;
     virtual void reset_xstats() = 0;
-    virtual void update_description() = 0;
-    
+
 /*    GETTERS    */
     virtual bool get_promiscuous() = 0;
     virtual bool get_multicast() = 0;
@@ -56,15 +54,23 @@ public:
     virtual int get_xstats_values(xstats_values_t &xstats_values) = 0;
     virtual int get_xstats_names(xstats_names_t &xstats_names) = 0;
     virtual int get_flow_ctrl(int &mode) = 0;
+    virtual bool has_pci() { return flag_has_pci; }
     virtual bool is_virtual() { return flag_is_virtual; }
     virtual bool is_fc_change_supported() { return flag_is_fc_change_supported; }
     virtual bool is_led_change_supported() { return flag_is_led_change_supported; }
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual bool is_prom_change_supported() { return flag_is_prom_change_supported; }
     virtual const std::string &get_description() { return intf_info_st.description; }
+    virtual int get_numa(void) { return intf_info_st.numa_node; }
+    virtual const std::string& get_pci_addr(void) { return intf_info_st.pci_addr; }
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds) = 0;
     virtual bool is_loopback() const = 0;
-    
+    virtual const struct rte_pci_device* get_pci_dev() const {
+        assert(flag_has_pci);
+        return &m_pci_dev;
+    }
+    virtual const struct rte_eth_dev_info* get_dev_info() const { return &m_dev_info; }
+
     virtual std::string get_rx_filter_mode() const;
 
 /*    SETTERS    */
@@ -86,17 +92,22 @@ public:
     
     uint8_t get_port_id() const {
         return m_port_id;
-    } 
+    }
 
 protected:
+
+    virtual void update_device_info() = 0;
+    virtual void update_description() = 0;
 
     uint8_t                   m_port_id;
     rte_eth_link              m_link;
 
-    struct rte_eth_dev_info   dev_info;
-    
+    struct rte_eth_dev_info   m_dev_info;
+    struct rte_pci_device     m_pci_dev;
+
     rx_filter_mode_e m_rx_filter_mode;
 
+    bool       flag_has_pci;
     bool       flag_is_virtual;
     bool       flag_is_fc_change_supported;
     bool       flag_is_led_change_supported;
@@ -109,7 +120,6 @@ protected:
         int             numa_node;
     }intf_info_st;
 
-    
 };
 
 class DpdkTRexPortAttr : public TRexPortAttr {
@@ -119,7 +129,8 @@ public:
                      uint8_t repid,
                      bool is_virtual, 
                      bool fc_change_allowed,
-                     bool is_prom_allowed) {
+                     bool is_prom_allowed,
+                     bool has_pci) {
 
         m_tvpid = tvpid;
         m_repid = repid;
@@ -127,22 +138,21 @@ public:
 
         m_rx_filter_mode = RX_FILTER_MODE_HW;
 
+        flag_has_pci    = has_pci;
         flag_is_virtual = is_virtual;
         int tmp;
         flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
         flag_is_led_change_supported = (set_led(true) != -ENOTSUP);
         flag_is_link_change_supported = (set_link_up(true) != -ENOTSUP);
         flag_is_prom_change_supported = is_prom_allowed;
-        update_description();
         update_device_info();
+        update_description();
     }
 
 /*    UPDATES    */
     virtual void update_link_status();
     virtual bool update_link_status_nowait(); // returns true if the status was changed
-    virtual void update_device_info();
     virtual void reset_xstats();
-    virtual void update_description();
 
 /*    GETTERS    */
     virtual bool get_promiscuous();
@@ -167,6 +177,10 @@ public:
 /*    DUMPS    */
     virtual void dump_link(FILE *fd);
 
+protected:
+    virtual void update_device_info();
+    virtual void update_description();
+
 private:
     uint8_t         m_tvpid ;
     uint8_t         m_repid ;
@@ -183,8 +197,8 @@ In order to use custom methods of port attributes per driver, need to instantiat
 */
 class DpdkTRexPortAttrMlnx5G : public DpdkTRexPortAttr {
 public:
-    DpdkTRexPortAttrMlnx5G(uint8_t tvpid, 
-                     uint8_t repid, bool is_virtual, bool fc_change_allowed, bool prom_change_allowed) : DpdkTRexPortAttr(tvpid,repid, is_virtual, fc_change_allowed, prom_change_allowed) {}
+    DpdkTRexPortAttrMlnx5G(uint8_t tvpid, uint8_t repid, bool is_virtual, bool fc_change_allowed, bool prom_change_allowed, bool has_pci) :
+                DpdkTRexPortAttr(tvpid, repid, is_virtual, fc_change_allowed, prom_change_allowed, has_pci) {}
     virtual int set_link_up(bool up);
 };
 
@@ -196,6 +210,7 @@ public:
         m_link.link_duplex  = 1;
         m_link.link_autoneg = 0;
         m_link.link_status  = 1;
+        flag_has_pci = false;
         flag_is_virtual = true;
         flag_is_fc_change_supported = false;
         flag_is_led_change_supported = false;
@@ -207,9 +222,7 @@ public:
     /* DUMMY */
     void update_link_status() {}
     bool update_link_status_nowait() { return false; }
-    void update_device_info() {}
     void reset_xstats() {}
-    void update_description() { intf_info_st.description = "Dummy port"; }
     bool get_promiscuous() { return false; }
     bool get_multicast() { return false; }
     void get_hw_src_mac(struct ether_addr *mac_addr) {}
@@ -227,6 +240,13 @@ public:
     int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
     bool is_loopback() const { return false; }
     std::string get_rx_filter_mode() {return "";}
+protected:
+    void update_device_info() {}
+    void update_description() {
+        intf_info_st.pci_addr = "N/A";
+        intf_info_st.description = "Dummy port";
+        intf_info_st.numa_node = -1;
+    }
 };
 
 

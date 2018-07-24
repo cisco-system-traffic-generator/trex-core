@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2015 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2015 Intel Corporation
  */
 
 #include <sys/queue.h>
@@ -40,7 +11,7 @@
 #include <stdarg.h>
 
 #include <rte_ether.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_log.h>
 #include <rte_memzone.h>
 #include <rte_malloc.h>
@@ -95,17 +66,17 @@
 #define I40E_COUNTER_INDEX_FDIR(pf_id)   (0 + (pf_id) * I40E_COUNTER_PF)
 
 #define I40E_FDIR_FLOWS ( \
-	(1 << RTE_ETH_FLOW_FRAG_IPV4) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV4_UDP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV4_TCP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV4_SCTP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) | \
-	(1 << RTE_ETH_FLOW_FRAG_IPV6) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV6_UDP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV6_TCP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV6_SCTP) | \
-	(1 << RTE_ETH_FLOW_NONFRAG_IPV6_OTHER) | \
-	(1 << RTE_ETH_FLOW_L2_PAYLOAD))
+	(1ULL << RTE_ETH_FLOW_FRAG_IPV4) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV4_UDP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV4_TCP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV4_SCTP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV4_OTHER) | \
+	(1ULL << RTE_ETH_FLOW_FRAG_IPV6) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV6_UDP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV6_TCP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV6_SCTP) | \
+	(1ULL << RTE_ETH_FLOW_NONFRAG_IPV6_OTHER) | \
+	(1ULL << RTE_ETH_FLOW_L2_PAYLOAD))
 
 static int i40e_fdir_filter_programming(struct i40e_pf *pf,
 			enum i40e_filter_pctype pctype,
@@ -168,7 +139,6 @@ i40e_fdir_rx_queue_init(struct i40e_rx_queue *rxq)
 
 	rte_wmb();
 	/* Init the RX tail regieter. */
-	I40E_PCI_REG_WRITE(rxq->qrx_tail, 0);
 	I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
 
 	return err;
@@ -534,7 +504,7 @@ i40e_set_flx_pld_cfg(struct i40e_pf *pf,
 {
 	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
 	struct i40e_fdir_flex_pit flex_pit[I40E_MAX_FLXPLD_FIED];
-	uint32_t flx_pit;
+	uint32_t flx_pit, flx_ort;
 	uint16_t num, min_next_off;  /* in words */
 	uint8_t field_idx = 0;
 	uint8_t layer_idx = 0;
@@ -548,9 +518,18 @@ i40e_set_flx_pld_cfg(struct i40e_pf *pf,
 		layer_idx = I40E_FLXPLD_L4_IDX;
 
 	memset(flex_pit, 0, sizeof(flex_pit));
-	num = i40e_srcoff_to_flx_pit(cfg->src_offset, flex_pit);
+	num = RTE_MIN(i40e_srcoff_to_flx_pit(cfg->src_offset, flex_pit),
+		      RTE_DIM(flex_pit));
 
-	for (i = 0; i < RTE_MIN(num, RTE_DIM(flex_pit)); i++) {
+	if (num) {
+		flx_ort = (1 << I40E_GLQF_ORT_FLX_PAYLOAD_SHIFT) |
+			  (num << I40E_GLQF_ORT_FIELD_CNT_SHIFT) |
+			  (layer_idx * I40E_MAX_FLXPLD_FIED);
+		I40E_WRITE_GLB_REG(hw, I40E_GLQF_ORT(33 + layer_idx), flx_ort);
+		i40e_global_cfg_warning(I40E_WARNING_ENA_FLX_PLD);
+	}
+
+	for (i = 0; i < num; i++) {
 		field_idx = layer_idx * I40E_MAX_FLXPLD_FIED + i;
 		/* record the info in fdir structure */
 		pf->fdir.flex_set[field_idx].src_offset =
@@ -670,22 +649,31 @@ i40e_fdir_configure(struct rte_eth_dev *dev)
 		PMD_DRV_LOG(ERR, " invalid configuration arguments.");
 		return -EINVAL;
 	}
-	/* configure flex payload */
-	for (i = 0; i < conf->nb_payloads; i++)
-		i40e_set_flx_pld_cfg(pf, &conf->flex_set[i]);
-	/* configure flex mask*/
-	for (i = 0; i < conf->nb_flexmasks; i++) {
-		if (hw->mac.type == I40E_MAC_X722) {
-			/* get translated pctype value in fd pctype register */
-			pctype = (enum i40e_filter_pctype)i40e_read_rx_ctl(
-				hw, I40E_GLQF_FD_PCTYPES(
-				(int)i40e_flowtype_to_pctype(pf->adapter,
-				conf->flex_mask[i].flow_type)));
-		} else
-			pctype = i40e_flowtype_to_pctype(pf->adapter,
-						conf->flex_mask[i].flow_type);
 
-		i40e_set_flex_mask_on_pctype(pf, pctype, &conf->flex_mask[i]);
+	if (!pf->support_multi_driver) {
+		/* configure flex payload */
+		for (i = 0; i < conf->nb_payloads; i++)
+			i40e_set_flx_pld_cfg(pf, &conf->flex_set[i]);
+		/* configure flex mask*/
+		for (i = 0; i < conf->nb_flexmasks; i++) {
+			if (hw->mac.type == I40E_MAC_X722) {
+				/* get pctype value in fd pctype register */
+				pctype = (enum i40e_filter_pctype)
+					  i40e_read_rx_ctl(hw,
+						I40E_GLQF_FD_PCTYPES(
+						(int)i40e_flowtype_to_pctype(
+						pf->adapter,
+						conf->flex_mask[i].flow_type)));
+			} else {
+				pctype = i40e_flowtype_to_pctype(pf->adapter,
+						  conf->flex_mask[i].flow_type);
+			}
+
+			i40e_set_flex_mask_on_pctype(pf, pctype,
+						     &conf->flex_mask[i]);
+		}
+	} else {
+		PMD_DRV_LOG(ERR, "Not support flexible payload.");
 	}
 
 	return ret;
@@ -770,13 +758,14 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 
 		*ether_type = rte_cpu_to_be_16(ETHER_TYPE_IPv6);
 		ip6->vtc_flow =
-            rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW |
-                     (fdir_input->flow.ipv6_flow.tc <<
-                      I40E_FDIR_IPv6_TC_OFFSET)
-#ifdef TREX_PATCH
-                             | (fdir_input->flow.ipv6_flow.flow_label & 0x000fffff)
+			rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW |
+					 (fdir_input->flow.ipv6_flow.tc <<
+#ifndef TREX_PATCH
+					  I40E_FDIR_IPv6_TC_OFFSET));
+#else
+                      I40E_FDIR_IPv6_TC_OFFSET) |
+                     (fdir_input->flow.ipv6_flow.flow_label & 0x000fffff));
 #endif
-                             );
 		ip6->payload_len =
 			rte_cpu_to_be_16(I40E_FDIR_IPv6_PAYLOAD_LEN);
 		ip6->proto = fdir_input->flow.ipv6_flow.proto ?
@@ -1376,7 +1365,12 @@ i40e_check_fdir_programming_status(struct i40e_rx_queue *rxq)
 		rxq->rx_tail++;
 		if (unlikely(rxq->rx_tail == rxq->nb_rx_desc))
 			rxq->rx_tail = 0;
+		if (rxq->rx_tail == 0)
+			I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
+		else
+			I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->rx_tail - 1);
 	}
+
 	return ret;
 }
 
@@ -1587,14 +1581,13 @@ i40e_flow_add_del_fdir_filter(struct rte_eth_dev *dev,
 /*
 We use same rule at different filters, for example to overcome "stuck counters" issue:
 https://trex-tgn.cisco.com/youtrack/issue/trex-199
- */
+*/
 	if (add && node) {
 		PMD_DRV_LOG(ERR,
 			    "Conflict with existing flow director rules!");
 		return -EINVAL;
 	}
 #endif
-
 
 	if (!add && !node) {
 		PMD_DRV_LOG(ERR,
@@ -1626,8 +1619,15 @@ https://trex-tgn.cisco.com/youtrack/issue/trex-199
 	if (add) {
 		fdir_filter = rte_zmalloc("fdir_filter",
 					  sizeof(*fdir_filter), 0);
+		if (fdir_filter == NULL) {
+			PMD_DRV_LOG(ERR, "Failed to alloc memory.");
+			return -ENOMEM;
+		}
+
 		rte_memcpy(fdir_filter, &check_filter, sizeof(check_filter));
 		ret = i40e_sw_fdir_filter_insert(pf, fdir_filter);
+		if (ret < 0)
+			rte_free(fdir_filter);
 	} else {
 		ret = i40e_sw_fdir_filter_del(pf, &node->fdir.input);
 	}
@@ -1723,15 +1723,15 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 
 	fdirdp->dtype_cmd_cntindex |=
 			rte_cpu_to_le_32(I40E_TXD_FLTR_QW1_CNT_ENA_MASK);
-    fdirdp->dtype_cmd_cntindex |=
+	fdirdp->dtype_cmd_cntindex |=
 #ifdef TREX_PATCH
             rte_cpu_to_le_32((fdir_action->stat_count_index <<
 #else
-            rte_cpu_to_le_32(
-            ((uint32_t)pf->fdir.match_counter_index <<
+			rte_cpu_to_le_32(
+			((uint32_t)pf->fdir.match_counter_index <<
 #endif
-            I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
-            I40E_TXD_FLTR_QW1_CNTINDEX_MASK);
+			I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
+			I40E_TXD_FLTR_QW1_CNTINDEX_MASK);
 
 	fdirdp->fd_id = rte_cpu_to_le_32(filter->soft_id);
 
@@ -2038,6 +2038,7 @@ i40e_fdir_info_get(struct rte_eth_dev *dev, struct rte_eth_fdir_info *fdir)
 	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
 	uint16_t num_flex_set = 0;
 	uint16_t num_flex_mask = 0;
+	uint16_t i;
 
 	if (dev->data->dev_conf.fdir_conf.mode == RTE_FDIR_MODE_PERFECT)
 		fdir->mode = RTE_FDIR_MODE_PERFECT;
@@ -2050,6 +2051,8 @@ i40e_fdir_info_get(struct rte_eth_dev *dev, struct rte_eth_fdir_info *fdir)
 		(uint32_t)hw->func_caps.fd_filters_best_effort;
 	fdir->max_flexpayload = I40E_FDIR_MAX_FLEX_LEN;
 	fdir->flow_types_mask[0] = I40E_FDIR_FLOWS;
+	for (i = 1; i < RTE_FLOW_MASK_ARRAY_SIZE; i++)
+		fdir->flow_types_mask[i] = 0ULL;
 	fdir->flex_payload_unit = sizeof(uint16_t);
 	fdir->flex_bitmask_unit = sizeof(uint16_t);
 	fdir->max_flex_payload_segment_num = I40E_MAX_FLXPLD_FIED;

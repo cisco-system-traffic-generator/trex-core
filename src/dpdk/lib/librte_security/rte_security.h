@@ -52,6 +52,7 @@ extern "C" {
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
+#include <rte_compat.h>
 #include <rte_common.h>
 #include <rte_crypto.h>
 #include <rte_mbuf.h>
@@ -60,7 +61,7 @@ extern "C" {
 
 /** IPSec protocol mode */
 enum rte_security_ipsec_sa_mode {
-	RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT,
+	RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT = 1,
 	/**< IPSec Transport mode */
 	RTE_SECURITY_IPSEC_SA_MODE_TUNNEL,
 	/**< IPSec Tunnel mode */
@@ -68,7 +69,7 @@ enum rte_security_ipsec_sa_mode {
 
 /** IPSec Protocol */
 enum rte_security_ipsec_sa_protocol {
-	RTE_SECURITY_IPSEC_SA_PROTO_AH,
+	RTE_SECURITY_IPSEC_SA_PROTO_AH = 1,
 	/**< AH protocol */
 	RTE_SECURITY_IPSEC_SA_PROTO_ESP,
 	/**< ESP protocol */
@@ -76,7 +77,7 @@ enum rte_security_ipsec_sa_protocol {
 
 /** IPSEC tunnel type */
 enum rte_security_ipsec_tunnel_type {
-	RTE_SECURITY_IPSEC_TUNNEL_IPV4,
+	RTE_SECURITY_IPSEC_TUNNEL_IPV4 = 1,
 	/**< Outer header is IPv4 */
 	RTE_SECURITY_IPSEC_TUNNEL_IPV6,
 	/**< Outer header is IPv6 */
@@ -94,7 +95,7 @@ enum rte_security_ipsec_tunnel_type {
 struct rte_security_ctx {
 	void *device;
 	/**< Crypto/ethernet device attached */
-	struct rte_security_ops *ops;
+	const struct rte_security_ops *ops;
 	/**< Pointer to security ops for the device */
 	uint16_t sess_cnt;
 	/**< Number of sessions attached to this context */
@@ -221,6 +222,8 @@ struct rte_security_ipsec_xform {
 	/**< IPsec SA Mode - transport/tunnel */
 	struct rte_security_ipsec_tunnel_param tunnel;
 	/**< Tunnel parameters, NULL for transport mode */
+	uint64_t esn_soft_limit;
+	/**< ESN for which the overflow event need to be raised */
 };
 
 /**
@@ -228,6 +231,7 @@ struct rte_security_ipsec_xform {
  */
 struct rte_security_macsec_xform {
 	/** To be Filled */
+	int dummy;
 };
 
 /**
@@ -252,7 +256,7 @@ enum rte_security_session_action_type {
 
 /** Security session protocol definition */
 enum rte_security_session_protocol {
-	RTE_SECURITY_PROTOCOL_IPSEC,
+	RTE_SECURITY_PROTOCOL_IPSEC = 1,
 	/**< IPsec Protocol */
 	RTE_SECURITY_PROTOCOL_MACSEC,
 	/**< MACSec Protocol */
@@ -274,6 +278,8 @@ struct rte_security_session_conf {
 	/**< Configuration parameters for security session */
 	struct rte_crypto_sym_xform *crypto_xform;
 	/**< Security Session Crypto Transformations */
+	void *userdata;
+	/**< Application specific userdata to be saved with session */
 };
 
 struct rte_security_session {
@@ -291,7 +297,7 @@ struct rte_security_session {
  *  - On success, pointer to session
  *  - On failure, NULL
  */
-struct rte_security_session *
+struct rte_security_session * __rte_experimental
 rte_security_session_create(struct rte_security_ctx *instance,
 			    struct rte_security_session_conf *conf,
 			    struct rte_mempool *mp);
@@ -306,10 +312,22 @@ rte_security_session_create(struct rte_security_ctx *instance,
  *  - On success returns 0
  *  - On failure return errno
  */
-int
+int __rte_experimental
 rte_security_session_update(struct rte_security_ctx *instance,
 			    struct rte_security_session *sess,
 			    struct rte_security_session_conf *conf);
+
+/**
+ * Get the size of the security session data for a device.
+ *
+ * @param   instance	security instance.
+ *
+ * @return
+ *   - Size of the private data, if successful
+ *   - 0 if device is invalid or does not support the operation.
+ */
+unsigned int __rte_experimental
+rte_security_session_get_size(struct rte_security_ctx *instance);
 
 /**
  * Free security session header and the session private data and
@@ -323,7 +341,7 @@ rte_security_session_update(struct rte_security_ctx *instance,
  *  - -EINVAL if session is NULL.
  *  - -EBUSY if not all device private data has been freed.
  */
-int
+int __rte_experimental
 rte_security_session_destroy(struct rte_security_ctx *instance,
 			     struct rte_security_session *sess);
 
@@ -340,10 +358,30 @@ rte_security_session_destroy(struct rte_security_ctx *instance,
  *  - On success, zero.
  *  - On failure, a negative value.
  */
-int
+int __rte_experimental
 rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
 			      struct rte_security_session *sess,
 			      struct rte_mbuf *mb, void *params);
+
+/**
+ * Get userdata associated with the security session. Device specific metadata
+ * provided would be used to uniquely identify the security session being
+ * referred to. This userdata would be registered while creating the session,
+ * and application can use this to identify the SA etc.
+ *
+ * Device specific metadata would be set in mbuf for inline processed inbound
+ * packets. In addition, the same metadata would be set for IPsec events
+ * reported by rte_eth_event framework.
+ *
+ * @param   instance	security instance
+ * @param   md		device-specific metadata
+ *
+ * @return
+ *  - On success, userdata
+ *  - On failure, NULL
+ */
+void * __rte_experimental
+rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md);
 
 /**
  * Attach a session to a symmetric crypto operation
@@ -351,7 +389,7 @@ rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
  * @param	sym_op	crypto operation
  * @param	sess	security session
  */
-static inline int
+static inline int __rte_experimental
 __rte_security_attach_session(struct rte_crypto_sym_op *sym_op,
 			      struct rte_security_session *sess)
 {
@@ -360,13 +398,13 @@ __rte_security_attach_session(struct rte_crypto_sym_op *sym_op,
 	return 0;
 }
 
-static inline void *
+static inline void * __rte_experimental
 get_sec_session_private_data(const struct rte_security_session *sess)
 {
 	return sess->sess_private_data;
 }
 
-static inline void
+static inline void __rte_experimental
 set_sec_session_private_data(struct rte_security_session *sess,
 			     void *private_data)
 {
@@ -382,7 +420,7 @@ set_sec_session_private_data(struct rte_security_session *sess,
  * @param	op	crypto operation
  * @param	sess	security session
  */
-static inline int
+static inline int __rte_experimental
 rte_security_attach_session(struct rte_crypto_op *op,
 			    struct rte_security_session *sess)
 {
@@ -424,7 +462,7 @@ struct rte_security_stats {
  *  - On success return 0
  *  - On failure errno
  */
-int
+int __rte_experimental
 rte_security_session_stats_get(struct rte_security_ctx *instance,
 			       struct rte_security_session *sess,
 			       struct rte_security_stats *stats);
@@ -452,6 +490,7 @@ struct rte_security_capability {
 		/**< IPsec capability */
 		struct {
 			/* To be Filled */
+			int dummy;
 		} macsec;
 		/**< MACsec capability */
 	};
@@ -507,7 +546,7 @@ struct rte_security_capability_idx {
  *   - Returns array of security capabilities.
  *   - Return NULL if no capabilities available.
  */
-const struct rte_security_capability *
+const struct rte_security_capability * __rte_experimental
 rte_security_capabilities_get(struct rte_security_ctx *instance);
 
 /**
@@ -521,7 +560,7 @@ rte_security_capabilities_get(struct rte_security_ctx *instance);
  *     index criteria.
  *   - Return NULL if the capability not matched on security instance.
  */
-const struct rte_security_capability *
+const struct rte_security_capability * __rte_experimental
 rte_security_capability_get(struct rte_security_ctx *instance,
 			    struct rte_security_capability_idx *idx);
 

@@ -1,31 +1,7 @@
-/*
- * Copyright (c) 2009-2016 Solarflare Communications Inc.
+/* SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright (c) 2009-2018 Solarflare Communications Inc.
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation are
- * those of the authors and should not be interpreted as representing official
- * policies, either expressed or implied, of the FreeBSD Project.
  */
 
 #include "efx.h"
@@ -157,6 +133,12 @@ static const struct mcdi_sensor_map_s {
 	STAT(Px, CONTROLLER_TDIODE_TEMP), /* 0x4e CONTROLLER_TDIODE_TEMP */
 	STAT(Px, BOARD_FRONT_TEMP),	/* 0x4f BOARD_FRONT_TEMP */
 	STAT(Px, BOARD_BACK_TEMP),	/* 0x50 BOARD_BACK_TEMP */
+	STAT(Px, I1V8),			/* 0x51 IN_I1V8 */
+	STAT(Px, I2V5),			/* 0x52 IN_I2V5 */
+	STAT(Px, I3V3),			/* 0x53 IN_I3V3 */
+	STAT(Px, I12V0),		/* 0x54 IN_I12V0 */
+	STAT(Px, 1_3V),			/* 0x55 IN_1V3 */
+	STAT(Px, I1V3),			/* 0x56 IN_I1V3 */
 };
 
 #define	MCDI_STATIC_SENSOR_ASSERT(_field)				\
@@ -262,7 +244,6 @@ mcdi_mon_ev(
 	__out				efx_mon_stat_value_t *valuep)
 {
 	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
-	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
 	uint16_t port_mask;
 	uint16_t sensor;
 	uint16_t state;
@@ -278,11 +259,13 @@ mcdi_mon_ev(
 	value = (uint16_t)MCDI_EV_FIELD(eqp, SENSOREVT_VALUE);
 
 	/* Hardware must support this MCDI sensor */
-	EFSYS_ASSERT3U(sensor, <, (8 * encp->enc_mcdi_sensor_mask_size));
+	EFSYS_ASSERT3U(sensor, <,
+	    (8 * enp->en_nic_cfg.enc_mcdi_sensor_mask_size));
 	EFSYS_ASSERT((sensor % MCDI_MON_PAGE_SIZE) != MC_CMD_SENSOR_PAGE0_NEXT);
-	EFSYS_ASSERT(encp->enc_mcdi_sensor_maskp != NULL);
-	EFSYS_ASSERT((encp->enc_mcdi_sensor_maskp[sensor / MCDI_MON_PAGE_SIZE] &
-		(1U << (sensor % MCDI_MON_PAGE_SIZE))) != 0);
+	EFSYS_ASSERT(enp->en_nic_cfg.enc_mcdi_sensor_maskp != NULL);
+	EFSYS_ASSERT(
+	    (enp->en_nic_cfg.enc_mcdi_sensor_maskp[sensor/MCDI_MON_PAGE_SIZE] &
+	    (1U << (sensor % MCDI_MON_PAGE_SIZE))) != 0);
 
 	/* But we don't have to understand it */
 	if (sensor >= EFX_ARRAY_SIZE(mcdi_sensor_map)) {
@@ -393,6 +376,11 @@ efx_mcdi_sensor_info(
 
 	EFSYS_ASSERT(sensor_maskp != NULL);
 
+	if (npages < 1) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
 	for (page = 0; page < npages; page++) {
 		uint32_t mask;
 
@@ -409,7 +397,7 @@ efx_mcdi_sensor_info(
 
 		if (req.emr_rc != 0) {
 			rc = req.emr_rc;
-			goto fail1;
+			goto fail2;
 		}
 
 		mask = MCDI_OUT_DWORD(req, SENSOR_INFO_OUT_MASK);
@@ -417,18 +405,20 @@ efx_mcdi_sensor_info(
 		if ((page != (npages - 1)) &&
 		    ((mask & (1U << MC_CMD_SENSOR_PAGE0_NEXT)) == 0)) {
 			rc = EINVAL;
-			goto fail2;
+			goto fail3;
 		}
 		sensor_maskp[page] = mask;
 	}
 
 	if (sensor_maskp[npages - 1] & (1U << MC_CMD_SENSOR_PAGE0_NEXT)) {
 		rc = EINVAL;
-		goto fail3;
+		goto fail4;
 	}
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
@@ -488,6 +478,11 @@ mcdi_mon_cfg_build(
 #endif
 #if EFSYS_OPT_MEDFORD
 	case EFX_FAMILY_MEDFORD:
+		encp->enc_mon_type = EFX_MON_SFC92X0;
+		break;
+#endif
+#if EFSYS_OPT_MEDFORD2
+	case EFX_FAMILY_MEDFORD2:
 		encp->enc_mon_type = EFX_MON_SFC92X0;
 		break;
 #endif

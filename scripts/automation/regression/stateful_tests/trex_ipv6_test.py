@@ -39,7 +39,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
             f = 'avl/sfr_delay_10_1g.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -77,7 +77,7 @@ class CTRexIPv6_Test(CTRexGeneral_Test):
             f = 'avl/sfr_delay_10_1g.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'

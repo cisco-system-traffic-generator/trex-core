@@ -46,6 +46,7 @@ extern "C" {
 
 #include <string.h>
 
+#include <rte_config.h>
 #include <rte_dev.h>
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
@@ -389,7 +390,7 @@ struct rte_cryptodev_ops {
 	/**< Clear a Crypto sessions private data. */
 	cryptodev_sym_queue_pair_attach_session_t qp_attach_session;
 	/**< Attach session to queue pair. */
-	cryptodev_sym_queue_pair_attach_session_t qp_detach_session;
+	cryptodev_sym_queue_pair_detach_session_t qp_detach_session;
 	/**< Detach session from queue pair. */
 };
 
@@ -518,7 +519,7 @@ uint8_t rte_cryptodev_allocate_driver(struct cryptodev_driver *crypto_drv,
 RTE_INIT(init_ ##driver_id);\
 static void init_ ##driver_id(void)\
 {\
-	driver_id = rte_cryptodev_allocate_driver(&crypto_drv, &(drv).driver);\
+	driver_id = rte_cryptodev_allocate_driver(&crypto_drv, &(drv));\
 }
 
 static inline void *

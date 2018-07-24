@@ -35,7 +35,7 @@ class CTRexVlan_Test(CTRexGeneral_Test):#(unittest.TestCase):
             l = 100,
             limit_ports = 4)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
         self.check_general_scenario_results(trex_res, check_latency = True)

@@ -20,7 +20,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
         setup= CTRexScenario.setup_name;
         self.skip_test_trex_522 =False;
-        if ( setup in ['trex19','trex07','trex23']) :
+        if setup in ['trex19','trex07','trex23']:
             self.skip_test_trex_522 =True;
 
 
@@ -51,7 +51,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
     def check_one_counter (self,c,name,val):
         d=c['all']
-        if not (name in d):
+        if name not in d:
             self.fail('counter %s is not in counters ' %(name) )
         if d[name] != val:
             self.fail('counter %s expect %d  value %d  ' %(name,val,d[name]) )
@@ -146,7 +146,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -192,7 +192,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -229,7 +229,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -273,7 +273,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -309,7 +309,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 )
     
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)

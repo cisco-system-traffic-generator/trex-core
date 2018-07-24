@@ -1,37 +1,13 @@
-/*
- * Copyright (c) 2012-2016 Solarflare Communications Inc.
+/* SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright (c) 2012-2018 Solarflare Communications Inc.
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation are
- * those of the authors and should not be interpreted as representing official
- * policies, either expressed or implied, of the FreeBSD Project.
  */
 
 #include "efx.h"
 #include "efx_impl.h"
 
-#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 static			void
 mcdi_phy_decode_cap(
@@ -39,6 +15,32 @@ mcdi_phy_decode_cap(
 	__out		uint32_t *maskp)
 {
 	uint32_t mask;
+
+#define	CHECK_CAP(_cap) \
+	EFX_STATIC_ASSERT(EFX_PHY_CAP_##_cap == MC_CMD_PHY_CAP_##_cap##_LBN)
+
+	CHECK_CAP(10HDX);
+	CHECK_CAP(10FDX);
+	CHECK_CAP(100HDX);
+	CHECK_CAP(100FDX);
+	CHECK_CAP(1000HDX);
+	CHECK_CAP(1000FDX);
+	CHECK_CAP(10000FDX);
+	CHECK_CAP(25000FDX);
+	CHECK_CAP(40000FDX);
+	CHECK_CAP(50000FDX);
+	CHECK_CAP(100000FDX);
+	CHECK_CAP(PAUSE);
+	CHECK_CAP(ASYM);
+	CHECK_CAP(AN);
+	CHECK_CAP(DDM);
+	CHECK_CAP(BASER_FEC);
+	CHECK_CAP(BASER_FEC_REQUESTED);
+	CHECK_CAP(RS_FEC);
+	CHECK_CAP(RS_FEC_REQUESTED);
+	CHECK_CAP(25G_BASER_FEC);
+	CHECK_CAP(25G_BASER_FEC_REQUESTED);
+#undef CHECK_CAP
 
 	mask = 0;
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_10HDX_LBN))
@@ -55,14 +57,37 @@ mcdi_phy_decode_cap(
 		mask |= (1 << EFX_PHY_CAP_1000FDX);
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_10000FDX_LBN))
 		mask |= (1 << EFX_PHY_CAP_10000FDX);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_25000FDX_LBN))
+		mask |= (1 << EFX_PHY_CAP_25000FDX);
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_40000FDX_LBN))
 		mask |= (1 << EFX_PHY_CAP_40000FDX);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_50000FDX_LBN))
+		mask |= (1 << EFX_PHY_CAP_50000FDX);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_100000FDX_LBN))
+		mask |= (1 << EFX_PHY_CAP_100000FDX);
+
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_PAUSE_LBN))
 		mask |= (1 << EFX_PHY_CAP_PAUSE);
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_ASYM_LBN))
 		mask |= (1 << EFX_PHY_CAP_ASYM);
 	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_AN_LBN))
 		mask |= (1 << EFX_PHY_CAP_AN);
+
+	/* FEC caps (supported on Medford2 and later) */
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_BASER_FEC_LBN))
+		mask |= (1 << EFX_PHY_CAP_BASER_FEC);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_BASER_FEC_REQUESTED_LBN))
+		mask |= (1 << EFX_PHY_CAP_BASER_FEC_REQUESTED);
+
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_RS_FEC_LBN))
+		mask |= (1 << EFX_PHY_CAP_RS_FEC);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_RS_FEC_REQUESTED_LBN))
+		mask |= (1 << EFX_PHY_CAP_RS_FEC_REQUESTED);
+
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_25G_BASER_FEC_LBN))
+		mask |= (1 << EFX_PHY_CAP_25G_BASER_FEC);
+	if (mcdi_cap & (1 << MC_CMD_PHY_CAP_25G_BASER_FEC_REQUESTED_LBN))
+		mask |= (1 << EFX_PHY_CAP_25G_BASER_FEC_REQUESTED);
 
 	*maskp = mask;
 }
@@ -85,8 +110,14 @@ mcdi_phy_decode_link_mode(
 
 	if (!up)
 		*link_modep = EFX_LINK_DOWN;
+	else if (speed == 100000 && fd)
+		*link_modep = EFX_LINK_100000FDX;
+	else if (speed == 50000 && fd)
+		*link_modep = EFX_LINK_50000FDX;
 	else if (speed == 40000 && fd)
 		*link_modep = EFX_LINK_40000FDX;
+	else if (speed == 25000 && fd)
+		*link_modep = EFX_LINK_25000FDX;
 	else if (speed == 10000 && fd)
 		*link_modep = EFX_LINK_10000FDX;
 	else if (speed == 1000)
@@ -140,8 +171,17 @@ ef10_phy_link_ev(
 	case MCDI_EVENT_LINKCHANGE_SPEED_10G:
 		speed = 10000;
 		break;
+	case MCDI_EVENT_LINKCHANGE_SPEED_25G:
+		speed = 25000;
+		break;
 	case MCDI_EVENT_LINKCHANGE_SPEED_40G:
 		speed = 40000;
+		break;
+	case MCDI_EVENT_LINKCHANGE_SPEED_50G:
+		speed = 50000;
+		break;
+	case MCDI_EVENT_LINKCHANGE_SPEED_100G:
+		speed = 100000;
 		break;
 	default:
 		speed = 0;
@@ -236,26 +276,10 @@ ef10_phy_get_link(
 			    &elsp->els_link_mode, &elsp->els_fcntl);
 
 #if EFSYS_OPT_LOOPBACK
-	/* Assert the MC_CMD_LOOPBACK and EFX_LOOPBACK namespace agree */
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_NONE == EFX_LOOPBACK_OFF);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_DATA == EFX_LOOPBACK_DATA);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_GMAC == EFX_LOOPBACK_GMAC);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XGMII == EFX_LOOPBACK_XGMII);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XGXS == EFX_LOOPBACK_XGXS);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XAUI == EFX_LOOPBACK_XAUI);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_GMII == EFX_LOOPBACK_GMII);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_SGMII == EFX_LOOPBACK_SGMII);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XGBR == EFX_LOOPBACK_XGBR);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XFI == EFX_LOOPBACK_XFI);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XAUI_FAR == EFX_LOOPBACK_XAUI_FAR);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_GMII_FAR == EFX_LOOPBACK_GMII_FAR);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_SGMII_FAR == EFX_LOOPBACK_SGMII_FAR);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_XFI_FAR == EFX_LOOPBACK_XFI_FAR);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_GPHY == EFX_LOOPBACK_GPHY);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_PHYXS == EFX_LOOPBACK_PHY_XS);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_PCS == EFX_LOOPBACK_PCS);
-	EFX_STATIC_ASSERT(MC_CMD_LOOPBACK_PMAPMD == EFX_LOOPBACK_PMA_PMD);
-
+	/*
+	 * MC_CMD_LOOPBACK and EFX_LOOPBACK names are equivalent, so use the
+	 * MCDI value directly. Agreement is checked in efx_loopback_mask().
+	 */
 	elsp->els_loopback = MCDI_OUT_DWORD(req, GET_LINK_OUT_LOOPBACK_MODE);
 #endif	/* EFSYS_OPT_LOOPBACK */
 
@@ -280,7 +304,9 @@ ef10_phy_reconfigure(
 	uint8_t payload[MAX(MC_CMD_SET_LINK_IN_LEN,
 			    MC_CMD_SET_LINK_OUT_LEN)];
 	uint32_t cap_mask;
+#if EFSYS_OPT_PHY_LED_CONTROL
 	unsigned int led_mode;
+#endif
 	unsigned int speed;
 	boolean_t supported;
 	efx_rc_t rc;
@@ -311,7 +337,32 @@ ef10_phy_reconfigure(
 		PHY_CAP_AN, (cap_mask >> EFX_PHY_CAP_AN) & 0x1);
 	/* Too many fields for for POPULATE macros, so insert this afterwards */
 	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_25000FDX, (cap_mask >> EFX_PHY_CAP_25000FDX) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
 	    PHY_CAP_40000FDX, (cap_mask >> EFX_PHY_CAP_40000FDX) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_50000FDX, (cap_mask >> EFX_PHY_CAP_50000FDX) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_100000FDX, (cap_mask >> EFX_PHY_CAP_100000FDX) & 0x1);
+
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_BASER_FEC, (cap_mask >> EFX_PHY_CAP_BASER_FEC) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_BASER_FEC_REQUESTED,
+	    (cap_mask >> EFX_PHY_CAP_BASER_FEC_REQUESTED) & 0x1);
+
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_RS_FEC, (cap_mask >> EFX_PHY_CAP_RS_FEC) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_RS_FEC_REQUESTED,
+	    (cap_mask >> EFX_PHY_CAP_RS_FEC_REQUESTED) & 0x1);
+
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_25G_BASER_FEC,
+	    (cap_mask >> EFX_PHY_CAP_25G_BASER_FEC) & 0x1);
+	MCDI_IN_SET_DWORD_FIELD(req, SET_LINK_IN_CAP,
+	    PHY_CAP_25G_BASER_FEC_REQUESTED,
+	    (cap_mask >> EFX_PHY_CAP_25G_BASER_FEC_REQUESTED) & 0x1);
 
 #if EFSYS_OPT_LOOPBACK
 	MCDI_IN_SET_DWORD(req, SET_LINK_IN_LOOPBACK_MODE,
@@ -326,8 +377,17 @@ ef10_phy_reconfigure(
 	case EFX_LINK_10000FDX:
 		speed = 10000;
 		break;
+	case EFX_LINK_25000FDX:
+		speed = 25000;
+		break;
 	case EFX_LINK_40000FDX:
 		speed = 40000;
+		break;
+	case EFX_LINK_50000FDX:
+		speed = 50000;
+		break;
+	case EFX_LINK_100000FDX:
+		speed = 100000;
 		break;
 	default:
 		speed = 0;
@@ -628,4 +688,4 @@ ef10_bist_stop(
 
 #endif	/* EFSYS_OPT_BIST */
 
-#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */

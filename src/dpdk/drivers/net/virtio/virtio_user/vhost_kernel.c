@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2016 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2016 Intel Corporation
  */
 
 #include <sys/types.h>
@@ -99,6 +70,32 @@ static uint64_t vhost_req_user_to_kernel[] = {
 	[VHOST_USER_SET_MEM_TABLE] = VHOST_SET_MEM_TABLE,
 };
 
+struct walk_arg {
+	struct vhost_memory_kernel *vm;
+	uint32_t region_nr;
+};
+static int
+add_memory_region(const struct rte_memseg_list *msl __rte_unused,
+		const struct rte_memseg *ms, size_t len, void *arg)
+{
+	struct walk_arg *wa = arg;
+	struct vhost_memory_region *mr;
+	void *start_addr;
+
+	if (wa->region_nr >= max_regions)
+		return -1;
+
+	mr = &wa->vm->regions[wa->region_nr++];
+	start_addr = ms->addr;
+
+	mr->guest_phys_addr = (uint64_t)(uintptr_t)start_addr;
+	mr->userspace_addr = (uint64_t)(uintptr_t)start_addr;
+	mr->memory_size = len;
+	mr->mmap_offset = 0;
+
+	return 0;
+}
+
 /* By default, vhost kernel module allows 64 regions, but DPDK allows
  * 256 segments. As a relief, below function merges those virtually
  * adjacent memsegs into one region.
@@ -106,63 +103,24 @@ static uint64_t vhost_req_user_to_kernel[] = {
 static struct vhost_memory_kernel *
 prepare_vhost_memory_kernel(void)
 {
-	uint32_t i, j, k = 0;
-	struct rte_memseg *seg;
-	struct vhost_memory_region *mr;
 	struct vhost_memory_kernel *vm;
+	struct walk_arg wa;
 
 	vm = malloc(sizeof(struct vhost_memory_kernel) +
-		    max_regions *
-		    sizeof(struct vhost_memory_region));
+			max_regions *
+			sizeof(struct vhost_memory_region));
 	if (!vm)
 		return NULL;
 
-	for (i = 0; i < RTE_MAX_MEMSEG; ++i) {
-		seg = &rte_eal_get_configuration()->mem_config->memseg[i];
-		if (!seg->addr)
-			break;
+	wa.region_nr = 0;
+	wa.vm = vm;
 
-		int new_region = 1;
-
-		for (j = 0; j < k; ++j) {
-			mr = &vm->regions[j];
-
-			if (mr->userspace_addr + mr->memory_size ==
-			    (uint64_t)(uintptr_t)seg->addr) {
-				mr->memory_size += seg->len;
-				new_region = 0;
-				break;
-			}
-
-			if ((uint64_t)(uintptr_t)seg->addr + seg->len ==
-			    mr->userspace_addr) {
-				mr->guest_phys_addr =
-					(uint64_t)(uintptr_t)seg->addr;
-				mr->userspace_addr =
-					(uint64_t)(uintptr_t)seg->addr;
-				mr->memory_size += seg->len;
-				new_region = 0;
-				break;
-			}
-		}
-
-		if (new_region == 0)
-			continue;
-
-		mr = &vm->regions[k++];
-		/* use vaddr here! */
-		mr->guest_phys_addr = (uint64_t)(uintptr_t)seg->addr;
-		mr->userspace_addr = (uint64_t)(uintptr_t)seg->addr;
-		mr->memory_size = seg->len;
-		mr->mmap_offset = 0;
-
-		if (k >= max_regions) {
-			free(vm);
-			return NULL;
-		}
+	if (rte_memseg_contig_walk(add_memory_region, &wa) < 0) {
+		free(vm);
+		return NULL;
 	}
 
-	vm->nregions = k;
+	vm->nregions = wa.region_nr;
 	vm->padding = 0;
 	return vm;
 }
@@ -380,7 +338,8 @@ vhost_kernel_enable_queue_pair(struct virtio_user_dev *dev,
 	else
 		hdr_size = sizeof(struct virtio_net_hdr);
 
-	tapfd = vhost_kernel_open_tap(&dev->ifname, hdr_size, req_mq);
+	tapfd = vhost_kernel_open_tap(&dev->ifname, hdr_size, req_mq,
+			 (char *)dev->mac_addr);
 	if (tapfd < 0) {
 		PMD_DRV_LOG(ERR, "fail to open tap for vhost kernel");
 		return -1;

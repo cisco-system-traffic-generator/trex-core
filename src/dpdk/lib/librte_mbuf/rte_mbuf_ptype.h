@@ -1,35 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation.
- *   Copyright 2014-2016 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2016 Intel Corporation.
+ * Copyright 2014-2016 6WIND S.A.
  */
 
 #ifndef _RTE_MBUF_PTYPE_H_
@@ -152,6 +123,13 @@ extern "C" {
  * <'ether type'=[0x88A8]>
  */
 #define RTE_PTYPE_L2_ETHER_QINQ             0x00000007
+/**
+ * PPPOE packet type.
+ *
+ * Packet format:
+ * <'ether type'=[0x8863|0x8864]>
+ */
+#define RTE_PTYPE_L2_ETHER_PPPOE            0x00000008
 /**
  * Mask of layer 2 packet types.
  * It is used for outer packet for tunneling cases.
@@ -425,6 +403,72 @@ extern "C" {
  * | 'version'=6, 'next header'=51>
  */
 #define RTE_PTYPE_TUNNEL_ESP                0x00009000
+/**
+ * L2TP (Layer 2 Tunneling Protocol) tunnleing packet type.
+ *
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17>
+ * | 'destination port'=1701>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'destination port'=1701>
+ * or,
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=115>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'protocol'=115>
+ */
+#define RTE_PTYPE_TUNNEL_L2TP               0x0000a000
+/**
+ * VXLAN-GPE (VXLAN Generic Protocol Extension) tunneling packet type.
+ *
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17
+ * | 'destination port'=4790>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'destination port'=4790>
+ */
+#define RTE_PTYPE_TUNNEL_VXLAN_GPE          0x0000b000
+/**
+ * MPLS-in-GRE tunneling packet type (RFC 4023).
+ *
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=47
+ * | 'protocol'=0x8847>
+ * or,
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=47
+ * | 'protocol'=0x8848>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'protocol'=47
+ * | 'protocol'=0x8847>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=47
+ * | 'protocol'=0x8848>
+ */
+#define RTE_PTYPE_TUNNEL_MPLS_IN_GRE       0x0000c000
+/**
+ * MPLS-in-UDP tunneling packet type (RFC 7510).
+ *
+ * Packet format:
+ * <'ether type'=0x0800
+ * | 'version'=4, 'protocol'=17
+ * | 'destination port'=6635>
+ * or,
+ * <'ether type'=0x86DD
+ * | 'version'=6, 'next header'=17
+ * | 'destination port'=6635>
+ */
+#define RTE_PTYPE_TUNNEL_MPLS_IN_UDP      0x0000d000
 /**
  * Mask of tunneling packet types.
  */

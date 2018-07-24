@@ -610,7 +610,7 @@ class CTRexWithRouter:
                 nc = True,
                 l = self.trex_params['trex_latency'],
                 limit_ports = self.trex_params['trex_limit_ports'])
-            self.trex.sample_to_run_finish(20)      # collect trex-sample every 20 seconds. 
+            self.trex.sample_until_finish(20)      # collect trex-sample every 20 seconds. 
         except Exception:
             self.sample_thread.do_stop()  # signal to stop
             self.sample_thread.join()     # wait for it to realy stop 

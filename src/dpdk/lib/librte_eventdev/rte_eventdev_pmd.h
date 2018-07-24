@@ -1,32 +1,5 @@
-/*
- *
- *   Copyright(c) 2016 Cavium, Inc. All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Cavium, Inc nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2016 Cavium, Inc
  */
 
 #ifndef _RTE_EVENTDEV_PMD_H_
@@ -47,11 +20,13 @@ extern "C" {
 #include <string.h>
 
 #include <rte_common.h>
+#include <rte_config.h>
 #include <rte_dev.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
 
 #include "rte_eventdev.h"
+#include "rte_event_timer_adapter_pmd.h"
 
 /* Logging Macros */
 #define RTE_EDEV_LOG_ERR(...) \
@@ -76,6 +51,14 @@ extern "C" {
 	} \
 } while (0)
 
+#define RTE_EVENTDEV_VALID_DEVID_OR_ERRNO_RET(dev_id, errno, retval) do { \
+	if (!rte_event_pmd_is_valid_dev((dev_id))) { \
+		RTE_EDEV_LOG_ERR("Invalid dev_id=%d\n", dev_id); \
+		rte_errno = errno; \
+		return retval; \
+	} \
+} while (0)
+
 #define RTE_EVENTDEV_VALID_DEVID_OR_RET(dev_id) do { \
 	if (!rte_event_pmd_is_valid_dev((dev_id))) { \
 		RTE_EDEV_LOG_ERR("Invalid dev_id=%d\n", dev_id); \
@@ -86,6 +69,9 @@ extern "C" {
 #define RTE_EVENT_ETH_RX_ADAPTER_SW_CAP \
 		((RTE_EVENT_ETH_RX_ADAPTER_CAP_OVERRIDE_FLOW_ID) | \
 			(RTE_EVENT_ETH_RX_ADAPTER_CAP_MULTI_EVENTQ))
+
+#define RTE_EVENT_CRYPTO_ADAPTER_SW_CAP \
+		RTE_EVENT_CRYPTO_ADAPTER_CAP_SESSION_PRIVATE_DATA
 
 /**< Ethernet Rx adapter cap to return If the packet transfers from
  * the ethdev to eventdev use a SW service function
@@ -467,6 +453,37 @@ typedef int (*eventdev_eth_rx_adapter_caps_get_t)
 struct rte_event_eth_rx_adapter_queue_conf *queue_conf;
 
 /**
+ * Retrieve the event device's timer adapter capabilities, as well as the ops
+ * structure that an event timer adapter should call through to enter the
+ * driver
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param flags
+ *   Flags that can be used to determine how to select an event timer
+ *   adapter ops structure
+ *
+ * @param[out] caps
+ *   A pointer to memory filled with Rx event adapter capabilities.
+ *
+ * @param[out] ops
+ *   A pointer to the ops pointer to set with the address of the desired ops
+ *   structure
+ *
+ * @return
+ *   - 0: Success, driver provides Rx event adapter capabilities for the
+ *	ethernet device.
+ *   - <0: Error code returned by the driver function.
+ *
+ */
+typedef int (*eventdev_timer_adapter_caps_get_t)(
+				const struct rte_eventdev *dev,
+				uint64_t flags,
+				uint32_t *caps,
+				const struct rte_event_timer_adapter_ops **ops);
+
+/**
  * Add ethernet Rx queues to event device. This callback is invoked if
  * the caps returned from rte_eventdev_eth_rx_adapter_caps_get(, eth_port_id)
  * has RTE_EVENT_ETH_RX_ADAPTER_CAP_INTERNAL_PORT set.
@@ -595,6 +612,182 @@ typedef int (*eventdev_eth_rx_adapter_stats_get)
 typedef int (*eventdev_eth_rx_adapter_stats_reset)
 			(const struct rte_eventdev *dev,
 			const struct rte_eth_dev *eth_dev);
+/**
+ * Start eventdev selftest.
+ *
+ * @return
+ *   Return 0 on success.
+ */
+typedef int (*eventdev_selftest)(void);
+
+
+struct rte_cryptodev;
+
+/**
+ * This API may change without prior notice
+ *
+ * Retrieve the event device's crypto adapter capabilities for the
+ * specified cryptodev
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   cryptodev pointer
+ *
+ * @param[out] caps
+ *   A pointer to memory filled with event adapter capabilities.
+ *   It is expected to be pre-allocated & initialized by caller.
+ *
+ * @return
+ *   - 0: Success, driver provides event adapter capabilities for the
+ *	cryptodev.
+ *   - <0: Error code returned by the driver function.
+ *
+ */
+typedef int (*eventdev_crypto_adapter_caps_get_t)
+					(const struct rte_eventdev *dev,
+					 const struct rte_cryptodev *cdev,
+					 uint32_t *caps);
+
+/**
+ * This API may change without prior notice
+ *
+ * Add crypto queue pair to event device. This callback is invoked if
+ * the caps returned from rte_event_crypto_adapter_caps_get(, cdev_id)
+ * has RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_* set.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   cryptodev pointer
+ *
+ * @param queue_pair_id
+ *   cryptodev queue pair identifier.
+ *
+ * @param event
+ *  Event information required for binding cryptodev queue pair to event queue.
+ *  This structure will have a valid value for only those HW PMDs supporting
+ *  @see RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_QP_EV_BIND capability.
+ *
+ * @return
+ *   - 0: Success, cryptodev queue pair added successfully.
+ *   - <0: Error code returned by the driver function.
+ *
+ */
+typedef int (*eventdev_crypto_adapter_queue_pair_add_t)
+			(const struct rte_eventdev *dev,
+			 const struct rte_cryptodev *cdev,
+			 int32_t queue_pair_id,
+			 const struct rte_event *event);
+
+
+/**
+ * This API may change without prior notice
+ *
+ * Delete crypto queue pair to event device. This callback is invoked if
+ * the caps returned from rte_event_crypto_adapter_caps_get(, cdev_id)
+ * has RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_* set.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   cryptodev pointer
+ *
+ * @param queue_pair_id
+ *   cryptodev queue pair identifier.
+ *
+ * @return
+ *   - 0: Success, cryptodev queue pair deleted successfully.
+ *   - <0: Error code returned by the driver function.
+ *
+ */
+typedef int (*eventdev_crypto_adapter_queue_pair_del_t)
+					(const struct rte_eventdev *dev,
+					 const struct rte_cryptodev *cdev,
+					 int32_t queue_pair_id);
+
+/**
+ * Start crypto adapter. This callback is invoked if
+ * the caps returned from rte_event_crypto_adapter_caps_get(.., cdev_id)
+ * has RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_* set and queue pairs
+ * from cdev_id have been added to the event device.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   Crypto device pointer
+ *
+ * @return
+ *   - 0: Success, crypto adapter started successfully.
+ *   - <0: Error code returned by the driver function.
+ */
+typedef int (*eventdev_crypto_adapter_start_t)
+					(const struct rte_eventdev *dev,
+					 const struct rte_cryptodev *cdev);
+
+/**
+ * Stop crypto adapter. This callback is invoked if
+ * the caps returned from rte_event_crypto_adapter_caps_get(.., cdev_id)
+ * has RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_* set and queue pairs
+ * from cdev_id have been added to the event device.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   Crypto device pointer
+ *
+ * @return
+ *   - 0: Success, crypto adapter stopped successfully.
+ *   - <0: Error code returned by the driver function.
+ */
+typedef int (*eventdev_crypto_adapter_stop_t)
+					(const struct rte_eventdev *dev,
+					 const struct rte_cryptodev *cdev);
+
+struct rte_event_crypto_adapter_stats;
+
+/**
+ * Retrieve crypto adapter statistics.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   Crypto device pointer
+ *
+ * @param[out] stats
+ *   Pointer to stats structure
+ *
+ * @return
+ *   Return 0 on success.
+ */
+
+typedef int (*eventdev_crypto_adapter_stats_get)
+			(const struct rte_eventdev *dev,
+			 const struct rte_cryptodev *cdev,
+			 struct rte_event_crypto_adapter_stats *stats);
+
+/**
+ * Reset crypto adapter statistics.
+ *
+ * @param dev
+ *   Event device pointer
+ *
+ * @param cdev
+ *   Crypto device pointer
+ *
+ * @return
+ *   Return 0 on success.
+ */
+
+typedef int (*eventdev_crypto_adapter_stats_reset)
+			(const struct rte_eventdev *dev,
+			 const struct rte_cryptodev *cdev);
 
 /** Event device operations function pointer table */
 struct rte_eventdev_ops {
@@ -650,6 +843,30 @@ struct rte_eventdev_ops {
 	/**< Get ethernet Rx stats */
 	eventdev_eth_rx_adapter_stats_reset eth_rx_adapter_stats_reset;
 	/**< Reset ethernet Rx stats */
+
+	eventdev_timer_adapter_caps_get_t timer_adapter_caps_get;
+	/**< Get timer adapter capabilities */
+
+	eventdev_crypto_adapter_caps_get_t crypto_adapter_caps_get;
+	/**< Get crypto adapter capabilities */
+	eventdev_crypto_adapter_queue_pair_add_t crypto_adapter_queue_pair_add;
+	/**< Add queue pair to crypto adapter */
+	eventdev_crypto_adapter_queue_pair_del_t crypto_adapter_queue_pair_del;
+	/**< Delete queue pair from crypto adapter */
+	eventdev_crypto_adapter_start_t crypto_adapter_start;
+	/**< Start crypto adapter */
+	eventdev_crypto_adapter_stop_t crypto_adapter_stop;
+	/**< Stop crypto adapter */
+	eventdev_crypto_adapter_stats_get crypto_adapter_stats_get;
+	/**< Get crypto stats */
+	eventdev_crypto_adapter_stats_reset crypto_adapter_stats_reset;
+	/**< Reset crypto stats */
+
+	eventdev_selftest dev_selftest;
+	/**< Start eventdev Selftest */
+
+	eventdev_stop_flush_t dev_stop_flush;
+	/**< User-provided event flush function */
 };
 
 /**

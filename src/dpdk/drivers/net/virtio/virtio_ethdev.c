@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2016 Intel Corporation
  */
 
 #include <stdint.h>
@@ -37,17 +8,18 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_ethdev_pci.h>
 #include <rte_memcpy.h>
 #include <rte_string_fns.h>
 #include <rte_memzone.h>
 #include <rte_malloc.h>
-#include <rte_atomic.h>
 #include <rte_branch_prediction.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
 #include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_arp.h>
 #include <rte_common.h>
 #include <rte_errno.h>
 #include <rte_cpuflags.h>
@@ -55,6 +27,8 @@
 #include <rte_memory.h>
 #include <rte_eal.h>
 #include <rte_dev.h>
+#include <rte_cycles.h>
+#include <rte_kvargs.h>
 
 #include "virtio_ethdev.h"
 #include "virtio_pci.h"
@@ -94,7 +68,7 @@ static int virtio_mac_addr_add(struct rte_eth_dev *dev,
 				struct ether_addr *mac_addr,
 				uint32_t index, uint32_t vmdq);
 static void virtio_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index);
-static void virtio_mac_addr_set(struct rte_eth_dev *dev,
+static int virtio_mac_addr_set(struct rte_eth_dev *dev,
 				struct ether_addr *mac_addr);
 
 static int virtio_intr_enable(struct rte_eth_dev *dev);
@@ -105,6 +79,12 @@ static int virtio_dev_queue_stats_mapping_set(
 	uint16_t queue_id,
 	uint8_t stat_idx,
 	uint8_t is_rx);
+
+int virtio_logtype_init;
+int virtio_logtype_driver;
+
+static void virtio_notify_peers(struct rte_eth_dev *dev);
+static void virtio_ack_link_announce(struct rte_eth_dev *dev);
 
 /*
  * The set of PCI devices this driver supports
@@ -177,6 +157,8 @@ virtio_send_command(struct virtnet_ctl *cvq, struct virtio_pmd_ctrl *ctrl,
 		PMD_INIT_LOG(ERR, "Control queue is not supported.");
 		return -1;
 	}
+
+	rte_spinlock_lock(&cvq->lock);
 	vq = cvq->vq;
 	head = vq->vq_desc_head_idx;
 
@@ -184,8 +166,10 @@ virtio_send_command(struct virtnet_ctl *cvq, struct virtio_pmd_ctrl *ctrl,
 		"vq->hw->cvq = %p vq = %p",
 		vq->vq_desc_head_idx, status, vq->hw->cvq, vq);
 
-	if ((vq->vq_free_cnt < ((uint32_t)pkt_num + 2)) || (pkt_num < 1))
+	if (vq->vq_free_cnt < pkt_num + 2 || pkt_num < 1) {
+		rte_spinlock_unlock(&cvq->lock);
 		return -1;
+	}
 
 	memcpy(cvq->virtio_net_hdr_mz->addr, ctrl,
 		sizeof(struct virtio_pmd_ctrl));
@@ -261,6 +245,7 @@ virtio_send_command(struct virtnet_ctl *cvq, struct virtio_pmd_ctrl *ctrl,
 
 	result = cvq->virtio_net_hdr_mz->addr;
 
+	rte_spinlock_unlock(&cvq->lock);
 	return result->status;
 }
 
@@ -292,17 +277,6 @@ static void
 virtio_dev_queue_release(void *queue __rte_unused)
 {
 	/* do nothing */
-}
-
-static int
-virtio_get_queue_type(struct virtio_hw *hw, uint16_t vtpci_queue_idx)
-{
-	if (vtpci_queue_idx == hw->max_queue_pairs * 2)
-		return VTNET_CQ;
-	else if (vtpci_queue_idx % 2 == 0)
-		return VTNET_RQ;
-	else
-		return VTNET_TQ;
 }
 
 static uint16_t
@@ -418,8 +392,8 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t vtpci_queue_idx)
 		     size, vq->vq_ring_size);
 
 	mz = rte_memzone_reserve_aligned(vq_name, vq->vq_ring_size,
-					 SOCKET_ID_ANY,
-					 0, VIRTIO_PCI_VRING_ALIGN);
+			SOCKET_ID_ANY, RTE_MEMZONE_IOVA_CONTIG,
+			VIRTIO_PCI_VRING_ALIGN);
 	if (mz == NULL) {
 		if (rte_errno == EEXIST)
 			mz = rte_memzone_lookup(vq_name);
@@ -444,8 +418,8 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t vtpci_queue_idx)
 		snprintf(vq_hdr_name, sizeof(vq_hdr_name), "port%d_vq%d_hdr",
 			 dev->data->port_id, vtpci_queue_idx);
 		hdr_mz = rte_memzone_reserve_aligned(vq_hdr_name, sz_hdr_mz,
-						     SOCKET_ID_ANY, 0,
-						     RTE_CACHE_LINE_SIZE);
+				SOCKET_ID_ANY, RTE_MEMZONE_IOVA_CONTIG,
+				RTE_CACHE_LINE_SIZE);
 		if (hdr_mz == NULL) {
 			if (rte_errno == EEXIST)
 				hdr_mz = rte_memzone_lookup(vq_hdr_name);
@@ -800,46 +774,6 @@ static const struct eth_dev_ops virtio_eth_dev_ops = {
 	.mac_addr_set            = virtio_mac_addr_set,
 };
 
-static inline int
-virtio_dev_atomic_read_link_status(struct rte_eth_dev *dev,
-				struct rte_eth_link *link)
-{
-	struct rte_eth_link *dst = link;
-	struct rte_eth_link *src = &(dev->data->dev_link);
-
-	if (rte_atomic64_cmpset((uint64_t *)dst, *(uint64_t *)dst,
-			*(uint64_t *)src) == 0)
-		return -1;
-
-	return 0;
-}
-
-/**
- * Atomically writes the link status information into global
- * structure rte_eth_dev.
- *
- * @param dev
- *   - Pointer to the structure rte_eth_dev to read from.
- *   - Pointer to the buffer to be saved with the link status.
- *
- * @return
- *   - On success, zero.
- *   - On failure, negative value.
- */
-static inline int
-virtio_dev_atomic_write_link_status(struct rte_eth_dev *dev,
-		struct rte_eth_link *link)
-{
-	struct rte_eth_link *dst = &(dev->data->dev_link);
-	struct rte_eth_link *src = link;
-
-	if (rte_atomic64_cmpset((uint64_t *)dst, *(uint64_t *)dst,
-					*(uint64_t *)src) == 0)
-		return -1;
-
-	return 0;
-}
-
 static void
 virtio_update_stats(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 {
@@ -893,7 +827,7 @@ static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
 		/* Note: limit checked in rte_eth_xstats_names() */
 
 		for (i = 0; i < dev->data->nb_rx_queues; i++) {
-			struct virtqueue *rxvq = dev->data->rx_queues[i];
+			struct virtnet_rx *rxvq = dev->data->rx_queues[i];
 			if (rxvq == NULL)
 				continue;
 			for (t = 0; t < VIRTIO_NB_RXQ_XSTATS; t++) {
@@ -906,7 +840,7 @@ static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
 		}
 
 		for (i = 0; i < dev->data->nb_tx_queues; i++) {
-			struct virtqueue *txvq = dev->data->tx_queues[i];
+			struct virtnet_tx *txvq = dev->data->tx_queues[i];
 			if (txvq == NULL)
 				continue;
 			for (t = 0; t < VIRTIO_NB_TXQ_XSTATS; t++) {
@@ -1123,7 +1057,7 @@ virtio_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 	virtio_mac_table_set(hw, uc, mc);
 }
 
-static void
+static int
 virtio_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 {
 	struct virtio_hw *hw = dev->data->dev_private;
@@ -1139,9 +1073,14 @@ virtio_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 		ctrl.hdr.cmd = VIRTIO_NET_CTRL_MAC_ADDR_SET;
 
 		memcpy(ctrl.data, mac_addr, ETHER_ADDR_LEN);
-		virtio_send_command(hw->cvq, &ctrl, &len, 1);
-	} else if (vtpci_with_feature(hw, VIRTIO_NET_F_MAC))
-		virtio_set_hwaddr(hw);
+		return virtio_send_command(hw->cvq, &ctrl, &len, 1);
+	}
+
+	if (!vtpci_with_feature(hw, VIRTIO_NET_F_MAC))
+		return -ENOTSUP;
+
+	virtio_set_hwaddr(hw);
+	return 0;
 }
 
 static int
@@ -1244,9 +1183,104 @@ virtio_negotiate_features(struct virtio_hw *hw, uint64_t req_features)
 	return 0;
 }
 
+int
+virtio_dev_pause(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+
+	rte_spinlock_lock(&hw->state_lock);
+
+	if (hw->started == 0) {
+		/* Device is just stopped. */
+		rte_spinlock_unlock(&hw->state_lock);
+		return -1;
+	}
+	hw->started = 0;
+	/*
+	 * Prevent the worker threads from touching queues to avoid contention,
+	 * 1 ms should be enough for the ongoing Tx function to finish.
+	 */
+	rte_delay_ms(1);
+	return 0;
+}
+
 /*
- * Process Virtio Config changed interrupt and call the callback
- * if link state changed.
+ * Recover hw state to let the worker threads continue.
+ */
+void
+virtio_dev_resume(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+
+	hw->started = 1;
+	rte_spinlock_unlock(&hw->state_lock);
+}
+
+/*
+ * Should be called only after device is paused.
+ */
+int
+virtio_inject_pkts(struct rte_eth_dev *dev, struct rte_mbuf **tx_pkts,
+		int nb_pkts)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtnet_tx *txvq = dev->data->tx_queues[0];
+	int ret;
+
+	hw->inject_pkts = tx_pkts;
+	ret = dev->tx_pkt_burst(txvq, tx_pkts, nb_pkts);
+	hw->inject_pkts = NULL;
+
+	return ret;
+}
+
+static void
+virtio_notify_peers(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtnet_rx *rxvq;
+	struct rte_mbuf *rarp_mbuf;
+
+	if (!dev->data->rx_queues)
+		return;
+
+	rxvq = dev->data->rx_queues[0];
+	if (!rxvq)
+		return;
+
+	rarp_mbuf = rte_net_make_rarp_packet(rxvq->mpool,
+			(struct ether_addr *)hw->mac_addr);
+	if (rarp_mbuf == NULL) {
+		PMD_DRV_LOG(ERR, "failed to make RARP packet.");
+		return;
+	}
+
+	/* If virtio port just stopped, no need to send RARP */
+	if (virtio_dev_pause(dev) < 0) {
+		rte_pktmbuf_free(rarp_mbuf);
+		return;
+	}
+
+	virtio_inject_pkts(dev, &rarp_mbuf, 1);
+	virtio_dev_resume(dev);
+}
+
+static void
+virtio_ack_link_announce(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtio_pmd_ctrl ctrl;
+
+	ctrl.hdr.class = VIRTIO_NET_CTRL_ANNOUNCE;
+	ctrl.hdr.cmd = VIRTIO_NET_CTRL_ANNOUNCE_ACK;
+
+	virtio_send_command(hw->cvq, &ctrl, NULL, 0);
+}
+
+/*
+ * Process virtio config changed interrupt. Call the callback
+ * if link state changed, generate gratuitous RARP packet if
+ * the status indicates an ANNOUNCE.
  */
 void
 virtio_interrupt_handler(void *param)
@@ -1266,9 +1300,14 @@ virtio_interrupt_handler(void *param)
 		if (virtio_dev_link_update(dev, 0) == 0)
 			_rte_eth_dev_callback_process(dev,
 						      RTE_ETH_EVENT_INTR_LSC,
-						      NULL, NULL);
+						      NULL);
 	}
 
+	if (isr & VIRTIO_NET_S_ANNOUNCE) {
+		virtio_notify_peers(dev);
+		if (hw->cvq)
+			virtio_ack_link_announce(dev);
+	}
 }
 
 /* set rx and tx handlers according to what is supported */
@@ -1405,6 +1444,11 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 	/* Reset the device although not necessary at startup */
 	vtpci_reset(hw);
 
+	if (hw->vqs) {
+		virtio_dev_free_mbufs(eth_dev);
+		virtio_free_queues(hw);
+	}
+
 	/* Tell the host we've noticed this device. */
 	vtpci_set_status(hw, VIRTIO_CONFIG_STATUS_ACK);
 
@@ -1508,6 +1552,8 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 	} else {
 		PMD_INIT_LOG(DEBUG, "config->max_virtqueue_pairs=1");
 		hw->max_queue_pairs = 1;
+		hw->max_mtu = VIRTIO_MAX_RX_PKTLEN - ETHER_HDR_LEN -
+			VLAN_TAG_LEN - hw->vtnet_hdr_size;
 	}
 
 	ret = virtio_alloc_queues(eth_dev);
@@ -1671,9 +1717,51 @@ eth_virtio_dev_uninit(struct rte_eth_dev *eth_dev)
 	return 0;
 }
 
+static int vdpa_check_handler(__rte_unused const char *key,
+		const char *value, __rte_unused void *opaque)
+{
+	if (strcmp(value, "1"))
+		return -1;
+
+	return 0;
+}
+
+static int
+vdpa_mode_selected(struct rte_devargs *devargs)
+{
+	struct rte_kvargs *kvlist;
+	const char *key = "vdpa";
+	int ret = 0;
+
+	if (devargs == NULL)
+		return 0;
+
+	kvlist = rte_kvargs_parse(devargs->args, NULL);
+	if (kvlist == NULL)
+		return 0;
+
+	if (!rte_kvargs_count(kvlist, key))
+		goto exit;
+
+	/* vdpa mode selected when there's a key-value pair: vdpa=1 */
+	if (rte_kvargs_process(kvlist, key,
+				vdpa_check_handler, NULL) < 0) {
+		goto exit;
+	}
+	ret = 1;
+
+exit:
+	rte_kvargs_free(kvlist);
+	return ret;
+}
+
 static int eth_virtio_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct rte_pci_device *pci_dev)
 {
+	/* virtio pmd skips probe if device needs to work in vdpa mode */
+	if (vdpa_mode_selected(pci_dev->device.devargs))
+		return 1;
+
 	return rte_eth_dev_pci_generic_probe(pci_dev, sizeof(struct virtio_hw),
 		eth_virtio_dev_init);
 }
@@ -1714,6 +1802,7 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 {
 	const struct rte_eth_rxmode *rxmode = &dev->data->dev_conf.rxmode;
 	struct virtio_hw *hw = dev->data->dev_private;
+	uint64_t rx_offloads = rxmode->offloads;
 	uint64_t req_features;
 	int ret;
 
@@ -1726,14 +1815,11 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return ret;
 	}
 
-	/* The name hw_ip_checksum is a bit confusing since it can be
-	 * set by the application to request L3 and/or L4 checksums. In
-	 * case of virtio, only L4 checksum is supported.
-	 */
-	if (rxmode->hw_ip_checksum)
+	if (rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
+			   DEV_RX_OFFLOAD_TCP_CKSUM))
 		req_features |= (1ULL << VIRTIO_NET_F_GUEST_CSUM);
 
-	if (rxmode->enable_lro)
+	if (rx_offloads & DEV_RX_OFFLOAD_TCP_LRO)
 		req_features |=
 			(1ULL << VIRTIO_NET_F_GUEST_TSO4) |
 			(1ULL << VIRTIO_NET_F_GUEST_TSO6);
@@ -1745,16 +1831,17 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return ret;
 	}
 
-	if (rxmode->hw_ip_checksum &&
+	if ((rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
+			    DEV_RX_OFFLOAD_TCP_CKSUM)) &&
 		!vtpci_with_feature(hw, VIRTIO_NET_F_GUEST_CSUM)) {
 		PMD_DRV_LOG(ERR,
 			"rx checksum not available on this host");
 		return -ENOTSUP;
 	}
 
-	if (rxmode->enable_lro &&
+	if ((rx_offloads & DEV_RX_OFFLOAD_TCP_LRO) &&
 		(!vtpci_with_feature(hw, VIRTIO_NET_F_GUEST_TSO4) ||
-			!vtpci_with_feature(hw, VIRTIO_NET_F_GUEST_TSO4))) {
+		 !vtpci_with_feature(hw, VIRTIO_NET_F_GUEST_TSO6))) {
 		PMD_DRV_LOG(ERR,
 			"Large Receive Offload not available on this host");
 		return -ENOTSUP;
@@ -1764,9 +1851,10 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 	if (vtpci_with_feature(hw, VIRTIO_NET_F_CTRL_VQ))
 		virtio_dev_cq_start(dev);
 
-	hw->vlan_strip = rxmode->hw_vlan_strip;
+	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
+		hw->vlan_strip = 1;
 
-	if (rxmode->hw_vlan_filter
+	if ((rx_offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
 	    && !vtpci_with_feature(hw, VIRTIO_NET_F_CTRL_VLAN)) {
 		PMD_DRV_LOG(ERR,
 			    "vlan filtering not available on this host");
@@ -1781,10 +1869,12 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return -EBUSY;
 		}
 
+	rte_spinlock_init(&hw->state_lock);
+
 	hw->use_simple_rx = 1;
 	hw->use_simple_tx = 1;
 
-#if defined RTE_ARCH_ARM64 || defined CONFIG_RTE_ARCH_ARM
+#if defined RTE_ARCH_ARM64 || defined RTE_ARCH_ARM
 	if (!rte_cpu_get_flag_enabled(RTE_CPUFLAG_NEON)) {
 		hw->use_simple_rx = 0;
 		hw->use_simple_tx = 0;
@@ -1795,7 +1885,8 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 		hw->use_simple_tx = 0;
 	}
 
-	if (rxmode->hw_ip_checksum)
+	if (rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
+			   DEV_RX_OFFLOAD_TCP_CKSUM))
 		hw->use_simple_rx = 0;
 
 	return 0;
@@ -1860,7 +1951,7 @@ virtio_dev_start(struct rte_eth_dev *dev)
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
 		rxvq = dev->data->rx_queues[i];
 		/* Flush the old packets */
-		virtqueue_flush(rxvq->vq);
+		virtqueue_rxvq_flush(rxvq->vq);
 		virtqueue_notify(rxvq->vq);
 	}
 
@@ -1892,47 +1983,47 @@ virtio_dev_start(struct rte_eth_dev *dev)
 
 static void virtio_dev_free_mbufs(struct rte_eth_dev *dev)
 {
+	struct virtio_hw *hw = dev->data->dev_private;
+	uint16_t nr_vq = virtio_get_nr_vq(hw);
+	const char *type __rte_unused;
+	unsigned int i, mbuf_num = 0;
+	struct virtqueue *vq;
 	struct rte_mbuf *buf;
-	int i, mbuf_num = 0;
+	int queue_type;
 
-	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		struct virtnet_rx *rxvq = dev->data->rx_queues[i];
+	if (hw->vqs == NULL)
+		return;
+
+	for (i = 0; i < nr_vq; i++) {
+		vq = hw->vqs[i];
+		if (!vq)
+			continue;
+
+		queue_type = virtio_get_queue_type(hw, i);
+		if (queue_type == VTNET_RQ)
+			type = "rxq";
+		else if (queue_type == VTNET_TQ)
+			type = "txq";
+		else
+			continue;
 
 		PMD_INIT_LOG(DEBUG,
-			     "Before freeing rxq[%d] used and unused buf", i);
-		VIRTQUEUE_DUMP(rxvq->vq);
+			"Before freeing %s[%d] used and unused buf",
+			type, i);
+		VIRTQUEUE_DUMP(vq);
 
-		PMD_INIT_LOG(DEBUG, "rx_queues[%d]=%p", i, rxvq);
-		while ((buf = virtqueue_detatch_unused(rxvq->vq)) != NULL) {
+		while ((buf = virtqueue_detach_unused(vq)) != NULL) {
 			rte_pktmbuf_free(buf);
 			mbuf_num++;
 		}
 
-		PMD_INIT_LOG(DEBUG, "free %d mbufs", mbuf_num);
 		PMD_INIT_LOG(DEBUG,
-			     "After freeing rxq[%d] used and unused buf", i);
-		VIRTQUEUE_DUMP(rxvq->vq);
+			"After freeing %s[%d] used and unused buf",
+			type, i);
+		VIRTQUEUE_DUMP(vq);
 	}
 
-	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		struct virtnet_tx *txvq = dev->data->tx_queues[i];
-
-		PMD_INIT_LOG(DEBUG,
-			     "Before freeing txq[%d] used and unused bufs",
-			     i);
-		VIRTQUEUE_DUMP(txvq->vq);
-
-		mbuf_num = 0;
-		while ((buf = virtqueue_detatch_unused(txvq->vq)) != NULL) {
-			rte_pktmbuf_free(buf);
-			mbuf_num++;
-		}
-
-		PMD_INIT_LOG(DEBUG, "free %d mbufs", mbuf_num);
-		PMD_INIT_LOG(DEBUG,
-			     "After freeing txq[%d] used and unused buf", i);
-		VIRTQUEUE_DUMP(txvq->vq);
-	}
+	PMD_INIT_LOG(DEBUG, "%d mbufs freed", mbuf_num);
 }
 
 /*
@@ -1947,25 +2038,27 @@ virtio_dev_stop(struct rte_eth_dev *dev)
 
 	PMD_INIT_LOG(DEBUG, "stop");
 
+	rte_spinlock_lock(&hw->state_lock);
 	if (intr_conf->lsc || intr_conf->rxq)
 		virtio_intr_disable(dev);
 
 	hw->started = 0;
 	memset(&link, 0, sizeof(link));
-	virtio_dev_atomic_write_link_status(dev, &link);
+	rte_eth_linkstatus_set(dev, &link);
+	rte_spinlock_unlock(&hw->state_lock);
 }
 
 static int
 virtio_dev_link_update(struct rte_eth_dev *dev, __rte_unused int wait_to_complete)
 {
-	struct rte_eth_link link, old;
+	struct rte_eth_link link;
 	uint16_t status;
 	struct virtio_hw *hw = dev->data->dev_private;
+
 	memset(&link, 0, sizeof(link));
-	virtio_dev_atomic_read_link_status(dev, &link);
-	old = link;
 	link.link_duplex = ETH_LINK_FULL_DUPLEX;
-	link.link_speed  = SPEED_10G;
+	link.link_speed  = ETH_SPEED_NUM_10G;
+	link.link_autoneg = ETH_LINK_FIXED;
 
 	if (hw->started == 0) {
 		link.link_status = ETH_LINK_DOWN;
@@ -1986,9 +2079,8 @@ virtio_dev_link_update(struct rte_eth_dev *dev, __rte_unused int wait_to_complet
 	} else {
 		link.link_status = ETH_LINK_UP;
 	}
-	virtio_dev_atomic_write_link_status(dev, &link);
 
-	return (old.link_status == link.link_status) ? -1 : 0;
+	return rte_eth_linkstatus_set(dev, &link);
 }
 
 static int
@@ -1996,9 +2088,10 @@ virtio_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 {
 	const struct rte_eth_rxmode *rxmode = &dev->data->dev_conf.rxmode;
 	struct virtio_hw *hw = dev->data->dev_private;
+	uint64_t offloads = rxmode->offloads;
 
 	if (mask & ETH_VLAN_FILTER_MASK) {
-		if (rxmode->hw_vlan_filter &&
+		if ((offloads & DEV_RX_OFFLOAD_VLAN_FILTER) &&
 				!vtpci_with_feature(hw, VIRTIO_NET_F_CTRL_VLAN)) {
 
 			PMD_DRV_LOG(NOTICE,
@@ -2009,7 +2102,7 @@ virtio_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 	}
 
 	if (mask & ETH_VLAN_STRIP_MASK)
-		hw->vlan_strip = rxmode->hw_vlan_strip;
+		hw->vlan_strip = !!(offloads & DEV_RX_OFFLOAD_VLAN_STRIP);
 
 	return 0;
 }
@@ -2022,7 +2115,6 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	dev_info->speed_capa = ETH_LINK_SPEED_10G; /* fake value */
 
-	dev_info->pci_dev = dev->device ? RTE_ETH_DEV_TO_PCI(dev) : NULL;
 	dev_info->max_rx_queues =
 		RTE_MIN(hw->max_queue_pairs, VIRTIO_MAX_RX_QUEUES);
 	dev_info->max_tx_queues =
@@ -2035,18 +2127,25 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	};
 
 	host_features = VTPCI_OPS(hw)->get_features(hw);
-	dev_info->rx_offload_capa = 0;
+	dev_info->rx_offload_capa = DEV_RX_OFFLOAD_VLAN_STRIP |
+#ifdef TREX_PATCH
+                    DEV_RX_OFFLOAD_JUMBO_FRAME |
+#endif
+				    DEV_RX_OFFLOAD_CRC_STRIP;
 	if (host_features & (1ULL << VIRTIO_NET_F_GUEST_CSUM)) {
 		dev_info->rx_offload_capa |=
 			DEV_RX_OFFLOAD_TCP_CKSUM |
 			DEV_RX_OFFLOAD_UDP_CKSUM;
 	}
+	if (host_features & (1ULL << VIRTIO_NET_F_CTRL_VLAN))
+		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_VLAN_FILTER;
 	tso_mask = (1ULL << VIRTIO_NET_F_GUEST_TSO4) |
 		(1ULL << VIRTIO_NET_F_GUEST_TSO6);
 	if ((host_features & tso_mask) == tso_mask)
 		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_TCP_LRO;
 
-	dev_info->tx_offload_capa = 0;
+	dev_info->tx_offload_capa = DEV_TX_OFFLOAD_MULTI_SEGS |
+				    DEV_TX_OFFLOAD_VLAN_INSERT;
 	if (hw->guest_features & (1ULL << VIRTIO_NET_F_CSUM)) {
 		dev_info->tx_offload_capa |=
 			DEV_TX_OFFLOAD_UDP_CKSUM |
@@ -2054,8 +2153,10 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	}
 	tso_mask = (1ULL << VIRTIO_NET_F_HOST_TSO4) |
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
-	/*if ((hw->guest_features & tso_mask) == tso_mask)
-		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;*/
+#ifndef TREX_PATCH
+	if ((hw->guest_features & tso_mask) == tso_mask)
+		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
+#endif
 }
 
 /*
@@ -2072,3 +2173,15 @@ __rte_unused uint8_t is_rx)
 RTE_PMD_EXPORT_NAME(net_virtio, __COUNTER__);
 RTE_PMD_REGISTER_PCI_TABLE(net_virtio, pci_id_virtio_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_virtio, "* igb_uio | uio_pci_generic | vfio-pci");
+
+RTE_INIT(virtio_init_log);
+static void
+virtio_init_log(void)
+{
+	virtio_logtype_init = rte_log_register("pmd.net.virtio.init");
+	if (virtio_logtype_init >= 0)
+		rte_log_set_level(virtio_logtype_init, RTE_LOG_NOTICE);
+	virtio_logtype_driver = rte_log_register("pmd.net.virtio.driver");
+	if (virtio_logtype_driver >= 0)
+		rte_log_set_level(virtio_logtype_driver, RTE_LOG_NOTICE);
+}

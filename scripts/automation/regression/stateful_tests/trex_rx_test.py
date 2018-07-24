@@ -108,7 +108,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             learn_verify = True,
             l_pkt_mode = 2)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -144,7 +144,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             learn_verify = True,
             l_pkt_mode = 2)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -177,7 +177,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             k = 10,
             ipv6 = True)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -212,7 +212,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             k = 10,
             ipv6 = True)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -260,7 +260,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
         nat_obj  = CNatConfig(nat_dict)
         self.router.config_nat(nat_obj)
         self.router.config_zbf()
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
         self.router.config_no_zbf()
         self.router.config_no_nat(nat_obj)
         #self.router.clear_nat_translations()

@@ -32,7 +32,7 @@
 */
 
 #include <rte_ether.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_ethdev_pci.h>
 #include <rte_tcp.h>
 #include <rte_atomic.h>
@@ -164,6 +164,14 @@ static const struct ena_stats ena_stats_ena_com_strings[] = {
 #define ENA_STATS_ARRAY_RX	ARRAY_SIZE(ena_stats_rx_strings)
 #define ENA_STATS_ARRAY_ENA_COM	ARRAY_SIZE(ena_stats_ena_com_strings)
 
+#define QUEUE_OFFLOADS (DEV_TX_OFFLOAD_TCP_CKSUM |\
+			DEV_TX_OFFLOAD_UDP_CKSUM |\
+			DEV_TX_OFFLOAD_IPV4_CKSUM |\
+			DEV_TX_OFFLOAD_TCP_TSO)
+#define MBUF_OFFLOADS (PKT_TX_L4_MASK |\
+		       PKT_TX_IP_CKSUM |\
+		       PKT_TX_TCP_SEG)
+
 /** Vendor ID used by Amazon devices */
 #define PCI_VENDOR_ID_AMAZON 0x1D0F
 /** Amazon devices */
@@ -177,6 +185,9 @@ static const struct ena_stats ena_stats_ena_com_strings[] = {
 
 #define	ENA_TX_OFFLOAD_NOTSUP_MASK	\
 	(PKT_TX_OFFLOAD_MASK ^ ENA_TX_OFFLOAD_MASK)
+
+int ena_logtype_init;
+int ena_logtype_driver;
 
 static const struct rte_pci_id pci_id_ena_map[] = {
 	{ RTE_PCI_DEVICE(PCI_VENDOR_ID_AMAZON, PCI_DEVICE_ID_ENA_VF) },
@@ -249,27 +260,32 @@ static const struct eth_dev_ops ena_dev_ops = {
 static inline int ena_cpu_to_node(int cpu)
 {
 	struct rte_config *config = rte_eal_get_configuration();
+	struct rte_fbarray *arr = &config->mem_config->memzones;
+	const struct rte_memzone *mz;
 
-	if (likely(cpu < RTE_MAX_MEMZONE))
-		return config->mem_config->memzone[cpu].socket_id;
+	if (unlikely(cpu >= RTE_MAX_MEMZONE))
+		return NUMA_NO_NODE;
 
-	return NUMA_NO_NODE;
+	mz = rte_fbarray_get(arr, cpu);
+
+	return mz->socket_id;
 }
 
 static inline void ena_rx_mbuf_prepare(struct rte_mbuf *mbuf,
 				       struct ena_com_rx_ctx *ena_rx_ctx)
 {
 	uint64_t ol_flags = 0;
+	uint32_t packet_type = 0;
 
 	if (ena_rx_ctx->l4_proto == ENA_ETH_IO_L4_PROTO_TCP)
-		ol_flags |= PKT_TX_TCP_CKSUM;
+		packet_type |= RTE_PTYPE_L4_TCP;
 	else if (ena_rx_ctx->l4_proto == ENA_ETH_IO_L4_PROTO_UDP)
-		ol_flags |= PKT_TX_UDP_CKSUM;
+		packet_type |= RTE_PTYPE_L4_UDP;
 
 	if (ena_rx_ctx->l3_proto == ENA_ETH_IO_L3_PROTO_IPV4)
-		ol_flags |= PKT_TX_IPV4;
+		packet_type |= RTE_PTYPE_L3_IPV4;
 	else if (ena_rx_ctx->l3_proto == ENA_ETH_IO_L3_PROTO_IPV6)
-		ol_flags |= PKT_TX_IPV6;
+		packet_type |= RTE_PTYPE_L3_IPV6;
 
 	if (unlikely(ena_rx_ctx->l4_csum_err))
 		ol_flags |= PKT_RX_L4_CKSUM_BAD;
@@ -277,24 +293,28 @@ static inline void ena_rx_mbuf_prepare(struct rte_mbuf *mbuf,
 		ol_flags |= PKT_RX_IP_CKSUM_BAD;
 
 	mbuf->ol_flags = ol_flags;
+	mbuf->packet_type = packet_type;
 }
 
 static inline void ena_tx_mbuf_prepare(struct rte_mbuf *mbuf,
-				       struct ena_com_tx_ctx *ena_tx_ctx)
+				       struct ena_com_tx_ctx *ena_tx_ctx,
+				       uint64_t queue_offloads)
 {
 	struct ena_com_tx_meta *ena_meta = &ena_tx_ctx->ena_meta;
 
-	if (mbuf->ol_flags &
-	    (PKT_TX_L4_MASK | PKT_TX_IP_CKSUM | PKT_TX_TCP_SEG)) {
+	if ((mbuf->ol_flags & MBUF_OFFLOADS) &&
+	    (queue_offloads & QUEUE_OFFLOADS)) {
 		/* check if TSO is required */
-		if (mbuf->ol_flags & PKT_TX_TCP_SEG) {
+		if ((mbuf->ol_flags & PKT_TX_TCP_SEG) &&
+		    (queue_offloads & DEV_TX_OFFLOAD_TCP_TSO)) {
 			ena_tx_ctx->tso_enable = true;
 
 			ena_meta->l4_hdr_len = GET_L4_HDR_LEN(mbuf);
 		}
 
 		/* check if L3 checksum is needed */
-		if (mbuf->ol_flags & PKT_TX_IP_CKSUM)
+		if ((mbuf->ol_flags & PKT_TX_IP_CKSUM) &&
+		    (queue_offloads & DEV_TX_OFFLOAD_IPV4_CKSUM))
 			ena_tx_ctx->l3_csum_enable = true;
 
 		if (mbuf->ol_flags & PKT_TX_IPV6) {
@@ -310,19 +330,17 @@ static inline void ena_tx_mbuf_prepare(struct rte_mbuf *mbuf,
 		}
 
 		/* check if L4 checksum is needed */
-		switch (mbuf->ol_flags & PKT_TX_L4_MASK) {
-		case PKT_TX_TCP_CKSUM:
+		if ((mbuf->ol_flags & PKT_TX_TCP_CKSUM) &&
+		    (queue_offloads & DEV_TX_OFFLOAD_TCP_CKSUM)) {
 			ena_tx_ctx->l4_proto = ENA_ETH_IO_L4_PROTO_TCP;
 			ena_tx_ctx->l4_csum_enable = true;
-			break;
-		case PKT_TX_UDP_CKSUM:
+		} else if ((mbuf->ol_flags & PKT_TX_UDP_CKSUM) &&
+			   (queue_offloads & DEV_TX_OFFLOAD_UDP_CKSUM)) {
 			ena_tx_ctx->l4_proto = ENA_ETH_IO_L4_PROTO_UDP;
 			ena_tx_ctx->l4_csum_enable = true;
-			break;
-		default:
+		} else {
 			ena_tx_ctx->l4_proto = ENA_ETH_IO_L4_PROTO_UNKNOWN;
 			ena_tx_ctx->l4_csum_enable = false;
-			break;
 		}
 
 		ena_meta->mss = mbuf->tso_segsz;
@@ -706,7 +724,7 @@ static int ena_link_update(struct rte_eth_dev *dev,
 {
 	struct rte_eth_link *link = &dev->data->dev_link;
 
-	link->link_status = 1;
+	link->link_status = ETH_LINK_UP;
 	link->link_speed = ETH_SPEED_NUM_10G;
 	link->link_duplex = ETH_LINK_FULL_DUPLEX;
 
@@ -755,7 +773,8 @@ static uint32_t ena_get_mtu_conf(struct ena_adapter *adapter)
 {
 	uint32_t max_frame_len = adapter->max_mtu;
 
-	if (adapter->rte_eth_dev_data->dev_conf.rxmode.jumbo_frame == 1)
+	if (adapter->rte_eth_dev_data->dev_conf.rxmode.offloads &
+	    DEV_RX_OFFLOAD_JUMBO_FRAME)
 		max_frame_len =
 			adapter->rte_eth_dev_data->dev_conf.rxmode.max_rx_pkt_len;
 
@@ -945,7 +964,7 @@ static int ena_tx_queue_setup(struct rte_eth_dev *dev,
 			      uint16_t queue_idx,
 			      uint16_t nb_desc,
 			      __rte_unused unsigned int socket_id,
-			      __rte_unused const struct rte_eth_txconf *tx_conf)
+			      const struct rte_eth_txconf *tx_conf)
 {
 	struct ena_com_create_io_ctx ctx =
 		/* policy set to _HOST just to satisfy icc compiler */
@@ -1035,6 +1054,8 @@ static int ena_tx_queue_setup(struct rte_eth_dev *dev,
 	}
 	for (i = 0; i < txq->ring_size; i++)
 		txq->empty_tx_reqs[i] = i;
+
+	txq->offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
 	/* Store pointer to this queue in upper layer */
 	txq->configured = 1;
@@ -1407,6 +1428,8 @@ static int ena_dev_configure(struct rte_eth_dev *dev)
 		break;
 	}
 
+	adapter->tx_selected_offloads = dev->data->dev_conf.txmode.offloads;
+	adapter->rx_selected_offloads = dev->data->dev_conf.rxmode.offloads;
 	return 0;
 }
 
@@ -1441,7 +1464,7 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 	struct ena_adapter *adapter;
 	struct ena_com_dev *ena_dev;
 	struct ena_com_dev_get_features_ctx feat;
-	uint32_t rx_feat = 0, tx_feat = 0;
+	uint64_t rx_feat = 0, tx_feat = 0;
 	int rc = 0;
 
 	ena_assert_msg(dev->data != NULL, "Uninitialized device");
@@ -1450,8 +1473,6 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 
 	ena_dev = &adapter->ena_dev;
 	ena_assert_msg(ena_dev != NULL, "Uninitialized device");
-
-	dev_info->pci_dev = RTE_ETH_DEV_TO_PCI(dev);
 
 	dev_info->speed_capa =
 			ETH_LINK_SPEED_1G   |
@@ -1487,9 +1508,13 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 			DEV_RX_OFFLOAD_UDP_CKSUM  |
 			DEV_RX_OFFLOAD_TCP_CKSUM;
 
+	rx_feat |= DEV_RX_OFFLOAD_JUMBO_FRAME;
+
 	/* Inform framework about available features */
 	dev_info->rx_offload_capa = rx_feat;
+	dev_info->rx_queue_offload_capa = rx_feat;
 	dev_info->tx_offload_capa = tx_feat;
+	dev_info->tx_queue_offload_capa = tx_feat;
 
 	dev_info->min_rx_bufsize = ENA_MIN_FRAME_LEN;
 	dev_info->max_rx_pktlen  = adapter->max_mtu;
@@ -1498,6 +1523,9 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 	dev_info->max_rx_queues = adapter->num_queues;
 	dev_info->max_tx_queues = adapter->num_queues;
 	dev_info->reta_size = ENA_RX_RSS_TABLE_SIZE;
+
+	adapter->tx_supported_offloads = tx_feat;
+	adapter->rx_supported_offloads = rx_feat;
 }
 
 static uint16_t eth_ena_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
@@ -1714,7 +1742,7 @@ static uint16_t eth_ena_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		} /* there's no else as we take advantage of memset zeroing */
 
 		/* Set TX offloads flags, if applicable */
-		ena_tx_mbuf_prepare(mbuf, &ena_tx_ctx);
+		ena_tx_mbuf_prepare(mbuf, &ena_tx_ctx, tx_ring->offloads);
 
 		if (unlikely(mbuf->ol_flags &
 			     (PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD)))
@@ -1814,3 +1842,15 @@ static struct rte_pci_driver rte_ena_pmd = {
 RTE_PMD_REGISTER_PCI(net_ena, rte_ena_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_ena, pci_id_ena_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_ena, "* igb_uio | uio_pci_generic | vfio-pci");
+
+RTE_INIT(ena_init_log);
+static void
+ena_init_log(void)
+{
+	ena_logtype_init = rte_log_register("pmd.net.ena.init");
+	if (ena_logtype_init >= 0)
+		rte_log_set_level(ena_logtype_init, RTE_LOG_NOTICE);
+	ena_logtype_driver = rte_log_register("pmd.net.ena.driver");
+	if (ena_logtype_driver >= 0)
+		rte_log_set_level(ena_logtype_driver, RTE_LOG_NOTICE);
+}

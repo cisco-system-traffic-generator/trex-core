@@ -1,35 +1,6 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   Copyright(c) 2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation.
+ * Copyright(c) 2014 6WIND S.A.
  */
 
 #include <stdio.h>
@@ -37,13 +8,39 @@
 #include <inttypes.h>
 #include <sys/queue.h>
 
+#include <rte_compat.h>
 #include <rte_bus.h>
 #include <rte_dev.h>
 #include <rte_devargs.h>
 #include <rte_debug.h>
 #include <rte_log.h>
+#include <rte_spinlock.h>
+#include <rte_malloc.h>
 
 #include "eal_private.h"
+
+/**
+ * The device event callback description.
+ *
+ * It contains callback address to be registered by user application,
+ * the pointer to the parameters for callback, and the device name.
+ */
+struct dev_event_callback {
+	TAILQ_ENTRY(dev_event_callback) next; /**< Callbacks list */
+	rte_dev_event_cb_fn cb_fn;            /**< Callback address */
+	void *cb_arg;                         /**< Callback parameter */
+	char *dev_name;	 /**< Callback device name, NULL is for all device */
+	uint32_t active;                      /**< Callback is executing */
+};
+
+/** @internal Structure to keep track of registered callbacks */
+TAILQ_HEAD(dev_event_cb_list, dev_event_callback);
+
+/* The device event callback list for all registered callbacks. */
+static struct dev_event_cb_list dev_event_cbs;
+
+/* spinlock for device callbacks */
+static rte_spinlock_t dev_event_lock = RTE_SPINLOCK_INITIALIZER;
 
 static int cmp_detached_dev_name(const struct rte_device *dev,
 	const void *_name)
@@ -117,29 +114,12 @@ int rte_eal_dev_detach(struct rte_device *dev)
 	return ret;
 }
 
-static char *
-full_dev_name(const char *bus, const char *dev, const char *args)
-{
-	char *name;
-	size_t len;
-
-	len = snprintf(NULL, 0, "%s:%s,%s", bus, dev, args) + 1;
-	name = calloc(1, len);
-	if (name == NULL) {
-		RTE_LOG(ERR, EAL, "Could not allocate full device name\n");
-		return NULL;
-	}
-	snprintf(name, len, "%s:%s,%s", bus, dev, args);
-	return name;
-}
-
-int rte_eal_hotplug_add(const char *busname, const char *devname,
+int __rte_experimental rte_eal_hotplug_add(const char *busname, const char *devname,
 			const char *devargs)
 {
 	struct rte_bus *bus;
 	struct rte_device *dev;
 	struct rte_devargs *da;
-	char *name;
 	int ret;
 
 	bus = rte_bus_find_by_name(busname);
@@ -154,21 +134,16 @@ int rte_eal_hotplug_add(const char *busname, const char *devname,
 		return -ENOTSUP;
 	}
 
-	name = full_dev_name(busname, devname, devargs);
-	if (name == NULL)
+	da = calloc(1, sizeof(*da));
+	if (da == NULL)
 		return -ENOMEM;
 
-	da = calloc(1, sizeof(*da));
-	if (da == NULL) {
-		ret = -ENOMEM;
-		goto err_name;
-	}
-
-	ret = rte_eal_devargs_parse(name, da);
+	ret = rte_devargs_parse(da, "%s:%s,%s",
+				    busname, devname, devargs);
 	if (ret)
 		goto err_devarg;
 
-	ret = rte_eal_devargs_insert(da);
+	ret = rte_devargs_insert(da);
 	if (ret)
 		goto err_devarg;
 
@@ -190,20 +165,18 @@ int rte_eal_hotplug_add(const char *busname, const char *devname,
 			dev->name);
 		goto err_devarg;
 	}
-	free(name);
 	return 0;
 
 err_devarg:
-	if (rte_eal_devargs_remove(busname, devname)) {
+	if (rte_devargs_remove(busname, devname)) {
 		free(da->args);
 		free(da);
 	}
-err_name:
-	free(name);
 	return ret;
 }
 
-int rte_eal_hotplug_remove(const char *busname, const char *devname)
+int __rte_experimental
+rte_eal_hotplug_remove(const char *busname, const char *devname)
 {
 	struct rte_bus *bus;
 	struct rte_device *dev;
@@ -231,6 +204,142 @@ int rte_eal_hotplug_remove(const char *busname, const char *devname)
 	if (ret)
 		RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n",
 			dev->name);
-	rte_eal_devargs_remove(busname, devname);
+	rte_devargs_remove(busname, devname);
 	return ret;
+}
+
+int __rte_experimental
+rte_dev_event_callback_register(const char *device_name,
+				rte_dev_event_cb_fn cb_fn,
+				void *cb_arg)
+{
+	struct dev_event_callback *event_cb;
+	int ret;
+
+	if (!cb_fn)
+		return -EINVAL;
+
+	rte_spinlock_lock(&dev_event_lock);
+
+	if (TAILQ_EMPTY(&dev_event_cbs))
+		TAILQ_INIT(&dev_event_cbs);
+
+	TAILQ_FOREACH(event_cb, &dev_event_cbs, next) {
+		if (event_cb->cb_fn == cb_fn && event_cb->cb_arg == cb_arg) {
+			if (device_name == NULL && event_cb->dev_name == NULL)
+				break;
+			if (device_name == NULL || event_cb->dev_name == NULL)
+				continue;
+			if (!strcmp(event_cb->dev_name, device_name))
+				break;
+		}
+	}
+
+	/* create a new callback. */
+	if (event_cb == NULL) {
+		event_cb = malloc(sizeof(struct dev_event_callback));
+		if (event_cb != NULL) {
+			event_cb->cb_fn = cb_fn;
+			event_cb->cb_arg = cb_arg;
+			event_cb->active = 0;
+			if (!device_name) {
+				event_cb->dev_name = NULL;
+			} else {
+				event_cb->dev_name = strdup(device_name);
+				if (event_cb->dev_name == NULL) {
+					ret = -ENOMEM;
+					goto error;
+				}
+			}
+			TAILQ_INSERT_TAIL(&dev_event_cbs, event_cb, next);
+		} else {
+			RTE_LOG(ERR, EAL,
+				"Failed to allocate memory for device "
+				"event callback.");
+			ret = -ENOMEM;
+			goto error;
+		}
+	} else {
+		RTE_LOG(ERR, EAL,
+			"The callback is already exist, no need "
+			"to register again.\n");
+		ret = -EEXIST;
+	}
+
+	rte_spinlock_unlock(&dev_event_lock);
+	return 0;
+error:
+	free(event_cb);
+	rte_spinlock_unlock(&dev_event_lock);
+	return ret;
+}
+
+int __rte_experimental
+rte_dev_event_callback_unregister(const char *device_name,
+				  rte_dev_event_cb_fn cb_fn,
+				  void *cb_arg)
+{
+	int ret = 0;
+	struct dev_event_callback *event_cb, *next;
+
+	if (!cb_fn)
+		return -EINVAL;
+
+	rte_spinlock_lock(&dev_event_lock);
+	/*walk through the callbacks and remove all that match. */
+	for (event_cb = TAILQ_FIRST(&dev_event_cbs); event_cb != NULL;
+	     event_cb = next) {
+
+		next = TAILQ_NEXT(event_cb, next);
+
+		if (device_name != NULL && event_cb->dev_name != NULL) {
+			if (!strcmp(event_cb->dev_name, device_name)) {
+				if (event_cb->cb_fn != cb_fn ||
+				    (cb_arg != (void *)-1 &&
+				    event_cb->cb_arg != cb_arg))
+					continue;
+			}
+		} else if (device_name != NULL) {
+			continue;
+		}
+
+		/*
+		 * if this callback is not executing right now,
+		 * then remove it.
+		 */
+		if (event_cb->active == 0) {
+			TAILQ_REMOVE(&dev_event_cbs, event_cb, next);
+			free(event_cb);
+			ret++;
+		} else {
+			continue;
+		}
+	}
+	rte_spinlock_unlock(&dev_event_lock);
+	return ret;
+}
+
+void
+dev_callback_process(char *device_name, enum rte_dev_event_type event)
+{
+	struct dev_event_callback *cb_lst;
+
+	if (device_name == NULL)
+		return;
+
+	rte_spinlock_lock(&dev_event_lock);
+
+	TAILQ_FOREACH(cb_lst, &dev_event_cbs, next) {
+		if (cb_lst->dev_name) {
+			if (strcmp(cb_lst->dev_name, device_name))
+				continue;
+		}
+		cb_lst->active = 1;
+		rte_spinlock_unlock(&dev_event_lock);
+		cb_lst->cb_fn(device_name, event,
+				cb_lst->cb_arg);
+		rte_spinlock_lock(&dev_event_lock);
+		cb_lst->active = 0;
+	}
+	rte_spinlock_unlock(&dev_event_lock);
 }

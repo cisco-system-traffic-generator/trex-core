@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2017 Intel Corporation.
+ * All rights reserved.
+ */
 #include <rte_cycles.h>
 #include <rte_common.h>
 #include <rte_dev.h>
@@ -27,7 +31,7 @@
  */
 struct eth_rx_poll_entry {
 	/* Eth port to poll */
-	uint8_t eth_dev_id;
+	uint16_t eth_dev_id;
 	/* Eth rx queue to poll */
 	uint16_t eth_rx_qid;
 };
@@ -164,7 +168,7 @@ wrr_next(struct rte_event_eth_rx_adapter *rx_adapter,
 
 	while (1) {
 		uint16_t q;
-		uint8_t d;
+		uint16_t d;
 
 		i = (i + 1) % n;
 		if (i == 0) {
@@ -186,7 +190,7 @@ wrr_next(struct rte_event_eth_rx_adapter *rx_adapter,
 static int
 eth_poll_wrr_calc(struct rte_event_eth_rx_adapter *rx_adapter)
 {
-	uint8_t d;
+	uint16_t d;
 	uint16_t q;
 	unsigned int i;
 
@@ -213,7 +217,7 @@ eth_poll_wrr_calc(struct rte_event_eth_rx_adapter *rx_adapter)
 		/* Generate array of all queues to poll, the size of this
 		 * array is poll_q
 		 */
-		for (d = 0; d < rte_eth_dev_count(); d++) {
+		RTE_ETH_FOREACH_DEV(d) {
 			uint16_t nb_rx_queues;
 			struct eth_device_info *dev_info =
 					&rx_adapter->eth_devices[d];
@@ -434,10 +438,21 @@ fill_event_buffer(struct rte_event_eth_rx_adapter *rx_adapter,
 	uint32_t rss_mask;
 	uint32_t rss;
 	int do_rss;
+	uint64_t ts;
 
 	/* 0xffff ffff if PKT_RX_RSS_HASH is set, otherwise 0 */
 	rss_mask = ~(((m->ol_flags & PKT_RX_RSS_HASH) != 0) - 1);
 	do_rss = !rss_mask && !eth_rx_queue_info->flow_id_mask;
+
+	if ((m->ol_flags & PKT_RX_TIMESTAMP) == 0) {
+		ts = rte_get_tsc_cycles();
+		for (i = 0; i < num; i++) {
+			m = mbufs[i];
+
+			m->timestamp = ts;
+			m->ol_flags |= PKT_RX_TIMESTAMP;
+		}
+	}
 
 	for (i = 0; i < num; i++) {
 		m = mbufs[i];
@@ -449,7 +464,6 @@ fill_event_buffer(struct rte_event_eth_rx_adapter *rx_adapter,
 		    eth_rx_queue_info->flow_id &
 				eth_rx_queue_info->flow_id_mask;
 		flow_id |= rss & ~eth_rx_queue_info->flow_id_mask;
-
 		ev->flow_id = flow_id;
 		ev->op = RTE_EVENT_OP_NEW;
 		ev->sched_type = sched_type;
@@ -496,7 +510,7 @@ eth_rx_poll(struct rte_event_eth_rx_adapter *rx_adapter)
 	for (num_queue = 0; num_queue < rx_adapter->wrr_len; num_queue++) {
 		unsigned int poll_idx = rx_adapter->wrr_sched[wrr_pos];
 		uint16_t qid = rx_adapter->eth_rx_poll[poll_idx].eth_rx_qid;
-		uint8_t d = rx_adapter->eth_rx_poll[poll_idx].eth_dev_id;
+		uint16_t d = rx_adapter->eth_rx_poll[poll_idx].eth_dev_id;
 
 		/* Don't do a batch dequeue from the rx queue if there isn't
 		 * enough space in the enqueue buffer.
@@ -602,8 +616,10 @@ default_conf_cb(uint8_t id, uint8_t dev_id,
 	if (ret) {
 		RTE_EDEV_LOG_ERR("failed to configure event dev %u\n",
 						dev_id);
-		if (started)
-			rte_event_dev_start(dev_id);
+		if (started) {
+			if (rte_event_dev_start(dev_id))
+				return -EIO;
+		}
 		return ret;
 	}
 
@@ -617,7 +633,7 @@ default_conf_cb(uint8_t id, uint8_t dev_id,
 	conf->event_port_id = port_id;
 	conf->max_nb_rx = 128;
 	if (started)
-		rte_event_dev_start(dev_id);
+		ret = rte_event_dev_start(dev_id);
 	rx_adapter->default_cb_arg = 1;
 	return ret;
 }
@@ -739,7 +755,7 @@ event_eth_rx_adapter_queue_add(struct rte_event_eth_rx_adapter *rx_adapter,
 }
 
 static int add_rx_queue(struct rte_event_eth_rx_adapter *rx_adapter,
-		uint8_t eth_dev_id,
+		uint16_t eth_dev_id,
 		int rx_queue_id,
 		const struct rte_event_eth_rx_adapter_queue_conf *queue_conf)
 {
@@ -811,7 +827,7 @@ rx_adapter_ctrl(uint8_t id, int start)
 
 	dev = &rte_eventdevs[rx_adapter->eventdev_id];
 
-	for (i = 0; i < rte_eth_dev_count(); i++) {
+	RTE_ETH_FOREACH_DEV(i) {
 		dev_info = &rx_adapter->eth_devices[i];
 		/* if start  check for num dev queues */
 		if (start && !dev_info->nb_dev_queues)
@@ -843,7 +859,7 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 	struct rte_event_eth_rx_adapter *rx_adapter;
 	int ret;
 	int socket_id;
-	uint8_t i;
+	uint16_t i;
 	char mem_name[ETH_RX_ADAPTER_SERVICE_NAME_LEN];
 	const uint8_t default_rss_key[] = {
 		0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
@@ -888,7 +904,8 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 	rx_adapter->conf_arg = conf_arg;
 	strcpy(rx_adapter->mem_name, mem_name);
 	rx_adapter->eth_devices = rte_zmalloc_socket(rx_adapter->mem_name,
-					rte_eth_dev_count() *
+					/* FIXME: incompatible with hotplug */
+					rte_eth_dev_count_total() *
 					sizeof(struct eth_device_info), 0,
 					socket_id);
 	rte_convert_rss_key((const uint32_t *)default_rss_key,
@@ -901,7 +918,7 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 		return -ENOMEM;
 	}
 	rte_spinlock_init(&rx_adapter->rx_lock);
-	for (i = 0; i < rte_eth_dev_count(); i++)
+	RTE_ETH_FOREACH_DEV(i)
 		rx_adapter->eth_devices[i].dev = &rte_eth_devices[i];
 
 	event_eth_rx_adapter[id] = rx_adapter;
@@ -961,7 +978,7 @@ rte_event_eth_rx_adapter_free(uint8_t id)
 
 int
 rte_event_eth_rx_adapter_queue_add(uint8_t id,
-		uint8_t eth_dev_id,
+		uint16_t eth_dev_id,
 		int32_t rx_queue_id,
 		const struct rte_event_eth_rx_adapter_queue_conf *queue_conf)
 {
@@ -985,7 +1002,7 @@ rte_event_eth_rx_adapter_queue_add(uint8_t id,
 						&cap);
 	if (ret) {
 		RTE_EDEV_LOG_ERR("Failed to get adapter caps edev %" PRIu8
-			"eth port %" PRIu8, id, eth_dev_id);
+			"eth port %" PRIu16, id, eth_dev_id);
 		return ret;
 	}
 
@@ -993,7 +1010,7 @@ rte_event_eth_rx_adapter_queue_add(uint8_t id,
 		&& (queue_conf->rx_queue_flags &
 			RTE_EVENT_ETH_RX_ADAPTER_QUEUE_FLOW_ID_VALID)) {
 		RTE_EDEV_LOG_ERR("Flow ID override is not supported,"
-				" eth port: %" PRIu8 " adapter id: %" PRIu8,
+				" eth port: %" PRIu16 " adapter id: %" PRIu8,
 				eth_dev_id, id);
 		return -EINVAL;
 	}
@@ -1001,7 +1018,8 @@ rte_event_eth_rx_adapter_queue_add(uint8_t id,
 	if ((cap & RTE_EVENT_ETH_RX_ADAPTER_CAP_MULTI_EVENTQ) == 0 &&
 		(rx_queue_id != -1)) {
 		RTE_EDEV_LOG_ERR("Rx queues can only be connected to single "
-			"event queue id %u eth port %u", id, eth_dev_id);
+			"event queue, eth port: %" PRIu16 " adapter id: %"
+			PRIu8, eth_dev_id, id);
 		return -EINVAL;
 	}
 
@@ -1058,7 +1076,7 @@ rte_event_eth_rx_adapter_queue_add(uint8_t id,
 }
 
 int
-rte_event_eth_rx_adapter_queue_del(uint8_t id, uint8_t eth_dev_id,
+rte_event_eth_rx_adapter_queue_del(uint8_t id, uint16_t eth_dev_id,
 				int32_t rx_queue_id)
 {
 	int ret = 0;
@@ -1172,7 +1190,7 @@ rte_event_eth_rx_adapter_stats_get(uint8_t id,
 
 	dev = &rte_eventdevs[rx_adapter->eventdev_id];
 	memset(stats, 0, sizeof(*stats));
-	for (i = 0; i < rte_eth_dev_count(); i++) {
+	RTE_ETH_FOREACH_DEV(i) {
 		dev_info = &rx_adapter->eth_devices[i];
 		if (dev_info->internal_event_port == 0 ||
 			dev->dev_ops->eth_rx_adapter_stats_get == NULL)
@@ -1209,7 +1227,7 @@ rte_event_eth_rx_adapter_stats_reset(uint8_t id)
 		return -EINVAL;
 
 	dev = &rte_eventdevs[rx_adapter->eventdev_id];
-	for (i = 0; i < rte_eth_dev_count(); i++) {
+	RTE_ETH_FOREACH_DEV(i) {
 		dev_info = &rx_adapter->eth_devices[i];
 		if (dev_info->internal_event_port == 0 ||
 			dev->dev_ops->eth_rx_adapter_stats_reset == NULL)

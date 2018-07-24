@@ -151,9 +151,10 @@ int rte_eth_dev_pci_addr(repid_t repid,char *p,int size){
 
     struct rte_devargs * lp=rte_eth_devices[repid].device->devargs;
     struct rte_pci_addr *pci_addr = NULL;
-    struct rte_eth_dev_info dev_info;
-    rte_eth_dev_info_get(repid, &dev_info);
-    pci_addr = &(dev_info.pci_dev->addr);
+
+    struct rte_eth_dev *dev = &rte_eth_devices[repid];
+    struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+    pci_addr = &(pci_dev->addr);
     if (pci_addr) {
         rte_pci_device_name(pci_addr,p, size);
         return (0);

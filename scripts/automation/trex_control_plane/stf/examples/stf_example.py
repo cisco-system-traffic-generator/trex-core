@@ -20,7 +20,7 @@ def minimal_stateful_test(server):
             )
 
     print('Sample until end')
-    result = trex_client.sample_to_run_finish()
+    result = trex_client.sample_until_finish()
 
     print('Test results:')
     print(result)

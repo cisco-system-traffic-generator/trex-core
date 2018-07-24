@@ -319,48 +319,6 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
   rte_spinlock_unlock(&internals->lock);
 
   /*****************************/
-  /* Inner UDP hash mode setup */
-  /*****************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_UDP) || (rss_hf & ETH_RSS_INNER_IPV6_UDP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_UDP) && (rss_hf & ETH_RSS_INNER_IPV6_UDP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
-    }
-  }
-  /*****************************/
-  /* Inner TCP hash mode setup */
-  /*****************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_TCP) || (rss_hf & ETH_RSS_INNER_IPV6_TCP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_TCP) && (rss_hf & ETH_RSS_INNER_IPV6_TCP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
-    }
-  }
-  /******************************/
-  /* Inner SCTP hash mode setup */
-  /******************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_SCTP) || (rss_hf & ETH_RSS_INNER_IPV6_SCTP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_SCTP) && (rss_hf & ETH_RSS_INNER_IPV6_SCTP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-  }
-  /*****************************/
   /* Outer UDP hash mode setup */
   /*****************************/
   if ((rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) || (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP)) {
@@ -403,23 +361,6 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
     }
   }
   /****************************/
-  /* Inner IP hash mode setup */
-  /****************************/
-  if (((rss_hf & ETH_RSS_INNER_IPV4) || (rss_hf & ETH_RSS_INNER_IPV6)) || (rss_hf & ETH_RSS_INNER_IPV4_OTHER) || (rss_hf & ETH_RSS_INNER_IPV6_OTHER)) {
-    if (((rss_hf & ETH_RSS_INNER_IPV4) && (rss_hf & ETH_RSS_INNER_IPV6)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4_OTHER) && (rss_hf & ETH_RSS_INNER_IPV6)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4_OTHER) && (rss_hf & ETH_RSS_INNER_IPV6_OTHER)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4) && (rss_hf & ETH_RSS_INNER_IPV6_OTHER))) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;tag=%s]=%s", 0x12);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;tag=%s]=%s", 0x12);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;tag=%s]=%s", 0x12);
-    }
-  }
-  /****************************/
   /* Outer IP hash mode setup */
   /****************************/
   if ((rss_hf & ETH_RSS_IPV4) || (rss_hf & ETH_RSS_IPV6) || (rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) || (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER)) {
@@ -439,9 +380,9 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
   return 0;
 }
 
-static const char *GetSorted(struct pmd_internals *internals)
+static const char *GetSorted(enum rte_eth_hash_function func)
 {
-  if (internals->symHashMode == SYM_HASH_ENA_PER_PORT) {
+  if (func == RTE_ETH_HASH_FUNCTION_SIMPLE_XOR) {
     return "XOR=true";
   }
   else {
@@ -449,55 +390,87 @@ static const char *GetSorted(struct pmd_internals *internals)
   }
 }
 
-int CreateHash(char *ntpl_buf, uint64_t rss_hf, struct pmd_internals *internals, bool tunnel)
+int CreateHash(char *ntpl_buf, const struct rte_flow_action_rss *rss, struct pmd_internals *internals)
 {
-  if (rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) {
+  enum rte_eth_hash_function func;
+  bool tunnel = false;
+
+  // Select either sorted or non-sorted hash
+  switch (rss->func)
+  {
+  case RTE_ETH_HASH_FUNCTION_DEFAULT:
+    if (internals->symHashMode == SYM_HASH_ENA_PER_PORT)
+      func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+    else
+      func = RTE_ETH_HASH_FUNCTION_DEFAULT;
+    break;
+  case RTE_ETH_HASH_FUNCTION_SIMPLE_XOR:
+    func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+    break;
+  default:
+    return 1;
+    break;
+  }
+
+  // Select either inner tunnel or outer tunnel hash
+  switch (rss->level)
+  {
+  case 0:
+  case 1:
+    tunnel = false;
+    break;
+  case 2:
+    tunnel = true;
+    break;
+  }
+
+  if (rss->types & ETH_RSS_NONFRAG_IPV4_OTHER) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
+             GetLayer(PROTO, tunnel), GetSorted(func));
     return 0;
   }
 
-  if ((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP)) {
+  if ((rss->types & ETH_RSS_NONFRAG_IPV4_TCP) || (rss->types & ETH_RSS_NONFRAG_IPV4_UDP) || (rss->types & ETH_RSS_NONFRAG_IPV4_SCTP)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWord8=%s[0]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
+             GetLayer(PROTO, tunnel), GetSorted(func));
     return 0;
   }
 
-  if ((rss_hf & ETH_RSS_IPV4) || (rss_hf & ETH_RSS_FRAG_IPV4)) {
+  if ((rss->types & ETH_RSS_IPV4) || (rss->types & ETH_RSS_FRAG_IPV4)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,%s",
-             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(func));
     return 0;
   }
 
-  if (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER) {
+  if (rss->types & ETH_RSS_NONFRAG_IPV6_OTHER) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
+             GetLayer(PROTO, tunnel), GetSorted(func));
     return 0;
   }
 
-  if ((rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) ||
-      (rss_hf & ETH_RSS_IPV6_TCP_EX)      ||
-      (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) ||
-      (rss_hf & ETH_RSS_IPV6_UDP_EX)      ||
-      (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP)) {
+  if ((rss->types & ETH_RSS_NONFRAG_IPV6_TCP) ||
+      (rss->types & ETH_RSS_IPV6_TCP_EX)      ||
+      (rss->types & ETH_RSS_NONFRAG_IPV6_UDP) ||
+      (rss->types & ETH_RSS_IPV6_UDP_EX)      ||
+      (rss->types & ETH_RSS_NONFRAG_IPV6_SCTP)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWord8=%s[0]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
+             GetLayer(PROTO, tunnel), GetSorted(func));
     return 0;
   }
 
-  if ((rss_hf & ETH_RSS_IPV6) || (rss_hf & ETH_RSS_FRAG_IPV6) || (rss_hf & ETH_RSS_IPV6_EX)) {
+  if ((rss->types & ETH_RSS_IPV6) || (rss->types & ETH_RSS_FRAG_IPV6) || (rss->types & ETH_RSS_IPV6_EX)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,%s",
-             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(func));
     return 0;
   }
 
@@ -2427,7 +2400,6 @@ int SetVlanFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
   const struct rte_flow_item_vlan *spec = (const struct rte_flow_item_vlan *)item->spec;
   const struct rte_flow_item_vlan *mask = (const struct rte_flow_item_vlan *)item->mask;
   const struct rte_flow_item_vlan *last = (const struct rte_flow_item_vlan *)item->last;
-  bool singleSetup = true;
 
   if (*fc) strcat(ntpl_buf," and ");
   *fc = true;
@@ -2442,79 +2414,29 @@ int SetVlanFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
-  if (spec && spec->tpid && spec->tci) {
-    if (last && (last->tpid || last->tci)) {
-      singleSetup = true;
-    }
-    else if (mask && CHECK16(mask, tpid) && CHECK16(mask, tci)) {
-      uint32_t vSpec = ((rte_bswap16(spec->tpid) << 16) & 0xFFFF0000) | rte_bswap16(spec->tci);
-      uint32_t vMask = ((rte_bswap16(mask->tpid) << 16) & 0xFFFF0000) | rte_bswap16(mask->tci);
-      if (SetFilter(32, 0, 0, tnl, VLAN, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+  if (spec && spec->tci) {
+    if (last && last->tci) {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      uint16_t vLast = rte_bswap16(last->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals) != 0) {
         return -1;
       }
-      *typeMask |= VLAN_TPID | VLAN_TCI;
-      singleSetup = false;
+      *typeMask |= VLAN_TCI;
     }
-    else if (!mask || (mask && !CHECK16(mask, tpid) && !CHECK16(mask, tci))) {
-      uint32_t vSpec = ((rte_bswap16(spec->tpid) << 16) & 0xFFFF0000) | rte_bswap16(spec->tci);
-      if (SetFilter(32, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+    else if (mask && CHECK16(mask, tci)) {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      uint16_t vMask = rte_bswap16(mask->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals) != 0) {
         return -1;
       }
-      *typeMask |= VLAN_TPID | VLAN_TCI;
-      singleSetup = false;
+      *typeMask |= VLAN_TCI;
     }
-  }
-  if (singleSetup) {
-    if (spec && spec->tpid) {
-      if (last && last->tpid) {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        uint16_t vLast = rte_bswap16(last->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
+    else {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        return -1;
       }
-      else if (mask && CHECK16(mask, tpid)) {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        uint16_t vMask = rte_bswap16(mask->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
-      }
-      else {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
-      }
-    }
-
-    if (spec && spec->tci) {
-      if (last && last->tci) {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        uint16_t vLast = rte_bswap16(last->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
-      }
-      else if (mask && CHECK16(mask, tci)) {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        uint16_t vMask = rte_bswap16(mask->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
-      }
-      else {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
-      }
+      *typeMask |= VLAN_TCI;
     }
   }
   return 0;

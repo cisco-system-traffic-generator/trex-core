@@ -41,7 +41,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             f = 'cap2/http_simple.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -125,7 +125,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             f = traffic_file,
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)

@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2016 Intel Corporation
  */
 
 #include <sys/socket.h>
@@ -167,12 +138,13 @@ struct hugepage_file_info {
 static int
 get_hugepage_file_info(struct hugepage_file_info huges[], int max)
 {
-	int idx;
+	int idx, k, exist;
 	FILE *f;
 	char buf[BUFSIZ], *tmp, *tail;
 	char *str_underline, *str_start;
 	int huge_index;
 	uint64_t v_start, v_end;
+	struct stat stats;
 
 	f = fopen("/proc/self/maps", "r");
 	if (!f) {
@@ -212,14 +184,37 @@ get_hugepage_file_info(struct hugepage_file_info huges[], int max)
 		if (sscanf(str_start, "map_%d", &huge_index) != 1)
 			continue;
 
+		/* skip duplicated file which is mapped to different regions */
+		for (k = 0, exist = -1; k < idx; ++k) {
+			if (!strcmp(huges[k].path, tmp)) {
+				exist = k;
+				break;
+			}
+		}
+		if (exist >= 0)
+			continue;
+
 		if (idx >= max) {
 			PMD_DRV_LOG(ERR, "Exceed maximum of %d", max);
 			goto error;
 		}
+
 		huges[idx].addr = v_start;
-		huges[idx].size = v_end - v_start;
+		huges[idx].size = v_end - v_start; /* To be corrected later */
 		snprintf(huges[idx].path, PATH_MAX, "%s", tmp);
 		idx++;
+	}
+
+	/* correct the size for files who have many regions */
+	for (k = 0; k < idx; ++k) {
+		if (stat(huges[k].path, &stats) < 0) {
+			PMD_DRV_LOG(ERR, "Failed to stat %s, %s\n",
+				    huges[k].path, strerror(errno));
+			continue;
+		}
+		huges[k].size = stats.st_size;
+		PMD_DRV_LOG(INFO, "file %s, size %zx\n",
+			    huges[k].path, huges[k].size);
 	}
 
 	fclose(f);
@@ -291,6 +286,9 @@ vhost_user_sock(struct virtio_user_dev *dev,
 	RTE_SET_USED(m);
 
 	PMD_DRV_LOG(INFO, "%s", vhost_msg_strings[req]);
+
+	if (dev->is_server && vhostfd < 0)
+		return -1;
 
 	msg.request = req;
 	msg.flags = VHOST_USER_VERSION;
@@ -407,6 +405,30 @@ vhost_user_sock(struct virtio_user_dev *dev,
 	return 0;
 }
 
+#define MAX_VIRTIO_USER_BACKLOG 1
+static int
+virtio_user_start_server(struct virtio_user_dev *dev, struct sockaddr_un *un)
+{
+	int ret;
+	int flag;
+	int fd = dev->listenfd;
+
+	ret = bind(fd, (struct sockaddr *)un, sizeof(*un));
+	if (ret < 0) {
+		PMD_DRV_LOG(ERR, "failed to bind to %s: %s; remove it and try again\n",
+			    dev->path, strerror(errno));
+		return -1;
+	}
+	ret = listen(fd, MAX_VIRTIO_USER_BACKLOG);
+	if (ret < 0)
+		return -1;
+
+	flag = fcntl(fd, F_GETFL);
+	fcntl(fd, F_SETFL, flag | O_NONBLOCK);
+
+	return 0;
+}
+
 /**
  * Set up environment to talk with a vhost user backend.
  *
@@ -434,13 +456,24 @@ vhost_user_setup(struct virtio_user_dev *dev)
 	memset(&un, 0, sizeof(un));
 	un.sun_family = AF_UNIX;
 	snprintf(un.sun_path, sizeof(un.sun_path), "%s", dev->path);
-	if (connect(fd, (struct sockaddr *)&un, sizeof(un)) < 0) {
-		PMD_DRV_LOG(ERR, "connect error, %s", strerror(errno));
-		close(fd);
-		return -1;
+
+	if (dev->is_server) {
+		dev->listenfd = fd;
+		if (virtio_user_start_server(dev, &un) < 0) {
+			PMD_DRV_LOG(ERR, "virtio-user startup fails in server mode");
+			close(fd);
+			return -1;
+		}
+		dev->vhostfd = -1;
+	} else {
+		if (connect(fd, (struct sockaddr *)&un, sizeof(un)) < 0) {
+			PMD_DRV_LOG(ERR, "connect error, %s", strerror(errno));
+			close(fd);
+			return -1;
+		}
+		dev->vhostfd = fd;
 	}
 
-	dev->vhostfd = fd;
 	return 0;
 }
 

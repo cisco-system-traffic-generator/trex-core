@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2014 6WIND S.A.
  */
 
 #ifndef _RTE_DEV_H_
@@ -49,7 +20,28 @@ extern "C" {
 #include <stdio.h>
 #include <sys/queue.h>
 
+#include <rte_config.h>
+#include <rte_compat.h>
 #include <rte_log.h>
+
+/**
+ * The device event type.
+ */
+enum rte_dev_event_type {
+	RTE_DEV_EVENT_ADD,	/**< device being added */
+	RTE_DEV_EVENT_REMOVE,	/**< device being removed */
+	RTE_DEV_EVENT_MAX	/**< max value of this enum */
+};
+
+struct rte_dev_event {
+	enum rte_dev_event_type type;	/**< device event type */
+	int subsystem;			/**< subsystem id */
+	char *devname;			/**< device name */
+};
+
+typedef void (*rte_dev_event_cb_fn)(char *device_name,
+					enum rte_dev_event_type event,
+					void *cb_arg);
 
 __attribute__((format(printf, 2, 0)))
 static inline void
@@ -59,15 +51,18 @@ rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
 
 	va_start(ap, fmt);
 
-	char buffer[vsnprintf(NULL, 0, fmt, ap) + 1];
+	{
+		char buffer[vsnprintf(NULL, 0, fmt, ap) + 1];
 
-	va_end(ap);
+		va_end(ap);
 
-	va_start(ap, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, ap);
-	va_end(ap);
+		va_start(ap, fmt);
+		vsnprintf(buffer, sizeof(buffer), fmt, ap);
+		va_end(ap);
 
-	rte_log(RTE_LOG_ERR, RTE_LOGTYPE_PMD, "%s: %s", func_name, buffer);
+		rte_log(RTE_LOG_ERR, RTE_LOGTYPE_PMD, "%s: %s",
+			func_name, buffer);
+	}
 }
 
 /*
@@ -209,7 +204,7 @@ int rte_eal_dev_detach(struct rte_device *dev);
  * @return
  *   0 on success, negative on error.
  */
-int rte_eal_hotplug_add(const char *busname, const char *devname,
+int __rte_experimental rte_eal_hotplug_add(const char *busname, const char *devname,
 			const char *devargs);
 
 /**
@@ -225,7 +220,8 @@ int rte_eal_hotplug_add(const char *busname, const char *devname,
  * @return
  *   0 on success, negative on error.
  */
-int rte_eal_hotplug_remove(const char *busname, const char *devname);
+int __rte_experimental rte_eal_hotplug_remove(const char *busname,
+					  const char *devname);
 
 /**
  * Device comparison function.
@@ -292,5 +288,79 @@ __attribute__((used)) = str
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * It registers the callback for the specific device.
+ * Multiple callbacks cal be registered at the same time.
+ *
+ * @param device_name
+ *  The device name, that is the param name of the struct rte_device,
+ *  null value means for all devices.
+ * @param cb_fn
+ *  callback address.
+ * @param cb_arg
+ *  address of parameter for callback.
+ *
+ * @return
+ *  - On success, zero.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_callback_register(const char *device_name,
+				rte_dev_event_cb_fn cb_fn,
+				void *cb_arg);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * It unregisters the callback according to the specified device.
+ *
+ * @param device_name
+ *  The device name, that is the param name of the struct rte_device,
+ *  null value means for all devices and their callbacks.
+ * @param cb_fn
+ *  callback address.
+ * @param cb_arg
+ *  address of parameter for callback, (void *)-1 means to remove all
+ *  registered which has the same callback address.
+ *
+ * @return
+ *  - On success, return the number of callback entities removed.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_callback_unregister(const char *device_name,
+				  rte_dev_event_cb_fn cb_fn,
+				  void *cb_arg);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Start the device event monitoring.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_monitor_start(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Stop the device event monitoring.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_monitor_stop(void);
 
 #endif /* _RTE_DEV_H_ */

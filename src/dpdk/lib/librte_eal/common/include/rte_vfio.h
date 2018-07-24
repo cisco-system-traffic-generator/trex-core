@@ -1,38 +1,18 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2017 6WIND S.A. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2017 6WIND S.A.
  */
 
 #ifndef _RTE_VFIO_H_
 #define _RTE_VFIO_H_
+
+/**
+ * @file
+ * RTE VFIO. This library provides various VFIO related utility functions.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * determine if VFIO is present on the system
@@ -56,6 +36,20 @@
 #define VFIO_GET_REGION_IDX(x) (x >> 40)
 #define VFIO_NOIOMMU_MODE      \
 	"/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
+
+/* NOIOMMU is defined from kernel version 4.5 onwards */
+#ifdef VFIO_NOIOMMU_IOMMU
+#define RTE_VFIO_NOIOMMU VFIO_NOIOMMU_IOMMU
+#else
+#define RTE_VFIO_NOIOMMU 8
+#endif
+
+#else /* not VFIO_PRESENT */
+
+/* we don't need an actual definition, only pointer is used */
+struct vfio_device_info;
+
+#endif /* VFIO_PRESENT */
 
 /**
  * Setup vfio_cfg for the device identified by its address.
@@ -148,6 +142,244 @@ int rte_vfio_is_enabled(const char *modname);
  */
 int rte_vfio_noiommu_is_enabled(void);
 
-#endif /* VFIO_PRESENT */
+/**
+ * Remove group fd from internal VFIO group fd array/
+ *
+ * This function is only relevant to linux and will return
+ * an error on BSD.
+ *
+ * @param vfio_group_fd
+ *   VFIO Grouup FD.
+ *
+ * @return
+ *   0 on success.
+ *   <0 on failure.
+ */
+int
+rte_vfio_clear_group(int vfio_group_fd);
+
+/**
+ * Map memory region for use with VFIO.
+ *
+ * @note Require at least one device to be attached at the time of
+ *       mapping. DMA maps done via this API will only apply to default
+ *       container and will not apply to any of the containers created
+ *       via rte_vfio_container_create().
+ *
+ * @param vaddr
+ *   Starting virtual address of memory to be mapped.
+ *
+ * @param iova
+ *   Starting IOVA address of memory to be mapped.
+ *
+ * @param len
+ *   Length of memory segment being mapped.
+ *
+ * @return
+ *   0 if success.
+ *   -1 on error.
+ */
+int  __rte_experimental
+rte_vfio_dma_map(uint64_t vaddr, uint64_t iova, uint64_t len);
+
+
+/**
+ * Unmap memory region from VFIO.
+ *
+ * @param vaddr
+ *   Starting virtual address of memory to be unmapped.
+ *
+ * @param iova
+ *   Starting IOVA address of memory to be unmapped.
+ *
+ * @param len
+ *   Length of memory segment being unmapped.
+ *
+ * @return
+ *   0 if success.
+ *   -1 on error.
+ */
+
+int __rte_experimental
+rte_vfio_dma_unmap(uint64_t vaddr, uint64_t iova, uint64_t len);
+/**
+ * Parse IOMMU group number for a device
+ *
+ * This function is only relevant to linux and will return
+ * an error on BSD.
+ *
+ * @param sysfs_base
+ *   sysfs path prefix.
+ *
+ * @param dev_addr
+ *   device location.
+ *
+ * @param iommu_group_num
+ *   iommu group number
+ *
+ * @return
+ *  >0 on success
+ *   0 for non-existent group or VFIO
+ *  <0 for errors
+ */
+int __rte_experimental
+rte_vfio_get_group_num(const char *sysfs_base,
+		      const char *dev_addr, int *iommu_group_num);
+
+/**
+ * Open VFIO container fd or get an existing one
+ *
+ * This function is only relevant to linux and will return
+ * an error on BSD.
+ *
+ * @return
+ *  > 0 container fd
+ *  < 0 for errors
+ */
+int __rte_experimental
+rte_vfio_get_container_fd(void);
+
+/**
+ * Open VFIO group fd or get an existing one
+ *
+ * This function is only relevant to linux and will return
+ * an error on BSD.
+ *
+ * @param iommu_group_num
+ *   iommu group number
+ *
+ * @return
+ *  > 0 group fd
+ *  < 0 for errors
+ */
+int __rte_experimental
+rte_vfio_get_group_fd(int iommu_group_num);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Create a new container for device binding.
+ *
+ * @note Any newly allocated DPDK memory will not be mapped into these
+ *       containers by default, user needs to manage DMA mappings for
+ *       any container created by this API.
+ *
+ * @return
+ *   the container fd if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_create(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Destroy the container, unbind all vfio groups within it.
+ *
+ * @param container_fd
+ *   the container fd to destroy
+ *
+ * @return
+ *    0 if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_destroy(int container_fd);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Bind a IOMMU group to a container.
+ *
+ * @param container_fd
+ *   the container's fd
+ *
+ * @param iommu_group_num
+ *   the iommu group number to bind to container
+ *
+ * @return
+ *   group fd if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_group_bind(int container_fd, int iommu_group_num);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Unbind a IOMMU group from a container.
+ *
+ * @param container_fd
+ *   the container fd of container
+ *
+ * @param iommu_group_num
+ *   the iommu group number to delete from container
+ *
+ * @return
+ *    0 if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_group_unbind(int container_fd, int iommu_group_num);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Perform DMA mapping for devices in a container.
+ *
+ * @param container_fd
+ *   the specified container fd
+ *
+ * @param vaddr
+ *   Starting virtual address of memory to be mapped.
+ *
+ * @param iova
+ *   Starting IOVA address of memory to be mapped.
+ *
+ * @param len
+ *   Length of memory segment being mapped.
+ *
+ * @return
+ *    0 if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_dma_map(int container_fd, uint64_t vaddr,
+		uint64_t iova, uint64_t len);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * Perform DMA unmapping for devices in a container.
+ *
+ * @param container_fd
+ *   the specified container fd
+ *
+ * @param vaddr
+ *   Starting virtual address of memory to be unmapped.
+ *
+ * @param iova
+ *   Starting IOVA address of memory to be unmapped.
+ *
+ * @param len
+ *   Length of memory segment being unmapped.
+ *
+ * @return
+ *    0 if successful
+ *   <0 if failed
+ */
+int __rte_experimental
+rte_vfio_container_dma_unmap(int container_fd, uint64_t vaddr,
+		uint64_t iova, uint64_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _RTE_VFIO_H_ */

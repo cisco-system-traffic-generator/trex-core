@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #include <stdio.h>
@@ -588,6 +559,9 @@ rte_intr_enable(const struct rte_intr_handle *intr_handle)
 			return -1;
 		break;
 #endif
+	/* not used at this moment */
+	case RTE_INTR_HANDLE_DEV_EVENT:
+		return -1;
 	/* unknown handle type */
 	default:
 		RTE_LOG(ERR, EAL,
@@ -635,6 +609,9 @@ rte_intr_disable(const struct rte_intr_handle *intr_handle)
 			return -1;
 		break;
 #endif
+	/* not used at this moment */
+	case RTE_INTR_HANDLE_DEV_EVENT:
+		return -1;
 	/* unknown handle type */
 	default:
 		RTE_LOG(ERR, EAL,
@@ -703,7 +680,10 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 			bytes_read = 0;
 			call = true;
 			break;
-
+		case RTE_INTR_HANDLE_DEV_EVENT:
+			bytes_read = 0;
+			call = true;
+			break;
 		default:
 			bytes_read = 1;
 			break;
@@ -873,8 +853,7 @@ eal_intr_thread_main(__rte_unused void *arg)
 int
 rte_eal_intr_init(void)
 {
-	int ret = 0, ret_1 = 0;
-	char thread_name[RTE_MAX_THREAD_NAME_LEN];
+	int ret = 0;
 
 	/* init the global interrupt source head */
 	TAILQ_INIT(&intr_sources);
@@ -889,23 +868,15 @@ rte_eal_intr_init(void)
 	}
 
 	/* create the host thread to wait/handle the interrupt */
-	ret = pthread_create(&intr_thread, NULL,
+	ret = rte_ctrl_thread_create(&intr_thread, "eal-intr-thread", NULL,
 			eal_intr_thread_main, NULL);
 	if (ret != 0) {
-		rte_errno = ret;
+		rte_errno = -ret;
 		RTE_LOG(ERR, EAL,
 			"Failed to create thread for interrupt handling\n");
-	} else {
-		/* Set thread_name for aid in debugging. */
-		snprintf(thread_name, RTE_MAX_THREAD_NAME_LEN,
-			"eal-intr-thread");
-		ret_1 = rte_thread_setname(intr_thread, thread_name);
-		if (ret_1 != 0)
-			RTE_LOG(DEBUG, EAL,
-			"Failed to set thread name for interrupt handling\n");
 	}
 
-	return -ret;
+	return ret;
 }
 
 static void

@@ -1,32 +1,10 @@
-/*-
- *   BSD LICENSE
+/* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016-2017 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
  * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "sfc.h"
@@ -56,12 +34,50 @@
  */
 #define SFC_TX_QFLUSH_POLL_ATTEMPTS	(2000)
 
-static int
-sfc_tx_qcheck_conf(struct sfc_adapter *sa, uint16_t nb_tx_desc,
-		   const struct rte_eth_txconf *tx_conf)
+uint64_t
+sfc_tx_get_dev_offload_caps(struct sfc_adapter *sa)
 {
-	unsigned int flags = tx_conf->txq_flags;
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	uint64_t caps = 0;
+
+	if ((sa->dp_tx->features & SFC_DP_TX_FEAT_VLAN_INSERT) &&
+	    encp->enc_hw_tx_insert_vlan_enabled)
+		caps |= DEV_TX_OFFLOAD_VLAN_INSERT;
+
+	if (sa->dp_tx->features & SFC_DP_TX_FEAT_MULTI_SEG)
+		caps |= DEV_TX_OFFLOAD_MULTI_SEGS;
+
+	if ((~sa->dp_tx->features & SFC_DP_TX_FEAT_MULTI_POOL) &&
+	    (~sa->dp_tx->features & SFC_DP_TX_FEAT_REFCNT))
+		caps |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+
+	return caps;
+}
+
+uint64_t
+sfc_tx_get_queue_offload_caps(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	uint64_t caps = 0;
+
+	caps |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+	caps |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	caps |= DEV_TX_OFFLOAD_TCP_CKSUM;
+
+	if (encp->enc_tunnel_encapsulations_supported)
+		caps |= DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM;
+
+	if (sa->tso)
+		caps |= DEV_TX_OFFLOAD_TCP_TSO;
+
+	return caps;
+}
+
+static int
+sfc_tx_qcheck_conf(struct sfc_adapter *sa, unsigned int txq_max_fill_level,
+		   const struct rte_eth_txconf *tx_conf,
+		   uint64_t offloads)
+{
 	int rc = 0;
 
 	if (tx_conf->tx_rs_thresh != 0) {
@@ -69,10 +85,10 @@ sfc_tx_qcheck_conf(struct sfc_adapter *sa, uint16_t nb_tx_desc,
 		rc = EINVAL;
 	}
 
-	if (tx_conf->tx_free_thresh > EFX_TXQ_LIMIT(nb_tx_desc)) {
+	if (tx_conf->tx_free_thresh > txq_max_fill_level) {
 		sfc_err(sa,
 			"TxQ free threshold too large: %u vs maximum %u",
-			tx_conf->tx_free_thresh, EFX_TXQ_LIMIT(nb_tx_desc));
+			tx_conf->tx_free_thresh, txq_max_fill_level);
 		rc = EINVAL;
 	}
 
@@ -81,51 +97,12 @@ sfc_tx_qcheck_conf(struct sfc_adapter *sa, uint16_t nb_tx_desc,
 	    tx_conf->tx_thresh.wthresh != 0) {
 		sfc_err(sa,
 			"prefetch/host/writeback thresholds are not supported");
-		rc = EINVAL;
-	}
-
-	if (((flags & ETH_TXQ_FLAGS_NOMULTSEGS) == 0) &&
-	    (~sa->dp_tx->features & SFC_DP_TX_FEAT_MULTI_SEG)) {
-		sfc_err(sa, "Multi-segment is not supported by %s datapath",
-			sa->dp_tx->dp.name);
-		rc = EINVAL;
-	}
-
-	if (((flags & ETH_TXQ_FLAGS_NOMULTMEMP) == 0) &&
-	    (~sa->dp_tx->features & SFC_DP_TX_FEAT_MULTI_POOL)) {
-		sfc_err(sa, "multi-mempool is not supported by %s datapath",
-			sa->dp_tx->dp.name);
-		rc = EINVAL;
-	}
-
-	if (((flags & ETH_TXQ_FLAGS_NOREFCOUNT) == 0) &&
-	    (~sa->dp_tx->features & SFC_DP_TX_FEAT_REFCNT)) {
-		sfc_err(sa,
-			"mbuf reference counters are neglected by %s datapath",
-			sa->dp_tx->dp.name);
-		rc = EINVAL;
-	}
-
-	if ((flags & ETH_TXQ_FLAGS_NOVLANOFFL) == 0) {
-		if (!encp->enc_hw_tx_insert_vlan_enabled) {
-			sfc_err(sa, "VLAN offload is not supported");
-			rc = EINVAL;
-		} else if (~sa->dp_tx->features & SFC_DP_TX_FEAT_VLAN_INSERT) {
-			sfc_err(sa,
-				"VLAN offload is not supported by %s datapath",
-				sa->dp_tx->dp.name);
-			rc = EINVAL;
-		}
-	}
-
-	if ((flags & ETH_TXQ_FLAGS_NOXSUMSCTP) == 0) {
-		sfc_err(sa, "SCTP offload is not supported");
-		rc = EINVAL;
+        rc = EINVAL;
 	}
 
 	/* We either perform both TCP and UDP offload, or no offload at all */
-	if (((flags & ETH_TXQ_FLAGS_NOXSUMTCP) == 0) !=
-	    ((flags & ETH_TXQ_FLAGS_NOXSUMUDP) == 0)) {
+	if (((offloads & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) !=
+	    ((offloads & DEV_TX_OFFLOAD_UDP_CKSUM) == 0)) {
 		sfc_err(sa, "TCP and UDP offloads can't be set independently");
 		rc = EINVAL;
 	}
@@ -146,26 +123,40 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	     const struct rte_eth_txconf *tx_conf)
 {
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	unsigned int txq_entries;
+	unsigned int evq_entries;
+	unsigned int txq_max_fill_level;
 	struct sfc_txq_info *txq_info;
 	struct sfc_evq *evq;
 	struct sfc_txq *txq;
 	int rc = 0;
 	struct sfc_dp_tx_qcreate_info info;
+	uint64_t offloads;
 
 	sfc_log_init(sa, "TxQ = %u", sw_index);
 
-	rc = sfc_tx_qcheck_conf(sa, nb_tx_desc, tx_conf);
+	rc = sa->dp_tx->qsize_up_rings(nb_tx_desc, &txq_entries, &evq_entries,
+				       &txq_max_fill_level);
+	if (rc != 0)
+		goto fail_size_up_rings;
+	SFC_ASSERT(txq_entries >= EFX_TXQ_MINNDESCS);
+	SFC_ASSERT(txq_entries <= sa->txq_max_entries);
+	SFC_ASSERT(txq_entries >= nb_tx_desc);
+	SFC_ASSERT(txq_max_fill_level <= nb_tx_desc);
+
+	offloads = tx_conf->offloads |
+		sa->eth_dev->data->dev_conf.txmode.offloads;
+	rc = sfc_tx_qcheck_conf(sa, txq_max_fill_level, tx_conf, offloads);
 	if (rc != 0)
 		goto fail_bad_conf;
 
 	SFC_ASSERT(sw_index < sa->txq_count);
 	txq_info = &sa->txq_info[sw_index];
 
-	SFC_ASSERT(nb_tx_desc <= sa->txq_max_entries);
-	txq_info->entries = nb_tx_desc;
+	txq_info->entries = txq_entries;
 
 	rc = sfc_ev_qinit(sa, SFC_EVQ_TYPE_TX, sw_index,
-			  txq_info->entries, socket_id, &evq);
+			  evq_entries, socket_id, &evq);
 	if (rc != 0)
 		goto fail_ev_qinit;
 
@@ -182,6 +173,7 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 		(tx_conf->tx_free_thresh) ? tx_conf->tx_free_thresh :
 		SFC_TX_DEFAULT_FREE_THRESH;
 	txq->flags = tx_conf->txq_flags;
+	txq->offloads = offloads;
 
 	rc = sfc_dma_alloc(sa, "txq", sw_index, EFX_TXQ_SIZE(txq_info->entries),
 			   socket_id, &txq->mem);
@@ -189,15 +181,18 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 		goto fail_dma_alloc;
 
 	memset(&info, 0, sizeof(info));
+	info.max_fill_level = txq_max_fill_level;
 	info.free_thresh = txq->free_thresh;
 	info.flags = tx_conf->txq_flags;
+	info.offloads = offloads;
 	info.txq_entries = txq_info->entries;
 	info.dma_desc_size_max = encp->enc_tx_dma_desc_size_max;
 	info.txq_hw_ring = txq->mem.esm_base;
-	info.evq_entries = txq_info->entries;
+	info.evq_entries = evq_entries;
 	info.evq_hw_ring = evq->mem.esm_base;
 	info.hw_index = txq->hw_index;
 	info.mem_bar = sa->mem_bar.esb_base;
+	info.vi_window_shift = encp->enc_vi_window_shift;
 
 	rc = sa->dp_tx->qcreate(sa->eth_dev->data->port_id, sw_index,
 				&RTE_ETH_DEV_TO_PCI(sa->eth_dev)->addr,
@@ -227,6 +222,7 @@ fail_ev_qinit:
 	txq_info->entries = 0;
 
 fail_bad_conf:
+fail_size_up_rings:
 	sfc_log_init(sa, "failed (TxQ = %u, rc = %d)", sw_index, rc);
 	return rc;
 }
@@ -411,11 +407,13 @@ sfc_tx_close(struct sfc_adapter *sa)
 int
 sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 {
+	uint64_t offloads_supported = sfc_tx_get_dev_offload_caps(sa) |
+				      sfc_tx_get_queue_offload_caps(sa);
 	struct rte_eth_dev_data *dev_data;
 	struct sfc_txq_info *txq_info;
 	struct sfc_txq *txq;
 	struct sfc_evq *evq;
-	uint16_t flags;
+	uint16_t flags = 0;
 	unsigned int desc_index;
 	int rc = 0;
 
@@ -435,18 +433,38 @@ sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 		goto fail_ev_qstart;
 
 	/*
-	 * It seems that DPDK has no controls regarding IPv4 offloads,
-	 * hence, we always enable it here
+	 * The absence of ETH_TXQ_FLAGS_IGNORE is associated with a legacy
+	 * application which expects that IPv4 checksum offload is enabled
+	 * all the time as there is no legacy flag to turn off the offload.
 	 */
-	if ((txq->flags & ETH_TXQ_FLAGS_NOXSUMTCP) ||
-	    (txq->flags & ETH_TXQ_FLAGS_NOXSUMUDP)) {
-		flags = EFX_TXQ_CKSUM_IPV4;
-	} else {
-		flags = EFX_TXQ_CKSUM_IPV4 | EFX_TXQ_CKSUM_TCPUDP;
+	if ((txq->offloads & DEV_TX_OFFLOAD_IPV4_CKSUM) ||
+	    (~txq->flags & ETH_TXQ_FLAGS_IGNORE))
+		flags |= EFX_TXQ_CKSUM_IPV4;
 
-		if (sa->tso)
-			flags |= EFX_TXQ_FATSOV2;
+	if ((txq->offloads & DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM) ||
+	    ((~txq->flags & ETH_TXQ_FLAGS_IGNORE) &&
+	     (offloads_supported & DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM)))
+		flags |= EFX_TXQ_CKSUM_INNER_IPV4;
+
+	if ((txq->offloads & DEV_TX_OFFLOAD_TCP_CKSUM) ||
+	    (txq->offloads & DEV_TX_OFFLOAD_UDP_CKSUM)) {
+		flags |= EFX_TXQ_CKSUM_TCPUDP;
+
+		if (offloads_supported & DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM)
+			flags |= EFX_TXQ_CKSUM_INNER_TCPUDP;
 	}
+
+	/*
+	 * The absence of ETH_TXQ_FLAGS_IGNORE is associated with a legacy
+	 * application. In turn, the absence of ETH_TXQ_FLAGS_NOXSUMTCP is
+	 * associated specifically with a legacy application which expects
+	 * both TCP checksum offload and TSO to be enabled because the legacy
+	 * API does not provide a dedicated mechanism to control TSO.
+	 */
+	if ((txq->offloads & DEV_TX_OFFLOAD_TCP_TSO) ||
+	    ((~txq->flags & ETH_TXQ_FLAGS_IGNORE) &&
+	     (~txq->flags & ETH_TXQ_FLAGS_NOXSUMTCP)))
+		flags |= EFX_TXQ_FATSOV2;
 
 	rc = efx_tx_qcreate(sa->nic, sw_index, 0, &txq->mem,
 			    txq_info->entries, 0 /* not used on EF10 */,
@@ -542,7 +560,7 @@ sfc_tx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 			sfc_err(sa, "TxQ %u flush timed out", sw_index);
 
 		if (txq->state & SFC_TXQ_FLUSHED)
-			sfc_info(sa, "TxQ %u flushed", sw_index);
+			sfc_notice(sa, "TxQ %u flushed", sw_index);
 	}
 
 	sa->dp_tx->qreap(txq->dp);
@@ -679,7 +697,7 @@ sfc_efx_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	unsigned int pushed = added;
 	unsigned int pkts_sent = 0;
 	efx_desc_t *pend = &txq->pend_desc[0];
-	const unsigned int hard_max_fill = EFX_TXQ_LIMIT(txq->ptr_mask + 1);
+	const unsigned int hard_max_fill = txq->max_fill_level;
 	const unsigned int soft_max_fill = hard_max_fill - txq->free_thresh;
 	unsigned int fill_level = added - txq->completed;
 	boolean_t reap_done;
@@ -715,9 +733,9 @@ sfc_efx_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 		/*
 		 * Here VLAN TCI is expected to be zero in case if no
-		 * DEV_TX_VLAN_OFFLOAD capability is advertised;
+		 * DEV_TX_OFFLOAD_VLAN_INSERT capability is advertised;
 		 * if the calling app ignores the absence of
-		 * DEV_TX_VLAN_OFFLOAD and pushes VLAN TCI, then
+		 * DEV_TX_OFFLOAD_VLAN_INSERT and pushes VLAN TCI, then
 		 * TX_ERROR will occur
 		 */
 		pkt_descs += sfc_efx_tx_maybe_insert_tag(txq, m_seg, &pend);
@@ -866,6 +884,19 @@ sfc_txq_by_dp_txq(const struct sfc_dp_txq *dp_txq)
 	return txq;
 }
 
+static sfc_dp_tx_qsize_up_rings_t sfc_efx_tx_qsize_up_rings;
+static int
+sfc_efx_tx_qsize_up_rings(uint16_t nb_tx_desc,
+			  unsigned int *txq_entries,
+			  unsigned int *evq_entries,
+			  unsigned int *txq_max_fill_level)
+{
+	*txq_entries = nb_tx_desc;
+	*evq_entries = nb_tx_desc;
+	*txq_max_fill_level = EFX_TXQ_LIMIT(*txq_entries);
+	return 0;
+}
+
 static sfc_dp_tx_qcreate_t sfc_efx_tx_qcreate;
 static int
 sfc_efx_tx_qcreate(uint16_t port_id, uint16_t queue_id,
@@ -912,6 +943,7 @@ sfc_efx_tx_qcreate(uint16_t port_id, uint16_t queue_id,
 
 	txq->evq = ctrl_txq->evq;
 	txq->ptr_mask = info->txq_entries - 1;
+	txq->max_fill_level = info->max_fill_level;
 	txq->free_thresh = info->free_thresh;
 	txq->dma_desc_size_max = info->dma_desc_size_max;
 
@@ -1001,7 +1033,7 @@ sfc_efx_tx_qdesc_status(struct sfc_dp_txq *dp_txq, uint16_t offset)
 	if (unlikely(offset > txq->ptr_mask))
 		return -EINVAL;
 
-	if (unlikely(offset >= EFX_TXQ_LIMIT(txq->ptr_mask + 1)))
+	if (unlikely(offset >= txq->max_fill_level))
 		return RTE_ETH_TX_DESC_UNAVAIL;
 
 	/*
@@ -1041,6 +1073,7 @@ struct sfc_dp_tx sfc_efx_tx = {
 				  SFC_DP_TX_FEAT_MULTI_POOL |
 				  SFC_DP_TX_FEAT_REFCNT |
 				  SFC_DP_TX_FEAT_MULTI_SEG,
+	.qsize_up_rings		= sfc_efx_tx_qsize_up_rings,
 	.qcreate		= sfc_efx_tx_qcreate,
 	.qdestroy		= sfc_efx_tx_qdestroy,
 	.qstart			= sfc_efx_tx_qstart,
