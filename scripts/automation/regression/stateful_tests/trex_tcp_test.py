@@ -113,12 +113,12 @@ class CTRexTcp_Test(CTRexGeneral_Test):
     def get_duration(self):
         return 120
 
-    def get_simple_tests(self):
+    def get_simple_params(self):
         tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
                   {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}]
         return (tests);
 
-    def get_sfr_tests(self):
+    def get_sfr_params(self):
         tests = [ {'name': 'sfr.py','is_tcp' :True,'is_udp':False,'m':1.0},
                   {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
         return (tests);
@@ -133,7 +133,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         bypass = self.get_benchmark_param('bypass_result');
 
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -177,7 +177,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -216,7 +216,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_sfr_tests ()
+        tests = self.get_sfr_params()
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -259,7 +259,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -294,7 +294,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_sfr_tests ()
+        tests = self.get_sfr_params()
 
         for obj in tests:
             ret = self.trex.start_trex(
