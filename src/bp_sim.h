@@ -2475,7 +2475,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
+    #pragma GCC diagnostic pop
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2499,7 +2502,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
+    #pragma GCC diagnostic pop
     assert(m);
 
     /* append*/
@@ -2519,10 +2525,13 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
 
 inline rte_mbuf_t * CFlowPktInfo::generate_new_mbuf(CGenNode * node){
 
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     
     if ( m_pkt_indication.m_desc.IsPluginEnable() ) {
         return ( on_node_generate_mbuf( node->get_plugin_id(),node,this) );
     }
     return  (do_generate_new_mbuf(node));
+    #pragma GCC diagnostic pop  
 }
 
 
