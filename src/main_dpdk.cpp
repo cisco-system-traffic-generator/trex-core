@@ -5292,6 +5292,7 @@ void CPhyEthIF::conf_queues() {
                          ETH_RSS_NONFRAG_IPV4_UDP |
                          ETH_RSS_NONFRAG_IPV6_TCP |
                          ETH_RSS_NONFRAG_IPV6_UDP;
+
         bool is_client_side = ((get_tvpid()%2==0)?true:false);
         if (is_client_side) {
             lp_rss->rss_key =  (uint8_t*)&client_rss_key[0];
