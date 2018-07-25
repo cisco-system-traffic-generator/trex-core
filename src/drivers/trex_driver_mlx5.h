@@ -28,7 +28,10 @@
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G(){
-         m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+        for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
+            m_port_xstats[i] = {0};
+        }
     }
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -76,6 +79,11 @@ public:
 
 private:
     CDpdkFilterManager  m_filter_manager;
+    struct xstats_struct {
+        uint16_t total_count;
+        bool init;
+    };
+    xstats_struct m_port_xstats[TREX_MAX_PORTS];
 };
 
 
