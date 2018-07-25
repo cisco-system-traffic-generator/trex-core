@@ -121,6 +121,7 @@ copy_fltr_recv_all(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
     enic_set_layer(gp, 0, FILTER_GENERIC_1_L2,
                    &eth_mask, &eth_val, sizeof(struct ether_hdr));
 
+    fltr->type = FILTER_DPDK_1;
 }
 #endif
 
