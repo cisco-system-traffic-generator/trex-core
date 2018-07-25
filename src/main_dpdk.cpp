@@ -2537,7 +2537,11 @@ CGlobalStats::port_stats_to_json(Json::Value &output, uint8_t port_id) {
 void CGlobalStats::DumpAllPorts(FILE *fd){
 
 
-    fprintf (fd," Cpu Utilization : %2.1f  %%  %2.1f Gb/core \n",m_cpu_util,m_bw_per_core);
+    if ( m_cpu_util > 0.1 ) {
+        fprintf (fd," Cpu Utilization : %2.1f  %%  %2.1f Gb/core \n", m_cpu_util, m_bw_per_core);
+    } else {
+        fprintf (fd," Cpu Utilization : %2.1f  %%\n", m_cpu_util);
+    }
     fprintf (fd," Platform_factor : %2.1f  \n",m_platform_factor);
     fprintf (fd," Total-Tx        : %s  ",double_to_human_str(m_tx_bps,"bps",KBYE_1000).c_str());
     if ( is_dump_nat() ) {
