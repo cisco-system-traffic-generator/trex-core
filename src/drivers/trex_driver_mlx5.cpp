@@ -84,8 +84,115 @@ int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE 
     }
 }
 
-bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
-    return get_extended_stats_fixed(_if, stats, 4, 4);
+bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
+    enum { // start of xstats array
+        rx_good_packets,
+        tx_good_packets,
+        rx_good_bytes,
+        tx_good_bytes,
+        rx_missed_errors,
+        rx_errors,
+        tx_errors,
+        rx_mbuf_allocation_errors,
+        COUNT
+    };
+    enum { // end of xstats array
+        rx_port_unicast_bytes,
+        rx_port_multicast_bytes,
+        rx_port_broadcast_bytes,
+        rx_port_unicast_packets,
+        rx_port_multicast_packets,
+        rx_port_broadcast_packets,
+        tx_port_unicast_bytes,
+        tx_port_multicast_bytes,
+        tx_port_broadcast_bytes,
+        tx_port_unicast_packets,
+        tx_port_multicast_packets,
+        tx_port_broadcast_packets,
+        rx_wqe_err,
+        rx_crc_errors_phy,
+        rx_in_range_len_errors_phy,
+        rx_symbol_err_phy,
+        tx_errors_phy,
+        rx_out_of_buffer,
+        tx_packets_phy,
+        rx_packets_phy,
+        tx_bytes_phy,
+        rx_bytes_phy,
+        XCOUNT
+    };
+
+    uint16_t repid = _if->get_repid();
+    xstats_struct* xstats_struct = &m_port_xstats[repid];
+
+    if ( !xstats_struct->init ) {
+        // total_count = COUNT + per queue stats count + XCOUNT
+        xstats_struct->total_count = rte_eth_xstats_get(repid, NULL, 0);
+        assert(xstats_struct->total_count>=COUNT+XCOUNT);
+    }
+
+    struct rte_eth_xstat xstats_array[xstats_struct->total_count];
+    struct rte_eth_xstat *xstats = &xstats_array[xstats_struct->total_count - XCOUNT];
+    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+
+    /* fetch stats */
+    int ret;
+    ret = rte_eth_xstats_get(repid, xstats_array, xstats_struct->total_count);
+    assert(ret==xstats_struct->total_count);
+
+    uint32_t opackets = xstats[tx_port_unicast_packets].value +
+                        xstats[tx_port_multicast_packets].value +
+                        xstats[tx_port_broadcast_packets].value;
+    uint32_t ipackets = xstats[rx_port_unicast_packets].value +
+                        xstats[rx_port_multicast_packets].value +
+                        xstats[rx_port_broadcast_packets].value;
+    uint64_t obytes = xstats[tx_port_unicast_bytes].value +
+                      xstats[tx_port_multicast_bytes].value +
+                      xstats[tx_port_broadcast_bytes].value;
+    uint64_t ibytes = xstats[rx_port_unicast_bytes].value +
+                      xstats[rx_port_multicast_bytes].value +
+                      xstats[rx_port_broadcast_bytes].value;
+    uint64_t &imissed = xstats_array[rx_missed_errors].value;
+    uint64_t &rx_nombuf = xstats_array[rx_mbuf_allocation_errors].value;
+    uint64_t ierrors = xstats[rx_wqe_err].value +
+                       xstats[rx_crc_errors_phy].value +
+                       xstats[rx_in_range_len_errors_phy].value +
+                       xstats[rx_symbol_err_phy].value +
+                       xstats[rx_out_of_buffer].value;
+    uint64_t &oerrors = xstats[tx_errors_phy].value;
+
+    if ( !xstats_struct->init ) {
+        xstats_struct->init = true;
+    } else {
+        // Packet counter on Connect5 is 40 bits, use 32 bit diffs
+        uint32_t packet_diff;
+        packet_diff = opackets - (uint32_t)prev_stats->opackets;
+        stats->opackets += packet_diff;
+        stats->obytes += obytes - prev_stats->obytes +
+                         packet_diff * 4; // add FCS
+
+        packet_diff = ipackets - (uint32_t)prev_stats->ipackets;
+        stats->ipackets += packet_diff;
+        stats->ibytes += ibytes - prev_stats->ibytes +
+                         packet_diff * 4; // add FCS
+
+        stats->ierrors += imissed - prev_stats->imissed +
+                          rx_nombuf - prev_stats->rx_nombuf +
+                          ierrors - prev_stats->ierrors;
+        stats->rx_nombuf += rx_nombuf - prev_stats->rx_nombuf;
+        stats->oerrors += oerrors - prev_stats->oerrors;
+    }
+
+    prev_stats->ipackets  = ipackets;
+    prev_stats->opackets  = opackets;
+    prev_stats->ibytes    = ibytes;
+    prev_stats->obytes    = obytes;
+    prev_stats->imissed   = imissed;
+    prev_stats->rx_nombuf = rx_nombuf;
+    prev_stats->ierrors   = ierrors;
+    prev_stats->oerrors   = oerrors;
+
+    return true;
 }
 
 int CTRexExtendedDriverBaseMlnx5G::wait_for_stable_link(){

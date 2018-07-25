@@ -303,7 +303,6 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	if (ret)
 		DRV_LOG(WARNING, "port %u some flows still remain",
 			dev->data->port_id);
-    mlx5_stats_free(dev);
 	memset(priv, 0, sizeof(*priv));
 }
 

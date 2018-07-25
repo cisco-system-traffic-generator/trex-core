@@ -51,9 +51,6 @@ struct mlx5_txq_stats {
 	uint64_t obytes; /**< Total of successfully sent bytes. */
 #endif
 	uint64_t oerrors; /**< Total number of failed transmitted packets. */
-#ifdef TREX_PATCH
-    uint64_t odropped;
-#endif
 };
 
 struct priv;
