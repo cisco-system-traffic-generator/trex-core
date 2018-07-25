@@ -35,7 +35,9 @@ void CTRexExtendedDriverBaseVIC::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.rxmode.max_rx_pkt_len =9*1000-10;
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos = 0x01;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc  = 0x01;
-    cfg->m_port_conf.fdir_conf.mask.ipv6_mask.proto  = 0xff;
+    if (get_is_tcp_mode()){
+       cfg->m_port_conf.fdir_conf.mask.ipv6_mask.proto  = 0xff;
+    }
 }
 
 void CTRexExtendedDriverBaseVIC::add_del_rules(enum rte_filter_op op, repid_t  repid, uint16_t type
@@ -115,9 +117,14 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 1, 132,  0x1, MAIN_DPDK_RX_Q); /*SCTP*/
     add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 1, 1,  0x1, MAIN_DPDK_RX_Q);  /*ICMP*/
     // Ipv6
-    add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 1,  0x1, MAIN_DPDK_RX_Q);
-    add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0x1, MAIN_DPDK_RX_Q);
-    add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 1, 6,  0x1, MAIN_DPDK_RX_Q);
+    if (get_is_tcp_mode()==0){
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 6,  0x1, MAIN_DPDK_RX_Q);
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0x1, MAIN_DPDK_RX_Q);
+    }else{
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 1,  0x1, MAIN_DPDK_RX_Q);
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0x1, MAIN_DPDK_RX_Q);
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 1, 6,  0x1, MAIN_DPDK_RX_Q);
+    }
 
     // Because of some issue with VIC firmware, IPv6 UDP and ICMP go by default to q 1, so we
     // need these rules to make them go to q 0.
@@ -125,7 +132,6 @@ int CTRexExtendedDriverBaseVIC::configure_rx_filter_rules_statefull(CPhyEthIF * 
     if (get_is_tcp_mode()==0){
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, 6,  0, MAIN_DPDK_DROP_Q);
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 1, 17,  0, MAIN_DPDK_DROP_Q);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 1, 1,  0, MAIN_DPDK_DROP_Q);
     }
 
     return 0;
