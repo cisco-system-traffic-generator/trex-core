@@ -2702,7 +2702,6 @@ class TRexClient(object):
                                     row_filter = lambda row: include_zero_lines or any([v != '0' for v in row]))
         
         # show
-        #table = port_xstats[0].to_table(include_zero_lines)
         text_tables.print_table_with_header(table, table.title)
 
 

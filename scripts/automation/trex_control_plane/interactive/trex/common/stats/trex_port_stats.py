@@ -203,7 +203,6 @@ class PortXStats(AbstractStats):
 
     def __init__(self, port_obj):
         super(PortXStats, self).__init__(RpcCmdData('get_port_xstats_values', {'port_id': port_obj.port_id if port_obj else None}, ''))
-        self.last_update_ts = -999
 
         self.port_id = port_obj.port_id if port_obj else None
 
