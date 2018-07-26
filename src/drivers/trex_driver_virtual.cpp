@@ -115,6 +115,8 @@ void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
     // We configure hardware not to strip CRC. Then DPDK driver removes the CRC.
     // If configuring "hardware" to remove CRC, due to bug in ESXI e1000 emulation, we got packets with CRC.
     cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
+    // E1000 does not claim as supporting multi-segment send.
+    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }
 
 void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
@@ -132,6 +134,8 @@ void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
+    // AF Packet does not claim as supporting multi-segment send.
+    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }
 
 ///////////////////////////////////////////////////////// VF
