@@ -197,9 +197,29 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
     /* on start - we can only provide absolute values */
     assert(mul.m_op == TrexPortMultiplier::OP_ABS);
 
-    /* check link state */
-    if ( !get_platform_api().getPortAttrObj(m_port_id)->is_link_up() && !force ) {
-        throw TrexException("Link state is DOWN.");
+    if ( !force ) {
+        /* check link state */
+        if (!get_platform_api().getPortAttrObj(m_port_id)->is_link_up() ) {
+            throw TrexException("Link state is DOWN.");
+        }
+
+        /* verify either valid dest MAC on port or explicit dest MAC on ALL streams */
+        bool has_non_explicit_dst_mac_stream = false;
+        for (auto &stream : m_stream_table) {
+            if ( stream.second->get_override_dst_mac_mode() != TrexStream::stPKT ) {
+                has_non_explicit_dst_mac_stream = true;
+                break;
+            }
+        }
+
+        if ( has_non_explicit_dst_mac_stream ) {
+            bool port_dst_mac_valid = is_dst_mac_valid();
+            if ( !port_dst_mac_valid ) {
+                std::string err;
+                err = "Port " + std::to_string(m_port_id) + " dest MAC is invalid and there are streams without explicit dest MAC.";
+                throw TrexException(err);
+            }
+        }
     }
 
     /* we now need the graph - generate it if we don't have it (happens once) */

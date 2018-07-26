@@ -296,6 +296,12 @@ bool TrexRxInvalidateDstMac::handle(CRxCore *rx_core) {
     return true;
 }
 
+bool TrexRxIsDstMacValid::handle(CRxCore *rx_core) {
+    CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    m_reply.set_reply(node->is_dst_mac_valid());
+    return true;
+}
+
 bool TrexRxCancelCfgTasks::handle(CRxCore *rx_core) {
     CStackBase* stack = get_stack(rx_core, m_port_id);
     stack->cancel_running_tasks();

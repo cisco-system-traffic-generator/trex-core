@@ -259,6 +259,11 @@ public:
      */
     void invalidate_dst_mac(void);
 
+    /**
+     * is dst MAC of port valid?
+     */
+    bool is_dst_mac_valid(void);
+
     // cancel rx config tasks
     void cancel_rx_cfg_tasks(void);
 
