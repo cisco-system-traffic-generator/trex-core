@@ -660,6 +660,22 @@ private:
     uint8_t           m_port_id;
 };
 
+/**
+ * Is dst MAC valid?
+ */
+class TrexRxIsDstMacValid : public TrexCpToRxMsgBase {
+public:
+
+    TrexRxIsDstMacValid(uint8_t port_id, MsgReply<bool> &reply) : m_reply(reply){
+        m_port_id    = port_id;
+    }
+    
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t          m_port_id;
+    MsgReply<bool>  &m_reply;
+};
 
 /**
  * sends binary pkts through the RX core

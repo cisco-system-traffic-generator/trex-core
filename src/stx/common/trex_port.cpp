@@ -355,6 +355,14 @@ void TrexPort::invalidate_dst_mac(void) {
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+bool TrexPort::is_dst_mac_valid(void) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxIsDstMacValid *msg = new TrexRxIsDstMacValid(m_port_id, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
+}
+
 /**
  * configures VLAN tagging
  * 
