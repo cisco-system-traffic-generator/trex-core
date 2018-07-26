@@ -56,27 +56,21 @@ port_cfg_t::port_cfg_t() {
     m_port_conf.rxmode.ignore_offload_bitfield = 1;
     m_port_conf.rxmode.max_rx_pkt_len = 9*1024+22;
 
-    m_port_conf.rxmode.offloads = (
+    m_port_conf.rxmode.offloads =
         DEV_RX_OFFLOAD_JUMBO_FRAME |
         DEV_RX_OFFLOAD_CRC_STRIP |
-        DEV_RX_OFFLOAD_SCATTER
-    );
+        DEV_RX_OFFLOAD_SCATTER;
 
-    tx_offloads.common_best_effort = (
+    tx_offloads.best_effort =
         DEV_TX_OFFLOAD_VLAN_INSERT |
         DEV_TX_OFFLOAD_IPV4_CKSUM |
         DEV_TX_OFFLOAD_UDP_CKSUM |
-        DEV_TX_OFFLOAD_TCP_CKSUM
-    );
-
-    tx_offloads.common_required = (
-        DEV_TX_OFFLOAD_MULTI_SEGS
-    );
-
-    tx_offloads.astf_best_effort = (
+        DEV_TX_OFFLOAD_TCP_CKSUM |
         DEV_TX_OFFLOAD_TCP_TSO |
-        DEV_TX_OFFLOAD_UDP_TSO
-    );
+        DEV_TX_OFFLOAD_UDP_TSO;
+
+    tx_offloads.required =
+        DEV_TX_OFFLOAD_MULTI_SEGS;
 
 }
 

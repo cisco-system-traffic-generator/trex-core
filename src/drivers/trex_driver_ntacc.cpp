@@ -73,7 +73,7 @@ void CTRexExtendedDriverBaseNtAcc::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     cfg->m_port_conf.rxmode.max_rx_pkt_len =9000;
     // Napatech does not claim as supporting multi-segment send.
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }
 
 CTRexExtendedDriverBaseNtAcc::~CTRexExtendedDriverBaseNtAcc() {
