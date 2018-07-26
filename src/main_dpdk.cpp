@@ -5306,8 +5306,14 @@ void CPhyEthIF::conf_queues() {
         lp_rss->rss_key_len = hash_key_size;
     }
 
-    // disable non-supported tx port offloads
+    g_trex.m_port_cfg.m_port_conf.txmode.offloads |= g_trex.m_port_cfg.tx_offloads.common_best_effort;
+    if ( get_is_tcp_mode() ) {
+        g_trex.m_port_cfg.m_port_conf.txmode.offloads |= g_trex.m_port_cfg.tx_offloads.astf_best_effort;
+    }
+    // disable non-supported best-effort offloads
     g_trex.m_port_cfg.m_port_conf.txmode.offloads &= dev_info->tx_offload_capa;
+
+    g_trex.m_port_cfg.m_port_conf.txmode.offloads |= g_trex.m_port_cfg.tx_offloads.common_required;
 
     check_offloads(dev_info, &g_trex.m_port_cfg.m_port_conf);
     configure(dpdk_p.rx_drop_q_num + dpdk_p.rx_data_q_num, num_tx_q, &g_trex.m_port_cfg.m_port_conf);
