@@ -1,6 +1,7 @@
 
 from collections import namedtuple, OrderedDict
 from datetime import datetime
+import copy
 import base64
 import threading
 
@@ -54,6 +55,27 @@ def owned(func):
 
     return func_wrapper
 
+class PortAttr(object):
+    def __init__(self):
+        self.__attr = {}
+        self.__lock = threading.RLock()
+
+    def set(self, attr):
+        with self.__lock:
+            self.__attr = attr
+
+    def get(self):
+        with self.__lock:
+            return dict(self.__attr)
+
+    def get_param(self, *path):
+        with self.__lock:
+            ret = self.__attr
+            for key in path:
+                if key not in ret:
+                    raise TRexError('Port attribute with path "%s" does not exist!' % ', '.join(path))
+                ret = ret[key]
+            return copy.deepcopy(ret)
 
 # describes a single port
 class Port(object):
@@ -96,10 +118,8 @@ class Port(object):
 
         self.owner = ''
         self.last_factor_type = None
-        
-        self._attr = {}
-        self.attr_lock = threading.Lock()
-        
+
+        self.__attr = PortAttr()
 
     def err(self, msg):
         return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
@@ -114,7 +134,7 @@ class Port(object):
 
 
     def get_speed_gbps (self):
-        return self._attr['speed']
+        return self.__attr.get_param('speed')
 
 
     def is_acquired(self):
@@ -122,7 +142,7 @@ class Port(object):
 
 
     def is_up (self):
-        return self._attr['link']['up']
+        return self.__attr.get_param('link', 'up')
 
 
     def is_active(self):
@@ -553,12 +573,12 @@ class Port(object):
         return self.STATES_MAP.get(self.state, "Unknown")
 
 
-    def get_layer_cfg (self):
-        return self._attr['layer_cfg']
-     
+    def get_layer_cfg(self):
+        return self.__attr.get_param('layer_cfg')
+
 
     def get_vlan_cfg (self):
-        return self._attr['vlan']['tags']
+        return self.__attr.get_param('vlan', 'tags')
 
 
     def is_l3_mode (self):
@@ -582,12 +602,10 @@ class Port(object):
         return self.info['is_prom_supported']
 
     def is_prom_enabled(self):
-        with self.attr_lock:
-            return self._attr['promiscuous']['enabled']
+        return self.__attr.get_param('promiscuous', 'enabled')
 
     def is_mult_enabled(self):
-        with self.attr_lock:
-            return self._attr['multicast']['enabled']
+        return self.__attr.get_param('multicast', 'enabled')
 
 
     ################# stats handler ######################
@@ -660,16 +678,12 @@ class Port(object):
     
     # get in a thread safe manner a duplication of attributes
     def get_ts_attr (self):
-        with self.attr_lock:
-            return dict(self._attr)
-        
+        return self.__attr.get()
 
     # set in a thread safe manner a new dict of attributes
     def set_ts_attr (self, new_attr):
-        with self.attr_lock:
-            self._attr = new_attr
-    
-        
+        self.__attr.set(new_attr)
+
   ################# events handler ######################
     def async_event_port_job_done (self):
         # until thread is locked - order is important
