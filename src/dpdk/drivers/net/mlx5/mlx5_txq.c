@@ -667,6 +667,13 @@ txq_set_params(struct mlx5_txq_ctrl *txq_ctrl)
 			inline_max_packet_sz = MLX5_EMPW_MAX_INLINE_LEN;
 		txq_ctrl->txq.mpw_hdr_dseg = config->mpw_hdr_dseg;
 		txq_ctrl->txq.inline_max_packet_sz = inline_max_packet_sz;
+	} else {
+#ifdef TREX_PATCH
+        /* set for maximum performance default CX-4*/
+        if (config->txq_inline == MLX5_ARG_UNSET) {
+            txq_inline = 256;
+        }
+#endif
 	}
 	if (txq_inline && priv->txqs_n >= txqs_inline) {
 		unsigned int ds_cnt;
