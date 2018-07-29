@@ -38,8 +38,9 @@ public:
     struct rte_eth_rxconf   m_rx_drop_conf;
     struct rte_eth_txconf   m_tx_conf;
     struct {
-        uint64_t best_effort;
-        uint64_t required;
+        uint64_t common_best_effort;
+        uint64_t common_required;
+        uint64_t astf_best_effort;
     } tx_offloads;
 };
 
