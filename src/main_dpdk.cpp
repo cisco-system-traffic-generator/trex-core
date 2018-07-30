@@ -3118,8 +3118,6 @@ void CGlobalTRex::pre_test() {
                     }
                 }
 
-
-
                 memcpy(CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, mac, ETHER_ADDR_LEN);
                 // if port is connected in loopback, no need to send gratuitous ARP. It will only confuse our ingress counters.
                 if (need_grat_arp[port_id] && (! pretest.is_loopback(port_id))) {
@@ -3130,13 +3128,18 @@ void CGlobalTRex::pre_test() {
                     m_mg.add_grat_arp_src(ipv4);
                 }
             }
+        }
+    }
 
-            // update statistics baseline, so we can ignore what happened in pre test phase
-            CPhyEthIF *pif = m_ports[port_id];
-            // some adapters (napatech at least) have a little delayed statistics
-            if (get_ex_drv()->sleep_after_arp_needed() ){
-                sleep(1);
-            }
+    // some adapters (napatech at least) have a little delayed statistics
+    if (get_ex_drv()->sleep_after_arp_needed() ){
+        sleep(1);
+    }
+
+    // update statistics baseline, so we can ignore what happened in pre test phase
+    for (int port_id = 0; port_id < m_max_ports; port_id++) {
+        CPhyEthIF *pif = m_ports[port_id];
+        if ( !pif->is_dummy() ) {
             CPreTestStats pre_stats = pretest.get_stats(port_id);
             pif->set_ignore_stats_base(pre_stats);
             // Configure port back to normal mode. Only relevant packets handled by software.
@@ -3167,7 +3170,7 @@ void CGlobalTRex::apply_pretest_results_to_stack(void) {
 
         /* L3 mode */
         if (src_ipv4 && dg) {
-            if ( dst_mac == "\0\0\0\0\0\0" ) {
+            if ( dst_mac == std::string("\0\0\0\0\0\0", 6) ) {
                 port->set_l3_mode_async(utl_uint32_to_ipv4_buf(src_ipv4), utl_uint32_to_ipv4_buf(dg), nullptr);
             } else {
                 port->set_l3_mode_async(utl_uint32_to_ipv4_buf(src_ipv4), utl_uint32_to_ipv4_buf(dg), &dst_mac);
