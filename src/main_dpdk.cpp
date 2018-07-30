@@ -6043,7 +6043,7 @@ int  update_dpdk_args(void){
         }
     }
 
-
+    SET_ARGS("--legacy-mem");
 
     if ( lpop->prefix.length() ) {
         SET_ARGS("--file-prefix");
