@@ -10,14 +10,8 @@ import base64
 import hashlib
 import traceback
 from ..common.trex_exceptions import *
+from ..common.trex_types import listify
 import imp
-
-
-def listify(x):
-    if isinstance(x, list):
-        return x
-    else:
-        return [x]
 
 
 class _ASTFCapPath(object):

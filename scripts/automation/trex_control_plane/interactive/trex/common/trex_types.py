@@ -182,6 +182,8 @@ def verify_exclusive_arg (args_list):
 def listify (x):
     if isinstance(x, list):
         return x
+    elif isinstance(x, tuple):
+        return list(x)
     else:
         return [x]
 
