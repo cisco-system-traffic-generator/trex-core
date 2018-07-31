@@ -437,32 +437,29 @@ class STLStream(object):
         # tag for the stream and next - can be anything
         self.name = name
         self.next = next
-
-        self.mac_src_override_by_pkt = mac_src_override_by_pkt # save for easy construct code from stream object
-        self.mac_dst_override_mode = mac_dst_override_mode
-        self.id = stream_id
+        self.id   = stream_id
 
         # set externally
         self.fields = {}
 
+        if not packet:
+            packet = STLPktBuilder(pkt = Ether()/IP())
+        self.scapy_pkt_builder = packet
+        # packet builder
+        packet.compile()
+
         int_mac_src_override_by_pkt = 0;
         int_mac_dst_override_mode   = 0;
 
-
         if mac_src_override_by_pkt == None:
-            int_mac_src_override_by_pkt=0
-            if packet :
-                if packet.is_default_src_mac ()==False:
-                    int_mac_src_override_by_pkt=1
-
+            if not packet.is_default_src_mac():
+                int_mac_src_override_by_pkt = 1
         else:
             int_mac_src_override_by_pkt = int(mac_src_override_by_pkt);
 
         if mac_dst_override_mode == None:
-            int_mac_dst_override_mode   = 0;
-            if packet :
-                if packet.is_default_dst_mac ()==False:
-                    int_mac_dst_override_mode=STLStreamDstMAC_PKT
+            if not packet.is_default_dst_mac():
+                int_mac_dst_override_mode = STLStreamDstMAC_PKT
         else:
             int_mac_dst_override_mode = int(mac_dst_override_mode);
 
@@ -485,14 +482,6 @@ class STLStream(object):
         # mode
         self.fields['mode'] = mode.to_json()
         self.mode_desc      = str(mode)
-
-
-        if not packet:
-            packet = STLPktBuilder(pkt = Ether()/IP())
-
-        self.scapy_pkt_builder = packet
-        # packet builder
-        packet.compile()
 
         # packet and VM
         pkt_json = packet.to_json()
@@ -524,6 +513,9 @@ class STLStream(object):
     def has_custom_mac_addr (self):
         """ Return True if src or dst MAC were set as custom """
         return not self.is_default_mac
+
+    def is_explicit_dst_mac(self):
+        return ((self.fields['flags'] >> 1) & 0x3) == STLStreamDstMAC_PKT
 
     def get_name (self):
         """ Get the stream name """

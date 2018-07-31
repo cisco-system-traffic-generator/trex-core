@@ -358,18 +358,31 @@ class STLClient(TRexClient):
         if not rc:
             raise TRexError(rc)
 
+    # check that either port is resolved or all streams have explicit dest MAC
+    def __check_streams_explicit_dest(self, streams_per_port):
+        for port_id, streams in streams_per_port.items():
+            if self.ports[port_id].is_resolved():
+                continue
+            for stream in streams:
+                if not stream.is_explicit_dst_mac():
+                    err = 'Port %s dest MAC is invalid and there are streams without explicit dest MAC.' % port_id
+                    raise TRexError(err)
 
     # common checks for start API
-    def __pre_start_check (self, cmd_name, ports, force):
+    def __pre_start_check (self, cmd_name, ports, force, streams_per_port = None):
         if force:
             return self.psv.validate(cmd_name, ports)
-            
+
         states = {PSV_UP:           "check the connection or specify 'force'",
                   PSV_IDLE:         "please stop them or specify 'force'",
-                  PSV_RESOLVED:     "please resolve them or specify 'force'",
                   PSV_NON_SERVICE:  "please disable service mode or specify 'force'"}
-        
-        return self.psv.validate(cmd_name, ports, states)     
+
+        if streams_per_port:
+            self.__check_streams_explicit_dest(streams_per_port)
+        else:
+            states[PSV_RESOLVED] = "please resolve them or specify 'force'";
+
+        return self.psv.validate(cmd_name, ports, states)
             
     
     def __decode_core_mask (self, ports, core_mask):
@@ -457,8 +470,11 @@ class STLClient(TRexClient):
 
         """
 
-        ports = ports if ports is not None else self.get_acquired_ports()
-        ports = self.__pre_start_check('START', ports, force)
+        ports = listify(ports if ports is not None else self.get_acquired_ports())
+        streams_per_port = {}
+        for port in ports:
+            streams_per_port[port] = self.ports[port].streams.values()
+        ports = self.__pre_start_check('START', ports, force, streams_per_port)
 
         validate_type('mult', mult, basestring)
         validate_type('force', force, bool)
@@ -1601,40 +1617,39 @@ class STLClient(TRexClient):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(opts.ports, core_mask)
 
-        # for better use experience - check this first
-        self.__pre_start_check('START', opts.ports, opts.force)
-                 
-        # stop ports if needed
-        active_ports = list_intersect(self.get_active_ports(), opts.ports)
-        if active_ports and opts.force:
-            self.stop(active_ports)
-
-
         # process tunables
         if type(opts.tunables) is dict:
             tunables = opts.tunables
         else:
             tunables = {}
 
-
-        # remove all streams
-        self.remove_all_streams(opts.ports)
-
+        streams_per_port = {}
         # pack the profile
         try:
             for port in opts.ports:
-
                 profile = STLProfile.load(opts.file[0],
                                           direction = tunables.get('direction', port % 2),
                                           port_id = port,
                                           **tunables)
-
-                self.add_streams(profile.get_streams(), ports = port)
-
+                streams_per_port[port] = profile.get_streams()
         except TRexError as e:
             s = format_text("\nError loading profile '{0}'\n".format(opts.file[0]), 'bold')
             s += "\n" + e.brief()
             raise TRexError(s)
+
+        # for better use experience - check this before any other action on port
+        self.__pre_start_check('START', opts.ports, opts.force, streams_per_port)
+
+        # stop ports if needed
+        active_ports = list_intersect(self.get_active_ports(), opts.ports)
+        if active_ports and opts.force:
+            self.stop(active_ports)
+
+        # remove all streams
+        self.remove_all_streams(opts.ports)
+
+        for port in opts.ports:
+            self.add_streams(streams_per_port[port], ports = port)
 
         if opts.dry:
             self.validate(opts.ports, opts.mult, opts.duration, opts.total)
