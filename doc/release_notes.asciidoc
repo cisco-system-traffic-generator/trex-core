@@ -27,6 +27,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.44 ==
+
+* Upgrade to DPDK 18.05
+* Stateless: allow "start" when port is unresolved and all streams have explicit dest MAC.
+
+
 == Release 2.43 ==
 
 * Client Python library consolidation STL/ASTF
