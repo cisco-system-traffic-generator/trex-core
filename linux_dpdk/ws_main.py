@@ -207,7 +207,7 @@ def check_ofed(ctx):
        ctx.end_msg("ERROR, OFED should be installed using '$./mlnxofedinstall --with-mft --with-mstflint --dpdk --upstream-libs' try to reinstall or see manual", 'YELLOW')
        return False
 
-    ctx.end_msg('Found needed version %s' % ofed_ver_show)
+    ctx.end_msg('Found version %s.%s' % (m.group(1), m.group(2)))
     return True
 
 @conf
@@ -228,7 +228,40 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     return (ver >= min_ver, ver, min_ver)
     
-    
+
+@conf
+def get_ld_search_path(ctx):
+    ctx.start_msg('Getting LD search path')
+    cmd = 'ld --verbose'
+    ret, out = getstatusoutput(cmd)
+    if ret != 0:
+        ctx.end_msg('failed', 'YELLOW')
+        ctx.fatal('\nCommand: %s\n\nOutput: %s' % (cmd, out))
+
+    path_arr = []
+    regex_str = '\s*SEARCH_DIR\("=([^"]+)"\)\s*'
+    regex = re.compile(regex_str)
+    for line in out.splitlines():
+        if line.startswith('SEARCH_DIR'):
+            for elem in line.split(';'):
+                if not elem.strip():
+                    continue
+                m = regex.match(elem)
+                if m is None:
+                    ctx.end_msg('failed', 'YELLOW')
+                    Logs.pprint('NORMAL', '\nCommand: %s\n\nOutput: %s' % (cmd, out))
+                    ctx.fatal('Regex (%s0 does not match output (%s).' % (regex_str, elem))
+                else:
+                    path_arr.append(m.group(1))
+
+    if not path_arr:
+        ctx.end_msg('failed', 'YELLOW')
+        Logs.pprint('NORMAL', '\nCommand: %s\n\nOutput: %s' % (cmd, out))
+        ctx.fatal('Could not find SEARCH_DIR in output')
+
+    ctx.env.LD_SEARCH_PATH = path_arr
+    ctx.end_msg('ok', 'GREEN')
+
 def configure(conf):
 
     if conf.options.gcc6 and conf.options.gcc7:
@@ -254,6 +287,7 @@ def configure(conf):
     if not no_mlx:
         ofed_ok = conf.check_ofed(mandatory = False)
         if ofed_ok:
+            conf.get_ld_search_path(mandatory = True)
             conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
         else:
             Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' +
@@ -263,9 +297,9 @@ def configure(conf):
     if with_ntacc:
         ntapi_ok = conf.check_ntapi(mandatory = False)
         if not ntapi_ok:
-          Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
+            Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
                                   'https://www.napatech.com/downloads/')
-          raise Exception("Cannot find libntapi");
+            raise Exception("Cannot find libntapi");
 
           
 
@@ -1388,6 +1422,11 @@ def build(bld):
     if bld.env.NO_MLX == False:
         if bld.env['LIB_IBVERBS']:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
+            if not bld.env.LD_SEARCH_PATH:
+                bld.fatal('LD_SEARCH_PATH is empty, run configure')
+            from waflib.Tools.ccroot import SYSTEM_LIB_PATHS
+            SYSTEM_LIB_PATHS.extend(bld.env.LD_SEARCH_PATH)
+
             bld.read_shlib(name='ibverbs')
             bld.read_shlib(name='mlx5')
             bld.read_shlib(name='mlx4')
