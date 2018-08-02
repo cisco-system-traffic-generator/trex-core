@@ -2167,6 +2167,9 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	host_features = VTPCI_OPS(hw)->get_features(hw);
 	dev_info->rx_offload_capa = DEV_RX_OFFLOAD_VLAN_STRIP |
+#ifdef TREX_PATCH
+                    DEV_RX_OFFLOAD_JUMBO_FRAME |
+#endif
 				    DEV_RX_OFFLOAD_CRC_STRIP;
 	if (host_features & (1ULL << VIRTIO_NET_F_GUEST_CSUM)) {
 		dev_info->rx_offload_capa |=
@@ -2189,8 +2192,10 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	}
 	tso_mask = (1ULL << VIRTIO_NET_F_HOST_TSO4) |
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
+#ifndef TREX_PATCH
 	if ((host_features & tso_mask) == tso_mask)
 		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
+#endif
 }
 
 /*

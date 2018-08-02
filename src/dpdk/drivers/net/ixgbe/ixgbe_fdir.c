@@ -218,8 +218,12 @@ configure_fdir_flags(const struct rte_fdir_conf *conf, uint32_t *fdirctrl)
 		return -EINVAL;
 	};
 
+#ifdef TREX_PATCH
+	*fdirctrl |= (conf->flexbytes_offset << IXGBE_FDIRCTRL_FLEX_SHIFT);
+#else
 	*fdirctrl |= (IXGBE_DEFAULT_FLEXBYTES_OFFSET / sizeof(uint16_t)) <<
 		     IXGBE_FDIRCTRL_FLEX_SHIFT;
+#endif
 
 	if (conf->mode >= RTE_FDIR_MODE_PERFECT &&
 	    conf->mode <= RTE_FDIR_MODE_PERFECT_TUNNEL) {
@@ -568,6 +572,7 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 
 	fdirm = IXGBE_READ_REG(hw, IXGBE_FDIRM);
 
+#ifndef TREX_PATCH
 	if (conf == NULL) {
 		PMD_DRV_LOG(ERR, "NULL pointer.");
 		return -EINVAL;
@@ -608,6 +613,12 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 			return -EINVAL;
 		}
 	}
+#else
+    fdirm &= ~IXGBE_FDIRM_FLEX;
+    flexbytes = 1;
+    // fdirctrl gets flex_bytes_offset in configure_fdir_flags
+#endif
+
 	IXGBE_WRITE_REG(hw, IXGBE_FDIRM, fdirm);
 	info->mask.flex_bytes_mask = flexbytes ? UINT16_MAX : 0;
 	info->flex_bytes_offset = (uint8_t)((*fdirctrl &
@@ -639,6 +650,9 @@ ixgbe_fdir_configure(struct rte_eth_dev *dev)
 	    hw->mac.type != ixgbe_mac_X550EM_x &&
 	    hw->mac.type != ixgbe_mac_X550EM_a &&
 	    mode != RTE_FDIR_MODE_SIGNATURE &&
+#ifdef TREX_PATCH
+	    mode != RTE_FDIR_MODE_PERFECT_MAC_VLAN &&
+#endif
 	    mode != RTE_FDIR_MODE_PERFECT)
 		return -ENOSYS;
 
@@ -1275,12 +1289,15 @@ ixgbe_fdir_filter_program(struct rte_eth_dev *dev,
 		is_perfect = TRUE;
 
 	if (is_perfect) {
+#ifndef TREX_PATCH
+        // No reason not to use IPV6 in perfect filters. It is working.
 		if (rule->ixgbe_fdir.formatted.flow_type &
 		    IXGBE_ATR_L4TYPE_IPV6_MASK) {
 			PMD_DRV_LOG(ERR, "IPv6 is not supported in"
 				    " perfect mode!");
 			return -ENOTSUP;
 		}
+#endif
 		fdirhash = atr_compute_perfect_hash_82599(&rule->ixgbe_fdir,
 							  dev->data->dev_conf.fdir_conf.pballoc);
 		fdirhash |= rule->soft_id <<

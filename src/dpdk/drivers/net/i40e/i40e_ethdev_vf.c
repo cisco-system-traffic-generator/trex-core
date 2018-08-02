@@ -44,7 +44,11 @@
 #define I40EVF_BUSY_WAIT_COUNT 50
 #define MAX_RESET_WAIT_CNT     20
 
+#ifndef TREX_PATCH
 #define I40EVF_ALARM_INTERVAL 50000 /* us */
+#else
+#define I40EVF_ALARM_INTERVAL 10000 /* same as ASQ_DELAY_MS */
+#endif
 
 struct i40evf_arq_msg_info {
 	enum virtchnl_ops ops;
@@ -309,7 +313,11 @@ _atomic_set_cmd(struct i40e_vf *vf, enum virtchnl_ops ops)
 	return !ret;
 }
 
+#ifdef TREX_PATCH
+#define MAX_TRY_TIMES 20
+#else
 #define MAX_TRY_TIMES 200
+#endif
 #define ASQ_DELAY_MS  10
 
 static int
@@ -368,7 +376,15 @@ i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
 				err = 0;
 				break;
 			}
+            #ifdef TREX_PATCH
+                /* imarom: response from the PF drive will be handled by the interrupt process
+                           this requires us to relinquish the thread as both are pinned to the same
+                           core - busy wait might hold us back
+                */
+                usleep(ASQ_DELAY_MS * 1000);
+            #else
 			rte_delay_ms(ASQ_DELAY_MS);
+            #endif
 			/* If don't read msg or read sys event, continue */
 		} while (i++ < MAX_TRY_TIMES);
 		/* If there's no response is received, clear command */
@@ -2257,9 +2273,13 @@ i40evf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->oerrors = pstats->tx_errors + pstats->tx_discards;
 		stats->ibytes = pstats->rx_bytes;
 		stats->obytes = pstats->tx_bytes;
+#ifdef TREX_PATCH
+    }
+#else
 	} else {
 		PMD_DRV_LOG(ERR, "Get statistics failed");
 	}
+#endif
 	return ret;
 }
 
