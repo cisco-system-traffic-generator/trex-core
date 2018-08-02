@@ -9,6 +9,7 @@ from ..utils.constants import FLOW_CTRL_DICT_REVERSED
 from ..utils.text_tables import Tableable, TRexTextTable
 from ..utils.text_opts import *
 from .trex_types import *
+from .trex_exceptions import *
 from .stats.trex_port_stats import PortStats, PortXStats
 
 
