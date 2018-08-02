@@ -517,7 +517,8 @@ struct sfc_dp_rx sfc_efx_rx = {
 		.type		= SFC_DP_RX,
 		.hw_fw_caps	= 0,
 	},
-	.features		= SFC_DP_RX_FEAT_SCATTER,
+	.features		= SFC_DP_RX_FEAT_SCATTER |
+				  SFC_DP_RX_FEAT_CHECKSUM,
 	.qsize_up_rings		= sfc_efx_rx_qsize_up_rings,
 	.qcreate		= sfc_efx_rx_qcreate,
 	.qdestroy		= sfc_efx_rx_qdestroy,
@@ -792,9 +793,12 @@ sfc_rx_get_dev_offload_caps(struct sfc_adapter *sa)
 
 	caps |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	caps |= DEV_RX_OFFLOAD_CRC_STRIP;
-	caps |= DEV_RX_OFFLOAD_IPV4_CKSUM;
-	caps |= DEV_RX_OFFLOAD_UDP_CKSUM;
-	caps |= DEV_RX_OFFLOAD_TCP_CKSUM;
+
+	if (sa->dp_rx->features & SFC_DP_RX_FEAT_CHECKSUM) {
+		caps |= DEV_RX_OFFLOAD_IPV4_CKSUM;
+		caps |= DEV_RX_OFFLOAD_UDP_CKSUM;
+		caps |= DEV_RX_OFFLOAD_TCP_CKSUM;
+	}
 
 	if (encp->enc_tunnel_encapsulations_supported &&
 	    (sa->dp_rx->features & SFC_DP_RX_FEAT_TUNNELS))
@@ -817,18 +821,15 @@ sfc_rx_get_queue_offload_caps(struct sfc_adapter *sa)
 static int
 sfc_rx_qcheck_conf(struct sfc_adapter *sa, unsigned int rxq_max_fill_level,
 		   const struct rte_eth_rxconf *rx_conf,
-		   uint64_t offloads)
+		   __rte_unused uint64_t offloads)
 {
-	uint64_t offloads_supported = sfc_rx_get_dev_offload_caps(sa) |
-				      sfc_rx_get_queue_offload_caps(sa);
 	int rc = 0;
 
 	if (rx_conf->rx_thresh.pthresh != 0 ||
 	    rx_conf->rx_thresh.hthresh != 0 ||
 	    rx_conf->rx_thresh.wthresh != 0) {
-		sfc_err(sa,
+		sfc_warn(sa,
 			"RxQ prefetch/host/writeback thresholds are not supported");
-        rc = EINVAL;
 	}
 
 	if (rx_conf->rx_free_thresh > rxq_max_fill_level) {
@@ -842,14 +843,6 @@ sfc_rx_qcheck_conf(struct sfc_adapter *sa, unsigned int rxq_max_fill_level,
 		sfc_err(sa, "RxQ drop disable is not supported");
 		rc = EINVAL;
 	}
-
-	if ((offloads & DEV_RX_OFFLOAD_CHECKSUM) !=
-	    DEV_RX_OFFLOAD_CHECKSUM)
-		sfc_warn(sa, "Rx checksum offloads cannot be disabled - always on (IPv4/TCP/UDP)");
-
-	if ((offloads_supported & DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM) &&
-	    (~offloads & DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM))
-		sfc_warn(sa, "Rx outer IPv4 checksum offload cannot be disabled - always on");
 
 	return rc;
 }
@@ -1425,6 +1418,8 @@ sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int sw_index)
 static int
 sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 {
+	uint64_t offloads_supported = sfc_rx_get_dev_offload_caps(sa) |
+				      sfc_rx_get_queue_offload_caps(sa);
 	struct sfc_rss *rss = &sa->rss;
 	int rc = 0;
 
@@ -1444,10 +1439,29 @@ sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 		rc = EINVAL;
 	}
 
-	if (~rxmode->offloads & DEV_RX_OFFLOAD_CRC_STRIP) {
+	/* KEEP_CRC offload flag is not supported by PMD
+	 * can remove the below block when DEV_RX_OFFLOAD_CRC_STRIP removed
+	 */
+	if (rte_eth_dev_must_keep_crc(rxmode->offloads)) {
 		sfc_warn(sa, "FCS stripping cannot be disabled - always on");
 		rxmode->offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
-		rxmode->hw_strip_crc = 1;
+	}
+
+	/*
+	 * Requested offloads are validated against supported by ethdev,
+	 * so unsupported offloads cannot be added as the result of
+	 * below check.
+	 */
+	if ((rxmode->offloads & DEV_RX_OFFLOAD_CHECKSUM) !=
+	    (offloads_supported & DEV_RX_OFFLOAD_CHECKSUM)) {
+		sfc_warn(sa, "Rx checksum offloads cannot be disabled - always on (IPv4/TCP/UDP)");
+		rxmode->offloads |= DEV_RX_OFFLOAD_CHECKSUM;
+	}
+
+	if ((offloads_supported & DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM) &&
+	    (~rxmode->offloads & DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM)) {
+		sfc_warn(sa, "Rx outer IPv4 checksum offload cannot be disabled - always on");
+		rxmode->offloads |= DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM;
 	}
 
 	return rc;

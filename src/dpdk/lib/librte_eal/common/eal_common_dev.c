@@ -10,9 +10,12 @@
 
 #include <rte_compat.h>
 #include <rte_bus.h>
+#include <rte_class.h>
 #include <rte_dev.h>
 #include <rte_devargs.h>
 #include <rte_debug.h>
+#include <rte_errno.h>
+#include <rte_kvargs.h>
 #include <rte_log.h>
 #include <rte_spinlock.h>
 #include <rte_malloc.h>
@@ -42,17 +45,27 @@ static struct dev_event_cb_list dev_event_cbs;
 /* spinlock for device callbacks */
 static rte_spinlock_t dev_event_lock = RTE_SPINLOCK_INITIALIZER;
 
-static int cmp_detached_dev_name(const struct rte_device *dev,
-	const void *_name)
-{
-	const char *name = _name;
+struct dev_next_ctx {
+	struct rte_dev_iterator *it;
+	const char *bus_str;
+	const char *cls_str;
+};
 
-	/* skip attached devices */
-	if (dev->driver != NULL)
-		return 1;
+#define CTX(it, bus_str, cls_str) \
+	(&(const struct dev_next_ctx){ \
+		.it = it, \
+		.bus_str = bus_str, \
+		.cls_str = cls_str, \
+	})
 
-	return strcmp(dev->name, name);
-}
+#define ITCTX(ptr) \
+	(((struct dev_next_ctx *)(intptr_t)ptr)->it)
+
+#define BUSCTX(ptr) \
+	(((struct dev_next_ctx *)(intptr_t)ptr)->bus_str)
+
+#define CLSCTX(ptr) \
+	(((struct dev_next_ctx *)(intptr_t)ptr)->cls_str)
 
 static int cmp_dev_name(const struct rte_device *dev, const void *_name)
 {
@@ -138,8 +151,8 @@ int __rte_experimental rte_eal_hotplug_add(const char *busname, const char *devn
 	if (da == NULL)
 		return -ENOMEM;
 
-	ret = rte_devargs_parse(da, "%s:%s,%s",
-				    busname, devname, devargs);
+	ret = rte_devargs_parsef(da, "%s:%s,%s",
+				 busname, devname, devargs);
 	if (ret)
 		goto err_devarg;
 
@@ -151,12 +164,17 @@ int __rte_experimental rte_eal_hotplug_add(const char *busname, const char *devn
 	if (ret)
 		goto err_devarg;
 
-	dev = bus->find_device(NULL, cmp_detached_dev_name, devname);
+	dev = bus->find_device(NULL, cmp_dev_name, devname);
 	if (dev == NULL) {
-		RTE_LOG(ERR, EAL, "Cannot find unplugged device (%s)\n",
+		RTE_LOG(ERR, EAL, "Cannot find device (%s)\n",
 			devname);
 		ret = -ENODEV;
 		goto err_devarg;
+	}
+
+	if (dev->driver != NULL) {
+		RTE_LOG(ERR, EAL, "Device is already plugged\n");
+		return -EEXIST;
 	}
 
 	ret = bus->plug(dev);
@@ -198,6 +216,11 @@ rte_eal_hotplug_remove(const char *busname, const char *devname)
 	if (dev == NULL) {
 		RTE_LOG(ERR, EAL, "Cannot find plugged device (%s)\n", devname);
 		return -EINVAL;
+	}
+
+	if (dev->driver == NULL) {
+		RTE_LOG(ERR, EAL, "Device is already unplugged\n");
+		return -ENOENT;
 	}
 
 	ret = bus->unplug(dev);
@@ -342,4 +365,202 @@ dev_callback_process(char *device_name, enum rte_dev_event_type event)
 		cb_lst->active = 0;
 	}
 	rte_spinlock_unlock(&dev_event_lock);
+}
+
+__rte_experimental
+int
+rte_dev_iterator_init(struct rte_dev_iterator *it,
+		      const char *dev_str)
+{
+	struct rte_devargs devargs;
+	struct rte_class *cls = NULL;
+	struct rte_bus *bus = NULL;
+
+	/* Having both bus_str and cls_str NULL is illegal,
+	 * marking this iterator as invalid unless
+	 * everything goes well.
+	 */
+	it->bus_str = NULL;
+	it->cls_str = NULL;
+
+	devargs.data = dev_str;
+	if (rte_devargs_layers_parse(&devargs, dev_str))
+		goto get_out;
+
+	bus = devargs.bus;
+	cls = devargs.cls;
+	/* The string should have at least
+	 * one layer specified.
+	 */
+	if (bus == NULL && cls == NULL) {
+		RTE_LOG(ERR, EAL,
+			"Either bus or class must be specified.\n");
+		rte_errno = EINVAL;
+		goto get_out;
+	}
+	if (bus != NULL && bus->dev_iterate == NULL) {
+		RTE_LOG(ERR, EAL, "Bus %s not supported\n", bus->name);
+		rte_errno = ENOTSUP;
+		goto get_out;
+	}
+	if (cls != NULL && cls->dev_iterate == NULL) {
+		RTE_LOG(ERR, EAL, "Class %s not supported\n", cls->name);
+		rte_errno = ENOTSUP;
+		goto get_out;
+	}
+	it->bus_str = devargs.bus_str;
+	it->cls_str = devargs.cls_str;
+	it->dev_str = dev_str;
+	it->bus = bus;
+	it->cls = cls;
+	it->device = NULL;
+	it->class_device = NULL;
+get_out:
+	return -rte_errno;
+}
+
+static char *
+dev_str_sane_copy(const char *str)
+{
+	size_t end;
+	char *copy;
+
+	end = strcspn(str, ",/");
+	if (str[end] == ',') {
+		copy = strdup(&str[end + 1]);
+	} else {
+		/* '/' or '\0' */
+		copy = strdup("");
+	}
+	if (copy == NULL) {
+		rte_errno = ENOMEM;
+	} else {
+		char *slash;
+
+		slash = strchr(copy, '/');
+		if (slash != NULL)
+			slash[0] = '\0';
+	}
+	return copy;
+}
+
+static int
+class_next_dev_cmp(const struct rte_class *cls,
+		   const void *ctx)
+{
+	struct rte_dev_iterator *it;
+	const char *cls_str = NULL;
+	void *dev;
+
+	if (cls->dev_iterate == NULL)
+		return 1;
+	it = ITCTX(ctx);
+	cls_str = CLSCTX(ctx);
+	dev = it->class_device;
+	/* it->cls_str != NULL means a class
+	 * was specified in the devstr.
+	 */
+	if (it->cls_str != NULL && cls != it->cls)
+		return 1;
+	/* If an error occurred previously,
+	 * no need to test further.
+	 */
+	if (rte_errno != 0)
+		return -1;
+	dev = cls->dev_iterate(dev, cls_str, it);
+	it->class_device = dev;
+	return dev == NULL;
+}
+
+static int
+bus_next_dev_cmp(const struct rte_bus *bus,
+		 const void *ctx)
+{
+	struct rte_device *dev = NULL;
+	struct rte_class *cls = NULL;
+	struct rte_dev_iterator *it;
+	const char *bus_str = NULL;
+
+	if (bus->dev_iterate == NULL)
+		return 1;
+	it = ITCTX(ctx);
+	bus_str = BUSCTX(ctx);
+	dev = it->device;
+	/* it->bus_str != NULL means a bus
+	 * was specified in the devstr.
+	 */
+	if (it->bus_str != NULL && bus != it->bus)
+		return 1;
+	/* If an error occurred previously,
+	 * no need to test further.
+	 */
+	if (rte_errno != 0)
+		return -1;
+	if (it->cls_str == NULL) {
+		dev = bus->dev_iterate(dev, bus_str, it);
+		goto end;
+	}
+	/* cls_str != NULL */
+	if (dev == NULL) {
+next_dev_on_bus:
+		dev = bus->dev_iterate(dev, bus_str, it);
+		it->device = dev;
+	}
+	if (dev == NULL)
+		return 1;
+	if (it->cls != NULL)
+		cls = TAILQ_PREV(it->cls, rte_class_list, next);
+	cls = rte_class_find(cls, class_next_dev_cmp, ctx);
+	if (cls != NULL) {
+		it->cls = cls;
+		goto end;
+	}
+	goto next_dev_on_bus;
+end:
+	it->device = dev;
+	return dev == NULL;
+}
+__rte_experimental
+struct rte_device *
+rte_dev_iterator_next(struct rte_dev_iterator *it)
+{
+	struct rte_bus *bus = NULL;
+	int old_errno = rte_errno;
+	char *bus_str = NULL;
+	char *cls_str = NULL;
+
+	rte_errno = 0;
+	if (it->bus_str == NULL && it->cls_str == NULL) {
+		/* Invalid iterator. */
+		rte_errno = EINVAL;
+		return NULL;
+	}
+	if (it->bus != NULL)
+		bus = TAILQ_PREV(it->bus, rte_bus_list, next);
+	if (it->bus_str != NULL) {
+		bus_str = dev_str_sane_copy(it->bus_str);
+		if (bus_str == NULL)
+			goto out;
+	}
+	if (it->cls_str != NULL) {
+		cls_str = dev_str_sane_copy(it->cls_str);
+		if (cls_str == NULL)
+			goto out;
+	}
+	while ((bus = rte_bus_find(bus, bus_next_dev_cmp,
+				   CTX(it, bus_str, cls_str)))) {
+		if (it->device != NULL) {
+			it->bus = bus;
+			goto out;
+		}
+		if (it->bus_str != NULL ||
+		    rte_errno != 0)
+			break;
+	}
+	if (rte_errno == 0)
+		rte_errno = old_errno;
+out:
+	free(bus_str);
+	free(cls_str);
+	return it->device;
 }

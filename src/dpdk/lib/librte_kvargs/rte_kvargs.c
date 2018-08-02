@@ -6,7 +6,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <rte_log.h>
 #include <rte_string_fns.h>
 
 #include "rte_kvargs.h"
@@ -28,29 +27,22 @@ rte_kvargs_tokenize(struct rte_kvargs *kvlist, const char *params)
 	 * to pass to rte_strsplit
 	 */
 	kvlist->str = strdup(params);
-	if (kvlist->str == NULL) {
-		RTE_LOG(ERR, PMD, "Cannot parse arguments: not enough memory\n");
+	if (kvlist->str == NULL)
 		return -1;
-	}
 
 	/* browse each key/value pair and add it in kvlist */
 	str = kvlist->str;
 	while ((str = strtok_r(str, RTE_KVARGS_PAIRS_DELIM, &ctx1)) != NULL) {
 
 		i = kvlist->count;
-		if (i >= RTE_KVARGS_MAX) {
-			RTE_LOG(ERR, PMD, "Cannot parse arguments: list full\n");
+		if (i >= RTE_KVARGS_MAX)
 			return -1;
-		}
 
 		kvlist->pairs[i].key = strtok_r(str, RTE_KVARGS_KV_DELIM, &ctx2);
 		kvlist->pairs[i].value = strtok_r(NULL, RTE_KVARGS_KV_DELIM, &ctx2);
-		if (kvlist->pairs[i].key == NULL || kvlist->pairs[i].value == NULL) {
-			RTE_LOG(ERR, PMD,
-				"Cannot parse arguments: wrong key or value\n"
-				"params=<%s>\n", params);
+		if (kvlist->pairs[i].key == NULL ||
+		    kvlist->pairs[i].value == NULL)
 			return -1;
-		}
 
 		kvlist->count++;
 		str = NULL;
@@ -89,12 +81,8 @@ check_for_valid_keys(struct rte_kvargs *kvlist,
 	for (i = 0; i < kvlist->count; i++) {
 		pair = &kvlist->pairs[i];
 		ret = is_valid_key(valid, pair->key);
-		if (!ret) {
-			RTE_LOG(ERR, PMD,
-				"Error parsing device, invalid key <%s>\n",
-				pair->key);
+		if (!ret)
 			return -1;
-		}
 	}
 	return 0;
 }
@@ -179,4 +167,39 @@ rte_kvargs_parse(const char *args, const char * const valid_keys[])
 	}
 
 	return kvlist;
+}
+
+__rte_experimental
+struct rte_kvargs *
+rte_kvargs_parse_delim(const char *args, const char * const valid_keys[],
+		       const char *valid_ends)
+{
+	struct rte_kvargs *kvlist = NULL;
+	char *copy;
+	size_t len;
+
+	if (valid_ends == NULL)
+		return rte_kvargs_parse(args, valid_keys);
+
+	copy = strdup(args);
+	if (copy == NULL)
+		return NULL;
+
+	len = strcspn(copy, valid_ends);
+	copy[len] = '\0';
+
+	kvlist = rte_kvargs_parse(copy, valid_keys);
+
+	free(copy);
+	return kvlist;
+}
+
+__rte_experimental
+int
+rte_kvargs_strcmp(const char *key __rte_unused,
+		  const char *value, void *opaque)
+{
+	const char *str = opaque;
+
+	return -abs(strcmp(str, value));
 }

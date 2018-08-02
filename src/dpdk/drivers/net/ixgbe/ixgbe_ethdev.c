@@ -3120,9 +3120,18 @@ ixgbe_read_stats_registers(struct ixgbe_hw *hw,
 	}
 
 	/* Flow Director Stats registers */
-	hw_stats->fdirmatch += IXGBE_READ_REG(hw, IXGBE_FDIRMATCH);
-	hw_stats->fdirmiss += IXGBE_READ_REG(hw, IXGBE_FDIRMISS);
-
+	if (hw->mac.type != ixgbe_mac_82598EB) {
+		hw_stats->fdirmatch += IXGBE_READ_REG(hw, IXGBE_FDIRMATCH);
+		hw_stats->fdirmiss += IXGBE_READ_REG(hw, IXGBE_FDIRMISS);
+		hw_stats->fdirustat_add += IXGBE_READ_REG(hw,
+					IXGBE_FDIRUSTAT) & 0xFFFF;
+		hw_stats->fdirustat_remove += (IXGBE_READ_REG(hw,
+					IXGBE_FDIRUSTAT) >> 16) & 0xFFFF;
+		hw_stats->fdirfstat_fadd += IXGBE_READ_REG(hw,
+					IXGBE_FDIRFSTAT) & 0xFFFF;
+		hw_stats->fdirfstat_fremove += (IXGBE_READ_REG(hw,
+					IXGBE_FDIRFSTAT) >> 16) & 0xFFFF;
+	}
 	/* MACsec Stats registers */
 	macsec_stats->out_pkts_untagged += IXGBE_READ_REG(hw, IXGBE_LSECTXUT);
 	macsec_stats->out_pkts_encrypted +=
@@ -3755,6 +3764,14 @@ ixgbe_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		dev_info->speed_capa |= ETH_LINK_SPEED_2_5G;
 		dev_info->speed_capa |= ETH_LINK_SPEED_5G;
 	}
+
+	/* Driver-preferred Rx/Tx parameters */
+	dev_info->default_rxportconf.burst_size = 32;
+	dev_info->default_txportconf.burst_size = 32;
+	dev_info->default_rxportconf.nb_queues = 1;
+	dev_info->default_txportconf.nb_queues = 1;
+	dev_info->default_rxportconf.ring_size = 256;
+	dev_info->default_txportconf.ring_size = 256;
 }
 
 static const uint32_t *
@@ -4991,12 +5008,12 @@ ixgbevf_dev_configure(struct rte_eth_dev *dev)
 	 * Keep the persistent behavior the same as Host PF
 	 */
 #ifndef RTE_LIBRTE_IXGBE_PF_DISABLE_STRIP_CRC
-	if (!(conf->rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP)) {
+	if (rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
 		PMD_INIT_LOG(NOTICE, "VF can't disable HW CRC Strip");
 		conf->rxmode.offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
 	}
 #else
-	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP) {
+	if (!rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
 		PMD_INIT_LOG(NOTICE, "VF can't enable HW CRC Strip");
 		conf->rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
 	}
@@ -6578,16 +6595,12 @@ ixgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 	if (filter->queue >= IXGBE_MAX_RX_QUEUE_NUM)
 		return -EINVAL;
 
-#ifndef TREX_PATCH
-    // no real reason to block this.
-    // We configure rules using FDIR and ethertype that point to same queue, so there are no race condition issues.
 	if (filter->ether_type == ETHER_TYPE_IPv4 ||
 		filter->ether_type == ETHER_TYPE_IPv6) {
 		PMD_DRV_LOG(ERR, "unsupported ether_type(0x%04x) in"
 			" ethertype filter.", filter->ether_type);
 		return -EINVAL;
 	}
-#endif
 
 	if (filter->flags & RTE_ETHTYPE_FLAGS_MAC) {
 		PMD_DRV_LOG(ERR, "mac compare is unsupported.");
@@ -8571,9 +8584,7 @@ RTE_PMD_REGISTER_PCI(net_ixgbe_vf, rte_ixgbevf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_ixgbe_vf, pci_id_ixgbevf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_ixgbe_vf, "* igb_uio | vfio-pci");
 
-RTE_INIT(ixgbe_init_log);
-static void
-ixgbe_init_log(void)
+RTE_INIT(ixgbe_init_log)
 {
 	ixgbe_logtype_init = rte_log_register("pmd.net.ixgbe.init");
 	if (ixgbe_logtype_init >= 0)

@@ -874,14 +874,12 @@ sfc_dev_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 	}
 
 	/*
-	 * The driver does not use it, but other PMDs update jumbo_frame
+	 * The driver does not use it, but other PMDs update jumbo frame
 	 * flag and max_rx_pkt_len when MTU is set.
 	 */
 	if (mtu > ETHER_MAX_LEN) {
 		struct rte_eth_rxmode *rxmode = &dev->data->dev_conf.rxmode;
-
 		rxmode->offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-		rxmode->jumbo_frame = 1;
 	}
 
 	dev->data->dev_conf.rxmode.max_rx_pkt_len = sa->port.pdu;
@@ -1029,7 +1027,7 @@ sfc_set_mc_addr_list(struct rte_eth_dev *dev, struct ether_addr *mc_addr_set,
 	if (rc != 0)
 		sfc_err(sa, "cannot set multicast address list (rc = %u)", rc);
 
-	SFC_ASSERT(rc > 0);
+	SFC_ASSERT(rc >= 0);
 	return -rc;
 }
 
@@ -1057,9 +1055,7 @@ sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t rx_queue_id,
 	qinfo->conf.rx_free_thresh = rxq->refill_threshold;
 	qinfo->conf.rx_drop_en = 1;
 	qinfo->conf.rx_deferred_start = rxq_info->deferred_start;
-	qinfo->conf.offloads = DEV_RX_OFFLOAD_IPV4_CKSUM |
-			       DEV_RX_OFFLOAD_UDP_CKSUM |
-			       DEV_RX_OFFLOAD_TCP_CKSUM;
+	qinfo->conf.offloads = dev->data->dev_conf.rxmode.offloads;
 	if (rxq_info->type_flags & EFX_RXQ_FLAG_SCATTER) {
 		qinfo->conf.offloads |= DEV_RX_OFFLOAD_SCATTER;
 		qinfo->scattered_rx = 1;
@@ -1089,7 +1085,6 @@ sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,
 
 	memset(qinfo, 0, sizeof(*qinfo));
 
-	qinfo->conf.txq_flags = txq_info->txq->flags;
 	qinfo->conf.offloads = txq_info->txq->offloads;
 	qinfo->conf.tx_free_thresh = txq_info->txq->free_thresh;
 	qinfo->conf.tx_deferred_start = txq_info->deferred_start;
@@ -2097,9 +2092,7 @@ RTE_PMD_REGISTER_PARAM_STRING(net_sfc_efx,
 	SFC_KVARG_RXD_WAIT_TIMEOUT_NS "=<long> "
 	SFC_KVARG_STATS_UPDATE_PERIOD_MS "=<long>");
 
-RTE_INIT(sfc_driver_register_logtype);
-static void
-sfc_driver_register_logtype(void)
+RTE_INIT(sfc_driver_register_logtype)
 {
 	int ret;
 

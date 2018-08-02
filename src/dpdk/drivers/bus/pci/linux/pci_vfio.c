@@ -332,56 +332,71 @@ pci_vfio_mmap_bar(int vfio_dev_fd, struct mapped_pci_resource *vfio_res,
 	void *bar_addr;
 	struct pci_msix_table *msix_table = &vfio_res->msix_table;
 	struct pci_map *bar = &vfio_res->maps[bar_index];
+	bool again = false;
 
 	if (bar->size == 0)
 		/* Skip this BAR */
 		return 0;
 
-	if (msix_table->bar_index == bar_index) {
-		/*
-		 * VFIO will not let us map the MSI-X table,
-		 * but we can map around it.
-		 */
-		uint32_t table_start = msix_table->offset;
-		uint32_t table_end = table_start + msix_table->size;
-		table_end = (table_end + ~PAGE_MASK) & PAGE_MASK;
-		table_start &= PAGE_MASK;
-
-		if (table_start == 0 && table_end >= bar->size) {
-			/* Cannot map this BAR */
-			RTE_LOG(DEBUG, EAL, "Skipping BAR%d\n", bar_index);
-			bar->size = 0;
-			bar->addr = 0;
-			return 0;
-		}
-
-		memreg[0].offset = bar->offset;
-		memreg[0].size = table_start;
-		memreg[1].offset = bar->offset + table_end;
-		memreg[1].size = bar->size - table_end;
-
-		RTE_LOG(DEBUG, EAL,
-			"Trying to map BAR%d that contains the MSI-X "
-			"table. Trying offsets: "
-			"0x%04lx:0x%04lx, 0x%04lx:0x%04lx\n", bar_index,
-			memreg[0].offset, memreg[0].size,
-			memreg[1].offset, memreg[1].size);
-	} else {
-		memreg[0].offset = bar->offset;
-		memreg[0].size = bar->size;
-	}
-
 	/* reserve the address using an inaccessible mapping */
 	bar_addr = mmap(bar->addr, bar->size, 0, MAP_PRIVATE |
 			MAP_ANONYMOUS | additional_flags, -1, 0);
-	if (bar_addr != MAP_FAILED) {
+	if (bar_addr == MAP_FAILED) {
+		RTE_LOG(ERR, EAL,
+			"Failed to create inaccessible mapping for BAR%d\n",
+			bar_index);
+		return -1;
+	}
+
+	memreg[0].offset = bar->offset;
+	memreg[0].size = bar->size;
+	do {
 		void *map_addr = NULL;
+		if (again) {
+			/*
+			 * VFIO did not let us map the MSI-X table,
+			 * but we can map around it.
+			 */
+			uint32_t table_start = msix_table->offset;
+			uint32_t table_end = table_start + msix_table->size;
+			table_end = (table_end + ~PAGE_MASK) & PAGE_MASK;
+			table_start &= PAGE_MASK;
+
+			if (table_start == 0 && table_end >= bar->size) {
+				/* Cannot map this BAR */
+				RTE_LOG(DEBUG, EAL, "Skipping BAR%d\n",
+						bar_index);
+				munmap(bar_addr, bar->size);
+				bar->size = 0;
+				bar->addr = 0;
+				return 0;
+			}
+
+			memreg[0].offset = bar->offset;
+			memreg[0].size = table_start;
+			memreg[1].offset = bar->offset + table_end;
+			memreg[1].size = bar->size - table_end;
+
+			RTE_LOG(DEBUG, EAL,
+				"Trying to map BAR%d that contains the MSI-X "
+				"table. Trying offsets: "
+				"0x%04lx:0x%04lx, 0x%04lx:0x%04lx\n", bar_index,
+				memreg[0].offset, memreg[0].size,
+				memreg[1].offset, memreg[1].size);
+		}
+
 		if (memreg[0].size) {
 			/* actual map of first part */
 			map_addr = pci_map_resource(bar_addr, vfio_dev_fd,
 							memreg[0].offset,
 							memreg[0].size,
 							MAP_FIXED);
+		}
+
+		if (map_addr == MAP_FAILED &&
+			msix_table->bar_index == bar_index && !again) {
+			again = true;
+			continue;
 		}
 
 		/* if there's a second part, try to map it */
@@ -404,12 +419,8 @@ pci_vfio_mmap_bar(int vfio_dev_fd, struct mapped_pci_resource *vfio_res,
 					bar_index);
 			return -1;
 		}
-	} else {
-		RTE_LOG(ERR, EAL,
-				"Failed to create inaccessible mapping for BAR%d\n",
-				bar_index);
-		return -1;
-	}
+		break;
+	} while (again);
 
 	bar->addr = bar_addr;
 	return 0;
@@ -584,6 +595,9 @@ pci_vfio_map_resource_secondary(struct rte_pci_device *dev)
 		dev->mem_resource[i].addr = maps[i].addr;
 	}
 
+	/* we need save vfio_dev_fd, so it can be used during release */
+	dev->intr_handle.vfio_dev_fd = vfio_dev_fd;
+
 	return 0;
 err_vfio_dev_fd:
 	close(vfio_dev_fd);
@@ -603,21 +617,57 @@ pci_vfio_map_resource(struct rte_pci_device *dev)
 		return pci_vfio_map_resource_secondary(dev);
 }
 
-int
-pci_vfio_unmap_resource(struct rte_pci_device *dev)
+static struct mapped_pci_resource *
+find_and_unmap_vfio_resource(struct mapped_pci_res_list *vfio_res_list,
+			struct rte_pci_device *dev,
+			const char *pci_addr)
+{
+	struct mapped_pci_resource *vfio_res = NULL;
+	struct pci_map *maps;
+	int i;
+
+	/* Get vfio_res */
+	TAILQ_FOREACH(vfio_res, vfio_res_list, next) {
+		if (rte_pci_addr_cmp(&vfio_res->pci_addr, &dev->addr))
+			continue;
+		break;
+	}
+
+	if  (vfio_res == NULL)
+		return vfio_res;
+
+	RTE_LOG(INFO, EAL, "Releasing pci mapped resource for %s\n",
+		pci_addr);
+
+	maps = vfio_res->maps;
+	for (i = 0; i < (int) vfio_res->nb_maps; i++) {
+
+		/*
+		 * We do not need to be aware of MSI-X table BAR mappings as
+		 * when mapping. Just using current maps array is enough
+		 */
+		if (maps[i].addr) {
+			RTE_LOG(INFO, EAL, "Calling pci_unmap_resource for %s at %p\n",
+				pci_addr, maps[i].addr);
+			pci_unmap_resource(maps[i].addr, maps[i].size);
+		}
+	}
+
+	return vfio_res;
+}
+
+static int
+pci_vfio_unmap_resource_primary(struct rte_pci_device *dev)
 {
 	char pci_addr[PATH_MAX] = {0};
 	struct rte_pci_addr *loc = &dev->addr;
-	int i, ret;
 	struct mapped_pci_resource *vfio_res = NULL;
 	struct mapped_pci_res_list *vfio_res_list;
-
-	struct pci_map *maps;
+	int ret;
 
 	/* store PCI address string */
 	snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT,
 			loc->domain, loc->bus, loc->devid, loc->function);
-
 
 	if (close(dev->intr_handle.fd) < 0) {
 		RTE_LOG(INFO, EAL, "Error when closing eventfd file descriptor for %s\n",
@@ -639,13 +689,10 @@ pci_vfio_unmap_resource(struct rte_pci_device *dev)
 		return ret;
 	}
 
-	vfio_res_list = RTE_TAILQ_CAST(rte_vfio_tailq.head, mapped_pci_res_list);
-	/* Get vfio_res */
-	TAILQ_FOREACH(vfio_res, vfio_res_list, next) {
-		if (memcmp(&vfio_res->pci_addr, &dev->addr, sizeof(dev->addr)))
-			continue;
-		break;
-	}
+	vfio_res_list =
+		RTE_TAILQ_CAST(rte_vfio_tailq.head, mapped_pci_res_list);
+	vfio_res = find_and_unmap_vfio_resource(vfio_res_list, dev, pci_addr);
+
 	/* if we haven't found our tailq entry, something's wrong */
 	if (vfio_res == NULL) {
 		RTE_LOG(ERR, EAL, "  %s cannot find TAILQ entry for PCI device!\n",
@@ -653,27 +700,53 @@ pci_vfio_unmap_resource(struct rte_pci_device *dev)
 		return -1;
 	}
 
-	/* unmap BARs */
-	maps = vfio_res->maps;
-
-	RTE_LOG(INFO, EAL, "Releasing pci mapped resource for %s\n",
-		pci_addr);
-	for (i = 0; i < (int) vfio_res->nb_maps; i++) {
-
-		/*
-		 * We do not need to be aware of MSI-X table BAR mappings as
-		 * when mapping. Just using current maps array is enough
-		 */
-		if (maps[i].addr) {
-			RTE_LOG(INFO, EAL, "Calling pci_unmap_resource for %s at %p\n",
-				pci_addr, maps[i].addr);
-			pci_unmap_resource(maps[i].addr, maps[i].size);
-		}
-	}
-
 	TAILQ_REMOVE(vfio_res_list, vfio_res, next);
 
 	return 0;
+}
+
+static int
+pci_vfio_unmap_resource_secondary(struct rte_pci_device *dev)
+{
+	char pci_addr[PATH_MAX] = {0};
+	struct rte_pci_addr *loc = &dev->addr;
+	struct mapped_pci_resource *vfio_res = NULL;
+	struct mapped_pci_res_list *vfio_res_list;
+	int ret;
+
+	/* store PCI address string */
+	snprintf(pci_addr, sizeof(pci_addr), PCI_PRI_FMT,
+			loc->domain, loc->bus, loc->devid, loc->function);
+
+	ret = rte_vfio_release_device(rte_pci_get_sysfs_path(), pci_addr,
+				  dev->intr_handle.vfio_dev_fd);
+	if (ret < 0) {
+		RTE_LOG(ERR, EAL,
+			"%s(): cannot release device\n", __func__);
+		return ret;
+	}
+
+	vfio_res_list =
+		RTE_TAILQ_CAST(rte_vfio_tailq.head, mapped_pci_res_list);
+	vfio_res = find_and_unmap_vfio_resource(vfio_res_list, dev, pci_addr);
+
+	/* if we haven't found our tailq entry, something's wrong */
+	if (vfio_res == NULL) {
+		RTE_LOG(ERR, EAL, "  %s cannot find TAILQ entry for PCI device!\n",
+				pci_addr);
+		return -1;
+	}
+
+	return 0;
+}
+
+int
+pci_vfio_unmap_resource(struct rte_pci_device *dev)
+{
+	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
+		return pci_vfio_unmap_resource_primary(dev);
+	else
+		return pci_vfio_unmap_resource_secondary(dev);
 }
 
 int

@@ -51,9 +51,7 @@ port_cfg_t::port_cfg_t() {
     m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    m_tx_conf.txq_flags         = ETH_TXQ_FLAGS_IGNORE;
 
-    m_port_conf.rxmode.ignore_offload_bitfield = 1;
     m_port_conf.rxmode.max_rx_pkt_len = 9*1024+22;
 
     m_port_conf.rxmode.offloads =

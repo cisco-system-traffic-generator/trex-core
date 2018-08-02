@@ -33,36 +33,6 @@ rte_pci_probe(void);
 int rte_pci_scan(void);
 
 /**
- * Probe the single PCI device.
- *
- * Scan the content of the PCI bus, and find the pci device specified by pci
- * address, then call the probe() function for registered driver that has a
- * matching entry in its id_table for discovered device.
- *
- * @param addr
- *	The PCI Bus-Device-Function address to probe.
- * @return
- *   - 0 on success.
- *   - Negative on error.
- */
-int rte_pci_probe_one(const struct rte_pci_addr *addr);
-
-/**
- * Close the single PCI device.
- *
- * Scan the content of the PCI bus, and find the pci device specified by pci
- * address, then call the remove() function for registered driver that has a
- * matching entry in its id_table for discovered device.
- *
- * @param addr
- *	The PCI Bus-Device-Function address to close.
- * @return
- *   - 0 on success.
- *   - Negative on error.
- */
-int rte_pci_detach(const struct rte_pci_addr *addr);
-
-/**
  * Find the name of a PCI device.
  */
 void
@@ -94,16 +64,6 @@ void rte_pci_insert_device(struct rte_pci_device *exist_pci_dev,
 		struct rte_pci_device *new_pci_dev);
 
 /**
- * Remove a PCI device from the PCI Bus. This sets to NULL the bus references
- * in the PCI device object as well as the generic device object.
- *
- * @param pci_device
- *	PCI device to be removed from PCI Bus
- * @return void
- */
-void rte_pci_remove_device(struct rte_pci_device *pci_device);
-
-/**
  * Update a pci device object by asking the kernel for the latest information.
  *
  * This function is private to EAL.
@@ -115,16 +75,6 @@ void rte_pci_remove_device(struct rte_pci_device *pci_device);
  *   - negative on error.
  */
 int pci_update_device(const struct rte_pci_addr *addr);
-
-/**
- * Unbind kernel driver for this device
- *
- * This function is private to EAL.
- *
- * @return
- *   0 on success, negative on error
- */
-int pci_unbind_kernel_driver(struct rte_pci_device *dev);
 
 /**
  * Map the PCI resource of a PCI device in virtual memory

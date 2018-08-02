@@ -758,6 +758,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_cfgfile/rte_cfgfile.c',
 
                  'lib/librte_eal/common/eal_common_bus.c',
+                 'lib/librte_eal/common/eal_common_class.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
@@ -810,8 +811,9 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_net/rte_net.c',
                  'lib/librte_net/rte_net_crc.c',
                  'lib/librte_net/rte_arp.c',
-                 'lib/librte_ring/rte_ring.c',
                  'lib/librte_pci/rte_pci.c',
+                 'lib/librte_ring/rte_ring.c',
+                 'lib/librte_timer/rte_timer.c',
             ]);
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
@@ -1049,10 +1051,11 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_kvargs/
                         ../src/dpdk/lib/librte_mbuf/
                         ../src/dpdk/lib/librte_mempool/
-                        ../src/dpdk/lib/librte_ring/
-                        ../src/dpdk/lib/librte_pci/
                         ../src/dpdk/lib/librte_net/
+                        ../src/dpdk/lib/librte_pci/
                         ../src/dpdk/lib/librte_port/
+                        ../src/dpdk/lib/librte_ring/
+                        ../src/dpdk/lib/librte_timer/
                         ../src/dpdk/
                         
                         ../src/dpdk/drivers/bus/pci/

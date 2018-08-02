@@ -13,9 +13,14 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include <rte_bus.h>
+#include <rte_class.h>
 #include <rte_compat.h>
 #include <rte_dev.h>
 #include <rte_devargs.h>
+#include <rte_errno.h>
+#include <rte_kvargs.h>
+#include <rte_log.h>
 #include <rte_tailq.h>
 #include "eal_private.h"
 
@@ -56,30 +61,164 @@ rte_eal_parse_devargs_str(const char *devargs_str,
 	return 0;
 }
 
+static size_t
+devargs_layer_count(const char *s)
+{
+	size_t i = s ? 1 : 0;
+
+	while (s != NULL && s[0] != '\0') {
+		i += s[0] == '/';
+		s++;
+	}
+	return i;
+}
+
+int
+rte_devargs_layers_parse(struct rte_devargs *devargs,
+			 const char *devstr)
+{
+	struct {
+		const char *key;
+		const char *str;
+		struct rte_kvargs *kvlist;
+	} layers[] = {
+		{ "bus=",    NULL, NULL, },
+		{ "class=",  NULL, NULL, },
+		{ "driver=", NULL, NULL, },
+	};
+	struct rte_kvargs_pair *kv = NULL;
+	struct rte_class *cls = NULL;
+	struct rte_bus *bus = NULL;
+	const char *s = devstr;
+	size_t nblayer;
+	size_t i = 0;
+	int ret = 0;
+
+	/* Split each sub-lists. */
+	nblayer = devargs_layer_count(devstr);
+	if (nblayer > RTE_DIM(layers)) {
+		RTE_LOG(ERR, EAL, "Invalid format: too many layers (%zu)\n",
+			nblayer);
+		ret = -E2BIG;
+		goto get_out;
+	}
+
+	/* If the devargs points the devstr
+	 * as source data, then it should not allocate
+	 * anything and keep referring only to it.
+	 */
+	if (devargs->data != devstr) {
+		devargs->data = strdup(devstr);
+		if (devargs->data == NULL) {
+			RTE_LOG(ERR, EAL, "OOM\n");
+			ret = -ENOMEM;
+			goto get_out;
+		}
+		s = devargs->data;
+	}
+
+	while (s != NULL) {
+		if (i >= RTE_DIM(layers)) {
+			RTE_LOG(ERR, EAL, "Unrecognized layer %s\n", s);
+			ret = -EINVAL;
+			goto get_out;
+		}
+		/*
+		 * The last layer is free-form.
+		 * The "driver" key is not required (but accepted).
+		 */
+		if (strncmp(layers[i].key, s, strlen(layers[i].key)) &&
+				i != RTE_DIM(layers) - 1)
+			goto next_layer;
+		layers[i].str = s;
+		layers[i].kvlist = rte_kvargs_parse_delim(s, NULL, "/");
+		if (layers[i].kvlist == NULL) {
+			RTE_LOG(ERR, EAL, "Could not parse %s\n", s);
+			ret = -EINVAL;
+			goto get_out;
+		}
+		s = strchr(s, '/');
+		if (s != NULL)
+			s++;
+next_layer:
+		i++;
+	}
+
+	/* Parse each sub-list. */
+	for (i = 0; i < RTE_DIM(layers); i++) {
+		if (layers[i].kvlist == NULL)
+			continue;
+		kv = &layers[i].kvlist->pairs[0];
+		if (strcmp(kv->key, "bus") == 0) {
+			bus = rte_bus_find_by_name(kv->value);
+			if (bus == NULL) {
+				RTE_LOG(ERR, EAL, "Could not find bus \"%s\"\n",
+					kv->value);
+				ret = -EFAULT;
+				goto get_out;
+			}
+		} else if (strcmp(kv->key, "class") == 0) {
+			cls = rte_class_find_by_name(kv->value);
+			if (cls == NULL) {
+				RTE_LOG(ERR, EAL, "Could not find class \"%s\"\n",
+					kv->value);
+				ret = -EFAULT;
+				goto get_out;
+			}
+		} else if (strcmp(kv->key, "driver") == 0) {
+			/* Ignore */
+			continue;
+		}
+	}
+
+	/* Fill devargs fields. */
+	devargs->bus_str = layers[0].str;
+	devargs->cls_str = layers[1].str;
+	devargs->drv_str = layers[2].str;
+	devargs->bus = bus;
+	devargs->cls = cls;
+
+	/* If we own the data, clean up a bit
+	 * the several layers string, to ease
+	 * their parsing afterward.
+	 */
+	if (devargs->data != devstr) {
+		char *s = (void *)(intptr_t)(devargs->data);
+
+		while ((s = strchr(s, '/'))) {
+			*s = '\0';
+			s++;
+		}
+	}
+
+get_out:
+	for (i = 0; i < RTE_DIM(layers); i++) {
+		if (layers[i].kvlist)
+			rte_kvargs_free(layers[i].kvlist);
+	}
+	if (ret != 0)
+		rte_errno = -ret;
+	return ret;
+}
+
 static int
 bus_name_cmp(const struct rte_bus *bus, const void *name)
 {
 	return strncmp(bus->name, name, strlen(bus->name));
 }
 
-int __rte_experimental
-rte_devargs_parse(struct rte_devargs *da, const char *format, ...)
+__rte_experimental
+int
+rte_devargs_parse(struct rte_devargs *da, const char *dev)
 {
 	struct rte_bus *bus = NULL;
-	va_list ap;
-	va_start(ap, format);
-	char dev[vsnprintf(NULL, 0, format, ap) + 1];
 	const char *devname;
 	const size_t maxlen = sizeof(da->name);
 	size_t i;
 
-	va_end(ap);
 	if (da == NULL)
 		return -EINVAL;
 
-	va_start(ap, format);
-	vsnprintf(dev, sizeof(dev), format, ap);
-	va_end(ap);
 	/* Retrieve eventual bus info */
 	do {
 		devname = dev;
@@ -96,7 +235,7 @@ rte_devargs_parse(struct rte_devargs *da, const char *format, ...)
 		da->name[i] = devname[i];
 		i++;
 		if (i == maxlen) {
-			fprintf(stderr, "WARNING: Parsing \"%s\": device name should be shorter than %zu\n",
+			RTE_LOG(WARNING, EAL, "Parsing \"%s\": device name should be shorter than %zu\n",
 				dev, maxlen);
 			da->name[i - 1] = '\0';
 			return -EINVAL;
@@ -106,7 +245,7 @@ rte_devargs_parse(struct rte_devargs *da, const char *format, ...)
 	if (bus == NULL) {
 		bus = rte_bus_find_by_device_name(da->name);
 		if (bus == NULL) {
-			fprintf(stderr, "ERROR: failed to parse device \"%s\"\n",
+			RTE_LOG(ERR, EAL, "failed to parse device \"%s\"\n",
 				da->name);
 			return -EFAULT;
 		}
@@ -118,10 +257,38 @@ rte_devargs_parse(struct rte_devargs *da, const char *format, ...)
 	else
 		da->args = strdup("");
 	if (da->args == NULL) {
-		fprintf(stderr, "ERROR: not enough memory to parse arguments\n");
+		RTE_LOG(ERR, EAL, "not enough memory to parse arguments\n");
 		return -ENOMEM;
 	}
 	return 0;
+}
+
+__rte_experimental
+int
+rte_devargs_parsef(struct rte_devargs *da, const char *format, ...)
+{
+	va_list ap;
+	size_t len;
+	char *dev;
+
+	if (da == NULL)
+		return -EINVAL;
+
+	va_start(ap, format);
+	len = vsnprintf(NULL, 0, format, ap);
+	va_end(ap);
+
+	dev = calloc(1, len + 1);
+	if (dev == NULL) {
+		RTE_LOG(ERR, EAL, "not enough memory to parse device\n");
+		return -ENOMEM;
+	}
+
+	va_start(ap, format);
+	vsnprintf(dev, len + 1, format, ap);
+	va_end(ap);
+
+	return rte_devargs_parse(da, dev);
 }
 
 int __rte_experimental
@@ -150,7 +317,7 @@ rte_devargs_add(enum rte_devtype devtype, const char *devargs_str)
 	if (devargs == NULL)
 		goto fail;
 
-	if (rte_devargs_parse(devargs, "%s", dev))
+	if (rte_devargs_parse(devargs, dev))
 		goto fail;
 	devargs->type = devtype;
 	bus = devargs->bus;

@@ -51,12 +51,19 @@ struct rte_devargs {
 	enum rte_devtype type;
 	/** Device policy. */
 	enum rte_dev_policy policy;
-	/** Bus handle for the device. */
-	struct rte_bus *bus;
 	/** Name of the device. */
 	char name[RTE_DEV_NAME_MAX_LEN];
+	RTE_STD_C11
+	union {
 	/** Arguments string as given by user or "" for no argument. */
-	char *args;
+		char *args;
+		const char *drv_str;
+	};
+	struct rte_bus *bus; /**< bus handle. */
+	struct rte_class *cls; /**< class handle. */
+	const char *bus_str; /**< bus-related part of device string. */
+	const char *cls_str; /**< class-related part of device string. */
+	const char *data; /**< Device string storage. */
 };
 
 /**
@@ -96,6 +103,42 @@ int rte_eal_parse_devargs_str(const char *devargs_str,
  * in argument. Store which bus will handle the device, its name
  * and the eventual device parameters.
  *
+ * The syntax is:
+ *
+ *     bus:device_identifier,arg1=val1,arg2=val2
+ *
+ * where "bus:" is the bus name followed by any character separator.
+ * The bus name is optional. If no bus name is specified, each bus
+ * will attempt to recognize the device identifier. The first one
+ * to succeed will be used.
+ *
+ * Examples:
+ *
+ *     pci:0000:05.00.0,arg=val
+ *     05.00.0,arg=val
+ *     vdev:net_ring0
+ *
+ * @param da
+ *   The devargs structure holding the device information.
+ *
+ * @param dev
+ *   String describing a device.
+ *
+ * @return
+ *   - 0 on success.
+ *   - Negative errno on error.
+ */
+__rte_experimental
+int
+rte_devargs_parse(struct rte_devargs *da, const char *dev);
+
+/**
+ * Parse a device string.
+ *
+ * Verify that a bus is capable of handling the device passed
+ * in argument. Store which bus will handle the device, its name
+ * and the eventual device parameters.
+ *
  * The device string is built with a printf-like syntax.
  *
  * The syntax is:
@@ -124,8 +167,8 @@ int rte_eal_parse_devargs_str(const char *devargs_str,
  */
 __rte_experimental
 int
-rte_devargs_parse(struct rte_devargs *da,
-		  const char *format, ...)
+rte_devargs_parsef(struct rte_devargs *da,
+		   const char *format, ...)
 __attribute__((format(printf, 2, 0)));
 
 /**

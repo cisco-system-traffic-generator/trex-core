@@ -87,12 +87,18 @@
 #define I40E_WRITE_GLB_REG(hw, reg, value)				\
 	do {								\
 		uint32_t ori_val;					\
+		struct rte_eth_dev *dev;				\
 		ori_val = I40E_READ_REG((hw), (reg));			\
+		dev = ((struct i40e_adapter *)hw->back)->eth_dev;	\
 		I40E_PCI_REG_WRITE(I40E_PCI_REG_ADDR((hw),		\
 						     (reg)), (value));	\
-		PMD_DRV_LOG(DEBUG, "global register [0x%08x] "		\
-			    "original: 0x%08x, after: 0x%08x ",		\
-			    (reg), (ori_val), (value));			\
+		if (ori_val != value)					\
+			PMD_DRV_LOG(WARNING,				\
+				    "i40e device %s changed global "	\
+				    "register [0x%08x]. original: 0x%08x, " \
+				    "new: 0x%08x ",			\
+				    (dev->device->name), (reg),		\
+				    (ori_val), (value));		\
 	} while (0)
 
 /* index flex payload per layer */
@@ -178,7 +184,7 @@ enum i40e_flxpld_layer_idx {
 #define I40E_ITR_INDEX_NONE             3
 #define I40E_QUEUE_ITR_INTERVAL_DEFAULT 32 /* 32 us */
 #define I40E_QUEUE_ITR_INTERVAL_MAX     8160 /* 8160 us */
-#define I40E_VF_QUEUE_ITR_INTERVAL_DEFAULT 8160 /* 8160 us */
+#define I40E_VF_QUEUE_ITR_INTERVAL_DEFAULT 32 /* 32 us */
 /* Special FW support this floating VEB feature */
 #define FLOATING_VEB_SUPPORTED_FW_MAJ 5
 #define FLOATING_VEB_SUPPORTED_FW_MIN 0
@@ -1108,22 +1114,6 @@ struct i40e_valid_pattern {
 	parse_filter_t parse_filter;
 };
 
-enum I40E_WARNING_IDX {
-	I40E_WARNING_DIS_FLX_PLD,
-	I40E_WARNING_ENA_FLX_PLD,
-	I40E_WARNING_QINQ_PARSER,
-	I40E_WARNING_QINQ_CLOUD_FILTER,
-	I40E_WARNING_TPID,
-	I40E_WARNING_FLOW_CTL,
-	I40E_WARNING_GRE_KEY_LEN,
-	I40E_WARNING_QF_CTL,
-	I40E_WARNING_HASH_INSET,
-	I40E_WARNING_HSYM,
-	I40E_WARNING_HASH_MSK,
-	I40E_WARNING_FD_MSK,
-	I40E_WARNING_RPL_CLD_FILTER,
-};
-
 int i40e_dev_switch_queues(struct i40e_pf *pf, bool on);
 int i40e_vsi_release(struct i40e_vsi *vsi);
 struct i40e_vsi *i40e_vsi_setup(struct i40e_pf *pf,
@@ -1328,48 +1318,21 @@ i40e_align_floor(int n)
 }
 
 static inline uint16_t
-i40e_calc_itr_interval(int16_t interval, bool is_pf, bool is_multi_drv)
+i40e_calc_itr_interval(bool is_pf, bool is_multi_drv)
 {
-	if (interval < 0 || interval > I40E_QUEUE_ITR_INTERVAL_MAX) {
-		if (is_multi_drv) {
-			interval = I40E_QUEUE_ITR_INTERVAL_MAX;
-		} else {
-			if (is_pf)
-				interval = I40E_QUEUE_ITR_INTERVAL_DEFAULT;
-			else
-				interval = I40E_VF_QUEUE_ITR_INTERVAL_DEFAULT;
-		}
+	uint16_t interval = 0;
+
+	if (is_multi_drv) {
+		interval = I40E_QUEUE_ITR_INTERVAL_MAX;
+	} else {
+		if (is_pf)
+			interval = I40E_QUEUE_ITR_INTERVAL_DEFAULT;
+		else
+			interval = I40E_VF_QUEUE_ITR_INTERVAL_DEFAULT;
 	}
 
 	/* Convert to hardware count, as writing each 1 represents 2 us */
 	return interval / 2;
-}
-
-static inline void
-i40e_global_cfg_warning(enum I40E_WARNING_IDX idx)
-{
-	const char *warning;
-	static const char *const warning_list[] = {
-		[I40E_WARNING_DIS_FLX_PLD] = "disable FDIR flexible payload",
-		[I40E_WARNING_ENA_FLX_PLD] = "enable FDIR flexible payload",
-		[I40E_WARNING_QINQ_PARSER] = "support QinQ parser",
-		[I40E_WARNING_QINQ_CLOUD_FILTER] = "support QinQ cloud filter",
-		[I40E_WARNING_TPID] = "support TPID configuration",
-		[I40E_WARNING_FLOW_CTL] = "configure water marker",
-		[I40E_WARNING_GRE_KEY_LEN] = "support GRE key length setting",
-		[I40E_WARNING_QF_CTL] = "support hash function setting",
-		[I40E_WARNING_HASH_INSET] = "configure hash input set",
-		[I40E_WARNING_HSYM] = "set symmetric hash",
-		[I40E_WARNING_HASH_MSK] = "configure hash mask",
-		[I40E_WARNING_FD_MSK] = "configure fdir mask",
-		[I40E_WARNING_RPL_CLD_FILTER] = "replace cloud filter",
-	};
-
-	warning = warning_list[idx];
-
-	RTE_LOG(WARNING, PMD,
-		"Global register is changed during %s\n",
-		warning);
 }
 
 #define I40E_VALID_FLOW(flow_type) \

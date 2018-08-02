@@ -526,7 +526,6 @@ i40e_set_flx_pld_cfg(struct i40e_pf *pf,
 			  (num << I40E_GLQF_ORT_FIELD_CNT_SHIFT) |
 			  (layer_idx * I40E_MAX_FLXPLD_FIED);
 		I40E_WRITE_GLB_REG(hw, I40E_GLQF_ORT(33 + layer_idx), flx_ort);
-		i40e_global_cfg_warning(I40E_WARNING_ENA_FLX_PLD);
 	}
 
 	for (i = 0; i < num; i++) {
@@ -737,9 +736,6 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 					fdir_input->flow.ip4_flow.ttl :
 					I40E_FDIR_IP_DEFAULT_TTL;
 		ip->type_of_service = fdir_input->flow.ip4_flow.tos;
-#ifdef TREX_PATCH
-        ip->packet_id = rte_cpu_to_be_16(fdir_input->flow.ip4_flow.ip_id);
-#endif
 		/*
 		 * The source and destination fields in the transmitted packet
 		 * need to be presented in a reversed order with respect
@@ -760,12 +756,7 @@ i40e_fdir_fill_eth_ip_head(const struct rte_eth_fdir_input *fdir_input,
 		ip6->vtc_flow =
 			rte_cpu_to_be_32(I40E_FDIR_IPv6_DEFAULT_VTC_FLOW |
 					 (fdir_input->flow.ipv6_flow.tc <<
-#ifndef TREX_PATCH
 					  I40E_FDIR_IPv6_TC_OFFSET));
-#else
-                      I40E_FDIR_IPv6_TC_OFFSET) |
-                     (fdir_input->flow.ipv6_flow.flow_label & 0x000fffff));
-#endif
 		ip6->payload_len =
 			rte_cpu_to_be_16(I40E_FDIR_IPv6_PAYLOAD_LEN);
 		ip6->proto = fdir_input->flow.ipv6_flow.proto ?
@@ -1369,6 +1360,8 @@ i40e_check_fdir_programming_status(struct i40e_rx_queue *rxq)
 			I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
 		else
 			I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->rx_tail - 1);
+	} else {
+		ret = -1;
 	}
 
 	return ret;
@@ -1577,17 +1570,11 @@ i40e_flow_add_del_fdir_filter(struct rte_eth_dev *dev,
 	memset(&check_filter, 0, sizeof(check_filter));
 	i40e_fdir_filter_convert(filter, &check_filter);
 	node = i40e_sw_fdir_filter_lookup(fdir_info, &check_filter.fdir.input);
-#ifndef TREX_PATCH
-/*
-We use same rule at different filters, for example to overcome "stuck counters" issue:
-https://trex-tgn.cisco.com/youtrack/issue/trex-199
-*/
 	if (add && node) {
 		PMD_DRV_LOG(ERR,
 			    "Conflict with existing flow director rules!");
 		return -EINVAL;
 	}
-#endif
 
 	if (!add && !node) {
 		PMD_DRV_LOG(ERR,
@@ -1724,12 +1711,8 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 	fdirdp->dtype_cmd_cntindex |=
 			rte_cpu_to_le_32(I40E_TXD_FLTR_QW1_CNT_ENA_MASK);
 	fdirdp->dtype_cmd_cntindex |=
-#ifdef TREX_PATCH
-            rte_cpu_to_le_32((fdir_action->stat_count_index <<
-#else
 			rte_cpu_to_le_32(
 			((uint32_t)pf->fdir.match_counter_index <<
-#endif
 			I40E_TXD_FLTR_QW1_CNTINDEX_SHIFT) &
 			I40E_TXD_FLTR_QW1_CNTINDEX_MASK);
 

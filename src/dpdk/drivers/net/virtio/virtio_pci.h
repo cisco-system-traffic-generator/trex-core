@@ -6,6 +6,7 @@
 #define _VIRTIO_PCI_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
@@ -121,6 +122,12 @@ struct virtnet_ctl;
 #define VIRTIO_TRANSPORT_F_START 28
 #define VIRTIO_TRANSPORT_F_END   34
 
+/*
+ * Inorder feature indicates that all buffers are used by the device
+ * in the same order in which they have been made available.
+ */
+#define VIRTIO_F_IN_ORDER 35
+
 /* The Guest publishes the used index for which it expects an interrupt
  * at the end of the avail ring. Host should ignore the avail->flags field. */
 /* The Host publishes the avail index for which it expects a kick
@@ -232,7 +239,10 @@ struct virtio_hw {
 	uint8_t	    use_msix;
 	uint8_t     modern;
 	uint8_t     use_simple_rx;
-	uint8_t     use_simple_tx;
+	uint8_t     use_inorder_rx;
+	uint8_t     use_inorder_tx;
+	bool        has_tx_offload;
+	bool        has_rx_offload;
 	uint16_t    port_id;
 	uint8_t     mac_addr[ETHER_ADDR_LEN];
 	uint32_t    notify_off_multiplier;

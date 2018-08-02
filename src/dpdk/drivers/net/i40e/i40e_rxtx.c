@@ -1439,13 +1439,13 @@ i40e_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		/* Check for m->nb_segs to not exceed the limits. */
 		if (!(ol_flags & PKT_TX_TCP_SEG)) {
-			if (m->nb_segs > I40E_TX_MAX_SEG ||
-			    m->nb_segs > I40E_TX_MAX_MTU_SEG) {
+			if (m->nb_segs > I40E_TX_MAX_MTU_SEG) {
 				rte_errno = -EINVAL;
 				return i;
 			}
-		} else if ((m->tso_segsz < I40E_MIN_TSO_MSS) ||
-				(m->tso_segsz > I40E_MAX_TSO_MSS)) {
+		} else if (m->nb_segs > I40E_TX_MAX_SEG ||
+			   m->tso_segsz < I40E_MIN_TSO_MSS ||
+			   m->tso_segsz > I40E_MAX_TSO_MSS) {
 			/* MSS outside the range (256B - 9674B) are considered
 			 * malicious
 			 */
@@ -1455,6 +1455,13 @@ i40e_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		if (ol_flags & I40E_TX_OFFLOAD_NOTSUP_MASK) {
 			rte_errno = -ENOTSUP;
+			return i;
+		}
+
+		/* check the size of packet */
+		if (m->pkt_len > I40E_FRAME_SIZE_MAX ||
+		    m->pkt_len < I40E_TX_MIN_PKT_LEN) {
+			rte_errno = -EINVAL;
 			return i;
 		}
 
@@ -1524,38 +1531,36 @@ int
 i40e_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 {
 	struct i40e_rx_queue *rxq;
-	int err = -1;
+	int err;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (rx_queue_id < dev->data->nb_rx_queues) {
-		rxq = dev->data->rx_queues[rx_queue_id];
+	rxq = dev->data->rx_queues[rx_queue_id];
 
-		err = i40e_alloc_rx_queue_mbufs(rxq);
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to allocate RX queue mbuf");
-			return err;
-		}
-
-		rte_wmb();
-
-		/* Init the RX tail regieter. */
-		I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
-
-		err = i40e_switch_rx_queue(hw, rxq->reg_idx, TRUE);
-
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to switch RX queue %u on",
-				    rx_queue_id);
-
-			i40e_rx_queue_release_mbufs(rxq);
-			i40e_reset_rx_queue(rxq);
-		} else
-			dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+	err = i40e_alloc_rx_queue_mbufs(rxq);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to allocate RX queue mbuf");
+		return err;
 	}
 
-	return err;
+	rte_wmb();
+
+	/* Init the RX tail regieter. */
+	I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
+
+	err = i40e_switch_rx_queue(hw, rxq->reg_idx, TRUE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch RX queue %u on",
+			    rx_queue_id);
+
+		i40e_rx_queue_release_mbufs(rxq);
+		i40e_reset_rx_queue(rxq);
+		return err;
+	}
+	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+
+	return 0;
 }
 
 int
@@ -1565,24 +1570,21 @@ i40e_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	int err;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
-	if (rx_queue_id < dev->data->nb_rx_queues) {
-		rxq = dev->data->rx_queues[rx_queue_id];
+	rxq = dev->data->rx_queues[rx_queue_id];
 
-		/*
-		* rx_queue_id is queue id application refers to, while
-		* rxq->reg_idx is the real queue index.
-		*/
-		err = i40e_switch_rx_queue(hw, rxq->reg_idx, FALSE);
-
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
-				    rx_queue_id);
-			return err;
-		}
-		i40e_rx_queue_release_mbufs(rxq);
-		i40e_reset_rx_queue(rxq);
-		dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
+	/*
+	 * rx_queue_id is queue id application refers to, while
+	 * rxq->reg_idx is the real queue index.
+	 */
+	err = i40e_switch_rx_queue(hw, rxq->reg_idx, FALSE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
+			    rx_queue_id);
+		return err;
 	}
+	i40e_rx_queue_release_mbufs(rxq);
+	i40e_reset_rx_queue(rxq);
+	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1590,28 +1592,27 @@ i40e_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 int
 i40e_dev_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 {
-	int err = -1;
+	int err;
 	struct i40e_tx_queue *txq;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (tx_queue_id < dev->data->nb_tx_queues) {
-		txq = dev->data->tx_queues[tx_queue_id];
+	txq = dev->data->tx_queues[tx_queue_id];
 
-		/*
-		* tx_queue_id is queue id application refers to, while
-		* rxq->reg_idx is the real queue index.
-		*/
-		err = i40e_switch_tx_queue(hw, txq->reg_idx, TRUE);
-		if (err)
-			PMD_DRV_LOG(ERR, "Failed to switch TX queue %u on",
-				    tx_queue_id);
-		else
-			dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+	/*
+	 * tx_queue_id is queue id application refers to, while
+	 * rxq->reg_idx is the real queue index.
+	 */
+	err = i40e_switch_tx_queue(hw, txq->reg_idx, TRUE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch TX queue %u on",
+			    tx_queue_id);
+		return err;
 	}
+	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
-	return err;
+	return 0;
 }
 
 int
@@ -1621,25 +1622,22 @@ i40e_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	int err;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
-	if (tx_queue_id < dev->data->nb_tx_queues) {
-		txq = dev->data->tx_queues[tx_queue_id];
+	txq = dev->data->tx_queues[tx_queue_id];
 
-		/*
-		* tx_queue_id is queue id application refers to, while
-		* txq->reg_idx is the real queue index.
-		*/
-		err = i40e_switch_tx_queue(hw, txq->reg_idx, FALSE);
-
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to switch TX queue %u of",
-				    tx_queue_id);
-			return err;
-		}
-
-		i40e_tx_queue_release_mbufs(txq);
-		i40e_reset_tx_queue(txq);
-		dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
+	/*
+	 * tx_queue_id is queue id application refers to, while
+	 * txq->reg_idx is the real queue index.
+	 */
+	err = i40e_switch_tx_queue(hw, txq->reg_idx, FALSE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch TX queue %u of",
+			    tx_queue_id);
+		return err;
 	}
+
+	i40e_tx_queue_release_mbufs(txq);
+	i40e_reset_tx_queue(txq);
+	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1779,18 +1777,12 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t reg_idx, base, bsf, tc_mapping;
 	int q_offset, use_def_burst_func = 1;
 	uint64_t offloads;
-#ifdef TREX_PATCH_LOW_LATENCY
-    int is_vf = 0;
-#endif
 
 	offloads = rx_conf->offloads | dev->data->dev_conf.rxmode.offloads;
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
 		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		vsi = &vf->vsi;
-#ifdef TREX_PATCH_LOW_LATENCY
-        is_vf = 1;
-#endif
 		if (!vsi)
 			return -EINVAL;
 		reg_idx = queue_idx;
@@ -1835,8 +1827,10 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	rxq->queue_id = queue_idx;
 	rxq->reg_idx = reg_idx;
 	rxq->port_id = dev->data->port_id;
-	rxq->crc_len = (uint8_t)((dev->data->dev_conf.rxmode.offloads &
-			DEV_RX_OFFLOAD_CRC_STRIP) ? 0 : ETHER_CRC_LEN);
+	if (rte_eth_dev_must_keep_crc(dev->data->dev_conf.rxmode.offloads))
+		rxq->crc_len = ETHER_CRC_LEN;
+	else
+		rxq->crc_len = 0;
 	rxq->drop_en = rx_conf->rx_drop_en;
 	rxq->vsi = vsi;
 	rxq->rx_deferred_start = rx_conf->rx_deferred_start;
@@ -1885,12 +1879,6 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	i40e_reset_rx_queue(rxq);
 	rxq->q_set = TRUE;
 
-#ifdef TREX_PATCH_LOW_LATENCY
-    if ( !is_vf ) {
-        rxq->dcb_tc =0;
-    } else {
-#endif
-
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -1903,10 +1891,6 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			rxq->dcb_tc = i;
 	}
-
-#ifdef TREX_PATCH_LOW_LATENCY
-    }
-#endif
 
 	if (dev->data->dev_started) {
 		if (i40e_dev_rx_queue_setup_runtime(dev, rxq)) {
@@ -2103,7 +2087,7 @@ i40e_dev_tx_queue_setup_runtime(struct rte_eth_dev *dev,
 	}
 	/* check simple tx conflict */
 	if (ad->tx_simple_allowed) {
-		if (txq->offloads != 0 ||
+		if ((txq->offloads & ~DEV_TX_OFFLOAD_MBUF_FAST_FREE) != 0 ||
 				txq->tx_rs_thresh < RTE_PMD_I40E_TX_MAX_BURST) {
 			PMD_DRV_LOG(ERR, "No-simple tx is required.");
 			return -EINVAL;
@@ -2132,11 +2116,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	int q_offset;
 	uint64_t offloads;
 
-#ifdef TREX_PATCH_LOW_LATENCY
-    u8 low_latency = 0;
-    int is_vf = 1;
-#endif
-
 	offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
 	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
@@ -2150,12 +2129,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
 		if (!vsi)
 			return -EINVAL;
-#ifdef TREX_PATCH_LOW_LATENCY
-        if (queue_idx == pf->dev_data->nb_tx_queues-1) {
-            low_latency = 1;
-        }
-        is_vf = 0;
-#endif
 		q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
 		if (q_offset < 0)
 			return -EINVAL;
@@ -2300,16 +2273,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	i40e_reset_tx_queue(txq);
 	txq->q_set = TRUE;
 
-#ifdef TREX_PATCH_LOW_LATENCY
-    if ( !is_vf ) {
-        if (low_latency) {
-            txq->dcb_tc=1;
-        }else{
-            txq->dcb_tc=0;
-        }
-    } else {
-#endif
-
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -2322,10 +2285,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			txq->dcb_tc = i;
 	}
-
-#ifdef TREX_PATCH_LOW_LATENCY
-    }
-#endif
 
 	if (dev->data->dev_started) {
 		if (i40e_dev_tx_queue_setup_runtime(dev, txq)) {

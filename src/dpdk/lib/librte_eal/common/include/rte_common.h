@@ -83,6 +83,7 @@ typedef uint16_t unaligned_uint16_t;
 
 #define RTE_PRIORITY_LOG 101
 #define RTE_PRIORITY_BUS 110
+#define RTE_PRIORITY_CLASS 120
 #define RTE_PRIORITY_LAST 65535
 
 #define RTE_PRIO(prio) \
@@ -110,6 +111,29 @@ static void __attribute__((constructor(RTE_PRIO(prio)), used)) func(void)
  */
 #define RTE_INIT(func) \
 	RTE_INIT_PRIO(func, LAST)
+
+/**
+ * Run after main() with low priority.
+ *
+ * @param func
+ *   Destructor function name.
+ * @param prio
+ *   Priority number must be above 100.
+ *   Lowest number is the last to run.
+ */
+#define RTE_FINI_PRIO(func, prio) \
+static void __attribute__((destructor(RTE_PRIO(prio)), used)) func(void)
+
+/**
+ * Run after main() with high priority.
+ *
+ * The destructor will be run *before* prioritized destructors.
+ *
+ * @param func
+ *   Destructor function name.
+ */
+#define RTE_FINI(func) \
+	RTE_FINI_PRIO(func, LAST)
 
 /**
  * Force a function to be inlined
@@ -292,6 +316,11 @@ rte_combine64ms1b(register uint64_t v)
 }
 
 /*********** Macros to work with powers of 2 ********/
+
+/**
+ * Macro to return 1 if n is a power of 2, 0 otherwise
+ */
+#define RTE_IS_POWER_OF_2(n) ((n) && !(((n) - 1) & (n)))
 
 /**
  * Returns true if n is a power of 2

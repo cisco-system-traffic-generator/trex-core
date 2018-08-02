@@ -213,6 +213,13 @@ DPDK_18.05 {
 
 } DPDK_18.02;
 
+DPDK_18.08 {
+	global:
+
+	rte_eth_dev_logtype;
+
+} DPDK_18.05;
+
 EXPERIMENTAL {
 	global:
 
@@ -232,6 +239,7 @@ EXPERIMENTAL {
 	rte_eth_dev_tx_offload_name;
 	rte_eth_switch_domain_alloc;
 	rte_eth_switch_domain_free;
+	rte_flow_expand_rss;
 	rte_mtr_capabilities_get;
 	rte_mtr_create;
 	rte_mtr_destroy;

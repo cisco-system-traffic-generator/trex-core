@@ -371,11 +371,13 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 	 1ULL << VIRTIO_NET_F_GUEST_CSUM	|	\
 	 1ULL << VIRTIO_NET_F_GUEST_TSO4	|	\
 	 1ULL << VIRTIO_NET_F_GUEST_TSO6	|	\
+	 1ULL << VIRTIO_F_IN_ORDER		|	\
 	 1ULL << VIRTIO_F_VERSION_1)
 
 int
 virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
-		     int cq, int queue_size, const char *mac, char **ifname)
+		     int cq, int queue_size, const char *mac, char **ifname,
+		     int mrg_rxbuf, int in_order)
 {
 	pthread_mutex_init(&dev->mutex, NULL);
 	snprintf(dev->path, PATH_MAX, "%s", path);
@@ -384,6 +386,7 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	dev->queue_pairs = 1; /* mq disabled by default */
 	dev->queue_size = queue_size;
 	dev->mac_specified = 0;
+	dev->unsupported_features = 0;
 	parse_mac(dev, mac);
 
 	if (*ifname) {
@@ -419,10 +422,22 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features = VIRTIO_USER_SUPPORTED_FEATURES;
 	}
 
-	if (dev->mac_specified)
+	if (!mrg_rxbuf) {
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_MRG_RXBUF);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MRG_RXBUF);
+	}
+
+	if (!in_order) {
+		dev->device_features &= ~(1ull << VIRTIO_F_IN_ORDER);
+		dev->unsupported_features |= (1ull << VIRTIO_F_IN_ORDER);
+	}
+
+	if (dev->mac_specified) {
 		dev->device_features |= (1ull << VIRTIO_NET_F_MAC);
-	else
+	} else {
 		dev->device_features &= ~(1ull << VIRTIO_NET_F_MAC);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MAC);
+	}
 
 	if (cq) {
 		/* device does not really need to know anything about CQ,
@@ -437,6 +452,14 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features &= ~(1ull << VIRTIO_NET_F_GUEST_ANNOUNCE);
 		dev->device_features &= ~(1ull << VIRTIO_NET_F_MQ);
 		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_MAC_ADDR);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_VQ);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_RX);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_VLAN);
+		dev->unsupported_features |=
+			(1ull << VIRTIO_NET_F_GUEST_ANNOUNCE);
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MQ);
+		dev->unsupported_features |=
+			(1ull << VIRTIO_NET_F_CTRL_MAC_ADDR);
 	}
 
 	/* The backend will not report this feature, we add it explicitly */
@@ -444,6 +467,7 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features |= (1ull << VIRTIO_NET_F_STATUS);
 
 	dev->device_features &= VIRTIO_USER_SUPPORTED_FEATURES;
+	dev->unsupported_features |= ~VIRTIO_USER_SUPPORTED_FEATURES;
 
 	if (rte_mem_event_callback_register(VIRTIO_USER_MEM_EVENT_CLB_NAME,
 				virtio_user_mem_event_cb, dev)) {

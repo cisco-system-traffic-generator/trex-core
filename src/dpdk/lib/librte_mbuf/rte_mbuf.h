@@ -788,6 +788,24 @@ rte_mbuf_to_baddr(struct rte_mbuf *md)
 }
 
 /**
+ * Return the starting address of the private data area embedded in
+ * the given mbuf.
+ *
+ * Note that no check is made to ensure that a private data area
+ * actually exists in the supplied mbuf.
+ *
+ * @param m
+ *   The pointer to the mbuf.
+ * @return
+ *   The starting address of the private data area of the given mbuf.
+ */
+static inline void * __rte_experimental
+rte_mbuf_to_priv(struct rte_mbuf *m)
+{
+	return RTE_PTR_ADD(m, sizeof(struct rte_mbuf));
+}
+
+/**
  * Returns TRUE if given mbuf is cloned by mbuf indirection, or FALSE
  * otherwise.
  *
@@ -1252,7 +1270,7 @@ rte_pktmbuf_pool_create(const char *name, unsigned n,
  *    - EEXIST - a memzone with the same name already exists
  *    - ENOMEM - no appropriate memory area found in which to create memzone
  */
-struct rte_mempool * __rte_experimental
+struct rte_mempool *
 rte_pktmbuf_pool_create_by_ops(const char *name, unsigned int n,
 	unsigned int cache_size, uint16_t priv_size, uint16_t data_room_size,
 	int socket_id, const char *ops_name);
