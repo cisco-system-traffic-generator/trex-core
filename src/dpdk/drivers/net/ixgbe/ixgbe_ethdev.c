@@ -6595,12 +6595,16 @@ ixgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 	if (filter->queue >= IXGBE_MAX_RX_QUEUE_NUM)
 		return -EINVAL;
 
+#ifndef TREX_PATCH
+    // no real reason to block this.
+    // We configure rules using FDIR and ethertype that point to same queue, so there are no race condition issues.
 	if (filter->ether_type == ETHER_TYPE_IPv4 ||
 		filter->ether_type == ETHER_TYPE_IPv6) {
 		PMD_DRV_LOG(ERR, "unsupported ether_type(0x%04x) in"
 			" ethertype filter.", filter->ether_type);
 		return -EINVAL;
 	}
+#endif
 
 	if (filter->flags & RTE_ETHTYPE_FLAGS_MAC) {
 		PMD_DRV_LOG(ERR, "mac compare is unsupported.");
