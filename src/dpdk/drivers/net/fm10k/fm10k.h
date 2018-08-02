@@ -106,9 +106,6 @@
 #define FM10K_MISC_VEC_ID               RTE_INTR_VEC_ZERO_OFFSET
 #define FM10K_RX_VEC_START              RTE_INTR_VEC_RXTX_OFFSET
 
-#define FM10K_SIMPLE_TX_FLAG ((uint32_t)ETH_TXQ_FLAGS_NOMULTSEGS | \
-				ETH_TXQ_FLAGS_NOOFFLOADS)
-
 struct fm10k_macvlan_filter_info {
 	uint16_t vlan_num;       /* Total VLAN number */
 	uint16_t mac_num;        /* Total mac number */
@@ -328,6 +325,13 @@ uint16_t fm10k_recv_scattered_pkts(void *rx_queue,
 
 int
 fm10k_dev_rx_descriptor_done(void *rx_queue, uint16_t offset);
+
+int
+fm10k_dev_rx_descriptor_status(void *rx_queue, uint16_t offset);
+
+int
+fm10k_dev_tx_descriptor_status(void *rx_queue, uint16_t offset);
+
 
 uint16_t fm10k_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_pkts);

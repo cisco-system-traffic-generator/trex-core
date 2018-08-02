@@ -175,7 +175,7 @@ rte_ctrl_thread_create(pthread_t *thread, const char *name,
 
 	params = malloc(sizeof(*params));
 	if (!params)
-		return -1;
+		return -ENOMEM;
 
 	params->start_routine = start_routine;
 	params->arg = arg;
@@ -185,13 +185,14 @@ rte_ctrl_thread_create(pthread_t *thread, const char *name,
 	ret = pthread_create(thread, attr, rte_thread_init, (void *)params);
 	if (ret != 0) {
 		free(params);
-		return ret;
+		return -ret;
 	}
 
 	if (name != NULL) {
 		ret = rte_thread_setname(*thread, name);
 		if (ret < 0)
-			goto fail;
+			RTE_LOG(DEBUG, EAL,
+				"Cannot set name for ctrl thread\n");
 	}
 
 	cpu_found = 0;
@@ -227,5 +228,5 @@ fail:
 	}
 	pthread_cancel(*thread);
 	pthread_join(*thread, NULL);
-	return ret;
+	return -ret;
 }

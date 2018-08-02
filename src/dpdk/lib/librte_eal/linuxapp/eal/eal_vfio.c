@@ -87,42 +87,6 @@ static const struct vfio_iommu_type iommu_types[] = {
 	},
 };
 
-/* for sPAPR IOMMU, we will need to walk memseg list, but we cannot use
- * rte_memseg_walk() because by the time we enter callback we will be holding a
- * write lock, so regular rte-memseg_walk will deadlock. copying the same
- * iteration code everywhere is not ideal as well. so, use a lockless copy of
- * memseg walk here.
- */
-static int
-memseg_walk_thread_unsafe(rte_memseg_walk_t func, void *arg)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	int i, ms_idx, ret = 0;
-
-	for (i = 0; i < RTE_MAX_MEMSEG_LISTS; i++) {
-		struct rte_memseg_list *msl = &mcfg->memsegs[i];
-		const struct rte_memseg *ms;
-		struct rte_fbarray *arr;
-
-		if (msl->memseg_arr.count == 0)
-			continue;
-
-		arr = &msl->memseg_arr;
-
-		ms_idx = rte_fbarray_find_next_used(arr, 0);
-		while (ms_idx >= 0) {
-			ms = rte_fbarray_get(arr, ms_idx);
-			ret = func(msl, ms, arg);
-			if (ret < 0)
-				return -1;
-			if (ret > 0)
-				return 1;
-			ms_idx = rte_fbarray_find_next_used(arr, ms_idx + 1);
-		}
-	}
-	return 0;
-}
-
 static int
 is_null_map(const struct user_mem_map *map)
 {
@@ -575,10 +539,6 @@ int
 rte_vfio_clear_group(int vfio_group_fd)
 {
 	int i;
-	struct rte_mp_msg mp_req, *mp_rep;
-	struct rte_mp_reply mp_reply;
-	struct timespec ts = {.tv_sec = 5, .tv_nsec = 0};
-	struct vfio_mp_param *p = (struct vfio_mp_param *)mp_req.param;
 	struct vfio_config *vfio_cfg;
 
 	vfio_cfg = get_vfio_cfg_by_group_fd(vfio_group_fd);
@@ -587,40 +547,15 @@ rte_vfio_clear_group(int vfio_group_fd)
 		return -1;
 	}
 
-	if (internal_config.process_type == RTE_PROC_PRIMARY) {
+	i = get_vfio_group_idx(vfio_group_fd);
+	if (i < 0)
+		return -1;
+	vfio_cfg->vfio_groups[i].group_num = -1;
+	vfio_cfg->vfio_groups[i].fd = -1;
+	vfio_cfg->vfio_groups[i].devices = 0;
+	vfio_cfg->vfio_active_groups--;
 
-		i = get_vfio_group_idx(vfio_group_fd);
-		if (i < 0)
-			return -1;
-		vfio_cfg->vfio_groups[i].group_num = -1;
-		vfio_cfg->vfio_groups[i].fd = -1;
-		vfio_cfg->vfio_groups[i].devices = 0;
-		vfio_cfg->vfio_active_groups--;
-		return 0;
-	}
-
-	p->req = SOCKET_CLR_GROUP;
-	p->group_num = vfio_group_fd;
-	strcpy(mp_req.name, EAL_VFIO_MP);
-	mp_req.len_param = sizeof(*p);
-	mp_req.num_fds = 0;
-
-	if (rte_mp_request_sync(&mp_req, &mp_reply, &ts) == 0 &&
-	    mp_reply.nb_received == 1) {
-		mp_rep = &mp_reply.msgs[0];
-		p = (struct vfio_mp_param *)mp_rep->param;
-		if (p->result == SOCKET_OK) {
-			free(mp_reply.msgs);
-			return 0;
-		} else if (p->result == SOCKET_NO_FD)
-			RTE_LOG(ERR, EAL, "  BAD VFIO group fd!\n");
-		else
-			RTE_LOG(ERR, EAL, "  no such VFIO group fd!\n");
-
-		free(mp_reply.msgs);
-	}
-
-	return -1;
+	return 0;
 }
 
 int
@@ -1357,7 +1292,8 @@ vfio_spapr_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 	/* check if window size needs to be adjusted */
 	memset(&param, 0, sizeof(param));
 
-	if (memseg_walk_thread_unsafe(vfio_spapr_window_size_walk,
+	/* we're inside a callback so use thread-unsafe version */
+	if (rte_memseg_walk_thread_unsafe(vfio_spapr_window_size_walk,
 				&param) < 0) {
 		RTE_LOG(ERR, EAL, "Could not get window size\n");
 		ret = -1;
@@ -1386,7 +1322,9 @@ vfio_spapr_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 				ret = -1;
 				goto out;
 			}
-			if (memseg_walk_thread_unsafe(vfio_spapr_map_walk,
+			/* we're inside a callback, so use thread-unsafe version
+			 */
+			if (rte_memseg_walk_thread_unsafe(vfio_spapr_map_walk,
 					&vfio_container_fd) < 0) {
 				RTE_LOG(ERR, EAL, "Could not recreate DMA maps\n");
 				ret = -1;
@@ -1624,7 +1562,7 @@ out:
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_vfio_dma_map(uint64_t vaddr, uint64_t iova, uint64_t len)
 {
 	if (len == 0) {
@@ -1635,7 +1573,7 @@ rte_vfio_dma_map(uint64_t vaddr, uint64_t iova, uint64_t len)
 	return container_dma_map(default_vfio_cfg, vaddr, iova, len);
 }
 
-int __rte_experimental
+int
 rte_vfio_dma_unmap(uint64_t vaddr, uint64_t iova, uint64_t len)
 {
 	if (len == 0) {
@@ -1678,7 +1616,7 @@ rte_vfio_noiommu_is_enabled(void)
 	return c == 'Y';
 }
 
-int __rte_experimental
+int
 rte_vfio_container_create(void)
 {
 	int i;
@@ -1728,7 +1666,7 @@ rte_vfio_container_destroy(int container_fd)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_bind(int container_fd, int iommu_group_num)
 {
 	struct vfio_config *vfio_cfg;
@@ -1774,11 +1712,11 @@ rte_vfio_container_group_bind(int container_fd, int iommu_group_num)
 	return vfio_group_fd;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_unbind(int container_fd, int iommu_group_num)
 {
 	struct vfio_config *vfio_cfg;
-	struct vfio_group *cur_grp;
+	struct vfio_group *cur_grp = NULL;
 	int i;
 
 	vfio_cfg = get_vfio_cfg_by_container_fd(container_fd);
@@ -1795,7 +1733,7 @@ rte_vfio_container_group_unbind(int container_fd, int iommu_group_num)
 	}
 
 	/* This should not happen */
-	if (i == VFIO_MAX_GROUPS) {
+	if (i == VFIO_MAX_GROUPS || cur_grp == NULL) {
 		RTE_LOG(ERR, EAL, "Specified group number not found\n");
 		return -1;
 	}
@@ -1813,7 +1751,7 @@ rte_vfio_container_group_unbind(int container_fd, int iommu_group_num)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_map(int container_fd, uint64_t vaddr, uint64_t iova,
 		uint64_t len)
 {
@@ -1833,7 +1771,7 @@ rte_vfio_container_dma_map(int container_fd, uint64_t vaddr, uint64_t iova,
 	return container_dma_map(vfio_cfg, vaddr, iova, len);
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_unmap(int container_fd, uint64_t vaddr, uint64_t iova,
 		uint64_t len)
 {
@@ -1855,14 +1793,14 @@ rte_vfio_container_dma_unmap(int container_fd, uint64_t vaddr, uint64_t iova,
 
 #else
 
-int __rte_experimental
+int
 rte_vfio_dma_map(uint64_t __rte_unused vaddr, __rte_unused uint64_t iova,
 		  __rte_unused uint64_t len)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_dma_unmap(uint64_t __rte_unused vaddr, uint64_t __rte_unused iova,
 		    __rte_unused uint64_t len)
 {
@@ -1909,7 +1847,7 @@ rte_vfio_clear_group(__rte_unused int vfio_group_fd)
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_get_group_num(__rte_unused const char *sysfs_base,
 		__rte_unused const char *dev_addr,
 		__rte_unused int *iommu_group_num)
@@ -1917,45 +1855,45 @@ rte_vfio_get_group_num(__rte_unused const char *sysfs_base,
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_get_container_fd(void)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_get_group_fd(__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_create(void)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_destroy(__rte_unused int container_fd)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_bind(__rte_unused int container_fd,
 		__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_unbind(__rte_unused int container_fd,
 		__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_map(__rte_unused int container_fd,
 		__rte_unused uint64_t vaddr,
 		__rte_unused uint64_t iova,
@@ -1964,7 +1902,7 @@ rte_vfio_container_dma_map(__rte_unused int container_fd,
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_unmap(__rte_unused int container_fd,
 		__rte_unused uint64_t vaddr,
 		__rte_unused uint64_t iova,

@@ -322,6 +322,12 @@ sfc_ef10_essb_rx_get_pending(struct sfc_ef10_essb_rxq *rxq,
 			const efx_qword_t *qwordp;
 			uint16_t pkt_len;
 
+			/* Buffers to be discarded have 0 in packet type */
+			if (unlikely(m->packet_type == 0)) {
+				rte_mempool_put(rxq->refill_mb_pool, m);
+				goto next_buf;
+			}
+
 			rx_pkts[n_rx_pkts++] = m;
 
 			/* Parse pseudo-header */
@@ -357,6 +363,7 @@ sfc_ef10_essb_rx_get_pending(struct sfc_ef10_essb_rxq *rxq,
 				EFX_QWORD_FIELD(*qwordp,
 						ES_EZ_ESSB_RX_PREFIX_MARK);
 
+next_buf:
 			m = sfc_ef10_essb_next_mbuf(rxq, m);
 		} while (todo_bufs-- > 0);
 	}
@@ -404,21 +411,45 @@ sfc_ef10_essb_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 static sfc_dp_rx_qdesc_npending_t sfc_ef10_essb_rx_qdesc_npending;
 static unsigned int
-sfc_ef10_essb_rx_qdesc_npending(__rte_unused struct sfc_dp_rxq *dp_rxq)
+sfc_ef10_essb_rx_qdesc_npending(struct sfc_dp_rxq *dp_rxq)
 {
-	/*
-	 * Correct implementation requires EvQ polling and events
-	 * processing.
-	 */
-	return -ENOTSUP;
+	struct sfc_ef10_essb_rxq *rxq = sfc_ef10_essb_rxq_by_dp_rxq(dp_rxq);
+	const unsigned int evq_old_read_ptr = rxq->evq_read_ptr;
+	efx_qword_t rx_ev;
+
+	if (unlikely(rxq->flags & (SFC_EF10_ESSB_RXQ_NOT_RUNNING |
+				   SFC_EF10_ESSB_RXQ_EXCEPTION)))
+		return rxq->bufs_pending;
+
+	while (sfc_ef10_essb_rx_event_get(rxq, &rx_ev)) {
+		/*
+		 * DROP_EVENT is an internal to the NIC, software should
+		 * never see it and, therefore, may ignore it.
+		 */
+		sfc_ef10_essb_rx_process_ev(rxq, rx_ev);
+	}
+
+	sfc_ef10_ev_qclear(rxq->evq_hw_ring, rxq->evq_ptr_mask,
+			   evq_old_read_ptr, rxq->evq_read_ptr);
+
+	return rxq->bufs_pending;
 }
 
 static sfc_dp_rx_qdesc_status_t sfc_ef10_essb_rx_qdesc_status;
 static int
-sfc_ef10_essb_rx_qdesc_status(__rte_unused struct sfc_dp_rxq *dp_rxq,
-			      __rte_unused uint16_t offset)
+sfc_ef10_essb_rx_qdesc_status(struct sfc_dp_rxq *dp_rxq, uint16_t offset)
 {
-	return -ENOTSUP;
+	struct sfc_ef10_essb_rxq *rxq = sfc_ef10_essb_rxq_by_dp_rxq(dp_rxq);
+	unsigned int pending = sfc_ef10_essb_rx_qdesc_npending(dp_rxq);
+
+	if (offset < pending)
+		return RTE_ETH_RX_DESC_DONE;
+
+	if (offset < (rxq->added - rxq->completed) * rxq->block_size +
+		     rxq->left_in_completed - rxq->block_size)
+		return RTE_ETH_RX_DESC_AVAIL;
+
+	return RTE_ETH_RX_DESC_UNAVAIL;
 }
 
 static sfc_dp_rx_get_dev_info_t sfc_ef10_essb_rx_get_dev_info;
@@ -647,29 +678,20 @@ static void
 sfc_ef10_essb_rx_qpurge(struct sfc_dp_rxq *dp_rxq)
 {
 	struct sfc_ef10_essb_rxq *rxq = sfc_ef10_essb_rxq_by_dp_rxq(dp_rxq);
-	unsigned int i, j;
+	unsigned int i;
 	const struct sfc_ef10_essb_rx_sw_desc *rxd;
 	struct rte_mbuf *m;
 
-	if (rxq->completed != rxq->added && rxq->left_in_completed > 0) {
-		rxd = &rxq->sw_ring[rxq->completed & rxq->rxq_ptr_mask];
-		m = sfc_ef10_essb_mbuf_by_index(rxq, rxd->first_mbuf,
-				rxq->block_size - rxq->left_in_completed);
-		do {
-			rxq->left_in_completed--;
-			rte_mempool_put(rxq->refill_mb_pool, m);
-			m = sfc_ef10_essb_next_mbuf(rxq, m);
-		} while (rxq->left_in_completed > 0);
-		rxq->completed++;
-	}
-
 	for (i = rxq->completed; i != rxq->added; ++i) {
 		rxd = &rxq->sw_ring[i & rxq->rxq_ptr_mask];
-		m = rxd->first_mbuf;
-		for (j = 0; j < rxq->block_size; ++j) {
+		m = sfc_ef10_essb_mbuf_by_index(rxq, rxd->first_mbuf,
+				rxq->block_size - rxq->left_in_completed);
+		while (rxq->left_in_completed > 0) {
 			rte_mempool_put(rxq->refill_mb_pool, m);
 			m = sfc_ef10_essb_next_mbuf(rxq, m);
+			rxq->left_in_completed--;
 		}
+		rxq->left_in_completed = rxq->block_size;
 	}
 
 	rxq->flags &= ~SFC_EF10_ESSB_RXQ_STARTED;
@@ -683,7 +705,8 @@ struct sfc_dp_rx sfc_ef10_essb_rx = {
 				  SFC_DP_HW_FW_CAP_RX_ES_SUPER_BUFFER,
 	},
 	.features		= SFC_DP_RX_FEAT_FLOW_FLAG |
-				  SFC_DP_RX_FEAT_FLOW_MARK,
+				  SFC_DP_RX_FEAT_FLOW_MARK |
+				  SFC_DP_RX_FEAT_CHECKSUM,
 	.get_dev_info		= sfc_ef10_essb_rx_get_dev_info,
 	.pool_ops_supported	= sfc_ef10_essb_rx_pool_ops_supported,
 	.qsize_up_rings		= sfc_ef10_essb_rx_qsize_up_rings,

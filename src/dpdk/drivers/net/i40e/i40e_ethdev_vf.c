@@ -44,6 +44,8 @@
 #define I40EVF_BUSY_WAIT_COUNT 50
 #define MAX_RESET_WAIT_CNT     20
 
+#define I40EVF_ALARM_INTERVAL 50000 /* us */
+
 struct i40evf_arq_msg_info {
 	enum virtchnl_ops ops;
 	enum i40e_status_code result;
@@ -1133,7 +1135,7 @@ i40evf_init_vf(struct rte_eth_dev *dev)
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 	uint16_t interval =
-		i40e_calc_itr_interval(RTE_LIBRTE_I40E_ITR_INTERVAL, 0, 0);
+		i40e_calc_itr_interval(0, 0);
 
 	vf->adapter = I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	vf->dev_data = dev->data;
@@ -1370,7 +1372,7 @@ i40evf_handle_aq_msg(struct rte_eth_dev *dev)
  *  void
  */
 static void
-i40evf_dev_interrupt_handler(void *param)
+i40evf_dev_alarm_handler(void *param)
 {
 	struct rte_eth_dev *dev = (struct rte_eth_dev *)param;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
@@ -1399,6 +1401,8 @@ i40evf_dev_interrupt_handler(void *param)
 
 done:
 	i40evf_enable_irq0(hw);
+	rte_eal_alarm_set(I40EVF_ALARM_INTERVAL,
+			  i40evf_dev_alarm_handler, dev);
 }
 
 static int
@@ -1442,12 +1446,8 @@ i40evf_dev_init(struct rte_eth_dev *eth_dev)
 		return -1;
 	}
 
-	/* register callback func to eal lib */
-	rte_intr_callback_register(&pci_dev->intr_handle,
-		i40evf_dev_interrupt_handler, (void *)eth_dev);
-
-	/* enable uio intr after callback register */
-	rte_intr_enable(&pci_dev->intr_handle);
+	rte_eal_alarm_set(I40EVF_ALARM_INTERVAL,
+			  i40evf_dev_alarm_handler, eth_dev);
 
 	/* configure and enable device interrupt */
 	i40evf_enable_irq0(hw);
@@ -1536,7 +1536,7 @@ i40evf_dev_configure(struct rte_eth_dev *dev)
 	/* For non-DPDK PF drivers, VF has no ability to disable HW
 	 * CRC strip, and is implicitly enabled by the PF.
 	 */
-	if (!(conf->rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP)) {
+	if (rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
 		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 		if ((vf->version_major == VIRTCHNL_VERSION_MAJOR) &&
 		    (vf->version_minor <= VIRTCHNL_VERSION_MINOR)) {
@@ -1583,37 +1583,35 @@ static int
 i40evf_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 {
 	struct i40e_rx_queue *rxq;
-	int err = 0;
+	int err;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (rx_queue_id < dev->data->nb_rx_queues) {
-		rxq = dev->data->rx_queues[rx_queue_id];
+	rxq = dev->data->rx_queues[rx_queue_id];
 
-		err = i40e_alloc_rx_queue_mbufs(rxq);
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to allocate RX queue mbuf");
-			return err;
-		}
-
-		rte_wmb();
-
-		/* Init the RX tail register. */
-		I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
-		I40EVF_WRITE_FLUSH(hw);
-
-		/* Ready to switch the queue on */
-		err = i40evf_switch_queue(dev, TRUE, rx_queue_id, TRUE);
-
-		if (err)
-			PMD_DRV_LOG(ERR, "Failed to switch RX queue %u on",
-				    rx_queue_id);
-		else
-			dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+	err = i40e_alloc_rx_queue_mbufs(rxq);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to allocate RX queue mbuf");
+		return err;
 	}
 
-	return err;
+	rte_wmb();
+
+	/* Init the RX tail register. */
+	I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
+	I40EVF_WRITE_FLUSH(hw);
+
+	/* Ready to switch the queue on */
+	err = i40evf_switch_queue(dev, TRUE, rx_queue_id, TRUE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch RX queue %u on",
+			    rx_queue_id);
+		return err;
+	}
+	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+
+	return 0;
 }
 
 static int
@@ -1622,21 +1620,18 @@ i40evf_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	struct i40e_rx_queue *rxq;
 	int err;
 
-	if (rx_queue_id < dev->data->nb_rx_queues) {
-		rxq = dev->data->rx_queues[rx_queue_id];
+	rxq = dev->data->rx_queues[rx_queue_id];
 
-		err = i40evf_switch_queue(dev, TRUE, rx_queue_id, FALSE);
-
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
-				    rx_queue_id);
-			return err;
-		}
-
-		i40e_rx_queue_release_mbufs(rxq);
-		i40e_reset_rx_queue(rxq);
-		dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
+	err = i40evf_switch_queue(dev, TRUE, rx_queue_id, FALSE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
+			    rx_queue_id);
+		return err;
 	}
+
+	i40e_rx_queue_release_mbufs(rxq);
+	i40e_reset_rx_queue(rxq);
+	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1644,23 +1639,20 @@ i40evf_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 static int
 i40evf_dev_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 {
-	int err = 0;
+	int err;
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (tx_queue_id < dev->data->nb_tx_queues) {
-
-		/* Ready to switch the queue on */
-		err = i40evf_switch_queue(dev, FALSE, tx_queue_id, TRUE);
-
-		if (err)
-			PMD_DRV_LOG(ERR, "Failed to switch TX queue %u on",
-				    tx_queue_id);
-		else
-			dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+	/* Ready to switch the queue on */
+	err = i40evf_switch_queue(dev, FALSE, tx_queue_id, TRUE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch TX queue %u on",
+			    tx_queue_id);
+		return err;
 	}
+	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
-	return err;
+	return 0;
 }
 
 static int
@@ -1669,21 +1661,18 @@ i40evf_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	struct i40e_tx_queue *txq;
 	int err;
 
-	if (tx_queue_id < dev->data->nb_tx_queues) {
-		txq = dev->data->tx_queues[tx_queue_id];
+	txq = dev->data->tx_queues[tx_queue_id];
 
-		err = i40evf_switch_queue(dev, FALSE, tx_queue_id, FALSE);
-
-		if (err) {
-			PMD_DRV_LOG(ERR, "Failed to switch TX queue %u off",
-				    tx_queue_id);
-			return err;
-		}
-
-		i40e_tx_queue_release_mbufs(txq);
-		i40e_reset_tx_queue(txq);
-		dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
+	err = i40evf_switch_queue(dev, FALSE, tx_queue_id, FALSE);
+	if (err) {
+		PMD_DRV_LOG(ERR, "Failed to switch TX queue %u off",
+			    tx_queue_id);
+		return err;
 	}
+
+	i40e_tx_queue_release_mbufs(txq);
+	i40e_reset_tx_queue(txq);
+	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1836,7 +1825,7 @@ i40evf_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	uint16_t interval =
-		i40e_calc_itr_interval(RTE_LIBRTE_I40E_ITR_INTERVAL, 0, 0);
+		i40e_calc_itr_interval(0, 0);
 	uint16_t msix_intr;
 
 	msix_intr = intr_handle->intr_vec[queue_id];
@@ -1858,8 +1847,6 @@ i40evf_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 				I40E_VFINT_DYN_CTLN1_INTERVAL_SHIFT));
 
 	I40EVF_WRITE_FLUSH(hw);
-
-	rte_intr_enable(&pci_dev->intr_handle);
 
 	return 0;
 }
@@ -2016,17 +2003,9 @@ i40evf_dev_start(struct rte_eth_dev *dev)
 		goto err_mac;
 	}
 
-	/* When a VF port is bound to VFIO-PCI, only miscellaneous interrupt
-	 * is mapped to VFIO vector 0 in i40evf_dev_init( ).
-	 * If previous VFIO interrupt mapping set in i40evf_dev_init( ) is
-	 * not cleared, it will fail when rte_intr_enable( ) tries to map Rx
-	 * queue interrupt to other VFIO vectors.
-	 * So clear uio/vfio intr/evevnfd first to avoid failure.
-	 */
-	if (dev->data->dev_conf.intr_conf.rxq != 0) {
-		rte_intr_disable(intr_handle);
+	/* only enable interrupt in rx interrupt mode */
+	if (dev->data->dev_conf.intr_conf.rxq != 0)
 		rte_intr_enable(intr_handle);
-	}
 
 	i40evf_enable_queues_intr(dev);
 
@@ -2049,6 +2028,9 @@ i40evf_dev_stop(struct rte_eth_dev *dev)
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 
 	PMD_INIT_FUNC_TRACE();
+
+	if (dev->data->dev_conf.intr_conf.rxq != 0)
+		rte_intr_disable(intr_handle);
 
 	if (hw->adapter_stopped == 1)
 		return;
@@ -2199,6 +2181,7 @@ i40evf_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		DEV_RX_OFFLOAD_TCP_CKSUM |
 		DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
 		DEV_RX_OFFLOAD_CRC_STRIP |
+		DEV_RX_OFFLOAD_KEEP_CRC |
 		DEV_RX_OFFLOAD_SCATTER |
 		DEV_RX_OFFLOAD_JUMBO_FRAME |
 		DEV_RX_OFFLOAD_VLAN_FILTER;
@@ -2274,13 +2257,9 @@ i40evf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->oerrors = pstats->tx_errors + pstats->tx_discards;
 		stats->ibytes = pstats->rx_bytes;
 		stats->obytes = pstats->tx_bytes;
-#ifdef TREX_PATCH
-    }
-#else
 	} else {
 		PMD_DRV_LOG(ERR, "Get statistics failed");
 	}
-#endif
 	return ret;
 }
 
@@ -2288,9 +2267,8 @@ static void
 i40evf_dev_close(struct rte_eth_dev *dev)
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
 
+	rte_eal_alarm_cancel(i40evf_dev_alarm_handler, dev);
 	i40evf_dev_stop(dev);
 	i40e_dev_free_queues(dev);
 	/*
@@ -2303,12 +2281,6 @@ i40evf_dev_close(struct rte_eth_dev *dev)
 
 	i40evf_reset_vf(hw);
 	i40e_shutdown_adminq(hw);
-	/* disable uio intr before callback unregister */
-	rte_intr_disable(intr_handle);
-
-	/* unregister callback func from eal lib */
-	rte_intr_callback_unregister(intr_handle,
-				     i40evf_dev_interrupt_handler, dev);
 	i40evf_disable_irq0(hw);
 }
 

@@ -286,12 +286,17 @@ eal_proc_type_detect(void)
 	enum rte_proc_type_t ptype = RTE_PROC_PRIMARY;
 	const char *pathname = eal_runtime_config_path();
 
-	/* if we can open the file but not get a write-lock we are a secondary
-	 * process. NOTE: if we get a file handle back, we keep that open
-	 * and don't close it to prevent a race condition between multiple opens */
-	if (((mem_cfg_fd = open(pathname, O_RDWR)) >= 0) &&
-			(fcntl(mem_cfg_fd, F_SETLK, &wr_lock) < 0))
-		ptype = RTE_PROC_SECONDARY;
+	/* if there no shared config, there can be no secondary processes */
+	if (!internal_config.no_shconf) {
+		/* if we can open the file but not get a write-lock we are a
+		 * secondary process. NOTE: if we get a file handle back, we
+		 * keep that open and don't close it to prevent a race condition
+		 * between multiple opens.
+		 */
+		if (((mem_cfg_fd = open(pathname, O_RDWR)) >= 0) &&
+				(fcntl(mem_cfg_fd, F_SETLK, &wr_lock) < 0))
+			ptype = RTE_PROC_SECONDARY;
+	}
 
 	RTE_LOG(INFO, EAL, "Auto-detected process type: %s\n",
 			ptype == RTE_PROC_PRIMARY ? "PRIMARY" : "SECONDARY");
@@ -468,6 +473,14 @@ eal_parse_args(int argc, char **argv)
 		}
 	}
 
+	/* create runtime data directory */
+	if (internal_config.no_shconf == 0 &&
+			eal_create_runtime_dir() < 0) {
+		RTE_LOG(ERR, EAL, "Cannot create runtime directory\n");
+		ret = -1;
+		goto out;
+	}
+
 	if (eal_adjust_config(&internal_config) != 0) {
 		ret = -1;
 		goto out;
@@ -600,13 +613,6 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	/* create runtime data directory */
-	if (eal_create_runtime_dir() < 0) {
-		rte_eal_init_alert("Cannot create runtime directory\n");
-		rte_errno = EACCES;
-		return -1;
-	}
-
 	/* FreeBSD always uses legacy memory model */
 	internal_config.legacy_mem = true;
 
@@ -624,6 +630,11 @@ rte_eal_init(int argc, char **argv)
 	}
 
 	rte_config_init();
+
+	if (rte_eal_intr_init() < 0) {
+		rte_eal_init_alert("Cannot init interrupt-handling thread\n");
+		return -1;
+	}
 
 	/* Put mp channel init before bus scan so that we can init the vdev
 	 * bus through mp channel in the secondary process before the bus scan.
@@ -710,11 +721,6 @@ rte_eal_init(int argc, char **argv)
 	if (rte_eal_alarm_init() < 0) {
 		rte_eal_init_alert("Cannot init interrupt-handling thread\n");
 		/* rte_eal_alarm_init sets rte_errno on failure. */
-		return -1;
-	}
-
-	if (rte_eal_intr_init() < 0) {
-		rte_eal_init_alert("Cannot init interrupt-handling thread\n");
 		return -1;
 	}
 
@@ -866,21 +872,21 @@ int rte_vfio_clear_group(__rte_unused int vfio_group_fd)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_vfio_dma_map(uint64_t __rte_unused vaddr, __rte_unused uint64_t iova,
 		  __rte_unused uint64_t len)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_dma_unmap(uint64_t __rte_unused vaddr, uint64_t __rte_unused iova,
 		    __rte_unused uint64_t len)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_get_group_num(__rte_unused const char *sysfs_base,
 		       __rte_unused const char *dev_addr,
 		       __rte_unused int *iommu_group_num)
@@ -888,45 +894,45 @@ rte_vfio_get_group_num(__rte_unused const char *sysfs_base,
 	return -1;
 }
 
-int  __rte_experimental
+int
 rte_vfio_get_container_fd(void)
 {
 	return -1;
 }
 
-int  __rte_experimental
+int
 rte_vfio_get_group_fd(__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_create(void)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_destroy(__rte_unused int container_fd)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_bind(__rte_unused int container_fd,
 		__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_group_unbind(__rte_unused int container_fd,
 		__rte_unused int iommu_group_num)
 {
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_map(__rte_unused int container_fd,
 			__rte_unused uint64_t vaddr,
 			__rte_unused uint64_t iova,
@@ -935,7 +941,7 @@ rte_vfio_container_dma_map(__rte_unused int container_fd,
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_dma_unmap(__rte_unused int container_fd,
 			__rte_unused uint64_t vaddr,
 			__rte_unused uint64_t iova,

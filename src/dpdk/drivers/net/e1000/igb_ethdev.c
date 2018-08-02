@@ -435,6 +435,9 @@ static const struct eth_dev_ops igbvf_eth_dev_ops = {
 	.dev_supported_ptypes_get = eth_igb_supported_ptypes_get,
 	.rx_queue_setup       = eth_igb_rx_queue_setup,
 	.rx_queue_release     = eth_igb_rx_queue_release,
+	.rx_descriptor_done   = eth_igb_rx_descriptor_done,
+	.rx_descriptor_status = eth_igb_rx_descriptor_status,
+	.tx_descriptor_status = eth_igb_tx_descriptor_status,
 	.tx_queue_setup       = eth_igb_tx_queue_setup,
 	.tx_queue_release     = eth_igb_tx_queue_release,
 	.set_mc_addr_list     = eth_igb_set_mc_addr_list,
@@ -3194,12 +3197,12 @@ igbvf_dev_configure(struct rte_eth_dev *dev)
 	 * Keep the persistent behavior the same as Host PF
 	 */
 #ifndef RTE_LIBRTE_E1000_PF_DISABLE_STRIP_CRC
-	if (!(conf->rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP)) {
+	if (rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
 		PMD_INIT_LOG(NOTICE, "VF can't disable HW CRC Strip");
 		conf->rxmode.offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
 	}
 #else
-	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP) {
+	if (!rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
 		PMD_INIT_LOG(NOTICE, "VF can't enable HW CRC Strip");
 		conf->rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
 	}
@@ -5683,9 +5686,7 @@ RTE_PMD_REGISTER_PCI_TABLE(net_e1000_igb_vf, pci_id_igbvf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_e1000_igb_vf, "* igb_uio | vfio-pci");
 
 /* see e1000_logs.c */
-RTE_INIT(e1000_init_log);
-static void
-e1000_init_log(void)
+RTE_INIT(e1000_init_log)
 {
 	e1000_igb_init_log();
 }

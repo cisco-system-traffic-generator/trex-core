@@ -162,6 +162,26 @@ int32_t rte_service_runstate_set(uint32_t id, uint32_t runstate);
 int32_t rte_service_runstate_get(uint32_t id);
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * This function returns whether the service may be currently executing on
+ * at least one lcore, or definitely is not. This function can be used to
+ * determine if, after setting the service runstate to stopped, the service
+ * is still executing a service lcore.
+ *
+ * Care must be taken if calling this function when the service runstate is
+ * running, since the result of this function may be incorrect by the time the
+ * function returns due to service cores running in parallel.
+ *
+ * @retval 1 Service may be running on one or more lcores
+ * @retval 0 Service is not running on any lcore
+ * @retval -EINVAL Invalid service id
+ */
+int32_t __rte_experimental
+rte_service_may_be_active(uint32_t id);
+
+/**
  * Enable or disable the check for a service-core being mapped to the service.
  * An application can disable the check when takes the responsibility to run a
  * service itself using *rte_service_run_iter_on_app_lcore*.
@@ -362,6 +382,42 @@ int32_t rte_service_attr_get(uint32_t id, uint32_t attr_id,
  *         -EINVAL Invalid service id provided
  */
 int32_t rte_service_attr_reset_all(uint32_t id);
+
+/**
+ * Returns the number of times the service runner has looped.
+ */
+#define RTE_SERVICE_LCORE_ATTR_LOOPS 0
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Get an attribute from a service core.
+ *
+ * @param lcore Id of the service core.
+ * @param attr_id Id of the attribute to be retrieved.
+ * @param [out] attr_value Pointer to storage in which to write retrieved value.
+ * @retval 0 Success, the attribute value has been written to *attr_value*.
+ *         -EINVAL Invalid lcore, attr_id or attr_value was NULL.
+ *         -ENOTSUP lcore is not a service core.
+ */
+int32_t __rte_experimental
+rte_service_lcore_attr_get(uint32_t lcore, uint32_t attr_id,
+			   uint64_t *attr_value);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Reset all attribute values of a service core.
+ *
+ * @param lcore The service core to reset all the statistics of
+ * @retval 0 Successfully reset attributes
+ *         -EINVAL Invalid service id provided
+ *         -ENOTSUP lcore is not a service core.
+ */
+int32_t __rte_experimental
+rte_service_lcore_attr_reset_all(uint32_t lcore);
 
 #ifdef __cplusplus
 }

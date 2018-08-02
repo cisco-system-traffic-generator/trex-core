@@ -1739,7 +1739,8 @@ ixgbe_parse_fdir_filter_normal(struct rte_eth_dev *dev,
 				return -rte_errno;
 			}
 		} else {
-			if (item->type != RTE_FLOW_ITEM_TYPE_IPV4) {
+			if (item->type != RTE_FLOW_ITEM_TYPE_IPV4 &&
+					item->type != RTE_FLOW_ITEM_TYPE_VLAN) {
 				memset(rule, 0, sizeof(struct ixgbe_fdir_rule));
 				rte_flow_error_set(error, EINVAL,
 					RTE_FLOW_ERROR_TYPE_ITEM,
@@ -2437,7 +2438,7 @@ ixgbe_parse_fdir_filter_tunnel(const struct rte_flow_attr *attr,
 	/* Get the VxLAN info */
 	if (item->type == RTE_FLOW_ITEM_TYPE_VXLAN) {
 		rule->ixgbe_fdir.formatted.tunnel_type =
-			RTE_FDIR_TUNNEL_TYPE_VXLAN;
+				IXGBE_FDIR_VXLAN_TUNNEL_TYPE;
 
 		/* Only care about VNI, others should be masked. */
 		if (!item->mask) {
@@ -2487,17 +2488,15 @@ ixgbe_parse_fdir_filter_tunnel(const struct rte_flow_attr *attr,
 			rule->b_spec = TRUE;
 			vxlan_spec = item->spec;
 			rte_memcpy(((uint8_t *)
-				&rule->ixgbe_fdir.formatted.tni_vni + 1),
+				&rule->ixgbe_fdir.formatted.tni_vni),
 				vxlan_spec->vni, RTE_DIM(vxlan_spec->vni));
-			rule->ixgbe_fdir.formatted.tni_vni = rte_be_to_cpu_32(
-				rule->ixgbe_fdir.formatted.tni_vni);
 		}
 	}
 
 	/* Get the NVGRE info */
 	if (item->type == RTE_FLOW_ITEM_TYPE_NVGRE) {
 		rule->ixgbe_fdir.formatted.tunnel_type =
-			RTE_FDIR_TUNNEL_TYPE_NVGRE;
+				IXGBE_FDIR_NVGRE_TUNNEL_TYPE;
 
 		/**
 		 * Only care about flags0, flags1, protocol and TNI,
@@ -2587,7 +2586,6 @@ ixgbe_parse_fdir_filter_tunnel(const struct rte_flow_attr *attr,
 			/* tni is a 24-bits bit field */
 			rte_memcpy(&rule->ixgbe_fdir.formatted.tni_vni,
 			nvgre_spec->tni, RTE_DIM(nvgre_spec->tni));
-			rule->ixgbe_fdir.formatted.tni_vni <<= 8;
 		}
 	}
 

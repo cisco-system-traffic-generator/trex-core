@@ -28,6 +28,7 @@
 #include <numaif.h>
 #endif
 #include <linux/falloc.h>
+#include <linux/mman.h> /* for hugetlb-related mmap flags */
 
 #include <rte_common.h>
 #include <rte_log.h>
@@ -39,6 +40,16 @@
 #include "eal_filesystem.h"
 #include "eal_internal_cfg.h"
 #include "eal_memalloc.h"
+#include "eal_private.h"
+
+const int anonymous_hugepages_supported =
+#ifdef MAP_HUGE_SHIFT
+		1;
+#define RTE_MAP_HUGE_SHIFT MAP_HUGE_SHIFT
+#else
+		0;
+#define RTE_MAP_HUGE_SHIFT 26
+#endif
 
 /*
  * not all kernel version support fallocate on hugetlbfs, so fall back to
@@ -169,32 +180,6 @@ get_file_size(int fd)
 	if (fstat(fd, &st) < 0)
 		return 0;
 	return st.st_size;
-}
-
-/* we cannot use rte_memseg_list_walk() here because we will be holding a
- * write lock whenever we enter every function in this file, however copying
- * the same iteration code everywhere is not ideal as well. so, use a lockless
- * copy of memseg list walk here.
- */
-static int
-memseg_list_walk_thread_unsafe(rte_memseg_list_walk_t func, void *arg)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	int i, ret = 0;
-
-	for (i = 0; i < RTE_MAX_MEMSEG_LISTS; i++) {
-		struct rte_memseg_list *msl = &mcfg->memsegs[i];
-
-		if (msl->base_va == NULL)
-			continue;
-
-		ret = func(msl, arg);
-		if (ret < 0)
-			return -1;
-		if (ret > 0)
-			return 1;
-	}
-	return 0;
 }
 
 /* returns 1 on successful lock, 0 on unsuccessful lock, -1 on error */
@@ -486,45 +471,84 @@ alloc_seg(struct rte_memseg *ms, void *addr, int socket_id,
 	int cur_socket_id = 0;
 #endif
 	uint64_t map_offset;
+	rte_iova_t iova;
+	void *va;
 	char path[PATH_MAX];
 	int ret = 0;
 	int fd;
 	size_t alloc_sz;
-
-	/* takes out a read lock on segment or segment list */
-	fd = get_seg_fd(path, sizeof(path), hi, list_idx, seg_idx);
-	if (fd < 0) {
-		RTE_LOG(ERR, EAL, "Couldn't get fd on hugepage file\n");
-		return -1;
-	}
+	int flags;
+	void *new_addr;
 
 	alloc_sz = hi->hugepage_sz;
-	if (internal_config.single_file_segments) {
-		map_offset = seg_idx * alloc_sz;
-		ret = resize_hugefile(fd, path, list_idx, seg_idx, map_offset,
-				alloc_sz, true);
-		if (ret < 0)
-			goto resized;
-	} else {
-		map_offset = 0;
-		if (ftruncate(fd, alloc_sz) < 0) {
-			RTE_LOG(DEBUG, EAL, "%s(): ftruncate() failed: %s\n",
-				__func__, strerror(errno));
-			goto resized;
-		}
-	}
+	if (!internal_config.single_file_segments &&
+			internal_config.in_memory &&
+			anonymous_hugepages_supported) {
+		int log2, flags;
 
-	/*
-	 * map the segment, and populate page tables, the kernel fills this
-	 * segment with zeros if it's a new page.
-	 */
-	void *va = mmap(addr, alloc_sz, PROT_READ | PROT_WRITE,
-			MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd, map_offset);
+		log2 = rte_log2_u32(alloc_sz);
+		/* as per mmap() manpage, all page sizes are log2 of page size
+		 * shifted by MAP_HUGE_SHIFT
+		 */
+		flags = (log2 << RTE_MAP_HUGE_SHIFT) | MAP_HUGETLB | MAP_FIXED |
+				MAP_PRIVATE | MAP_ANONYMOUS;
+		fd = -1;
+		va = mmap(addr, alloc_sz, PROT_READ | PROT_WRITE, flags, -1, 0);
+
+		/* single-file segments codepath will never be active because
+		 * in-memory mode is incompatible with it and it's stopped at
+		 * EAL initialization stage, however the compiler doesn't know
+		 * that and complains about map_offset being used uninitialized
+		 * on failure codepaths while having in-memory mode enabled. so,
+		 * assign a value here.
+		 */
+		map_offset = 0;
+	} else {
+		/* takes out a read lock on segment or segment list */
+		fd = get_seg_fd(path, sizeof(path), hi, list_idx, seg_idx);
+		if (fd < 0) {
+			RTE_LOG(ERR, EAL, "Couldn't get fd on hugepage file\n");
+			return -1;
+		}
+
+		if (internal_config.single_file_segments) {
+			map_offset = seg_idx * alloc_sz;
+			ret = resize_hugefile(fd, path, list_idx, seg_idx,
+					map_offset, alloc_sz, true);
+			if (ret < 0)
+				goto resized;
+		} else {
+			map_offset = 0;
+			if (ftruncate(fd, alloc_sz) < 0) {
+				RTE_LOG(DEBUG, EAL, "%s(): ftruncate() failed: %s\n",
+					__func__, strerror(errno));
+				goto resized;
+			}
+			if (internal_config.hugepage_unlink) {
+				if (unlink(path)) {
+					RTE_LOG(DEBUG, EAL, "%s(): unlink() failed: %s\n",
+						__func__, strerror(errno));
+					goto resized;
+				}
+			}
+		}
+
+		/*
+		 * map the segment, and populate page tables, the kernel fills
+		 * this segment with zeros if it's a new page.
+		 */
+		va = mmap(addr, alloc_sz, PROT_READ | PROT_WRITE,
+				MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd,
+				map_offset);
+	}
 
 	if (va == MAP_FAILED) {
 		RTE_LOG(DEBUG, EAL, "%s(): mmap() failed: %s\n", __func__,
 			strerror(errno));
-		goto resized;
+		/* mmap failed, but the previous region might have been
+		 * unmapped anyway. try to remap it
+		 */
+		goto unmapped;
 	}
 	if (va != addr) {
 		RTE_LOG(DEBUG, EAL, "%s(): wrong mmap() address\n", __func__);
@@ -532,7 +556,27 @@ alloc_seg(struct rte_memseg *ms, void *addr, int socket_id,
 		goto resized;
 	}
 
-	rte_iova_t iova = rte_mem_virt2iova(addr);
+	/* In linux, hugetlb limitations, like cgroup, are
+	 * enforced at fault time instead of mmap(), even
+	 * with the option of MAP_POPULATE. Kernel will send
+	 * a SIGBUS signal. To avoid to be killed, save stack
+	 * environment here, if SIGBUS happens, we can jump
+	 * back here.
+	 */
+	if (huge_wrap_sigsetjmp()) {
+		RTE_LOG(DEBUG, EAL, "SIGBUS: Cannot mmap more hugepages of size %uMB\n",
+			(unsigned int)(alloc_sz >> 20));
+		goto mapped;
+	}
+
+	/* we need to trigger a write to the page to enforce page fault and
+	 * ensure that page is accessible to us, but we can't overwrite value
+	 * that is already there, so read the old value, and write itback.
+	 * kernel populates the page with zeroes initially.
+	 */
+	*(volatile int *)addr = *(volatile int *)addr;
+
+	iova = rte_mem_virt2iova(addr);
 	if (iova == RTE_BAD_PHYS_ADDR) {
 		RTE_LOG(DEBUG, EAL, "%s(): can't get IOVA addr\n",
 			__func__);
@@ -549,29 +593,10 @@ alloc_seg(struct rte_memseg *ms, void *addr, int socket_id,
 		goto mapped;
 	}
 #endif
-
-	/* In linux, hugetlb limitations, like cgroup, are
-	 * enforced at fault time instead of mmap(), even
-	 * with the option of MAP_POPULATE. Kernel will send
-	 * a SIGBUS signal. To avoid to be killed, save stack
-	 * environment here, if SIGBUS happens, we can jump
-	 * back here.
-	 */
-	if (huge_wrap_sigsetjmp()) {
-		RTE_LOG(DEBUG, EAL, "SIGBUS: Cannot mmap more hugepages of size %uMB\n",
-			(unsigned int)(alloc_sz >> 20));
-		goto mapped;
-	}
-	/* for non-single file segments, we can close fd here */
-	if (!internal_config.single_file_segments)
+	/* for non-single file segments that aren't in-memory, we can close fd
+	 * here */
+	if (!internal_config.single_file_segments && !internal_config.in_memory)
 		close(fd);
-
-	/* we need to trigger a write to the page to enforce page fault and
-	 * ensure that page is accessible to us, but we can't overwrite value
-	 * that is already there, so read the old value, and write itback.
-	 * kernel populates the page with zeroes initially.
-	 */
-	*(volatile int *)addr = *(volatile int *)addr;
 
 	ms->addr = addr;
 	ms->hugepage_sz = alloc_sz;
@@ -585,14 +610,32 @@ alloc_seg(struct rte_memseg *ms, void *addr, int socket_id,
 
 mapped:
 	munmap(addr, alloc_sz);
+unmapped:
+	flags = MAP_FIXED;
+#ifdef RTE_ARCH_PPC_64
+	flags |= MAP_HUGETLB;
+#endif
+	new_addr = eal_get_virtual_area(addr, &alloc_sz, alloc_sz, 0, flags);
+	if (new_addr != addr) {
+		if (new_addr != NULL)
+			munmap(new_addr, alloc_sz);
+		/* we're leaving a hole in our virtual address space. if
+		 * somebody else maps this hole now, we could accidentally
+		 * override it in the future.
+		 */
+		RTE_LOG(CRIT, EAL, "Can't mmap holes in our virtual address space\n");
+	}
 resized:
+	/* in-memory mode will never be single-file-segments mode */
 	if (internal_config.single_file_segments) {
 		resize_hugefile(fd, path, list_idx, seg_idx, map_offset,
 				alloc_sz, false);
 		/* ignore failure, can't make it any worse */
 	} else {
 		/* only remove file if we can take out a write lock */
-		if (lock(fd, LOCK_EX) == 1)
+		if (internal_config.hugepage_unlink == 0 &&
+				internal_config.in_memory == 0 &&
+				lock(fd, LOCK_EX) == 1)
 			unlink(path);
 		close(fd);
 	}
@@ -615,6 +658,12 @@ free_seg(struct rte_memseg *ms, struct hugepage_info *hi,
 				MAP_FAILED) {
 		RTE_LOG(DEBUG, EAL, "couldn't unmap page\n");
 		return -1;
+	}
+
+	/* if we've already unlinked the page, nothing needs to be done */
+	if (internal_config.hugepage_unlink) {
+		memset(ms, 0, sizeof(*ms));
+		return 0;
 	}
 
 	/* if we are not in single file segments mode, we're going to unmap the
@@ -695,7 +744,7 @@ alloc_seg_walk(const struct rte_memseg_list *msl, void *arg)
 	 * during init, we already hold a write lock, so don't try to take out
 	 * another one.
 	 */
-	if (wa->hi->lock_descriptor == -1) {
+	if (wa->hi->lock_descriptor == -1 && !internal_config.in_memory) {
 		dir_fd = open(wa->hi->hugedir, O_RDONLY);
 		if (dir_fd < 0) {
 			RTE_LOG(ERR, EAL, "%s(): Cannot open '%s': %s\n",
@@ -799,7 +848,7 @@ free_seg_walk(const struct rte_memseg_list *msl, void *arg)
 	 * during init, we already hold a write lock, so don't try to take out
 	 * another one.
 	 */
-	if (wa->hi->lock_descriptor == -1) {
+	if (wa->hi->lock_descriptor == -1 && !internal_config.in_memory) {
 		dir_fd = open(wa->hi->hugedir, O_RDONLY);
 		if (dir_fd < 0) {
 			RTE_LOG(ERR, EAL, "%s(): Cannot open '%s': %s\n",
@@ -878,7 +927,8 @@ eal_memalloc_alloc_seg_bulk(struct rte_memseg **ms, int n_segs, size_t page_sz,
 	wa.socket = socket;
 	wa.segs_allocated = 0;
 
-	ret = memseg_list_walk_thread_unsafe(alloc_seg_walk, &wa);
+	/* memalloc is locked, so it's safe to use thread-unsafe version */
+	ret = rte_memseg_list_walk_thread_unsafe(alloc_seg_walk, &wa);
 	if (ret == 0) {
 		RTE_LOG(ERR, EAL, "%s(): couldn't find suitable memseg_list\n",
 			__func__);
@@ -943,7 +993,10 @@ eal_memalloc_free_seg_bulk(struct rte_memseg **ms, int n_segs)
 		wa.ms = cur;
 		wa.hi = hi;
 
-		walk_res = memseg_list_walk_thread_unsafe(free_seg_walk, &wa);
+		/* memalloc is locked, so it's safe to use thread-unsafe version
+		 */
+		walk_res = rte_memseg_list_walk_thread_unsafe(free_seg_walk,
+				&wa);
 		if (walk_res == 1)
 			continue;
 		if (walk_res == 0)
@@ -1230,7 +1283,8 @@ eal_memalloc_sync_with_primary(void)
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
 		return 0;
 
-	if (memseg_list_walk_thread_unsafe(sync_walk, NULL))
+	/* memalloc is locked, so it's safe to call thread-unsafe version */
+	if (rte_memseg_list_walk_thread_unsafe(sync_walk, NULL))
 		return -1;
 	return 0;
 }

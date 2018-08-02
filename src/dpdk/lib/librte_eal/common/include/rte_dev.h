@@ -69,9 +69,7 @@ rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
  * Enable RTE_PMD_DEBUG_TRACE() when at least one component relying on the
  * RTE_*_RET() macros defined below is compiled in debug mode.
  */
-#if defined(RTE_LIBRTE_ETHDEV_DEBUG) || \
-	defined(RTE_LIBRTE_CRYPTODEV_DEBUG) || \
-	defined(RTE_LIBRTE_EVENTDEV_DEBUG)
+#if defined(RTE_LIBRTE_EVENTDEV_DEBUG)
 #define RTE_PMD_DEBUG_TRACE(...) \
 	rte_pmd_debug_trace(__func__, __VA_ARGS__)
 #else
@@ -284,6 +282,103 @@ __attribute__((used)) = str
 #define RTE_PMD_REGISTER_KMOD_DEP(name, str) \
 static const char DRV_EXP_TAG(name, kmod_dep_export)[] \
 __attribute__((used)) = str
+
+/**
+ * Iteration context.
+ *
+ * This context carries over the current iteration state.
+ */
+struct rte_dev_iterator {
+	const char *dev_str; /**< device string. */
+	const char *bus_str; /**< bus-related part of device string. */
+	const char *cls_str; /**< class-related part of device string. */
+	struct rte_bus *bus; /**< bus handle. */
+	struct rte_class *cls; /**< class handle. */
+	struct rte_device *device; /**< current position. */
+	void *class_device; /**< additional specialized context. */
+};
+
+/**
+ * Device iteration function.
+ *
+ * Find the next device matching properties passed in parameters.
+ * The function takes an additional ``start`` parameter, that is
+ * used as starting context when relevant.
+ *
+ * The function returns the current element in the iteration.
+ * This return value will potentially be used as a start parameter
+ * in subsequent calls to the function.
+ *
+ * The additional iterator parameter is only there if a specific
+ * implementation needs additional context. It must not be modified by
+ * the iteration function itself.
+ *
+ * @param start
+ *   Starting iteration context.
+ *
+ * @param devstr
+ *   Device description string.
+ *
+ * @param it
+ *   Device iterator.
+ *
+ * @return
+ *   The address of the current element matching the device description
+ *   string.
+ */
+typedef void *(*rte_dev_iterate_t)(const void *start,
+				   const char *devstr,
+				   const struct rte_dev_iterator *it);
+
+/**
+ * Initializes a device iterator.
+ *
+ * This iterator allows accessing a list of devices matching a criteria.
+ * The device matching is made among all buses and classes currently registered,
+ * filtered by the device description given as parameter.
+ *
+ * This function will not allocate any memory. It is safe to stop the
+ * iteration at any moment and let the iterator go out of context.
+ *
+ * @param it
+ *   Device iterator handle.
+ *
+ * @param str
+ *   Device description string.
+ *
+ * @return
+ *   0 on successful initialization.
+ *   <0 on error.
+ */
+__rte_experimental
+int
+rte_dev_iterator_init(struct rte_dev_iterator *it, const char *str);
+
+/**
+ * Iterates on a device iterator.
+ *
+ * Generates a new rte_device handle corresponding to the next element
+ * in the list described in comprehension by the iterator.
+ *
+ * The next object is returned, and the iterator is updated.
+ *
+ * @param it
+ *   Device iterator handle.
+ *
+ * @return
+ *   An rte_device handle if found.
+ *   NULL if an error occurred (rte_errno is set).
+ *   NULL if no device could be found (rte_errno is not set).
+ */
+__rte_experimental
+struct rte_device *
+rte_dev_iterator_next(struct rte_dev_iterator *it);
+
+#define RTE_DEV_FOREACH(dev, devstr, it) \
+	for (rte_dev_iterator_init(it, devstr), \
+	     dev = rte_dev_iterator_next(it); \
+	     dev != NULL; \
+	     dev = rte_dev_iterator_next(it))
 
 #ifdef __cplusplus
 }

@@ -218,12 +218,8 @@ configure_fdir_flags(const struct rte_fdir_conf *conf, uint32_t *fdirctrl)
 		return -EINVAL;
 	};
 
-#ifdef TREX_PATCH
-	*fdirctrl |= (conf->flexbytes_offset << IXGBE_FDIRCTRL_FLEX_SHIFT);
-#else
 	*fdirctrl |= (IXGBE_DEFAULT_FLEXBYTES_OFFSET / sizeof(uint16_t)) <<
 		     IXGBE_FDIRCTRL_FLEX_SHIFT;
-#endif
 
 	if (conf->mode >= RTE_FDIR_MODE_PERFECT &&
 	    conf->mode <= RTE_FDIR_MODE_PERFECT_TUNNEL) {
@@ -398,9 +394,12 @@ fdir_set_input_mask_x550(struct rte_eth_dev *dev)
 				IXGBE_FDIRIP6M_TNI_VNI;
 
 	if (mode == RTE_FDIR_MODE_PERFECT_TUNNEL) {
-		mac_mask = info->mask.mac_addr_byte_mask;
-		fdiripv6m |= (mac_mask << IXGBE_FDIRIP6M_INNER_MAC_SHIFT)
-				& IXGBE_FDIRIP6M_INNER_MAC;
+		fdiripv6m |= IXGBE_FDIRIP6M_INNER_MAC;
+		mac_mask = info->mask.mac_addr_byte_mask &
+			(IXGBE_FDIRIP6M_INNER_MAC >>
+			IXGBE_FDIRIP6M_INNER_MAC_SHIFT);
+		fdiripv6m &= ~((mac_mask << IXGBE_FDIRIP6M_INNER_MAC_SHIFT) &
+				IXGBE_FDIRIP6M_INNER_MAC);
 
 		switch (info->mask.tunnel_type_mask) {
 		case 0:
@@ -569,7 +568,6 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 
 	fdirm = IXGBE_READ_REG(hw, IXGBE_FDIRM);
 
-#ifndef TREX_PATCH
 	if (conf == NULL) {
 		PMD_DRV_LOG(ERR, "NULL pointer.");
 		return -EINVAL;
@@ -610,12 +608,6 @@ ixgbe_set_fdir_flex_conf(struct rte_eth_dev *dev,
 			return -EINVAL;
 		}
 	}
-#else
-    fdirm &= ~IXGBE_FDIRM_FLEX;
-    flexbytes = 1;
-    // fdirctrl gets flex_bytes_offset in configure_fdir_flags
-#endif
-
 	IXGBE_WRITE_REG(hw, IXGBE_FDIRM, fdirm);
 	info->mask.flex_bytes_mask = flexbytes ? UINT16_MAX : 0;
 	info->flex_bytes_offset = (uint8_t)((*fdirctrl &
@@ -647,9 +639,6 @@ ixgbe_fdir_configure(struct rte_eth_dev *dev)
 	    hw->mac.type != ixgbe_mac_X550EM_x &&
 	    hw->mac.type != ixgbe_mac_X550EM_a &&
 	    mode != RTE_FDIR_MODE_SIGNATURE &&
-#ifdef TREX_PATCH
-	    mode != RTE_FDIR_MODE_PERFECT_MAC_VLAN &&
-#endif
 	    mode != RTE_FDIR_MODE_PERFECT)
 		return -ENOSYS;
 
@@ -785,10 +774,19 @@ ixgbe_fdir_filter_to_atr_input(const struct rte_eth_fdir_filter *fdir_filter,
 			input->formatted.inner_mac,
 			fdir_filter->input.flow.tunnel_flow.mac_addr.addr_bytes,
 			sizeof(input->formatted.inner_mac));
-		input->formatted.tunnel_type =
-			fdir_filter->input.flow.tunnel_flow.tunnel_type;
+		if (fdir_filter->input.flow.tunnel_flow.tunnel_type ==
+				RTE_FDIR_TUNNEL_TYPE_VXLAN)
+			input->formatted.tunnel_type =
+					IXGBE_FDIR_VXLAN_TUNNEL_TYPE;
+		else if (fdir_filter->input.flow.tunnel_flow.tunnel_type ==
+				RTE_FDIR_TUNNEL_TYPE_NVGRE)
+			input->formatted.tunnel_type =
+					IXGBE_FDIR_NVGRE_TUNNEL_TYPE;
+		else
+			PMD_DRV_LOG(ERR, " invalid tunnel type arguments.");
+
 		input->formatted.tni_vni =
-			fdir_filter->input.flow.tunnel_flow.tunnel_id;
+			fdir_filter->input.flow.tunnel_flow.tunnel_id >> 8;
 	}
 
 	return 0;
@@ -1015,8 +1013,7 @@ fdir_write_perfect_filter_82599(struct ixgbe_hw *hw,
 			IXGBE_WRITE_REG(hw, IXGBE_FDIRSIPv6(2), 0);
 		} else {
 			/* tunnel mode */
-			if (input->formatted.tunnel_type !=
-				RTE_FDIR_TUNNEL_TYPE_NVGRE)
+			if (input->formatted.tunnel_type)
 				tunnel_type = 0x80000000;
 			tunnel_type |= addr_high;
 			IXGBE_WRITE_REG(hw, IXGBE_FDIRSIPv6(0), addr_low);
@@ -1024,6 +1021,9 @@ fdir_write_perfect_filter_82599(struct ixgbe_hw *hw,
 			IXGBE_WRITE_REG(hw, IXGBE_FDIRSIPv6(2),
 					input->formatted.tni_vni);
 		}
+		IXGBE_WRITE_REG(hw, IXGBE_FDIRIPSA, 0);
+		IXGBE_WRITE_REG(hw, IXGBE_FDIRIPDA, 0);
+		IXGBE_WRITE_REG(hw, IXGBE_FDIRPORT, 0);
 	}
 
 	/* record vlan (little-endian) and flex_bytes(big-endian) */
@@ -1275,15 +1275,12 @@ ixgbe_fdir_filter_program(struct rte_eth_dev *dev,
 		is_perfect = TRUE;
 
 	if (is_perfect) {
-#ifndef TREX_PATCH
-        // No reason not to use IPV6 in perfect filters. It is working.
 		if (rule->ixgbe_fdir.formatted.flow_type &
 		    IXGBE_ATR_L4TYPE_IPV6_MASK) {
 			PMD_DRV_LOG(ERR, "IPv6 is not supported in"
 				    " perfect mode!");
 			return -ENOTSUP;
 		}
-#endif
 		fdirhash = atr_compute_perfect_hash_82599(&rule->ixgbe_fdir,
 							  dev->data->dev_conf.fdir_conf.pballoc);
 		fdirhash |= rule->soft_id <<

@@ -303,11 +303,8 @@ eth_em_dev_init(struct rte_eth_dev *eth_dev)
 		     eth_dev->data->port_id, pci_dev->id.vendor_id,
 		     pci_dev->id.device_id);
 
-#ifndef TREX_PATCH
-// disable interrupts, they are broken with VMWARE E1000
 	rte_intr_callback_register(intr_handle,
 				   eth_em_interrupt_handler, eth_dev);
-#endif
 
 	return 0;
 }
@@ -1826,9 +1823,7 @@ RTE_PMD_REGISTER_PCI_TABLE(net_e1000_em, pci_id_em_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_e1000_em, "* igb_uio | uio_pci_generic | vfio-pci");
 
 /* see e1000_logs.c */
-RTE_INIT(igb_init_log);
-static void
-igb_init_log(void)
+RTE_INIT(igb_init_log)
 {
 	e1000_igb_init_log();
 }

@@ -137,51 +137,81 @@ enic_cq_rx_flags_to_pkt_type(struct cq_desc *cqd, uint8_t tnl)
 	 */
 	static const uint32_t cq_type_table[128] __rte_cache_aligned = {
 		[0x00] = RTE_PTYPE_UNKNOWN,
+		[0x01] = RTE_PTYPE_UNKNOWN |
+			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER,
 		[0x20] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_NONFRAG,
 		[0x21] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_NONFRAG |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_NONFRAG,
 		[0x22] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_UDP,
 		[0x23] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_UDP |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_UDP,
 		[0x24] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_TCP,
 		[0x25] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_TCP |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_TCP,
 		[0x60] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
 		[0x61] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_FRAG,
-		[0x62] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_UDP,
-		[0x63] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_UDP |
+		[0x62] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
+		[0x63] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-			 RTE_PTYPE_INNER_L4_UDP,
-		[0x64] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_TCP,
-		[0x65] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_TCP |
+			 RTE_PTYPE_INNER_L4_FRAG,
+		[0x64] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
+		[0x65] = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-			 RTE_PTYPE_INNER_L4_TCP,
+			 RTE_PTYPE_INNER_L4_FRAG,
 		[0x10] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_NONFRAG,
 		[0x11] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_NONFRAG |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_NONFRAG,
 		[0x12] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_UDP,
 		[0x13] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_UDP |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_UDP,
 		[0x14] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_TCP,
 		[0x15] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_TCP |
 			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
 			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 			 RTE_PTYPE_INNER_L4_TCP,
+		[0x50] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
+		[0x51] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
+			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
+			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+			 RTE_PTYPE_INNER_L4_FRAG,
+		[0x52] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
+		[0x53] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
+			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
+			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+			 RTE_PTYPE_INNER_L4_FRAG,
+		[0x54] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG,
+		[0x55] = RTE_PTYPE_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_L4_FRAG |
+			 RTE_PTYPE_TUNNEL_GRENAT |
+			 RTE_PTYPE_INNER_L2_ETHER |
+			 RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+			 RTE_PTYPE_INNER_L4_FRAG,
 		/* All others reserved */
 	};
 	cqrd_flags &= CQ_ENET_RQ_DESC_FLAGS_IPV4_FRAGMENT
@@ -280,7 +310,7 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	struct vnic_rq *rq;
 	struct enic *enic = vnic_dev_priv(sop_rq->vdev);
 	uint16_t cq_idx;
-	uint16_t rq_idx;
+	uint16_t rq_idx, max_rx;
 	uint16_t rq_num;
 	struct rte_mbuf *nmb, *rxmb;
 	uint16_t nb_rx = 0;
@@ -295,19 +325,23 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	cq = &enic->cq[enic_cq_rq(enic, sop_rq->index)];
 	cq_idx = cq->to_clean;		/* index of cqd, rqd, mbuf_table */
 	cqd_ptr = (struct cq_desc *)(cq->ring.descs) + cq_idx;
+	color = cq->last_color;
 
 	data_rq = &enic->rq[sop_rq->data_queue_idx];
 
-	while (nb_rx < nb_pkts) {
+	/* Receive until the end of the ring, at most. */
+	max_rx = RTE_MIN(nb_pkts, cq->ring.desc_count - cq_idx);
+
+	while (max_rx) {
 		volatile struct rq_enet_desc *rqd_ptr;
 		struct cq_desc cqd;
 		uint8_t packet_error;
 		uint16_t ciflags;
 
+		max_rx--;
+
 		/* Check for pkts available */
-		color = (cqd_ptr->type_color >> CQ_DESC_COLOR_SHIFT)
-			& CQ_DESC_COLOR_MASK;
-		if (color == cq->last_color)
+		if ((cqd_ptr->type_color & CQ_DESC_COLOR_MASK_NOSHIFT) == color)
 			break;
 
 		/* Get the cq descriptor and extract rq info from it */
@@ -331,13 +365,7 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		/* Get the mbuf to return and replace with one just allocated */
 		rxmb = rq->mbuf_ring[rq_idx];
 		rq->mbuf_ring[rq_idx] = nmb;
-
-		/* Increment cqd, rqd, mbuf_table index */
 		cq_idx++;
-		if (unlikely(cq_idx == cq->ring.desc_count)) {
-			cq_idx = 0;
-			cq->last_color = cq->last_color ? 0 : 1;
-		}
 
 		/* Prefetch next mbuf & desc while processing current one */
 		cqd_ptr = (struct cq_desc *)(cq->ring.descs) + cq_idx;
@@ -389,6 +417,7 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		first_seg->packet_type =
 			enic_cq_rx_flags_to_pkt_type(&cqd, tnl);
 		enic_cq_rx_to_pkt_flags(&cqd, first_seg);
+
 		/* Wipe the outer types set by enic_cq_rx_flags_to_pkt_type() */
 		if (tnl) {
 			first_seg->packet_type &= ~(RTE_PTYPE_L3_MASK |
@@ -407,6 +436,10 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 		/* store the mbuf address into the next entry of the array */
 		rx_pkts[nb_rx++] = first_seg;
+	}
+	if (unlikely(cq_idx == cq->ring.desc_count)) {
+		cq_idx = 0;
+		cq->last_color ^= CQ_DESC_COLOR_MASK_NOSHIFT;
 	}
 
 	sop_rq->pkt_first_seg = first_seg;
@@ -441,9 +474,148 @@ enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	return nb_rx;
 }
 
+uint16_t
+enic_noscatter_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
+			 uint16_t nb_pkts)
+{
+	struct rte_mbuf *mb, **rx, **rxmb;
+	uint16_t cq_idx, nb_rx, max_rx;
+	struct cq_enet_rq_desc *cqd;
+	struct rq_enet_desc *rqd;
+	unsigned int port_id;
+	struct vnic_cq *cq;
+	struct vnic_rq *rq;
+	struct enic *enic;
+	uint8_t color;
+	bool overlay;
+	bool tnl;
+
+	rq = rx_queue;
+	enic = vnic_dev_priv(rq->vdev);
+	cq = &enic->cq[enic_cq_rq(enic, rq->index)];
+	cq_idx = cq->to_clean;
+
+	/*
+	 * Fill up the reserve of free mbufs. Below, we restock the receive
+	 * ring with these mbufs to avoid allocation failures.
+	 */
+	if (rq->num_free_mbufs == 0) {
+		if (rte_mempool_get_bulk(rq->mp, (void **)rq->free_mbufs,
+					 ENIC_RX_BURST_MAX))
+			return 0;
+		rq->num_free_mbufs = ENIC_RX_BURST_MAX;
+	}
+
+	/* Receive until the end of the ring, at most. */
+	max_rx = RTE_MIN(nb_pkts, rq->num_free_mbufs);
+	max_rx = RTE_MIN(max_rx, cq->ring.desc_count - cq_idx);
+
+	cqd = (struct cq_enet_rq_desc *)(cq->ring.descs) + cq_idx;
+	color = cq->last_color;
+	rxmb = rq->mbuf_ring + cq_idx;
+	port_id = enic->port_id;
+	overlay = enic->overlay_offload;
+
+	rx = rx_pkts;
+	while (max_rx) {
+		max_rx--;
+		if ((cqd->type_color & CQ_DESC_COLOR_MASK_NOSHIFT) == color)
+			break;
+		if (unlikely(cqd->bytes_written_flags &
+			     CQ_ENET_RQ_DESC_FLAGS_TRUNCATED)) {
+			rte_pktmbuf_free(*rxmb++);
+			rte_atomic64_inc(&enic->soft_stats.rx_packet_errors);
+			cqd++;
+			continue;
+		}
+
+		mb = *rxmb++;
+		/* prefetch mbuf data for caller */
+		rte_packet_prefetch(RTE_PTR_ADD(mb->buf_addr,
+				    RTE_PKTMBUF_HEADROOM));
+		mb->data_len = cqd->bytes_written_flags &
+			CQ_ENET_RQ_DESC_BYTES_WRITTEN_MASK;
+		mb->pkt_len = mb->data_len;
+		mb->port = port_id;
+		tnl = overlay && (cqd->completed_index_flags &
+				  CQ_ENET_RQ_DESC_FLAGS_FCOE) != 0;
+		mb->packet_type =
+			enic_cq_rx_flags_to_pkt_type((struct cq_desc *)cqd,
+						     tnl);
+		enic_cq_rx_to_pkt_flags((struct cq_desc *)cqd, mb);
+		/* Wipe the outer types set by enic_cq_rx_flags_to_pkt_type() */
+		if (tnl) {
+			mb->packet_type &= ~(RTE_PTYPE_L3_MASK |
+					     RTE_PTYPE_L4_MASK);
+		}
+		cqd++;
+		*rx++ = mb;
+	}
+	/* Number of descriptors visited */
+	nb_rx = cqd - (struct cq_enet_rq_desc *)(cq->ring.descs) - cq_idx;
+	if (nb_rx == 0)
+		return 0;
+	rqd = ((struct rq_enet_desc *)rq->ring.descs) + cq_idx;
+	rxmb = rq->mbuf_ring + cq_idx;
+	cq_idx += nb_rx;
+	rq->rx_nb_hold += nb_rx;
+	if (unlikely(cq_idx == cq->ring.desc_count)) {
+		cq_idx = 0;
+		cq->last_color ^= CQ_DESC_COLOR_MASK_NOSHIFT;
+	}
+	cq->to_clean = cq_idx;
+
+	memcpy(rxmb, rq->free_mbufs + ENIC_RX_BURST_MAX - rq->num_free_mbufs,
+	       sizeof(struct rte_mbuf *) * nb_rx);
+	rq->num_free_mbufs -= nb_rx;
+	while (nb_rx) {
+		nb_rx--;
+		mb = *rxmb++;
+		mb->data_off = RTE_PKTMBUF_HEADROOM;
+		rqd->address = mb->buf_iova + RTE_PKTMBUF_HEADROOM;
+		rqd++;
+	}
+	if (rq->rx_nb_hold > rq->rx_free_thresh) {
+		rq->posted_index = enic_ring_add(rq->ring.desc_count,
+						 rq->posted_index,
+						 rq->rx_nb_hold);
+		rq->rx_nb_hold = 0;
+		rte_wmb();
+		iowrite32_relaxed(rq->posted_index,
+				  &rq->ctrl->posted_index);
+	}
+
+	return rx - rx_pkts;
+}
+
+static void enic_fast_free_wq_bufs(struct vnic_wq *wq, u16 completed_index)
+{
+	unsigned int desc_count, n, nb_to_free, tail_idx;
+	struct rte_mempool *pool;
+	struct rte_mbuf **m;
+
+	desc_count = wq->ring.desc_count;
+	nb_to_free = enic_ring_sub(desc_count, wq->tail_idx, completed_index)
+				   + 1;
+	tail_idx = wq->tail_idx;
+	wq->tail_idx += nb_to_free;
+	wq->ring.desc_avail += nb_to_free;
+	if (wq->tail_idx >= desc_count)
+		wq->tail_idx -= desc_count;
+	/* First, free at most until the end of ring */
+	m = &wq->bufs[tail_idx];
+	pool = (*m)->pool;
+	n = RTE_MIN(nb_to_free, desc_count - tail_idx);
+	rte_mempool_put_bulk(pool, (void **)m, n);
+	n = nb_to_free - n;
+	/* Then wrap and free the rest */
+	if (unlikely(n))
+		rte_mempool_put_bulk(pool, (void **)wq->bufs, n);
+}
+
 static inline void enic_free_wq_bufs(struct vnic_wq *wq, u16 completed_index)
 {
-	struct vnic_wq_buf *buf;
+	struct rte_mbuf *buf;
 	struct rte_mbuf *m, *free[ENIC_MAX_WQ_DESCS];
 	unsigned int nb_to_free, nb_free = 0, i;
 	struct rte_mempool *pool;
@@ -453,13 +625,10 @@ static inline void enic_free_wq_bufs(struct vnic_wq *wq, u16 completed_index)
 	nb_to_free = enic_ring_sub(desc_count, wq->tail_idx, completed_index)
 				   + 1;
 	tail_idx = wq->tail_idx;
-	buf = &wq->bufs[tail_idx];
-	pool = ((struct rte_mbuf *)buf->mb)->pool;
+	pool = wq->bufs[tail_idx]->pool;
 	for (i = 0; i < nb_to_free; i++) {
-		buf = &wq->bufs[tail_idx];
-		m = rte_pktmbuf_prefree_seg((struct rte_mbuf *)(buf->mb));
-		buf->mb = NULL;
-
+		buf = wq->bufs[tail_idx];
+		m = rte_pktmbuf_prefree_seg(buf);
 		if (unlikely(m == NULL)) {
 			tail_idx = enic_ring_incr(desc_count, tail_idx);
 			continue;
@@ -491,7 +660,10 @@ unsigned int enic_cleanup_wq(__rte_unused struct enic *enic, struct vnic_wq *wq)
 	completed_index = *((uint32_t *)wq->cqmsg_rz->addr) & 0xffff;
 
 	if (wq->last_completed_index != completed_index) {
-		enic_free_wq_bufs(wq, completed_index);
+		if (wq->offloads & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+			enic_fast_free_wq_bufs(wq, completed_index);
+		else
+			enic_free_wq_bufs(wq, completed_index);
 		wq->last_completed_index = completed_index;
 	}
 	return 0;
@@ -508,6 +680,10 @@ uint16_t enic_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 	for (i = 0; i != nb_pkts; i++) {
 		m = tx_pkts[i];
+		if (unlikely(m->pkt_len > ENIC_TX_MAX_PKT_SIZE)) {
+			rte_errno = EINVAL;
+			return i;
+		}
 		ol_flags = m->ol_flags;
 		if (ol_flags & wq->tx_offload_notsup_mask) {
 			rte_errno = ENOTSUP;
@@ -544,12 +720,11 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint64_t ol_flags_mask;
 	unsigned int wq_desc_avail;
 	int head_idx;
-	struct vnic_wq_buf *buf;
 	unsigned int desc_count;
 	struct wq_enet_desc *descs, *desc_p, desc_tmp;
 	uint16_t mss;
 	uint8_t vlan_tag_insert;
-	uint8_t eop;
+	uint8_t eop, cq;
 	uint64_t bus_addr;
 	uint8_t offload_mode;
 	uint16_t header_len;
@@ -574,7 +749,7 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		tso = ol_flags & PKT_TX_TCP_SEG;
 
 		/* drop packet if it's too big to send */
-		if (unlikely(!tso && (pkt_len > ENIC_TX_MAX_PKT_SIZE))) {
+		if (unlikely(!tso && pkt_len > ENIC_TX_MAX_PKT_SIZE)) {
 			rte_pktmbuf_free(tx_pkt);
 			rte_atomic64_inc(tx_oversized);
 			continue;
@@ -632,15 +807,18 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 				break;
 			}
 		}
-
-
+		wq->cq_pend++;
+		cq = 0;
+		if (eop && wq->cq_pend >= ENIC_WQ_CQ_THRESH) {
+			cq = 1;
+			wq->cq_pend = 0;
+		}
 		wq_enet_desc_enc(&desc_tmp, bus_addr, data_len, mss, header_len,
-				 offload_mode, eop, eop, 0, vlan_tag_insert,
+				 offload_mode, eop, cq, 0, vlan_tag_insert,
 				 vlan_id, 0);
 
 		*desc_p = desc_tmp;
-		buf = &wq->bufs[head_idx];
-		buf->mb = (void *)tx_pkt;
+		wq->bufs[head_idx] = tx_pkt;
 		head_idx = enic_ring_incr(desc_count, head_idx);
 		wq_desc_avail--;
 
@@ -649,20 +827,26 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			    tx_pkt->next) {
 				data_len = tx_pkt->data_len;
 
-				if (tx_pkt->next == NULL)
+				wq->cq_pend++;
+				cq = 0;
+				if (tx_pkt->next == NULL) {
 					eop = 1;
+					if (wq->cq_pend >= ENIC_WQ_CQ_THRESH) {
+						cq = 1;
+						wq->cq_pend = 0;
+					}
+				}
 				desc_p = descs + head_idx;
 				bus_addr = (dma_addr_t)(tx_pkt->buf_iova
 					   + tx_pkt->data_off);
 				wq_enet_desc_enc((struct wq_enet_desc *)
 						 &desc_tmp, bus_addr, data_len,
-						 mss, 0, offload_mode, eop, eop,
+						 mss, 0, offload_mode, eop, cq,
 						 0, vlan_tag_insert, vlan_id,
 						 0);
 
 				*desc_p = desc_tmp;
-				buf = &wq->bufs[head_idx];
-				buf->mb = (void *)tx_pkt;
+				wq->bufs[head_idx] = tx_pkt;
 				head_idx = enic_ring_incr(desc_count, head_idx);
 				wq_desc_avail--;
 			}
@@ -678,4 +862,81 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	return index;
 }
 
+static void enqueue_simple_pkts(struct rte_mbuf **pkts,
+				struct wq_enet_desc *desc,
+				uint16_t n,
+				struct enic *enic)
+{
+	struct rte_mbuf *p;
 
+	while (n) {
+		n--;
+		p = *pkts++;
+		desc->address = p->buf_iova + p->data_off;
+		desc->length = p->pkt_len;
+		/*
+		 * The app should not send oversized
+		 * packets. tx_pkt_prepare includes a check as
+		 * well. But some apps ignore the device max size and
+		 * tx_pkt_prepare. Oversized packets cause WQ errrors
+		 * and the NIC ends up disabling the whole WQ. So
+		 * truncate packets..
+		 */
+		if (unlikely(p->pkt_len > ENIC_TX_MAX_PKT_SIZE)) {
+			desc->length = ENIC_TX_MAX_PKT_SIZE;
+			rte_atomic64_inc(&enic->soft_stats.tx_oversized);
+		}
+		desc++;
+	}
+}
+
+uint16_t enic_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+			       uint16_t nb_pkts)
+{
+	unsigned int head_idx, desc_count;
+	struct wq_enet_desc *desc;
+	struct vnic_wq *wq;
+	struct enic *enic;
+	uint16_t rem, n;
+
+	wq = (struct vnic_wq *)tx_queue;
+	enic = vnic_dev_priv(wq->vdev);
+	enic_cleanup_wq(enic, wq);
+	/* Will enqueue this many packets in this call */
+	nb_pkts = RTE_MIN(nb_pkts, wq->ring.desc_avail);
+	if (nb_pkts == 0)
+		return 0;
+
+	head_idx = wq->head_idx;
+	desc_count = wq->ring.desc_count;
+
+	/* Descriptors until the end of the ring */
+	n = desc_count - head_idx;
+	n = RTE_MIN(nb_pkts, n);
+
+	/* Save mbuf pointers to free later */
+	memcpy(wq->bufs + head_idx, tx_pkts, sizeof(struct rte_mbuf *) * n);
+
+	/* Enqueue until the ring end */
+	rem = nb_pkts - n;
+	desc = ((struct wq_enet_desc *)wq->ring.descs) + head_idx;
+	enqueue_simple_pkts(tx_pkts, desc, n, enic);
+
+	/* Wrap to the start of the ring */
+	if (rem) {
+		tx_pkts += n;
+		memcpy(wq->bufs, tx_pkts, sizeof(struct rte_mbuf *) * rem);
+		desc = (struct wq_enet_desc *)wq->ring.descs;
+		enqueue_simple_pkts(tx_pkts, desc, rem, enic);
+	}
+	rte_wmb();
+
+	/* Update head_idx and desc_avail */
+	wq->ring.desc_avail -= nb_pkts;
+	head_idx += nb_pkts;
+	if (head_idx >= desc_count)
+		head_idx -= desc_count;
+	wq->head_idx = head_idx;
+	iowrite32_relaxed(head_idx, &wq->ctrl->posted_index);
+	return nb_pkts;
+}

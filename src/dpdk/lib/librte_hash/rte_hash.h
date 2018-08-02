@@ -34,6 +34,9 @@ extern "C" {
 /** Default behavior of insertion, single writer/multi writer */
 #define RTE_HASH_EXTRA_FLAGS_MULTI_WRITER_ADD 0x02
 
+/** Flag to support reader writer concurrency */
+#define RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY 0x04
+
 /** Signature of key that is stored internally. */
 typedef uint32_t hash_sig_t;
 
@@ -122,6 +125,17 @@ rte_hash_free(struct rte_hash *h);
  */
 void
 rte_hash_reset(struct rte_hash *h);
+
+/**
+ * Return the number of keys in the hash table
+ * @param h
+ *  Hash table to query from
+ * @return
+ *   - -EINVAL if parameters are invalid
+ *   - A value indicating how many keys were inserted in the table.
+ */
+int32_t
+rte_hash_count(const struct rte_hash *h);
 
 /**
  * Add a key-value pair to an existing hash table.

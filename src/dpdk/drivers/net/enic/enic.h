@@ -50,6 +50,9 @@
 
 #define ENICPMD_FDIR_MAX           64
 
+/* HW default VXLAN port */
+#define ENIC_DEFAULT_VXLAN_PORT	   4789
+
 /*
  * Interrupt 0: LSC and errors
  * Interrupt 1: rx queue 0
@@ -123,6 +126,10 @@ struct enic {
 	u8 filter_actions; /* HW supported actions */
 	bool vxlan;
 	bool disable_overlay; /* devargs disable_overlay=1 */
+	bool nic_cfg_chk;     /* NIC_CFG_CHK available */
+	bool udp_rss_weak;    /* Bodega style UDP RSS */
+	uint8_t ig_vlan_rewrite_mode; /* devargs ig-vlan-rewrite */
+	uint16_t vxlan_port;  /* current vxlan port pushed to NIC */
 
 	unsigned int flags;
 	unsigned int priv_flags;
@@ -176,6 +183,7 @@ struct enic {
 
 	uint64_t rx_offload_capa; /* DEV_RX_OFFLOAD flags */
 	uint64_t tx_offload_capa; /* DEV_TX_OFFLOAD flags */
+	uint64_t tx_queue_offload_capa; /* DEV_TX_OFFLOAD flags */
 	uint64_t tx_offload_mask; /* PKT_TX flags accepted */
 };
 
@@ -305,11 +313,15 @@ int enic_clsf_init(struct enic *enic);
 void enic_clsf_destroy(struct enic *enic);
 uint16_t enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 			uint16_t nb_pkts);
+uint16_t enic_noscatter_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
+				  uint16_t nb_pkts);
 uint16_t enic_dummy_recv_pkts(void *rx_queue,
 			      struct rte_mbuf **rx_pkts,
 			      uint16_t nb_pkts);
 uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
+uint16_t enic_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+			       uint16_t nb_pkts);
 uint16_t enic_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
 int enic_set_mtu(struct enic *enic, uint16_t new_mtu);

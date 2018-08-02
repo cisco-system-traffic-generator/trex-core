@@ -108,25 +108,25 @@ __rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
 	/* workaround gcc strict-aliasing warning */
 	uintptr_t ptr = (uintptr_t)buf;
 	typedef uint16_t __attribute__((__may_alias__)) u16_p;
-	const u16_p *u16 = (const u16_p *)ptr;
+	const u16_p *u16_buf = (const u16_p *)ptr;
 
-	while (len >= (sizeof(*u16) * 4)) {
-		sum += u16[0];
-		sum += u16[1];
-		sum += u16[2];
-		sum += u16[3];
-		len -= sizeof(*u16) * 4;
-		u16 += 4;
+	while (len >= (sizeof(*u16_buf) * 4)) {
+		sum += u16_buf[0];
+		sum += u16_buf[1];
+		sum += u16_buf[2];
+		sum += u16_buf[3];
+		len -= sizeof(*u16_buf) * 4;
+		u16_buf += 4;
 	}
-	while (len >= sizeof(*u16)) {
-		sum += *u16;
-		len -= sizeof(*u16);
-		u16 += 1;
+	while (len >= sizeof(*u16_buf)) {
+		sum += *u16_buf;
+		len -= sizeof(*u16_buf);
+		u16_buf += 1;
 	}
 
 	/* if length is in odd bytes */
 	if (len == 1)
-		sum += *((const uint8_t *)u16);
+		sum += *((const uint8_t *)u16_buf);
 
 	return sum;
 }
@@ -238,6 +238,10 @@ rte_raw_cksum_mbuf(const struct rte_mbuf *m, uint32_t off, uint32_t len,
 	return 0;
 }
 
+static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
+   return((ipv4_hdr->version_ihl &0xf)<<2);
+}
+
 /**
  * Process the IPv4 checksum of an IPv4 header.
  *
@@ -252,12 +256,8 @@ static inline uint16_t
 rte_ipv4_cksum(const struct ipv4_hdr *ipv4_hdr)
 {
 	uint16_t cksum;
-	cksum = rte_raw_cksum(ipv4_hdr, sizeof(struct ipv4_hdr));
+	cksum = rte_raw_cksum(ipv4_hdr, rte_ipv4_header_len(ipv4_hdr));
 	return (cksum == 0xffff) ? cksum : (uint16_t)~cksum;
-}
-
-static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
-   return((ipv4_hdr->version_ihl &0xf)<<2);
 }
 
 /**
@@ -323,7 +323,7 @@ rte_ipv4_udptcp_cksum(const struct ipv4_hdr *ipv4_hdr, const void *l4_hdr)
 	uint32_t l4_len;
 
 	l4_len = (uint32_t)(rte_be_to_cpu_16(ipv4_hdr->total_length) -
-		sizeof(struct ipv4_hdr));
+		rte_ipv4_header_len(ipv4_hdr));
 
 	cksum = rte_raw_cksum(l4_hdr, l4_len);
 	cksum += rte_ipv4_phdr_cksum(ipv4_hdr, 0);

@@ -16,6 +16,13 @@
 #define ENIC_MIN_RQ_DESCS		64
 #define ENIC_MAX_RQ_DESCS		4096
 
+/* A descriptor ring has a multiple of 32 descriptors */
+#define ENIC_ALIGN_DESCS		32
+#define ENIC_ALIGN_DESCS_MASK		~(ENIC_ALIGN_DESCS - 1)
+
+/* Request a completion index every 32 buffers (roughly packets) */
+#define ENIC_WQ_CQ_THRESH		32
+
 #define ENIC_MIN_MTU			68
 
 /* Does not include (possible) inserted VLAN tag and FCS */
@@ -30,6 +37,15 @@
 #define ENIC_NON_TSO_MAX_DESC		16
 #define ENIC_DEFAULT_RX_FREE_THRESH	32
 #define ENIC_TX_XMIT_MAX		64
+#define ENIC_RX_BURST_MAX		64
+
+/* Defaults for dev_info.default_{rx,tx}portconf */
+#define ENIC_DEFAULT_RX_BURST		32
+#define ENIC_DEFAULT_RX_RINGS		1
+#define ENIC_DEFAULT_RX_RING_SIZE	512
+#define ENIC_DEFAULT_TX_BURST		32
+#define ENIC_DEFAULT_TX_RINGS		1
+#define ENIC_DEFAULT_TX_RING_SIZE	512
 
 #define ENIC_RSS_DEFAULT_CPU    0
 #define ENIC_RSS_BASE_CPU       0

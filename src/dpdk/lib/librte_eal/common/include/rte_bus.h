@@ -211,6 +211,7 @@ struct rte_bus {
 	rte_bus_parse_t parse;       /**< Parse a device name */
 	struct rte_bus_conf conf;    /**< Bus configuration */
 	rte_bus_get_iommu_class_t get_iommu_class; /**< Get iommu class */
+	rte_dev_iterate_t dev_iterate; /**< Device iterator. */
 };
 
 /**
@@ -325,8 +326,7 @@ enum rte_iova_mode rte_bus_get_iommu_class(void);
  * The constructor has higher priority than PMD constructors.
  */
 #define RTE_REGISTER_BUS(nm, bus) \
-RTE_INIT_PRIO(businitfn_ ##nm, BUS); \
-static void businitfn_ ##nm(void) \
+RTE_INIT_PRIO(businitfn_ ##nm, BUS) \
 {\
 	(bus).name = RTE_STR(nm);\
 	rte_bus_register(&bus); \

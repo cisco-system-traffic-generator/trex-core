@@ -18,6 +18,7 @@ CFLAGS += $(WERROR_FLAGS) -O3
 LDLIBS += -lexecinfo
 LDLIBS += -lpthread
 LDLIBS += -lgcc_s
+LDLIBS += -lrte_kvargs
 
 EXPORT_MAP := ../../rte_eal_version.map
 
@@ -52,12 +53,14 @@ SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_hypervisor.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_string_fns.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_hexdump.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_devargs.c
+SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_class.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_bus.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_dev.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_options.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_thread.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_proc.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_fbarray.c
+SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += eal_common_uuid.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += rte_malloc.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += malloc_elem.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_BSDAPP) += malloc_heap.c

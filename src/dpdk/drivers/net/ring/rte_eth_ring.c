@@ -164,6 +164,7 @@ eth_dev_info(struct rte_eth_dev *dev,
 	dev_info->max_rx_queues = (uint16_t)internals->max_rx_queues;
 	dev_info->max_tx_queues = (uint16_t)internals->max_tx_queues;
 	dev_info->min_rx_bufsize = 0;
+	dev_info->rx_offload_capa = DEV_RX_OFFLOAD_CRC_STRIP;
 }
 
 static int
@@ -684,9 +685,7 @@ RTE_PMD_REGISTER_ALIAS(net_ring, eth_ring);
 RTE_PMD_REGISTER_PARAM_STRING(net_ring,
 	ETH_RING_NUMA_NODE_ACTION_ARG "=name:node:action(ATTACH|CREATE)");
 
-RTE_INIT(eth_ring_init_log);
-static void
-eth_ring_init_log(void)
+RTE_INIT(eth_ring_init_log)
 {
 	eth_ring_logtype = rte_log_register("pmd.net.ring");
 	if (eth_ring_logtype >= 0)

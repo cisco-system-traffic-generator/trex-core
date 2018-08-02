@@ -42,10 +42,7 @@
 #include "rte_ethdev_driver.h"
 #include "ethdev_profile.h"
 
-static int ethdev_logtype;
-
-#define ethdev_log(level, fmt, ...) \
-	rte_log(RTE_LOG_ ## level, ethdev_logtype, fmt "\n", ## __VA_ARGS__)
+int rte_eth_dev_logtype;
 
 static const char *MZ_RTE_ETH_DEV_DATA = "rte_eth_dev_data";
 struct rte_eth_dev rte_eth_devices[RTE_MAX_ETHPORTS];
@@ -129,6 +126,7 @@ static const struct {
 	RTE_RX_OFFLOAD_BIT2STR(SCATTER),
 	RTE_RX_OFFLOAD_BIT2STR(TIMESTAMP),
 	RTE_RX_OFFLOAD_BIT2STR(SECURITY),
+	RTE_RX_OFFLOAD_BIT2STR(KEEP_CRC),
 };
 
 #undef RTE_RX_OFFLOAD_BIT2STR
@@ -303,14 +301,16 @@ rte_eth_dev_allocate(const char *name)
 	rte_spinlock_lock(&rte_eth_dev_shared_data->ownership_lock);
 
 	if (_rte_eth_dev_allocated(name) != NULL) {
-		ethdev_log(ERR, "Ethernet device with name %s already allocated",
-				name);
+		RTE_ETHDEV_LOG(ERR,
+			"Ethernet device with name %s already allocated\n",
+			name);
 		goto unlock;
 	}
 
 	port_id = rte_eth_dev_find_free_port();
 	if (port_id == RTE_MAX_ETHPORTS) {
-		ethdev_log(ERR, "Reached maximum number of Ethernet ports");
+		RTE_ETHDEV_LOG(ERR,
+			"Reached maximum number of Ethernet ports\n");
 		goto unlock;
 	}
 
@@ -346,8 +346,8 @@ rte_eth_dev_attach_secondary(const char *name)
 			break;
 	}
 	if (i == RTE_MAX_ETHPORTS) {
-		RTE_PMD_DEBUG_TRACE(
-			"device %s is not driven by the primary process\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Device %s is not driven by the primary process\n",
 			name);
 	} else {
 		eth_dev = eth_dev_get(i);
@@ -394,7 +394,8 @@ rte_eth_is_valid_owner_id(uint64_t owner_id)
 {
 	if (owner_id == RTE_ETH_DEV_NO_OWNER ||
 	    rte_eth_dev_shared_data->next_owner_id <= owner_id) {
-		RTE_PMD_DEBUG_TRACE("Invalid owner_id=%016"PRIX64".\n", owner_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid owner_id=%016"PRIx64"\n",
+			owner_id);
 		return 0;
 	}
 	return 1;
@@ -437,7 +438,8 @@ _rte_eth_dev_owner_set(const uint16_t port_id, const uint64_t old_owner_id,
 	int sret;
 
 	if (port_id >= RTE_MAX_ETHPORTS || !is_allocated(ethdev)) {
-		RTE_PMD_DEBUG_TRACE("Port id %"PRIu16" is not allocated.\n", port_id);
+		RTE_ETHDEV_LOG(ERR, "Port id %"PRIu16" is not allocated\n",
+			port_id);
 		return -ENODEV;
 	}
 
@@ -447,22 +449,22 @@ _rte_eth_dev_owner_set(const uint16_t port_id, const uint64_t old_owner_id,
 
 	port_owner = &rte_eth_devices[port_id].data->owner;
 	if (port_owner->id != old_owner_id) {
-		RTE_PMD_DEBUG_TRACE("Cannot set owner to port %d already owned"
-				    " by %s_%016"PRIX64".\n", port_id,
-				    port_owner->name, port_owner->id);
+		RTE_ETHDEV_LOG(ERR,
+			"Cannot set owner to port %u already owned by %s_%016"PRIX64"\n",
+			port_id, port_owner->name, port_owner->id);
 		return -EPERM;
 	}
 
 	sret = snprintf(port_owner->name, RTE_ETH_MAX_OWNER_NAME_LEN, "%s",
 			new_owner->name);
 	if (sret < 0 || sret >= RTE_ETH_MAX_OWNER_NAME_LEN)
-		RTE_PMD_DEBUG_TRACE("Port %d owner name was truncated.\n",
-				    port_id);
+		RTE_ETHDEV_LOG(ERR, "Port %u owner name was truncated\n",
+			port_id);
 
 	port_owner->id = new_owner->id;
 
-	RTE_PMD_DEBUG_TRACE("Port %d owner is %s_%016"PRIX64".\n", port_id,
-			    new_owner->name, new_owner->id);
+	RTE_ETHDEV_LOG(ERR, "Port %u owner is %s_%016"PRIx64"\n",
+		port_id, new_owner->name, new_owner->id);
 
 	return 0;
 }
@@ -514,8 +516,9 @@ rte_eth_dev_owner_delete(const uint64_t owner_id)
 			if (rte_eth_devices[port_id].data->owner.id == owner_id)
 				memset(&rte_eth_devices[port_id].data->owner, 0,
 				       sizeof(struct rte_eth_dev_owner));
-		RTE_PMD_DEBUG_TRACE("All port owners owned by %016"PRIX64
-				" identifier have removed.\n", owner_id);
+		RTE_ETHDEV_LOG(ERR,
+			"All port owners owned by %016"PRIx64" identifier have removed\n",
+			owner_id);
 	}
 
 	rte_spinlock_unlock(&rte_eth_dev_shared_data->ownership_lock);
@@ -532,7 +535,8 @@ rte_eth_dev_owner_get(const uint16_t port_id, struct rte_eth_dev_owner *owner)
 	rte_spinlock_lock(&rte_eth_dev_shared_data->ownership_lock);
 
 	if (port_id >= RTE_MAX_ETHPORTS || !is_allocated(ethdev)) {
-		RTE_PMD_DEBUG_TRACE("Port id %"PRIu16" is not allocated.\n", port_id);
+		RTE_ETHDEV_LOG(ERR, "Port id %"PRIu16" is not allocated\n",
+			port_id);
 		ret = -ENODEV;
 	} else {
 		rte_memcpy(owner, &ethdev->data->owner, sizeof(*owner));
@@ -596,7 +600,7 @@ rte_eth_dev_get_name_by_port(uint16_t port_id, char *name)
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
 
 	if (name == NULL) {
-		RTE_PMD_DEBUG_TRACE("Null pointer is specified\n");
+		RTE_ETHDEV_LOG(ERR, "Null pointer is specified\n");
 		return -EINVAL;
 	}
 
@@ -613,7 +617,7 @@ rte_eth_dev_get_port_by_name(const char *name, uint16_t *port_id)
 	uint32_t pid;
 
 	if (name == NULL) {
-		RTE_PMD_DEBUG_TRACE("Null pointer is specified\n");
+		RTE_ETHDEV_LOG(ERR, "Null pointer is specified\n");
 		return -EINVAL;
 	}
 
@@ -654,7 +658,7 @@ rte_eth_dev_attach(const char *devargs, uint16_t *port_id)
 	}
 
 	/* parse devargs */
-	if (rte_devargs_parse(&da, "%s", devargs))
+	if (rte_devargs_parse(&da, devargs))
 		goto err;
 
 	ret = rte_eal_hotplug_add(da.bus->name, da.name, da.args);
@@ -663,7 +667,7 @@ rte_eth_dev_attach(const char *devargs, uint16_t *port_id)
 
 	/* no point looking at the port count if no port exists */
 	if (!rte_eth_dev_count_total()) {
-		ethdev_log(ERR, "No port found for device (%s)", da.name);
+		RTE_ETHDEV_LOG(ERR, "No port found for device (%s)\n", da.name);
 		ret = -1;
 		goto err;
 	}
@@ -698,8 +702,8 @@ rte_eth_dev_detach(uint16_t port_id, char *name __rte_unused)
 
 	dev_flags = rte_eth_devices[port_id].data->dev_flags;
 	if (dev_flags & RTE_ETH_DEV_BONDED_SLAVE) {
-		ethdev_log(ERR,
-			"Port %" PRIu16 " is bonded, cannot detach", port_id);
+		RTE_ETHDEV_LOG(ERR,
+			"Port %"PRIu16" is bonded, cannot detach\n", port_id);
 		return -ENOTSUP;
 	}
 
@@ -778,21 +782,22 @@ rte_eth_dev_rx_queue_start(uint16_t port_id, uint16_t rx_queue_id)
 
 	dev = &rte_eth_devices[port_id];
 	if (!dev->data->dev_started) {
-		RTE_PMD_DEBUG_TRACE(
-		    "port %d must be started before start any queue\n", port_id);
+		RTE_ETHDEV_LOG(ERR,
+			"Port %u must be started before start any queue\n",
+			port_id);
 		return -EINVAL;
 	}
 
 	if (rx_queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%d\n", rx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", rx_queue_id);
 		return -EINVAL;
 	}
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_start, -ENOTSUP);
 
 	if (dev->data->rx_queue_state[rx_queue_id] != RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_PMD_DEBUG_TRACE("Queue %" PRIu16" of device with port_id=%" PRIu8
-			" already started\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Queue %"PRIu16" of device with port_id=%"PRIu16" already started\n",
 			rx_queue_id, port_id);
 		return 0;
 	}
@@ -811,15 +816,15 @@ rte_eth_dev_rx_queue_stop(uint16_t port_id, uint16_t rx_queue_id)
 
 	dev = &rte_eth_devices[port_id];
 	if (rx_queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%d\n", rx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", rx_queue_id);
 		return -EINVAL;
 	}
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_stop, -ENOTSUP);
 
 	if (dev->data->rx_queue_state[rx_queue_id] == RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_PMD_DEBUG_TRACE("Queue %" PRIu16" of device with port_id=%" PRIu8
-			" already stopped\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Queue %"PRIu16" of device with port_id=%"PRIu16" already stopped\n",
 			rx_queue_id, port_id);
 		return 0;
 	}
@@ -837,28 +842,27 @@ rte_eth_dev_tx_queue_start(uint16_t port_id, uint16_t tx_queue_id)
 
 	dev = &rte_eth_devices[port_id];
 	if (!dev->data->dev_started) {
-		RTE_PMD_DEBUG_TRACE(
-		    "port %d must be started before start any queue\n", port_id);
+		RTE_ETHDEV_LOG(ERR,
+			"Port %u must be started before start any queue\n",
+			port_id);
 		return -EINVAL;
 	}
 
 	if (tx_queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", tx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", tx_queue_id);
 		return -EINVAL;
 	}
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->tx_queue_start, -ENOTSUP);
 
 	if (dev->data->tx_queue_state[tx_queue_id] != RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_PMD_DEBUG_TRACE("Queue %" PRIu16" of device with port_id=%" PRIu8
-			" already started\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Queue %"PRIu16" of device with port_id=%"PRIu16" already started\n",
 			tx_queue_id, port_id);
 		return 0;
 	}
 
-	return eth_err(port_id, dev->dev_ops->tx_queue_start(dev,
-							     tx_queue_id));
-
+	return eth_err(port_id, dev->dev_ops->tx_queue_start(dev, tx_queue_id));
 }
 
 int
@@ -870,15 +874,15 @@ rte_eth_dev_tx_queue_stop(uint16_t port_id, uint16_t tx_queue_id)
 
 	dev = &rte_eth_devices[port_id];
 	if (tx_queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", tx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", tx_queue_id);
 		return -EINVAL;
 	}
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->tx_queue_stop, -ENOTSUP);
 
 	if (dev->data->tx_queue_state[tx_queue_id] == RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_PMD_DEBUG_TRACE("Queue %" PRIu16" of device with port_id=%" PRIu8
-			" already stopped\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Queue %"PRIu16" of device with port_id=%"PRIu16" already stopped\n",
 			tx_queue_id, port_id);
 		return 0;
 	}
@@ -970,41 +974,6 @@ rte_eth_speed_bitflag(uint32_t speed, int duplex)
 	}
 }
 
-/**
- * A conversion function from rxmode bitfield API.
- */
-static void
-rte_eth_convert_rx_offload_bitfield(const struct rte_eth_rxmode *rxmode,
-				    uint64_t *rx_offloads)
-{
-	uint64_t offloads = 0;
-
-	if (rxmode->header_split == 1)
-		offloads |= DEV_RX_OFFLOAD_HEADER_SPLIT;
-	if (rxmode->hw_ip_checksum == 1)
-		offloads |= DEV_RX_OFFLOAD_CHECKSUM;
-	if (rxmode->hw_vlan_filter == 1)
-		offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
-	if (rxmode->hw_vlan_strip == 1)
-		offloads |= DEV_RX_OFFLOAD_VLAN_STRIP;
-	if (rxmode->hw_vlan_extend == 1)
-		offloads |= DEV_RX_OFFLOAD_VLAN_EXTEND;
-	if (rxmode->jumbo_frame == 1)
-		offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-	if (rxmode->hw_strip_crc == 1)
-		offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
-	if (rxmode->enable_scatter == 1)
-		offloads |= DEV_RX_OFFLOAD_SCATTER;
-	if (rxmode->enable_lro == 1)
-		offloads |= DEV_RX_OFFLOAD_TCP_LRO;
-	if (rxmode->hw_timestamp == 1)
-		offloads |= DEV_RX_OFFLOAD_TIMESTAMP;
-	if (rxmode->security == 1)
-		offloads |= DEV_RX_OFFLOAD_SECURITY;
-
-	*rx_offloads = offloads;
-}
-
 const char * __rte_experimental
 rte_eth_dev_rx_offload_name(uint64_t offload)
 {
@@ -1071,32 +1040,25 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	}
 
 	if (nb_rx_q > RTE_MAX_QUEUES_PER_PORT) {
-		RTE_PMD_DEBUG_TRACE(
+		RTE_ETHDEV_LOG(ERR,
 			"Number of RX queues requested (%u) is greater than max supported(%d)\n",
 			nb_rx_q, RTE_MAX_QUEUES_PER_PORT);
 		return -EINVAL;
 	}
 
 	if (nb_tx_q > RTE_MAX_QUEUES_PER_PORT) {
-		RTE_PMD_DEBUG_TRACE(
+		RTE_ETHDEV_LOG(ERR,
 			"Number of TX queues requested (%u) is greater than max supported(%d)\n",
 			nb_tx_q, RTE_MAX_QUEUES_PER_PORT);
 		return -EINVAL;
 	}
 
 	if (dev->data->dev_started) {
-		RTE_PMD_DEBUG_TRACE(
-		    "port %d must be stopped to allow configuration\n", port_id);
+		RTE_ETHDEV_LOG(ERR,
+			"Port %u must be stopped to allow configuration\n",
+			port_id);
 		return -EBUSY;
 	}
-
-	/*
-	 * Convert between the offloads API to enable PMDs to support
-	 * only one of them.
-	 */
-	if (dev_conf->rxmode.ignore_offload_bitfield == 0)
-		rte_eth_convert_rx_offload_bitfield(
-				&dev_conf->rxmode, &local_conf.rxmode.offloads);
 
 	/* Copy the dev_conf parameter into the dev structure */
 	memcpy(&dev->data->dev_conf, &local_conf, sizeof(dev->data->dev_conf));
@@ -1107,28 +1069,28 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	 * configured device.
 	 */
 	if (nb_rx_q > dev_info.max_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("ethdev port_id=%d nb_rx_queues=%d > %d\n",
-				port_id, nb_rx_q, dev_info.max_rx_queues);
+		RTE_ETHDEV_LOG(ERR, "Ethdev port_id=%u nb_rx_queues=%u > %u\n",
+			port_id, nb_rx_q, dev_info.max_rx_queues);
 		return -EINVAL;
 	}
 
 	if (nb_tx_q > dev_info.max_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("ethdev port_id=%d nb_tx_queues=%d > %d\n",
-				port_id, nb_tx_q, dev_info.max_tx_queues);
+		RTE_ETHDEV_LOG(ERR, "Ethdev port_id=%u nb_tx_queues=%u > %u\n",
+			port_id, nb_tx_q, dev_info.max_tx_queues);
 		return -EINVAL;
 	}
 
 	/* Check that the device supports requested interrupts */
 	if ((dev_conf->intr_conf.lsc == 1) &&
-		(!(dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC))) {
-			RTE_PMD_DEBUG_TRACE("driver %s does not support lsc\n",
-					dev->device->driver->name);
-			return -EINVAL;
+			(!(dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC))) {
+		RTE_ETHDEV_LOG(ERR, "Driver %s does not support lsc\n",
+			dev->device->driver->name);
+		return -EINVAL;
 	}
 	if ((dev_conf->intr_conf.rmv == 1) &&
-	    (!(dev->data->dev_flags & RTE_ETH_DEV_INTR_RMV))) {
-		RTE_PMD_DEBUG_TRACE("driver %s does not support rmv\n",
-				    dev->device->driver->name);
+			(!(dev->data->dev_flags & RTE_ETH_DEV_INTR_RMV))) {
+		RTE_ETHDEV_LOG(ERR, "Driver %s does not support rmv\n",
+			dev->device->driver->name);
 		return -EINVAL;
 	}
 
@@ -1137,19 +1099,16 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	 * length is supported by the configured device.
 	 */
 	if (local_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (dev_conf->rxmode.max_rx_pkt_len >
-		    dev_info.max_rx_pktlen) {
-			RTE_PMD_DEBUG_TRACE("ethdev port_id=%d max_rx_pkt_len %u"
-				" > max valid value %u\n",
-				port_id,
-				(unsigned)dev_conf->rxmode.max_rx_pkt_len,
-				(unsigned)dev_info.max_rx_pktlen);
+		if (dev_conf->rxmode.max_rx_pkt_len > dev_info.max_rx_pktlen) {
+			RTE_ETHDEV_LOG(ERR,
+				"Ethdev port_id=%u max_rx_pkt_len %u > max valid value %u\n",
+				port_id, dev_conf->rxmode.max_rx_pkt_len,
+				dev_info.max_rx_pktlen);
 			return -EINVAL;
 		} else if (dev_conf->rxmode.max_rx_pkt_len < ETHER_MIN_LEN) {
-			RTE_PMD_DEBUG_TRACE("ethdev port_id=%d max_rx_pkt_len %u"
-				" < min valid value %u\n",
-				port_id,
-				(unsigned)dev_conf->rxmode.max_rx_pkt_len,
+			RTE_ETHDEV_LOG(ERR,
+				"Ethdev port_id=%u max_rx_pkt_len %u < min valid value %u\n",
+				port_id, dev_conf->rxmode.max_rx_pkt_len,
 				(unsigned)ETHER_MIN_LEN);
 			return -EINVAL;
 		}
@@ -1164,36 +1123,42 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	/* Any requested offloading must be within its device capabilities */
 	if ((local_conf.rxmode.offloads & dev_info.rx_offload_capa) !=
 	     local_conf.rxmode.offloads) {
-		ethdev_log(ERR, "ethdev port_id=%d requested Rx offloads "
-				"0x%" PRIx64 " doesn't match Rx offloads "
-				"capabilities 0x%" PRIx64 " in %s()\n",
-				port_id,
-				local_conf.rxmode.offloads,
-				dev_info.rx_offload_capa,
-				__func__);
-		/* Will return -EINVAL in the next release */
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%u requested Rx offloads 0x%"PRIx64" doesn't match Rx offloads "
+			"capabilities 0x%"PRIx64" in %s()\n",
+			port_id, local_conf.rxmode.offloads,
+			dev_info.rx_offload_capa,
+			__func__);
+		return -EINVAL;
 	}
 	if ((local_conf.txmode.offloads & dev_info.tx_offload_capa) !=
 	     local_conf.txmode.offloads) {
-		ethdev_log(ERR, "ethdev port_id=%d requested Tx offloads "
-				"0x%" PRIx64 " doesn't match Tx offloads "
-				"capabilities 0x%" PRIx64 " in %s()\n",
-				port_id,
-				local_conf.txmode.offloads,
-				dev_info.tx_offload_capa,
-				__func__);
-		/* Will return -EINVAL in the next release */
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%u requested Tx offloads 0x%"PRIx64" doesn't match Tx offloads "
+			"capabilities 0x%"PRIx64" in %s()\n",
+			port_id, local_conf.txmode.offloads,
+			dev_info.tx_offload_capa,
+			__func__);
+		return -EINVAL;
+	}
+
+	if ((local_conf.rxmode.offloads & DEV_RX_OFFLOAD_CRC_STRIP) &&
+			(local_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)) {
+		RTE_ETHDEV_LOG(ERR,
+			"Port id=%u not allowed to set both CRC STRIP and KEEP CRC offload flags\n",
+			port_id);
+		return -EINVAL;
 	}
 
 	/* Check that device supports requested rss hash functions. */
 	if ((dev_info.flow_type_rss_offloads |
 	     dev_conf->rx_adv_conf.rss_conf.rss_hf) !=
 	    dev_info.flow_type_rss_offloads) {
-		RTE_PMD_DEBUG_TRACE("ethdev port_id=%d invalid rss_hf: "
-				    "0x%"PRIx64", valid value: 0x%"PRIx64"\n",
-				    port_id,
-				    dev_conf->rx_adv_conf.rss_conf.rss_hf,
-				    dev_info.flow_type_rss_offloads);
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%u invalid rss_hf: 0x%"PRIx64", valid value: 0x%"PRIx64"\n",
+			port_id, dev_conf->rx_adv_conf.rss_conf.rss_hf,
+			dev_info.flow_type_rss_offloads);
+		return -EINVAL;
 	}
 
 	/*
@@ -1201,23 +1166,25 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	 */
 	diag = rte_eth_dev_rx_queue_config(dev, nb_rx_q);
 	if (diag != 0) {
-		RTE_PMD_DEBUG_TRACE("port%d rte_eth_dev_rx_queue_config = %d\n",
-				port_id, diag);
+		RTE_ETHDEV_LOG(ERR,
+			"Port%u rte_eth_dev_rx_queue_config = %d\n",
+			port_id, diag);
 		return diag;
 	}
 
 	diag = rte_eth_dev_tx_queue_config(dev, nb_tx_q);
 	if (diag != 0) {
-		RTE_PMD_DEBUG_TRACE("port%d rte_eth_dev_tx_queue_config = %d\n",
-				port_id, diag);
+		RTE_ETHDEV_LOG(ERR,
+			"Port%u rte_eth_dev_tx_queue_config = %d\n",
+			port_id, diag);
 		rte_eth_dev_rx_queue_config(dev, 0);
 		return diag;
 	}
 
 	diag = (*dev->dev_ops->dev_configure)(dev);
 	if (diag != 0) {
-		RTE_PMD_DEBUG_TRACE("port%d dev_configure = %d\n",
-				port_id, diag);
+		RTE_ETHDEV_LOG(ERR, "Port%u dev_configure = %d\n",
+			port_id, diag);
 		rte_eth_dev_rx_queue_config(dev, 0);
 		rte_eth_dev_tx_queue_config(dev, 0);
 		return eth_err(port_id, diag);
@@ -1226,8 +1193,8 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 	/* Initialize Rx profiling if enabled at compilation time. */
 	diag = __rte_eth_profile_rx_init(port_id, dev);
 	if (diag != 0) {
-		RTE_PMD_DEBUG_TRACE("port%d __rte_eth_profile_rx_init = %d\n",
-				port_id, diag);
+		RTE_ETHDEV_LOG(ERR, "Port%u __rte_eth_profile_rx_init = %d\n",
+			port_id, diag);
 		rte_eth_dev_rx_queue_config(dev, 0);
 		rte_eth_dev_tx_queue_config(dev, 0);
 		return eth_err(port_id, diag);
@@ -1240,8 +1207,7 @@ void
 _rte_eth_dev_reset(struct rte_eth_dev *dev)
 {
 	if (dev->data->dev_started) {
-		RTE_PMD_DEBUG_TRACE(
-			"port %d must be stopped to allow reset\n",
+		RTE_ETHDEV_LOG(ERR, "Port %u must be stopped to allow reset\n",
 			dev->data->port_id);
 		return;
 	}
@@ -1320,8 +1286,8 @@ rte_eth_dev_start(uint16_t port_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->dev_start, -ENOTSUP);
 
 	if (dev->data->dev_started != 0) {
-		RTE_PMD_DEBUG_TRACE("Device with port_id=%" PRIu16
-			" already started\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Device with port_id=%"PRIu16" already started\n",
 			port_id);
 		return 0;
 	}
@@ -1352,8 +1318,8 @@ rte_eth_dev_stop(uint16_t port_id)
 	RTE_FUNC_PTR_OR_RET(*dev->dev_ops->dev_stop);
 
 	if (dev->data->dev_started == 0) {
-		RTE_PMD_DEBUG_TRACE("Device with port_id=%" PRIu16
-			" already stopped\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Device with port_id=%"PRIu16" already stopped\n",
 			port_id);
 		return;
 	}
@@ -1465,7 +1431,7 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 
 	dev = &rte_eth_devices[port_id];
 	if (rx_queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%d\n", rx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", rx_queue_id);
 		return -EINVAL;
 	}
 
@@ -1479,23 +1445,20 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	 */
 	rte_eth_dev_info_get(port_id, &dev_info);
 	if (mp->private_data_size < sizeof(struct rte_pktmbuf_pool_private)) {
-		RTE_PMD_DEBUG_TRACE("%s private_data_size %d < %d\n",
-				mp->name, (int) mp->private_data_size,
-				(int) sizeof(struct rte_pktmbuf_pool_private));
+		RTE_ETHDEV_LOG(ERR, "%s private_data_size %d < %d\n",
+			mp->name, (int)mp->private_data_size,
+			(int)sizeof(struct rte_pktmbuf_pool_private));
 		return -ENOSPC;
 	}
 	mbp_buf_size = rte_pktmbuf_data_room_size(mp);
 
 	if ((mbp_buf_size - RTE_PKTMBUF_HEADROOM) < dev_info.min_rx_bufsize) {
-		RTE_PMD_DEBUG_TRACE("%s mbuf_data_room_size %d < %d "
-				"(RTE_PKTMBUF_HEADROOM=%d + min_rx_bufsize(dev)"
-				"=%d)\n",
-				mp->name,
-				(int)mbp_buf_size,
-				(int)(RTE_PKTMBUF_HEADROOM +
-				      dev_info.min_rx_bufsize),
-				(int)RTE_PKTMBUF_HEADROOM,
-				(int)dev_info.min_rx_bufsize);
+		RTE_ETHDEV_LOG(ERR,
+			"%s mbuf_data_room_size %d < %d (RTE_PKTMBUF_HEADROOM=%d + min_rx_bufsize(dev)=%d)\n",
+			mp->name, (int)mbp_buf_size,
+			(int)(RTE_PKTMBUF_HEADROOM + dev_info.min_rx_bufsize),
+			(int)RTE_PKTMBUF_HEADROOM,
+			(int)dev_info.min_rx_bufsize);
 		return -EINVAL;
 	}
 
@@ -1511,10 +1474,9 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 			nb_rx_desc < dev_info.rx_desc_lim.nb_min ||
 			nb_rx_desc % dev_info.rx_desc_lim.nb_align != 0) {
 
-		RTE_PMD_DEBUG_TRACE("Invalid value for nb_rx_desc(=%hu), "
-			"should be: <= %hu, = %hu, and a product of %hu\n",
-			nb_rx_desc,
-			dev_info.rx_desc_lim.nb_max,
+		RTE_ETHDEV_LOG(ERR,
+			"Invalid value for nb_rx_desc(=%hu), should be: <= %hu, = %hu, and a product of %hu\n",
+			nb_rx_desc, dev_info.rx_desc_lim.nb_max,
 			dev_info.rx_desc_lim.nb_min,
 			dev_info.rx_desc_lim.nb_align);
 		return -EINVAL;
@@ -1542,14 +1504,6 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 		rx_conf = &dev_info.default_rxconf;
 
 	local_conf = *rx_conf;
-	if (dev->data->dev_conf.rxmode.ignore_offload_bitfield == 0) {
-		/**
-		 * Reflect port offloads to queue offloads in order for
-		 * offloads to not be discarded.
-		 */
-		rte_eth_convert_rx_offload_bitfield(&dev->data->dev_conf.rxmode,
-						    &local_conf.offloads);
-	}
 
 	/*
 	 * If an offloading has already been enabled in
@@ -1571,16 +1525,13 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	 */
 	if ((local_conf.offloads & dev_info.rx_queue_offload_capa) !=
 	     local_conf.offloads) {
-		ethdev_log(ERR, "Ethdev port_id=%d rx_queue_id=%d, new "
-				"added offloads 0x%" PRIx64 " must be "
-				"within pre-queue offload capabilities 0x%"
-				PRIx64 " in %s()\n",
-				port_id,
-				rx_queue_id,
-				local_conf.offloads,
-				dev_info.rx_queue_offload_capa,
-				__func__);
-		/* Will return -EINVAL in the next release */
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%d rx_queue_id=%d, new added offloads 0x%"PRIx64" must be "
+			"within pre-queue offload capabilities 0x%"PRIx64" in %s()\n",
+			port_id, rx_queue_id, local_conf.offloads,
+			dev_info.rx_queue_offload_capa,
+			__func__);
+		return -EINVAL;
 	}
 
 	ret = (*dev->dev_ops->rx_queue_setup)(dev, rx_queue_id, nb_rx_desc,
@@ -1592,55 +1543,6 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	}
 
 	return eth_err(port_id, ret);
-}
-
-/**
- * Convert from tx offloads to txq_flags.
- */
-static void
-rte_eth_convert_tx_offload(const uint64_t tx_offloads, uint32_t *txq_flags)
-{
-	uint32_t flags = 0;
-
-	if (!(tx_offloads & DEV_TX_OFFLOAD_MULTI_SEGS))
-		flags |= ETH_TXQ_FLAGS_NOMULTSEGS;
-	if (!(tx_offloads & DEV_TX_OFFLOAD_VLAN_INSERT))
-		flags |= ETH_TXQ_FLAGS_NOVLANOFFL;
-	if (!(tx_offloads & DEV_TX_OFFLOAD_SCTP_CKSUM))
-		flags |= ETH_TXQ_FLAGS_NOXSUMSCTP;
-	if (!(tx_offloads & DEV_TX_OFFLOAD_UDP_CKSUM))
-		flags |= ETH_TXQ_FLAGS_NOXSUMUDP;
-	if (!(tx_offloads & DEV_TX_OFFLOAD_TCP_CKSUM))
-		flags |= ETH_TXQ_FLAGS_NOXSUMTCP;
-	if (tx_offloads & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-		flags |= ETH_TXQ_FLAGS_NOREFCOUNT | ETH_TXQ_FLAGS_NOMULTMEMP;
-
-	*txq_flags = flags;
-}
-
-/**
- * A conversion function from txq_flags API.
- */
-static void
-rte_eth_convert_txq_flags(const uint32_t txq_flags, uint64_t *tx_offloads)
-{
-	uint64_t offloads = 0;
-
-	if (!(txq_flags & ETH_TXQ_FLAGS_NOMULTSEGS))
-		offloads |= DEV_TX_OFFLOAD_MULTI_SEGS;
-	if (!(txq_flags & ETH_TXQ_FLAGS_NOVLANOFFL))
-		offloads |= DEV_TX_OFFLOAD_VLAN_INSERT;
-	if (!(txq_flags & ETH_TXQ_FLAGS_NOXSUMSCTP))
-		offloads |= DEV_TX_OFFLOAD_SCTP_CKSUM;
-	if (!(txq_flags & ETH_TXQ_FLAGS_NOXSUMUDP))
-		offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
-	if (!(txq_flags & ETH_TXQ_FLAGS_NOXSUMTCP))
-		offloads |= DEV_TX_OFFLOAD_TCP_CKSUM;
-	if ((txq_flags & ETH_TXQ_FLAGS_NOREFCOUNT) &&
-	    (txq_flags & ETH_TXQ_FLAGS_NOMULTMEMP))
-		offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-
-	*tx_offloads = offloads;
 }
 
 int
@@ -1657,7 +1559,7 @@ rte_eth_tx_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 
 	dev = &rte_eth_devices[port_id];
 	if (tx_queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", tx_queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", tx_queue_id);
 		return -EINVAL;
 	}
 
@@ -1676,12 +1578,11 @@ rte_eth_tx_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 	if (nb_tx_desc > dev_info.tx_desc_lim.nb_max ||
 	    nb_tx_desc < dev_info.tx_desc_lim.nb_min ||
 	    nb_tx_desc % dev_info.tx_desc_lim.nb_align != 0) {
-		RTE_PMD_DEBUG_TRACE("Invalid value for nb_tx_desc(=%hu), "
-				"should be: <= %hu, = %hu, and a product of %hu\n",
-				nb_tx_desc,
-				dev_info.tx_desc_lim.nb_max,
-				dev_info.tx_desc_lim.nb_min,
-				dev_info.tx_desc_lim.nb_align);
+		RTE_ETHDEV_LOG(ERR,
+			"Invalid value for nb_tx_desc(=%hu), should be: <= %hu, = %hu, and a product of %hu\n",
+			nb_tx_desc, dev_info.tx_desc_lim.nb_max,
+			dev_info.tx_desc_lim.nb_min,
+			dev_info.tx_desc_lim.nb_align);
 		return -EINVAL;
 	}
 
@@ -1706,15 +1607,7 @@ rte_eth_tx_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 	if (tx_conf == NULL)
 		tx_conf = &dev_info.default_txconf;
 
-	/*
-	 * Convert between the offloads API to enable PMDs to support
-	 * only one of them.
-	 */
 	local_conf = *tx_conf;
-	if (!(tx_conf->txq_flags & ETH_TXQ_FLAGS_IGNORE)) {
-		rte_eth_convert_txq_flags(tx_conf->txq_flags,
-					  &local_conf.offloads);
-	}
 
 	/*
 	 * If an offloading has already been enabled in
@@ -1736,16 +1629,13 @@ rte_eth_tx_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 	 */
 	if ((local_conf.offloads & dev_info.tx_queue_offload_capa) !=
 	     local_conf.offloads) {
-		ethdev_log(ERR, "Ethdev port_id=%d tx_queue_id=%d, new "
-				"added offloads 0x%" PRIx64 " must be "
-				"within pre-queue offload capabilities 0x%"
-				PRIx64 " in %s()\n",
-				port_id,
-				tx_queue_id,
-				local_conf.offloads,
-				dev_info.tx_queue_offload_capa,
-				__func__);
-		/* Will return -EINVAL in the next release */
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%d tx_queue_id=%d, new added offloads 0x%"PRIx64" must be "
+			"within pre-queue offload capabilities 0x%"PRIx64" in %s()\n",
+			port_id, tx_queue_id, local_conf.offloads,
+			dev_info.tx_queue_offload_capa,
+			__func__);
+		return -EINVAL;
 	}
 
 	return eth_err(port_id, (*dev->dev_ops->tx_queue_setup)(dev,
@@ -2009,19 +1899,19 @@ rte_eth_xstats_get_id_by_name(uint16_t port_id, const char *xstat_name,
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 
 	if (!id) {
-		RTE_PMD_DEBUG_TRACE("Error: id pointer is NULL\n");
+		RTE_ETHDEV_LOG(ERR, "Id pointer is NULL\n");
 		return -ENOMEM;
 	}
 
 	if (!xstat_name) {
-		RTE_PMD_DEBUG_TRACE("Error: xstat_name pointer is NULL\n");
+		RTE_ETHDEV_LOG(ERR, "xstat_name pointer is NULL\n");
 		return -ENOMEM;
 	}
 
 	/* Get count */
 	cnt_xstats = rte_eth_xstats_get_names_by_id(port_id, NULL, 0, NULL);
 	if (cnt_xstats  < 0) {
-		RTE_PMD_DEBUG_TRACE("Error: Cannot get count of xstats\n");
+		RTE_ETHDEV_LOG(ERR, "Cannot get count of xstats\n");
 		return -ENODEV;
 	}
 
@@ -2030,7 +1920,7 @@ rte_eth_xstats_get_id_by_name(uint16_t port_id, const char *xstat_name,
 
 	if (cnt_xstats != rte_eth_xstats_get_names_by_id(
 			port_id, xstats_names, cnt_xstats, NULL)) {
-		RTE_PMD_DEBUG_TRACE("Error: Cannot get xstats lookup\n");
+		RTE_ETHDEV_LOG(ERR, "Cannot get xstats lookup\n");
 		return -1;
 	}
 
@@ -2153,7 +2043,7 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 		sizeof(struct rte_eth_xstat_name));
 
 	if (!xstats_names_copy) {
-		RTE_PMD_DEBUG_TRACE("ERROR: can't allocate memory");
+		RTE_ETHDEV_LOG(ERR, "Can't allocate memory\n");
 		return -ENOMEM;
 	}
 
@@ -2181,7 +2071,7 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 	/* Filter stats */
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= expected_entries) {
-			RTE_PMD_DEBUG_TRACE("ERROR: id value isn't valid\n");
+			RTE_ETHDEV_LOG(ERR, "Id value isn't valid\n");
 			free(xstats_names_copy);
 			return -1;
 		}
@@ -2366,7 +2256,7 @@ rte_eth_xstats_get_by_id(uint16_t port_id, const uint64_t *ids,
 	/* Filter stats */
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= expected_entries) {
-			RTE_PMD_DEBUG_TRACE("ERROR: id value isn't valid\n");
+			RTE_ETHDEV_LOG(ERR, "Id value isn't valid\n");
 			return -1;
 		}
 		values[i] = xstats[ids[i]].value;
@@ -2456,6 +2346,16 @@ set_queue_stats_mapping(uint16_t port_id, uint16_t queue_id, uint8_t stat_idx,
 	dev = &rte_eth_devices[port_id];
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->queue_stats_mapping_set, -ENOTSUP);
+
+	if (is_rx && (queue_id >= dev->data->nb_rx_queues))
+		return -EINVAL;
+
+	if (!is_rx && (queue_id >= dev->data->nb_tx_queues))
+		return -EINVAL;
+
+	if (stat_idx >= RTE_ETHDEV_QUEUE_STAT_CNTRS)
+		return -EINVAL;
+
 	return (*dev->dev_ops->queue_stats_mapping_set)
 			(dev, queue_id, stat_idx, is_rx);
 }
@@ -2495,7 +2395,6 @@ void
 rte_eth_dev_info_get(uint16_t port_id, struct rte_eth_dev_info *dev_info)
 {
 	struct rte_eth_dev *dev;
-	struct rte_eth_txconf *txconf;
 	const struct rte_eth_desc_lim lim = {
 		.nb_max = UINT16_MAX,
 		.nb_min = 0,
@@ -2517,9 +2416,6 @@ rte_eth_dev_info_get(uint16_t port_id, struct rte_eth_dev_info *dev_info)
 	dev_info->nb_tx_queues = dev->data->nb_tx_queues;
 
 	dev_info->dev_flags = &dev->data->dev_flags;
-	txconf = &dev_info->default_txconf;
-	/* convert offload to txq_flags to support legacy app */
-	rte_eth_convert_tx_offload(txconf->offloads, &txconf->txq_flags);
 }
 
 int
@@ -2598,13 +2494,14 @@ rte_eth_dev_vlan_filter(uint16_t port_id, uint16_t vlan_id, int on)
 	dev = &rte_eth_devices[port_id];
 	if (!(dev->data->dev_conf.rxmode.offloads &
 	      DEV_RX_OFFLOAD_VLAN_FILTER)) {
-		RTE_PMD_DEBUG_TRACE("port %d: vlan-filtering disabled\n", port_id);
+		RTE_ETHDEV_LOG(ERR, "Port %u: vlan-filtering disabled\n",
+			port_id);
 		return -ENOSYS;
 	}
 
 	if (vlan_id > 4095) {
-		RTE_PMD_DEBUG_TRACE("(port_id=%d) invalid vlan_id=%u > 4095\n",
-				port_id, (unsigned) vlan_id);
+		RTE_ETHDEV_LOG(ERR, "Port_id=%u invalid vlan_id=%u > 4095\n",
+			port_id, vlan_id);
 		return -EINVAL;
 	}
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->vlan_filter_set, -ENOTSUP);
@@ -2637,7 +2534,7 @@ rte_eth_dev_set_vlan_strip_on_queue(uint16_t port_id, uint16_t rx_queue_id,
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
 	if (rx_queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid rx_queue_id=%d\n", port_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid rx_queue_id=%u\n", rx_queue_id);
 		return -EINVAL;
 	}
 
@@ -2786,7 +2683,7 @@ rte_eth_dev_flow_ctrl_set(uint16_t port_id, struct rte_eth_fc_conf *fc_conf)
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if ((fc_conf->send_xon != 0) && (fc_conf->send_xon != 1)) {
-		RTE_PMD_DEBUG_TRACE("Invalid send_xon, only 0/1 allowed\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid send_xon, only 0/1 allowed\n");
 		return -EINVAL;
 	}
 
@@ -2803,7 +2700,7 @@ rte_eth_dev_priority_flow_ctrl_set(uint16_t port_id,
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if (pfc_conf->priority > (ETH_DCB_NUM_USER_PRIORITIES - 1)) {
-		RTE_PMD_DEBUG_TRACE("Invalid priority, only 0-7 allowed\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid priority, only 0-7 allowed\n");
 		return -EINVAL;
 	}
 
@@ -2844,7 +2741,7 @@ rte_eth_check_reta_entry(struct rte_eth_rss_reta_entry64 *reta_conf,
 		return -EINVAL;
 
 	if (max_rxq == 0) {
-		RTE_PMD_DEBUG_TRACE("No receive queue is available\n");
+		RTE_ETHDEV_LOG(ERR, "No receive queue is available\n");
 		return -EINVAL;
 	}
 
@@ -2853,8 +2750,9 @@ rte_eth_check_reta_entry(struct rte_eth_rss_reta_entry64 *reta_conf,
 		shift = i % RTE_RETA_GROUP_SIZE;
 		if ((reta_conf[idx].mask & (1ULL << shift)) &&
 			(reta_conf[idx].reta[shift] >= max_rxq)) {
-			RTE_PMD_DEBUG_TRACE("reta_conf[%u]->reta[%u]: %u exceeds "
-				"the maximum rxq index: %u\n", idx, shift,
+			RTE_ETHDEV_LOG(ERR,
+				"reta_conf[%u]->reta[%u]: %u exceeds the maximum rxq index: %u\n",
+				idx, shift,
 				reta_conf[idx].reta[shift], max_rxq);
 			return -EINVAL;
 		}
@@ -2923,11 +2821,11 @@ rte_eth_dev_rss_hash_update(uint16_t port_id,
 	rte_eth_dev_info_get(port_id, &dev_info);
 	if ((dev_info.flow_type_rss_offloads | rss_conf->rss_hf) !=
 	    dev_info.flow_type_rss_offloads) {
-		RTE_PMD_DEBUG_TRACE("ethdev port_id=%d invalid rss_hf: "
-				    "0x%"PRIx64", valid value: 0x%"PRIx64"\n",
-				    port_id,
-				    rss_conf->rss_hf,
-				    dev_info.flow_type_rss_offloads);
+		RTE_ETHDEV_LOG(ERR,
+			"Ethdev port_id=%u invalid rss_hf: 0x%"PRIx64", valid value: 0x%"PRIx64"\n",
+			port_id, rss_conf->rss_hf,
+			dev_info.flow_type_rss_offloads);
+		return -EINVAL;
 	}
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rss_hash_update, -ENOTSUP);
 	return eth_err(port_id, (*dev->dev_ops->rss_hash_update)(dev,
@@ -2955,12 +2853,12 @@ rte_eth_dev_udp_tunnel_port_add(uint16_t port_id,
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if (udp_tunnel == NULL) {
-		RTE_PMD_DEBUG_TRACE("Invalid udp_tunnel parameter\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid udp_tunnel parameter\n");
 		return -EINVAL;
 	}
 
 	if (udp_tunnel->prot_type >= RTE_TUNNEL_TYPE_MAX) {
-		RTE_PMD_DEBUG_TRACE("Invalid tunnel type\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid tunnel type\n");
 		return -EINVAL;
 	}
 
@@ -2980,12 +2878,12 @@ rte_eth_dev_udp_tunnel_port_delete(uint16_t port_id,
 	dev = &rte_eth_devices[port_id];
 
 	if (udp_tunnel == NULL) {
-		RTE_PMD_DEBUG_TRACE("Invalid udp_tunnel parameter\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid udp_tunnel parameter\n");
 		return -EINVAL;
 	}
 
 	if (udp_tunnel->prot_type >= RTE_TUNNEL_TYPE_MAX) {
-		RTE_PMD_DEBUG_TRACE("Invalid tunnel type\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid tunnel type\n");
 		return -EINVAL;
 	}
 
@@ -3053,12 +2951,12 @@ rte_eth_dev_mac_addr_add(uint16_t port_id, struct ether_addr *addr,
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->mac_addr_add, -ENOTSUP);
 
 	if (is_zero_ether_addr(addr)) {
-		RTE_PMD_DEBUG_TRACE("port %d: Cannot add NULL MAC address\n",
+		RTE_ETHDEV_LOG(ERR, "Port %u: Cannot add NULL MAC address\n",
 			port_id);
 		return -EINVAL;
 	}
 	if (pool >= ETH_64_POOLS) {
-		RTE_PMD_DEBUG_TRACE("pool id must be 0-%d\n", ETH_64_POOLS - 1);
+		RTE_ETHDEV_LOG(ERR, "Pool id must be 0-%d\n", ETH_64_POOLS - 1);
 		return -EINVAL;
 	}
 
@@ -3066,7 +2964,7 @@ rte_eth_dev_mac_addr_add(uint16_t port_id, struct ether_addr *addr,
 	if (index < 0) {
 		index = get_mac_addr_index(port_id, &null_mac_addr);
 		if (index < 0) {
-			RTE_PMD_DEBUG_TRACE("port %d: MAC address array full\n",
+			RTE_ETHDEV_LOG(ERR, "Port %u: MAC address array full\n",
 				port_id);
 			return -ENOSPC;
 		}
@@ -3104,7 +3002,9 @@ rte_eth_dev_mac_addr_remove(uint16_t port_id, struct ether_addr *addr)
 
 	index = get_mac_addr_index(port_id, addr);
 	if (index == 0) {
-		RTE_PMD_DEBUG_TRACE("port %d: Cannot remove default MAC address\n", port_id);
+		RTE_ETHDEV_LOG(ERR,
+			"Port %u: Cannot remove default MAC address\n",
+			port_id);
 		return -EADDRINUSE;
 	} else if (index < 0)
 		return 0;  /* Do nothing if address wasn't found */
@@ -3181,7 +3081,7 @@ rte_eth_dev_uc_hash_table_set(uint16_t port_id, struct ether_addr *addr,
 
 	dev = &rte_eth_devices[port_id];
 	if (is_zero_ether_addr(addr)) {
-		RTE_PMD_DEBUG_TRACE("port %d: Cannot add NULL MAC address\n",
+		RTE_ETHDEV_LOG(ERR, "Port %u: Cannot add NULL MAC address\n",
 			port_id);
 		return -EINVAL;
 	}
@@ -3193,15 +3093,16 @@ rte_eth_dev_uc_hash_table_set(uint16_t port_id, struct ether_addr *addr,
 
 	if (index < 0) {
 		if (!on) {
-			RTE_PMD_DEBUG_TRACE("port %d: the MAC address was not "
-				"set in UTA\n", port_id);
+			RTE_ETHDEV_LOG(ERR,
+				"Port %u: the MAC address was not set in UTA\n",
+				port_id);
 			return -EINVAL;
 		}
 
 		index = get_hash_mac_addr_index(port_id, &null_mac_addr);
 		if (index < 0) {
-			RTE_PMD_DEBUG_TRACE("port %d: MAC address array full\n",
-					port_id);
+			RTE_ETHDEV_LOG(ERR, "Port %u: MAC address array full\n",
+				port_id);
 			return -ENOSPC;
 		}
 	}
@@ -3249,14 +3150,15 @@ int rte_eth_set_queue_rate_limit(uint16_t port_id, uint16_t queue_idx,
 	link = dev->data->dev_link;
 
 	if (queue_idx > dev_info.max_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("set queue rate limit:port %d: "
-				"invalid queue id=%d\n", port_id, queue_idx);
+		RTE_ETHDEV_LOG(ERR,
+			"Set queue rate limit:port %u: invalid queue id=%u\n",
+			port_id, queue_idx);
 		return -EINVAL;
 	}
 
 	if (tx_rate > link.link_speed) {
-		RTE_PMD_DEBUG_TRACE("set queue rate limit:invalid tx_rate=%d, "
-				"bigger than link speed= %d\n",
+		RTE_ETHDEV_LOG(ERR,
+			"Set queue rate limit:invalid tx_rate=%u, bigger than link speed= %d\n",
 			tx_rate, link.link_speed);
 		return -EINVAL;
 	}
@@ -3275,26 +3177,28 @@ rte_eth_mirror_rule_set(uint16_t port_id,
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if (mirror_conf->rule_type == 0) {
-		RTE_PMD_DEBUG_TRACE("mirror rule type can not be 0.\n");
+		RTE_ETHDEV_LOG(ERR, "Mirror rule type can not be 0\n");
 		return -EINVAL;
 	}
 
 	if (mirror_conf->dst_pool >= ETH_64_POOLS) {
-		RTE_PMD_DEBUG_TRACE("Invalid dst pool, pool id must be 0-%d\n",
-				ETH_64_POOLS - 1);
+		RTE_ETHDEV_LOG(ERR, "Invalid dst pool, pool id must be 0-%d\n",
+			ETH_64_POOLS - 1);
 		return -EINVAL;
 	}
 
 	if ((mirror_conf->rule_type & (ETH_MIRROR_VIRTUAL_POOL_UP |
 	     ETH_MIRROR_VIRTUAL_POOL_DOWN)) &&
 	    (mirror_conf->pool_mask == 0)) {
-		RTE_PMD_DEBUG_TRACE("Invalid mirror pool, pool mask can not be 0.\n");
+		RTE_ETHDEV_LOG(ERR,
+			"Invalid mirror pool, pool mask can not be 0\n");
 		return -EINVAL;
 	}
 
 	if ((mirror_conf->rule_type & ETH_MIRROR_VLAN) &&
 	    mirror_conf->vlan.vlan_mask == 0) {
-		RTE_PMD_DEBUG_TRACE("Invalid vlan mask, vlan mask can not be 0.\n");
+		RTE_ETHDEV_LOG(ERR,
+			"Invalid vlan mask, vlan mask can not be 0\n");
 		return -EINVAL;
 	}
 
@@ -3341,7 +3245,7 @@ rte_eth_dev_callback_register(uint16_t port_id,
 		return -EINVAL;
 
 	if (!rte_eth_dev_is_valid_port(port_id) && port_id != RTE_ETH_ALL) {
-		ethdev_log(ERR, "Invalid port_id=%d", port_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid port_id=%d\n", port_id);
 		return -EINVAL;
 	}
 
@@ -3404,7 +3308,7 @@ rte_eth_dev_callback_unregister(uint16_t port_id,
 		return -EINVAL;
 
 	if (!rte_eth_dev_is_valid_port(port_id) && port_id != RTE_ETH_ALL) {
-		ethdev_log(ERR, "Invalid port_id=%d", port_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid port_id=%d\n", port_id);
 		return -EINVAL;
 	}
 
@@ -3498,13 +3402,13 @@ rte_eth_dev_rx_intr_ctl(uint16_t port_id, int epfd, int op, void *data)
 	dev = &rte_eth_devices[port_id];
 
 	if (!dev->intr_handle) {
-		RTE_PMD_DEBUG_TRACE("RX Intr handle unset\n");
+		RTE_ETHDEV_LOG(ERR, "RX Intr handle unset\n");
 		return -ENOTSUP;
 	}
 
 	intr_handle = dev->intr_handle;
 	if (!intr_handle->intr_vec) {
-		RTE_PMD_DEBUG_TRACE("RX Intr vector unset\n");
+		RTE_ETHDEV_LOG(ERR, "RX Intr vector unset\n");
 		return -EPERM;
 	}
 
@@ -3512,9 +3416,9 @@ rte_eth_dev_rx_intr_ctl(uint16_t port_id, int epfd, int op, void *data)
 		vec = intr_handle->intr_vec[qid];
 		rc = rte_intr_rx_ctl(intr_handle, epfd, op, vec, data);
 		if (rc && rc != -EEXIST) {
-			RTE_PMD_DEBUG_TRACE("p %u q %u rx ctl error"
-					" op %d epfd %d vec %u\n",
-					port_id, qid, op, epfd, vec);
+			RTE_ETHDEV_LOG(ERR,
+				"p %u q %u rx ctl error op %d epfd %d vec %u\n",
+				port_id, qid, op, epfd, vec);
 		}
 	}
 
@@ -3649,27 +3553,27 @@ rte_eth_dev_rx_intr_ctl_q(uint16_t port_id, uint16_t queue_id,
 
 	dev = &rte_eth_devices[port_id];
 	if (queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%u\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", queue_id);
 		return -EINVAL;
 	}
 
 	if (!dev->intr_handle) {
-		RTE_PMD_DEBUG_TRACE("RX Intr handle unset\n");
+		RTE_ETHDEV_LOG(ERR, "RX Intr handle unset\n");
 		return -ENOTSUP;
 	}
 
 	intr_handle = dev->intr_handle;
 	if (!intr_handle->intr_vec) {
-		RTE_PMD_DEBUG_TRACE("RX Intr vector unset\n");
+		RTE_ETHDEV_LOG(ERR, "RX Intr vector unset\n");
 		return -EPERM;
 	}
 
 	vec = intr_handle->intr_vec[queue_id];
 	rc = rte_intr_rx_ctl(intr_handle, epfd, op, vec, data);
 	if (rc && rc != -EEXIST) {
-		RTE_PMD_DEBUG_TRACE("p %u q %u rx ctl error"
-				" op %d epfd %d vec %u\n",
-				port_id, queue_id, op, epfd, vec);
+		RTE_ETHDEV_LOG(ERR,
+			"p %u q %u rx ctl error op %d epfd %d vec %u\n",
+			port_id, queue_id, op, epfd, vec);
 		return rc;
 	}
 
@@ -3936,7 +3840,7 @@ rte_eth_rx_queue_info_get(uint16_t port_id, uint16_t queue_id,
 
 	dev = &rte_eth_devices[port_id];
 	if (queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%d\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", queue_id);
 		return -EINVAL;
 	}
 
@@ -3952,7 +3856,6 @@ rte_eth_tx_queue_info_get(uint16_t port_id, uint16_t queue_id,
 	struct rte_eth_txq_info *qinfo)
 {
 	struct rte_eth_dev *dev;
-	struct rte_eth_txconf *txconf = &qinfo->conf;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 
@@ -3961,7 +3864,7 @@ rte_eth_tx_queue_info_get(uint16_t port_id, uint16_t queue_id,
 
 	dev = &rte_eth_devices[port_id];
 	if (queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
 		return -EINVAL;
 	}
 
@@ -3969,8 +3872,6 @@ rte_eth_tx_queue_info_get(uint16_t port_id, uint16_t queue_id,
 
 	memset(qinfo, 0, sizeof(*qinfo));
 	dev->dev_ops->txq_info_get(dev, queue_id, qinfo);
-	/* convert offload to txq_flags to support legacy app */
-	rte_eth_convert_tx_offload(txconf->offloads, &txconf->txq_flags);
 
 	return 0;
 }
@@ -4178,12 +4079,12 @@ rte_eth_dev_l2_tunnel_eth_type_conf(uint16_t port_id,
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if (l2_tunnel == NULL) {
-		RTE_PMD_DEBUG_TRACE("Invalid l2_tunnel parameter\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid l2_tunnel parameter\n");
 		return -EINVAL;
 	}
 
 	if (l2_tunnel->l2_tunnel_type >= RTE_TUNNEL_TYPE_MAX) {
-		RTE_PMD_DEBUG_TRACE("Invalid tunnel type\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid tunnel type\n");
 		return -EINVAL;
 	}
 
@@ -4205,17 +4106,17 @@ rte_eth_dev_l2_tunnel_offload_set(uint16_t port_id,
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 
 	if (l2_tunnel == NULL) {
-		RTE_PMD_DEBUG_TRACE("Invalid l2_tunnel parameter\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid l2_tunnel parameter\n");
 		return -EINVAL;
 	}
 
 	if (l2_tunnel->l2_tunnel_type >= RTE_TUNNEL_TYPE_MAX) {
-		RTE_PMD_DEBUG_TRACE("Invalid tunnel type.\n");
+		RTE_ETHDEV_LOG(ERR, "Invalid tunnel type\n");
 		return -EINVAL;
 	}
 
 	if (mask == 0) {
-		RTE_PMD_DEBUG_TRACE("Mask should have a value.\n");
+		RTE_ETHDEV_LOG(ERR, "Mask should have a value\n");
 		return -EINVAL;
 	}
 
@@ -4516,11 +4417,9 @@ parse_cleanup:
 	return result;
 }
 
-RTE_INIT(ethdev_init_log);
-static void
-ethdev_init_log(void)
+RTE_INIT(ethdev_init_log)
 {
-	ethdev_logtype = rte_log_register("lib.ethdev");
-	if (ethdev_logtype >= 0)
-		rte_log_set_level(ethdev_logtype, RTE_LOG_INFO);
+	rte_eth_dev_logtype = rte_log_register("lib.ethdev");
+	if (rte_eth_dev_logtype >= 0)
+		rte_log_set_level(rte_eth_dev_logtype, RTE_LOG_INFO);
 }

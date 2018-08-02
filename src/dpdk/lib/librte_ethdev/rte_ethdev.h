@@ -159,6 +159,11 @@ extern "C" {
 #include "rte_eth_ctrl.h"
 #include "rte_dev_info.h"
 
+extern int rte_eth_dev_logtype;
+
+#define RTE_ETHDEV_LOG(level, ...) \
+	rte_log(RTE_LOG_ ## level, rte_eth_dev_logtype, "" __VA_ARGS__)
+
 struct rte_mbuf;
 
 /**
@@ -321,7 +326,7 @@ enum rte_eth_tx_mq_mode {
 struct rte_eth_rxmode {
 	/** The multi-queue packet distribution mode to be used, e.g. RSS. */
 	enum rte_eth_rx_mq_mode mq_mode;
-	uint32_t max_rx_pkt_len;  /**< Only used if jumbo_frame enabled. */
+	uint32_t max_rx_pkt_len;  /**< Only used if JUMBO_FRAME enabled. */
 	uint16_t split_hdr_size;  /**< hdr buf size (header_split enabled).*/
 	/**
 	 * Per-port Rx offloads to be set using DEV_RX_OFFLOAD_* flags.
@@ -329,33 +334,6 @@ struct rte_eth_rxmode {
 	 * structure are allowed to be set.
 	 */
 	uint64_t offloads;
-	__extension__
-	/**
-	 * Below bitfield API is obsolete. Application should
-	 * enable per-port offloads using the offload field
-	 * above.
-	 */
-	uint16_t header_split : 1, /**< Header Split enable. */
-		hw_ip_checksum   : 1, /**< IP/UDP/TCP checksum offload enable. */
-		hw_vlan_filter   : 1, /**< VLAN filter enable. */
-		hw_vlan_strip    : 1, /**< VLAN strip enable. */
-		hw_vlan_extend   : 1, /**< Extended VLAN enable. */
-		jumbo_frame      : 1, /**< Jumbo Frame Receipt enable. */
-		hw_strip_crc     : 1, /**< Enable CRC stripping by hardware. */
-		enable_scatter   : 1, /**< Enable scatter packets rx handler */
-		enable_lro       : 1, /**< Enable LRO */
-		hw_timestamp     : 1, /**< Enable HW timestamp */
-		security	 : 1, /**< Enable rte_security offloads */
-		/**
-		 * When set the offload bitfield should be ignored.
-		 * Instead per-port Rx offloads should be set on offloads
-		 * field above.
-		 * Per-queue offloads shuold be set on rte_eth_rxq_conf
-		 * structure.
-		 * This bit is temporary till rxmode bitfield offloads API will
-		 * be deprecated.
-		 */
-		ignore_offload_bitfield : 1;
 };
 
 /**
@@ -714,28 +692,6 @@ struct rte_eth_rxconf {
 	uint64_t offloads;
 };
 
-#define ETH_TXQ_FLAGS_NOMULTSEGS 0x0001 /**< nb_segs=1 for all mbufs */
-#define ETH_TXQ_FLAGS_NOREFCOUNT 0x0002 /**< refcnt can be ignored */
-#define ETH_TXQ_FLAGS_NOMULTMEMP 0x0004 /**< all bufs come from same mempool */
-#define ETH_TXQ_FLAGS_NOVLANOFFL 0x0100 /**< disable VLAN offload */
-#define ETH_TXQ_FLAGS_NOXSUMSCTP 0x0200 /**< disable SCTP checksum offload */
-#define ETH_TXQ_FLAGS_NOXSUMUDP  0x0400 /**< disable UDP checksum offload */
-#define ETH_TXQ_FLAGS_NOXSUMTCP  0x0800 /**< disable TCP checksum offload */
-#define ETH_TXQ_FLAGS_NOOFFLOADS \
-		(ETH_TXQ_FLAGS_NOVLANOFFL | ETH_TXQ_FLAGS_NOXSUMSCTP | \
-		 ETH_TXQ_FLAGS_NOXSUMUDP  | ETH_TXQ_FLAGS_NOXSUMTCP)
-#define ETH_TXQ_FLAGS_NOXSUMS \
-		(ETH_TXQ_FLAGS_NOXSUMSCTP | ETH_TXQ_FLAGS_NOXSUMUDP | \
-		 ETH_TXQ_FLAGS_NOXSUMTCP)
-/**
- * When set the txq_flags should be ignored,
- * instead per-queue Tx offloads will be set on offloads field
- * located on rte_eth_txq_conf struct.
- * This flag is temporary till the rte_eth_txq_conf.txq_flags
- * API will be deprecated.
- */
-#define ETH_TXQ_FLAGS_IGNORE	0x8000
-
 /**
  * A structure used to configure a TX ring of an Ethernet port.
  */
@@ -745,7 +701,6 @@ struct rte_eth_txconf {
 	uint16_t tx_free_thresh; /**< Start freeing TX buffers if there are
 				      less free descriptors than this value. */
 
-	uint32_t txq_flags; /**< Set flags for the Tx queue */
 	uint8_t tx_deferred_start; /**< Do not start queue with rte_eth_dev_start(). */
 	/**
 	 * Per-queue Tx offloads to be set  using DEV_TX_OFFLOAD_* flags.
@@ -954,6 +909,12 @@ struct rte_eth_conf {
 #define DEV_RX_OFFLOAD_SCATTER		0x00002000
 #define DEV_RX_OFFLOAD_TIMESTAMP	0x00004000
 #define DEV_RX_OFFLOAD_SECURITY         0x00008000
+
+/**
+ * Invalid to set both DEV_RX_OFFLOAD_CRC_STRIP and DEV_RX_OFFLOAD_KEEP_CRC
+ * No DEV_RX_OFFLOAD_CRC_STRIP flag means keep CRC
+ */
+#define DEV_RX_OFFLOAD_KEEP_CRC		0x00010000
 #define DEV_RX_OFFLOAD_CHECKSUM (DEV_RX_OFFLOAD_IPV4_CKSUM | \
 				 DEV_RX_OFFLOAD_UDP_CKSUM | \
 				 DEV_RX_OFFLOAD_TCP_CKSUM)
@@ -1209,14 +1170,14 @@ struct rte_eth_dcb_info {
 /* Macros to check for valid port */
 #define RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, retval) do { \
 	if (!rte_eth_dev_is_valid_port(port_id)) { \
-		RTE_PMD_DEBUG_TRACE("Invalid port_id=%d\n", port_id); \
+		RTE_ETHDEV_LOG(ERR, "Invalid port_id=%u\n", port_id); \
 		return retval; \
 	} \
 } while (0)
 
 #define RTE_ETH_VALID_PORTID_OR_RET(port_id) do { \
 	if (!rte_eth_dev_is_valid_port(port_id)) { \
-		RTE_PMD_DEBUG_TRACE("Invalid port_id=%d\n", port_id); \
+		RTE_ETHDEV_LOG(ERR, "Invalid port_id=%u\n", port_id); \
 		return; \
 	} \
 } while (0)
@@ -1569,9 +1530,11 @@ const char * __rte_experimental rte_eth_dev_tx_offload_name(uint64_t offload);
  *        the [rt]x_offload_capa returned from rte_eth_dev_infos_get().
  *        Any type of device supported offloading set in the input argument
  *        eth_conf->[rt]xmode.offloads to rte_eth_dev_configure() is enabled
- *        on all queues and it can't be disabled in rte_eth_[rt]x_queue_setup().
- *     - the Receive Side Scaling (RSS) configuration when using multiple RX
- *         queues per port.
+ *        on all queues and it can't be disabled in rte_eth_[rt]x_queue_setup()
+ *     -  the Receive Side Scaling (RSS) configuration when using multiple RX
+ *        queues per port. Any RSS hash function set in eth_conf->rss_conf.rss_hf
+ *        must be within the flow_type_rss_offloads provided by drivers via
+ *        rte_eth_dev_infos_get() API.
  *
  *   Embedding all configuration information in a single data structure
  *   is the more flexible method that allows the addition of new features
@@ -1684,12 +1647,6 @@ int rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
  *     The *tx_rs_thresh* value should be less or equal then
  *     *tx_free_thresh* value, and both of them should be less then
  *     *nb_tx_desc* - 3.
- *   - The *txq_flags* member contains flags to pass to the TX queue setup
- *     function to configure the behavior of the TX queue. This should be set
- *     to 0 if no special configuration is required.
- *     This API is obsolete and will be deprecated. Applications
- *     should set it to ETH_TXQ_FLAGS_IGNORE and use
- *     the offloads field below.
  *   - The *offloads* member contains Tx offloads to be enabled.
  *     If an offloading set in tx_conf->offloads
  *     hasn't been set in the input argument eth_conf->txmode.offloads
@@ -2018,6 +1975,15 @@ int rte_eth_stats_reset(uint16_t port_id);
 /**
  * Retrieve names of extended statistics of an Ethernet device.
  *
+ * There is an assumption that 'xstat_names' and 'xstats' arrays are matched
+ * by array index:
+ *  xstats_names[i].name => xstats[i].value
+ *
+ * And the array index is same with id field of 'struct rte_eth_xstat':
+ *  xstats[i].id == i
+ *
+ * This assumption makes key-value pair matching less flexible but simpler.
+ *
  * @param port_id
  *   The port identifier of the Ethernet device.
  * @param xstats_names
@@ -2042,13 +2008,20 @@ int rte_eth_xstats_get_names(uint16_t port_id,
 /**
  * Retrieve extended statistics of an Ethernet device.
  *
+ * There is an assumption that 'xstat_names' and 'xstats' arrays are matched
+ * by array index:
+ *  xstats_names[i].name => xstats[i].value
+ *
+ * And the array index is same with id field of 'struct rte_eth_xstat':
+ *  xstats[i].id == i
+ *
+ * This assumption makes key-value pair matching less flexible but simpler.
+ *
  * @param port_id
  *   The port identifier of the Ethernet device.
  * @param xstats
  *   A pointer to a table of structure of type *rte_eth_xstat*
- *   to be filled with device statistics ids and values: id is the
- *   index of the name string in xstats_names (see rte_eth_xstats_get_names()),
- *   and value is the statistic counter.
+ *   to be filled with device statistics ids and values.
  *   This parameter can be set to NULL if n is 0.
  * @param n
  *   The size of the xstats array (number of elements).
@@ -2159,7 +2132,7 @@ void rte_eth_xstats_reset(uint16_t port_id);
  * @param stat_idx
  *   The per-queue packet statistics functionality number that the transmit
  *   queue is to be assigned.
- *   The value must be in the range [0, RTE_MAX_ETHPORT_QUEUE_STATS_MAPS - 1].
+ *   The value must be in the range [0, RTE_ETHDEV_QUEUE_STAT_CNTRS - 1].
  * @return
  *   Zero if successful. Non-zero otherwise.
  */
@@ -2179,7 +2152,7 @@ int rte_eth_dev_set_tx_queue_stats_mapping(uint16_t port_id,
  * @param stat_idx
  *   The per-queue packet statistics functionality number that the receive
  *   queue is to be assigned.
- *   The value must be in the range [0, RTE_MAX_ETHPORT_QUEUE_STATS_MAPS - 1].
+ *   The value must be in the range [0, RTE_ETHDEV_QUEUE_STAT_CNTRS - 1].
  * @return
  *   Zero if successful. Non-zero otherwise.
  */
@@ -3671,11 +3644,11 @@ rte_eth_dev_l2_tunnel_offload_set(uint16_t port_id,
 				  uint8_t en);
 
 /**
-* Get the port id from pci address or device name
-* Example:
-* - PCIe, 0000:2:00.0
-* - SoC, fsl-gmac0
-* - vdev, net_pcap0
+* Get the port id from device name. The device name should be specified
+* as below:
+* - PCIe address (Domain:Bus:Device.Function), for example- 0000:2:00.0
+* - SoC device name, for example- fsl-gmac0
+* - vdev dpdk name, for example- net_[pcap0|null0|tap0]
 *
 * @param name
 *  pci address or name of the device
@@ -3689,11 +3662,10 @@ int
 rte_eth_dev_get_port_by_name(const char *name, uint16_t *port_id);
 
 /**
-* Get the device name from port id
-* Example:
-* - PCIe Bus:Domain:Function, 0000:02:00.0
-* - SoC device name, fsl-gmac0
-* - vdev dpdk name, net_[pcap0|null0|tun0|tap0]
+* Get the device name from port id. The device name is specified as below:
+* - PCIe address (Domain:Bus:Device.Function), for example- 0000:02:00.0
+* - SoC device name, for example- fsl-gmac0
+* - vdev dpdk name, for example- net_[pcap0|null0|tun0|tap0]
 *
 * @param port_id
 *   Port identifier of the device.
@@ -3852,7 +3824,7 @@ rte_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->rx_pkt_burst, 0);
 
 	if (queue_id >= dev->data->nb_rx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid RX queue_id=%d\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", queue_id);
 		return 0;
 	}
 #endif
@@ -4085,7 +4057,7 @@ static inline int rte_eth_tx_descriptor_status(uint16_t port_id,
  *
  * If the PMD is DEV_TX_OFFLOAD_MT_LOCKFREE capable, multiple threads can
  * invoke this function concurrently on the same tx queue without SW lock.
- * @see rte_eth_dev_info_get, struct rte_eth_txconf::txq_flags
+ * @see rte_eth_dev_info_get, struct rte_eth_txconf::offloads
  *
  * @see rte_eth_tx_prepare to perform some prior checks or adjustments
  * for offloads.
@@ -4118,7 +4090,7 @@ rte_eth_tx_burst(uint16_t port_id, uint16_t queue_id,
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->tx_pkt_burst, 0);
 
 	if (queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
 		return 0;
 	}
 #endif
@@ -4204,7 +4176,7 @@ rte_eth_tx_prepare(uint16_t port_id, uint16_t queue_id,
 
 #ifdef RTE_LIBRTE_ETHDEV_DEBUG
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX port_id=%d\n", port_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX port_id=%u\n", port_id);
 		rte_errno = -EINVAL;
 		return 0;
 	}
@@ -4214,7 +4186,7 @@ rte_eth_tx_prepare(uint16_t port_id, uint16_t queue_id,
 
 #ifdef RTE_LIBRTE_ETHDEV_DEBUG
 	if (queue_id >= dev->data->nb_tx_queues) {
-		RTE_PMD_DEBUG_TRACE("Invalid TX queue_id=%d\n", queue_id);
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
 		rte_errno = -EINVAL;
 		return 0;
 	}
