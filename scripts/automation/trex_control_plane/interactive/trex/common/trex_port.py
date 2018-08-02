@@ -61,9 +61,9 @@ class PortAttr(object):
         self.__attr = {}
         self.__lock = threading.RLock()
 
-    def set(self, attr):
+    def update(self, attr):
         with self.__lock:
-            self.__attr = attr
+            self.__attr.update(attr)
 
     def get(self):
         with self.__lock:
@@ -242,7 +242,7 @@ class Port(object):
         self.status = rc.data()
         
         # replace the attributes in a thread safe manner
-        self.set_ts_attr(rc.data()['attr'])
+        self.update_ts_attr(rc.data()['attr'])
         
         self.service_mode = rc.data()['service']
         
@@ -681,9 +681,9 @@ class Port(object):
     def get_ts_attr (self):
         return self.__attr.get()
 
-    # set in a thread safe manner a new dict of attributes
-    def set_ts_attr (self, new_attr):
-        self.__attr.set(new_attr)
+    # update in a thread safe manner a dict of attributes
+    def update_ts_attr (self, new_attr):
+        self.__attr.update(new_attr)
 
   ################# events handler ######################
     def async_event_port_job_done (self):
@@ -707,7 +707,7 @@ class Port(object):
         before = self.get_formatted_info(sync = False)
         
         # update
-        self.set_ts_attr(new_attr)
+        self.update_ts_attr(new_attr)
         
         # generate after
         after = self.get_formatted_info(sync = False)

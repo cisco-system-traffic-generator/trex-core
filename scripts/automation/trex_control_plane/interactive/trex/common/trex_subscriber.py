@@ -442,7 +442,7 @@ class TRexSubscriber():
             port_id = int(data['port_id'])
             attr    = data['attr']
 
-            self.ctx.event_handler.on_event("port attr chg", port_id, data)
+            self.ctx.event_handler.on_event("port attr chg", port_id, attr)
 
 
         # server stopped
