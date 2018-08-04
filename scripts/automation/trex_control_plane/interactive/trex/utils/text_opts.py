@@ -64,7 +64,10 @@ def format_num (size, suffix = "", compact = True, opts = None):
             size /= 1000.0
 
     if isinstance(size, float):
-        txt = "%3.2f" % (size)
+        if compact:
+            txt = "%g" % round(size, 2)
+        else:
+            txt = "%3.2f" % size
     else:
         txt = "{:,}".format(size)
 

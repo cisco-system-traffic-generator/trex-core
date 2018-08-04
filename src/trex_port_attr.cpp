@@ -37,7 +37,7 @@ TRexPortAttr::to_json(Json::Value &output) {
     output["promiscuous"]["enabled"] = get_promiscuous();
     output["multicast"]["enabled"]   = get_multicast();
     output["link"]["up"]             = is_link_up();
-    output["speed"]                  = get_link_speed() / 1000; // make sure we have no cards of less than 1 Gbps
+    output["speed"]                  = get_link_speed() / 1000.0;
     output["rx_filter_mode"]         = get_rx_filter_mode();
 
     int mode;

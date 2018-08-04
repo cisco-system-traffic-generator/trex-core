@@ -94,87 +94,90 @@ class PortStats(AbstractStats):
 
     def to_table (self):
 
-        port_state = self._port_obj.get_port_state_name() if self._port_obj else "" 
-        if port_state == "TRANSMITTING":
-            port_state = format_text(port_state, 'green', 'bold')
-        elif port_state == "PAUSE":
-            port_state = format_text(port_state, 'magenta', 'bold')
-        else:
-            port_state = format_text(port_state, 'bold')
-
-        if self._port_obj:
-            link_state = 'UP' if self._port_obj.is_up() else format_text('DOWN', 'red', 'bold')
-        else:
-            link_state = ''
-
         # default rate format modifiers
         rate_format = {'bpsl1': None, 'bps': None, 'pps': None, 'percentage': 'bold'}
 
-        # mark owned ports by color
         if self._port_obj:
+            port_str = self._port_obj.port_id
+            port_state = self._port_obj.get_port_state_name() if self._port_obj else "" 
+            if port_state == "TRANSMITTING":
+                port_state = format_text(port_state, 'green', 'bold')
+            elif port_state == "PAUSE":
+                port_state = format_text(port_state, 'magenta', 'bold')
+            else:
+                port_state = format_text(port_state, 'bold')
+
+            link_state = 'UP' if self._port_obj.is_up() else format_text('DOWN', 'red', 'bold')
+
+            # mark owned ports by color
             owner = self._port_obj.get_owner()
             rate_format[self._port_obj.last_factor_type] = ('blue', 'bold')
             if self._port_obj.is_acquired():
                 owner = format_text(owner, 'green')
+            speed = format_num(self._port_obj.get_speed_bps(), suffix = 'b/s')
+            cpu_util = "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
+                                         format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]))
+            line_util = "{0} {1}".format(self.get_trend_gui("m_tx_util", show_value = False),
+                                         self.get("m_tx_util", format = True, suffix = "%", opts = rate_format['percentage']))
 
         else:
+            port_str = 'total'
+            port_state = ''
+            link_state = ''
             owner = ''
+            speed = ''
+            cpu_util = ''
+            line_util = ''
 
+        stats = OrderedDict([
+                ("owner", owner),
+                ("link",  link_state),
+                ("state", "{0}".format(port_state)),
+                ("speed",  speed),
+                ("CPU util.", cpu_util),
 
-     
-        stats = OrderedDict([("owner", owner),
-                            ("link",  link_state),
-                            ("state", "{0}".format(port_state)),
+                ("--", ''),
 
-                            ("speed", "%g Gb/s" % self._port_obj.get_speed_gbps() if self._port_obj else ''),
+                ("Tx bps L2", "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
+                                               self.get("m_total_tx_bps", format = True, suffix = "bps", opts = rate_format['bps']))),
 
-                            ("CPU util.", "{0} {1}%".format(self.get_trend_gui("m_cpu_util", use_raw = True),
-                                                      format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85])) if self._port_obj else ''),
-                            ("--", ''),
+                ("Tx bps L1", "{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
+                                               self.get("m_total_tx_bps_L1", format = True, suffix = "bps", opts = rate_format['bpsl1']))),
 
-                            ("Tx bps L2", "{0} {1}".format(self.get_trend_gui("m_total_tx_bps", show_value = False),
-                                                      self.get("m_total_tx_bps", format = True, suffix = "bps", opts = rate_format['bps']))),
+                ("Tx pps", "{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
+                                            self.get("m_total_tx_pps", format = True, suffix = "pps", opts = rate_format['pps']))),
 
-                            ("Tx bps L1", "{0} {1}".format(self.get_trend_gui("m_total_tx_bps_L1", show_value = False),
-                                                      self.get("m_total_tx_bps_L1", format = True, suffix = "bps", opts = rate_format['bpsl1']))),
+                ("Line Util.", line_util),
 
-                            ("Tx pps", "{0} {1}".format(self.get_trend_gui("m_total_tx_pps", show_value = False),
-                                                   self.get("m_total_tx_pps", format = True, suffix = "pps", opts = rate_format['pps']))),
+                ("---", ''),
 
-                            ("Line Util.", "{0} {1}".format(self.get_trend_gui("m_tx_util", show_value = False) if self._port_obj else "",
-                                                       self.get("m_tx_util", format = True, suffix = "%", opts = rate_format['percentage']) if self._port_obj else "")),
-                       
-                            ("---", ''),
+                ("Rx bps", "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
+                                            self.get("m_total_rx_bps", format = True, suffix = "bps"))),
 
-                            ("Rx bps", "{0} {1}".format(self.get_trend_gui("m_total_rx_bps", show_value = False),
-                                                   self.get("m_total_rx_bps", format = True, suffix = "bps"))),
+                ("Rx pps", "{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
+                                            self.get("m_total_rx_pps", format = True, suffix = "pps"))),
 
-                            ("Rx pps", "{0} {1}".format(self.get_trend_gui("m_total_rx_pps", show_value = False),
-                                                   self.get("m_total_rx_pps", format = True, suffix = "pps"))),
-                       
-                            ("----", ''),
+                ("----", ''),
 
-                            ("opackets", self.get_rel("opackets")),
+                ("opackets", self.get_rel("opackets")),
+                ("ipackets", self.get_rel("ipackets")),
+                ("obytes",   self.get_rel("obytes")),
+                ("ibytes",   self.get_rel("ibytes")),
+                ("tx-pkts",  self.get_rel("opackets", format = True, suffix = "pkts"),),
+                ("rx-pkts",  self.get_rel("ipackets", format = True, suffix = "pkts")),
+                ("tx-bytes", self.get_rel("obytes", format = True, suffix = "B"),),
+                ("rx-bytes", self.get_rel("ibytes", format = True, suffix = "B"),),
 
-                            ("ipackets", self.get_rel("ipackets")),
-                            ("obytes",   self.get_rel("obytes")),
-                            ("ibytes",   self.get_rel("ibytes")),
-                            ("tx-pkts",  self.get_rel("opackets", format = True, suffix = "pkts"),),
-                            ("rx-pkts",  self.get_rel("ipackets", format = True, suffix = "pkts")),
-                            ("tx-bytes", self.get_rel("obytes", format = True, suffix = "B"),),
-                            ("rx-bytes", self.get_rel("ibytes", format = True, suffix = "B"),),
-                       
-                            ("-----", ''),
+                ("-----", ''),
 
-                            ("oerrors", format_num(self.get_rel("oerrors"),
-                                                compact = False,
-                                                opts = 'green' if (self.get_rel("oerrors")== 0) else 'red')),
+                ("oerrors", format_num(self.get_rel("oerrors"),
+                                       compact = False,
+                                       opts = 'green' if (self.get_rel("oerrors")== 0) else 'red')),
 
-                            ("ierrors", format_num(self.get_rel("ierrors"),
-                                                compact = False,
-                                                opts = 'green' if (self.get_rel("ierrors")== 0) else 'red')),
-                       
-                           ])
+                ("ierrors", format_num(self.get_rel("ierrors"),
+                                       compact = False,
+                                       opts = 'green' if (self.get_rel("ierrors")== 0) else 'red')),
+                ])
 
 
         total_cols = 1
@@ -190,7 +193,7 @@ class PortStats(AbstractStats):
                               for k, v in stats.items()],
                               header=False)
 
-        stats_table.header(["port", self._port_obj.port_id if self._port_obj else 'total'])
+        stats_table.header(["port", port_str])
 
         return stats_table
 
