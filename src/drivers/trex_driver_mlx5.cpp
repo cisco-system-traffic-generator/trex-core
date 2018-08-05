@@ -24,6 +24,13 @@
 
 std::string CTRexExtendedDriverBaseMlnx5G::mlx5_so_str = "";
 
+CTRexExtendedDriverBaseMlnx5G::CTRexExtendedDriverBaseMlnx5G() {
+    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+    for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
+        m_port_xstats[i] = {0};
+    }
+}
+
 std::string& get_mlx5_so_string(void) {
     return CTRexExtendedDriverBaseMlnx5G::mlx5_so_str;
 }
@@ -204,5 +211,12 @@ CFlowStatParser *CTRexExtendedDriverBaseMlnx5G::get_flow_stat_parser() {
     CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
+}
+
+void CTRexExtendedDriverBaseMlnx5G::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+    flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+        | TrexPlatformApi::IF_STAT_PAYLOAD;
+    num_counters = 127; //With MAX_FLOW_STATS we saw packet failures in rx_test. Need to check.
+    base_ip_id = IP_ID_RESERVE_BASE;
 }
 

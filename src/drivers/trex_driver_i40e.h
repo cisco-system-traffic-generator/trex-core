@@ -27,9 +27,7 @@
 
 class CTRexExtendedDriverBase40G : public CTRexExtendedDriverBase {
 public:
-    CTRexExtendedDriverBase40G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
-    }
+    CTRexExtendedDriverBase40G();
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         // disabling flow control on 40G using DPDK API causes the interface to malfunction
@@ -52,30 +50,9 @@ public:
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
-        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
-        // HW counters on x710 do not support counting bytes.
-        if ( CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
-             || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
-            flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
-            num_counters = MAX_FLOW_STATS;
-        } else {
-            // TODO: check if we could get amount of interfaces per NIC to enlarge this
-            num_counters = MAX_FLOW_STATS_X710;
-        }
-        base_ip_id = IP_ID_RESERVE_BASE;
-        m_max_flow_stats = num_counters;
-    }
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id);
     virtual int wait_for_stable_link();
-    virtual bool hw_rx_stat_supported(){
-        if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
-            || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
-            || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
-            return false;
-        } else {
-            return true;
-        }
-    }
+    virtual bool hw_rx_stat_supported();
     virtual int verify_fw_ver(tvpid_t   tvpid);
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
