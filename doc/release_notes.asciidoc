@@ -31,6 +31,11 @@ endif::backend-docbook[]
 
 * Upgrade to DPDK 18.05
 * Stateless: allow "start" when port is unresolved and all streams have explicit dest MAC.
+* mlx5 can compile with Ubuntu distro  
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-533[trex-533]
 
 
 == Release 2.43 ==
