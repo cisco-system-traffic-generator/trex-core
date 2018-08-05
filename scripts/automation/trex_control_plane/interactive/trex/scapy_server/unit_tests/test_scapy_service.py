@@ -499,6 +499,11 @@ def test_list_templates_hierarchy():
     assert('TCP-SYN' in ids)
     assert('ICMP echo request' in ids)
 
+def test_get_templates_several_times():
+    templates_1 = get_templates()
+    templates_2 = get_templates()
+    assert(templates_1 == templates_2)
+
 def test_get_template_root():
     obj = json.loads(get_template_by_id('TCP-SYN'))
     assert(obj['packet'][0]['id'] == 'Ether')

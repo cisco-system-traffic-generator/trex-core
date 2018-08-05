@@ -467,6 +467,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_templates_definitions = []
         self.field_engine_instructions_meta = []
         self.field_engine_instruction_expressions = []
+        self.scapy_service_dir = os.path.dirname(os.path.realpath(__file__))
         self._load_definitions_from_json()
         self._load_field_engine_meta_from_json()
         self._vm_instructions = dict([m for m in inspect.getmembers(stl.trex_stl_packet_builder_scapy, inspect.isclass) if m[1].__module__ == 'trex.stl.trex_stl_packet_builder_scapy'])
@@ -474,7 +475,7 @@ class Scapy_service(Scapy_service_api):
     def _load_definitions_from_json(self):
         # load protocol definitions from a json file
         self.protocol_definitions = {}
-        p_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'protocols.json')
+        p_path = os.path.join(self.scapy_service_dir, 'protocols.json')
         print(p_path)
         with open(p_path, 'r') as f:
             protocols = json.load(f)
@@ -487,7 +488,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_supported_protocols = {}
         self.field_engine_parameter_meta_definitions = []
         self.field_engine_templates_definitions = []
-        f_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'field_engine.json')
+        f_path = os.path.join(self.scapy_service_dir, 'field_engine.json')
         with open(f_path, 'r') as f:
             metas = json.load(f)
             self.instruction_parameter_meta_definitions = metas["instruction_params_meta"]
@@ -1010,18 +1011,19 @@ class Scapy_service(Scapy_service_api):
 
     def _get_templates(self):
         templates = []
-        os.chdir(scapy_service_dir)
-        for root, subdirs, files in os.walk("templates"):
+        templates_dir = os.path.join(self.scapy_service_dir, "templates")
+        for root, subdirs, files in os.walk(templates_dir):
             for file in files:
                 if not file.endswith('.trp'):
                     continue
                 try:
-                    f = os.path.join(root, file)
+                    file_path = os.path.join(root, file)
                     c = None
-                    with open(f, 'r') as templatefile:
+                    with open(file_path, 'r') as templatefile:
                         c = json.loads(templatefile.read())
-                    id = f.replace("templates" + os.path.sep, "", 1)
-                    id = id.split(os.path.sep)
+
+                    relative_file_path = os.path.relpath(file_path, templates_dir)
+                    id = relative_file_path.split(os.path.sep)
                     id[-1] = id[-1].replace(".trp", "", 1)
                     id = "/".join(id)
                     t = {
@@ -1046,6 +1048,7 @@ class Scapy_service(Scapy_service_api):
         f = "templates" + os.path.sep + os.path.sep.join(id) + ".trp"
         if f != f2:
             return ""
+        f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
             content = base64.b64encode(content_file.read())
         return content
