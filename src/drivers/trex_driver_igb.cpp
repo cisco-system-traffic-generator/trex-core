@@ -24,6 +24,9 @@
 #include "dpdk/drivers/net/e1000/base/e1000_regs.h"
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
 
+CTRexExtendedDriverBase1G::CTRexExtendedDriverBase1G() {
+    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG;
+}
 
 int CTRexExtendedDriverBase1G::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE_1G);
@@ -324,4 +327,19 @@ int CTRexExtendedDriverBase1G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uin
 }
 #endif
 
+void CTRexExtendedDriverBase1G::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+    flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+        | TrexPlatformApi::IF_STAT_PAYLOAD;
+
+    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        num_counters = MAX_FLOW_STATS;
+        base_ip_id = IP_ID_RESERVE_BASE;
+    } else {
+        num_counters = UINT8_MAX;
+        // Must be 0xff00, since we configure HW filter for the 0xff byte
+        // The filter must catch all flow stat packets, and latency packets (having 0xffff in IP ID)
+        base_ip_id = 0xff00;
+    }
+}
 

@@ -27,12 +27,7 @@
 
 class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
-    CTRexExtendedDriverBaseMlnx5G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
-        for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
-            m_port_xstats[i] = {0};
-        }
-    }
+    CTRexExtendedDriverBaseMlnx5G();
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         // disabling flow control on 40G using DPDK API causes the interface to malfunction
@@ -56,12 +51,7 @@ public:
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
-        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
-            | TrexPlatformApi::IF_STAT_PAYLOAD;
-        num_counters = 127; //With MAX_FLOW_STATS we saw packet failures in rx_test. Need to check.
-        base_ip_id = IP_ID_RESERVE_BASE;
-    }
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id);
 
     virtual int wait_for_stable_link();
     // disabling flow control on 40G using DPDK API causes the interface to malfunction
