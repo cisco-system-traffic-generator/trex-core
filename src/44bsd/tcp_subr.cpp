@@ -596,10 +596,13 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 bool CTcpPerThreadCtx::Create(uint32_t size,
                               bool is_client){
     uint32_t seed;
+    uint32_t timestamp;
     #ifdef TREX_SIM
     seed=0x1234;
+    timestamp=0;
     #else
     seed=rand();
+    timestamp=seed;
     #endif
     m_sch_rampup = 0;
     m_rand = new KxuLCRand(seed);
@@ -632,7 +635,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tcpstat.Clear();
     m_udpstat.Clear();
     m_tick=0;
-    tcp_now=0;
+    tcp_now=timestamp;
     m_fif_d_time=0.0;
     m_cb = NULL;
     m_template_rw = NULL;
