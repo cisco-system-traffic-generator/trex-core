@@ -29,6 +29,10 @@ std::string& get_mlx4_so_string(void) {
     return CTRexExtendedDriverMlnx4::mlx4_so_str;
 }
 
+CTRexExtendedDriverMlnx4::CTRexExtendedDriverMlnx4() {
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = TREX_DRV_CAP_MAC_ADDR_CHG ;
+}
 
 int CTRexExtendedDriverVirtBase::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE_1G);
@@ -41,6 +45,13 @@ void CTRexExtendedDriverVirtBase::get_dpdk_drv_params(CTrexDpdkParams &p) {
     p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
     p.tx_desc_num = TX_DESC_NUM;
     p.rx_mbuf_type = MBUF_2048;
+}
+
+void CTRexExtendedDriverVirtBase::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+    flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+        | TrexPlatformApi::IF_STAT_PAYLOAD;
+    num_counters = MAX_FLOW_STATS;
+    base_ip_id = IP_ID_RESERVE_BASE;
 }
 
 void CTRexExtendedDriverAfPacket::get_dpdk_drv_params(CTrexDpdkParams &p) {
@@ -84,6 +95,11 @@ void CTRexExtendedDriverMlnx4::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
+CTRexExtendedDriverVirtio::CTRexExtendedDriverVirtio() {
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ 0;
+}
+
 void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     rte_eth_rxmode *rxmode = &cfg->m_port_conf.rxmode;
@@ -98,12 +114,23 @@ bool CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
+CTRexExtendedDriverVmxnet3::CTRexExtendedDriverVmxnet3() {
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG*/0;
+}
+
 bool CTRexExtendedDriverVmxnet3::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
 bool CTRexExtendedDriverAfPacket::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
     return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+CTRexExtendedDriverBaseE1000::CTRexExtendedDriverBaseE1000() {
+    // E1000 driver is only relevant in VM in our case
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
 }
 
 bool CTRexExtendedDriverBaseE1000::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
@@ -130,6 +157,11 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
 }
 
+CTRexExtendedDriverAfPacket::CTRexExtendedDriverAfPacket(){
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = 0;
+}
+
 void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
@@ -139,10 +171,21 @@ void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
 }
 
 ///////////////////////////////////////////////////////// VF
+
+CTRexExtendedDriverI40evf::CTRexExtendedDriverI40evf() {
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
+}
+
 void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+}
+
+CTRexExtendedDriverIxgbevf::CTRexExtendedDriverIxgbevf() {
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */0;
 }
 

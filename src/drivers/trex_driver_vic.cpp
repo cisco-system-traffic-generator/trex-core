@@ -22,6 +22,13 @@
 #include "trex_driver_vic.h"
 #include "trex_driver_defines.h"
 
+CTRexExtendedDriverBaseVIC::CTRexExtendedDriverBaseVIC() {
+    if (get_is_tcp_mode()) {
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+    }else{
+        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG ;
+    }
+}
 
 int CTRexExtendedDriverBaseVIC::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE);
@@ -223,5 +230,12 @@ CFlowStatParser *CTRexExtendedDriverBaseVIC::get_flow_stat_parser() {
     CFlowStatParser *parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_HW);
     assert (parser);
     return parser;
+}
+
+void CTRexExtendedDriverBaseVIC::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+    flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
+        | TrexPlatformApi::IF_STAT_PAYLOAD;
+    num_counters = MAX_FLOW_STATS;
+    base_ip_id = IP_ID_RESERVE_BASE;
 }
 

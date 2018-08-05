@@ -33,7 +33,9 @@ static uint16_t all_eth_types[]  = {
     0x88F7, 0x88FB, 0x8902, 0x8906, 0x8914, 0x8915, 0x891D, 0x892F, 0x9000, 0x9100,
 };
 
-
+CTRexExtendedDriverBase40G::CTRexExtendedDriverBase40G() {
+    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+}
 
 int CTRexExtendedDriverBase40G::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE);
@@ -403,5 +405,28 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     return 0;
 }
 
+void CTRexExtendedDriverBase40G::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
+    flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
+    // HW counters on x710 do not support counting bytes.
+    if ( CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+         || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
+        num_counters = MAX_FLOW_STATS;
+    } else {
+        // TODO: check if we could get amount of interfaces per NIC to enlarge this
+        num_counters = MAX_FLOW_STATS_X710;
+    }
+    base_ip_id = IP_ID_RESERVE_BASE;
+    m_max_flow_stats = num_counters;
+}
 
+bool CTRexExtendedDriverBase40G::hw_rx_stat_supported() {
+    if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
+        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+        return false;
+    } else {
+        return true;
+    }
+}
 
