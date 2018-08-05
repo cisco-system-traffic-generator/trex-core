@@ -27,9 +27,7 @@
 
 class CTRexExtendedDriverBase10G : public CTRexExtendedDriverBase {
 public:
-    CTRexExtendedDriverBase10G(){
-        m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
-    }
+    CTRexExtendedDriverBase10G();
 
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         return new DpdkTRexPortAttr(tvpid, repid, false, true, true, true);
@@ -49,17 +47,7 @@ public:
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
     virtual int wait_for_stable_link();
-    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
-        flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
-            | TrexPlatformApi::IF_STAT_PAYLOAD;
-        if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)
-            || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)) {
-            num_counters = MAX_FLOW_STATS;
-        } else {
-            num_counters = 127;
-        }
-        base_ip_id = IP_ID_RESERVE_BASE;
-    }
+    virtual void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id);
     virtual CFlowStatParser *get_flow_stat_parser();
     int add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype);
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);

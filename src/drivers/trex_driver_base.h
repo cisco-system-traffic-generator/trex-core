@@ -132,10 +132,7 @@ protected:
 // stubs in case of dummy port, call to normal function otherwise
 class CTRexExtendedDriverDummySelector : public CTRexExtendedDriverBase {
 public:
-    CTRexExtendedDriverDummySelector(CTRexExtendedDriverBase *original_driver) {
-        m_real_drv = original_driver;
-        m_cap = m_real_drv->get_capabilities();
-    }
+    CTRexExtendedDriverDummySelector(CTRexExtendedDriverBase *original_driver);
 
     int get_min_sample_rate(void) {
         return m_real_drv->get_min_sample_rate();
@@ -146,46 +143,12 @@ public:
     void update_global_config_fdir(port_cfg_t *cfg) {
         m_real_drv->update_global_config_fdir(cfg);
     }
-    int configure_rx_filter_rules(CPhyEthIF *_if) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->configure_rx_filter_rules(_if);
-        }
-    }
-    int add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->add_del_rx_flow_stat_rule(_if, op, l3, l4, ipv6_next_h, id);
-        }
-    }
-    int stop_queue(CPhyEthIF * _if, uint16_t q_num) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->stop_queue(_if, q_num);
-        }
-    }
-    bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->get_extended_stats_fixed(_if, stats, fix_i, fix_o);
-        }
-    }
-    bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->get_extended_stats(_if, stats);
-        }
-    }
-    void clear_extended_stats(CPhyEthIF * _if) {
-        if ( ! _if->is_dummy() ) {
-            m_real_drv->clear_extended_stats(_if);
-        }
-    }
+    int configure_rx_filter_rules(CPhyEthIF *_if);
+    int add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id);
+    int stop_queue(CPhyEthIF * _if, uint16_t q_num);
+    bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
+    bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    void clear_extended_stats(CPhyEthIF * _if);
     int  wait_for_stable_link() {
         return m_real_drv->wait_for_stable_link();
     }
@@ -198,52 +161,18 @@ public:
     bool hw_rx_stat_supported() {
         return m_real_drv->hw_rx_stat_supported();
     }
-    int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->get_rx_stats(_if, pkts, prev_pkts, bytes, prev_bytes, min, max);
-        }
-    }
-    void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
-        if ( ! _if->is_dummy() ) {
-            m_real_drv->reset_rx_stats(_if, stats, min, len);
-        }
-    }
-    int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->dump_fdir_global_stats(_if, fd);
-        }
-    }
+    int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
+    void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
+    int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
     void get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
          m_real_drv->get_rx_stat_capabilities(flags, num_counters, base_ip_id);
     }
-    int verify_fw_ver(tvpid_t tvpid) {
-        if ( CTVPort(tvpid).is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->verify_fw_ver(tvpid);
-        }
-    }
+    int verify_fw_ver(tvpid_t tvpid);
     CFlowStatParser *get_flow_stat_parser() {
         return m_real_drv->get_flow_stat_parser();
     }
-    int set_rcv_all(CPhyEthIF * _if, bool set_on) {
-        if ( _if->is_dummy() ) {
-            return 0;
-        } else {
-            return m_real_drv->set_rcv_all(_if, set_on);
-        }
-    }
-    TRexPortAttr * create_port_attr(tvpid_t tvpid, repid_t repid) {
-        if ( CTVPort(tvpid).is_dummy() ) {
-            return new SimTRexPortAttr();
-        } else {
-            return m_real_drv->create_port_attr(tvpid, repid);
-        }
-    }
+    int set_rcv_all(CPhyEthIF * _if, bool set_on);
+    TRexPortAttr * create_port_attr(tvpid_t tvpid, repid_t repid);
     rte_mempool_t * get_rx_mem_pool(int socket_id) {
         return m_real_drv->get_rx_mem_pool(socket_id);
     }
@@ -273,30 +202,11 @@ public:
     bool is_driver_exists(std::string name);
 
 
-    void set_driver_name(std::string name){
-        m_driver_was_set=true;
-        m_driver_name=name;
-        printf(" set driver name %s \n",name.c_str());
-        m_drv=create_driver(m_driver_name);
-        assert(m_drv);
-    }
+    void set_driver_name(std::string name);
 
-    void create_dummy() {
-        if ( ! m_dummy_selector_created ) {
-            m_dummy_selector_created = true;
-            m_drv = new CTRexExtendedDriverDummySelector(get_drv());
-        }
-    }
+    void create_dummy();
 
-    CTRexExtendedDriverBase * get_drv(){
-        if (!m_driver_was_set) {
-            printf(" ERROR too early to use this object !\n");
-            printf(" need to set the right driver \n");
-            assert(0);
-        }
-        assert(m_drv);
-        return (m_drv);
-    }
+    CTRexExtendedDriverBase* get_drv();
 
 public:
 

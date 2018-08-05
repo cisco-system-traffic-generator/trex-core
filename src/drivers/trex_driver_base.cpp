@@ -125,6 +125,31 @@ bool CTRexExtendedDriverDb::is_driver_exists(std::string name){
     return (false);
 }
 
+void CTRexExtendedDriverDb::set_driver_name(std::string name) {
+    m_driver_was_set=true;
+    m_driver_name=name;
+    printf(" set driver name %s \n",name.c_str());
+    m_drv=create_driver(m_driver_name);
+    assert(m_drv);
+}
+
+void CTRexExtendedDriverDb::create_dummy() {
+    if ( ! m_dummy_selector_created ) {
+        m_dummy_selector_created = true;
+        m_drv = new CTRexExtendedDriverDummySelector(get_drv());
+    }
+}
+
+CTRexExtendedDriverBase* CTRexExtendedDriverDb::get_drv() {
+    if (!m_driver_was_set) {
+        printf(" ERROR too early to use this object !\n");
+        printf(" need to set the right driver \n");
+        assert(0);
+    }
+    assert(m_drv);
+    return (m_drv);
+}
+
 CTRexExtendedDriverDb::CTRexExtendedDriverDb() {
     register_driver(std::string("net_ixgbe"),CTRexExtendedDriverBase10G::create);
     register_driver(std::string("net_e1000_igb"),CTRexExtendedDriverBase1G::create);
@@ -261,5 +286,105 @@ bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthI
 
 CTRexExtendedDriverBase * get_ex_drv() {
     return ( CTRexExtendedDriverDb::Ins()->get_drv());
+}
+
+
+// CTRexExtendedDriverDummySelector
+
+CTRexExtendedDriverDummySelector::CTRexExtendedDriverDummySelector(CTRexExtendedDriverBase *original_driver) {
+    m_real_drv = original_driver;
+    m_cap = m_real_drv->get_capabilities();
+}
+
+int CTRexExtendedDriverDummySelector::configure_rx_filter_rules(CPhyEthIF *_if) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->configure_rx_filter_rules(_if);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->add_del_rx_flow_stat_rule(_if, op, l3, l4, ipv6_next_h, id);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->stop_queue(_if, q_num);
+    }
+}
+
+bool CTRexExtendedDriverDummySelector::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->get_extended_stats_fixed(_if, stats, fix_i, fix_o);
+    }
+}
+
+bool CTRexExtendedDriverDummySelector::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->get_extended_stats(_if, stats);
+    }
+}
+
+void CTRexExtendedDriverDummySelector::clear_extended_stats(CPhyEthIF * _if) {
+    if ( ! _if->is_dummy() ) {
+        m_real_drv->clear_extended_stats(_if);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->get_rx_stats(_if, pkts, prev_pkts, bytes, prev_bytes, min, max);
+    }
+}
+
+void CTRexExtendedDriverDummySelector::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
+    if ( ! _if->is_dummy() ) {
+        m_real_drv->reset_rx_stats(_if, stats, min, len);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->dump_fdir_global_stats(_if, fd);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::verify_fw_ver(tvpid_t tvpid) {
+    if ( CTVPort(tvpid).is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->verify_fw_ver(tvpid);
+    }
+}
+
+int CTRexExtendedDriverDummySelector::set_rcv_all(CPhyEthIF * _if, bool set_on) {
+    if ( _if->is_dummy() ) {
+        return 0;
+    } else {
+        return m_real_drv->set_rcv_all(_if, set_on);
+    }
+}
+
+TRexPortAttr * CTRexExtendedDriverDummySelector::create_port_attr(tvpid_t tvpid, repid_t repid) {
+    if ( CTVPort(tvpid).is_dummy() ) {
+        return new SimTRexPortAttr();
+    } else {
+        return m_real_drv->create_port_attr(tvpid, repid);
+    }
 }
 
