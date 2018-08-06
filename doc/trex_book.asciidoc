@@ -131,7 +131,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 .Supported NICs
 [options="header",cols="1,1,1,1,4",width="90%"]
 |=================
-| Chipset              | Bandwidth  (Gb/sec)  | LSO<1> |LRO<1>  | Example
+| Chipset              | Bandwidth  (Gb/sec)  | LSO  | LRO   | Example    
 | Any Kernel Linux interface |x| x | x | veth,tap,tun,eth0,wireless interface, up to ~1MPPS, one thread. see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
 | Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. X550-T2,x540-T2 for tbase Cisco part ID:UCSC-PCIE-ID10GC 
@@ -154,7 +154,10 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Virtio | paravirtualized    | + | - | KVM
 |=================
 
-<1> LSO (Large Send Offload) and LRO (Large Receive Offload) are techniques to increase egress and ingress throughput in high-bandwidth network connections by reducing CPU overheard. These are generally accomplished using multipacket buffering. LSO is also known as TCP segmentation offload (TSO) when applied to TCP, or generic segmentation offload (GSO). See link:https://en.wikipedia.org/wiki/Large_receive_offload[Large Receive Offload] and link:https://en.wikipedia.org/wiki/Large_send_offload(Large Send Offload) on wikipedia for further information.
+[NOTE]
+=====================================
+LSO (Large Send Offload) and LRO (Large Receive Offload) are techniques to increase egress and ingress throughput in high-bandwidth network connections by reducing CPU overheard. These are generally accomplished using multipacket buffering. LSO is also known as TCP segmentation offload (TSO) when applied to TCP, or generic segmentation offload (GSO). See link:https://en.wikipedia.org/wiki/Large_receive_offload[Large Receive Offload] and link:https://en.wikipedia.org/wiki/Large_send_offload(Large Send Offload) on wikipedia for further information.
+=====================================
 
 // in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
 
