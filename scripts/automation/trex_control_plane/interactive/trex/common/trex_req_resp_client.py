@@ -230,7 +230,7 @@ class JsonRpcClient(object):
             response = self.send_raw_msg(buffer, retry = retry)
 
         if not response:
-            return response
+            return RC_ERR('Empty JSON Response!')
         elif self.zipper.is_compressed(response):
             response = self.zipper.decompress(response)
 
