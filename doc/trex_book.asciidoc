@@ -2068,17 +2068,11 @@ We added configuration to the /etc/trex_cfg.yaml:
 This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
 
 
-==== Timer Wheeel  section configuration
+==== Timer Wheel section configuration
 
 anchor:timer_w[]
 
-The memory section is optional. It is used when there is a need to tune the amount of memory used by TRex packet manager.
-Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can
-eliminate this section.
-
-==== Timer Wheel section configuration
-The flow scheduler uses timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values.
-This is an advance configuration, don't use it if you don't know what you are doing. it can be configure in trex_cfg file and trex traffic profile.
+The flow scheduler uses a timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values. This is an advanced configuration; don't use it if you don't know what you are doing. It can be configured in the global `trex_cfg.yaml` file and per link:trex_manual.html#_traffic_yaml_f_argument_of_stateful[trex traffic profile].
 
 [source,python]
 ----
