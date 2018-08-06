@@ -695,11 +695,9 @@ Under the hood it's being replaced with following (this full syntax can also be 
 
 === Dummy ports
 
-(Starting from version 2.38)
+Dummy ports are available to solve 2 issues:
 
-Dummy ports can solve 2 issues:
-
-* Odd number of interfaces. For example, TRex with one interface only.
+* Odd number of interfaces. For example, TRex with only one interface.
 * Performance degradation when adjacent interfaces belong to different NUMAs.
 
 Configuration example:
@@ -723,10 +721,22 @@ Incorrect configuration example:
 
 [NOTE]
 =====================================
-1. Old GUI does not work with dummy ports. Use latest.
+1. Supported in TRex as of v2.38+.
 2. Client (Python API, trex-console) older than v2.38 will not work with dummy ports. Update your client to v2.38 or later.
+3. Dummy ports are available for all TRex modes (stateless, statefull, and ASTF).
 =====================================
 
+Consider the following if using dummy ports for a single interface TRex generator:
+
+|=================
+| Configuration | Mode | Support Status | Comments
+| Single TRex Generator, Single Interface | Stateless | functional | unidirectional
+| | Stateful | semi-functional | will only send unidirectional side of the flows
+| | ASTF | depends on remote | requires bidirectional TCP stack, if remote supports TCP stack, will work, otherwise will not work
+| Two TRex Generators ,Single Interface | Stateless | functional | bidirectional
+| | Stateful | semi-functional | will "work", however flows will not be in sync
+| | ASTF | functional | full TCP stack
+|=================
 
 === Configuring for running with router (or other L3 device) as DUT
 
