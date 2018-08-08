@@ -316,14 +316,14 @@ class TRexSubscriber():
 
             msg = json.loads(line)
 
-            name = msg['name']
-            data = msg['data']
-            type = msg['type']
+            name     = msg['name']
+            data     = msg['data']
+            msg_type = msg['type']
             baseline = msg.get('baseline', False)
 
             self.raw_snapshot[name] = data
 
-            self.__dispatch(name, type, data, baseline)
+            self.__dispatch(name, msg_type, data, baseline)
 
 
 

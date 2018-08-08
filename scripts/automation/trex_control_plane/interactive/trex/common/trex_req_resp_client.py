@@ -230,7 +230,10 @@ class JsonRpcClient(object):
             response = self.send_raw_msg(buffer, retry = retry)
 
         if not response:
-            return RC_ERR('Empty JSON Response!')
+            if isinstance(response, RC):
+                return response
+            else:
+                return RC_ERR('Empty JSON Response!')
         elif self.zipper.is_compressed(response):
             response = self.zipper.decompress(response)
 
@@ -359,8 +362,8 @@ class JsonRpcClient(object):
         except zmq.error.ZMQError as e:
             return RC_ERR("ZMQ Error: Bad server or port name: " + str(e))
 
-        self.socket.setsockopt(zmq.SNDTIMEO, 10000)
-        self.socket.setsockopt(zmq.RCVTIMEO, 10000)
+        self.socket.setsockopt(zmq.SNDTIMEO, 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, 1000)
 
         self.connected = True
 
