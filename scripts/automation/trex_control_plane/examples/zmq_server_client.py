@@ -1,12 +1,12 @@
 import sys
 import os
 
-cpu_arch = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
-python_ver = 'python%s' % sys.version_info.major
-ucs_ver = 'ucs2' if sys.maxunicode == 65535 else 'ucs4'
+cpu_vendor = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
+cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
 
-zmq_path = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,
-        'external_libs','pyzmq-14.5.0', python_ver, cpu_arch, ucs_ver, '64bit'))
+par = os.pardir
+ext_libs = os.path.abspath(os.path.join(os.path.dirname(__file__), par, par, par, 'external_libs'))
+zmq_path = os.path.join(ext_libs, 'pyzmq-ctypes', cpu_vendor, cpu_bits)
 if zmq_path not in sys.path:
    sys.path.append(zmq_path)
 
