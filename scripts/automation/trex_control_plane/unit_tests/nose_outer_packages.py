@@ -1,9 +1,9 @@
 #!/router/bin/python
 
-import sys,site
-import platform,os
+import sys
+import os
 
-CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))               
+CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
 ROOT_PATH           = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
 PATH_TO_PYTHON_LIB  = os.path.abspath(os.path.join(ROOT_PATH, 'python_lib')) 
 
@@ -21,7 +21,7 @@ def import_module_list (modules_list):
     assert(isinstance(modules_list, list))
     for p in modules_list:
         full_path   = os.path.join(PATH_TO_PYTHON_LIB, p)
-        fix_path    = os.path.normcase(full_path) #CURRENT_PATH+p)
-        site.addsitedir(full_path)
+        if full_path not in sys.path:
+            sys.path.append(full_path)
 
 import_test_modules()
