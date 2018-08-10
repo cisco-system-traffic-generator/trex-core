@@ -28,21 +28,21 @@ def __load ():
     # the modules required
     # py-dep requires python2/python3 directories
     # arch-dep requires intel/arm, 32bit/64bit directories
-    ext_libs = [ {'name': 'texttable-0.8.4'},
-                 {'name': 'pyyaml-3.11', 'py-dep': True},
-                 {'name': 'scapy-2.3.1', 'py-dep': True},
-                 {'name': 'pyzmq-ctypes', 'arch-dep': True},
-                 {'name': 'simpy-3.0.10'},
-                 {'name': 'trex-openssl'},
-                 {'name': 'dpkt-1.9.1'},
-                 {'name': 'repoze'},
+    ext_libs = [ {'name': 'texttable',    'dir': 'texttable-0.8.4'},
+                 {'name': 'yaml',         'dir': 'pyyaml-3.11', 'py-dep': True},
+                 {'name': 'scapy',        'dir': 'scapy-2.3.1', 'py-dep': True},
+                 {'name': 'zmq',          'dir': 'pyzmq-ctypes', 'arch-dep': True},
+                 {'name': 'simpy',        'dir': 'simpy-3.0.10'},
+                 {'name': 'trex_openssl', 'dir': 'trex-openssl'},
+                 {'name': 'dpkt',         'dir': 'dpkt-1.9.1'},
+                 {'name': 'repoze',       'dir': 'repoze'},
                ]
 
     __import_ext_libs(ext_libs, ext_libs_path)
 
 
 def __generate_module_path (module, ext_libs_path, is_python3, is_64bit):
-    platform_path = [module['name']]
+    platform_path = [module['dir']]
 
     if module.get('py-dep'):
         platform_path.append('python3' if is_python3 else 'python2')
@@ -72,7 +72,16 @@ def __import_ext_libs(ext_libs, ext_libs_path):
             raise Exception(err_msg)
 
 
-        sys.path.insert(1, full_path)
+        if full_path not in sys.path:
+            # remove loaded modules that have same name as from our external lib
+            for m_name, module in dict(sys.modules).items():
+                if hasattr(module, '__path__'):
+                    m_path = module.__path__
+                    p_name = p['name']
+                    if (m_name == p_name or m_name.startswith(p_name + '.')) and (len(m_path) != 1 or not m_path[0].startswith(full_path)):
+                        del sys.modules[m_name]
+
+            sys.path.insert(1, full_path)
 
 # load the library
 __load()
