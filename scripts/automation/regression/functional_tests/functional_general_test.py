@@ -6,6 +6,12 @@ from nose.tools import assert_raises
 from nose.tools import raises
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
+from trex_scenario import CTRexScenario
+import os
+
+generated_path = os.path.join(CTRexScenario.scripts_path, 'generated')
+if not os.path.exists(generated_path):
+    os.makedirs(generated_path)
 
 class CGeneralFunctional_Test(object): 
     def __init__(self):

@@ -11,6 +11,7 @@ import errno
 import tempfile
 import platform
 
+cur_dir = os.path.dirname(__file__)
 
 # runs command
 def run_command(command, timeout = 60, poll_rate = 0.1, cwd = None):
@@ -34,33 +35,29 @@ def run_command(command, timeout = 60, poll_rate = 0.1, cwd = None):
 @attr('run_on_trex')
 class CPP_Test(functional_general_test.CGeneralFunctional_Test):
     def test_gtests_all(self):
-        print('')
         bp_sim = os.path.join(CTRexScenario.scripts_path, 'bp-sim-64')
         ret, out = run_command('%s --ut' % bp_sim, cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of gtests (%s)' % ret)
 
     def test_gtests_valgrind(self):
-        print('')
-        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, 'run-gtest-clean'), cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
+        ret, out = run_command(os.path.join(cur_dir, 'run-gtest-clean'), cwd = cur_dir)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
     def test_gtests_tcp_valgrind(self):
-        print('')
-        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, 'run-gtest-tcp-clean "gt_tcp.*"'), cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
+        ret, out = run_command(os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_tcp.*"'), cwd = cur_dir)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
     def test_bp_sim_client_cfg(self):
-        print('')
         cmd = './bp-sim-64 --pcap -f cap2/dns.yaml --client_cfg automation/regression/cfg/client_cfg_vlan_mac.yaml -o generated/bp_sim_dns_vlans_gen.pcap'
         ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
         compare_caps(output = os.path.join(CTRexScenario.scripts_path, 'generated/bp_sim_dns_vlans_gen.pcap'),
@@ -72,11 +69,10 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
         if not ("csi-trex-05" in platform.node()):
             print("skip")
             return;
-        print('')
         cmd = './astf-sim-utl --sfr'
         ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of test_astf_sim_utl_sfr (%s)' % ret)
 
 
@@ -84,10 +80,9 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
         # tshark of trex-05 is the valid one 
         if platform.node()!="csi-trex-05.cisco.com":
             return;
-        print('')
         cmd = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
         ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50,cwd = CTRexScenario.scripts_path)
-        print('Output:\n%s' % out)
         if ret:
+            print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of test_astf_sim_utl_sfr_drop (%s)' % ret)
 

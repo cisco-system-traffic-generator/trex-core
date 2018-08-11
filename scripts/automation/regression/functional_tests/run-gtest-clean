@@ -6,8 +6,13 @@ else
   export VALGRIND_EXE=$VALGRIND_LOC/bin/valgrind
 fi
 
-$VALGRIND_EXE --version
-$VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter="gt_r_timer.*"
+if ! $VALGRIND_EXE --version; then
+    echo Valgrind not found
+    exit 1
+fi
+
+
+$VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter="basic_*"
 RESULT=$?
 if [ $RESULT  -ne 0 ]; then
   echo "ERROR ...."

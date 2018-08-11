@@ -1,4 +1,7 @@
 #! /bin/bash
+ARGS="$@"
+echo $ARGS
+
 if [ -z "$VALGRIND_LOC" ]; then
   export VALGRIND_EXE=valgrind
 else
@@ -6,9 +9,13 @@ else
   export VALGRIND_EXE=$VALGRIND_LOC/bin/valgrind
 fi
 
-$VALGRIND_EXE --version
+if ! $VALGRIND_EXE --version; then
+    echo Valgrind not found
+    exit 1
+fi
 
-$VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter="basic_*"
+
+$VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-sim-64 --ut --gtest_filter=$ARGS
 RESULT=$?
 if [ $RESULT  -ne 0 ]; then
   echo "ERROR ...."
