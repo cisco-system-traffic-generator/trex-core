@@ -121,6 +121,7 @@ class Port(object):
         self.last_factor_type = None
 
         self.__attr = PortAttr()
+        self.__is_sync = False
 
     def err(self, msg):
         return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
@@ -129,6 +130,8 @@ class Port(object):
     def ok(self, data = ""):
         return RC_OK(data)
 
+    def is_sync(self):
+        return self.__is_sync
 
     def get_speed_bps (self):
         return (self.get_speed_gbps() * 1000 * 1000 * 1000)
@@ -245,7 +248,8 @@ class Port(object):
         self.update_ts_attr(rc.data()['attr'])
         
         self.service_mode = rc.data()['service']
-        
+
+        self.__is_sync = True
         return self.ok()
 
      
@@ -437,6 +441,8 @@ class Port(object):
         # sync the status
         if sync:
             self.sync()
+        elif not self.is_sync():
+            return {}
 
         # get a copy of the current attribute set (safe against manipulation)
         attr = self.get_ts_attr()
@@ -698,11 +704,14 @@ class Port(object):
         
         # get a thread safe duplicate
         cur_attr = self.get_ts_attr()
-        
+
+        if not cur_attr:
+            return
+
         # check if anything changed
         if new_attr == cur_attr:
-            return None
-            
+            return
+
         # generate before
         before = self.get_formatted_info(sync = False)
         

@@ -120,7 +120,7 @@ def list_remove_dup (l):
     tmp = list()
     
     for x in l:
-        if not x in tmp:
+        if x not in tmp:
             tmp.append(x)
             
     return tmp

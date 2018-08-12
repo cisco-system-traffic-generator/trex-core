@@ -153,7 +153,7 @@ class CTRexScFieldRangeBase(CTRexScriptsBase):
         super(CTRexScFieldRangeBase, self).__init__()
         self.field_name =field_name
         self.field_type =field_type
-        if not self.field_type in CTRexScFieldRangeBase.FILED_TYPES :
+        if self.field_type not in CTRexScFieldRangeBase.FILED_TYPES :
             raise CTRexPacketBuildException(-12, 'Field type should be in %s' % FILED_TYPES);
 
 
@@ -681,11 +681,11 @@ class CTRexVmDescBase(object):
 
 
 def valid_fv_size (size):
-    if not (size in CTRexVmInsFlowVar.VALID_SIZES):
+    if size not in CTRexVmInsFlowVar.VALID_SIZES:
         raise CTRexPacketBuildException(-11,("Flow var has invalid size %d ") % size  );
 
 def valid_fv_ops (op):
-    if not (op in CTRexVmInsFlowVar.OPERATIONS):
+    if op not in CTRexVmInsFlowVar.OPERATIONS:
         raise CTRexPacketBuildException(-11,("Flow var has invalid op %s ") % op  );
 
 def get_max_by_size (size):
@@ -1247,7 +1247,7 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
         self.pkt_offset =pkt_offset
         self.pkt_cast_size =pkt_cast_size
         validate_type('pkt_cast_size', pkt_cast_size, int)
-        if not (pkt_cast_size in [1,2,4]):
+        if pkt_cast_size not in [1,2,4]:
             raise CTRexPacketBuildException(-10,"not valid cast size");
 
         self.mask = mask
@@ -1909,7 +1909,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         for desc in obj.commands:
             var_name =  desc.get_var_ref()
             if var_name :
-                if not var_name in vars:
+                if var_name not in vars:
                     raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (var_name) );
             desc.compile(self);
 
