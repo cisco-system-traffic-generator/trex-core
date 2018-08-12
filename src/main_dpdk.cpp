@@ -5503,11 +5503,13 @@ bool CPhyEthIF::Create(tvpid_t  tvpid,
 
     m_port_attr    = g_trex.m_drv->create_port_attr(tvpid,repid);
 
-    /* set src MAC addr */
-    uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
-    if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
-        rte_eth_macaddr_get(m_repid,
-                            (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
+    if ( !m_is_dummy ) {
+        /* set src MAC addr */
+        uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
+        if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
+            rte_eth_macaddr_get(m_repid,
+                                (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
+        }
     }
 
     return true;
