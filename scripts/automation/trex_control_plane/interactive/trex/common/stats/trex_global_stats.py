@@ -237,7 +237,7 @@ class UtilStats(AbstractStats):
                 # decode active ports for core
                 if ports == [-1, -1]:
                     interfaces = "(IDLE)"
-                elif not -1 in ports:
+                elif -1 not in ports:
                     interfaces = "({:},{:})".format(ports[0], ports[1])
                 else:
                     interfaces = "({:})".format(ports[0] if ports[0] != -1 else ports[1])

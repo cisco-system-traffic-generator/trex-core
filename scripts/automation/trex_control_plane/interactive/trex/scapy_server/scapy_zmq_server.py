@@ -44,7 +44,7 @@ class Scapy_wrapper:
             scapy_method = eval("self.scapy_master."+req['method'])
             arg_num_for_method = len(inspect.getargspec(scapy_method)[0])
             if (arg_num_for_method>1) :
-                if not ('params' in req.keys()):
+                if 'params' not in req.keys():
                     raise InvalidRequest(req_id)
                 params_len = len(req['params'])+1 # +1 because "self" is considered parameter in args for method
                 if not (params_len==arg_num_for_method):

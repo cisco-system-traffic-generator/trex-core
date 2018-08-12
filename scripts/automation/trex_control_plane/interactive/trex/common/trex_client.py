@@ -321,12 +321,13 @@ class TRexClient(object):
 
 
     def _on_port_attr_chg (self, port_id, attr):
-        if not port_id in self.ports:
+        if port_id not in self.ports:
             return
 
         diff = self.ports[port_id].async_event_port_attr_changed(attr)
+        if not diff:
+            return
 
-            
         msg = "port {0} attributes changed".format(port_id)
         for key, (old_val, new_val) in diff.items():
             msg += '\n  {key}: {old} -> {new}'.format(
@@ -415,7 +416,6 @@ class TRexClient(object):
         rc = self._on_connect(self.ctx.system_info)
         if not rc:
             return rc
-
 
         # sync the ports
         rc = self._for_each_port('sync')

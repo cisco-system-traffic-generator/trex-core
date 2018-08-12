@@ -52,7 +52,7 @@ class Logger(object):
             see __init__
         """
         
-        if not verbose in Logger.VERBOSES.keys():
+        if verbose not in Logger.VERBOSES.keys():
             raise TRexError("set_verbose: valid values by level of verbosity are: '{0}'".format("', '".join(Logger.VERBOSES.keys())))
 
         self.level = Logger.VERBOSES[verbose]

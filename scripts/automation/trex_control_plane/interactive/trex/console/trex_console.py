@@ -69,7 +69,7 @@ def write_history_file(hist_file):
 class ConsoleLogger(Logger):
     def __init__ (self):
         Logger.__init__(self)
-        self.prompt_redraw = None
+        self.prompt_redraw = lambda: None
         self.tid = threading.current_thread().ident
 
     def _write (self, msg, newline = True):
