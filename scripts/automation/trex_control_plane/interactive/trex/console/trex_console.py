@@ -613,7 +613,7 @@ class TRexConsole(TRexGeneralCmd):
              self._help_cmds('Stateless Commands', categories['STL'])
 
          if 'ASTF' in categories:
-             self._help_cmds('Advance Stateful Commands', categories['ASTF'])
+             self._help_cmds('Advanced Stateful Commands', categories['ASTF'])
 
 
     def _help_cmds (self, title, cmds):
