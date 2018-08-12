@@ -4,6 +4,7 @@
  */
 
 #include <errno.h>
+#include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,6 +23,8 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
+
+#include <rte_config.h>
 
 #include "mlx5_autoconf.h"
 #include "mlx5_glue.h"
@@ -343,7 +346,8 @@ mlx5_glue_dv_create_qp(struct ibv_context *context,
 #endif
 }
 
-const struct mlx5_glue *mlx5_glue __attribute__((__aligned__(64))) = &(const struct mlx5_glue){
+alignas(RTE_CACHE_LINE_SIZE)
+const struct mlx5_glue *mlx5_glue = &(const struct mlx5_glue){
 	.version = MLX5_GLUE_VERSION,
 	.fork_init = mlx5_glue_fork_init,
 	.alloc_pd = mlx5_glue_alloc_pd,

@@ -21,6 +21,9 @@
 #include <rte_vect.h>
 #include "mlx5_autoconf.h"
 
+/* RSS hash key size. */
+#define MLX5_RSS_HASH_KEY_LEN 40
+
 /* Get CQE owner bit. */
 #define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
 
@@ -240,7 +243,9 @@ struct mlx5_cqe {
 	uint8_t padding[64];
 #endif
 	uint8_t pkt_info;
-	uint8_t rsvd0[11];
+	uint8_t rsvd0;
+	uint16_t wqe_id;
+	uint8_t rsvd3[8];
 	uint32_t rx_hash_res;
 	uint8_t rx_hash_type;
 	uint8_t rsvd1[11];
@@ -285,7 +290,10 @@ struct mlx5_cqe {
 struct mlx5_mini_cqe8 {
 	union {
 		uint32_t rx_hash_result;
-		uint32_t checksum;
+		struct {
+			uint16_t checksum;
+			uint16_t stride_idx;
+		};
 		struct {
 			uint16_t wqe_counter;
 			uint8_t  s_wqe_opcode;

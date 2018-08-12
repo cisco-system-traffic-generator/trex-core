@@ -286,6 +286,9 @@ def configure(conf):
     conf.env.NO_MLX = no_mlx
     if not no_mlx:
         ofed_ok = conf.check_ofed(mandatory = False)
+        conf.env.OFED_OK = ofed_ok
+        conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
+
         if ofed_ok:
             conf.get_ld_search_path(mandatory = True)
             conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
@@ -816,50 +819,59 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_timer/rte_timer.c',
             ]);
 
-ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
+ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
 
-                 'drivers/net/ntacc/filter_ntacc.c',
-                 'drivers/net/ntacc/rte_eth_ntacc.c',
-                 'drivers/net/ntacc/nt_compat.c',
+                 'filter_ntacc.c',
+                 'rte_eth_ntacc.c',
+                 'nt_compat.c',
             ]);
 
-mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
+libmnl_src = SrcGroup(
+    dir = 'external_libs/libmnl/src',
+    src_list = [
+        'socket.c',
+        'callback.c',
+        'nlmsg.c',
+        'attr.c',
+    ]);
+
+mlx5_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx5',
                 src_list=[
 
-                 'drivers/net/mlx5/mlx5.c',
-                 'drivers/net/mlx5/mlx5_ethdev.c',
-                 #'drivers/net/mlx5/mlx5_fdir.c', # remove 
-                 'drivers/net/mlx5/mlx5_flow.c',
-                 'drivers/net/mlx5/mlx5_glue.c',
-                 'drivers/net/mlx5/mlx5_mr.c',
-                 'drivers/net/mlx5/mlx5_mac.c',
-                 'drivers/net/mlx5/mlx5_nl.c',
-                 'drivers/net/mlx5/mlx5_rxmode.c',
-                 'drivers/net/mlx5/mlx5_rxtx.c',
-                 'drivers/net/mlx5/mlx5_socket.c',
-                 'drivers/net/mlx5/mlx5_stats.c',
-                 'drivers/net/mlx5/mlx5_txq.c',
-                 'drivers/net/mlx5/mlx5_rss.c',
-                 'drivers/net/mlx5/mlx5_rxq.c',
-                 'drivers/net/mlx5/mlx5_rxtx_vec.c',
-                 'drivers/net/mlx5/mlx5_trigger.c',
-                 'drivers/net/mlx5/mlx5_vlan.c',
+                 'mlx5.c',
+                 'mlx5_ethdev.c',
+                 'mlx5_flow.c',
+                 'mlx5_glue.c',
+                 'mlx5_mr.c',
+                 'mlx5_mac.c',
+                 'mlx5_nl.c',
+                 'mlx5_nl_flow.c',
+                 'mlx5_rxmode.c',
+                 'mlx5_rxtx.c',
+                 'mlx5_socket.c',
+                 'mlx5_stats.c',
+                 'mlx5_txq.c',
+                 'mlx5_rss.c',
+                 'mlx5_rxq.c',
+                 'mlx5_rxtx_vec.c',
+                 'mlx5_trigger.c',
+                 'mlx5_vlan.c',
 
             ]);
 
-mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
+mlx4_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx4',
                 src_list=[
-                 'drivers/net/mlx4/mlx4.c',
-                 'drivers/net/mlx4/mlx4_ethdev.c',
-                 'drivers/net/mlx4/mlx4_flow.c',
-                 'drivers/net/mlx4/mlx4_glue.c',
-                 'drivers/net/mlx4/mlx4_intr.c',
-                 'drivers/net/mlx4/mlx4_mr.c',
-                 'drivers/net/mlx4/mlx4_rxq.c',
-                 'drivers/net/mlx4/mlx4_rxtx.c',
-                 'drivers/net/mlx4/mlx4_txq.c',
-                 'drivers/net/mlx4/mlx4_utils.c',
+                 'mlx4.c',
+                 'mlx4_ethdev.c',
+                 'mlx4_flow.c',
+                 'mlx4_glue.c',
+                 'mlx4_intr.c',
+                 'mlx4_mr.c',
+                 'mlx4_rxq.c',
+                 'mlx4_rxtx.c',
+                 'mlx4_txq.c',
+                 'mlx4_utils.c',
             ]);
 
 if march == 'x86_64':
@@ -883,6 +895,9 @@ elif march == 'aarch64':
     # software BPF
     bpf = SrcGroups([bpf_src]);
 
+libmnl =SrcGroups([
+                libmnl_src
+                ]);
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
@@ -1086,8 +1101,6 @@ includes_path = '''
                   ''';
 
 
-dpdk_includes_verb_path =''
-
 
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
@@ -1195,6 +1208,9 @@ class build_option:
     def get_mlx5_target (self):
         return self.update_executable_name("mlx5");
 
+    def get_libmnl_target (self):
+        return self.update_executable_name("mnl");
+
     def get_mlx4_target (self):
         return self.update_executable_name("mlx4");
 
@@ -1203,6 +1219,9 @@ class build_option:
 
     def get_mlx5so_target (self):
         return self.update_executable_name("libmlx5")+'.so';
+
+    def get_libmnlso_target (self):
+        return self.update_executable_name("libmnl") + '.so';
 
     def get_mlx4so_target (self):
         return self.update_executable_name("libmlx4")+'.so';
@@ -1220,14 +1239,19 @@ class build_option:
             flags += ['-DNDEBUG'];
         else:
             flags += ['-UNDEBUG'];
+
+        flags += ['-std=c11']
+
         return (flags)
 
-    def get_mlx4_flags(self):
+    def get_mlx4_flags(self, bld):
         flags=[]
         if self.isRelease () :
             flags += ['-DNDEBUG'];
         else:
             flags += ['-UNDEBUG'];
+        if bld.env.OFED_OK:
+            flags += ['-DHAVE_IBV_MLX4_WQE_LSO_SEG=1']
         return (flags)
 
     def get_common_flags (self):
@@ -1332,19 +1356,33 @@ def build_prog (bld, build_obj):
       );
 
     if bld.env.NO_MLX == False:
+        if not bld.env.LIB_MNL:
+            bld.shlib(
+                features='c',
+                includes = bld.env.libmnl_path,
+                cflags   = (cflags),
+                source   = libmnl.file_list(top),
+                target   = build_obj.get_libmnl_target()
+            )
+            bld.env.mlx5_use = [build_obj.get_libmnl_target()]
+
         bld.shlib(
           features='c',
-          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          includes = dpdk_includes_path +
+                     bld.env.dpdk_includes_verb_path +
+                     bld.env.libmnl_path,
           cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-            use =['ibverbs','mlx5'],
+          use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
           source   = mlx5_dpdk.file_list(top),
-          target   = build_obj.get_mlx5_target()
+          target   = build_obj.get_mlx5_target(),
+          **bld.env.mlx5_kw
         )
 
         bld.shlib(
         features='c',
-        includes = dpdk_includes_path+dpdk_includes_verb_path,
-        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags() ),
+        includes = dpdk_includes_path +
+                   bld.env.dpdk_includes_verb_path,
+        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
             use =['ibverbs', 'mlx4'],
         source   = mlx4_dpdk.file_list(top),
         target   = build_obj.get_mlx4_target()
@@ -1353,7 +1391,8 @@ def build_prog (bld, build_obj):
     if bld.env.WITH_NTACC == True:
         bld.shlib(
           features='c',
-          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          includes = dpdk_includes_path +
+                     bld.env.dpdk_includes_verb_path,
           cflags   = (cflags + DPDK_FLAGS +
             ['-I/opt/napatech3/include',
              '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"']),
@@ -1413,8 +1452,7 @@ def build(bld):
     if bld.env.SANITIZED and bld.cmd == 'build':
         Logs.warn("\n******* building sanitized binaries *******\n")
 
-        
-    global dpdk_includes_verb_path;
+    bld.env.dpdk_includes_verb_path = ''
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
 
@@ -1423,7 +1461,7 @@ def build(bld):
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     if bld.env.NO_MLX == False:
-        if bld.env['LIB_IBVERBS']:
+        if bld.env.LIB_IBVERBS:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
             if not bld.env.LD_SEARCH_PATH:
                 bld.fatal('LD_SEARCH_PATH is empty, run configure')
@@ -1436,11 +1474,21 @@ def build(bld):
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/'
-            dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
+            bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
             bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
             bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
+
+        if bld.env.LIB_MNL:
+            Logs.pprint('GREEN', 'Info: Using external libmnl.')
+            bld.env.libmnl_path = ''
+            bld.env.mlx5_use = []
+            bld.env.mlx5_kw = {'lib': 'mnl'}
+        else:
+            Logs.pprint('GREEN', 'Info: Using internal libmnl.')
+            bld.env.libmnl_path=' \n ../external_libs/libmnl/include/ \n'
+            bld.env.mlx5_kw  = {}
 
     for obj in build_types:
         build_type(bld,obj);
@@ -1502,6 +1550,11 @@ def install_single_system (bld, exec_p, build_obj):
     # MLX4
     do_create_link(src = os.path.realpath(o + build_obj.get_mlx4so_target()),
                    name = build_obj.get_mlx4so_target(),
+                   where = so_path)
+
+    # MNL
+    do_create_link(src   = os.path.realpath(o + build_obj.get_libmnlso_target()),
+                   name  = build_obj.get_libmnlso_target(),
                    where = so_path)
 
     # BPF

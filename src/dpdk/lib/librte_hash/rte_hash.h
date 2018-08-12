@@ -140,7 +140,9 @@ rte_hash_count(const struct rte_hash *h);
 /**
  * Add a key-value pair to an existing hash table.
  * This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to add the key to.
@@ -160,7 +162,9 @@ rte_hash_add_key_data(const struct rte_hash *h, const void *key, void *data);
  * Add a key-value pair with a pre-computed hash value
  * to an existing hash table.
  * This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to add the key to.
@@ -181,7 +185,9 @@ rte_hash_add_key_with_hash_data(const struct rte_hash *h, const void *key,
 
 /**
  * Add a key to an existing hash table. This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to add the key to.
@@ -199,7 +205,9 @@ rte_hash_add_key(const struct rte_hash *h, const void *key);
 /**
  * Add a key to an existing hash table.
  * This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to add the key to.
@@ -219,7 +227,9 @@ rte_hash_add_key_with_hash(const struct rte_hash *h, const void *key, hash_sig_t
 /**
  * Remove a key from an existing hash table.
  * This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to remove the key from.
@@ -238,7 +248,9 @@ rte_hash_del_key(const struct rte_hash *h, const void *key);
 /**
  * Remove a key from an existing hash table.
  * This operation is not multi-thread safe
- * and should only be called from one thread.
+ * and should only be called from one thread by default.
+ * Thread safety can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to remove the key from.
@@ -258,7 +270,9 @@ rte_hash_del_key_with_hash(const struct rte_hash *h, const void *key, hash_sig_t
 
 /**
  * Find a key in the hash table given the position.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to get the key from.
@@ -268,8 +282,8 @@ rte_hash_del_key_with_hash(const struct rte_hash *h, const void *key, hash_sig_t
  *   Output containing a pointer to the key
  * @return
  *   - 0 if retrieved successfully
- *   - EINVAL if the parameters are invalid.
- *   - ENOENT if no valid key is found in the given position.
+ *   - -EINVAL if the parameters are invalid.
+ *   - -ENOENT if no valid key is found in the given position.
  */
 int
 rte_hash_get_key_with_position(const struct rte_hash *h, const int32_t position,
@@ -277,7 +291,9 @@ rte_hash_get_key_with_position(const struct rte_hash *h, const int32_t position,
 
 /**
  * Find a key-value pair in the hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.
@@ -286,9 +302,11 @@ rte_hash_get_key_with_position(const struct rte_hash *h, const int32_t position,
  * @param data
  *   Output with pointer to data returned from the hash table.
  * @return
- *   0 if successful lookup
- *   - EINVAL if the parameters are invalid.
- *   - ENOENT if the key is not found.
+ *   - A positive value that can be used by the caller as an offset into an
+ *     array of user data. This value is unique for this key, and is the same
+ *     value that was returned when the key was added.
+ *   - -EINVAL if the parameters are invalid.
+ *   - -ENOENT if the key is not found.
  */
 int
 rte_hash_lookup_data(const struct rte_hash *h, const void *key, void **data);
@@ -296,7 +314,9 @@ rte_hash_lookup_data(const struct rte_hash *h, const void *key, void **data);
 /**
  * Find a key-value pair with a pre-computed hash value
  * to an existing hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.
@@ -307,9 +327,11 @@ rte_hash_lookup_data(const struct rte_hash *h, const void *key, void **data);
  * @param data
  *   Output with pointer to data returned from the hash table.
  * @return
- *   0 if successful lookup
- *   - EINVAL if the parameters are invalid.
- *   - ENOENT if the key is not found.
+ *   - A positive value that can be used by the caller as an offset into an
+ *     array of user data. This value is unique for this key, and is the same
+ *     value that was returned when the key was added.
+ *   - -EINVAL if the parameters are invalid.
+ *   - -ENOENT if the key is not found.
  */
 int
 rte_hash_lookup_with_hash_data(const struct rte_hash *h, const void *key,
@@ -317,7 +339,9 @@ rte_hash_lookup_with_hash_data(const struct rte_hash *h, const void *key,
 
 /**
  * Find a key in the hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.
@@ -335,7 +359,9 @@ rte_hash_lookup(const struct rte_hash *h, const void *key);
 
 /**
  * Find a key in the hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.
@@ -370,7 +396,9 @@ rte_hash_hash(const struct rte_hash *h, const void *key);
 
 /**
  * Find multiple keys in the hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.
@@ -391,7 +419,9 @@ rte_hash_lookup_bulk_data(const struct rte_hash *h, const void **keys,
 
 /**
  * Find multiple keys in the hash table.
- * This operation is multi-thread safe.
+ * This operation is multi-thread safe with regarding to other lookup threads.
+ * Read-write concurrency can be enabled by setting flag during
+ * table creation.
  *
  * @param h
  *   Hash table to look in.

@@ -338,6 +338,12 @@ mlx4_rss_init(struct priv *priv)
 
 	if (priv->rss_init)
 		return 0;
+	if (priv->dev->data->nb_rx_queues > priv->hw_rss_max_qps) {
+		ERROR("RSS does not support more than %d queues",
+		      priv->hw_rss_max_qps);
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
 	/* Prepare range for RSS contexts before creating the first WQ. */
 	ret = mlx4_glue->dv_set_context_attr
 		(priv->ctx,
@@ -672,7 +678,9 @@ uint64_t
 mlx4_get_rx_queue_offloads(struct priv *priv)
 {
 	uint64_t offloads = DEV_RX_OFFLOAD_SCATTER |
-			    DEV_RX_OFFLOAD_CRC_STRIP;
+			    DEV_RX_OFFLOAD_CRC_STRIP |
+			    DEV_RX_OFFLOAD_KEEP_CRC |
+			    DEV_RX_OFFLOAD_JUMBO_FRAME;
 
 	if (priv->hw_csum)
 		offloads |= DEV_RX_OFFLOAD_CHECKSUM;
@@ -771,16 +779,16 @@ mlx4_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		     (void *)dev, idx, desc);
 	}
 	/* By default, FCS (CRC) is stripped by hardware. */
-	if (offloads & DEV_RX_OFFLOAD_CRC_STRIP) {
-		crc_present = 0;
-	} else if (priv->hw_fcs_strip) {
-		crc_present = 1;
-	} else {
-		WARN("%p: CRC stripping has been disabled but will still"
-		     " be performed by hardware, make sure MLNX_OFED and"
-		     " firmware are up to date",
-		     (void *)dev);
-		crc_present = 0;
+	crc_present = 0;
+	if (rte_eth_dev_must_keep_crc(offloads)) {
+		if (priv->hw_fcs_strip) {
+			crc_present = 1;
+		} else {
+			WARN("%p: CRC stripping has been disabled but will still"
+			     " be performed by hardware, make sure MLNX_OFED and"
+			     " firmware are up to date",
+			     (void *)dev);
+		}
 	}
 	DEBUG("%p: CRC stripping is %s, %u bytes will be subtracted from"
 	      " incoming frames to hide it",

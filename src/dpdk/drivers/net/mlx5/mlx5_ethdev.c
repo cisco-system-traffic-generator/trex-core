@@ -43,6 +43,32 @@
 #include "mlx5_rxtx.h"
 #include "mlx5_utils.h"
 
+/* Supported speed values found in /usr/include/linux/ethtool.h */
+#ifndef HAVE_SUPPORTED_40000baseKR4_Full
+#define SUPPORTED_40000baseKR4_Full (1 << 23)
+#endif
+#ifndef HAVE_SUPPORTED_40000baseCR4_Full
+#define SUPPORTED_40000baseCR4_Full (1 << 24)
+#endif
+#ifndef HAVE_SUPPORTED_40000baseSR4_Full
+#define SUPPORTED_40000baseSR4_Full (1 << 25)
+#endif
+#ifndef HAVE_SUPPORTED_40000baseLR4_Full
+#define SUPPORTED_40000baseLR4_Full (1 << 26)
+#endif
+#ifndef HAVE_SUPPORTED_56000baseKR4_Full
+#define SUPPORTED_56000baseKR4_Full (1 << 27)
+#endif
+#ifndef HAVE_SUPPORTED_56000baseCR4_Full
+#define SUPPORTED_56000baseCR4_Full (1 << 28)
+#endif
+#ifndef HAVE_SUPPORTED_56000baseSR4_Full
+#define SUPPORTED_56000baseSR4_Full (1 << 29)
+#endif
+#ifndef HAVE_SUPPORTED_56000baseLR4_Full
+#define SUPPORTED_56000baseLR4_Full (1 << 30)
+#endif
+
 /* Add defines in case the running kernel is not the same as user headers. */
 #ifndef ETHTOOL_GLINKSETTINGS
 struct ethtool_link_settings {
@@ -95,7 +121,7 @@ struct ethtool_link_settings {
 #endif
 
 /**
- * Get interface name from private structure.
+ * Get master interface name from private structure.
  *
  * @param[in] dev
  *   Pointer to Ethernet device.
@@ -106,7 +132,8 @@ struct ethtool_link_settings {
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx5_get_ifname(const struct rte_eth_dev *dev, char (*ifname)[IF_NAMESIZE])
+mlx5_get_master_ifname(const struct rte_eth_dev *dev,
+		       char (*ifname)[IF_NAMESIZE])
 {
 	struct priv *priv = dev->data->dev_private;
 	DIR *dir;
@@ -168,7 +195,7 @@ try_dev_id:
 		if (dev_port == dev_port_prev)
 			goto try_dev_id;
 		dev_port_prev = dev_port;
-		if (dev_port == (priv->port - 1u))
+		if (dev_port == 0)
 			strlcpy(match, name, sizeof(match));
 	}
 	closedir(dir);
@@ -181,30 +208,59 @@ try_dev_id:
 }
 
 /**
+ * Get interface name from private structure.
+ *
+ * This is a port representor-aware version of mlx5_get_master_ifname().
+ *
+ * @param[in] dev
+ *   Pointer to Ethernet device.
+ * @param[out] ifname
+ *   Interface name output buffer.
+ *
+ * @return
+ *   0 on success, a negative errno value otherwise and rte_errno is set.
+ */
+int
+mlx5_get_ifname(const struct rte_eth_dev *dev, char (*ifname)[IF_NAMESIZE])
+{
+	struct priv *priv = dev->data->dev_private;
+	unsigned int ifindex =
+		priv->nl_socket_rdma >= 0 ?
+		mlx5_nl_ifindex(priv->nl_socket_rdma, priv->ibdev_name) : 0;
+
+	if (!ifindex) {
+		if (!priv->representor)
+			return mlx5_get_master_ifname(dev, ifname);
+		rte_errno = ENXIO;
+		return -rte_errno;
+	}
+	if (if_indextoname(ifindex, &(*ifname)[0]))
+		return 0;
+	rte_errno = errno;
+	return -rte_errno;
+}
+
+/**
  * Get the interface index from device name.
  *
  * @param[in] dev
  *   Pointer to Ethernet device.
  *
  * @return
- *   Interface index on success, a negative errno value otherwise and
- *   rte_errno is set.
+ *   Nonzero interface index on success, zero otherwise and rte_errno is set.
  */
-int
+unsigned int
 mlx5_ifindex(const struct rte_eth_dev *dev)
 {
 	char ifname[IF_NAMESIZE];
-	int ret;
+	unsigned int ifindex;
 
-	ret = mlx5_get_ifname(dev, &ifname);
-	if (ret)
-		return ret;
-	ret = if_nametoindex(ifname);
-	if (ret == -1) {
+	if (mlx5_get_ifname(dev, &ifname))
+		return 0;
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
 		rte_errno = errno;
-		return -rte_errno;
-	}
-	return ret;
+	return ifindex;
 }
 
 /**
@@ -216,12 +272,16 @@ mlx5_ifindex(const struct rte_eth_dev *dev)
  *   Request number to pass to ioctl().
  * @param[out] ifr
  *   Interface request structure output buffer.
+ * @param master
+ *   When device is a port representor, perform request on master device
+ *   instead.
  *
  * @return
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx5_ifreq(const struct rte_eth_dev *dev, int req, struct ifreq *ifr)
+mlx5_ifreq(const struct rte_eth_dev *dev, int req, struct ifreq *ifr,
+	   int master)
 {
 	int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 	int ret = 0;
@@ -230,7 +290,10 @@ mlx5_ifreq(const struct rte_eth_dev *dev, int req, struct ifreq *ifr)
 		rte_errno = errno;
 		return -rte_errno;
 	}
-	ret = mlx5_get_ifname(dev, &ifr->ifr_name);
+	if (master)
+		ret = mlx5_get_master_ifname(dev, &ifr->ifr_name);
+	else
+		ret = mlx5_get_ifname(dev, &ifr->ifr_name);
 	if (ret)
 		goto error;
 	ret = ioctl(sock, req, ifr);
@@ -260,7 +323,7 @@ int
 mlx5_get_mtu(struct rte_eth_dev *dev, uint16_t *mtu)
 {
 	struct ifreq request;
-	int ret = mlx5_ifreq(dev, SIOCGIFMTU, &request);
+	int ret = mlx5_ifreq(dev, SIOCGIFMTU, &request, 0);
 
 	if (ret)
 		return ret;
@@ -284,7 +347,7 @@ mlx5_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 {
 	struct ifreq request = { .ifr_mtu = mtu, };
 
-	return mlx5_ifreq(dev, SIOCSIFMTU, &request);
+	return mlx5_ifreq(dev, SIOCSIFMTU, &request, 0);
 }
 
 /**
@@ -304,13 +367,13 @@ int
 mlx5_set_flags(struct rte_eth_dev *dev, unsigned int keep, unsigned int flags)
 {
 	struct ifreq request;
-	int ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &request);
+	int ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &request, 0);
 
 	if (ret)
 		return ret;
 	request.ifr_flags &= keep;
 	request.ifr_flags |= flags & ~keep;
-	return mlx5_ifreq(dev, SIOCSIFFLAGS, &request);
+	return mlx5_ifreq(dev, SIOCSIFFLAGS, &request, 0);
 }
 
 /**
@@ -337,15 +400,15 @@ mlx5_dev_configure(struct rte_eth_dev *dev)
 
 	if (use_app_rss_key &&
 	    (dev->data->dev_conf.rx_adv_conf.rss_conf.rss_key_len !=
-	     rss_hash_default_key_len)) {
-		DRV_LOG(ERR, "port %u RSS key len must be %zu Bytes long",
-			dev->data->port_id, rss_hash_default_key_len);
+	     MLX5_RSS_HASH_KEY_LEN)) {
+		DRV_LOG(ERR, "port %u RSS key len must be %s Bytes long",
+			dev->data->port_id, RTE_STR(MLX5_RSS_HASH_KEY_LEN));
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
 	priv->rss_conf.rss_key =
 		rte_realloc(priv->rss_conf.rss_key,
-			    rss_hash_default_key_len, 0);
+			    MLX5_RSS_HASH_KEY_LEN, 0);
 	if (!priv->rss_conf.rss_key) {
 		DRV_LOG(ERR, "port %u cannot allocate RSS hash key memory (%u)",
 			dev->data->port_id, rxqs_n);
@@ -356,8 +419,8 @@ mlx5_dev_configure(struct rte_eth_dev *dev)
 	       use_app_rss_key ?
 	       dev->data->dev_conf.rx_adv_conf.rss_conf.rss_key :
 	       rss_hash_default_key,
-	       rss_hash_default_key_len);
-	priv->rss_conf.rss_key_len = rss_hash_default_key_len;
+	       MLX5_RSS_HASH_KEY_LEN);
+	priv->rss_conf.rss_key_len = MLX5_RSS_HASH_KEY_LEN;
 	priv->rss_conf.rss_hf = dev->data->dev_conf.rx_adv_conf.rss_conf.rss_hf;
 	priv->rxqs = (void *)dev->data->rx_queues;
 	priv->txqs = (void *)dev->data->tx_queues;
@@ -479,10 +542,34 @@ mlx5_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 		info->if_index = if_nametoindex(ifname);
 	info->reta_size = priv->reta_idx_n ?
 		priv->reta_idx_n : config->ind_table_max_size;
-	info->hash_key_size = rss_hash_default_key_len;
+	info->hash_key_size = MLX5_RSS_HASH_KEY_LEN;
 	info->speed_capa = priv->link_speed_capa;
 	info->flow_type_rss_offloads = ~MLX5_RSS_HF_MASK;
 	mlx5_set_default_params(dev, info);
+	info->switch_info.name = dev->data->name;
+	info->switch_info.domain_id = priv->domain_id;
+	info->switch_info.port_id = priv->representor_id;
+	if (priv->representor) {
+		unsigned int i = mlx5_dev_to_port_id(dev->device, NULL, 0);
+		uint16_t port_id[i];
+
+		i = RTE_MIN(mlx5_dev_to_port_id(dev->device, port_id, i), i);
+		while (i--) {
+			struct priv *opriv =
+				rte_eth_devices[port_id[i]].data->dev_private;
+
+			if (!opriv ||
+			    opriv->representor ||
+			    opriv->domain_id != priv->domain_id)
+				continue;
+			/*
+			 * Override switch name with that of the master
+			 * device.
+			 */
+			info->switch_info.name = opriv->dev_data->name;
+			break;
+		}
+	}
 }
 
 /**
@@ -546,7 +633,7 @@ mlx5_link_update_unlocked_gset(struct rte_eth_dev *dev,
 	int link_speed = 0;
 	int ret;
 
-	ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &ifr);
+	ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &ifr, 1);
 	if (ret) {
 		DRV_LOG(WARNING, "port %u ioctl(SIOCGIFFLAGS) failed: %s",
 			dev->data->port_id, strerror(rte_errno));
@@ -556,7 +643,7 @@ mlx5_link_update_unlocked_gset(struct rte_eth_dev *dev,
 	dev_link.link_status = ((ifr.ifr_flags & IFF_UP) &&
 				(ifr.ifr_flags & IFF_RUNNING));
 	ifr.ifr_data = (void *)&edata;
-	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr);
+	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr, 1);
 	if (ret) {
 		DRV_LOG(WARNING,
 			"port %u ioctl(SIOCETHTOOL, ETHTOOL_GSET) failed: %s",
@@ -617,7 +704,7 @@ mlx5_link_update_unlocked_gs(struct rte_eth_dev *dev,
 	uint64_t sc;
 	int ret;
 
-	ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &ifr);
+	ret = mlx5_ifreq(dev, SIOCGIFFLAGS, &ifr, 1);
 	if (ret) {
 		DRV_LOG(WARNING, "port %u ioctl(SIOCGIFFLAGS) failed: %s",
 			dev->data->port_id, strerror(rte_errno));
@@ -627,7 +714,7 @@ mlx5_link_update_unlocked_gs(struct rte_eth_dev *dev,
 	dev_link.link_status = ((ifr.ifr_flags & IFF_UP) &&
 				(ifr.ifr_flags & IFF_RUNNING));
 	ifr.ifr_data = (void *)&gcmd;
-	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr);
+	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr, 1);
 	if (ret) {
 		DRV_LOG(DEBUG,
 			"port %u ioctl(SIOCETHTOOL, ETHTOOL_GLINKSETTINGS)"
@@ -644,7 +731,7 @@ mlx5_link_update_unlocked_gs(struct rte_eth_dev *dev,
 
 	*ecmd = gcmd;
 	ifr.ifr_data = (void *)ecmd;
-	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr);
+	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr, 1);
 	if (ret) {
 		DRV_LOG(DEBUG,
 			"port %u ioctl(SIOCETHTOOL, ETHTOOL_GLINKSETTINGS)"
@@ -807,7 +894,7 @@ mlx5_dev_get_flow_ctrl(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 	int ret;
 
 	ifr.ifr_data = (void *)&ethpause;
-	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr);
+	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr, 1);
 	if (ret) {
 		DRV_LOG(WARNING,
 			"port %u ioctl(SIOCETHTOOL, ETHTOOL_GPAUSEPARAM) failed:"
@@ -860,7 +947,7 @@ mlx5_dev_set_flow_ctrl(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 		ethpause.tx_pause = 1;
 	else
 		ethpause.tx_pause = 0;
-	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr);
+	ret = mlx5_ifreq(dev, SIOCETHTOOL, &ifr, 0);
 	if (ret) {
 		DRV_LOG(WARNING,
 			"port %u ioctl(SIOCETHTOOL, ETHTOOL_SPAUSEPARAM)"
@@ -1197,5 +1284,95 @@ mlx5_is_removed(struct rte_eth_dev *dev)
 
 	if (mlx5_glue->query_device(priv->ctx, &device_attr) == EIO)
 		return 1;
+	return 0;
+}
+
+/**
+ * Get port ID list of mlx5 instances sharing a common device.
+ *
+ * @param[in] dev
+ *   Device to look for.
+ * @param[out] port_list
+ *   Result buffer for collected port IDs.
+ * @param port_list_n
+ *   Maximum number of entries in result buffer. If 0, @p port_list can be
+ *   NULL.
+ *
+ * @return
+ *   Number of matching instances regardless of the @p port_list_n
+ *   parameter, 0 if none were found.
+ */
+unsigned int
+mlx5_dev_to_port_id(const struct rte_device *dev, uint16_t *port_list,
+		    unsigned int port_list_n)
+{
+	uint16_t id;
+	unsigned int n = 0;
+
+	RTE_ETH_FOREACH_DEV(id) {
+		struct rte_eth_dev *ldev = &rte_eth_devices[id];
+
+		if (!ldev->device ||
+		    !ldev->device->driver ||
+		    strcmp(ldev->device->driver->name, MLX5_DRIVER_NAME) ||
+		    ldev->device != dev)
+			continue;
+		if (n < port_list_n)
+			port_list[n] = id;
+		n++;
+	}
+	return n;
+}
+
+/**
+ * Get switch information associated with network interface.
+ *
+ * @param ifindex
+ *   Network interface index.
+ * @param[out] info
+ *   Switch information object, populated in case of success.
+ *
+ * @return
+ *   0 on success, a negative errno value otherwise and rte_errno is set.
+ */
+int
+mlx5_sysfs_switch_info(unsigned int ifindex, struct mlx5_switch_info *info)
+{
+	char ifname[IF_NAMESIZE];
+	FILE *file;
+	struct mlx5_switch_info data = { .master = 0, };
+	bool port_name_set = false;
+	bool port_switch_id_set = false;
+	char c;
+
+	if (!if_indextoname(ifindex, ifname)) {
+		rte_errno = errno;
+		return -rte_errno;
+	}
+
+	MKSTR(phys_port_name, "/sys/class/net/%s/phys_port_name",
+	      ifname);
+	MKSTR(phys_switch_id, "/sys/class/net/%s/phys_switch_id",
+	      ifname);
+
+	file = fopen(phys_port_name, "rb");
+	if (file != NULL) {
+		port_name_set =
+			fscanf(file, "%d%c", &data.port_name, &c) == 2 &&
+			c == '\n';
+		fclose(file);
+	}
+	file = fopen(phys_switch_id, "rb");
+	if (file == NULL) {
+		rte_errno = errno;
+		return -rte_errno;
+	}
+	port_switch_id_set =
+		fscanf(file, "%" SCNx64 "%c", &data.switch_id, &c) == 2 &&
+		c == '\n';
+	fclose(file);
+	data.master = port_switch_id_set && !port_name_set;
+	data.representor = port_switch_id_set && port_name_set;
+	*info = data;
 	return 0;
 }
