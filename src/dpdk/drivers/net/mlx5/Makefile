@@ -33,6 +33,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_mr.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_flow.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_socket.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_nl.c
+SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_nl_flow.c
 
 ifeq ($(CONFIG_RTE_LIBRTE_MLX5_DLOPEN_DEPS),y)
 INSTALL-$(CONFIG_RTE_LIBRTE_MLX5_PMD)-lib += $(LIB_GLUE)
@@ -56,6 +57,7 @@ LDLIBS += -ldl
 else
 LDLIBS += -libverbs -lmlx5
 endif
+LDLIBS += -lmnl
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_ring
 LDLIBS += -lrte_ethdev -lrte_net -lrte_kvargs
 LDLIBS += -lrte_bus_pci
@@ -100,7 +102,7 @@ mlx5_autoconf.h.new: $(RTE_SDK)/buildtools/auto-config-h.sh
 	$Q sh -- '$<' '$@' \
 		HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT \
 		infiniband/mlx5dv.h \
-		enum MLX5DV_CONTEXT_MASK_STRIDING_RQ \
+		enum MLX5DV_CQE_RES_FORMAT_CSUM_STRIDX \
 		$(AUTOCONF_OUTPUT)
 	$Q sh -- '$<' '$@' \
 		HAVE_IBV_DEVICE_TUNNEL_SUPPORT \
@@ -150,7 +152,237 @@ mlx5_autoconf.h.new: $(RTE_SDK)/buildtools/auto-config-h.sh
 	$Q sh -- '$<' '$@' \
 		HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT \
 		infiniband/verbs.h \
-		enum IBV_FLOW_SPEC_ACTION_COUNT \
+		type 'struct ibv_counter_set_init_attr' \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NL_NLDEV \
+		rdma/rdma_netlink.h \
+		enum RDMA_NL_NLDEV \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_CMD_GET \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_CMD_GET \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_CMD_PORT_GET \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_CMD_PORT_GET \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_ATTR_DEV_INDEX \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_ATTR_DEV_INDEX \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_ATTR_DEV_NAME \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_ATTR_DEV_NAME \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_ATTR_PORT_INDEX \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_ATTR_PORT_INDEX \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX \
+		rdma/rdma_netlink.h \
+		enum RDMA_NLDEV_ATTR_NDEV_INDEX \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_IFLA_PHYS_SWITCH_ID \
+		linux/if_link.h \
+		enum IFLA_PHYS_SWITCH_ID \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_IFLA_PHYS_PORT_NAME \
+		linux/if_link.h \
+		enum IFLA_PHYS_PORT_NAME \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_ACT \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_ACT \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_FLAGS \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_FLAGS \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_ETH_TYPE \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_ETH_TYPE \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_ETH_DST \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_ETH_DST \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_ETH_DST_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_ETH_DST_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_ETH_SRC \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_ETH_SRC \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_ETH_SRC_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_ETH_SRC_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IP_PROTO \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IP_PROTO \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV4_SRC \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV4_SRC \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV4_SRC_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV4_SRC_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV4_DST \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV4_DST \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV4_DST_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV4_DST_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV6_SRC \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV6_SRC \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV6_SRC_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV6_SRC_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV6_DST \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV6_DST \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_IPV6_DST_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_IPV6_DST_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_TCP_SRC \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_TCP_SRC \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_TCP_SRC_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_TCP_SRC_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_TCP_DST \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_TCP_DST \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_TCP_DST_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_TCP_DST_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_UDP_SRC \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_UDP_SRC \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_UDP_SRC_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_UDP_SRC_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_UDP_DST \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_UDP_DST \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_UDP_DST_MASK \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_UDP_DST_MASK \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_VLAN_ID \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_VLAN_ID \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_VLAN_PRIO \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_VLAN_PRIO \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TCA_FLOWER_KEY_VLAN_ETH_TYPE \
+		linux/pkt_cls.h \
+		enum TCA_FLOWER_KEY_VLAN_ETH_TYPE \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_TC_ACT_VLAN \
+		linux/tc_act/tc_vlan.h \
+		enum TCA_VLAN_PUSH_VLAN_PRIORITY \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_40000baseKR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_40000baseKR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_40000baseCR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_40000baseCR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_40000baseSR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_40000baseSR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_40000baseLR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_40000baseLR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_56000baseKR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_56000baseKR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_56000baseCR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_56000baseCR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_56000baseSR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_56000baseSR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_SUPPORTED_56000baseLR4_Full \
+		/usr/include/linux/ethtool.h \
+		define SUPPORTED_56000baseLR4_Full \
+		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_STATIC_ASSERT \
+		/usr/include/assert.h \
+		define static_assert \
 		$(AUTOCONF_OUTPUT)
 
 # Create mlx5_autoconf.h or update it in case it differs from the new one.
@@ -177,7 +409,7 @@ endif
 $(LIB_GLUE): mlx5_glue.o
 	$Q $(LD) $(GLUE_LDFLAGS) $(EXTRA_LDFLAGS) \
 		-Wl,-h,$(LIB_GLUE) \
-		-s -shared -o $@ $< -libverbs -lmlx5
+		-shared -o $@ $< -libverbs -lmlx5
 
 mlx5_glue.o: mlx5_autoconf.h
 

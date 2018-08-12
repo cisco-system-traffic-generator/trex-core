@@ -979,8 +979,6 @@ struct rte_eth_conf {
  * mentioned in rte_tx_offload_names in rte_ethdev.c file.
  */
 
-struct rte_pci_device;
-
 /*
  * Fallback default preferred Rx/Tx port parameters.
  * These are used if an application requests default parameters
@@ -1448,6 +1446,7 @@ uint16_t __rte_experimental rte_eth_dev_count_total(void);
  * @return
  *  0 on success and port_id is filled, negative on error
  */
+__rte_deprecated
 int rte_eth_dev_attach(const char *devargs, uint16_t *port_id);
 
 /**
@@ -1463,6 +1462,7 @@ int rte_eth_dev_attach(const char *devargs, uint16_t *port_id);
  * @return
  *  0 on success and devname is filled, negative on error
  */
+__rte_deprecated
 int rte_eth_dev_detach(uint16_t port_id, char *devname);
 
 /**

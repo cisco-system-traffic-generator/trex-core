@@ -463,7 +463,7 @@ _rte_eth_dev_owner_set(const uint16_t port_id, const uint64_t old_owner_id,
 
 	port_owner->id = new_owner->id;
 
-	RTE_ETHDEV_LOG(ERR, "Port %u owner is %s_%016"PRIx64"\n",
+	RTE_ETHDEV_LOG(DEBUG, "Port %u owner is %s_%016"PRIx64"\n",
 		port_id, new_owner->name, new_owner->id);
 
 	return 0;
@@ -796,7 +796,7 @@ rte_eth_dev_rx_queue_start(uint16_t port_id, uint16_t rx_queue_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_start, -ENOTSUP);
 
 	if (dev->data->rx_queue_state[rx_queue_id] != RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Queue %"PRIu16" of device with port_id=%"PRIu16" already started\n",
 			rx_queue_id, port_id);
 		return 0;
@@ -823,7 +823,7 @@ rte_eth_dev_rx_queue_stop(uint16_t port_id, uint16_t rx_queue_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_stop, -ENOTSUP);
 
 	if (dev->data->rx_queue_state[rx_queue_id] == RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Queue %"PRIu16" of device with port_id=%"PRIu16" already stopped\n",
 			rx_queue_id, port_id);
 		return 0;
@@ -856,7 +856,7 @@ rte_eth_dev_tx_queue_start(uint16_t port_id, uint16_t tx_queue_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->tx_queue_start, -ENOTSUP);
 
 	if (dev->data->tx_queue_state[tx_queue_id] != RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Queue %"PRIu16" of device with port_id=%"PRIu16" already started\n",
 			tx_queue_id, port_id);
 		return 0;
@@ -881,7 +881,7 @@ rte_eth_dev_tx_queue_stop(uint16_t port_id, uint16_t tx_queue_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->tx_queue_stop, -ENOTSUP);
 
 	if (dev->data->tx_queue_state[tx_queue_id] == RTE_ETH_QUEUE_STATE_STOPPED) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Queue %"PRIu16" of device with port_id=%"PRIu16" already stopped\n",
 			tx_queue_id, port_id);
 		return 0;
@@ -1286,7 +1286,7 @@ rte_eth_dev_start(uint16_t port_id)
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->dev_start, -ENOTSUP);
 
 	if (dev->data->dev_started != 0) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Device with port_id=%"PRIu16" already started\n",
 			port_id);
 		return 0;
@@ -1318,7 +1318,7 @@ rte_eth_dev_stop(uint16_t port_id)
 	RTE_FUNC_PTR_OR_RET(*dev->dev_ops->dev_stop);
 
 	if (dev->data->dev_started == 0) {
-		RTE_ETHDEV_LOG(ERR,
+		RTE_ETHDEV_LOG(INFO,
 			"Device with port_id=%"PRIu16" already stopped\n",
 			port_id);
 		return;

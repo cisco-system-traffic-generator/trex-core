@@ -173,16 +173,15 @@ int enic_get_vnic_config(struct enic *enic)
 		enic->flow_type_rss_offloads |= ETH_RSS_NONFRAG_IPV6_UDP |
 			ETH_RSS_IPV6_UDP_EX;
 
-    /* TREX PATCH ENABLE RSS UDP, TRex apps assume that it is supported 
 
-    */
+#ifdef TREX_PATCH
+    // ENABLE RSS UDP, TRex assumes that it is supported
     if (enic->flow_type_rss_offloads){
         enic->flow_type_rss_offloads |= ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_NONFRAG_IPV6_UDP |
             ETH_RSS_IPV6_UDP_EX;
     }
-    /* END PATCH */
+#endif
 
-    
 	/* Zero offloads if RSS is not enabled */
 	if (!ENIC_SETTING(enic, RSS))
 		enic->flow_type_rss_offloads = 0;
@@ -193,7 +192,7 @@ int enic_get_vnic_config(struct enic *enic)
 	 * Default hardware capabilities. enic_dev_init() may add additional
 	 * flags if it enables overlay offloads.
 	 */
-	enic->tx_queue_offload_capa = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+	enic->tx_queue_offload_capa = 0;
 	enic->tx_offload_capa =
 		enic->tx_queue_offload_capa |
 		DEV_TX_OFFLOAD_MULTI_SEGS |

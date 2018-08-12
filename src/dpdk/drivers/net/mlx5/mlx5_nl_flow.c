@@ -662,7 +662,7 @@ trans:
 		    (mask.vlan->tci & RTE_BE16(0x0fff) &&
 		     !mnl_attr_put_u16_check
 		     (buf, size, TCA_FLOWER_KEY_VLAN_ID,
-		      spec.vlan->tci & RTE_BE16(0x0fff))))
+		      rte_be_to_cpu_16(spec.vlan->tci & RTE_BE16(0x0fff)))))
 			goto error_nobufs;
 		++item;
 		break;
@@ -991,6 +991,7 @@ action_of_vlan:
 			goto error_nobufs;
 		if (i == TCA_VLAN_ACT_POP) {
 			mnl_attr_nest_end(buf, act);
+			mnl_attr_nest_end(buf, act_index);
 			++action;
 			break;
 		}

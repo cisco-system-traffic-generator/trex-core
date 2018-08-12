@@ -38,8 +38,27 @@
  * DWORD (32 byte) of a TXBB.
  */
 struct pv {
-	volatile struct mlx4_wqe_data_seg *dseg;
+	union {
+		volatile struct mlx4_wqe_data_seg *dseg;
+		volatile uint32_t *dst;
+	};
 	uint32_t val;
+};
+
+/** A helper structure for TSO packet handling. */
+struct tso_info {
+	/** Pointer to the array of saved first DWORD (32 byte) of a TXBB. */
+	struct pv *pv;
+	/** Current entry in the pv array. */
+	int pv_counter;
+	/** Total size of the WQE including padding. */
+	uint32_t wqe_size;
+	/** Size of TSO header to prepend to each packet to send. */
+	uint16_t tso_header_size;
+	/** Total size of the TSO segment in the WQE. */
+	uint16_t wqe_tso_seg_size;
+	/** Raw WQE size in units of 16 Bytes and without padding. */
+	uint8_t fence_size;
 };
 
 /** A table to translate Rx completion flags to packet type. */
@@ -52,49 +71,58 @@ uint32_t mlx4_ptype_table[0x100] __rte_cache_aligned = {
 	 *  bit[4] - MLX4_CQE_STATUS_TCP
 	 *  bit[3] - MLX4_CQE_STATUS_IPV4OPT
 	 *  bit[2] - MLX4_CQE_STATUS_IPV6
-	 *  bit[1] - MLX4_CQE_STATUS_IPV4F
+	 *  bit[1] - MLX4_CQE_STATUS_IPF
 	 *  bit[0] - MLX4_CQE_STATUS_IPV4
 	 * giving a total of up to 256 entries.
 	 */
+	/* L2 */
 	[0x00] = RTE_PTYPE_L2_ETHER,
+	/* L3 */
 	[0x01] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_NONFRAG,
 	[0x02] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_FRAG,
 	[0x03] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_FRAG,
-	[0x04] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN,
-	[0x09] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT,
+	[0x04] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_L4_NONFRAG,
+	[0x06] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_L4_FRAG,
+	[0x08] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
+		     RTE_PTYPE_L4_NONFRAG,
+	[0x09] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
+		     RTE_PTYPE_L4_NONFRAG,
 	[0x0a] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
 		     RTE_PTYPE_L4_FRAG,
+	[0x0b] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
+		     RTE_PTYPE_L4_FRAG,
+	/* TCP */
 	[0x11] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_L4_TCP,
-	[0x12] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_TCP,
 	[0x14] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_TCP,
+	[0x16] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_L4_FRAG,
 	[0x18] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
 		     RTE_PTYPE_L4_TCP,
 	[0x19] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
 		     RTE_PTYPE_L4_TCP,
-	[0x1a] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
-		     RTE_PTYPE_L4_TCP,
+	/* UDP */
 	[0x21] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_L4_UDP,
-	[0x22] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_UDP,
 	[0x24] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_L4_UDP,
+	[0x26] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_L4_FRAG,
 	[0x28] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
 		     RTE_PTYPE_L4_UDP,
 	[0x29] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
 		     RTE_PTYPE_L4_UDP,
-	[0x2a] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT |
-		     RTE_PTYPE_L4_UDP,
 	/* Tunneled - L3 IPV6 */
 	[0x80] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN,
 	[0x81] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0x82] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_FRAG,
@@ -102,65 +130,58 @@ uint32_t mlx4_ptype_table[0x100] __rte_cache_aligned = {
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_FRAG,
 	[0x84] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN,
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
+	[0x86] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	[0x88] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0x89] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0x8a] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_FRAG,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_FRAG,
+	[0x8b] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	/* Tunneled - L3 IPV6, TCP */
 	[0x91] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_TCP,
-	[0x92] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_TCP,
-	[0x93] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_TCP,
 	[0x94] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_TCP,
+	[0x96] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	[0x98] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT |
-		     RTE_PTYPE_INNER_L4_TCP,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_TCP,
 	[0x99] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT |
-		     RTE_PTYPE_INNER_L4_TCP,
-	[0x9a] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_TCP,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_TCP,
 	/* Tunneled - L3 IPV6, UDP */
-	[0xa1] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+	[0xa1] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_UDP,
-	[0xa2] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_UDP,
-	[0xa3] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_UDP,
-	[0xa4] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+	[0xa4] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_UDP,
-	[0xa8] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+	[0xa6] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
+	[0xa8] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT |
 		     RTE_PTYPE_INNER_L4_UDP,
-	[0xa9] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+	[0xa9] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT |
-		     RTE_PTYPE_INNER_L4_UDP,
-	[0xaa] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_FRAG |
 		     RTE_PTYPE_INNER_L4_UDP,
 	/* Tunneled - L3 IPV4 */
 	[0xc0] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN,
 	[0xc1] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0xc2] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_FRAG,
@@ -168,65 +189,54 @@ uint32_t mlx4_ptype_table[0x100] __rte_cache_aligned = {
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_FRAG,
 	[0xc4] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN,
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
+	[0xc6] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	[0xc8] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0xc9] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_NONFRAG,
 	[0xca] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT |
 		     RTE_PTYPE_INNER_L4_FRAG,
+	[0xcb] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	/* Tunneled - L3 IPV4, TCP */
-	[0xd0] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_TCP,
 	[0xd1] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_TCP,
-	[0xd2] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_TCP,
-	[0xd3] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
 		     RTE_PTYPE_INNER_L4_TCP,
 	[0xd4] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_TCP,
+	[0xd6] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	[0xd8] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT |
 		     RTE_PTYPE_INNER_L4_TCP,
 	[0xd9] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT |
 		     RTE_PTYPE_INNER_L4_TCP,
-	[0xda] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_TCP,
 	/* Tunneled - L3 IPV4, UDP */
-	[0xe0] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_UDP,
 	[0xe1] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_UDP,
-	[0xe2] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
-		     RTE_PTYPE_INNER_L4_UDP,
-	[0xe3] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L4_FRAG |
 		     RTE_PTYPE_INNER_L4_UDP,
 	[0xe4] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
 		     RTE_PTYPE_INNER_L4_UDP,
+	[0xe6] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN |
+		     RTE_PTYPE_INNER_L4_FRAG,
 	[0xe8] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_UDP,
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
+		     RTE_PTYPE_INNER_L4_UDP,
 	[0xe9] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_UDP,
-	[0xea] = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4_EXT_UNKNOWN |
-		     RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_FRAG |
+		     RTE_PTYPE_INNER_L3_IPV4_EXT |
 		     RTE_PTYPE_INNER_L4_UDP,
 };
 
@@ -374,6 +384,342 @@ mlx4_fill_tx_data_seg(volatile struct mlx4_wqe_data_seg *dseg,
 	rte_io_wmb();
 #endif /* RTE_CACHE_LINE_SIZE */
 	dseg->byte_count = byte_count;
+}
+
+/**
+ * Obtain and calculate TSO information needed for assembling a TSO WQE.
+ *
+ * @param buf
+ *   Pointer to the first packet mbuf.
+ * @param txq
+ *   Pointer to Tx queue structure.
+ * @param tinfo
+ *   Pointer to a structure to fill the info with.
+ *
+ * @return
+ *   0 on success, negative value upon error.
+ */
+static inline int
+mlx4_tx_burst_tso_get_params(struct rte_mbuf *buf,
+			     struct txq *txq,
+			     struct tso_info *tinfo)
+{
+	struct mlx4_sq *sq = &txq->msq;
+	const uint8_t tunneled = txq->priv->hw_csum_l2tun &&
+				 (buf->ol_flags & PKT_TX_TUNNEL_MASK);
+
+	tinfo->tso_header_size = buf->l2_len + buf->l3_len + buf->l4_len;
+	if (tunneled)
+		tinfo->tso_header_size +=
+				buf->outer_l2_len + buf->outer_l3_len;
+	if (unlikely(buf->tso_segsz == 0 ||
+		     tinfo->tso_header_size == 0 ||
+		     tinfo->tso_header_size > MLX4_MAX_TSO_HEADER ||
+		     tinfo->tso_header_size > buf->data_len))
+		return -EINVAL;
+	/*
+	 * Calculate the WQE TSO segment size
+	 * Note:
+	 * 1. An LSO segment must be padded such that the subsequent data
+	 *    segment is 16-byte aligned.
+	 * 2. The start address of the TSO segment is always 16 Bytes aligned.
+	 */
+	tinfo->wqe_tso_seg_size = RTE_ALIGN(sizeof(struct mlx4_wqe_lso_seg) +
+					    tinfo->tso_header_size,
+					    sizeof(struct mlx4_wqe_data_seg));
+	tinfo->fence_size = ((sizeof(struct mlx4_wqe_ctrl_seg) +
+			     tinfo->wqe_tso_seg_size) >> MLX4_SEG_SHIFT) +
+			     buf->nb_segs;
+	tinfo->wqe_size =
+		RTE_ALIGN((uint32_t)(tinfo->fence_size << MLX4_SEG_SHIFT),
+			  MLX4_TXBB_SIZE);
+	/* Validate WQE size and WQE space in the send queue. */
+	if (sq->remain_size < tinfo->wqe_size ||
+	    tinfo->wqe_size > MLX4_MAX_WQE_SIZE)
+		return -ENOMEM;
+	/* Init pv. */
+	tinfo->pv = (struct pv *)txq->bounce_buf;
+	tinfo->pv_counter = 0;
+	return 0;
+}
+
+/**
+ * Fill the TSO WQE data segments with info on buffers to transmit .
+ *
+ * @param buf
+ *   Pointer to the first packet mbuf.
+ * @param txq
+ *   Pointer to Tx queue structure.
+ * @param tinfo
+ *   Pointer to TSO info to use.
+ * @param dseg
+ *   Pointer to the first data segment in the TSO WQE.
+ * @param ctrl
+ *   Pointer to the control segment in the TSO WQE.
+ *
+ * @return
+ *   0 on success, negative value upon error.
+ */
+static inline volatile struct mlx4_wqe_ctrl_seg *
+mlx4_tx_burst_fill_tso_dsegs(struct rte_mbuf *buf,
+			     struct txq *txq,
+			     struct tso_info *tinfo,
+			     volatile struct mlx4_wqe_data_seg *dseg,
+			     volatile struct mlx4_wqe_ctrl_seg *ctrl)
+{
+	uint32_t lkey;
+	int nb_segs = buf->nb_segs;
+	int nb_segs_txbb;
+	struct mlx4_sq *sq = &txq->msq;
+	struct rte_mbuf *sbuf = buf;
+	struct pv *pv = tinfo->pv;
+	int *pv_counter = &tinfo->pv_counter;
+	volatile struct mlx4_wqe_ctrl_seg *ctrl_next =
+			(volatile struct mlx4_wqe_ctrl_seg *)
+				((volatile uint8_t *)ctrl + tinfo->wqe_size);
+	uint16_t data_len = sbuf->data_len - tinfo->tso_header_size;
+	uintptr_t data_addr = rte_pktmbuf_mtod_offset(sbuf, uintptr_t,
+						      tinfo->tso_header_size);
+
+	do {
+		/* how many dseg entries do we have in the current TXBB ? */
+		nb_segs_txbb = (MLX4_TXBB_SIZE -
+				((uintptr_t)dseg & (MLX4_TXBB_SIZE - 1))) >>
+			       MLX4_SEG_SHIFT;
+		switch (nb_segs_txbb) {
+#ifndef NDEBUG
+		default:
+			/* Should never happen. */
+			rte_panic("%p: Invalid number of SGEs(%d) for a TXBB",
+			(void *)txq, nb_segs_txbb);
+			/* rte_panic never returns. */
+			break;
+#endif /* NDEBUG */
+		case 4:
+			/* Memory region key for this memory pool. */
+			lkey = mlx4_tx_mb2mr(txq, sbuf);
+			if (unlikely(lkey == (uint32_t)-1))
+				goto err;
+			dseg->addr = rte_cpu_to_be_64(data_addr);
+			dseg->lkey = lkey;
+			/*
+			 * This data segment starts at the beginning of a new
+			 * TXBB, so we need to postpone its byte_count writing
+			 * for later.
+			 */
+			pv[*pv_counter].dseg = dseg;
+			/*
+			 * Zero length segment is treated as inline segment
+			 * with zero data.
+			 */
+			pv[(*pv_counter)++].val =
+				rte_cpu_to_be_32(data_len ?
+						 data_len :
+						 0x80000000);
+			if (--nb_segs == 0)
+				return ctrl_next;
+			/* Prepare next buf info */
+			sbuf = sbuf->next;
+			dseg++;
+			data_len = sbuf->data_len;
+			data_addr = rte_pktmbuf_mtod(sbuf, uintptr_t);
+			/* fallthrough */
+		case 3:
+			lkey = mlx4_tx_mb2mr(txq, sbuf);
+			if (unlikely(lkey == (uint32_t)-1))
+				goto err;
+			mlx4_fill_tx_data_seg(dseg, lkey, data_addr,
+					rte_cpu_to_be_32(data_len ?
+							 data_len :
+							 0x80000000));
+			if (--nb_segs == 0)
+				return ctrl_next;
+			/* Prepare next buf info */
+			sbuf = sbuf->next;
+			dseg++;
+			data_len = sbuf->data_len;
+			data_addr = rte_pktmbuf_mtod(sbuf, uintptr_t);
+			/* fallthrough */
+		case 2:
+			lkey = mlx4_tx_mb2mr(txq, sbuf);
+			if (unlikely(lkey == (uint32_t)-1))
+				goto err;
+			mlx4_fill_tx_data_seg(dseg, lkey, data_addr,
+					rte_cpu_to_be_32(data_len ?
+							 data_len :
+							 0x80000000));
+			if (--nb_segs == 0)
+				return ctrl_next;
+			/* Prepare next buf info */
+			sbuf = sbuf->next;
+			dseg++;
+			data_len = sbuf->data_len;
+			data_addr = rte_pktmbuf_mtod(sbuf, uintptr_t);
+			/* fallthrough */
+		case 1:
+			lkey = mlx4_tx_mb2mr(txq, sbuf);
+			if (unlikely(lkey == (uint32_t)-1))
+				goto err;
+			mlx4_fill_tx_data_seg(dseg, lkey, data_addr,
+					rte_cpu_to_be_32(data_len ?
+							 data_len :
+							 0x80000000));
+			if (--nb_segs == 0)
+				return ctrl_next;
+			/* Prepare next buf info */
+			sbuf = sbuf->next;
+			dseg++;
+			data_len = sbuf->data_len;
+			data_addr = rte_pktmbuf_mtod(sbuf, uintptr_t);
+			/* fallthrough */
+		}
+		/* Wrap dseg if it points at the end of the queue. */
+		if ((volatile uint8_t *)dseg >= sq->eob)
+			dseg = (volatile struct mlx4_wqe_data_seg *)
+					((volatile uint8_t *)dseg - sq->size);
+	} while (true);
+err:
+	return NULL;
+}
+
+/**
+ * Fill the packet's l2, l3 and l4 headers to the WQE.
+ *
+ * This will be used as the header for each TSO segment that is transmitted.
+ *
+ * @param buf
+ *   Pointer to the first packet mbuf.
+ * @param txq
+ *   Pointer to Tx queue structure.
+ * @param tinfo
+ *   Pointer to TSO info to use.
+ * @param ctrl
+ *   Pointer to the control segment in the TSO WQE.
+ *
+ * @return
+ *   0 on success, negative value upon error.
+ */
+static inline volatile struct mlx4_wqe_data_seg *
+mlx4_tx_burst_fill_tso_hdr(struct rte_mbuf *buf,
+			   struct txq *txq,
+			   struct tso_info *tinfo,
+			   volatile struct mlx4_wqe_ctrl_seg *ctrl)
+{
+	volatile struct mlx4_wqe_lso_seg *tseg =
+		(volatile struct mlx4_wqe_lso_seg *)(ctrl + 1);
+	struct mlx4_sq *sq = &txq->msq;
+	struct pv *pv = tinfo->pv;
+	int *pv_counter = &tinfo->pv_counter;
+	int remain_size = tinfo->tso_header_size;
+	char *from = rte_pktmbuf_mtod(buf, char *);
+	uint16_t txbb_avail_space;
+	/* Union to overcome volatile constraints when copying TSO header. */
+	union {
+		volatile uint8_t *vto;
+		uint8_t *to;
+	} thdr = { .vto = (volatile uint8_t *)tseg->header, };
+
+	/*
+	 * TSO data always starts at offset 20 from the beginning of the TXBB
+	 * (16 byte ctrl + 4byte TSO desc). Since each TXBB is 64Byte aligned
+	 * we can write the first 44 TSO header bytes without worry for TxQ
+	 * wrapping or overwriting the first TXBB 32bit word.
+	 */
+	txbb_avail_space = MLX4_TXBB_SIZE -
+			   (sizeof(struct mlx4_wqe_ctrl_seg) +
+			    sizeof(struct mlx4_wqe_lso_seg));
+	while (remain_size >= (int)(txbb_avail_space + sizeof(uint32_t))) {
+		/* Copy to end of txbb. */
+		rte_memcpy(thdr.to, from, txbb_avail_space);
+		from += txbb_avail_space;
+		thdr.to += txbb_avail_space;
+		/* New TXBB, Check for TxQ wrap. */
+		if (thdr.to >= sq->eob)
+			thdr.vto = sq->buf;
+		/* New TXBB, stash the first 32bits for later use. */
+		pv[*pv_counter].dst = (volatile uint32_t *)thdr.to;
+		pv[(*pv_counter)++].val = *(uint32_t *)from,
+		from += sizeof(uint32_t);
+		thdr.to += sizeof(uint32_t);
+		remain_size -= txbb_avail_space + sizeof(uint32_t);
+		/* Avail space in new TXBB is TXBB size - 4 */
+		txbb_avail_space = MLX4_TXBB_SIZE - sizeof(uint32_t);
+	}
+	if (remain_size > txbb_avail_space) {
+		rte_memcpy(thdr.to, from, txbb_avail_space);
+		from += txbb_avail_space;
+		thdr.to += txbb_avail_space;
+		remain_size -= txbb_avail_space;
+		/* New TXBB, Check for TxQ wrap. */
+		if (thdr.to >= sq->eob)
+			thdr.vto = sq->buf;
+		pv[*pv_counter].dst = (volatile uint32_t *)thdr.to;
+		rte_memcpy(&pv[*pv_counter].val, from, remain_size);
+		(*pv_counter)++;
+	} else if (remain_size) {
+		rte_memcpy(thdr.to, from, remain_size);
+	}
+	tseg->mss_hdr_size = rte_cpu_to_be_32((buf->tso_segsz << 16) |
+					      tinfo->tso_header_size);
+	/* Calculate data segment location */
+	return (volatile struct mlx4_wqe_data_seg *)
+				((uintptr_t)tseg + tinfo->wqe_tso_seg_size);
+}
+
+/**
+ * Write data segments and header for TSO uni/multi segment packet.
+ *
+ * @param buf
+ *   Pointer to the first packet mbuf.
+ * @param txq
+ *   Pointer to Tx queue structure.
+ * @param ctrl
+ *   Pointer to the WQE control segment.
+ *
+ * @return
+ *   Pointer to the next WQE control segment on success, NULL otherwise.
+ */
+static volatile struct mlx4_wqe_ctrl_seg *
+mlx4_tx_burst_tso(struct rte_mbuf *buf, struct txq *txq,
+		  volatile struct mlx4_wqe_ctrl_seg *ctrl)
+{
+	volatile struct mlx4_wqe_data_seg *dseg;
+	volatile struct mlx4_wqe_ctrl_seg *ctrl_next;
+	struct mlx4_sq *sq = &txq->msq;
+	struct tso_info tinfo;
+	struct pv *pv;
+	int pv_counter;
+	int ret;
+
+	ret = mlx4_tx_burst_tso_get_params(buf, txq, &tinfo);
+	if (unlikely(ret))
+		goto error;
+	dseg = mlx4_tx_burst_fill_tso_hdr(buf, txq, &tinfo, ctrl);
+	if (unlikely(dseg == NULL))
+		goto error;
+	if ((uintptr_t)dseg >= (uintptr_t)sq->eob)
+		dseg = (volatile struct mlx4_wqe_data_seg *)
+					((uintptr_t)dseg - sq->size);
+	ctrl_next = mlx4_tx_burst_fill_tso_dsegs(buf, txq, &tinfo, dseg, ctrl);
+	if (unlikely(ctrl_next == NULL))
+		goto error;
+	/* Write the first DWORD of each TXBB save earlier. */
+	if (likely(tinfo.pv_counter)) {
+		pv = tinfo.pv;
+		pv_counter = tinfo.pv_counter;
+		/* Need a barrier here before writing the first TXBB word. */
+		rte_io_wmb();
+		do {
+			--pv_counter;
+			*pv[pv_counter].dst = pv[pv_counter].val;
+		} while (pv_counter > 0);
+	}
+	ctrl->fence_size = tinfo.fence_size;
+	sq->remain_size -= tinfo.wqe_size;
+	return ctrl_next;
+error:
+	txq->stats.odropped++;
+	return NULL;
 }
 
 /**
@@ -569,6 +915,7 @@ mlx4_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			uint16_t flags16[2];
 		} srcrb;
 		uint32_t lkey;
+		bool tso = txq->priv->tso && (buf->ol_flags & PKT_TX_TCP_SEG);
 
 		/* Clean up old buffer. */
 		if (likely(elt->buf != NULL)) {
@@ -587,7 +934,16 @@ mlx4_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			} while (tmp != NULL);
 		}
 		RTE_MBUF_PREFETCH_TO_FREE(elt_next->buf);
-		if (buf->nb_segs == 1) {
+		if (tso) {
+			/* Change opcode to TSO */
+			owner_opcode &= ~MLX4_OPCODE_CONFIG_CMD;
+			owner_opcode |= MLX4_OPCODE_LSO | MLX4_WQE_CTRL_RR;
+			ctrl_next = mlx4_tx_burst_tso(buf, txq, ctrl);
+			if (!ctrl_next) {
+				elt->buf = NULL;
+				break;
+			}
+		} else if (buf->nb_segs == 1) {
 			/* Validate WQE space in the send queue. */
 			if (sq->remain_size < MLX4_TXBB_SIZE) {
 				elt->buf = NULL;
@@ -728,11 +1084,13 @@ rxq_cq_to_pkt_type(volatile struct mlx4_cqe *cqe,
 	 *  bit[4] - MLX4_CQE_STATUS_TCP
 	 *  bit[3] - MLX4_CQE_STATUS_IPV4OPT
 	 *  bit[2] - MLX4_CQE_STATUS_IPV6
-	 *  bit[1] - MLX4_CQE_STATUS_IPV4F
+	 *  bit[1] - MLX4_CQE_STATUS_IPF
 	 *  bit[0] - MLX4_CQE_STATUS_IPV4
 	 * giving a total of up to 256 entries.
 	 */
 	idx |= ((status & MLX4_CQE_STATUS_PTYPE_MASK) >> 22);
+	if (status & MLX4_CQE_STATUS_IPV6)
+		idx |= ((status & MLX4_CQE_STATUS_IPV6F) >> 11);
 	return mlx4_ptype_table[idx];
 }
 
