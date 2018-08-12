@@ -211,6 +211,8 @@ class PortXStats(AbstractStats):
 
         # fetch the names
         rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
+        if not rc:
+            raise TRexError('Error getting xstat names on port %s, Error: %s' % (self.port_id, rc.err()))
         self.names = rc.data().get('xstats_names', [])
 
 
