@@ -10,12 +10,10 @@ import socket
 from functools import partial
 logging.basicConfig(level = logging.FATAL) # keep quiet
 
-import stl_path
+import outer_packages
 from trex.stl.api import *
 from trex.stl.trex_stl_hltapi import CTRexHltApi, HLT_OK, HLT_ERR
 
-# ext libs
-sys.path.append(os.path.join(stl_path.EXT_LIBS_PATH, 'jsonrpclib-pelix-0.2.5'))
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import yaml
 

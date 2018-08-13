@@ -48,7 +48,7 @@ sys.path.append(text_tables_path)
 import texttable
 sys.path.remove(text_tables_path)
 
-netstat_path = os.path.join(curdir, 'external_libs')
+netstat_path = os.path.join(curdir, 'external_libs', 'netstat')
 sys.path.append(netstat_path)
 import netstat
 sys.path.remove(netstat_path)

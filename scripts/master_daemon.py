@@ -253,7 +253,7 @@ args = parser.parse_args()
 args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
-stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'stl', 'examples')
+stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'server')
 stl_rpc_proxy      = TCPDaemon('Stateless RPC proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
 trex_daemon_server = TCPDaemon('TRex daemon server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
 master_daemon      = TCPDaemon('Master daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.

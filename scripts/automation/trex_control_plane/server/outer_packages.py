@@ -8,6 +8,7 @@ _ext_libs = [ {'name': 'simple_enum'},
               {'name': 'pyzmq-ctypes', 'arch-dep': True},
               {'name': 'jsonrpclib-pelix-0.2.5'},
               {'name': 'termstyle'},
+              {'name': 'netstat'}
             ]
 
 def _import_server_modules():
@@ -21,6 +22,9 @@ def _import_server_modules():
     parent_path = os.path.abspath(os.path.join(cur, par))
     if parent_path not in sys.path:
         sys.path.insert(1, parent_path)
+    interactive_path = os.path.join(parent_path, 'interactive')
+    if interactive_path not in sys.path:
+        sys.path.insert(1, interactive_path)
 
     if os.getenv('TREX_EXT_LIBS'):
         ext_libs_path = os.environ['TREX_EXT_LIBS']
