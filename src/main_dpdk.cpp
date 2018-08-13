@@ -308,7 +308,7 @@ static CSimpleOpt::SOption parser_options[] =
         SO_END_OF_OPTIONS
     };
 
-static int usage(){
+static int __attribute__((cold)) usage() {
 
     printf(" Usage: t-rex-64 [mode] <options>\n\n");
     printf(" mode is one of:\n");
