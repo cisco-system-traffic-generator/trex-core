@@ -47,7 +47,7 @@ class Context(object):
         self.handle = None
         self._closed = True
 
-    def destroy(self, linger = None):
+    def destroy(self, linger = 0):
         if self.closed:
             return
 
