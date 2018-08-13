@@ -22,11 +22,8 @@ ext_libs_path = os.path.join(cur_dir, 'external_libs')
 if ext_libs_path not in sys.path:
     sys.path.append(ext_libs_path)
 
-import netstat
-try:
-    from termstyle import termstyle
-except ImportError:
-    import termstyle
+from netstat import netstat
+from termstyle import termstyle
 
 
 def inv(f):
