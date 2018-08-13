@@ -102,8 +102,8 @@ class Port(object):
 
         self.state          = self.STATE_IDLE
         self.service_mode   = False
-        
-        self.handler        = None
+
+        self.handler        = ''
         self.rpc            = rpc
         self.transmit       = rpc.transmit
         self.transmit_batch = rpc.transmit_batch
@@ -142,7 +142,7 @@ class Port(object):
 
 
     def is_acquired(self):
-        return (self.handler != None)
+        return (self.handler != '')
 
 
     def is_up (self):
@@ -199,10 +199,10 @@ class Port(object):
                   "handler": self.handler}
 
         rc = self.transmit("release", params)
-        
+
         if rc.good():
 
-            self.handler = None
+            self.handler = ''
             self.owner = ''
 
             return self.ok()
@@ -753,7 +753,7 @@ class Port(object):
 
 
     def async_event_port_acquired (self, who):
-        self.handler = None
+        self.handler = ''
         self.owner = who
 
 
