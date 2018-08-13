@@ -52,13 +52,14 @@ class ZmqMonitorSession(threading.Thread):
         except Exception as e:
             logger.error('ZMQ monitor error: %s' % e)
             self.trexObj.zmq_error = e
+        finally:
+            self.socket.close()
+            self.context.term()
+            logger.info("ZMQ monitor resources has been freed.")
 
     def join(self, timeout=5):
         self.stoprequest.set()
         logger.debug("Handling termination of ZMQ monitor thread") 
-        self.socket.close()
-        self.context.term()
-        logger.info("ZMQ monitor resources has been freed.")
         super(ZmqMonitorSession, self).join(timeout)
 
     def parse_and_update_zmq_dump(self, zmq_dump):

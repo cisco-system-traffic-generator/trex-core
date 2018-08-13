@@ -82,10 +82,13 @@ class Socket(object):
     def closed(self):
         return self._check_closed_deep()
 
-    def close(self, linger = None):
+    def close(self, linger = 0):
         if self._closed or self.handle is None:
             return
-        self.setsockopt(LINGER, 0)
+
+        if linger is not None:
+            self.setsockopt(LINGER, linger)
+
         rc = zmq_close(self.handle)
         self._closed = True
         self.handle = None
@@ -118,9 +121,9 @@ class Socket(object):
 
     def getsockopt(self, option):
         if option in int64_sockopts:
-            optval = c_int64(optval)
+            optval = c_int64()
         elif option in int_sockopts:
-            optval = c_int32(optval)
+            optval = c_int32()
         else:
             raise ZMQError(EINVAL)
 
@@ -159,8 +162,6 @@ class Socket(object):
         _check_rc(rc)
 
     def recv(self, flags=0, copy=True, track=False):
-
-        self._check_closed()
 
         zmq_msg = byref(zmq_msg_t())
         zmq_msg_init(zmq_msg)
