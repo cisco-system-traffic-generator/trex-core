@@ -3124,47 +3124,68 @@ For example, if we have a pool of two IP addresses: 16.0.0.1 and 16.0.0.2, the a
 ...
 ----
 
-==== How to determine the packet per second(PPS) and Bit per second (BPS)
+==== How to determine the packets per second (pps) and bits per second (bps)
 
 - Let's look at an example of one flow with 4 packets.
 - Green circles represent the first packet of each flow.
-- The client ip pool starts from 16.0.0.1, and the distribution is seq.
+- The client IP pool starts from 16.0.0.1, and the distribution is sequential (`seq`).
 
 image:images/ip_allocation.png[title=""]
 
-latexmath:[$Total PPS = \sum_{k=0}^{n}(CPS_{k}\times {flow\_pkts}_{k})$]
+// TBD Ido: The latexmath formulas only looks good in PDF format. In HTML they are not clear.
+// see https://trex-tgn.cisco.com/trex/doc/trex_book.pdf
+// this is probably due to incorrect asciidoc build? (needs to build w/ latex support!)
+// see https://github.com/cisco-system-traffic-generator/trex-core/issues/139
 
-latexmath:[$Concurrent flow = \sum_{k=0}^{n}CPS_{k}\times flow\_duration_k $]
-// TBD Ido: The latexmath formulas only looks good in pdf format. In HTML they are not clear.
+The following formulas can be used to precalculate various traffic output metrics, where `k` represents the flows defined per template, `n` is the number of flows defined, `cps` the value per flow template, and `multiplier` is the rate multiplier (`-m` from CLI):
 
-The above formulas can be used to calculate the PPS. The TRex throughput depends on the PPS calculated above and the value of m (a multiplier given as command line argument -m). 
+ - Packets Per Second (pps):
 
-The m value is a multiplier of total pcap files CPS. 
-CPS of pcap file is configured on yaml file. 
+latexmath:[$pps = multiplier \times \sum_{k=0}^{n}(flow_cps_{k} \times num\_pkts\_per\_flow_{k})$]
 
-Let's take a simple example as below. 
+ - Concurrent Flows (aka Active Flows):
 
+latexmath:[$concurrent flows = multiplier \times \sum_{k=0}^{n}(flow_cps_{k} \times flow\_duration_{k})$]
+
+ - Throughput or Bitrate or Bits per Second (bps):
+
+latexmath:[$bps = multiplier \times \sum_{k=0}^{n}(flow_cps_{k} \times flow\_total\_bytes_{k})$]
+
+Throughput depends on specifically per template flow: connections per second, packets per second, bytes per packet, and the value of `-m` (a multiplier given as command line argument).
+
+The `-m` value is applied as a multiplier (by a factor of X), to the `cps` value defined per template. This correlates to all cps, pps, and bps increases.
+
+Let's take a simple example as below, assuming the multiplier is set to `1` for simplicity.
 
 [source,python]
 ----
 cap_info :
-     - name: avl/first.pcap  < -- has 2 packets
+     - name: avl/first.pcap  < -- has 2 packets, total 178-bytes (e.g.)
        cps : 102.0  
        ipg : 10000
        rtt : 10000
        w   : 1
-     - name: avl/second.pcap < -- has 20 packets
+     - name: avl/second.pcap < -- has 20 packets, total 2048-bytes (e.g.)
        cps : 50.0 
        ipg : 10000
        rtt : 10000
        w   : 1
 ----
 
-The throughput is: 'm*(CPS_1*flow_pkts+CPS_2*flow_pkts)'
+The packets per second is:
+latexmath:[$pps = multiplier \times ((flow\_cps_{1} \times num\_packets\_per\_flow_{1}) \plus (flow\_cps_{2} \times num\_packets\_per\_flow_{2}))$]
 
-So if the m is set as 1, the total PPS is : 102*2+50*20 = 1204 PPS.
+The total `pps` is therefore: `1 * (102*2 + 50*20) = 1204 pps`
 
-The BPS depends on the packet size. You can refer to your packet size and get the BPS = PPS*Packet_size. 
+The throughput is:
+latexmath:[$ multiplier \times ((flow\_cps_{1} \times flow\_total\_bytes_{1}) \plus (flow\_cps_{2} \times flow\_total\_bytes_{2}))$]
+
+The total `bps` is therefore: `1 * (102*178 + 50*2048) = 120,556 bps`
+
+(!) Warning: the `bps` depends on the packet sizes within the captured flow. You should not assume all packets within the flow are the same size. Only if that is true could this be simplified to: to your packet size and get the BPS = PPS*Packet_size. 
+
+(!) Warning: this section does not consider `rtt` or `ipg`
+
 
 ==== Per template allocation + future plans
  
