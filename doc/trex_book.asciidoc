@@ -1874,7 +1874,7 @@ see xref:timer_w[Timer Wheel section]
 
 ----
 <1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
-<2> Connection per second. This is the value that will be used if specifying -m 1 from command line (giving -m x will multiply this
+<2> Connections per second (aka "new flows / second").  This is the value that will be used if the multipler is left to the default `-m 1` from command line (supplying `-m X` will multiply this by a factor of X, see link:trex_manual.html##_command_line_options[CLI options] and link:trex_manual.html#_how_to_determine_the_packet_per_second_pps_and_bit_per_second_bps[How to Determine pps and bps] sections for more detail.)
 <3> If the global section of the YAML file includes `cap_ipg    : false`, this line sets the inter-packet gap in microseconds.
 <4> Should be set to the same value as ipg (microseconds).
 <5> Default value: w=1. This indicates to the IP generator how to generate the flows. If w=2, two flows from the same template will be generated in a burst (more for HTTP that has burst of flows).
@@ -2186,7 +2186,7 @@ This can be used to verify port connectivity. You can send packets from one port
    Latency only - Send only latency packets. Do not send packets from the templates/pcap files.
 
 *-m <num>*::
-   Rate multiplier. TRex will multiply the CPS rate of each template by num.
+   Rate multiplier. TRex will multiply the CPS rate of each template by a factor of `<num>`. As expected, this has a direct affect on the bitrate output as well.  Usage of `-m` is a common method to achieve higher bandwidth based on a specific traffic profile. See link:trex_manual.html#_how_to_determine_the_packet_per_second_pps_and_bit_per_second_bps[How to Determine pps and bps] for more detail.
 
 *--nc*::
     If set, will terminate exacly at the end of the specified duration.
