@@ -79,3 +79,10 @@ size_t zmq_msg_size (const zmq_msg_t *msg) {
     return (0);
 }
 
+int zmq_ctx_shutdown (void *context) {
+    return (0);
+}
+
+int zmq_ctx_term (void *context) {
+    return (0);
+}
