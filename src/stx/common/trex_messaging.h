@@ -702,6 +702,56 @@ private:
     uint8_t                       m_port_id;
 };
 
+/**
+ * Start capture port
+ */
+class TrexRxStartCapturePort : public TrexCpToRxMsgBase {
+public:
+    TrexRxStartCapturePort(uint8_t port_id, const std::string& filter, const std::string& endpoint) {
+        m_port_id              = port_id;
+        m_filter               = filter;
+        m_endpoint             = endpoint;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    std::string       m_filter;
+    std::string       m_endpoint;
+};
+
+/**
+ * Stop capture port
+ */
+class TrexRxStopCapturePort : public TrexCpToRxMsgBase {
+public:
+    TrexRxStopCapturePort(uint8_t port_id) {
+        m_port_id              = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+};
+
+/**
+ * Set capture port BPF Filter to a new value
+ */
+class TrexRxSetCapturePortBPF : public TrexCpToRxMsgBase {
+public:
+    TrexRxSetCapturePortBPF(uint8_t port_id, const std::string& filter) {
+        m_port_id              = port_id;
+        m_filter               = filter;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    std::string       m_filter;
+};
 
 #endif /* __TREX_MESSAGING_H__ */
 

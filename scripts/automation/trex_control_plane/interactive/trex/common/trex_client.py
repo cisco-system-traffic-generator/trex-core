@@ -2014,7 +2014,81 @@ class TRexClient(object):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
-        
+
+    @client_api('command', True)
+    def start_capture_port (self, port, endpoint, bpf_filter = None):
+        """
+            Enable capture port to receive/send raw packets directly on a ZeroMQ
+            Pair socket.
+
+            The ZeroMQ socket should already be bound to the endpoint passed to
+            this function. The TRex server will then connect to this endpoint
+            and start sending all the packets that matches the given BPF filter
+            received on the provided port, on that socket.
+            Any packet sends from the client to the TRex server on that ZeroMQ
+            socket will also be sent as 'raw' packet on the specified port.
+
+            :parameters:
+                 port        - the port to activate the capture port on
+                 endpoint    - The path to the endpoint to use to bind the socket (e.g. ipc:///tmp/my_endpoint)
+                               Should be unique and already bound to a PAIR ZeroMQ socket type.
+                               See ZMQ_PAIR in http://api.zeromq.org/4-0:zmq-socket
+                 bpf_filter  - The BPF filter to use before sending packet on the ZeroMQ socket.
+                               It can be empty for no filter.
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port start', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Starting capture port on port {0} with socket at {1}: ".format(port, endpoint))
+        rc = self.ports[port].start_capture_port(endpoint, bpf_filter)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+    @client_api('command', True)
+    def stop_capture_port (self, port):
+        """
+            Disable capture port
+
+            :parameters:
+                 port      - the port to stop the capture port on
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port stop', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Stoping capture port on port {0}: ".format(port))
+        rc = self.ports[port].stop_capture_port()
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+    client_api('command', True)
+    def set_capture_port_bpf_filter (self, port, bpf_filter):
+        """
+            Set the BPF filter for the capture port
+
+            :parameters:
+                 port       - the port to change the filter of the capture port
+                 bpf_filter - The new BPF filter (empty disables the filter)
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port BPF filter set', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Setting capture port filter on port {0}: ".format(port))
+        rc = self.ports[port].set_capture_port_bpf_filter(bpf_filter)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
                     
     @client_api('command', True)
     def remove_all_captures (self):

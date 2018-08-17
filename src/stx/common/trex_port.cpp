@@ -364,6 +364,33 @@ bool TrexPort::is_dst_mac_valid(void) {
 }
 
 /**
+ * Start capture port
+ */
+void
+TrexPort::start_capture_port (const std::string& filter, const std::string& endpoint) {
+    TrexRxStartCapturePort *msg = new TrexRxStartCapturePort(m_port_id, filter, endpoint);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+/**
+ * Stop capture port
+ */
+void
+TrexPort::stop_capture_port () {
+    TrexRxStopCapturePort *msg = new TrexRxStopCapturePort(m_port_id);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+/**
+ * Change capture port BPF Filter
+ */
+void
+TrexPort::set_capture_port_bpf_filter (const std::string& filter) {
+    TrexRxSetCapturePortBPF *msg = new TrexRxSetCapturePortBPF(m_port_id, filter);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+ 
+/**
  * configures VLAN tagging
  * 
  */

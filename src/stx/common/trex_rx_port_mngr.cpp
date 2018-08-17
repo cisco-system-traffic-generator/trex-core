@@ -25,6 +25,7 @@
 #include "pkt_gen.h"
 #include "trex_capture.h"
 
+#include <zmq.h>
 
 
 /**************************************
@@ -273,6 +274,127 @@ RXQueue::to_json() const {
 
 
 /**************************************
+ * Capture Port
+ *
+ *************************************/
+void
+RXCapturePort::create(RXFeatureAPI *api) {
+    m_api = api;
+}
+
+Json::Value
+RXCapturePort::to_json() const {
+    Json::Value output = Json::objectValue;
+    output["bpf_filter"] = m_bpf_filter ? m_bpf_filter->get_filter() : "";
+    output["endpoint"] = m_endpoint;
+    output["socket_open"] = m_zeromq_socket != NULL;
+    return output;
+}
+
+
+void
+RXCapturePort::handle_pkt(const rte_mbuf_t *m) {
+    if(unlikely(!m_zeromq_socket || !m_zeromq_ctx)) {
+        return;
+    }
+
+    if(likely(m_bpf_filter != NULL)) {
+        if (!m_bpf_filter->match(m)) {
+            return;
+        }
+    }
+
+    uint8_t* ptr = rte_pktmbuf_mtod(m, uint8_t *);
+    uint32_t len = rte_pktmbuf_pkt_len(m);
+    zmq_send(m_zeromq_socket, ptr, len, ZMQ_DONTWAIT);
+}
+
+void
+RXCapturePort::set_bpf_filter(const std::string& filter) {
+   delete m_bpf_filter;
+   m_bpf_filter = NULL;
+   if (filter.size() > 0) {
+       m_bpf_filter = new BPFFilter();
+       m_bpf_filter->set_filter(filter);
+       m_bpf_filter->compile();
+   }
+}
+
+void
+RXCapturePort::start() {
+    if (m_zeromq_socket || m_zeromq_ctx || m_endpoint.size() == 0) {
+        /* Already started, bail out */
+        return;
+    }
+    m_zeromq_ctx = zmq_ctx_new();
+    if (!m_zeromq_ctx) {
+        /* Error */
+        return;
+    }
+    m_zeromq_socket  = zmq_socket (m_zeromq_ctx, ZMQ_PAIR);
+    if (!m_zeromq_socket) {
+        /* Error, shutdown context */
+        zmq_ctx_term(m_zeromq_ctx);
+        m_zeromq_ctx = NULL;
+    }
+    int linger = 0;
+    zmq_setsockopt(m_zeromq_socket, ZMQ_LINGER, &linger, sizeof(linger));
+    if (zmq_connect(m_zeromq_socket, m_endpoint.c_str()) != 0) {
+        /* Error, shutdown context and socket*/
+        zmq_ctx_term(m_zeromq_ctx);
+        m_zeromq_ctx = NULL;
+        m_zeromq_socket = NULL;
+    }
+}
+
+void
+RXCapturePort::stop() {
+    if (!m_zeromq_socket || !m_zeromq_ctx) {
+        /* Already stopped, bail out */
+        return;
+    }
+    zmq_ctx_shutdown(m_zeromq_ctx);
+    zmq_close(m_zeromq_socket);
+    zmq_ctx_term(m_zeromq_ctx);
+    m_zeromq_ctx = NULL;
+    m_zeromq_socket = NULL;
+}
+
+uint32_t
+RXCapturePort::do_tx() {
+    uint32_t cnt = 0;
+    uint8_t port_id = m_api->get_port_id();
+    int len = 0;
+    while(cnt < 32 && (len = zmq_recv(m_zeromq_socket, m_buffer_zmq,
+                               sizeof(m_buffer_zmq), ZMQ_NOBLOCK)) > 0) {
+        /* Allocate a mbuf */
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(CGlobalInfo::m_socket.port_to_socket(port_id), len);
+        assert(m);
+
+        /* allocate */
+        uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, len);
+        assert(p);
+
+        memcpy(p, m_buffer_zmq, len);
+        if (!m_api->tx_pkt(m)) {
+            rte_pktmbuf_free(m);
+            break;
+        }
+
+        cnt++;
+    }
+
+    return cnt;
+}
+
+RXCapturePort::~RXCapturePort() {
+    delete m_bpf_filter;
+    stop();
+    m_bpf_filter = NULL;
+}
+
+
+/**************************************
  * Port manager 
  * 
  *************************************/
@@ -316,6 +438,8 @@ RXPortManager::create_async(uint32_t port_id,
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
+
+    m_capture_port.create(&m_feature_api);
 
     /* by default, stack is always on */
     std::string &stack_type = CGlobalInfo::m_options.m_stack_type;
@@ -373,6 +497,10 @@ void RXPortManager::handle_pkt(const rte_mbuf_t *m) {
     if ( is_feature_set(STACK) && !m_stack->is_running_tasks() ) {
         m_stack->handle_pkt(m);
     }
+
+    if (is_feature_set(CAPTURE_PORT)) {
+        m_capture_port.handle_pkt(m);
+    }
 }
 
 uint16_t RXPortManager::handle_tx(void) {
@@ -400,6 +528,11 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     if ( cnt_tx ) {
         m_cpu_pred.update(true);
+    }
+
+    /* Do TX on capture port if needed */
+    if (is_feature_set(CAPTURE_PORT)) {
+        cnt_tx = m_capture_port.do_tx();
     }
 
     /* try to read 64 packets clean up the queue */
@@ -488,6 +621,14 @@ void RXPortManager::to_json(Json::Value &feat_res) const {
         feat_res["stack"]["is_active"] = false;
         feat_res["grat_arp"]["is_active"] = false;
     }
+
+    if (is_feature_set(CAPTURE_PORT)) {
+        feat_res["capture_port"] = m_capture_port.to_json();
+        feat_res["capture_port"]["is_active"] = true;
+    } else {
+        feat_res["capture_port"]["is_active"] = false;
+    }
+
 }
 
 

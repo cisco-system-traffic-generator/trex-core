@@ -342,3 +342,20 @@ TrexRxTXPkts::handle(CRxCore *rx_core) {
     return true;
 }
 
+bool
+TrexRxStartCapturePort::handle(CRxCore *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).start_capture_port(m_filter, m_endpoint);
+    return true;
+}
+
+bool
+TrexRxStopCapturePort::handle(CRxCore *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).stop_capture_port();
+    return true;
+}
+
+bool
+TrexRxSetCapturePortBPF::handle(CRxCore *rx_core) {
+    rx_core->get_rx_port_mngr(m_port_id).set_capture_port_bpf_filter(m_filter);
+    return true;
+}
