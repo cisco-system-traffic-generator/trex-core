@@ -29,6 +29,8 @@ import json
 import re
 import shlex
 import tempfile
+from collections import defaultdict
+import xml.etree.ElementTree as ET
 
 try:
     from .tcp_daemon import run_command
@@ -89,6 +91,23 @@ class CTRexServer(object):
         return x + y
         # return Fault(-10, "")
 
+    # Get information about available network interfaces
+    def get_devices_info(self):
+        logger.info("Processing get_devices_info() command.")
+        try:
+            args = ['lshw', '-c', 'network', '-xml']
+            output = subprocess.check_output(args)
+            xml_output = ET.fromstring(output)
+            devices = self.xml_to_dict(xml_output)
+            try:
+                return devices['list']['node']
+            except Exception as e:
+                logger.trace(e)
+                return devices
+        except OSError as e:
+            logger.error(e)
+            return Fault(-33, "Command 'get_devices_info' is unavailable on this server")
+
     # change TRex YAML config file. To apply changes you need to restart TRex instance
     def push_trex_config(self, bin_data):
         logger.info("Processing push_trex_config() command.")
@@ -142,6 +161,7 @@ class CTRexServer(object):
         # set further functionality and peripherals to server instance 
         self.server.register_function(self.add)
         self.server.register_function(self.push_trex_config)
+        self.server.register_function(self.get_devices_info)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
         self.server.register_function(self.connectivity_check, 'check_connectivity') # alias
@@ -200,6 +220,26 @@ class CTRexServer(object):
         except IOError as inst:
             logger.error("Can't push file %s: %s" % (filepath, e))
             return False
+
+    def xml_to_dict(self, elem):
+        d = {elem.tag: {} if elem.attrib else None}
+        children = list(elem)
+        text = elem.text.strip() if elem.text else None
+        attrib = elem.attrib
+        if children:
+            dd = defaultdict(list)
+            for dc in map(self.xml_to_dict, children):
+                for k, v in dc.items():
+                    dd[k].append(v)
+            d = {elem.tag: {k: v[0] if len(v) == 1 else v for k, v in dd.items()}}
+        if text:
+            if children or attrib:
+                d[elem.tag]['text'] = text
+            else:
+                d[elem.tag] = text
+        if attrib:
+            d[elem.tag].update(attrib)
+        return d
 
     # returns True if given path is under TRex package or under /tmp/trex_files
     def _check_path_under_TRex_or_temp(self, path):
