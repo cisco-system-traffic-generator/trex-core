@@ -59,7 +59,9 @@ import termios
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
-NAPATECH_CLASS = "0280"
+NETWORK_CLASS = "0280"
+NAPATECH_VENDOR_STR = '18f4'
+NAPATECH_VENDOR_NUM = 0x18f4
 PATH = os.getenv('PATH', '')
 needed_path = '.:/bin:/usr/bin:/usr/sbin'
 if needed_path not in PATH:
@@ -393,6 +395,9 @@ def get_nt_mac_address(pci_slot):
         mac = "" #"00:00:00:00:00:00"
     return mac
 
+def is_napatech(dev):
+    return dev['Class'] == NETWORK_CLASS and dev['Vendor'] in (NAPATECH_VENDOR_STR, NAPATECH_VENDOR_NUM)
+
 def get_nic_details():
     '''This function populates the "devices" dictionary. The keys used are
     the pci addresses (domain:bus:slot.func). The values are themselves
@@ -410,7 +415,7 @@ def get_nic_details():
     dev = {};
     for dev_line in dev_lines:
         if (len(dev_line) == 0):
-            if dev["Class"] == ETHERNET_CLASS or dev["Class"] == NAPATECH_CLASS:
+            if dev["Class"] == ETHERNET_CLASS or is_napatech(dev):
                 #convert device and vendor ids to numbers, then add to global
                 dev["Vendor"] = int(dev["Vendor"],16)
                 dev["Device"] = int(dev["Device"],16)
@@ -465,7 +470,7 @@ def get_nic_details():
                 with open(mac_file) as f:
                     devices[d]['MAC'] = f.read().strip()
 
-        if devices[d]["Class"] == NAPATECH_CLASS:
+        if is_napatech(devices[d]):
             devices[d]['MAC'] = get_nt_mac_address(devices[d]['Slot'])
 
         # get NUMA from Linux if available
@@ -823,7 +828,7 @@ def show_table(get_macs = True):
     for id, pci in enumerate(sorted(devices.keys())):
         custom_row_added = False
         d = devices[pci]
-        if d["Class"] == NAPATECH_CLASS:
+        if is_napatech(d):
             custom_row_added = add_table_entry_napatech(id, d, table)
         if not custom_row_added:
             table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
