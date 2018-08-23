@@ -294,10 +294,6 @@ RXCapturePort::to_json() const {
 
 void
 RXCapturePort::handle_pkt(const rte_mbuf_t *m) {
-    if(unlikely(!m_zeromq_socket || !m_zeromq_ctx)) {
-        return;
-    }
-
     if(likely(m_bpf_filter != NULL)) {
         if (!m_bpf_filter->match(m)) {
             return;
@@ -320,44 +316,47 @@ RXCapturePort::set_bpf_filter(const std::string& filter) {
    }
 }
 
-void
-RXCapturePort::start() {
+bool RXCapturePort::start() {
     if (m_zeromq_socket || m_zeromq_ctx || m_endpoint.size() == 0) {
         /* Already started, bail out */
-        return;
+        return false;
     }
     m_zeromq_ctx = zmq_ctx_new();
     if (!m_zeromq_ctx) {
         /* Error */
-        return;
+        return false;
     }
     m_zeromq_socket  = zmq_socket (m_zeromq_ctx, ZMQ_PAIR);
     if (!m_zeromq_socket) {
         /* Error, shutdown context */
         zmq_ctx_term(m_zeromq_ctx);
         m_zeromq_ctx = NULL;
+        return false;
     }
     int linger = 0;
     zmq_setsockopt(m_zeromq_socket, ZMQ_LINGER, &linger, sizeof(linger));
     if (zmq_connect(m_zeromq_socket, m_endpoint.c_str()) != 0) {
         /* Error, shutdown context and socket*/
+        zmq_ctx_shutdown(m_zeromq_ctx);
         zmq_ctx_term(m_zeromq_ctx);
         m_zeromq_ctx = NULL;
         m_zeromq_socket = NULL;
+        return false;
     }
+    return true;
 }
 
-void
-RXCapturePort::stop() {
+bool RXCapturePort::stop() {
     if (!m_zeromq_socket || !m_zeromq_ctx) {
         /* Already stopped, bail out */
-        return;
+        return false;
     }
     zmq_ctx_shutdown(m_zeromq_ctx);
     zmq_close(m_zeromq_socket);
     zmq_ctx_term(m_zeromq_ctx);
     m_zeromq_ctx = NULL;
     m_zeromq_socket = NULL;
+    return true;
 }
 
 uint32_t
@@ -477,6 +476,32 @@ void RXPortManager::cleanup_async(void) {
 
 void RXPortManager::wait_for_cleanup_done(void) {
     wait_stack_tasks(get_stack(), -1);
+}
+
+bool RXPortManager::start_capture_port(const std::string& filter,
+                                       const std::string& endpoint) {
+    /* Set the BPF filter */
+    m_capture_port.set_bpf_filter(filter);
+
+    /* Set the endpoint */
+    m_capture_port.set_endpoint(endpoint);
+
+    /* Start the zeromq socket */
+    bool ret = m_capture_port.start();
+
+    if(ret) {
+        /* Enable the FIA */
+        set_feature(CAPTURE_PORT);
+    }
+    return ret;
+}
+
+bool RXPortManager::stop_capture_port() {
+    /* Disable the FIA */
+    unset_feature(CAPTURE_PORT);
+
+    /* Stop the zeromq socket */
+    return m_capture_port.stop();
 }
 
 void RXPortManager::handle_pkt(const rte_mbuf_t *m) {

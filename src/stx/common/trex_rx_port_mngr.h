@@ -150,12 +150,12 @@ public:
      * Start the capture port by connecting the zeromq socket to its endpoint.
      * No-op if already started.
      */
-    void start();
+    bool start();
 
     /**
      * Stop the capture port by closing the zeromq socket, no-op if not started.
      */
-    void stop();
+    bool stop();
 
     /**
      * Set the BPF filter to use. No-op if already started.
@@ -166,9 +166,6 @@ public:
      * Set the endpoint to use. No-op if already started.
      */
     void set_endpoint(const std::string& endpoint) {
-        if (m_zeromq_socket) {
-            return; /* Already started, ignore. */
-        }
         m_endpoint = endpoint;
     }
 
@@ -185,7 +182,7 @@ public:
     uint32_t do_tx();
 
 private:
-    static const uint32_t constexpr MAX_MTU_SIZE = 9000;
+    static uint16_t constexpr MAX_MTU_SIZE = 9238;
     RXFeatureAPI *m_api;
     std::string   m_endpoint;
     BPFFilter    *m_bpf_filter;
@@ -289,33 +286,15 @@ public:
      *                     See the endpoint description of
      *                     http://api.zeromq.org/4-1:zmq-connect
      */
-    void start_capture_port(const std::string& filter,
-                            const std::string& endpoint) {
-        /* Set the BPF filter */
-        m_capture_port.set_bpf_filter(filter);
-
-        /* Set the endpoint */
-        m_capture_port.set_endpoint(endpoint);
-
-        /* Start the zeromq socket */
-        m_capture_port.start();
-
-        /* Enable the FIA */
-        set_feature(CAPTURE_PORT);
-    }
+    bool start_capture_port(const std::string& filter,
+                            const std::string& endpoint);
 
     /**
      * Stop the capture port and close the ZeroMQ Socket initially opened
      * with start_capture_port()
      * @see RXPortManager::start_capture_port
      */
-    void stop_capture_port() {
-        /* Disable the FIA */
-        unset_feature(CAPTURE_PORT);
-
-        /* Stop the zeromq socket */
-        m_capture_port.stop();
-    }
+    bool stop_capture_port();
 
     /**
      * Change the BPF filter used by the capture port. Can be used while the

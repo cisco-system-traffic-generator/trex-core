@@ -344,13 +344,15 @@ TrexRxTXPkts::handle(CRxCore *rx_core) {
 
 bool
 TrexRxStartCapturePort::handle(CRxCore *rx_core) {
-    rx_core->get_rx_port_mngr(m_port_id).start_capture_port(m_filter, m_endpoint);
+    bool rc = rx_core->get_rx_port_mngr(m_port_id).start_capture_port(m_filter, m_endpoint);
+    m_reply.set_reply(rc);
     return true;
 }
 
 bool
 TrexRxStopCapturePort::handle(CRxCore *rx_core) {
-    rx_core->get_rx_port_mngr(m_port_id).stop_capture_port();
+    bool rc = rx_core->get_rx_port_mngr(m_port_id).stop_capture_port();
+    m_reply.set_reply(rc);
     return true;
 }
 

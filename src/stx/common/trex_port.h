@@ -252,12 +252,12 @@ public:
     /**
      * Enable capture port for this port
      */
-    void start_capture_port(const std::string&  filter, const std::string& endpoint);
+    bool start_capture_port(const std::string&  filter, const std::string& endpoint);
 
     /**
      * Disable capture port for this port
      */
-    void stop_capture_port();
+    bool stop_capture_port();
 
     /**
      * Change BPF filter for the capture port
