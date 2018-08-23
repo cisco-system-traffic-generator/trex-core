@@ -707,7 +707,7 @@ private:
  */
 class TrexRxStartCapturePort : public TrexCpToRxMsgBase {
 public:
-    TrexRxStartCapturePort(uint8_t port_id, const std::string& filter, const std::string& endpoint) {
+    TrexRxStartCapturePort(uint8_t port_id, const std::string& filter, const std::string& endpoint, MsgReply<bool> &reply) : m_reply(reply) {
         m_port_id              = port_id;
         m_filter               = filter;
         m_endpoint             = endpoint;
@@ -719,6 +719,7 @@ private:
     uint8_t           m_port_id;
     std::string       m_filter;
     std::string       m_endpoint;
+    MsgReply<bool>   &m_reply;
 };
 
 /**
@@ -726,14 +727,15 @@ private:
  */
 class TrexRxStopCapturePort : public TrexCpToRxMsgBase {
 public:
-    TrexRxStopCapturePort(uint8_t port_id) {
-        m_port_id              = port_id;
+    TrexRxStopCapturePort(uint8_t port_id, MsgReply<bool> &reply) : m_reply(reply) {
+        m_port_id  = port_id;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
 private:
     uint8_t           m_port_id;
+    MsgReply<bool>   &m_reply;
 };
 
 /**

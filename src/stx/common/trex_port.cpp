@@ -366,19 +366,23 @@ bool TrexPort::is_dst_mac_valid(void) {
 /**
  * Start capture port
  */
-void
-TrexPort::start_capture_port (const std::string& filter, const std::string& endpoint) {
-    TrexRxStartCapturePort *msg = new TrexRxStartCapturePort(m_port_id, filter, endpoint);
+bool TrexPort:: start_capture_port (const std::string& filter, const std::string& endpoint) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxStartCapturePort *msg = new TrexRxStartCapturePort(m_port_id, filter, endpoint, reply);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
 }
 
 /**
  * Stop capture port
  */
-void
-TrexPort::stop_capture_port () {
-    TrexRxStopCapturePort *msg = new TrexRxStopCapturePort(m_port_id);
+bool TrexPort::stop_capture_port () {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxStopCapturePort *msg = new TrexRxStopCapturePort(m_port_id, reply);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
 }
 
 /**

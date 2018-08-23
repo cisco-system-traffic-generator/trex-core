@@ -1170,7 +1170,10 @@ TrexRpcCmdStartCapturePort::_run(const Json::Value &params, Json::Value &result)
         generate_parse_err(result, ss.str());
     }
 
-    port->start_capture_port(filter, endpoint);
+    bool res = port->start_capture_port(filter, endpoint);
+    if (!res) {
+        generate_execute_err(result, "Could not start capture port, make sure the endpoint '" + endpoint + "' is ready for connections");
+    }
 
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
@@ -1187,7 +1190,10 @@ TrexRpcCmdStopCapturePort::_run(const Json::Value &params, Json::Value &result) 
 
     TrexPort *port = get_stx()->get_port_by_id(port_id);
 
-    port->stop_capture_port();
+    bool res = port->stop_capture_port();
+    if (!res) {
+        generate_execute_err(result, "Capture port not started");
+    }
 
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
