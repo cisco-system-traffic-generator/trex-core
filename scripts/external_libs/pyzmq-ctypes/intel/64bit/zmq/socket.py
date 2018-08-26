@@ -101,6 +101,18 @@ class Socket(object):
         rc = zmq_bind(self.handle, addr)
         _check_rc(rc)
 
+    def bind_to_random_port(self, addr, min_port=1300, max_port=65000, max_tries=100):
+        for _ in range(max_tries):
+            try:
+                port = random.randint(min_port, max_port)
+                self.bind('%s:%s' % (addr, port))
+                return port
+            except ZMQError as e:
+                if e.errno == EADDRINUSE:
+                    continue
+                raise
+        raise ZMQBindError("Could not bind socket to random port.")
+
     def unbind(self, addr):
         if isinstance(addr, unicode):
             addr = addr.encode('utf8')

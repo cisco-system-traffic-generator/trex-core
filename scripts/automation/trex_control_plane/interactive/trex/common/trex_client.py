@@ -2029,12 +2029,15 @@ class TRexClient(object):
             socket will also be sent as 'raw' packet on the specified port.
 
             :parameters:
-                 port        - the port to activate the capture port on
-                 endpoint    - The path to the endpoint to use to bind the socket (e.g. ipc:///tmp/my_endpoint)
-                               Should be unique and already bound to a PAIR ZeroMQ socket type.
-                               See ZMQ_PAIR in http://api.zeromq.org/4-0:zmq-socket
-                 bpf_filter  - The BPF filter to use before sending packet on the ZeroMQ socket.
-                               It can be empty for no filter.
+                port: int
+                    The port to activate the capture port on
+                endpoint: string
+                    The path to the endpoint to use to bind the socket (e.g. ipc:///tmp/my_endpoint)
+                    Should be unique and already bound to a PAIR ZeroMQ socket type.
+                    See ZMQ_PAIR in http://api.zeromq.org/4-0:zmq-socket
+                bpf_filter: string
+                    The BPF filter to use before sending packet on the ZeroMQ socket.
+                    It can be empty for no filter.
             :raises:
                 + :exc:`TRexError`
         """
@@ -2054,7 +2057,8 @@ class TRexClient(object):
             Disable capture port
 
             :parameters:
-                 port      - the port to stop the capture port on
+                 port: int
+                    The port to stop the capture port on
             :raises:
                 + :exc:`TRexError`
         """
@@ -2074,8 +2078,10 @@ class TRexClient(object):
             Set the BPF filter for the capture port
 
             :parameters:
-                 port       - the port to change the filter of the capture port
-                 bpf_filter - The new BPF filter (empty disables the filter)
+                 port: int
+                    The port to change the filter of the capture port
+                 bpf_filter: string
+                    The new BPF filter (empty disables the filter)
             :raises:
                 + :exc:`TRexError`
         """
