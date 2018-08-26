@@ -150,12 +150,12 @@ public:
      * Start the capture port by connecting the zeromq socket to its endpoint.
      * No-op if already started.
      */
-    bool start();
+    bool start(std::string &err);
 
     /**
      * Stop the capture port by closing the zeromq socket, no-op if not started.
      */
-    bool stop();
+    void stop();
 
     /**
      * Set the BPF filter to use. No-op if already started.
@@ -287,14 +287,15 @@ public:
      *                     http://api.zeromq.org/4-1:zmq-connect
      */
     bool start_capture_port(const std::string& filter,
-                            const std::string& endpoint);
+                            const std::string& endpoint,
+                            std::string &err);
 
     /**
      * Stop the capture port and close the ZeroMQ Socket initially opened
      * with start_capture_port()
      * @see RXPortManager::start_capture_port
      */
-    bool stop_capture_port();
+    bool stop_capture_port(std::string &err);
 
     /**
      * Change the BPF filter used by the capture port. Can be used while the
