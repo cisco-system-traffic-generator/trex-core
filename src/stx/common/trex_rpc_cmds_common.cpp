@@ -1170,9 +1170,10 @@ TrexRpcCmdStartCapturePort::_run(const Json::Value &params, Json::Value &result)
         generate_parse_err(result, ss.str());
     }
 
-    bool res = port->start_capture_port(filter, endpoint);
+    std::string err = "Unknown error";
+    bool res = port->start_capture_port(filter, endpoint, err);
     if (!res) {
-        generate_execute_err(result, "Could not start capture port, make sure the endpoint '" + endpoint + "' is ready for connections");
+        generate_execute_err(result, "Could not enable capture port on port " + std::to_string(port_id) + ": " + err);
     }
 
     result["result"] = Json::objectValue;
@@ -1190,9 +1191,10 @@ TrexRpcCmdStopCapturePort::_run(const Json::Value &params, Json::Value &result) 
 
     TrexPort *port = get_stx()->get_port_by_id(port_id);
 
-    bool res = port->stop_capture_port();
+    std::string err = "Unknown error";
+    bool res = port->stop_capture_port(err);
     if (!res) {
-        generate_execute_err(result, "Capture port not started");
+        generate_execute_err(result, "Could not disable capture port on port " + std::to_string(port_id) + ": " + err);
     }
 
     result["result"] = Json::objectValue;
