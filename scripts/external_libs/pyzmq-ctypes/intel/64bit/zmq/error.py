@@ -25,6 +25,7 @@ class ZMQError(ZMQBaseError):
 class ContextTerminated(ZMQError): pass
 class Again(ZMQError): pass
 class InterruptedSystemCall(ZMQError): pass
+class ZMQBindError(ZMQBaseError): pass
 
 def _check_zmq_errno():
     errno = get_errno()

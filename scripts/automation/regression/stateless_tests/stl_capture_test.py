@@ -7,6 +7,7 @@ import zmq
 import threading
 import time
 import tempfile
+import socket
 from scapy.utils import RawPcapReader
 from nose.tools import assert_raises
 
@@ -47,8 +48,8 @@ class STLCapture_Test(CStlGeneral_Test):
 
         # some setups (enic) might add VLAN always
         self.nic_adds_vlan = CTRexScenario.setup_name in ['trex11']
-        
-        
+        self.hostname = socket.gethostname()
+
     @classmethod
     def tearDownClass(cls):
         if CTRexScenario.stl_init_error:
@@ -371,11 +372,10 @@ class STLCapture_Test(CStlGeneral_Test):
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)', limit = max_capture_packet)['id']
 
             # Add ZeroMQ Socket
-            capture_port = "ipc://{}/trex_capture_port".format(CTRexScenario.scripts_path)
             zmq_context = zmq.Context()
             zmq_socket = zmq_context.socket(zmq.PAIR)
-            zmq_socket.bind(capture_port)
-            self.c.start_capture_port(port = self.tx_port, endpoint = capture_port)
+            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+            self.c.start_capture_port(port = self.tx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
 
             self.c.clear_stats()
 
@@ -417,10 +417,8 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.remove_all_captures()
             self.c.stop_capture_port(port = self.tx_port)
             self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
-            try:
-                zmq_socket.close()
-            except:
-                pass
+            zmq_context.destroy()
+
 
     def test_rx_from_capture_port (self):
         '''
@@ -434,11 +432,10 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = self.rx_port)
 
             # Add ZeroMQ Socket for RX Port
-            capture_port = "ipc://{}/trex_capture_port".format(CTRexScenario.scripts_path)
             zmq_context = zmq.Context()
             zmq_socket = zmq_context.socket(zmq.PAIR)
-            zmq_socket.bind(capture_port)
-            self.c.start_capture_port(port = self.rx_port, endpoint = capture_port)
+            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+            self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
 
             # Start a thread to receive and count how many packet we receive
             global failed
@@ -490,10 +487,8 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.stop_capture_port(port = self.rx_port)
             self.c.set_service_mode(ports = [self.rx_port], enabled = False)
             self.c.stop()
-            try:
-                zmq_socket.close()
-            except:
-                pass
+            zmq_context.destroy()
+
 
     def test_rx_from_capture_port_with_filter (self):
         '''
@@ -508,12 +503,11 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = self.rx_port)
 
             # Add ZeroMQ Socket for RX Port
-            capture_port = "ipc://{}/trex_capture_port".format(CTRexScenario.scripts_path)
             zmq_context = zmq.Context()
             zmq_socket = zmq_context.socket(zmq.PAIR)
-            zmq_socket.bind(capture_port)
+            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
             # Start with wrong filter
-            self.c.start_capture_port(port = self.rx_port, endpoint = capture_port, bpf_filter="ip host 18.0.0.1")
+            self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port), bpf_filter="ip host 18.0.0.1")
 
             # Then change it
             self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222")
@@ -577,10 +571,7 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.stop_capture_port(port = self.rx_port)
             self.c.set_service_mode(ports = [self.rx_port], enabled = False)
             self.c.stop()
-            try:
-                zmq_socket.close()
-            except:
-                pass
+            zmq_context.destroy()
 
     def test_capture_port_stress (self):
         '''
@@ -591,17 +582,15 @@ class STLCapture_Test(CStlGeneral_Test):
         try:
             # move to service mode
             self.c.set_service_mode(ports = self.rx_port)
-            self.c.stop_capture_port(port = self.rx_port)
 
             # Add ZeroMQ Socket for RX Port
-            capture_port = "ipc://{}/trex_capture_port".format(CTRexScenario.scripts_path)
             zmq_context = zmq.Context()
+            zmq_socket = zmq_context.socket(zmq.PAIR)
+            zmq_socket.setsockopt(zmq.LINGER, 0)
+            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
 
             # Start a thread to receive and send packets
             def run_rx_tx():
-                zmq_socket = zmq_context.socket(zmq.PAIR)
-                zmq_socket.set(zmq.LINGER, 0)
-                zmq_socket.bind(capture_port)
                 try:
                     while not zmq_socket.closed:
                         pkt = zmq_socket.recv()
@@ -609,11 +598,6 @@ class STLCapture_Test(CStlGeneral_Test):
                         zmq_socket.send(pkt)
                 except zmq.ContextTerminated:
                     pass
-                finally:
-                    try:
-                        zmq_socket.close()
-                    except:
-                        pass
 
             t = threading.Thread(name="capture_port_thread_rx", target=run_rx_tx)
             t.daemon=True
@@ -631,15 +615,14 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.start(ports = self.tx_port, force = True)
 
             # Now start & stop the capture port while doing the work
-            for _ in range(1,10):
-                self.c.start_capture_port(port = self.rx_port, endpoint = capture_port)
+            for _ in range(10):
+                self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
                 time.sleep(1)
                 self.c.stop_capture_port(port = self.rx_port)
                 time.sleep(1)
 
             # Wait until thread dies
-            self.c.stop_capture_port(port = self.rx_port)
-            zmq_context.term()
+            zmq_context.destroy()
             t.join(timeout=5)
             assert not t.is_alive()
 
@@ -647,5 +630,5 @@ class STLCapture_Test(CStlGeneral_Test):
         finally:
             self.c.remove_all_captures()
             self.c.stop()
-            self.c.stop_capture_port(port = self.rx_port)
+            zmq_context.destroy()
             self.c.set_service_mode(ports = [self.rx_port], enabled = False)
