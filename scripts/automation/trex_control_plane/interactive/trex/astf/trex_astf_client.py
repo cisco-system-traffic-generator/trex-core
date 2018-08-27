@@ -120,7 +120,8 @@ class ASTFClient(TRexClient):
                                    promiscuous = False,
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
-    
+                self._for_each_port('stop_capture_port', ports)
+
             self.ctx.logger.post_cmd(RC_OK())
     
     
