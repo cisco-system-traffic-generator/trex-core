@@ -448,7 +448,7 @@ class STLCapture_Test(CStlGeneral_Test):
                 zmq_context = zmq.Context()
                 zmq_socket = zmq_context.socket(zmq.PAIR)
                 zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
-                shared['tcp_port'] = tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+                shared['tcp_port'] = zmq_socket.bind_to_random_port('tcp://*')
                 nb_received = 0
                 first_packet = 0
                 try:
@@ -494,7 +494,7 @@ class STLCapture_Test(CStlGeneral_Test):
                 self.c.set_service_mode(ports = self.rx_port, enabled = False)
 
             # Then change it
-            self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222")
+            self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222 or (vlan and udp port 1222)")
 
             # start heavy traffic with wrong IP first
             pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=1222,sport=1025)/'a_payload_example')
@@ -521,6 +521,7 @@ class STLCapture_Test(CStlGeneral_Test):
             t.join(timeout=10)
             if t.is_alive():
                 shared['stop'] = True
+                t.join(timeout=5)
                 raise Exception('Thread did not stop')
             else:
                 assert not shared['failed']
@@ -591,7 +592,7 @@ class STLCapture_Test(CStlGeneral_Test):
 
             # Wait until thread dies
             shared['stop'] = True
-            t.join(timeout=15)
+            t.join(timeout=10)
             assert not t.is_alive()
 
 
