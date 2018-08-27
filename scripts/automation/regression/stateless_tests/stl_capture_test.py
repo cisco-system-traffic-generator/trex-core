@@ -19,8 +19,8 @@ def num2ip (ip_num):
 
 def ip_add (ip_str, cnt):
     return num2ip(ip2num(ip_str) + cnt)
-    
-    
+
+
 class STLCapture_Test(CStlGeneral_Test):
     """Tests for capture packets"""
 
@@ -379,7 +379,7 @@ class STLCapture_Test(CStlGeneral_Test):
 
             self.c.clear_stats()
 
-            nb_packets = 200000
+            nb_packets = 20000
             assert max_capture_packet <= nb_packets
             pkt = bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = 100,dport=1000)/('x' * 100))
             for _ in range(1,nb_packets):
@@ -448,11 +448,11 @@ class STLCapture_Test(CStlGeneral_Test):
                         pkt = zmq_socket.recv()
                         if pkt:
                             if not first_packet:
-                                first_packet = time.time()
                                 # Only check first packet as Scapy is slow for benchmarking..
                                 scapy_pkt = Ether(pkt)
                                 assert(scapy_pkt['IP'].src == '16.0.0.1')
                                 assert(scapy_pkt['IP'].dst == '48.0.0.1')
+                                first_packet = time.time()
                             nb_received += 1
                             if nb_received == pkt_count:
                                 delta = time.time()-first_packet
@@ -508,6 +508,12 @@ class STLCapture_Test(CStlGeneral_Test):
             tcp_port = zmq_socket.bind_to_random_port('tcp://*')
             # Start with wrong filter
             self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port), bpf_filter="ip host 18.0.0.1")
+            # should not let start if started
+            with assert_raises(TRexError):
+                self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port), bpf_filter="ip host 18.0.0.1")
+            # should not let disable service mode
+            with assert_raises(TRexError):
+                self.c.set_service_mode(ports = self.rx_port, enabled = False)
 
             # Then change it
             self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222")
@@ -533,9 +539,11 @@ class STLCapture_Test(CStlGeneral_Test):
                                 print('Done (%ss), %6s RX pps' % (round(delta,2), round(nb_received/delta,2)))
                                 return
                 except Exception as e:
+                    print('Expected: %s, received: %s' % (pkt_count, nb_received))
                     global failed
                     failed = True
-                    raise e
+                    raise
+
             t = threading.Thread(name="capture_port_thread", target=run)
             t.daemon=True
             t.start()
@@ -545,7 +553,7 @@ class STLCapture_Test(CStlGeneral_Test):
 
             stream = STLStream(name = 'burst',
                                packet = pkt,
-                               mode = STLTXSingleBurst(percentage = self.percentage, total_pkts=pkt_count)
+                               mode = STLTXSingleBurst(pps = 10000, total_pkts=pkt_count)
                                )
 
             self.c.add_streams(ports = self.tx_port, streams = [stream])
@@ -555,19 +563,21 @@ class STLCapture_Test(CStlGeneral_Test):
 
             stream = STLStream(name = 'burst2',
                                packet = pkt,
-                               mode = STLTXSingleBurst(percentage = self.percentage, total_pkts=pkt_count)
+                               mode = STLTXSingleBurst(pps = 10000, total_pkts=pkt_count)
                                )
 
             self.c.add_streams(ports = self.tx_port, streams = [stream])
             self.c.start(ports = self.tx_port, force = True)
 
             # Wait until we have received everything
-            t.join(timeout=15)
+            t.join(timeout=5)
             assert not t.is_alive()
             assert not failed
 
         finally:
             self.c.remove_all_captures()
+            self.c.stop_capture_port(port = self.rx_port)
+            # should allow stop stopped
             self.c.stop_capture_port(port = self.rx_port)
             self.c.set_service_mode(ports = [self.rx_port], enabled = False)
             self.c.stop()
@@ -608,18 +618,18 @@ class STLCapture_Test(CStlGeneral_Test):
 
             stream = STLStream(name = 'burst',
                                packet = pkt,
-                               mode = STLTXCont(percentage = self.percentage)
+                               mode = STLTXCont(pps = 10000)
                                )
 
             self.c.add_streams(ports = self.tx_port, streams = [stream])
             self.c.start(ports = self.tx_port, force = True)
 
             # Now start & stop the capture port while doing the work
-            for _ in range(10):
+            for _ in range(5):
                 self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
-                time.sleep(1)
+                time.sleep(0.2)
                 self.c.stop_capture_port(port = self.rx_port)
-                time.sleep(1)
+                time.sleep(0.2)
 
             # Wait until thread dies
             zmq_context.destroy()

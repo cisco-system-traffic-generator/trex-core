@@ -498,8 +498,11 @@ bool RXPortManager::start_capture_port(const std::string& filter,
 bool RXPortManager::stop_capture_port(std::string &err) {
 
     if ( !is_feature_set(CAPTURE_PORT) ) {
+        return true;
+        /* allow stopping stopped
         err = "Capture port is not active";
         return false;
+        */
     }
 
     m_capture_port.stop();
