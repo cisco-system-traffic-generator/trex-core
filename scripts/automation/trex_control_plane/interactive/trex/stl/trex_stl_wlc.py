@@ -87,7 +87,7 @@ class AP:
     VERB_DEBUG = 4
     _scapy_cache_static = {}
 
-    def __init__(self, ssl_ctx, logger, trex_port, mac, ip, port, radio_mac, verbose_level = VERB_WARN, rsa_priv_file = None, rsa_cert_file = None):
+    def __init__(self, ssl_ctx, logger, trex_port, mac, ip, port, radio_mac, wlc_ip, verbose_level = VERB_WARN, rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
         self.ssl_ctx = ssl_ctx
         self.logger = logger
         self.trex_port = trex_port
@@ -103,8 +103,8 @@ class AP:
         self.name = 'AP%s%s.%s%s.%s%s' % (mac[:2], mac[3:5], mac[6:8], mac[9:11], mac[12:14], mac[15:17])
         self.name_bytes = self.name.encode('ascii')
         assert '.' in ip, 'Bad IP format, expected x.x.x.x'
-        self.ip_src = is_valid_ipv4_ret(ip)
-        self.ip_hum = ip
+        self.ip_bytes = is_valid_ipv4_ret(ip)
+        self.ip = ip
         self.udp_port = port
         self.udp_port_str = int2str(port, 2)
         try:
@@ -123,11 +123,15 @@ class AP:
         self.clients = []
         self.rsa_priv_file = rsa_priv_file
         self.rsa_cert_file = rsa_cert_file
+        self.rsa_ca_priv_file = rsa_ca_priv_file
         self.capwap_MaxRetransmit = 5
         self.capwap_RetransmitInterval = 0.5
         self.ssl_lock = threading.RLock()
         self._create_ssl()
         self.reset_vars()
+        if wlc_ip and wlc_ip != '255.255.255.255':
+            self.ip_dst = wlc_ip
+            self.wlc_ip_bytes = is_valid_ipv4_ret(wlc_ip)
 
 
     def reset_vars(self):
@@ -144,7 +148,7 @@ class AP:
         self.mac_dst = None
         self.mac_dst_bytes = None
         self.ip_dst = None
-        self.ip_dst_bytes = None
+        self.wlc_ip_bytes = None
         self.dot11_seq = 0
         self.__capwap_seq = 0
         self._scapy_cache = {}
@@ -153,7 +157,7 @@ class AP:
         self.is_dtls_closed = False
         self.got_keep_alive = False
         self.rx_responses = {}
-
+        self._create_ssl()
 
     def debug(self, msg):
         if self.is_debug:
@@ -189,10 +193,28 @@ class AP:
 
 
     def _create_ssl(self):
+        if self.ssl:
+            libssl.SSL_free(self.ssl)
+
         self.ssl = libssl.SSL_new(self.ssl_ctx.ctx)
         self.openssl_buf = c_buffer(9999)
         self.in_bio = libcrypto.BIO_new(libcrypto.BIO_s_mem())
         self.out_bio = libcrypto.BIO_new(libcrypto.BIO_s_mem())
+
+        if self.rsa_ca_priv_file:
+            rsa_ca = libcrypto.PEM_read_RSAPrivateKey_helper(self.rsa_ca_priv_file)
+            if not rsa_ca:
+                self.fatal('Could not load given controller trustpoint private key %s' % self.rsa_ca_priv_file)
+
+            evp_ca = libcrypto.EVP_PKEY_new()
+            if libcrypto.EVP_PKEY_set1_RSA(evp_ca, rsa_ca) != 1:
+                raise Exception('Could not create EVP_PKEY in SSL Context for controller key')
+
+        else:
+            if not self.rsa_cert_file:
+                self.warn("The AP Certificate will be self-signed. Newer version of eWLC do not support it.")
+            evp_ca = self.ssl_ctx.evp
+
         if self.rsa_priv_file and self.rsa_cert_file:
             self.debug('Using provided certificate')
             if libssl.SSL_use_certificate_file(self.ssl, c_buffer(self.rsa_cert_file), SSL_CONST.SSL_FILETYPE_PEM) != 1:
@@ -257,7 +279,7 @@ eWLC:
                     self.fatal('Could not set "Not before" time to certificate"')
                 if not libcrypto.X509_time_adj_ex(libcrypto.X509_getm_notAfter(x509_cert), 999, 0, None):
                     self.fatal('Could not set "Not after" time to certificate"')
-                if not libcrypto.X509_sign(x509_cert, self.ssl_ctx.evp, libcrypto.EVP_sha256()):
+                if not libcrypto.X509_sign(x509_cert, evp_ca, libcrypto.EVP_sha256()):
                     self.fatal('Could not sign the certificate')
                 libssl.SSL_use_certificate(self.ssl, x509_cert)
             finally:
@@ -299,11 +321,11 @@ eWLC:
             capwap_bytes = capwap_bytes.raw
         assert isinstance(capwap_bytes, bytes)
         if is_discovery:
-            ip = b'\x45\x00' + struct.pack('!H', 28 + len(capwap_bytes)) + b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_src + b'\xff\xff\xff\xff'
+            ip = b'\x45\x00' + struct.pack('!H', 28 + len(capwap_bytes)) + b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_bytes + (b'\xff\xff\xff\xff' if not self.wlc_ip_bytes else self.wlc_ip_bytes)
             checksum = scapy.utils.checksum(ip)
             ip = ip[:10] + struct.pack('!H', checksum) + ip[12:]
             return (
-                b'\xff\xff\xff\xff\xff\xff' + self.mac_bytes + b'\x08\x00' +
+                (b'\xff\xff\xff\xff\xff\xff' if not self.mac_dst_bytes else self.mac_dst_bytes) + self.mac_bytes + b'\x08\x00' +
                 ip +
                 struct.pack('!H', self.udp_port) + struct.pack('!H', dst_port) + struct.pack('!H', 8 + len(capwap_bytes)) + b'\0\0' +
                 capwap_bytes
@@ -312,7 +334,7 @@ eWLC:
         if 'capwap_wrap' not in self._scapy_cache:
             self._scapy_cache['capwap_wrap_ether'] = self.mac_dst_bytes + self.mac_bytes + b'\x08\x00'
             self._scapy_cache['capwap_wrap_ip1'] = b'\x45\x00' # 2 bytes of total length after this one
-            self._scapy_cache['capwap_wrap_ip2'] = b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_src + self.ip_dst_bytes
+            self._scapy_cache['capwap_wrap_ip2'] = b'\x00\x01\x00\x00\x40\x11\0\0' + self.ip_bytes + self.wlc_ip_bytes
             self._scapy_cache['capwap_wrap_udp_src'] = struct.pack('!H', self.udp_port)
             self._scapy_cache['capwap_wrap'] = True
 
@@ -388,6 +410,35 @@ eWLC:
             assert p == p1[:-2], '\n%s\n%s\n\n%s\n%s' % (type(p), hexstr(p), type(p1), hexstr(p1))
         return self.wrap_capwap_pkt(p + pkt[12:], dst_port = 5247)
 
+    def wrap_pkt_by_ap_msg(self, pkt):
+        assert type(pkt) is bytes, 'wrap_pkt_by_ap_msg() expects bytes, got: %s' % type(pkt)
+        assert len(pkt) >= 14, 'Too small buffer to wrap'
+
+        p1 = bytes(
+            CAPWAP_DATA(
+                header = CAPWAP_Header(
+                    wbid = 1,
+                    flags = 'WT',
+                    wireless_info_802 = CAPWAP_Wireless_Specific_Information_IEEE802_11(
+                        rssi = 216,
+                        snr = 31,
+                        data_rate = 0,
+                        )
+                    )
+                )/
+            Dot11_swapped(
+                FCfield = 'to-DS',
+                subtype = 8,
+                type = 'Data',
+                ID = 0,
+                addr1 = self.mac,
+                addr2 = self.mac,
+                addr3 = self.mac,
+                )/
+            Dot11QoS())
+
+        return self.wrap_capwap_pkt(p1 + pkt, dst_port = 5247)
+
 
     def patch_stream(self, client, stream):
         assert type(stream) is STLStream, 'patch_stream() expects STLStream, got: %s' % type(stream)
@@ -409,11 +460,31 @@ eWLC:
         stream.fields['packet'] = {'binary': base64encode(stream.pkt),
                                    'meta': pkt_meta}
 
+        # We force the changed src & dst MAC address to 1 using the stream flags
+        stream.fields['flags'] |= 0b111
         for inst in  stream.fields['vm']['instructions']:
             if 'pkt_offset' in inst:
                 inst['pkt_offset'] += 78 # Size of wrapping layers minus removed Ethernet
             elif 'offset' in inst:
                 inst['offset'] += 78
+        return stream
+
+    def patch_ap_stream(self, stream):
+        assert type(stream) is STLStream, 'patch_stream() expects STLStream, got: %s' % type(stream)
+        stream = copy.deepcopy(stream)
+        patched_pkt = Ether(stream.pkt)
+
+        stream.pkt = self.wrap_pkt_by_ap_msg(bytes(patched_pkt))
+        stream.fields['packet'] = {'binary': base64encode(stream.pkt),
+                                   'meta': ''}
+        # We force the changed src & dst MAC address to 1 using the stream flags
+        stream.fields['flags'] |= 0b011
+
+        for inst in  stream.fields['vm']['instructions']:
+            if 'pkt_offset' in inst:
+                inst['pkt_offset'] += 84 # Size of wrapping layers
+            elif 'offset' in inst:
+                inst['offset'] += 84
         return stream
 
 
@@ -481,20 +552,22 @@ eWLC:
             return self.openssl_buf[:ret]
 
 
-    def get_arp_pkt(self, op, client):
+    def get_arp_pkt(self, op, src_mac_bytes, src_ip_bytes):
+        assert len(src_mac_bytes) == 6
+        assert len(src_ip_bytes) == 4
         if op == 'who-has':
-            arp_dst = b'\xff\xff\xff\xff\xff\xff' + self.ip_dst_bytes
+            arp_dst = b'\xff\xff\xff\xff\xff\xff' + self.wlc_ip_bytes
         elif op == 'is-at':
-            arp_dst = self.mac_dst_bytes + self.ip_dst_bytes
+            arp_dst = self.mac_dst_bytes + self.wlc_ip_bytes
         elif op == 'garp':
-            arp_dst = b'\0\0\0\0\0\0' + client.ip_bytes
+            arp_dst = b'\0\0\0\0\0\0' + src_ip_bytes
         else:
             raise Exception('Bad op of ARP: %s' % op)
         return (
-            (b'\xff\xff\xff\xff\xff\xff' if op in ('who-has', 'garp') else self.mac_dst_bytes) + client.mac_bytes + b'\x08\x06' + # Ethernet
+            (b'\xff\xff\xff\xff\xff\xff' if op in ('who-has', 'garp') else self.mac_dst_bytes) + src_mac_bytes + b'\x08\x06' + # Ethernet
             b'\x00\x01\x08\x00\x06\x04' +
             (b'\x00\x01' if op in ('who-has', 'garp') else b'\x00\x02') +
-            client.mac_bytes + client.ip_bytes + arp_dst # ARP
+            src_mac_bytes + src_ip_bytes + arp_dst # ARP
             )
 
 
@@ -612,6 +685,7 @@ class AP_Manager:
             self.next_ap_radio = '94:14:14:14:01:00'
             self.next_client_mac = '94:13:13:13:13:01'
             self.next_client_ip = '9.9.13.1'
+            self.wlc_ip = '255.255.255.255'
 
 
     def _get_ap_by_id(self, ap_id):
@@ -640,7 +714,7 @@ class AP_Manager:
             raise Exception('Client with id %s does not exist!' % client_id)
 
 
-    def create_ap(self, trex_port_id, mac, ip, udp_port, radio_mac, verbose_level = AP.VERB_WARN, rsa_priv_file = None, rsa_cert_file = None):
+    def create_ap(self, trex_port_id, mac, ip, udp_port, radio_mac, wlc_ip = None, verbose_level = AP.VERB_WARN,rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
         if trex_port_id not in self.service_ctx:
             raise Exception('TRex port %s does not exist!' % trex_port_id)
         if ':' not in mac:
@@ -655,7 +729,7 @@ class AP_Manager:
             raise Exception('AP with such UDP port (%s) already exists!' % udp_port)
         if radio_mac in self.ap_by_radio_mac:
             raise Exception('AP with such radio MAC port (%s) already exists!' % radio_mac)
-        ap = AP(self.ssl_ctx, self.trex_client.logger, self.trex_client.ports[trex_port_id], mac, ip, udp_port, radio_mac, verbose_level, rsa_priv_file, rsa_cert_file)
+        ap = AP(self.ssl_ctx, self.trex_client.logger, self.trex_client.ports[trex_port_id], mac, ip, udp_port, radio_mac, wlc_ip, verbose_level, rsa_ca_priv_file, rsa_priv_file, rsa_cert_file)
         self.ap_by_name[ap.name] = ap
         self.ap_by_mac[mac] = ap
         self.ap_by_ip[ip] = ap
@@ -680,7 +754,7 @@ class AP_Manager:
             self.service_ctx[ap.port_id]['synced'] = False
         del self.ap_by_name[ap.name]
         del self.ap_by_mac[ap.mac]
-        del self.ap_by_ip[ap.ip_hum]
+        del self.ap_by_ip[ap.ip]
         del self.ap_by_udp_port[ap.udp_port]
         del self.ap_by_radio_mac[ap.radio_mac]
 
@@ -736,7 +810,7 @@ class AP_Manager:
             self.service_ctx[port_id]['fg'].run([ServiceApDiscoverWLC(ap) for ap in aps_of_port])
 
         # check results
-        good_aps = [ap for ap in aps if ap.ip_dst]
+        good_aps = [ap for ap in aps if ap.ip_dst and ap.mac_dst]
         self._compare_aps(good_aps, aps, 'discover WLC')
 
         # establish DTLS
@@ -827,6 +901,11 @@ class AP_Manager:
         streams = [client.ap.patch_stream(client, stream) for stream in streams]
         self.trex_client.add_streams(streams, [client.ap.port_id])
 
+    def add_ap_streams(self, ap, streams):
+        if isinstance(streams, STLStream):
+            streams = [streams]
+        streams = [ap.patch_ap_stream(stream) for stream in streams]
+        self.trex_client.add_streams(streams, [ap.port_id])
 
     def add_profile(self, client_id, filename, **k):
         validate_type('filename', filename, basestring)
@@ -847,7 +926,7 @@ class AP_Manager:
                     }
             info_per_port[ap.port_id]['aps'][ap.name] = {
                 'mac': ap.mac,
-                'ip': ap.ip_hum,
+                'ip': ap.ip,
                 'dtls_established': ap.is_dtls_established,
                 'is_connected': ap.is_connected,
                 'ssid': ssid,
@@ -910,7 +989,7 @@ class AP_Manager:
             self.next_ap_radio = increase_mac(self.next_ap_radio, 256)
             assert is_valid_mac(self.next_ap_radio)
 
-        return self.next_ap_mac, self.next_ap_ip, self.next_ap_udp, self.next_ap_radio
+        return self.next_ap_mac, self.next_ap_ip, self.next_ap_udp, self.next_ap_radio, self.wlc_ip
 
 
     def _gen_client_params(self):
@@ -931,7 +1010,7 @@ class AP_Manager:
         self.trex_client.logger.log(msg)
 
 
-    def set_base_values(self, mac = None, ip = None, udp = None, radio = None, client_mac = None, client_ip = None, save = None, load = None):
+    def set_base_values(self, mac = None, ip = None, udp = None, radio = None, client_mac = None, client_ip = None, wlc_ip = None, save = None, load = None):
         if load:
             if any([mac, ip, udp, radio, client_mac, client_ip, save]):
                 raise Exception('Can not use --load with other arguments.')
@@ -947,6 +1026,10 @@ class AP_Manager:
                 radio      = base_values['ap_radio']
                 client_mac = base_values['client_mac']
                 client_ip  = base_values['client_ip']
+                if 'wlc_ip' in base_values:
+                    wlc_ip = base_values['wlc_ip']
+                else:
+                    wlc_ip = None
             except Exception as e:
                 self.trex_client.logger.post_cmd(False)
                 raise Exception('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
@@ -968,6 +1051,8 @@ class AP_Manager:
             check_mac_addr(client_mac)
         if client_ip:
             check_ipv4_addr(client_ip)
+        if wlc_ip:
+            check_ipv4_addr(wlc_ip)
 
         # second pass, assign arguments
         if mac:
@@ -982,6 +1067,8 @@ class AP_Manager:
             self.next_client_mac = client_mac
         if client_ip:
             self.next_client_ip = client_ip
+        if wlc_ip:
+            self.wlc_ip = wlc_ip
         if save:
             self.trex_client.logger.pre_cmd('Saving base values')
             try:
@@ -993,6 +1080,7 @@ class AP_Manager:
                         'ap_radio':   self.next_ap_radio,
                         'client_mac': self.next_client_mac,
                         'client_ip':  self.next_client_ip,
+                        'wlc_ip':     self.wlc_ip,
                         }))
             except Exception as e:
                 self.trex_client.logger.post_cmd(False)

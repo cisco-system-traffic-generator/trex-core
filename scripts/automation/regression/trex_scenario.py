@@ -37,7 +37,7 @@ class CTRexScenario:
     benchmark        = None
     report_dir       = 'reports'
     # logger         = None
-    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': []}
+    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'wireless_tests': []}
     pkg_updated      = False
     GAManager        = None
     no_daemon        = False

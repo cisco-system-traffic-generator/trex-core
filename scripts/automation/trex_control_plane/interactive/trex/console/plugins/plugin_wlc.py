@@ -32,6 +32,9 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--priv', type = is_valid_file,
                 dest = 'ap_privkey',
                 help = 'Private key filename used for DTLS')
+        self.add_argument('--capriv', type = is_valid_file,
+                dest = 'ap_ca_priv',
+                help = 'Private key filename used to sign AP certificate')
         self.add_argument('-i', '--ids', nargs = '+', default = [], action = 'merge',
                 dest = 'ap_ids',
                 help = 'A list of AP ID(s) - Name or MAC or IP')
@@ -71,6 +74,9 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--client-ip', metavar = 'IP', type = check_ipv4_addr,
                 dest = 'client_ip',
                 help = 'Base client IP')
+        self.add_argument('--wlc-ip', metavar = 'IP', type = check_ipv4_addr,
+                dest = 'wlc_ip',
+                help = 'Wireless controller IP (use 255.255.255.255 for broadcast discovery)')
         self.add_argument('--save', action = 'store_true',
                 dest = 'base_save',
                 help = 'Save "next" AP and Client base values. Will be loaded at start of console.')
@@ -101,7 +107,7 @@ class WLC_Plugin(ConsolePlugin):
         if aps:
             info_arr = [('IP', aps[0].ip_dst), ('Hostname', aps[0].wlc_name.decode('ascii')), ('Image ver', '.'.join(['%s' % c for c in aps[0].wlc_sw_ver]))]
             general_table.add_row([bold('WLC'), ' / '.join(['%s: %s' % (k, v or '?') for k, v in info_arr])])
-        general_table.add_row([bold('Next AP:'), 'LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s' % self.ap_manager._gen_ap_params()])
+        general_table.add_row([bold('Next AP:'), 'LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s / WLC IP: %s' % self.ap_manager._gen_ap_params()])
         general_table.add_row([bold('Next Client:'), 'MAC: %s / IP: %s' % self.ap_manager._gen_client_params()])
         self.ap_manager.log(general_table.draw())
 
@@ -148,14 +154,14 @@ class WLC_Plugin(ConsolePlugin):
         self.ap_manager.log('')
 
 
-    def do_create_ap(self, port_list, count, verbose_level, ap_cert, ap_privkey):
+    def do_create_ap(self, port_list, count, verbose_level, ap_cert, ap_privkey, ap_ca_priv):
         '''Create AP(s) on port'''
         if count < 1:
             raise Exception('Count should be greated than zero')
         if not port_list:
             raise Exception('Please specify TRex ports where to add AP(s)')
 
-        bu_mac, bu_ip, bu_udp, bu_radio = self.ap_manager._gen_ap_params()
+        bu_mac, bu_ip, bu_udp, bu_radio, _ = self.ap_manager._gen_ap_params()
         init_ports = [port for port in port_list if port not in self.ap_manager.service_ctx]
         ap_names = []
         success = False
@@ -164,7 +170,7 @@ class WLC_Plugin(ConsolePlugin):
             for port in port_list:
                 for _ in range(count):
                     ap_params = self.ap_manager._gen_ap_params()
-                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_priv_file = ap_privkey, rsa_cert_file = ap_cert)
+                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_ca_priv_file = ap_ca_priv, rsa_priv_file = ap_privkey, rsa_cert_file = ap_cert)
                     ap_names.append(ap_params[0])
             assert ap_names
             self.ap_manager.join_aps(ap_names)
@@ -289,10 +295,50 @@ class WLC_Plugin(ConsolePlugin):
 
         return RC_OK()
 
+    def do_start_ap_traffic(self, ap_ids, file_path, multiplier, tunables, total_mult):
+        '''Start traffic on behalf on AP(s) (e.g. IAPP traffic).'''
+        if not ap_ids:
+            aps = self.ap_manager.aps
+        else:
+            aps = set([self.ap_manager._get_ap_by_id(id) for id in ap_ids])
+            if len(ap_ids) != len(aps):
+                raise Exception('AP IDs should be unique')
+        if not aps:
+            raise Exception('No AP to start traffic on behalf of them!')
+        ports = list(set([ap.port_id for ap in aps]))
 
-    def do_base(self, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
+        # stop ports if needed
+        active_ports = list_intersect(self.trex_client.get_active_ports(), ports)
+        if active_ports:
+            self.trex_client.stop(active_ports)
+
+        # remove all streams
+        self.trex_client.remove_all_streams(ports)
+
+        # pack the profile
+        try:
+            tunables = tunables or {}
+            for ap in aps:
+                profile = STLProfile.load(file_path,
+                                          direction = tunables.get('direction', ap.port_id % 2),
+                                          port_id = ap.port_id,
+                                          **tunables)
+
+                self.ap_manager.add_ap_streams(ap, profile.get_streams())
+
+        except STLError as e:
+            msg = bold("\nError loading profile '%s'" % file_path)
+            self.ap_manager.log(msg + '\n')
+            self.ap_manager.log(e.brief() + "\n")
+
+        self.trex_client.start(ports = ports, mult = multiplier, force = True, total = total_mult)
+
+        return RC_OK()
+
+
+    def do_base(self, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, wlc_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
-        self.ap_manager.set_base_values(ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.ap_manager.set_base_values(ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, wlc_ip, base_save, base_load)
         self.show_base()
 
 
