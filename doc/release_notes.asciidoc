@@ -27,6 +27,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.45 ==
+
+* Upgrade to DPDK 18.08
+* Latency dummy stream does not consume pgid
+* Server/Python client use the same C-ZMQ share object.
+* Simplified Python ZMQ binding 
+* Speedup service mode using server side ZMQ IPC 
+
 == Release 2.44 ==
 
 * Upgrade to DPDK 18.05
