@@ -327,6 +327,9 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--stf', '--stateful', action="store_true", default = False,
                             dest="stateful",
                             help="Run stateful tests.")
+        parser.add_option('--wireless', '--wireless', action="store_true", default = False,
+                            dest="wireless",
+                            help="Run wireless tests.")
         parser.add_option('--pkg', type = str,
                             help="Run with given TRex package. Make sure the path available at server machine. Implies --restart-daemon.")
         parser.add_option('--restart-daemon', action="store_true", default = False,
@@ -361,6 +364,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.functional     = options.functional
         self.stateless      = options.stateless
         self.stateful       = options.stateful
+        self.wireless       = options.wireless
         self.pkg            = options.pkg
         self.restart_daemon = options.restart_daemon
         self.json_verbose   = options.json_verbose
@@ -623,6 +627,10 @@ if __name__ == "__main__":
             if key in sys_args:
                 CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
                 sys_args.remove(key)
+        for key in ('--wireless'):
+            if key in sys_args:
+                CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
+                sys_args.remove(key)
         # Run all of the tests or just the selected ones
         if not sum([len(x) for x in CTRexScenario.test_types.values()]):
             for key in CTRexScenario.test_types.keys():
@@ -635,7 +643,7 @@ if __name__ == "__main__":
     parser.add_option = parser.add_argument
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
-    if not CTRexScenario.is_test_list and (options.stateless or options.stateful or not (options.stateful or options.stateless or options.functional)):
+    if not CTRexScenario.is_test_list and (options.stateless or options.stateful or not (options.stateful or options.stateless or options.functional or options.wireless)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -663,6 +671,10 @@ if __name__ == "__main__":
             attr_arr.append('!nightly')
             attr_arr.append('!long')
         attrs = ','.join(attr_arr)
+        if CTRexScenario.test_types['wireless_tests']:
+            nose_argv = ['', '-s', '-v', '--exe', '--nologcapture']
+            additional_args = ['../trex_control_plane/interactive/trex/stl']
+            result = nose.run(argv = nose_argv + additional_args) and result
         if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
             if attrs:
@@ -690,6 +702,9 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
+    
+    
     #except Exception as e:
     #    result = False
     #    print(e)

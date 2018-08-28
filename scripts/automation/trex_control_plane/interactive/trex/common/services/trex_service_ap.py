@@ -267,9 +267,12 @@ class ServiceApBgMaintenance:
                 )
             #Ether(tx_pkt).show2()
             self.send_pkts.append(tx_pkt)
+        elif rx_bytes[20:22] == self.ARP_REP: # 'is-at'
+            #    ap.rx_buffer.append(Ether(rx_bytes))
+            if src_ip == ap.wlc_ip_bytes:
+                ap.mac_dst_bytes = src_mac
+                ap.mac_dst = str2mac(src_mac)
 
-        #elif rx_bytes[20:22] == self.ARP_REP: # 'is-at'
-        #    ap.rx_buffer.append(Ether(rx_bytes))
 
 
     def handle_ap_icmp(self, rx_bytes, ap):
@@ -278,7 +281,7 @@ class ServiceApBgMaintenance:
         if icmp_pkt.type == 8: # echo-request
             #print 'Ping to AP!'
             #rx_pkt.show2()
-            if rx_pkt[IP].dst == ap.ip_hum: # ping to AP
+            if rx_pkt[IP].dst == ap.ip: # ping to AP
                 tx_pkt = rx_pkt.copy()
                 tx_pkt.src, tx_pkt.dst = tx_pkt.dst, tx_pkt.src
                 tx_pkt[IP].src, tx_pkt[IP].dst = tx_pkt[IP].dst, tx_pkt[IP].src
@@ -307,8 +310,8 @@ class ServiceApBgMaintenance:
                     return
                 ap.mac_dst_bytes = rx_bytes[6:12]
                 ap.mac_dst = str2mac(ap.mac_dst_bytes)
-                ap.ip_dst_bytes = rx_bytes[26:30]
-                ap.ip_dst = str2ip(ap.ip_dst_bytes)
+                ap.wlc_ip_bytes = rx_bytes[26:30]
+                ap.ip_dst = str2ip(ap.wlc_ip_bytes)
                 result_code = CAPWAP_PKTS.parse_message_elements(capwap_bytes, capwap_hlen, ap, self.ap_mngr)
                 ap.rx_responses[2] = result_code
 
@@ -433,7 +436,7 @@ class ServiceApBgMaintenance:
         if dot11_bytes[40:42] == self.ARP_REQ: # 'who-has'
             if dot11_bytes[48:52] == dot11_bytes[58:62]: # GARP
                 return
-            tx_pkt = ap.wrap_pkt_by_wlan(client, ap.get_arp_pkt('is-at', client))
+            tx_pkt = ap.wrap_pkt_by_wlan(client, ap.get_arp_pkt('is-at', src_mac_bytes=client.mac_bytes, src_ip_bytes=client.ip_bytes))
             self.send_pkts.append(tx_pkt)
 
         elif dot11_bytes[40:42] == self.ARP_REP: # 'is-at'
@@ -473,7 +476,7 @@ class ServiceApBgMaintenance:
                         aps = list(self.ap_mngr.aps)
                         clients = list(self.ap_mngr.clients)
                         self.ap_mngr.service_ctx[self.port_id]['synced'] = True
-                    self.ap_per_ip = dict([(ap.ip_src, ap) for ap in aps if ap.port_id == self.port_id])
+                    self.ap_per_ip = dict([(ap.ip_bytes, ap) for ap in aps if ap.port_id == self.port_id])
                     self.client_per_mac = dict([(client.mac_bytes, client) for client in clients])
                     self.client_per_ip = dict([(client.ip_bytes, client) for client in clients])
             except KeyError as e:
@@ -656,6 +659,24 @@ class ServiceApDiscoverWLC(ServiceAp):
     requires_dtls = False
 
     def run_with_buffer(self):
+        # First resolve WLC MAC if needed
+        if self.ap.wlc_ip_bytes and not self.ap.mac_dst_bytes:
+            RetransmitInterval = self.ap.capwap_RetransmitInterval
+            for _ in range(self.ap.capwap_MaxRetransmit):
+                if self.ap.mac_dst_bytes:
+                    break
+                RetransmitInterval *= 2
+
+                arp = self.ap.get_arp_pkt('who-has', src_mac_bytes=self.ap.mac_bytes, src_ip_bytes=self.ap.ip_bytes)
+                yield ('put', arp)
+
+                timer = PassiveTimer(RetransmitInterval)
+                while not timer.has_expired() and not self.ap.mac_dst_bytes:
+                    yield ('sleep', 0.1)
+
+        if self.ap.wlc_ip_bytes and not self.ap.mac_dst_bytes:
+            yield ('err', 'Unable to resolve MAC address of WLC for %s' % self.ap.ip_dst)
+
         self.ap.rx_responses[2] = -1
         RetransmitInterval = self.ap.capwap_RetransmitInterval
         for _ in range(self.ap.capwap_MaxRetransmit):
@@ -669,9 +690,13 @@ class ServiceApDiscoverWLC(ServiceAp):
                     self.log('Got discovery response from %s' % self.ap.ip_dst)
                     yield 'done'
                 if result_code != -1:
+                    self.ap.mac_dst_bytes = None
+                    self.ap.mac_dst = None
                     yield ('err', 'Not successful result %s - %s.' % (result_code, capwap_result_codes.get(result_code, 'Unknown')))
                 yield ('sleep', 0.1)
 
+        self.ap.mac_dst_bytes = None
+        self.ap.mac_dst = None
         yield 'time'
 
 
@@ -872,9 +897,9 @@ class ServiceApAddClients(ServiceAp):
             RetransmitInterval *= 2
             tx_pkts = []
             for client in need_arp_resp_clients:
-                garp = self.ap.get_arp_pkt('garp', client)
+                garp = self.ap.get_arp_pkt('garp', src_mac_bytes=client.mac_bytes, src_ip_bytes=client.ip_bytes)
                 tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, garp))
-                arp = self.ap.get_arp_pkt('who-has', client)
+                arp = self.ap.get_arp_pkt('who-has', src_mac_bytes=client.mac_bytes, src_ip_bytes=client.ip_bytes)
                 tx_pkts.append(self.ap.wrap_pkt_by_wlan(client, arp))
             yield ('put', tx_pkts)
 

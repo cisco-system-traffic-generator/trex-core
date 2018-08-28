@@ -1,0 +1,88 @@
+#
+# This is the default TRex wireless config. DO NOT CHANGE IT !!!
+#
+# Instead, provide the proper config values in the user config specified in
+# your python script / TRex console CLI
+#
+
+# number of APs to simulate
+num_aps: 1
+# number of Clients to simulate, per AP
+num_client_per_ap: 1
+# wlc ips
+wlc_ips: []
+# Gateway IPs used for testing client connectivity when using static IP addresses
+gateway_ips: []
+# filename of the AP certificate
+ap_cert: ap_cert.pem
+# filename of the AP private key
+ap_key: ap_key.pem
+# ip address of TREX server
+server_ip: localhost
+# number of workers (i.e. number of concurrent control plane process handling APs & clients)
+# Use 'auto' to let the server handle it
+num_workers: auto
+# log file path
+log_filename: "trex_client_wlc.log"
+# maximum of concurrent services for a wireless device type
+ap_concurrent: 500
+client_concurrent: 1250
+# Type of AP to join (Local for Local mode AP, Remote for Remote AP)
+ap_mode: Local
+# base values for ap and client parameters generation
+base_values:
+    ap_ip      : 9.9.71.60
+    ap_mac     : '84:22:12:02:02:01'
+    ap_radio   : '84:24:14:04:04:00'
+    ap_udp     : 10001
+    client_ip  : 9.9.71.160
+    client_mac : '84:30:13:03:03:01'
+
+# TREX ports to work with
+# if more than one port, trex_port_id must be specified for some methods of WirelessManager
+ports:
+    - 0
+
+# CAPWAP protocol parameters and Timers
+# rfc5415
+capwap:
+  # MaxRetransmit
+  # The maximum number of retransmissions for a given CAPWAP packet
+  # before the link layer considers the peer dead.
+  # RFC Default : 5
+  max_retransmit: 5
+
+  # RetransmitInterval
+  # The minimum time, in seconds, in which a non-acknowledged CAPWAP
+  # packet will be retransmitted.
+  # RFC Default : 3
+  retransmit_interval: 0.5
+
+  # EchoInterval
+  # The minimum time, in seconds, between sending Echo Request messages
+  # to the AC with which the WTP has joined.
+  # RFC Default : 30
+  echo_interval: 30
+
+
+  # non RFC parameters
+  specific:
+    # SSIDTimeout
+    # seconds to wait during the phase of configuration updates
+    # for getting a SSID from the WLC
+    # if timeout, rollback the Join Process
+    ssid_timeout: 5
+
+# DTLS protocol Parameters and Timers
+dtls:
+  shutdown_max_retransmit: 5
+  timeout: 7
+
+client:
+  association:
+    slot_time: 2
+    max_retries: 5
+
+# OpenSSL parameters
+openssl:
+  buffer_size: 10000

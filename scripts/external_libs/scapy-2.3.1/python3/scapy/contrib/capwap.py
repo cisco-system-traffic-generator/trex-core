@@ -75,8 +75,21 @@ capwap_discovery_types = {
     }
 capwap_ecn_supports = {0: 'Limited', 1: 'Full and Limited'}
 capwap_reserved_enabled_disabled = {0: 'Reserved', 1: 'Enabled', 2: 'Disabled'}
+capwap_op_state_reserved_enabled_disabled = {0: 'Reserved', 2: 'Enabled', 1: 'Disabled'}
 capwap_radio_mac_address_field = {0: 'Reserved', 1: 'Supported', 2: 'Not Supported'}
 capwap_ac_information_types = {4: 'Hardware Version', 5: 'Software Version'}
+capwap_ap_modes = {
+    0: 'Local',
+    1: 'Monitor',
+    2: 'Remote',
+    3: 'Rogue_detector',
+    4: 'Sniffer',
+    5: 'Bridge',
+    6: 'Seconnect',
+    7: 'Remote Bridge',
+    8: 'Hybrid Remote',
+    9: 'Sensor'
+}
 capwap_draft8_tunnel_modes = {
     1: 'Local Bridging',
     2: '802.3 Frame Tunnel Mode',
@@ -632,7 +645,7 @@ class CAPWAP_ME_Radio_Operational_State(CAPWAP_ME):
     type = 32
     fields_desc = [ _CAPWAP_ME_HDR,
                     ByteField('radio_id', 0),
-                    ByteEnumField('state', 0, capwap_reserved_enabled_disabled),
+                    ByteEnumField('state', 0, capwap_op_state_reserved_enabled_disabled),
                     ByteEnumField('cause', 0, capwap_state_cause),
                     ]
 
@@ -692,20 +705,25 @@ def get_capwap_privkey_path():
 
 
 def get_capwap_internal():
+    # Check if we have the decoded one already
     current_dir = os.path.dirname(__file__)
     encrypted_file = os.path.join(current_dir, 'capwap_internal.enc')
-    with open(encrypted_file, 'rb') as f:
-        file_cont = f.read()
-    decrypted_file = '/tmp/%s.py' % hashlib.sha256(file_cont).hexdigest()
-    if not os.path.isfile(decrypted_file):
-        priv_key_file = get_capwap_privkey_path()
-        ret = os.system('openssl smime -decrypt -in %s -binary -inform DEM -inkey %s -out %s' % (encrypted_file, priv_key_file, decrypted_file))
-        if ret:
-            raise Exception('Decryption of capwap_internal failed with error code: %s' % ret)
-    with open(decrypted_file) as f:
-        file_cont = f.read()
-    return file_cont
-
+    non_encrypted_file = os.path.join(current_dir, 'capwap_internal.py')
+    if os.path.isfile(non_encrypted_file):
+        with open(non_encrypted_file) as f:
+            return f.read()
+    else:
+        with open(encrypted_file, 'rb') as f:
+            file_cont = f.read()
+        decrypted_file = '/tmp/%s.py' % hashlib.sha256(file_cont).hexdigest()
+        if not os.path.isfile(decrypted_file):
+            priv_key_file = get_capwap_privkey_path()
+            ret = os.system('openssl smime -decrypt -in %s -binary -inform DEM -inkey %s -out %s' % (encrypted_file, priv_key_file, decrypted_file))
+            if ret:
+                raise Exception('Decryption of capwap_internal failed with error code: %s' % ret)
+        with open(decrypted_file) as f:
+            file_cont = f.read()
+        return file_cont
 
 try:
     exec(get_capwap_internal())
@@ -834,6 +852,10 @@ class CAPWAP_ME_WTP_IPv6_IP_Address(CAPWAP_ME):
                     IP6Field('wtp_ipv6_ip_address', '::1'),
                     ]
 
+class CAPWAP_ME_AP_Mode(CAPWAP_ME):
+    type = 1022
+    fields_desc = [ _CAPWAP_ME_HDR,
+                    ByteEnumField('ap_mode', 0, capwap_ap_modes) ]
 
 class CAPWAP_ME_WTP_MAC_Type(CAPWAP_ME):
     type = 44

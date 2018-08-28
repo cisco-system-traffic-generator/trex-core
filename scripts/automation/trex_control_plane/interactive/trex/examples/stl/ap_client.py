@@ -39,9 +39,8 @@ try:
         for port_id, port_data in ports_data.items():
             m.init(port_id)
             for i in range(int(sys.argv[2])):
-
                 ap_params = m._gen_ap_params()
-                m.create_ap(port_id, *ap_params)
+                m.create_ap(port_id, *ap_params, rsa_ca_priv_file=base_data['rsa_ca_priv_file'])
                 for _ in range(int(sys.argv[3])):
                     client_params = m._gen_client_params()
                     m.create_client(*client_params, ap_id = ap_params[0])
