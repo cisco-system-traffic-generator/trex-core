@@ -1802,6 +1802,8 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 	if (feat.offload.tx & ENA_ADMIN_FEATURE_OFFLOAD_DESC_TSO_IPV4_MASK)
 		tx_feat	|= DEV_TX_OFFLOAD_TCP_TSO;
 
+    tx_feat	|= DEV_TX_OFFLOAD_MULTI_SEGS ;
+
 	if (feat.offload.tx &
 	    ENA_ADMIN_FEATURE_OFFLOAD_DESC_TX_L4_IPV4_CSUM_PART_MASK)
 		tx_feat |= DEV_TX_OFFLOAD_IPV4_CKSUM |
@@ -1815,6 +1817,8 @@ static void ena_infos_get(struct rte_eth_dev *dev,
 			DEV_RX_OFFLOAD_TCP_CKSUM;
 
 	rx_feat |= DEV_RX_OFFLOAD_JUMBO_FRAME;
+
+    rx_feat |= DEV_RX_OFFLOAD_CRC_STRIP;
 
 	/* Inform framework about available features */
 	dev_info->rx_offload_capa = rx_feat;
