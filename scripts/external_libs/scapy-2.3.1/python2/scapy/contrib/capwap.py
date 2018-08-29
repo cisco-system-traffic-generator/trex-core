@@ -711,7 +711,7 @@ def get_capwap_internal():
     non_encrypted_file = os.path.join(current_dir, 'capwap_internal.py')
     if os.path.isfile(non_encrypted_file):
         with open(non_encrypted_file) as f:
-            return f.read()
+            return compile(f.read(), non_encrypted_file, 'exec')
     else:
         with open(encrypted_file, 'rb') as f:
             file_cont = f.read()
@@ -722,7 +722,7 @@ def get_capwap_internal():
             if ret:
                 raise Exception('Decryption of capwap_internal failed with error code: %s' % ret)
         with open(decrypted_file) as f:
-            file_cont = f.read()
+            file_cont = compile(f.read(), decrypted_file, 'exec')
         return file_cont
 
 try:

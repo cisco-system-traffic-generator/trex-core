@@ -861,6 +861,10 @@ class ServiceApAddClients(ServiceAp):
 
 
     def run_with_buffer(self):
+        if self.ap.get_open_auth_vap() is None:
+            yield ('err', 'No Open Auth SSID has been received by AP')
+            return
+
         self.log('Sending Association requests.')
         need_assoc_resp_clients = list(self.clients)
         for client in need_assoc_resp_clients:
@@ -873,7 +877,7 @@ class ServiceApAddClients(ServiceAp):
             RetransmitInterval *= 2
             tx_pkts = []
             for client in need_assoc_resp_clients:
-                tx_pkt = CAPWAP_PKTS.client_assoc(self.ap, slot_id = 0, client_mac = client.mac_bytes)
+                tx_pkt = CAPWAP_PKTS.client_assoc(self.ap, vap=self.ap.get_open_auth_vap(), client_mac = client.mac_bytes)
                 tx_pkts.append(self.ap.wrap_capwap_pkt(tx_pkt, dst_port = 5247))
             yield ('put', tx_pkts)
 

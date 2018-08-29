@@ -1317,6 +1317,10 @@ class WirelessManager:
                     # client ping
                     + '(udp[48:2] == 2048 and udp[59] == 1)))))')
 
+                # Make sure the port is stopped
+                self.trex_client.stop_capture_port(port)
+
+                # Start it
                 self.trex_client.start_capture_port(port, capture_port, bpf_filter)
                 if not self.trex_client.get_port_attr(port=port)['prom'] == 'on':
                     self.trex_client.set_port_attr(

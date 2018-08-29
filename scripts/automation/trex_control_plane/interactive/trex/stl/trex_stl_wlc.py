@@ -78,6 +78,16 @@ class SSL_Context:
         if libcrypto and self.evp:
             libcrypto.EVP_PKEY_free(self.evp)
 
+class VAP(object):
+    """ A VAP Entry (BSSID) representing a SSID on AP on a given frequency """
+    def __init__(self, ssid, slot_id, vap_id):
+        self.ssid = ssid
+        self.slot_id = slot_id
+        self.vap_id = vap_id
+        self.encrypt_policy = 1 # Open Auth
+
+    def __str__(self):
+        return "VAP(slotId={},vapId={},ssid={})".format(self.slot_id, self.vap_id, str(self.ssid))
 
 class AP:
     VERB_QUIET = 0
@@ -121,6 +131,7 @@ class AP:
         self.last_echo_req_ts = 0
         self.verbose_level = verbose_level
         self.clients = []
+        self.ap_mode = 'Local'
         self.rsa_priv_file = rsa_priv_file
         self.rsa_cert_file = rsa_cert_file
         self.rsa_ca_priv_file = rsa_ca_priv_file
@@ -202,6 +213,8 @@ class AP:
         self.out_bio = libcrypto.BIO_new(libcrypto.BIO_s_mem())
 
         if self.rsa_ca_priv_file:
+            if hasattr(self.rsa_ca_priv_file, 'encode'):
+                self.rsa_ca_priv_file = self.rsa_ca_priv_file.encode('UTF-8')
             rsa_ca = libcrypto.PEM_read_RSAPrivateKey_helper(self.rsa_ca_priv_file)
             if not rsa_ca:
                 self.fatal('Could not load given controller trustpoint private key %s' % self.rsa_ca_priv_file)
@@ -217,6 +230,10 @@ class AP:
 
         if self.rsa_priv_file and self.rsa_cert_file:
             self.debug('Using provided certificate')
+            if hasattr(self.rsa_cert_file, 'encode'):
+                self.rsa_cert_file = self.rsa_cert_file.encode('UTF-8')
+            if hasattr(self.rsa_priv_file, 'encode'):
+                self.rsa_priv_file = self.rsa_priv_file.encode('UTF-8')
             if libssl.SSL_use_certificate_file(self.ssl, c_buffer(self.rsa_cert_file), SSL_CONST.SSL_FILETYPE_PEM) != 1:
                 self.fatal('Could not load given certificate file %s' % self.rsa_cert_file)
             if libssl.SSL_use_PrivateKey_file(self.ssl, c_buffer(self.rsa_priv_file), SSL_CONST.SSL_FILETYPE_PEM) != 1:
@@ -579,6 +596,26 @@ eWLC:
             self.__capwap_seq = 0
         return seq
 
+    def get_vap_entry(self, slot_id, vap_id):
+        return self.SSID.get(slot_id, vap_id)
+
+    def get_open_auth_vap(self):
+        for vap in self.SSID.values():
+            if vap.encrypt_policy == 1:
+                return vap
+
+    def create_vap(self, ssid, slot_id, vap_id):
+        """
+        Create a new VAP and insert it into the AP
+
+        Return the newly created VAP
+        """
+        vap = VAP(ssid=ssid, slot_id=slot_id, vap_id=vap_id)
+        self.SSID[(slot_id, vap_id)] = vap
+        return vap
+
+    def delete_vap(self, slot_id, vap_id):
+        del self.SSID[(slot_id, vap_id)]
 
 
 class APClient:
@@ -1007,7 +1044,7 @@ class AP_Manager:
 
 
     def log(self, msg):
-        self.trex_client.logger.log(msg)
+        self.trex_client.logger.info(msg)
 
 
     def set_base_values(self, mac = None, ip = None, udp = None, radio = None, client_mac = None, client_ip = None, wlc_ip = None, save = None, load = None):
