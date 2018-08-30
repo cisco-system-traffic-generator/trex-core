@@ -240,6 +240,7 @@ TrexAstf::profile_append(const string &fragment) {
     m_profile_buffer += fragment;
 }
 
+
 void
 TrexAstf::profile_load(void) {
     check_whitelist_states({STATE_IDLE});
