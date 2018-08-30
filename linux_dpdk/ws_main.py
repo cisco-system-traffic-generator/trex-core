@@ -465,6 +465,13 @@ json_src = SrcGroup(dir='external_libs/json',
             'jsoncpp.cpp'
            ])
 
+# MD5 package
+md5_src = SrcGroup(dir='external_libs/md5',
+    src_list=[
+        'md5.cpp'
+    ])
+
+
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
@@ -488,24 +495,24 @@ ef_src = SrcGroup(dir='src/common',
 
 # common code for STL / ASTF / STF
 stx_src = SrcGroup(dir='src/stx/common/',
-                           src_list=['trex_stx.cpp',
-                                     'trex_pkt.cpp',
-                                     'trex_rx_packet_parser.cpp',
-                                     'trex_capture.cpp',
-                                     'trex_port.cpp',
-                                     'trex_dp_port_events.cpp',
-                                     'trex_dp_core.cpp',
-                                     'trex_messaging.cpp',
-                                     
-                                     'trex_rx_core.cpp',
-                                     'trex_rx_port_mngr.cpp',
-                                     'trex_rx_tx.cpp',
-                                     'trex_stack_base.cpp',
-                                     'trex_stack_linux_based.cpp',
-                                     'trex_stack_legacy.cpp',
-                                     
-                                     'trex_rpc_cmds_common.cpp'
-                                     ])
+    src_list=[
+        'trex_capture.cpp',
+        'trex_dp_core.cpp',
+        'trex_dp_port_events.cpp',
+        'trex_messaging.cpp',
+        'trex_owner.cpp',
+        'trex_pkt.cpp',
+        'trex_port.cpp',
+        'trex_rpc_cmds_common.cpp',
+        'trex_rx_core.cpp',
+        'trex_rx_packet_parser.cpp',
+        'trex_rx_port_mngr.cpp',
+        'trex_rx_tx.cpp',
+        'trex_stack_base.cpp',
+        'trex_stack_legacy.cpp',
+        'trex_stack_linux_based.cpp',
+        'trex_stx.cpp',
+    ])
 
 
 # stateful code
@@ -540,17 +547,15 @@ astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
 
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
-                         src_list=['trex_astf.cpp',
-                                   'trex_astf_port.cpp',
-                                   'trex_astf_rpc_cmds.cpp',
-                                   'trex_astf_dp_core.cpp'
-                         ])
+    src_list=[
+        'trex_astf.cpp',
+        'trex_astf_dp_core.cpp',
+        'trex_astf_messaging.cpp',
+        'trex_astf_port.cpp',
+        'trex_astf_rpc_cmds.cpp',
+        'trex_astf_rx_core.cpp',
+    ])
 
-# JSON package
-json_src = SrcGroup(dir='external_libs/json',
-                    src_list=[
-                        'jsoncpp.cpp'
-                        ])
 
 yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
@@ -913,21 +918,22 @@ mlx4_dpdk =SrcGroups([
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
-                main_src,
-                cmn_src ,
-                net_src ,
-                yaml_src,
-                json_src,
-                rpc_server_src,
+        main_src,
+        cmn_src ,
+        net_src ,
+        yaml_src,
+        json_src,
+        md5_src,
+        rpc_server_src,
+
+        stx_src,
+        stf_src,
+        stateless_src,
+        astf_batch_src,
+        astf_src,
                 
-                stx_src,
-                stf_src,
-                stateless_src,
-                astf_batch_src,
-                astf_src,
-                
-                version_src
-                ]);
+        version_src,
+    ]);
 
 l2fwd_main_src = SrcGroup(dir='src',
         src_list=[
@@ -1024,7 +1030,7 @@ dpdk_includes_path_aarch64 ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1805_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk1808_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
@@ -1096,6 +1102,7 @@ includes_path = '''
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/
+                   ../external_libs/md5/
                    ../external_libs/bpf/
                    ../external_libs/valijson/include/
                   ''';
@@ -1106,9 +1113,9 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march != 'aarch64':
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1805_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1808_x86_64/rte_config.h'];
 else:
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1805_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1808_aarch64/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',

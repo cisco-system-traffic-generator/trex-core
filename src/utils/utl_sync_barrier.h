@@ -26,7 +26,16 @@ limitations under the License.
 #include "mbuf.h"
 #include "os_time.h"
 #include <rte_atomic.h>
+#include <string>
+#include <stdexcept>
+#include "trex_exception.h"
 
+
+class BarrierTimeout : public TrexException {
+public:
+    BarrierTimeout(const std::string &what) :
+            TrexException(what) {}
+};
 
 class CSyncBarrier {
 public:
@@ -37,25 +46,15 @@ public:
      * @param max_ids
      * @param timeout_sec
      */
-    CSyncBarrier(uint16_t max_thread_ids,
-                 double   timeout_sec){
-        rte_atomic32_init(&m_atomic);
-        m_max_ids = max_thread_ids;
-        m_timeout_sec = timeout_sec;
-        m_arr = new uint8_t[max_thread_ids];
-        int i;
-        for (i=0; i<max_thread_ids; i++) {
-            m_arr[i]=0;
-        }
-    }
-    ~CSyncBarrier(){
-        delete []m_arr;
-    }
+    CSyncBarrier(uint16_t max_thread_ids, double timeout_sec);
+    ~CSyncBarrier();
 
+    void reset(double timeout_sec);
     int sync_barrier(uint16_t thread_id);
+    int listen(bool throw_error);
 
 private:
-    void dump_err();
+    void throw_err();
 
 private:
     rte_atomic32_t m_atomic;

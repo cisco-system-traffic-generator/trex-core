@@ -287,42 +287,44 @@ public:
       }
 public:
 
-    void        generate_rst_pkt(CTcpPerThreadCtx * ctx,
-                                 uint32_t src,
-                                 uint32_t dst,
-                                 uint16_t src_port,
-                                 uint16_t dst_port,
-                                 uint16_t vlan,
-                                 bool is_ipv6,
-                                 TCPHeader    * lpTcp,
-                                 uint8_t *   pkt,
-                                 IPv6Header *    ipv6,
-                                 CFlowKeyFullTuple &ftuple);
+void generate_rst_pkt(CTcpPerThreadCtx * ctx,
+                      uint32_t src,
+                      uint32_t dst,
+                      uint16_t src_port,
+                      uint16_t dst_port,
+                      uint16_t vlan,
+                      bool is_ipv6,
+                      TCPHeader    * lpTcp,
+                      uint8_t *   pkt,
+                      IPv6Header *    ipv6,
+                      CFlowKeyFullTuple &ftuple);
 
 
-      CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
-                            uint32_t src,
-                            uint32_t dst,
-                            uint16_t src_port,
-                            uint16_t dst_port,
-                            uint16_t vlan,
-                            bool is_ipv6);
+    CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
+                          uint32_t src,
+                          uint32_t dst,
+                          uint16_t src_port,
+                          uint16_t dst_port,
+                          uint16_t vlan,
+                          bool is_ipv6);
 
-      CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
-                                uint32_t src,
-                                uint32_t dst,
-                                uint16_t src_port,
-                                uint16_t dst_port,
-                                uint16_t vlan,
-                                bool is_ipv6,
-                                bool client);
+    CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
+                              uint32_t src,
+                              uint32_t dst,
+                              uint16_t src_port,
+                              uint16_t dst_port,
+                              uint16_t vlan,
+                              bool is_ipv6,
+                              bool client);
 
-      
 
-      void       free_flow(CFlowBase * flow);            
-      void       set_debug(bool enable){
-          m_verbose = enable;
-      }
+    void free_flow(CFlowBase * flow);
+
+    void set_debug(bool enable){
+        m_verbose = enable;
+    }
+
+    void clear_ft(void);
 
 private:
     void redirect_to_rx_core(CTcpPerThreadCtx * ctx,

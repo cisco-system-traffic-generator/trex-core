@@ -36,6 +36,12 @@ using namespace std;
 /****************************** commands declerations ******************************/
 
 /**
+ * ownership
+ */
+TREX_RPC_CMD(TrexRpcCmdAcquire,          "acquire");
+TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");
+
+/**
  * PG ids
  */
 TREX_RPC_CMD(TrexRpcCmdGetActivePGIds,   "get_active_pgids");
@@ -108,6 +114,57 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdSetServiceMode, "service");
 
 
 /****************************** commands implementation ******************************/
+
+
+/**
+ * acquire device
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+
+    const std::string  &new_owner  = parse_string(params, "user", result);
+    bool force = parse_bool(params, "force", result);
+    uint32_t session_id = parse_uint32(params, "session_id", result);
+
+    /* if not free and not you and not force - fail */
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    try {
+        port->acquire(new_owner, session_id, force);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = port->get_owner().get_handler();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/**
+ * release device
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
+
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    try {
+        port->release();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"] = Json::objectValue;
+
+    return (TREX_RPC_CMD_OK);
+}
 
 
 /**
@@ -564,7 +621,6 @@ TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
             generate_parse_err(result, ss.str());
         }
     }
-
 }
 
 void
@@ -1305,7 +1361,11 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
  * 
  */
 TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
-    
+
+    /* ownership */
+    m_cmds.push_back(new TrexRpcCmdAcquire(this));
+    m_cmds.push_back(new TrexRpcCmdRelease(this));
+
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));

@@ -857,8 +857,9 @@ def main():
         logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
-
+    acquire_options = {'force': options.force}
     if mode == 'STL':
+        acquire_options['ports'] = options.acquire
         client = STLClient(username = options.user,
                            server = options.server,
                            sync_port = options.port,
@@ -866,6 +867,10 @@ def main():
                            logger = logger,
                            verbose_level = verbose_level)
     elif mode == 'ASTF':
+        if options.acquire:
+            logger.critical('Acquire option is not available in ASTF. Must acquire all ports.')
+            return
+
         client = ASTFClient(username = options.user,
                             server = options.server,
                             sync_port = options.port,
@@ -887,11 +892,10 @@ def main():
     # TUI or no acquire will give us READ ONLY mode
     if not options.tui and not options.readonly:
         try:
-            # acquire all ports
-            client.acquire(options.acquire, force = options.force)
+            # acquire ports
+            client.acquire(**acquire_options)
         except TRexError as e:
             logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
-            
             logger.error("\n*** Failed to acquire all required ports ***\n")
             return
 

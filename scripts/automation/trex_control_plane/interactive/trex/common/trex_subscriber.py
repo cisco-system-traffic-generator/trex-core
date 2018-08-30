@@ -377,7 +377,6 @@ class TRexSubscriber():
 
     def handle_event (self, event_id, data):
 
-
         if (event_id == ServerEventsIDs.EVENT_PORT_STARTED):
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port started", port_id)

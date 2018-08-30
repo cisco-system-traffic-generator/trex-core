@@ -875,7 +875,7 @@ public:
         return (false);
     }
 
-} __rte_cache_aligned ;
+} __rte_cache_aligned;
 
 /* run time verification of objects size and offsets
    need to clean this up and derive this objects from base object but require too much refactoring right now
@@ -3047,7 +3047,6 @@ public:
     uint32_t                         m_non_active_nodes; /* the number of non active nodes -> nodes that try to stop somthing */
     uint64_t                         m_cur_flow_id;
     double                           m_cur_time_sec;
-    double                           m_stop_time_sec;
 
     CPreviewMode                     m_preview_mode;
 public:
@@ -3083,8 +3082,10 @@ private:
 public:
     double tcp_get_tw_tick_in_sec();
 
+    void Create_tcp_ctx();
     bool Create_tcp_batch();
     void Delete_tcp_batch();
+    void Delete_tcp_ctx();
 
     void generate_flow(bool &done);
 
@@ -3095,7 +3096,7 @@ public:
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech
-} __rte_cache_aligned ;
+} __rte_cache_aligned;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
     CGenNode * res=(CGenNode *)0;

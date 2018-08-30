@@ -33,11 +33,11 @@ limitations under the License.
 #include "utl_counter.h"
 #include "utl_dbl_human.h"
 
-/* TCP Stateful CP object for counters and such */    
+/* TCP Stateful CP object for counters and such */
 
 typedef enum {
-    TCP_CLIENT_SIDE = 0,    
-    TCP_SERVER_SIDE = 1,    
+    TCP_CLIENT_SIDE = 0,
+    TCP_SERVER_SIDE = 1,
     TCP_CS_NUM = 2,
     TCP_CS_INVALID = 255
 } tcp_dir_enum_t;
@@ -50,7 +50,11 @@ public:
     bool Create();
     void Delete();
     void update_counters();
+    void clear_counters();
     void create_clm_counters();
+
+private:
+    void clear_aggregated_counters();
 
 public:
     tcpstat             m_tcp;
@@ -92,6 +96,7 @@ public:
     void Init();
     void Update();
     void DumpTable();
+    void clear_counters(void);
     bool dump_json(std::string &json);
 
 public:

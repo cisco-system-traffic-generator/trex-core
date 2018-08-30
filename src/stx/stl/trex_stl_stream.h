@@ -441,7 +441,7 @@ public:
 
         dp->m_isg_usec                = m_isg_usec;
 
-        /* multi core phase paramters */
+        /* multi core phase parameters */
         dp->m_mc_phase_pre_sec            = m_mc_phase_pre_sec;
         dp->m_mc_phase_post_sec           = m_mc_phase_post_sec;
 

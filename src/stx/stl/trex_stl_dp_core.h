@@ -119,9 +119,6 @@ public:
     int                        m_event_id;
 };
 
-/* for now */
-#define NUM_PORTS_PER_CORE 2
-
 
 class TrexStatelessDpCore : public TrexDpCore {
 

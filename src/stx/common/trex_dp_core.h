@@ -30,6 +30,8 @@ limitations under the License.
 class CFlowGenListPerThread;
 class TrexCpToDpMsgBase;
 
+#define NUM_PORTS_PER_CORE 2
+
 /**
  * DP core abstract class 
  * derived and implemented by STL and ASTF 
@@ -138,7 +140,7 @@ public:
 protected:
 
     /**
-     * per impelemtation start scheduler
+     * per implementation start scheduler
      */
     virtual void start_scheduler() = 0;
     

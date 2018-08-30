@@ -51,7 +51,7 @@ CAstfDB::~CAstfDB(){
         m_validator->Delete();
         delete m_validator;
     }
-    clear();
+    clear_db_ro_rw();
 }
 
 
@@ -203,7 +203,7 @@ void CAstfDB::set_profile_one_msg(Json::Value msg){
 }
 
 
-bool CAstfDB::set_profile_one_msg(std::string msg,std::string & err){
+bool CAstfDB::set_profile_one_msg(const std::string &msg,std::string & err){
 
     Json::Reader reader;
 
@@ -563,6 +563,17 @@ void CAstfDB::verify_init(uint16_t socket_id) {
         std::unique_lock<std::mutex> my_lock(m_global_mtx);
         if (! m_tcp_data[socket_id].is_init()) {
             convert_from_json(socket_id);
+        }
+        my_lock.unlock();
+    }
+}
+
+void CAstfDB::clear_db_ro(uint8_t socket_id) {
+    if ( m_tcp_data[socket_id].is_init() ) {
+        // json data should not be accessed by multiple threads in parallel
+        std::unique_lock<std::mutex> my_lock(m_global_mtx);
+        if ( m_tcp_data[socket_id].is_init() ) {
+            m_tcp_data[socket_id].Delete();
         }
         my_lock.unlock();
     }
@@ -1295,22 +1306,27 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     }
 }
 
-void CAstfDB::clear() {
-    int i;
-    for (i = 0; i < m_rw_db.size(); i++) {
-        CAstfTemplatesRW * lp=m_rw_db[i];
-        lp->Delete();
-        delete lp;
+void CAstfDB::clear_db_ro_rw() {
+    std::unique_lock<std::mutex> my_lock(m_global_mtx);
+    printf("CAstfDB::clear_db_ro_rw\n");
+    for ( auto &rw_db : m_rw_db) {
+        if ( !rw_db ) {
+            continue;
+        }
+        rw_db->Delete();
+        delete rw_db;
     }
-    for (i = 0; i < m_s_tuneables.size(); i++) {
-        delete m_s_tuneables[i];
+    m_rw_db.clear();
+    for (auto &s_tuneables : m_s_tuneables) {
+        delete s_tuneables;
     }
     m_s_tuneables.clear();
 
-    for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
-        m_tcp_data[i].Delete();
+    for (auto &tcp_data : m_tcp_data) {
+        tcp_data.Delete();
     }
     m_json_initiated = false;
+    my_lock.unlock();
 }
 
 CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port,bool stream) {
@@ -1329,6 +1345,7 @@ void CAstfDbRO::dump(FILE *fd) {
 }
 
 void CAstfDbRO::Delete() {
+    printf("CAstfDbRO::Delete\n");
     int i;
     for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();
@@ -1347,6 +1364,7 @@ void CAstfDbRO::Delete() {
     m_templates.clear();
 
     m_assoc_trans.clear();
+    printf("m_init = false\n");
     m_init = false;
 }
 

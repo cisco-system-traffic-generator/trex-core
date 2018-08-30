@@ -32,6 +32,7 @@ limitations under the License.
 #include "trex_port_attr.h"
 #include <json/json.h>
 
+class CSyncBarrier;
 class CFlowGenList;
 
 /**
@@ -92,6 +93,7 @@ public:
     virtual int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const = 0;
     virtual int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const = 0;
 
+    virtual CSyncBarrier * get_sync_barrier(void) const = 0;
     virtual CFlowGenList * get_fl() const = 0;
     
     virtual ~TrexPlatformApi() {}
@@ -138,7 +140,7 @@ public:
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const;
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const;
 
-    
+    CSyncBarrier * get_sync_barrier(void) const;
     CFlowGenList * get_fl() const;
 };
 
@@ -223,6 +225,11 @@ public:
     void mark_for_shutdown() const {}
     int get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {return 0;};
     int get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {return 0;};
+
+    CSyncBarrier * get_sync_barrier() const {
+        return nullptr;
+    }
+    
 
     CFlowGenList * get_fl() const {
         return nullptr;

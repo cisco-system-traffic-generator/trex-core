@@ -504,16 +504,3 @@ void TrexPort::rx_features_to_json(Json::Value &feat_res) {
 
 
 
-/************* Trex Port Owner **************/
-
-TrexPortOwner::TrexPortOwner() {
-    m_is_free = true;
-    m_session_id = 0;
-
-    /* for handlers random generation */
-    m_seed = time(NULL);
-}
-
-const std::string TrexPortOwner::g_unowned_name = "<FREE>";
-const std::string TrexPortOwner::g_unowned_handler = "";
-

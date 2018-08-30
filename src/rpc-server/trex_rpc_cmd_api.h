@@ -340,7 +340,7 @@ protected:
      * verify ownership
      * 
      */
-    void verify_ownership(const Json::Value &params, Json::Value &result);
+    virtual void verify_ownership(const Json::Value &params, Json::Value &result);
 
     /**
      * verify that current stack supports blocking operation if command blocks

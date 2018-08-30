@@ -141,7 +141,11 @@ public:
      */
     virtual void slowpath_tick() {}
     
- 
+
+    /**
+     * DP core has finished
+     */
+    virtual void dp_core_finished(int thread_id);
 
     /**
      * fills ignored stats on 'stat'
@@ -192,7 +196,6 @@ public:
     TrexRxCore *get_rx() {
         return m_rx;
     }
-
 
     /**
      * check for messages from any core

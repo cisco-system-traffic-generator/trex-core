@@ -380,7 +380,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     void set_profile_one_msg(Json::Value msg);
 
     /* set profile as one message, if profile message  is small. for interactive mode */
-    bool set_profile_one_msg(std::string msg,std::string & err);
+    bool set_profile_one_msg(const std::string &msg, std::string &err);
 
     /***************************/
     /* split profile to a few steps */
@@ -422,10 +422,12 @@ class CAstfDB  : public CTRexDummyCommand  {
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
     CAstfDbRO *get_db_ro(uint8_t socket_id);
+    void clear_db_ro(uint8_t socket_id);
     // called by each core once. Allocating memory that will be freed in clear()
     // multi-threaded need to be protected 
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
+    void clear_db_ro_rw(void);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
     CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
@@ -443,7 +445,6 @@ private:
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
-    void clear();
     void dump();
     ClientCfgDB  *get_client_db();
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);

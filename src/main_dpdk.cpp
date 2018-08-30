@@ -487,7 +487,7 @@ static void check_exclusive(const OptHash &args_set,
         /* remove the last 2 chars */
         opts_str.pop_back();
         opts_str.pop_back();
-        parse_err("please specify at least one from the following paramters: " + opts_str);
+        parse_err("please specify at least one from the following parameters: " + opts_str);
     }
 }
 
@@ -1545,7 +1545,7 @@ protected:
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
     CNodeRing *  m_ring_to_rx;
 
-} __rte_cache_aligned; ;
+} __rte_cache_aligned;
 
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
@@ -2185,7 +2185,7 @@ public:
         m_ring_to_dp = ring;
         m_mgr        = mgr;
         m_port       = p;
-        m_disable_rx =disable_rx_read;
+        m_disable_rx = disable_rx_read;
     }
 
 
@@ -2751,7 +2751,7 @@ public:
         m_stx = NULL;
         m_mark_for_shutdown = SHUTDOWN_NONE;
         m_mark_not_enogth_clients =false;
-        m_start_sync=0;
+        m_sync_barrier=0;
     }
 
     bool Create();
@@ -2955,7 +2955,7 @@ private:
 
 public:
     TrexSTX              *m_stx;
-    CSyncBarrier *        m_start_sync;
+    CSyncBarrier *        m_sync_barrier;
 
 };
 
@@ -3337,18 +3337,18 @@ void CGlobalTRex::rx_batch_conf(void) {
             uint8_t thread_id = (i>>1);
 
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            bool disable_rx_read=get_is_tcp_mode(); 
-            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if,disable_rx_read);
-            mg_cfg.m_ports[i] =&m_latency_vm_vports[i];
+            bool disable_rx_read = get_is_tcp_mode(); 
+            m_latency_vm_vports[i].Create((uint8_t)i, r, &m_mg, _if, disable_rx_read);
+            mg_cfg.m_ports[i] = &m_latency_vm_vports[i];
         }
 
-    }else{
+    } else {
         for (i=0; i<m_max_ports; i++) {
             CPhyEthIF * _if=m_ports[i];
             //_if->dump_stats(stdout);
             m_latency_vports[i].Create(_if, m_rx_core_tx_q_id, 1);
 
-            mg_cfg.m_ports[i] =&m_latency_vports[i];
+            mg_cfg.m_ports[i] = &m_latency_vports[i];
         }
     }
 
@@ -3366,7 +3366,8 @@ void CGlobalTRex::rx_interactive_conf(void) {
             CMessagingManager * rx_dp = CMsgIns::Ins()->getRxDp();
             uint8_t thread_id = (i >> 1);
             CNodeRing * r = rx_dp->getRingCpToDp(thread_id);
-            m_latency_vm_vports[i].Create(i, r, &m_mg, _if,false);
+            bool disable_rx_read = get_is_tcp_mode();
+            m_latency_vm_vports[i].Create(i, r, &m_mg, _if, disable_rx_read);
         }
     } else {
         for (int i = 0; i < m_max_ports; i++) {
@@ -3542,7 +3543,7 @@ bool CGlobalTRex::Create(){
 
     ixgbe_start();
     dump_config(stdout);
-    m_start_sync =new CSyncBarrier(get_cores_tx(),1.0);
+    m_sync_barrier =new CSyncBarrier(get_cores_tx(),1.0);
 
 
     switch (get_op_mode()) {
@@ -3709,7 +3710,7 @@ void CGlobalTRex::Delete(){
     
     /* imarom: effectively has no meaning as memory is not released (See msg_manager.cpp) */
     CMsgIns::Ins()->Delete();
-    delete m_start_sync;
+    delete m_sync_barrier;
 }
 
 
@@ -4050,7 +4051,7 @@ void CGlobalTRex::update_stats(){
     bool all_init=true;
     if ( get_is_tcp_mode() ){
         CSTTCp  * lpstt;
-        lpstt =m_fl.m_stt_cp;
+        lpstt = m_fl.m_stt_cp;
         if (!lpstt->m_init){
             /* check that we have all objects;*/
             for (i=0; i<get_cores_tx(); i++) {
@@ -4063,8 +4064,8 @@ void CGlobalTRex::update_stats(){
             if (all_init) {
                 for (i=0; i<get_cores_tx(); i++) {
                     lpt = m_fl.m_threads_info[i];
-                    lpstt->Add(TCP_CLIENT_SIDE,lpt->m_c_tcp);
-                    lpstt->Add(TCP_SERVER_SIDE,lpt->m_s_tcp);
+                    lpstt->Add(TCP_CLIENT_SIDE, lpt->m_c_tcp);
+                    lpstt->Add(TCP_SERVER_SIDE, lpt->m_s_tcp);
                 }
                 lpstt->Init();
                 lpstt->m_init=true;
@@ -4911,7 +4912,7 @@ int CGlobalTRex::start_master_stateless(){
         lpt = m_fl.m_threads_info[i];
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->set_sync_barrier(m_start_sync);
+        lpt->set_sync_barrier(m_sync_barrier);
     }
     m_fl_was_init=true;
 
@@ -4940,7 +4941,7 @@ int CGlobalTRex::start_master_astf_common() {
         CFlowGenListPerThread *lpt = m_fl.m_threads_info[i];
         CVirtualIF *erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->set_sync_barrier(m_start_sync);
+        lpt->set_sync_barrier(m_sync_barrier);
     }
 
     m_fl_was_init = true;
@@ -5109,7 +5110,7 @@ int CGlobalTRex::start_master_statefull() {
         //CNullIF * erf_vif = new CNullIF();
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->set_sync_barrier(m_start_sync);
+        lpt->set_sync_barrier(m_sync_barrier);
     }
     m_fl_was_init=true;
 
@@ -6862,6 +6863,9 @@ void TrexDpdkPlatformApi::mark_for_shutdown() const {
     g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_RPC_REQ);
 }
 
+CSyncBarrier* TrexDpdkPlatformApi::get_sync_barrier(void) const {
+    return g_trex.m_sync_barrier;
+}
 
 CFlowGenList *
 TrexDpdkPlatformApi::get_fl() const {

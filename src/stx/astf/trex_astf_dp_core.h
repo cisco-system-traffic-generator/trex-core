@@ -25,32 +25,34 @@ limitations under the License.
 #include "trex_dp_core.h"
 
 class TrexAstfDpCore : public TrexDpCore {
-    
+
 public:
-    
+
     TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
-    
+
     /**
      * return true if all the ports are idle
      */
-    virtual bool are_all_ports_idle() {
-        //TODO: implement this
-        return true;
-    }
+    virtual bool are_all_ports_idle();
+
     /**
      * return true if a specific port is active
      */
-    virtual bool is_port_active(uint8_t port_id) {
-        //TODO: implement this
-        return false;
-    }
-    
+    virtual bool is_port_active(uint8_t port_id);
+
+    void start_transmit(double duration);
+    void stop_transmit(void);
+    void create_tcp_batch(void);
+    void delete_tcp_batch(void);
+
 protected:
-    /**
-     * per impelemtation start scheduler
-     */
-    virtual void start_scheduler() {
-    }
+    void report_finished(void);
+    bool sync_barrier(void);
+    CFlowGenListPerThread *m_flow_gen;
+    bool no_close;
+    bool sync_stop;
+
+    virtual void start_scheduler() override;
 };
 
 #endif /* __TREX_ASTF_DP_CORE_H__ */

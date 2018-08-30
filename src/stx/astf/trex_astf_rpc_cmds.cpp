@@ -23,36 +23,170 @@ limitations under the License.
  * ASTF specific RPC commands
  */
 
+#include "trex_astf.h"
+#include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
+#include <set>
 
+using namespace std;
+
+TrexAstfPort* get_astf_port(uint8_t port_id) {
+    return (TrexAstfPort*)get_stx()->get_port_by_id(port_id);
+}
+
+/**
+ * interface for RPC ASTF command
+ *
+ * @author imarom (13-Aug-15)
+ */
+class TrexRpcAstfCommand : public TrexRpcCommand {
+public:
+    TrexRpcAstfCommand(const string &method_name, TrexRpcComponent *component, bool needs_api, bool needs_ownership) :
+            TrexRpcCommand(method_name, component, needs_api, needs_ownership) {}
+
+protected:
+
+    virtual void verify_ownership(const Json::Value &params, Json::Value &result) {
+        string handler = parse_string(params, "handler", result);
+
+        if (!get_astf_object()->get_owner().verify(handler)) {
+            generate_execute_err(result, "must acquire the context for this operation");
+        }
+    }
+};
+
+/**
+ * syntactic sugar for creating a simple command
+ */
+
+#define TREX_RPC_CMD_ASTF_DEFINE_EXTENDED(class_name, cmd_name, needs_api, needs_ownership, ext)                           \
+    class class_name : public TrexRpcAstfCommand {                                                                         \
+    public:                                                                                                                \
+        class_name (TrexRpcComponent *component) : TrexRpcAstfCommand(cmd_name, component, needs_api, needs_ownership) {}  \
+    protected:                                                                                                             \
+        virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);                                    \
+        ext                                                                                                                \
+    }
+
+/**
+ * defines an owned RPC command (requires ownership at STX level)
+ */
+#define TREX_RPC_CMD_ASTF_OWNED(class_name, cmd_name)           TREX_RPC_CMD_ASTF_DEFINE_EXTENDED(class_name, cmd_name, true, true, ;)
+#define TREX_RPC_CMD_ASTF_OWNED_EXT(class_name, cmd_name, ext)  TREX_RPC_CMD_ASTF_DEFINE_EXTENDED(class_name, cmd_name, true, true, ext)
+
+typedef set<TrexAstfPort *> port_list_t;
 
 /****************************** commands declerations ******************************/
 
-/**
- * test
- */
-TREX_RPC_CMD(TrexRpcCmdAstfStart, "start_stf");
+TREX_RPC_CMD(TrexRpcCmdAstfAcquire, "acquire");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfRelease, "release");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileFragment, "profile_fragment");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStart, "start");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
 
 
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
+    printf("ASTF: acquire\n");
+
+    const string user = parse_string(params, "user", result);
+    const bool force = parse_bool(params, "force", result);
+
+    TrexAstf *stx = get_astf_object();
+    try {
+        stx->acquire_context(user, force);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    Json::Value &res = result["result"];
+    res["ports"] = Json::objectValue;
+    for (auto &port : stx->get_port_map()) {
+        const string &handler = port.second->get_owner().get_handler();
+        res["ports"][to_string(port.first)] = handler;
+    }
+    res["handler"] = stx->get_owner().get_handler();
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfRelease::_run(const Json::Value &params, Json::Value &result) {
+    printf("ASTF: release\n");
+
+    get_astf_object()->release_context();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &result) {
+    printf("ASTF: profile\n");
+
+    const bool frag_first = parse_bool(params, "frag_first", result, false);
+    const bool frag_last = parse_bool(params, "frag_last", result, false);
+
+    TrexAstf *stx = get_astf_object();
+
+    if ( frag_first && !frag_last) {
+        const uint32_t total_size = parse_int(params, "total_size", result);
+        if ( stx->profile_check(total_size) ) {
+            const string hash = parse_string(params, "md5", result);
+            if ( stx->profile_check(hash) ) {
+                result["result"]["matches_loaded"] = true;
+                return TREX_RPC_CMD_OK;
+            }
+        }
+    }
+
+    const string fragment = parse_string(params, "fragment", result);
+
+    try {
+        if ( frag_first ) {
+            stx->profile_clear();
+        }
+
+        stx->profile_append(fragment);
+
+        if ( frag_last ) {
+            stx->profile_load();
+        }
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
+    printf("ASTF: start\n");
 
-    /* parsing of args  */
-    uint32_t duration = parse_uint32(params, "duration", result, 0);
-    printf("duration : %d \n",duration);
+    const double duration = parse_double(params, "duration", result);
+    const double mult = parse_double(params, "mult", result);
 
-    Json::Value &section = result["result"];
-    section["duration"] = duration;
-
-    if (duration == 10) {
-        generate_execute_err(result, "duration is not valid");
+    try {
+        get_astf_object()->start_transmit(duration, mult);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
 
-    if (duration == 20) {
-        return TREX_RPC_CMD_INTERNAL_ERR;
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfStop::_run(const Json::Value &params, Json::Value &result) {
+    printf("ASTF: stop\n");
+
+    bool stopped = true;
+    try {
+        stopped = get_astf_object()->stop_transmit();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
     }
+    result["result"]["stopped"] = stopped;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -65,6 +199,9 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
  * 
  */
 TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
-    
+    m_cmds.push_back(new TrexRpcCmdAstfAcquire(this));
+    m_cmds.push_back(new TrexRpcCmdAstfRelease(this));
+    m_cmds.push_back(new TrexRpcCmdAstfProfileFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfStart(this));
+    m_cmds.push_back(new TrexRpcCmdAstfStop(this));
 }

@@ -285,8 +285,36 @@ class STLPort(Port):
         if not self.is_acquired(): # update lazy
             self.sync()
         return self.service_mode
-        
-                
+
+    # take the port
+    def acquire(self, force = False):
+        params = {"port_id":     self.port_id,
+                  "user":        self.ctx.username,
+                  "session_id":  self.ctx.session_id,
+                  "force":       force}
+
+        rc = self.transmit("acquire", params)
+        if not rc:
+            return self.err(rc.err())
+        self._set_handler(rc.data())
+
+        return self.ok()
+
+    # release the port
+    def release(self):
+        params = {"port_id": self.port_id,
+                  "handler": self.handler}
+
+        rc = self.transmit("release", params)
+
+        if rc.good():
+
+            self._clear_handler()
+
+            return self.ok()
+        else:
+            return self.err(rc.err())
+
     @writeable
     def start (self, mul, duration, force, mask, start_at_ts = 0):
 

@@ -94,7 +94,7 @@ public:
 
         case TREX_RPC_CMD_PARSE_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_INVALID_PARAMS;
-            response["error"]["message"]       = "Bad paramters for method";
+            response["error"]["message"]       = "Bad parameters for method";
             response["error"]["specific_err"]  = result["specific_err"];
             break;
 

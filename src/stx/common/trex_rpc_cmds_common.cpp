@@ -64,13 +64,6 @@ TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2,    "api_sync_v2");
 
 
 /**
- * ownership
- */
-TREX_RPC_CMD(TrexRpcCmdAcquire,          "acquire");
-TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");   
-
-
-/**
  * port status
  */
 TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
@@ -270,60 +263,6 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     return (TREX_RPC_CMD_OK);
 }
-
-
-
-
-/**
- * acquire device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    const std::string  &new_owner  = parse_string(params, "user", result);
-    bool force = parse_bool(params, "force", result);
-    uint32_t session_id = parse_uint32(params, "session_id", result);
-
-    /* if not free and not you and not force - fail */
-    TrexPort *port = get_stx()->get_port_by_id(port_id);
-
-    try {
-        port->acquire(new_owner, session_id, force);
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = port->get_owner().get_handler();
-
-    return (TREX_RPC_CMD_OK);
-}
-
-
-/**
- * release device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    TrexPort *port = get_stx()->get_port_by_id(port_id);
-
-    try {
-        port->release();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = Json::objectValue;
-
-    return (TREX_RPC_CMD_OK);
-}
-
 
 
 /**
@@ -554,7 +493,7 @@ TrexRpcCmdShutdown::_run(const Json::Value &params, Json::Value &result) {
 
     /* verify every port is either free or owned by the issuer */
     for (auto &port : get_stx()->get_port_map()) {
-        TrexPortOwner &owner = port.second->get_owner();
+        TrexOwner &owner = port.second->get_owner();
         if ( (!owner.is_free()) && (!owner.is_owned_by(user)) && !force) {
             stringstream ss;
             ss << "port " << int(port.first) << " is owned by '" << owner.get_name() << "' - specify 'force' for override";
@@ -1500,7 +1439,7 @@ TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &resu
 trex_rpc_cmd_rc_e
 TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
- 
+
     TrexPort *port = get_stx()->get_port_by_id(port_id);
 
     if ( port->is_rx_running_cfg_tasks() ) {
@@ -1628,9 +1567,6 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdAPISync(this));
     m_cmds.push_back(new TrexRpcCmdAPISyncV2(this));
     
-    m_cmds.push_back(new TrexRpcCmdAcquire(this));
-    m_cmds.push_back(new TrexRpcCmdRelease(this));
-        
     m_cmds.push_back(new TrexRpcCmdGetPortStatus(this));
         
     m_cmds.push_back(new TrexRpcCmdPing(this));

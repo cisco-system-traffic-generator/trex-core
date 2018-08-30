@@ -46,6 +46,8 @@ TrexDpCoreAstfBatch::start_astf() {
         }
     }
 
+    m_core->Create_tcp_ctx();
+
     if ( !m_core->Create_tcp_batch() ) {
         fprintf(stderr," ERROR in tcp object creation \n");
         return;
@@ -78,8 +80,6 @@ TrexDpCoreAstfBatch::start_astf() {
     dsec_t now= now_sec() ;
 
     dsec_t c_stop_sec = now + d_phase + m_core->m_yaml_info.m_duration_sec;
-
-    m_core->m_stop_time_sec = c_stop_sec;
 
     m_core->m_cur_time_sec = now;
 
@@ -134,6 +134,8 @@ TrexDpCoreAstfBatch::start_astf() {
         m_core->m_stats.dump(stdout);
     }
     m_core->m_node_gen.close_file(m_core);
+    m_core->m_c_tcp->cleanup_flows();
+    m_core->m_s_tcp->cleanup_flows();
 }
 
 

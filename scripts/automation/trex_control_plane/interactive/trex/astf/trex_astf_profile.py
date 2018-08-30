@@ -15,11 +15,11 @@ import imp
 
 
 class _ASTFCapPath(object):
-    @staticmethod
-    def get_pcap_file_path(pcap_file_name):
+    @classmethod
+    def get_pcap_file_path(cls, pcap_file_name):
         f_path = pcap_file_name
         if not os.path.isabs(pcap_file_name):
-            p = _ASTFCapPath.get_path_relative_to_profile()
+            p = cls.get_path_relative_to_profile()
             if p:
                 f_path = os.path.abspath(os.path.join(os.path.dirname(p), pcap_file_name))
 
@@ -256,13 +256,13 @@ class ASTFProgram(object):
 
     buf_list = BufferList()
 
-    @staticmethod
-    def class_reset():
-        ASTFProgram.buf_list = ASTFProgram.BufferList()
+    @classmethod
+    def class_reset(cls):
+        cls.buf_list = cls.BufferList()
 
-    @staticmethod
-    def class_to_json():
-        return ASTFProgram.buf_list.to_json()
+    @classmethod
+    def class_to_json(cls):
+        return cls.buf_list.to_json()
 
     def __init__(self, file=None, side="c", commands=None,stream=True):
         """
@@ -790,17 +790,17 @@ class ASTFIPGenDist(object):
 
     in_list = []
 
-    @staticmethod
-    def class_to_json():
+    @classmethod
+    def class_to_json(cls):
         ret = []
-        for i in range(0, len(ASTFIPGenDist.in_list)):
-            ret.append(ASTFIPGenDist.in_list[i].to_json())
+        for i in range(0, len(cls.in_list)):
+            ret.append(cls.in_list[i].to_json())
 
         return ret
 
-    @staticmethod
-    def class_reset():
-        ASTFIPGenDist.in_list = []
+    @classmethod
+    def class_reset(cls):
+        cls.in_list = []
 
     class Inner(object):
         def __init__(self, ip_range, distribution="seq",per_core_distribution=None):
@@ -1140,35 +1140,35 @@ class _ASTFTemplateBase(object):
     program_list = []
     program_hash = {}
 
-    @staticmethod
-    def add_program(program):
+    @classmethod
+    def add_program(cls, program):
         m = program.calc_hash()
-        if m in _ASTFTemplateBase.program_hash:
-            return _ASTFTemplateBase.program_hash[m]
+        if m in cls.program_hash:
+            return cls.program_hash[m]
         else:
-            _ASTFTemplateBase.program_list.append(program)
-            prog_index = len(_ASTFTemplateBase.program_list) - 1
-            _ASTFTemplateBase.program_hash[m] = prog_index
+            cls.program_list.append(program)
+            prog_index = len(cls.program_list) - 1
+            cls.program_hash[m] = prog_index
             return prog_index
 
-    @staticmethod
-    def get_total_send_bytes(ind):
-        return _ASTFTemplateBase.program_list[ind].total_send_bytes
+    @classmethod
+    def get_total_send_bytes(cls, ind):
+        return cls.program_list[ind].total_send_bytes
 
-    @staticmethod
-    def num_programs():
-        return len(_ASTFTemplateBase.program_list)
+    @classmethod
+    def num_programs(cls):
+        return len(cls.program_list)
 
-    @staticmethod
-    def class_reset():
-        _ASTFTemplateBase.program_list = []
-        _ASTFTemplateBase.program_hash = {}
+    @classmethod
+    def class_reset(cls):
+        cls.program_list = []
+        cls.program_hash = {}
 
-    @staticmethod
-    def class_to_json():
+    @classmethod
+    def class_to_json(cls):
         ret = []
-        for i in range(0, len(_ASTFTemplateBase.program_list)):
-            ret.append(_ASTFTemplateBase.program_list[i].to_json())
+        for i in range(0, len(cls.program_list)):
+            ret.append(cls.program_list[i].to_json())
         return ret
 
     def __init__(self, program=None):
@@ -1531,6 +1531,13 @@ class ASTFProfile(object):
                                 cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=1)])
 
     """
+
+    @staticmethod
+    def clear_cache():
+        ASTFProgram.class_reset()
+        ASTFIPGenDist.class_reset()
+        _ASTFTemplateBase.class_reset()
+
     def __init__(self, default_ip_gen, default_c_glob_info=None, default_s_glob_info=None,
                  templates=None, cap_list=None):
         """
@@ -1639,9 +1646,11 @@ class ASTFProfile(object):
                 template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
                 self.templates.append(template)
 
-    def to_json_str(self):
-        ret = self.to_json()
-        return json.dumps(ret, indent=4, separators=(',', ': '))
+    def to_json_str(self, pretty = True, sort_keys = False):
+        data = self.to_json()
+        if pretty:
+            return json.dumps(data, indent=4, separators=(',', ': '), sort_keys = sort_keys)
+        return json.dumps(data, sort_keys = sort_keys)
 
 
     def to_json(self):
@@ -1697,14 +1706,15 @@ class ASTFProfile(object):
 
         return output
 
-    @staticmethod
-    def load_py (python_file, **kwargs):
+    @classmethod
+    def load_py (cls, python_file, **kwargs):
         """ Load from ASTF Python profile """
 
         # check filename
         if not os.path.isfile(python_file):
             raise TRexError("File '{0}' does not exist".format(python_file))
 
+        cls.clear_cache()
         basedir = os.path.dirname(python_file)
         sys.path.insert(0, basedir)
 
@@ -1713,7 +1723,7 @@ class ASTFProfile(object):
             module = __import__(file, globals(), locals(), [], 0)
             imp.reload(module) # reload the update 
 
-            t = ASTFProfile.get_module_tunables(module)
+            t = cls.get_module_tunables(module)
 
             profile = module.register().get_profile(**kwargs)
 
@@ -1756,8 +1766,8 @@ class ASTFProfile(object):
 
 
 
-    @staticmethod
-    def load (filename, **kwargs):
+    @classmethod
+    def load(cls, filename, **kwargs):
         """ Load a profile by its type. Supported types are: 
            * py
            * json
@@ -1772,10 +1782,10 @@ class ASTFProfile(object):
         suffix = x[1] if (len(x) == 2) else None
 
         if suffix == 'py':
-            profile = ASTFProfile.load_py(filename, **kwargs)
+            profile = cls.load_py(filename, **kwargs)
 
         elif suffix == 'json':
-            profile = ASTFProfile.load_json(filename)
+            profile = cls.load_json(filename)
         else:
             raise TRexError("unknown profile file type: '{0}'".format(suffix))
 

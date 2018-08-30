@@ -99,6 +99,11 @@ TrexDpPortEventMsg::handle() {
     return (true);
 }
 
+bool
+TrexDpCoreStopped::handle(void) {
+    get_stx()->dp_core_finished(m_thread_id);
+    return true;
+}
 
 /************************* messages from CP to RX **********************/
 

@@ -980,13 +980,9 @@ CFlow * CFlowTableMap::add(const CFlowKey & key ) {
     return (flow);
 }
 
-void CFlowTableMap::remove_all(){
-    if ( m_map.empty() )
-        return;
-    flow_map_iter_t it;
-    for (it= m_map.begin(); it != m_map.end(); ++it) {
-        CFlow *lp = it->second;
-        delete lp;
+void CFlowTableMap::remove_all() {
+    for (auto &it : m_map) {
+        delete it.second;
     }
     m_map.clear();
 }
@@ -2998,6 +2994,7 @@ static void free_map_flow_id_to_node(CGenNode *p){
 
 void CFlowGenListPerThread::Delete(){
     Delete_tcp_batch();
+    Delete_tcp_ctx();
 
     // free all current maps
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
@@ -3181,7 +3178,7 @@ void tw_on_tick_per_thread_cb(void *userdata,
 
 FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
 
-    /* free the objects letf in TW */
+    /* free the objects left in TW */
     m_tw.detach_all((void *)this,tw_free_node);
 
     /* flush the pending job of free ports */
