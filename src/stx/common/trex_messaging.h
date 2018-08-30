@@ -258,6 +258,24 @@ private:
 
 };
 
+
+/**
+ * a message indicating that DP core stopped
+ */
+class TrexDpCoreStopped : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreStopped(int thread_id) {
+        m_thread_id = thread_id;
+    }
+
+    virtual bool handle(void);
+
+private:
+    int m_thread_id;
+
+};
+
 /************************* messages from CP to RX **********************/
 
 /**

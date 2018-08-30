@@ -268,7 +268,8 @@ private:
  */
 class RXPortManager {
     friend class RXFeatureAPI;
-    
+    friend class CRxAstfCore;
+
 public:
     enum feature_t {
         NO_FEATURES  = 0,
@@ -280,7 +281,7 @@ public:
     };
 
     RXPortManager();
-    RXPortManager(const RXPortManager &other);
+    RXPortManager(const RXPortManager &other) = delete;
     ~RXPortManager(void);
 
     void create_async(uint32_t port_id,

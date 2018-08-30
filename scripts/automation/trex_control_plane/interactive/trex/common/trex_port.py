@@ -177,37 +177,12 @@ class Port(object):
             return self.owner
 
 
-    # take the port
-    def acquire(self, force = False):
-        params = {"port_id":     self.port_id,
-                  "user":        self.ctx.username,
-                  "session_id":  self.ctx.session_id,
-                  "force":       force}
+    def _set_handler(self, handler):
+        self.handler = handler
 
-        rc = self.transmit("acquire", params)
-        if not rc:
-            return self.err(rc.err())
-
-        self.handler = rc.data()
-
-        return self.ok()
-
-
-    # release the port
-    def release(self):
-        params = {"port_id": self.port_id,
-                  "handler": self.handler}
-
-        rc = self.transmit("release", params)
-
-        if rc.good():
-
-            self.handler = ''
-            self.owner = ''
-
-            return self.ok()
-        else:
-            return self.err(rc.err())
+    def _clear_handler(self):
+        self.handler = ''
+        self.owner = ''
 
 
     def sync(self):
@@ -779,22 +754,22 @@ class Port(object):
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):
-        if not self.is_acquired():
+        #if not self.is_acquired():
             self.state = self.STATE_STREAMS
 
 
     def async_event_port_paused (self):
-        if not self.is_acquired():
+        #if not self.is_acquired():
             self.state = self.STATE_PAUSE
 
 
     def async_event_port_started (self):
-        if not self.is_acquired():
+        #if not self.is_acquired():
             self.state = self.STATE_TX
 
 
     def async_event_port_resumed (self):
-        if not self.is_acquired():
+        #if not self.is_acquired():
             self.state = self.STATE_TX
 
 

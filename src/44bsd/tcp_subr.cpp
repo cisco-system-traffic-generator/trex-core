@@ -259,6 +259,7 @@ void CTcpFlow::init(){
     m_ctx->timer_w_start(this);
 }
 
+
 void CFlowBase::Create(CTcpPerThreadCtx *ctx){
     m_pad[0]=0;
     m_pad[1]=0;
@@ -472,6 +473,35 @@ static void ctx_timer(void *userdata,
     default:
         assert(0);
     };
+}
+
+static void ctx_deplete_flow_cb(void *, CHTimerObj *tmr) {
+    switch (tmr->m_type) {
+        case ttTCP_FLOW:
+            CTcpFlow * tcp_flow;
+            UNSAFE_CONTAINER_OF_PUSH;
+            tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
+            UNSAFE_CONTAINER_OF_POP;
+            tcp_flow->Delete();
+            delete tcp_flow;
+            tcp_flow = nullptr;
+            break;
+        case ttUDP_FLOW:
+            CUdpFlow * udp_flow;
+            UNSAFE_CONTAINER_OF_PUSH;
+            udp_flow=my_unsafe_container_of(tmr,CUdpFlow,m_keep_alive_timer);
+            UNSAFE_CONTAINER_OF_POP;
+            udp_flow->Delete();
+            delete udp_flow;
+            udp_flow = nullptr;
+            break;
+    };
+}
+
+
+void CTcpPerThreadCtx::cleanup_flows(void) {
+    m_ft.clear_ft();
+    m_timer_w.detach_all(nullptr, ctx_deplete_flow_cb);
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */

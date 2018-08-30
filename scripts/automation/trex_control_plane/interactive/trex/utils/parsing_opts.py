@@ -25,6 +25,7 @@ _constants = '''
 
 MULTIPLIER
 MULTIPLIER_STRICT
+MULTIPLIER_INT
 PORT_LIST
 ALL_PORTS
 PORT_LIST_WITH_ALL
@@ -437,507 +438,610 @@ def decode_tunables (tunable_str):
 
 
 
-OPTIONS_DB = {MULTIPLIER: ArgumentPack(['-m', '--multiplier'],
-                                 {'help': match_multiplier_help,
-                                  'dest': "mult",
-                                  'default': "1",
-                                  'type': match_multiplier}),
-
-              MULTIPLIER_STRICT: ArgumentPack(['-m', '--multiplier'],
-                               {'help': match_multiplier_help,
-                                  'dest': "mult",
-                                  'default': "1",
-                                  'type': match_multiplier_strict}),
-
-              TOTAL: ArgumentPack(['-t', '--total'],
-                                 {'help': "traffic will be divided between all ports specified",
-                                  'dest': "total",
-                                  'default': False,
-                                  'action': "store_true"}),
-
-              IPG: ArgumentPack(['-i', '--ipg'],
-                                {'help': "IPG value in usec between packets. default will be from the pcap",
-                                 'dest': "ipg_usec",
-                                 'default':  None,
-                                 'type': float}),
-
-              MIN_IPG: ArgumentPack(['--min-ipg'],
-                                {'help': "Minimal IPG value in usec between packets. Used to guard from too small IPGs.",
-                                 'dest': "min_ipg_usec",
-                                 'default':  None,
-                                 'type': float}),
-
-              SPEEDUP: ArgumentPack(['-s', '--speedup'],
-                                   {'help': "Factor to accelerate the injection. effectively means IPG = IPG / SPEEDUP",
-                                    'dest': "speedup",
-                                    'default':  1.0,
-                                    'type': float}),
-
-              COUNT: ArgumentPack(['-c', '--count'],
-                                  {'help': "How many times to perform action [default is 1, 0 means forever]",
-                                   'dest': "count",
-                                   'default':  1,
-                                   'type': int}),
-
-              PROMISCUOUS: ArgumentPack(['--prom'],
-                                        {'help': "Set port promiscuous on/off",
-                                         'choices': ON_OFF_DICT}),
-
-              MULTICAST: ArgumentPack(['--mult'],
-                                      {'help': "Set port multicast on/off",
-                                       'choices': ON_OFF_DICT}),
-
-              LINK_STATUS: ArgumentPack(['--link'],
-                                     {'help': 'Set link status up/down',
-                                      'choices': UP_DOWN_DICT}),
-
-              LED_STATUS: ArgumentPack(['--led'],
-                                   {'help': 'Set LED status on/off',
-                                    'choices': ON_OFF_DICT}),
-
-              FLOW_CTRL: ArgumentPack(['--fc'],
-                                   {'help': 'Set Flow Control type',
-                                    'dest': 'flow_ctrl',
-                                    'choices': FLOW_CTRL_DICT}),
-
-              SRC_IPV4: ArgumentPack(['--src'],
-                                     {'help': 'Configure source IPv4 address',
-                                      'dest': 'src_ipv4',
-                                      'required': True,
-                                      'type': check_ipv4_addr}),
-              
-              DST_IPV4: ArgumentPack(['--dst'],
-                                     {'help': 'Configure destination IPv4 address',
-                                      'dest': 'dst_ipv4',
-                                      'required': True,
-                                      'type': check_ipv4_addr}),
-              
-
-              DST_MAC: ArgumentPack(['--dst'],
-                                    {'help': 'Configure destination MAC address',
-                                     'dest': 'dst_mac',
-                                     'required': True,
-                                     'type': check_mac_addr}),
-              
-              RETRIES: ArgumentPack(['-r', '--retries'],
-                                    {'help': 'retries count [default is zero]',
-                                     'dest': 'retries',
-                                     'default':  0,
-                                     'type': int}),
-                
-
-              OUTPUT_FILENAME: ArgumentPack(['-o', '--output'],
-                                            {'help': 'Output PCAP filename',
-                                             'dest': 'output_filename',
-                                             'default': None,
-                                             'type': str}),
-
-
-              PORT_RESTART: ArgumentPack(['-r', '--restart'],
-                                         {'help': 'hard restart port(s)',
-                                          'dest': 'restart',
-                                          'default': False,
-                                          'action': 'store_true'}),
-
-              LIMIT: ArgumentPack(['-l', '--limit'],
-                                  {'help': 'Limit the packet count to be written to the file',
-                                   'dest': 'limit',
-                                   'default':  1000,
-                                   'type': int}),
-
-
-              SUPPORTED: ArgumentPack(['--supp'],
-                                   {'help': 'Show which attributes are supported by current NICs',
-                                    'default': None,
-                                    'action': 'store_true'}),
-
-              TUNABLES: ArgumentPack(['-t'],
-                                     {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
-                                      'metavar': 'T1=VAL[,T2=VAL ...]',
-                                      'dest': "tunables",
-                                      'default': None,
-                                      'action': 'merge',
-                                      'type': decode_tunables}),
-
-              PORT_LIST: ArgumentPack(['-p', '--port'],
-                                        {"nargs": '+',
-                                         'dest':'ports',
-                                         'metavar': 'PORTS',
-                                         'action': 'merge',
-                                         'type': int,
-                                         'help': "A list of ports on which to apply the command",
-                                         'default': []}),
-
-              
-              SINGLE_PORT: ArgumentPack(['-p', '--port'],
-                                        {'dest':'ports',
-                                         'type': int,
-                                         'metavar': 'PORT',
-                                         'help': 'source port for the action',
-                                         'required': True}),
-              
-              PING_IP: ArgumentPack(['-d'],
-                                      {'help': 'which IPv4/6 to ping',
-                                      'dest': 'ping_ip',
-                                      'required': True,
-                                      'type': check_ip_addr}),
-              
-              PING_COUNT: ArgumentPack(['-n', '--count'],
-                                       {'help': 'How many times to ping [default is 5]',
-                                        'dest': 'count',
-                                        'default':  5,
-                                        'type': int}),
-                  
-              PKT_SIZE: ArgumentPack(['-s'],
-                                     {'dest':'pkt_size',
-                                      'help': 'packet size to use',
-                                      'default': 64,
-                                      'type': check_pkt_size}),
-              
-              
-              ALL_PORTS: ArgumentPack(['-a'],
-                                        {"action": "store_true",
-                                         "dest": "all_ports",
-                                         'help': "Set this flag to apply the command on all available ports",
-                                         'default': False},),
-
-              DURATION: ArgumentPack(['-d'],
-                                        {'action': "store",
-                                         'metavar': 'TIME',
-                                         'dest': 'duration',
-                                         'type': match_time_unit,
-                                         'default': -1.0,
-                                         'help': "Set duration time for job."}),
-
-              TIMEOUT: ArgumentPack(['-t'],
-                                        {'action': "store",
-                                         'metavar': 'TIMEOUT',
-                                         'dest': 'timeout',
-                                         'type': int,
-                                         'default': None,
-                                         'help': "Timeout for operation in seconds."}),
-
-              FORCE: ArgumentPack(['--force'],
-                                        {"action": "store_true",
-                                         'default': False,
-                                         'help': "Set if you want to stop active ports before appyling command."}),
-
-              READONLY: ArgumentPack(['-r'],
-                                        {'action': 'store_true',
-                                         'dest': 'readonly',
-                                         'help': 'Do not acquire ports, connect as read-only.'}),
-
-              REMOTE_FILE: ArgumentPack(['-r', '--remote'],
-                                        {"action": "store_true",
-                                         'default': False,
-                                         'help': "file path should be interpeted by the server (remote file)"}),
-
-              DUAL: ArgumentPack(['--dual'],
-                                 {"action": "store_true",
-                                  'default': False,
-                                  'help': "Transmit in a dual mode - requires ownership on the adjacent port"}),
-
-              FILE_PATH: ArgumentPack(['-f'],
-                                      {'metavar': 'FILE',
-                                       'dest': 'file',
-                                       'nargs': 1,
-                                       'required': True,
-                                       'type': is_valid_file,
-                                       'help': "File path to load"}),
-
-              FILE_PATH_NO_CHECK: ArgumentPack(['-f'],
-                                      {'metavar': 'FILE',
-                                       'dest': 'file',
-                                       'nargs': 1,
-                                       'required': True,
-                                       'type': str,
-                                       'help': "File path to load"}),
-
-              FILE_FROM_DB: ArgumentPack(['--db'],
-                                         {'metavar': 'LOADED_STREAM_PACK',
-                                          'help': "A stream pack which already loaded into console cache."}),
-
-              SERVER_IP: ArgumentPack(['--server'],
-                                      {'metavar': 'SERVER',
-                                       'help': "server IP"}),
-
-              DRY_RUN: ArgumentPack(['-n', '--dry'],
-                                    {'action': 'store_true',
-                                     'dest': 'dry',
-                                     'default': False,
-                                     'help': "Dry run - no traffic will be injected"}),
-
-              SYNCHRONIZED: ArgumentPack(['--sync'],
-                                    {'action': 'store_true',
-                                     'dest': 'sync',
-                                     'default': False,
-                                     'help': 'Run the traffic with syncronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'}),
-
-              XTERM: ArgumentPack(['-x', '--xterm'],
-                                  {'action': 'store_true',
-                                   'dest': 'xterm',
-                                   'default': False,
-                                   'help': "Starts TUI in xterm window"}),
-
-              LOCKED: ArgumentPack(['-l', '--locked'],
-                                   {'action': 'store_true',
-                                    'dest': 'locked',
-                                    'default': False,
-                                    'help': "Locks TUI on legend mode"}),
-
-              FULL_OUTPUT: ArgumentPack(['--full'],
-                                         {'action': 'store_true',
-                                          'help': "Prompt full info in a JSON format"}),
-
-              GLOBAL_STATS: ArgumentPack(['-g'],
-                                         {'action': 'store_const',
-                                          'dest': 'stats',
-                                          'const': 'global',
-                                          'help': "Fetch only global statistics"}),
-
-              PORT_STATS: ArgumentPack(['-p'],
-                                       {'action': 'store_const',
-                                        'dest': 'stats',
-                                        'const': 'ports',
-                                        'help': "Fetch only port statistics"}),
-
-              PORT_STATUS: ArgumentPack(['--ps'],
-                                        {'action': 'store_const',
-                                         'dest': 'stats',
-                                         'const': 'status',
-                                         'help': "Fetch only port status data"}),
-
-              STREAMS_STATS: ArgumentPack(['-s'],
-                                          {'action': 'store_const',
-                                           'dest': 'stats',
-                                           'const': 'streams',
-                                           'help': "Fetch only streams stats"}),
-
-              LATENCY_STATS: ArgumentPack(['-l'],
-                                          {'action': 'store_const',
-                                           'dest': 'stats',
-                                           'const': 'latency',
-                                           'help': "Fetch only latency stats"}),
-
-              LATENCY_HISTOGRAM: ArgumentPack(['--lh'],
-                                          {'action': 'store_const',
-                                           'dest': 'stats',
-                                           'const': 'latency_histogram',
-                                           'help': "Fetch only latency histogram"}),
-
-              CPU_STATS: ArgumentPack(['-c'],
-                                      {'action': 'store_const',
-                                       'dest': 'stats',
-                                       'const': 'cpu',
-                                       'help': "Fetch only CPU utilization stats"}),
-
-              MBUF_STATS: ArgumentPack(['-m'],
-                                       {'action': 'store_const',
-                                        'dest': 'stats',
-                                        'const': 'mbuf',
-                                        'help': "Fetch only MBUF utilization stats"}),
-
-              EXTENDED_STATS: ArgumentPack(['-x'],
-                                       {'action': 'store_const',
-                                        'dest': 'stats',
-                                        'const': 'xstats',
-                                        'help': "Fetch xstats of port, excluding lines with zero values"}),
-
-              EXTENDED_INC_ZERO_STATS: ArgumentPack(['--xz'],
-                                       {'action': 'store_const',
-                                        'dest': 'stats',
-                                        'const': 'xstats_inc_zero',
-                                        'help': "Fetch xstats of port, including lines with zero values"}),
-
-              STREAMS_MASK: ArgumentPack(['-i', '--id'],
-                                         {"nargs": '+',
-                                          'dest':'ids',
-                                          'metavar': 'ID',
-                                          'type': int,
-                                          'help': 'Filter by those stream IDs (default is all streams).',
-                                          'default': []}),
-
-              STREAMS_CODE: ArgumentPack(['--code'],
-                                      {'type': str,
-                                       'nargs': '?',
-                                       'const': '',
-                                       'metavar': 'FILE',
-                                       'help': 'Get Python code that creates the stream(s). Provided argument is filename to save, or by default prints to stdout.'}),
-
-
-              PIN_CORES: ArgumentPack(['--pin'],
-                                      {'action': 'store_true',
-                                       'dest': 'pin_cores',
-                                       'default': False,
-                                       'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"}),
-
-              CORE_MASK: ArgumentPack(['--core_mask'],
-                                      {'action': 'store',
-                                       'nargs': '+',
-                                       'type': hex_int,
-                                       'dest': 'core_mask',
-                                       'default': None,
-                                       'help': "Core mask - only cores responding to the bit mask will be active"}),
-
-              SERVICE_OFF: ArgumentPack(['--off'],
-                                        {'action': 'store_false',
-                                         'dest': 'enabled',
-                                         'default': True,
-                                         'help': 'Deactivates services on port(s)'}),
-                
-              TX_PORT_LIST: ArgumentPack(['--tx'],
-                                         {'nargs': '+',
-                                          'dest':'tx_port_list',
-                                          'metavar': 'TX',
-                                          'action': 'merge',
-                                          'type': int,
-                                          'help': 'A list of ports to capture on the TX side',
-                                          'default': []}),
-               
-              
-              RX_PORT_LIST: ArgumentPack(['--rx'],
-                                         {'nargs': '+',
-                                          'dest':'rx_port_list',
-                                          'metavar': 'RX',
-                                          'action': 'merge',
-                                          'type': int,
-                                          'help': 'A list of ports to capture on the RX side',
-                                          'default': []}),
-              
-              
-              MONITOR_TYPE_VERBOSE: ArgumentPack(['-v', '--verbose'],
-                                                 {'action': 'store_true',
-                                                  'dest': 'verbose',
-                                                  'default': False,
-                                                  'help': 'output to screen as verbose'}),
-              
-              MONITOR_TYPE_PIPE: ArgumentPack(['-p', '--pipe'],
-                                              {'action': 'store_true',
-                                               'dest': 'pipe',
-                                               'default': False,
-                                               'help': 'forward packets to a pipe'}),
-
-
-              BPF_FILTER: ArgumentPack(['-f', '--filter'],
-                                       {'type': str,
-                                        'nargs': '+',
-                                        'action': action_bpf_filter_merge(),
-                                        'dest': 'filter',
-                                        'default': '',
-                                        'help': 'BPF filter'}),
-              
-              
-              CAPTURE_ID: ArgumentPack(['-i', '--id'],
-                                  {'help': "capture ID to remove",
-                                   'dest': "capture_id",
-                                   'type': int,
-                                   'required': True}),
-
-              
-              SCAPY_PKT: ArgumentPack(['-s'],
-                                      {'dest':'scapy_pkt',
-                                       'metavar': 'PACKET',
-                                       'type': ScapyDecoder.to_scapy,
-                                       'help': 'A scapy notation packet (e.g.: Ether()/IP())'}),
-               
-              SHOW_LAYERS: ArgumentPack(['--layers', '-l'],
-                                        {'action': 'store_true',
-                                         'dest': 'layers',
-                                         'help': "Show all registered layers / inspect a specific layer"}),
-              
-              
-              VLAN_TAGS: ArgumentPack(['--vlan', '-v'],
-                                      {'dest':'vlan',
-                                       'action': action_check_vlan(),
-                                       'type': int,
-                                       'nargs': '*',
-                                       'metavar': 'VLAN',
-                                       'help': 'single or double VLAN tags'}),
-               
-              CLEAR_VLAN: ArgumentPack(['-c'],
-                                      {'action': 'store_true',
-                                       'dest': 'clear_vlan',
-                                       'default': False,
-                                       'help': "clear any VLAN configuration"}),
-
-              PLUGIN_NAME: ArgumentPack(['plugin_name'],
-                                        {'type': str,
-                                         'metavar': 'name',
-                                         'help': 'Name of plugin'}),
-
-              SCAPY_PKT_CMD: ArgumentGroup(MUTEX, [SCAPY_PKT,
-                                                   SHOW_LAYERS],
-                                           {'required': True}),
-              
-              IPV6_OFF: ArgumentPack(['--off'],
-                                     {'help': 'Disable IPv6 on port.',
-                                      'action': 'store_true'}),
-
-              IPV6_AUTO: ArgumentPack(['--auto'],
-                                     {'help': 'Enable IPv6 on port with automatic address.',
-                                      'action': 'store_true'}),
-
-              IPV6_SRC: ArgumentPack(['-s', '--src'],
-                                     {'help': 'Enable IPv6 on port with specific address.',
-                                      'dest': 'src_ipv6',
-                                      'type': check_ipv6_addr}),
-
-              IPV6_OPTS_CMD: ArgumentGroup(MUTEX, [IPV6_OFF,
-                                                   IPV6_AUTO,
-                                                   IPV6_SRC],
-                                           {'required': True}),
-
-
-              # advanced options
-              PORT_LIST_WITH_ALL: ArgumentGroup(MUTEX, [PORT_LIST,
-                                                        ALL_PORTS],
-                                                {'required': False}),
-
-
-              VLAN_CFG: ArgumentGroup(MUTEX, [VLAN_TAGS,
-                                              CLEAR_VLAN],
-                                      {'required': True}),
-
-              
-              STREAM_FROM_PATH_OR_FILE: ArgumentGroup(MUTEX, [FILE_PATH,
-                                                              FILE_FROM_DB],
-                                                      {'required': True}),
-
-              STL_STATS: ArgumentGroup(MUTEX,  [GLOBAL_STATS,
-                                                PORT_STATS,
-                                                PORT_STATUS,
-                                                STREAMS_STATS,
-                                                LATENCY_STATS,
-                                                LATENCY_HISTOGRAM,
-                                                CPU_STATS,
-                                                MBUF_STATS,
-                                                EXTENDED_STATS,
-                                                EXTENDED_INC_ZERO_STATS,],
-                                        {}),
-
-
-              ASTF_STATS: ArgumentGroup(MUTEX, [GLOBAL_STATS,
-                                                PORT_STATS,
-                                                PORT_STATUS,
-                                                CPU_STATS,
-                                                MBUF_STATS,
-                                                EXTENDED_STATS,
-                                                EXTENDED_INC_ZERO_STATS,],
-                                        {}),
-
-
-              CORE_MASK_GROUP:  ArgumentGroup(MUTEX, [PIN_CORES,
-                                                      CORE_MASK],
-                                              {'required': False}),
-
-              CAPTURE_PORTS_GROUP: ArgumentGroup(NON_MUTEX, [TX_PORT_LIST, RX_PORT_LIST], {}),
-              
-              
-              MONITOR_TYPE: ArgumentGroup(MUTEX, [MONITOR_TYPE_VERBOSE,
-                                                  MONITOR_TYPE_PIPE],
-                                          {'required': False}),
-              
-              }
+OPTIONS_DB = {
+    MULTIPLIER: ArgumentPack(
+        ['-m', '--multiplier'],
+        {'help': match_multiplier_help,
+         'dest': "mult",
+         'default': "1",
+         'type': match_multiplier}),
+
+    MULTIPLIER_STRICT: ArgumentPack(
+        ['-m', '--multiplier'],
+        {'help': match_multiplier_help,
+         'dest': "mult",
+         'default': "1",
+         'type': match_multiplier_strict}),
+
+    MULTIPLIER_INT: ArgumentPack(
+        ['-m'],
+        {'help': 'Sent traffic numeric multiplier',
+         'dest': 'mult',
+         'default': 1,
+         'type': int}),
+
+    TOTAL: ArgumentPack(
+        ['-t', '--total'],
+        {'help': "traffic will be divided between all ports specified",
+         'dest': "total",
+         'default': False,
+         'action': "store_true"}),
+
+    IPG: ArgumentPack(
+        ['-i', '--ipg'],
+        {'help': "IPG value in usec between packets. default will be from the pcap",
+         'dest': "ipg_usec",
+         'default':  None,
+         'type': float}),
+
+    MIN_IPG: ArgumentPack(
+        ['--min-ipg'],
+        {'help': "Minimal IPG value in usec between packets. Used to guard from too small IPGs.",
+         'dest': "min_ipg_usec",
+         'default':  None,
+         'type': float}),
+
+    SPEEDUP: ArgumentPack(
+        ['-s', '--speedup'],
+        {'help': "Factor to accelerate the injection. effectively means IPG = IPG / SPEEDUP",
+         'dest': "speedup",
+         'default':  1.0,
+         'type': float}),
+
+    COUNT: ArgumentPack(
+        ['-c', '--count'],
+        {'help': "How many times to perform action [default is 1, 0 means forever]",
+         'dest': "count",
+         'default':  1,
+         'type': int}),
+
+    PROMISCUOUS: ArgumentPack(
+        ['--prom'],
+        {'help': "Set port promiscuous on/off",
+         'choices': ON_OFF_DICT}),
+
+    MULTICAST: ArgumentPack(
+        ['--mult'],
+        {'help': "Set port multicast on/off",
+         'choices': ON_OFF_DICT}),
+
+    LINK_STATUS: ArgumentPack(
+        ['--link'],
+        {'help': 'Set link status up/down',
+         'choices': UP_DOWN_DICT}),
+
+    LED_STATUS: ArgumentPack(
+        ['--led'],
+        {'help': 'Set LED status on/off',
+         'choices': ON_OFF_DICT}),
+
+    FLOW_CTRL: ArgumentPack(
+        ['--fc'],
+        {'help': 'Set Flow Control type',
+         'dest': 'flow_ctrl',
+         'choices': FLOW_CTRL_DICT}),
+
+    SRC_IPV4: ArgumentPack(
+        ['--src'],
+        {'help': 'Configure source IPv4 address',
+         'dest': 'src_ipv4',
+         'required': True,
+         'type': check_ipv4_addr}),
+
+    DST_IPV4: ArgumentPack(
+        ['--dst'],
+        {'help': 'Configure destination IPv4 address',
+         'dest': 'dst_ipv4',
+         'required': True,
+         'type': check_ipv4_addr}),
+
+    DST_MAC: ArgumentPack(
+        ['--dst'],
+        {'help': 'Configure destination MAC address',
+         'dest': 'dst_mac',
+         'required': True,
+         'type': check_mac_addr}),
+
+    RETRIES: ArgumentPack(
+        ['-r', '--retries'],
+        {'help': 'retries count [default is zero]',
+         'dest': 'retries',
+         'default':  0,
+         'type': int}),
+
+    OUTPUT_FILENAME: ArgumentPack(
+        ['-o', '--output'],
+        {'help': 'Output PCAP filename',
+         'dest': 'output_filename',
+         'default': None,
+         'type': str}),
+
+
+    PORT_RESTART: ArgumentPack(
+        ['-r', '--restart'],
+        {'help': 'hard restart port(s)',
+         'dest': 'restart',
+         'default': False,
+         'action': 'store_true'}),
+
+    LIMIT: ArgumentPack(
+        ['-l', '--limit'],
+        {'help': 'Limit the packet count to be written to the file',
+         'dest': 'limit',
+         'default':  1000,
+         'type': int}),
+
+    SUPPORTED: ArgumentPack(
+        ['--supp'],
+        {'help': 'Show which attributes are supported by current NICs',
+         'default': None,
+         'action': 'store_true'}),
+
+    TUNABLES: ArgumentPack(
+        ['-t'],
+        {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
+         'metavar': 'T1=VAL[,T2=VAL ...]',
+         'dest': "tunables",
+         'default': None,
+         'action': 'merge',
+         'type': decode_tunables}),
+
+    PORT_LIST: ArgumentPack(
+        ['-p', '--port'],
+        {"nargs": '+',
+         'dest':'ports',
+         'metavar': 'PORTS',
+         'action': 'merge',
+         'type': int,
+         'help': "A list of ports on which to apply the command",
+         'default': []}),
+
+    SINGLE_PORT: ArgumentPack(
+        ['-p', '--port'],
+        {'dest':'ports',
+         'type': int,
+         'metavar': 'PORT',
+         'help': 'source port for the action',
+         'required': True}),
+
+    PING_IP: ArgumentPack(
+        ['-d'],
+        {'help': 'which IPv4/6 to ping',
+         'dest': 'ping_ip',
+         'required': True,
+         'type': check_ip_addr}),
+
+    PING_COUNT: ArgumentPack(
+        ['-n', '--count'],
+        {'help': 'How many times to ping [default is 5]',
+         'dest': 'count',
+         'default':  5,
+         'type': int}),
+
+    PKT_SIZE: ArgumentPack(
+        ['-s'],
+        {'dest':'pkt_size',
+         'help': 'packet size to use',
+         'default': 64,
+         'type': check_pkt_size}),
+
+    ALL_PORTS: ArgumentPack(
+        ['-a'],
+        {"action": "store_true",
+         "dest": "all_ports",
+         'help': "Set this flag to apply the command on all available ports",
+         'default': False},),
+
+    DURATION: ArgumentPack(
+        ['-d'],
+        {'action': "store",
+         'metavar': 'TIME',
+         'dest': 'duration',
+         'type': match_time_unit,
+         'default': -1.0,
+         'help': "Set duration time for job."}),
+
+    TIMEOUT: ArgumentPack(
+        ['-t'],
+        {'action': "store",
+         'metavar': 'TIMEOUT',
+         'dest': 'timeout',
+         'type': int,
+         'default': None,
+         'help': "Timeout for operation in seconds."}),
+
+    FORCE: ArgumentPack(
+        ['--force'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to stop active ports before appyling command."}),
+
+    READONLY: ArgumentPack(
+        ['-r'],
+        {'action': 'store_true',
+         'dest': 'readonly',
+         'help': 'Do not acquire ports, connect as read-only.'}),
+
+    REMOTE_FILE: ArgumentPack(
+        ['-r', '--remote'],
+        {"action": "store_true",
+         'default': False,
+         'help': "file path should be interpeted by the server (remote file)"}),
+
+    DUAL: ArgumentPack(
+        ['--dual'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Transmit in a dual mode - requires ownership on the adjacent port"}),
+
+    FILE_PATH: ArgumentPack(
+        ['-f'],
+        {'metavar': 'FILE',
+         'dest': 'file',
+         'nargs': 1,
+         'required': True,
+         'type': is_valid_file,
+         'help': "File path to load"}),
+
+    FILE_PATH_NO_CHECK: ArgumentPack(
+        ['-f'],
+        {'metavar': 'FILE',
+         'dest': 'file',
+         'nargs': 1,
+         'required': True,
+         'type': str,
+         'help': "File path to load"}),
+
+    FILE_FROM_DB: ArgumentPack(
+        ['--db'],
+        {'metavar': 'LOADED_STREAM_PACK',
+         'help': "A stream pack which already loaded into console cache."}),
+
+    SERVER_IP: ArgumentPack(
+        ['--server'],
+        {'metavar': 'SERVER',
+         'help': "server IP"}),
+
+    DRY_RUN: ArgumentPack(
+        ['-n', '--dry'],
+        {'action': 'store_true',
+         'dest': 'dry',
+         'default': False,
+         'help': "Dry run - no traffic will be injected"}),
+
+    SYNCHRONIZED: ArgumentPack(
+        ['--sync'],
+        {'action': 'store_true',
+         'dest': 'sync',
+         'default': False,
+         'help': 'Run the traffic with syncronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'}),
+
+    XTERM: ArgumentPack(
+        ['-x', '--xterm'],
+        {'action': 'store_true',
+         'dest': 'xterm',
+         'default': False,
+         'help': "Starts TUI in xterm window"}),
+
+    LOCKED: ArgumentPack(
+        ['-l', '--locked'],
+        {'action': 'store_true',
+         'dest': 'locked',
+         'default': False,
+         'help': "Locks TUI on legend mode"}),
+
+    FULL_OUTPUT: ArgumentPack(
+        ['--full'],
+        {'action': 'store_true',
+         'help': "Prompt full info in a JSON format"}),
+
+    GLOBAL_STATS: ArgumentPack(
+        ['-g'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'global',
+         'help': "Fetch only global statistics"}),
+
+    PORT_STATS: ArgumentPack(
+        ['-p'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'ports',
+         'help': "Fetch only port statistics"}),
+
+    PORT_STATUS: ArgumentPack(
+        ['--ps'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'status',
+         'help': "Fetch only port status data"}),
+
+    STREAMS_STATS: ArgumentPack(
+        ['-s'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'streams',
+         'help': "Fetch only streams stats"}),
+
+    LATENCY_STATS: ArgumentPack(
+        ['-l'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'latency',
+         'help': "Fetch only latency stats"}),
+
+    LATENCY_HISTOGRAM: ArgumentPack(
+        ['--lh'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'latency_histogram',
+         'help': "Fetch only latency histogram"}),
+
+    CPU_STATS: ArgumentPack(
+        ['-c'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'cpu',
+         'help': "Fetch only CPU utilization stats"}),
+
+    MBUF_STATS: ArgumentPack(
+        ['-m'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'mbuf',
+         'help': "Fetch only MBUF utilization stats"}),
+
+    EXTENDED_STATS: ArgumentPack(
+        ['-x'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'xstats',
+         'help': "Fetch xstats of port, excluding lines with zero values"}),
+
+    EXTENDED_INC_ZERO_STATS: ArgumentPack(
+        ['--xz'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'xstats_inc_zero',
+         'help': "Fetch xstats of port, including lines with zero values"}),
+
+    STREAMS_MASK: ArgumentPack(
+        ['-i', '--id'],
+        {"nargs": '+',
+         'dest':'ids',
+         'metavar': 'ID',
+         'type': int,
+         'help': 'Filter by those stream IDs (default is all streams).',
+         'default': []}),
+
+    STREAMS_CODE: ArgumentPack(
+        ['--code'],
+        {'type': str,
+         'nargs': '?',
+         'const': '',
+         'metavar': 'FILE',
+         'help': 'Get Python code that creates the stream(s). Provided argument is filename to save, or by default prints to stdout.'}),
+
+    PIN_CORES: ArgumentPack(
+        ['--pin'],
+        {'action': 'store_true',
+         'dest': 'pin_cores',
+         'default': False,
+         'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"}),
+
+    CORE_MASK: ArgumentPack(
+        ['--core_mask'],
+        {'action': 'store',
+         'nargs': '+',
+         'type': hex_int,
+         'dest': 'core_mask',
+         'default': None,
+         'help': "Core mask - only cores responding to the bit mask will be active"}),
+
+    SERVICE_OFF: ArgumentPack(
+        ['--off'],
+        {'action': 'store_false',
+         'dest': 'enabled',
+         'default': True,
+         'help': 'Deactivates services on port(s)'}),
+
+    TX_PORT_LIST: ArgumentPack(
+        ['--tx'],
+        {'nargs': '+',
+         'dest':'tx_port_list',
+         'metavar': 'TX',
+         'action': 'merge',
+         'type': int,
+         'help': 'A list of ports to capture on the TX side',
+         'default': []}),
+
+    RX_PORT_LIST: ArgumentPack(
+        ['--rx'],
+        {'nargs': '+',
+         'dest':'rx_port_list',
+         'metavar': 'RX',
+         'action': 'merge',
+         'type': int,
+         'help': 'A list of ports to capture on the RX side',
+         'default': []}),
+
+    MONITOR_TYPE_VERBOSE: ArgumentPack(
+        ['-v', '--verbose'],
+        {'action': 'store_true',
+         'dest': 'verbose',
+         'default': False,
+         'help': 'output to screen as verbose'}),
+
+    MONITOR_TYPE_PIPE: ArgumentPack(
+        ['-p', '--pipe'],
+        {'action': 'store_true',
+         'dest': 'pipe',
+         'default': False,
+         'help': 'forward packets to a pipe'}),
+
+
+    BPF_FILTER: ArgumentPack(
+        ['-f', '--filter'],
+        {'type': str,
+         'nargs': '+',
+         'action': action_bpf_filter_merge(),
+         'dest': 'filter',
+         'default': '',
+         'help': 'BPF filter'}),
+
+    CAPTURE_ID: ArgumentPack(
+        ['-i', '--id'],
+        {'help': "capture ID to remove",
+         'dest': "capture_id",
+         'type': int,
+         'required': True}),
+
+    SCAPY_PKT: ArgumentPack(
+        ['-s'],
+        {'dest':'scapy_pkt',
+         'metavar': 'PACKET',
+         'type': ScapyDecoder.to_scapy,
+         'help': 'A scapy notation packet (e.g.: Ether()/IP())'}),
+
+    SHOW_LAYERS: ArgumentPack(
+        ['--layers', '-l'],
+        {'action': 'store_true',
+         'dest': 'layers',
+         'help': "Show all registered layers / inspect a specific layer"}),
+
+    VLAN_TAGS: ArgumentPack(
+        ['--vlan', '-v'],
+        {'dest':'vlan',
+         'action': action_check_vlan(),
+         'type': int,
+         'nargs': '*',
+         'metavar': 'VLAN',
+         'help': 'single or double VLAN tags'}),
+
+    CLEAR_VLAN: ArgumentPack(
+        ['-c'],
+        {'action': 'store_true',
+         'dest': 'clear_vlan',
+         'default': False,
+         'help': "clear any VLAN configuration"}),
+
+    PLUGIN_NAME: ArgumentPack(
+        ['plugin_name'],
+        {'type': str,
+         'metavar': 'name',
+         'help': 'Name of plugin'}),
+
+    SCAPY_PKT_CMD: ArgumentGroup(
+        MUTEX,
+        [
+            SCAPY_PKT,
+            SHOW_LAYERS
+        ],
+        {'required': True}),
+
+    IPV6_OFF: ArgumentPack(
+        ['--off'],
+        {'help': 'Disable IPv6 on port.',
+        'action': 'store_true'}),
+
+    IPV6_AUTO: ArgumentPack(
+        ['--auto'],
+        {'help': 'Enable IPv6 on port with automatic address.',
+         'action': 'store_true'}),
+
+    IPV6_SRC: ArgumentPack(
+        ['-s', '--src'],
+        {'help': 'Enable IPv6 on port with specific address.',
+         'dest': 'src_ipv6',
+         'type': check_ipv6_addr}),
+
+    IPV6_OPTS_CMD: ArgumentGroup(
+        MUTEX,
+        [
+            IPV6_OFF,
+            IPV6_AUTO,
+            IPV6_SRC
+        ],
+        {'required': True}),
+
+    # advanced options
+    PORT_LIST_WITH_ALL: ArgumentGroup(
+        MUTEX,
+        [
+            PORT_LIST,
+            ALL_PORTS
+        ],
+        {'required': False}),
+
+    VLAN_CFG: ArgumentGroup(
+        MUTEX,
+        [
+            VLAN_TAGS,
+            CLEAR_VLAN
+        ],
+        {'required': True}),
+
+    STREAM_FROM_PATH_OR_FILE: ArgumentGroup(
+        MUTEX,
+        [
+            FILE_PATH,
+            FILE_FROM_DB
+        ],
+        {'required': True}),
+
+    STL_STATS: ArgumentGroup(
+        MUTEX,
+        [
+            GLOBAL_STATS,
+            PORT_STATS,
+            PORT_STATUS,
+            STREAMS_STATS,
+            LATENCY_STATS,
+            LATENCY_HISTOGRAM,
+            CPU_STATS,
+            MBUF_STATS,
+            EXTENDED_STATS,
+            EXTENDED_INC_ZERO_STATS,
+        ],
+        {}),
+
+    ASTF_STATS: ArgumentGroup(
+        MUTEX,
+        [
+            GLOBAL_STATS,
+            PORT_STATS,
+            PORT_STATUS,
+            CPU_STATS,
+            MBUF_STATS,
+            EXTENDED_STATS,
+            EXTENDED_INC_ZERO_STATS,
+        ],
+        {}),
+
+    CORE_MASK_GROUP:  ArgumentGroup(
+        MUTEX,
+        [
+            PIN_CORES,
+            CORE_MASK
+        ],
+        {'required': False}),
+
+    CAPTURE_PORTS_GROUP: ArgumentGroup(
+        NON_MUTEX,
+        [
+            TX_PORT_LIST,
+            RX_PORT_LIST
+        ],
+        {}),
+
+    MONITOR_TYPE: ArgumentGroup(
+        MUTEX,
+        [
+            MONITOR_TYPE_VERBOSE,
+            MONITOR_TYPE_PIPE],
+        {'required': False}),
+
+    }
 
 class _MergeAction(argparse._AppendAction):
     def __call__(self, parser, namespace, values, option_string=None):

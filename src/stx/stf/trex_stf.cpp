@@ -44,7 +44,6 @@ TrexDpCoreStf::start_stf() {
     }
 
     dsec_t c_stop_sec = m_core->m_cur_time_sec + m_core->m_yaml_info.m_duration_sec;
-    m_core->m_stop_time_sec = c_stop_sec;
     m_core->m_cur_flow_id = 1;
     m_core->m_stats.clear();
 

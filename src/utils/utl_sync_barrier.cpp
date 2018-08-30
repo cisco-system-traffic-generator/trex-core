@@ -21,29 +21,57 @@ limitations under the License.
 
 #include "utl_sync_barrier.h"
 
+using namespace std;
 
-void CSyncBarrier::dump_err(){
-    fprintf(stderr,"ERROR sync barrier, active threads : ");
-    int i;
-    for (i=0; i<m_max_ids; i++) {
-        fprintf(stderr," %d ",m_arr[i]);
-    }
-    fprintf(stderr," \n");
+CSyncBarrier::CSyncBarrier(uint16_t max_thread_ids, double timeout_sec) {
+    m_max_ids = max_thread_ids;
+    m_arr = new uint8_t[m_max_ids];
+    reset(timeout_sec);
 }
 
-int CSyncBarrier::sync_barrier(uint16_t thread_id){
+void CSyncBarrier::reset(double timeout_sec) {
+    rte_atomic32_init(&m_atomic);
+    m_timeout_sec = timeout_sec;
 
-    assert(m_atomic.cnt!=m_max_ids);
+    for (int i=0; i<m_max_ids; i++) {
+        m_arr[i]=0;
+    }
+}
+
+
+void CSyncBarrier::throw_err(){
+    char timeout_str[10];
+    snprintf(timeout_str, sizeof(timeout_str), "%.3f", m_timeout_sec);
+    string err = "Sync barrier timeout " + string(timeout_str) + " sec, active DP threads:";
+    for (int i=0; i<m_max_ids; i++) {
+        if ( m_arr[i] == 0 ) {
+            err += " " + to_string(i);
+        }
+    }
+    throw BarrierTimeout(err);
+}
+
+int CSyncBarrier::sync_barrier(uint16_t thread_id) {
+
+    assert(m_atomic.cnt!=m_max_ids); // This one is already used
     m_arr[thread_id]=1;
-    dsec_t s_time = now_sec();
     rte_atomic32_inc(&m_atomic);
+    return listen(false);
+}
+
+int CSyncBarrier::listen(bool throw_error) {
+    dsec_t s_time = now_sec();
+    int left;
     while (true) {
-        if (m_atomic.cnt==m_max_ids){
+        left = m_atomic.cnt - m_max_ids;
+        if (left == 0){
             break;
         }
         if ((now_sec()-s_time)>m_timeout_sec){
-            dump_err();
-            return(-1);
+            if ( throw_error ) {
+                throw_err();
+            }
+            return(left);
         }
         rte_pause();
     }
@@ -51,6 +79,9 @@ int CSyncBarrier::sync_barrier(uint16_t thread_id){
     return (0);
 }
 
+CSyncBarrier::~CSyncBarrier(){
+    delete []m_arr;
+}
 
 
 

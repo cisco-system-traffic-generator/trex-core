@@ -442,14 +442,10 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
     return(TCP_TIME_TICK_SEC);
 }
 
-
-bool CFlowGenListPerThread::Create_tcp_batch(){
-    m_tcp_terminate = false;
+void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 
-    uint8_t mem_socket_id=get_memory_socket_id();
-    CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
     CTcpIOCb * c_tcp_io = new CTcpIOCb();
     CTcpIOCb * s_tcp_io = new CTcpIOCb();
 
@@ -471,28 +467,13 @@ bool CFlowGenListPerThread::Create_tcp_batch(){
     m_c_tcp->set_cb(m_c_tcp_io);
     m_s_tcp->set_cb(m_s_tcp_io);
 
-    m_c_tcp->set_template_ro(template_db);
-    m_s_tcp->set_template_ro(template_db);
-    CAstfTemplatesRW * rw= CAstfDB::instance()->get_db_template_rw(mem_socket_id, &m_smart_gen
-                                                                           , m_thread_id, m_max_threads
-                                                                           , getDualPortId());
-    m_c_tcp->set_template_rw(rw);
-    m_s_tcp->set_template_rw(rw);
-
-    m_c_tcp->update_tuneables(rw->get_c_tuneables());
-    m_s_tcp->update_tuneables(rw->get_s_tuneables());
+    uint8_t mem_socket_id = get_memory_socket_id();
 
     m_c_tcp->set_memory_socket(mem_socket_id);
     m_s_tcp->set_memory_socket(mem_socket_id);
 
-
-    if ( (rw->get_c_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ||
-         (rw->get_s_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ){
-        m_sched_accurate=true;
-    }
-
     /* set dev flags */
-    CPreviewMode * lp=&CGlobalInfo::m_options.preview;
+    CPreviewMode * lp = &CGlobalInfo::m_options.preview;
 
     uint8_t dev_offload_flags=0;
     if (lp->getChecksumOffloadEnable()) {
@@ -513,6 +494,33 @@ bool CFlowGenListPerThread::Create_tcp_batch(){
 
     m_s_tcp->m_ft.set_tcp_api(&m_tcp_bh_api_impl_c);
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
+}
+
+bool CFlowGenListPerThread::Create_tcp_batch() {
+    m_tcp_terminate = false;
+
+    uint8_t mem_socket_id=get_memory_socket_id();
+    CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
+
+    m_c_tcp->set_template_ro(template_db);
+    m_s_tcp->set_template_ro(template_db);
+    CAstfTemplatesRW * rw = CAstfDB::instance()->get_db_template_rw(
+            mem_socket_id,
+            &m_smart_gen,
+            m_thread_id,
+            m_max_threads,
+            getDualPortId());
+
+    m_c_tcp->set_template_rw(rw);
+    m_s_tcp->set_template_rw(rw);
+
+    m_c_tcp->update_tuneables(rw->get_c_tuneables());
+    m_s_tcp->update_tuneables(rw->get_s_tuneables());
+
+    if ( (rw->get_c_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ||
+         (rw->get_s_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ){
+        m_sched_accurate=true;
+    }
 
     /* call startup for client side */
     m_c_tcp->call_startup();
@@ -521,7 +529,11 @@ bool CFlowGenListPerThread::Create_tcp_batch(){
     return(true);
 }
 
-void CFlowGenListPerThread::Delete_tcp_batch(){
+void CFlowGenListPerThread::Delete_tcp_batch() {
+    CAstfDB::instance()->clear_db_ro_rw();
+}
+
+void CFlowGenListPerThread::Delete_tcp_ctx(){
     if (m_c_tcp) {
         m_c_tcp->Delete();
         delete m_c_tcp;

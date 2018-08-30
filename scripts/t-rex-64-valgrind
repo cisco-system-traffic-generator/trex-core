@@ -55,7 +55,7 @@ if  grep -q avx /proc/cpuinfo ; then
         RESULT=$?
     fi
 else
-        $VALGRIND_BIN ./_t-rex-64 $INPUT_ARGS
+        $VALGRIND_BIN $VALGRIND_ARGS./_t-rex-64 $INPUT_ARGS
         RESULT=$?
 fi
 

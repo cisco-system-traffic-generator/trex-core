@@ -139,13 +139,14 @@ class TrexTUIDashBoard(TrexTUIPanel):
         if not (set(self.get_showed_ports()) <= set(self.client.get_acquired_ports())):
             return allowed
 
-        # if any/some ports can be resumed
-        if set(self.get_showed_ports()) & set(self.client.get_paused_ports()):
-            allowed['r'] = self.key_actions['r']
+        if self.client.get_mode() == 'STL':
+            # if any/some ports can be resumed
+            if set(self.get_showed_ports()) & set(self.client.get_paused_ports()):
+                allowed['r'] = self.key_actions['r']
 
-        # if any/some ports are transmitting - support those actions
-        if set(self.get_showed_ports()) & set(self.client.get_transmitting_ports()):
-            allowed['p'] = self.key_actions['p']
+            # if any/some ports are transmitting - support those actions
+            if set(self.get_showed_ports()) & set(self.client.get_transmitting_ports()):
+                allowed['p'] = self.key_actions['p']
 
 
         return allowed
@@ -1091,7 +1092,7 @@ class AsyncKeysEngineConsole:
         if tokens[0] not in {'start', 'push'}:
             return
 
-        # '-f' with no paramters - no partial and use current dir
+        # '-f' with no parameters - no partial and use current dir
         if tokens[-1] == '-f':
             partial = ''
             d = '.'

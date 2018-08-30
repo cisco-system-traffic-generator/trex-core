@@ -438,7 +438,11 @@ class TRexClient(object):
     def _disconnect(self, release_ports = True):
         # release any previous acquired ports
         if self.conn.is_connected() and release_ports:
-            self._for_each_port('release', self.get_acquired_ports())
+            with self.ctx.logger.suppress():
+                try:
+                    self.release()
+                except TRexError:
+                    pass
 
         # disconnect the link to the server
         self.conn.disconnect()
@@ -1187,35 +1191,6 @@ class TRexClient(object):
         rc = self._disconnect(release_ports)
         self.ctx.logger.post_cmd(rc)
 
-
-
-    @client_api('command', True)
-    def release (self, ports = None):
-        """
-            Release ports
-
-            :parameters:
-                ports : list
-                    Ports on which to execute the command
-
-            :raises:
-                + :exc:`TRexError`
-
-        """
-
-        ports = ports if ports is not None else self.get_acquired_ports()
-
-        # validate ports
-        ports = self.psv.validate('release', ports, PSV_ACQUIRED)
-
-        self.ctx.logger.pre_cmd("Releasing ports {0}:".format(ports))
-        rc = self._for_each_port('release', ports)
-        self.ctx.logger.post_cmd(rc)
-
-        if not rc:
-            raise TRexError(rc)
-
-            
 
     @client_api('command', True)
     def ping_rpc_server(self):
@@ -2204,32 +2179,10 @@ class TRexClient(object):
 ############################   common    #############################
 ############################  functions  #############################
 
-    def _acquire_common (self, ports = None, force = False):
-      
-        # by default use all ports
-        ports = ports if ports is not None else self.get_all_ports()
-    
-        # validate ports
-        ports = self.psv.validate('acquire', ports)
-    
-        if force:
-            self.ctx.logger.pre_cmd("Force acquiring ports {0}:".format(ports))
-        else:
-            self.ctx.logger.pre_cmd("Acquiring ports {0}:".format(ports))
-    
-        rc = self._for_each_port('acquire', ports, force)
-    
-        self.ctx.logger.post_cmd(rc)
-    
-        if not rc:
-            # cleanup
-            self._for_each_port('release', ports)
-            raise TRexError(rc)
-    
+    def _post_acquire_common(self, ports):
         for port_id in listify_if_int(ports):
             if not self.ports[port_id].is_resolved():
                 self.ctx.logger.info(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
-    
 
 
     def _get_stats_common (self, ports = None, sync_now = True, ext_stats = None):
@@ -2368,55 +2321,6 @@ class TRexClient(object):
         self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count, vlan = opts.vlan)
 
 
-    @console_api('acquire', 'common', True)
-    def acquire_line (self, line):
-        '''Acquire ports\n'''
-
-        # define a parser
-        parser = parsing_opts.gen_parser(self,
-                                         "acquire",
-                                         self.acquire_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
-
-        # filter out all the already owned ports
-        ports = list_difference(opts.ports, self.get_acquired_ports())
-        if not ports:
-            raise TRexError("acquire - all of port(s) {0} are already acquired".format(opts.ports))
-
-        self.acquire(ports = ports, force = opts.force)
-
-        # show time if success
-        return True
-
-        
-
-    @console_api('release', 'common', True)
-    def release_line (self, line):
-        '''Release ports\n'''
-
-        parser = parsing_opts.gen_parser(self,
-                                         "release",
-                                         self.release_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
-
-        ports = list_intersect(opts.ports, self.get_acquired_ports())
-        if not ports:
-            if not opts.ports:
-                raise TRexError("no acquired ports")
-            else:
-                raise TRexError("none of port(s) {0} are acquired".format(opts.ports))
-        
-        self.release(ports = ports)
-
-        # show time if success
-        return True
-
-
     @console_api('l2', 'common', True)
     def set_l2_mode_line (self, line):
         '''Configures a port in L2 mode'''
@@ -2536,23 +2440,6 @@ class TRexClient(object):
         opts = parser.parse_args(line.split(), default_ports = self.get_resolvable_ports(), verify_acquired = True)
         
         self.resolve(ports = opts.ports, retries = opts.retries, vlan = opts.vlan)
-
-        return True
-
-
-    @console_api('reset', 'common', True)
-    def reset_line (self, line):
-        '''Reset ports'''
-
-        parser = parsing_opts.gen_parser(self,
-                                         "reset",
-                                         self.reset_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.PORT_RESTART)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-
-        self.reset(ports = opts.ports, restart = opts.restart)
 
         return True
 

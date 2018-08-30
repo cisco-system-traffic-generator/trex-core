@@ -27,90 +27,11 @@ limitations under the License.
 #include "trex_dp_port_events.h"
 #include "trex_port_attr.h"
 #include "trex_stack_base.h"
-
+#include "trex_owner.h"
 
 class TrexPktBuffer;
 class TrexCpToDpMsgBase;
 class TrexCpToRxMsgBase;
-
-/**
- * TRex port owner can perform
- * write commands
- * while port is owned - others can
- * do read only commands
- *
- */
-class TrexPortOwner {
-public:
-
-    TrexPortOwner();
-
-    /**
-     * is port free to acquire
-     */
-    bool is_free() {
-        return m_is_free;
-    }
-
-    void release() {
-        m_is_free = true;
-        m_owner_name = "";
-        m_handler = "";
-        m_session_id = 0;
-    }
-
-    bool is_owned_by(const std::string &user) {
-        return ( !m_is_free && (m_owner_name == user) );
-    }
-
-    void own(const std::string &owner_name, uint32_t session_id) {
-
-        /* save user data */
-        m_owner_name = owner_name;
-        m_session_id = session_id;
-
-        /* internal data */
-        m_handler = utl_generate_random_str(m_seed, 8);
-        m_is_free = false;
-    }
-
-    bool verify(const std::string &handler) {
-        return ( (!m_is_free) && (m_handler == handler) );
-    }
-
-    const std::string &get_name() {
-        return (!m_is_free ? m_owner_name : g_unowned_name);
-    }
-
-    const std::string &get_handler() {
-        return (!m_is_free ? m_handler : g_unowned_handler);
-    }
-
-    const uint32_t get_session_id() {
-        return m_session_id;
-    }
-
-private:
-
-    /* is this port owned by someone ? */
-    bool         m_is_free;
-
-    /* user provided info */
-    std::string  m_owner_name;
-
-    /* which session of the user holds this port*/
-    uint32_t     m_session_id;
-
-    /* handler genereated internally */
-    std::string  m_handler;
-
-    /* seed for generating random values */
-    unsigned int m_seed;
-
-    /* just references defaults... */
-    static const std::string g_unowned_name;
-    static const std::string g_unowned_handler;
-};
 
 
 /**
@@ -177,7 +98,7 @@ public:
     uint64_t get_port_speed_bps() const;
 
   
-    TrexPortOwner & get_owner() {
+    TrexOwner & get_owner() {
         return m_owner;
     }
 
@@ -456,7 +377,7 @@ protected:
     int                    m_pending_async_stop_event;
     
     /* owner information */
-    TrexPortOwner          m_owner;
+    TrexOwner              m_owner;
 
     
     /* caching some RX info */

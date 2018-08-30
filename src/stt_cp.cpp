@@ -22,25 +22,21 @@ limitations under the License.
 
 
 
-bool CSTTCpPerDir::Create(){
-    m_tcp.Clear();
-    m_udp.Clear();
-    m_ft.Clear();
+bool CSTTCpPerDir::Create() {
+    clear_aggregated_counters();
     create_clm_counters();
     return(true);
 }
 
-void CSTTCpPerDir::Delete(){
+void CSTTCpPerDir::Delete() {
 }
 
-void CSTTCpPerDir::update_counters(){
+void CSTTCpPerDir::update_counters() {
     tcpstat_int_t *lpt=&m_tcp.m_sts;
     udp_stat_int_t *lpt_udp=&m_udp.m_sts;
     CFlowTableIntStats * lpft=&m_ft.m_sts;
-    
-    m_tcp.Clear();
-    m_udp.Clear();
-    m_ft.Clear();
+
+    clear_aggregated_counters();
     CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
     CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
@@ -78,17 +74,21 @@ void CSTTCpPerDir::update_counters(){
     }
     m_est_flows+=udp_active_flows;
 
+
     /* total bytes sent */
-    uint64_t total_tx_bytes = lpt->tcps_sndbyte_ok+lpt->tcps_sndrexmitbyte+lpt->tcps_sndprobe;
+    uint64_t total_tx_bytes =
+            lpt->tcps_sndbyte_ok +
+            lpt->tcps_sndrexmitbyte +
+            lpt->tcps_sndprobe +
+            lpt_udp->udps_sndbyte;
 
-
-    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte)*_1Mb_DOUBLE; /* better to add the acked tx bytes than tcps_sndbyte */
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte + lpt_udp->udps_sndbyte)*_1Mb_DOUBLE; /* better to add the acked tx bytes than tcps_sndbyte */
     m_tx_bw_l7_total_r = m_tx_bw_l7_total.add(total_tx_bytes)*_1Mb_DOUBLE; /* how many L7 bytes sent */
-    
-    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte)*_1Mb_DOUBLE;
 
-    m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal);
-    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack+lpt->tcps_rcvackpack);
+    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte + lpt_udp->udps_rcvbyte)*_1Mb_DOUBLE;
+
+    m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal + lpt_udp->udps_sndpkt);
+    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack + lpt->tcps_rcvackpack + lpt_udp->udps_rcvpkt);
 
     if ( (m_tx_pps_r+m_rx_pps_r) >0.0){
         m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
@@ -102,6 +102,30 @@ void CSTTCpPerDir::update_counters(){
     }
 }
 
+void CSTTCpPerDir::clear_aggregated_counters(void) {
+    m_tcp.Clear();
+    m_udp.Clear();
+    m_ft.Clear();
+}
+
+void CSTTCpPerDir::clear_counters(void) {
+    printf("CSTTCpPerDir::clear_counters\n");
+
+    clear_aggregated_counters();
+
+    m_tx_bw_l7.reset();
+    m_tx_bw_l7_total.reset();
+    m_rx_bw_l7.reset();
+    m_tx_pps.reset();
+    m_rx_pps.reset();
+
+    for (auto &ctx : m_tcp_ctx) {
+        printf("CSTTCpPerDir::clear_counters (per ctx)\n");
+        ctx->m_tcpstat.Clear();
+        ctx->m_udpstat.Clear();
+        ctx->m_ft.m_sts.Clear();
+    }
+}
 
 static void create_sc(CGTblClmCounters  * clm,
                                 std::string name,
@@ -197,7 +221,7 @@ void CSTTCpPerDir::create_clm_counters(){
     CMN_S_ADD_CNT_d(m_tx_pps_r,"tx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"B");
-    CMN_S_ADD_CNT_d(m_tx_ratio,"Tx acked/sent ratio",true,"%%");
+    CMN_S_ADD_CNT_d(m_tx_ratio,"Tx acked/sent ratio",true,"%");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");
@@ -276,11 +300,11 @@ void CSTTCpPerDir::create_clm_counters(){
     create_bar(&m_clm,"-");
 
     UDP_S_ADD_CNT(udps_accepts,"connections accepted");
-    UDP_S_ADD_CNT(udps_connects,"connections established");  
-    UDP_S_ADD_CNT(udps_closed,"conn. closed (includes drops)");  
+    UDP_S_ADD_CNT(udps_connects,"connections established");
+    UDP_S_ADD_CNT(udps_closed,"conn. closed (includes drops)");
     UDP_S_ADD_CNT(udps_sndbyte,"data bytes transmitted");
     UDP_S_ADD_CNT(udps_sndpkt,"data packets transmitted");
-    UDP_S_ADD_CNT(udps_rcvbyte,"data bytes received");                                
+    UDP_S_ADD_CNT(udps_rcvbyte,"data bytes received");
     UDP_S_ADD_CNT(udps_rcvpkt,"data packets received");
     UDP_S_ADD_CNT_E(udps_keepdrops,"keepalive drop");
     UDP_S_ADD_CNT_E(udps_nombuf,"no mbuf");
@@ -352,6 +376,13 @@ bool CSTTCp::dump_json(std::string &json){
         return(true);
     }else{
         return(false);
+    }
+}
+
+void CSTTCp::clear_counters(void) {
+    for (auto &sts : m_sts) {
+        printf("Clear counters\n");
+        sts.clear_counters();
     }
 }
 

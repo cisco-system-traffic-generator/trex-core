@@ -151,6 +151,10 @@ TrexSTX::check_for_dp_message_from_core(int thread_id) {
 
 }
 
+void
+TrexSTX::dp_core_finished(int thread_id) {
+}
+
 /**
  * check for messages that arrived from DP to CP
  *

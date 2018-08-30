@@ -50,6 +50,7 @@ public:
     }
 
     int Enqueue(void *obj){
+        assert(obj);
         return (rte_ring_sp_enqueue(m_ring,obj));
     }
 
@@ -73,6 +74,7 @@ template <class T>
 class CTRingSp : public CRingSp {
 public:
     int Enqueue(T *obj){
+        assert(obj);
         return ( CRingSp::Enqueue((void*)obj) );
     }
 

@@ -24,6 +24,8 @@ limitations under the License.
 
 #include "trex_port.h"
 
+class CSyncBarrier;
+
 /**
  * describes an ASTF port
  *
@@ -41,6 +43,8 @@ public:
         return true;
     }
 
+    void start(void);
+    void stop(void);
 };
 
 

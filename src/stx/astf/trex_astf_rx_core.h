@@ -1,5 +1,5 @@
 /*
- Itay Marom
+ TRex team
  Cisco Systems, Inc.
 */
 
@@ -18,25 +18,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#ifndef __TREX_ASTF_RX_CORE_H__
+#define __TREX_ASTF_RX_CORE_H__
+
+#include "common/trex_rx_core.h"
 
 /**
- * holds all the ASTF specific RPC commands
+ * TRex ASTF RX core
+ * 
  */
-
-#ifndef __TREX_ASTF_RPC_CMDS_H__
-#define __TREX_ASTF_RPC_CMDS_H__
-
-#include "rpc-server/trex_rpc_cmd_api.h"
-
-/**
- * ASTF specific RPC commands 
- *  
- */
-class TrexRpcCmdsASTF : public TrexRpcComponent {
+class CRxAstfCore : public CRxCore {
 public:
-    TrexRpcCmdsASTF();
+    CRxAstfCore(void);
+
+protected:
+    virtual uint32_t handle_msg_packets(void);
+    virtual uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing *r);
+    virtual bool work_tick(void);
+
+    CMessagingManager *m_rx_dp;
 };
 
-#endif /* __TREX_ASTF_RPC_CMDS_H__ */
-
+#endif /* __TREX_ASTF_RX_CORE_H__ */
 

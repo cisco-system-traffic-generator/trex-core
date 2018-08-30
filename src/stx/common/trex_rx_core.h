@@ -32,7 +32,7 @@
 
 class TrexCpToRxMsgBase;
 
-typedef std::map<uint8_t, RXPortManager> rx_port_mngr_t;
+typedef std::map<uint8_t, RXPortManager*> rx_port_mngr_t;
 
 class CCPortLatencyStl {
  public:
@@ -208,7 +208,7 @@ class CRxCore : public TrexRxCore {
         return m_is_active;
     }
 
- private:
+ protected:
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
 
     bool periodic_check_for_cp_messages();
@@ -219,8 +219,8 @@ class CRxCore : public TrexRxCore {
     void hot_state_loop();
     void cold_state_loop();
     void init_work_stage();
-    bool work_tick();
-    
+    virtual bool work_tick();
+
     void recalculate_next_state();
     bool is_latency_active();
     bool should_be_hot();
@@ -235,10 +235,9 @@ class CRxCore : public TrexRxCore {
     }
 
     void try_rx_queues();
-    
-  
-    
- private:
+
+
+ protected:
     TrexMonitor      m_monitor;
     uint32_t         m_tx_cores;
     bool             m_capture;
@@ -248,8 +247,9 @@ class CRxCore : public TrexRxCore {
     CCpuUtlCp        m_cpu_cp_u;
 
     dsec_t           m_sync_time_sec;
+    dsec_t           m_sync_time_period;
     dsec_t           m_grat_arp_sec;
-    
+
     uint64_t         m_rx_pkts;
 
     CRxCoreErrCntrs  m_err_cntrs;

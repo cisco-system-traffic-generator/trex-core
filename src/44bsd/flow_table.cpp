@@ -91,6 +91,12 @@ void CFlowTable::reset_stats(){
     m_sts.Clear();
 }
 
+static void ctx_dummy_cb(void *, void *) {
+}
+
+void CFlowTable::clear_ft(void) {
+    m_ft.detach_all(nullptr, ctx_dummy_cb);
+}
 
 void CFlowTable::redirect_to_rx_core(CTcpPerThreadCtx * ctx,
                                      struct rte_mbuf * mbuf){
@@ -362,7 +368,7 @@ CTcpFlow * CFlowTable::alloc_flow(CTcpPerThreadCtx * ctx,
     return(flow);
 }
 
-void       CFlowTable::free_flow(CFlowBase * flow){
+void CFlowTable::free_flow(CFlowBase * flow){
     assert(flow);
 
     if ( flow->is_udp() ){
@@ -375,7 +381,6 @@ void       CFlowTable::free_flow(CFlowBase * flow){
         delete tcp_flow;
     }
 }
-
 
 bool CFlowTable::insert_new_flow(CFlowBase *  flow,
                                  CFlowKeyTuple  & tuple){

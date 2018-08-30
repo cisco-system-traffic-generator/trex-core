@@ -842,6 +842,9 @@ public:
     /* called after init */
     void call_startup();
 
+    /* cleanup m_timer_w from left flows */
+    void cleanup_flows(void);
+
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
         return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
@@ -948,7 +951,7 @@ public:
 
     CAstfTemplatesRW  *  m_template_rw;
     CAstfDbRO         *  m_template_ro;
-    KxuLCRand         *  m_rand; /* per context */       
+    KxuLCRand         *  m_rand; /* per context */
     CTcpCtxCb         *  m_cb;
     CNATimerWheel        m_timer_w; /* TBD-FIXME one timer , should be pointer */
 

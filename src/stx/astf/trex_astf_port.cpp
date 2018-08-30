@@ -18,13 +18,36 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+#include "publisher/trex_publisher.h"
+
+#include "trex_astf.h"
 #include "trex_astf_port.h"
 
-TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
-    /* nothing for now */
-}
+using namespace std;
 
+TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
+}
 
 TrexAstfPort::~TrexAstfPort() {
-    
 }
+
+void TrexAstfPort::start(void) {
+    change_state(PORT_STATE_TX);
+
+    /* update subscribers */
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_astf_object()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
+}
+
+void TrexAstfPort::stop(void) {
+    change_state(PORT_STATE_IDLE);
+
+    /* update subscribers */
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    get_astf_object()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
+}
+
+
