@@ -285,7 +285,7 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_dp_port_events.cpp',
                                      'trex_dp_core.cpp',
                                      'trex_messaging.cpp',
-
+                                     'trex_owner.cpp',
                                      'trex_rx_core.cpp',
                                      'trex_rx_port_mngr.cpp',
                                      'trex_rx_tx.cpp',
@@ -326,12 +326,21 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
 astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
                            src_list=['trex_astf_batch.cpp'])
 
+# MD5 package
+md5_src = SrcGroup(dir='external_libs/md5',
+    src_list=[
+        'md5.cpp'
+    ])
+
+
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
                          src_list=['trex_astf.cpp',
+                                   'trex_astf_dp_core.cpp',
+                                   'trex_astf_messaging.cpp',
                                    'trex_astf_port.cpp',
                                    'trex_astf_rpc_cmds.cpp',
-                                   'trex_astf_dp_core.cpp'
+                                   'trex_astf_rx_core.cpp',
                          ])
 
 
@@ -406,6 +415,7 @@ bp =SrcGroups([
                 stateless_src,
                 astf_batch_src,
                 astf_src,
+                md5_src,
                 
                 rpc_server_src
                 ]);
@@ -439,6 +449,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/stx/common/rx/
                    
                    ../external_libs/json/
+                   ../external_libs/md5/
                    ../external_libs/zmq-'''+ march +'''/include/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/bpf/
