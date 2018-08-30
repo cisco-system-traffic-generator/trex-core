@@ -123,6 +123,49 @@ bool  CTblGCounters::dump_line(FILE *fd,int index,bool desc){
     return(true);
 }
 
+void CTblGCounters::dump_meta(std::string name,
+                              Json::Value & obj){
+
+    Json::Value root;
+    Json::Value data = Json::arrayValue;
+    obj  = root;
+
+    obj["name"] = name;
+    obj["data"] = data;
+    
+    CGTblClmCounters* lp=m_counters[0];
+    int i;
+    Json::Value * lpj=&obj["data"];
+    for (i=0; i<lp->get_size(); i++) {
+        CGSimpleBase* lpcnt=lp->get_cnt(i);
+        lpj->append(lpcnt->get_json_desc());
+    }
+}
+
+void CTblGCounters::dump_values(std::string name,
+                                bool zeros,
+                               Json::Value & obj){
+
+    Json::Value root;
+    obj  = root;
+
+    obj["name"] = name;
+
+    uint8_t size=m_counters.size();
+
+    int i,j;
+    for (i=0; i<size; i++) {
+        CGTblClmCounters* lp=m_counters[i];
+        obj[lp->get_name()] = Json::objectValue;;
+        for (j=0; j<lp->get_size(); j++) {
+            CGSimpleBase* lpcnt=lp->get_cnt(j);
+            if ((zeros==true) || (!can_skip_zero(i)) ){
+                obj[lp->get_name()][std::to_string(lpcnt->get_id())]=lpcnt->get_val_as_str();
+            }
+        }
+    }
+}
+
 
 void CTblGCounters::dump_as_json(std::string name, 
                                  std::string & json){
