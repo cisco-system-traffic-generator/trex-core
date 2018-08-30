@@ -28,6 +28,8 @@ limitations under the License.
 #include <stdio.h>
 #include <assert.h>
 #include "utl_json.h"
+#include <stdint.h>
+#include <json/json.h>
 
 class CGCountersUtl64;
 class CGCountersUtl32 {
@@ -83,9 +85,21 @@ public:
         m_dump_zero=false;
         m_info=scINFO;
     }
+
+    void set_id(uint32_t id){
+        m_id=id;
+    }
+    uint32_t get_id(){
+        return (m_id);
+    }
+
     virtual ~CGSimpleBase(){
     }
     virtual void update(){
+    }
+
+    virtual std::string get_val_as_str(){
+        return("");
     }
 
     virtual void dump_val(FILE *fd){
@@ -182,13 +196,26 @@ public:
         return (add_json(m_name, m_help,last));
     }
 
+    virtual  Json::Value get_json_desc(){
+        Json::Value r;
+        r["id"] = m_id;
+        r["name"] = m_name;
+        r["help"] = m_help;
+        r["units"] = m_units;
+        r["zero"] =m_dump_zero;
+        r["info"] = get_info_as_str();
+        return(r);
+    }
+
 
 protected:
+    uint32_t       m_id;
     counter_info_t m_info;
     bool        m_dump_zero;
     std::string m_help;
     std::string m_name;
     std::string m_units;
+
 };
 
 class CGSimpleBar : public CGSimpleBase {
@@ -216,6 +243,10 @@ public:
         return (add_json(m_name, *m_p,last));
     }
 
+    virtual std::string get_val_as_str(){
+        return (std::to_string(*m_p));
+    }
+
 
 private:
      uint32_t *m_p;
@@ -240,6 +271,10 @@ public:
         return (add_json(m_name, *m_p,last));
     }
 
+    virtual std::string get_val_as_str(){
+        return (std::to_string(*m_p));
+    }
+
 
 private:
      uint64_t *m_p;
@@ -259,6 +294,11 @@ public:
 
     virtual void dump_val(FILE *fd);
 
+    virtual std::string get_val_as_str(){
+        return (std::to_string(*m_p));
+    }
+    
+
     virtual std::string dump_as_json(bool last){
         return (add_json(m_name, *m_p,last));
     }
@@ -276,6 +316,7 @@ public:
 
     CGTblClmCounters(){
         m_free_objects=0;
+        m_index=0;
     }
     ~CGTblClmCounters();
 
@@ -285,6 +326,8 @@ public:
     }
 
     void add_count(CGSimpleBase* cnt){
+        cnt->set_id(m_index);
+        m_index++;
         m_counters.push_back(cnt);
     }
     void set_name(std::string  name){
@@ -301,6 +344,7 @@ public:
     }
     
 private:
+   uint32_t                   m_index;
    bool                       m_free_objects;
    std::string                m_name;
    std::vector<CGSimpleBase*> m_counters;
@@ -327,8 +371,18 @@ public:
 
     void dump_table(FILE *fd,bool zeros,bool desc);
 
+
+
     void dump_as_json(std::string name,
                       std::string & json);
+
+    void dump_meta(std::string name,
+                   Json::Value & json);
+
+    void dump_values(std::string name,
+                     bool zeros,
+                     Json::Value & obj);
+
 
 private:
     void verify();

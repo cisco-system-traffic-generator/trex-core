@@ -1638,6 +1638,29 @@ TEST_F(gt_tcp, tst40) {
 
     std::string json;
     tbl.dump_as_json("my",json);
+
+    Json::Value  mjson;
+    tbl.dump_meta("my",mjson);
+    Json::StyledWriter writer;
+    std::string s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+    tbl.dump_values("my",
+                     true,
+                     mjson);
+
+    s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+    tbl.dump_values("my",
+                     false,
+                     mjson);
+
+    s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+
+
     printf("%s \n",json.c_str());
 }
 
