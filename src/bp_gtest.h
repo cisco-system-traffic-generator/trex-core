@@ -145,8 +145,8 @@ public:
 
             char buf[100];
             char buf_ex[100];
-            sprintf(buf,"%s-%d.erf", CGlobalInfo::m_options.out_file.c_str(), i);
-            sprintf(buf_ex,"%s-%d-ex.erf", CGlobalInfo::m_options.out_file.c_str(), i);
+            sprintf(buf,"generated/%s-%d.erf", CGlobalInfo::m_options.out_file.c_str(), i);
+            sprintf(buf_ex,"exp/%s-%d-ex.erf", CGlobalInfo::m_options.out_file.c_str(), i);
 
             if ( m_req_ports ) {
                 /* generate from first template m_req_ports ports */
