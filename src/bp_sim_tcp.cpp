@@ -530,7 +530,9 @@ bool CFlowGenListPerThread::Create_tcp_batch() {
 }
 
 void CFlowGenListPerThread::Delete_tcp_batch() {
-    CAstfDB::instance()->clear_db_ro_rw();
+    if ( CAstfDB::has_instance() ) {
+        CAstfDB::instance()->clear_db_ro_rw();
+    }
 }
 
 void CFlowGenListPerThread::Delete_tcp_ctx(){

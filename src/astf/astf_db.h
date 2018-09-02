@@ -372,6 +372,11 @@ class CAstfDB  : public CTRexDummyCommand  {
             m_pInstance=0;
         }
     }
+
+    static bool has_instance() {
+        return m_pInstance != nullptr;
+    }
+
     CAstfDB();
     virtual ~CAstfDB();
 

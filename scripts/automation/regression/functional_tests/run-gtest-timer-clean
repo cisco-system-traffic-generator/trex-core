@@ -17,6 +17,7 @@ $VALGRIND_EXE --leak-check=full --error-exitcode=1  --show-reachable=yes ./bp-si
 RESULT=$?
 if [ $RESULT  -ne 0 ]; then
   echo "ERROR ...."
+  exit $RESULT
 fi
 
 

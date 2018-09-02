@@ -70,6 +70,21 @@ public:
     }
 };
 
+/**
+ * ASTF interactive test
+ * 
+ */
+class trexAstfInteractiveTest  : public testing::Test {
+public:
+    trexAstfInteractiveTest() {
+        TrexSTXCfg cfg;
+        set_stx(new TrexAstf(cfg));
+    }
+    ~trexAstfInteractiveTest() {
+        delete get_stx();
+        set_stx(nullptr);
+    }
+};
 
 
 class trexTest  : public trexStfTest {
