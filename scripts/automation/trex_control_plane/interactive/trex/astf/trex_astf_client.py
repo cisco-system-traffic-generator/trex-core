@@ -10,7 +10,9 @@ from ..common.trex_types import *
 
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
+from .trex_astf_stats import CAstfStats
 import hashlib
+import sys
 
 class ASTFClient(TRexClient):
     def __init__(self,
@@ -55,6 +57,7 @@ class ASTFClient(TRexClient):
                             verbose_level,
                             logger)
         self.handler = ''
+        self.astf_stats = CAstfStats(self.conn.rpc)
 
 
 
@@ -65,7 +68,7 @@ class ASTFClient(TRexClient):
 ############################    by base      #############################
 ############################    TRex Client  #############################
 
-    def _on_connect (self, system_info):
+    def _on_connect_create_ports(self, system_info):
         """
             called when connecting to the server
             triggered by the common client object
@@ -76,8 +79,12 @@ class ASTFClient(TRexClient):
         for port_info in system_info['ports']:
             port_id = port_info['index']
             self.ports[port_id] = ASTFPort(self.ctx, port_id, self.conn.rpc, port_info)
+        return RC_OK()
 
-
+    def _on_connect_clear_stats(self):
+        self.astf_stats.reset()
+        with self.ctx.logger.suppress(verbose = "warning"):
+            self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_astf = False)
         return RC_OK()
 
 ############################     helper     #############################
@@ -277,23 +284,32 @@ class ASTFClient(TRexClient):
     @client_api('getter', True)
     def get_stats (self, ports = None, sync_now = True):
 
-        # TBD: add ASTF specific stats here to ext_stats
-        ext_stats = {}
+        ext_stats = {'astf': self.get_astf_stats()}
 
         return self._get_stats_common(ports, sync_now, ext_stats = ext_stats)
 
 
-     # clear stats
+    # clear stats
     @client_api('getter', True)
     def clear_stats (self,
                      ports = None,
                      clear_global = True,
-                     clear_xstats = True):
+                     clear_xstats = True,
+                     clear_astf = True):
 
-        # TODO: create STL specific stats mapping
-        ext_stats = []
+        if clear_astf:
+            self.clear_astf_stats()
 
         return self._clear_stats_common(ports, clear_global, clear_xstats)
+
+
+    @client_api('getter', True)
+    def get_astf_stats(self):
+        return self.astf_stats.get_stats()
+
+    @client_api('getter', True)
+    def clear_astf_stats(self):
+        return self.astf_stats.clear_stats()
 
 
 ############################   console   #############################
@@ -352,10 +368,10 @@ class ASTFClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "stats",
                                          self.show_stats_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.ASTF_STATS)
+                                         parsing_opts.PORT_LIST,
+                                         parsing_opts.ASTF_STATS_GROUP)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
         if not opts:
             return
 
@@ -387,5 +403,18 @@ class ASTFClient(TRexClient):
         elif opts.stats == 'mbuf':
             self._show_mbuf_util()
 
+        elif opts.stats == 'astf':
+            self._show_astf_stats(False)
+
+        elif opts.stats == 'astf_inc_zero':
+            self._show_astf_stats(True)
+
+        else:
+            raise TRexError('Unhandled stat: %s' % opts.stats)
+
+
+    def _show_astf_stats(self, include_zero_lines, buffer = sys.stdout):
+        table = self.astf_stats.to_table(include_zero_lines)
+        text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
 

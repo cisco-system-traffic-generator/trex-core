@@ -258,6 +258,29 @@ class TrexTUILatencyStats(TrexTUIPanel):
          self.client.pgid_stats.clear_stats()
          return ""
 
+# streams stats
+class TrexTUIAstfStats(TrexTUIPanel):
+    def __init__ (self, mng):
+        super(TrexTUIAstfStats, self).__init__(mng, "astats")
+
+        self.key_actions = OrderedDict()
+
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+
+
+    def show (self, buffer):
+        self.client._show_global_stats(buffer = buffer)
+        self.client._show_astf_stats(False, buffer = buffer)
+
+
+    def get_key_actions (self):
+        return self.key_actions
+
+
+    def action_clear (self):
+         self.client.clear_astf_stats()
+         return ""
+
 
 # utilization stats
 class TrexTUIUtilizationStats(TrexTUIPanel):
@@ -337,6 +360,10 @@ class TrexTUIPanelManager():
             self.panels['lstats'] = TrexTUILatencyStats(self)
             self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
             self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
+
+        elif self.client.get_mode() == "ASTF":
+            self.panels['astats'] = TrexTUIAstfStats(self)
+            self.key_actions['a'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
@@ -452,6 +479,11 @@ class TrexTUIPanelManager():
 
     def action_show_sstats (self):
         self.main_panel = self.panels['sstats']
+        self.init(self.show_log)
+        return ""
+
+    def action_show_astats (self):
+        self.main_panel = self.panels['astats']
         self.init(self.show_log)
         return ""
 

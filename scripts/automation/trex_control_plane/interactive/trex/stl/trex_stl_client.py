@@ -80,7 +80,7 @@ class STLClient(TRexClient):
 ############################    by base      #############################
 ############################    TRex Client  #############################   
 
-    def _on_connect (self, system_info):
+    def _on_connect_create_ports(self, system_info):
         """
             called when connecting to the server
             triggered by the common client object
@@ -91,6 +91,13 @@ class STLClient(TRexClient):
         for info in system_info['ports']:
             port_id = info['index']
             self.ports[port_id] = STLPort(self.ctx, port_id, self.conn.rpc, info)
+        return RC_OK()
+
+
+    def _on_connect_clear_stats(self):
+        # clear stats to baseline
+        with self.ctx.logger.suppress(verbose = "warning"):
+            self.clear_stats(ports = self.get_all_ports(), clear_xstats = False)
 
         #self.get_pgid_stats()
         #self.pgid_stats.clear_stats()
