@@ -81,6 +81,7 @@ TEST_F(gt_astf_inter, astf_positive_3) {
     CFlowGenList fl;
     fl.Create();
     fl.generate_p_thread_info(1);
+
     fl.clean_p_thread_info();
     fl.Delete();
 }
@@ -93,8 +94,9 @@ TEST_F(gt_astf_inter, astf_negative_3) {
 
 TEST_F(gt_astf_inter, astf_positive_4) {
     CAstfDB * lpastf = CAstfDB::instance();
-    bool res = lpastf->parse_file("automation/regression/data/astf_dns.json");
-    EXPECT_EQ(res, true);
+    bool success;
+    success = lpastf->parse_file("automation/regression/data/owuigblskv");
+    EXPECT_EQ(success, false);
     lpastf->free_instance();
 }
 
@@ -103,19 +105,54 @@ TEST_F(gt_astf_inter, astf_negative_4) {
 }
 
 TEST_F(gt_astf_inter, astf_positive_5) {
-    CAstfDB * lpastf = CAstfDB::instance();
-    bool res = lpastf->parse_file("automation/regression/data/astf_dns.json");
-    EXPECT_EQ(res, true);
     CFlowGenList fl;
     fl.Create();
     fl.generate_p_thread_info(1);
-
-    
+    CFlowGenListPerThread *lpt = fl.m_threads_info[0];
+    lpt->Delete_tcp_ctx(); // Should not fail
 
     fl.clean_p_thread_info();
     fl.Delete();
-    lpastf->free_instance();
 }
+
+TEST_F(gt_astf_inter, astf_negative_5) {
+    CFlowGenList fl;
+    fl.Create();
+    fl.generate_p_thread_info(1);
+    CFlowGenListPerThread *lpt = fl.m_threads_info[0];
+    lpt->Create_tcp_ctx(); // DP core should allocate it (should assert)
+}
+
+TEST_F(gt_astf_inter, astf_positive_6) {
+    bool success;
+    CFlowGenList fl;
+    fl.Create();
+    fl.generate_p_thread_info(1);
+    CFlowGenListPerThread *lpt = fl.m_threads_info[0];
+
+    success = lpt->Create_tcp_batch(); // DB not loaded
+    EXPECT_EQ(success, false);
+
+    CAstfDB * lpastf = CAstfDB::instance();
+    success = lpastf->parse_file("automation/regression/data/astf_dns.json");
+    EXPECT_EQ(success, true);
+
+    success = lpt->Create_tcp_batch(); // DB loaded
+    EXPECT_EQ(success, true);
+
+    /* TODO: run simulation of traffic here with --nc */
+
+    lpt->Delete_tcp_batch();
+
+    lpastf->free_instance();
+    fl.clean_p_thread_info();
+    fl.Delete();
+}
+
+
+
+
+
 
 
 

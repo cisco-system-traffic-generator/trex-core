@@ -2993,9 +2993,6 @@ static void free_map_flow_id_to_node(CGenNode *p){
 
 
 void CFlowGenListPerThread::Delete(){
-    Delete_tcp_batch();
-    Delete_tcp_ctx();
-
     // free all current maps
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
     // free object

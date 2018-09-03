@@ -40,7 +40,8 @@ CAstfDB::CAstfDB(){
     m_client_config_info=0;
     m_validator=0;
     m_validator = new CAstfJsonValidator();
-    if (!m_validator->Create("astf_schema.json")){
+    if (!m_validator->Create("astf_schema.json")) {
+        printf("Could not create ASTF validator using file astf_schema.json\n");
         exit(-1);
     }
 }
@@ -220,26 +221,18 @@ bool CAstfDB::set_profile_one_msg(const std::string &msg,std::string & err){
 
 
 bool CAstfDB::parse_file(std::string file) {
-    static bool parsed = false;
-    if (parsed)
-        return true;
-    else
-        parsed = true;
 
-    Json::Reader reader;
     std::ifstream t(file);
-    if (!  t.is_open()) {
-        std::cerr << "Failed openeing json file " << file << std::endl;
-        exit(1);
+    if ( !t.is_open() ) {
+        return false;
     }
 
     std::string msg((std::istreambuf_iterator<char>(t)),
                                     std::istreambuf_iterator<char>());
 
     std::string err;
-    bool rc = set_profile_one_msg(msg,err);
-    if (!rc) {
-        std::cerr << "Failed parsing json file " << file << err << std::endl;
+    bool rc = set_profile_one_msg(msg, err);
+    if ( !rc ) {
         return false;
     }
 
@@ -247,12 +240,19 @@ bool CAstfDB::parse_file(std::string file) {
     return true;
 }
 
-void CAstfDB::convert_from_json(uint8_t socket_id) {
-    convert_bufs(socket_id);
-    convert_progs(socket_id);
+bool CAstfDB::convert_from_json(uint8_t socket_id) {
+    if ( !convert_bufs(socket_id) ) {
+        return false;
+    }
+    if ( !convert_progs(socket_id) ) {
+        return false;
+    }
     m_tcp_data[socket_id].m_init = 1;
-    build_assoc_translation(socket_id);
+    if ( !build_assoc_translation(socket_id) ) {
+        return false;
+    }
     m_tcp_data[socket_id].m_init = 2;
+    return true;
 }
 
 void CAstfDB::dump() {
@@ -557,15 +557,17 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     return CJsonData_err(CJsonData_err_pool_ok, "");
 }
 
-void CAstfDB::verify_init(uint16_t socket_id) {
-    if (! m_tcp_data[socket_id].is_init()) {
+bool CAstfDB::verify_init(uint16_t socket_id) {
+    bool success = true;
+    if ( !m_tcp_data[socket_id].is_init() ) {
         // json data should not be accessed by multiple threads in parallel
         std::unique_lock<std::mutex> my_lock(m_global_mtx);
-        if (! m_tcp_data[socket_id].is_init()) {
-            convert_from_json(socket_id);
+        if ( !m_tcp_data[socket_id].is_init() ) {
+            success = convert_from_json(socket_id);
         }
         my_lock.unlock();
     }
+    return success;
 }
 
 void CAstfDB::clear_db_ro(uint8_t socket_id) {
@@ -580,7 +582,10 @@ void CAstfDB::clear_db_ro(uint8_t socket_id) {
 }
 
 CAstfDbRO *CAstfDB::get_db_ro(uint8_t socket_id) {
-    verify_init(socket_id);
+    if ( !verify_init(socket_id) ) {
+        m_tcp_data[socket_id].Delete();
+        return nullptr;
+    }
 
     return &m_tcp_data[socket_id];
 }
@@ -1100,6 +1105,10 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     double template_cps;
 
     assert(m_tcp_data[socket_id].m_init > 0);
+
+    if ( m_val["templates"].size() == 0 ) {
+        return false;
+    }
 
     if (m_val["templates"].size() > 10) {
         is_hash_needed = true;

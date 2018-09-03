@@ -1,5 +1,6 @@
 import outer_packages
 from nose.plugins.attrib import attr
+from nose.tools import nottest
 import functional_general_test
 from trex_scenario import CTRexScenario
 import os, sys
@@ -121,7 +122,7 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
             print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of test_astf_sim_utl_sfr (%s)' % ret)
 
-
+    @nottest
     def test_astf_sim_utl_sfr_drop(self):
         # tshark of trex-05 is the valid one 
         if 'csi-trex-05' not in platform.node():
