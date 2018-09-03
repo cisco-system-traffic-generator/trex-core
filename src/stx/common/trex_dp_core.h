@@ -143,8 +143,10 @@ protected:
      * per implementation start scheduler
      */
     virtual void start_scheduler() = 0;
-    
-    
+
+    /* read from RX for ASTF */
+    virtual bool rx_for_astf(void);
+
     void idle_state_loop();
     
     /**

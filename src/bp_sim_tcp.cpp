@@ -146,7 +146,10 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
         node->m_time += dtime;
         m_node_gen.m_p_queue.push(node);
     }
+    handle_rx_pkts();
+}
 
+uint16_t CFlowGenListPerThread::handle_rx_pkts(void) {
     CVirtualIF * v_if=m_node_gen.m_v_if;
     rte_mbuf_t * rx_pkts[64];
     int dir;
@@ -157,7 +160,8 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
         m_s_tcp
     };
 
-    int sum;
+    uint16_t sum;
+    uint16_t sum_both_dir = 0;
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
         sum=0;
@@ -195,10 +199,12 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
                 break;
             }
         }
-      if (m_sched_accurate && sum){
-          v_if->flush_tx_queue();
-      }
+        if (m_sched_accurate && sum){
+            v_if->flush_tx_queue();
+        }
+        sum_both_dir += sum;
     }
+    return sum_both_dir;
 }
 
 static CEmulAppApiImpl     m_tcp_bh_api_impl_c;

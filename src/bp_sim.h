@@ -3092,7 +3092,7 @@ public:
     void handle_rx_flush(CGenNode * node,bool on_terminate);
     void handle_tx_fif(CGenNode * node,bool on_terminate);
     void handle_tw(CGenNode * node,bool on_terminate);
-
+    uint16_t handle_rx_pkts(void);
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech

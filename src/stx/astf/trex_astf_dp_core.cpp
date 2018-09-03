@@ -187,4 +187,8 @@ void TrexAstfDpCore::report_finished(void) {
     m_ring_to_cp->Enqueue((CGenNode *)msg);
 }
 
+bool TrexAstfDpCore::rx_for_astf(void) {
+    return m_flow_gen->handle_rx_pkts() > 0;
+}
+
 

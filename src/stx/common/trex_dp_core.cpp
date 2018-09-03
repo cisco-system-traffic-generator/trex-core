@@ -74,6 +74,12 @@ TrexDpCore::idle_state_loop() {
             continue;
         }
 
+        bool had_rx = rx_for_astf();
+        if (had_rx) {
+            counter = 0;
+            continue;
+        }
+
         /* enter deep sleep only if enough time had passed */
         if (counter < DEEP_SLEEP_LIMIT) {
             delay(SHORT_DELAY_MS);
@@ -85,6 +91,10 @@ TrexDpCore::idle_state_loop() {
     }
 }
 
+bool
+TrexDpCore::rx_for_astf(void) {
+    return false;
+}
 
 void
 TrexDpCore::start_once() {
