@@ -29,6 +29,7 @@ class TrexAstfDpCore : public TrexDpCore {
 public:
 
     TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
+    ~TrexAstfDpCore(void);
 
     /**
      * return true if all the ports are idle

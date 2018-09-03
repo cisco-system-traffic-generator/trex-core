@@ -37,6 +37,9 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     sync_stop = false;
 }
 
+TrexAstfDpCore::~TrexAstfDpCore(void) {
+    m_flow_gen->Delete_tcp_ctx();
+}
 
 bool TrexAstfDpCore::are_all_ports_idle() {
     return m_state == STATE_IDLE;
@@ -147,6 +150,8 @@ void TrexAstfDpCore::start_scheduler() {
 void TrexAstfDpCore::create_tcp_batch(void) {
     if ( m_flow_gen->Create_tcp_batch() ) {
         sync_barrier();
+    } else {
+        assert(0);
     }
 }
 

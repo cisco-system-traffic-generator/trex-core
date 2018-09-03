@@ -2820,7 +2820,7 @@ TEST_F(gt_tcp, tst101) {
 
     std::ifstream t("a1.json");
     if (!  t.is_open()) {
-        std::cerr << "Failed openeing json file "  << std::endl;
+        std::cerr << "Failed opening json file "  << std::endl;
         return;
     }
 

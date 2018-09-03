@@ -443,6 +443,11 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 }
 
 void CFlowGenListPerThread::Create_tcp_ctx(void) {
+    assert(!m_c_tcp);
+    assert(!m_s_tcp);
+    assert(!m_c_tcp_io);
+    assert(!m_s_tcp_io);
+
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
 
@@ -499,8 +504,11 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
 bool CFlowGenListPerThread::Create_tcp_batch() {
     m_tcp_terminate = false;
 
-    uint8_t mem_socket_id=get_memory_socket_id();
+    uint8_t mem_socket_id = get_memory_socket_id();
     CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
+    if ( !template_db ) {
+        return false;
+    }
 
     m_c_tcp->set_template_ro(template_db);
     m_s_tcp->set_template_ro(template_db);

@@ -24,6 +24,16 @@ limitations under the License.
 #include "utl_sync_barrier.h"
 
 
+TrexDpCoreAstfBatch::TrexDpCoreAstfBatch(uint32_t thread_id, CFlowGenListPerThread *core) :
+        TrexDpCore(thread_id, core, STATE_TRANSMITTING) {
+    m_core->Create_tcp_ctx();
+}
+
+TrexDpCoreAstfBatch::~TrexDpCoreAstfBatch(void) {
+    m_core->Delete_tcp_ctx();
+}
+
+
 void 
 TrexDpCoreAstfBatch::start_astf() {
     dsec_t d_time_flow;
@@ -45,8 +55,6 @@ TrexDpCoreAstfBatch::start_astf() {
             disable_client=true;
         }
     }
-
-    m_core->Create_tcp_ctx();
 
     if ( !m_core->Create_tcp_batch() ) {
         fprintf(stderr," ERROR in tcp object creation \n");

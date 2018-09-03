@@ -32,9 +32,9 @@ limitations under the License.
 class TrexDpCoreAstfBatch : public TrexDpCore {
 public:
     
-    TrexDpCoreAstfBatch(uint32_t thread_id, CFlowGenListPerThread *core) : TrexDpCore(thread_id, core, STATE_TRANSMITTING) {
-    }
-    
+    TrexDpCoreAstfBatch(uint32_t thread_id, CFlowGenListPerThread *core);
+    ~TrexDpCoreAstfBatch(void);
+
     /* stateful always on */
     virtual bool are_all_ports_idle() override {
         return false;

@@ -453,7 +453,7 @@ private:
     void dump();
     ClientCfgDB  *get_client_db();
     std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
-    void convert_from_json(uint8_t socket_id);
+    bool convert_from_json(uint8_t socket_id);
     uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
     void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
 
@@ -483,7 +483,7 @@ private:
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
-    void verify_init(uint16_t socket_id);
+    bool verify_init(uint16_t socket_id);
     uint32_t ip_from_str(const char*c_ip);
 
 private:
