@@ -47,6 +47,7 @@ public:
     void delete_tcp_batch(void);
 
 protected:
+    virtual bool rx_for_astf(void);
     void report_finished(void);
     bool sync_barrier(void);
     CFlowGenListPerThread *m_flow_gen;
