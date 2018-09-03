@@ -21,7 +21,30 @@ limitations under the License.
 #include "utl_counter.h"
 #include "utl_dbl_human.h"
 
-                       
+
+std::string CGSimpleBase::dump_as_json(bool last) {
+    #if 0
+    std::string s="";
+    if (!last) {
+        s+=",";
+    }
+    return (s);
+    #endif
+    return("");
+}
+
+Json::Value CGSimpleBase::get_json_desc(void) {
+    Json::Value r;
+    r["id"] = m_id;
+    r["name"] = m_name;
+    r["help"] = m_help;
+    r["units"] = m_units;
+    r["zero"] = m_dump_zero;
+    r["info"] = get_info_as_str();
+    r["real"] = is_real();
+    r["abs"] = m_is_abs;
+    return(r);
+}
 
 void CGSimpleRefCntDouble::dump_val(FILE *fd){
     fprintf(fd," %15s ",double_to_human_str((double)*m_p,m_units.c_str(),KBYE_1000).c_str());
@@ -150,6 +173,7 @@ void CTblGCounters::dump_values(std::string name,
     obj  = root;
 
     obj["name"] = name;
+    obj["epoch"] = m_epoch;
 
     uint8_t size=m_counters.size();
 
@@ -164,6 +188,10 @@ void CTblGCounters::dump_values(std::string name,
             }
         }
     }
+}
+
+void CTblGCounters::inc_epoch(void) {
+    m_epoch++;
 }
 
 

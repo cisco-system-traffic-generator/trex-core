@@ -84,6 +84,11 @@ public:
     CGSimpleBase(){
         m_dump_zero=false;
         m_info=scINFO;
+        m_is_abs = false;
+    }
+
+    void set_abs(bool is_abs) {
+        m_is_abs = is_abs;
     }
 
     void set_id(uint32_t id){
@@ -184,32 +189,17 @@ public:
         return(m_units);
     }
 
-    virtual std::string dump_as_json(bool last){
-        #if 0
-        std::string s="";
-        if (!last) {
-            s+=",";
-        }
-        return (s);
-        #endif
-        return("");
-    }
+    virtual std::string dump_as_json(bool last);
 
     virtual std::string dump_as_json_desc(bool last){
         return (add_json(m_name, m_help,last));
     }
 
-    virtual  Json::Value get_json_desc(){
-        Json::Value r;
-        r["id"] = m_id;
-        r["name"] = m_name;
-        r["help"] = m_help;
-        r["units"] = m_units;
-        r["zero"] =m_dump_zero;
-        r["info"] = get_info_as_str();
-        return(r);
-    }
+    virtual Json::Value get_json_desc(void);
 
+    virtual bool is_real(void) {
+        return true;
+    }
 
 protected:
     uint32_t       m_id;
@@ -218,13 +208,16 @@ protected:
     std::string m_help;
     std::string m_name;
     std::string m_units;
-
+    bool        m_is_abs;
 };
 
 class CGSimpleBar : public CGSimpleBase {
 public:
     virtual void dump_val(FILE *fd){
          fprintf(fd," %15s ","---");
+    }
+    virtual bool is_real(void) {
+        return false;
     }
 };
 
@@ -319,7 +312,6 @@ public:
 
 private:
      double *m_p;
-     std::string m_units;
 };
 
 
@@ -369,6 +361,7 @@ class CTblGCounters {
 public:
     CTblGCounters(){
         m_free_objects=false;
+        m_epoch = 0;
     }
 
     ~CTblGCounters();
@@ -397,6 +390,7 @@ public:
                      bool zeros,
                      Json::Value & obj);
 
+    void inc_epoch(void);
 
 private:
     void verify();
@@ -405,6 +399,7 @@ private:
 
 
 private:
+    uint64_t                   m_epoch;
     bool                       m_free_objects;
     std::vector<CGTblClmCounters*> m_counters;
 };

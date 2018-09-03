@@ -26,6 +26,7 @@ limitations under the License.
 #include "trex_astf.h"
 #include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
+#include "stt_cp.h"
 #include <set>
 
 using namespace std;
@@ -76,7 +77,7 @@ protected:
 
 typedef set<TrexAstfPort *> port_list_t;
 
-/****************************** commands declerations ******************************/
+/****************************** commands declarations ******************************/
 
 TREX_RPC_CMD(TrexRpcCmdAstfAcquire, "acquire");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfRelease, "release");
@@ -84,13 +85,13 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileFragment, "profile_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStart, "start");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
 
+TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
+TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
 
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
-    printf("ASTF: acquire\n");
-
     const string user = parse_string(params, "user", result);
     const bool force = parse_bool(params, "force", result);
 
@@ -113,8 +114,6 @@ TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfRelease::_run(const Json::Value &params, Json::Value &result) {
-    printf("ASTF: release\n");
-
     get_astf_object()->release_context();
 
     return (TREX_RPC_CMD_OK);
@@ -122,8 +121,6 @@ TrexRpcCmdAstfRelease::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &result) {
-    printf("ASTF: profile\n");
-
     const bool frag_first = parse_bool(params, "frag_first", result, false);
     const bool frag_last = parse_bool(params, "frag_last", result, false);
 
@@ -162,8 +159,6 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
-    printf("ASTF: start\n");
-
     const double duration = parse_double(params, "duration", result);
     const double mult = parse_double(params, "mult", result);
 
@@ -178,8 +173,6 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStop::_run(const Json::Value &params, Json::Value &result) {
-    printf("ASTF: stop\n");
-
     bool stopped = true;
     try {
         stopped = get_astf_object()->stop_transmit();
@@ -191,6 +184,29 @@ TrexRpcCmdAstfStop::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result) {
+    CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
+    if (lpstt) {
+        if (lpstt->m_init) {
+            lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
+    if (lpstt) {
+        if (lpstt->m_init) {
+            lpstt->m_dtbl.dump_values("counter vals", false, result["result"]);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
 
 /****************************** component implementation ******************************/
 
@@ -204,4 +220,6 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfProfileFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfStart(this));
     m_cmds.push_back(new TrexRpcCmdAstfStop(this));
+    m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
+    m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
 }

@@ -412,8 +412,8 @@ class TRexClient(object):
 
         self.supported_cmds = sorted(rc.data())
 
-        # STX specific code: create ports, clear stats 
-        rc = self._on_connect(self.ctx.system_info)
+        # STX specific code: create ports
+        rc = self._on_connect_create_ports(self.ctx.system_info)
         if not rc:
             return rc
 
@@ -422,14 +422,13 @@ class TRexClient(object):
         if not rc:
             return rc
 
+        rc = self._on_connect_clear_stats()
+        if not rc:
+            return rc
+
 
         # mark the event handler as ready to process async updates
         self.ctx.event_handler.enable()
-
-
-        # clear stats to baseline
-        with self.ctx.logger.suppress(verbose = "warning"):
-            self.clear_stats(ports = self.get_all_ports())
 
         return RC_OK()
 

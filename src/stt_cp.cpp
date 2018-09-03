@@ -132,7 +132,8 @@ static void create_sc(CGTblClmCounters  * clm,
                                 std::string help,
                                 uint64_t * c,
                                 bool keep_zero,
-                                bool error){
+                                bool error,
+                                bool is_abs = false){
     CGSimpleBase *lp;
     lp = new CGSimpleRefCnt64(c);
     lp->set_name(name);
@@ -142,6 +143,7 @@ static void create_sc(CGTblClmCounters  * clm,
     if (error){
         lp->set_info_level(scERROR);
     }
+    lp->set_abs(is_abs);
     clm->add_count(lp);
 }
 
@@ -169,7 +171,8 @@ static void create_sc_d(CGTblClmCounters  * clm,
                                 double * c,
                                 bool keep_zero,
                                 std::string units,
-                                bool error){
+                                bool error,
+                                bool is_abs = false){
     CGSimpleBase *lp;
     lp = new CGSimpleRefCntDouble(c,units);
     lp->set_name(name);
@@ -178,6 +181,7 @@ static void create_sc_d(CGTblClmCounters  * clm,
     if (error){
         lp->set_info_level(scERROR);
     }
+    lp->set_abs(is_abs);
 
     clm->add_count(lp);
 }
@@ -187,6 +191,7 @@ static void create_bar(CGTblClmCounters  * clm,
     CGSimpleBase *lp;
     lp = new CGSimpleBar();
     lp->set_name(name);
+    lp->set_abs(true);
     clm->add_count(lp);
 }
 
@@ -208,8 +213,8 @@ static void create_bar(CGTblClmCounters  * clm,
 #define FT_S_ADD_CNT_Ex_E(s,f,help)  { create_sc_32(&m_clm,s,help,&m_ft.m_sts.m_##f,false,true); }
 #define FT_S_ADD_CNT_SZ_E(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,true,true); }
 
-#define CMN_S_ADD_CNT(f,help,z) { create_sc(&m_clm,#f,help,&f,z,false); }
-#define CMN_S_ADD_CNT_d(f,help,z,u) { create_sc_d(&m_clm,#f,help,&f,z,u,false); }
+#define CMN_S_ADD_CNT(f,help,z) { create_sc(&m_clm,#f,help,&f,z,false,true); }
+#define CMN_S_ADD_CNT_d(f,help,z,u) { create_sc_d(&m_clm,#f,help,&f,z,u,false,true); }
 
 void CSTTCpPerDir::create_clm_counters(){
 
@@ -384,6 +389,7 @@ void CSTTCp::clear_counters(void) {
         printf("Clear counters\n");
         sts.clear_counters();
     }
+    m_dtbl.inc_epoch();
 }
 
 void CSTTCp::Delete(){

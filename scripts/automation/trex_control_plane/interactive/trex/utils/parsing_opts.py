@@ -99,11 +99,13 @@ STREAMS_STATS
 LATENCY_STATS
 LATENCY_HISTOGRAM
 STL_STATS
-ASTF_STATS
+ASTF_STATS_GROUP
 CPU_STATS
 MBUF_STATS
 EXTENDED_STATS
 EXTENDED_INC_ZERO_STATS
+ASTF_STATS
+ASTF_INC_ZERO_STATS
 
 STREAMS_MASK
 STREAMS_CODE
@@ -799,11 +801,25 @@ OPTIONS_DB = {
          'help': "Fetch xstats of port, excluding lines with zero values"}),
 
     EXTENDED_INC_ZERO_STATS: ArgumentPack(
-        ['--xz'],
+        ['--xz', '--zx'],
         {'action': 'store_const',
          'dest': 'stats',
          'const': 'xstats_inc_zero',
          'help': "Fetch xstats of port, including lines with zero values"}),
+
+    ASTF_STATS: ArgumentPack(
+        ['-a'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'astf',
+         'help': "Fetch ASTF counters, excluding lines with zero values"}),
+
+    ASTF_INC_ZERO_STATS: ArgumentPack(
+        ['--za', '--az'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'astf_inc_zero',
+         'help': "Fetch ASTF counters, including lines with zero values"}),
 
     STREAMS_MASK: ArgumentPack(
         ['-i', '--id'],
@@ -1005,7 +1021,7 @@ OPTIONS_DB = {
         ],
         {}),
 
-    ASTF_STATS: ArgumentGroup(
+    ASTF_STATS_GROUP: ArgumentGroup(
         MUTEX,
         [
             GLOBAL_STATS,
@@ -1015,6 +1031,8 @@ OPTIONS_DB = {
             MBUF_STATS,
             EXTENDED_STATS,
             EXTENDED_INC_ZERO_STATS,
+            ASTF_STATS,
+            ASTF_INC_ZERO_STATS,
         ],
         {}),
 
@@ -1126,11 +1144,11 @@ class CCmdArgParser(argparse.ArgumentParser):
                 return opts
 
             opts.ports = listify(opts.ports)
-            
+
             # explicit -a means ALL ports
             if (getattr(opts, "all_ports", None) == True):
                 opts.ports = self.client.get_all_ports()
-                
+
             # default ports
             elif (getattr(opts, "ports", None) == []):
                 opts.ports = self.client.get_acquired_ports() if default_ports is None else default_ports
