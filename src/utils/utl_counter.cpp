@@ -159,8 +159,8 @@ void CTblGCounters::dump_values(std::string name,
         obj[lp->get_name()] = Json::objectValue;;
         for (j=0; j<lp->get_size(); j++) {
             CGSimpleBase* lpcnt=lp->get_cnt(j);
-            if ((zeros==true) || (!can_skip_zero(i)) ){
-                obj[lp->get_name()][std::to_string(lpcnt->get_id())]=lpcnt->get_val_as_str();
+            if ((zeros==true) || (!lpcnt->is_skip_zero()) ) {
+                lpcnt->get_val(obj[lp->get_name()]);
             }
         }
     }

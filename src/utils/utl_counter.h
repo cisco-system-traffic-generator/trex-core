@@ -102,9 +102,12 @@ public:
         return("");
     }
 
-    virtual void dump_val(FILE *fd){
-
+    virtual void get_val(Json::Value &obj) {
     }
+
+    virtual void dump_val(FILE *fd){
+    }
+
     void set_info_level(counter_info_t info){
         m_info=info;
     }
@@ -247,6 +250,11 @@ public:
         return (std::to_string(*m_p));
     }
 
+    virtual void get_val(Json::Value &obj) {
+        obj[std::to_string(m_id)] = *m_p;
+    }
+
+
 
 private:
      uint32_t *m_p;
@@ -275,6 +283,9 @@ public:
         return (std::to_string(*m_p));
     }
 
+    virtual void get_val(Json::Value &obj) {
+        obj[std::to_string(m_id)] = *m_p;
+    }
 
 private:
      uint64_t *m_p;
@@ -297,7 +308,10 @@ public:
     virtual std::string get_val_as_str(){
         return (std::to_string(*m_p));
     }
-    
+
+    virtual void get_val(Json::Value &obj) {
+        obj[std::to_string(m_id)] = *m_p;
+    }
 
     virtual std::string dump_as_json(bool last){
         return (add_json(m_name, *m_p,last));
